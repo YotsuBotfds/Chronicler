@@ -195,6 +195,24 @@ def test_first_sync_exception_keeps_partial_call_count_and_raw_endpoints():
     assert sample["error"]["type"]=="MemoryError" and sample["CPU_ns"]==5
 
 
+# Observed native a840 functional428 raw tuple, not a current compiled0dca observation.
+# original.zip SHA3b8c6237...; observation.json SHA cab3285f...; source/schema equality
+# audit and exact complete-schema pins are recorded in SCHEMA_AUDIT.json.
+_SCHEMA_FIXTURE_B85 = b'ABzY8000000t1~|ZExH*68?Vw;_@j0_Ji%DId@wJ$T@BAa80kUgZp9_0$1YhGL}S@qP*TL{NL}H8Iq#3n_O`SlB{MZzRc@0L*1P(UR34!tbG0E?EAl!mzQt8JAbiw@qVLQe`}hdR^GZpXKlS?+VA*vFjc?&k1l^4USGUhIK45p4TSTz?-tgXjcJP`dTAaDwO*Unc%uXT62r@K=#(GFf>ztTs?(@7Ez@I2zgFcqP{<FauCr&g(b<xf>APB$y1~v1Ke&7ev(|-v1Y@Li&Nh}7DDZ3JbU(6IwyxSpkd>O1p|K-HcD*mWQ^t?va;UMis*6We54t!@bIus&Ut?U1yU?}K>ukfy(aB5|XQlN<;`vD2X>4sfZmQ9Zb$by&;rCsT+TC#Z!{vQq_jYilE}*%S>`|h35O>Zot=DZoD*Db$UaWMf_62Fvx|1_+l+R2g5KB9>eoi!fQR|H=_lePJT@}4rYrh}Q%ftq=I-}|txwqvBVrQK3!x3E#-nO=xPu&f!v%MavPS=H3Zlg&P@r<u8_>jcwA$Zdy^NRu^*2=ck37rsYZC!)aP6(d3Qvvn+)^BwW0j-7#`$&wZahKUKdhLBJo|62Ve5kRHC#c?;uIRQZ9GRwNQl)zzTz@ur5*B8>jkS<?ZT)nz67sXfAGscx&c`owt-4-U^F66x<}8`>xAz$xmeNjFU}`zI-n!AL9>gOG1vPAKH)`R{y>NqDWJlq}W^CH!F*AC`{%f<s*(NOIoOvXjZ=uOF=L&H+oMCGleI!;@<E3n*n8whXFB%5>MA}@!92aY+HA_C|mIl0AJWrzf4gbFN@ScOv`R((!3%C<vUAr7E7tod4n|1@Gb*iNE(SXi&ltO50^w?WdFQLc9jy#cn!J^4zN?4f?RP`AVyNwRbnZvf;*}B$_rGwQFVk;cl4qgYV2N4qm$+Pc}0AJsa)V<L)O!y9qOz8Nb-J{Mqklq)F9CC7!ahCt?=)WJs5b_q)TRyn_Vu@f2kh;s<M7Nc0ObKrXorFRsl<=-$3Ru;%Z_z5y7wIZLEyw?K5-@0XlD~ueWUi4GqK)JTR*7x@7(}>fP`*&3K3m#U_6i)j@Ve>hFr>q4x*Rwsj+RRcCk|A;M!ws!EJ_$@6V~&^8u|1D*;^v66+)TAtR>lRV=J>Z$tEZq48RJdVM`z)2A5j}Sv5E(Y;HmmOE|?5OOaJ%a;!`Fy&6aqNhg_!;l0ho;aC(q<%%7Nc}j*5bagzsR9^L%vD<3IL`0cB8$qrBXad90#R~t_rVZK*zB3g^vQ!!?W_)bLdcD@H+pi7ihrT2I!D{bli^L>#8^o85xG3+OXbm>h%cB?!5>Gkwq_)oKM?OU{`Y^dQL<)FBW{qQO^{_NxkW-IN6ghWBwgz$Fz{VrT@={`WJdrmWkx1`t`Oq2IBOmB{ctLF_kHa~UaIqc_+bZ&4#Lz8<izrEq2tE>TAZtH+TGwW?^}!Qjj%)RfPdOoEmQO6@9^hv1Yvc#n)tmcB?T4<b_la6Mwf0ArEapuSL5ECE27x2=+rkaCoCtCClvz1l8Gxo@<BWb(Z7GAFB}PI5cqI?r68syOA`H6+P?1=2aldGXCXJM|Ag0OowlPrEe)*dM*to{Vpg-+y0{KuzimWjmbx<1t3o@0(amE?&^zs+oYGB)|v&F~YqgUsPTM`cdzQ4Ly{LWtEuU;>HdV=Dw-Yi~m?I000z=)BsvarSERwINzMZ&uq*escGhMZ}mIcTP5h#g{<9Q2ZA!8`Qdt9K;q=LJ_Wk|siUV1Qj9ES7YVI<H+Guwe#u2$VHUwwKfkET@8BDCFOt<1=O2{y;DE0r2s7A?QZ~QRWmxlHS$?5uhCeHL4s=vN;Zg(;7!pA-$+LS)joy%nC{)QbX8-Dyn=NkyxCXWX5#*v!>kwqx2+`Z;nBXh5>(b2+rc!=xI>tY~QmXq<u2IhdrJk%WzIrr(QV4c$R2)T75N~s_>?K2=RSJTp4#v6jVkugb!4hs@nn_RC+aRmLEpS2O=Co+Smi$Y{ENCP!;e)PC&RPqaF!6I!Z_|IUROTA*mFIe#mB%DN4)H84}uf@qk9Fwg~t|QmT5IJg<?<q0?fuFHplTxw`r8K9Na%-uhsRh}J=cBCK^z3$mKfwm3Dmnhg&W8O&$gQljI4t|(F?LHjMvu*ETh{&23^Zm4u@*JiW)Ngl8H>A-2L(hzzj`7h-%rx}k1;DKaV{O_>^urA>;V+F<{LPwy-<6uEUAFv6e0z<;Scy7e>p-huDnu4PFBB6l?G^Ft3L^~e#Ye~33t~8!g@sypNWSpH7dQkyOQDPh^6KRZaK>$E@u8b8X8Rsq$BMB<XJ2hM}EZ`a<`=PCz3fzqfAWj~oO@J+<>^3d+qb7wz4ZUNEoQ4GE><+OmUpeq9)u@0i0%fYV*%WC@5pQ!85wI1fOjXS(=2S@$^~HLC0MLXXosk6Z*ERA|LDI+EyNX3MnefDbzB3Q`+Ys^oh$zRJQ$sB?k}C~F<|h@0e%h*mfd<lP`2bH}$08|!RjQ^izUgLrO;A*=pl*ueY#*kpBho#I7c(QC@fqnN<+jvz6N|BcVaOOr!+|@r;oVA$M#Mm8YMJn6HW~pZHiI0{1I(Pjob#7vJB=k}fSW0zOzD&J5U<=K_fm5tfbnN3FcDWf4rI$4di)fg4q5dXD^RKBQT%jVD*LD9O?<j0#Q5Y7@qE(FnOC$(@1}~Y_tdCWHKEVY47wG{FCZLB9b2)n?Z{wBc@{(L^hr12eIgzJ<BfE6?_RPg;_s^;F7E-U2%(3%9M7SwPp^K$^GlWhz~r?>mIac$2}X7XBpH97153u=7r>LBxX`%zZgDN;$JN`#N5=10f0LC{O99)DXFfuFoYo_^0%}+WVSK>vmH<!LAGX%_o%PbBpj3I(sEMa3q!At)AK}pNs2(F+@>Gy`XM=c#-cn6%fMKXYd;3Px9`z`*v`3F2?Qs>^!FP2m<U<)&P+<~^k6mh(vM&YXz|4Ah8Yta?ETDH^Fy_yhQXS2_j9WzfUaZbjL4Mo_Kz(Loq(40%hR#`IplAt4lb+;l57DLICEWl-H3Bk_;%tYsH||AZ?vQr^zNkGXPlPs!5gC(olk>u=-nOmOkUT*3eE^O*3)!fP$t$Nzs{~RFO3HbxI^;bHu(karduyaTTp&Ogvd3r<zlZ0DgfyUcA4-vxsVOs!l41BTju;U3OkH#Qo(@8#^|U8wS&YL+cyMYFj+fK<Yvi8VY)K2V>=2p-{L(lFzy1jEDhj77I0-K+Ms8R9<`J7A7q#u<h_wcW7S#fqnbc!9Q=Wb@eztVRb+CGb3Ch8fA(UEd7&F~i&Y>{9X^o#s&F>61Dv&hc=$)V|U2@Av1Q(D*fbW%gG<`JN8Lux@=q?=Lk3^Ws{5iiD7{k6a*U!!<KG~tyWCEd#{YQM3GS;+PnpmvGskUEJenw0jLTz$-K)E#m#OM4_WWxX?bc|~^W+P&xTD7k2POA7*{F0`sYwnZ;d-yYhvyR?ucnl|=aTsJ296eMjTvL**af>164DAVCS{xu+^7+R|`M?B`>$L8MMNqqle-AB+s2YYCo&~Yot>3=+;o|Im!J!IkalJ+ai`}Q{je%||<yexmg)}%UM460WbR79;YvebD@IGT8WH$uC5KoNm6Zsi`QrzaMH+I->sFV8(Q4Xs5oX`aKU^wkEJOHvdZeZzZlWqf;03cH!PGQ}Tstau#>ftQpUY2f`me=%e2!l0s^w=#;yp6yV5+4xpA_{tbH}3uao+Qms)3#ka{_R#(cK0jO4gpJ7BOv%54rf~N6GS4&YRV%+r1(>5>NL3hl$&onjwn{cIxhYp(EdK4gmH&%yYCG`M!`*3**I)nIWHyT%EZgdxB%Z(5mstCfD&Q87aGA%R~@ETXWR(SZVc&pybA>W`Xk`_XS(3zuCsJNXX{oY;#$T-<S2~$5JlSi>}}zOy`SXC+9z326<oN@#61x>-_=QojE&DvAc;4JE<240-6~5EHB?!FrXDvkOEtI*Y4A2Oqlhw-JCVU7e|#B-qtJ9i7ZMJ_MB9g;u`>W{!F#yzt~l(;MQkE-r3s%lJ|prph+!o+#>wv6j1If;2%JbXL~AWzs#;N>pT~z59C@nUNJ*j9H5JmZ;{)9w<;LM{{xrQ({?o?9pd*<4ulRk#_0G#rBEJu$NE8$|%2cQ)J|uaept$W&v?08qo{&ax?9wM4Jue<wyJMdY%Kle;7EOm!lO1QRSD`t*CO9>tvR)zZ`DjFW<L0!iI~-{ha#j~;<Qh>?qy8Aahqhs^m9R%fdCE^o1f(Yv$E{;KOkb4?6+zzd6#0A;a+))zPUp=zX>M*+#;y*bZTg)Ue1#u5{4nHI!`F;=HehPSiFw+b#~fa6E#P>cE)`e%{Pf=(7Y;7FiQg7sgKN?$(0v#MH{A!*+wNCDA4RPGP${KrTuBRZMLc$4)8|3)z6-G_{JI(V`;>!j>2#swb#^B&rBQZw$UYEZpM&Z(w+>+c8*V6so9S?OuV9U;4$Zcqt#W^50@Zrq`iL*4MV&k|WQ_DUad~GbQsk8R_4D-JdBn3km@0hicY3T_P>#+uSs}U(y)H35zAEvYdi0rm)rK$ZVk#fPR|KXF7b_Dg-#JR66vl5L-174wkA?Aq>j9Bl&Y5<_^PK*2r_s$SeWO5o`)nC1rsw>#8hRF;RQVTwHT5cEkKIx8tclGX`b}1mtRQGTS91JZfUhkHB#kKVk}ld_aoZ{yZ8`>4t>VsKa?+xqY20|v$DfA9PtO?kedLeD{z><^KHN}BRuJGAFC8X#m*cl_Y&PT9Id~dxgw5q*`~)pPr19gnR1w5{LmwDD)2{hG$ad2B`h*7=&>y%+6W^7uFzNXt9$)_SggKF!ewI$xE2_8Gbk!1@P}B(uxAv>>)eW+lp|bjYARHRiKLqD=zDRez&lyrj$+NZGQ@@V1_mMP>2kW7(!|+foJ}>^-w=keB^}MKmxp;nY|Cj#){;f*7W-0&x'
+
+def raw_schema_fixture():
+    import base64
+    import gzip
+    return json.loads(gzip.decompress(base64.b85decode(_SCHEMA_FIXTURE_B85)))
+
+def fixture_packages_digest():
+    return m.digest({"fixture-only-dist":"1"})
+
+
+def parse_rows(data,job,pid):
+    return m.parse_fragment(data,job,pid,m.schema_reference(raw_schema_fixture()),fixture_packages_digest())
+
+
 def worker_rows(job):
     spec=m.conditions()[job["case"]];p=spec["requests"];n=spec["initial_agents"]
     source=m.query_rows([1+3*i for i in range(n)],[i//(n//8) for i in range(n)],spec)
@@ -204,9 +222,9 @@ def worker_rows(job):
         setup_ticks=int(spec["layout"]=="post1-spread"),payload="a"*64,
         memories=[0]*p,legacy=[0]*p,bonds=[None if x else 0 for x in missing],needs=p-sum(missing),
         initial_gp="b"*64,warm_gp="c"*64,final_gp="c"*64,control_gp="b"*64,native_before="d"*64,native_after="d"*64,
-        rng_before="e"*64,rng_after="e"*64,schema=[1,"f"*64,"a"*64],
+        rng_before="e"*64,rng_after="e"*64,schema=m.schema_reference(raw_schema_fixture()),
         diagnostic_counts=[p,p,p,0] if job["arm"]=="scalar" else [0,0,0,int(p>0)])
-    return [dict(kind="worker_start",**job,pid=123),dict(kind="timing",wall_start_ns=10,
+    return [dict(kind="worker_start",**job,pid=123,packages_sha256=fixture_packages_digest()),dict(kind="timing",wall_start_ns=10,
         CPU_start_ns=4,CPU_end_ns=4,wall_end_ns=20,wall_ns=10,CPU_ns=0,completed_calls=256,error=None),end]
 
 
@@ -226,14 +244,14 @@ def test_worker_protocol_rejects_real_identity_dose_and_payload_corruption(fault
     elif fault=="wrong_dose":rows[1]["completed_calls"]=255
     elif fault=="clock_join":rows[1]["wall_ns"]=9
     else:rows[0]["pid"]=124
-    with pytest.raises(ValueError):m.parse_fragment(b"".join(m.encode(r) for r in rows),job,123)
+    with pytest.raises(ValueError):parse_rows(b"".join(m.encode(r) for r in rows),job,123)
 
 
 @pytest.mark.parametrize("key",["payload","initial_gp","warm_gp","final_gp","control_gp","native_before","rng_before","schema"])
 def test_pair_requires_full_GP_CP_RNG_and_payload_parity(key):
     a=dict(ordinal=0,case=0,trial=0,arm="scalar");b=dict(ordinal=1,case=0,trial=0,arm="candidate")
-    left=m.parse_fragment(b"".join(m.encode(r) for r in worker_rows(a)),a,123)
-    right=m.parse_fragment(b"".join(m.encode(r) for r in worker_rows(b)),b,123)
+    left=parse_rows(b"".join(m.encode(r) for r in worker_rows(a)),a,123)
+    right=parse_rows(b"".join(m.encode(r) for r in worker_rows(b)),b,123)
     m.join_pair(left,right)
     right["proof"][key]=[2,"different"] if key=="schema" else "0"*64
     with pytest.raises(ValueError,match="full_GP_payload_CP_RNG_pair"):m.join_pair(left,right)
@@ -366,3 +384,143 @@ def test_optin_workflow_selectors_preserve_standard_and_semantic_gate_separation
     semantic=yaml.load((ROOT/".github/workflows/workflow-semantics.yml").read_text(),Loader=yaml.BaseLoader)
     assert "lead/gp-fullsync-semantics-20261030" in semantic["on"]["push"]["branches"]
     assert "lead/gp-fullsync-semantics-20261030" in semantic["jobs"]["actionlint"]["if"]
+
+
+def test_full_observed_schema_stays_in_build_and_P50_wires_remain_bounded():
+    raw=raw_schema_fixture();ref=m.schema_reference(raw)
+    assert raw[0]==1 and raw[1]=="dcf0c34097c88451" and len(raw[2].encode())==10828
+    assert ref==dict(version=1,fingerprint=raw[1],schema_bytes=10828,
+        schema_sha256="0b792f3ec33ac68605caf7b6d66fa7462c919b52e6f489f0e3dd7fa42f9fba3b")
+    assert len(m.encode(dict(agent_schema=raw,agent_schema_reference=ref,
+        packages={"fixture-only-dist":"1"},packages_sha256=fixture_packages_digest())))<m.BUILD_CAP
+    for job in m.schedule():
+        if m.conditions()[job["case"]]["requests"]!=50:continue
+        rows=worker_rows(job)
+        assert len(m.encode(rows[0]))<=256 and len(m.encode(rows[2]))<=2816
+        oversized=deepcopy(rows[2]);oversized["schema"]=raw
+        assert len(m.encode(oversized))>2816  # The old64/64 fake hid this real shape.
+
+
+@pytest.mark.parametrize("change",["64hex","wrong16hex","bool_version","changed_schema"])
+def test_schema_reference_checks_the_real_tuple_and_full_string(change):
+    raw=raw_schema_fixture()
+    if change=="64hex":raw[1]="a"*64
+    elif change=="wrong16hex":raw[1]="0"*16
+    elif change=="bool_version":raw[0]=True
+    else:raw[2]+="changed"
+    with pytest.raises(ValueError):m.schema_reference(raw)
+
+
+def test_worker_schema_and_package_refs_must_join_exact_build_identity():
+    job=m.schedule()[0];data=b"".join(m.encode(r) for r in worker_rows(job))
+    expected=m.schema_reference(raw_schema_fixture())
+    changed=dict(expected,schema_bytes=expected["schema_bytes"]+1)
+    with pytest.raises(ValueError,match="checkpoint_schema_build_join"):
+        m.parse_fragment(data,job,123,changed,fixture_packages_digest())
+    with pytest.raises(ValueError,match="worker_identity"):
+        m.parse_fragment(data,job,123,expected,"0"*64)
+
+
+@pytest.mark.parametrize("names",[("Some.Package","some_package"),("MY-package","my_package")])
+def test_distribution_canonical_duplicates_refuse_even_equal_versions(names):
+    items=[SimpleNamespace(metadata={"Name":name},version="1") for name in names]
+    with pytest.raises(ValueError,match="ambiguous_package_name"):m.package_versions(items)
+
+
+def test_observed_package_version_mismatch_refuses_before_measurement():
+    actual=m.package_versions([SimpleNamespace(metadata={"Name":"Some_Package"},version="2")])
+    assert actual=={"some-package":"2"}
+    with pytest.raises(ValueError,match="installed_package_version_mismatch"):
+        m.check_packages(actual,{"some-package":"1"},m.digest({"some-package":"1"}))
+
+
+def write_final_custody(root,proven=True):
+    row=dict(kind="GP_FULLSYNC_PARENT_CUSTODY",github={k:__import__("os").environ.get(k) for k in m.GITHUB},
+        parent_pid=123,last_attempted_ordinal=0,proven=proven)
+    (root/"comparison/custody.json").write_bytes(m.encode(row))
+
+
+@pytest.mark.parametrize("raw",[b"",b"{",b'{"status":',b"[]",b"null",b"{}",
+    b'{"status":"complete"}',b'{"x":1,"x":2}',b'{"x":NaN}'])
+def test_partial_parent_results_keep_bounded_refusal_without_synthetic_rows(tmp_path,monkeypatch,context,raw):
+    root=tmp_path/"evidence";(root/"comparison").mkdir(parents=True)
+    write_final_custody(root)
+    (root/"comparison/result.json").write_bytes(raw)
+    (root/"comparison/active.jsonl").write_bytes(b"must never enter failed recovery")
+    original=Path.read_bytes
+    def guarded(path):
+        if path.name=="active.jsonl":raise AssertionError("invalid parent result allowed child read")
+        return original(path)
+    monkeypatch.setattr(Path,"read_bytes",guarded)
+    value=m.owner(root,tmp_path/"no_wheel",-9)
+    assert value["child_custody"]=="PROVEN" and value["child_data_allowed"] is False
+    assert value["recovery_problem"] and value["comparison_status"]=="UNKNOWN"
+    assert value["completed_workers"] is value["durable_timing_rows"] is None
+    assert value["parent_result_record"]==dict(bytes=len(raw),sha256=m.sha(raw))
+    with zipfile.ZipFile(tmp_path/"gp-fullsync-compact.zip") as z:
+        assert z.read("comparison/result.json")==raw
+        assert "comparison/active.jsonl" not in z.namelist()
+        assert json.loads(z.read("owner.json"))["actual_comparison_exit"]==-9
+
+
+def test_unknown_custody_does_not_even_read_a_parent_result(tmp_path,monkeypatch,context):
+    root=tmp_path/"evidence";(root/"comparison").mkdir(parents=True)
+    write_final_custody(root,False)
+    (root/"comparison/result.json").write_bytes(b"partial parent")
+    original=Path.read_bytes
+    def guarded(path):
+        if path.name in ("result.json","active.jsonl"):raise AssertionError("read before custody proof")
+        return original(path)
+    monkeypatch.setattr(Path,"read_bytes",guarded)
+    value=m.owner(root,tmp_path/"no_wheel",-9)
+    assert value["child_custody"]=="UNKNOWN" and value["completed_workers"] is None
+    assert value["unknown_result_reserved_bytes"]==m.RESULT_CAP
+    with zipfile.ZipFile(tmp_path/"gp-fullsync-compact.zip") as z:
+        assert "comparison/result.json" not in z.namelist()
+
+
+def test_valid_failed_parent_keeps_known_counts_and_closed_failure_fragment(tmp_path,context):
+    root=tmp_path/"evidence";(root/"comparison").mkdir(parents=True)
+    write_final_custody(root)
+    result=dict(kind="GP_FULLSYNC_RESULT",planned_workers=414,
+        method=m.METHOD,actual_source="c"*40,status="failed",child_namespaces_quiescent=True,
+        completed_workers=0,retained_timing_rows=0)
+    (root/"comparison/result.json").write_bytes(m.encode(result))
+    (root/"comparison/active.jsonl").write_bytes(b"closed worker failure\n")
+    value=m.owner(root,tmp_path/"no_wheel",2)
+    assert value["recovery_problem"] is None and value["comparison_status"]=="failed"
+    assert value["completed_workers"]==value["durable_timing_rows"]==0
+    assert value["actual_comparison_exit"]==2 and value["child_data_allowed"]
+    with zipfile.ZipFile(tmp_path/"gp-fullsync-compact.zip") as z:
+        assert z.read("comparison/active.jsonl")==b"closed worker failure\n"
+
+
+def test_parent_record_reader_enforces_a_small_explicit_bound(tmp_path):
+    path=tmp_path/"record.json";path.write_bytes(b"x"*17)
+    value,pin,error=m.read_parent_record(path,16)
+    assert value is None and pin=={} and error
+
+
+def test_missing_custody_field_refuses_before_parent_result_read(tmp_path,monkeypatch,context):
+    root=tmp_path/"evidence";(root/"comparison").mkdir(parents=True)
+    write_final_custody(root)
+    path=root/"comparison/custody.json";row=json.loads(path.read_bytes())
+    del row["last_attempted_ordinal"];path.write_bytes(m.encode(row))
+    original=Path.read_bytes
+    def guarded(path):
+        if path.name in ("result.json","active.jsonl"):raise AssertionError("read without complete custody")
+        return original(path)
+    monkeypatch.setattr(Path,"read_bytes",guarded)
+    value=m.owner(root,tmp_path/"no_wheel",-9)
+    assert value["child_custody"]=="UNKNOWN" and value["recovery_problem"]
+    assert value["completed_workers"] is None
+
+
+def test_safe_refusal_packet_upload_does_not_convert_failed_owner_to_success():
+    workflow=yaml.load((ROOT/".github/workflows/gp-context-benchmark.yml").read_text(),Loader=yaml.BaseLoader)
+    steps=workflow["jobs"]["gp-fullsync"]["steps"]
+    compact=next(s for s in steps if s["name"]=="Publish the single bounded compact packet")
+    refusal=next(s for s in steps if s["name"]=="Preserve bounded parent refusal only")
+    assert compact["if"]=="always() && steps.owner.outputs.compact_allowed == 'true'"
+    assert refusal["if"]=="always() && steps.owner.outputs.compact_allowed != 'true'"
+    assert all("continue-on-error" not in s for s in steps)

@@ -1,3 +1,23 @@
+# GP full-sync pre-data evidence correction — source only, 2026-10-30
+
+Preserve frozen e093 and its NOT_CLEAR review. This corrective child changes
+only benchmark driver/contracts/note, this ledger and the benchmark compact
+upload conditions. Native0dca, private helper33b72fac, production bridge/models,
+existing GP2/66+2 checks, ten-workflow routing, owners/defaults and45 chunks stay
+exact.69 cases/414 workers/256 calls and all caps/seeds/clocks remain fixed.
+
+The build stores the genuine full schema tuple and observed canonical package
+versions once; workers join both before clocks and emit bounded references.
+Recovery reads partial parent results only after final custody proof, retains
+honest UNKNOWN/refusal on malformed shape and never reads an unproven active
+namespace. A safe refusal compact packet can survive a failing owner step.
+Functional428/native a840's10,828-byte schema is a qualified shape fixture with
+current persistence-source equality, not a current0dca compiled observation.
+80 benchmark pure contracts plus unchanged NativeBuild18 make prospective98;
+all remain UNRUN. Different-author/root source review, first guarded contracts,
+exact ten-YAML semantic lint and all9 fresh CI still precede ONE root-approved
+run-ref activation. No production adoption or performance result is claimed.
+
 # GP full-sync benchmark: source only, production unchanged (2026-10-30)
 
 Private same-binary full-helper experiment: fixed69conditions/414freshworkers/256calls,

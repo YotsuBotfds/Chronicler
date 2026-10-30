@@ -11,6 +11,7 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 import signal
 import statistics
 import struct
@@ -39,6 +40,8 @@ CALLS, WARMUPS = 256, 2
 BODY, ZIP_CAP = 2*1024**2, 2*1024**2
 PLAN_CAP, BUILD_CAP, JOURNAL_CAP = 65536, 65536, 1536*1024
 RESULT_CAP, OWNER_CAP, FRAGMENT_CAP, ERROR_CAP = 128*1024, 8192, 4096, 16384
+PACKAGE_MAP_CAP = 16384  # Included in the existing64KiB build record.
+CUSTODY_CAP = 512  # Parent control inside the unchanged whole-body allowance.
 GITHUB = paired.GITHUB_FIELDS
 sha = lambda b: hashlib.sha256(b).hexdigest()
 
@@ -65,6 +68,43 @@ def payload_digest(rows):
     return digest([(aid, memories, None if needs is None else
         [struct.pack("!d", n).hex() for n in needs], bonds)
         for aid, memories, needs, bonds in rows])
+
+
+def schema_reference(raw):
+    """Real Native tuple is (version,16hex FNV fingerprint,full schema text)."""
+    require(type(raw) in (list,tuple) and len(raw)==3 and type(raw[0]) is int
+        and 0<=raw[0]<2**32 and type(raw[1]) is str and re.fullmatch(r"[0-9a-f]{16}",raw[1])
+        and type(raw[2]) is str and bool(raw[2]),"raw_schema_shape")
+    body=raw[2].encode("utf-8");require(len(body)<=BUILD_CAP,"raw_schema_bound")
+    fingerprint=14695981039346656037
+    for value in body:
+        fingerprint=((fingerprint^value)*1099511628211)&((1<<64)-1)
+    require(f"{fingerprint:016x}"==raw[1],"raw_schema_fingerprint")
+    return dict(version=raw[0],fingerprint=raw[1],schema_bytes=len(body),schema_sha256=sha(body))
+
+
+def package_versions(distributions=None):
+    """Observed distribution versions, not hashes of every installed file."""
+    if distributions is None:
+        from importlib import metadata
+        distributions=metadata.distributions()
+    versions={}
+    for distribution in distributions:
+        name=distribution.metadata.get("Name");version=distribution.version
+        require(type(name) is str and type(version) is str and 0<len(version)<=128,"package_metadata")
+        canonical=re.sub(r"[-_.]+","-",name).lower()
+        require(re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*",canonical) is not None
+            and len(canonical)<=128 and canonical not in versions,"ambiguous_package_name")
+        versions[canonical]=version
+        require(len(versions)<=512 and len(encode(versions))<=PACKAGE_MAP_CAP,"package_map_bound")
+    require(bool(versions),"empty_package_map")
+    return dict(sorted(versions.items()))
+
+
+def check_packages(actual, expected, expected_digest):
+    require(type(actual) is dict and type(expected) is dict and actual==expected
+        and digest(actual)==expected_digest,"installed_package_version_mismatch")
+    return expected_digest
 
 
 def conditions():
@@ -290,10 +330,12 @@ def emit(value, cap):
 
 def worker(job, build_path):
     sys.addaudithook(child_audit)
-    emit(dict(kind="worker_start", ordinal=job["ordinal"], case=job["case"], trial=job["trial"],
-        arm=job["arm"], pid=os.getpid()), 256)
     try:
+        packages=package_versions();package_digest=digest(packages)
+        emit(dict(kind="worker_start", ordinal=job["ordinal"], case=job["case"], trial=job["trial"],
+            arm=job["arm"],pid=os.getpid(),packages_sha256=package_digest),256)
         build = read_build(build_path)
+        check_packages(packages,build["packages"],build["packages_sha256"])
         require(sys.executable == build["worker_python"] and sys.prefix == build["venv_prefix"], "own_venv")
         require(resource.getrlimit(resource.RLIMIT_AS) == (1920*1024**2,)*2
             and resource.getrlimit(resource.RLIMIT_CPU) == (24,)*2
@@ -319,6 +361,8 @@ def worker(job, build_path):
         controls_world=SimpleNamespace(civilizations=[SimpleNamespace(great_persons=info["controls"])])
         controls_before=digest(full_gp_state(controls_world,BaseModel))
         checkpoint = bytes(sim.checkpoint_state()); schema = native.AgentSimulator.checkpoint_schema()
+        require(list(schema)==build["agent_schema"] and schema_reference(schema)==build["agent_schema_reference"],
+            "own_build_raw_schema_join")
         rng = digest(rng_state(random, np))
         prepared = gp._prepare_native_sync(bridge, world)
         require(prepared is not None and prepared[0] is sim
@@ -356,7 +400,7 @@ def worker(job, build_path):
             legacy=[sum(bool(m[5]) for m in r[1]) for r in raw],
             bonds=[None if r[3] is None else len(r[3]) for r in raw], needs=sum(r[2] is not None for r in raw),
             initial_gp=initial, warm_gp=warm, final_gp=final, control_gp=controls_before,native_before=sha(checkpoint),
-            native_after=sha(after), rng_before=rng, rng_after=after_rng, schema=schema,
+            native_after=sha(after), rng_before=rng, rng_after=after_rng,schema=schema_reference(schema),
             diagnostic_counts=counts), 2816)
         return 0
     except Exception as exc:
@@ -421,6 +465,8 @@ def record_build(root, wheel_dir, output):
     for name, expected in FIXED.items():
         require(file_pin(root/name, 256*1024)["sha256"] == expected, "fixed_product_source")
     native, native_path = paired.b.compiled_module()
+    raw_schema=native.AgentSimulator.checkpoint_schema();schema=schema_reference(raw_schema)
+    packages=package_versions()
     wheels = list(wheel_dir.glob("*.whl")); require(len(wheels) == 1, "one_fresh_wheel")
     file_pin(wheels[0], 16*1024**2); file_pin(native_path, 64*1024**2)
     receipt = paired.receipt_function()(wheel_dir, native_path, source)
@@ -434,6 +480,9 @@ def record_build(root, wheel_dir, output):
         venv_prefix=sys.prefix, native_file=str(native_path.resolve()), wheel_receipt=receipt,
         python=dict(version=sys.version,binary=file_pin(Path(sys.executable).resolve(),64*1024**2)),
         host=list(os.uname()), driver=driver_pins(), fixed_product_sha256=FIXED,
+        agent_schema=list(raw_schema),agent_schema_reference=schema,
+        packages=packages,packages_sha256=digest(packages),
+        package_identity_scope="Observed canonical distribution versions; not all installed file bytes",
         uv_lock=file_pin(root/"uv.lock",4*1024**2), cargo_lock=file_pin(root/"chronicler-agents/Cargo.lock",128*1024),
         sealed_source=sealed, toolchain={n:file_pin(output.parent/n,4096)
             for n in ("rustc.txt","cargo.txt","maturin.txt","uv.txt")},
@@ -450,6 +499,9 @@ def read_build(path):
         and value["source_commit"] == current_source() and value["native_tree"] == NATIVE_TREE
         and value["driver"] == driver_pins() and value["fixed_product_sha256"] == FIXED
         and value["github"] == {k:os.environ.get(k) for k in GITHUB}, "build_identity")
+    require(schema_reference(value["agent_schema"])==value["agent_schema_reference"],"build_raw_schema_reference")
+    expected=package_versions([SimpleNamespace(metadata={"Name":n},version=v) for n,v in value["packages"].items()])
+    check_packages(expected,value["packages"],value["packages_sha256"])
     root = Path(value["source_root"])
     require(root.is_absolute() and Path(__file__).resolve() == root/"scripts/benchmark_gp_context_sync.py", "sealed_source_path")
     for name, expected in FIXED.items():
@@ -569,12 +621,13 @@ class SystemBackend:
         return math.ceil((usage.ru_utime+usage.ru_stime)*1000000)
 
 
-def parse_fragment(data, job, pid):
+def parse_fragment(data, job, pid, expected_schema, expected_packages):
     require(0 < len(data) <= FRAGMENT_CAP and data.endswith(b"\n"), "fragment_shape")
     rows = [json.loads(line) for line in data.splitlines()]
     require(len(rows) == 3, "worker_protocol")
     head,timing,end = rows
-    require(head == dict(kind="worker_start",**job,pid=pid) and type(pid) is int and pid>0,
+    require(head == dict(kind="worker_start",**job,pid=pid,packages_sha256=expected_packages)
+        and type(pid) is int and pid>0,
         "worker_identity")
     require(timing["kind"] == "timing" and end["kind"] == "worker_end", "record_kinds")
     for key in ("wall_start_ns","wall_end_ns","CPU_start_ns","CPU_end_ns","wall_ns","CPU_ns","completed_calls"):
@@ -609,8 +662,12 @@ def parse_fragment(data, job, pid):
     require(end["native_before"] == end["native_after"] and end["rng_before"] == end["rng_after"],"persistent_invariance")
     require(type(end["diagnostic_counts"]) is list and all(type(v) is int for v in end["diagnostic_counts"])
         and end["diagnostic_counts"] == ([p,p,p,0] if job["arm"]=="scalar" else [0,0,0,int(p>0)]),"actual_C_counts")
-    require(type(end["schema"]) is list and len(end["schema"])==3 and type(end["schema"][0]) is int
-        and all(type(v) is str for v in end["schema"][1:]),"checkpoint_schema_shape")
+    require(type(end["schema"]) is dict and end["schema"]==expected_schema
+        and type(end["schema"].get("version")) is int
+        and type(end["schema"].get("schema_bytes")) is int
+        and re.fullmatch(r"[0-9a-f]{16}",end["schema"].get("fingerprint","")) is not None
+        and re.fullmatch(r"[0-9a-f]{64}",end["schema"].get("schema_sha256","")) is not None,
+        "checkpoint_schema_build_join")
     for k in ("payload","initial_gp","warm_gp","final_gp","control_gp","native_before","native_after","rng_before","rng_after"):
         require(type(end[k]) is str and len(end[k])==64 and all(c in "0123456789abcdef" for c in end[k]),"proof_digest")
     return dict(job,timing=timing,proof=end)
@@ -686,7 +743,7 @@ def run_schedule(build, output, backend, wall=time.monotonic_ns, cpu=time.proces
                     except (ValueError,UnicodeError):continue
                     if type(row) is dict and row.get("kind")=="timing":state["retained_timing_rows"]+=1
                 require(usage["returncode"]==0,"worker_exit")
-                result=parse_fragment(data,job,usage["pid"])
+                result=parse_fragment(data,job,usage["pid"],build["agent_schema_reference"],build["packages_sha256"])
                 key=(job["case"],job["trial"])
                 if key in pending:join_pair(pending.pop(key),result)
                 else:pending[key]=result
@@ -718,52 +775,115 @@ def run_schedule(build, output, backend, wall=time.monotonic_ns, cpu=time.proces
         if cpu()+state["waited_worker_CPU_us"]*1000>540000000000:
             state.update(status="resource_refused",case_summaries=[])
         require(not any(n=="chronicler_agents" or n.startswith("chronicler_agents.") for n in sys.modules),"controller_Native_loaded")
+        # Written ONCE only after the schedule stops and cleanup finishes, before
+        # result.json. It cannot be a stale proof from an earlier worker.
+        attempted=[r["ordinal"] for r in state["workers"] if r["status"]!="NOT_ATTEMPTED"]
+        custody=dict(kind="GP_FULLSYNC_PARENT_CUSTODY",github={k:os.environ.get(k) for k in GITHUB},
+            parent_pid=os.getpid(),last_attempted_ordinal=attempted[-1] if attempted else None,
+            proven=state["child_namespaces_quiescent"] is True)
+        write_new(output/"custody.json",custody,CUSTODY_CAP,root,
+            unsafe=() if custody["proven"] else (output.name+"/active.jsonl",))
         write_new(output/"result.json",state,RESULT_CAP,root,
             unsafe=() if state["child_namespaces_quiescent"] else (output.name+"/active.jsonl",))
     return state
 
 
+def read_parent_record(path, cap):
+    """Bounded recovery of closed parent records, with original failure pins."""
+    observed={}
+    def closed_object(pairs):
+        value={}
+        for key,item in pairs:
+            require(key not in value,"duplicate_parent_key");value[key]=item
+        return value
+    def nonfinite(value):
+        raise ValueError("nonfinite_parent_value")
+    try:
+        require(not path.is_symlink() and path.is_file() and path.stat().st_size<=cap,"parent_record_file_bound")
+        raw=path.read_bytes();require(len(raw)<=cap,"parent_record_read_bound")
+        observed=dict(bytes=len(raw),sha256=sha(raw))
+        value=json.loads(raw,object_pairs_hook=closed_object,parse_constant=nonfinite)
+        require(type(value) is dict,"parent_record_not_object")
+        return value,observed,None
+    except Exception as exc:
+        return None,observed,type(exc).__name__+":"+str(exc)[:160]
+
+
+def validate_parent_result(value):
+    require(type(value) is dict and value.get("kind")=="GP_FULLSYNC_RESULT"
+        and type(value.get("planned_workers")) is int and value["planned_workers"]==414
+        and value.get("method")==METHOD
+        and value.get("actual_source")==current_source(),"parent_result_identity")
+    require(value.get("status") in ("complete","numerical_refused","failed","resource_refused")
+        and type(value.get("child_namespaces_quiescent")) is bool,"parent_result_state")
+    for key in ("completed_workers","retained_timing_rows"):
+        require(type(value.get(key)) is int and 0<=value[key]<=414,"parent_result_counts")
+    if value["status"] in ("complete","numerical_refused"):
+        require(value["completed_workers"]==value["retained_timing_rows"]==414
+            and value["child_namespaces_quiescent"],"parent_result_completion")
+    return value
+
+
 def owner(evidence, wheel_dir, comparison_exit):
-    """Outside comparison, package only closed parent data and proven child data."""
-    evidence=evidence.resolve(); require(evidence.is_dir(),"evidence_root")
-    result_path=evidence/"comparison/result.json"
-    result=None
-    if result_path.exists():
-        require(result_path.stat().st_size<=RESULT_CAP,"result_limit")
-        result=json.loads(result_path.read_bytes())
-    quiet = result is not None and result.get("child_namespaces_quiescent") is True
+    """Keep bounded parent failures; child bytes require final custody proof."""
+    evidence=evidence.resolve();require(evidence.is_dir(),"evidence_root")
+    custody,custody_observed,recovery=read_parent_record(evidence/"comparison/custody.json",CUSTODY_CAP)
+    proven=False;result=None;result_observed={}
+    if recovery is None:
+        try:
+            require(set(custody)=={"kind","github","parent_pid","last_attempted_ordinal","proven"}
+                and custody.get("kind")=="GP_FULLSYNC_PARENT_CUSTODY"
+                and custody.get("github")=={k:os.environ.get(k) for k in GITHUB}
+                and type(custody.get("parent_pid")) is int and custody["parent_pid"]>0
+                and type(custody.get("proven")) is bool and custody["proven"],"parent_custody_not_proven")
+            ordinal=custody.get("last_attempted_ordinal")
+            require(ordinal is None or type(ordinal) is int and 0<=ordinal<414,"parent_custody_ordinal")
+            proven=True
+        except Exception as exc:recovery=type(exc).__name__+":"+str(exc)[:160]
+    # No result stat/read/parse before proven final custody. A malformed result
+    # never fabricates successful counts and never permits active-child data.
+    if proven:
+        result,result_observed,error=read_parent_record(evidence/"comparison/result.json",RESULT_CAP)
+        if error is None:
+            try:result=validate_parent_result(result)
+            except Exception as exc:result=None;error=type(exc).__name__+":"+str(exc)[:160]
+        if error is not None:recovery=error
+    child_allowed=proven and result is not None and result["child_namespaces_quiescent"]
     names=["plan.json","build/build.json","build/rustc.txt","build/cargo.txt","build/maturin.txt","build/uv.txt",
-        "comparison/journal.jsonl","comparison/result.json","comparison.stderr","comparison.time"]
-    if quiet:
-        names.append("comparison/active.jsonl")
-    pins=[]; total=0; problem=None
+        "comparison/journal.jsonl","comparison/custody.json","comparison.stderr","comparison.time"]
+    if proven and result_observed:names.append("comparison/result.json")
+    if child_allowed:names.append("comparison/active.jsonl")
+    pins=[];total=0;packing=None
     try:
         for name in names:
             p=evidence/name
             if not p.exists():continue
             cap=(JOURNAL_CAP if name.endswith("journal.jsonl") else RESULT_CAP if name.endswith("result.json")
-                else PLAN_CAP if name=="plan.json" else BUILD_CAP if name.endswith("build.json")
-                else FRAGMENT_CAP if name.endswith("active.jsonl") else 4096 if name.startswith("build/") else ERROR_CAP)
+                else CUSTODY_CAP if name.endswith("custody.json") else PLAN_CAP if name=="plan.json"
+                else BUILD_CAP if name.endswith("build.json") else FRAGMENT_CAP if name.endswith("active.jsonl")
+                else 4096 if name.startswith("build/") else ERROR_CAP)
             require(not p.is_symlink() and p.is_file() and p.stat().st_size<=cap,"safe_owner_file")
             body=p.read_bytes();total+=len(body);pins.append(dict(path=name,bytes=len(body),sha256=sha(body)))
-        # Unknown active namespace is not statted/read/hashed/inventoried at all.
-        reserved=0 if quiet else FRAGMENT_CAP
+        reserved=(0 if child_allowed else FRAGMENT_CAP)+(0 if proven and result_observed else RESULT_CAP)
         require(total+reserved+OWNER_CAP<=BODY,"owner_inclusive_body")
-    except Exception as exc:
-        problem=type(exc).__name__+":"+str(exc)[:256]
+    except Exception as exc:packing=type(exc).__name__+":"+str(exc)[:160]
     value=dict(kind="GP_FULLSYNC_OWNER",method=METHOD,github={k:os.environ.get(k) for k in GITHUB},
-        actual_comparison_exit=comparison_exit,files=pins,child_custody="PROVEN" if quiet else "UNKNOWN",
-        unsafe_active_namespace_read_or_upload=False,unknown_active_reserved_bytes=0 if quiet else FRAGMENT_CAP,
-        body_bytes_known=total,retention="within_cap" if problem is None else "refused",refusal=problem,
-        completed_workers=None if result is None else result.get("completed_workers"),
-        durable_timing_rows=None if result is None else result.get("retained_timing_rows"),
-        comparison_status=None if result is None else result.get("status"),wheels_allowed=False,
-        proof_scope="Observed full GP state/persistent Native/RNG only; no production/whole-turn/science qualification")
+        actual_comparison_exit=comparison_exit,files=pins,child_custody="PROVEN" if proven else "UNKNOWN",
+        child_data_allowed=child_allowed,unsafe_active_namespace_read_or_upload=False,
+        unknown_active_reserved_bytes=0 if child_allowed else FRAGMENT_CAP,
+        unknown_result_reserved_bytes=0 if proven and result_observed else RESULT_CAP,
+        body_bytes_known=total,retention="within_cap" if packing is None else "refused",
+        refusal=recovery or packing,recovery_problem=recovery,parent_custody_record=custody_observed,
+        parent_result_record=result_observed,last_attempted_ordinal=None if not proven else custody["last_attempted_ordinal"],
+        completed_workers=None if result is None else result["completed_workers"],
+        durable_timing_rows=None if result is None else result["retained_timing_rows"],
+        comparison_status="UNKNOWN" if result is None else result["status"],wheels_allowed=False,
+        proof_scope="Observed GP/persistent Native/RNG and version identity; no production/whole-turn/science qualification")
     try:
         build=read_build(evidence/"build/build.json")
         wheels=list(wheel_dir.glob("*.whl"));require(len(wheels)==1,"one_wheel")
         file_pin(wheels[0],16*1024**2)
-        value["wheels_allowed"]=problem is None and build["source_commit"]==current_source()
+        value["wheels_allowed"]=recovery is None and packing is None and build["source_commit"]==current_source()
     except Exception as exc:
         value["wheel_refusal"]=type(exc).__name__+":"+str(exc)[:160]
     write_new(evidence/"owner.json",value,OWNER_CAP,None)
@@ -778,7 +898,7 @@ def owner(evidence, wheel_dir, comparison_exit):
     archive.chmod(0o444)
     if os.environ.get("GITHUB_OUTPUT"):
         with Path(os.environ["GITHUB_OUTPUT"]).open("a") as out:
-            out.write("compact_allowed="+str(problem is None).lower()+"\n")
+            out.write("compact_allowed="+str(packing is None).lower()+"\n")
             out.write("wheels_allowed="+str(value["wheels_allowed"]).lower()+"\n")
     return value
 
@@ -817,7 +937,7 @@ def main(argv=None):
     if args.owner:
         require(args.evidence is not None and args.wheel_dir is not None,"owner_arguments")
         value=owner(args.evidence,args.wheel_dir,args.comparison_exit)
-        return 0 if value["retention"]=="within_cap" else 2
+        return 0 if value["retention"]=="within_cap" and value["recovery_problem"] is None else 2
     print('{"kind":"GP_FULLSYNC_BENCHMARK","status":"disabled"}')
     return 0
 

@@ -135,3 +135,51 @@ functional tests, source schemas, Native owners and production defaults remain
 unchanged. Pure/fake contracts exercise recipes, proof/custody failures and
 resource/output boundaries without compiled API attestation. All new checks and
 this experiment are UNRUN at source freeze.
+
+## Pre-data source correction of e093
+
+The immutable e093 draft is preserved with its NOT_CLEAR review. This successor
+repairs evidence representation and recovery before any benchmark data exist;
+the69 conditions,414 workers,256 calls, all clocks/seeds/caps and product code
+remain unchanged. Its source-only contracts are80 cases; adding the unchanged
+18 NativeBuildLanes cases gives a prospective FIRST98, all UNRUN.
+
+Native returns `(version, sixteen-hex FNV fingerprint, full recursive schema)`.
+The build records that exact raw Agent schema once within its existing64KiB
+record. Every worker joins its actual raw tuple to that build before clocks,
+retains it in memory for after-call equality, and emits only version/fingerprint/
+UTF8 length/SHA256. Parent validation joins those references to the raw build;
+FNV alone is never the evidence comparison. The full10,828-byte Agent schema
+from qualified functional428/native a840 is a realistic retained fixture.
+All native paths except FFI context implementation/tests are byte-exact a840 to
+0dca; the Agent declaration, persistence field macro and schema-export method
+are independently equal too. This supports the size audit, not a claim that
+current compiled0dca bytes were observed: the fresh build must record them.
+P50 wire-size contracts use that complete schema fixture and retain the original
+2816-byte end-record cap. No full checkpoint body is written.
+
+The untimed build also records a bounded canonical installed-distribution version
+map and its digest. Workers observe and compare their complete map before clocks
+and emit only its digest. Duplicate canonical names refuse even when versions
+match. This identifies observed versions, not every installed file's bytes;
+the wheel/native-byte and source/lock identities remain separate evidence.
+
+A final parent-owned custody record is written once, after the schedule stops
+and cleanup completes, before result.json. The owner reads a bounded partial
+result only after that proof is present and valid. Empty, truncated, malformed,
+duplicate-key, non-object or missing-shape results retain their exact bounded
+bytes and a refusal, with counts/status UNKNOWN rather than invented successful
+rows. An invalid result cannot authorize the active child fragment. Without
+valid final custody, neither result nor active fragment is stat/read/hashed or
+packed; their fixed128KiB/4KiB reservations remain charged. Durable per-role
+launch intents remain the evidence of attempted work, not proof of a start or
+completed call. Safe parent refusal packets may upload after owner exit2; that
+step and the job still fail. Unsafe child namespaces never become upload paths.
+
+The listed body subcaps sum1836KiB (plus the small custody record inside2MiB),
+not1936KiB. No cap was increased. Original57 contracts keep every assertion;
+only the inaccurate worker fixture schema/header and three parser calls adapt
+to the corrected wire identity. Twenty-three new cases cover complete-schema/
+P50 sizes, schema/package mismatches and duplicate names, bounded partial-result
+recovery, missing custody fields, unknown custody and failed-owner upload gates.
+All source/runtime qualification gates above still apply; fit remains UNKNOWN.
