@@ -1,3 +1,26 @@
+# Source-only public grain shipments child — 2026-10-30
+
+This separate Stage005 child adds default-off public foreign grain transport:
+one direct permitted edge, paid dispatch T Phase10, arrival T+1 Phase10 and
+first release T+2 Phase2. Buyer-owned detached cargo is bounded at64/two per
+destination. New dispatch/arrival accounting separates cash, commitments and
+received food; current keeper settlement handles captured/unguarded delivery.
+Finite finance rollback preserves authoritative fields, container identities,
+fields_set and earlier accumulator work. Disabling drains paid orders.
+
+See [the contract](integration/public-grain-shipments.md). All tests, Native,
+World, builds, benchmarks and qualification are UNRUN. No GH write or activation
+occurred. Main and the original scientific cohorts are untouched. Owner306 and
+offline chunk44 add one test module; all305 earlier owners,43 old chunks,
+110-second caps, six skips and623 care subreports remain. Only current care
+whole-main/simulation pins change; historical bindings and Native stay exact.
+New source/pickle identity and enabled aggregate Arrow schema differ honestly;
+no new output projection, fake clock or runtime parity claim is introduced.
+
+Complete Stage005 continuation follows unchanged.
+
+---
+
 # Simulation staging005 - source-only civilization closure, 2026-10-30
 
 This child retains the complete Stage004 ledger and one genuine donor merge.

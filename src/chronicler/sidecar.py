@@ -318,6 +318,16 @@ class SidecarWriter:
         ledger = getattr(self, "_reserve_ledger", None)
         if ledger is None:
             ledger = self._reserve_ledger = {name: [] for name in rows}
+        prior = len(next(iter(ledger.values()))) if ledger else 0
+        count = len(next(iter(rows.values()))) if rows else 0
+        if set(rows) != set(ledger):
+            # A later opt-in adds aggregate shipment columns; old rows mean zero cargo.
+            for name in rows:
+                if name not in ledger:
+                    ledger[name] = [0.0] * prior
+            for name in ledger:
+                if name not in rows:
+                    ledger[name].extend([0.0] * count)
         for name, values in rows.items():
             ledger[name].extend(values)
 

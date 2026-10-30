@@ -1751,6 +1751,10 @@ def _configure_run(args: argparse.Namespace, world: WorldState, fresh_world: boo
     if grain_reserves is not None:
         from chronicler.grain_reserves import set_grain_reserves_enabled
         set_grain_reserves_enabled(world, grain_reserves)
+    _shipments = getattr(args, "public_grain_shipments", None)
+    if _shipments is not None:
+        from chronicler.public_grain_shipments import set_public_grain_shipments_enabled
+        set_public_grain_shipments_enabled(world, _shipments)
     # Community anchoring switch (persisted on the world): community ties
     # hold agents back from moving. It acts in the native agent decision, so
     # an explicit --community-anchoring needs an agent pool; a saved setting
@@ -2147,6 +2151,9 @@ def _build_parser() -> argparse.ArgumentParser:
                              "markets the merchants may reach, with transit and storage losses, "
                              "and opens the granary in dearth or famine before hunger kills; needs "
                              "an agent mode (default off; saved on resume)")
+    parser.add_argument("--public-grain-shipments", action=argparse.BooleanOptionalAction, default=None,
+                        help="Default-off public grain: foreign direct-neighbor orders arrive next Phase10, "
+                             "after its opening; requires --grain-reserves and agents. Disabling drains paid cargo.")
     parser.add_argument("--community-anchoring", action=argparse.BooleanOptionalAction, default=None,
                         help="Community anchoring: an agent's community ties (bonds of some warmth, "
                              "kin or not but at least one not kin, to people of its own region "

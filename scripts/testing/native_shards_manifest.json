@@ -117,6 +117,7 @@
       "tests/test_practice_observer_runner_integration.py",
       "tests/test_procedural_gates.py",
       "tests/test_production_ledger_native.py",
+      "tests/test_public_grain_shipments.py",
       "tests/test_recovery_gini_numerics.py",
       "tests/test_refugee_routing.py",
       "tests/test_religion.py",

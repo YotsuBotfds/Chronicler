@@ -1016,8 +1016,8 @@ def test_care_codec_source_binding_preserves_reviewed_native_and_python_phase_wi
         "src/chronicler/health_care.py": "fc96d7c2f859865fc95023201c4c5c436cde0b8b39f53def02beb6f8557cd8ff",
         "src/chronicler/health_care_state.py": "43ea4162dd65e2a59fde602be5b670b3d4699dfe2bb4580f8402d88760a04ec8",
         "src/chronicler/agent_bridge.py": "153197b0ed2602bccefdca686785a2c53ad8e5c56c663c9dd06aa929b3a67f9e",
-        "src/chronicler/simulation.py": "bfecb967f6405d8c2acc2d3342880c2735405457608672678fbffe4f2e6f9b61",
-        "src/chronicler/main.py": "2e17f9652506c7a22278d1bb6f4ac6149b9b2007a8c36e6351a4a38c72f43f03",
+        "src/chronicler/simulation.py": "b129c8923e60e53102f9cd67aed7a408cbf80f9c3e9465c92eee22734003b0f5",
+        "src/chronicler/main.py": "aa9dc9fe3cac87381d8916654853b42819155b9da8f5550a17b6628c103faf04",
     }
     for path, digest in pins.items():
         assert _care_codec_hashlib.sha256((root / path).read_bytes()).hexdigest() == digest

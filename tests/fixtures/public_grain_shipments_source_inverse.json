@@ -1,0 +1,272 @@
+{
+  "base": "d921823f52912d8cba664d9a3e08fc3dcda89de1",
+  "files": {
+    "src/chronicler/batch_manifest.py": {
+      "patches": [
+        {
+          "new": "    \"grain_reserves\",\n    \"public_grain_shipments\",\n",
+          "old": "    \"grain_reserves\",\n"
+        },
+        {
+          "new": "              if key not in (\"scientific_research_agendas\", \"public_grain_shipments\")\n              or getattr(args, key, None) is not None}",
+          "old": "              if key != \"scientific_research_agendas\" or getattr(args, key, None) is not None}"
+        }
+      ],
+      "sha256": "ecad1d506f18d150403a846ca0ca5ae53faadcf27210680678bccfd663d3674e"
+    },
+    "src/chronicler/finance.py": {
+      "patches": [
+        {
+          "new": "class _ExactTransferWriteSet:\n    \"\"\"Only the current transfer() write set, for public grain dispatch.\n\n    This is not a transaction facility for arbitrary callbacks. Capture is\n    read-only, includes legal empty finance initialization, and rollback\n    restores existing container/model identities and prior accumulator work.\n    \"\"\"\n\n    def __init__(self, world, payer, payee, amount, acc):\n        if (type(payer) is not int or type(payee) is not int or payer == payee\n                or not 0 <= payer < len(world.civilizations)\n                or not 0 <= payee < len(world.civilizations)\n                or type(amount) is not int or amount <= 0):\n            raise ValueError(\"invalid exact public payment\")\n        parties = (world.civilizations[payer], world.civilizations[payee])\n        if parties[0] is parties[1]:\n            raise ValueError(\"exact public payment parties alias\")\n        self.parties = [(civ, civ.treasury, civ.__pydantic_fields_set__,\n                         \"treasury\" in civ.__pydantic_fields_set__) for civ in parties]\n        self.acc = acc\n        self.changes = None if acc is None else acc._changes\n        self.change_len = 0 if acc is None else len(acc._changes)\n        self.watermark = None if acc is None else acc._keep_applied_up_to\n        self.finance = world.finance if finance_enabled(world) else None\n        self.arrays, self.cells, self.absent_totals = [], [], ()\n        if self.finance is not None:\n            st = self.finance\n            names = (\"civs\", \"region_output\", \"region_specie\", \"region_occupier\")\n            self.arrays = [(name, getattr(st, name), len(getattr(st, name))) for name in names]\n            n = len(st.region_specie)\n            if (len(st.region_output) != n or len(st.region_occupier) != n\n                    or n > len(world.regions) or len(st.civs) > len(world.civilizations)):\n                raise ValueError(\"public payment finance dimensions are invalid\")\n            self.totals = st.totals\n            self.absent_totals = tuple(key for key in _TOTAL_KEYS if key not in st.totals)\n            index = _region_indices(world)\n            anchors = {_anchor_region(world, civ, index) for civ in parties}\n            if None in anchors:\n                raise ValueError(\"public payment requires both finance anchors\")\n            for rid in sorted(anchors):\n                if rid < n:\n                    value = st.region_specie[rid]\n                    if not math.isfinite(value) or value < 0:\n                        raise ValueError(\"public payment anchor specie is invalid\")\n                    self.cells.append((rid, value))\n            self.anchors = tuple(sorted(anchors))\n            fineness = st.civs[payer].fineness if payer < len(st.civs) else CivFinance().fineness\n            if not math.isfinite(fineness) or fineness < 0:\n                raise ValueError(\"public payment fineness is invalid\")\n            try:\n                requested = TRANSFER_SPECIE_SHARE * amount * fineness\n            except OverflowError as exc:\n                raise ValueError(\"public payment specie overflows\") from exc\n            if not math.isfinite(requested):\n                raise ValueError(\"public payment specie overflows\")\n            for rid in range(n, len(world.regions)):\n                output = _region_output_now(world, rid)\n                if not math.isfinite(output) or not math.isfinite(MONEY_PER_OUTPUT * output):\n                    raise ValueError(\"public payment initialization overflows\")\n\n    def check_specie(self):\n        if self.finance is not None:\n            for rid in self.anchors:\n                value = self.finance.region_specie[rid]\n                if not math.isfinite(value) or value < 0:\n                    raise ValueError(\"public payment produced invalid anchor specie\")\n\n    def restore(self):\n        for civ, treasury, fields, had in self.parties:\n            civ.__dict__[\"treasury\"] = treasury\n            object.__setattr__(civ, \"__pydantic_fields_set__\", fields)\n            if had:\n                fields.add(\"treasury\")\n            else:\n                fields.discard(\"treasury\")\n        if self.acc is not None:\n            del self.changes[self.change_len:]\n            self.acc._changes = self.changes\n            self.acc._keep_applied_up_to = self.watermark\n        if self.finance is not None:\n            st = self.finance\n            for name, values, length in self.arrays:\n                del values[length:]\n                st.__dict__[name] = values\n            for rid, value in self.cells:\n                st.region_specie[rid] = value\n            st.__dict__[\"totals\"] = self.totals\n            for key in self.absent_totals:\n                self.totals.pop(key, None)\n\n\ndef _capture_exact_transfer(world, payer, payee, amount, *, acc=None):\n    return _ExactTransferWriteSet(world, payer, payee, amount, acc)\n\n\ndef transfer(world: \"WorldState\", payer: int, payee: int, amount: int, *, acc=None) -> int:\n",
+          "old": "def transfer(world: \"WorldState\", payer: int, payee: int, amount: int, *, acc=None) -> int:\n"
+        }
+      ],
+      "sha256": "5cf25938cb7989df61ca9bfc9725067aa1155ebc79293f8d6024d5a235f1471b"
+    },
+    "src/chronicler/grain_reserves.py": {
+      "patches": [
+        {
+          "new": "    ABANDONED, ARRIVED, BOUGHT, CAPTURED, COUNTER_KEYS, DISPATCHED, FLOW_KINDS, RELEASED, SEIZED, SPOILED, GrainReserveState, Granary,",
+          "old": "    ABANDONED, BOUGHT, CAPTURED, COUNTER_KEYS, FLOW_KINDS, RELEASED, SEIZED, SPOILED, GrainReserveState, Granary,"
+        },
+        {
+          "new": "    else:\n        state = getattr(world, \"grain_reserves\", None)\n        shipments = getattr(state, \"shipments\", None)\n        if shipments is not None and shipments.pending:\n            raise ValueError(\"cannot disable grain reserves with paid public grain pending\")\n        world.grain_reserves = None\n",
+          "old": "    else:\n        world.grain_reserves = None\n"
+        },
+        {
+          "new": "    summary = {\n        \"source_turn\": source_turn,\n        \"granaries\": [",
+          "old": "    return {\n        \"source_turn\": source_turn,\n        \"granaries\": ["
+        },
+        {
+          "new": "        \"counters\": dict(state.counters),\n    }\n    if getattr(state, \"shipments\", None) is not None:\n        from chronicler.public_grain_shipments import snapshot_summary as shipment_summary\n        summary[\"shipments\"] = shipment_summary(world)\n    return summary\n\n\ndef _spoilage()",
+          "old": "        \"counters\": dict(state.counters),\n    }\n\n\ndef _spoilage()"
+        },
+        {
+          "new": "    shipments = getattr(state, \"shipments\", None)\n    inbound = None\n    if shipments is not None:\n        from chronicler.public_grain_shipments import inbound_by_destination, settle_arrivals\n        events.extend(settle_arrivals(world))\n        inbound = inbound_by_destination(world)\n\n    civs = world.civilizations\n    index = _civ_index(world)\n    regions = world.regions\n    commitments:",
+          "old": "    civs = world.civilizations\n    index = _civ_index(world)\n    regions = world.regions\n    commitments:"
+        },
+        {
+          "new": "                       and (g.target - g.grain if inbound is None else\n                            g.target - g.grain - inbound[rid]) > EPS]\n",
+          "old": "                       and g.target - g.grain > EPS]\n"
+        },
+        {
+          "new": "                    deficit = (granary.target - granary.grain if inbound is None else\n                               granary.target - granary.grain - inbound[rid])\n                    if budget[ci] <= 0 or deficit <= EPS:\n                        break\n                    if foreign and shipments is not None and shipments.accept_orders and steps[src] != 1:\n                        continue\n                    p = price[src]",
+          "old": "                    if budget[ci] <= 0 or granary.target - granary.grain <= EPS:\n                        break\n                    p = price[src]"
+        },
+        {
+          "new": "                    want = deficit / keep\n",
+          "old": "                    want = (granary.target - granary.grain) / keep\n"
+        },
+        {
+          "new": "                    seller = index[regions[src].controller]\n                    if foreign and shipments is not None and shipments.accept_orders:\n                        from chronicler.public_grain_shipments import dispatch_order\n                        event = dispatch_order(world, buyer=ci, seller=seller, source=src, dest=rid,\n                                               sent=sent, net=received, cost=cost, graph=graph,\n                                               surplus=surplus, budget=budget, inbound=inbound,\n                                               flows=flows, acc=acc)\n                        if event is None:\n                            break\n                        events.append(event)\n                        continue\n                    if seller == ci:",
+          "old": "                    seller = index[regions[src].controller]\n                    if seller == ci:"
+        },
+        {
+          "new": "            \"target_final\": sum(g.get(\"target\", 0.0) for g in granaries),\n            \"shipments\": state.get(\"shipments\"),\n",
+          "old": "            \"target_final\": sum(g.get(\"target\", 0.0) for g in granaries),\n"
+        },
+        {
+          "new": "    result = {\n        \"runs\": len(runs),\n        \"grain_final_mean\": sum(r[\"grain_final\"] for r in runs) / len(runs),\n        \"target_final_mean\": sum(r[\"target_final\"] for r in runs) / len(runs),\n        \"counters_mean\": {k: sum(r[\"counters\"].get(k, 0.0) for r in runs) / len(runs) for k in keys},\n    }\n    configured = [r[\"shipments\"] for r in runs if r[\"shipments\"] is not None]\n    if configured:\n        shipment_keys = sorted({k for state in configured for k in state.get(\"counters\", {})})\n        result[\"shipments\"] = {\n            \"runs\": len(configured),\n            \"pending_net_final_mean\": sum(sum(row.get(\"net\", 0.0) for row in state.get(\"pending\", []))\n                                          for state in configured) / len(configured),\n            \"counters_mean\": {key: sum(state.get(\"counters\", {}).get(key, 0.0)\n                                       for state in configured) / len(configured) for key in shipment_keys},\n        }\n    return result",
+          "old": "    return {\n        \"runs\": len(runs),\n        \"grain_final_mean\": sum(r[\"grain_final\"] for r in runs) / len(runs),\n        \"target_final_mean\": sum(r[\"target_final\"] for r in runs) / len(runs),\n        \"counters_mean\": {k: sum(r[\"counters\"].get(k, 0.0) for r in runs) / len(runs) for k in keys},\n    }"
+        },
+        {
+          "new": "\nSHIPMENT_LEDGER_COLUMNS: dict[str, str] = {\n    \"dispatched_net\": \"float64\", \"arrived\": \"float64\",\n    \"pending_before\": \"float64\", \"pending_after\": \"float64\",\n}\n\n_TOL = 1e-9\n",
+          "old": "\n_TOL = 1e-9\n"
+        },
+        {
+          "new": "        self.start = [g.grain for g in state.granaries]\n        self.pending_before = None\n        if getattr(state, \"shipments\", None) is not None:\n            from chronicler.public_grain_shipments import inbound_by_destination\n            self.pending_before = inbound_by_destination(world)\n",
+          "old": "        self.start = [g.grain for g in state.granaries]\n"
+        },
+        {
+          "new": "        for f in state.flows:\n            if f.kind not in (BOUGHT, DISPATCHED):\n                continue\n            sold[f.source]",
+          "old": "        for f in state.flows:\n            if f.kind != BOUGHT:\n                continue\n            sold[f.source]"
+        },
+        {
+          "new": "\"abandoned\": 0.0, \"sent\": 0.0, \"paid\": 0.0, \"dispatched\": 0.0, \"arrived\": 0.0})\n            if f.kind in (BOUGHT, DISPATCHED):",
+          "old": "\"abandoned\": 0.0, \"sent\": 0.0, \"paid\": 0.0})\n            if f.kind == BOUGHT:"
+        },
+        {
+          "new": "                key = \"bought\" if f.kind == BOUGHT else \"dispatched\"\n                row[key] = row.get(key, 0.0) + f.amount\n                row[\"paid\"] += f.cost",
+          "old": "                row[\"bought\"] += f.amount\n                row[\"paid\"] += f.cost"
+        },
+        {
+          "new": "                src[\"sent\"] += f.sent\n            elif f.kind == ARRIVED:\n                row[\"arrived\"] = row.get(\"arrived\", 0.0) + f.amount\n            elif f.kind == RELEASED:",
+          "old": "                src[\"sent\"] += f.sent\n            elif f.kind == RELEASED:"
+        },
+        {
+          "new": "        schema = dict(RESERVE_LEDGER_COLUMNS)\n        pending_after = None\n        if getattr(state, \"shipments\", None) is not None:\n            from chronicler.public_grain_shipments import inbound_by_destination\n            pending_after = inbound_by_destination(world)\n            schema.update(SHIPMENT_LEDGER_COLUMNS)\n        columns: dict[str, list] = {name: [] for name in schema}\n",
+          "old": "        columns: dict[str, list] = {name: [] for name in RESERVE_LEDGER_COLUMNS}\n"
+        },
+        {
+          "new": "            arrived = row.get(\"arrived\", 0.0)\n            dispatched = row.get(\"dispatched\", 0.0)\n            expect = before + row[\"bought\"] + arrived - row[\"released\"] - row[\"spoiled\"] - row[\"seized\"] - row[\"abandoned\"]\n            pending0 = (self.pending_before[rid] if self.pending_before is not None else 0.0)\n            pending1 = pending_after[rid] if pending_after is not None else 0.0\n            if abs(pending1 - pending0 - dispatched + arrived) > _TOL * max(1.0, pending0 + dispatched):\n                self.problems.append(f\"granary {rid}: pending cargo does not balance\")",
+          "old": "            expect = before + row[\"bought\"] - row[\"released\"] - row[\"spoiled\"] - row[\"seized\"] - row[\"abandoned\"]"
+        },
+        {
+          "new": "            if before <= 0 and granary.grain <= 0 and pending0 <= 0 and pending1 <= 0 and not any(row.values()):\n",
+          "old": "            if before <= 0 and granary.grain <= 0 and not any(row.values()):\n"
+        },
+        {
+          "new": "            if pending_after is not None:\n                values += (dispatched, arrived, pending0, pending1)\n            for name, value in zip(schema, values):\n",
+          "old": "            for name, value in zip(RESERVE_LEDGER_COLUMNS, values):\n"
+        },
+        {
+          "new": "    schema = dict(RESERVE_LEDGER_COLUMNS)\n    if any(name in columns for name in SHIPMENT_LEDGER_COLUMNS):\n        schema.update(SHIPMENT_LEDGER_COLUMNS)\n    arrays = [pa.array(columns.get(name, []), type=getattr(pa, kind)())\n              for name, kind in schema.items()]\n    batch = pa.record_batch(arrays, names=list(schema))\n    if len(schema) != len(RESERVE_LEDGER_COLUMNS):\n        batch = batch.replace_schema_metadata({b\"public_grain_shipments\": b\"1\"})",
+          "old": "    arrays = [pa.array(columns.get(name, []), type=getattr(pa, kind)())\n              for name, kind in RESERVE_LEDGER_COLUMNS.items()]\n    batch = pa.record_batch(arrays, names=list(RESERVE_LEDGER_COLUMNS))"
+        }
+      ],
+      "sha256": "eb8b4fe2c858245a2e01310a889e50cea071e66dfba69abcad83ed6f74021331"
+    },
+    "src/chronicler/grain_reserves_state.py": {
+      "patches": [
+        {
+          "new": "from pydantic import BaseModel, Field, PrivateAttr\n\nfrom chronicler.public_grain_shipments_state import PublicGrainShipmentState\n\n\ndef _is_none(value):\n    return value is None\n",
+          "old": "from pydantic import BaseModel, Field, PrivateAttr\n"
+        },
+        {
+          "new": "\"abandoned\", \"captured\", \"dispatched\", \"arrived\")\nBOUGHT, RELEASED, SPOILED, SEIZED, ABANDONED, CAPTURED, DISPATCHED, ARRIVED = range(len(FLOW_KINDS))",
+          "old": "\"abandoned\", \"captured\")\nBOUGHT, RELEASED, SPOILED, SEIZED, ABANDONED, CAPTURED = range(len(FLOW_KINDS))"
+        },
+        {
+          "new": "    # None stays omitted for never-enabled old JSON. Paid cargo survives disabling.\n    shipments: PublicGrainShipmentState | None = Field(default=None, exclude_if=_is_none)\n    # The turn's resource ledger (``grain_reserves.ReserveLedger``)",
+          "old": "    # The turn's resource ledger (``grain_reserves.ReserveLedger``)"
+        },
+        {
+          "new": "    after: float = 0.0               # released: food sufficiency after it\n    shipment_order: int | None = Field(default=None, exclude_if=_is_none)\n",
+          "old": "    after: float = 0.0               # released: food sufficiency after it\n"
+        },
+        {
+          "new": "\n    def __setstate__(self, state):\n        super().__setstate__(state)\n        self.__dict__.setdefault(\"shipment_order\", None)\n\n\nclass GrainReserveState(BaseModel):",
+          "old": "\n\nclass GrainReserveState(BaseModel):"
+        },
+        {
+          "new": "\n    def __setstate__(self, state):\n        super().__setstate__(state)\n        # Exact pickle restoration bypasses Pydantic defaults.\n        self.__dict__.setdefault(\"shipments\", None)\n\n\ndef grain_reserves_on(world) -> bool:",
+          "old": "\n\ndef grain_reserves_on(world) -> bool:"
+        }
+      ],
+      "sha256": "79f6ea2b5c2cfbb9db1927a1f6b47305cdeb2aa9007526538d9a64bab091554c"
+    },
+    "src/chronicler/harvest_forecasts.py": {
+      "patches": [
+        {
+          "new": "    from chronicler.grain_reserves_state import ARRIVED, BOUGHT, DISPATCHED\n",
+          "old": "    from chronicler.grain_reserves_state import BOUGHT\n"
+        },
+        {
+          "new": "    purchases = {}\n    shipment_purchases = {}\n    shipment_state = getattr(world.grain_reserves, \"shipments\", None)\n    for flow in world.grain_reserves.flows:",
+          "old": "    purchases = {}\n    for flow in world.grain_reserves.flows:"
+        },
+        {
+          "new": "            row[1] += flow.cost\n        elif shipment_state is not None and flow.kind in (DISPATCHED, ARRIVED):\n            extra = shipment_purchases.setdefault(flow.region, [0.0, 0, 0.0])\n            if flow.kind == DISPATCHED:\n                extra[0] += flow.amount\n                extra[1] += flow.cost\n            else:\n                extra[2] += flow.amount\n    for row in state.preparedness:",
+          "old": "            row[1] += flow.cost\n    for row in state.preparedness:"
+        },
+        {
+          "new": "        bought = math.fsum(amounts)\n        if shipment_state is not None:\n            values = shipment_purchases.get(row[\"region\"], (0.0, 0, 0.0))\n            keys = (\"committed_during_warning\", \"paid_for_shipments_during_warning\",\n                    \"arrived_during_warning\")\n            old_paid = row.get(keys[1], 0)\n            for key, value in zip(keys, values):\n                state.counters[key] = state.counters.get(key, 0) - row.get(key, 0) + value\n                row[key] = value\n            if values[1] > 0 and old_paid != values[1] and row[\"forecast_id\"] in reports:\n                report = reports[row[\"forecast_id\"]]\n                events.append(_emit(world, \"harvest_preparedness\", report,\n                    f\"While warned of shortfall, {report.owner_name} pays {values[1]} treasury \"\n                    f\"for {values[0]:.1f} grain still in transit; it is not yet in the granary.\",\n                    (report.delivered_event_id,)))\n        if row[\"bought_during_warning\"] == bought",
+          "old": "        bought = math.fsum(amounts)\n        if row[\"bought_during_warning\"] == bought"
+        },
+        {
+          "new": "            row[\"shipment_ids_during_warning\"] = [transition.id for transition in shipment_state.frame\n                if shipment_state.frame_turn == world.turn and transition.dest == row[\"region\"]]\n            old_paid = row.get(keys[1], 0)\n",
+          "old": "            old_paid = row.get(keys[1], 0)\n"
+        }
+      ],
+      "sha256": "c43b03e916a59bd895ecea40f1626efa6b5352a2de7cbc5b1e1e46ccb00ad7c9"
+    },
+    "src/chronicler/main.py": {
+      "patches": [
+        {
+          "new": "    _shipments = getattr(args, \"public_grain_shipments\", None)\n    if _shipments is not None:\n        from chronicler.public_grain_shipments import set_public_grain_shipments_enabled\n        set_public_grain_shipments_enabled(world, _shipments)\n    # Community anchoring switch (persisted on the world): community ties\n",
+          "old": "    # Community anchoring switch (persisted on the world): community ties\n"
+        },
+        {
+          "new": "    parser.add_argument(\"--public-grain-shipments\", action=argparse.BooleanOptionalAction, default=None,\n                        help=\"Default-off public grain: foreign direct-neighbor orders arrive next Phase10, \"\n                             \"after its opening; requires --grain-reserves and agents. Disabling drains paid cargo.\")\n    parser.add_argument(\"--community-anchoring\", action=argparse.BooleanOptionalAction, default=None,\n",
+          "old": "    parser.add_argument(\"--community-anchoring\", action=argparse.BooleanOptionalAction, default=None,\n"
+        }
+      ],
+      "sha256": "2e17f9652506c7a22278d1bb6f4ac6149b9b2007a8c36e6351a4a38c72f43f03"
+    },
+    "src/chronicler/public_purchase_receipts.py": {
+      "patches": [
+        {
+          "new": "    from chronicler.grain_reserves_state import BOUGHT, DISPATCHED, grain_reserves_on\n",
+          "old": "    from chronicler.grain_reserves_state import BOUGHT, grain_reserves_on\n"
+        },
+        {
+          "new": "    shipments = getattr(getattr(world, \"grain_reserves\", None), \"shipments\", None)\n    counter_keys = _COUNTERS + ((\"committed_net\",) if shipments is not None else ())\n    sums = {key: 0 for key in counter_keys}\n    dispatches = ({row.order: row for row in shipments.frame if row.operation == \"dispatched\"}\n                  if shipments is not None and shipments.frame_turn == world.turn else {})\n",
+          "old": "    sums = {key: 0 for key in _COUNTERS}\n"
+        },
+        {
+          "new": "            if i < flow_start or flow.kind not in (BOUGHT, DISPATCHED):\n",
+          "old": "            if i < flow_start or flow.kind != BOUGHT:\n"
+        },
+        {
+          "new": "            ident = f\"{state.namespace}:public-grain:{world.turn}:{buyer}:{dest}:{src}\"\n            shipment_fields = {}\n            received = flow.amount\n            if flow.kind == DISPATCHED:\n                order = dispatches.get(flow.shipment_order)\n                if (order is None or (order.source, order.dest, order.buyer, order.seller,\n                                      order.sent, order.net, order.paid)\n                        != (src, dest, buyer, seller, flow.sent, flow.amount, flow.cost)):\n                    raise ValueError(\"public dispatch receipt has no matching committed order\")\n                ident += f\":shipment:{order.order}\"\n                received = 0.0\n                shipment_fields = dict(shipment_id=f\"public-grain-shipment:{order.order}\",\n                                       due_turn=order.due_turn, committed_net=order.net,\n                                       quantity_basis=\"committed_public_grain_dispatch\")\n                sums[\"committed_net\"] += order.net\n            row = PublicPurchaseObservation(",
+          "old": "            ident = f\"{state.namespace}:public-grain:{world.turn}:{buyer}:{dest}:{src}\"\n            row = PublicPurchaseObservation("
+        },
+        {
+          "new": "                sent=flow.sent, received=received, transit_loss=max(0.0, flow.sent-flow.amount),",
+          "old": "                sent=flow.sent, received=flow.amount, transit_loss=max(0.0, flow.sent-flow.amount),"
+        },
+        {
+          "new": "                buyer_demand=demand[dest], source_demand=demand[src], source_market_price=price[src],\n                **shipment_fields,\n",
+          "old": "                buyer_demand=demand[dest], source_demand=demand[src], source_market_price=price[src],\n"
+        },
+        {
+          "new": "    counters = {key: (old.counters.get(key, 0) if old is not None else 0) for key in counter_keys}\n",
+          "old": "    counters = {key: (old.counters.get(key, 0) if old is not None else 0) for key in _COUNTERS}\n"
+        },
+        {
+          "new": "        summary = frame.model_dump(mode=\"json\", exclude={\"frame_digest\"})\n        shipments = getattr(getattr(world, \"grain_reserves\", None), \"shipments\", None)\n        if shipments is not None:\n            summary[\"deliveries\"] = [\n                {\"shipment_id\": f\"public-grain-shipment:{row.order}\",\n                 \"source_turn\": row.turn, \"dispatch_turn\": row.dispatch_turn,\n                 \"due_turn\": row.due_turn, \"dest_region\": row.dest,\n                 \"buyer\": row.buyer, \"seller\": row.seller, \"keeper\": row.keeper,\n                 \"received\": row.net, \"paid_at_dispatch\": row.paid, \"paid_this_turn\": 0}\n                for row in shipments.frame if row.operation == \"arrived\"\n                and shipments.frame_turn == world.turn - 1]\n        return summary\n",
+          "old": "        return frame.model_dump(mode=\"json\", exclude={\"frame_digest\"})\n"
+        },
+        {
+          "new": "shipment_id=order.id",
+          "old": "shipment_id=f\"public-grain-shipment:{order.order}\""
+        },
+        {
+          "new": "{\"shipment_id\": row.id,",
+          "old": "{\"shipment_id\": f\"public-grain-shipment:{row.order}\","
+        },
+        {
+          "new": "            delivery_rows = [\n",
+          "old": "            summary[\"deliveries\"] = [\n"
+        },
+        {
+          "new": "                and shipments.frame_turn == world.turn - 1]\n            available = shipments.frame_turn == world.turn - 1\n            dropped = max(0, len(delivery_rows) - world.transaction_receipts.max_rows)\n            summary[\"deliveries\"] = {\n                \"source_turn\": world.turn - 1, \"phase\": \"phase10_public_grain_delivery\",\n                \"available\": available, \"complete\": available and dropped == 0,\n                \"max_rows\": world.transaction_receipts.max_rows,\n                \"observed_deliveries\": len(delivery_rows), \"dropped_rows\": dropped,\n                \"rows\": delivery_rows[:world.transaction_receipts.max_rows],\n            }\n        return summary\n",
+          "old": "                and shipments.frame_turn == world.turn - 1]\n        return summary\n"
+        }
+      ],
+      "sha256": "68d19b32d76d1ac3c9a71980899e29e6bb9d665f784ad96d9ce97c1a36b31482"
+    },
+    "src/chronicler/sidecar.py": {
+      "patches": [
+        {
+          "new": "        prior = len(next(iter(ledger.values()))) if ledger else 0\n        count = len(next(iter(rows.values()))) if rows else 0\n        if set(rows) != set(ledger):\n            # A later opt-in adds aggregate shipment columns; old rows mean zero cargo.\n            for name in rows:\n                if name not in ledger:\n                    ledger[name] = [0.0] * prior\n            for name in ledger:\n                if name not in rows:\n                    ledger[name].extend([0.0] * count)\n        for name, values in rows.items():\n            ledger[name].extend(values)\n\n    def _write_reserve_ledger",
+          "old": "        for name, values in rows.items():\n            ledger[name].extend(values)\n\n    def _write_reserve_ledger"
+        }
+      ],
+      "sha256": "ee99510cc24a1d3fa5bba446fef653a0bafb3e3565a8dd0ea3ac62f7fe6b265c"
+    },
+    "src/chronicler/simulation.py": {
+      "patches": [
+        {
+          "new": "    check_civ_capacity(world)\n    if _grain_reserves_on(world) and getattr(world.grain_reserves, \"shipments\", None) is not None:\n        from chronicler.public_grain_shipments import validate_shipments\n        validate_shipments(world)\n    artifacts = TurnArtifacts(source_turn=world.turn)",
+          "old": "    check_civ_capacity(world)\n    artifacts = TurnArtifacts(source_turn=world.turn)"
+        }
+      ],
+      "sha256": "bfecb967f6405d8c2acc2d3342880c2735405457608672678fbffe4f2e6f9b61"
+    },
+    "src/chronicler/transaction_receipts_state.py": {
+      "patches": [
+        {
+          "new": "    financial_eligible: bool = False\n    shipment_id: str | None = Field(default=None, exclude_if=_is_none)\n    due_turn: int | None = Field(default=None, exclude_if=_is_none)\n    committed_net: float | None = Field(default=None, exclude_if=_is_none)\n\n    def __setstate__(self, state):\n        super().__setstate__(state)\n        for key in (\"shipment_id\", \"due_turn\", \"committed_net\"):\n            self.__dict__.setdefault(key, None)\n\n\nclass PublicPurchaseFrame",
+          "old": "    financial_eligible: bool = False\n\n\nclass PublicPurchaseFrame"
+        }
+      ],
+      "sha256": "3c14364adc7546e9813d09e74cbddec093691613bb38e9a838dc28d52a316d68"
+    }
+  },
+  "new_files": {
+    "src/chronicler/public_grain_shipments.py": "2981c245334e8d1d3efb7705e48509913aa059a6522a8b11bd1b4c115285f535",
+    "src/chronicler/public_grain_shipments_state.py": "65d32d0aa821becc23720378d4074f3b4778b191434a3214c2052348eb314c42"
+  },
+  "schema_version": 1
+}

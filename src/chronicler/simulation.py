@@ -1912,6 +1912,9 @@ def run_turn_result(
 
     from chronicler.ffi_constants import check_civ_capacity
     check_civ_capacity(world)
+    if _grain_reserves_on(world) and getattr(world.grain_reserves, "shipments", None) is not None:
+        from chronicler.public_grain_shipments import validate_shipments
+        validate_shipments(world)
     artifacts = TurnArtifacts(source_turn=world.turn)
     # Permanent faith ids (chronicler.faiths): a world built or loaded without
     # its table gets one; in a recorded run this changes nothing.

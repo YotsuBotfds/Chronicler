@@ -23,7 +23,7 @@ def capture_public_purchases(world, *, economy_result, opening_treasuries=None,
     """
     if not transaction_receipts_active(world):
         return
-    from chronicler.grain_reserves_state import BOUGHT, grain_reserves_on
+    from chronicler.grain_reserves_state import BOUGHT, DISPATCHED, grain_reserves_on
     state = world.transaction_receipts
     old = getattr(state, "public_purchases", None)
     if old is not None and old.source_turn > world.turn:
@@ -41,7 +41,11 @@ def capture_public_purchases(world, *, economy_result, opening_treasuries=None,
     rows, seen = [], set()
     observed, dropped, duplicates = 0, 0, 0
     overflowed = False
-    sums = {key: 0 for key in _COUNTERS}
+    shipments = getattr(getattr(world, "grain_reserves", None), "shipments", None)
+    counter_keys = _COUNTERS + (("committed_net",) if shipments is not None else ())
+    sums = {key: 0 for key in counter_keys}
+    dispatches = ({row.order: row for row in shipments.frame if row.operation == "dispatched"}
+                  if shipments is not None and shipments.frame_turn == world.turn else {})
     digest = hashlib.sha256()
     digest.update(json.dumps([world.turn, state.max_rows, available, reason, flow_start]).encode())
     if available:
@@ -54,7 +58,7 @@ def capture_public_purchases(world, *, economy_result, opening_treasuries=None,
             raise ValueError("public purchase receipt flow window is invalid")
         balances = list(opening_treasuries)
         for i, flow in enumerate(world.grain_reserves.flows):
-            if i < flow_start or flow.kind != BOUGHT:
+            if i < flow_start or flow.kind not in (BOUGHT, DISPATCHED):
                 continue
             buyer, seller, src, dest = flow.buyer, flow.seller, flow.source, flow.region
             if not (0 <= buyer < len(balances) and 0 <= seller < len(balances)
@@ -73,6 +77,20 @@ def capture_public_purchases(world, *, economy_result, opening_treasuries=None,
             if foreign:
                 balances[seller] += flow.cost
             ident = f"{state.namespace}:public-grain:{world.turn}:{buyer}:{dest}:{src}"
+            shipment_fields = {}
+            received = flow.amount
+            if flow.kind == DISPATCHED:
+                order = dispatches.get(flow.shipment_order)
+                if (order is None or (order.source, order.dest, order.buyer, order.seller,
+                                      order.sent, order.net, order.paid)
+                        != (src, dest, buyer, seller, flow.sent, flow.amount, flow.cost)):
+                    raise ValueError("public dispatch receipt has no matching committed order")
+                ident += f":shipment:{order.order}"
+                received = 0.0
+                shipment_fields = dict(shipment_id=order.id,
+                                       due_turn=order.due_turn, committed_net=order.net,
+                                       quantity_basis="committed_public_grain_dispatch")
+                sums["committed_net"] += order.net
             row = PublicPurchaseObservation(
                 id=ident, source_turn=world.turn, source_region=src,
                 source_region_name=world.regions[src].name, dest_region=dest,
@@ -81,13 +99,14 @@ def capture_public_purchases(world, *, economy_result, opening_treasuries=None,
                 keeper_name=world.civilizations[keeper].name, source_controller=seller,
                 source_controller_name=world.civilizations[seller].name,
                 purchase_kind="foreign" if foreign else "own_market" if src == dest else "same_realm",
-                sent=flow.sent, received=flow.amount, transit_loss=max(0.0, flow.sent-flow.amount),
+                sent=flow.sent, received=received, transit_loss=max(0.0, flow.sent-flow.amount),
                 buyer_paid=flow.cost, foreign_ruler_credited=flow.cost if foreign else 0,
                 domestic_producer_sink=0 if foreign else flow.cost,
                 buyer_treasury_before=before, buyer_treasury_after=balances[buyer],
                 seller_treasury_before=seller_before,
                 seller_treasury_after=balances[seller] if foreign else None,
                 buyer_demand=demand[dest], source_demand=demand[src], source_market_price=price[src],
+                **shipment_fields,
             )
             data = row.model_dump(mode="json")
             digest.update(json.dumps(data, sort_keys=True, separators=(",", ":"), allow_nan=False).encode())
@@ -108,7 +127,7 @@ def capture_public_purchases(world, *, economy_result, opening_treasuries=None,
         if old.frame_digest != fingerprint:
             raise ValueError("conflicting public purchase receipt frame for processed turn")
         return
-    counters = {key: (old.counters.get(key, 0) if old is not None else 0) for key in _COUNTERS}
+    counters = {key: (old.counters.get(key, 0) if old is not None else 0) for key in counter_keys}
     sums.update(frames=1, unavailable_frames=int(not available), observed_purchases=observed,
                 dropped_rows=dropped, retained_key_duplicates=duplicates)
     for key, value in sums.items():
@@ -126,7 +145,27 @@ def snapshot_summary(world) -> dict:
         return {}
     frame = getattr(world.transaction_receipts, "public_purchases", None)
     if frame is not None and frame.source_turn == world.turn - 1:
-        return frame.model_dump(mode="json", exclude={"frame_digest"})
+        summary = frame.model_dump(mode="json", exclude={"frame_digest"})
+        shipments = getattr(getattr(world, "grain_reserves", None), "shipments", None)
+        if shipments is not None:
+            delivery_rows = [
+                {"shipment_id": row.id,
+                 "source_turn": row.turn, "dispatch_turn": row.dispatch_turn,
+                 "due_turn": row.due_turn, "dest_region": row.dest,
+                 "buyer": row.buyer, "seller": row.seller, "keeper": row.keeper,
+                 "received": row.net, "paid_at_dispatch": row.paid, "paid_this_turn": 0}
+                for row in shipments.frame if row.operation == "arrived"
+                and shipments.frame_turn == world.turn - 1]
+            available = shipments.frame_turn == world.turn - 1
+            dropped = max(0, len(delivery_rows) - world.transaction_receipts.max_rows)
+            summary["deliveries"] = {
+                "source_turn": world.turn - 1, "phase": "phase10_public_grain_delivery",
+                "available": available, "complete": available and dropped == 0,
+                "max_rows": world.transaction_receipts.max_rows,
+                "observed_deliveries": len(delivery_rows), "dropped_rows": dropped,
+                "rows": delivery_rows[:world.transaction_receipts.max_rows],
+            }
+        return summary
     return {"source_turn": None, "as_of_turn": world.turn - 1,
             "phase": "phase10_granary_procurement", "available": False,
             "complete": False, "unavailable_reason": "not_captured", "rows": []}

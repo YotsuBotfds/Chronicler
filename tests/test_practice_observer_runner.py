@@ -72,6 +72,25 @@ def _main_without_reviewed_civ_admissions(source):
     del body[setup_index + 1:setup_index + 3]
     return tree
 
+
+_PUBLIC_GRAIN_SETUP = '    _shipments = getattr(args, "public_grain_shipments", None)\n    if _shipments is not None:\n        from chronicler.public_grain_shipments import set_public_grain_shipments_enabled\n        set_public_grain_shipments_enabled(world, _shipments)\n'
+_PUBLIC_GRAIN_PARSER = '    parser.add_argument("--public-grain-shipments", action=argparse.BooleanOptionalAction, default=None,\n                        help="Default-off public grain: foreign direct-neighbor orders arrive next Phase10, "\n                             "after its opening; requires --grain-reserves and agents. Disabling drains paid cargo.")\n'
+
+
+def _main_without_reviewed_public_grain_shipments(source):
+    tree = ast.parse(source)
+    for name, block, following in (
+        ("_configure_run", _PUBLIC_GRAIN_SETUP, '    # Community anchoring switch (persisted on the world): community ties\n'),
+        ("_build_parser", _PUBLIC_GRAIN_PARSER, '    parser.add_argument("--community-anchoring", action=argparse.BooleanOptionalAction, default=None,\n'),
+    ):
+        functions = [node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == name]
+        assert len(functions) == 1
+        node = functions[0]
+        text = "".join(source.splitlines(keepends=True)[node.lineno-1:node.end_lineno])
+        assert source.count(block) == text.count(block) == 1
+        assert text.count(block + following) == 1, "public grain optional source moved or changed"
+    return source.replace(_PUBLIC_GRAIN_SETUP, "", 1).replace(_PUBLIC_GRAIN_PARSER, "", 1)
+
 def invoke(mode, observer, *args, **kwargs):
     if mode == "omitted":
         return M._run_turn_deferring_sigint(*args, **kwargs)
@@ -389,7 +408,8 @@ def test_entire_default_main_AST_matches_qualified_parent():
             return retained
 
     projector = Defaults()
-    projected = projector.visit(_main_without_reviewed_civ_admissions(Path(M.__file__).read_text()))
+    projected = projector.visit(_main_without_reviewed_civ_admissions(
+        _main_without_reviewed_public_grain_shipments(Path(M.__file__).read_text())))
     assert projector.functions == set(parameters)
     assert projector.parameters == {"artifact_budget": 4, "practice_observer": 2}
     assert projector.branches == {scope: len(expected) for scope, expected in branches.items()}
@@ -406,6 +426,23 @@ def test_entire_default_main_AST_matches_qualified_parent():
                     literal.replace("physics(41)", "physics(42)")):
         assert changed != literal
         assert ast_dump(Defaults().visit(ast.parse(changed))) != untouched
+
+
+@pytest.mark.parametrize("mutation", ["predicate", "location", "extra_effect", "parser"])
+def test_public_grain_source_inverse_refuses_unreviewed_changes(mutation):
+    source = Path(M.__file__).read_text()
+    if mutation == "predicate":
+        changed = source.replace("if _shipments is not None:", "if _shipments is None:", 1)
+    elif mutation == "location":
+        changed = source.replace(_PUBLIC_GRAIN_SETUP, "", 1)
+        changed = changed.replace("    return parser\n", _PUBLIC_GRAIN_SETUP + "    return parser\n", 1)
+    elif mutation == "extra_effect":
+        changed = source.replace(_PUBLIC_GRAIN_SETUP, _PUBLIC_GRAIN_SETUP + "    world.turn += 1\n", 1)
+    else:
+        changed = source.replace("--public-grain-shipments", "--public-grain-shipping", 1)
+    assert changed != source
+    with pytest.raises(AssertionError):
+        _main_without_reviewed_public_grain_shipments(changed)
 
 
 @pytest.mark.parametrize("mutation", ["wrong_helper", "wrong_location", "between_pair", "extra_effect"])

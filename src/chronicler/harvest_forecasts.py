@@ -514,21 +514,46 @@ def record_preparedness_purchases(world) -> list:
     """Actual completed-turn purchases while warned, not causal excess."""
     if not harvest_forecasts_active(world):
         return []
-    from chronicler.grain_reserves_state import BOUGHT
+    from chronicler.grain_reserves_state import ARRIVED, BOUGHT, DISPATCHED
     state = world.harvest_forecasts
     if world.grain_reserves.flows_turn != world.turn:
         return []
     events = []
     reports = {report.id: report for report in state.reports}
     purchases = {}
+    shipment_purchases = {}
+    shipment_state = getattr(world.grain_reserves, "shipments", None)
     for flow in world.grain_reserves.flows:
         if flow.kind == BOUGHT:
             row = purchases.setdefault(flow.region, [[], 0])
             row[0].append(flow.amount)
             row[1] += flow.cost
+        elif shipment_state is not None and flow.kind in (DISPATCHED, ARRIVED):
+            extra = shipment_purchases.setdefault(flow.region, [0.0, 0, 0.0])
+            if flow.kind == DISPATCHED:
+                extra[0] += flow.amount
+                extra[1] += flow.cost
+            else:
+                extra[2] += flow.amount
     for row in state.preparedness:
         amounts, paid = purchases.get(row["region"], ((), 0))
         bought = math.fsum(amounts)
+        if shipment_state is not None:
+            values = shipment_purchases.get(row["region"], (0.0, 0, 0.0))
+            keys = ("committed_during_warning", "paid_for_shipments_during_warning",
+                    "arrived_during_warning")
+            row["shipment_ids_during_warning"] = [transition.id for transition in shipment_state.frame
+                if shipment_state.frame_turn == world.turn and transition.dest == row["region"]]
+            old_paid = row.get(keys[1], 0)
+            for key, value in zip(keys, values):
+                state.counters[key] = state.counters.get(key, 0) - row.get(key, 0) + value
+                row[key] = value
+            if values[1] > 0 and old_paid != values[1] and row["forecast_id"] in reports:
+                report = reports[row["forecast_id"]]
+                events.append(_emit(world, "harvest_preparedness", report,
+                    f"While warned of shortfall, {report.owner_name} pays {values[1]} treasury "
+                    f"for {values[0]:.1f} grain still in transit; it is not yet in the granary.",
+                    (report.delivered_event_id,)))
         if row["bought_during_warning"] == bought and row["paid_during_warning"] == paid:
             continue
         state.counters["bought_during_warning"] -= row["bought_during_warning"]
