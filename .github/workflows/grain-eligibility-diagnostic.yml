@@ -1,0 +1,93 @@
+name: Passive grain eligibility diagnostic
+
+on:
+  push:
+    branches: [lead/grain-eligibility-diagnostic-run-20261030]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  grain-eligibility-diagnostic:
+    if: github.ref == 'refs/heads/lead/grain-eligibility-diagnostic-run-20261030'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      PYTHONUNBUFFERED: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+      RAYON_NUM_THREADS: "1"
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      NUMEXPR_NUM_THREADS: "1"
+    steps:
+      - name: Check out exact diagnostic source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Set up the historical interpreter version
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13.17"
+
+      - name: Install the unchanged frozen Python environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install "uv>=0.5,<1"
+          uv lock --check
+          uv sync --frozen --python "$(command -v python)"
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Admit protocol and source before any historical original request
+        shell: bash
+        run: |
+          set -euo pipefail
+          cpu_list=$(awk '/^Cpus_allowed_list:/ {print $2}' /proc/self/status)
+          cpu=${cpu_list%%[-,]*}
+          [[ "$cpu" =~ ^[0-9]+$ ]]
+          /usr/bin/taskset --cpu-list "$cpu" python -B diagnostics/grain_eligibility_driver.py \
+            admit --work "$RUNNER_TEMP/grain-eligibility-diagnostic"
+
+      - name: Retain and verify one historical artifact ZIP before wheel install
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cpu_list=$(awk '/^Cpus_allowed_list:/ {print $2}' /proc/self/status)
+          cpu=${cpu_list%%[-,]*}
+          [[ "$cpu" =~ ^[0-9]+$ ]]
+          /usr/bin/taskset --cpu-list "$cpu" python -B diagnostics/grain_eligibility_driver.py \
+            prepare --work "$RUNNER_TEMP/grain-eligibility-diagnostic"
+
+      - name: Observe the unchanged original Native case once
+        id: observe
+        shell: bash
+        run: |
+          set -euo pipefail
+          cpu_list=$(awk '/^Cpus_allowed_list:/ {print $2}' /proc/self/status)
+          cpu=${cpu_list%%[-,]*}
+          [[ "$cpu" =~ ^[0-9]+$ ]]
+          /usr/bin/taskset --cpu-list "$cpu" python -B diagnostics/grain_eligibility_driver.py \
+            run --work "$RUNNER_TEMP/grain-eligibility-diagnostic"
+
+      - name: Retain only the complete proven publication snapshot
+        if: always() && !cancelled() && steps.observe.outputs.raw_allowed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: grain-eligibility-diagnostic-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/grain-eligibility-diagnostic/publication/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Retain parent-only controls when raw custody is unavailable
+        if: always() && !cancelled() && steps.observe.outputs.raw_allowed != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: grain-eligibility-diagnostic-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/grain-eligibility-diagnostic/control/
+          if-no-files-found: warn
+          retention-days: 14

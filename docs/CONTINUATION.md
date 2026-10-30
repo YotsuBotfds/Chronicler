@@ -1,3 +1,19 @@
+## 2026-10-30 — passive grain diagnostic custody correction, SOURCE ONLY
+
+Immutable18f2bed3/tree923bf3 is BLOCKED_B1_B2_B3 before any49 cases or runtime: closed pipes did not prove owned-session closure and cleanup lacked finally; protocol READY was not HEAD-byte-bound; the claimed durable launch marker lacked file/directory fsync. The independent5d858a86 receipt and original metadata negative stay preserved.
+
+This child changes only driver/new outside-protected session helper/cases/diagnostic workflow/protocol/integration note/this prefix. All828 protected b9e product/test/helper/UV bytes, Nativeaa32, the complete original49-case source prefix, tracer and Native fixture/assertions stay exact.32 appended injected decision/fault cases give81 explicit cases, all UNRUN. Held-WNOWAIT/finally/sole-wait cleanup applies to gh/uv/worker; durable parent intent precedes Popen; committed raw protocol bytes/mode/pin join current identity. Unknown custody permits parent controls only; raw uploads require a complete durable quiescent snapshot and !cancelled(). Nofollow live metadata-only safety census is the narrow permitted exception under known reservation.
+
+Protocol stays UNREADY. No candidate import, pureprep/test/helper/Native/World/build/API/ref/body execution in this source phase. Root/independent full source review and separately granted FIRST81/semantic/readiness/run stages remain held; original negative CI and no-pending1..7 observation are unchanged.
+
+## 2026-10-30 — passive Native grain eligibility diagnostic, SOURCE ONLY
+
+The first public-grain CI b9e3/run41055186919 remains NEGATIVE: stale batch-manifest witness plus the real Native case's missing pending order at checkpoints1..7. The latter does not establish zero dispatch on all8turns. The separate1c1d manifest-witness correction and its FIRST1 assertion PASS do not fix or qualify this Native failure. Publication remains root-controlled.
+
+This child deliberately branches from local27d82/publishedb9e3/tree7a43 to preserve the complete historical828-file product/test/helper/UV closure needed by the old Native wheel. Only diagnostics modules/protocol, an opt-in workflow, additive semantic selector and these docs change. Protocol UNREADY;49pure contracts UNRUN; all original fixture quantities/assertions and protected bytes exact. First observe actual frame-local procurement gates in current/existing/future Python threads, without extra product/RNG/Native/getter calls. Historical wheel custody is diagnostic-only, separately verified; no current-wheel CI/feature/performance claim. No new ref, API/body transfer, test, build or Native execution by this source author.
+
+See [diagnostic contract](integration/grain-eligibility-diagnostic.md). Independent/root full source review, FIRST pure/semantic qualification, a readiness child and a separate run grant precede activation.
+
 # Isolated public grain CI routing — source only, 2026-10-30
 
 This child adds dedicated new shipment semantic and standard Tests push refs;
