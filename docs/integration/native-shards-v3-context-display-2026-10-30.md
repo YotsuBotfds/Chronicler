@@ -1,0 +1,29 @@
+# V3 context displays: prospective qualification scope
+
+This amendment is registered before any V3 paired-run data or original artifact references. It changes consumer qualification and documentation, not producer/helper/manifest/test code. Local f227/published5e34 remains the code-equivalence parent. The same previously uncreated `lead/native-two-shard-qualification-v3-20261030` run ref is held until root approves the reviewed successor and its new all10-workflow lint. No target data selected this scope; no benchmark, Native or data acquisition is activated here.
+
+## What the qualified historical data actually contains
+
+The borrowed qualified catalogue `parent-order.json` is5159048 bytes, SHA256 `915d968b1e3ec47fe689260f7484d000985113d11ec613ef3b1ed2ac67fc3fa5`. It retains407 owner0 and216 owner1 subreports:623 total. Inspection before V3 activation found9 owner0 displays containing object/iterator memory addresses and31 containing actual temporary/runner paths. Owner1 had0 of either pattern, and the stable97 care displays had0. These observations are not a runtime allowlist or proof that every other display is stable.
+
+Source tests explicitly pass `repr(object())` or iterator representations into unittest subTest labels; reviewed-base/session declarations include temporary target paths. Those raw labels cannot be expected to equal between fresh processes. The historical catalogue already restricted its raw cross-run value claim to97 care reports. Source-backed inspection pins/examples/ordinals are retained in the separate16221-byte scope proof, SHA256 `0e0eb9f3a50212a0a90aed27c0eb872974ec8a7a18819a1f9f8dbea0ee522647`; neither catalogue nor old originals are copied or modified.
+
+## Exact observable gate
+
+For all623 subreports require the exact registered parent node, phase/when, outcome, ordinal, multiplicity and per-owner structural order (407/216). Validate the literal observable context FIELD set `representation`, `msg`, `kwargs`; representation is exactly `pytest-saferepr-display-v1`. Both display values are strings, with the unchanged producer bounds256 msg characters/1024 kwargs characters and16KiB canonical context JSON. Missing/extra fields, another format, malformed types/bounds or changed node/report structure refuse qualification.
+
+The producer's `kwargs` is one bounded saferepr STRING. This gate does not extract/evaluate it or verify semantic keyword keys, values, object identities or aliases inside it. Those properties of the other526 display contexts are explicitly UNOBSERVED. There are no new receipt fields or source-helper changes to manufacture an unavailable keyset proof.
+
+All97 stable care reports retain RAW all-field equality, including their context strings and registered structure. This is the unchanged narrow cross-run value witness. It does not upgrade the other526 displays to a semantic-parameter or alias-equivalence claim.
+
+Every raw context string/report remains retained in the original archives/catalogue. Enumerate ALL raw value differences, both cross-profile and against the historical reference, as diagnostics tied to exact owner/ordinal/node/member pins; preserve raw values and hashes rather than replacing them. No substitutions, regex/address/private-root stripping, path normalization, canonicalized-display equality or fragile surrounding-text rewrite is permitted. A diagnostic difference is not itself proof of differing underlying parameters, and a matching truncated display is not proof of equal hidden values. This prospective scope supersedes any earlier reading of V3 documentation as requiring all623 raw saferepr strings to be portable values.
+
+## Functional and source gates remain strict
+
+Require all12 official jobs successful at one exact source/tree/run/attempt, four same-own-wheel identities and profile-specific manifest/build joins. Both profiles keep the exact9078 complete default collection, global9072 PASS/6 exact registered skips, every parent phase/outcome and exact-once source ownership. V3 moves only whole M36 (16 parents,15 PASS/1 SKIP,zero subreports), with owner totals4668 PASS/3 SKIP and4404 PASS/3 SKIP (4671/4407 parents). V2 keeps its old owner order and qualified raw65 witnesses; V3 joins parent outcomes globally and follows its new selected owner order. No stale-Native or other extra skips are admitted. All623 subreport structures/ordinals/multiplicities and97 raw care values remain strict regardless of diagnostic display differences.
+
+Keep complete305-module JUnit data per profile, job/step timing and every regression/negative outcome. Same-binary/profile comparison remains one noisy diagnostic pair; no simulation trajectory/RNG equivalence, general speedup, threshold or default promotion follows. Shared four-worker aggregate dependencies still prevent a whole-V3-workflow elapsed-speed claim. Raw wheel/ELF bytes are not independently rehashed by a receipt-only reader.
+
+## Source and activation boundary
+
+Only this new note, a CONT prepend and the additive dedicated `lead/native-two-shard-v3-context-semantics-20261030` semantic selector/guard change. The inert source branch is `lead/native-two-shard-v3-context-source-20261030`. All helper/manifests/14 contracts, old tests, default Tests/V2/V3 producer workflow, product, Native0dca and the other9 workflow YAML files are literal f227 entries. The first14 PASS qualifies unchanged code through literal Git equivalence; no test replay is needed or performed for this documentation/selector amendment. Old5e34 source/publication/reader/lint records remain immutable; its lint intake was cancelled before any original reference. This successor needs root full review, independent delta review and a new exact all10-workflow lint before a separate paired-run grant. The saved-data consumer remains UNBOUND until actual terminal metadata and a source-bound root admission/grant exist.
