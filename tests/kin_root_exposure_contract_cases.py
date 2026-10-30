@@ -476,3 +476,28 @@ def test_complete_unselected_capture_must_reconcile_global_eligibility():
     inputs["decision_header"]["mobility_eligible_all"] = 1
     with pytest.raises(ValueError, match="complete_decision_counts"):
         exposure.summarize_kin_root_exposure(**inputs)
+
+
+def partial_applied_without_retained_origin(origin_ordinal):
+    applied = move_pair(0)[-1]
+    applied["origin_operation_ordinal"] = origin_ordinal
+    inputs = frames(moves=[applied])
+    inputs["move_header"].update(applied_move_provenance_complete=False,
+        operations_seen_all=3, operations_selected=3, dropped_move_rows=2,
+        own_proposals_all=1, replacement_removals_all=1)
+    return inputs
+
+
+@pytest.mark.parametrize("origin_ordinal", [1, 2])
+def test_partial_applied_origin_cannot_equal_or_follow_its_applied_ordinal(origin_ordinal):
+    inputs = partial_applied_without_retained_origin(origin_ordinal)
+    with pytest.raises(ValueError, match="move_origin_order"):
+        exposure.summarize_kin_root_exposure(**inputs)
+
+
+def test_partial_applied_origin_may_be_earlier_without_a_retained_origin_row():
+    inputs = partial_applied_without_retained_origin(0)
+    result = exposure.summarize_kin_root_exposure(**inputs)
+    assert result["status"] == "partial_capture"
+    assert result["applied_moves"]["applied_own"] == 1
+    assert result["applied_moves"]["applied_origin_not_captured"] == 1

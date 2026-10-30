@@ -84,6 +84,10 @@ An applied row with no valid origin retains unknown role255, null lead and null
 origin ordinal; a valid applied origin has a known role and nonnull ordinal.
 These flags stay consistent even in a partial capture. A missing partial-frame
 ordinal is reported as unavailable rather than invented from another row.
+Even when the origin row is absent, a valid applied origin ordinal must precede
+its applied row: native tracking stores the earlier `record()` ordinal before
+recording the applied move. Missing earlier origins remain allowed in a partial
+capture; equal and future origin ordinals refuse.
 
 ## Next distinct measurement
 

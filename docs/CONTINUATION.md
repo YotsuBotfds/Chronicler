@@ -1,3 +1,15 @@
+# Kin-root partial origin ordering — source only, 2026-10-30
+
+A valid applied move origin must precede the applied row even when its origin
+row is absent from a partial capture. This check follows native monotonically
+assigned operation ordinals; missing earlier origins remain allowed and visible.
+All old96 case bytes/order and all40 offline chunks remain exact; three focused
+cases are appended. No simulation defaults, native mechanics, study results or
+thresholds change. Source-only review and actual execution remain separate.
+The exact preceding continuation follows unchanged.
+
+---
+
 # Kin-root captured exposure reader domain repair — source only, 2026-10-30
 
 First sourcefcd616c4 remains UNRUN and source-blocked: its finite wealth factor

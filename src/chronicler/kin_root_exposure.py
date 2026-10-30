@@ -286,6 +286,7 @@ def summarize_kin_root_exposure(*, decision_header, decision_rows, candidate_row
             if row["origin_valid"]:
                 _require(row["role"] in (0, 1, 2) and row["origin_operation_ordinal"] is not None,
                          "missing_move_origin")
+                _require(row["origin_operation_ordinal"] < ordinal, "move_origin_order")
             else:
                 _require(row["role"] == 255 and row["lead_agent_id"] is None
                          and row["origin_operation_ordinal"] is None, "missing_move_origin")
