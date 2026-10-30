@@ -1,3 +1,18 @@
+## 2026-10-30: opt-in workflow semantic validation (source only)
+
+Added a small separate staging829 child with a pinned upstream actionlint
+v1.7.12 lane. It explicitly checks every tracked workflow YAML, including
+dormant workflows and itself, with ShellCheck/Pyflakes integrations disabled.
+Both release checksum-file and Linux archive SHA-256 pins are literal; the
+upstream source tag resolves to914e7df21a07ef503a81201c76d2b11c789d3fca.
+Read-only PR workflow/config paths validate normally. Source-ref publication
+is inert; root separately approves the same-SHA dedicated run-ref push for
+the first hosted lint, without a duplicate manual dispatch. Existing workflows,
+product/tests/default owners and main are unchanged. No local installation,
+lint, build/native/test operation, push or hosted job occurred in preparation;
+all-workflow semantic success remains unobserved until that first job.
+See `docs/integration/workflow-semantics-2026-10-30.md` for scope and limits.
+
 # Simulation staging integration — source only, 2026-10-30
 
 This separate701-based staging branch composes the exact reviewed5122 household-
