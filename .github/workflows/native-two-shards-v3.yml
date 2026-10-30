@@ -3,7 +3,6 @@ name: Dormant paired native module shard qualification V3
 on:
   push:
     branches: [lead/native-two-shard-qualification-v3-20261030]
-    paths: [.github/workflows/native-two-shards-v3.yml]
   workflow_dispatch:
 
 permissions:
