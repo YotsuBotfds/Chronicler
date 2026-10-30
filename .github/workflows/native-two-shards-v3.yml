@@ -1,0 +1,585 @@
+name: Dormant paired native module shard qualification V3
+
+on:
+  push:
+    branches: [lead/native-two-shard-qualification-v3-20261030]
+    paths: [.github/workflows/native-two-shards-v3.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python-offline:
+    if: github.ref == 'refs/heads/lead/native-two-shard-qualification-v3-20261030'
+    name: Python bounded offline
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Restore uv artifacts
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ runner.arch }}-py313-${{ hashFiles('uv.lock') }}
+          restore-keys: uv-${{ runner.os }}-${{ runner.arch }}-py313-
+
+      - name: Install Python dependencies from the lockfile
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "uv>=0.5,<1"
+          uv lock --check
+          uv sync --frozen --python "$(command -v python)"
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Assert native extension is absent
+        run: |
+          python - <<'PY'
+          import importlib.util
+          spec = importlib.util.find_spec("chronicler_agents")
+          if spec is not None:
+              raise SystemExit(f"offline lane unexpectedly sees chronicler_agents at {spec.origin}")
+          PY
+
+      - name: Run guarded offline chunks
+        run: python scripts/run_python_oracle_checks.py --output-dir "$RUNNER_TEMP/chronicler-oracle-evidence"
+
+      - name: Retain bounded offline receipts and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-offline-v2-v3-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/chronicler-oracle-evidence/receipt.json
+            ${{ runner.temp }}/chronicler-oracle-evidence/guard-*.json
+            ${{ runner.temp }}/chronicler-oracle-evidence/pytest-*.txt
+          if-no-files-found: warn
+          retention-days: 14
+
+  python-no-rust:
+    if: github.ref == 'refs/heads/lead/native-two-shard-qualification-v3-20261030'
+    name: Python no-Rust
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Restore uv artifacts
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ runner.arch }}-py313-${{ hashFiles('uv.lock') }}
+          restore-keys: uv-${{ runner.os }}-${{ runner.arch }}-py313-
+
+      - name: Install Python dependencies from the lockfile
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "uv>=0.5,<1"
+          uv lock --check
+          uv sync --frozen --python "$(command -v python)"
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Assert native extension is absent
+        run: |
+          python - <<'PY'
+          import importlib.util
+          spec = importlib.util.find_spec("chronicler_agents")
+          if spec is not None:
+              raise SystemExit(f"no-Rust lane unexpectedly sees chronicler_agents at {spec.origin}")
+          PY
+
+      - name: Check turn-wrapper contracts before the full suite
+        shell: bash
+        env:
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+          PYTHONPATH: src:.:scripts/testing
+          CHRONICLER_OFFLINE_GUARD_REPORT: ${{ runner.temp }}/chronicler-wrapper-preflight/guard.json
+        run: |
+          set -euo pipefail
+          mkdir "$RUNNER_TEMP/chronicler-wrapper-preflight"
+          timeout --signal=KILL 110s python -B -m pytest -q --tb=short \
+            tests/test_practice_growth_observer.py::test_turn_wrappers_share_signature_and_forward_only_explicit_trace \
+            tests/test_turn_artifact_lifecycle.py::test_result_wrapper_preserves_signature_and_arguments \
+            -p python_oracle_guard -p no:cacheprovider \
+            --basetemp="$RUNNER_TEMP/chronicler-wrapper-preflight/pytest" \
+            --junitxml="$RUNNER_TEMP/chronicler-wrapper-preflight/junit.xml" \
+            2>&1 | tee "$RUNNER_TEMP/chronicler-wrapper-preflight/pytest.log"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          guard = json.loads(Path(os.environ["CHRONICLER_OFFLINE_GUARD_REPORT"]).read_text())
+          expected = {
+              "state": "PASS",
+              "guard_active_at_finish": True,
+              "runtime_factories_replaced_before_collection": True,
+              "pytest_exitstatus": 0,
+              "test_reports": {"passed": 2, "failed": 0, "skipped": 0},
+              "native_modules_loaded": [],
+              "native_import_attempts_blocked": [],
+              "blocked_io_attempts": [],
+              "python_oracle_factory_calls": {"ecology": 0, "politics": 0},
+          }
+          if any(guard.get(key) != value for key, value in expected.items()):
+              raise SystemExit("turn-wrapper preflight guard evidence is incomplete or unexpected")
+          PY
+
+      - name: Retain no-Rust turn-wrapper preflight evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wrapper-contract-no-rust-v2-v3-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/chronicler-wrapper-preflight/guard.json
+            ${{ runner.temp }}/chronicler-wrapper-preflight/pytest.log
+            ${{ runner.temp }}/chronicler-wrapper-preflight/junit.xml
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Run Python tests without Rust extension
+        run: python -m pytest -q --junitxml=ci-evidence/no-rust.xml
+
+      - name: Retain no-Rust test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-no-rust-v2-v3-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ci-evidence/
+          if-no-files-found: warn
+          retention-days: 14
+
+  python-native-build:
+    if: github.ref == 'refs/heads/lead/native-two-shard-qualification-v3-20261030'
+    name: Build one current-source native wheel
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Restore uv artifacts
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ runner.arch }}-py313-${{ hashFiles('uv.lock') }}
+          restore-keys: uv-${{ runner.os }}-${{ runner.arch }}-py313-
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Identify Rust compiler
+        id: compiler
+        shell: bash
+        run: echo "digest=$(rustc --version --verbose | sha256sum | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Cargo downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('chronicler-agents/Cargo.lock') }}
+          restore-keys: cargo-downloads-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Restore release build cache
+        uses: actions/cache@v4
+        with:
+          path: chronicler-agents/target/release
+          key: cargo-release-${{ runner.os }}-${{ runner.arch }}-py313-${{ steps.compiler.outputs.digest }}-${{ hashFiles('chronicler-agents/Cargo.lock', 'chronicler-agents/Cargo.toml') }}-${{ github.sha }}
+          restore-keys: cargo-release-${{ runner.os }}-${{ runner.arch }}-py313-${{ steps.compiler.outputs.digest }}-${{ hashFiles('chronicler-agents/Cargo.lock', 'chronicler-agents/Cargo.toml') }}-
+
+      - name: Install Python dependencies from the lockfile
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "uv>=0.5,<1"
+          uv lock --check
+          uv sync --frozen --python "$(command -v python)"
+          uv pip install --python .venv/bin/python "maturin>=1.5,<2"
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Admit both immutable fixed module assignments before build
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/native_ci_shards.py check-manifest --manifest scripts/testing/native_shards_manifest.json --execute --source-ref "$GITHUB_SHA" --output "$RUNNER_TEMP/native-module-admission-v2.json"
+          python scripts/native_ci_shards.py check-manifest --manifest scripts/testing/native_shards_manifest_v3.json --execute --source-ref "$GITHUB_SHA" --output "$RUNNER_TEMP/native-module-admission-v3.json"
+
+      - name: Check turn-wrapper contracts before the full suite
+        shell: bash
+        env:
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+          PYTHONPATH: src:.:scripts/testing
+          CHRONICLER_OFFLINE_GUARD_REPORT: ${{ runner.temp }}/chronicler-wrapper-preflight/guard.json
+        run: |
+          set -euo pipefail
+          mkdir "$RUNNER_TEMP/chronicler-wrapper-preflight"
+          timeout --signal=KILL 110s python -B -m pytest -q --tb=short \
+            tests/test_practice_growth_observer.py::test_turn_wrappers_share_signature_and_forward_only_explicit_trace \
+            tests/test_turn_artifact_lifecycle.py::test_result_wrapper_preserves_signature_and_arguments \
+            -p python_oracle_guard -p no:cacheprovider \
+            --basetemp="$RUNNER_TEMP/chronicler-wrapper-preflight/pytest" \
+            --junitxml="$RUNNER_TEMP/chronicler-wrapper-preflight/junit.xml" \
+            2>&1 | tee "$RUNNER_TEMP/chronicler-wrapper-preflight/pytest.log"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          guard = json.loads(Path(os.environ["CHRONICLER_OFFLINE_GUARD_REPORT"]).read_text())
+          expected = {
+              "state": "PASS",
+              "guard_active_at_finish": True,
+              "runtime_factories_replaced_before_collection": True,
+              "pytest_exitstatus": 0,
+              "test_reports": {"passed": 2, "failed": 0, "skipped": 0},
+              "native_modules_loaded": [],
+              "native_import_attempts_blocked": [],
+              "blocked_io_attempts": [],
+              "python_oracle_factory_calls": {"ecology": 0, "politics": 0},
+          }
+          if any(guard.get(key) != value for key, value in expected.items()):
+              raise SystemExit("turn-wrapper preflight guard evidence is incomplete or unexpected")
+          PY
+
+      - name: Retain native turn-wrapper preflight evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wrapper-contract-native-v2-v3-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/chronicler-wrapper-preflight/guard.json
+            ${{ runner.temp }}/chronicler-wrapper-preflight/pytest.log
+            ${{ runner.temp }}/chronicler-wrapper-preflight/junit.xml
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Build Rust extension wheel
+        run: |
+          cd chronicler-agents
+          python -m maturin build --release --locked
+          uv pip install --python ../.venv/bin/python target/wheels/*.whl
+
+      - name: Record both profiles from this one verified current-producer wheel
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/native_ci_shards.py record-build --manifest scripts/testing/native_shards_manifest.json --execute --wheel-dir chronicler-agents/target/wheels --output ci-native-wheel/v2/build.json
+          python scripts/native_ci_shards.py record-build --manifest scripts/testing/native_shards_manifest_v3.json --execute --wheel-dir chronicler-agents/target/wheels --output ci-native-wheel/v3/build.json
+          python - <<'PAIR'
+          import json
+          from pathlib import Path
+
+          v2 = json.loads(Path("ci-native-wheel/v2/build.json").read_text())
+          v3 = json.loads(Path("ci-native-wheel/v3/build.json").read_text())
+          if v2.keys() != v3.keys() or v2["identity"] != v3["identity"]:
+              raise SystemExit("paired profiles do not share the exact same wheel and runtime identity")
+          if v2["manifest_digest"] == v3["manifest_digest"]:
+              raise SystemExit("paired profile manifest digests must differ")
+          if {k: v for k, v in v2.items() if k != "manifest_digest"} != {k: v for k, v in v3.items() if k != "manifest_digest"}:
+              raise SystemExit("paired build records differ outside the selected manifest")
+          PAIR
+
+      - name: Retain this run's verified v2 wheel and context
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-shard-build-v2-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ci-native-wheel/v2/build.json
+            chronicler-agents/target/wheels/*.whl
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Retain this run's verified v3 wheel and context
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-shard-build-v3-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ci-native-wheel/v3/build.json
+            chronicler-agents/target/wheels/*.whl
+          if-no-files-found: error
+          retention-days: 14
+
+  python-native-tests:
+    if: github.ref == 'refs/heads/lead/native-two-shard-qualification-v3-20261030'
+    name: Python native ${{ matrix.profile }} module shard ${{ matrix.shard }}
+    needs: [python-native-build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - profile: v2
+            manifest: scripts/testing/native_shards_manifest.json
+            shard: '0'
+          - profile: v2
+            manifest: scripts/testing/native_shards_manifest.json
+            shard: '1'
+          - profile: v3
+            manifest: scripts/testing/native_shards_manifest_v3.json
+            shard: '0'
+          - profile: v3
+            manifest: scripts/testing/native_shards_manifest_v3.json
+            shard: '1'
+    env:
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Create private directories before Python starts
+        shell: bash
+        run: |
+          private_root="$RUNNER_TEMP/native-shard-${{ matrix.profile }}-${{ matrix.shard }}"
+          mkdir -p "$private_root/tmp" "$private_root/pd" "$private_root/r007" "$private_root/q009"
+          {
+            echo "TMPDIR=$private_root/tmp"
+            echo "PD_EVIDENCE_DIR=$private_root/pd"
+            echo "R007_EVIDENCE_DIR=$private_root/r007"
+            echo "Q009_EVIDENCE_DIR=$private_root/q009"
+          } >> "$GITHUB_ENV"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install identical lockfile dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "uv>=0.5,<1"
+          uv lock --check
+          uv sync --frozen --python "$(command -v python)"
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Download only this run's successful builder wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: native-shard-build-${{ matrix.profile }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/native-shard-build-${{ matrix.profile }}
+
+      - name: Verify source producer and whole wheel before install
+        run: python scripts/native_ci_shards.py verify-transfer --manifest "${{ matrix.manifest }}" --execute --build "$RUNNER_TEMP/native-shard-build-${{ matrix.profile }}/ci-native-wheel/${{ matrix.profile }}/build.json" --wheel-dir "$RUNNER_TEMP/native-shard-build-${{ matrix.profile }}/chronicler-agents/target/wheels" --output "$RUNNER_TEMP/native-shard-${{ matrix.profile }}-${{ matrix.shard }}/transfer.json"
+
+      - name: Install the same verified current-source wheel
+        run: uv pip install --python .venv/bin/python "$RUNNER_TEMP"/native-shard-build-${{ matrix.profile }}/chronicler-agents/target/wheels/*.whl
+
+      - name: Full default collection then owned module execution
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B scripts/native_ci_shards.py run --manifest "${{ matrix.manifest }}" --execute --shard "${{ matrix.shard }}" --build "$RUNNER_TEMP/native-shard-build-${{ matrix.profile }}/ci-native-wheel/${{ matrix.profile }}/build.json" --wheel-dir "$RUNNER_TEMP/native-shard-build-${{ matrix.profile }}/chronicler-agents/target/wheels" --output "$RUNNER_TEMP/native-shard-${{ matrix.profile }}-${{ matrix.shard }}" 2>&1 | tee "$RUNNER_TEMP/native-shard-${{ matrix.profile }}-${{ matrix.shard }}/pytest.log"
+
+      - name: Retain every shard's first result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-module-shard-${{ matrix.profile }}-${{ matrix.shard }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/native-shard-${{ matrix.profile }}-${{ matrix.shard }}/transfer.json
+            ${{ runner.temp }}/native-shard-${{ matrix.profile }}-${{ matrix.shard }}/receipt.json
+            ${{ runner.temp }}/native-shard-${{ matrix.profile }}-${{ matrix.shard }}/native.xml
+            ${{ runner.temp }}/native-shard-${{ matrix.profile }}-${{ matrix.shard }}/pytest.log
+          if-no-files-found: error
+          retention-days: 14
+
+  python-native-shard-aggregate:
+    name: Exact-once native ${{ matrix.profile }} shard barrier
+    if: always() && github.ref == 'refs/heads/lead/native-two-shard-qualification-v3-20261030'
+    needs: [python-native-build, python-native-tests]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - profile: v2
+            manifest: scripts/testing/native_shards_manifest.json
+          - profile: v3
+            manifest: scripts/testing/native_shards_manifest_v3.json
+    steps:
+      - name: Require builder and both matrix children success
+        env:
+          BUILD_RESULT: ${{ needs.python-native-build.result }}
+          SHARD_RESULT: ${{ needs.python-native-tests.result }}
+        run: |
+          test "$BUILD_RESULT" = success
+          test "$SHARD_RESULT" = success
+
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install locked metadata reader dependencies
+        run: |
+          python -m pip install "uv>=0.5,<1"
+          uv sync --frozen --python "$(command -v python)"
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Download same-run builder
+        uses: actions/download-artifact@v4
+        with:
+          name: native-shard-build-${{ matrix.profile }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/native-shard-aggregate-${{ matrix.profile }}/native-shard-build-${{ matrix.profile }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Download same-run shard zero
+        uses: actions/download-artifact@v4
+        with:
+          name: native-module-shard-${{ matrix.profile }}-0-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/native-shard-aggregate-${{ matrix.profile }}/native-module-shard-${{ matrix.profile }}-0-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Download same-run shard one
+        uses: actions/download-artifact@v4
+        with:
+          name: native-module-shard-${{ matrix.profile }}-1-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/native-shard-aggregate-${{ matrix.profile }}/native-module-shard-${{ matrix.profile }}-1-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Verify exact-once parent and subtest ownership
+        run: |
+          python scripts/native_ci_shards.py aggregate --manifest "${{ matrix.manifest }}" --execute --build "$RUNNER_TEMP/native-shard-aggregate-${{ matrix.profile }}/native-shard-build-${{ matrix.profile }}-${{ github.run_id }}-${{ github.run_attempt }}/ci-native-wheel/${{ matrix.profile }}/build.json" --receipts "$RUNNER_TEMP/native-shard-aggregate-${{ matrix.profile }}/native-module-shard-${{ matrix.profile }}-0-${{ github.run_id }}-${{ github.run_attempt }}/receipt.json" "$RUNNER_TEMP/native-shard-aggregate-${{ matrix.profile }}/native-module-shard-${{ matrix.profile }}-1-${{ github.run_id }}-${{ github.run_attempt }}/receipt.json" --junits "$RUNNER_TEMP/native-shard-aggregate-${{ matrix.profile }}/native-module-shard-${{ matrix.profile }}-0-${{ github.run_id }}-${{ github.run_attempt }}/native.xml" "$RUNNER_TEMP/native-shard-aggregate-${{ matrix.profile }}/native-module-shard-${{ matrix.profile }}-1-${{ github.run_id }}-${{ github.run_attempt }}/native.xml" --output "$RUNNER_TEMP/native-shard-aggregate-${{ matrix.profile }}/aggregate.json"
+
+      - name: Retain aggregate decision
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-module-aggregate-${{ matrix.profile }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/native-shard-aggregate-${{ matrix.profile }}/aggregate.json
+          if-no-files-found: error
+          retention-days: 14
+
+  rust:
+    if: github.ref == 'refs/heads/lead/native-two-shard-qualification-v3-20261030'
+    name: Rust
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Qualified separately at d051: full tests, assertions and overflow checks.
+      CARGO_PROFILE_DEV_DEBUG: "0"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Set up Python for PyO3 test linkage
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Restore Cargo downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('chronicler-agents/Cargo.lock') }}
+          restore-keys: cargo-downloads-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Run Rust tests
+        shell: bash
+        run: |
+          mkdir -p ci-evidence
+          export PYO3_PYTHON="$(command -v python)"
+          cargo test --locked --manifest-path chronicler-agents/Cargo.toml --quiet 2>&1 | tee ci-evidence/rust.txt
+
+      - name: Retain Rust test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-v2-v3-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ci-evidence/
+          if-no-files-found: warn
+          retention-days: 14
+
+  python-native:
+    name: Python native V2 and V3
+    if: always() && github.ref == 'refs/heads/lead/native-two-shard-qualification-v3-20261030'
+    needs: [python-native-shard-aggregate, rust]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require complete native Python and Rust success
+        env:
+          PYTHON_RESULT: ${{ needs.python-native-shard-aggregate.result }}
+          RUST_RESULT: ${{ needs.rust.result }}
+        shell: bash
+        run: |
+          test "$PYTHON_RESULT" = success
+          test "$RUST_RESULT" = success
+
+  viewer:
+    if: github.ref == 'refs/heads/lead/native-two-shard-qualification-v3-20261030'
+    name: Viewer
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: viewer
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: viewer/package-lock.json
+
+      - name: Install viewer dependencies from the lockfile
+        run: npm ci
+
+      - name: Run viewer tests
+        run: npm test -- --maxWorkers=2
+
+      - name: Lint viewer
+        run: npm run lint
+
+      - name: Build viewer for production
+        run: npm run build

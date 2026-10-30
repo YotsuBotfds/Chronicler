@@ -1,3 +1,7 @@
+# Opt-in V3 native shard balance source (2026-10-30)
+
+Isolated Stage004 child; closed optional manifest leaves defaultV2 behavior/outputs unchanged. V3 transfers only whole M36 module0→1; same305 modules/six skips/623 subreports, historical metadata retained as history. New opt-in sharedwheel V2/V3 four-worker/two-aggregate workflow has12 expanded jobs; no workflow-wall speed claim.14 nondefault pure contracts authored UNRUN; source peer→pure→all10 lint→separate root run grant required. Tests/V2 workflow/defaultowners/care/product/Native0dca/43chunks unchanged. No runtime/build/Native/API/publication execution or default promotion.
+
 # Simulation staging004 composition — source only, 2026-10-30
 
 This separate829-based branch preserves six real donor merges and composes

@@ -23,6 +23,8 @@ import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / 'scripts/testing/native_shards_manifest.json'
+MANIFEST_SELECTORS = ('scripts/testing/native_shards_manifest.json',
+                      'scripts/testing/native_shards_manifest_v3.json')
 PRIVATE_ENV = ('TMPDIR', 'PD_EVIDENCE_DIR', 'R007_EVIDENCE_DIR', 'Q009_EVIDENCE_DIR')
 MAX_JSON = 16 * 1024**2
 CONTEXT_MSG_CHARS = 256
@@ -273,10 +275,18 @@ def source_modules():
     return sorted(name for name in paths if name and (fnmatch.fnmatchcase(Path(name).name, 'test_*.py') or fnmatch.fnmatchcase(Path(name).name, '*_test.py')))
 
 
-def check_ref_manifest(reference):
+def manifest_selector(value):
+    """Two source-owned manifest paths only; never normalize caller paths."""
+    require(type(value) is str and value in MANIFEST_SELECTORS, 'closed manifest selector required')
+    return value
+
+
+def check_ref_manifest(reference, *, manifest=None):
     """Read one immutable Git layout; never collect/import tests or admit a build."""
     require(type(reference) is str and re.fullmatch('[0-9a-f]{40}', reference) is not None,
             'source ref must be a full lowercase 40-hex commit')
+    if manifest is not None:
+        manifest = manifest_selector(manifest)
     # Replacement refs must not silently change the contents named by the SHA.
     def pinned_git(*args):
         try:
@@ -289,6 +299,8 @@ def check_ref_manifest(reference):
     tree = pinned_git('rev-parse', '--verify', reference + '^{tree}').decode().strip()
     require(re.fullmatch('[0-9a-f]{40}', tree) is not None, 'invalid source tree')
     manifest_path = 'scripts/testing/native_shards_manifest.json'
+    if manifest is not None:
+        manifest_path = manifest
     listing = pinned_git('ls-tree', '-r', '-z', '--full-tree', tree, '--', manifest_path, 'tests')
     require(len(listing) <= MAX_JSON, 'source layout exceeds fixed metadata cap')
     manifest_blob, modules = None, []
@@ -379,6 +391,8 @@ def main():
     parser.add_argument('command', choices=('check-manifest', 'record-build', 'verify-transfer', 'run', 'aggregate'))
     parser.add_argument('--execute', action='store_true', help='explicit dormant workflow opt-in')
     parser.add_argument('--source-ref', help='check-manifest only: immutable full 40-hex Git commit layout')
+    parser.add_argument('--manifest', choices=MANIFEST_SELECTORS,
+                        help='optional closed V2/V3 manifest; omission preserves the original V2 path')
     parser.add_argument('--wheel-dir', type=Path)
     parser.add_argument('--build', type=Path)
     parser.add_argument('--output', type=Path, required=True)
@@ -389,9 +403,15 @@ def main():
     require(args.execute, 'dormant prototype requires explicit execution registration')
     require(args.source_ref is None or args.command == 'check-manifest', 'source ref is only valid with check-manifest')
     if args.source_ref is not None:
-        write_json(args.output, check_ref_manifest(args.source_ref))
+        if args.manifest is None:
+            write_json(args.output, check_ref_manifest(args.source_ref))
+        else:
+            write_json(args.output, check_ref_manifest(args.source_ref, manifest=args.manifest))
         return
-    manifest = read_json(MANIFEST)
+    if args.manifest is None:
+        manifest = read_json(MANIFEST)
+    else:
+        manifest = read_json(ROOT / manifest_selector(args.manifest))
     owners = validate_assignment(manifest, source_modules())
     if args.command == 'check-manifest':
         write_json(args.output, {'state': 'PASS', 'manifest_digest': digest(manifest), 'modules': len(owners)})
