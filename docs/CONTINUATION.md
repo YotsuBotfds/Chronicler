@@ -1,3 +1,22 @@
+# Manual hosted C kernel capability preflight — source only, 2026-10-30
+
+This separate701 child adds only a manual branch-restricted workflow, its trusted
+C fixture guard, a dated note and this continuation prefix. Product/native,
+Python/tests, dependencies and existing workflows remain exact701. The local
+predecessor's positive compile and first ENOSYS Landlock query remain preserved;
+no local retry or hosted operation has run on this source.
+
+The hosted recipe measures its trusted command tree, retains compiler/kernel/
+source/ELF identities, and uses stricter internal splits under110wall/30CPU/
+512MiBAS/oneCPU/2MiBoutput and512KiBcode. The C policy/FD checks stay exact.
+[The scope note](integration/kernel-capability-preflight-2026-10-30.md) records
+the negative, unmeasured wrapper costs and still-held runtime leases/installed
+owner/32MiB fit. A positive fixture would answer only kernel enforcement in that
+environment. Root source review, publication and first manual dispatch are
+separate decisions. The complete701 continuation follows unchanged.
+
+---
+
 # Disabled cache workflow regression composition — 2026-10-30
 
 First94cafa CI failed the old whole-builder shape comparison after58+16 passing

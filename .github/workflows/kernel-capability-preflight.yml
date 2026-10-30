@@ -1,0 +1,182 @@
+name: Manual C-only kernel capability preflight
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  capability:
+    if: github.ref == 'refs/heads/lead/kernel-capability-preflight-20261030'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out the exact dispatched source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Compile and check one disposable C fixture
+        id: preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          source_file="$GITHUB_WORKSPACE/scripts/testing/kernel_capability.c"
+          workflow_file="$GITHUB_WORKSPACE/.github/workflows/kernel-capability-preflight.yml"
+          evidence="$RUNNER_TEMP/chronicler-kernel-capability-evidence"
+          measurement="$RUNNER_TEMP/chronicler-kernel-capability-time.txt"
+          test ! -e "$evidence" && test ! -L "$evidence"
+          test ! -e "$measurement" && test ! -L "$measurement"
+          cpu_list=$(awk '/^Cpus_allowed_list:/ { print $2 }' /proc/self/status)
+          cpu=${cpu_list%%[-,]*}
+          [[ "$cpu" =~ ^[0-9]+$ ]]
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test -x /usr/bin/time
+          set +e
+          /usr/bin/env -i PATH=/usr/bin:/bin LC_ALL=C \
+            SRC="$source_file" WORKFLOW="$workflow_file" E="$evidence" \
+            REVISION="$GITHUB_SHA" RUN_ID="$GITHUB_RUN_ID" ATTEMPT="$GITHUB_RUN_ATTEMPT" \
+            /usr/bin/taskset --cpu-list "$cpu" \
+            /usr/bin/prlimit --as=536870912:536870912 --cpu=1:30 --core=0:0 --fsize=4096:778240 -- \
+            /usr/bin/time -o "$measurement" \
+              -f 'measurement=GNU_time_command_tree\nuser_seconds=%U\nsystem_seconds=%S\nelapsed_seconds=%e\nexit_code=%x\nmax_rss_kib=%M\nwrapper_and_upload_overhead=excluded' \
+              /usr/bin/timeout --signal=TERM --kill-after=1s 108s \
+              /usr/bin/prlimit --fsize=778240:778240 -- \
+              /bin/bash --noprofile --norc -s <<'OWNER'
+          set -uo pipefail
+          umask 077
+          mkdir -m 0700 "$E" || exit 2
+          export TMPDIR="$E/compiler-scratch"
+          mkdir -m 0700 "$TMPDIR" || exit 2
+          # This owner and all waited compiler/probe descendants are measured.
+          # The two metadata phases each get <=0.5 wall seconds on the same CPU.
+          /usr/bin/timeout --signal=KILL 0.5s /usr/bin/prlimit --fsize=7168:7168 -- \
+            /bin/bash --noprofile --norc -c '
+              set -euo pipefail
+              printf "kind=C_ONLY_HOSTED_KERNEL_PREFLIGHT\nrevision=%s\nrun=%s\nattempt=%s\n" "$REVISION" "$RUN_ID" "$ATTEMPT"
+              uname -a
+              printf "compiler_path="; readlink -f /usr/bin/gcc
+              /usr/bin/gcc --version
+              sha256sum "$(readlink -f /usr/bin/gcc)" "$SRC" "$WORKFLOW"
+              stat -Lc "input=%n mode=%a links=%h bytes=%s device=%d inode=%i" /usr/bin/gcc "$SRC" "$WORKFLOW"
+              grep -E "^(CapEff|NoNewPrivs|Seccomp|Cpus_allowed_list):" /proc/self/status
+              printf "%s  %s\n" 2945cbff027bede245c0b56cb0a89faac3c2bbbfb62f02b0681741fce836e0cd "$SRC" | sha256sum -c -
+              cp --no-clobber -- "$SRC" "$E/source.c"
+              chmod 0444 "$E/source.c"
+              printf "%s  %s\n" 2945cbff027bede245c0b56cb0a89faac3c2bbbfb62f02b0681741fce836e0cd "$E/source.c" | sha256sum -c -
+            ' > "$E/metadata.txt" 2>&1
+          prefix_exit=$?
+          if [ "$prefix_exit" -ne 0 ]; then exit "$prefix_exit"; fi
+          # Trusted build, no Python/compiler plugins/project build system.
+          # One CPU and <=3 wall seconds bound aggregate compiler CPU <=3s.
+          /usr/bin/timeout --signal=KILL 3s /usr/bin/prlimit --cpu=3:3 --fsize=131072:131072 -- \
+            /usr/bin/gcc -pipe -std=c11 -Os -Wall -Wextra -Werror \
+              -D_FORTIFY_SOURCE=2 -fstack-protector-strong -fPIE -pie \
+              -Wl,-z,now,-z,relro -s -o "$E/capability" "$E/source.c" \
+              > /dev/null 2> "$E/compiler.log"
+          compiler_exit=$?
+          probe_exit=2
+          code_bytes=0
+          if [ "$compiler_exit" -eq 0 ]; then
+            # Any remaining compiler scratch prevents the fixture attempt.
+            if rmdir -- "$TMPDIR"; then
+              source_bytes=$(stat -c %s "$SRC")
+              workflow_bytes=$(stat -c %s "$WORKFLOW")
+              elf_bytes=$(stat -c %s "$E/capability")
+              # Both source copies, workflow/generated owner, ELF and 4KiB margin.
+              code_bytes=$((2 * source_bytes + 2 * workflow_bytes + elf_bytes + 4096))
+              if [[ "$source_bytes" =~ ^[0-9]+$ && "$workflow_bytes" =~ ^[0-9]+$ && "$elf_bytes" =~ ^[0-9]+$ ]] && \
+                 [ "$code_bytes" -le 524288 ] && [ -f "$E/capability" ] && [ ! -L "$E/capability" ] && \
+                 [ "$(stat -c %h "$E/capability")" -eq 1 ]; then
+                chmod 0555 "$E/capability"
+                /usr/bin/timeout --signal=TERM --kill-after=1s 105s \
+                  "$E/capability" > "$E/probe.log" 2>&1
+                probe_exit=$?
+              fi
+            fi
+          fi
+          # Initial owner CPU soft cap1 + metadata<=1s + compiler<=3s + C4+20
+          # leaves a1s accounting margin under30 CPU. No limit is raised.
+          /usr/bin/timeout --signal=KILL 0.5s /usr/bin/prlimit --fsize=7168:7168 -- \
+            /bin/bash --noprofile --norc -c '
+              set -euo pipefail
+              printf "compiler_exit=%s\nprobe_exit=%s\ncode_capacity_bytes=524288\ncode_admitted_bytes=%s\n" "$1" "$2" "$3"
+              if [ -f "$E/capability" ]; then
+                sha256sum "$E/capability"
+                stat -c "binary=%n mode=%a links=%h bytes=%s device=%d inode=%i" "$E/capability"
+              fi
+              # Only the exact path emitted by the pinned C program is read.
+              # A killed/incomplete program has no invented fixture closure.
+              if [ -f "$E/probe.log" ]; then
+                fixture=$(sed -n "s/^.*\"fixture\":\"\([^\"]*\)\".*$/\1/p" "$E/probe.log")
+                if [[ "$fixture" =~ ^/tmp/chronicler-kernel-capability-[[:alnum:]]{6}$ ]]; then
+                  test -d "$fixture" && test ! -L "$fixture"
+                  test "$(stat -c %a "$fixture")" = 555
+                  test "$(find "$fixture" -mindepth 1 -maxdepth 1 -printf x | wc -c)" -eq 3
+                  stat -c "fixture=%n mode=%a links=%h bytes=%s device=%d inode=%i" "$fixture"
+                  for name in allowed.txt unleased.txt write-target.txt; do
+                    test -f "$fixture/$name" && test ! -L "$fixture/$name"
+                    test "$(stat -c %a "$fixture/$name")" = 444
+                    test "$(stat -c %h "$fixture/$name")" -eq 1
+                    test "$(stat -c %s "$fixture/$name")" -le 64
+                    sha256sum "$fixture/$name"
+                    cp --no-clobber -- "$fixture/$name" "$E/fixture-$name"
+                    chmod 0444 "$E/fixture-$name"
+                  done
+                elif [ "$2" -eq 0 ]; then exit 2; fi
+              elif [ "$2" -eq 0 ]; then exit 2; fi
+            ' owner-metadata "$compiler_exit" "$probe_exit" "$code_bytes" >> "$E/metadata.txt" 2>&1
+          suffix_exit=$?
+          if [ "$compiler_exit" -ne 0 ]; then exit "$compiler_exit"; fi
+          if [ "$suffix_exit" -ne 0 ]; then exit "$suffix_exit"; fi
+          exit "$probe_exit"
+          OWNER
+          actual_exit=$?
+          set -e
+          # Observer output is kept separately from the measured command tree.
+          if [ ! -d "$evidence" ]; then mkdir -m 0700 "$evidence"; fi
+          if [ -f "$measurement" ]; then mv -- "$measurement" "$evidence/lifecycle.txt"; fi
+          if [ -d "$evidence/compiler-scratch" ]; then
+            printf '%s\n' 'incomplete compiler scratch retained; no successful fixture claim' >&2
+            actual_exit=2
+          fi
+          # Refuse success if command-tree accounting is missing or over budget.
+          if ! awk -F= '
+            $1=="user_seconds" && $2 ~ /^[0-9]+([.][0-9]+)?$/ { u=$2; nu++ }
+            $1=="system_seconds" && $2 ~ /^[0-9]+([.][0-9]+)?$/ { s=$2; ns++ }
+            $1=="elapsed_seconds" && $2 ~ /^[0-9]+([.][0-9]+)?$/ { w=$2; nw++ }
+            END { exit !(nu==1 && ns==1 && nw==1 && u>=0 && s>=0 && w>=0 && u+s<=29 && w<=109) }
+          ' "$evidence/lifecycle.txt"; then actual_exit=2; fi
+          # The reserved output equation is2*760KiB +512KiB code +16KiB metadata.
+          safe_upload=true
+          while IFS= read -r -d '' entry; do
+            name=${entry##*/}
+            case "$name" in
+              source.c|capability|compiler.log|probe.log|metadata.txt|lifecycle.txt|fixture-allowed.txt|fixture-unleased.txt|fixture-write-target.txt) ;;
+              *) actual_exit=2; safe_upload=false ;;
+            esac
+            if [ ! -f "$entry" ] || [ -L "$entry" ] || [ "$(stat -c %h "$entry")" -ne 1 ]; then
+              actual_exit=2; safe_upload=false
+            fi
+          done < <(find "$evidence" -mindepth 1 -maxdepth 1 -print0)
+          total=$(find "$evidence" -type f -printf '%s\n' | awk '{s+=$1} END {print s+0}')
+          if [ "$total" -gt 2088960 ]; then actual_exit=2; safe_upload=false; fi
+          /usr/bin/prlimit --fsize=4096:4096 -- /bin/bash --noprofile --norc -c '
+            cd "$1"; find . -type f ! -name manifest.sha256 -print0 | sort -z | xargs -0 sha256sum
+          ' owner-manifest "$evidence" > "$evidence/manifest.sha256"
+          find "$evidence" -type f -exec chmod 0444 {} +
+          chmod 0555 "$evidence"
+          printf 'safe_to_upload=%s\n' "$safe_upload" >> "$GITHUB_OUTPUT"
+          exit "$actual_exit"
+
+      - name: Retain C-only capability evidence including a negative
+        if: always() && steps.preflight.outputs.safe_to_upload == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: kernel-capability-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/chronicler-kernel-capability-evidence/
+          if-no-files-found: error
+          compression-level: 6
+          retention-days: 7
