@@ -1,3 +1,38 @@
+# Simulation staging integration — source only, 2026-10-30
+
+This separate701-based staging branch composes the exact reviewed5122 household-
+wealth correction,ca8 settlement cell reuse,B11 trade-route membership,Kin35aa
+reader/acquisition diagnostics and9e workflow critical-path analyzer. Five merge
+commits retain the original donor heads as parents. Product/native and test
+bodies remain byte-exact to their donors; the source-scoped dated notes remain
+unchanged. This combined source and every check against it are UNRUN.
+
+The wealth change intentionally corrects migration-utility amplification below
+the personal-wealth denominator floor. Settlement/trade measurements retain
+their original kernel sources, regressions and memory limits; no combined
+whole-turn speed is claimed. Kin's synthetic99+30 cases and analyzer's33 cases
+supply no actual checkpoint/native/World capture or new temporal efficacy.
+
+CI hardening adds the missing capture-driver source pin and makes the already
+reviewed33 analyzer contracts an explicit41st offline chunk with its helper
+pinned. All old39 selections and110-second limits remain; the existing Kin
+chunk keeps both original modules. Source-derived counts are prospective:
+5133 offline passes/65 skips/97 subreports,9012 native Python passes/6 skips/
+623 subreports, and1160 Rust passes/2 ignored. See the complete composition,
+source boundaries and count derivation in
+[integration notes](integration/simulation-staging-composition-2026-10-30.md).
+
+The isolated701-before/5122-after scientific sources, original seeds, horizons,
+outcomes and thresholds remain preserved. This combined branch replaces
+neither registered scientific source. Scientific controller/resource drafts
+and hostedC are excluded. Independent source review, this branch's first
+standardCI/fresh wheel and combined trajectory/native/checkpoint/RNG/scientific
+qualification remain pending. No main merge follows from assembly or earlier
+component results. Original component continuations remain in merge ancestry;
+the complete common701 continuation follows unchanged below.
+
+---
+
 # Disabled cache workflow regression composition — 2026-10-30
 
 First94cafa CI failed the old whole-builder shape comparison after58+16 passing
