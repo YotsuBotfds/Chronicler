@@ -1,3 +1,21 @@
+# Trusted hosted native functional smoke — source only, 2026-10-30
+
+This small829 child adds a dedicated source/run-ref workflow, one observation
+script and a short note. The job builds its own locked wheel and uses existing
+lower-level wheel/real-class verification under its truthful custom job kind.
+Its bounded functional checks select two existing no-tick native contracts and
+one empty API instance, three simulators total. Standard workflows, default
+owners, product/native/test source and isolated scientific controls stay exact829.
+
+All new functional execution is UNRUN. Root source and hosted pipeline storage
+review precedes source publication and the separate same-SHA run-ref push.
+[The note](integration/hosted-native-functional-smoke-2026-10-30.md) records the
+110s/30CPU/oneCPU/2GiB-AS functional scope and separately bounded builder/smoke
+artifacts. No sandbox/read-lease/32MiB owner or World/science qualification is
+claimed. The complete829 continuation follows unchanged.
+
+---
+
 # Simulation staging integration — source only, 2026-10-30
 
 This separate701-based staging branch composes the exact reviewed5122 household-
