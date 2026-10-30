@@ -1,3 +1,9 @@
+## 2026-10-30: cache-pilot focused negative and current-workflow witnesses
+
+The first 133-case guarded attempt stopped after 42 fake/pure passes and one legacy fixture setup error. Its preparation aliased the unchanged legacy registration, while the unchanged reader requires a unique regular file. The failed view, logs, JUnit and guard report remain preserved; the future preparation must materialize that registration. This source child does not change the file reader or fix that packaging in product code.
+
+Two retained current-source workflow witnesses also still described the six-workflow/four-selector parent. Their historical assertions now receive only a closed inverse of the exact added pilot workflow/selectors/guard; the historical fixture and SHA remain unchanged. Wrong placement, duplicate/missing guard and unrelated drift must refuse. Only those two old test functions plus a nearby helper change; all 42 cache-case bytes and product/proof/harness/method/UNREADY gates remain unchanged. The focused total stays 133, all corrective execution remains held, and no real pilot or Native qualification follows.
+
 # Pilot final RNG closure — SOURCE ONLY (2026-10-30)
 
 A narrow child of54f makes the final untimed RNG observation mandatory on an

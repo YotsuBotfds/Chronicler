@@ -350,6 +350,37 @@ def test_corrective_raw_artifact_workflow_requires_explicit_quiescence_output():
         assert "steps.compact.outputs.raw_upload_allowed == 'true'" in step["if"]
 
 
+def _legacy_workflow_before_cache_identity_pilot(path, body):
+    """Validate only the reviewed pilot addition, then expose exact legacy bytes."""
+    import hashlib
+
+    assert type(body) is bytes
+    if path == ".github/workflows/wholeturn-cache-identity-pilot.yml":
+        assert hashlib.sha256(body).hexdigest() == "b149edf1e029174e58a5e3ba76f93fa2920f3233f8c5287dc0a6dcd5f4b74be7"
+        return body.decode("utf-8")
+    if path == ".github/workflows/tests.yml":
+        added = b", lead/wholeturn-cache-identity-pilot-tests-20261030"
+        legacy = b", lead/wholeturn-file-integrity-tests-20261030]"
+        current = legacy[:-1] + added + b"]"
+        assert body.count(added) == body.count(current) == 1
+        body = body.replace(current, legacy, 1)
+        expected = "77f407483a17c58452bc19a8f7b41aabe246f7f2ca727eb333aff45c09db9c59"
+    elif path == ".github/workflows/workflow-semantics.yml":
+        added = b", lead/wholeturn-cache-identity-pilot-semantics-20261030"
+        legacy = b", lead/wholeturn-file-integrity-semantics-20261030]"
+        current = legacy[:-1] + added + b"]"
+        guard = b" || github.ref == 'refs/heads/lead/wholeturn-cache-identity-pilot-semantics-20261030'"
+        old_guard = b" || github.ref == 'refs/heads/lead/wholeturn-file-integrity-semantics-20261030'"
+        assert body.count(added) == body.count(current) == body.count(guard) == 1
+        assert body.count(old_guard + guard + b"\n") == 1
+        body = body.replace(current, legacy, 1).replace(old_guard + guard + b"\n", old_guard + b"\n", 1)
+        expected = "0d43caa2d58e870e5acd5d4669c9a68c5aee5dde9d00a3dcfd32be4eb47ed538"
+    else:
+        raise AssertionError("unreviewed workflow projection")
+    assert hashlib.sha256(body).hexdigest() == expected
+    return body.decode("utf-8")
+
+
 def test_current_ready_candidate_reviews_and_exact_activation_inventory():
     import yaml
 
@@ -369,6 +400,10 @@ def test_current_ready_candidate_reviews_and_exact_activation_inventory():
     }
     workflows = sorted(path.relative_to(ROOT).as_posix()
         for path in (ROOT/".github/workflows").rglob("*") if path.suffix in (".yml",".yaml"))
+    pilot = ".github/workflows/wholeturn-cache-identity-pilot.yml"
+    _legacy_workflow_before_cache_identity_pilot(pilot, (ROOT/pilot).read_bytes())
+    assert workflows.count(pilot) == 1
+    workflows.remove(pilot)
     assert workflows == [
         ".github/workflows/matched-wholeturn.yml",
         ".github/workflows/native-two-shards-v2.yml",
@@ -377,12 +412,12 @@ def test_current_ready_candidate_reviews_and_exact_activation_inventory():
         ".github/workflows/validation-gate.yml",
         ".github/workflows/workflow-semantics.yml",
     ]
-    tests = yaml.load((ROOT/".github/workflows/tests.yml").read_text(),Loader=yaml.BaseLoader)
+    tests = yaml.load(_legacy_workflow_before_cache_identity_pilot(".github/workflows/tests.yml", (ROOT/".github/workflows/tests.yml").read_bytes()),Loader=yaml.BaseLoader)
     branches = tests["on"]["push"]["branches"]
     assert branches.count("lead/wholeturn-staging-tests-20261030") == 1
     assert not set(branches) & {"lead/wholeturn-staging-ready-source-20261030",
         "lead/wholeturn-staging-semantics-20261030","lead/wholeturn-staging-run002-20261030"}
-    semantic = yaml.load((ROOT/".github/workflows/workflow-semantics.yml").read_text(),Loader=yaml.BaseLoader)
+    semantic = yaml.load(_legacy_workflow_before_cache_identity_pilot(".github/workflows/workflow-semantics.yml", (ROOT/".github/workflows/workflow-semantics.yml").read_bytes()),Loader=yaml.BaseLoader)
     assert semantic["on"]["push"]["branches"] == ["lead/workflow-semantics-20261030",
         "lead/simulation-staging004-semantics-20261030","lead/wholeturn-staging-semantics-20261030","lead/wholeturn-file-integrity-semantics-20261030"]
     assert semantic["jobs"]["actionlint"]["if"] == (
@@ -554,7 +589,8 @@ def test_file_integrity_ownerless_compact_keeps_canonical_builds_and_parent_fail
 def test_file_integrity_current_raw_refs_preserve_policy_and_unrelated_drift():
     import hashlib
     import yaml
-    tests_text = (ROOT/".github/workflows/tests.yml").read_text()
+    tests_body = (ROOT/".github/workflows/tests.yml").read_bytes()
+    tests_text = _legacy_workflow_before_cache_identity_pilot(".github/workflows/tests.yml", tests_body)
     tests = yaml.load(tests_text,Loader=yaml.BaseLoader)
     current = "lead/wholeturn-file-integrity-tests-20261030"
     semantic_ref = "lead/wholeturn-file-integrity-semantics-20261030"
@@ -571,7 +607,8 @@ def test_file_integrity_current_raw_refs_preserve_policy_and_unrelated_drift():
     assert header.count(added) == 1 and header.replace(added,"",1) == historical
     drift = header.replace("contents: read","contents: write",1)
     assert drift != header and drift.replace(added,"",1) != historical
-    semantic_text = (ROOT/".github/workflows/workflow-semantics.yml").read_text()
+    semantic_body = (ROOT/".github/workflows/workflow-semantics.yml").read_bytes()
+    semantic_text = _legacy_workflow_before_cache_identity_pilot(".github/workflows/workflow-semantics.yml", semantic_body)
     semantic = yaml.load(semantic_text,Loader=yaml.BaseLoader)
     assert semantic["on"]["push"]["branches"][-1] == semantic_ref
     assert semantic["permissions"] == {"contents":"read"} and "pull_request" in semantic["on"] and "workflow_dispatch" in semantic["on"]
@@ -588,3 +625,18 @@ def test_file_integrity_current_raw_refs_preserve_policy_and_unrelated_drift():
     assert benchmark["on"]["push"]["branches"] == [run]
     assert benchmark["jobs"]["wholeturn"]["if"] == "github.ref == 'refs/heads/"+run+"'"
     assert benchmark["permissions"] == {"contents":"read","actions":"read"}
+    # Wrong selectors/guard location and unrelated changes cannot be projected.
+    added = b", lead/wholeturn-cache-identity-pilot-tests-20261030"
+    guard = b" || github.ref == 'refs/heads/lead/wholeturn-cache-identity-pilot-semantics-20261030'"
+    for path, changed in [
+        (".github/workflows/tests.yml", tests_body.replace(added, b", lead/wrong-tests", 1)),
+        (".github/workflows/tests.yml", tests_body.replace(added, b"", 1) + b"#" + added + b"\n"),
+        (".github/workflows/tests.yml", tests_body.replace(b"contents: read", b"contents: write", 1)),
+        (".github/workflows/workflow-semantics.yml", semantic_body.replace(guard, b"", 1)),
+        (".github/workflows/workflow-semantics.yml", semantic_body.replace(guard, b"", 1) + b"#" + guard + b"\n"),
+        (".github/workflows/workflow-semantics.yml", semantic_body.replace(guard, guard + guard, 1)),
+        (".github/workflows/wholeturn-cache-identity-pilot.yml", (ROOT/".github/workflows/wholeturn-cache-identity-pilot.yml").read_bytes() + b"# drift\n"),
+    ]:
+        with pytest.raises(AssertionError):
+            _legacy_workflow_before_cache_identity_pilot(path, changed)
+
