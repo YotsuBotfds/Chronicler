@@ -806,3 +806,179 @@ class TestSaveLoad:
         # settlement_candidates is transient (exclude=True) — not serialized to bundle
         assert len(loaded.settlement_candidates) == 0
         assert len(loaded.dissolved_settlements) == 1
+
+
+# Retain the pre-reuse algorithm as a value oracle, including its row-order
+# additions. Only the local helper imports differ from the parent function.
+def _legacy_extract_clusters(
+    agent_positions: list[tuple[float, float]],
+) -> list[dict]:
+    """Run full detection pipeline on a list of (x, y) positions.
+
+    Returns list of cluster dicts, each with keys:
+        - component_id: int (discovery order)
+        - population: int
+        - centroid_x: float
+        - centroid_y: float
+        - cells: set[tuple[int, int]]
+    """
+    from chronicler.settlements import (
+        assign_cell, build_density_grid, find_connected_components, find_dense_cells,
+    )
+    if not agent_positions:
+        return []
+
+    grid = build_density_grid(agent_positions)
+    dense = find_dense_cells(grid, region_agent_count=len(agent_positions))
+    if not dense:
+        return []
+
+    components = find_connected_components(dense)
+
+    cell_to_component: dict[tuple[int, int], int] = {}
+    for comp_id, cells in enumerate(components):
+        for cell in cells:
+            cell_to_component[cell] = comp_id
+
+    comp_sum_x: list[float] = [0.0] * len(components)
+    comp_sum_y: list[float] = [0.0] * len(components)
+    comp_pop: list[int] = [0] * len(components)
+
+    for x, y in agent_positions:
+        cell = assign_cell(x, y)
+        comp_id = cell_to_component.get(cell)
+        if comp_id is not None:
+            comp_sum_x[comp_id] += x
+            comp_sum_y[comp_id] += y
+            comp_pop[comp_id] += 1
+
+    clusters = []
+    for comp_id, cells in enumerate(components):
+        pop = comp_pop[comp_id]
+        if pop == 0:
+            continue
+        clusters.append({
+            "component_id": comp_id,
+            "population": pop,
+            "centroid_x": comp_sum_x[comp_id] / pop,
+            "centroid_y": comp_sum_y[comp_id] / pop,
+            "cells": cells,
+        })
+    return clusters
+
+
+
+def _cluster_reuse_positions(case_id):
+    import struct
+
+    below = math.nextafter(0.1, 0.0)
+    above = math.nextafter(0.1, 1.0)
+    f32_seven_tenths = struct.unpack("!f", struct.pack("!f", 0.7))[0]
+    background = [
+        ((i % 10 + 0.25) / 10, (i // 10 + 0.25) / 10)
+        for i in range(100) if i != 55
+    ]
+    return {
+        "empty": [],
+        "none": None,
+        "nondense": [(0.1, 0.1), (0.3, 0.3), (0.5, 0.5), (0.7, 0.7)],
+        "single": [(0.51, 0.52)] * 6,
+        "interleaved": [(0.51, 0.51), (0.81, 0.81), (0.61, 0.51)] * 7,
+        "separate": [(0.11, 0.11)] * 6 + [(0.81, 0.81)] * 6,
+        "row-major": [(0.55, 0.95), (0.55, 0.05)] * 6,
+        "negative-connected": [(-0.11, 0.01), (0.01, 0.01)] * 6,
+        "negative-isolated": [(-0.51, -0.51)] * 6,
+        "high-clamped": [(1.0, 2.0), (1e100, 9.0)] * 6,
+        "signed-zero": [(-0.0, 0.0), (0.0, -0.0)] * 6,
+        "mixed-int-bool": [(0, False), (False, 0.0), (0.01, 0.01)] * 6,
+        "below-edge": [(below, below)] * 6,
+        "on-edge": [(0.1, 0.1)] * 6,
+        "above-edge": [(above, above)] * 6,
+        "float32-rounded": [(f32_seven_tenths, 0.71), (0.7, 0.71)] * 6,
+        "rounding-order": [(0.51, 0.52), (0.61, 0.62), (0.59, 0.58), (0.69, 0.68)] * 17,
+        "overflow-centroid": [(1e307, 1e307)] * 20,
+        "subnormal": [(math.ulp(0.0), -math.ulp(0.0))] * 6,
+        "threshold-166": [(0.55, 0.55)] * 5 + [background[i % 99] for i in range(161)],
+        "threshold-167": [(0.55, 0.55)] * 5 + [background[i % 99] for i in range(162)],
+    }[case_id]
+
+
+def _assert_cluster_values_identical(actual, expected):
+    import struct
+
+    assert actual == expected
+    assert len(actual) == len(expected)
+    for got, old in zip(actual, expected):
+        assert list(got) == list(old)
+        assert type(got["component_id"]) is type(old["component_id"])
+        assert type(got["population"]) is type(old["population"])
+        for coordinate in ("centroid_x", "centroid_y"):
+            assert type(got[coordinate]) is type(old[coordinate])
+            # Equality alone cannot distinguish signed zero or a changed last bit.
+            assert struct.pack("!d", got[coordinate]) == struct.pack("!d", old[coordinate])
+
+
+class TestClusterCellReuse:
+    @pytest.mark.parametrize("case_id", [
+        "empty", "none", "nondense", "single", "interleaved", "separate",
+        "row-major", "negative-connected", "negative-isolated", "high-clamped",
+        "signed-zero", "mixed-int-bool", "below-edge", "on-edge", "above-edge",
+        "float32-rounded", "rounding-order", "overflow-centroid", "subnormal",
+        "threshold-166", "threshold-167",
+    ])
+    def test_exact_legacy_values(self, case_id):
+        from chronicler.settlements import extract_clusters
+
+        positions = _cluster_reuse_positions(case_id)
+        expected = _legacy_extract_clusters(positions)
+        actual = extract_clusters(positions)
+        _assert_cluster_values_identical(actual, expected)
+
+    @pytest.mark.parametrize("case_id", [
+        "empty", "nondense", "single", "interleaved", "negative-isolated",
+    ])
+    def test_one_assignment_per_position(self, monkeypatch, case_id):
+        import chronicler.settlements as settlements
+
+        positions = _cluster_reuse_positions(case_id)
+        expected = _legacy_extract_clusters(positions)
+        original_assign = settlements.assign_cell
+        calls = []
+
+        def counted_assign(x, y):
+            calls.append((x, y))
+            return original_assign(x, y)
+
+        monkeypatch.setattr(settlements, "assign_cell", counted_assign)
+        actual = settlements.extract_clusters(positions)
+        assert calls == positions
+        _assert_cluster_values_identical(actual, expected)
+
+    @pytest.mark.parametrize("case_id", [
+        "nan-x", "nan-y", "inf-x", "negative-inf-x", "inf-y", "none-coordinate",
+        "string-coordinate", "complex-coordinate", "short-row", "long-row", "none-row",
+        "addition-overflow", "classification-before-addition",
+    ])
+    def test_rejected_input_preserves_exception(self, case_id):
+        from chronicler.settlements import extract_clusters
+
+        positions = {
+            "nan-x": [(float("nan"), 0.1)],
+            "nan-y": [(0.1, float("nan"))],
+            "inf-x": [(float("inf"), 0.1)],
+            "negative-inf-x": [(-float("inf"), 0.1)],
+            "inf-y": [(0.1, float("inf"))],
+            "none-coordinate": [(None, 0.1)],
+            "string-coordinate": [("x", 0.1)],
+            "complex-coordinate": [(1j, 0.1)],
+            "short-row": [(0.1,)],
+            "long-row": [(0.1, 0.1, 0.1)],
+            "none-row": [None],
+            "addition-overflow": [(10 ** 400, 0.1)] * 6,
+            "classification-before-addition": [(10 ** 400, 0.1)] * 6 + [(float("nan"), 0.1)],
+        }[case_id]
+        with pytest.raises((TypeError, ValueError, OverflowError)) as old:
+            _legacy_extract_clusters(positions)
+        with pytest.raises(type(old.value)) as new:
+            extract_clusters(positions)
+        assert str(new.value) == str(old.value)
