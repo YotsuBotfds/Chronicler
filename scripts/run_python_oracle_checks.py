@@ -327,6 +327,10 @@ CHUNKS = {
     "ci-artifact-intake-pure-contracts": [
         "tests/ci_artifact_intake_contracts.py",
     ],
+    "kin-root-exposure-contracts": [
+        "tests/kin_root_exposure_contract_cases.py",
+        "tests/kin_capture_driver_contract_cases.py",
+    ],
 }
 TESTS = [node for nodes in CHUNKS.values() for node in nodes]
 if len(set(TESTS)) != len(TESTS):
