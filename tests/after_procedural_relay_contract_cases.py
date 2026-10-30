@@ -107,7 +107,7 @@ def test_workflow_is_opt_in_scoped_and_retains_failures():
     assert not any(s in wf for s in("pull_request:","workflow_dispatch:","schedule:","workflow_call:"))
     lint=(ROOT/".github/workflows/workflow-semantics.yml").read_text()
     assert lint.split("jobs:\n",1)[0] == 'name: Workflow semantics\n\non:\n  push:\n    branches: [lead/workflow-semantics-20261030, lead/after-procedural-relay-semantics-20261030]\n  pull_request:\n    paths:\n      - .github/workflows/**\n      - .github/actionlint.yaml\n      - .github/actionlint.yml\n  workflow_dispatch:\n\npermissions:\n  contents: read\n\n'
-    assert lint.count("    if:") == 1
+    assert sum(line.startswith("    if:") for line in lint.splitlines()) == 1
     assert next(line for line in lint.splitlines() if line.startswith("    if:")) == "    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/lead/workflow-semantics-20261030' || (github.event_name == 'push' && github.ref == 'refs/heads/lead/after-procedural-relay-semantics-20261030' && github.run_attempt == 1)"
     assert "actions: write" not in lint
     assert t.RUN_BRANCH not in lint and "v1.7.12" in lint and "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8" in lint
