@@ -385,3 +385,252 @@ def test_missing_and_empty_batches_keep_return_and_zero_believer_behavior(availa
     events = check_pilgrimages([gp], [], batch, 7, **kw)
     assert [e.event_type for e in events] == ["pilgrimage_return"]
     assert gp.pilgrimage_return_turn is None
+
+
+# Needs-sidecar decode reuse: real Arrow payloads, no native construction here.
+def _needs_real_batch(kind="pyarrow", *, count=4, mutable=False, diagnostic=False):
+    import struct
+
+    specs = [("agent_id", "I", pa.uint32()),
+             *[(name, "f", pa.float32()) for name in
+               ("safety", "autonomy", "social", "spiritual", "material", "purpose")],
+             ("civ_affinity", "B", pa.uint8()), ("region", "H", pa.uint16()),
+             ("occupation", "B", pa.uint8()),
+             *[(name, "f", pa.float32()) for name in
+               ("satisfaction", "boldness", "ambition", "loyalty_trait")]]
+    arrays, fields, storage, data = [], [], {}, {}
+    for name, code, dtype in specs:
+        if name == "agent_id": values = [101, 102, 103, 2**32 - 1]
+        elif name == "civ_affinity": values = [0, 255, 1, 0]
+        elif name == "region": values = [0, 0, 0, 0]
+        elif name == "occupation": values = [0, 1, 3, 4]
+        else: values = [0.125, 0.25, 0.5, 0.75]
+        raw = struct.pack("<" + code * count, *values[:count])
+        if diagnostic and name == "safety" and count:
+            # Both signed zeros and two signed quiet-NaN payloads are diagnostic.
+            raw = struct.pack("<4I", 0, 0x80000000, 0x7fc00001, 0xffc01234)
+        storage[name] = bytearray(raw) if mutable else raw
+        arrays.append(pa.Array.from_buffers(dtype, count, [None, pa.py_buffer(storage[name])]))
+        fields.append(pa.field(name, dtype, nullable=False))
+        data[name] = list(struct.unpack("<" + code * count, raw))
+    batch = pa.RecordBatch.from_arrays(arrays, schema=pa.schema(fields))
+    if not mutable:
+        assert all(a.buffers()[0] is None and (a.buffers()[1] is None or not a.buffers()[1].is_mutable) for a in arrays)
+    if kind == "arro3":
+        from arro3.core import RecordBatch
+        batch = RecordBatch.from_arrow(batch)
+    return batch, storage, data
+
+
+def _needs_value_bits(value):
+    import struct
+    if type(value) is float:
+        return ("float", struct.pack("!d", value))
+    if type(value) is dict:
+        return [(key, _needs_value_bits(item)) for key, item in value.items()]
+    if type(value) in (list, tuple):
+        return [_needs_value_bits(item) for item in value]
+    return (type(value).__name__, value)
+
+
+class _NeedsForeignSim:
+    def __init__(self, needs):
+        self.needs = needs
+        self.getter_reads = self.getter_calls = 0
+
+    @property
+    def get_all_needs(self):
+        self.getter_reads += 1
+        def read():
+            self.getter_calls += 1
+            return self.needs
+        return read
+
+    def get_all_relationships(self):
+        return pa.record_batch({"agent_id": pa.array([], type=pa.uint32())})
+
+    def get_all_memories(self):
+        return pa.record_batch({"agent_id": pa.array([], type=pa.uint32())})
+
+    def get_snapshot(self):
+        return pa.record_batch({
+            "id": pa.array([101, 102, 103, 104], type=pa.uint32()),
+            "civ_affinity": pa.array([0] * 4, type=pa.uint8()),
+            "region": pa.array([0] * 4, type=pa.uint16()),
+            "occupation": pa.array([0, 1, 3, 4], type=pa.uint8()),
+            "satisfaction": pa.array([0.25, 0.5, 0.75, 1.0], type=pa.float32()),
+        })
+
+
+def _needs_bridge_and_world(sim, writer, bridge_type=None):
+    from types import SimpleNamespace
+    from chronicler.agent_bridge import AgentBridge
+    bridge = (bridge_type or AgentBridge).__new__(bridge_type or AgentBridge)
+    bridge._sim, bridge._sidecar, bridge._gini_by_civ = sim, writer, {}
+    world = SimpleNamespace(turn=0, civilizations=[SimpleNamespace(name="C0")],
+                            regions=[SimpleNamespace(name="R0", controller="C0")])
+    return bridge, world
+
+
+@pytest.mark.parametrize("kind", ["pyarrow", "arro3"])
+@pytest.mark.parametrize("count", [0, 4])
+def test_needs_private_writer_preserves_all_columns_return_and_float_bits(tmp_path, kind, count):
+    import json
+    from chronicler.columnar import pylist
+    from chronicler.sidecar import SidecarWriter
+
+    batch, _, expected = _needs_real_batch(kind, count=count, diagnostic=True)
+    public = SidecarWriter(tmp_path / "public")
+    private = SidecarWriter(tmp_path / "private")
+    assert public.write_needs_snapshot(turn=0, needs_batch=batch) is None
+    data = private._write_needs_snapshot_data(0, batch)
+    # Original writer decoding and the bridge's old NumPy route must agree bitwise.
+    old_bridge_data = {name: pylist(batch.column(name)) for name in expected}
+    assert _needs_value_bits(data) == _needs_value_bits(old_bridge_data)
+    assert _needs_value_bits(data) == _needs_value_bits(expected)
+    assert list(data) == list(expected) and len(data) == 14
+    assert _needs_value_bits(public._needs_rows) == _needs_value_bits(private._needs_rows)
+    assert set(public.__dict__) == set(private.__dict__)
+    raw = (tmp_path / "public/validation_summary/needs_turn_000.json").read_bytes()
+    assert raw == (tmp_path / "private/validation_summary/needs_turn_000.json").read_bytes()
+    assert raw == json.dumps({"turn": 0, "columns": expected}, separators=(",", ":")).encode()
+    public.close()
+    private.close()
+    assert {p.relative_to(tmp_path / "public"): p.read_bytes() for p in (tmp_path / "public").rglob("*") if p.is_file()} == {
+        p.relative_to(tmp_path / "private"): p.read_bytes() for p in (tmp_path / "private").rglob("*") if p.is_file()}
+
+
+@pytest.mark.parametrize("kind", ["pyarrow", "arro3"])
+def test_needs_foreign_arrow_full_bridge_preserves_getter_and_outputs(tmp_path, kind):
+    import json
+    from chronicler.agent_bridge import _owns_native_needs_getter
+    from chronicler.sidecar import SidecarWriter
+    batch, _, expected = _needs_real_batch(kind)
+    sim = _NeedsForeignSim(batch)
+    writer = SidecarWriter(tmp_path)
+    bridge, world = _needs_bridge_and_world(sim, writer)
+    bridge._write_sidecar_snapshot(world)
+    assert (sim.getter_reads, sim.getter_calls) == (1, 1)
+    assert not _owns_native_needs_getter(sim, object())
+    assert json.loads((tmp_path / "validation_summary/needs_turn_000.json").read_text())["columns"] == expected
+    assert len(writer._needs_rows) == 4 and all(list(row) == ["turn", *expected] for row in writer._needs_rows)
+    assert writer._aggregate_by_turn["0"]["civ_0"]["need_means"]["safety"] == 0.4062
+
+
+@pytest.mark.parametrize("kind", ["pyarrow", "arro3"])
+def test_needs_mutable_foreign_buffers_still_decode_after_write(tmp_path, kind):
+    import json
+    import struct
+    from chronicler.sidecar import SidecarWriter
+    batch, storage, before = _needs_real_batch(kind, mutable=True)
+    writer = SidecarWriter(tmp_path)
+    class MutatingRows(list):
+        def append(self, row):
+            super().append(row)
+            if len(self) == 1:
+                struct.pack_into("<f", storage["safety"], 0, 0.875)
+    writer._needs_rows = MutatingRows()
+    bridge, world = _needs_bridge_and_world(_NeedsForeignSim(batch), writer)
+    bridge._write_sidecar_snapshot(world)
+    # Arrow C exports can hide external mutability: all foreign CData stays legacy.
+    assert json.loads((tmp_path / "validation_summary/needs_turn_000.json").read_text())["columns"] == before
+    assert writer._needs_rows[0]["safety"] == 0.125
+    assert writer._aggregate_by_turn["0"]["civ_0"]["need_means"]["safety"] == 0.5938
+
+
+@pytest.mark.parametrize("mode", ["subclass", "instance", "class", "private", "private_instance", "bridge_subclass"])
+def test_needs_writer_and_bridge_overrides_keep_original_public_call(tmp_path, monkeypatch, mode):
+    from types import MethodType
+    from chronicler.agent_bridge import AgentBridge
+    from chronicler.sidecar import SidecarWriter
+    batch, _, _ = _needs_real_batch()
+    seen = []
+    original = SidecarWriter.write_needs_snapshot
+    def observed(self, turn, needs_batch):
+        seen.append(needs_batch)
+        return original(self, turn, needs_batch)
+    class CustomWriter(SidecarWriter):
+        write_needs_snapshot = observed
+    class CustomBridge(AgentBridge):
+        pass
+    writer = CustomWriter(tmp_path) if mode == "subclass" else SidecarWriter(tmp_path)
+    if mode == "instance": writer.write_needs_snapshot = MethodType(observed, writer)
+    elif mode == "class": monkeypatch.setattr(SidecarWriter, "write_needs_snapshot", observed)
+    elif mode == "private":
+        old_data = SidecarWriter._write_needs_snapshot_data
+        def observe_data(self, turn, needs_batch):
+            seen.append(needs_batch)
+            return old_data(self, turn, needs_batch)
+        monkeypatch.setattr(SidecarWriter, "_write_needs_snapshot_data", observe_data)
+    elif mode == "private_instance": writer._write_needs_snapshot_data = lambda *a, **k: pytest.fail("new private collision")
+    elif mode == "bridge_subclass": writer.write_needs_snapshot = MethodType(observed, writer)
+    bridge, world = _needs_bridge_and_world(_NeedsForeignSim(batch), writer,
+                                          CustomBridge if mode == "bridge_subclass" else None)
+    bridge._write_sidecar_snapshot(world)
+    assert seen == ([] if mode in ("private", "private_instance") else [batch])
+    assert len(writer._needs_rows) == 4 and writer._aggregate_by_turn["0"]["civ_0"]["agent_count"] == 4
+
+
+@pytest.mark.parametrize("mode", ["raise", "change"])
+def test_needs_stateful_decode_retains_second_decode_failure_boundary(tmp_path, monkeypatch, mode):
+    import json
+    import chronicler.agent_bridge as module
+    from chronicler.sidecar import SidecarWriter
+    _, _, first = _needs_real_batch()
+    history, logged = [], []
+    class Stateful:
+        calls = 0
+        @property
+        def to_pydict(self):
+            history.append("get")
+            def read():
+                history.append("call")
+                self.calls += 1
+                if self.calls == 2:
+                    if mode == "raise": raise ValueError("second decode")
+                    return {**first, "safety": [0.875] * 4}
+                return first
+            return read
+    writer = SidecarWriter(tmp_path)
+    bridge, world = _needs_bridge_and_world(_NeedsForeignSim(Stateful()), writer)
+    monkeypatch.setattr(module.logger, "exception", lambda message: logged.append(message))
+    bridge._write_sidecar_snapshot(world)
+    assert history == ["get", "get", "call", "get", "get", "call"]
+    assert json.loads((tmp_path / "validation_summary/needs_turn_000.json").read_text())["columns"] == first
+    assert len(writer._needs_rows) == 4
+    aggregate = writer._aggregate_by_turn["0"]["civ_0"]
+    if mode == "raise":
+        assert logged == ["Sidecar needs snapshot: failed to read/write needs"]
+        assert aggregate["need_means"] == {}
+    else:
+        assert not logged and aggregate["need_means"]["safety"] == 0.875
+
+
+def test_needs_successful_write_survives_later_aggregate_conversion_error(tmp_path, monkeypatch):
+    import chronicler.agent_bridge as module
+    from chronicler.sidecar import SidecarWriter
+    batch, _, expected = _needs_real_batch()
+    class BadSnapshot(_NeedsForeignSim):
+        def get_snapshot(self):
+            return pa.record_batch({"id": [101], "civ_affinity": [0], "satisfaction": [0.5],
+                                    "occupation": [0], "region": ["bad-region"]})
+    writer = SidecarWriter(tmp_path)
+    bridge, world = _needs_bridge_and_world(BadSnapshot(batch), writer)
+    logged = []
+    monkeypatch.setattr(module.logger, "exception", lambda message: logged.append(message))
+    bridge._write_sidecar_snapshot(world)
+    assert (tmp_path / "validation_summary/needs_turn_000.json").is_file()
+    assert len(writer._needs_rows) == 4 and list(writer._needs_rows[0]) == ["turn", *expected]
+    assert not writer._aggregate_by_turn
+    assert logged == ["Sidecar agent aggregate: failed to build/write aggregate snapshot",
+                      "Sidecar community summary: failed to build/write summary"]
+
+
+def test_needs_provenance_rejects_unloaded_and_python_producers_without_import(monkeypatch):
+    import sys
+    from chronicler.agent_bridge import _owns_native_needs_getter
+    sim = _NeedsForeignSim(None)
+    getter = sim.get_all_needs
+    monkeypatch.delitem(sys.modules, "chronicler_agents.chronicler_agents", raising=False)
+    assert not _owns_native_needs_getter(sim, getter)
+    assert (sim.getter_reads, sim.getter_calls) == (1, 0)

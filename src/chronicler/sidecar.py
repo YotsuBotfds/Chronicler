@@ -186,6 +186,11 @@ class SidecarWriter:
             turn: Simulation turn number.
             needs_batch: Column data as dict or PyArrow RecordBatch.
         """
+        # Preserve old subclasses: this new private name was never a hook.
+        _NEEDS_WRITE_DATA(self, turn, needs_batch)
+
+    def _write_needs_snapshot_data(self, turn: int, needs_batch: Any) -> dict[str, Any]:
+        """Write completely before returning the call-local decoded columns."""
         if hasattr(needs_batch, "to_pydict"):
             # PyArrow RecordBatch or Table
             data = needs_batch.to_pydict()
@@ -211,6 +216,8 @@ class SidecarWriter:
             for name, values in data.items():
                 row[name] = values[idx]
             self._needs_rows.append(row)
+
+        return data
 
     # ------------------------------------------------------------------
     # Agent aggregate
@@ -450,6 +457,27 @@ class SidecarWriter:
             (self._base_dir / "validation_economy_summary.json").write_text(
                 json.dumps(summary, separators=(",", ":"))
             )
+
+
+# Stock method identities make monkeypatched/subclass writers use compatibility.
+_NEEDS_WRITE = SidecarWriter.write_needs_snapshot
+_NEEDS_WRITE_DATA = SidecarWriter._write_needs_snapshot_data
+
+
+def _write_needs_snapshot_reusing_data(writer, turn: int, needs_batch: Any) -> dict[str, Any] | None:
+    """Write completely, then share columns with a proven owned native producer.
+
+    The bridge establishes fresh immutable native-getter ownership. Foreign
+    Arrow/CData is not made trustworthy by its wrapper type or buffer flags.
+    None means no write occurred and the caller must use its original path.
+    """
+    if (type(writer) is not SidecarWriter
+            or "write_needs_snapshot" in writer.__dict__
+            or "_write_needs_snapshot_data" in writer.__dict__
+            or SidecarWriter.write_needs_snapshot is not _NEEDS_WRITE
+            or SidecarWriter._write_needs_snapshot_data is not _NEEDS_WRITE_DATA):
+        return None
+    return _NEEDS_WRITE_DATA(writer, turn, needs_batch)
 
 
 # ---------------------------------------------------------------------------

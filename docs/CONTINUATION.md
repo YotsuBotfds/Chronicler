@@ -1,3 +1,23 @@
+# Needs sidecar decode reuse — source-only child of829, 2026-10-30
+
+This separate branch reuses the writer's decoded14-column needs data only after
+a genuine already-loaded native getter and stock bridge/resolver/writer prove
+eligibility. The writer completes JSON and buffered rows before returning data
+privately; its public API still returns None. Foreign Arrow/CData, stateful duck
+inputs, subclasses and public/private/resolver overrides retain the old second
+decode. No native import, persistent cache, sampling/schema/default change or
+new World/bridge state is introduced.
+
+The bridge's whole-file care witness is deliberately rebound to its current
+SHA only; all care markers/mechanics/other nine witnesses and historical bindings
+remain unchanged. Eighteen pure cases append to the existing views owner/chunk;
+one native-only full-bridge test appends to the existing bridge owner. All new
+source, tests, native activation, output/performance and CI are UNRUN.
+See [scope, ownership and failure boundaries](performance/needs-sidecar-decode-reuse-2026-10-30.md).
+The complete829 continuation follows unchanged below.
+
+---
+
 # Simulation staging integration — source only, 2026-10-30
 
 This separate701-based staging branch composes the exact reviewed5122 household-

@@ -1746,3 +1746,89 @@ def test_convert_events_old_schema_fallback():
     assert len(records) == 1
     assert records[0].target_agent_id == 0
     assert records[0].formed_turn == 0
+
+
+@requires_chronicler_agents
+def test_needs_sidecar_owned_native_getter_reuses_columns_after_write(tmp_path, monkeypatch):
+    """Fresh real getter + full bridge/write path; no World creation or tick."""
+    import pickle
+    from types import SimpleNamespace
+    import chronicler.agent_bridge as module
+
+    sim = AgentSimulator(num_regions=1, seed=42)
+    sim.set_region_state(_make_region_batch(num_regions=1, capacity=4,
+                                          populations=[4], controllers=[0]))
+    world = SimpleNamespace(turn=0, civilizations=[SimpleNamespace(name="C0")],
+                            regions=[SimpleNamespace(name="R0", controller="C0")])
+    class LegacyWriter(SidecarWriter):
+        pass
+    original_pylist = module.pylist
+    original_owns = module._owns_native_needs_getter
+    decodes, ownership = [0], []
+    def counted(column):
+        decodes[0] += 1
+        return original_pylist(column)
+    def observed(simulator, getter):
+        result = original_owns(simulator, getter)
+        ownership.append(result)
+        return result
+    monkeypatch.setattr(module, "pylist", counted)
+    monkeypatch.setattr(module, "_owns_native_needs_getter", observed)
+    files, states, counts = [], [], []
+    modes = ("legacy", "candidate", "instance", "class", "private", "private_instance", "resolver", "bridge_subclass")
+    class CustomBridge(AgentBridge):
+        pass
+    for name in modes:
+        with monkeypatch.context() as overrides:
+            base = tmp_path / name
+            writer = (LegacyWriter if name == "legacy" else SidecarWriter)(base)
+            seen = []
+            original_write = SidecarWriter.write_needs_snapshot
+            def observed_write(self, turn, needs_batch):
+                seen.append(needs_batch)
+                return original_write(self, turn, needs_batch)
+            if name == "instance":
+                from types import MethodType
+                writer.write_needs_snapshot = MethodType(observed_write, writer)
+            elif name == "class":
+                overrides.setattr(SidecarWriter, "write_needs_snapshot", observed_write)
+            elif name == "private":
+                original_data = SidecarWriter._write_needs_snapshot_data
+                def observed_data(self, turn, needs_batch):
+                    seen.append(needs_batch)
+                    return original_data(self, turn, needs_batch)
+                overrides.setattr(SidecarWriter, "_write_needs_snapshot_data", observed_data)
+            elif name == "private_instance":
+                writer._write_needs_snapshot_data = lambda *a, **k: pytest.fail("new private collision")
+            if name == "resolver":
+                original_resolver = AgentBridge._resolve_polity_civ_ids
+                def observed_resolver(self, world, regions, civs):
+                    seen.append(regions)
+                    return original_resolver(self, world, regions, civs)
+                overrides.setattr(AgentBridge, "_resolve_polity_civ_ids", observed_resolver)
+            bridge_type = CustomBridge if name == "bridge_subclass" else AgentBridge
+            bridge = bridge_type.__new__(bridge_type)
+            bridge._sim, bridge._sidecar, bridge._gini_by_civ = sim, writer, {}
+            before = decodes[0]
+            bridge._write_sidecar_snapshot(world)
+            counts.append(decodes[0] - before)
+            if name in ("instance", "class"):
+                assert len(seen) == 1
+            elif name == "private":
+                assert not seen  # New private-name collisions do not change old public semantics.
+            if name == "resolver":
+                assert len(seen) == 2
+            assert len(writer._needs_rows) == 4
+            assert list(writer._needs_rows[0]) == ["turn", "agent_id", "safety", "autonomy", "social",
+                "spiritual", "material", "purpose", "civ_affinity", "region", "occupation",
+                "satisfaction", "boldness", "ambition", "loyalty_trait"]
+            state = {key: value for key, value in writer.__getstate__().items()
+                     if key not in ("_base_dir", "_dir")}
+            states.append(pickle.dumps(state, protocol=5))
+            writer.close()
+            files.append({p.relative_to(base): p.read_bytes() for p in base.rglob("*") if p.is_file()})
+    assert ownership == [True] * 6  # Actual compiled admission; subclass bridge stays compatibility.
+    assert counts[0] - counts[1] == 14  # Every second native-needs column decode is removed.
+    assert counts[2:] == [counts[0]] * 6
+    assert all(state == states[0] for state in states)
+    assert all(result == files[0] for result in files)  # All JSON/Arrow/rows/aggregates.
