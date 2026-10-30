@@ -906,6 +906,8 @@ def _free_city(t: _Tick, city: City, region, lord, revolt) -> None:
     from chronicler.leaders import _compose_regnal_name, _pick_regnal_name
     from chronicler.models import Civilization, Leader
     world = t.world
+    from chronicler.ffi_constants import require_new_civ_capacity
+    require_new_civ_capacity(world)
     name = _free_city_name(world, region)
     share = region.population / max(1, lord.population)
     split_mil = math.floor(lord.military * share)

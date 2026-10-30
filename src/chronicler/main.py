@@ -725,6 +725,9 @@ def execute_run(
             if scenario_config.description:
                 print(f"    {scenario_config.description}")
 
+        from chronicler.ffi_constants import check_civ_capacity
+        check_civ_capacity(world)
+
         # Enrich civs with LLM-generated goals
         if sim_client:
             try:
@@ -735,6 +738,9 @@ def execute_run(
                     exc,
                 )
                 pass  # Goals remain empty on failure — non-fatal
+
+    from chronicler.ffi_constants import check_civ_capacity
+    check_civ_capacity(world)
 
     if checkpoint_resume is None:
         if artifact_budget is None:
