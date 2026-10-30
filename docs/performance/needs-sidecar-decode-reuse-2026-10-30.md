@@ -103,3 +103,30 @@ Source is a small overlay, borrowed exact provider compositions and independent
 compressed Git objects, not another full export. Focused tests, different source
 review, fresh native CI and a separately reviewed performance method remain
 required before any throughput or output-equivalence claim.
+
+## First native fixture failure and observer teardown correction
+
+The first ccc9 Tests run41015577534/1 used a fresh own-source wheel. Native
+owner0 failed only the new needs-sidecar activation case. Its JUnit records
+setup PASS, call FAIL and teardown PASS. At test_agent_bridge.py1827 the test
+tried to pickle a deliberately installed private-instance lambda in the
+writer's complete __getstate__ result. The final ownership and14-decode
+assertions were not reached, so the native optimization is still unqualified.
+
+The public-instance spy and private-instance sentinel also introduce test-only
+instance keys that would make cross-variant state differ. This test-only child
+preserves both exact original assignments, all eight modes, real-write order,
+expected observer calls and public return behavior. It first establishes each
+injected key was absent, captures the exact injected object, and asserts that
+same object remains after the actual write. It then removes only those two
+known observer keys before the existing complete production-data snapshot.
+Every remaining state field, row/buffer, final JSON/Arrow file, ownership claim
+and14-decode comparison stays in the original assertion. No field category,
+private namespace or callable is filtered from production data.
+
+All product/native code, the current care bridge/FFI witnesses, all other test
+bodies, ownership/chunk membership and dependencies/workflows are unchanged.
+The prior49 pure/care passes and the first native failure remain preserved;
+they do not qualify this child. The corrected native case, fresh CI and actual
+fastpath/parity claims are UNRUN. No Native/World/tick/build/test ran to author
+this source repair.

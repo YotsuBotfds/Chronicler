@@ -1789,7 +1789,9 @@ def test_needs_sidecar_owned_native_getter_reuses_columns_after_write(tmp_path, 
                 return original_write(self, turn, needs_batch)
             if name == "instance":
                 from types import MethodType
+                assert "write_needs_snapshot" not in writer.__dict__
                 writer.write_needs_snapshot = MethodType(observed_write, writer)
+                instance_observer = writer.__dict__["write_needs_snapshot"]
             elif name == "class":
                 overrides.setattr(SidecarWriter, "write_needs_snapshot", observed_write)
             elif name == "private":
@@ -1799,7 +1801,9 @@ def test_needs_sidecar_owned_native_getter_reuses_columns_after_write(tmp_path, 
                     return original_data(self, turn, needs_batch)
                 overrides.setattr(SidecarWriter, "_write_needs_snapshot_data", observed_data)
             elif name == "private_instance":
+                assert "_write_needs_snapshot_data" not in writer.__dict__
                 writer._write_needs_snapshot_data = lambda *a, **k: pytest.fail("new private collision")
+                private_collision = writer.__dict__["_write_needs_snapshot_data"]
             if name == "resolver":
                 original_resolver = AgentBridge._resolve_polity_civ_ids
                 def observed_resolver(self, world, regions, civs):
@@ -1822,6 +1826,14 @@ def test_needs_sidecar_owned_native_getter_reuses_columns_after_write(tmp_path, 
             assert list(writer._needs_rows[0]) == ["turn", "agent_id", "safety", "autonomy", "social",
                 "spiritual", "material", "purpose", "civ_affinity", "region", "occupation",
                 "satisfaction", "boldness", "ambition", "loyalty_trait"]
+            # Verify and remove only our instance observers before comparing all
+            # production data. Their real-write/fallback assertions above remain.
+            if name == "instance":
+                assert writer.__dict__["write_needs_snapshot"] is instance_observer
+                del writer.__dict__["write_needs_snapshot"]
+            elif name == "private_instance":
+                assert writer.__dict__["_write_needs_snapshot_data"] is private_collision
+                del writer.__dict__["_write_needs_snapshot_data"]
             state = {key: value for key, value in writer.__getstate__().items()
                      if key not in ("_base_dir", "_dir")}
             states.append(pickle.dumps(state, protocol=5))

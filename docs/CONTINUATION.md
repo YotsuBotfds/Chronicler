@@ -1,3 +1,20 @@
+# Needs native activation fixture correction - source only, 2026-10-30
+
+First ccc9 CI41015577534/1 failed the new owner0 native test while pickling its
+own private-instance lambda. Setup/teardown passed; final native ownership and
+14-decode assertions were not reached. The complete first failure is preserved.
+
+This narrow child changes only that test's instrumentation teardown and this
+note/ledger. Both injected instance attributes must retain their exact identity
+after the actual write, then only those known observers are removed before the
+existing complete production-data comparison. All eight variants, original
+assertions/files and product/native/care witness bytes remain unchanged.
+This child's corrected native test and first CI remain UNRUN.
+See [the correction and held gates](performance/needs-sidecar-decode-reuse-2026-10-30.md).
+The complete ccc9 continuation follows unchanged below.
+
+---
+
 # Needs sidecar decode reuse — source-only child of829, 2026-10-30
 
 This separate branch reuses the writer's decoded14-column needs data only after
