@@ -1,3 +1,21 @@
+# Isolated public grain CI routing — source only, 2026-10-30
+
+This child adds dedicated new shipment semantic and standard Tests push refs;
+all existing refs remain untouched. Only the semantic job guard gains the new
+semantic ref. Tests job bodies and existing aggregate guards remain exact.
+The historical Tests-header witness gains only the same new selector literal;
+its complete prior source is recovered by the recorded one-literal inverse.
+
+Product/Native, the selected99 pure cases, all case identities/assertions,
+fixtures, care pins,306 owners/44 chunks/six skips/623 care reports are exact0f8.
+This is routing source only: no imports/tests/World/Native/build/API/publication.
+All runtime and publication gates stay held. Inert source and semantic refs
+may be created only after separate root approval; Tests activation stays held.
+
+The complete0f8 continuation follows unchanged.
+
+---
+
 # Minimal public grain Native-test binding correction — source only, 2026-10-30
 
 Preserve c88d as BLOCKED/UNRUN: both source peers found its new Native case
