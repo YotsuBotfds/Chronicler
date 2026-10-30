@@ -1,0 +1,148 @@
+name: Matched whole-turn staging study
+
+# Source publication is inert. Candidate/root-decision nulls refuse before
+# measured checkouts/builds; a reviewed successor and one run-ref action follow.
+on:
+  push:
+    branches: [lead/wholeturn-staging-run-20261030]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  wholeturn:
+    if: github.ref == 'refs/heads/lead/wholeturn-staging-run-20261030'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      PYTHONUNBUFFERED: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONHASHSEED: "0"
+      RAYON_NUM_THREADS: "1"
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      NUMEXPR_NUM_THREADS: "1"
+      VECLIB_MAXIMUM_THREADS: "1"
+      BLIS_NUM_THREADS: "1"
+      GOTO_NUM_THREADS: "1"
+      CARGO_BUILD_JOBS: "1"
+      CARGO_INCREMENTAL: "0"
+      RUSTFLAGS: ""
+    steps:
+      - name: Check out controller
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          path: controller
+          persist-credentials: false
+      - name: Set up fixed Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.13.17"
+      - name: Admit exact registration and current official job clock
+        id: admission
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >-
+          python -B controller/scripts/wholeturn_controller.py admit
+          --controller-root "$GITHUB_WORKSPACE/controller"
+          --root "$RUNNER_TEMP/matched-wholeturn"
+      - name: Check out exact baseline
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          ref: ${{ steps.admission.outputs.baseline }}
+          path: measured-baseline
+          persist-credentials: false
+      - name: Check out exact reviewed candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          ref: ${{ steps.admission.outputs.candidate }}
+          path: measured-candidate
+          persist-credentials: false
+      - name: Prepare matching fresh build environments
+        id: environments
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmp measured-baseline/uv.lock measured-candidate/uv.lock
+          cmp measured-baseline/chronicler-agents/Cargo.lock measured-candidate/chronicler-agents/Cargo.lock
+          cmp measured-baseline/chronicler-agents/Cargo.toml measured-candidate/chronicler-agents/Cargo.toml
+          python -m pip install uv==0.9.5
+          rustup toolchain install 1.90.0 --profile minimal
+          rustup default 1.90.0
+          test ! -e "$RUNNER_TEMP/wholeturn-builder"
+          python -m venv "$RUNNER_TEMP/wholeturn-builder"
+          uv pip install --python "$RUNNER_TEMP/wholeturn-builder/bin/python" maturin==1.9.6
+          for arm in baseline candidate; do
+            test ! -e "$RUNNER_TEMP/wholeturn-venv-$arm"
+            test ! -e "$RUNNER_TEMP/wholeturn-target-$arm"
+            mkdir "$RUNNER_TEMP/matched-wholeturn/metadata/$arm"
+            mkdir "$RUNNER_TEMP/matched-wholeturn/metadata/$arm/wheels"
+            UV_PROJECT_ENVIRONMENT="$RUNNER_TEMP/wholeturn-venv-$arm" uv sync --frozen --project "$GITHUB_WORKSPACE/measured-$arm" --python "$(command -v python)"
+            rustc --version --verbose > "$RUNNER_TEMP/matched-wholeturn/metadata/$arm/rustc.txt"
+            cargo --version > "$RUNNER_TEMP/matched-wholeturn/metadata/$arm/cargo.txt"
+            "$RUNNER_TEMP/wholeturn-builder/bin/python" -m maturin --version > "$RUNNER_TEMP/matched-wholeturn/metadata/$arm/maturin.txt"
+            uv --version > "$RUNNER_TEMP/matched-wholeturn/metadata/$arm/uv.txt"
+          done
+      - name: Build and record baseline own release wheel
+        id: baseline
+        timeout-minutes: 15
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CARGO_TARGET_DIR="$RUNNER_TEMP/wholeturn-target-baseline"
+          "$RUNNER_TEMP/wholeturn-builder/bin/python" -m maturin build --release --locked --manifest-path measured-baseline/chronicler-agents/Cargo.toml --interpreter "$RUNNER_TEMP/wholeturn-venv-baseline/bin/python" --out "$RUNNER_TEMP/matched-wholeturn/metadata/baseline/wheels"
+          uv pip install --python "$RUNNER_TEMP/wholeturn-venv-baseline/bin/python" "$RUNNER_TEMP/matched-wholeturn/metadata/baseline/wheels/"*.whl
+          "$RUNNER_TEMP/wholeturn-venv-baseline/bin/python" -B controller/scripts/wholeturn_worker.py record-build --controller-root "$GITHUB_WORKSPACE/controller" --measured-root "$GITHUB_WORKSPACE/measured-baseline" --arm baseline --wheel-dir "$RUNNER_TEMP/matched-wholeturn/metadata/baseline/wheels" --output "$RUNNER_TEMP/matched-wholeturn/metadata/baseline/build.json"
+      - name: Build and record candidate own release wheel
+        id: candidate
+        timeout-minutes: 15
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CARGO_TARGET_DIR="$RUNNER_TEMP/wholeturn-target-candidate"
+          "$RUNNER_TEMP/wholeturn-builder/bin/python" -m maturin build --release --locked --manifest-path measured-candidate/chronicler-agents/Cargo.toml --interpreter "$RUNNER_TEMP/wholeturn-venv-candidate/bin/python" --out "$RUNNER_TEMP/matched-wholeturn/metadata/candidate/wheels"
+          uv pip install --python "$RUNNER_TEMP/wholeturn-venv-candidate/bin/python" "$RUNNER_TEMP/matched-wholeturn/metadata/candidate/wheels/"*.whl
+          "$RUNNER_TEMP/wholeturn-venv-candidate/bin/python" -B controller/scripts/wholeturn_worker.py record-build --controller-root "$GITHUB_WORKSPACE/controller" --measured-root "$GITHUB_WORKSPACE/measured-candidate" --arm candidate --wheel-dir "$RUNNER_TEMP/matched-wholeturn/metadata/candidate/wheels" --output "$RUNNER_TEMP/matched-wholeturn/metadata/candidate/build.json"
+      - name: Run fixed serial roles and comparisons once
+        id: owner
+        timeout-minutes: 70
+        shell: bash
+        run: |
+          set -euo pipefail
+          exec timeout --signal=TERM --kill-after=5s 4195s python -B controller/scripts/wholeturn_controller.py execute --controller-root "$GITHUB_WORKSPACE/controller" --root "$RUNNER_TEMP/matched-wholeturn" --baseline-build "$RUNNER_TEMP/matched-wholeturn/metadata/baseline/build.json" --candidate-build "$RUNNER_TEMP/matched-wholeturn/metadata/candidate/build.json"
+      - name: Package bounded selected data including first failures
+        id: compact
+        if: always()
+        env:
+          ACTUAL_OWNER_OUTCOME: ${{ steps.owner.outcome }}
+          ACTUAL_STEPS: '{"admission":"${{ steps.admission.outcome }}","environments":"${{ steps.environments.outcome }}","baseline":"${{ steps.baseline.outcome }}","candidate":"${{ steps.candidate.outcome }}","owner":"${{ steps.owner.outcome }}"}'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B controller/scripts/wholeturn_records.py pack --controller-root "$GITHUB_WORKSPACE/controller" --root "$RUNNER_TEMP/matched-wholeturn" --actual-step-outcome "${ACTUAL_OWNER_OUTCOME:-unknown}" --step-outcomes-json "$ACTUAL_STEPS" --output "$RUNNER_TEMP/matched-wholeturn-compact.zip"
+      - name: Retain compact original
+        if: always() && steps.compact.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: matched-wholeturn-compact-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/matched-wholeturn-compact.zip
+          if-no-files-found: error
+          retention-days: 14
+      - name: Retain raw data remotely including incomplete roles
+        if: always() && steps.admission.outcome == 'success'
+        timeout-minutes: 10
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: matched-wholeturn-raw-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/matched-wholeturn/raw/**
+            ${{ runner.temp }}/matched-wholeturn/ordinary/**
+            ${{ runner.temp }}/matched-wholeturn/metadata/**
+            ${{ runner.temp }}/matched-wholeturn/admission.json
+            ${{ runner.temp }}/matched-wholeturn/*-build.json
+          include-hidden-files: true
+          compression-level: 1
+          if-no-files-found: warn
+          retention-days: 14

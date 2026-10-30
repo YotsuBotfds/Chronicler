@@ -1,3 +1,11 @@
+# Matched whole-turn controller source preparation (2026-10-30)
+
+Separate source-only experiment `matched-wholeturn-staging-v1`: baseline829/nativea840 versus an exact future staging candidate whose source/native/root-decision pins remain null. This branch cannot run before a separately reviewed source successor fills those values. Normal8-template/4civ and32-procedural/10civ,200 turns;2 plain pairs+1 diagnostic pair each,12 fresh roles. Held79d/090 and the original six scientific cells remain unchanged.
+
+See `docs/performance/matched-wholeturn-staging-2026-10-30.md` and the committed registration. Separate live and decoded terminal proof observes reducer-omitted caches; unsupported objects refuse and internal C Arrow storage aliases remain explicitly unobserved. No Native/build/World/timing has run.42 new explicit ordinary-guard fake/pure cases are authored UNRUN in one appended110-second chunk; old41 chunks/default collection/native owners/product sources remain unchanged. Source branch is inert; candidate/native and root live-proof review decision must be frozen before any future opt-in run-ref action.
+
+Historical continuation follows byte-exact.
+
 # Simulation staging integration — source only, 2026-10-30
 
 This separate701-based staging branch composes the exact reviewed5122 household-
