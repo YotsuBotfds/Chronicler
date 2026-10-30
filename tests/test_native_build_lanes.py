@@ -417,3 +417,183 @@ def test_validation_resource_admission_is_before_world_and_bound_to_compact_evid
     assert resource["run"].index('os.fchmod(stream.fileno(), 0o444)') < resource["run"].index('if not decision["admitted"]:')
     assert '"resource_admission.json"' in workflow and '"resource_admission_sha256"' in workflow
     assert '"build_identity_sha256"' in resource["run"]
+
+
+def _validation_resource_translation_for_test():
+    steps = yaml.load(_read(".github/workflows/validation-gate.yml"), Loader=yaml.BaseLoader)["jobs"]["canonical-validation"]["steps"]
+    step = next(row for row in steps if row["name"] == "Admit resources before World")
+    source = step["run"].split("python - <<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
+    names = ("cgroup_mount_status", "cgroup_coverage_errors", "translate_cgroup_controls", "observe")
+    functions = [node for node in ast.parse(source).body if isinstance(node, ast.FunctionDef) and node.name in names]
+    assert [node.name for node in functions] == list(names)
+    namespace = {}
+    # Only these translators and the read adapter see synthetic reads. No
+    # inline collector, real filesystem, native, build or World code runs here.
+    exec(compile(ast.Module(body=functions, type_ignores=[]), "<validation-resource-translation>", "exec"), namespace)
+    return namespace["cgroup_mount_status"], namespace["translate_cgroup_controls"], namespace["cgroup_coverage_errors"], namespace["observe"]
+
+
+def _validation_resource_fake_controller_reads():
+    return {"parent.cgroup.controllers": ("value", "cpu memory"),
+            "parent.cgroup.subtree_control": ("value", "cpu memory"),
+            "cgroup.controllers": ("value", "cpu memory"),
+            "/proc/cgroups": ("value", "#subsys_name hierarchy num_cgroups enabled\ncpu 0 1 1\nmemory 0 1 1"),
+            "cpu.max": ("value", "max 100000"),
+            "memory.max": ("value", "max"), "memory.high": ("value", "max"),
+            "memory.current": ("value", "1024")}
+
+
+def test_validation_resource_translation_distinguishes_root_disabled_and_unlimited():
+    _, translate, _, _ = _validation_resource_translation_for_test()
+    reads = _validation_resource_fake_controller_reads()
+    before = repr(reads)
+    unlimited = translate(2, "cpu-memory", False, "confirmed-visible-root", reads, set())
+    assert unlimited["errors"] == [] and unlimited["memory_headroom_bytes"] == [] and unlimited["cpu_slot_limits"] == []
+    assert {row["state"] for row in unlimited["controllers"].values()} == {"explicit-unlimited"}
+    assert repr(reads) == before
+
+    absent = {**reads, **{key: ("missing", None) for key in ("cpu.max", "memory.max", "memory.high", "memory.current")}}
+    root = translate(2, "cpu-memory", True, "confirmed-visible-root", absent, set())
+    assert root["errors"] == []
+    assert {row["state"] for row in root["controllers"].values()} == {"root-no-own-limit"}
+    disabled = translate(2, "cpu-memory", False, "confirmed-visible-root",
+                         {**absent, "parent.cgroup.subtree_control": ("value", "")}, set())
+    assert disabled["errors"] == []
+    assert {row["state"] for row in disabled["controllers"].values()} == {"disabled-for-child"}
+    kernel_disabled = translate(2, "cpu-memory", True, "confirmed-visible-root",
+        {**absent, "cgroup.controllers": ("value", ""),
+         "/proc/cgroups": ("value", "#subsys_name hierarchy num_cgroups enabled\ncpu 0 1 0\nmemory 0 1 0")}, set())
+    assert kernel_disabled["errors"] == []
+    assert {row["state"] for row in kernel_disabled["controllers"].values()} == {"kernel-disabled-or-not-applicable"}
+    covered = translate(2, "cpu-memory", True, "confirmed-visible-root",
+                        {**absent, "cgroup.controllers": ("value", "")}, {"cpu", "memory"})
+    assert covered["errors"] == []
+    assert {row["state"] for row in covered["controllers"].values()} == {"covered-by-selected-v1"}
+
+
+def test_validation_resource_translation_refuses_unavailable_selected_controls():
+    _, translate, _, observe = _validation_resource_translation_for_test()
+    class FakeRead:
+        def __init__(self, text="", open_error=None, read_error=None):
+            self.text, self.open_error, self.read_error = text, open_error, read_error
+        def open(self, mode, *, encoding):
+            assert mode == "r" and encoding == "ascii"
+            if self.open_error is not None:
+                raise self.open_error
+            return self
+        def __enter__(self):
+            return self
+        def __exit__(self, *exception):
+            return False
+        def read(self, bound):
+            assert bound == 16385
+            if self.read_error is not None:
+                raise self.read_error
+            return self.text[:bound]
+    tags = {}
+    for name, fake, expected in (
+        ("value", FakeRead("  max 100000\n"), ("value", "max 100000")),
+        ("missing", FakeRead(open_error=FileNotFoundError()), ("missing", None)),
+        ("denied", FakeRead(open_error=PermissionError()), ("unavailable", None)),
+        ("decode", FakeRead(read_error=UnicodeError()), ("unavailable", None)),
+        ("oversize", FakeRead("x" * 16385), ("unavailable", None)),
+    ):
+        tags[name] = observe(fake)
+        assert tags[name] == expected, name
+    reads = _validation_resource_fake_controller_reads()
+    mutations = [
+        ("quota-missing", {"cpu.max": tags["missing"]}),
+        ("hard-limit-missing", {"memory.max": ("missing", None)}),
+        ("high-limit-missing", {"memory.high": ("missing", None)}),
+        ("usage-missing-even-unlimited", {"memory.current": ("missing", None)}),
+        ("unreadable-quota", {"cpu.max": tags["denied"]}),
+        ("invalid-encoding-quota", {"cpu.max": tags["decode"]}),
+        ("oversize-quota", {"cpu.max": tags["oversize"]}),
+        ("parent-state-missing", {"parent.cgroup.subtree_control": ("missing", None)}),
+        ("parent-state-unreadable", {"parent.cgroup.controllers": ("unavailable", None)}),
+        ("inconsistent-parent-state", {"parent.cgroup.controllers": ("value", "memory")}),
+        ("disabled-but-controls-present", {"parent.cgroup.subtree_control": ("value", "")}),
+        ("zero-quota", {"cpu.max": ("value", "0 100000")}),
+        ("invalid-period", {"cpu.max": ("value", "max 0")}),
+        ("invalid-usage", {"memory.current": ("value", "unknown")}),
+    ]
+    policy = _validation_resource_policy_for_test()
+    for name, changed in mutations:
+        result = translate(2, "cpu-memory", False, "confirmed-visible-root", {**reads, **changed}, set())
+        assert result["errors"], name
+        counters = _validation_resource_fake_counters()
+        counters["memory_headroom_bytes"] = result["memory_headroom_bytes"]
+        counters["cpu_slot_limits"] = [16, *result["cpu_slot_limits"]]
+        counters["errors"] = result["errors"]
+        assert not policy(counters)["admitted"], name
+    observed_absence = {**reads, **{name: tags["missing"] for name in ("cpu.max", "memory.max", "memory.high", "memory.current")}}
+    for is_root, observations in (
+        (True, observed_absence),
+        (False, {**observed_absence, "parent.cgroup.subtree_control": ("value", "")}),
+    ):
+        supported = translate(2, "cpu-memory", is_root, "confirmed-visible-root", observations, set())
+        assert supported["errors"] == []
+        counters = _validation_resource_fake_counters()
+        counters.update(memory_headroom_bytes=supported["memory_headroom_bytes"], cpu_slot_limits=[16], errors=supported["errors"])
+        assert policy(counters)["admitted"]
+    absent = {**reads, "cgroup.controllers": ("value", ""), "cpu.max": tags["missing"]}
+    assert translate(2, "cpu", True, "confirmed-visible-root", absent, set())["errors"]
+    for malformed_table in ("", "   ", "#subsys_name hierarchy num_cgroups enabled", "cpu 0 1 0\nmemory 0 1 0",
+                            "#subsys_name hierarchy num_cgroups enabled\ncpu unknown 1 0",
+                            "#subsys_name hierarchy num_cgroups enabled\ncpu 0 bad 0"):
+        assert translate(2, "cpu", True, "confirmed-visible-root",
+                         {**absent, "/proc/cgroups": ("value", malformed_table)}, set())["errors"]
+    assert translate(2, "cpu-memory", True, "unavailable-or-masked", reads, set())["errors"]
+
+
+def test_validation_resource_translation_retains_finite_ancestor_and_v1_limits():
+    _, translate, _, _ = _validation_resource_translation_for_test()
+    reads = {**_validation_resource_fake_controller_reads(), "cpu.max": ("value", "390000 100000"),
+             "memory.max": ("value", str(12 * 1024**3)), "memory.high": ("value", str(10 * 1024**3)),
+             "memory.current": ("value", str(2 * 1024**3))}
+    parent = translate(2, "cpu-memory", False, "confirmed-visible-root", reads, set())
+    assert parent["errors"] == [] and parent["cpu_slot_limits"] == [3]
+    assert parent["memory_headroom_bytes"] == [10 * 1024**3, 8 * 1024**3]
+    child = translate(2, "cpu", False, "confirmed-visible-root",
+                      {**reads, "cpu.max": ("value", "50000 100000")}, set())
+    assert child["errors"] == [] and child["cpu_slot_limits"] == [0]
+    counters = _validation_resource_fake_counters()
+    counters["cpu_slot_limits"] = [16, *parent["cpu_slot_limits"], *child["cpu_slot_limits"]]
+    assert not _validation_resource_policy_for_test()(counters)["admitted"]
+
+    v1 = {"memory.limit_in_bytes": ("value", str(10 * 1024**3)),
+          "memory.soft_limit_in_bytes": ("value", "0"), "memory.usage_in_bytes": ("value", str(2 * 1024**3)),
+          "cpu.cfs_quota_us": ("value", "-1"), "cpu.cfs_period_us": ("value", "100000")}
+    result = translate(1, "cpu-memory", True, "confirmed-visible-root", v1, set())
+    assert result["errors"] == [] and result["memory_headroom_bytes"] == [8 * 1024**3]
+    assert result["cpu_slot_limits"] == [] and result["controllers"]["cpu"]["state"] == "explicit-unlimited"
+    for name in v1:
+        assert translate(1, "cpu-memory", True, "confirmed-visible-root",
+                         {**v1, name: ("missing", None)}, set())["errors"], name
+
+
+def test_validation_resource_mount_translation_refuses_masked_or_unproven_roots():
+    mount, _, coverage, _ = _validation_resource_translation_for_test()
+    root = "/sys/fs/cgroup"
+    visible = "29 23 0:26 / /sys/fs/cgroup ro - cgroup2 cgroup rw\n"
+    assert mount(root, 2, visible) == "confirmed-visible-root"
+    assert mount(root + "/cpu", 1, "30 23 0:27 / /sys/fs/cgroup/cpu rw - cgroup cgroup rw,cpu\n") == "confirmed-visible-root"
+    for text in (
+        "", "malformed", visible + visible,
+        visible.replace("0:26 / /", "0:26 /hidden-parent /"),
+        visible + "30 29 0:27 / /sys/fs/cgroup/cpu.max ro - tmpfs tmpfs ro\n",
+        visible.replace("cgroup2 cgroup", "tmpfs tmpfs"),
+    ):
+        assert mount(root, 2, text) == "unavailable-or-masked"
+    assert coverage([(2, "cpu-memory")]) == []
+    assert coverage([(1, "cpu"), (1, "memory")]) == []
+    assert coverage([(1, "memory")]) == ["unavailable-controller-hierarchy:cpu"]
+    assert coverage([(1, "cpu")]) == ["unavailable-controller-hierarchy:memory"]
+    assert len(coverage([])) == 2
+    workflow = _read(".github/workflows/validation-gate.yml")
+    assert 'for issue in cgroup_coverage_errors(' in workflow
+    assert 'mountinfo = small(Path("/proc/self/mountinfo"), True)' in workflow
+    assert 'translated = translate_cgroup_controls(' in workflow
+    assert 'for issue in translated["errors"]:' in workflow
+    assert 'memory_headrooms.extend(translated["memory_headroom_bytes"])' in workflow
+    assert 'cpu_limits.extend(translated["cpu_slot_limits"])' in workflow

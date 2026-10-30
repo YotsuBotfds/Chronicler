@@ -91,3 +91,42 @@ must still check actual free space above the existing3GiB floor and every
 actual artifact size before transfer. This plan and the inline admission do
 not grant a dispatch or establish measured fit; all six scientific cells stay
 held pending separate source, ordinary-test, build/API and execution decisions.
+
+### Controller-observation correction (source-only successor of902a)
+
+The unrun902a collector treated missing optional cgroup files as an absence of
+limits. This successor preserves that source and its independent B1 finding;
+it changes only the resource observation/translation seam and adds four pure
+fake-reader/source cases. The seven prior workflow/resource cases remain
+byte-exact, and all eleven focused cases are prospective and UNRUN.
+
+Each control read is tagged value, missing or unavailable. Selected/enabled v2
+controllers require the complete quota or memory max/high/current interface;
+selected v1 controls require quota/period or limit/soft/usage. Unknown, denied,
+malformed or missing-required data adds a refusal error even when host counters
+would pass. Explicit v2 max and v1 quota -1 are separate unlimited observations.
+Finite ancestor memory headrooms and integer CPU quota floors remain limiting.
+
+A missing child interface is accepted only when readable parent controller and
+subtree metadata establish that the controller is disabled for that child and
+all its own control reads are absent. A missing root quota/limit interface is
+accepted only with a conventional visible cgroupfs mount rooted at /, no nested
+masking mount, and readable root controller availability. Controllers absent at
+the root additionally need readable kernel metadata establishing disabled/not
+applicable status or separately selected v1 coverage. Unavailable or contradictory
+metadata refuses; no generic file-not-found or cgroup-directory exemption exists.
+Kernel disabled/absent inference requires a recognizable nonempty validated
+/proc/cgroups table; a blank/truncated table cannot authorize host fallback.
+Partial v1 process memberships conservatively refuse if CPU or memory hierarchy
+coverage is missing. The pure fake cases include both reviewed omissions.
+These observations cover the visible process hierarchy and its visible ancestors;
+they do not certify inaccessible host ancestry or measured source fit.
+
+The immutable-ish pre-World resource JSON now includes controller translation
+states and raw mount/kernel observations. Its existing128KiB bound, exclusive
+write/fsync/0444 ordering and refusal behavior remain unchanged. The8GiB RAM,
+16GiB output space,100000 inode and3CPU policy, workers/timeouts/seeds/horizons,
+strict scientific gates, controller/source identities and compact raw-build hash
+joins remain exact902a. No collector, native build/import, World, test or dispatch
+was executed during source authoring. Real observations and scientific outcomes
+remain unset. New source review and one root-approved focused attempt are held.

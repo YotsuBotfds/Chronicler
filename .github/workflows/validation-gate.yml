@@ -219,6 +219,172 @@ jobs:
                       "measured_source_fit": False,
                       "scope": "Point-in-time admission policy, not measured fit or a runtime resource guarantee."}
 
+          def cgroup_mount_status(root, version, text):
+              """Classify only a conventional visible hierarchy, without probing it."""
+              try:
+                  assert type(text) is str and len(text) <= 16384
+                  mounts = []
+                  for line in text.splitlines():
+                      left, right = line.split(" - ", 1)
+                      fields, filesystem = left.split(), right.split()
+                      assert len(fields) >= 6 and len(filesystem) >= 3
+                      # Escaped/nonconventional hierarchy paths are outside this policy.
+                      mounts.append((fields[3], fields[4], filesystem[0], filesystem[2]))
+                  expected = "cgroup2" if version == 2 else "cgroup"
+                  selected = [row for row in mounts if row[1] == root]
+                  assert len(selected) == 1 and selected[0][0] == "/" and selected[0][2] == expected
+                  assert not any(row[1].startswith(root + "/") for row in mounts)
+                  if version == 1:
+                      required = root.rsplit("/", 1)[1].split(",")
+                      assert all(controller in selected[0][3].split(",") for controller in required)
+                  return "confirmed-visible-root"
+              except (AssertionError, ValueError, TypeError, AttributeError):
+                  return "unavailable-or-masked"
+
+
+          def cgroup_coverage_errors(hierarchies):
+              """Every selected process resource needs an observed hierarchy."""
+              covered = set()
+              for version, kind in hierarchies:
+                  if version not in (1, 2) or kind not in ("cpu", "memory", "cpu-memory"):
+                      return ["unsupported-controller-coverage"]
+                  covered.update(controller for controller in ("cpu", "memory") if controller in kind)
+              return ["unavailable-controller-hierarchy:" + controller
+                      for controller in ("cpu", "memory") if controller not in covered]
+
+
+          def translate_cgroup_controls(version, kind, is_root, mount_state, observations, selected_v1):
+              """Translate supplied reads only; missing is never synonymous with unlimited."""
+              result = {"memory_headroom_bytes": [], "cpu_slot_limits": [], "errors": [], "controllers": {}}
+              def bad(message):
+                  result["errors"].append(message)
+              def observed(name):
+                  row = observations.get(name)
+                  if (type(row) is not tuple or len(row) != 2 or row[0] not in ("value", "missing", "unavailable")
+                          or (row[0] == "value" and type(row[1]) is not str)
+                          or (row[0] != "value" and row[1] is not None)):
+                      bad("invalid-observation:" + name)
+                      return "unavailable", None
+                  return row
+              def words(name):
+                  state, value = observed(name)
+                  if state != "value":
+                      bad("required-controller-metadata:" + name + ":" + state)
+                      return None
+                  tokens = value.split()
+                  if len(tokens) != len(set(tokens)) or any(not token.replace("_", "").isalnum() for token in tokens):
+                      bad("invalid-controller-metadata:" + name)
+                      return None
+                  return tokens
+              def number(value):
+                  assert type(value) is str and value.isascii() and value.isdecimal()
+                  return int(value)
+              if (version not in (1, 2) or kind not in ("cpu", "memory", "cpu-memory")
+                      or type(is_root) is not bool or mount_state != "confirmed-visible-root"):
+                  bad("unavailable-or-masked-cgroup-mount")
+                  return result
+              for controller in ("memory", "cpu"):
+                  if controller not in kind:
+                      continue
+                  if version == 1:
+                      state = "required"
+                  elif is_root:
+                      available = words("cgroup.controllers")
+                      if available is None:
+                          continue
+                      if controller in available:
+                          state = "root-interface"
+                      elif controller in selected_v1:
+                          state = "covered-by-selected-v1"
+                      else:
+                          proc_state, proc_text = observed("/proc/cgroups")
+                          try:
+                              assert proc_state == "value"
+                              lines = [line.split() for line in proc_text.splitlines() if line.strip()]
+                              assert lines and lines[0] == ["#subsys_name", "hierarchy", "num_cgroups", "enabled"]
+                              rows = lines[1:]
+                              assert 0 < len(rows) <= 256 and len({row[0] for row in rows}) == len(rows)
+                              assert all(len(row) == 4 and row[0].replace("_", "").isalnum()
+                                         and row[1].isascii() and row[1].isdecimal()
+                                         and row[2].isascii() and row[2].isdecimal()
+                                         and row[3] in ("0", "1") for row in rows)
+                              matches = [row for row in rows if row[0] == controller]
+                              assert len(matches) <= 1
+                              assert not matches or matches[0][3] == "0"
+                              state = "kernel-disabled-or-not-applicable"
+                          except (AssertionError, TypeError, AttributeError):
+                              bad("unavailable-root-controller:" + controller)
+                              continue
+                  else:
+                      available = words("parent.cgroup.controllers")
+                      enabled = words("parent.cgroup.subtree_control")
+                      if available is None or enabled is None:
+                          continue
+                      if not set(enabled).issubset(available):
+                          bad("contradictory-parent-controller-metadata:" + controller)
+                          continue
+                      state = "required" if controller in enabled else "disabled-for-child"
+                  names = (("memory.max", "memory.high", "memory.current") if version == 2 else
+                           ("memory.limit_in_bytes", "memory.soft_limit_in_bytes", "memory.usage_in_bytes")) if controller == "memory" else (
+                           ("cpu.max",) if version == 2 else ("cpu.cfs_quota_us", "cpu.cfs_period_us"))
+                  values = [observed(name) for name in names]
+                  row = {"state": state, "reads": {name: list(value) for name, value in zip(names, values)}}
+                  result["controllers"][controller] = row
+                  if any(value[0] == "unavailable" for value in values):
+                      bad("unavailable-controller-read:" + controller)
+                      continue
+                  if state in ("disabled-for-child", "covered-by-selected-v1", "kernel-disabled-or-not-applicable"):
+                      if any(value[0] != "missing" for value in values):
+                          bad("contradictory-disabled-controller:" + controller)
+                      continue
+                  if state == "root-interface":
+                      # Linux's hierarchy root has no own v2 quota/limit knobs. Root
+                      # absence is admitted only after mount and controller metadata join.
+                      root_absent = values[0][0] == "missing" and (controller == "cpu" or values[1][0] == "missing")
+                      if root_absent:
+                          if controller == "memory" and values[2][0] == "value":
+                              try:
+                                  number(values[2][1])
+                              except (AssertionError, ValueError):
+                                  bad("invalid-root-memory-usage")
+                                  continue
+                          row["state"] = "root-no-own-limit"
+                          continue
+                  if any(value[0] != "value" for value in values):
+                      bad("missing-required-controller-read:" + controller)
+                      continue
+                  try:
+                      texts = [value[1] for value in values]
+                      if controller == "memory":
+                          maximum, soft, usage = texts
+                          used = number(usage)
+                          bounds = [maximum, soft]
+                          finite = []
+                          for index, bound in enumerate(bounds):
+                              if version == 2 and bound == "max":
+                                  continue
+                              limit = number(bound)
+                              if version == 1 and index == 1 and limit == 0:
+                                  continue
+                              finite.append(max(0, limit - used))
+                          result["memory_headroom_bytes"].extend(finite)
+                          row["state"] = "limited" if finite else "explicit-unlimited"
+                      else:
+                          fields = texts[0].split() if version == 2 else texts
+                          assert len(fields) == 2
+                          period = number(fields[1])
+                          assert period > 0
+                          if fields[0] == ("max" if version == 2 else "-1"):
+                              row["state"] = "explicit-unlimited"
+                          else:
+                              quota = number(fields[0])
+                              assert quota > 0
+                              result["cpu_slot_limits"].append(quota // period)
+                              row["state"] = "limited"
+                  except (AssertionError, ValueError, TypeError):
+                      bad("invalid-controller-value:" + controller)
+              return result
+
           errors = []
           def problem(message):
               if len(errors) < 16:
@@ -298,7 +464,7 @@ jobs:
                       problem("unsupported-cgroup-directory:" + str(directory))
                       continue
                   while True:
-                      locations[(str(directory), version, kind)] = directory
+                      locations[(str(directory), version, kind)] = (directory, root)
                       if directory == root:
                           break
                       directory = directory.parent
@@ -306,42 +472,52 @@ jobs:
               problem("no-supported-cgroup-hierarchy")
           if len(locations) > 64:
               problem("cgroup-observation-count-bound")
+          # Each missing read remains tagged until controller/mount metadata establishes
+          # whether that interface is required, disabled, root-only absent or unlimited.
+          def observe(path):
+              try:
+                  with path.open("r", encoding="ascii") as stream:
+                      value = stream.read(16385)
+                  if len(value) > 16384:
+                      raise ValueError("metadata bound")
+                  return "value", value.strip()
+              except FileNotFoundError:
+                  return "missing", None
+              except (OSError, UnicodeError, ValueError):
+                  return "unavailable", None
+
+          mountinfo = small(Path("/proc/self/mountinfo"), True)
+          kernel_controllers = observe(Path("/proc/cgroups"))
+          selected_v1 = {controller for _, version, kind in locations if version == 1
+                         for controller in ("cpu", "memory") if controller in kind}
+          for issue in cgroup_coverage_errors([(version, kind) for _, version, kind in locations]):
+              problem(issue)
           memory_headrooms, cgroups = [], []
-          for (name, version, kind), directory in sorted(locations.items())[:64]:
-              row = {"path": name, "version": version, "kind": kind}
+          for (name, version, kind), (directory, root) in sorted(locations.items())[:64]:
+              mount_state = cgroup_mount_status(str(root), version, mountinfo)
+              observations = {"/proc/cgroups": kernel_controllers}
+              if version == 2:
+                  metadata = {"cgroup.controllers": directory / "cgroup.controllers"} if directory == root else {
+                      "parent.cgroup.controllers": directory.parent / "cgroup.controllers",
+                      "parent.cgroup.subtree_control": directory.parent / "cgroup.subtree_control"}
+                  observations.update({key: observe(path) for key, path in metadata.items()})
               if "memory" in kind:
-                  maximum = small(directory / ("memory.max" if version == 2 else "memory.limit_in_bytes"))
-                  soft = small(directory / ("memory.high" if version == 2 else "memory.soft_limit_in_bytes"))
-                  usage = small(directory / ("memory.current" if version == 2 else "memory.usage_in_bytes"))
-                  row.update(memory_limit=maximum, memory_soft_limit=soft, memory_usage=usage)
-                  limits = [maximum, soft] if version == 2 else [maximum, None if soft == "0" else soft]
-                  for bound in limits:
-                      if bound in (None, "max"):
-                          continue
-                      try:
-                          limit, used = int(bound), int(usage)
-                          assert limit >= 0 and used >= 0
-                          memory_headrooms.append(max(0, limit - used))
-                      except (ValueError, TypeError, AssertionError):
-                          problem("invalid-cgroup-memory-headroom:" + name)
+                  memory_names = ("memory.max", "memory.high", "memory.current") if version == 2 else (
+                      "memory.limit_in_bytes", "memory.soft_limit_in_bytes", "memory.usage_in_bytes")
+                  observations.update({key: observe(directory / key) for key in memory_names})
               if "cpu" in kind:
-                  if version == 2:
-                      text = small(directory / "cpu.max")
-                      fields = None if text is None else text.split()
-                  else:
-                      q, p = small(directory / "cpu.cfs_quota_us"), small(directory / "cpu.cfs_period_us")
-                      fields = None if q is None and p is None else [q, p]
-                  row["cpu_quota_period"] = fields
-                  if fields is not None:
-                      try:
-                          assert len(fields) == 2 and int(fields[1]) > 0
-                          if fields[0] not in ("max", "-1"):
-                              quota = int(fields[0])
-                              assert quota > 0
-                              cpu_limits.append(quota // int(fields[1]))
-                      except (ValueError, TypeError, AssertionError):
-                          problem("invalid-cgroup-cpu-quota:" + name)
-              cgroups.append(row)
+                  cpu_names = ("cpu.max",) if version == 2 else ("cpu.cfs_quota_us", "cpu.cfs_period_us")
+                  observations.update({key: observe(directory / key) for key in cpu_names})
+              translated = translate_cgroup_controls(version, kind, directory == root, mount_state, observations, selected_v1)
+              for issue in translated["errors"]:
+                  problem(issue + ":" + name)
+              memory_headrooms.extend(translated["memory_headroom_bytes"])
+              cpu_limits.extend(translated["cpu_slot_limits"])
+              cgroups.append({"path": name, "version": version, "kind": kind, "root": str(root),
+                             "mount_state": mount_state, "controller_metadata": {
+                                 key: list(value) for key, value in observations.items()
+                                 if key != "/proc/cgroups"},
+                             "translation": translated})
 
           out = Path("output/github-validation") / os.environ["GITHUB_RUN_ID"]
           free_bytes = free_inodes = None
@@ -363,7 +539,8 @@ jobs:
                     "build_identity_sha256": hashlib.sha256(build_raw).hexdigest(),
                     "counters": counters, "cpu_observations": cpu_observations,
                     "cgroup_observations": cgroups, "decision": decision,
-                    "cgroup_scope": "Conventional visible Linux process hierarchy and ancestors; unreadable/unsupported observations refuse.",
+                    "cgroup_mountinfo": mountinfo, "kernel_controller_observation": list(kernel_controllers),
+                    "cgroup_scope": "Conventional visible unmasked Linux hierarchy and ancestors; absent controls require explicit disabled/root metadata, unknown observations refuse.",
                     "scope": "Admission policy after own build and before World; not measured new-source fit."}
           raw = (json.dumps(record, sort_keys=True, indent=2) + "\n").encode()
           assert len(raw) <= 131072, "resource record bound"

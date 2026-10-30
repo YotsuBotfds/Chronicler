@@ -1,3 +1,17 @@
+# Explicit cgroup observation states - source only, 2026-10-30
+
+This narrow child of902a repairs the unrun collector's independent B1 finding:
+missing control files can no longer silently become host-only admission. Pure
+translation distinguishes explicit unlimited/confirmed disabled/root-only absence
+from unavailable selected-process controls, using controller and visible mount
+metadata. Four appended fake-reader/mount cases cover this seam; the prior seven
+workflow/resource cases and all thresholds, worker/timeout/scientific settings,
+pre-World record/refusal order and compact build-hash joins stay exact. All eleven
+focused cases, real collection, native/World work and publication are UNRUN.
+The complete902a continuation follows byte-exact.
+
+---
+
 # Pre-World resource admission - source only, 2026-10-30
 
 This small child of f808 adds a recorded admission policy after the own build
