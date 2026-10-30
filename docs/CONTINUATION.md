@@ -1,3 +1,25 @@
+# Compiled context API benchmark — source only, 2026-10-30
+
+This separate701-based branch adds an opt-in benchmark of the existing native
+batch/scalar context APIs, with no product wiring, native or default change.
+The fixed21-condition method preserves prefix/spread/missing requests and all
+regressions, using three paired trials of20,000 context records per helper.
+Source work bounds and separate600wall/540CPU/2GiBAS/oneCPU comparison limits
+are explicit; build work is outside those limits. No timed-fit claim is made.
+
+Source publication and hosted execution use different branch refs. The source
+branch does not trigger the experiment; a separately approved exact run-branch
+push provides the first workflow activation without changing main. Fresh own
+locked wheel/installed native identities and partial/failure evidence are
+retained. One new pure-contract offline chunk keeps all old39 selections and
+110-second caps; its imported benchmark script receives a source pin. All new
+contracts/builds/measurements are UNRUN. No local native,
+World, checkpoint, whole-turn or scientific qualification is supplied. See
+[the bounded method and publication seam](performance/named-context-benchmark-2026-10-30.md).
+The exact701 continuation follows unchanged.
+
+---
+
 # Disabled cache workflow regression composition — 2026-10-30
 
 First94cafa CI failed the old whole-builder shape comparison after58+16 passing
