@@ -1,0 +1,91 @@
+{
+  "activation": "Candidate SHA/native subtree and exact root decision must be filled in source and separately reviewed; no CLI/moving-ref fallback.",
+  "baseline": {
+    "native_tree": "a840fd12462deedf92b256878d474404eeac892d",
+    "source_commit": "82902b85a94ebb008168cb06195b031c6ee1eb92"
+  },
+  "candidate": {
+    "native_tree": "0dca68c36baa2663c66dcf45bb4afd0c5696b18f",
+    "source_commit": "643cda4d73edd9cfdfe83c619932906c579f7473"
+  },
+  "fixed_counts": {
+    "pairs": 1,
+    "roles": 2,
+    "requested_World_turns": 400
+  },
+  "fixtures": [
+    {
+      "civilizations": 4,
+      "family": "template",
+      "regions": 8,
+      "worldgen": "template"
+    }
+  ],
+  "global_rng_seed": 0,
+  "horizon": 200,
+  "kind": "SOURCE_ONLY_CACHE_IDENTITY_PILOT_REGISTRATION",
+  "limits": {
+    "aggregate_output_bytes": 6509559808,
+    "build_wall_seconds_each": 900,
+    "compact_ZIP_bytes": 1048576,
+    "compact_expanded_bytes": 1048576,
+    "comparison_CPU_seconds": 40,
+    "comparison_wall_seconds": 60,
+    "entry_available_RAM_bytes": 4294967296,
+    "entry_disk_bytes": 12884901888,
+    "final_CPU_reserve_seconds": 100,
+    "final_wall_reserve_seconds": 150,
+    "inventory_depth": 64,
+    "job_wall_seconds": 7200,
+    "joint_role_log_bytes": 2097152,
+    "metadata_cell_bytes": 524288,
+    "metadata_reserve_bytes": 67108864,
+    "ordinary_hash_bytes": 6442450944,
+    "owner_CPU_seconds": 3300,
+    "owner_wall_seconds": 4200,
+    "profile_caller_edges_per_window": 40000,
+    "profile_function_rows_per_window": 20000,
+    "profile_label_UTF8_bytes": 2048,
+    "publication_wall_seconds": 660,
+    "regular_files": 5000,
+    "role_AS_bytes": 4294967296,
+    "role_CPU_seconds": 240,
+    "role_observed_RSS_bytes": 2147483648,
+    "role_output_bytes": 536870912,
+    "role_wall_seconds": 300,
+    "running_RAM_floor_bytes": 1073741824,
+    "running_disk_floor_bytes": 3221225472,
+    "visited_entries": 10000
+  },
+  "proof": {
+    "cross_source_restore": false,
+    "decoded_state_visit_limit": 5000000,
+    "live_unsupported_types": "refuse",
+    "ordinary_comparator": "cities_identity.compare(inert=False,normalize=None) +turn_speed_identity._raw_bundle_problems",
+    "required_live_capture": true,
+    "source_provenance": "check each expected own identity, never blanket-ignore identity",
+    "war_roster_binding": true,
+    "cache_key_encoding": "validated-agent-bridge-cache-identity-v1",
+    "binding_witness_bytes_per_role": 16384,
+    "field_token_records_per_role": 512,
+    "field_token_bytes_per_role": 65536
+  },
+  "protocol": "matched-wholeturn-cache-identity-pilot-v1",
+  "qualification": {
+    "performance": null,
+    "runtime": null,
+    "scientific": null
+  },
+  "root_decision": null,
+  "run_ref": "refs/heads/lead/wholeturn-cache-identity-pilot-run-20261030",
+  "windows": [
+    [
+      8,
+      16
+    ],
+    [
+      188,
+      196
+    ]
+  ]
+}

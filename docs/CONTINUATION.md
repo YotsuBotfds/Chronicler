@@ -1,3 +1,14 @@
+# Distinct cache-identity whole-turn pilot — SOURCE ONLY (2026-10-30)
+
+New fixed template8/4 seed42 two-role400turn diagnostic retains old/raw hashes
+and a separately validated cache-ID-to-reference encoding plus bounded SAME
+GLOBAL field token segments. No cache exclusion/physics/RNG/product change.
+Legacy whole-turn failures/method/12-role source stay immutable/unqualified.
+Registration is UNREADY; all39 new pure cases and FIRST130 are UNRUN. Separate
+source/root review, pure/lint/all9CI and new method/ONE-root activation gates
+remain required. See performance/wholeturn-cache-identity-pilot-2026-10-30.md.
+The entire previous continuation follows byte-exact.
+
 # Whole-turn file-integrity child — source only (2026-10-30)
 
 The first d642 trial41037130961/1 failed with a bounded-unique-file refusal after

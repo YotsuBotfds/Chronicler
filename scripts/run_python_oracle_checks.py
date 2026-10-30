@@ -338,6 +338,9 @@ CHUNKS = {
         "tests/wholeturn_contract_cases.py",
         "tests/wholeturn_state_contract_cases.py",
     ],
+    "wholeturn-cache-identity-pilot-contracts": [
+        "tests/wholeturn_cache_identity_contract_cases.py",
+    ],
 }
 TESTS = [node for nodes in CHUNKS.values() for node in nodes]
 if len(set(TESTS)) != len(TESTS):
@@ -375,7 +378,10 @@ for helper in ("scripts/native_release_cache.py", "scripts/ci_artifact_intake.py
                "scripts/wholeturn_protocol.py", "scripts/wholeturn_build.py",
                "scripts/wholeturn_state_proof.py", "scripts/wholeturn_live_proof.py",
                "scripts/wholeturn_worker.py", "scripts/wholeturn_controller.py",
-               "scripts/wholeturn_records.py"):
+               "scripts/wholeturn_records.py",
+               "scripts/wholeturn_cache_protocol.py", "scripts/wholeturn_cache_build.py",
+               "scripts/wholeturn_cache_identity.py", "scripts/wholeturn_cache_worker.py",
+               "scripts/wholeturn_cache_pilot.py", "scripts/wholeturn_cache_records.py"):
     sources[helper] = hashlib.sha256((ROOT / helper).read_bytes()).hexdigest()
 git = ["git", "-c", f"safe.directory={ROOT.as_posix()}", "-C", str(ROOT)]
 head = subprocess.check_output(git + ["rev-parse", "HEAD"], timeout=10).decode().strip()
