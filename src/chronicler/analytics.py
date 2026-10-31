@@ -663,11 +663,15 @@ def extract_focus_geography(bundles: list[dict]) -> dict:
 
 
 def extract_action_entropy(bundles: list[dict]) -> dict:
-    """Criterion 8: action selection entropy per civ per era.
+    """Criterion 8: Shannon entropy (base 2) per contiguous civ-era block.
 
-    ``last_action`` is the action resolved on each turn. Using the per-turn
-    sequence avoids losing actions when succession resets ``action_counts``,
-    and the union of civ names includes late-founded civilizations.
+    ``last_action`` is the action resolved on each turn. Using that sequence
+    avoids losing actions when succession resets ``action_counts``; the union
+    of civ names includes late founders. Dead/missing rows and missing actions
+    are skipped, and an era transition starts a new block. A one-action block
+    has genuine zero entropy. Percentiles weight each block equally, not each
+    turn. The observation counts distinguish empty input from those real zeros
+    without changing the legacy numeric fields.
     """
     entropy_by_era: dict[str, list[float]] = {}
     all_entropies: list[float] = []
@@ -715,6 +719,8 @@ def extract_action_entropy(bundles: list[dict]) -> dict:
     return {
         "entropy_by_era": {era: _compute_percentiles(vals) for era, vals in entropy_by_era.items()},
         "overall_median": statistics.median(all_entropies) if all_entropies else 0.0,
+        "observed_civ_era_blocks": len(all_entropies),
+        "civ_era_blocks_by_era": {era: len(vals) for era, vals in entropy_by_era.items()},
     }
 
 
@@ -1079,11 +1085,16 @@ def extract_precap_weights(
 
 
 def extract_action_persistence(bundles: list[dict]) -> dict:
-    """Criterion 19: top-action persistence over 100-turn windows.
+    """Criterion 19: top-action share per civ per fixed 100-turn window.
 
-    Windows count the resolved per-turn ``last_action`` sequence. This remains
-    correct when a leader succession resets cumulative ``action_counts`` and
-    includes civilizations founded after turn zero.
+    Windows are turn ranges 0-99, 100-199, and so on; partial windows with at
+    least one resolved action are included. For each civ-window, persistence is
+    the most frequent ``last_action`` count divided by resolved-action count.
+    Dead/missing rows and missing actions are not zero-filled, late founders
+    are included, and leader resets of cumulative ``action_counts`` do not
+    erase turns. Percentiles weight each observed civ-window equally, and the
+    80% count is a strict ``> 0.80`` share. ``observed_civ_windows`` separates
+    no observations from the legacy zero-valued empty percentiles.
     """
     max_persistence_values: list[float] = []
     civs_above_80pct = 0
@@ -1130,6 +1141,7 @@ def extract_action_persistence(bundles: list[dict]) -> dict:
     return {
         "max_persistence_by_window": _compute_percentiles(max_persistence_values),
         "civs_above_80pct": civs_above_80pct / max(1, total_civ_windows),
+        "observed_civ_windows": total_civ_windows,
     }
 
 
@@ -1540,9 +1552,20 @@ def format_text_report(report: dict) -> str:
     ae = report.get("action_entropy", {})
     if ae:
         lines.append("ACTION ENTROPY:")
-        lines.append(f"  Overall median: {ae.get('overall_median', 0):.2f} bits")
-        for era, pcts in sorted(ae.get("entropy_by_era", {}).items()):
-            lines.append(f"  {era}: median={pcts.get('median', 0):.2f}, p10={pcts.get('p10', 0):.2f}, p90={pcts.get('p90', 0):.2f}")
+        observed_blocks = ae.get("observed_civ_era_blocks")
+        has_observations = (
+            bool(ae.get("entropy_by_era"))
+            if observed_blocks is None
+            else observed_blocks > 0
+        )
+        if has_observations:
+            if observed_blocks is not None:
+                lines.append(f"  Observed civ-era blocks: {observed_blocks}")
+            lines.append(f"  Overall median: {ae.get('overall_median', 0):.2f} bits")
+            for era, pcts in sorted(ae.get("entropy_by_era", {}).items()):
+                lines.append(f"  {era}: median={pcts.get('median', 0):.2f}, p10={pcts.get('p10', 0):.2f}, p90={pcts.get('p90', 0):.2f}")
+        else:
+            lines.append("  No resolved-action observations")
         lines.append("")
 
     # Capability Firing (M22)
@@ -1616,9 +1639,19 @@ def format_text_report(report: dict) -> str:
     if ap:
         lines.append("ACTION PERSISTENCE:")
         pcts = ap.get("max_persistence_by_window", {})
-        if pcts:
+        observed_windows = ap.get("observed_civ_windows")
+        has_observations = (
+            pcts.get("max", 0) > 0
+            if observed_windows is None
+            else observed_windows > 0
+        )
+        if has_observations:
+            if observed_windows is not None:
+                lines.append(f"  Observed civ-windows: {observed_windows}")
             lines.append(f"  Window persistence: median={pcts.get('median', 0):.0%}, p90={pcts.get('p90', 0):.0%}")
-        lines.append(f"  Civ-windows above 80%: {ap.get('civs_above_80pct', 0):.0%}")
+            lines.append(f"  Civ-windows above 80%: {ap.get('civs_above_80pct', 0):.0%}")
+        else:
+            lines.append("  No resolved-action observations")
         lines.append("")
 
     # New Event Types (M22)
