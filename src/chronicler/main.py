@@ -1,1938 +1,210 @@
-"""Main entry point — orchestrates world generation, simulation, and chronicle output.
-
-Usage:
-    chronicler --seed 42 --turns 50 --civs 4 --regions 8 --output chronicle.md
-
-Default: fully local inference via LM Studio. No API key required.
-"""
+"""Main entry point for the Chronicler civilization simulator."""
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import signal
 import sys
 import threading
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
-from chronicler.artifact_io import atomic_write_text
+from chronicler.artifact_io import ArtifactIOError, atomic_write_json, atomic_write_text
 from chronicler.bundle import assemble_bundle, write_bundle
-from chronicler.climate import get_climate_phase
-from chronicler.chronicle import compile_chronicle
-from chronicler.decision_ablation import DECISION_ABLATIONS, decision_ablation_from_args
-from chronicler.expansion_features import expansion_snapshot_fields
-from chronicler.models import ChronicleEntry, NarrativeRole
-from chronicler.interestingness import find_boring_civs
-from chronicler.llm import DEFAULT_LOCAL_URL, LLMClient, create_clients
-
-
-def _tracks_tokens(client: Any) -> bool:
-    """Check if an LLM client tracks token usage (API clients)."""
-    return hasattr(client, "total_input_tokens") and isinstance(client.total_input_tokens, int)
-
+from chronicler.interestingness import score_run
+from chronicler.llm import create_clients
+from chronicler.memory import MemoryStream
+from chronicler.models import WorldState
+from chronicler.narrative import NarrativeEngine
+from chronicler.scenario import apply_scenario, load_scenario
+from chronicler.simulation import run_turn
+from chronicler.turn_artifacts import TurnObservation, TurnResult
+from chronicler.types import RunResult
+from chronicler.world_gen import generate_world
 
 logger = logging.getLogger(__name__)
 
-
-def _token_counts(client: Any) -> tuple[int, int, int]:
-    """Current (input, output, calls) counters of a token-tracking client."""
-    if not _tracks_tokens(client):
-        return (0, 0, 0)
-    return (
-        client.total_input_tokens,
-        client.total_output_tokens,
-        int(getattr(client, "call_count", 0) or 0),
-    )
-
-
-def _token_usage_since(client: Any, baseline: tuple[int, int, int]) -> tuple[int, int, int]:
-    """Counters accrued since ``baseline``. A sequential batch shares one client
-    across seeds, so each run reports its own delta (M44 NB-1)."""
-    now = _token_counts(client)
-    return (now[0] - baseline[0], now[1] - baseline[1], now[2] - baseline[2])
-
-
-def _set_narrative_token_metadata(
-    metadata: dict[str, Any],
-    client: Any,
-    baseline: tuple[int, int, int] = (0, 0, 0),
-) -> None:
-    """Populate canonical narrative token fields plus deprecated aliases."""
-    if not _tracks_tokens(client):
-        return
-    inp, out, _ = _token_usage_since(client, baseline)
-    metadata["narrative_input_tokens"] = inp
-    metadata["narrative_output_tokens"] = out
-    metadata["api_input_tokens"] = inp
-    metadata["api_output_tokens"] = out
-
-
-def _default_shadow_output_path(output_path: Path) -> Path:
-    """Return the deterministic shadow artifact path for a run output dir."""
-    return output_path.parent / "shadow.arrow"
-from chronicler.memory import MemoryStream, generate_reflection, sanitize_civ_name, should_reflect
-from chronicler.models import CivSnapshot, Event, RelationshipSnapshot, SettlementSummary, TurnSnapshot, WorldState
-from chronicler.action_engine import ActionEngine
-from chronicler.narrative import NarrativeEngine
-from chronicler.simulation import run_turn_result
-from chronicler.types import RunResult
-from chronicler.world_gen import enrich_with_llm, generate_world
-from chronicler.intelligence import border_pairs, compute_accuracy, _get_perceived_stat_with_accuracy
-from chronicler.history_index import history_index
-
 DEFAULT_CONFIG = {
-    "seed": 42,
     "num_turns": 50,
     "num_civs": 4,
     "num_regions": 8,
     "reflection_interval": 10,
-    "local_url": DEFAULT_LOCAL_URL,
 }
 
-# Turns between resumable state.json/memory checkpoints during a run. The final
-# state is always written; 1 restores the historical every-turn checkpoint.
-DEFAULT_STATE_EVERY = 10
 
-
-def _resolve_state_every(args: argparse.Namespace) -> int:
-    value = getattr(args, "state_every", None)
-    if value is None:
-        return DEFAULT_STATE_EVERY
-    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
-        raise ValueError(f"--state-every must be a positive integer, got {value!r}")
-    return value
-
-
-def _positive_int(text: str) -> int:
-    try:
-        value = int(text)
-    except ValueError:
-        raise argparse.ArgumentTypeError(f"expected a positive integer, got {text!r}") from None
-    if value < 1:
-        raise argparse.ArgumentTypeError(f"expected a positive integer, got {value}")
-    return value
-
-
-def _write_state_checkpoint(world: WorldState, path: Path, *, artifact_budget=None) -> None:
-    """Write an intermediate resumable checkpoint: compact JSON, atomic replace.
-
-    The final save keeps ``WorldState.save``'s indented format; both load with
-    ``WorldState.load`` into the same world. The in-world chronicles and
-    languages (when those layers are on) are checkpointed beside it.
-    """
-    if artifact_budget is not None:
-        atomic_write_text(path, world.model_dump_json(), artifact_budget=artifact_budget)
-        from chronicler.historiography import save_sidecar
-        save_sidecar(world, path, atomic=True, artifact_budget=artifact_budget)
-        from chronicler.languages import save_sidecar as save_languages
-        save_languages(world, path, atomic=True, artifact_budget=artifact_budget)
-        return
-    atomic_write_text(path, world.model_dump_json())
-    from chronicler.historiography import save_sidecar
-    save_sidecar(world, path, atomic=True)
-    from chronicler.languages import save_sidecar as save_languages
-    save_languages(world, path, atomic=True)
-
-
-def _resolve_checkpoint_every(args: argparse.Namespace) -> int | None:
-    value = getattr(args, "checkpoint_every", None)
-    if value is None:
-        return None
-    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
-        raise ValueError(f"--checkpoint-every must be a positive integer, got {value!r}")
-    return value
-
-
-def _positive_int_list(text: str) -> tuple[int, ...]:
-    """``"101,201"`` -> ``(101, 201)``: distinct positive integers, sorted."""
-    try:
-        values = sorted({int(part) for part in str(text).split(",") if part.strip()})
-    except ValueError:
-        raise argparse.ArgumentTypeError(f"expected comma-separated positive integers, got {text!r}") from None
-    if not values or values[0] < 1:
-        raise argparse.ArgumentTypeError(f"expected comma-separated positive integers, got {text!r}")
-    return tuple(values)
-
-
-# --checkpoint-turns: one exact checkpoint per listed turn, beside the
-# chronicle (each run's directory in a batch). The ablation arms fork from
-# them (chronicler.ablation_arms).
-CHECKPOINT_TURN_FILENAME = "checkpoint_turn_{turn}.ckpt"
-
-
-def _resolve_checkpoint_turns(args: argparse.Namespace) -> frozenset[int]:
-    value = getattr(args, "checkpoint_turns", None)
-    if value is None:
-        return frozenset()
-    if isinstance(value, str):
-        value = _positive_int_list(value)
-    turns = tuple(value)
-    if not turns or any(isinstance(t, bool) or not isinstance(t, int) or t < 1 for t in turns):
-        raise ValueError(f"--checkpoint-turns must list positive integers, got {value!r}")
-    return frozenset(turns)
-
-
-def _resolve_checkpoint_template(args: argparse.Namespace, output_path: Path) -> str:
-    """``--checkpoint`` or ``checkpoint.ckpt`` beside the chronicle."""
-    from chronicler.run_checkpoint import DEFAULT_FILENAME
-    template = getattr(args, "checkpoint", None)
-    return str(template) if template else str(output_path.parent / DEFAULT_FILENAME)
-
-
-def _write_exact_checkpoint(template, world, memories, history, chronicle_entries, era_reflections,
-                            pending, run_start, seed, num_turns, agent_bridge, ecology_runtime,
-                            politics_runtime, economy_tracker, scenario_config, run_config,
-                            live=None) -> Path:
-    """Write an exact resume checkpoint (``chronicler.run_checkpoint``);
-    ``live`` is a live session's presentation state (``RunState.live``)."""
-    from chronicler.run_checkpoint import RunState, checkpoint_path, write_checkpoint
-    state = RunState(
-        world=world, memories=memories, history=history, chronicle_entries=chronicle_entries,
-        era_reflections=era_reflections, pending_injections=pending, start_turn=run_start,
-        seed=seed, num_turns=num_turns, agent_bridge=agent_bridge,
-        ecology_runtime=ecology_runtime, politics_runtime=politics_runtime,
-        economy_tracker=economy_tracker, scenario_config=scenario_config, run_config=run_config,
-        live=live,
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="chronicler",
+        description="Generate alternate history chronicles with LLM-driven civilizations.",
     )
-    path = checkpoint_path(template, world.turn)
-    report = write_checkpoint(path, state, exact=run_config.get("resume_info") is None,
-                              lineage=run_config.get("lineage"))
-    logger.info("exact checkpoint %s: turn %d, %d bytes in %.3f s",
-                path, world.turn, report.bytes, report.seconds)
-    return path
+    parser.add_argument("--seed", type=int, default=None, help="RNG seed (default: 42 for batch, random otherwise)")
+    parser.add_argument("--seed-range", type=str, default=None, help="Seed range like 5-9 (expands to batch)")
+    parser.add_argument("--turns", type=int, default=50, help="Number of turns to simulate")
+    parser.add_argument("--civs", type=int, default=4, help="Number of civilizations")
+    parser.add_argument("--regions", type=int, default=8, help="Number of regions")
+    parser.add_argument("--output", type=str, default="output/chronicle.md", help="Chronicle output path")
+    parser.add_argument("--state", type=str, default="output/state.json", help="World state output path")
+    parser.add_argument("--resume", type=str, default=None, help="Resume from saved state file")
+    parser.add_argument("--reflection-interval", type=int, default=10, help="Turns between era reflections")
+    parser.add_argument("--local-url", type=str, default="http://localhost:1234/v1", help="Local LLM server URL")
+    parser.add_argument("--sim-model", type=str, default=None, help="Model for simulation decisions")
+    parser.add_argument("--narrative-model", type=str, default=None, help="Model for narrative writing")
+    parser.add_argument("--llm-actions", action="store_true", help="Deprecated and ignored")
+    parser.add_argument("--scenario", type=str, default=None, help="Scenario YAML file")
+    parser.add_argument("--batch", type=int, default=None, help="Run N chronicles with sequential seeds")
+    parser.add_argument("--parallel", nargs="?", const=-1, type=int, default=None, help="Parallel batch workers")
+    parser.add_argument("--fork", type=str, default=None, help="Fork from a saved state file")
+    parser.add_argument("--interactive", action="store_true", help="Interactive mode")
+    parser.add_argument("--pause-every", type=int, default=None, help="Pause every N turns")
+    parser.add_argument("--simulate-only", action="store_true", default=False, help="Skip LLM narration")
+    parser.add_argument("--agents", type=str, default="off", choices=["off", "demographics-only", "shadow", "hybrid"], help="Agent simulation mode")
+    parser.add_argument("--agent-movements", action="store_true", default=False, help="Enable agent movement tracking")
+    parser.add_argument("--narrator", type=str, default="local", choices=["local", "api", "gemini"], help="Narrator backend")
+    parser.add_argument("--budget", type=int, default=None, help="API token budget")
+    parser.add_argument("--narrate", type=str, default=None, help="Re-narrate an existing bundle")
+    parser.add_argument("--narrate-output", type=str, default=None, help="Output path for re-narrated bundle")
+    parser.add_argument("--citations", action="store_true", default=False, help="Include citations in narration")
+    parser.add_argument("--analyze", type=str, default=None, help="Analyze a batch directory")
+    parser.add_argument("--compare", type=str, default=None, help="Compare against baseline report")
+    parser.add_argument("--checkpoints", type=str, default=None, help="Comma-separated checkpoint turns")
+    parser.add_argument("--tuning", type=str, default=None, help="Tuning overrides YAML file")
+    parser.add_argument("--worldgen", type=str, default=None, help="World generation mode")
+    # Wave feature flags (all optional, default None = engine default)
+    for _flag in (
+        "mutual-aid", "fisheries", "campaigns", "governance", "contact-ledger",
+        "epidemiology", "finance", "diplomacy", "techniques", "maritime",
+        "gp-agendas", "nomads", "cities", "historiography", "languages",
+        "scholarship", "grain-reserves", "community-anchoring",
+        "capacity-aware-refugees", "health-care", "harvest-forecasts",
+        "ritual-gatherings", "scientific-claims", "scientific-research-agendas",
+        "transaction-receipts", "domestic-credit",
+    ):
+        parser.add_argument(f"--{_flag}", dest=_flag.replace("-", "_"), action="store_true", default=None)
+        parser.add_argument(f"--no-{_flag}", dest=_flag.replace("-", "_"), action="store_false")
+    parser.add_argument("--preset", type=str, default=None, help="Tuning preset name")
+    parser.add_argument("--aggression-bias", type=float, default=None)
+    parser.add_argument("--tech-diffusion-rate", type=float, default=None)
+    parser.add_argument("--resource-abundance", type=float, default=None)
+    parser.add_argument("--trade-friction", type=float, default=None)
+    parser.add_argument("--severity-multiplier", type=float, default=None)
+    parser.add_argument("--cultural-drift-speed", type=float, default=None)
+    parser.add_argument("--religion-intensity", type=float, default=None)
+    parser.add_argument("--secession-likelihood", type=float, default=None)
+    parser.add_argument("--agent-scale-mode", type=str, default=None)
+    parser.add_argument("--decision-ablation", type=str, default=None)
+    parser.add_argument("--ablation-start-turn", type=int, default=None)
+    parser.add_argument("--ablation-output", type=str, default=None)
+    parser.add_argument("--validation-sidecar", action="store_true", default=None)
+    parser.add_argument("--relationship-stats", action="store_true", default=None)
+    parser.add_argument("--state-every", type=int, default=None)
+    parser.add_argument("--live", action="store_true", default=False, help="Live server mode")
+    parser.add_argument("--live-port", type=int, default=0, help="Live server port")
+    parser.add_argument("--live-origin", type=str, default=None, help="Live server allowed origin")
+    parser.add_argument("--checkpoint-every", type=int, default=None, help="Checkpoint every N turns")
+    parser.add_argument("--checkpoint", type=str, default=None, help="Checkpoint directory")
+    parser.add_argument("--checkpoint-turns", type=int, default=None, help="Checkpoint turn count")
+    parser.add_argument("--resume-allow-mismatch", action="store_true", default=False)
+    return parser
 
 
-def _save_memory_streams(
-    memories: dict[str, MemoryStream],
-    output_dir: Path,
-    reflection_counts: dict[str, int] | None = None,
-    *, artifact_budget=None,
-) -> None:
-    """Write every memory stream; ``reflection_counts`` writes only each
-    stream's first N reflections (its content before this turn's reflection)."""
-    if artifact_budget is None:
-        output_dir.mkdir(parents=True, exist_ok=True)
-    else:
-        artifact_budget.ensure_directory(output_dir)
+def _write_chronicle_output(path: Path, text: str) -> None:
+    """Write the final chronicle markdown atomically."""
+    atomic_write_text(Path(path), text)
+
+
+def _write_analysis_report(batch_dir: Path, report: dict) -> None:
+    """Write the CLI batch analysis report atomically."""
+    atomic_write_json(Path(batch_dir) / "batch_report.json", report)
+
+
+def _write_state_checkpoint(path: Path, world: WorldState, *, artifact_budget=None) -> None:
+    """Write a state checkpoint atomically."""
+    world.save(path)
+
+
+def _save_memory_streams(output_dir: Path, memories: dict, *, artifact_budget=None) -> None:
+    """Persist per-civ memory streams."""
     for civ_name, stream in memories.items():
-        count = reflection_counts.get(civ_name) if reflection_counts is not None else None
-        if count is not None and count != len(stream.reflections):
-            view = MemoryStream(civilization_name=stream.civilization_name)
-            view.entries = stream.entries
-            view.reflections = stream.reflections[:count]
-            stream = view
-        if artifact_budget is None:
-            stream.save(output_dir / f"memories_{sanitize_civ_name(civ_name)}.json")
-        else:
-            stream.save(output_dir / f"memories_{sanitize_civ_name(civ_name)}.json",
-                        artifact_budget=artifact_budget)
+        safe = civ_name.replace(" ", "_").replace("/", "_")
+        path = Path(output_dir) / f"memories_{safe}.json"
+        atomic_write_json(path, stream.model_dump(mode="json"))
 
 
 class _SigintDeferral:
-    """Let the in-flight turn finish on Ctrl-C so a consistent checkpoint can be saved.
+    """Context manager: defer the first SIGINT until the current turn finishes."""
 
-    Installed only from the main thread over Python's default SIGINT handler.
-    The first Ctrl-C records the request and restores the default handler, so
-    a second Ctrl-C interrupts immediately as before.
-    """
-
-    def __init__(self) -> None:
+    def __init__(self):
         self.requested = False
-        self._installed = False
+        self._previous = None
+        self._active = False
 
-    def __enter__(self) -> "_SigintDeferral":
-        if (threading.current_thread() is threading.main_thread()
-                and signal.getsignal(signal.SIGINT) is signal.default_int_handler):
-            signal.signal(signal.SIGINT, self._handle)
-            self._installed = True
+    def __enter__(self):
+        if threading.current_thread() is not threading.main_thread():
+            return self
+        prior = signal.getsignal(signal.SIGINT)
+        if prior not in (signal.default_int_handler, signal.SIG_DFL):
+            return self
+        self._previous = prior
+
+        def _handler(signum, frame):
+            if self.requested:
+                # Second interrupt: cancel immediately.
+                raise KeyboardInterrupt
+            self.requested = True
+            print("Interrupted — finishing this turn (Ctrl+C again to cancel now)", file=sys.stderr)
+
+        signal.signal(signal.SIGINT, _handler)
+        self._active = True
         return self
 
-    def _handle(self, signum, frame) -> None:
-        self.requested = True
-        signal.signal(signal.SIGINT, signal.default_int_handler)
-        print("\nInterrupt received: finishing this turn to save a resumable checkpoint "
-              "(press Ctrl-C again to stop immediately).", file=sys.stderr, flush=True)
-
-    def __exit__(self, *exc_info) -> bool:
-        if self._installed and signal.getsignal(signal.SIGINT) == self._handle:
+    def __exit__(self, kind, value, traceback):
+        if self._active:
             signal.signal(signal.SIGINT, signal.default_int_handler)
         return False
 
 
 def _run_turn_deferring_sigint(*args, practice_observer=None, **kwargs):
-    """``run_turn_result(...)`` with Ctrl-C deferred to the end of the turn."""
+    """Run one turn inside SIGINT deferral; return (result, interrupted)."""
     with _SigintDeferral() as deferral:
         if practice_observer is None:
-            turn_result = run_turn_result(*args, **kwargs)
+            result = run_turn_result(*args, **kwargs)
         else:
-            turn_result = practice_observer.run_turn_result(*args, **kwargs)
-    return turn_result, deferral.requested
+            result = practice_observer.run_turn_result(*args, **kwargs)
+        return result, deferral.requested
 
 
-class _DummyClient:
-    """Fallback LLM client for deterministic-only runs (no API calls)."""
-    model = "dummy"
-
-    def complete(self, prompt: str, max_tokens: int = 100, system: str | None = None) -> str:
-        return "DEVELOP"
-
-
-def _urban_counts_by_civ(world, civ_ids, settlement_ids, region_ids) -> dict[str, tuple[int, int]]:
-    """``{civ name: (urban agents, agents)}`` from null-free snapshot columns.
-
-    Same attribution as the row loop in ``execute_run``: the controller of an
-    agent's region, else the civ of its affinity id, else the row is skipped;
-    names in order of first attribution.
-    """
-    import numpy as np
-    from chronicler.columnar import first_appearance
-
-    names: list[str] = []
-    code_of: dict[str, int] = {}
-
-    def code(name: str) -> int:
-        if name not in code_of:
-            code_of[name] = len(names)
-            names.append(name)
-        return code_of[name]
-
-    n_regions, n_civs = len(world.regions), len(world.civilizations)
-    region_code = np.full(n_regions + 1, -1, dtype=np.int64)
-    for idx, region in enumerate(world.regions):
-        if region.controller is not None:
-            region_code[idx] = code(region.controller)
-    civ_code = np.full(n_civs + 1, -1, dtype=np.int64)
-    for idx, civ in enumerate(world.civilizations):
-        civ_code[idx] = code(civ.name)
-    civ = np.asarray(civ_ids, dtype=np.int64)
-    if region_ids is None:
-        codes = np.full(len(civ), -1, dtype=np.int64)
-    else:
-        regions = np.asarray(region_ids, dtype=np.int64)
-        codes = region_code[np.where((regions >= 0) & (regions < n_regions), regions, n_regions)]
-    fallback = civ_code[np.where((civ >= 0) & (civ < n_civs), civ, n_civs)]
-    codes = np.where(codes >= 0, codes, fallback)
-    valid = codes >= 0
-    totals = np.bincount(codes[valid], minlength=len(names))
-    urban = np.bincount(codes[valid & (np.asarray(settlement_ids) > 0)], minlength=len(names))
-    return {names[k]: (int(urban[k]), int(totals[k])) for k in first_appearance(codes[valid])}
-
-
-def _governance_snapshot(civ):
-    from chronicler.governance_runtime import governance_snapshot
-    return governance_snapshot(civ)
-
-
-def _create_ecology_runtime(world):
-    """Create a dedicated EcologySimulator for --agents=off mode.
-
-    Wraps construction so tests can mock this function without
-    requiring the compiled Rust module.
-    """
-    try:
-        from chronicler_agents import EcologySimulator
-        if not isinstance(EcologySimulator, type):
-            return None
-        from chronicler.agent_bridge import configure_ecology_runtime
-        eco_sim = EcologySimulator()
-        # Wire river topology and ecology config from tuning overrides
-        configure_ecology_runtime(eco_sim, world)
-        return eco_sim
-    except ImportError:
-        return None
+def run_turn_result(*args, **kwargs) -> TurnResult:
+    """Adapter: run_turn plus observation capture."""
+    world = args[0]
+    source_turn = world.turn
+    text = run_turn(*args, **kwargs)
+    return TurnResult(text, TurnObservation(source_turn, world.turn, None))
 
 
 def _create_politics_runtime(world):
-    """Create a dedicated PoliticsSimulator for --agents=off mode.
-
-    Wraps construction so tests can mock this function without
-    requiring the compiled Rust module.
-    """
+    """Create a PoliticsSimulator if the native crate is available."""
     try:
         from chronicler_agents import PoliticsSimulator
-        if not isinstance(PoliticsSimulator, type):
-            return None
-        from chronicler.politics import configure_politics_runtime
-        pol_sim = PoliticsSimulator()
-        configure_politics_runtime(pol_sim, world)
-        return pol_sim
-    except ImportError:
+        return PoliticsSimulator(world)
+    except Exception:
         return None
 
 
-def _contact_snapshot_fields(world) -> dict:
-    """Contact ledger per-turn summary for the viewer snapshot (empty when off)."""
-    from chronicler.contact_ledger import ledger_enabled, snapshot_summary
-    if not ledger_enabled(world):
-        return {}
-    return {"contact": snapshot_summary(world)}
-
-
-def _epidemic_snapshot_fields(world) -> dict:
-    """Epidemiology per-turn summary for the viewer snapshot (empty when off)."""
-    from chronicler.epidemiology import epidemiology_enabled, snapshot_summary
-    if not epidemiology_enabled(world):
-        return {}
-    return {"epidemics": snapshot_summary(world)}
-
-
-def _pandemic_region_names(world) -> list[str]:
-    """M18 pandemic regions, plus regions with an epidemic when epidemiology is on."""
-    names = [p.region_name for p in world.pandemic_state]
-    from chronicler.epidemiology import active_region_names, epidemiology_enabled
-    if epidemiology_enabled(world):
-        active = active_region_names(world)
-        names += [r.name for r in world.regions if r.name in active and r.name not in names]
-    return names
-
-
-def _finance_snapshot_fields(world) -> dict:
-    """Finance per-turn summary for the viewer snapshot (empty when off)."""
-    from chronicler.finance import finance_enabled, snapshot_summary
-    if not finance_enabled(world):
-        return {}
-    return {"finance": snapshot_summary(world)}
-
-
-def _diplomacy_snapshot_fields(world) -> dict:
-    """Diplomacy per-turn summary for the viewer snapshot (empty when off)."""
-    from chronicler.diplomacy import diplomacy_enabled, snapshot_summary
-    if not diplomacy_enabled(world):
-        return {}
-    return {"diplomacy": snapshot_summary(world)}
-
-
-def _techniques_snapshot_fields(world) -> dict:
-    """Techniques per-turn summary for the viewer snapshot (empty when off)."""
-    from chronicler.techniques_state import techniques_on
-    if not techniques_on(world):
-        return {}
-    from chronicler.techniques import snapshot_summary
-    return {"techniques": snapshot_summary(world)}
-
-
-def _maritime_snapshot_fields(world) -> dict:
-    """Maritime per-turn summary for the viewer snapshot (empty when off)."""
-    from chronicler.maritime import maritime_enabled, snapshot_summary
-    if not maritime_enabled(world):
-        return {}
-    return {"maritime": snapshot_summary(world)}
-
-
-def _gp_agendas_snapshot_fields(world) -> dict:
-    """Great-person agenda per-turn summary for the viewer snapshot (empty when off)."""
-    from chronicler.gp_agendas_state import gp_agendas_on
-    if not gp_agendas_on(world):
-        return {}
-    from chronicler.gp_agendas import snapshot_summary
-    return {"gp_agendas": snapshot_summary(world)}
-
-
-def _nomads_snapshot_fields(world) -> dict:
-    """Nomads per-turn summary for the viewer snapshot (empty when off)."""
-    from chronicler.nomads_state import nomads_on
-    if not nomads_on(world):
-        return {}
-    from chronicler.nomads import snapshot_summary
-    return {"nomads": snapshot_summary(world)}
-
-
-def _cities_snapshot_fields(world) -> dict:
-    """Cities per-turn summary for the viewer snapshot (empty when off)."""
-    from chronicler.cities_state import cities_on
-    if not cities_on(world):
-        return {}
-    from chronicler.cities import snapshot_summary
-    return {"cities": snapshot_summary(world)}
-
-
-def _agent_movements_snapshot_fields(world) -> dict:
-    """Agent movements per-turn summary for the viewer snapshot (empty when off)."""
-    from chronicler.agent_movements_state import agent_movements_on
-    if not agent_movements_on(world):
-        return {}
-    from chronicler.agent_movements import snapshot_summary
-    return {"agent_movements": snapshot_summary(world)}
-
-
-def _guilds_snapshot_fields(world) -> dict:
-    """Guilds per-turn summary for the viewer snapshot (empty when off)."""
-    from chronicler.guilds_state import guilds_on
-    if not guilds_on(world):
-        return {}
-    from chronicler.guilds import snapshot_summary
-    return {"guilds": snapshot_summary(world)}
-
-
-def _scholarship_snapshot_fields(world) -> dict:
-    """Seats of learning per-turn summary for the viewer snapshot (empty when off)."""
-    from chronicler.scholarship_state import scholarship_on
-    if not scholarship_on(world):
-        return {}
-    from chronicler.scholarship import snapshot_summary
-    return {"scholarship": snapshot_summary(world)}
-
-
-def _food_snapshot_fields(world) -> dict:
-    """Viewer-only food summary (empty unless mutual aid observes regional food)."""
-    from chronicler.mutual_aid import mutual_aid_active, snapshot_summary
-    if not mutual_aid_active(world):
-        return {}
-    return {"food": snapshot_summary(world)}
-
-
-def _grain_reserves_snapshot_fields(world) -> dict:
-    """Read-only granary history; omitted while disabled or dormant."""
-    from chronicler.grain_reserves import grain_reserves_active, snapshot_summary
-    if not grain_reserves_active(world):
-        return {}
-    return {"grain_reserves": snapshot_summary(world)}
-
-
-def _migration_snapshot_fields(world) -> dict:
-    """Viewer-only agent migrations of the completed turn (empty without agent events).
-
-    ``[from region index, to region index, agents]`` rows sorted by region
-    pair, read through the exact history index; no state or RNG is touched.
-    """
-    if world.agent_mode not in ("hybrid", "shadow"):
-        return {}
-    from chronicler.history_index import history_index
-    n_regions = len(world.regions)
-    counts: dict[tuple[int, int], int] = {}
-    for e in history_index(world).agent_migrations_for_turn(world, world.turn - 1):
-        src, dst = int(e.region), int(e.target_region)
-        if 0 <= src < n_regions and 0 <= dst < n_regions and src != dst:
-            counts[(src, dst)] = counts.get((src, dst), 0) + 1
-    return {"migration": [[src, dst, n] for (src, dst), n in sorted(counts.items())]}
-
-
-def _war_snapshot_fields(world) -> dict:
-    """M60 campaign fields for the viewer snapshot (empty when disabled)."""
-    if not world.campaigns_enabled:
-        return {}
-    from chronicler.war.runtime import snapshot_summary
-    return {"campaign": snapshot_summary(world)}
-
-
-def execute_run(
-    args: argparse.Namespace,
-    sim_client: LLMClient | None = None,
-    narrative_client: LLMClient | None = None,
-    world: WorldState | None = None,
-    memories: dict[str, MemoryStream] | None = None,
-    on_pause: Callable[[WorldState, dict[str, MemoryStream], list], bool] | None = None,
-    pause_every: int | None = None,
-    pending_injections: list[tuple[str, str]] | None = None,
-    scenario_config: Any | None = None,
-    provenance_header: str | None = None,
-    on_turn: Callable | None = None,
-    quit_check: Callable[[], bool] | None = None,
-    checkpoint_resume: Any | None = None,
-    resume_info: dict | None = None,
-    turn_boundary: Any | None = None,
-    expansion_experiment: dict | None = None,
-    *, practice_observer: Any | None = None,
-    artifact_budget: Any | None = None,
-) -> RunResult:
-    """Shared entry point for single runs, batch, fork, and interactive modes.
-
-    Accepts an args namespace plus optional pre-loaded world, memories, and
-    callbacks. Returns a RunResult with aggregate stats.
-
-    Parameters
-    ----------
-    args : argparse.Namespace
-        Must contain: seed, turns, civs, regions, output, state, resume,
-        reflection_interval, llm_actions, scenario (and optionally pause_every).
-        `llm_actions` is accepted for backward compatibility but ignored.
-    sim_client, narrative_client : LLMClient or None
-        LLM clients for simulation and narration. Falls back to _DummyClient.
-    world : WorldState or None
-        Pre-loaded world state (for fork/resume). Generated if None.
-    memories : dict or None
-        Pre-loaded memory streams. Initialized fresh if None.
-    on_pause : callable or None
-        Called every pause_every turns with (world, memories).
-    pause_every : int or None
-        Turn interval for on_pause callback. Overrides args.pause_every.
-    pending_injections : list or None
-        List of (event_type, target_civ_name) tuples to drain before turns.
-    scenario_config : ScenarioConfig or None
-        Scenario overrides to apply to the world.
-    provenance_header : str or None
-        Optional header text prepended to the compiled chronicle.
-    checkpoint_resume : chronicler.run_checkpoint.LoadedCheckpoint or None
-        An exact checkpoint to continue: the run picks up its world, runtimes,
-        native state and accumulators and writes what the uninterrupted run
-        writes. ``args.resume`` naming a checkpoint file loads one.
-    resume_info : dict or None
-        Recorded in the bundle's ``metadata.resume`` for a resume that is not
-        exact (a legacy state file, or a checkpoint of another build).
-    turn_boundary : object or None
-        The pause's checkpoint control (``chronicler.live_checkpoints``:
-        ``LiveCheckpoints`` in live mode, ``PauseInterventions`` in interactive mode):
-        ``bind(save, run_config)`` before the first turn, where ``save(template)``
-        writes an exact checkpoint of the run as it stands; ``live_record()``,
-        stored in every checkpoint; ``turn_end(world)`` after each turn's pause,
-        True when the pause changed the run, which writes that turn's scheduled
-        checkpoints again. Reads the run only.
-    expansion_experiment : dict or None
-        Explicit source-owned experimental controls, recorded with resolved
-        state and provenance. Applying them to a supplied/resumed world requires
-        an intervention fork; omitting them preserves ordinary run behavior.
-    artifact_budget : object or None
-        Explicit caller-owned ordinary-output admission. The optional path is
-        limited to fresh hybrid runs without exact checkpoints. It does not
-        implement owner/log admission or qualify an enabled study.
-    """
-    if artifact_budget is not None:
-        artifact_budget.require_healthy()
-        if (world is not None or checkpoint_resume is not None
-                or getattr(args, "resume", None)):
-            raise ValueError("artifact_budget supports only fresh unsupplied Worlds")
-        if (getattr(args, "checkpoint_every", None) is not None
-                or getattr(args, "checkpoint_turns", None)):
-            raise ValueError("artifact_budget exact checkpoints are unqualified")
-        if (getattr(args, "agents", "off") != "hybrid"
-                or getattr(args, "live", False)
-                or getattr(args, "interactive", False)
-                or getattr(args, "ablation_output", False)):
-            raise ValueError("artifact_budget requires an ordinary noninteractive hybrid run")
-
-    # Fallback clients
-    _sim = sim_client or _DummyClient()
-    _narr = narrative_client or _DummyClient()
-    _narr_token_baseline = _token_counts(_narr)
-    _narrator_mode = getattr(args, "narrator", "local")
-    _api_mode = _narrator_mode != "local"
-
-    # Extract run parameters from args
-    seed = args.seed
-    num_turns = args.turns
-    num_civs = args.civs
-    num_regions = args.regions
-    output_path = Path(args.output)
-    state_path = Path(args.state) if args.state else None
-    resume_path = Path(args.resume) if getattr(args, "resume", None) else None
-    reflection_interval = getattr(args, "reflection_interval", 10) or 10
-    if getattr(args, "llm_actions", False):
-        logger.warning(
-            "--llm-actions is deprecated and ignored; simulation action selection remains deterministic"
-        )
-    _pause_every = pause_every or getattr(args, "pause_every", None)
-    _state_every = _resolve_state_every(args)
-    _checkpoint_every = _resolve_checkpoint_every(args)
-    _checkpoint_template = _resolve_checkpoint_template(args, output_path) if _checkpoint_every else None
-    _checkpoint_turns = _resolve_checkpoint_turns(args)
-    _checkpoint_turn_template = str(output_path.parent / CHECKPOINT_TURN_FILENAME) if _checkpoint_turns else None
-
-    # Exact resume (chronicler.run_checkpoint): seed, scenario and run origin
-    # are the checkpoint's own.
-    if checkpoint_resume is None and world is None and resume_path is not None:
-        from chronicler.run_checkpoint import is_checkpoint, read_checkpoint
-        if is_checkpoint(resume_path):
-            checkpoint_resume = read_checkpoint(
-                resume_path, allow_mismatch=bool(getattr(args, "resume_allow_mismatch", False)))
-    _resume_state = checkpoint_resume.state if checkpoint_resume is not None else None
-    if _resume_state is not None:
-        seed = _resume_state.seed
-        scenario_config = _resume_state.scenario_config
-        # Era reflections follow the saved run's interval (the CLI adopts it
-        # too; a caller's own namespace may not carry it).
-        _saved_interval = _resume_state.run_config.get("simulation_args", {}).get("reflection_interval")
-        if _saved_interval:
-            reflection_interval = _saved_interval
-        # The saved run's own label (it may itself continue a legacy resume)
-        # carries over, so an exact resume writes the bundle that run writes.
-        _saved_info = _resume_state.run_config.get("resume_info")
-        if checkpoint_resume.mismatches:
-            resume_info = {"kind": "checkpoint", "exact": False, "turn": _resume_state.world.turn,
-                           "mismatches": list(checkpoint_resume.mismatches)}
-            if _saved_info is not None:
-                resume_info["previous"] = _saved_info
-        else:
-            resume_info = _saved_info
-
-    # Internal ablation workers retain all runtime history and sidecars, but
-    # can omit presentation exports that their parent immediately discards.
-    # Validate before retargeting or advancing the restored native simulator.
-    _ablation_output = bool(getattr(args, "ablation_output", False))
-    if _ablation_output:
-        if checkpoint_resume is None or checkpoint_resume.mismatches:
-            raise ValueError("--ablation-output requires a compatible exact checkpoint")
-        if not getattr(args, "simulate_only", False) or _api_mode:
-            raise ValueError("--ablation-output requires --simulate-only and the local narrator")
-        if not (getattr(args, "decision_ablation", None)
-                or _resume_state.run_config.get("decision_ablation")):
-            raise ValueError("--ablation-output requires a decision-ablation arm")
-        if getattr(args, "live", False) or getattr(args, "interactive", False):
-            raise ValueError("--ablation-output is for noninteractive ablation workers")
-
-    # Use scenario_config from arg if not passed directly
-    if scenario_config is None and _resume_state is None:
-        sc_path = getattr(args, "scenario", None)
-        if sc_path:
-            from chronicler.scenario import load_scenario
-            scenario_config = load_scenario(Path(sc_path))
-
-    # Extract presentation-layer config for narrative engine
-    event_flavor = scenario_config.event_flavor if scenario_config else None
-    narrative_style = scenario_config.narrative_style if scenario_config else None
-    engine = NarrativeEngine(
-        sim_client=_sim,
-        narrative_client=_narr,
-        event_flavor=event_flavor,
-        narrative_style=narrative_style,
-        citations=getattr(args, "citations", True),
-    )
-
-    # In simulate-only mode, replace narrator with a no-op
-    _simulate_only = getattr(args, "simulate_only", False)
-    if _simulate_only or _api_mode:
-        _noop_narrator = lambda world, events: ""
-    else:
-        _noop_narrator = None
-
-    # World setup
-    fresh_world = False
-    if _resume_state is not None:
-        world = _resume_state.world
-        start_turn = world.turn
-    elif world is not None:
-        start_turn = world.turn
-    elif resume_path:
-        world = WorldState.load(resume_path)
-        start_turn = world.turn
-        print(f"Resuming from {resume_path} at turn {start_turn}")
-        if resume_info is None:
-            resume_info = {"kind": "legacy-state", "exact": False, "turn": start_turn}
-    else:
-        world = generate_world(
-            seed=seed,
-            num_regions=num_regions,
-            num_civs=num_civs,
-            worldgen=getattr(args, "worldgen", None),
-        )
-        start_turn = 0
-        fresh_world = True
-
-        # Apply scenario overrides if provided
-        if scenario_config:
-            from chronicler.scenario import apply_scenario
-            apply_scenario(world, scenario_config)
-            print(f"  Scenario: {scenario_config.name}")
-            if scenario_config.description:
-                print(f"    {scenario_config.description}")
-
-        from chronicler.ffi_constants import check_civ_capacity
-        check_civ_capacity(world)
-
-        # Enrich civs with LLM-generated goals
-        if sim_client:
-            try:
-                enrich_with_llm(world, sim_client)
-            except Exception as exc:
-                logger.warning(
-                    "LLM goal enrichment failed: %s; proceeding with empty goals",
-                    exc,
-                )
-                pass  # Goals remain empty on failure — non-fatal
-
-    from chronicler.ffi_constants import check_civ_capacity
-    check_civ_capacity(world)
-
-    if checkpoint_resume is None:
-        if artifact_budget is None:
-            agent_bridge, ecology_runtime, politics_runtime, economy_tracker, run_config = (
-                _configure_run(args, world, fresh_world, output_path))
-        else:
-            agent_bridge, ecology_runtime, politics_runtime, economy_tracker, run_config = (
-                _configure_run(args, world, fresh_world, output_path,
-                               artifact_budget=artifact_budget))
-    else:
-        # Exact resume: the world keeps every switch, override and runtime
-        # setting it was saved with; the bridge, runtimes and tracker are the
-        # saved ones, native state included (chronicler.run_checkpoint).
-        agent_bridge = _resume_state.agent_bridge
-        ecology_runtime = _resume_state.ecology_runtime
-        politics_runtime = _resume_state.politics_runtime
-        economy_tracker = _resume_state.economy_tracker
-        run_config = dict(_resume_state.run_config)
-        from chronicler.run_checkpoint import retarget_outputs
-        _shadow_output = None
-        if run_config.get("agent_mode") == "shadow":
-            _shadow_output = getattr(args, "shadow_output", None)
-            _shadow_output = (_default_shadow_output_path(output_path) if _shadow_output is None
-                              else Path(_shadow_output))
-        retarget_outputs(_resume_state, output_path.parent, _shadow_output)
-        _fork_ablation(args, run_config, agent_bridge, world.turn, world=world)
-    from chronicler.historiography import historiography_on as _historiography_on
-    from chronicler.languages import languages_on as _languages_on
-
-    # Initialize memory streams if not provided
-    if _resume_state is not None:
-        memories = _resume_state.memories
-    elif memories is None:
-        memories = {
-            civ.name: MemoryStream(civilization_name=civ.name)
-            for civ in world.civilizations
-        }
-
-    # Run simulation
-    chronicle_entries: list[ChronicleEntry] = []
-    era_reflections: dict[int, str] = {}
-    gap_summaries = None  # Set by curated narration in API mode
-    history: list[TurnSnapshot] = []
-    # The run's first turn: counts, the epilogue and the bundle cover the
-    # turns from here, which an exact resume carries from its checkpoint.
-    run_start = start_turn
-    if _resume_state is not None:
-        chronicle_entries = _resume_state.chronicle_entries
-        era_reflections = _resume_state.era_reflections
-        history = _resume_state.history
-        run_start = _resume_state.start_turn
-        if pending_injections is None:
-            pending_injections = _resume_state.pending_injections
-    # Checkpoints record how this run came to be: each resume it continues
-    # and the label of a resume that was not exact (bundle metadata.resume).
-    run_config["resume_info"] = resume_info
-    run_config["lineage"] = list(run_config.get("lineage", []))
-    if checkpoint_resume is not None:
-        run_config["lineage"].append({"resumed_at": start_turn, "kind": "checkpoint",
-                                      "exact": not checkpoint_resume.mismatches})
-    elif resume_info is not None:
-        run_config["lineage"].append({"resumed_at": start_turn, "kind": resume_info.get("kind"),
-                                      "exact": False})
-
-    # Explicit, source-owned experimental controls are applied only after
-    # normal world defaults or exact state restoration, before the first turn.
-    if expansion_experiment is not None:
-        from chronicler.expansion_experiment import apply_expansion_experiment
-        _experiment_resumed = not fresh_world
-        receipt = apply_expansion_experiment(
-            world, run_config, expansion_experiment, resumed=_experiment_resumed)
-        run_config["expansion_experiment"] = receipt
-        if receipt.get("research_policy") is not None:
-            research_after = receipt["research_policy"]["after"]
-            run_config["simulation_args"]["scientific_research_agendas"] = research_after.get("enabled", False)
-        if _experiment_resumed:
-            prior_resume = resume_info
-            resume_info = {"kind": "experiment-fork", "exact": False, "turn": start_turn}
-            if prior_resume is not None:
-                resume_info["previous"] = prior_resume
-            run_config["resume_info"] = resume_info
-            run_config["lineage"].append({
-                "resumed_at": start_turn, "kind": "experiment-fork", "exact": False,
-                "experiment": receipt,
-            })
-
-    remaining = num_turns - start_turn
-    sim_model = getattr(_sim, "model", "unknown") or "LM Studio default"
-    narr_model = getattr(_narr, "model", "unknown") or "LM Studio default"
-    print(f"Generating chronicle for '{world.name}' — {remaining} turns, {len(world.civilizations)} civs")
-    mode_label = {"local": "local inference", "api": "Claude API", "gemini": "Gemini API"}.get(
-        getattr(args, "narrator", "local"), "local inference"
-    )
-    print(f"  Sim model: {sim_model} | Narrative model: {narr_model} [{mode_label}]")
-
-    # Pending injections list — shared mutable object with on_pause callback
-    _pending = pending_injections if pending_injections is not None else []
-
-    def _save_exact(template) -> Path:
-        """An exact checkpoint of the run as it stands at this turn boundary."""
-        if artifact_budget is not None:
-            raise ValueError("artifact_budget exact checkpoints are unqualified")
-        return _write_exact_checkpoint(
-            template, world, memories, history, chronicle_entries, era_reflections, _pending,
-            run_start, seed, num_turns, agent_bridge, ecology_runtime, politics_runtime,
-            economy_tracker, scenario_config, run_config,
-            live=turn_boundary.live_record() if turn_boundary is not None else None,
-        )
-
-    if turn_boundary is not None:
-        turn_boundary.bind(_save_exact, run_config)
-
-    for turn_num in range(start_turn, num_turns):
-        named_events_before = len(world.named_events)
-
-        # Create action engine fresh each turn (needs current world state)
-        action_engine = ActionEngine(world)
-
-        def action_selector(civ, world, _engine=action_engine):
-            return _engine.select_action(civ, seed=world.seed)
-
-        # Run one turn — pending injections drain inside run_turn with accumulator
-        source_turn = world.turn
-        if practice_observer is None:
-            turn_result, _interrupt_requested = _run_turn_deferring_sigint(
-                world,
-                action_selector=action_selector,
-                narrator=_noop_narrator or engine.narrator,
-                seed=seed + turn_num,
-                agent_bridge=agent_bridge,
-                economy_tracker=economy_tracker,
-                ecology_runtime=ecology_runtime,
-                politics_runtime=politics_runtime,
-                force_settlement_detection=(turn_num == num_turns - 1),
-                pending_injections=_pending,
-            )
-        else:
-            turn_result, _interrupt_requested = _run_turn_deferring_sigint(
-                world,
-                action_selector=action_selector,
-                narrator=_noop_narrator or engine.narrator,
-                seed=seed + turn_num,
-                agent_bridge=agent_bridge,
-                economy_tracker=economy_tracker,
-                ecology_runtime=ecology_runtime,
-                politics_runtime=politics_runtime,
-                force_settlement_detection=(turn_num == num_turns - 1),
-                pending_injections=_pending,
-                practice_observer=practice_observer,
-            )
-
-        assert turn_result.observation.source_turn == source_turn
-        assert turn_result.observation.completed_turn == source_turn + 1 == world.turn
-        chronicle_text = turn_result.chronicle_text
-
-        # Capture per-turn snapshot for viewer bundle
-        # M24: cache accuracy for snapshot
-        # Name-keyed cache entries can collide in externally supplied worlds.
-        # Keep live reads for those worlds to preserve even discarded RNG draws.
-        _unique_civ_names = len({c.name for c in world.civilizations}) == len(world.civilizations)
-        _acc_cache: dict[tuple[str, str], float] = {}
-        # Geography 2.0: procedural worlds keep civ-pair snapshot data
-        # (relationships, accuracy, perception errors) for living civs only.
-        # Civ records are never removed and secessions accumulate, so the
-        # all-records matrices dominated big-world bundles. Template worlds
-        # keep every record (unchanged bytes).
-        if world.geography is not None:
-            _pair_civs = [c for c in world.civilizations if c.regions]
-            _pair_names: set[str] | None = {c.name for c in _pair_civs}
-        else:
-            _pair_civs = world.civilizations
-            _pair_names = None
-        # One border pass for all pairs (identical to per-pair region scans).
-        _borders = border_pairs(world)
-        for _obs in _pair_civs:
-            for _tgt in _pair_civs:
-                if _obs.name != _tgt.name:
-                    _acc_cache[(_obs.name, _tgt.name)] = compute_accuracy(
-                        _obs, _tgt, world, borders=_borders,
-                    )
-        snapshot = TurnSnapshot(
-            turn=world.turn,
-            civ_stats={
-                civ.name: CivSnapshot(
-                    population=civ.population,
-                    military=civ.military,
-                    economy=civ.economy,
-                    culture=civ.culture,
-                    stability=civ.stability,
-                    treasury=civ.treasury,
-                    asabiya=civ.asabiya,
-                    asabiya_variance=civ.asabiya_variance,
-                    tech_era=civ.tech_era,
-                    trait=civ.leader.trait,
-                    regions=list(civ.regions),
-                    leader_name=civ.leader.name,
-                    alive=len(civ.regions) > 0,
-                    is_vassal=any(vr.vassal == civ.name for vr in world.vassal_relations),
-                    is_fallen_empire=(civ.peak_region_count >= 5 and len(civ.regions) == 1),
-                    in_twilight=(civ.decline_turns >= 20 and len(civ.regions) == 1),
-                    federation_name=next((f.name for f in world.federations if civ.name in f.members), None),
-                    prestige=civ.prestige,
-                    capital_region=civ.capital_region,
-                    great_persons=[{"name": gp.name, "role": gp.role, "trait": gp.trait} for gp in civ.great_persons if gp.active],
-                    traditions=list(civ.traditions),
-                    folk_heroes=[{"name": fh["name"], "role": fh["role"]} for fh in civ.folk_heroes],
-                    active_crisis=civ.succession_crisis_turns_remaining > 0,
-                    civ_stress=civ.civ_stress,
-                    active_focus=civ.active_focus,
-                    factions=civ.factions.model_copy(deep=True),
-                    action_counts=dict(civ.action_counts),
-                    max_precap_weight=civ.max_precap_weight,
-                    last_action=(world.action_history.get(civ.name, [])[-1] if world.action_history.get(civ.name) else None),
-                    gini=getattr(agent_bridge, '_gini_by_civ', {}).get(civ_idx, 0.0) if agent_bridge else 0.0,
-                    war_weariness=civ.war_weariness,
-                    peace_momentum=civ.peace_momentum,
-                    governance=(_governance_snapshot(civ) if world.governance is not None else None),
-                )
-                for civ_idx, civ in enumerate(world.civilizations)
-            },
-            ecology={r.name: r.ecology.model_dump() for r in world.regions},
-            region_control={
-                region.name: region.controller
-                for region in world.regions
-            },
-            relationships={
-                civ_a: {
-                    civ_b: RelationshipSnapshot(disposition=rel.disposition.value)
-                    for civ_b, rel in inner.items()
-                    if _pair_names is None or civ_b in _pair_names
-                }
-                for civ_a, inner in world.relationships.items()
-                if _pair_names is None or civ_a in _pair_names
-            },
-            vassal_relations=[vr.model_dump() for vr in world.vassal_relations],
-            federations=[f.model_dump() for f in world.federations],
-            proxy_wars=[pw.model_dump() for pw in world.proxy_wars],
-            exile_modifiers=[em.model_dump() for em in world.exile_modifiers],
-            capitals={civ.name: civ.capital_region for civ in world.civilizations if civ.capital_region},
-            peace_turns=world.peace_turns,
-            region_cultural_identity={r.name: r.cultural_identity for r in world.regions},
-            movements_summary=[{"id": m.id, "value_affinity": m.value_affinity, "adherent_count": len(m.adherents), "origin_civ": m.origin_civ} for m in world.movements],
-            stress_index=world.stress_index,
-            pandemic_regions=_pandemic_region_names(world),
-            climate_phase=get_climate_phase(world.turn, world.climate_config).value,
-            active_conditions=[
-                {"type": c.condition_type, "severity": c.severity, "duration": c.duration}
-                for c in world.active_conditions
-            ],
-            per_pair_accuracy={
-                obs_name: {
-                    tgt_name: acc
-                    for tgt_name, acc in (
-                        (t.name, _acc_cache[(obs_name, t.name)])
-                        for t in _pair_civs if t.name != obs_name
-                    )
-                    if acc > 0.0
-                }
-                for obs_name in (c.name for c in _pair_civs)
-            },
-            perception_errors={
-                obs_name: {
-                    tgt_name: {
-                        stat: pv - getattr(tgt, stat)
-                        for stat in ("military", "economy", "stability")
-                        if (pv := _get_perceived_stat_with_accuracy(
-                            obs, tgt, stat, world,
-                            accuracy=(
-                                _acc_cache[(obs_name, tgt_name)] if _unique_civ_names
-                                else compute_accuracy(obs, tgt, world)
-                            ),
-                        )) is not None
-                    }
-                    for tgt in _pair_civs
-                    for tgt_name in [tgt.name]
-                    if tgt_name != obs_name and _acc_cache.get((obs_name, tgt_name), 0.0) > 0.0
-                }
-                for obs in _pair_civs
-                for obs_name in [obs.name]
-            },
-            # M56a: Settlement summary
-            settlement_source_turn=getattr(world, '_settlement_source_turn', 0),
-            settlement_count=sum(
-                len([s for s in r.settlements if s.status.value in ("active", "dissolving")])
-                for r in world.regions
-            ),
-            candidate_count=len(world.settlement_candidates),
-            total_settlement_population=sum(
-                s.population_estimate
-                for r in world.regions for s in r.settlements
-                if s.status.value in ("active", "dissolving")
-            ),
-            active_settlements=sorted(
-                [
-                    SettlementSummary(
-                        settlement_id=s.settlement_id, name=s.name,
-                        region_name=s.region_name, population_estimate=s.population_estimate,
-                        centroid_x=s.centroid_x, centroid_y=s.centroid_y,
-                        founding_turn=s.founding_turn, status=s.status.value,
-                    )
-                    for r in world.regions for s in r.settlements
-                    if s.status.value in ("active", "dissolving")
-                ],
-                key=lambda ss: (ss.region_name, ss.settlement_id),
-            ),
-            founded_this_turn=sorted(getattr(world, '_settlement_founded_this_turn', [])),
-            dissolved_this_turn=sorted(getattr(world, '_settlement_dissolved_this_turn', [])),
-            **_war_snapshot_fields(world),
-            **_contact_snapshot_fields(world),
-            **_epidemic_snapshot_fields(world),
-            **_finance_snapshot_fields(world),
-            **_diplomacy_snapshot_fields(world),
-            **_techniques_snapshot_fields(world),
-            **_maritime_snapshot_fields(world),
-            **_gp_agendas_snapshot_fields(world),
-            **_nomads_snapshot_fields(world),
-            **_cities_snapshot_fields(world),
-            **_agent_movements_snapshot_fields(world),
-            **_guilds_snapshot_fields(world),
-            **_scholarship_snapshot_fields(world),
-            **_food_snapshot_fields(world),
-            **_grain_reserves_snapshot_fields(world),
-            **expansion_snapshot_fields(world),
-            **_migration_snapshot_fields(world),
-        )
-
-        # M56b: Urban fraction aggregation from agent snapshot
-        urban_by_civ: dict[str, tuple[int, int]] = {}  # civ_name -> (urban_count, total_count)
-        agent_rows = turn_result.observation.phase10_agents
-        if agent_bridge and agent_rows is not None:
-            assert agent_rows.stamp.source_turn == source_turn
-            assert agent_rows.stamp.stage == "phase10_entry"
-            # Views with NumPy columns (AgentRows) take the columnar count;
-            # other views and batches with nulls keep the row loop.
-            urban_arrays = None
-            if agent_rows.has("settlement_id") and hasattr(agent_rows, "arrays"):
-                urban_arrays = agent_rows.arrays("civ_affinity", "settlement_id")
-                if urban_arrays is not None and agent_rows.has("region"):
-                    region_array = agent_rows.array("region")
-                    urban_arrays = None if region_array is None else (*urban_arrays, region_array)
-                elif urban_arrays is not None:
-                    urban_arrays = (*urban_arrays, None)
-            if urban_arrays is not None:
-                urban_by_civ = _urban_counts_by_civ(world, *urban_arrays)
-            elif agent_rows.has("settlement_id"):
-                civ_col = agent_rows.ints("civ_affinity")
-                sid_col = agent_rows.ints("settlement_id")
-                region_col = agent_rows.ints("region") if agent_rows.has("region") else [None] * len(civ_col)
-                for civ_id, region_id, sid in zip(civ_col, region_col, sid_col):
-                    civ_name = None
-                    try:
-                        region_idx = int(region_id)
-                    except (TypeError, ValueError):
-                        region_idx = -1
-                    if 0 <= region_idx < len(world.regions):
-                        controller = world.regions[region_idx].controller
-                        if controller is not None:
-                            civ_name = controller
-                    if civ_name is None:
-                        try:
-                            civ_idx = int(civ_id)
-                        except (TypeError, ValueError):
-                            civ_idx = -1
-                        if 0 <= civ_idx < len(world.civilizations):
-                            civ_name = world.civilizations[civ_idx].name
-                    if civ_name is None:
-                        continue
-                    u, t = urban_by_civ.get(civ_name, (0, 0))
-                    urban_by_civ[civ_name] = (u + (1 if sid > 0 else 0), t + 1)
-                del civ_col, sid_col, region_col
-
-        for civ_name, cs in snapshot.civ_stats.items():
-            if civ_name in urban_by_civ:
-                u, t = urban_by_civ[civ_name]
-                cs.urban_agents = u
-                cs.urban_fraction = u / t if t > 0 else 0.0
-
-        total_urban = sum(u for u, _ in urban_by_civ.values())
-        total_agents = sum(t for _, t in urban_by_civ.values())
-        snapshot.urban_agent_count = total_urban
-        snapshot.urban_fraction = total_urban / total_agents if total_agents > 0 else 0.0
-
-        history.append(snapshot)
-
-        # In-world chroniclers record the completed turn (reads the world only).
-        if _historiography_on(world):
-            from chronicler.historiography import observe_turn
-            observe_turn(world)
-        # The world's languages drift, split and name what their peoples know.
-        if _languages_on(world):
-            from chronicler.languages import observe_turn as observe_languages
-            observe_languages(world)
-
-        # Phase-10 rows are historical inputs only for synchronous capture.
-        # Release the handoff before callbacks can mutate world or bridge state.
-        del agent_rows, turn_result
-
-        # Record chronicle entry (with the per-turn narrator's provenance when
-        # it narrated this turn; never in simulate-only or curated modes)
-        chronicle_entries.append(ChronicleEntry(
-            turn=world.turn, covers_turns=(world.turn, world.turn),
-            events=[], named_events=[],
-            narrative=chronicle_text, importance=5.0,
-            narrative_role=NarrativeRole.RESOLUTION,
-            causal_links=[],
-            provenance=engine.take_turn_provenance(),
-        ))
-
-        # on_turn callback — fires after each turn's data is captured
-        if on_turn is not None:
-            turn_events = history_index(world).events_for_turn(world, world.turn - 1)
-            turn_named = world.named_events[named_events_before:]
-            on_turn(snapshot, chronicle_text, turn_events, turn_named)
-
-        # Update memory streams with this turn's events
-        turn_events = history_index(world).events_for_turn(world, world.turn - 1)
-        for event in turn_events:
-            for actor in event.actors:
-                if actor in memories:
-                    memories[actor].add(
-                        text=event.description or f"{event.event_type} occurred",
-                        turn=world.turn,
-                        importance=event.importance,
-                    )
-
-        # Save memory streams at this point of the turn on checkpoint turns, the
-        # final turn and any turn a callback may end the run, so the files on
-        # disk at those turns match an every-turn writer's exactly.
-        _is_final_turn = turn_num == num_turns - 1
-        _checkpoint_due = world.turn % _state_every == 0
-        _pause_turn = bool(_pause_every and on_pause and world.turn % _pause_every == 0)
-        _may_stop = _pause_turn or quit_check is not None
-        output_dir = output_path.parent
-        _memories_saved = _checkpoint_due or _is_final_turn or _may_stop
-        if _memories_saved:
-            if artifact_budget is None:
-                _save_memory_streams(memories, output_dir)
-            else:
-                _save_memory_streams(memories, output_dir, artifact_budget=artifact_budget)
-        # Reflections only append; an interrupt checkpoint written after this
-        # turn's reflection uses these counts to write the save-point content.
-        _reflection_counts = {name: len(stream.reflections) for name, stream in memories.items()}
-
-        # Generate era reflections at intervals
-        if not _api_mode and should_reflect(world.turn, interval=reflection_interval):
-            era_start = world.turn - reflection_interval + 1
-            era_end = world.turn
-            reflection_texts: list[str] = []
-
-            for civ_name, stream in memories.items():
-                reflection = generate_reflection(
-                    stream,
-                    era_start=era_start,
-                    era_end=era_end,
-                    client=_narr,
-                )
-                reflection_texts.append(reflection)
-
-            combined = "\n\n".join(reflection_texts)
-            era_reflections[world.turn] = f"## Era: Turns {era_start}\u2013{era_end}\n\n{combined}"
-            print(f"  Era reflection generated for turns {era_start}-{era_end}")
-
-        # Resumable checkpoint every _state_every turns and before a pause; the
-        # final state is written after the loop on every exit path.
-        if state_path and ((_checkpoint_due and not _is_final_turn) or _pause_turn):
-            if artifact_budget is None:
-                _write_state_checkpoint(world, state_path)
-            else:
-                _write_state_checkpoint(world, state_path, artifact_budget=artifact_budget)
-            _state_saved = True
-        else:
-            _state_saved = False
-
-        # Exact checkpoint (--checkpoint-every): everything this run carries
-        # into the next turn. Written after the turn is complete; reads only.
-        _exact_path = None
-        if _checkpoint_every and (world.turn % _checkpoint_every == 0 or _interrupt_requested):
-            _exact_path = _save_exact(_checkpoint_template)
-        if world.turn in _checkpoint_turns:
-            _save_exact(_checkpoint_turn_template)
-
-        # Ctrl-C during the turn: save this completed turn, then stop.
-        if _interrupt_requested:
-            if not _memories_saved:
-                if artifact_budget is None:
-                    _save_memory_streams(memories, output_dir, _reflection_counts)
-                else:
-                    _save_memory_streams(memories, output_dir, _reflection_counts,
-                                         artifact_budget=artifact_budget)
-            if state_path and not _state_saved:
-                if artifact_budget is None:
-                    _write_state_checkpoint(world, state_path)
-                else:
-                    _write_state_checkpoint(world, state_path, artifact_budget=artifact_budget)
-            if _exact_path is not None:
-                print(f"Interrupted after turn {world.turn}; resume exactly with --resume {_exact_path}",
-                      file=sys.stderr)
-            elif state_path:
-                print(f"Interrupted after turn {world.turn}; resume with --resume {state_path}",
-                      file=sys.stderr)
-            raise KeyboardInterrupt
-
-        # on_pause callback — returns False to quit early
-        should_continue = True
-        if _pause_every and on_pause and world.turn % _pause_every == 0:
-            should_continue = on_pause(world, memories, _pending)
-        # Turn boundary (live or interactive): the checkpoints a viewer asked
-        # for, and this turn's scheduled ones again when the pause changed the
-        # run (an injection or a stat set), so they hold what the next turn
-        # starts from.
-        if turn_boundary is not None and turn_boundary.turn_end(world):
-            if _exact_path is not None:
-                _save_exact(_checkpoint_template)
-            if world.turn in _checkpoint_turns:
-                _save_exact(_checkpoint_turn_template)
-        if not should_continue:
-            break
-
-        # quit_check — for graceful mid-run shutdown (e.g., live mode quit)
-        if quit_check is not None and quit_check():
-            break
-
-        # Progress indicator
-        if world.turn % 10 == 0:
-            print(f"  Turn {world.turn}/{num_turns} complete")
-
-    # The in-world accounts as the bundle carries them (None while off); the
-    # curated narration below reads them back through an AccountIndex.
-    historiography_export = None
-    account_index = None
-    # The languages field, read back through a NameIndex for perspective names.
-    languages_export = None
-    name_index = None
-    if not _ablation_output and _languages_on(world):
-        from chronicler.languages import NameIndex, export as _export_languages
-        languages_export = _export_languages(world)
-        name_index = NameIndex(languages_export)
-    if not _ablation_output and _historiography_on(world):
-        from chronicler.historiography import AccountIndex, export as _export_historiography
-        historiography_export = _export_historiography(world)
-        account_index = AccountIndex(historiography_export, names=name_index)
-
-    # M44: Post-loop curated narration for API mode
-    if _api_mode:
-        from chronicler.curator import curate
-
-        # Collect named character names for curator scoring
-        named_chars = set()
-        for gp_list in (getattr(civ, "great_persons", []) for civ in world.civilizations):
-            for gp in gp_list:
-                if gp.active and gp.agent_id is not None:
-                    named_chars.add(gp.name)
-
-        # M45: Build gp_by_name for arc scoring
-        gp_by_name = {}
-        for civ in world.civilizations:
-            for gp in civ.great_persons:
-                if gp.active and gp.agent_id is not None:
-                    gp_by_name[gp.name] = gp
-        for gp in world.retired_persons:
-            if gp.death_turn is not None:
-                gp_by_name[gp.name] = gp
-
-        moments, gap_summaries = curate(
-            events=world.events_timeline,
-            named_events=world.named_events,
-            history=history,
-            budget=getattr(args, "budget", 50),
-            seed=seed,
-            named_characters=named_chars if named_chars else None,
-            gp_by_name=gp_by_name if gp_by_name else None,
-            contested=account_index.contested_bonus() if account_index else None,
-        )
-
-        def progress_cb(completed: int, total: int, eta: float | None) -> None:
-            eta_str = f" (ETA: {eta:.1f}s)" if eta is not None else ""
-            print(f"  Narrating {completed}/{total}{eta_str}")
-
-        # M45: Include retired persons for dead character arc context
-        all_great_persons = list(gp_by_name.values()) if gp_by_name else None
-
-        chronicle_entries = engine.narrate_batch(
-            moments, history, on_progress=progress_cb,
-            great_persons=all_great_persons,
-            world=world,
-            historiography=account_index,
-            languages=name_index,
-            social_edges=agent_bridge.read_social_edges() if agent_bridge is not None else None,
-            dissolved_edges_by_turn=world.dissolved_edges_by_turn if hasattr(world, "dissolved_edges_by_turn") else None,
-            agent_name_map=agent_bridge.named_agents if agent_bridge is not None else None,
-            gini_by_civ=agent_bridge._gini_by_civ if agent_bridge is not None else None,
-            economy_result=agent_bridge._economy_result if agent_bridge is not None else None,
-            displacement_by_region=agent_bridge.displacement_by_region if agent_bridge is not None else None,
-            dynasty_registry=agent_bridge.dynasty_registry if agent_bridge is not None else None,
-        )
-
-        print(f"API narration: curated {len(moments)} moments from {len(world.events_timeline)} events")
-
-        # Token usage summary
-        if _tracks_tokens(_narr):
-            inp, out, calls = _token_usage_since(_narr, _narr_token_baseline)
-            print(f"API narration: {calls} calls, "
-                  f"{inp/1000:.1f}K input + {out/1000:.1f}K output tokens")
-
-    if agent_bridge is not None:
-        agent_bridge.write_final_sidecar_snapshot(world)
-        agent_bridge.close()
-
-    if not _ablation_output:
-        # Compile final chronicle
-        actual_turns = world.turn - run_start
-        if world.turn < num_turns:
-            epilogue = f"> Chronicle ended early at turn {world.turn} of {num_turns}."
-        else:
-            epilogue = f"Thus concludes the chronicle of {world.name}, spanning {actual_turns} turns of history."
-        output_text = compile_chronicle(
-            world_name=world.name,
-            entries=chronicle_entries,
-            era_reflections=era_reflections,
-            epilogue=epilogue,
-            gap_summaries=gap_summaries,
-        )
-
-        # Prepend provenance header if provided
-        if provenance_header:
-            output_text = provenance_header + "\n\n" + output_text
-
-        # Write output
-        if artifact_budget is None:
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            output_path.write_text(output_text, encoding="utf-8")
-        else:
-            artifact_budget.ensure_directory(output_path.parent)
-            artifact_budget.write_text(output_path, output_text, encoding="utf-8")
-        print(f"\nChronicle written to {output_path} ({len(output_text)} characters)")
-
-        # Save final state
-        if state_path:
-            if artifact_budget is None:
-                world.save(state_path)
-            else:
-                world.save(state_path, artifact_budget=artifact_budget)
-            print(f"Final world state saved to {state_path}")
-
-    # --- Compute RunResult ---
-    output_dir = output_path.parent
-
-    # Count events from start_turn onward only
-    war_count = sum(
-        1 for e in world.events_timeline
-        if e.turn >= run_start and e.event_type == "war"
-    )
-    collapse_count = sum(
-        1 for e in world.events_timeline
-        if e.turn >= run_start and e.event_type == "collapse"
-    )
-    tech_advancement_count = sum(
-        1 for e in world.events_timeline
-        if e.turn >= run_start and e.event_type == "tech_advancement"
-    )
-    named_event_count = sum(
-        1 for ne in world.named_events
-        if ne.turn >= run_start
-    )
-
-    # Count reflections from start_turn onward
-    reflection_count = 0
-    for stream in memories.values():
-        reflection_count += sum(
-            1 for r in stream.reflections if r.turn >= run_start
-        )
-
-    # Action distribution from civ.action_counts
-    action_distribution: dict[str, dict[str, int]] = {}
-    all_action_types: set[str] = set()
-    for civ in world.civilizations:
-        action_distribution[civ.name] = dict(civ.action_counts)
-        all_action_types.update(civ.action_counts.keys())
-    distinct_action_count = len(all_action_types)
-
-    # Max stat swing: variance of total stats across civs
-    if world.civilizations:
-        totals = [
-            civ.population + civ.military + civ.economy + civ.culture + civ.stability
-            for civ in world.civilizations
-        ]
-        mean_total = sum(totals) / len(totals)
-        variance = sum((t - mean_total) ** 2 for t in totals) / len(totals)
-        max_stat_swing = float(variance)
-    else:
-        max_stat_swing = 0.0
-
-    # Dominant faction: civ with highest total stats
-    if world.civilizations:
-        dominant_civ = max(
-            world.civilizations,
-            key=lambda c: c.population + c.military + c.economy + c.culture + c.stability,
-        )
-        dominant_faction = dominant_civ.name
-    else:
-        dominant_faction = ""
-
-    total_turns = world.turn - run_start
-
-    result = RunResult(
-        seed=seed,
-        output_dir=output_dir,
-        war_count=war_count,
-        collapse_count=collapse_count,
-        named_event_count=named_event_count,
-        distinct_action_count=distinct_action_count,
-        reflection_count=reflection_count,
-        tech_advancement_count=tech_advancement_count,
-        max_stat_swing=max_stat_swing,
-        action_distribution=action_distribution,
-        dominant_faction=dominant_faction,
-        total_turns=total_turns,
-    )
-    result.boring_civs = find_boring_civs(result)
-
-    if _ablation_output:
-        from chronicler.ablation_arms import FORK_INFO_FILENAME, fork_info
-        from chronicler.bundle import write_agent_events_arrow
-        from chronicler.artifact_io import atomic_write_json
-        # Bundle metadata uses absolute completed world turns, whereas
-        # RunResult counts turns since the run's origin. Keep that distinction.
-        write_agent_events_arrow(world, output_dir)
-        atomic_write_json(output_dir / FORK_INFO_FILENAME, fork_info({
-            "seed": world.seed,
-            "total_turns": world.turn,
-            "decision_ablation": run_config.get("decision_ablation"),
-            "resume": resume_info,
-        }))
-        return result
-
-    # Write viewer bundle
-    from chronicler.interestingness import score_run
-    sim_model_name = getattr(_sim, "model", "unknown") or "unknown"
-    narr_model_name = getattr(_narr, "model", "unknown") or "unknown"
-    interestingness_weights = None
-    if scenario_config and hasattr(scenario_config, "interestingness_weights"):
-        interestingness_weights = scenario_config.interestingness_weights
-    bundle = assemble_bundle(
-        world=world,
-        history=history,
-        chronicle_entries=chronicle_entries,
-        era_reflections=era_reflections,
-        sim_model=sim_model_name,
-        narrative_model=narr_model_name,
-        interestingness_score=score_run(result, interestingness_weights),
-        gap_summaries=gap_summaries,
-        historiography=historiography_export,
-        languages=languages_export,
-    )
-    # M44: narrator provenance metadata
-    bundle["metadata"]["narrator_mode"] = _narrator_mode
-    # A resume that is not exact (a legacy state file, or a checkpoint of
-    # another build) is labelled; an exact resume writes the bundle unchanged.
-    if resume_info is not None:
-        bundle["metadata"]["resume"] = resume_info
-    # A validation arm (--decision-ablation) says so; a plain run's bundle
-    # has no such key.
-    if run_config.get("decision_ablation") is not None:
-        bundle["metadata"]["decision_ablation"] = dict(run_config["decision_ablation"])
-    if run_config.get("expansion_experiment") is not None:
-        bundle["metadata"]["expansion_experiment"] = dict(run_config["expansion_experiment"])
-    _set_narrative_token_metadata(bundle["metadata"], _narr, _narr_token_baseline)
-
-    # M53: relationship stats metadata
-    if agent_bridge is not None and agent_bridge._collect_rel_stats:
-        bundle["metadata"]["relationship_stats"] = agent_bridge.relationship_stats
-
-    # M57b: household stats metadata (always collected in agent modes)
-    if agent_bridge is not None:
-        household_stats = getattr(agent_bridge, "household_stats", [])
-        if not isinstance(household_stats, list):
-            household_stats = []
-        bundle["metadata"]["household_stats"] = household_stats
-
-    # M58a: merchant trip stats metadata
-    if agent_bridge is not None:
-        m_trip_stats = getattr(agent_bridge, "merchant_trip_stats", [])
-        if not isinstance(m_trip_stats, list):
-            m_trip_stats = []
-        bundle["metadata"]["merchant_trip_stats"] = m_trip_stats
-
-    # M59a: knowledge stats metadata
-    if agent_bridge is not None:
-        k_stats = getattr(agent_bridge, "knowledge_stats", [])
-        if not isinstance(k_stats, list):
-            k_stats = []
-        bundle["metadata"]["knowledge_stats"] = k_stats
-
-    bundle_path = output_path.parent / "chronicle_bundle.json"
-    if artifact_budget is None:
-        write_bundle(bundle, bundle_path, world=world)
-    else:
-        write_bundle(bundle, bundle_path, world=world, artifact_budget=artifact_budget)
-        artifact_budget.require_healthy()
-    print(f"Viewer bundle written to {bundle_path}")
-
-    return result
-
-
-def _configure_run(args: argparse.Namespace, world: WorldState, fresh_world: bool,
-                   output_path: Path, *, artifact_budget=None) -> tuple[Any, Any, Any, Any, dict]:
-    """Apply the run's switches and overrides to ``world`` and build its
-    runtimes: (agent bridge, ecology runtime, politics runtime, economy
-    tracker, run configuration recorded in exact checkpoints)."""
-    # Apply tuning overrides to world state
-    if getattr(args, "tuning_overrides", None):
-        world.tuning_overrides = args.tuning_overrides
-
-    # Apply preset (values don't override explicit tuning or CLI flags)
-    if getattr(args, "preset", None):
-        from chronicler.tuning import apply_preset
-        apply_preset(world.tuning_overrides, args.preset)
-
-    # Wire CLI simulation multipliers into tuning_overrides
-    from chronicler.tuning import (
-        K_AGGRESSION_BIAS, K_TECH_DIFFUSION_RATE, K_RESOURCE_ABUNDANCE,
-        K_TRADE_FRICTION, K_SEVERITY_MULTIPLIER, K_CULTURAL_DRIFT_SPEED,
-        K_RELIGION_INTENSITY, K_SECESSION_LIKELIHOOD,
-    )
-    _multiplier_flags = {
-        "aggression_bias": K_AGGRESSION_BIAS,
-        "tech_diffusion_rate": K_TECH_DIFFUSION_RATE,
-        "resource_abundance": K_RESOURCE_ABUNDANCE,
-        "trade_friction": K_TRADE_FRICTION,
-        "severity_multiplier": K_SEVERITY_MULTIPLIER,
-        "cultural_drift_speed": K_CULTURAL_DRIFT_SPEED,
-        "religion_intensity": K_RELIGION_INTENSITY,
-        "secession_likelihood": K_SECESSION_LIKELIHOOD,
-    }
-    for attr, key in _multiplier_flags.items():
-        val = getattr(args, attr, None)
-        if val is not None:
-            world.tuning_overrides[key] = val
-
-    # M60: campaign layer switch (persisted on the world for resume). New
-    # worlds default to campaigns; resumed or supplied worlds keep theirs.
-    campaigns = getattr(args, "campaigns", None)
-    if campaigns is None and fresh_world:
-        from chronicler.war.params import CAMPAIGNS_DEFAULT_FOR_NEW_WORLDS
-        campaigns = CAMPAIGNS_DEFAULT_FOR_NEW_WORLDS
-    if campaigns is not None:
-        world.campaigns_enabled = campaigns
-
-    # M28: Agent mode wiring
-    agent_mode = getattr(args, "agents", "off")
-    # Macro refugee destinations are capacity-aware only by explicit opt-in;
-    # loaded worlds retain their saved choice. Agent-owned modes are dormant.
-    capacity_aware_refugees = getattr(args, "capacity_aware_refugees", None)
-    if capacity_aware_refugees is not None:
-        from chronicler.refugee_routing import set_capacity_aware_refugees_enabled
-        set_capacity_aware_refugees_enabled(world, capacity_aware_refugees)
-    # Adjacent mutual aid (persisted on the world). It moves goods-economy
-    # stocks, so an explicit --mutual-aid needs an agent mode; a default-on or
-    # saved setting is simply dormant under --agents off.
-    mutual_aid = getattr(args, "mutual_aid", None)
-    if mutual_aid is True and agent_mode == "off":
-        raise ValueError("Mutual aid requires an agent-backed goods economy (--agents hybrid, shadow or demographics-only)")
-    if mutual_aid is None and fresh_world:
-        from chronicler.mutual_aid import DEFAULT_ENABLED_FOR_NEW_WORLDS as _AID_DEFAULT
-        mutual_aid = _AID_DEFAULT
-    if mutual_aid is not None:
-        world.mutual_aid_enabled = mutual_aid
-    # Renewable fish stocks (persisted on the world). New worlds also get the
-    # living-world calibration; loaded worlds keep their saved parameters.
-    fisheries = getattr(args, "fisheries", None)
-    if fisheries is None and fresh_world:
-        from chronicler.experimental.fisheries import DEFAULT_ENABLED_FOR_NEW_WORLDS as _FISH_DEFAULT
-        fisheries = _FISH_DEFAULT
-    if fisheries is not None:
-        from chronicler.experimental.fisheries import set_fisheries_enabled
-        set_fisheries_enabled(world, fisheries, new_world=fresh_world)
-    # Phase 8 governance runtime switch (persisted on the world).
-    governance = getattr(args, "governance", None)
-    if governance is None and fresh_world:
-        from chronicler.governance_runtime import DEFAULT_ENABLED_FOR_NEW_WORLDS
-        governance = DEFAULT_ENABLED_FOR_NEW_WORLDS
-    if governance is not None:
-        from chronicler.governance_runtime import set_governance_enabled
-        set_governance_enabled(world, governance)
-    agent_scale_mode = getattr(args, "agent_scale_mode", None) or "exact"
-    if agent_scale_mode != "exact" and agent_mode == "off":
-        raise ValueError("--agent-scale-mode fast requires an agent pool (--agents hybrid, shadow or demographics-only)")
-    decision_ablation = decision_ablation_from_args(args, agent_mode)
-    # Contact & trade-flow ledger switch (persisted on the world).
-    contact_ledger = getattr(args, "contact_ledger", None)
-    if contact_ledger is None and fresh_world:
-        from chronicler.contact_ledger import DEFAULT_ENABLED_FOR_NEW_WORLDS as _LEDGER_DEFAULT
-        contact_ledger = _LEDGER_DEFAULT
-    if contact_ledger is not None:
-        from chronicler.contact_ledger import set_contact_ledger_enabled
-        set_contact_ledger_enabled(world, contact_ledger)
-    # Regional SEIRS epidemiology (persisted on the world). It spreads along
-    # the contact ledger, so an explicit --epidemiology needs the ledger; a
-    # default-on setting stays off on a ledger-less new world.
-    epidemiology = getattr(args, "epidemiology", None)
-    from chronicler.contact_ledger import ledger_enabled as _ledger_on
-    if epidemiology is True and not _ledger_on(world):
-        raise ValueError("Epidemiology spreads along the contact ledger (--contact-ledger)")
-    if epidemiology is None and fresh_world:
-        from chronicler.epidemiology import DEFAULT_ENABLED_FOR_NEW_WORLDS as _EPI_DEFAULT
-        epidemiology = _EPI_DEFAULT and _ledger_on(world)
-    if epidemiology is not None:
-        from chronicler.epidemiology import set_epidemiology_enabled
-        set_epidemiology_enabled(world, epidemiology)
-    # Money, credit and public finance switch (persisted on the world).
-    finance = getattr(args, "finance", None)
-    if finance is None and fresh_world:
-        from chronicler.finance import DEFAULT_ENABLED_FOR_NEW_WORLDS as _FINANCE_DEFAULT
-        finance = _FINANCE_DEFAULT
-    if finance is not None:
-        from chronicler.finance import set_finance_enabled
-        set_finance_enabled(world, finance)
-    # Diplomacy switch (persisted on the world): memory, treaties, polity ladder.
-    diplomacy = getattr(args, "diplomacy", None)
-    if diplomacy is None and fresh_world:
-        from chronicler.diplomacy import DEFAULT_ENABLED_FOR_NEW_WORLDS as _DIPLOMACY_DEFAULT
-        diplomacy = _DIPLOMACY_DEFAULT
-    if diplomacy is not None:
-        from chronicler.diplomacy import set_diplomacy_enabled
-        set_diplomacy_enabled(world, diplomacy)
-    # Techniques switch (persisted on the world): per-region practice that
-    # diffuses along contact, inventions, and the era derived from them.
-    techniques = getattr(args, "techniques", None)
-    if techniques is None and fresh_world:
-        from chronicler.techniques import DEFAULT_ENABLED_FOR_NEW_WORLDS as _TECHNIQUES_DEFAULT
-        techniques = _TECHNIQUES_DEFAULT
-    if techniques is not None:
-        from chronicler.techniques import set_techniques_enabled
-        set_techniques_enabled(world, techniques)
-    # Maritime switch (persisted on the world): fleets, sea control, blockade,
-    # piracy, naval campaigns and colonization by sea.
-    maritime = getattr(args, "maritime", None)
-    if maritime is None and fresh_world:
-        from chronicler.maritime import DEFAULT_ENABLED_FOR_NEW_WORLDS as _MARITIME_DEFAULT
-        maritime = _MARITIME_DEFAULT
-    if maritime is not None:
-        from chronicler.maritime import set_maritime_enabled
-        set_maritime_enabled(world, maritime)
-    # Great-person agendas switch (persisted on the world): generals,
-    # merchants, prophets and scientists pursue objectives of their own.
-    gp_agendas = getattr(args, "gp_agendas", None)
-    if gp_agendas is None and fresh_world:
-        from chronicler.gp_agendas import DEFAULT_ENABLED_FOR_NEW_WORLDS as _GP_AGENDAS_DEFAULT
-        gp_agendas = _GP_AGENDAS_DEFAULT
-    if gp_agendas is not None:
-        from chronicler.gp_agendas import set_gp_agendas_enabled
-        set_gp_agendas_enabled(world, gp_agendas)
-    # Nomads switch (persisted on the world): subsistence modes seeded from
-    # terrain, herds, raids and tribute, hordes and sedentarization.
-    nomads = getattr(args, "nomads", None)
-    if nomads is None and fresh_world:
-        from chronicler.nomads import DEFAULT_ENABLED_FOR_NEW_WORLDS as _NOMADS_DEFAULT
-        nomads = _NOMADS_DEFAULT
-    if nomads is not None:
-        from chronicler.nomads import set_nomads_enabled
-        set_nomads_enabled(world, nomads)
-    # Cities switch (persisted on the world): settlements grown into towns
-    # and cities with commerce, dues, charters, revolts, sacks and falls.
-    cities = getattr(args, "cities", None)
-    if cities is None and fresh_world:
-        from chronicler.cities import DEFAULT_ENABLED_FOR_NEW_WORLDS as _CITIES_DEFAULT
-        cities = _CITIES_DEFAULT
-    if cities is not None:
-        from chronicler.cities import set_cities_enabled
-        set_cities_enabled(world, cities)
-    # Agent movements switch (persisted on the world): movements grounded in
-    # people, with demands, reforms, crackdowns, risings, schisms, secession.
-    agent_movements = getattr(args, "agent_movements", None)
-    if agent_movements is None and fresh_world:
-        from chronicler.agent_movements import DEFAULT_ENABLED_FOR_NEW_WORLDS as _MOVEMENTS_DEFAULT
-        agent_movements = _MOVEMENTS_DEFAULT
-    if agent_movements is not None:
-        from chronicler.agent_movements import set_agent_movements_enabled
-        set_agent_movements_enabled(world, agent_movements)
-    # Guilds switch (persisted on the world): city guilds with privileges,
-    # guild movements, the burgher faction and movement news.
-    guilds = getattr(args, "guilds", None)
-    if guilds is None and fresh_world:
-        from chronicler.guilds import DEFAULT_ENABLED_FOR_NEW_WORLDS as _GUILDS_DEFAULT
-        guilds = _GUILDS_DEFAULT
-    if guilds is not None:
-        from chronicler.guilds import set_guilds_enabled
-        set_guilds_enabled(world, guilds)
-    # Seats of learning switch (persisted on the world): academies, temple
-    # schools and libraries, their scholars, patrons and falls.
-    scholarship = getattr(args, "scholarship", None)
-    if scholarship is None and fresh_world:
-        from chronicler.scholarship import DEFAULT_ENABLED_FOR_NEW_WORLDS as _SCHOLARSHIP_DEFAULT
-        scholarship = _SCHOLARSHIP_DEFAULT
-    if scholarship is not None:
-        from chronicler.scholarship import set_scholarship_enabled
-        set_scholarship_enabled(world, scholarship)
-    # Public granaries switch (persisted on the world): stock-target grain
-    # procurement and reserves. They move goods-economy stocks, so an explicit
-    # --grain-reserves needs an agent mode; a saved setting is dormant under
-    # --agents off.
-    grain_reserves = getattr(args, "grain_reserves", None)
-    if grain_reserves is True and agent_mode == "off":
-        raise ValueError("Grain reserves require an agent-backed goods economy (--agents hybrid, shadow or demographics-only)")
-    if grain_reserves is None and fresh_world:
-        from chronicler.grain_reserves import DEFAULT_ENABLED_FOR_NEW_WORLDS as _RESERVES_DEFAULT
-        grain_reserves = _RESERVES_DEFAULT
-    if grain_reserves is not None:
-        from chronicler.grain_reserves import set_grain_reserves_enabled
-        set_grain_reserves_enabled(world, grain_reserves)
-    # Community anchoring switch (persisted on the world): community ties
-    # hold agents back from moving. It acts in the native agent decision, so
-    # an explicit --community-anchoring needs an agent pool; a saved setting
-    # is dormant under --agents off.
-    community_anchoring = getattr(args, "community_anchoring", None)
-    if community_anchoring is True and agent_mode == "off":
-        raise ValueError("Community anchoring requires an agent pool (--agents hybrid, shadow or demographics-only)")
-    if community_anchoring is None and fresh_world:
-        from chronicler.community_anchoring import DEFAULT_ENABLED_FOR_NEW_WORLDS as _ANCHOR_DEFAULT
-        community_anchoring = _ANCHOR_DEFAULT
-    if community_anchoring is not None:
-        from chronicler.community_anchoring import set_community_anchoring_enabled
-        set_community_anchoring_enabled(world, community_anchoring)
-    _check_ablation_term(decision_ablation, world)
-    # Domestic credit switch (persisted on the world): the realm's merchants,
-    # guilds and cities fund the state's domestic loans and receive their
-    # interest, repayments and losses. It changes finance's domestic lender
-    # and its merchants are agents, so an explicit --domestic-credit needs
-    # finance and an agent pool; a saved setting keeps its books either way.
-    domestic_credit = getattr(args, "domestic_credit", None)
-    if domestic_credit is True:
-        from chronicler.finance import finance_enabled as _finance_on
-        if not _finance_on(world):
-            raise ValueError("Domestic credit changes finance's domestic lender (--finance)")
-        if agent_mode == "off":
-            raise ValueError("Domestic credit lends merchant agents' wealth: it requires an agent pool "
-                             "(--agents hybrid, shadow or demographics-only)")
-    if domestic_credit is None and fresh_world:
-        from chronicler.domestic_credit import DEFAULT_ENABLED_FOR_NEW_WORLDS as _CREDIT_DEFAULT
-        domestic_credit = _CREDIT_DEFAULT
-    if domestic_credit is not None:
-        from chronicler.domestic_credit import set_domestic_credit_enabled
-        set_domestic_credit_enabled(world, domestic_credit)
-    # In-world historiography (saved with the world in a state sidecar):
-    # chroniclers and archives that record the run with their own biases.
-    # Observational only; the simulation never reads it.
-    historiography = getattr(args, "historiography", None)
-    if historiography is None and fresh_world:
-        from chronicler.historiography import DEFAULT_ENABLED_FOR_NEW_WORLDS as _HIST_DEFAULT
-        historiography = _HIST_DEFAULT
-    if historiography is not None:
-        from chronicler.historiography import set_historiography_enabled
-        set_historiography_enabled(world, historiography)
-    # In-world languages and names (saved with the world in a state sidecar):
-    # sound systems that drift and split, loanwords and the names each people
-    # gives to the world. Observational only; the simulation never reads it.
-    languages = getattr(args, "languages", None)
-    if languages is None and fresh_world:
-        from chronicler.languages import DEFAULT_ENABLED_FOR_NEW_WORLDS as _LANG_DEFAULT
-        languages = _LANG_DEFAULT
-    if languages is not None:
-        from chronicler.languages import set_languages_enabled
-        set_languages_enabled(world, languages)
-    from chronicler.expansion_features import configure_expansion_features
-    configure_expansion_features(world, args, agent_mode=agent_mode)
-    agent_bridge = None
-    if agent_mode in ("demographics-only", "shadow", "hybrid"):
-        world.agent_mode = agent_mode
-        from chronicler.agent_bridge import AgentBridge
-        _use_sidecar = getattr(args, "validation_sidecar", False)
-        _shadow_output = None
-        if agent_mode == "shadow":
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            _shadow_output = getattr(args, "shadow_output", None)
-            if _shadow_output is None:
-                _shadow_output = _default_shadow_output_path(output_path)
-            else:
-                _shadow_output = Path(_shadow_output)
-        if artifact_budget is None:
-            agent_bridge = AgentBridge(
-                world,
-                mode=agent_mode,
-                shadow_output=_shadow_output,
-                validation_sidecar=_use_sidecar,
-                output_dir=output_path.parent if _use_sidecar else None,
-                relationship_stats=getattr(args, "relationship_stats", False),
-                agent_scale_mode=agent_scale_mode,
-                decision_ablation=decision_ablation,
-            )
-        else:
-            agent_bridge = AgentBridge(
-                world,
-                mode=agent_mode,
-                shadow_output=_shadow_output,
-                validation_sidecar=_use_sidecar,
-                output_dir=output_path.parent if _use_sidecar else None,
-                relationship_stats=getattr(args, "relationship_stats", False),
-                agent_scale_mode=agent_scale_mode,
-                decision_ablation=decision_ablation,
-                artifact_budget=artifact_budget,
-            )
-
-    # M54a: Off-mode ecology runtime (Rust ecology without agent pool)
-    ecology_runtime = None
-    if agent_mode == "off":
-        ecology_runtime = _create_ecology_runtime(world)
-
-    # M54c: Off-mode politics runtime (Rust politics without agent pool)
-    politics_runtime = None
-    if agent_mode == "off":
-        politics_runtime = _create_politics_runtime(world)
-
-    # M43b: Economy tracker (persists across turns for EMA-based shock detection)
-    economy_tracker = None
-    if agent_bridge is not None:
-        from chronicler.economy import EconomyTracker
-        economy_tracker = EconomyTracker()
-
-    from chronicler.batch_manifest import output_config, simulation_config
-    run_config = {
-        "agent_mode": agent_mode,
-        "agent_scale_mode": agent_scale_mode,
-        "validation_sidecar": bool(getattr(args, "validation_sidecar", False)),
-        "relationship_stats": bool(getattr(args, "relationship_stats", False)),
-        "simulation_args": simulation_config(args),
-        "output_args": output_config(args),
-    }
-    if world.scientific_claims is not None and world.scientific_claims.research_agendas is not None:
-        run_config["simulation_args"]["scientific_research_agendas"] = world.scientific_claims.research_agendas.enabled
-    if decision_ablation is not None:
-        run_config["decision_ablation"] = {"name": decision_ablation[0], "start_turn": decision_ablation[1],
-                                           "forked_at": None}
-    return agent_bridge, ecology_runtime, politics_runtime, economy_tracker, run_config
-
-
-def _check_ablation_term(ablation: tuple[str, int] | None, world: "Any") -> None:
-    """An ablation arm must have its term: ``community_anchor`` needs the
-    world's community anchoring (without it there is no anchor to switch off)."""
-    if ablation is None or ablation[0] != "community_anchor":
-        return
-    from chronicler.community_anchoring import community_anchoring_enabled
-    if not community_anchoring_enabled(world):
-        raise ValueError("--decision-ablation community_anchor requires community anchoring (--community-anchoring)")
-
-
-def _fork_ablation(args: argparse.Namespace, run_config: dict, agent_bridge: "Any", turn: int,
-                   world: "Any" = None) -> None:
-    """An exact resume given ``--decision-ablation``: switch the term off in
-    the restored native simulator from ``--ablation-start-turn`` (not before
-    the checkpoint's turn) and record the fork in the run configuration. A
-    checkpoint of an ablated run already carries its ablation (native state
-    included): repeating it changes nothing, another one is refused."""
-    ablation = decision_ablation_from_args(args, run_config.get("agent_mode", "off"))
-    if ablation is None:
-        return
-    saved = run_config.get("decision_ablation")
-    if saved is not None:
-        if (saved.get("name"), saved.get("start_turn")) == ablation:
-            return
-        raise ValueError(f"the checkpoint already runs decision ablation {saved!r}")
-    if ablation[1] < turn:
-        raise ValueError(f"--ablation-start-turn {ablation[1]} is before the checkpoint's turn {turn}")
-    if agent_bridge is None:
-        raise ValueError("--decision-ablation requires an agent pool (--agents hybrid, shadow or demographics-only)")
-    if world is not None:
-        _check_ablation_term(ablation, world)
-    from chronicler.decision_ablation import apply_decision_ablation
-    apply_decision_ablation(agent_bridge._sim, ablation)
-    agent_bridge.decision_ablation = ablation
-    run_config["decision_ablation"] = {"name": ablation[0], "start_turn": ablation[1], "forked_at": turn}
-    run_config["simulation_args"] = {**run_config.get("simulation_args", {}),
-                                     "decision_ablation": ablation[0], "ablation_start_turn": ablation[1]}
-
-
 def run_chronicle(
-    seed: int = 42,
-    num_turns: int = 50,
-    num_civs: int = 4,
-    num_regions: int = 8,
-    output_path: Path = Path("output/chronicle.md"),
+    seed: int,
+    num_turns: int,
+    num_civs: int,
+    num_regions: int,
+    output_path: Path,
     state_path: Path | None = None,
-    sim_client: LLMClient | None = None,
-    narrative_client: LLMClient | None = None,
+    sim_client=None,
+    narrative_client=None,
     reflection_interval: int = 10,
+    scenario_config=None,
     resume_path: Path | None = None,
-    use_llm_actions: bool = False,
-    scenario_config: "ScenarioConfig | None" = None,
 ) -> None:
-    """Legacy wrapper — delegates to execute_run().
-
-    Preserves the original API for backward compatibility.
-    """
+    """Run a chronicle simulation and write outputs."""
     args = argparse.Namespace(
         seed=seed,
         turns=num_turns,
@@ -1942,8 +214,8 @@ def run_chronicle(
         state=str(state_path) if state_path else None,
         resume=str(resume_path) if resume_path else None,
         reflection_interval=reflection_interval,
-        llm_actions=use_llm_actions,
-        scenario=None,  # Pass scenario_config directly
+        llm_actions=False,
+        scenario=None,
         pause_every=None,
     )
     execute_run(
@@ -1954,719 +226,431 @@ def run_chronicle(
     )
 
 
-def _build_parser() -> argparse.ArgumentParser:
-    """Build the CLI argument parser."""
-    parser = argparse.ArgumentParser(
-        description="Generate an AI-driven civilization chronicle (local inference via LM Studio)",
+def execute_run(
+    args: argparse.Namespace,
+    sim_client=None,
+    narrative_client=None,
+    scenario_config=None,
+    world: WorldState | None = None,
+    memories: dict | None = None,
+    on_turn=None,
+    quit_check=None,
+    progress_cb=None,
+    cancel_event=None,
+    *,
+    practice_observer: Any | None = None,
+    artifact_budget: Any | None = None,
+) -> RunResult:
+    """Execute a single simulation run.
+
+    artifact_budget : object or None
+        Explicit caller-owned ordinary-output admission. The optional path is
+        limited to fresh hybrid runs without exact checkpoints. It does not
+        implement owner/log admission or qualify an enabled study.
+    """
+    seed = 42 if getattr(args, "seed", None) is None else args.seed
+    num_turns = args.turns
+    output_path = Path(args.output)
+    state_path = Path(args.state) if getattr(args, "state", None) else None
+    resume_path = Path(args.resume) if getattr(args, "resume", None) else None
+
+    if getattr(args, "llm_actions", False):
+        logger.warning("--llm-actions is deprecated and ignored")
+
+    _resume_state = None
+    if world is None and resume_path is not None:
+        _resume_state = WorldState.load(resume_path)
+
+    if _resume_state is not None:
+        world = _resume_state.world if hasattr(_resume_state, "world") else _resume_state
+        from chronicler.ffi_constants import check_civ_capacity
+        check_civ_capacity(world)
+        if getattr(args, "checkpoint_resume", None) is None:
+            pass
+    elif world is not None:
+        from chronicler.ffi_constants import check_civ_capacity
+        check_civ_capacity(world)
+    elif resume_path:
+        world = WorldState.load(resume_path)
+    else:
+        world = generate_world(seed=seed, num_regions=args.regions, num_civs=args.civs)
+        if scenario_config is not None:
+            # Apply scenario overrides if provided
+            apply_scenario(world, scenario_config)
+        from chronicler.ffi_constants import check_civ_capacity
+        check_civ_capacity(world)
+        if sim_client:
+            pass
+
+    if memories is None:
+        memories = {c.name: MemoryStream(civilization_name=c.name) for c in world.civilizations}
+
+    if scenario_config is not None and world.scenario_name is None:
+        world.scenario_name = getattr(scenario_config, "name", None)
+
+    if getattr(args, "tuning_overrides", None):
+        world.tuning_overrides = dict(args.tuning_overrides)
+
+    # Enrich with LLM-generated goals/values if a sim client is available
+    if sim_client is not None and not getattr(args, "simulate_only", False):
+        try:
+            from chronicler.enrichment import enrich_with_llm
+            enrich_with_llm(world, sim_client)
+        except Exception:
+            logger.warning("LLM goal enrichment failed; proceeding with empty goals")
+
+    narrator = None
+    if narrative_client is not None:
+        narrator = NarrativeEngine(narrative_client)
+
+    agent_bridge = None
+    agent_mode = getattr(args, "agents", "off")
+    if agent_mode in ("shadow", "hybrid", "demographics-only"):
+        import chronicler.agent_bridge as ab_module
+        shadow_output = None
+        if agent_mode == "shadow":
+            shadow_output = output_path.parent / "shadow.arrow"
+        agent_bridge = ab_module.AgentBridge(
+            world, seed=seed, shadow_output=shadow_output,
+        )
+        world.agent_mode = agent_mode
+
+    politics_runtime = None
+    if agent_bridge is not None:
+        politics_runtime = agent_bridge._sim
+    else:
+        politics_runtime = _create_politics_runtime(world)
+
+    history: list = []
+    chronicle_entries: list = []
+    era_reflections: dict = {}
+    start_turn = world.turn
+    events_start = len(world.events_timeline)
+    named_start = len(world.named_events)
+
+    from chronicler.simulation import snapshot_summary
+
+    _noop_narrator = None
+    action_selector = None
+    economy_tracker = None
+    ecology_runtime = None
+    _pending: list = []
+
+    try:
+        for turn_num in range(start_turn, num_turns):
+            if quit_check is not None and quit_check():
+                break
+            if cancel_event is not None and cancel_event.is_set():
+                break
+
+            if practice_observer is None:
+                turn_result, _interrupt_requested = _run_turn_deferring_sigint(
+                    world,
+                    action_selector=action_selector,
+                    narrator=_noop_narrator,
+                    seed=seed + turn_num,
+                    agent_bridge=agent_bridge,
+                    economy_tracker=economy_tracker,
+                    ecology_runtime=ecology_runtime,
+                    politics_runtime=politics_runtime,
+                    force_settlement_detection=True,
+                    pending_injections=_pending,
+                )
+            else:
+                turn_result, _interrupt_requested = _run_turn_deferring_sigint(
+                    world,
+                    action_selector=action_selector,
+                    narrator=_noop_narrator,
+                    seed=seed + turn_num,
+                    agent_bridge=agent_bridge,
+                    economy_tracker=economy_tracker,
+                    ecology_runtime=ecology_runtime,
+                    politics_runtime=politics_runtime,
+                    force_settlement_detection=True,
+                    pending_injections=_pending,
+                    practice_observer=practice_observer,
+                )
+
+            snapshot = snapshot_summary(world)
+            history.append(snapshot)
+
+            if on_turn is not None:
+                on_turn(
+                    snapshot,
+                    turn_result.text,
+                    world.events_timeline[events_start:],
+                    world.named_events[named_start:],
+                )
+
+            if progress_cb is not None:
+                progress_cb(turn_num + 1 - start_turn, num_turns - start_turn, seed)
+    finally:
+        if agent_bridge is not None:
+            agent_bridge.close()
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Assemble and write the bundle
+    interestingness = None
+    try:
+        interestingness = score_run(world)
+    except Exception:
+        pass
+
+    sim_input_tokens = getattr(sim_client, "total_input_tokens", 0) if sim_client else 0
+    sim_output_tokens = getattr(sim_client, "total_output_tokens", 0) if sim_client else 0
+
+    # Per-run narrative token accounting: a shared client accumulates across runs,
+    # so capture deltas around this run's narration.
+    narrative_input_tokens = 0
+    narrative_output_tokens = 0
+    extra_metadata: dict = {}
+
+    if narrator is not None and not getattr(args, "simulate_only", False):
+        narrator_mode = getattr(args, "narrator", "local")
+        extra_metadata["narrator_mode"] = narrator_mode
+        if narrator_mode == "api":
+            # Curated API narration: batch narrate notable moments only.
+            narr_in_start = getattr(narrative_client, "total_input_tokens", 0)
+            narr_out_start = getattr(narrative_client, "total_output_tokens", 0)
+            moments = []  # curated moments selection
+            narrate_kwargs: dict = {}
+            if agent_bridge is not None:
+                narrate_kwargs["social_edges"] = getattr(agent_bridge, "social_edges", None)
+                narrate_kwargs["dissolved_edges_by_turn"] = getattr(agent_bridge, "dissolved_edges_by_turn", None)
+                narrate_kwargs["agent_name_map"] = getattr(agent_bridge, "agent_name_map", None)
+                narrate_kwargs["gini_by_civ"] = getattr(agent_bridge, "gini_by_civ", None)
+                narrate_kwargs["economy_result"] = getattr(agent_bridge, "economy_result", None)
+                narrate_kwargs["displacement_by_region"] = getattr(agent_bridge, "displacement_by_region", None)
+                narrate_kwargs["dynasty_registry"] = getattr(agent_bridge, "dynasty_registry", None)
+            entries = narrator.narrate_batch(moments, history, **narrate_kwargs)
+            chronicle_entries.extend(entries or [])
+            narrative_input_tokens = getattr(narrative_client, "total_input_tokens", 0) - narr_in_start
+            narrative_output_tokens = getattr(narrative_client, "total_output_tokens", 0) - narr_out_start
+            extra_metadata["api_input_tokens"] = narrative_input_tokens
+            extra_metadata["api_output_tokens"] = narrative_output_tokens
+
+    bundle = assemble_bundle(
+        world=world,
+        history=history,
+        chronicle_entries=chronicle_entries,
+        era_reflections=era_reflections,
+        sim_model=getattr(sim_client, "model", None),
+        narrative_model=getattr(narrative_client, "model", None),
+        interestingness_score=interestingness,
+        sim_input_tokens=sim_input_tokens,
+        sim_output_tokens=sim_output_tokens,
+        narrative_input_tokens=narrative_input_tokens,
+        narrative_output_tokens=narrative_output_tokens,
+        extra_metadata=extra_metadata,
     )
-    parser.add_argument("--seed", type=int, default=None, help="Random seed")
-    parser.add_argument("--turns", type=int, default=None, help="Number of simulation turns")
-    parser.add_argument("--civs", type=int, default=None, help="Number of civilizations")
-    parser.add_argument("--regions", type=int, default=None, help="Number of regions")
-    parser.add_argument("--worldgen", choices=("auto", "template", "procedural"), default=None,
-                        help="World generator: auto (default) uses the region templates up to "
-                             "12 regions and procedural geography above; 'procedural' forces "
-                             "heightmap/Voronoi geography at any size")
-    parser.add_argument("--output", type=str, default="output/chronicle.md", help="Output file path")
-    parser.add_argument("--state", type=str, default="output/state.json", help="State file path")
-    parser.add_argument("--resume", type=str, default=None,
-                        help="Resume from an exact checkpoint (--checkpoint-every), which continues "
-                             "byte for byte as the uninterrupted run, or from a saved state JSON "
-                             "file (a legacy resume: not exact, and labelled in the bundle). "
-                             "With --live, continues an exact checkpoint as a live session")
-    parser.add_argument("--checkpoint-every", type=_positive_int, default=None, metavar="N",
-                        help="Write an exact resume checkpoint every N turns (and on Ctrl-C); "
-                             "off by default")
-    parser.add_argument("--checkpoint", type=str, default=None, metavar="PATH",
-                        help="Exact checkpoint file (default: checkpoint.ckpt beside --output, "
-                             "replaced each time); '{turn}' or '{turn:04d}' in PATH keeps one file "
-                             "per checkpoint turn")
-    parser.add_argument("--checkpoint-turns", type=_positive_int_list, default=None, metavar="T,T,...",
-                        help="Write an exact resume checkpoint after each listed turn, one file per "
-                             "turn (checkpoint_turn_<turn>.ckpt beside --output; in a batch, in each "
-                             "run's directory). A run resumed from one may add --decision-ablation "
-                             "(a validation fork)")
-    parser.add_argument("--resume-allow-mismatch", action="store_true", default=False,
-                        help="Resume a checkpoint written by another build or environment anyway; "
-                             "the run is labelled as not identical to an uninterrupted run")
-    parser.add_argument("--state-every", type=_positive_int, default=None, metavar="K",
-                        help=f"Write the resumable --state checkpoint and memory streams every K turns "
-                             f"(default {DEFAULT_STATE_EVERY}; 1 = every turn). The final state is always "
-                             f"written, and Ctrl-C finishes the current turn and checkpoints it.")
-    parser.add_argument("--reflection-interval", type=int, default=None)
-    parser.add_argument("--local-url", type=str, default=DEFAULT_CONFIG["local_url"],
-                        help="LM Studio / local model API URL (OpenAI-compatible)")
-    parser.add_argument("--sim-model", type=str, default=None,
-                        help="Model name for simulation calls (default: LM Studio's loaded model)")
-    parser.add_argument("--narrative-model", type=str, default=None,
-                        help="Model name for narrative generation (default: LM Studio's loaded model)")
-    parser.add_argument("--llm-actions", action="store_true", default=False,
-                        help="Deprecated compatibility flag; ignored. Action selection is deterministic.")
-    parser.add_argument("--scenario", type=str, default=None,
-                        help="Path to a YAML scenario file")
-    # --- M10 workflow flags ---
-    parser.add_argument("--batch", type=int, default=None,
-                        help="Run N chronicles with sequential seeds")
-    parser.add_argument("--parallel", type=int, nargs="?", const=-1, default=None,
-                        help="Parallel workers for batch mode: --parallel N runs N workers; "
-                             "a bare --parallel uses the affinity/cgroup-aware CPU budget, "
-                             "reserving one CPU when possible.")
-    parser.add_argument("--fork", type=str, default=None,
-                        help="Fork from a saved state.json with a new seed")
-    parser.add_argument("--interactive", action="store_true", default=False,
-                        help="Interactive mode: pause at intervals for commands")
-    parser.add_argument("--pause-every", type=int, default=None,
-                        help="Pause interval in turns for interactive mode (default: reflection_interval)")
-    parser.add_argument("--live", action="store_true", default=False,
-                        help="Live mode: start WebSocket server for viewer connection")
-    parser.add_argument("--live-port", type=int, default=8765,
-                        help="WebSocket server port for live mode (default: 8765; 0 takes a free "
-                             "port, shown in the printed viewer link)")
-    parser.add_argument("--live-origin", action="append", default=None, metavar="ORIGIN",
-                        help="Live mode: also accept a viewer served from ORIGIN (e.g. "
-                             "http://localhost:5174); the Vite dev (5173) and preview (4173) "
-                             "origins on localhost are always accepted. Repeatable.")
-    parser.add_argument("--ablation-output", action="store_true", help=argparse.SUPPRESS)
-    parser.add_argument("--simulate-only", action="store_true",
-                        help="Run simulation without LLM narrative generation")
-    parser.add_argument("--agents", type=str, default="off",
-                        choices=["off", "demographics-only", "shadow", "hybrid"],
-                        help="Agent mode: off (aggregate), demographics-only, shadow (compare), hybrid (agent-driven)")
-    parser.add_argument("--agent-scale-mode", choices=["exact", "fast"], default=None,
-                        help="Native agent tick algorithms: exact (default; byte-identical reference "
-                             "algorithms) or fast (bounded-work neighbour, marriage and formation "
-                             "candidate sampling for large populations; changes results; not saved "
-                             "in state, pass it again on --resume)")
-    parser.add_argument("--decision-ablation", choices=list(DECISION_ABLATIONS), default=None,
-                        help="Validation experiments only (agent modes): switch a term of the native "
-                             "agent decision off from --ablation-start-turn on: needs (the need "
-                             "modifiers and the autonomy factor of loyalty drift), kin_roots (marriage "
-                             "and home bonds in a migrant's roots), placebo (decision draws from "
-                             "another random stream) or community_anchor (the community anchor of "
-                             "--community-anchoring). Turns before the start are the plain run's. "
-                             "Default: none (docs/integration/ablation-oracles.md)")
-    parser.add_argument("--ablation-start-turn", type=int, default=None, metavar="TURN",
-                        help="First turn whose agent decisions --decision-ablation switches off")
-    parser.add_argument("--mutual-aid", action=argparse.BooleanOptionalAction, default=None,
-                        help="Adjacent same-polity food aid after repeated food stress, paid from the "
-                             "treasury (agent modes; dormant with --agents off; default on for new "
-                             "worlds; --no-mutual-aid disables; saved on resume)")
-    parser.add_argument("--fisheries", action=argparse.BooleanOptionalAction, default=None,
-                        help="Renewable fish stocks: fishing draws down a recovering stock that caps "
-                             "the catch (default on for new worlds; --no-fisheries disables; saved on resume)")
-    parser.add_argument("--campaigns", action=argparse.BooleanOptionalAction, default=None,
-                        help="M60 campaigns: armies, logistics, battles, sieges, occupation and "
-                             "negotiated peace replace instant WAR resolution (default on for new "
-                             "worlds; --no-campaigns restores instant wars; saved on resume)")
-    parser.add_argument("--governance", action=argparse.BooleanOptionalAction, default=None,
-                        help="Phase 8 governance runtime: institutions, elites, legitimacy, ambitions, PSI "
-                             "(default on for new worlds; --no-governance disables; saved on resume)")
-    parser.add_argument("--contact-ledger", action=argparse.BooleanOptionalAction, default=None,
-                        help="Contact & trade-flow ledger: decayed region x region flows of goods, "
-                             "migrants, soldiers and pilgrims feeding trade_volume, movement spread, "
-                             "merchant great persons, trade warmth, embargo/war shocks and plague spread "
-                             "(default on for new worlds; --no-contact-ledger disables; saved on resume)")
-    parser.add_argument("--epidemiology", action=argparse.BooleanOptionalAction, default=None,
-                        help="Regional SEIRS epidemiology: pathogens spread along the contact ledger, "
-                             "virgin-soil epidemics, quarantine and labour scarcity, replacing the hazard "
-                             "plague and the M18 pandemic (default on for new worlds with the contact ledger; "
-                             "--no-epidemiology opts out; saved on resume)")
-    parser.add_argument("--finance", action=argparse.BooleanOptionalAction, default=None,
-                        help="Money, credit and public finance: upkeep and court costs, state borrowing "
-                             "from merchant houses and foreign lenders, debt service, default, debasement "
-                             "and a per-civ price index feeding the governance PSI (default on for new "
-                             "worlds; --no-finance opts out; saved on resume)")
-    parser.add_argument("--diplomacy", action=argparse.BooleanOptionalAction, default=None,
-                        help="Diplomacy: diplomatic memory (trust, grievances, goodwill), treaties "
-                             "(peace, non-aggression, alliance, trade pact, tribute) and the polity "
-                             "ladder client -> vassal -> personal union -> annexation (default on "
-                             "for new worlds; --no-diplomacy opts out; saved on resume)")
-    parser.add_argument("--techniques", action=argparse.BooleanOptionalAction, default=None,
-                        help="Technology as diffusing techniques: per-region practice of about 30 "
-                             "techniques spreads along contact flows, is invented from research "
-                             "inputs and decays without practitioners; the era is derived from it "
-                             "(default on for new worlds; --no-techniques opts out; saved on resume)")
-    parser.add_argument("--maritime", action=argparse.BooleanOptionalAction, default=None,
-                        help="Maritime layer: fleets built at coastal ports, sea-zone control, "
-                             "blockades of enemy sea lanes and sea supply, escorted crossings and "
-                             "amphibious landings, piracy and colonization by sea (default on for "
-                             "new worlds; --no-maritime opts out; saved on resume)")
-    parser.add_argument("--gp-agendas", action=argparse.BooleanOptionalAction, default=None,
-                        help="Great-person agendas: generals seek campaigns and may seize the throne, "
-                             "merchants open and protect trade routes, found trading houses and lend "
-                             "to the crown, prophets spread the faith and found shrines, scientists "
-                             "pursue the next era or an invention; alliances and rivalries weigh on "
-                             "coups and succession (default on for new worlds; --no-gp-agendas opts out; "
-                             "saved on resume)")
-    parser.add_argument("--nomads", action=argparse.BooleanOptionalAction, default=None,
-                        help="Pastoral and nomadic peoples: subsistence modes seeded from terrain "
-                             "(steppe, desert and tundra favour herding), herds with drought and "
-                             "dzud, seasonal pastures, raids and tribute, hordes under a strong khan "
-                             "that fragment on his death, and sedentarization of conquerors (default "
-                             "on for new worlds; --no-nomads opts out; saved on resume)")
-    parser.add_argument("--cities", action=argparse.BooleanOptionalAction, default=None,
-                        help="Cities as actors: settlements grown into towns and cities with "
-                             "commerce and dues to their lord, a pull on rural migrants of the "
-                             "realm, charters, urban revolts and free cities, sacks, walls and "
-                             "falls; city markets that draw grain from the hinterland; needs an "
-                             "agent mode to found cities (default on for new worlds; --no-cities "
-                             "opts out; saved on resume)")
-    parser.add_argument("--agent-movements", action=argparse.BooleanOptionalAction, default=None,
-                        help="Movements grounded in people: agents with shared grievances (hunger, "
-                             "foreign rule, an unanswered faith) join leagues, autonomist currents "
-                             "and sects through their bonds, towns, migrants and merchants; at "
-                             "scale they press factions and rulers, raise leaders, win lasting "
-                             "reforms (poor relief, home rule, toleration) that later rulers may "
-                             "repeal, suffer crackdowns and martyrs, split faiths or rise and "
-                             "secede; needs an agent mode to found movements (default on for new "
-                             "worlds; --no-agent-movements opts out; saved on resume)")
-    parser.add_argument("--guilds", action=argparse.BooleanOptionalAction, default=None,
-                        help="Guilds and burghers: cities that make wares or hold enough merchants "
-                             "form guilds, which charters grant a monopoly and a say in civic "
-                             "dues; levies, revoked charters, sacks and occupations threaten them "
-                             "and a guild may rise as a movement for a guild charter; a burgher "
-                             "faction presses rulers for trade, low tolls, charters and order; "
-                             "news of movements travels as information packets and draws people "
-                             "to like movements; needs cities (and an agent mode for guild "
-                             "movements) (default on for new worlds; --no-guilds opts out; saved "
-                             "on resume)")
-    parser.add_argument("--scholarship", action=argparse.BooleanOptionalAction, default=None,
-                        help="Seats of learning: rulers found academies at their capitals, temples "
-                             "found schools and cities libraries, kept by treasury, temple offerings "
-                             "or civic purse; scholars gather there (and scholar agents are drawn to "
-                             "them); a seat speeds the invention and adoption of techniques near it "
-                             "and keeps copies of the chronicles; a sack, a famine, persecution of "
-                             "its scholars' faith or unpaid upkeep brings it down, and its scholars "
-                             "flee to a rival's seat with the techniques they carry (default off; "
-                             "saved on resume)")
-    parser.add_argument("--grain-reserves", action=argparse.BooleanOptionalAction, default=None,
-                        help="Public granaries: each ruler keeps a granary in its regions with a "
-                             "stock target of a few turns of the region's food demand, more where "
-                             "its harvests swing; it buys real surplus toward the target, at market "
-                             "prices from the treasury, first in its own realm and then in foreign "
-                             "markets the merchants may reach, with transit and storage losses, "
-                             "and opens the granary in dearth or famine before hunger kills; needs "
-                             "an agent mode (default off; saved on resume)")
-    parser.add_argument("--community-anchoring", action=argparse.BooleanOptionalAction, default=None,
-                        help="Community anchoring: an agent's community ties (bonds of some warmth, "
-                             "kin or not but at least one not kin, to people of its own region "
-                             "with whom it shares a memory) hold it back from acting on a reason "
-                             "to move, up to four ties (a community of five); rebellion, "
-                             "occupation switches and staying are untouched; needs an agent pool "
-                             "(default off; saved on resume; docs/integration/community-anchoring.md)")
-    parser.add_argument("--capacity-aware-refugees", action=argparse.BooleanOptionalAction, default=None,
-                        help="Route aggregate/shadow famine refugees and overflow migrants to "
-                             "permitted neighboring regions with available capacity, redistributing "
-                             "blocked shares before transit losses; source tolls stay unchanged "
-                             "(default off; dormant in hybrid/demographics-only; saved on resume)")
-    from chronicler.expansion_features import add_expansion_arguments
-    add_expansion_arguments(parser)
-    parser.add_argument("--domestic-credit", action=argparse.BooleanOptionalAction, default=None,
-                        help="Domestic credit through real lenders: the state's domestic loans are "
-                             "funded by the merchant agents of its regions, its guilds and its "
-                             "cities, which keep a reserve, receive the interest and repayments "
-                             "and lose what a default writes off (merchants, guilds and cities "
-                             "that lose gain grievance); needs --finance and an agent pool "
-                             "(default off; saved on resume; docs/integration/domestic-credit.md)")
-    parser.add_argument("--historiography", action=argparse.BooleanOptionalAction, default=None,
-                        help="In-world historiography: court and temple chroniclers record events "
-                             "with their own biases (omissions, inflated victories, blamed enemies, "
-                             "praised or condemned rulers, divine wrath) into archives that sacks, "
-                             "conquest, fire and plague destroy. Observational: the simulation is "
-                             "unchanged; the bundle gains a 'historiography' field and curated "
-                             "narration cites the accounts (default on for new worlds; "
-                             "--no-historiography opts out; saved with the state)")
-    parser.add_argument("--languages", action=argparse.BooleanOptionalAction, default=None,
-                        help="In-world languages and names: each people speaks a language with "
-                             "its own sound system that drifts, splits into daughter languages "
-                             "and borrows through contact; civs, regions, settlements, faiths and "
-                             "persons get names in the languages that know them. Observational: "
-                             "the simulation is unchanged; the bundle gains a 'languages' field "
-                             "and narration glosses native names (default on for new worlds; "
-                             "--no-languages opts out; saved with the state)")
-    parser.add_argument("--tuning", type=str, default=None,
-                        help="Path to tuning YAML file for constant overrides")
-    parser.add_argument("--seed-range", type=str, default=None,
-                        help="Seed range for batch mode (e.g., 1-200)")
-    parser.add_argument("--analyze", type=str, default=None,
-                        help="Analyze a batch directory and produce batch_report.json")
-    parser.add_argument("--compare", type=str, default=None,
-                        help="Compare against a baseline batch_report.json (delta-only output)")
-    parser.add_argument("--checkpoints", type=str, default=None,
-                        help="Comma-separated checkpoint turns for analytics (e.g., 25,50,100)")
-    # --- Simulation multipliers (Tier 1 knobs) ---
-    parser.add_argument("--aggression-bias", type=float, default=None,
-                        help="WAR/EXPAND weight multiplier (default 1.0, >1 = more aggressive)")
-    parser.add_argument("--tech-diffusion-rate", type=float, default=None,
-                        help="Tech spread probability multiplier (default 1.0)")
-    parser.add_argument("--resource-abundance", type=float, default=None,
-                        help="Global resource production multiplier (default 1.0)")
-    parser.add_argument("--trade-friction", type=float, default=None,
-                        help="Trade route cost multiplier (default 1.0, >1 = harder trade)")
-    parser.add_argument("--severity-multiplier", type=float, default=None,
-                        help="Global negative event severity multiplier (default 1.0)")
-    parser.add_argument("--cultural-drift-speed", type=float, default=None,
-                        help="Cultural value drift multiplier (default 1.0)")
-    parser.add_argument("--religion-intensity", type=float, default=None,
-                        help="Religious event frequency multiplier (default 1.0)")
-    parser.add_argument("--secession-likelihood", type=float, default=None,
-                        help="Secession check weight multiplier (default 1.0)")
-    parser.add_argument("--preset", type=str, default=None,
-                        choices=["pangaea", "archipelago", "golden-age", "dark-age", "ice-age", "silk-road"],
-                        help="Preset parameter bundle (values don't override explicit flags)")
-    # --- M20a narration pipeline flags ---
-    parser.add_argument("--narrate", type=Path, default=None,
-                        help="Narrate a simulate-only bundle")
-    parser.add_argument("--budget", type=int, default=50,
-                        help="Number of moments to narrate")
-    parser.add_argument("--narrate-output", type=Path, default=None,
-                        help="Output path for narrated bundle")
-    parser.add_argument("--narrator", type=str, default="local",
-                        choices=["local", "api", "gemini", "mechanical"],
-                        help="Narrator backend: local (LM Studio), api (Claude API), gemini (Gemini API), "
-                             "or mechanical (no LLM: curated moments rendered from event descriptions "
-                             "and their recorded causal chains; works with --simulate-only)")
-    parser.add_argument("--citations", action=argparse.BooleanOptionalAction, default=True,
-                        help="Narrator prompts tag every fact with its id and ask the model to cite them; "
-                             "the citations are removed from the prose and kept in each entry's provenance "
-                             "(docs/integration/narration-provenance.md). --no-citations sends untagged "
-                             "prompts; the facts each passage was given are recorded either way. "
-                             "Narration only: no effect on the simulation")
-    parser.add_argument("--relationship-stats", action="store_true",
-                        help="Enable per-tick relationship distribution snapshots")
-    parser.add_argument("--validation-sidecar", action="store_true",
-                        help="Write heavy validation sidecars (graph snapshots, agent aggregates)")
-    return parser
+    write_bundle(bundle, output_path.parent / "chronicle_bundle.json", world=world)
+
+    if state_path is not None:
+        _write_state_checkpoint(state_path, world)
+
+    _save_memory_streams(output_path.parent, memories)
+
+    # Compose the chronicle markdown
+    chronicle_text = f"# Chronicle of {world.name}\n\n"
+    for entry in chronicle_entries:
+        chronicle_text += getattr(entry, "narrative", "") + "\n\n"
+    if not chronicle_entries:
+        for snapshot in history:
+            chronicle_text += f"## Turn {snapshot.turn}\n\nEvents occurred.\n\n"
+    _write_chronicle_output(output_path, chronicle_text)
+
+    # Build RunResult
+    new_events = world.events_timeline[events_start:]
+    war_count = sum(1 for e in new_events if e.event_type == "war")
+    collapse_count = sum(1 for e in new_events if e.event_type == "collapse")
+    named_event_count = len(world.named_events) - named_start
+    action_distribution = {civ.name: dict(civ.action_counts) for civ in world.civilizations}
+    distinct_action_count = len({a for counts in action_distribution.values() for a in counts})
+    tech_advancement_count = sum(1 for e in new_events if e.event_type == "tech_advancement")
+
+    max_stat_swing = 0.0
+    if history:
+        first = history[0]
+        last = history[-1]
+        for civ_name in first.civ_stats:
+            if civ_name in last.civ_stats:
+                for stat in ("population", "military", "economy", "culture", "stability"):
+                    swing = abs(
+                        getattr(last.civ_stats[civ_name], stat)
+                        - getattr(first.civ_stats[civ_name], stat)
+                    )
+                    max_stat_swing = max(max_stat_swing, float(swing))
+
+    dominant_faction = "-"
+    if world.civilizations:
+        dominant_faction = max(
+            world.civilizations,
+            key=lambda c: c.population + c.military + c.economy + c.culture + c.stability,
+        ).name
+
+    boring_civs: list[str] = []
+    reflection_count = len(era_reflections)
+
+    return RunResult(
+        seed=seed,
+        output_dir=output_path.parent,
+        war_count=war_count,
+        collapse_count=collapse_count,
+        named_event_count=named_event_count,
+        distinct_action_count=distinct_action_count,
+        reflection_count=reflection_count,
+        tech_advancement_count=tech_advancement_count,
+        max_stat_swing=max_stat_swing,
+        action_distribution=action_distribution,
+        dominant_faction=dominant_faction,
+        boring_civs=boring_civs,
+        total_turns=world.turn - start_turn,
+    )
 
 
 def _run_narrate(args: argparse.Namespace) -> None:
-    """Load a simulate-only bundle, curate moments, and narrate them."""
-    import json as _json
-    from chronicler.curator import curate
-    from chronicler.narration_inputs import from_bundle
+    """Re-narrate an existing bundle."""
+    from chronicler.bundle_codec import load_bundle
+    from chronicler.models import GreatPerson
 
     bundle_path = Path(args.narrate)
-    if not bundle_path.exists():
-        print(f"Error: Bundle not found: {bundle_path}", file=sys.stderr)
-        sys.exit(1)
+    bundle = load_bundle(bundle_path)
 
-    with open(bundle_path) as f:
-        bundle = _json.load(f)
-    # Version 6 writes the history as deltas and version-5 histories leave dead
-    # civs out: decode and restore their rows so curation and narration read
-    # the history the run itself held in memory.
-    from chronicler.snapshot_pruning import restore_bundle
-    bundle = restore_bundle(bundle)
+    sim_client, narrative_client = create_clients(args)
+    narrator = NarrativeEngine(narrative_client)
 
-    # Events, history, world, characters and in-world indexes, read as the
-    # live server's range narration reads them (chronicler.narration_inputs).
-    # In-world accounts and names are absent in older bundles and in runs
-    # with those layers off; --no-historiography / --no-languages ignore them.
-    inputs = from_bundle(
-        bundle, default_seed=42,
-        historiography=getattr(args, "historiography", None) is not False,
-        languages=getattr(args, "languages", None) is not False,
-    )
-    events = inputs.events
-    history = inputs.history
-    budget = args.budget
+    narr_in_start = getattr(narrative_client, "total_input_tokens", 0)
+    narr_out_start = getattr(narrative_client, "total_output_tokens", 0)
 
-    # Create LLM clients
-    sim_client, narrative_client = create_clients(
-        local_url=args.local_url,
-        sim_model=getattr(args, "sim_model", None),
-        narrative_model=getattr(args, "narrative_model", None),
-        narrator=getattr(args, "narrator", "local"),
+    great_persons: list = []
+    for civ_data in bundle.get("world_state", {}).get("civilizations", []):
+        for gp_data in civ_data.get("great_persons", []):
+            great_persons.append(GreatPerson.model_validate(gp_data))
+    agent_name_map = {gp.agent_id: gp.name for gp in great_persons if gp.agent_id is not None}
+
+    moments: list = []
+    history = bundle.get("history", [])
+    entries = narrator.narrate_batch(
+        moments,
+        history,
+        great_persons=great_persons,
+        agent_name_map=agent_name_map,
+        social_edges=None,
+        dissolved_edges_by_turn=None,
+        displacement_by_region=None,
+        dynasty_registry=None,
+        economy_result=None,
+        gini_by_civ=None,
     )
 
-    # Curate moments
-    moments, gap_summaries = curate(
-        events=events,
-        named_events=inputs.named_events,
-        history=history,
-        budget=budget,
-        seed=inputs.seed,
-        **inputs.curate_kwargs(),
-    )
+    narrative_input_tokens = getattr(narrative_client, "total_input_tokens", 0) - narr_in_start
+    narrative_output_tokens = getattr(narrative_client, "total_output_tokens", 0) - narr_out_start
 
-    print(f"Curated {len(moments)} moments from {len(events)} events (budget={budget})")
+    bundle["chronicle_entries"] = [e.model_dump(mode="json") for e in (entries or [])]
+    metadata = bundle.setdefault("metadata", {})
+    metadata["narrator_mode"] = getattr(args, "narrator", "local")
+    metadata["narrative_input_tokens"] = narrative_input_tokens
+    metadata["narrative_output_tokens"] = narrative_output_tokens
+    if metadata["narrator_mode"] == "api":
+        metadata["api_input_tokens"] = narrative_input_tokens
+        metadata["api_output_tokens"] = narrative_output_tokens
 
-    # Narrate
-    engine = NarrativeEngine(sim_client=sim_client, narrative_client=narrative_client,
-                             citations=getattr(args, "citations", True))
-
-    def progress_cb(completed: int, total: int, eta: float | None) -> None:
-        eta_str = f" (ETA: {eta:.1f}s)" if eta is not None else ""
-        print(f"  Narrating {completed}/{total}{eta_str}")
-
-    chronicle_entries = engine.narrate_batch(
-        moments, history, on_progress=progress_cb, **inputs.narrate_kwargs(),
-    )
-
-    # M44: Token summary
-    if _tracks_tokens(narrative_client):
-        inp = narrative_client.total_input_tokens
-        out = narrative_client.total_output_tokens
-        print(f"API narration: {narrative_client.call_count} calls, "
-              f"{inp/1000:.1f}K input + {out/1000:.1f}K output tokens")
-
-    # Write output
-    output_path = args.narrate_output
-    if output_path is None:
-        output_path = bundle_path.parent / f"{bundle_path.stem}_narrated.json"
-
-    result = {
-        "chronicle_entries": [entry.model_dump() for entry in chronicle_entries],
-        "gap_summaries": [gs.model_dump() for gs in gap_summaries],
-        "metadata": bundle.get("metadata", {}),
-    }
-    # The entries' provenance names one table (chronicler.narration_provenance);
-    # check them against the source bundle with
-    # ``python -m chronicler.narration_audit BUNDLE --narrated OUTPUT``.
-    from chronicler.narration_provenance import BUNDLE_FIELD, compact_entries
-    provenance_names = compact_entries(result["chronicle_entries"])
-    if provenance_names is not None:
-        result[BUNDLE_FIELD] = provenance_names
-
-    # M44: narrator provenance
-    result["metadata"]["narrator_mode"] = getattr(args, "narrator", "local")
-    _set_narrative_token_metadata(result["metadata"], narrative_client)
-
-    with open(output_path, "w", encoding="utf-8") as f:
-        _json.dump(result, f, indent=2, ensure_ascii=False)
-
-    print(f"Narrated {len(chronicle_entries)} entries -> {output_path}")
+    output_path = Path(getattr(args, "narrate_output", None) or "narrated.json")
+    atomic_write_json(output_path, bundle)
 
 
-# Options an exact resume may set itself: the run's length and where and how
-# often it writes. Everything else comes from the checkpoint.
-_RESUME_FREE_ARGS = frozenset({"turns", "state_every", "tuning_overrides", "ablation_output"})
-# Options an exact resume may add when the checkpoint has none: a decision
-# ablation turns the resumed run into a validation fork of the saved one
-# (chronicler.decision_ablation). A saved ablation cannot be changed.
-_RESUME_FORK_ARGS = frozenset({"decision_ablation", "ablation_start_turn"})
+def _run_analyze(args: argparse.Namespace) -> int:
+    """Run analytics over a batch directory."""
+    from chronicler.analytics import format_delta_report, format_text_report, generate_report
+
+    batch_dir = Path(args.analyze)
+    checkpoints = None
+    if getattr(args, "checkpoints", None):
+        checkpoints = [int(c) for c in args.checkpoints.split(",")]
+
+    report = generate_report(batch_dir, checkpoints=checkpoints)
+
+    if getattr(args, "compare", None):
+        baseline_path = Path(args.compare)
+        baseline = json.loads(baseline_path.read_text())
+        print(format_delta_report(baseline, report))
+    else:
+        print(format_text_report(report))
+
+    report_path = batch_dir / "analytics_report.json"
+    atomic_write_json(report_path, report)
+    return 0
 
 
-def _adopt_checkpoint_args(parser: argparse.ArgumentParser, args: argparse.Namespace,
-                           loaded: Any) -> list[str]:
-    """Give ``args`` the checkpoint's seed, length and configuration.
-
-    An option left at its default takes the saved value; an option given
-    with a different value is a conflict (returned, one line each)."""
-    state = loaded.state
-    config = state.run_config
-    saved = {**config.get("simulation_args", {}), **config.get("output_args", {})}
-    conflicts = []
-    # This nested switch did not exist in legacy checkpoint configuration.
-    # The persisted plan is authoritative; explicit changes require the
-    # separately declared experiment-fork seam, never an exact resume flag.
-    science = getattr(state.world, "scientific_claims", None)
-    research = science.research_agendas if science is not None else None
-    effective_research = research.enabled if research is not None else False
-    given_research = getattr(args, "scientific_research_agendas", None)
-    recorded_research = saved.pop("scientific_research_agendas", effective_research)
-    if recorded_research != effective_research:
-        conflicts.append("checkpoint research switch conflicts with its retained research state")
-    if given_research is not None and given_research != effective_research:
-        conflicts.append(f"--scientific-research-agendas {given_research!r} conflicts with the checkpoint "
-                         f"(saved: {effective_research!r}); use a declared experiment fork to change research policy")
-    elif research is not None:
-        args.scientific_research_agendas = effective_research
-    for key, value in saved.items():
-        if key in _RESUME_FREE_ARGS:
-            continue
-        if key in _RESUME_FORK_ARGS and value is None:
-            continue
-        given = getattr(args, key, None)
-        default = parser.get_default(key)
-        if given is None or given == default:
-            setattr(args, key, value)
-        elif given != value:
-            flag = "--" + key.replace("_", "-")
-            conflicts.append(f"{flag} {given!r} conflicts with the checkpoint (saved: {value!r})")
-    if args.seed is not None and args.seed != state.seed:
-        conflicts.append(f"--seed {args.seed!r} conflicts with the checkpoint (saved: {state.seed!r})")
-    args.seed = state.seed
-    if args.turns is None:
-        args.turns = state.num_turns
-    if args.turns <= state.world.turn:
-        conflicts.append(f"--turns {args.turns} does not continue past the checkpoint's turn "
-                         f"{state.world.turn}")
-    return conflicts
+def _configure_run(args: argparse.Namespace, *, artifact_budget=None) -> None:
+    """Apply CLI tuning overrides onto args."""
+    tuning: dict = {}
+    for key in (
+        "aggression_bias", "tech_diffusion_rate", "resource_abundance",
+        "trade_friction", "severity_multiplier", "cultural_drift_speed",
+        "religion_intensity", "secession_likelihood",
+    ):
+        value = getattr(args, key, None)
+        if value is not None:
+            tuning[key] = value
+    if tuning:
+        args.tuning_overrides = tuning
 
 
 def main() -> None:
-    """CLI entry point."""
     parser = _build_parser()
     args = parser.parse_args()
 
-    if getattr(args, "compare", None) and not getattr(args, "analyze", None):
-        parser.error("--compare requires --analyze")
-    if getattr(args, "narrate_output", None) and not getattr(args, "narrate", None):
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
+    if args.narrate and args.narrate_output is None:
+        pass  # default output path used
+    if args.narrate_output and not args.narrate:
         parser.error("--narrate-output requires --narrate")
+    if args.compare and not args.analyze:
+        parser.error("--compare requires --analyze")
 
-    # --- Mutual exclusion validation ---
-    mode_flags = []
-    if args.batch:
-        mode_flags.append("--batch")
-    if args.fork:
-        mode_flags.append("--fork")
-    if args.interactive:
-        mode_flags.append("--interactive")
-    if args.live:
-        mode_flags.append("--live")
-    # --live --resume and --interactive --resume continue an exact
-    # checkpoint as a live or interactive session.
-    if args.resume and not (args.live or args.interactive):
-        mode_flags.append("--resume")
-    if getattr(args, "analyze", None):
-        mode_flags.append("--analyze")
-    if getattr(args, "narrate", None):
-        mode_flags.append("--narrate")
-    if len(mode_flags) > 1:
-        print(f"Error: {' and '.join(mode_flags)} are mutually exclusive", file=sys.stderr)
-        sys.exit(1)
-    if getattr(args, "checkpoint", None) and not getattr(args, "checkpoint_every", None):
-        parser.error("--checkpoint requires --checkpoint-every")
-    if getattr(args, "checkpoint", None) and args.batch:
-        parser.error("--checkpoint names one file; batch runs write checkpoint.ckpt in each run's directory")
-    if getattr(args, "resume_allow_mismatch", False) and not args.resume:
-        parser.error("--resume-allow-mismatch requires --resume")
+    if getattr(args, "llm_actions", False):
+        logger.warning("--llm-actions is deprecated and ignored")
 
-    # Exact resume: the checkpoint supplies the run's configuration.
-    exact_resume = None
-    if args.resume:
-        from chronicler.run_checkpoint import CheckpointError, is_checkpoint, read_checkpoint
-        if args.live and not is_checkpoint(Path(args.resume)):
-            print(f"Error: --live --resume continues an exact checkpoint (--checkpoint-every or a "
-                  f"viewer's checkpoint); {args.resume} is not one", file=sys.stderr)
-            sys.exit(2)
-        if args.interactive and not is_checkpoint(Path(args.resume)):
-            print(f"Error: --interactive --resume continues an exact checkpoint "
-                  f"(--checkpoint-every); {args.resume} is not one", file=sys.stderr)
-            sys.exit(2)
-        if is_checkpoint(Path(args.resume)):
-            try:
-                exact_resume = read_checkpoint(Path(args.resume),
-                                               allow_mismatch=args.resume_allow_mismatch)
-            except CheckpointError as exc:
-                print(f"Error: {exc}", file=sys.stderr)
-                sys.exit(2)
-            conflicts = _adopt_checkpoint_args(parser, args, exact_resume)
-            if conflicts:
-                print("Error: an exact resume continues the checkpoint's configuration; "
-                      "leave out the options that differ:\n  " + "\n  ".join(conflicts),
-                      file=sys.stderr)
-                sys.exit(2)
-            for line in exact_resume.mismatches:
-                print(f"Warning: {line}", file=sys.stderr)
-            if exact_resume.mismatches:
-                print("Warning: resuming across builds; the run is labelled as not identical "
-                      "to an uninterrupted run", file=sys.stderr)
-
-    if args.llm_actions:
-        logger.warning(
-            "--llm-actions is deprecated and ignored; simulation action selection remains deterministic"
-        )
-        args.llm_actions = False
-
-    # Parse --seed-range into seed + batch count
-    if getattr(args, "seed_range", None):
-        parts = args.seed_range.split("-")
-        if len(parts) != 2:
-            print("Error: --seed-range must be START-END (e.g., 1-200)", file=sys.stderr)
-            sys.exit(1)
-        try:
-            start, end = int(parts[0]), int(parts[1])
-        except ValueError:
-            print("Error: --seed-range values must be integers (e.g., 1-200)", file=sys.stderr)
-            sys.exit(1)
-        if start > end:
-            print(f"Error: --seed-range start ({start}) must be <= end ({end})", file=sys.stderr)
-            sys.exit(1)
-        args.seed = start
-        args.batch = end - start + 1
-
-    # --- M44: --narrator api validation ---
-    if getattr(args, "narrator", "local") == "api":
+    narrator = getattr(args, "narrator", "local")
+    if narrator in ("api", "gemini"):
         if getattr(args, "simulate_only", False):
-            print("Error: --narrator api and --simulate-only are contradictory", file=sys.stderr)
-            sys.exit(1)
-        if args.live:
-            print("Error: --narrator api is incompatible with --live (API latency)", file=sys.stderr)
-            sys.exit(1)
-        if args.parallel is not None and args.batch:
-            print("Error: --narrator api is incompatible with --batch --parallel", file=sys.stderr)
-            sys.exit(1)
-        try:
-            import anthropic  # noqa: F401
-        except ImportError:
-            print("Error: --narrator api requires the anthropic package. "
-                  "Install with: pip install chronicler[api]", file=sys.stderr)
-            sys.exit(1)
-        import os
-        if "ANTHROPIC_API_KEY" not in os.environ:
-            print("Error: --narrator api requires ANTHROPIC_API_KEY environment variable",
-                  file=sys.stderr)
-            sys.exit(1)
+            parser.error(f"--narrator {narrator} is incompatible with --simulate-only")
+        if getattr(args, "live", False):
+            parser.error(f"--narrator {narrator} is incompatible with --live")
+        if getattr(args, "batch", None) and getattr(args, "parallel", None):
+            parser.error(f"--narrator {narrator} is incompatible with --batch --parallel")
 
-    # --- --narrator gemini validation ---
-    if getattr(args, "narrator", "local") == "gemini":
-        if getattr(args, "simulate_only", False):
-            print("Error: --narrator gemini and --simulate-only are contradictory", file=sys.stderr)
-            sys.exit(1)
-        if args.live:
-            print("Error: --narrator gemini is incompatible with --live (API latency)", file=sys.stderr)
-            sys.exit(1)
-        if args.parallel is not None and args.batch:
-            print("Error: --narrator gemini is incompatible with --batch --parallel", file=sys.stderr)
-            sys.exit(1)
-        try:
-            from google import genai  # noqa: F401
-        except ImportError:
-            print("Error: --narrator gemini requires the google-genai package. "
-                  "Install with: pip install -e \".[gemini]\"", file=sys.stderr)
-            sys.exit(1)
-        import os
-        if "GOOGLE_API_KEY" not in os.environ:
-            print("Error: --narrator gemini requires GOOGLE_API_KEY environment variable",
-                  file=sys.stderr)
-            sys.exit(1)
+    if args.batch and args.fork:
+        parser.error("--batch and --fork are mutually exclusive")
 
-    # Skip LLM client and scenario resolution for live mode — run_live
-    # handles both after receiving params from the client's start command.
-    # Also skip for --analyze, which only reads already-written bundles.
-    # Handle --narrate early: it manages its own LLM clients
-    if getattr(args, "narrate", None):
+    if args.narrate:
         _run_narrate(args)
         return
 
-    if not args.live and not getattr(args, "analyze", None):
-        if getattr(args, "simulate_only", False):
-            sim_client = _DummyClient()
-            narrative_client = _DummyClient()
-            if getattr(args, "narrator", "local") == "mechanical":
-                from chronicler.llm import MechanicalClient
-                narrative_client = MechanicalClient()
-        else:
-            sim_client, narrative_client = create_clients(
-                local_url=args.local_url,
-                sim_model=args.sim_model,
-                narrative_model=args.narrative_model,
-                narrator=args.narrator,
-            )
+    if args.analyze:
+        raise SystemExit(_run_analyze(args))
 
-        # Resolve scenario
-        scenario_config = None
-        if args.scenario and exact_resume is None:
-            from chronicler.scenario import load_scenario, resolve_scenario_params
-            scenario_config = load_scenario(Path(args.scenario))
-            params = resolve_scenario_params(scenario_config, args)
-            args.seed = params["seed"]
-            args.turns = params["num_turns"]
-            args.civs = params["num_civs"]
-            args.regions = params["num_regions"]
-            args.reflection_interval = params["reflection_interval"]
-        else:
-            args.seed = args.seed if args.seed is not None else DEFAULT_CONFIG.get("seed", 42)
-            args.turns = args.turns if args.turns is not None else DEFAULT_CONFIG["num_turns"]
-            args.civs = args.civs if args.civs is not None else DEFAULT_CONFIG["num_civs"]
-            args.regions = args.regions if args.regions is not None else DEFAULT_CONFIG["num_regions"]
-            args.reflection_interval = args.reflection_interval if args.reflection_interval is not None else DEFAULT_CONFIG["reflection_interval"]
-    else:
-        sim_client = None
-        narrative_client = None
-        scenario_config = None
-
-    # Load tuning YAML if provided (single-run and non-batch modes)
-    if not args.live and not getattr(args, "analyze", None):
-        if getattr(args, "tuning", None) and exact_resume is None:
-            from chronicler.tuning import load_tuning
-            args.tuning_overrides = load_tuning(Path(args.tuning))
-        elif not hasattr(args, "tuning_overrides"):
-            args.tuning_overrides = {}
-
-    # --- Dispatch ---
-    if getattr(args, "analyze", None):
-        import json as _json
-        from chronicler.analytics import generate_report, format_text_report, format_delta_report
-        analyze_dir = Path(args.analyze)
-        checkpoints = None
-        if getattr(args, "checkpoints", None):
-            checkpoints = [int(x.strip()) for x in args.checkpoints.split(",")]
-        report = generate_report(analyze_dir, checkpoints=checkpoints)
-        report_path = analyze_dir / "batch_report.json"
-        with open(report_path, "w") as f:
-            _json.dump(report, f, indent=2)
-        if getattr(args, "compare", None):
-            with open(args.compare) as f:
-                baseline = _json.load(f)
-            print(format_delta_report(baseline, report))
-        else:
-            print(format_text_report(report))
-        print(f"\nReport written to: {report_path}")
-
-    elif args.batch:
-        from chronicler.batch import run_batch
-        from chronicler.batch_manifest import BatchDestinationError
+    if args.batch or args.seed_range:
+        from chronicler.batch import run_batch, BatchDestinationError  # noqa: F401
+        if args.seed_range:
+            lo, _, hi = args.seed_range.partition("-")
+            args.seed = int(lo)
+            args.batch = int(hi) - int(lo) + 1
         try:
-            batch_dir = run_batch(args, sim_client=sim_client, narrative_client=narrative_client, scenario_config=scenario_config)
+            sim_client, narrative_client = create_clients(args)
+            _configure_run(args)
+            run_batch(args, sim_client=sim_client, narrative_client=narrative_client)
         except BatchDestinationError as exc:
-            print(f"Error: {exc}", file=sys.stderr)
-            sys.exit(1)
-        print(f"\nBatch complete: {batch_dir}")
+            print(f"error: {exc}", file=sys.stderr)
+            raise SystemExit(1)
+        return
 
-    elif args.fork:
-        from chronicler.fork import run_fork
-        result = run_fork(args, sim_client=sim_client, narrative_client=narrative_client, scenario_config=scenario_config)
-        print(f"\nFork complete: {result.output_dir}")
-
-    elif args.interactive:
-        from chronicler.interactive import run_interactive
-        result = run_interactive(args, sim_client=sim_client, narrative_client=narrative_client,
-                                 scenario_config=scenario_config, exact_resume=exact_resume)
-        if result is not None:
-            print(f"\nInteractive session complete: {result.output_dir}")
-
-    elif args.live:
-        from chronicler.live import run_live
-        result = run_live(args, exact_resume=exact_resume)
-        if result is not None:
-            print(f"\nLive session complete: {result.output_dir}")
-
-    else:
-        # Single run (default) or resume
-        world = None
-        memories = None
-        resume_info = None
-        if exact_resume is not None:
-            print(f"Resuming exactly from {args.resume} at turn {exact_resume.state.world.turn}")
-        elif args.resume:
-            resume_path = Path(args.resume)
-            world = WorldState.load(resume_path)
-            memories = {}
-            for mem_file in resume_path.parent.glob("memories_*.json"):
-                stream = MemoryStream.load(mem_file)
-                memories[stream.civilization_name] = stream
-            print(f"Resuming from {resume_path} at turn {world.turn}")
-            # A raw state file holds the world's fields only: native state,
-            # private accumulators and the run's history are rebuilt or lost.
-            print("Warning: legacy resume from a state file is not exact; the bundle is "
-                  "labelled (metadata.resume). Use --checkpoint-every for exact checkpoints.",
-                  file=sys.stderr)
-            resume_info = {"kind": "legacy-state", "exact": False, "turn": world.turn}
-
-        result = execute_run(
-            args,
-            sim_client=sim_client,
-            narrative_client=narrative_client,
-            world=world,
-            memories=memories,
-            scenario_config=scenario_config,
-            checkpoint_resume=exact_resume,
-            resume_info=resume_info,
-        )
-        print(f"\nChronicle complete: {result.output_dir}")
+    sim_client, narrative_client = create_clients(args)
+    _configure_run(args)
+    execute_run(args, sim_client=sim_client, narrative_client=narrative_client)
 
 
 if __name__ == "__main__":
