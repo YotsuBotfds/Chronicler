@@ -18,11 +18,11 @@ The LLM **only narrates** — it never makes simulation decisions. You can run w
 
 ## Current Status
 
-The recovered continuation is on **`continuation/recovered-20261011`**, based on
-cleanup checkpoint 011 (`b820217a9ea34ead33e2114e38d44f4297b0a70c`). It contains
-the October integration history beyond public `main`, plus portable development
-instructions and a Windows text-fixture correction. It is a draft development
-line; native/GPU and complete milestone qualification remain separate gates.
+The current development continuation is on **`dev/claude-handoff-20261030`**.
+It contains the October integration history beyond public `main`, portable
+development instructions, and the current checkpoint/viewer work. It is a
+development line; native/GPU and complete milestone qualification remain
+separate gates.
 
 Start with [continuation status and known locations](docs/CONTINUATION.md),
 [Windows/Mac/Linux setup](docs/DEVELOPMENT.md), and [agent instructions](AGENTS.md).
@@ -39,7 +39,7 @@ For milestone history and designs, use:
 # Clone the repo
 git clone https://github.com/YotsuBotfds/Chronicler.git
 cd Chronicler
-git switch continuation/recovered-20261011
+git switch dev/claude-handoff-20261030
 
 # Run the setup script
 bash setup.sh            # Linux / Mac / Git Bash
@@ -83,6 +83,9 @@ python -c "import chronicler_agents; print('chronicler_agents import OK')"
 When rebuilding the Rust extension, use the virtual environment's Python (`.venv\Scripts\python.exe` on Windows) or Python may load a stale `chronicler_agents` build. Without an activated environment, run `../.venv/bin/python -m maturin develop --release` from `chronicler-agents/` on Unix or `..\.venv\Scripts\python.exe -m maturin develop --release` on Windows.
 
 ## Quick Start
+
+For a no-narration run with a real viewer bundle and an exact save/resume check,
+see the [local simulate, view, and resume walkthrough](docs/local-simulate-view-resume.md).
 
 ```bash
 # Basic run — 50 turns, 4 civilizations, deterministic simulation + local LM narration
