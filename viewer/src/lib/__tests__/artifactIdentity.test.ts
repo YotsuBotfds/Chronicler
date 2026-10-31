@@ -7,11 +7,18 @@ afterEach(() => vi.unstubAllGlobals());
 
 it("hashes raw BOM and whitespace bytes rather than normalized JSON", async () => {
   vi.stubGlobal("crypto", webcrypto);
-  const bytes = new TextEncoder().encode('\ufeff{ "seed": 1 }\n');
+  const bytes = new TextEncoder().encode('﻿{ "seed": 1 }\n');
   const identity = await identifyArtifact("original.json", bytes.buffer);
   expect(identity).toEqual({ name: "original.json", byteLength: bytes.byteLength,
     sha256: createHash("sha256").update(bytes).digest("hex") });
   expect(identity.sha256).not.toBe(createHash("sha256").update('{"seed":1}').digest("hex"));
+});
+
+it("hashes File ArrayBuffers across JavaScript realms", async () => {
+  vi.stubGlobal("crypto", webcrypto);
+  const bytes = await new File(['{ "seed": 1 }'], "file.json").arrayBuffer();
+  expect(await identifyArtifact("file.json", bytes)).toEqual({ name: "file.json", byteLength: bytes.byteLength,
+    sha256: createHash("sha256").update(new Uint8Array(bytes)).digest("hex") });
 });
 
 it("keeps file identity metadata when hashing is unavailable", async () => {
