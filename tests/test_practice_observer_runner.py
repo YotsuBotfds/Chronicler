@@ -11,9 +11,9 @@ import pytest
 from chronicler import main as M
 
 
-BASE = "1205b6e48215c3e5c44d2bcb6376ca65827a7aab"
-# Untouched parent, CPython 3.13 with the explicit canonical options below.
-BASE_MAIN_AST_SHA256 = "8e007835bad6dbc5dd3f327d8d5a3947777f806dd5adbb8436f57b0b483fefa6"
+BASE = "44b9bdcea216788b5dab407a4f6bf7cb64541c1e"
+# D3a parent, CPython 3.13 with the explicit canonical options below.
+BASE_MAIN_AST_SHA256 = "1a4c739c1c5e53670f5775232d484f43b955a1c7fd5bba31c8b2ff6b9610b80c"
 MODES = ("omitted", "none", "provided")
 
 
@@ -24,22 +24,38 @@ def ast_dump(node):
 
 
 # Intentional active-world admission is outside the historical observer/budget
-# projection. Keep its exact two source/AST witnesses and precise setup sites;
-# the immutable default-main digest below continues to cover every other node.
-_CIV_ADMISSION_SOURCE = "from chronicler.ffi_constants import check_civ_capacity\ncheck_civ_capacity(world)\n"
-_CIV_ADMISSION_RAW_SHA256 = "b8f4b0ece297d14642981b8c9c35aca29eb4b0194a6c01ece1f0190292e3590e"
-_CIV_ADMISSION_AST_SHA256 = "57c08d72d627264c720f794adee0f952714e2f147019742f6e233468626004e5"
+# projection. Locate its two import/call pairs structurally at their precise
+# setup sites; the immutable default-main digest covers every other node.
+def _is_civ_admission_import(node):
+    return (isinstance(node, ast.ImportFrom) and node.module == "chronicler.ffi_constants"
+            and node.level == 0 and len(node.names) == 1
+            and node.names[0].name == "check_civ_capacity" and node.names[0].asname is None)
 
 
-def _main_without_reviewed_civ_admissions(source):
-    assert hashlib.sha256(_CIV_ADMISSION_SOURCE.encode()).hexdigest() == _CIV_ADMISSION_RAW_SHA256
-    pair = ast.parse(_CIV_ADMISSION_SOURCE).body
-    assert hashlib.sha256(ast_dump(ast.Module(body=pair, type_ignores=[])).encode()).hexdigest() == _CIV_ADMISSION_AST_SHA256
-    # Exactly two unmodified import/call pairs, at the approved indentation.
-    for indent in ("        ", "    "):
-        raw = "".join(indent + line + "\n" for line in _CIV_ADMISSION_SOURCE.splitlines())
-        assert source.count(raw) == 1, "reviewed capacity admission source changed"
-    tree = ast.parse(source)
+def _is_civ_admission_call(node):
+    if not isinstance(node, ast.Expr) or not isinstance(node.value, ast.Call):
+        return False
+    call = node.value
+    return (isinstance(call.func, ast.Name) and call.func.id == "check_civ_capacity"
+            and len(call.args) == 1 and isinstance(call.args[0], ast.Name)
+            and call.args[0].id == "world" and not call.keywords)
+
+
+def _civ_admission_pairs(owner):
+    pairs = []
+    for parent in ast.walk(owner):
+        for _, value in ast.iter_fields(parent):
+            if not isinstance(value, list) or not all(isinstance(n, ast.stmt) for n in value):
+                continue
+            pairs.extend((value, index) for index in range(len(value) - 1)
+                         if _is_civ_admission_import(value[index])
+                         and _is_civ_admission_call(value[index + 1]))
+    assert len(pairs) == 2, "expected exactly two capacity admission pairs"
+    return pairs
+
+
+def _main_without_reviewed_civ_admissions(tree):
+    assert isinstance(tree, ast.Module)
     owner = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "execute_run"]
     assert len(owner) == 1
     body = owner[0].body
@@ -59,11 +75,14 @@ def _main_without_reviewed_civ_admissions(source):
              and ast_dump(n.test) == ast_dump(ast.Name(id="scenario_config", ctx=ast.Load()))]
     assert len(sites) == 1
     fresh_index = sites[0][0] + 1
+    pairs = _civ_admission_pairs(owner[0])
+    assert {(id(statements), index) for statements, index in pairs} == {
+        (id(fresh), fresh_index), (id(body), setup_index + 1),
+    }, "capacity admission moved or changed"
     for statements, index, next_test in (
         (fresh, fresh_index, "sim_client"),
         (body, setup_index + 1, "checkpoint_resume is None"),
     ):
-        assert [ast_dump(n) for n in statements[index:index + 2]] == [ast_dump(n) for n in pair], "capacity admission moved or changed"
         following = statements[index + 2]
         assert isinstance(following, ast.If)
         assert ast_dump(following.test) == ast_dump(ast.parse(next_test, mode="eval").body)
@@ -290,14 +309,13 @@ def test_entire_default_main_AST_matches_qualified_parent():
             "68f7ef6aa0ca84067b6c7aa2abb9b38c47d2fc6084de5755865ed2d09d15c506",
         ),
         "execute_run": (
-            "971177e690979a664fa2dd2831fc22e1e68980fe4785964fd532b1041faa1113",
+            "7953c1c4a7e1c8b4cf8137b93327c61ca748b46d13460539abb27bf002f8fa32",
             "b821c7681e4e59a71a8b57082ffa614ef247257fb1df5010ef9ef88af4d2ea7f",
             "a0a95f8d7143f35a731efeb683e02ab7931ffb0c2223e2926907cc27aeb71221",
             "821d8f9bc41e3cd8e85a9fbf0b31c9ab3e0543931179fa3a03c458958e973eda",
             "35a182173c13023b14b1a4d6a34c8b9be73e7a51f7de4836755a5b162b02b58f",
             "7a1be2cf45d0c3385c86380d7cebd850dcfd21b3736122273c140a9c510ca798",
             "35a182173c13023b14b1a4d6a34c8b9be73e7a51f7de4836755a5b162b02b58f",
-            "82529f78d5a11db9892f39bbbfad775e5e724472b3c734829aa9417a93b701a5",
             "81527809f85ab7b73e5a5ef129a0f68bbbaa99250c18e0dd4d16e807ce8a2001",
             "72896630165a2f42037bc22980bdc68432e355dda9783af4a70e196a93014a5c",
         ),
@@ -389,11 +407,11 @@ def test_entire_default_main_AST_matches_qualified_parent():
             return retained
 
     projector = Defaults()
-    projected = projector.visit(_main_without_reviewed_civ_admissions(Path(M.__file__).read_text()))
+    projected = projector.visit(_main_without_reviewed_civ_admissions(module_tree()))
     assert projector.functions == set(parameters)
     assert projector.parameters == {"artifact_budget": 4, "practice_observer": 2}
     assert projector.branches == {scope: len(expected) for scope, expected in branches.items()}
-    assert projector.predicates == {"artifact_budget": 14, "practice_observer": 2}
+    assert projector.predicates == {"artifact_budget": 13, "practice_observer": 2}
     assert projector.documentation == 1
     actual = hashlib.sha256(ast_dump(projected).encode()).hexdigest()
     assert actual == BASE_MAIN_AST_SHA256, f"default main AST differs from {BASE}"
@@ -410,19 +428,19 @@ def test_entire_default_main_AST_matches_qualified_parent():
 
 @pytest.mark.parametrize("mutation", ["wrong_helper", "wrong_location", "between_pair", "extra_effect"])
 def test_capacity_admission_projection_refuses_changed_shape_or_location(mutation):
-    source = Path(M.__file__).read_text()
-    pair = "".join("        " + line + "\n" for line in _CIV_ADMISSION_SOURCE.splitlines())
-    assert source.count(pair) == 1
+    tree = module_tree()
+    owner = next(node for node in tree.body
+                 if isinstance(node, ast.FunctionDef) and node.name == "execute_run")
+    statements, index = _civ_admission_pairs(owner)[0]
     if mutation == "wrong_helper":
-        changed = source.replace(pair, pair.replace("check_civ_capacity(world)", "has_civ_capacity(world)"), 1)
+        statements[index + 1].value.func.id = "has_civ_capacity"
     elif mutation == "wrong_location":
-        changed = source.replace(pair, "", 1)
-        marker = "        # Apply scenario overrides if provided\n"
-        assert changed.count(marker) == 1
-        changed = changed.replace(marker, pair + marker, 1)
+        pair = statements[index:index + 2]
+        del statements[index:index + 2]
+        statements.extend(pair)
     elif mutation == "between_pair":
-        changed = source.replace(pair, pair.replace("        check_civ_capacity(world)", "        world.turn += 1\n        check_civ_capacity(world)"), 1)
+        statements.insert(index + 1, ast.parse("world.turn += 1").body[0])
     else:
-        changed = source.replace(pair, pair + "        world.turn += 1\n", 1)
+        statements.insert(index + 2, ast.parse("world.turn += 1").body[0])
     with pytest.raises(AssertionError):
-        _main_without_reviewed_civ_admissions(changed)
+        _main_without_reviewed_civ_admissions(tree)
