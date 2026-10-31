@@ -16,8 +16,10 @@ from __future__ import annotations
 import argparse
 import json
 import queue
+import signal
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -212,6 +214,28 @@ def test_a_live_run_records_the_clients_world(tmp_path):
     simulation = rc.describe(_ckpt(folder, 3))["run_config"]["simulation_args"]
     assert (simulation["civs"], simulation["regions"], simulation["turns"]) == (3, 6, 12)
     assert rc.read_checkpoint(_ckpt(folder, 3)).state.live["pause_every"] == 4
+
+
+def test_ctrl_c_during_live_turn_pacing_saves_the_completed_turn(tmp_path, monkeypatch):
+    previous = signal.signal(signal.SIGINT, signal.default_int_handler)
+
+    def interrupt_pacing(_delay):
+        signal.raise_signal(signal.SIGINT)
+
+    monkeypatch.setattr("chronicler.live.time", SimpleNamespace(sleep=interrupt_pacing))
+    folder = tmp_path / "interrupted"
+    try:
+        with pytest.raises(KeyboardInterrupt):
+            session(_args(folder, checkpoint_every=4,
+                          checkpoint=str(folder / "ckpt" / "turn_{turn:04d}.ckpt")),
+                    start=START)
+        assert signal.getsignal(signal.SIGINT) is signal.default_int_handler
+    finally:
+        signal.signal(signal.SIGINT, previous)
+
+    checkpoint = rc.read_checkpoint(_ckpt(folder, 1))
+    assert checkpoint.state.world.turn == 1
+    assert not (folder / "chronicle.md").exists()
 
 
 # --- the request: authentication, fields, state, paths -------------------------
