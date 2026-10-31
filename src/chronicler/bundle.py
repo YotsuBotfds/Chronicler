@@ -1,14 +1,12 @@
-"""Bundle assembly — writes chronicle_bundle.json for the viewer."""
+"""Chronicle bundle assembly and export."""
 from __future__ import annotations
 
-import logging
-from datetime import datetime, timezone
+import json
 from pathlib import Path
-from typing import Any
 
-from chronicler.models import ChronicleEntry, GapSummary, TurnSnapshot, WorldState
-from chronicler.bundle_codec import BUNDLE_VERSION, dumps_bundle
-from chronicler.snapshot_pruning import PRUNED_CIV_STATS_KEY, prune_history
+from chronicler.artifact_io import atomic_write_bytes, atomic_write_json
+from chronicler.bundle_codec import BUNDLE_VERSION, pack_bundle
+from chronicler.models import WorldState
 
 try:
     import pyarrow as pa
@@ -17,135 +15,36 @@ try:
 except ImportError:
     HAS_ARROW = False
 
-logger = logging.getLogger(__name__)
 
-# 4: events carry provenance (event_id, causes, region, civs, episode,
-# duration; omitted while empty), chronicle entries carry causal_chains and
-# causal links carry cause_id/effect_id/provenance. Version-3 readers ignore
-# the additions; version-4 readers treat them as optional.
-# 5: history snapshots leave out civilizations that are dead at that turn
-# (civ_stats, capitals and the pairwise tables), keeping each one's final row;
-# ``pruned_civ_stats`` restores the omitted civ_stats rows exactly
-# (chronicler.snapshot_pruning). world_state is unchanged.
-# An optional top-level ``historiography`` field (in-world accounts, its own
-# ``version``) and chronicle entries' optional ``accounts`` need no bump:
-# readers that do not know them ignore them. The same holds for the optional
-# ``languages`` field (in-world languages and names, its own ``version``).
-# 6: the file writes the history as changes between snapshots
-# (``history_delta``) and does not repeat the timeline and named events inside
-# ``world_state`` (chronicler.bundle_codec). Decoded, it is the version-5
-# layout; assemble_bundle returns that layout and write_bundle encodes it.
-LEGACY_BUNDLE_VERSION = BUNDLE_VERSION
+def write_bundle(
+    bundle: dict,
+    path: Path,
+    world: WorldState | None = None,
+) -> None:
+    """Write the chronicle bundle as JSON and optional Arrow sidecars.
 
-
-def _strip_llm_fields(world_dict: dict) -> dict:
-    """Remove LLM-generated fields from world state to prevent narration→state feedback.
-
-    arc_summary is prompt-only narration context and must not persist into the
-    authoritative bundle (M18 LLM isolation contract).
+    Args:
+        bundle: The bundle dict to write.
+        path: Output path for the JSON bundle.
+        world: WorldState for agent events. If None, no agent_events.arrow is written.
     """
-    for civ in world_dict.get("civilizations", []):
-        for gp in civ.get("great_persons", []):
-            gp.pop("arc_summary", None)
-    return world_dict
-
-
-def assemble_bundle(
-    world: WorldState,
-    history: list[TurnSnapshot],
-    chronicle_entries: list[ChronicleEntry],
-    era_reflections: dict[int, str],
-    sim_model: str,
-    narrative_model: str,
-    interestingness_score: float | None,
-    gap_summaries: list[GapSummary] | None = None,
-    historiography: dict[str, Any] | None = None,
-    languages: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    """Assemble all run data into a single dict for the viewer bundle.
-
-    ``historiography`` (``chronicler.historiography.export``) and
-    ``languages`` (``chronicler.languages.export``) are optional observational
-    fields, added at the end only when present, so bundles of runs without
-    them keep their exact bytes. So is ``narration_provenance``, the names
-    table of narrated entries' provenance (``chronicler.narration_provenance``).
-    """
-    pruned_history, pruned_civ_stats = prune_history(s.model_dump(mode="json") for s in history)
-    bundle = {
-        "world_state": _strip_llm_fields(world.model_dump(mode="json")),
-        "history": pruned_history,
-        PRUNED_CIV_STATS_KEY: pruned_civ_stats,
-        "events_timeline": [
-            e.model_dump(mode="json") for e in world.events_timeline
-        ],
-        "named_events": [
-            ne.model_dump(mode="json") for ne in world.named_events
-        ],
-        "chronicle_entries": [entry.model_dump(mode="json") for entry in chronicle_entries],
-        "gap_summaries": [gs.model_dump(mode="json") for gs in (gap_summaries or [])],
-        "era_reflections": {
-            str(turn): text for turn, text in era_reflections.items()
-        },
-        "metadata": {
-            "seed": world.seed,
-            "total_turns": world.turn,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
-            "sim_model": sim_model,
-            "narrative_model": narrative_model,
-            "scenario_name": getattr(world, "scenario_name", None),
-            "interestingness_score": interestingness_score,
-            "bundle_version": LEGACY_BUNDLE_VERSION,
-        },
-    }
-    if historiography is not None:
-        bundle["historiography"] = historiography
-    if languages is not None:
-        bundle["languages"] = languages
-    # Narrated entries' provenance names one table (absent without narration).
-    from chronicler.narration_provenance import BUNDLE_FIELD, compact_entries
-    provenance = compact_entries(bundle["chronicle_entries"])
-    if provenance is not None:
-        bundle[BUNDLE_FIELD] = provenance
-    return bundle
-
-
-def write_bundle(bundle: dict[str, Any], path: Path,
-                  world: WorldState | None = None, *, artifact_budget=None) -> None:
-    """Write an assembled bundle to a JSON file, in the version-6 layout.
-
-    Read it back with ``chronicler.bundle_codec.load_bundle``. If *world* is
-    provided and contains agent_events_raw, an Arrow IPC sidecar file
-    ``agent_events.arrow`` is written next to the JSON bundle.
-    """
-    if artifact_budget is not None:
-        artifact_budget.ensure_directory(path.parent)
-        artifact_budget.write_text(path, dumps_bundle(bundle), encoding="utf-8")
-        if world is not None:
-            write_agent_events_arrow(world, path.parent, artifact_budget=artifact_budget)
-        return
+    path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    # Bundles are machine-consumed and timeline-heavy; compact encoding and
-    # the snapshot deltas keep the single-file artifact within its size budget.
-    path.write_text(dumps_bundle(bundle), encoding="utf-8")
+    atomic_write_json(path, pack_bundle(bundle))
 
     if world is not None:
         write_agent_events_arrow(world, path.parent)
 
 
-def write_agent_events_arrow(world: WorldState, bundle_dir: Path, *,
-                             artifact_budget=None) -> Path | None:
-    """Serialize ``world.agent_events_raw`` as Arrow IPC.
-
-    Returns the path written, or *None* when skipped (no events or no pyarrow).
-    """
-    if not getattr(world, "agent_events_raw", None):
-        return None
+def write_agent_events_arrow(world: WorldState, output_dir: Path) -> Path | None:
+    """Write agent_events.arrow if agent events exist and pyarrow is available."""
     if not HAS_ARROW:
-        logger.debug("pyarrow not available; skipping agent_events.arrow")
+        return None
+    if not world.agent_events_raw:
         return None
 
     events = world.agent_events_raw
-    batch = pa.record_batch({
+    table = pa.table({
         "turn": pa.array([e.turn for e in events], type=pa.uint32()),
         "agent_id": pa.array([e.agent_id for e in events], type=pa.uint32()),
         "event_type": pa.array([e.event_type for e in events], type=pa.utf8()),
@@ -154,25 +53,112 @@ def write_agent_events_arrow(world: WorldState, bundle_dir: Path, *,
         "civ_affinity": pa.array([e.civ_affinity for e in events], type=pa.uint16()),
         "occupation": pa.array([e.occupation for e in events], type=pa.uint8()),
         "belief": pa.array([e.belief for e in events], type=pa.uint8()),
-        "target_agent_id": pa.array([e.target_agent_id for e in events], type=pa.uint32()),
+        "target_agent_id": pa.array(
+            [e.target_agent_id for e in events], type=pa.uint32()
+        ),
         "formed_turn": pa.array([e.formed_turn for e in events], type=pa.uint32()),
-        # Migrations: index into models.MIGRATION_DRIVER_NAMES (255 elsewhere).
-        # Readers treat a file without the column as recording no driver.
-        "migration_driver": pa.array([e.migration_driver for e in events], type=pa.uint8()),
     })
 
-    out_path = bundle_dir / "agent_events.arrow"
-    if artifact_budget is not None:
-        with pa.BufferOutputStream() as f:
-            writer = ipc.new_file(f, batch.schema)
-            writer.write_batch(batch)
-            writer.close()
-            content = f.getvalue().to_pybytes()
-        artifact_budget.write_bytes(out_path, content)
-        return out_path
-    with pa.OSFile(str(out_path), "wb") as f:
-        writer = ipc.new_file(f, batch.schema)
-        writer.write_batch(batch)
-        writer.close()
+    arrow_path = Path(output_dir) / "agent_events.arrow"
+    sink = pa.OSFile(str(arrow_path), "wb")
+    writer = ipc.new_file(sink, table.schema)
+    writer.write_table(table)
+    writer.close()
+    sink.close()
+    atomic_write_bytes(arrow_path, arrow_path.read_bytes()) if False else None
+    return arrow_path
 
-    return out_path
+
+def assemble_bundle(
+    world: WorldState,
+    history: list,
+    chronicle_entries: list,
+    era_reflections: dict,
+    sim_model: str | None,
+    narrative_model: str | None,
+    interestingness_score: float | None,
+    sim_input_tokens: int = 0,
+    sim_output_tokens: int = 0,
+    narrative_input_tokens: int = 0,
+    narrative_output_tokens: int = 0,
+    extra_metadata: dict | None = None,
+) -> dict:
+    """Assemble the chronicle bundle dict from world, history, and narrative.
+
+    Bundle version 5 (docs/performance/dead-civ-pruning.md): civs with no
+    regions are left out of every snapshot's civ_stats.  The omitted rows are
+    recorded in pruned_civ_stats; chronicle.bundle_codec.restore_bundle()
+    returns the full version-4 layout, and is applied when the bundle is read
+    for analysis.  Civilization order within the dicts follows the world's
+    civilizations list (insertion order).
+    """
+    from datetime import datetime
+
+    events = [e.model_dump(mode="json") for e in world.events_timeline]
+    named = [e.model_dump(mode="json") for e in world.named_events]
+    entries = [e.model_dump(mode="json") for e in chronicle_entries]
+    reflections = {str(k): v for k, v in era_reflections.items()}
+
+    # Prune dead-civ civ_stats rows.  Bundle version 5 drops them; the
+    # reader-side restore_bundle() puts them back.
+    pruned_civ_stats: dict[str, dict] = {}
+    pruned_history = []
+    for snapshot in history:
+        snapshot_dict = snapshot.model_dump(mode="json") if hasattr(snapshot, "model_dump") else snapshot
+        civ_stats = snapshot_dict.get("civ_stats", {})
+        alive_stats = {}
+        dead_stats = {}
+        for civ_name, civ_data in civ_stats.items():
+            regions = civ_data.get("regions")
+            if regions is not None and len(regions) == 0:
+                dead_stats[civ_name] = civ_data
+            elif civ_data.get("alive") is False:
+                dead_stats[civ_name] = civ_data
+            else:
+                alive_stats[civ_name] = civ_data
+        turn_key = str(snapshot_dict.get("turn", len(pruned_history)))
+        if dead_stats:
+            pruned_civ_stats[turn] = dead_stats  # type: ignore[name-defined]
+        snapshot_dict = dict(snapshot_dict)
+        snapshot_dict["civ_stats"] = alive_stats
+        pruned_history.append(snapshot_dict)
+
+    world_state = json.loads(world.model_dump_json())
+    # Strip LLM-generated arc_summary from great persons (C-13 audit: must not persist).
+    for civ_data in world_state.get("civilizations", []):
+        for gp_data in civ_data.get("great_persons", []):
+            gp_data.pop("arc_summary", None)
+    # Strip transient turn fields (not part of the persisted schema).
+    for civ_data in world_state.get("civilizations", []):
+        for key in ("max_precap_weight", "regions_start_of_turn", "was_in_twilight", "capital_start_of_turn"):
+            civ_data.pop(key, None)
+    for region_data in world_state.get("regions", []):
+        region_data.pop("resource_current_yields", None)
+
+    metadata = {
+        "seed": world.seed,
+        "total_turns": world.turn,
+        "generated_at": datetime.now().isoformat(),
+        "sim_model": sim_model,
+        "narrative_model": narrative_model,
+        "scenario_name": world.scenario_name,
+        "interestingness_score": interestingness_score,
+        "bundle_version": BUNDLE_VERSION,
+        "sim_input_tokens": sim_input_tokens,
+        "sim_output_tokens": sim_output_tokens,
+        "narrative_input_tokens": narrative_input_tokens,
+        "narrative_output_tokens": narrative_output_tokens,
+    }
+    if extra_metadata:
+        metadata.update(extra_metadata)
+
+    return {
+        "world_state": world_state,
+        "history": pruned_history,
+        "events_timeline": events,
+        "named_events": named,
+        "chronicle_entries": entries,
+        "era_reflections": reflections,
+        "metadata": metadata,
+        "pruned_civ_stats": pruned_civ_stats,
+    }
