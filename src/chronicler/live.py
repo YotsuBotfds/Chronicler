@@ -1,234 +1,1591 @@
-"""Live server: WebSocket bridge between the simulation and the TUI viewer."""
+"""Live mode — WebSocket server for real-time viewer connection.
+
+Security: the server binds to localhost and accepts a WebSocket handshake
+only from an allowed viewer origin (the Vite dev and preview servers on
+localhost, plus any ``--live-origin``; clients that send no Origin header,
+which browsers always send, are not browsers) and only with this session's
+token in the URL query (``?token=...``). The CLI prints a viewer link that
+carries both the server address and the token. See
+docs/integration/historical-parity.md.
+"""
 from __future__ import annotations
 
 import asyncio
+import copy
+import hmac
 import json
 import queue
+import secrets
 import threading
+import time
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Iterable
+from urllib.parse import parse_qs, urlsplit
 
-from chronicler.artifact_io import atomic_write_json
+from chronicler.artifact_io import atomic_write_text
+from chronicler.interactive import VALID_STATS, CORE_STATS
+from chronicler.memory import MemoryStream, sanitize_civ_name
+from chronicler.models import WorldState
+from chronicler.simulation import get_injectable_event_types
+from chronicler.bundle_codec import decode_bundle
+from chronicler.transport import BUNDLE_SYSTEMS, bundle_systems
+# The reconnect data's turn reducer lives with the live checkpoints, which rebuild it.
+from chronicler.live_checkpoints import (
+    LiveCheckpoints, LiveView, apply_turn_message, rebuilt_view, turn_message,
+)
+
+_SUPPORTED_NARRATORS = {"local", "api", "gemini"}
+_SUPPORTED_AGENT_MODES = {"off", "demographics-only", "shadow", "hybrid"}
+_SUPPORTED_PRESETS = {"pangaea", "archipelago", "golden-age", "dark-age", "ice-age", "silk-road"}
+#: Viewer origins allowed by default: the Vite dev server (5173) and
+#: ``vite preview`` (4173) on the loopback names.
+DEFAULT_VIEWER_ORIGINS = tuple(
+    f"http://{host}:{port}"
+    for port in (5173, 4173)
+    for host in ("localhost", "127.0.0.1", "[::1]")
+)
+DEFAULT_VIEWER_URL = "http://localhost:5173"
+_REQUIRED_LIVE_BUNDLE_KEYS = (
+    "world_state",
+    "history",
+    "events_timeline",
+    "named_events",
+    "chronicle_entries",
+    "era_reflections",
+    "metadata",
+)
 
 
-def _write_batch_report(batch_dir: Path, report: dict) -> None:
-    """Write the live Batch Lab report atomically."""
-    atomic_write_json(Path(batch_dir) / "batch_report.json", report)
+def _write_batch_report(batch_dir: Path, report: dict[str, Any]) -> Path:
+    """Persist the Batch Lab report by atomically replacing any previous one."""
+    report_path = batch_dir / "batch_report.json"
+    atomic_write_text(report_path, json.dumps(report, indent=2))
+    return report_path
+
+
+def _normalize_narrator(value: Any, default: str = "local") -> str:
+    if isinstance(value, str) and value in _SUPPORTED_NARRATORS:
+        return value
+    return default
+
+
+def _validate_legacy_live_bundle(payload: Any) -> dict[str, Any]:
+    from chronicler.models import Event, NamedEvent, TurnSnapshot
+
+    if not isinstance(payload, dict):
+        raise ValueError("Bundle must be a JSON object")
+    # Version 6 writes the history as deltas; the viewer and narration read it decoded.
+    payload = decode_bundle(payload)
+    if "manifest_version" in payload and "layers" in payload:
+        raise ValueError(
+            "Bundle v2 manifests are not supported in live mode yet; load a legacy single-artifact bundle instead"
+        )
+
+    missing = [key for key in _REQUIRED_LIVE_BUNDLE_KEYS if key not in payload]
+    if missing:
+        raise ValueError(f"Missing required bundle keys: {', '.join(missing)}")
+
+    metadata = payload.get("metadata")
+    if not isinstance(metadata, dict):
+        raise ValueError("Bundle metadata must be an object")
+    era_reflections = payload.get("era_reflections")
+    if not isinstance(era_reflections, dict):
+        raise ValueError("Bundle era_reflections must be an object")
+
+    validated = {
+        "world_state": WorldState.model_validate(payload["world_state"]).model_dump(mode="json"),
+        "history": [
+            TurnSnapshot.model_validate(snapshot).model_dump(mode="json")
+            for snapshot in payload.get("history", [])
+        ],
+        "events_timeline": [
+            Event.model_validate(event).model_dump(mode="json")
+            for event in payload.get("events_timeline", [])
+        ],
+        "named_events": [
+            NamedEvent.model_validate(event).model_dump(mode="json")
+            for event in payload.get("named_events", [])
+        ],
+        "chronicle_entries": payload.get("chronicle_entries", {}),
+        "gap_summaries": payload.get("gap_summaries", []),
+        "era_reflections": era_reflections,
+        "metadata": metadata,
+    }
+    # Optional systems of the transport contract: the in-world historiography
+    # and languages, and (version 5) the omitted rows of dead civs, which
+    # narration restores (snapshot_pruning.restore_history).
+    for key, value in bundle_systems(payload).items():
+        if isinstance(value, dict):
+            validated[key] = value
+    return validated
+
+
+def _build_init_data_from_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
+    metadata = bundle.get("metadata", {})
+    history = bundle.get("history", [])
+    history_turns = [
+        snap.get("turn")
+        for snap in history
+        if isinstance(snap, dict) and isinstance(snap.get("turn"), int)
+    ]
+    current_turn = metadata.get("total_turns")
+    if not isinstance(current_turn, int):
+        current_turn = max(history_turns, default=bundle.get("world_state", {}).get("turn", 0))
+
+    init = {
+        "type": "init",
+        "world_state": bundle.get("world_state", {}),
+        "history": history,
+        "events_timeline": bundle.get("events_timeline", []),
+        "named_events": bundle.get("named_events", []),
+        "chronicle_entries": bundle.get("chronicle_entries", {}),
+        "gap_summaries": bundle.get("gap_summaries", []),
+        "era_reflections": bundle.get("era_reflections", {}),
+        "metadata": metadata,
+        "current_turn": current_turn,
+    }
+    init.update(bundle_systems(bundle))
+    return init
+
+
+def apply_completed_message(init_data: dict[str, Any], message: dict[str, Any]) -> None:
+    """Merge a ``completed`` message's bundle systems into the reconnect ``init`` data."""
+    systems = message.get("systems")
+    if isinstance(systems, dict):
+        init_data.update(bundle_systems(systems))
+
+
+def completed_systems(bundle_path: Path) -> dict[str, Any]:
+    """The bundle systems of a finished run's bundle (empty when unreadable)."""
+    from chronicler.bundle_codec import load_bundle
+    try:
+        bundle = load_bundle(bundle_path)
+    except (OSError, ValueError):
+        return {}
+    return {key: value for key, value in bundle_systems(bundle).items() if key in BUNDLE_SYSTEMS}
 
 
 class LiveServer:
-    """WebSocket server for live simulation viewing.
+    """WebSocket server that bridges the simulation thread and a browser viewer.
 
-    Runs in a daemon thread; communicates with the simulation via queues.
+    Communication happens via three thread-safe queues:
+    - snapshot_queue: simulation -> server (turn snapshots for the viewer)
+    - command_queue: server -> simulation (user commands from the viewer)
+    - status_queue: simulation -> server (paused/ack/error messages)
     """
 
-    def __init__(self, port: int = 0, origin: str | None = None):
+    def __init__(self, port: int = 8765, token: str | None = None,
+                 allowed_origins: Iterable[str] | None = None) -> None:
         self.port = port
-        self.origin = origin
+        # Per-session secret for the control protocol (printed in the viewer link).
+        self.token = token or secrets.token_urlsafe(18)
+        self.allowed_origins: tuple[str, ...] = tuple(dict.fromkeys(
+            list(DEFAULT_VIEWER_ORIGINS) + [o.rstrip("/") for o in (allowed_origins or ())]))
+        self.snapshot_queue: queue.Queue[dict] = queue.Queue()
+        self.command_queue: queue.Queue[dict] = queue.Queue()
+        self.status_queue: queue.Queue[dict] = queue.Queue()
+        self.quit_event = threading.Event()
+        self._speed: float = 1.0
+        self._speed_lock = threading.Lock()
         self.thread: threading.Thread | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
-        self._server = None
-        self._clients: set = set()
-        self._command_queue: queue.Queue = queue.Queue()
-        self._status_queue: queue.Queue = queue.Queue()
+        self._stop_event: asyncio.Event | None = None
+        self._actual_port: int | None = None
+        self._paused: bool = False
         self._init_data: dict | None = None
+        self._last_paused_msg: dict | None = None
+        self.start_event = threading.Event()
         self._start_params: dict | None = None
         self._server_state: str = "lobby"
         self._lobby_init: dict | None = None
-        self._session_client_config: dict | None = None
-        self._client_defaults: dict = {}
-        self.start_event = threading.Event()
+        self._client_defaults: dict[str, Any] = {
+            "local_url": "http://localhost:1234/v1",
+            "sim_model": None,
+            "narrative_model": None,
+            "narrator": "local",
+            "agents": "off",
+            "preset": None,
+        }
+        self._session_client_config: dict[str, Any] = {}
+        # Batch state
+        self._batch_thread: threading.Thread | None = None
+        self._batch_cancel_event = threading.Event()
+        # The running session's checkpoint control (chronicler.live_checkpoints),
+        # set by run_live once the simulation starts.
+        self.checkpoints: LiveCheckpoints | None = None
 
-    def start(self) -> None:
-        """Start the server in a daemon thread."""
-        self.thread = threading.Thread(target=self._run, daemon=True)
-        self.thread.start()
+    def ws_url(self) -> str:
+        """The WebSocket URL a client opens, with the session token."""
+        return f"ws://localhost:{self._actual_port or self.port}/?token={self.token}"
 
-    def stop(self) -> None:
-        """Stop the server."""
-        if self._loop is not None:
-            self._loop.call_soon_threadsafe(self._loop.stop)
-        if self.thread is not None:
-            self.thread.join(timeout=2)
+    def viewer_url(self, viewer_base: str = DEFAULT_VIEWER_URL) -> str:
+        """The viewer link the CLI prints: server address and session token."""
+        return (f"{viewer_base.rstrip('/')}/?ws=ws://localhost:{self._actual_port or self.port}"
+                f"&token={self.token}")
 
-    def _run(self) -> None:
-        self._loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self._loop)
-        self._loop.run_forever()
+    def handshake_error(self, origin: str | None, path: str) -> str | None:
+        """Why a WebSocket handshake is refused, or None to accept it.
 
-    def _handle_start(self, msg: dict) -> dict | None:
-        """Handle a 'start' command from the lobby."""
-        if self._server_state != "lobby":
-            return {"type": "error", "message": "Simulation already running"}
+        Browsers always send ``Origin``; a request without one comes from a
+        local non-browser client and still needs the token.
+        """
+        if origin is not None and origin.rstrip("/") not in self.allowed_origins:
+            return f"Origin not allowed: {origin}"
+        supplied = parse_qs(urlsplit(path).query).get("token", [""])[0]
+        if not hmac.compare_digest(supplied.encode("utf-8"), self.token.encode("utf-8")):
+            return "Missing or invalid session token"
+        return None
+
+    def checkpoint_reply(self, msg: dict, *, origin: str | None, path: str) -> dict:
+        """The reply to a ``checkpoint`` message: queue an exact checkpoint
+        for the next turn boundary (at once while paused).
+
+        Only a client of this session (the handshake's origin and token,
+        checked again here) may ask, and the message names nothing: the
+        server writes ``<output dir>/live_checkpoints/turn_<turn>.ckpt``
+        (chronicler.live_checkpoints) and reports the path itself."""
+        reason = self.handshake_error(origin, path)
+        if reason is not None:
+            return {"type": "checkpoint_error", "message": f"Not authorized: {reason}"}
+        extra = sorted(str(key) for key in msg if key != "type")
+        if extra:
+            return {"type": "checkpoint_error",
+                    "message": "checkpoint takes no fields (got " + ", ".join(extra) + "); the "
+                               "server writes it under the run's output directory"}
+        checkpoints = self.checkpoints
+        if self._server_state != "running" or checkpoints is None:
+            return {"type": "checkpoint_error", "message": "No live run to checkpoint"}
+        if not checkpoints.request():
+            return {"type": "checkpoint_error", "message": "The run has finished"}
+        return {"type": "checkpoint_requested", "paused": self._paused}
+
+    def _record_snapshot(self, snapshot: dict) -> None:
+        """Keep a simulation message for clients that connect later: an
+        ``init`` message is the reconnect data, ``turn`` messages extend it."""
+        if snapshot.get("type") == "init":
+            self._init_data = snapshot
+        elif snapshot.get("type") == "turn" and self._init_data is not None:
+            apply_turn_message(self._init_data, snapshot)
+
+    def _record_status(self, status: dict) -> None:
+        """Keep a status message's effect on the session (pause, completion)."""
+        if status.get("type") == "completed" and self._init_data is not None:
+            # The finished run's historiography and languages, for reconnect.
+            apply_completed_message(self._init_data, status)
+        if status.get("type") == "paused":
+            self._paused = True
+            self._last_paused_msg = status
+        elif status.get("type") == "ack" and not status.get("still_paused", True):
+            self._paused = False
+            self._last_paused_msg = None
+
+    @property
+    def speed(self) -> float:
+        with self._speed_lock:
+            return self._speed
+
+    @speed.setter
+    def speed(self, value: float) -> None:
+        with self._speed_lock:
+            self._speed = max(0.1, value)
+
+    @staticmethod
+    def _is_int(value: Any) -> bool:
+        return isinstance(value, int) and not isinstance(value, bool)
+
+    @staticmethod
+    def _is_number(value: Any) -> bool:
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+    def _validate_batch_config(self, config: dict) -> str | None:
+        for field in ("seed_start", "seed_count", "turns"):
+            if field not in config:
+                continue
+            value = config.get(field)
+            if not self._is_int(value) or value <= 0:
+                return f"batch_start config '{field}' must be a positive integer"
+
+        for field in ("civs", "regions"):
+            if field not in config:
+                continue
+            value = config.get(field)
+            if not self._is_int(value) or value <= 0:
+                return f"batch_start config '{field}' must be a positive integer"
+
+        if "simulate_only" in config and not isinstance(config.get("simulate_only"), bool):
+            return "batch_start config 'simulate_only' must be a boolean"
+        from chronicler.expansion_features import EXPANSION_SWITCHES, EXPANSION_PREREQUISITES
+        for field in ("capacity_aware_refugees", *EXPANSION_PREREQUISITES, *EXPANSION_SWITCHES):
+            if field in config and config[field] is not None and not isinstance(config[field], bool):
+                return f"batch_start config '{field}' must be a boolean or null"
+
+        if "parallel" in config:
+            value = config.get("parallel")
+            if not isinstance(value, bool):
+                if not self._is_int(value) or value <= 0:
+                    return "batch_start config 'parallel' must be a boolean or positive integer"
+
+        if "workers" in config:
+            value = config.get("workers")
+            if value is not None and (not self._is_int(value) or value <= 0):
+                return "batch_start config 'workers' must be a positive integer or null"
+
+        if "tuning_overrides" in config:
+            value = config.get("tuning_overrides")
+            if value is not None:
+                if not isinstance(value, dict):
+                    return "batch_start config 'tuning_overrides' must be an object or null"
+                for key, override in value.items():
+                    if not isinstance(key, str):
+                        return "batch_start config 'tuning_overrides' keys must be strings"
+                    if not self._is_number(override):
+                        return "batch_start config 'tuning_overrides' values must be numbers"
+
+        for field in ("scenario", "sim_model", "narrative_model", "preset"):
+            if field in config:
+                value = config.get(field)
+                if value is not None and not isinstance(value, str):
+                    return f"batch_start config '{field}' must be a string or null"
+
+        if "narrator" in config:
+            narrator = config.get("narrator")
+            if narrator is not None:
+                if not isinstance(narrator, str):
+                    return "batch_start config 'narrator' must be a string or null"
+                if narrator not in _SUPPORTED_NARRATORS:
+                    return "batch_start config 'narrator' must be one of local, api, gemini"
+
+        if "agents" in config:
+            agents = config.get("agents")
+            if not isinstance(agents, str):
+                return "batch_start config 'agents' must be a string or null"
+            if agents not in _SUPPORTED_AGENT_MODES:
+                return "batch_start config 'agents' must be one of off, demographics-only, shadow, hybrid"
+
+        preset = config.get("preset")
+        if preset is not None and preset not in _SUPPORTED_PRESETS:
+            return "batch_start config 'preset' must be a supported preset name or null"
+
+        return None
+
+    def _update_session_client_config(self, msg: dict) -> None:
         self._session_client_config = {
             "sim_model": msg.get("sim_model"),
             "narrative_model": msg.get("narrative_model"),
-            "narrator": msg.get("narrator", "local"),
+            "narrator": _normalize_narrator(
+                msg.get("narrator"),
+                self._client_defaults.get("narrator", "local"),
+            ),
         }
+
+    def _resolve_client_config(self, metadata: dict[str, Any] | None = None) -> dict[str, Any]:
+        config = dict(self._client_defaults)
+        config.update({
+            key: value
+            for key, value in self._session_client_config.items()
+            if value not in (None, "")
+        })
+        if metadata:
+            sim_model = metadata.get("sim_model")
+            narrative_model = metadata.get("narrative_model")
+            if isinstance(sim_model, str):
+                config["sim_model"] = sim_model
+            if isinstance(narrative_model, str):
+                config["narrative_model"] = narrative_model
+            config["narrator"] = _normalize_narrator(
+                metadata.get("narrator_mode"),
+                config.get("narrator", "local"),
+            )
+        else:
+            config["narrator"] = _normalize_narrator(config.get("narrator"), "local")
+        return config
+
+    async def _send_error(self, websocket, message: str) -> None:
+        await websocket.send(json.dumps({
+            "type": "error",
+            "message": message,
+        }))
+
+    def _narrate_range_sync(
+        self,
+        init_data: dict[str, Any],
+        client_config: dict[str, Any],
+        start_turn: int,
+        end_turn: int,
+    ) -> dict[str, Any] | None:
+        from chronicler.curator import curate
+        from chronicler.llm import create_clients
+        from chronicler.narration_inputs import from_bundle
+        from chronicler.narrative import NarrativeEngine
+
+        # The same inputs ``--narrate BUNDLE`` reads (chronicler.narration_inputs):
+        # the restored history, the world, the great persons and the in-world
+        # accounts and names the session carries. A live session's world
+        # that does not validate is skipped with a warning.
+        inputs = from_bundle(init_data, default_seed=0, strict_world=False)
+        all_history = inputs.history
+        range_events = [e for e in inputs.events if start_turn <= e.turn <= end_turn]
+
+        moments, _ = curate(
+            range_events,
+            inputs.named_events,
+            all_history,
+            budget=1,
+            seed=inputs.seed,
+            **inputs.curate_kwargs(),
+        )
+        if not moments:
+            return None
+
+        _, narrative_client = create_clients(
+            local_url=client_config.get("local_url", "http://localhost:1234/v1"),
+            sim_model=client_config.get("sim_model"),
+            narrative_model=client_config.get("narrative_model"),
+            narrator=client_config.get("narrator", "local"),
+        )
+        engine = NarrativeEngine(sim_client=narrative_client, narrative_client=narrative_client)
+        entries = engine.narrate_batch(moments, all_history, **inputs.narrate_kwargs())
+        if not entries:
+            return None
+        return entries[0].model_dump()
+
+    def start(self) -> None:
+        """Start the WebSocket server in a daemon thread."""
+        ready = threading.Event()
+        self.thread = threading.Thread(target=self._run_loop, args=(ready,), daemon=True)
+        self.thread.start()
+        ready.wait(timeout=5)
+
+    def stop(self) -> None:
+        """Signal the server to stop."""
+        if self._loop is not None and self._stop_event is not None:
+            self._loop.call_soon_threadsafe(self._stop_event.set)
+
+    def _handle_start(self, msg: dict) -> dict | None:
+        """Handle a start command. Returns an error dict if rejected, None on success."""
+        if self._server_state != "lobby":
+            return {"type": "error", "message": "Simulation already running"}
+        for field in ("turns", "civs", "regions"):
+            value = msg.get(field)
+            if not self._is_int(value) or value <= 0:
+                return {"type": "error", "message": f"Start field '{field}' must be a positive integer"}
+        seed = msg.get("seed")
+        if seed is not None and not self._is_int(seed):
+            return {"type": "error", "message": "Start field 'seed' must be an integer or null"}
+        for field in ("scenario", "sim_model", "narrative_model", "narrator"):
+            value = msg.get(field)
+            if value is not None and not isinstance(value, str):
+                return {"type": "error", "message": f"Start field '{field}' must be a string or null"}
+        narrator = msg.get("narrator")
+        if narrator is not None and narrator not in _SUPPORTED_NARRATORS:
+            return {"type": "error", "message": f"Start field 'narrator' must be one of local, api, gemini"}
+        resume_state = msg.get("resume_state")
+        if resume_state is not None and not isinstance(resume_state, dict):
+            return {"type": "error", "message": "Start field 'resume_state' must be an object or null"}
         self._start_params = msg
+        self._update_session_client_config(msg)
         self._server_state = "running"
         self.start_event.set()
         return None
 
-    def _resolve_client_config(self, bundle_metadata: dict) -> dict:
-        """Resolve client config, preferring bundle metadata over session defaults."""
-        config = dict(self._client_defaults)
-        if self._session_client_config:
-            for key in ("sim_model", "narrative_model", "narrator"):
-                value = self._session_client_config.get(key)
-                if value is not None:
-                    config[key] = value
-        for key in ("sim_model", "narrative_model"):
-            value = bundle_metadata.get(key)
-            if value is not None:
-                config[key] = value
-        narrator_mode = bundle_metadata.get("narrator_mode")
-        if narrator_mode is not None:
-            config["narrator"] = narrator_mode
-        return config
+    def _handle_batch_start(self, msg: dict) -> dict | None:
+        """Handle a batch_start command. Runs batch in a background thread."""
+        if self._batch_thread is not None and self._batch_thread.is_alive():
+            return {"type": "batch_error", "message": "Batch already running"}
 
+        config = msg.get("config", {})
+        if not isinstance(config, dict):
+            return {"type": "batch_error", "message": "batch_start config must be an object"}
+        config_error = self._validate_batch_config(config)
+        if config_error is not None:
+            return {"type": "batch_error", "message": config_error}
+        self._batch_cancel_event.clear()
 
-def resolve_start_seed(seed: int | None) -> int:
-    """Return the seed, or generate a random one."""
-    if seed is not None:
-        return seed
-    import random
-    return random.randrange(2**31)
+        def _batch_worker():
+            import argparse as _argparse
+            from datetime import datetime
+            from chronicler.batch import run_batch
+            from chronicler.analytics import generate_report
 
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            batch_output = f"output/batch_gui_{timestamp}"
+            defaults = self._lobby_init.get("defaults", {}) if isinstance(self._lobby_init, dict) else {}
 
-def _get_available_models(args: Any) -> list[str]:
-    """Return available model names, deduplicated."""
-    models: list[str] = []
-    for attr in ("sim_model", "narrative_model"):
-        value = getattr(args, attr, None)
-        if value is not None and value not in models:
-            models.append(value)
-    if not models:
-        # Try LM Studio
-        try:
-            import urllib.request
-            url = getattr(args, "local_url", "http://localhost:1234/v1")
-            req = urllib.request.Request(f"{url}/models", method="GET")
-            with urllib.request.urlopen(req, timeout=2) as resp:
-                data = json.loads(resp.read())
-            for model in data.get("data", []):
-                name = model.get("id")
-                if name and name not in models:
-                    models.append(name)
-        except Exception:
-            pass
-    if not models:
-        models.append("local-model")
-    return models
+            args = _argparse.Namespace(
+                seed=config.get("seed_start", 1),
+                batch=config.get("seed_count", 200),
+                turns=config.get("turns", 500),
+                simulate_only=config.get("simulate_only", True),
+                parallel=config.get("parallel", True),
+                output=f"{batch_output}/chronicle.md",
+                state=f"{batch_output}/state.json",
+                tuning=None,
+                civs=config.get("civs", defaults.get("civs", 4) or 4),
+                regions=config.get("regions", defaults.get("regions", 8) or 8),
+                resume=None,
+                reflection_interval=10,
+                local_url=self._client_defaults.get("local_url", "http://localhost:1234/v1"),
+                sim_model=config.get("sim_model", self._client_defaults.get("sim_model")),
+                narrative_model=config.get("narrative_model", self._client_defaults.get("narrative_model")),
+                llm_actions=False,
+                scenario=config.get("scenario"),
+                fork=None,
+                interactive=False,
+                pause_every=None,
+                seed_range=None,
+                narrator=config.get("narrator", self._client_defaults.get("narrator", "local")),
+                agents=config.get("agents", self._client_defaults.get("agents", "off")),
+                preset=config.get("preset", self._client_defaults.get("preset")),
+                capacity_aware_refugees=config.get(
+                    "capacity_aware_refugees", self._client_defaults.get("capacity_aware_refugees")),
+            )
 
+            from chronicler.expansion_features import EXPANSION_SWITCHES, EXPANSION_PREREQUISITES
+            for name in (*EXPANSION_PREREQUISITES, *EXPANSION_SWITCHES):
+                setattr(args, name, config.get(name, self._client_defaults.get(name)))
 
-def build_lobby_init(args: Any, scenario_dir: Path | None = None) -> dict:
-    """Build the init payload sent to a newly connected client in lobby state."""
-    scenarios: list[dict] = []
-    if scenario_dir is not None and scenario_dir.is_dir():
-        import yaml
-        for path in sorted(scenario_dir.glob("*.yaml")):
             try:
-                data = yaml.safe_load(path.read_text(encoding="utf-8"))
-            except Exception:
-                continue
-            if not isinstance(data, dict):
-                continue
-            scenarios.append({
-                "name": data.get("name", path.stem),
-                "description": data.get("description", ""),
-                "civs": [
-                    {"name": c.get("name", ""), "values": c.get("values", [])}
-                    for c in data.get("civilizations", [])
-                ],
-                "regions": [
-                    {"name": r.get("name", ""), "terrain": r.get("terrain", "")}
-                    for r in data.get("regions", [])
-                ],
-                "file": path.name,
-            })
+                workers = config.get("workers")
+                if workers:
+                    args.parallel = workers
 
-    defaults = {
-        "turns": 50,
-        "seed": getattr(args, "seed", None),
-        "civs": getattr(args, "civs", 4),
-        "regions": getattr(args, "regions", 8),
-    }
-    return {
-        "type": "init",
-        "state": "lobby",
-        "scenarios": scenarios,
-        "models": _get_available_models(args),
-        "defaults": defaults,
-    }
+                tuning_dict = config.get("tuning_overrides") or None
+
+                def on_progress(completed: int, total: int, current_seed: int):
+                    self.snapshot_queue.put({
+                        "type": "batch_progress",
+                        "completed": completed,
+                        "total": total,
+                        "current_seed": current_seed,
+                    })
+
+                batch_dir = run_batch(
+                    args,
+                    progress_cb=on_progress,
+                    cancel_event=self._batch_cancel_event,
+                    tuning_overrides_dict=tuning_dict,
+                )
+
+                if self._batch_cancel_event.is_set():
+                    self.snapshot_queue.put({
+                        "type": "batch_cancelled",
+                    })
+                    return
+
+                # Auto-run analytics and save report to disk
+                try:
+                    report = generate_report(batch_dir)
+                    _write_batch_report(batch_dir, report)
+                    self.snapshot_queue.put({
+                        "type": "batch_complete",
+                        "report": report,
+                    })
+                except Exception as exc:
+                    self.snapshot_queue.put({
+                        "type": "batch_error",
+                        "message": f"Batch completed but analytics failed: {exc}",
+                    })
+            except Exception as exc:
+                self.snapshot_queue.put({
+                    "type": "batch_error",
+                    "message": str(exc),
+                })
+
+        self._batch_thread = threading.Thread(target=_batch_worker, daemon=True)
+        self._batch_thread.start()
+        return None
+
+    def _run_loop(self, ready: threading.Event) -> None:
+        """Entry point for the server thread — creates and runs the event loop."""
+        self._loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self._loop)
+        self._stop_event = asyncio.Event()
+        try:
+            self._loop.run_until_complete(self._serve(ready))
+        finally:
+            self._loop.close()
+
+    async def _serve(self, ready: threading.Event) -> None:
+        """Run the async WebSocket server."""
+        import websockets.asyncio.server as ws_server
+
+        client_ws = None
+        client_lock = asyncio.Lock()
+
+        async def handler(websocket):
+            nonlocal client_ws
+            async with client_lock:
+                if client_ws is not None:
+                    await websocket.send(json.dumps({
+                        "type": "error",
+                        "message": "Another client is already connected",
+                    }))
+                    await websocket.close()
+                    return
+                client_ws = websocket
+
+            try:
+                # Send init data based on server state
+                if self._server_state == "lobby" and self._lobby_init is not None:
+                    await websocket.send(json.dumps(self._lobby_init))
+                elif self._server_state == "running" and self._init_data is not None:
+                    await websocket.send(json.dumps(self._init_data))
+                elif self._server_state == "running" and self._init_data is None:
+                    # World generation in progress — send minimal ack
+                    await websocket.send(json.dumps({"type": "init", "state": "starting"}))
+                # Send last paused msg if paused
+                if self._paused and self._last_paused_msg is not None:
+                    await websocket.send(json.dumps(self._last_paused_msg))
+
+                async for raw_msg in websocket:
+                    try:
+                        msg = json.loads(raw_msg)
+                    except json.JSONDecodeError:
+                        await self._send_error(websocket, "Invalid JSON")
+                        continue
+
+                    if not isinstance(msg, dict):
+                        await self._send_error(websocket, "Live messages must be JSON objects")
+                        continue
+
+                    msg_type = msg.get("type")
+                    if not isinstance(msg_type, str) or not msg_type:
+                        await self._send_error(websocket, "Live messages must include a string 'type'")
+                        continue
+
+                    # speed and quit are always accepted
+                    if msg_type == "speed":
+                        value = msg.get("value", 1.0)
+                        if not self._is_number(value):
+                            await self._send_error(websocket, "speed.value must be a number")
+                            continue
+                        self.speed = float(value)
+                        continue
+
+                    if msg_type == "quit":
+                        self.quit_event.set()
+                        if self._paused:
+                            self.command_queue.put(msg)
+                        continue
+
+                    if msg_type == "start":
+                        err = self._handle_start(msg)
+                        if err is not None:
+                            await websocket.send(json.dumps(err))
+                        continue
+
+                    if msg_type == "batch_start":
+                        err = self._handle_batch_start(msg)
+                        if err is not None:
+                            await websocket.send(json.dumps(err))
+                        continue
+
+                    if msg_type == "batch_cancel":
+                        self._batch_cancel_event.set()
+                        continue
+
+                    # An exact checkpoint at the next turn boundary (paused or not).
+                    if msg_type == "checkpoint":
+                        request = getattr(websocket, "request", None)
+                        await websocket.send(json.dumps(self.checkpoint_reply(
+                            msg,
+                            origin=request.headers.get("Origin") if request is not None else None,
+                            path=request.path if request is not None else "",
+                        )))
+                        continue
+
+                    if msg_type == "batch_load_report":
+                        report_path = msg.get("path", "")
+                        if not isinstance(report_path, str):
+                            await self._send_error(websocket, "batch_load_report.path must be a string")
+                            continue
+                        try:
+                            resolved = Path(report_path).resolve()
+                            allowed = Path("output").resolve()
+                            if not resolved.is_relative_to(allowed):
+                                raise ValueError(f"Path must be within output/: {report_path}")
+                            report = json.loads(resolved.read_text(encoding="utf-8"))
+                            await websocket.send(json.dumps({
+                                "type": "batch_report_loaded",
+                                "report": report,
+                            }))
+                        except Exception as exc:
+                            await websocket.send(json.dumps({
+                                "type": "batch_error",
+                                "message": f"Failed to load report: {exc}",
+                            }))
+                        continue
+
+                    # H-25: Load a bundle file and populate _init_data for narration
+                    if msg_type == "batch_load_bundle":
+                        bundle_path = msg.get("path", "")
+                        if not isinstance(bundle_path, str):
+                            await self._send_error(websocket, "batch_load_bundle.path must be a string")
+                            continue
+                        try:
+                            resolved = Path(bundle_path).resolve()
+                            allowed = Path("output").resolve()
+                            if not resolved.is_relative_to(allowed):
+                                raise ValueError(f"Path must be within output/: {bundle_path}")
+                            bundle = _validate_legacy_live_bundle(
+                                json.loads(resolved.read_text(encoding="utf-8"))
+                            )
+                            self._init_data = _build_init_data_from_bundle(bundle)
+                            await websocket.send(json.dumps({
+                                "type": "bundle_loaded",
+                                "bundle": bundle,
+                                "path": str(resolved),
+                                "turns": len(bundle.get("history", [])),
+                            }))
+                        except Exception as exc:
+                            await websocket.send(json.dumps({
+                                "type": "batch_error",
+                                "message": f"Failed to load bundle: {exc}",
+                            }))
+                        continue
+
+                    if msg_type == "narrate_range":
+                        # H-25: Guard against missing _init_data (no sim run yet)
+                        if self._init_data is None:
+                            await websocket.send(json.dumps({
+                                "type": "error",
+                                "message": "No simulation data available for narration. "
+                                           "Start a simulation first.",
+                            }))
+                            continue
+
+                        start_turn = msg.get("start_turn")
+                        end_turn = msg.get("end_turn")
+                        if not self._is_int(start_turn) or not self._is_int(end_turn):
+                            await self._send_error(websocket, "narrate_range.start_turn and end_turn must be integers")
+                            continue
+                        if start_turn > end_turn:
+                            await self._send_error(websocket, "narrate_range start_turn must be <= end_turn")
+                            continue
+                        if not self._init_data:
+                            await self._send_error(websocket, "narrate_range requires initialized history")
+                            continue
+                        init_data = copy.deepcopy(self._init_data)
+                        history_turns = [
+                            snap.get("turn")
+                            for snap in init_data.get("history", [])
+                            if isinstance(snap, dict) and self._is_int(snap.get("turn"))
+                        ]
+                        if not history_turns:
+                            await self._send_error(websocket, "narrate_range requires history turns")
+                            continue
+                        min_turn = min(history_turns)
+                        max_turn = max(history_turns)
+                        if start_turn < min_turn or end_turn > max_turn:
+                            await self._send_error(
+                                websocket,
+                                f"narrate_range must stay within available turns {min_turn}-{max_turn}",
+                            )
+                            continue
+                        await websocket.send(json.dumps({
+                            "type": "narration_started",
+                            "start_turn": start_turn,
+                            "end_turn": end_turn,
+                        }))
+                        metadata = init_data.get("metadata")
+                        client_config = self._resolve_client_config(
+                            metadata if isinstance(metadata, dict) else None
+                        )
+                        entry = await asyncio.to_thread(
+                            self._narrate_range_sync,
+                            init_data,
+                            client_config,
+                            start_turn,
+                            end_turn,
+                        )
+                        if entry is not None:
+                            await websocket.send(json.dumps({
+                                "type": "narration_complete",
+                                "entry": entry,
+                            }))
+                        continue
+
+                    # Other commands only accepted while paused
+                    if not self._paused:
+                        await websocket.send(json.dumps({
+                            "type": "error",
+                            "message": "Commands only accepted while paused",
+                        }))
+                        continue
+
+                    self.command_queue.put(msg)
+
+            except Exception as exc:
+                # H-26: Log disconnect explicitly instead of silently swallowing
+                import logging
+                logger = logging.getLogger("chronicler.live")
+                logger.info("Client disconnected: %s", exc)
+                try:
+                    await self._send_error(websocket, f"Unhandled live message error: {exc}")
+                except Exception:
+                    pass
+            finally:
+                async with client_lock:
+                    client_ws = None
+
+        async def drain_queues():
+            """Background task: drain snapshot_queue and status_queue, send to client."""
+            while not self._stop_event.is_set():
+                # Drain snapshot queue
+                try:
+                    while True:
+                        snapshot = self.snapshot_queue.get_nowait()
+                        self._record_snapshot(snapshot)
+                        async with client_lock:
+                            if client_ws is not None:
+                                try:
+                                    await client_ws.send(json.dumps(snapshot))
+                                except Exception:
+                                    # H-26: Log dropped messages on disconnect
+                                    import logging
+                                    logging.getLogger("chronicler.live").warning(
+                                        "Dropped snapshot (type=%s, turn=%s) — client disconnected",
+                                        snapshot.get("type"), snapshot.get("turn"),
+                                    )
+                except queue.Empty:
+                    pass
+
+                # Drain status queue
+                try:
+                    while True:
+                        status = self.status_queue.get_nowait()
+                        self._record_status(status)
+                        async with client_lock:
+                            if client_ws is not None:
+                                try:
+                                    await client_ws.send(json.dumps(status))
+                                except Exception:
+                                    # H-26: Log dropped status on disconnect
+                                    import logging
+                                    logging.getLogger("chronicler.live").warning(
+                                        "Dropped status (type=%s) — client disconnected",
+                                        status.get("type"),
+                                    )
+                except queue.Empty:
+                    pass
+
+                await asyncio.sleep(0.05)
+
+        def process_request(connection, request):
+            reason = self.handshake_error(request.headers.get("Origin"), request.path)
+            if reason is not None:
+                import http
+                return connection.respond(http.HTTPStatus.FORBIDDEN, reason + "\n")
+            return None
+
+        server = await ws_server.serve(
+            handler,
+            host="localhost",
+            port=self.port,
+            max_size=10 * 1024 * 1024,
+            ping_interval=20,
+            process_request=process_request,
+        )
+
+        # Record actual port (useful when port=0)
+        for sock in server.sockets:
+            addr = sock.getsockname()
+            self._actual_port = addr[1]
+            break
+
+        ready.set()
+
+        drain_task = asyncio.create_task(drain_queues())
+
+        try:
+            await self._stop_event.wait()
+        finally:
+            drain_task.cancel()
+            try:
+                await drain_task
+            except asyncio.CancelledError:
+                pass
+            server.close()
+            await server.wait_closed()
 
 
 def make_live_pause(
     command_queue: queue.Queue,
     status_queue: queue.Queue,
     output_dir: Path | None = None,
-) -> Callable:
-    """Create a live_pause callable for use as the pause hook in run_turn loops.
+    checkpoints: LiveCheckpoints | None = None,
+):
+    """Create a pause callback for live mode that communicates via queues.
 
-    The returned function blocks until a 'continue' or 'quit' command arrives.
-    'inject' commands are appended to pending_injections; 'set' commands modify
-    world state directly; 'fork' saves state. Returns True to continue, False to quit.
+    Returns a closure ``live_pause(world, memories, pending_injections) -> bool``
+    that blocks on the command_queue until a ``continue`` or ``quit`` command
+    is received. With ``checkpoints`` (chronicler.live_checkpoints), a
+    viewer's checkpoint requests are written while paused, and each
+    ``inject`` and ``set`` is recorded as an intervention.
     """
-    def live_pause(world: Any, memories: dict, pending_injections: list) -> bool:
-        status_queue.put({"type": "paused", "turn": world.turn})
+
+    def live_pause(
+        world: WorldState,
+        memories: dict[str, MemoryStream],
+        pending_injections: list,
+        reason: str = "pause_interval",
+    ) -> bool:
+        civ_names = [c.name for c in world.civilizations]
+        injectable_events = get_injectable_event_types()
+        valid_commands = ["continue", "quit", "inject", "set", "fork"]
+        if checkpoints is not None:
+            valid_commands.append("checkpoint")
+
+        # Put paused status on the queue
+        status_queue.put({
+            "type": "paused",
+            "turn": world.turn,
+            "reason": reason,
+            "valid_commands": valid_commands,
+            "injectable_events": injectable_events,
+            "settable_stats": sorted(VALID_STATS),
+            "civs": civ_names,
+        })
+
+        # Block waiting for commands. Checkpoint requests arrive on their own
+        # queue; those sent before a command are written before it is applied.
         while True:
-            command = command_queue.get()
-            cmd_type = command.get("type")
+            if checkpoints is None:
+                cmd = command_queue.get()  # blocks
+            else:
+                try:
+                    cmd = command_queue.get(timeout=0.05)
+                except queue.Empty:
+                    checkpoints.service(world)
+                    continue
+                checkpoints.service(world)
+            cmd_type = cmd.get("type")
 
             if cmd_type == "continue":
-                status_queue.put({"type": "ack", "command": "continue", "still_paused": False})
+                status_queue.put({
+                    "type": "ack",
+                    "command": "continue",
+                    "still_paused": False,
+                })
                 return True
+
             elif cmd_type == "quit":
-                status_queue.put({"type": "ack", "command": "quit", "still_paused": False})
                 return False
+
             elif cmd_type == "inject":
-                event_type = command.get("event_type")
-                civ_name = command.get("civ")
-                civ_names = {c.name for c in world.civilizations}
-                if civ_name not in civ_names:
+                event_type = cmd.get("event_type", "")
+                civ = cmd.get("civ", "")
+
+                # Validate civ
+                if civ not in civ_names:
                     status_queue.put({
                         "type": "error",
-                        "message": f"Unknown civilization: {civ_name}",
+                        "message": f"Unknown civilization: '{civ}'. Valid civs: {civ_names}",
                     })
                     continue
-                pending_injections.append((event_type, civ_name))
-                status_queue.put({"type": "ack", "command": "inject", "still_paused": True})
-            elif cmd_type == "set":
-                civ_name = command.get("civ")
-                stat = command.get("stat")
-                value = command.get("value")
-                civ = next((c for c in world.civilizations if c.name == civ_name), None)
-                if civ is None:
-                    status_queue.put({"type": "error", "message": f"Unknown civilization: {civ_name}"})
+
+                # Validate event type
+                if event_type not in injectable_events:
+                    status_queue.put({
+                        "type": "error",
+                        "message": f"Unknown event type: '{event_type}'. Valid types: {injectable_events}",
+                    })
                     continue
-                valid_stats = {"military", "economy", "culture", "stability", "treasury", "population"}
-                if stat not in valid_stats:
-                    status_queue.put({"type": "error", "message": f"Unknown stat: {stat}"})
-                    continue
-                setattr(civ, stat, value)
+
+                pending_injections.append((event_type, civ))
+                if checkpoints is not None:
+                    checkpoints.note_intervention(
+                        world, {"command": "inject", "event_type": event_type, "civ": civ})
                 status_queue.put({
-                    "type": "ack", "command": "set", "still_paused": True,
-                    "civ": civ_name, "stat": stat, "value": value,
+                    "type": "ack",
+                    "command": "inject",
+                    "still_paused": True,
                 })
-            elif cmd_type == "fork":
-                if output_dir is None:
-                    status_queue.put({"type": "error", "message": "Fork requires an output directory"})
+
+            elif cmd_type == "set":
+                civ_name = cmd.get("civ", "")
+                stat = cmd.get("stat", "")
+                value = cmd.get("value")
+
+                # Validate civ
+                civ_obj = next((c for c in world.civilizations if c.name == civ_name), None)
+                if civ_obj is None:
+                    status_queue.put({
+                        "type": "error",
+                        "message": f"Unknown civilization: '{civ_name}'. Valid civs: {civ_names}",
+                    })
                     continue
-                fork_dir = Path(output_dir) / f"fork_turn_{world.turn}"
+
+                # Validate stat
+                if stat not in VALID_STATS:
+                    status_queue.put({
+                        "type": "error",
+                        "message": f"Invalid stat: '{stat}'. Valid stats: {sorted(VALID_STATS)}",
+                    })
+                    continue
+
+                # Validate value range
+                try:
+                    value = int(value)
+                except (TypeError, ValueError):
+                    status_queue.put({
+                        "type": "error",
+                        "message": f"Value must be an integer, got '{value}'",
+                    })
+                    continue
+
+                if stat in CORE_STATS and not (1 <= value <= 100):
+                    status_queue.put({
+                        "type": "error",
+                        "message": f"Value for {stat} must be 1-100, got {value}",
+                    })
+                    continue
+
+                if stat == "treasury" and value < 0:
+                    status_queue.put({
+                        "type": "error",
+                        "message": f"Treasury must be >= 0, got {value}",
+                    })
+                    continue
+
+                # Apply the change
+                setattr(civ_obj, stat, value)
+                if checkpoints is not None:
+                    checkpoints.note_intervention(
+                        world, {"command": "set", "civ": civ_name, "stat": stat, "value": value})
+                status_queue.put({
+                    "type": "ack",
+                    "command": "set",
+                    "still_paused": True,
+                    "civ": civ_name,
+                    "stat": stat,
+                    "value": value,
+                })
+
+            elif cmd_type == "fork":
+                fork_output = output_dir or Path("output")
+                fork_dir = fork_output / f"fork_save_t{world.turn}"
                 fork_dir.mkdir(parents=True, exist_ok=True)
-                state_path = fork_dir / "state.json"
-                world.save(state_path)
+
+                # Save world state
+                world.save(fork_dir / "state.json")
+
+                # Save memories
+                for mem_civ_name, stream in memories.items():
+                    stream.save(fork_dir / f"memories_{sanitize_civ_name(mem_civ_name)}.json")
+
                 status_queue.put({
                     "type": "forked",
                     "save_path": str(fork_dir),
-                    "cli_hint": f"chronicler --fork {state_path} --seed SEED --turns TURNS",
+                    # A state file: --fork explores it with a new seed (there
+                    # is no --load); the viewer's Save checkpoint is exact.
+                    "cli_hint": (f"Fork from it with a new seed: --fork {fork_dir / 'state.json'} "
+                                 f"--seed SEED --turns TURNS (a state file, not an exact checkpoint)"),
                 })
+
             else:
-                status_queue.put({"type": "error", "message": f"Unknown command: {cmd_type}"})
+                status_queue.put({
+                    "type": "error",
+                    "message": f"Unknown command type: '{cmd_type}'",
+                })
 
     return live_pause
+
+
+def _get_available_models(args: Any) -> list[str]:
+    """Return list of available model names for the lobby dropdowns."""
+    models: list[str] = []
+    sim_model = getattr(args, "sim_model", None)
+    narrative_model = getattr(args, "narrative_model", None)
+    if sim_model:
+        models.append(sim_model)
+    if narrative_model and narrative_model not in models:
+        models.append(narrative_model)
+
+    # Try LM Studio /v1/models with 500ms timeout
+    local_url = getattr(args, "local_url", None)
+    if local_url:
+        try:
+            import urllib.request
+            req = urllib.request.Request(f"{local_url.rstrip('/')}/models")
+            with urllib.request.urlopen(req, timeout=0.5) as resp:
+                data = json.loads(resp.read())
+                for m in data.get("data", []):
+                    model_id = m.get("id", "")
+                    if model_id and model_id not in models:
+                        models.append(model_id)
+        except Exception:
+            pass
+
+    # Always include a fallback if nothing found
+    if not models:
+        models.append("")  # empty string = LM Studio uses loaded model
+
+    return models
+
+
+def build_lobby_init(args: Any, scenario_dir: Path | None = None) -> dict:
+    """Build the lobby init message by scanning scenario YAML files.
+
+    Reads scenario data directly from YAML — no world generation.
+    """
+    import yaml
+
+    if scenario_dir is None:
+        scenario_dir = Path("scenarios")
+
+    scenarios: list[dict] = []
+    if scenario_dir.exists():
+        for f in sorted(scenario_dir.glob("*.yaml")):
+            with open(f) as fh:
+                data = yaml.safe_load(fh) or {}
+            scenarios.append({
+                "file": f.name,
+                "name": data.get("name", f.stem),
+                "description": data.get("description", ""),
+                "world_name": data.get("world_name", f.stem),
+                "civs": [
+                    {"name": c["name"], "values": c.get("values", [])}
+                    for c in data.get("civilizations", []) or []
+                ],
+                "regions": [
+                    {
+                        "name": r["name"],
+                        "terrain": r.get("terrain", ""),
+                        "x": r.get("x"),
+                        "y": r.get("y"),
+                    }
+                    for r in data.get("regions", []) or []
+                ],
+            })
+
+    return {
+        "type": "init",
+        "state": "lobby",
+        "scenarios": scenarios,
+        "models": _get_available_models(args),
+        "defaults": {
+            "turns": 50,
+            "civs": 4,
+            "regions": 8,
+            "seed": None,
+        },
+    }
+
+
+def resolve_start_seed(seed: int | None) -> int:
+    """Resolve seed from start command. None means server-generated random."""
+    import random
+    if seed is None:
+        return random.randint(0, 2**31 - 1)
+    return seed
+
+
+def _live_world(args: Any, params: dict) -> tuple[WorldState, Any]:
+    """The world a lobby ``start`` message asks for, with the CLI's switches
+    (``execute_run`` sees a supplied world and keeps these settings)."""
+    scenario_config = None
+    if params.get("resume_state"):
+        world = WorldState.model_validate(params["resume_state"])
+    else:
+        seed = resolve_start_seed(params.get("seed"))
+
+        from chronicler.world_gen import generate_world
+        world = generate_world(
+            seed=seed,
+            num_regions=params.get("regions", 8),
+            num_civs=params.get("civs", 4),
+            worldgen=params.get("worldgen"),
+        )
+        if params.get("scenario"):
+            from chronicler.scenario import load_scenario, apply_scenario
+            scenario_config = load_scenario(Path("scenarios") / params["scenario"])
+            apply_scenario(world, scenario_config)
+        # M60: new live worlds default to campaigns (--no-campaigns opts out).
+        from chronicler.war.params import CAMPAIGNS_DEFAULT_FOR_NEW_WORLDS
+        _campaigns = getattr(args, "campaigns", None)
+        world.campaigns_enabled = (CAMPAIGNS_DEFAULT_FOR_NEW_WORLDS
+                                   if _campaigns is None else bool(_campaigns))
+        # Contact ledger: new live worlds follow the CLI default (--contact-ledger opts in/out).
+        from chronicler.contact_ledger import (
+            DEFAULT_ENABLED_FOR_NEW_WORLDS as _LEDGER_DEFAULT, set_contact_ledger_enabled,
+        )
+        _ledger = getattr(args, "contact_ledger", None)
+        set_contact_ledger_enabled(world, _LEDGER_DEFAULT if _ledger is None else bool(_ledger))
+        # Finance: new live worlds follow the CLI default (--finance opts in).
+        from chronicler.finance import (
+            DEFAULT_ENABLED_FOR_NEW_WORLDS as _FINANCE_DEFAULT, set_finance_enabled,
+        )
+        _finance = getattr(args, "finance", None)
+        set_finance_enabled(world, _FINANCE_DEFAULT if _finance is None else bool(_finance))
+        # Diplomacy: new live worlds follow the CLI default (--diplomacy opts in).
+        from chronicler.diplomacy import (
+            DEFAULT_ENABLED_FOR_NEW_WORLDS as _DIPLOMACY_DEFAULT, set_diplomacy_enabled,
+        )
+        _diplomacy = getattr(args, "diplomacy", None)
+        set_diplomacy_enabled(world, _DIPLOMACY_DEFAULT if _diplomacy is None else bool(_diplomacy))
+        # Techniques: new live worlds follow the CLI default (--no-techniques opts out).
+        from chronicler.techniques import (
+            DEFAULT_ENABLED_FOR_NEW_WORLDS as _TECHNIQUES_DEFAULT, set_techniques_enabled,
+        )
+        _techniques = getattr(args, "techniques", None)
+        set_techniques_enabled(world, _TECHNIQUES_DEFAULT if _techniques is None else bool(_techniques))
+        # Maritime: new live worlds follow the CLI default (--no-maritime opts out).
+        from chronicler.maritime import (
+            DEFAULT_ENABLED_FOR_NEW_WORLDS as _MARITIME_DEFAULT, set_maritime_enabled,
+        )
+        _maritime = getattr(args, "maritime", None)
+        set_maritime_enabled(world, _MARITIME_DEFAULT if _maritime is None else bool(_maritime))
+        # Great-person agendas: new live worlds follow the CLI default (--no-gp-agendas opts out).
+        from chronicler.gp_agendas import (
+            DEFAULT_ENABLED_FOR_NEW_WORLDS as _GP_AGENDAS_DEFAULT, set_gp_agendas_enabled,
+        )
+        _gp_agendas = getattr(args, "gp_agendas", None)
+        set_gp_agendas_enabled(world, _GP_AGENDAS_DEFAULT if _gp_agendas is None else bool(_gp_agendas))
+        # Nomads: new live worlds follow the CLI default (--no-nomads opts out).
+        from chronicler.nomads import (
+            DEFAULT_ENABLED_FOR_NEW_WORLDS as _NOMADS_DEFAULT, set_nomads_enabled,
+        )
+        _nomads = getattr(args, "nomads", None)
+        set_nomads_enabled(world, _NOMADS_DEFAULT if _nomads is None else bool(_nomads))
+        # Cities: new live worlds follow the CLI default (--no-cities opts out).
+        from chronicler.cities import (
+            DEFAULT_ENABLED_FOR_NEW_WORLDS as _CITIES_DEFAULT, set_cities_enabled,
+        )
+        _cities = getattr(args, "cities", None)
+        set_cities_enabled(world, _CITIES_DEFAULT if _cities is None else bool(_cities))
+        # Agent movements: new live worlds follow the CLI default (--no-agent-movements opts out).
+        from chronicler.agent_movements import (
+            DEFAULT_ENABLED_FOR_NEW_WORLDS as _MOVEMENTS_DEFAULT, set_agent_movements_enabled,
+        )
+        _movements = getattr(args, "agent_movements", None)
+        set_agent_movements_enabled(
+            world, _MOVEMENTS_DEFAULT if _movements is None else bool(_movements))
+        # Guilds: new live worlds follow the CLI default (--no-guilds opts out).
+        from chronicler.guilds import (
+            DEFAULT_ENABLED_FOR_NEW_WORLDS as _GUILDS_DEFAULT, set_guilds_enabled,
+        )
+        _guilds = getattr(args, "guilds", None)
+        set_guilds_enabled(world, _GUILDS_DEFAULT if _guilds is None else bool(_guilds))
+        # Seats of learning: new live worlds follow the CLI default (off;
+        # --scholarship opts in).
+        from chronicler.scholarship import (
+            DEFAULT_ENABLED_FOR_NEW_WORLDS as _SCHOLARSHIP_DEFAULT, set_scholarship_enabled,
+        )
+        _scholarship = getattr(args, "scholarship", None)
+        set_scholarship_enabled(
+            world, _SCHOLARSHIP_DEFAULT if _scholarship is None else bool(_scholarship))
+        # Public granaries: new live worlds follow the CLI default (off;
+        # --grain-reserves opts in; dormant without an agent mode).
+        from chronicler.grain_reserves import (
+            DEFAULT_ENABLED_FOR_NEW_WORLDS as _RESERVES_DEFAULT, set_grain_reserves_enabled,
+        )
+        _reserves = getattr(args, "grain_reserves", None)
+        set_grain_reserves_enabled(
+            world, _RESERVES_DEFAULT if _reserves is None else bool(_reserves))
+        # Community anchoring: new live worlds follow the CLI default (off;
+        # --community-anchoring opts in; dormant without an agent pool).
+        from chronicler.community_anchoring import (
+            DEFAULT_ENABLED_FOR_NEW_WORLDS as _ANCHOR_DEFAULT, set_community_anchoring_enabled,
+        )
+        _anchor = getattr(args, "community_anchoring", None)
+        set_community_anchoring_enabled(
+            world, _ANCHOR_DEFAULT if _anchor is None else bool(_anchor))
+        from chronicler.refugee_routing import set_capacity_aware_refugees_enabled
+        set_capacity_aware_refugees_enabled(world, bool(getattr(args, "capacity_aware_refugees", None)))
+        # Domestic credit: new live worlds follow the CLI default (off;
+        # --domestic-credit opts in; merchants lend only with an agent pool).
+        from chronicler.domestic_credit import (
+            DEFAULT_ENABLED_FOR_NEW_WORLDS as _CREDIT_DEFAULT, set_domestic_credit_enabled,
+        )
+        _credit = getattr(args, "domestic_credit", None)
+        set_domestic_credit_enabled(
+            world, (_CREDIT_DEFAULT if _credit is None else bool(_credit)) and world.finance is not None)
+        # Historiography: new live worlds follow the CLI default (observational).
+        from chronicler.historiography import (
+            DEFAULT_ENABLED_FOR_NEW_WORLDS as _HIST_DEFAULT, set_historiography_enabled,
+        )
+        _hist = getattr(args, "historiography", None)
+        set_historiography_enabled(world, _HIST_DEFAULT if _hist is None else bool(_hist))
+        # Languages: new live worlds follow the CLI default (observational).
+        from chronicler.languages import (
+            DEFAULT_ENABLED_FOR_NEW_WORLDS as _LANG_DEFAULT, set_languages_enabled,
+        )
+        _lang = getattr(args, "languages", None)
+        set_languages_enabled(world, _LANG_DEFAULT if _lang is None else bool(_lang))
+        # Fisheries and mutual aid: new live worlds follow the CLI defaults
+        # (execute_run sees a supplied world and keeps these settings).
+        from chronicler.experimental.fisheries import (
+            DEFAULT_ENABLED_FOR_NEW_WORLDS as _FISH_DEFAULT, set_fisheries_enabled,
+        )
+        _fish = getattr(args, "fisheries", None)
+        set_fisheries_enabled(world, _FISH_DEFAULT if _fish is None else bool(_fish), new_world=True)
+        from chronicler.mutual_aid import DEFAULT_ENABLED_FOR_NEW_WORLDS as _AID_DEFAULT
+        _aid = getattr(args, "mutual_aid", None)
+        world.mutual_aid_enabled = _AID_DEFAULT if _aid is None else bool(_aid)
+        # Epidemiology: new live worlds follow the CLI default; it needs the ledger.
+        from chronicler.epidemiology import (
+            DEFAULT_ENABLED_FOR_NEW_WORLDS as _EPI_DEFAULT, set_epidemiology_enabled,
+        )
+        from chronicler.contact_ledger import ledger_enabled as _ledger_on
+        _epi = getattr(args, "epidemiology", None)
+        set_epidemiology_enabled(
+            world, (_EPI_DEFAULT if _epi is None else bool(_epi)) and _ledger_on(world))
+    from chronicler.expansion_features import configure_expansion_features
+    configure_expansion_features(world, args, agent_mode=getattr(args, "agents", "off"))
+    return world, scenario_config
+
+
+def _live_clients(args: Any, server: "LiveServer") -> tuple[Any, Any, dict[str, Any]]:
+    """The session's LLM clients. ``--simulate-only`` makes no LLM calls, as
+    a single run does (era reflections included)."""
+    from chronicler.llm import create_clients
+    client_config = server._resolve_client_config()
+    if getattr(args, "simulate_only", False):
+        from chronicler.main import _DummyClient
+        return _DummyClient(), _DummyClient(), client_config
+    sim_client, narrative_client = create_clients(
+        local_url=client_config.get("local_url", "http://localhost:1234/v1"),
+        sim_model=client_config.get("sim_model"),
+        narrative_model=client_config.get("narrative_model"),
+        narrator=client_config.get("narrator", "local"),
+    )
+    return sim_client, narrative_client, client_config
+
+
+def _record_live_world_args(args: Any, params: dict) -> None:
+    """The client's world parameters in ``args``, so the run configuration
+    that checkpoints record (``batch_manifest.simulation_config``) describes
+    the world this session built. ``execute_run`` receives the built world
+    and reads none of them."""
+    args.civs = params.get("civs")
+    args.regions = params.get("regions")
+    worldgen = params.get("worldgen")
+    args.worldgen = worldgen if isinstance(worldgen, str) else None
+    scenario = params.get("scenario")
+    args.scenario = str(Path("scenarios") / scenario) if isinstance(scenario, str) and scenario else None
+
+
+def run_live(
+    args: Any,
+    exact_resume: Any | None = None,
+    *,
+    server: "LiveServer | None" = None,
+) -> Any:
+    """Run simulation in live mode with WebSocket server.
+
+    Phase 1: Start WebSocket server in lobby state, wait for client to send start.
+    Phase 2: Generate world from client params, run simulation.
+
+    With ``exact_resume`` (a ``run_checkpoint.LoadedCheckpoint``: ``--live
+    --resume FILE``) there is no lobby: the session continues the checkpoint
+    exactly, shows a connecting viewer the history so far, and starts paused
+    at the checkpoint's turn (reason ``resumed``). Quitting there writes
+    nothing. ``server`` replaces the WebSocket server (tests).
+    """
+    from chronicler.main import execute_run
+    from chronicler.models import TurnSnapshot, Event, NamedEvent
+
+    # --live-port 0 takes a free port (the printed link carries it).
+    port = getattr(args, "live_port", None)
+    port = 8765 if port is None else port
+    if server is None:
+        server = LiveServer(port=port, allowed_origins=getattr(args, "live_origin", None) or ())
+    server._client_defaults = {
+        "local_url": getattr(args, "local_url", "http://localhost:1234/v1"),
+        "sim_model": getattr(args, "sim_model", None),
+        "narrative_model": getattr(args, "narrative_model", None),
+        "narrator": _normalize_narrator(getattr(args, "narrator", "local"), "local"),
+        "agents": getattr(args, "agents", "off"),
+        "preset": getattr(args, "preset", None),
+        "capacity_aware_refugees": getattr(args, "capacity_aware_refugees", None),
+    }
+    from chronicler.expansion_features import EXPANSION_SWITCHES, EXPANSION_PREREQUISITES
+    for name in (*EXPANSION_PREREQUISITES, *EXPANSION_SWITCHES):
+        server._client_defaults[name] = getattr(args, name, None)
+    output_dir = Path(args.output).parent
+    view = LiveView()
+    state = exact_resume.state if exact_resume is not None else None
+
+    if state is None:
+        # --- Phase 1: Lobby ---
+        server._lobby_init = build_lobby_init(args)
+        server.start()
+        actual_port = server._actual_port or port
+        print(f"Lobby ready on ws://localhost:{actual_port} (session token required)")
+        print(f"Open viewer: {server.viewer_url()}")
+        extra = [o for o in server.allowed_origins if o not in DEFAULT_VIEWER_ORIGINS]
+        if extra:
+            print(f"Also accepting viewers served from: {', '.join(extra)}")
+        print("Waiting for client to launch simulation...", flush=True)
+
+        # Block until client sends start (interruptible via Ctrl+C)
+        while not server.start_event.wait(timeout=1.0):
+            pass
+
+        params = server._start_params
+        if params is None:
+            raise RuntimeError("start_event set but no _start_params")
+
+        # --- Phase 2: Simulation ---
+        pause_every = getattr(args, "pause_every", None) or getattr(args, "reflection_interval", 10) or 10
+        total_turns = params.get("turns") or args.turns or 50
+        server.checkpoints = LiveCheckpoints(output_dir, server.status_queue, view,
+                                             lambda: server.speed, pause_every)
+        world, scenario_config = _live_world(args, params)
+        _record_live_world_args(args, params)
+        sim_client, narrative_client, client_config = _live_clients(args, server)
+    else:
+        # --- Resumed session: the checkpoint's run, configuration and view ---
+        world = state.world
+        scenario_config = state.scenario_config
+        record = state.live
+        pause_every = (getattr(args, "pause_every", None)
+                       or (record or {}).get("pause_every")
+                       or getattr(args, "reflection_interval", 10) or 10)
+        total_turns = args.turns
+        sim_client, narrative_client, client_config = _live_clients(args, server)
+
+    init_sent = [state is not None]
+    world_ref = [world]
+
+    def _init_message(w: WorldState) -> dict[str, Any]:
+        return {
+            "type": "init",
+            "state": "running",
+            "total_turns": total_turns,
+            "pause_every": pause_every,
+            "current_turn": 0,
+            "world_state": w.model_dump(mode="json"),
+            "history": [],
+            "chronicle_entries": {},
+            "events_timeline": [],
+            "named_events": [],
+            "era_reflections": {},
+            "metadata": {
+                "seed": w.seed,
+                "total_turns": total_turns,
+                "generated_at": "",
+                "sim_model": getattr(sim_client, "model", "unknown") or "unknown",
+                "narrative_model": getattr(narrative_client, "model", "unknown") or "unknown",
+                "narrator_mode": client_config.get("narrator", "local"),
+                "scenario_name": getattr(w, "scenario_name", None),
+                "interestingness_score": None,
+            },
+            "speed": server.speed,
+        }
+
+    if state is not None:
+        if record is not None:
+            # The view the saved session's viewers saw, and its speed.
+            view = LiveView.from_record(record)
+            server.speed = record.get("speed", server.speed)
+            how = "the saved session's history"
+        else:
+            view = rebuilt_view(state, _init_message(world))
+            how = "a history rebuilt from the checkpoint (it was not written by a live session)"
+        server._init_data = view.init_data(total_turns=total_turns, pause_every=pause_every)
+        server._server_state = "running"
+        server.checkpoints = LiveCheckpoints(output_dir, server.status_queue, view,
+                                             lambda: server.speed, pause_every)
+        server.start()
+        actual_port = server._actual_port or port
+        print(f"Resumed live session at turn {world.turn} of {total_turns} on "
+              f"ws://localhost:{actual_port} (session token required); viewers see {how}")
+        print(f"Open viewer: {server.viewer_url()}")
+        extra = [o for o in server.allowed_origins if o not in DEFAULT_VIEWER_ORIGINS]
+        if extra:
+            print(f"Also accepting viewers served from: {', '.join(extra)}")
+        print(f"Paused at turn {world.turn}: continue from the viewer.", flush=True)
+
+    checkpoints = server.checkpoints
+
+    def on_turn_cb(
+        snapshot: TurnSnapshot,
+        chronicle_text: str,
+        events: list[Event],
+        named_events: list[NamedEvent],
+    ) -> None:
+        if not init_sent[0]:
+            init_sent[0] = True
+            init_msg = _init_message(world_ref[0])
+            view.record_init(init_msg)
+            server.snapshot_queue.put(init_msg)
+
+        # Turn messages leave dead civs out, as the bundle's history does.
+        snap_dict = turn_message(snapshot, chronicle_text, events, named_events, view.pruner)
+        view.record_turn(snap_dict)
+        server.snapshot_queue.put(snap_dict)
+
+        spd = server.speed
+        if spd > 0:
+            time.sleep(1.0 / spd)
+
+    pause_fn = make_live_pause(
+        server.command_queue,
+        server.status_queue,
+        output_dir=output_dir,
+        checkpoints=checkpoints,
+    )
+
+    try:
+        if state is not None:
+            from chronicler.run_checkpoint import checkpoint_path, write_checkpoint
+
+            def save_loaded(template: str) -> Path:
+                """The checkpoint as loaded, with what this pause changed."""
+                state.num_turns = total_turns
+                state.live = checkpoints.live_record()
+                path = checkpoint_path(template, state.world.turn)
+                write_checkpoint(path, state, exact=exact_resume.exact,
+                                 lineage=state.run_config.get("lineage"))
+                return path
+
+            checkpoints.bind(save_loaded, state.run_config)
+            # Paused at the checkpoint's turn until a viewer continues.
+            if not pause_fn(world, state.memories, state.pending_injections, reason="resumed"):
+                print(f"Quit at turn {world.turn} before any resumed turn: nothing was written; "
+                      f"{args.resume} still holds the run.")
+                time.sleep(0.5)
+                server.stop()
+                return None
+            checkpoints.turn_end(world)
+            pending_injections = None  # the checkpoint's own
+        else:
+            pending_injections = []
+
+        # Override args with client params for execute_run
+        args.turns = total_turns
+        if state is None:
+            args.seed = world.seed
+
+        result = execute_run(
+            args,
+            sim_client=sim_client,
+            narrative_client=narrative_client,
+            world=world if state is None else None,
+            on_pause=pause_fn,
+            pause_every=pause_every,
+            pending_injections=pending_injections,
+            scenario_config=scenario_config if state is None else None,
+            on_turn=on_turn_cb,
+            quit_check=lambda: server.quit_event.is_set(),
+            checkpoint_resume=exact_resume,
+            turn_boundary=checkpoints,
+        )
+    finally:
+        checkpoints.close("The run has finished; no turn boundary is left to checkpoint")
+
+    bundle_path = output_dir / "chronicle_bundle.json"
+    server.status_queue.put({
+        "type": "completed",
+        "total_turns": result.total_turns,
+        "bundle_path": str(bundle_path),
+        # The run's in-world historiography and languages (transport contract).
+        "systems": completed_systems(bundle_path),
+    })
+
+    time.sleep(0.5)
+    server.stop()
+
+    return result
