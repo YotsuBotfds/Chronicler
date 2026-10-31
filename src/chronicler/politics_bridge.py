@@ -851,13 +851,14 @@ def _build_breakaway_civ(
     adj_map = {r.name: set(r.adjacencies) for r in world.regions}
 
     def _min_dist_to_parent(region_name: str) -> int:
-        return min(
-            (
+        distances = [
+            distance for distance in (
                 graph_distance(adj_map, region_name, parent_region)
                 for parent_region in remaining_regions
-            ),
-            default=0,
-        )
+            )
+            if distance >= 0
+        ]
+        return min(distances, default=len(world.regions) + 1)
 
     breakaway_capital = min(breakaway_regions, key=_min_dist_to_parent)
     founded_turn = payload.get("founded_turn", world.turn)
@@ -974,7 +975,9 @@ def _materialize_restored_civ(world: WorldState, payload: dict, new_civ_map: dic
     absorber_era_idx = era_order.index(absorber.tech_era)
     restored_era = era_order[max(0, absorber_era_idx - 1)]
 
-    rng_trait = random.Random(world.seed + world.turn)
+    rng_trait = random.Random(
+        stable_hash_int("restoration_trait", world.seed, world.turn, restored_name)
+    )
     new_trait = rng_trait.choice(_TRAIT_POOL)
     restored_population = max(payload.get("stat_population", 30), 1)
     if world.agent_mode != "hybrid":
@@ -1015,11 +1018,11 @@ def _materialize_restored_civ(world: WorldState, payload: dict, new_civ_map: dic
         restored_civ.founded_turn = payload.get("founded_turn", world.turn)
         restored_civ.decline_turns = 0
         restored_civ.stats_sum_history = []
-        target_region_obj = next((r for r in world.regions if r.name == target_region), None)
-        if target_region_obj is not None:
-            target_region_obj.asabiya_state.asabiya = _normalize_politics_asabiya(
-                payload.get("stat_asabiya"), 0.8,
-            )
+    target_region_obj = next((r for r in world.regions if r.name == target_region), None)
+    if target_region_obj is not None:
+        target_region_obj.asabiya_state.asabiya = _normalize_politics_asabiya(
+            payload.get("stat_asabiya"), 0.8,
+        )
 
     regnal_rng = random.Random(
         stable_hash_int("restoration_regnal", world.seed, world.turn, restored_civ.name)

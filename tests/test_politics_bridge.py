@@ -7,6 +7,8 @@ Covers:
 - bridge transition helper timing and deterministic event merge
 - _seceded_this_turn surviving one turn and clearing on next builder read
 """
+import random
+
 import pytest
 import pyarrow as pa
 from chronicler.models import (
@@ -60,11 +62,13 @@ from chronicler.politics import (
     REF_EXISTING,
     REF_NEW,
     CIV_NONE,
+    _TRAIT_POOL,
     _DISPOSITION_TO_U8,
     # Reconstruct and apply
     reconstruct_politics_ops,
     apply_politics_ops,
 )
+from chronicler.utils import stable_hash_int
 
 
 # ── Helpers ──────────────────────────────────────────────────────────
@@ -571,6 +575,28 @@ class TestApplyPoliticsOps:
         assert world.civilizations[0].population == 60
         assert world.relationships["Civ0"][new_civ.name].disposition == Disposition.HOSTILE
 
+    def test_breakaway_capital_ignores_unreachable_parent_regions(self):
+        world = _make_world(num_civs=1, num_regions=4)
+        world.regions[0].adjacencies = []
+        for region in world.regions[1:]:
+            region.adjacencies = [name for name in region.adjacencies if name != "A"]
+        ops = [(2, 0, "civ_op", {
+            "op_type": CIV_OP_CREATE_BREAKAWAY,
+            "source_ref_kind": REF_EXISTING,
+            "source_ref_id": 0,
+            "target_ref_kind": REF_NEW,
+            "target_ref_id": 0,
+            "region_indices": [0, 2],
+            "stat_population": 40,
+            "founded_turn": world.turn,
+        })]
+
+        apply_politics_ops(world, ops)
+
+        breakaway = world.civilizations[1]
+        assert breakaway.regions == ["A", "C"]
+        assert breakaway.capital_region == "C"
+
     def test_restore_op_materializes_dead_civ_for_followup_ops(self):
         world = _make_world(num_civs=2, num_regions=4)
         absorber = world.civilizations[0]
@@ -622,6 +648,45 @@ class TestApplyPoliticsOps:
         assert restored.population == 30
         assert world.regions[2].controller == restored.name
         assert restored.leader.name != "Placeholder"
+
+    def test_new_restoration_matches_oracle_trait_and_initializes_region_asabiya(self):
+        world = _make_world(num_civs=1, num_regions=2)
+        absorber = world.civilizations[0]
+        world.regions[1].asabiya_state.asabiya = 0.13
+        world.exile_modifiers = [ExileModifier(
+            original_civ_name="Restored",
+            absorber_civ=absorber.name,
+            conquered_regions=["B"],
+            turns_remaining=5,
+        )]
+        ops = [
+            (8, 0, "civ_op", {
+                "op_type": CIV_OP_RESTORE,
+                "source_ref_kind": REF_EXISTING,
+                "source_ref_id": 0,
+                "target_ref_kind": REF_NEW,
+                "target_ref_id": 4,
+                "region_indices": [1],
+                "stat_population": 30,
+                "stat_asabiya": 0.8,
+                "founded_turn": world.turn,
+            }),
+            (8, 1, "region_op", {
+                "op_type": REGION_OP_SET_CONTROLLER,
+                "region": 1,
+                "controller_ref_kind": REF_NEW,
+                "controller_ref_id": 4,
+            }),
+        ]
+
+        apply_politics_ops(world, ops)
+
+        restored = world.civilizations[1]
+        expected_trait = random.Random(stable_hash_int(
+            "restoration_trait", world.seed, world.turn, "Restored",
+        )).choice(_TRAIT_POOL)
+        assert restored.leader.trait == expected_trait
+        assert world.regions[1].asabiya_state.asabiya == 0.8
 
     def test_restore_op_resets_absorber_war_frequency_when_last_region_lost(self):
         world = _make_world(num_civs=2, num_regions=4)
