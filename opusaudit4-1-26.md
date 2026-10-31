@@ -1,5 +1,11 @@
 # Chronicler Comprehensive Audit — April 1, 2026
 
+> **Historical snapshot — not current project status.** The findings and severity
+> counts below describe the April 1 source, not the current development branch.
+> Later remediation is recorded in `docs/superpowers/progress/phase-6-progress.md`
+> and `docs/integration/deferred-backlog-2026-10.md`. Retain this document as
+> audit evidence; do not use “Fix Immediately” or the counts as a current task list.
+
 ## Fleet Summary
 
 22 agents examined ~65,000 lines across 53 Python files, 26 Rust files, ~5,300 lines of TypeScript, all tests, all docs, and all cross-boundary interactions. They collectively made ~1,100 tool calls over ~90 minutes of parallel execution.
