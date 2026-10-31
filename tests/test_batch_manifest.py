@@ -163,6 +163,80 @@ def test_every_cli_argument_is_classified():
     assert destinations == set().union(*groups), "classify new arguments in chronicler.batch_manifest"
 
 
+def test_a_failed_batch_preserves_completed_evidence_and_reraises(tmp_path, monkeypatch):
+    from chronicler import main as cli
+
+    real_execute = cli.execute_run
+
+    def fail_second_seed(args, **kwargs):
+        if args.seed == 10:
+            raise RuntimeError("injected batch failure")
+        return real_execute(args, **kwargs)
+
+    monkeypatch.setattr(cli, "execute_run", fail_second_seed)
+
+    with pytest.raises(RuntimeError, match="injected batch failure"):
+        run_batch(_args(tmp_path, 9, 3))
+
+    batch_dir = tmp_path / "batch_9"
+    manifest = load_batch_manifest(batch_dir)
+    assert manifest["status"] == "failed"
+    assert [run["files"] is not None for run in manifest["runs"]] == [True, False, False]
+    assert manifest["runs"][0]["total_turns"] == 3
+    summary = (batch_dir / "summary.md").read_text(encoding="utf-8")
+    assert "| 1 | 9 |" in summary
+    assert "| 10 |" not in summary and "| 11 |" not in summary
+    with pytest.raises(ValidationRequestError, match="'failed'"):
+        check_batch_manifest(batch_dir)
+
+
+def test_a_failed_parallel_batch_finalizes_collected_worker_results(tmp_path, monkeypatch):
+    import chronicler.batch as batch_module
+    from chronicler.types import RunResult
+
+    class _AsyncResult:
+        def __init__(self, args):
+            self.args = args
+
+        def get(self):
+            child_args = self.args[0]
+            if child_args.seed == 10:
+                raise RuntimeError("injected parallel failure")
+            return RunResult(
+                seed=child_args.seed, output_dir=tmp_path, war_count=0,
+                collapse_count=0, named_event_count=0, distinct_action_count=0,
+                reflection_count=0, tech_advancement_count=0, max_stat_swing=0.0,
+                action_distribution={}, dominant_faction="-", total_turns=3,
+            )
+
+    class _Pool:
+        def __init__(self, workers, initializer=None):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def apply_async(self, fn, args):
+            return _AsyncResult(args)
+
+        def terminate(self):
+            pass
+
+    monkeypatch.setattr(batch_module.multiprocessing, "Pool", _Pool)
+
+    with pytest.raises(RuntimeError, match="injected parallel failure"):
+        run_batch(_args(tmp_path, 9, 3, parallel=2))
+
+    batch_dir = tmp_path / "batch_9"
+    manifest = load_batch_manifest(batch_dir)
+    assert manifest["status"] == "failed"
+    assert [run["files"] is not None for run in manifest["runs"]] == [True, False, False]
+    assert "| 1 | 9 |" in (batch_dir / "summary.md").read_text(encoding="utf-8")
+
+
 def test_a_cancelled_batch_is_marked_cancelled(tmp_path):
     import threading
 

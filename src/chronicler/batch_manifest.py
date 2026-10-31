@@ -2,7 +2,7 @@
 
 ``chronicler.batch.run_batch`` writes ``batch_manifest.json`` into a fresh
 batch directory before the first run (status ``running``) and rewrites it
-after the last (``complete``, or ``cancelled``). It records the expected
+after the last (``complete``, ``cancelled``, or ``failed``). It records the expected
 seeds and turns, the requested simulation configuration, the source and
 native-extension identity, the interpreter, platform and thread environment,
 and per run its directory, its final turn and the SHA-256 of every file the
@@ -426,10 +426,16 @@ def record_batch_run(batch_dir: Path, manifest: dict[str, Any], index: int, tota
     }
 
 
-def finish_batch_manifest(batch_dir: Path, manifest: dict[str, Any], *, cancelled: bool = False) -> Path:
-    """Mark the manifest ``complete`` (every run recorded) or ``cancelled`` and write it."""
+def finish_batch_manifest(
+    batch_dir: Path,
+    manifest: dict[str, Any],
+    *,
+    cancelled: bool = False,
+    failed: bool = False,
+) -> Path:
+    """Mark the manifest ``complete``, ``cancelled``, or ``failed`` and write it."""
     recorded = all(run["files"] is not None for run in manifest["runs"])
-    manifest["status"] = "complete" if recorded and not cancelled else "cancelled"
+    manifest["status"] = "failed" if failed else "complete" if recorded and not cancelled else "cancelled"
     manifest["completed_at"] = _utc_now()
     return write_batch_manifest(batch_dir, manifest)
 
