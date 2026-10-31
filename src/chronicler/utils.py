@@ -158,14 +158,14 @@ def distribute_pop_loss(regions, total_loss: int) -> list[int]:
     total_pop = sum(r.population for r in regions)
     if total_pop <= 0:
         return [0 for _ in regions]
-    remaining = total_loss
+    remaining = max(0, total_loss)
     actual_drains: list[int] = []
     for i, r in enumerate(regions):
         if i == len(regions) - 1:
             drain = remaining
         else:
             drain = round(total_loss * r.population / total_pop)
-        actual = min(drain, r.population)
+        actual = max(0, min(drain, r.population, remaining))
         r.population = max(r.population - actual, 0)
         remaining -= actual
         actual_drains.append(actual)

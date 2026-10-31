@@ -15,7 +15,7 @@ from chronicler.models import (
     EMPTY_SLOT, Civilization, ClimatePhase, Leader, Region, RegionEcology, ResourceType, WorldState,
 )
 from chronicler.tuning import K_FAMINE_POP_LOSS
-from chronicler.utils import add_region_pop
+from chronicler.utils import add_region_pop, distribute_pop_loss
 
 
 def _region(name: str, pop: int, cap: int = 100, controller: str | None = None,
@@ -54,6 +54,21 @@ def test_arrivals_fill_the_headroom_and_report_what_was_accepted():
     explicit = _region("Explicit", 10, cap=100)
     assert add_region_pop(explicit, 5, cap=12) == 2
     assert explicit.population == 12
+
+
+def test_population_loss_never_grows_a_region_after_rounding_overdraw():
+    regions = [_region(f"R{index}", 100) for index in range(39)]
+    regions.append(_region("Last", 1))
+    before = [region.population for region in regions]
+
+    drains = distribute_pop_loss(regions, 20)
+
+    assert sum(drains) == 20
+    assert all(drain >= 0 for drain in drains)
+    assert [region.population for region in regions] == [
+        population - drain for population, drain in zip(before, drains)
+    ]
+    assert all(region.population <= population for region, population in zip(regions, before))
 
 
 @pytest.mark.parametrize("pop, amount, accepted", [
@@ -202,7 +217,6 @@ def test_aggregate_turns_conserve_population_flow_by_flow(monkeypatch):
 def test_the_ledger_catches_people_made_from_nothing(monkeypatch):
     import chronicler.simulation as sim
     from chronicler.utils import POPULATION_CHECK_ENV
-    from chronicler.world_gen import generate_world
     monkeypatch.setenv(POPULATION_CHECK_ENV, "1")
     real = sim.phase_production
 

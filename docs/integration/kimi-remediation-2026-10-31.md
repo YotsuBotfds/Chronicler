@@ -8,10 +8,10 @@ This is the live handoff ledger for the remediation branch. Update it with every
 - Branch: `dev/kimi-remediation-20261031`
 - Base branch: `dev/claude-handoff-20261030`
 - Base commit: `2e7425f4f863274c2a973ceba5f9cfb89b857ffb`
-- Current head: this tracker commit; product-code head remains `2e7425f4f863274c2a973ceba5f9cfb89b857ffb`.
+- Current head: this batch-1 commit; previous tracker head `852525cdfcdfdb78ef919d25b2a1fd1bc5092640`.
 - Current owner: Kimi K3.1
 - Overall state: IN PROGRESS
-- Next exact action: land batch 1 (population loss and checkpoint source identity) with focused regressions.
+- Next exact action: land batch 2 (restoration trait/asabiya and breakaway-capital parity) with focused bridge regressions.
 
 ## Working rules
 
@@ -38,8 +38,8 @@ Status: `[ ]` pending, `[~]` active/interrupted, `[x]` landed and focused-checke
 
 | Status | ID | Priority | Recommended model / effort | Task | Evidence / handoff |
 |---|---|---|---|---|---|
-| [~] | B1a | P0 | K3.1 Pro / Standard | Fix negative drains in `utils.distribute_pop_loss`; regression covers rounded overdraw and no regional growth. | Reproduced at base: final region 1 -> 20 during loss 20. Files: `src/chronicler/utils.py`, `tests/test_utils.py` or nearest existing loss tests. |
-| [ ] | B1b | P0 | K3.1 Pro / Standard | Make checkpoint replay source identity include nested Python packages; share `batch_manifest.package_digest` if compatible. | Base repro: nested `war/` edit left hash unchanged. Files: `checkpoint_replay.py`, `tests/test_checkpoint_replay.py`. |
+| [x] | B1a | P0 | K3.1 Pro / Standard | Fix negative drains in `utils.distribute_pop_loss`; regression covers rounded overdraw and no regional growth. | Batch 1: clamp every drain to population and remaining non-negative budget; focused and surrounding tests passed. |
+| [x] | B1b | P0 | K3.1 Pro / Standard | Make checkpoint replay source identity include nested Python packages; share `batch_manifest.package_digest` if compatible. | Batch 1: replay now uses the canonical recursive package digest; top-level and nested-module checkpoint invalidation passed. |
 | [ ] | B2a | P0 | K3.1 Pro / High | Match restoration trait RNG to the Python oracle, including per-civilization stream identity. | Base repro: bridge `stubborn`, oracle `opportunistic`. Files: `politics_bridge.py`, `tests/test_politics_bridge.py`. |
 | [ ] | B2b | P0 | K3.1 Pro / High | Set restored region asabiya in both existing- and new-record bridge paths. | Base repro: region remained 0.13 while restored civ was 0.8. |
 | [ ] | B2c | P0 | K3.1 Pro / High | Filter unreachable (`-1`) distances in bridge breakaway-capital selection. | Base repro: bridge selected A, oracle algorithm selected C. |
@@ -60,7 +60,8 @@ Status: `[ ]` pending, `[~]` active/interrupted, `[x]` landed and focused-checke
 
 | Commit | Scope | Checks | Follow-up |
 |---|---|---|---|
-| this tracker commit | Repository tracker only | No product code changed; no tests required for tracker commit. | Start B1a/B1b. |
+| `852525cdfcdfdb78ef919d25b2a1fd1bc5092640` | Repository tracker only | No product code changed; no tests required for tracker commit. | Start B1a/B1b. |
+| this commit | Batch 1: population-loss clamp and recursive checkpoint source identity | New regressions failed before the fix (2 failed, 1 passed), then passed (3 passed). Surrounding suites: 169 passed. | Start B2a/B2b/B2c. |
 
 ## Verification log
 
@@ -71,7 +72,12 @@ Baseline review at `2e7425f4f863274c2a973ceba5f9cfb89b857ffb`:
 - Two seed-42, 30-turn aggregate smoke runs matched except `metadata.generated_at`.
 - Rust/Cargo and `chronicler_agents` were unavailable; native execution and fresh CI remain unqualified.
 
-Remediation checks: none yet.
+Remediation checks:
+
+- Batch 1 pre-fix regression control: `.venv/bin/python -m pytest -q tests/test_population_conservation.py::test_population_loss_never_grows_a_region_after_rounding_overdraw tests/test_turn_artifact_runner.py::test_new_source_module_changes_identity_and_rejects_checkpoint` — 2 failed, 1 passed; failures were the negative drain and unchanged nested-source digest.
+- Batch 1 focused: same command — 3 passed.
+- Batch 1 surrounding: `.venv/bin/python -m pytest -q tests/test_population_conservation.py tests/test_utils_civ_helpers.py tests/test_checkpoint_replay.py tests/test_turn_artifact_runner.py tests/test_batch_manifest.py` — 169 passed in 17.45s.
+- Environment: locked `uv sync` on CPython 3.13.18. No Rust/native execution or fresh CI.
 
 ## Handoff checklist for Codex or Claude
 

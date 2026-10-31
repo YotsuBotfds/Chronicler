@@ -214,7 +214,10 @@ def test_checkpoint_residual_guards_survive_cutover(name, make_world, tmp_path):
     assert not (tmp_path / "checkpoint.json").exists()
 
 
-def test_new_turn_module_changes_source_identity_and_rejects_checkpoint(make_world, tmp_path, monkeypatch):
+@pytest.mark.parametrize("relative_path", ["turn_artifacts.py", "war/engine.py"])
+def test_new_source_module_changes_identity_and_rejects_checkpoint(
+    relative_path, make_world, tmp_path, monkeypatch
+):
     source = tmp_path / "source"
     source.mkdir()
     (source / "checkpoint_replay.py").write_bytes(Path(replay.__file__).read_bytes())
@@ -222,7 +225,9 @@ def test_new_turn_module_changes_source_identity_and_rejects_checkpoint(make_wor
     checkpoint = tmp_path / "checkpoint.json"
     replay.save_checkpoint(make_world(), checkpoint)
     before = replay._runtime_identity()["source_sha256"]
-    (source / "turn_artifacts.py").write_text("# new contract module\n")
+    module = source / relative_path
+    module.parent.mkdir(exist_ok=True)
+    module.write_text("# new contract module\n")
     after = replay._runtime_identity()["source_sha256"]
     assert before != after
     with pytest.raises(replay.CheckpointError, match="source/Python/dependency runtime mismatch"):

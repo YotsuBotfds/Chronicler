@@ -22,6 +22,7 @@ from chronicler.action_engine import ActionEngine
 from chronicler.artifact_io import (
     ArtifactIOError, atomic_write_json, strict_json_dumps, strict_json_loads,
 )
+from chronicler.batch_manifest import package_digest
 from chronicler.models import WorldState
 from chronicler.simulation import run_turn
 from chronicler.tech_focus import FOCUS_EFFECTS, TechFocus
@@ -130,14 +131,11 @@ def _schema_digest() -> str:
 
 
 def _runtime_identity() -> dict[str, str]:
-    source = hashlib.sha256()
-    for path in sorted(Path(__file__).parent.glob("*.py")):
-        source.update(path.name.encode("utf-8") + b"\0" + path.read_bytes() + b"\0")
     return {
         "python": platform.python_version(),
         "implementation": platform.python_implementation(),
         "platform": platform.platform(),
-        "source_sha256": source.hexdigest(),
+        "source_sha256": package_digest(Path(__file__).parent),
         **{name: version(name) for name in (
             "pydantic", "numpy", "scipy", "pyarrow", "arro3-core", "pyyaml",
         )},
