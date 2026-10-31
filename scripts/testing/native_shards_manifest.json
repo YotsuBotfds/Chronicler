@@ -204,7 +204,7 @@
       "tests/test_ecology_bridge.py",
       "tests/test_economy_m43a.py",
       "tests/test_economy_m43b.py",
-      "tests/test_economy_parity.py",
+      "tests/test_economy_oracle.py",
       "tests/test_elite_metrics_columnar.py",
       "tests/test_emergence.py",
       "tests/test_event_hazards.py",

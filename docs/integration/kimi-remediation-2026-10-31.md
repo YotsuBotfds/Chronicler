@@ -8,10 +8,10 @@ This is the live handoff ledger for the remediation branch. Update it with every
 - Branch: `dev/kimi-remediation-20261031`
 - Base branch: `dev/claude-handoff-20261030`
 - Base commit: `2e7425f4f863274c2a973ceba5f9cfb89b857ffb`
-- Current head: this C5 commit; preceding remediation commits are recorded in branch history.
+- Current head: this D1 commit; preceding remediation commits are recorded in branch history.
 - Current owner: Kimi K3.1
 - Overall state: IN PROGRESS
-- Next exact action: correct D1 economy-parity test naming/docs without weakening genuine native coupling parity tests.
+- Next exact action: confirm D2 campaign defaults, continuation pointer, and Python-floor metadata, then correct the stale documentation/metadata without behavior changes.
 
 ## Working rules
 
@@ -51,7 +51,7 @@ Status: `[ ]` pending, `[~]` active/interrupted, `[x]` landed and focused-checke
 | [x] | C3 | P1 | K3.1 Pro / Standard | Route primary artifact writes through existing atomic I/O helpers with fault-injection coverage. | C3: bundle JSON/Arrow, world state and sidecars, chronicle, and live/CLI batch reports replace atomically; injected replace failures preserve prior artifacts and clean temp files. |
 | [x] | C4 | P2 | K3.1 Pro / High | Resolve recorded-but-uncompared `PYTHONHASHSEED` checkpoint identity semantics. | C4: exact resume already compares it through `thread_env`; the receipt field remains for expansion comparisons. Tests pin mismatch/no-normalization semantics; docs cover deliberate replay omission and the both-unset determinism caveat. |
 | [x] | C5 | P2 | K3.1 Pro / High | Fix Node 20 viewer hash-test portability or narrow documented support; add CI coverage for supported floor. | C5: hash a `Uint8Array` view so Node 20 Web Crypto accepts cross-realm jsdom File buffers; direct regression plus full viewer/lint/build passed. Standard Viewer CI now runs at Node 20.19.0; fresh CI remains unrun. |
-| [ ] | D1 | P2 | K2.8 / Standard | Correct misleading economy-parity test naming/docs without weakening genuine native coupling parity tests. | `test_economy_parity.py` never invokes Rust; real parity exists in `test_economy_coupling.py`. |
+| [x] | D1 | P2 | K2.8 / Standard | Correct misleading economy-parity test naming/docs without weakening genuine native coupling parity tests. | D1: renamed the Python-only module to `test_economy_oracle.py`, removed fake Rust labels/dead migration scaffolding, preserved shard 1 and all 32 passes / 6 native skips; `test_economy_coupling.py` is unchanged. |
 | [ ] | D2 | P2 | K2.8 / Standard | Correct campaign-default docs, README continuation pointer, and Python-floor metadata after checking packaging intent. | Mechanical only after code behavior is confirmed unchanged. |
 | [ ] | D3 | P3 | K3.1 Pro / High | Split orchestration/validation hotspots and reduce source-text witness dependence. | Separate follow-up; do not mix with correctness batches. |
 | [ ] | D4 | P3 | K2.8 / Standard | Triage dormant duplicate workflows, stale audit docs, and viewer lockfile advisories. | Preserve retained evidence functions; reviewed dependency refresh required. |
@@ -70,7 +70,8 @@ Status: `[ ]` pending, `[~]` active/interrupted, `[x]` landed and focused-checke
 | C2 commit | C2: resolved-action entropy and persistence analytics | Three regressions failed before the fix (entropy 0 instead of 1.5, missing era/founder coverage, persistence 100% instead of 50%), then passed. Analytics/report suites: 53 passed. | Start C3. |
 | C3 commit | C3: atomic primary artifact replacement | Initial five regressions failed before the fix (direct writes bypassed the injected replace failure or helpers were absent); final focused set: 6 passed. Affected artifact/state/live suites: 264 passed, 4 skipped. Batch and artifact integration suites: 210 passed. | Start C4. |
 | `d63b5be9` | C4: checkpoint hash-seed identity semantics | No behavior change: tests pin comparison through `thread_env`, unset-versus-zero mismatch, and receipt mirroring. Five focused tests and 157 surrounding checkpoint/replay/live tests passed with `PYTHONHASHSEED=0`. | Start C5; native hash-seed probe remains unrun. |
-| this commit | C5: cross-realm viewer hashing and Node-floor CI | New direct regression failed before the fix; 22 focused tests, 745 full viewer tests, lint, production build, and 18 workflow-contract tests passed on Node 20.20.2 / CPython 3.12.12. | Start D1. The CI-configured Node 20.19.0 floor has not run in fresh CI. |
+| `dd90995c` | C5: cross-realm viewer hashing and Node-floor CI | New direct regression failed before the fix; 22 focused tests, 745 full viewer tests, lint, production build, and 18 workflow-contract tests passed on Node 20.20.2 / CPython 3.12.12. | Start D1. The CI-configured Node 20.19.0 floor has not run in fresh CI. |
+| this commit | D1: accurate Python economy-oracle test identity | Renamed module/test labels and removed dead Rust-era helpers; economy oracle/coupling suites retained 32 passed / 6 native skips, and all 210 shard-contract tests passed. | Start D2. Native coupling cases remain UNRUN, not merely renamed or removed. |
 
 ## Verification log
 
@@ -116,7 +117,9 @@ Remediation checks:
 - C5 focused: `npm test -- --maxWorkers=2 --reporter=dot src/lib/__tests__/artifactIdentity.test.ts src/hooks/__tests__/useBundleLoading.test.ts src/hooks/__tests__/useBundleWorker.test.ts` — 22 passed in 4.49s.
 - C5 full viewer: `npm test -- --maxWorkers=2 --reporter=dot` on Node 20.20.2 — 69 files and 745 tests passed in 189.81s. `npm run lint` and `npm run build` passed; the existing large-bundle warning remains.
 - C5 workflow contracts: `PYTHONPATH=/mnt/agents/work/chronicler-python-deps:src python -m pytest -q tests/test_native_build_lanes.py` on CPython 3.12.12 — 18 passed in 1.98s. The standard Viewer job now selects Node 20.19.0, but that exact floor and fresh CI are UNRUN.
-- Environment: locked `uv sync` on CPython 3.13.18 for batches 1-5. C1-C4 and Python workflow checks used the persisted CPython 3.12.12 dependency target after the portal filesystem interrupted a fresh locked sync. C5 viewer dependencies came from `npm ci` on local scratch storage with the repository fixture tree. No Rust/native execution or fresh CI.
+- D1 economy tests: `PYTHONPATH=/mnt/agents/work/chronicler-python-deps:src python -m pytest -q tests/test_economy_oracle.py tests/test_economy_coupling.py` on CPython 3.12.12 — 32 passed, 6 skipped in 3.85s, matching the pre-rename count. All skips are the unchanged genuine native coupling cases; no native execution occurred.
+- D1 shard contracts: `PYTHONPATH=/mnt/agents/work/chronicler-python-deps:src python -m pytest -q tests/test_native_ci_shards.py` on CPython 3.12.12 — 210 passed in 1.04s. The canonical owner-map digest changed only for the intentional path rename, with an explicit assertion preserving the module on shard 1.
+- Environment: locked `uv sync` on CPython 3.13.18 for batches 1-5. C1-C4 and later Python checks used the persisted CPython 3.12.12 dependency target after the portal filesystem interrupted a fresh locked sync. C5 viewer dependencies came from `npm ci` on local scratch storage with the repository fixture tree. No Rust/native execution or fresh CI.
 
 ## Handoff checklist for Codex or Claude
 
