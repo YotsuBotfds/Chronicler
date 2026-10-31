@@ -1528,6 +1528,7 @@ def run_live(
 
             def save_loaded(template: str) -> Path:
                 """The checkpoint as loaded, with what this pause changed."""
+                state.num_turns = total_turns
                 state.live = checkpoints.live_record()
                 path = checkpoint_path(template, state.world.turn)
                 write_checkpoint(path, state, exact=exact_resume.exact,
