@@ -237,6 +237,85 @@ def test_a_failed_parallel_batch_finalizes_collected_worker_results(tmp_path, mo
     assert "| 1 | 9 |" in (batch_dir / "summary.md").read_text(encoding="utf-8")
 
 
+def test_an_interrupted_batch_preserves_completed_evidence_and_reraises(tmp_path, monkeypatch):
+    from chronicler import main as cli
+
+    real_execute = cli.execute_run
+
+    def interrupt_second_seed(args, **kwargs):
+        if args.seed == 10:
+            raise KeyboardInterrupt("injected batch interruption")
+        return real_execute(args, **kwargs)
+
+    monkeypatch.setattr(cli, "execute_run", interrupt_second_seed)
+
+    with pytest.raises(KeyboardInterrupt, match="injected batch interruption"):
+        run_batch(_args(tmp_path, 9, 3))
+
+    batch_dir = tmp_path / "batch_9"
+    manifest = load_batch_manifest(batch_dir)
+    assert manifest["status"] == "failed"
+    assert [run["files"] is not None for run in manifest["runs"]] == [True, False, False]
+    assert (batch_dir / "seed_9" / "chronicle_bundle.json").is_file()
+    assert "| 1 | 9 |" in (batch_dir / "summary.md").read_text(encoding="utf-8")
+    with pytest.raises(ValidationRequestError, match="'failed'"):
+        check_batch_manifest(batch_dir)
+
+
+def test_a_serialization_failure_preserves_completed_evidence(tmp_path, monkeypatch):
+    from chronicler import main as cli
+    from chronicler.artifact_io import ArtifactIOError
+
+    real_write_bundle = cli.write_bundle
+
+    def fail_second_bundle(bundle, path, **kwargs):
+        if Path(path).parent.name == "seed_10":
+            raise ArtifactIOError("injected bundle serialization failure")
+        return real_write_bundle(bundle, path, **kwargs)
+
+    monkeypatch.setattr(cli, "write_bundle", fail_second_bundle)
+
+    with pytest.raises(ArtifactIOError, match="injected bundle serialization failure"):
+        run_batch(_args(tmp_path, 9, 3))
+
+    batch_dir = tmp_path / "batch_9"
+    manifest = load_batch_manifest(batch_dir)
+    assert manifest["status"] == "failed"
+    assert [run["files"] is not None for run in manifest["runs"]] == [True, False, False]
+    assert (batch_dir / "seed_9" / "chronicle_bundle.json").is_file()
+    assert "| 1 | 9 |" in (batch_dir / "summary.md").read_text(encoding="utf-8")
+
+
+def test_a_manifest_write_failure_does_not_mask_the_run_failure_or_complete_the_batch(
+        tmp_path, monkeypatch):
+    import chronicler.batch as batch_module
+    from chronicler import main as cli
+
+    real_execute = cli.execute_run
+
+    def fail_second_seed(args, **kwargs):
+        if args.seed == 10:
+            raise RuntimeError("injected batch failure")
+        return real_execute(args, **kwargs)
+
+    def fail_terminal_manifest(*args, **kwargs):
+        raise OSError("injected terminal manifest write failure")
+
+    monkeypatch.setattr(cli, "execute_run", fail_second_seed)
+    monkeypatch.setattr(batch_module, "finish_batch_manifest", fail_terminal_manifest)
+
+    with pytest.raises(RuntimeError, match="injected batch failure") as exc_info:
+        run_batch(_args(tmp_path, 9, 3))
+
+    assert any("Batch finalization also failed" in note and "terminal manifest" in note
+               for note in exc_info.value.__notes__)
+    batch_dir = tmp_path / "batch_9"
+    assert load_batch_manifest(batch_dir)["status"] == "running"
+    assert (batch_dir / "seed_9" / "chronicle_bundle.json").is_file()
+    with pytest.raises(ValidationRequestError, match="'running'"):
+        check_batch_manifest(batch_dir)
+
+
 def test_a_cancelled_batch_is_marked_cancelled(tmp_path):
     import threading
 
