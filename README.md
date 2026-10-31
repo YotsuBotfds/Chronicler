@@ -84,6 +84,9 @@ When rebuilding the Rust extension, use the virtual environment's Python (`.venv
 
 ## Quick Start
 
+For a no-narration run with a real viewer bundle and an exact save/resume check,
+see the [local simulate, view, and resume walkthrough](docs/local-simulate-view-resume.md).
+
 ```bash
 # Basic run — 50 turns, 4 civilizations, deterministic simulation + local LM narration
 chronicler --seed 42 --turns 50 --civs 4 --regions 8 --output output/chronicle.md
