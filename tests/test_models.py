@@ -79,6 +79,25 @@ class TestWorldStatePersistence:
         loaded = WorldState.load(path)
         assert loaded.name == sample_world.name
 
+    def test_save_preserves_existing_state_when_replace_fails(self, sample_world, monkeypatch, tmp_path):
+        """A failed atomic state replace leaves the previous checkpoint intact."""
+        from chronicler import artifact_io
+        from chronicler.artifact_io import ArtifactIOError
+
+        path = tmp_path / "state.json"
+        old_text = '{"old": true}'
+        path.write_text(old_text, encoding="utf-8")
+
+        def failing_replace(src, dst):
+            raise OSError("simulated replace failure")
+
+        monkeypatch.setattr(artifact_io.os, "replace", failing_replace)
+        with pytest.raises(ArtifactIOError, match="could not write artifact"):
+            sample_world.save(path)
+
+        assert path.read_text(encoding="utf-8") == old_text
+        assert list(tmp_path.glob(".*.tmp")) == []
+
     def test_load_ignores_legacy_historical_figures_field(self, sample_world):
         payload = sample_world.model_dump()
         payload["historical_figures"] = [
