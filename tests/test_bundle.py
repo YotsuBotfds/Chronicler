@@ -449,6 +449,23 @@ class TestWriteBundle:
         write_bundle({"test": True}, path)
         assert path.exists()
 
+    def test_write_bundle_preserves_existing_json_when_replace_fails(self, monkeypatch, tmp_path):
+        from chronicler import artifact_io
+        from chronicler.artifact_io import ArtifactIOError
+
+        path = tmp_path / "chronicle_bundle.json"
+        path.write_text('{"old": true}', encoding="utf-8")
+
+        def failing_replace(src, dst):
+            raise OSError("simulated replace failure")
+
+        monkeypatch.setattr(artifact_io.os, "replace", failing_replace)
+        with pytest.raises(ArtifactIOError, match="could not write artifact"):
+            write_bundle({"new": True}, path)
+
+        assert path.read_text(encoding="utf-8") == '{"old": true}'
+        assert list(tmp_path.glob(".*.tmp")) == []
+
 
 class TestSnapshotCapture:
     def _make_args(self, tmp_path, seed=42, turns=5):
@@ -604,6 +621,27 @@ class TestAgentEventsSerialization:
         assert path.exists()
         arrow_path = tmp_path / "agent_events.arrow"
         assert arrow_path.exists()
+
+    @pytest.mark.skipif(not HAS_ARROW, reason="pyarrow not installed")
+    def test_arrow_write_preserves_existing_file_when_replace_fails(self, sample_world, monkeypatch, tmp_path):
+        """A failed atomic Arrow replace leaves the previous sidecar intact."""
+        from chronicler import artifact_io
+        from chronicler.artifact_io import ArtifactIOError
+
+        sample_world.agent_events_raw = self._make_events()
+        path = tmp_path / "agent_events.arrow"
+        old_bytes = b"old-arrow"
+        path.write_bytes(old_bytes)
+
+        def failing_replace(src, dst):
+            raise OSError("simulated replace failure")
+
+        monkeypatch.setattr(artifact_io.os, "replace", failing_replace)
+        with pytest.raises(ArtifactIOError, match="could not write artifact"):
+            write_agent_events_arrow(sample_world, tmp_path)
+
+        assert path.read_bytes() == old_bytes
+        assert list(tmp_path.glob(".*.tmp")) == []
 
     @pytest.mark.skipif(not HAS_ARROW, reason="pyarrow not installed")
     def test_arrow_schema_types(self, sample_world, tmp_path):
