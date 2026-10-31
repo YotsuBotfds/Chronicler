@@ -357,10 +357,11 @@ class LiveServer:
 
         if "agents" in config:
             agents = config.get("agents")
-            if not isinstance(agents, str):
-                return "batch_start config 'agents' must be a string or null"
-            if agents not in _SUPPORTED_AGENT_MODES:
-                return "batch_start config 'agents' must be one of off, demographics-only, shadow, hybrid"
+            if agents is not None:
+                if not isinstance(agents, str):
+                    return "batch_start config 'agents' must be a string or null"
+                if agents not in _SUPPORTED_AGENT_MODES:
+                    return "batch_start config 'agents' must be one of off, demographics-only, shadow, hybrid"
 
         preset = config.get("preset")
         if preset is not None and preset not in _SUPPORTED_PRESETS:
@@ -478,7 +479,7 @@ class LiveServer:
                 return {"type": "error", "message": f"Start field '{field}' must be a string or null"}
         narrator = msg.get("narrator")
         if narrator is not None and narrator not in _SUPPORTED_NARRATORS:
-            return {"type": "error", "message": f"Start field 'narrator' must be one of local, api, gemini"}
+            return {"type": "error", "message": "Start field 'narrator' must be one of local, api, gemini"}
         resume_state = msg.get("resume_state")
         if resume_state is not None and not isinstance(resume_state, dict):
             return {"type": "error", "message": "Start field 'resume_state' must be an object or null"}
