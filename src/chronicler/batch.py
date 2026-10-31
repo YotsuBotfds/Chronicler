@@ -69,6 +69,8 @@ def run_batch(
     ----------
     progress_cb : optional callback(completed, total, current_seed) called after each seed.
     cancel_event : optional threading.Event; if set, batch stops between seeds.
+    A run failure is fail-fast: completed evidence is retained, the manifest is
+    finalized as ``failed``, and the original exception is re-raised.
     tuning_overrides_dict : optional in-memory overrides (bypasses YAML file I/O).
     """
     base_seed = 42 if args.seed is None else args.seed
@@ -92,80 +94,101 @@ def run_batch(
     write_batch_manifest(batch_dir, manifest)
     cancelled = False
 
-    if args.parallel:
-        # H-24: Parallel batch mode cannot use LLM clients (connections can't
-        # cross process boundaries). Fail loudly if narration was requested
-        # instead of silently falling back to _DummyClient.
-        if not getattr(args, 'simulate_only', True):
-            raise ValueError(
-                "--batch --parallel requires --simulate-only. "
-                "Parallel workers cannot share LLM connections. "
-                "Use sequential batch mode for narrated runs."
-            )
-        workers = parallel_workers(args.parallel)
-        run_args = []
-        for i in range(count):
-            run_seed = base_seed + i
-            run_dir = batch_dir / f"seed_{run_seed}"
-            run_dir.mkdir(parents=True, exist_ok=True)
-            child_args = copy.copy(args)
-            child_args.seed = run_seed
-            child_args.output = str(run_dir / "chronicle.md")
-            child_args.state = str(run_dir / "state.json")
-            child_args.tuning_overrides = tuning_overrides
-            run_args.append((child_args, scenario_config))
+    weights = scenario_config.interestingness_weights if scenario_config and hasattr(scenario_config, 'interestingness_weights') else None
+    try:
+        if args.parallel:
+            # H-24: Parallel batch mode cannot use LLM clients (connections can't
+            # cross process boundaries). Fail loudly if narration was requested
+            # instead of silently falling back to _DummyClient.
+            if not getattr(args, 'simulate_only', True):
+                raise ValueError(
+                    "--batch --parallel requires --simulate-only. "
+                    "Parallel workers cannot share LLM connections. "
+                    "Use sequential batch mode for narrated runs."
+                )
+            workers = parallel_workers(args.parallel)
+            run_args = []
+            for i in range(count):
+                run_seed = base_seed + i
+                run_dir = batch_dir / f"seed_{run_seed}"
+                run_dir.mkdir(parents=True, exist_ok=True)
+                child_args = copy.copy(args)
+                child_args.seed = run_seed
+                child_args.output = str(run_dir / "chronicle.md")
+                child_args.state = str(run_dir / "state.json")
+                child_args.tuning_overrides = tuning_overrides
+                run_args.append((child_args, scenario_config))
 
-        with multiprocessing.Pool(workers, initializer=_init_parallel_worker) as pool:
-            async_results = [pool.apply_async(_run_single_no_llm, a) for a in run_args]
-            for i, ar in enumerate(async_results):
+            with multiprocessing.Pool(workers, initializer=_init_parallel_worker) as pool:
+                async_results = [pool.apply_async(_run_single_no_llm, a) for a in run_args]
+                for i, ar in enumerate(async_results):
+                    if cancel_event and cancel_event.is_set():
+                        pool.terminate()
+                        cancelled = True
+                        break
+                    result = ar.get()
+                    results.append(result)
+                    record_batch_run(batch_dir, manifest, i, result.total_turns)
+                    run_seed = base_seed + i
+                    if progress_cb:
+                        progress_cb(i + 1, count, run_seed)
+        else:
+            for i in range(count):
                 if cancel_event and cancel_event.is_set():
-                    pool.terminate()
                     cancelled = True
                     break
-                result = ar.get()
+                run_seed = base_seed + i
+                run_dir = batch_dir / f"seed_{run_seed}"
+                run_dir.mkdir(parents=True, exist_ok=True)
+
+                child_args = copy.copy(args)
+                child_args.seed = run_seed
+                child_args.output = str(run_dir / "chronicle.md")
+                child_args.state = str(run_dir / "state.json")
+                child_args.tuning_overrides = tuning_overrides
+
+                from chronicler.main import execute_run
+                result = execute_run(
+                    child_args,
+                    sim_client=sim_client,
+                    narrative_client=narrative_client,
+                    scenario_config=scenario_config,
+                )
                 results.append(result)
                 record_batch_run(batch_dir, manifest, i, result.total_turns)
-                run_seed = base_seed + i
                 if progress_cb:
                     progress_cb(i + 1, count, run_seed)
-    else:
-        for i in range(count):
-            if cancel_event and cancel_event.is_set():
-                cancelled = True
-                break
-            run_seed = base_seed + i
-            run_dir = batch_dir / f"seed_{run_seed}"
-            run_dir.mkdir(parents=True, exist_ok=True)
+                print(f"  Batch run {i + 1}/{count} complete (seed {run_seed})")
 
-            child_args = copy.copy(args)
-            child_args.seed = run_seed
-            child_args.output = str(run_dir / "chronicle.md")
-            child_args.state = str(run_dir / "state.json")
-            child_args.tuning_overrides = tuning_overrides
+    except BaseException as exc:
+        # Keep already-collected run evidence inspectable without masking the
+        # original failure. This applies to sequential and parallel workers.
+        try:
+            _finalize_batch(batch_dir, manifest, results, weights, failed=True)
+        except Exception as finalize_error:
+            exc.add_note(f"Batch finalization also failed: {finalize_error!r}")
+        raise
 
-            from chronicler.main import execute_run
-            result = execute_run(
-                child_args,
-                sim_client=sim_client,
-                narrative_client=narrative_client,
-                scenario_config=scenario_config,
-            )
-            results.append(result)
-            record_batch_run(batch_dir, manifest, i, result.total_turns)
-            if progress_cb:
-                progress_cb(i + 1, count, run_seed)
-            print(f"  Batch run {i + 1}/{count} complete (seed {run_seed})")
+    _finalize_batch(batch_dir, manifest, results, weights, cancelled=cancelled)
 
+    return batch_dir
+
+
+def _finalize_batch(
+    batch_dir: Path,
+    manifest: dict,
+    results: list[RunResult],
+    weights: dict[str, float] | None,
+    *,
+    cancelled: bool = False,
+    failed: bool = False,
+) -> None:
+    """Write the terminal manifest and the evidence collected before it."""
     if "chronicler_agents.chronicler_agents" in sys.modules:
         # Sequential runs load the extension here: record the loaded module.
         manifest["native"] = native_identity()
-    finish_batch_manifest(batch_dir, manifest, cancelled=cancelled)
-
-    # Write summary
-    weights = scenario_config.interestingness_weights if scenario_config and hasattr(scenario_config, 'interestingness_weights') else None
+    finish_batch_manifest(batch_dir, manifest, cancelled=cancelled, failed=failed)
     _write_summary(batch_dir, results, weights)
-
-    return batch_dir
 
 
 def _init_parallel_worker() -> None:
