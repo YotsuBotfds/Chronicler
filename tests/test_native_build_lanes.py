@@ -21,6 +21,14 @@ def test_rust_extension_msrv_is_explicit_and_matches_arrow_dependency():
     assert cargo["package"]["rust-version"] == "1.85"
 
 
+def test_native_and_python_packages_share_the_supported_python_floor():
+    python_package = tomllib.loads(_read("pyproject.toml"))
+    native_package = tomllib.loads(_read("chronicler-agents/pyproject.toml"))
+
+    assert python_package["project"]["requires-python"] == ">=3.13"
+    assert native_package["project"]["requires-python"] == python_package["project"]["requires-python"]
+
+
 def test_pyo3_extension_module_feature_is_maturin_only_so_cargo_tests_link():
     cargo = tomllib.loads(_read("chronicler-agents/Cargo.toml"))
     maturin = tomllib.loads(_read("chronicler-agents/pyproject.toml"))
@@ -106,6 +114,7 @@ def test_github_tests_workflow_has_a_viewer_job():
 
     assert "working-directory: viewer" in viewer
     assert "cache-dependency-path: viewer/package-lock.json" in viewer
+    assert 'node-version: "20.19.0"' in viewer
     steps = ["npm ci", "npm test -- --maxWorkers=2", "npm run lint", "npm run build"]
     assert all(step in viewer for step in steps)
     assert [viewer.index(step) for step in steps] == sorted(viewer.index(step) for step in steps)
@@ -192,8 +201,10 @@ def test_standard_workflow_preserves_independent_bodies_and_public_gate_names():
     def blocks(text):
         return dict(re.findall(r"(?ms)^  ([\w-]+):\n(.*?)(?=^  [\w-]+:\n|\Z)", text.split("jobs:\n", 1)[1]))
     old_blocks, current_blocks = blocks(historical), blocks(current)
-    for job in ("python-offline", "python-no-rust", "rust", "viewer"):
+    for job in ("python-offline", "python-no-rust", "rust"):
         assert current_blocks[job] == old_blocks[job], job
+    expected_viewer = old_blocks["viewer"].replace('node-version: "22"', 'node-version: "20.19.0"', 1)
+    assert current_blocks["viewer"] == expected_viewer
     names = [body["name"] for body in _workflow_jobs(".github/workflows/tests.yml").values()]
     for name in ("Python bounded offline", "Python no-Rust", "Python native execution", "Rust", "Python native", "Viewer"):
         assert names.count(name) == 1, name
