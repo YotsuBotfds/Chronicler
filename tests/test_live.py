@@ -16,6 +16,26 @@ def test_live_server_start_stop():
     server.stop()
 
 
+def test_live_batch_report_preserves_existing_file_when_replace_fails(monkeypatch, tmp_path):
+    """The live Batch Lab report is replaced atomically, never truncated in place."""
+    from chronicler import artifact_io
+    from chronicler.artifact_io import ArtifactIOError
+    from chronicler.live import _write_batch_report
+
+    report_path = tmp_path / "batch_report.json"
+    report_path.write_text('{"old": true}', encoding="utf-8")
+
+    def failing_replace(src, dst):
+        raise OSError("simulated replace failure")
+
+    monkeypatch.setattr(artifact_io.os, "replace", failing_replace)
+    with pytest.raises(ArtifactIOError, match="could not write artifact"):
+        _write_batch_report(tmp_path, {"new": True})
+
+    assert report_path.read_text(encoding="utf-8") == '{"old": true}'
+    assert list(tmp_path.glob(".*.tmp")) == []
+
+
 def _make_world():
     """Create a minimal WorldState for testing."""
     from chronicler.world_gen import generate_world
