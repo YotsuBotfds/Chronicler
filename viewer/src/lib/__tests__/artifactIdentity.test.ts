@@ -14,6 +14,13 @@ it("hashes raw BOM and whitespace bytes rather than normalized JSON", async () =
   expect(identity.sha256).not.toBe(createHash("sha256").update('{"seed":1}').digest("hex"));
 });
 
+it("hashes File ArrayBuffers across JavaScript realms", async () => {
+  vi.stubGlobal("crypto", webcrypto);
+  const bytes = await new File(['{ "seed": 1 }'], "file.json").arrayBuffer();
+  expect(await identifyArtifact("file.json", bytes)).toEqual({ name: "file.json", byteLength: bytes.byteLength,
+    sha256: createHash("sha256").update(new Uint8Array(bytes)).digest("hex") });
+});
+
 it("keeps file identity metadata when hashing is unavailable", async () => {
   vi.stubGlobal("crypto", {});
   expect(await identifyArtifact("old.json", new ArrayBuffer(4))).toEqual({ name: "old.json", byteLength: 4, sha256: null });
