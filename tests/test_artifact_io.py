@@ -265,6 +265,50 @@ def test_atomic_write_text_preserves_existing_target_when_replace_fails(monkeypa
     assert all(not temp.exists() for temp in temp_paths)
 
 
+def test_atomic_write_text_preserves_existing_target_when_interrupted_mid_write(monkeypatch, tmp_path):
+    from chronicler import artifact_io
+
+    target = tmp_path / "artifact.txt"
+    target.write_text("old-content", encoding="utf-8")
+    original_fdopen = artifact_io.os.fdopen
+    replace_called = False
+
+    class PartialWriteThenInterrupt:
+        def __init__(self, file):
+            self.file = file
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc_info):
+            self.file.close()
+
+        def __getattr__(self, name):
+            return getattr(self.file, name)
+
+        def write(self, content):
+            self.file.write(content[:4])
+            self.file.flush()
+            raise KeyboardInterrupt
+
+    def interrupting_fdopen(*args, **kwargs):
+        return PartialWriteThenInterrupt(original_fdopen(*args, **kwargs))
+
+    def recording_replace(src, dst):  # pragma: no cover - must not be reached
+        nonlocal replace_called
+        replace_called = True
+
+    monkeypatch.setattr(artifact_io.os, "fdopen", interrupting_fdopen)
+    monkeypatch.setattr(artifact_io.os, "replace", recording_replace)
+
+    with pytest.raises(KeyboardInterrupt):
+        artifact_io.atomic_write_text(target, "new-content")
+
+    assert replace_called is False
+    assert target.read_text(encoding="utf-8") == "old-content"
+    assert list(tmp_path.glob(".*.tmp")) == []
+
+
 def test_atomic_write_json_serializes_before_touching_target(monkeypatch, tmp_path):
     from chronicler import artifact_io
     from chronicler.artifact_io import ArtifactIOError
