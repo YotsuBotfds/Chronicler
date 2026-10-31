@@ -8,10 +8,10 @@ This is the live handoff ledger for the remediation branch. Update it with every
 - Branch: `dev/kimi-remediation-20261031`
 - Base branch: `dev/claude-handoff-20261030`
 - Base commit: `2e7425f4f863274c2a973ceba5f9cfb89b857ffb`
-- Current head: this E8b commit; preceding remediation commits are recorded in branch history.
+- Current head: this final handoff commit; E8b is `803a91b2e1e9305383e2cc6b26fd787d5dabcb63` and earlier remediation commits are recorded in branch history.
 - Current owner: Kimi K3.1
-- Overall state: IN PROGRESS
-- Next exact action: complete the final diff review, verify additive remote publication content, and leave the exact-commit handoff with unrun gates and Claude's next three priorities.
+- Overall state: LOCAL REMEDIATION COMPLETE; FINAL ADDITIVE PUBLICATION AUDIT PENDING AT DELIVERY
+- Next exact action: publish this final handoff tree additively, verify every changed remote blob against local Git, confirm `tests/test_economy_parity.py` is absent, and report the distinct local/remote head hashes without claiming a commit-for-commit mirror.
 
 ## Working rules
 
@@ -90,7 +90,8 @@ Continuation-queue mapping: item 1 is E1; items 2-4 are residual verification ta
 | `01ab4104` | E4: interrupted atomic-write evidence | Audit confirmed existing failed-replacement, pre-write serialization, cleanup, and JSON/Arrow/state format coverage. One new shared-helper test interrupts after four bytes are really written to the temporary file; the old target remains, replacement is not attempted, cleanup runs, and `KeyboardInterrupt` survives. Twenty-nine artifact-I/O tests and independent review passed. | Start E7. Test-only change; no new storage framework, multi-file transaction claim, native execution, or fresh CI. |
 | `cf7a14d0` | E7: verified local simulate/view/exact-resume walkthrough | Added a short README-linked guide and ran its real seed-42 sample. The turn-4 exact resume reproduced six chronicle/state/sidecar/memory artifacts byte-for-byte and all decoded bundle content except `generated_at`. Headless Chromium loaded the actual bundle through Open Existing with no viewer/page errors. Independent review PASS. | Start E8. Evidence is aggregate/no-native on CPython 3.12.12 plus Node 20.20.2, not fresh Python 3.13 setup, native execution, fresh CI, determinism-profile, or scientific qualification. |
 | `5b6e6fca` | E8a: duplicate scenario-name rejection | Duplicate civilization and region scenarios failed to raise before the fix, then both regressions passed. All 103 scenario tests and independent review passed. Name-keyed lookups can no longer silently collapse these authored duplicates. | Land E8b. Invalid authored input is rejected; valid simulation decisions and defaults are unchanged. |
-| this commit | E8b: live post-turn interrupt checkpoint | The new regression reproduced a missing turn-1 checkpoint when Ctrl-C landed in live pacing. The callback now shares first-SIGINT deferral, while a second Ctrl-C remains immediate. Focused, live, main-loop, and checkpoint suites passed; independent review PASS. | Complete final review/publication handoff. No simulation decision, optional default, native execution, fresh CI, determinism profile, or scientific gate changed or qualified. |
+| `803a91b2` | E8b: live post-turn interrupt checkpoint | The new regression reproduced a missing turn-1 checkpoint when Ctrl-C landed in live pacing. The callback now shares first-SIGINT deferral, while a second Ctrl-C remains immediate. Focused, live, main-loop, and checkpoint suites passed; independent review PASS. | Complete final review/publication handoff. No simulation decision, optional default, native execution, fresh CI, determinism profile, or scientific gate changed or qualified. |
+| this commit | Final remediation handoff | Final base-to-head diff check passed; all task-board items are complete. Records exact evidence, limits, next commands, Claude's three priorities, and separate experimental branch identities. Documentation only; no new qualification claimed. | Publish and audit this exact tree additively. Local commit history and the MCP-created remote commit sequence are intentionally not described as identical. |
 
 ## Verification log
 
@@ -175,3 +176,63 @@ Remediation checks:
 4. Inspect existing neighboring tests before creating a new test file.
 5. After each fix: run focused tests, inspect the complete diff, update task status/head/checks/next action here, and commit source plus tracker together when practical.
 6. At handoff, leave no ambiguity about unrun native, viewer, full-suite, CI, determinism, or scientific gates.
+
+## Final handoff — 2026-11-01
+
+### Exact source and state
+
+- Branch: `dev/kimi-remediation-20261031`.
+- Local handoff head: the commit containing this file; E8b immediately before it is `803a91b2e1e9305383e2cc6b26fd787d5dabcb63`. The delivery report gives the final handoff hash and the distinct additive-remote head explicitly.
+- Base: `dev/claude-handoff-20261030` at `2e7425f4f863274c2a973ceba5f9cfb89b857ffb`.
+- `main` remains untouched at `cb9fe70c81658fb65c6f511b821447f1d7b55b54`; no PR, merge, branch deletion, paid narration, optional-default change, or bulk branch consolidation occurred.
+- All continuation tasks E1-E8 are complete. The final base-to-head `git diff --check` passed and the pre-handoff worktree was clean. The branch has 47 changed files, not a fresh full-suite qualification.
+
+```sh
+# In the retained remediation worktree:
+cd /mnt/agents/work/chronicler-remediation
+git status --short --branch
+git rev-parse HEAD
+git log -3 --oneline
+# Do not pull/merge the additive MCP-created remote history into this divergent
+# local history; audit final path content instead.
+```
+
+### Evidence and remaining failures
+
+- Latest E8 checks: 103 scenario tests; 38 live checkpoint/pause tests; 98 main/exact-checkpoint tests; 8 state-checkpoint tests; and 19 focused existing edge-case tests passed. Both E8 fixes had failing pre-fix reproductions and independent PASS reviews. Earlier affected-suite evidence remains above; it was reused rather than rerun unchanged.
+- E7 is one real aggregate/no-native eight-turn simulate/view/exact-resume example, not a full determinism profile. It used CPython 3.12.12 with persisted dependencies; the project-declared floor is Python 3.13 or later.
+- UNRUN on the final tree: fresh supported-install qualification, complete current-head no-native and native Python suites, fresh CI, full determinism profile, scientific gates, and all Rust/native execution. In particular, B5 `test_restoration_skips_unresolved_original_identities`, the native hash-seed probe, and genuine native economy-coupling cases remain UNRUN.
+- Viewer dependency audit still has 12 moderate minimatch/ESLint-family advisories. No force/downgrade was applied. One earlier concurrent viewer-test invocation failed without retained diagnostics; three later sequential full runs passed, so that initial failure is not diagnosed or claimed as a current product failure.
+- Publication uses additive GitHub file API commits because authenticated Git transport is unavailable. It must be described as final-tree content equivalence after per-path SHA verification, never as a commit-for-commit mirror. The scoped D1 removal must leave `tests/test_economy_parity.py` absent and `tests/test_economy_oracle.py` present.
+
+### Claude's next three priorities
+
+1. **K3.1 Pro / Max — qualify the exact final tree natively.** In a fresh supported Python 3.13 environment with Rust/Cargo and a matching freshly built extension, run the complete no-native/native Python lanes and `cargo test --locked --manifest-path chronicler-agents/Cargo.toml`. Explicitly execute B5 `test_restoration_skips_unresolved_original_identities`, genuine native economy coupling, and the native `PYTHONHASHSEED` probe; keep skips distinct from passes.
+2. **K3.1 Pro / High — establish fresh CI and resume evidence.** Run the exact-head CI lanes, then the full determinism/checkpoint matrix and any required scientific gate. Do not promote the single E7 sample or affected-suite passes into those qualifications. Preserve fail-fast behavior and do not add automatic retries or paid narration.
+3. **K3.1 Pro / High — review experiments independently.** Evaluate viewer, grain, merchant-tax, and optimization branches one at a time from their own exact heads and evidence. Do not bulk merge, change optional-system defaults, or infer measured speed/scientific efficacy from structural or CI-only results.
+
+### Separate branches to preserve
+
+Remote branch identities observed on 2026-11-01; these are pointers for independent review, not merge authorization:
+
+| Area | Branch and exact observed head | Boundary |
+|---|---|---|
+| Viewer | `lead/cloud-viewer-fixes-20261029` — `eabba5c97d76601c5152d1fa0bc89ec4bccd577f` | Selected debt-snapshot/fallen-borrower viewer source; rerun viewer checks on any new combination. |
+| Grain eligibility | `lead/grain-eligibility-diagnostic-semantics002-20261030` — `19a97e784a5ccb5f7f9e94246afe8f9e86434fee` | Diagnostic/semantics branch; no default grain promotion. |
+| Public grain shipments | `lead/public-grain-shipments-semantics-20261030` — `b9e3fb11a2391f4ffbfb85a64cb62966b3088eb4` | Separate shipment semantics; preserve existing defaults and qualification requirements. |
+| Merchant tax | `lead/merchant-tax-ledger` — `7ae9bb3c7fdb1bcc9df577f5e95a54cb8b67290d` | Deliberately excluded from the prior integration; focused conservation/rounding evidence is not default economic qualification. |
+| Runtime optimization | `lead/cloud-runtime-optimization-20261029` — `249a4e1879cf5fbbb070de11f478f19825f51419` | Separate runtime candidate; no whole-workload speedup inferred. |
+| Native tick-index reuse | `lead/native-tick-index-reuse-20261029` — `e2b7c940a86911a5ae57a74e0b4df3db6dbd3717` | Structural work reduction only; measured speed, whole-world identity, and scientific qualification remain separate. |
+| Native region-partition reuse | `lead/native-region-partition-reuse-20261029` — `0900f3d203cc74102809bb871a1a057ba91a951f` | Held native optimization; not integrated into this remediation branch. |
+
+### Portable regression entrypoint after checkout
+
+```sh
+python -m pytest -q \
+  tests/test_scenario.py \
+  tests/test_live_checkpoints.py tests/test_live.py \
+  tests/test_main.py tests/test_run_checkpoint.py \
+  tests/test_state_checkpoints.py
+```
+
+The actual E8 lane used `PYTHONPATH=/mnt/agents/work/chronicler-python-deps:src` on CPython 3.12.12. A fresh Python 3.13/native run is a new qualification task, not a repetition of that environment.
