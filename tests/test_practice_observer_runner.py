@@ -11,9 +11,9 @@ import pytest
 from chronicler import main as M
 
 
-BASE = "4a04b48367e4550b7cf32a243082ab1804def1ac"
-# C3 parent, CPython 3.13 with the explicit canonical options below.
-BASE_MAIN_AST_SHA256 = "c1f5482eafff4bb857b1e3590aa4c458d295b43bc9f26985f6d95105acfdb1bb"
+BASE = "44b9bdcea216788b5dab407a4f6bf7cb64541c1e"
+# D3a parent, CPython 3.13 with the explicit canonical options below.
+BASE_MAIN_AST_SHA256 = "1a4c739c1c5e53670f5775232d484f43b955a1c7fd5bba31c8b2ff6b9610b80c"
 MODES = ("omitted", "none", "provided")
 
 
@@ -309,7 +309,7 @@ def test_entire_default_main_AST_matches_qualified_parent():
             "68f7ef6aa0ca84067b6c7aa2abb9b38c47d2fc6084de5755865ed2d09d15c506",
         ),
         "execute_run": (
-            "971177e690979a664fa2dd2831fc22e1e68980fe4785964fd532b1041faa1113",
+            "7953c1c4a7e1c8b4cf8137b93327c61ca748b46d13460539abb27bf002f8fa32",
             "b821c7681e4e59a71a8b57082ffa614ef247257fb1df5010ef9ef88af4d2ea7f",
             "a0a95f8d7143f35a731efeb683e02ab7931ffb0c2223e2926907cc27aeb71221",
             "821d8f9bc41e3cd8e85a9fbf0b31c9ab3e0543931179fa3a03c458958e973eda",

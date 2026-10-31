@@ -5,8 +5,12 @@ import logging
 import pytest
 from unittest.mock import MagicMock, patch
 from pathlib import Path
+from types import SimpleNamespace as NS
 from chronicler.bundle_codec import load_bundle
-from chronicler.main import execute_run, run_chronicle, DEFAULT_CONFIG, _build_parser
+from chronicler.main import (
+    DEFAULT_CONFIG, _build_parser, _require_artifact_budget_admission,
+    execute_run, run_chronicle,
+)
 from chronicler.llm import AnthropicClient
 from chronicler.types import RunResult
 from chronicler.turn_artifacts import TurnObservation, TurnResult
@@ -58,6 +62,70 @@ def test_analysis_report_preserves_existing_file_when_replace_fails(monkeypatch,
 
     assert report_path.read_text(encoding="utf-8") == '{"old": true}'
     assert list(tmp_path.glob(".*.tmp")) == []
+
+
+class _HealthyArtifactBudget:
+    def __init__(self):
+        self.health_checks = 0
+
+    def require_healthy(self):
+        self.health_checks += 1
+
+
+def _artifact_admission_args(**changes):
+    values = dict(
+        resume=None, checkpoint_every=None, checkpoint_turns=[], agents="hybrid",
+        live=False, interactive=False, ablation_output=False,
+    )
+    values.update(changes)
+    return NS(**values)
+
+
+def test_artifact_budget_admission_accepts_an_ordinary_fresh_hybrid_run():
+    budget = _HealthyArtifactBudget()
+    assert _require_artifact_budget_admission(
+        _artifact_admission_args(), None, None, budget) is None
+    assert budget.health_checks == 1
+
+
+@pytest.mark.parametrize("world,checkpoint_resume,changes,message", [
+    (object(), None, {}, "artifact_budget supports only fresh unsupplied Worlds"),
+    (None, object(), {}, "artifact_budget supports only fresh unsupplied Worlds"),
+    (None, None, {"resume": "state.json"}, "artifact_budget supports only fresh unsupplied Worlds"),
+    (None, None, {"checkpoint_every": 1}, "artifact_budget exact checkpoints are unqualified"),
+    (None, None, {"checkpoint_turns": [4]}, "artifact_budget exact checkpoints are unqualified"),
+    (None, None, {"agents": "off"}, "artifact_budget requires an ordinary noninteractive hybrid run"),
+    (None, None, {"live": True}, "artifact_budget requires an ordinary noninteractive hybrid run"),
+    (None, None, {"interactive": True}, "artifact_budget requires an ordinary noninteractive hybrid run"),
+    (None, None, {"ablation_output": True}, "artifact_budget requires an ordinary noninteractive hybrid run"),
+])
+def test_artifact_budget_admission_rejects_unqualified_runs(
+        world, checkpoint_resume, changes, message):
+    budget = _HealthyArtifactBudget()
+    with pytest.raises(ValueError, match=message):
+        _require_artifact_budget_admission(
+            _artifact_admission_args(**changes), world, checkpoint_resume, budget)
+    assert budget.health_checks == 1
+
+
+def test_artifact_budget_health_failure_precedes_run_shape_guards():
+    failure = RuntimeError("unhealthy budget")
+
+    class UnhealthyBudget:
+        def require_healthy(self):
+            raise failure
+
+    with pytest.raises(RuntimeError) as caught:
+        _require_artifact_budget_admission(
+            _artifact_admission_args(agents="off"), object(), None, UnhealthyBudget())
+    assert caught.value is failure
+
+
+def test_execute_run_enforces_artifact_budget_admission_before_run_setup():
+    budget = _HealthyArtifactBudget()
+    with pytest.raises(ValueError, match="ordinary noninteractive hybrid run"):
+        execute_run(_artifact_admission_args(agents="off"), artifact_budget=budget)
+    assert budget.health_checks == 1
 
 
 class TestDefaultConfig:

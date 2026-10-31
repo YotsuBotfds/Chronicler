@@ -8,10 +8,10 @@ This is the live handoff ledger for the remediation branch. Update it with every
 - Branch: `dev/kimi-remediation-20261031`
 - Base branch: `dev/claude-handoff-20261030`
 - Base commit: `2e7425f4f863274c2a973ceba5f9cfb89b857ffb`
-- Current head: this D3a commit; preceding remediation commits are recorded in branch history.
+- Current head: this D3b commit; preceding remediation commits are recorded in branch history.
 - Current owner: Kimi K3.1
 - Overall state: IN PROGRESS
-- Next exact action: add direct artifact-budget admission behavior tests, extract only its existing validation body, and recompute the intentional Python 3.13 AST witnesses.
+- Next exact action: triage D4 dormant workflows, stale audit documents, and viewer lockfile advisories without weakening retained evidence contracts.
 
 ## Working rules
 
@@ -53,7 +53,7 @@ Status: `[ ]` pending, `[~]` active/interrupted, `[x]` landed and focused-checke
 | [x] | C5 | P2 | K3.1 Pro / High | Fix Node 20 viewer hash-test portability or narrow documented support; add CI coverage for supported floor. | C5: hash a `Uint8Array` view so Node 20 Web Crypto accepts cross-realm jsdom File buffers; direct regression plus full viewer/lint/build passed. Standard Viewer CI now runs at Node 20.19.0; fresh CI remains unrun. |
 | [x] | D1 | P2 | K2.8 / Standard | Correct misleading economy-parity test naming/docs without weakening genuine native coupling parity tests. | D1: renamed the Python-only module to `test_economy_oracle.py`, removed fake Rust labels/dead migration scaffolding, preserved shard 1 and all 32 passes / 6 native skips; `test_economy_coupling.py` is unchanged. |
 | [x] | D2 | P2 | K2.8 / Standard | Correct campaign-default docs, README continuation pointer, and Python-floor metadata after checking packaging intent. | D2: docs now distinguish new-world campaign defaults from model/legacy defaults, README points to `dev/claude-handoff-20261030`, and native/root packages share Python >=3.13. Behavior test stayed green; no runtime logic changed. |
-| [~] | D3 | P3 | K3.1 Pro / High | Split orchestration/validation hotspots and reduce source-text witness dependence. | D3a replaces byte/indentation admission witnesses with structural AST location while preserving the projected digest; D3b admission-helper extraction remains active. Leave turn/resume orchestration and lazy imports unchanged. |
+| [x] | D3 | P3 | K3.1 Pro / High | Split orchestration/validation hotspots and reduce source-text witness dependence. | D3a uses structural AST admission location with an unchanged projected digest; D3b extracts only artifact-budget admission with 12 direct/wiring behavior checks and reviewed Python 3.13 witness updates. Turn/resume orchestration and lazy imports deliberately remain unchanged. |
 | [ ] | D4 | P3 | K2.8 / Standard | Triage dormant duplicate workflows, stale audit docs, and viewer lockfile advisories. | Preserve retained evidence functions; reviewed dependency refresh required. |
 
 ## Commit ledger
@@ -73,7 +73,8 @@ Status: `[ ]` pending, `[~]` active/interrupted, `[x]` landed and focused-checke
 | `dd90995c` | C5: cross-realm viewer hashing and Node-floor CI | New direct regression failed before the fix; 22 focused tests, 745 full viewer tests, lint, production build, and 18 workflow-contract tests passed on Node 20.20.2 / CPython 3.12.12. | Start D1. The CI-configured Node 20.19.0 floor has not run in fresh CI. |
 | `df1b84e1` | D1: accurate Python economy-oracle test identity | Renamed module/test labels and removed dead Rust-era helpers; economy oracle/coupling suites retained 32 passed / 6 native skips, and all 210 shard-contract tests passed. | Start D2. Native coupling cases remain UNRUN, not merely renamed or removed. |
 | `5e963754` | D2: current continuation, campaign defaults, and Python floor | New metadata regression failed before aligning native Python >=3.13; campaign behavior control passed unchanged. Final packaging/build-lane and war-integration suites: 26 passed, 4 native skips. | Start D3; no runtime behavior change or native execution. |
-| this commit | D3a: structural capacity-admission AST locator | Removed literal source, indentation, and raw/AST fragment hashes. The unchanged whole-module Python 3.13 digest proves projection equivalence; four AST mutation controls still reject changed helper/location/effects. Split lanes: 19 behavior tests and 11 AST-dependent tests passed. | Start D3b; no production code changed. |
+| `44b9bdce` | D3a: structural capacity-admission AST locator | Removed literal source, indentation, and raw/AST fragment hashes. The unchanged whole-module Python 3.13 digest proves projection equivalence; four AST mutation controls still reject changed helper/location/effects. Split lanes: 19 behavior tests and 11 AST-dependent tests passed; independent review PASS. | Start D3b; no production code changed. |
+| this commit | D3b: artifact-budget admission extraction | Verbatim helper extraction preserves health/error ordering. Twelve focused direct/wiring tests, 190 main/artifact-budget tests, 121 artifact/state/live tests with 2 native skips, 19 observer behavior tests, and 11 Python 3.13 AST tests passed; independent review PASS. | Start D4. No native execution, fresh CI, determinism, or scientific qualification. |
 
 ## Verification log
 
@@ -125,6 +126,9 @@ Remediation checks:
 - D2 final: `PYTHONPATH=/mnt/agents/work/chronicler-python-deps:src python -m pytest -q tests/test_native_build_lanes.py tests/test_war_integration.py` on CPython 3.12.12 — 26 passed, 4 skipped in 9.08s. The skips require the unavailable native extension. README, comments/docstrings, and package metadata changed; runtime logic did not.
 - D3a behavior lane: `PYTHONPATH=/mnt/agents/work/chronicler-python-deps:src python -m pytest -q tests/test_practice_observer_runner.py -k 'not actual_execute_run_dispatch_fragment and not entire_default_main_AST and not capacity_admission_projection'` on CPython 3.12.12 — 19 passed, 11 deselected in 9.15s, with the real `chronicler.main` import.
 - D3a AST lane: the 11 deselected dispatch/projection/mutation tests passed on CPython 3.13.18 in 0.58s using pytest `--noconftest` and a dependency-free `chronicler.main` stub containing only its real `__file__`. This avoided unavailable third-party binary imports; it did not execute World/native runtime. `BASE_MAIN_AST_SHA256` remained unchanged and passed, proving the new locator produces the same projected tree.
+- D3b focused admission: `PYTHONPATH=/mnt/agents/work/chronicler-python-deps:src python -m pytest -q tests/test_main.py -k 'artifact_budget_admission or artifact_budget_health_failure or execute_run_enforces_artifact_budget'` on CPython 3.12.12 — 12 passed, 63 deselected in 7.85s. Covers the valid shape, every rejection branch, health-before-guards ordering, and real `execute_run` wiring before setup.
+- D3b surrounding: `tests/test_main.py tests/test_artifact_budget.py` — 190 passed in 9.77s. `tests/test_bundle.py tests/test_models.py tests/test_live.py tests/test_artifact_io.py` — 121 passed, 2 native-dependent skips in 29.43s. The observer behavior lane retained 19 passed / 11 deselected in 5.23s.
+- D3b AST lane: the same 11 Python 3.13.18 AST-dependent tests passed in 1.83s. Recomputing the intentional extraction changed only `execute_run[0]` and `BASE_MAIN_AST_SHA256`; optional predicate totals remained artifact budget 13 / observer 2. Independent review reproduced both parent and child projections and returned PASS.
 - Environment: locked `uv sync` on CPython 3.13.18 for batches 1-5. C1-C4 and later Python checks used the persisted CPython 3.12.12 dependency target after the portal filesystem interrupted a fresh locked sync. C5 viewer dependencies came from `npm ci` on local scratch storage with the repository fixture tree. D3a reused the installed CPython 3.13.18 interpreter for its AST-only lane after a fresh dependency install could not obtain cached wheels. No Rust/native execution or fresh CI.
 
 ## Handoff checklist for Codex or Claude

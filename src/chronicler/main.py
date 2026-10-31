@@ -529,6 +529,22 @@ def _war_snapshot_fields(world) -> dict:
     return {"campaign": snapshot_summary(world)}
 
 
+def _require_artifact_budget_admission(args, world, checkpoint_resume, artifact_budget) -> None:
+    """Reject run shapes outside the explicit artifact-budget contract."""
+    artifact_budget.require_healthy()
+    if (world is not None or checkpoint_resume is not None
+            or getattr(args, "resume", None)):
+        raise ValueError("artifact_budget supports only fresh unsupplied Worlds")
+    if (getattr(args, "checkpoint_every", None) is not None
+            or getattr(args, "checkpoint_turns", None)):
+        raise ValueError("artifact_budget exact checkpoints are unqualified")
+    if (getattr(args, "agents", "off") != "hybrid"
+            or getattr(args, "live", False)
+            or getattr(args, "interactive", False)
+            or getattr(args, "ablation_output", False)):
+        raise ValueError("artifact_budget requires an ordinary noninteractive hybrid run")
+
+
 def execute_run(
     args: argparse.Namespace,
     sim_client: LLMClient | None = None,
@@ -601,18 +617,7 @@ def execute_run(
         implement owner/log admission or qualify an enabled study.
     """
     if artifact_budget is not None:
-        artifact_budget.require_healthy()
-        if (world is not None or checkpoint_resume is not None
-                or getattr(args, "resume", None)):
-            raise ValueError("artifact_budget supports only fresh unsupplied Worlds")
-        if (getattr(args, "checkpoint_every", None) is not None
-                or getattr(args, "checkpoint_turns", None)):
-            raise ValueError("artifact_budget exact checkpoints are unqualified")
-        if (getattr(args, "agents", "off") != "hybrid"
-                or getattr(args, "live", False)
-                or getattr(args, "interactive", False)
-                or getattr(args, "ablation_output", False)):
-            raise ValueError("artifact_budget requires an ordinary noninteractive hybrid run")
+        _require_artifact_budget_admission(args, world, checkpoint_resume, artifact_budget)
 
     # Fallback clients
     _sim = sim_client or _DummyClient()
