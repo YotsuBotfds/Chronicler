@@ -21,6 +21,14 @@ def test_rust_extension_msrv_is_explicit_and_matches_arrow_dependency():
     assert cargo["package"]["rust-version"] == "1.85"
 
 
+def test_native_and_python_packages_share_the_supported_python_floor():
+    python_package = tomllib.loads(_read("pyproject.toml"))
+    native_package = tomllib.loads(_read("chronicler-agents/pyproject.toml"))
+
+    assert python_package["project"]["requires-python"] == ">=3.13"
+    assert native_package["project"]["requires-python"] == python_package["project"]["requires-python"]
+
+
 def test_pyo3_extension_module_feature_is_maturin_only_so_cargo_tests_link():
     cargo = tomllib.loads(_read("chronicler-agents/Cargo.toml"))
     maturin = tomllib.loads(_read("chronicler-agents/pyproject.toml"))

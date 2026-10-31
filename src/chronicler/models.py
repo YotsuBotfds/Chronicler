@@ -859,7 +859,7 @@ class ProxyWar(BaseModel):
     detected: bool = False
 
 
-# --- M60: Campaigns, battles and occupation (default off; see docs/war/) ---
+# --- M60: Campaigns (model default off; new CLI worlds on; see docs/war/) ---
 
 class Army(BaseModel):
     """A field army raised for one war. Persisted; identity is ``army_id``."""
@@ -1160,7 +1160,7 @@ class WorldState(BaseModel):
     mutual_aid_state: dict[str, MutualAidState] = Field(default_factory=dict)
     mutual_aid_last_dispatch_turn: int | None = None
     mutual_aid_last_transfers: list[MutualAidTransfer] = Field(default_factory=list)
-    # M60: campaigns, battles and occupation (default off).
+    # Model/legacy default off; CLI, batch and live entry points default new worlds on.
     campaigns_enabled: bool = False
     war_state: WarState = Field(default_factory=WarState)
     # Phase 8 governance runtime switch (None = disabled; omitted from output).
