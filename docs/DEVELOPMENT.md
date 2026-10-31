@@ -56,7 +56,8 @@ the full suite or the scientific milestone gate.
 ## Viewer
 
 Use Node.js compatible with the locked Vite 7 toolchain (20.19+ or 22.12+).
-From `viewer/`:
+The standard CI Viewer job runs tests, lint, and the production build on Node
+20.19.0 so changes are checked at the supported floor. From `viewer/`:
 
 ```sh
 npm ci
