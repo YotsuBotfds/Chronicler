@@ -121,6 +121,14 @@ def _civ_is_alive(civ_data: dict) -> bool:
     return bool(civ_data.get("alive", True))
 
 
+def _history_civ_names(history: list[dict]) -> list[str]:
+    """All civ names appearing anywhere in a history, including late founders."""
+    names: set[str] = set()
+    for snap in history:
+        names.update(snap.get("civ_stats", {}).keys())
+    return sorted(names)
+
+
 def compute_run_summaries(records: list[tuple[Path, dict]]) -> list[dict]:
     """Build per-run summaries ranked by interestingness for Batch Lab browsing."""
     summaries: list[dict] = []
@@ -654,20 +662,13 @@ def extract_focus_geography(bundles: list[dict]) -> dict:
     }
 
 
-def extract_action_entropy(
-    bundles: list[dict],
-    checkpoints: list[int] | None = None,
-) -> dict:
-    """Criterion 8: Action selection entropy per civ per era.
+def extract_action_entropy(bundles: list[dict]) -> dict:
+    """Criterion 8: action selection entropy per civ per era.
 
-    For each civ, find turns where tech_era changes (era transitions).
-    Compute per-era action counts by diffing cumulative counts between transitions.
-    Shannon entropy per era block, then aggregate via percentiles.
+    ``last_action`` is the action resolved on each turn. Using the per-turn
+    sequence avoids losing actions when succession resets ``action_counts``,
+    and the union of civ names includes late-founded civilizations.
     """
-    max_turn = _min_total_turns(bundles) - 1
-    cps = _clamp_checkpoints(checkpoints, max_turn)
-
-    # era -> list of entropy values
     entropy_by_era: dict[str, list[float]] = {}
     all_entropies: list[float] = []
 
@@ -676,56 +677,39 @@ def extract_action_entropy(
         if not history:
             continue
 
-        # Get all civ names from first snapshot
-        first_snap = history[0]
-        civ_names = list(first_snap.get("civ_stats", {}).keys())
-
-        for civ_name in civ_names:
-            # Collect (turn, era, action_counts) for this civ across all snapshots
-            civ_timeline: list[tuple[int, str, dict[str, int]]] = []
+        for civ_name in _history_civ_names(history):
+            timeline: list[tuple[str, str]] = []
             for snap in history:
                 civ_data = snap.get("civ_stats", {}).get(civ_name)
                 if civ_data is None or not _civ_is_alive(civ_data):
                     continue
-                turn = snap["turn"]
-                era = civ_data.get("tech_era", "tribal")
-                ac = civ_data.get("action_counts", {})
-                civ_timeline.append((turn, era, ac))
+                action = civ_data.get("last_action")
+                if action is None:
+                    continue
+                timeline.append((civ_data.get("tech_era", "tribal"), action))
 
-            if not civ_timeline:
+            if not timeline:
                 continue
 
-            # Identify era blocks: find where era changes
-            era_blocks: list[tuple[str, dict[str, int], dict[str, int]]] = []
-            block_start_era = civ_timeline[0][1]
-            block_start_ac = civ_timeline[0][2]
+            current_era = timeline[0][0]
+            current_actions: list[str] = []
+            blocks: list[tuple[str, list[str]]] = []
+            for era, action in timeline:
+                if era != current_era:
+                    blocks.append((current_era, current_actions))
+                    current_era = era
+                    current_actions = []
+                current_actions.append(action)
+            blocks.append((current_era, current_actions))
 
-            for i in range(1, len(civ_timeline)):
-                _, era, ac = civ_timeline[i]
-                if era != block_start_era:
-                    # Close the previous block
-                    era_blocks.append((block_start_era, block_start_ac, civ_timeline[i - 1][2]))
-                    block_start_era = era
-                    block_start_ac = ac
-            # Close the final block
-            era_blocks.append((block_start_era, block_start_ac, civ_timeline[-1][2]))
-
-            for era, start_ac, end_ac in era_blocks:
-                # Diff cumulative counts to get per-era counts
-                all_keys = set(start_ac.keys()) | set(end_ac.keys())
-                era_counts: dict[str, int] = {}
-                for key in all_keys:
-                    diff = end_ac.get(key, 0) - start_ac.get(key, 0)
-                    if diff > 0:
-                        era_counts[key] = diff
-
-                if not era_counts:
+            for era, actions in blocks:
+                if not actions:
                     continue
-
-                h = _shannon_entropy(era_counts)
-                if era not in entropy_by_era:
-                    entropy_by_era[era] = []
-                entropy_by_era[era].append(h)
+                counts: dict[str, int] = {}
+                for action in actions:
+                    counts[action] = counts.get(action, 0) + 1
+                h = _shannon_entropy(counts)
+                entropy_by_era.setdefault(era, []).append(h)
                 all_entropies.append(h)
 
     return {
@@ -1095,11 +1079,11 @@ def extract_precap_weights(
 
 
 def extract_action_persistence(bundles: list[dict]) -> dict:
-    """Criterion 19: Top-action persistence over 100-turn windows.
+    """Criterion 19: top-action persistence over 100-turn windows.
 
-    For each civ, look at 100-turn windows (0-99, 100-199, etc.).
-    In each window, find most frequent action via action_counts diffs.
-    Compute fraction of turns the top action was chosen.
+    Windows count the resolved per-turn ``last_action`` sequence. This remains
+    correct when a leader succession resets cumulative ``action_counts`` and
+    includes civilizations founded after turn zero.
     """
     max_persistence_values: list[float] = []
     civs_above_80pct = 0
@@ -1111,53 +1095,35 @@ def extract_action_persistence(bundles: list[dict]) -> dict:
             continue
 
         max_turn = history[-1]["turn"]
-        civ_names: set[str] = set()
-        for snap in history:
-            civ_names.update(snap.get("civ_stats", {}).keys())
-
-        for civ_name in civ_names:
-            # Build turn -> action_counts mapping for this civ
-            civ_snapshots: dict[int, dict[str, int]] = {}
+        for civ_name in _history_civ_names(history):
+            actions_by_turn: dict[int, str] = {}
             for snap in history:
                 civ_data = snap.get("civ_stats", {}).get(civ_name)
                 if civ_data is None or not _civ_is_alive(civ_data):
                     continue
-                civ_snapshots[snap["turn"]] = civ_data.get("action_counts", {})
+                action = civ_data.get("last_action")
+                if action is not None:
+                    actions_by_turn[snap["turn"]] = action
 
-            # Process 100-turn windows
             window_start = 0
             while window_start <= max_turn:
                 window_end = window_start + 99
-
-                # Find closest available snapshots to window boundaries
-                start_ac = None
-                end_ac = None
-                for t in range(window_start, min(window_end + 1, max_turn + 1)):
-                    if t in civ_snapshots:
-                        start_ac = civ_snapshots[t]
-                        break
-                for t in range(min(window_end, max_turn), window_start - 1, -1):
-                    if t in civ_snapshots:
-                        end_ac = civ_snapshots[t]
-                        break
-
-                if start_ac is not None and end_ac is not None:
-                    # Diff cumulative counts
-                    all_keys = set(start_ac.keys()) | set(end_ac.keys())
-                    window_counts: dict[str, int] = {}
-                    for key in all_keys:
-                        diff = end_ac.get(key, 0) - start_ac.get(key, 0)
-                        if diff > 0:
-                            window_counts[key] = diff
-
-                    total_actions = sum(window_counts.values())
-                    if total_actions > 0:
-                        top_action_count = max(window_counts.values())
-                        persistence = top_action_count / total_actions
-                        max_persistence_values.append(persistence)
-                        total_civ_windows += 1
-                        if persistence > 0.80:
-                            civs_above_80pct += 1
+                window_actions = [
+                    actions_by_turn[turn]
+                    for turn in range(window_start, min(window_end, max_turn) + 1)
+                    if turn in actions_by_turn
+                ]
+                if window_actions:
+                    counts: dict[str, int] = {}
+                    for action in window_actions:
+                        counts[action] = counts.get(action, 0) + 1
+                    total_actions = len(window_actions)
+                    top_action_count = max(counts.values())
+                    persistence = top_action_count / total_actions
+                    max_persistence_values.append(persistence)
+                    total_civ_windows += 1
+                    if persistence > 0.80:
+                        civs_above_80pct += 1
 
                 window_start += 100
 
@@ -1350,7 +1316,7 @@ def generate_report(
     # M22 extractors
     focus_distribution = extract_focus_distribution(bundles, checkpoints=cps)
     focus_geography = extract_focus_geography(bundles)
-    action_entropy = extract_action_entropy(bundles, checkpoints=cps)
+    action_entropy = extract_action_entropy(bundles)
     capability_firing = extract_capability_firing(bundles)
     faction_dominance = extract_faction_dominance(bundles, checkpoints=cps)
     power_struggles = extract_power_struggles(bundles)
@@ -1914,7 +1880,7 @@ def extract_artifacts(bundles: list[dict]) -> dict:
                 owner = a.get("owner_civ")
                 if owner:
                     by_civ[owner] = by_civ.get(owner, 0) + 1
-                    prestige += a.get("prestige_value", 0)
+                prestige += a.get("prestige_value", 0)
             elif status == "lost":
                 lost += 1
             elif status == "destroyed":
