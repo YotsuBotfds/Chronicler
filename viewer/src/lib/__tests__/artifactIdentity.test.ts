@@ -7,7 +7,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 it("hashes raw BOM and whitespace bytes rather than normalized JSON", async () => {
   vi.stubGlobal("crypto", webcrypto);
-  const bytes = new TextEncoder().encode('\\ufeff{ "seed": 1 }\\n');
+  const bytes = new TextEncoder().encode('﻿{ "seed": 1 }\n');
   const identity = await identifyArtifact("original.json", bytes.buffer);
   expect(identity).toEqual({ name: "original.json", byteLength: bytes.byteLength,
     sha256: createHash("sha256").update(bytes).digest("hex") });
