@@ -1168,11 +1168,18 @@ def execute_run(
             provenance=engine.take_turn_provenance(),
         ))
 
-        # on_turn callback — fires after each turn's data is captured
+        # on_turn callback — fires after each turn's data is captured. Live
+        # pacing sleeps here, so defer a first Ctrl-C as during the turn itself;
+        # after an earlier request the default handler keeps a second immediate.
         if on_turn is not None:
             turn_events = history_index(world).events_for_turn(world, world.turn - 1)
             turn_named = world.named_events[named_events_before:]
-            on_turn(snapshot, chronicle_text, turn_events, turn_named)
+            if _interrupt_requested:
+                on_turn(snapshot, chronicle_text, turn_events, turn_named)
+            else:
+                with _SigintDeferral() as deferral:
+                    on_turn(snapshot, chronicle_text, turn_events, turn_named)
+                _interrupt_requested = deferral.requested
 
         # Update memory streams with this turn's events
         turn_events = history_index(world).events_for_turn(world, world.turn - 1)
