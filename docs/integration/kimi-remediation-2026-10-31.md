@@ -8,10 +8,10 @@ This is the live handoff ledger for the remediation branch. Update it with every
 - Branch: `dev/kimi-remediation-20261031`
 - Base branch: `dev/claude-handoff-20261030`
 - Base commit: `2e7425f4f863274c2a973ceba5f9cfb89b857ffb`
-- Current head: this final handoff commit; E8b is `803a91b2e1e9305383e2cc6b26fd787d5dabcb63` and earlier remediation commits are recorded in branch history.
+- Current head: this workflow-blocker handoff commit; the first final handoff is `d503efbdb59349563c0bd50184c35a4215c4bd98`, E8b is `803a91b2e1e9305383e2cc6b26fd787d5dabcb63`, and earlier remediation commits are recorded in branch history.
 - Current owner: Kimi K3.1
-- Overall state: LOCAL REMEDIATION COMPLETE; FINAL ADDITIVE PUBLICATION AUDIT PENDING AT DELIVERY
-- Next exact action: publish this final handoff tree additively, verify every changed remote blob against local Git, confirm `tests/test_economy_parity.py` is absent, and report the distinct local/remote head hashes without claiming a commit-for-commit mirror.
+- Overall state: LOCAL REMEDIATION COMPLETE; NON-WORKFLOW PUBLICATION AUDIT PENDING; WORKFLOW FILE BLOCKED BY OAUTH SCOPE
+- Next exact action: publish all non-workflow paths additively, verify every changed remote blob against local Git, confirm `tests/test_economy_parity.py` is absent, and report `.github/workflows/tests.yml` as the one known mismatch without claiming whole-tree or commit-for-commit equivalence.
 
 ## Working rules
 
@@ -91,7 +91,8 @@ Continuation-queue mapping: item 1 is E1; items 2-4 are residual verification ta
 | `cf7a14d0` | E7: verified local simulate/view/exact-resume walkthrough | Added a short README-linked guide and ran its real seed-42 sample. The turn-4 exact resume reproduced six chronicle/state/sidecar/memory artifacts byte-for-byte and all decoded bundle content except `generated_at`. Headless Chromium loaded the actual bundle through Open Existing with no viewer/page errors. Independent review PASS. | Start E8. Evidence is aggregate/no-native on CPython 3.12.12 plus Node 20.20.2, not fresh Python 3.13 setup, native execution, fresh CI, determinism-profile, or scientific qualification. |
 | `5b6e6fca` | E8a: duplicate scenario-name rejection | Duplicate civilization and region scenarios failed to raise before the fix, then both regressions passed. All 103 scenario tests and independent review passed. Name-keyed lookups can no longer silently collapse these authored duplicates. | Land E8b. Invalid authored input is rejected; valid simulation decisions and defaults are unchanged. |
 | `803a91b2` | E8b: live post-turn interrupt checkpoint | The new regression reproduced a missing turn-1 checkpoint when Ctrl-C landed in live pacing. The callback now shares first-SIGINT deferral, while a second Ctrl-C remains immediate. Focused, live, main-loop, and checkpoint suites passed; independent review PASS. | Complete final review/publication handoff. No simulation decision, optional default, native execution, fresh CI, determinism profile, or scientific gate changed or qualified. |
-| this commit | Final remediation handoff | Final base-to-head diff check passed; all task-board items are complete. Records exact evidence, limits, next commands, Claude's three priorities, and separate experimental branch identities. Documentation only; no new qualification claimed. | Publish and audit this exact tree additively. Local commit history and the MCP-created remote commit sequence are intentionally not described as identical. |
+| `d503efbd` | Final remediation handoff | Final base-to-head diff check passed; all task-board items are complete. Records exact evidence, limits, next commands, Claude's three priorities, and separate experimental branch identities. Documentation only; no new qualification claimed. | Publish and audit this exact tree additively. Local commit history and the MCP-created remote commit sequence are intentionally not described as identical. |
+| this commit | Workflow publication blocker receipt | GitHub refused `.github/workflows/tests.yml` with 403 insufficient OAuth `workflow` scope. No bypass was attempted; all other publication continues with per-path verification. Documentation only. | Report the workflow file as the single known remote mismatch. A workflow-capable authorized channel must publish it before whole-tree equivalence or exact-final-tree CI is claimed. |
 
 ## Verification log
 
@@ -182,7 +183,7 @@ Remediation checks:
 ### Exact source and state
 
 - Branch: `dev/kimi-remediation-20261031`.
-- Local handoff head: the commit containing this file; E8b immediately before it is `803a91b2e1e9305383e2cc6b26fd787d5dabcb63`. The delivery report gives the final handoff hash and the distinct additive-remote head explicitly.
+- Local handoff head: the commit containing this file; its documentation parent is `d503efbdb59349563c0bd50184c35a4215c4bd98`, and the final code commit is E8b `803a91b2e1e9305383e2cc6b26fd787d5dabcb63`. The delivery report gives the final handoff hash and the distinct additive-remote head explicitly.
 - Base: `dev/claude-handoff-20261030` at `2e7425f4f863274c2a973ceba5f9cfb89b857ffb`.
 - `main` remains untouched at `cb9fe70c81658fb65c6f511b821447f1d7b55b54`; no PR, merge, branch deletion, paid narration, optional-default change, or bulk branch consolidation occurred.
 - All continuation tasks E1-E8 are complete. The final base-to-head `git diff --check` passed and the pre-handoff worktree was clean. The branch has 47 changed files, not a fresh full-suite qualification.
@@ -203,12 +204,12 @@ git log -3 --oneline
 - E7 is one real aggregate/no-native eight-turn simulate/view/exact-resume example, not a full determinism profile. It used CPython 3.12.12 with persisted dependencies; the project-declared floor is Python 3.13 or later.
 - UNRUN on the final tree: fresh supported-install qualification, complete current-head no-native and native Python suites, fresh CI, full determinism profile, scientific gates, and all Rust/native execution. In particular, B5 `test_restoration_skips_unresolved_original_identities`, the native hash-seed probe, and genuine native economy-coupling cases remain UNRUN.
 - Viewer dependency audit still has 12 moderate minimatch/ESLint-family advisories. No force/downgrade was applied. One earlier concurrent viewer-test invocation failed without retained diagnostics; three later sequential full runs passed, so that initial failure is not diagnosed or claimed as a current product failure.
-- Publication uses additive GitHub file API commits because authenticated Git transport is unavailable. It must be described as final-tree content equivalence after per-path SHA verification, never as a commit-for-commit mirror. The scoped D1 removal must leave `tests/test_economy_parity.py` absent and `tests/test_economy_oracle.py` present.
+- Publication uses additive GitHub file API commits because authenticated Git transport is unavailable. It is not a commit-for-commit mirror. The token rejected `.github/workflows/tests.yml` with 403 insufficient `workflow` scope: remote `0aa35d2d` remains different from required local blob `95ce8b76`. This is the one known final-tree mismatch; no scope bypass was attempted. Every non-workflow path still requires SHA verification, and the scoped D1 removal must leave `tests/test_economy_parity.py` absent and `tests/test_economy_oracle.py` present. Whole-tree equivalence and exact-final-tree CI cannot be claimed until an authorized workflow-capable channel publishes that file.
 
 ### Claude's next three priorities
 
 1. **K3.1 Pro / Max — qualify the exact final tree natively.** In a fresh supported Python 3.13 environment with Rust/Cargo and a matching freshly built extension, run the complete no-native/native Python lanes and `cargo test --locked --manifest-path chronicler-agents/Cargo.toml`. Explicitly execute B5 `test_restoration_skips_unresolved_original_identities`, genuine native economy coupling, and the native `PYTHONHASHSEED` probe; keep skips distinct from passes.
-2. **K3.1 Pro / High — establish fresh CI and resume evidence.** Run the exact-head CI lanes, then the full determinism/checkpoint matrix and any required scientific gate. Do not promote the single E7 sample or affected-suite passes into those qualifications. Preserve fail-fast behavior and do not add automatic retries or paid narration.
+2. **K3.1 Pro / High — establish fresh CI and resume evidence.** First publish the local `.github/workflows/tests.yml` change through an authorized workflow-capable Git channel and reconcile the one known remote mismatch. Then run the exact-head CI lanes, full determinism/checkpoint matrix, and any required scientific gate. Do not promote the single E7 sample or affected-suite passes into those qualifications. Preserve fail-fast behavior and do not add automatic retries or paid narration.
 3. **K3.1 Pro / High — review experiments independently.** Evaluate viewer, grain, merchant-tax, and optimization branches one at a time from their own exact heads and evidence. Do not bulk merge, change optional-system defaults, or infer measured speed/scientific efficacy from structural or CI-only results.
 
 ### Separate branches to preserve
