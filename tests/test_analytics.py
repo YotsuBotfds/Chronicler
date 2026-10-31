@@ -131,6 +131,70 @@ class TestDistributionHelpers:
         assert p["median"] == 49.5 or p["median"] == 50
 
 
+class TestActionAnalytics:
+    @staticmethod
+    def _bundle(rows: list[dict]) -> dict:
+        history = []
+        for turn, civ_rows in enumerate(rows):
+            history.append({"turn": turn, "civ_stats": civ_rows})
+        return {"history": history, "events_timeline": [], "named_events": []}
+
+    @staticmethod
+    def _civ(action: str, era: str = "iron", **extra) -> dict:
+        return {
+            "alive": True,
+            "tech_era": era,
+            "last_action": action,
+            "action_counts": {},
+            **extra,
+        }
+
+    def test_entropy_uses_resolved_actions_after_a_leader_reset(self):
+        from chronicler.analytics import extract_action_entropy
+
+        # action_counts restart on succession; diffing them sees only the final
+        # leader's trade action, while each turn's resolved action is 2/1/1.
+        bundle = self._bundle([
+            {"A": self._civ("develop", action_counts={"develop": 1})},
+            {"A": self._civ("develop", action_counts={"develop": 2})},
+            {"A": self._civ("war", action_counts={"war": 1})},
+            {"A": self._civ("trade", action_counts={"trade": 1})},
+        ])
+
+        result = extract_action_entropy([bundle])
+
+        assert result["overall_median"] == pytest.approx(1.5)
+        assert result["entropy_by_era"]["iron"]["median"] == pytest.approx(1.5)
+
+    def test_entropy_segments_eras_and_includes_late_founded_civs(self):
+        from chronicler.analytics import extract_action_entropy
+
+        bundle = self._bundle([
+            {"A": self._civ("develop", era="iron")},
+            {"A": self._civ("develop", era="iron")},
+            {"A": self._civ("war", era="classical"), "B": self._civ("war", era="classical")},
+            {"A": self._civ("trade", era="classical"), "B": self._civ("trade", era="classical")},
+        ])
+
+        result = extract_action_entropy([bundle])
+
+        assert result["entropy_by_era"]["iron"]["median"] == 0
+        assert result["entropy_by_era"]["classical"]["median"] == pytest.approx(1.0)
+
+    def test_persistence_uses_resolved_actions_after_a_leader_reset(self):
+        from chronicler.analytics import extract_action_persistence
+
+        bundle = self._bundle([
+            {"A": self._civ("develop", action_counts={"develop": 1})},
+            {"A": self._civ("war", action_counts={"war": 1})},
+        ])
+
+        result = extract_action_persistence([bundle])
+
+        assert result["max_persistence_by_window"]["median"] == pytest.approx(0.5)
+        assert result["civs_above_80pct"] == 0
+
+
 class TestPrecapWeightExtractor:
     def test_cap_fire_uses_base_scaled_default_threshold(self):
         from chronicler.analytics import extract_precap_weights
