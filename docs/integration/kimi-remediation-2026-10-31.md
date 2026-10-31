@@ -8,10 +8,10 @@ This is the live handoff ledger for the remediation branch. Update it with every
 - Branch: `dev/kimi-remediation-20261031`
 - Base branch: `dev/claude-handoff-20261030`
 - Base commit: `2e7425f4f863274c2a973ceba5f9cfb89b857ffb`
-- Current head: this batch-3 commit; preceding batch-2 publication is recorded in branch history.
+- Current head: this batch-4 commit; preceding remediation commits are recorded in branch history.
 - Current owner: Kimi K3.1
 - Overall state: IN PROGRESS
-- Next exact action: land batch 4 (viewer codec own `__proto__` safety) with Python/TypeScript parity coverage.
+- Next exact action: resolve B5 malformed-exile semantics explicitly, add native and Python regressions, and leave native execution marked UNRUN.
 
 ## Working rules
 
@@ -44,7 +44,7 @@ Status: `[ ]` pending, `[~]` active/interrupted, `[x]` landed and focused-checke
 | [x] | B2b | P0 | K3.1 Pro / High | Set restored region asabiya in both existing- and new-record bridge paths. | Batch 2: common post-materialization initialization covers both paths; new-record regression passed. |
 | [x] | B2c | P0 | K3.1 Pro / High | Filter unreachable (`-1`) distances in bridge breakaway-capital selection. | Batch 2: mirrors the oracle's reachable-distance filter and fallback; disconnected-capital regression passed. |
 | [x] | B3 | P1 | K3.1 Pro / Standard | Update `num_turns` in the initial resumed-live `save_loaded` checkpoint. | Batch 3: initial resumed-pause checkpoint now stores the extended length; focused and surrounding checkpoint tests passed. |
-| [ ] | B4 | P1 | K3.1 Pro / Standard | Preserve own `__proto__` data keys through all viewer object-patch output paths; add Python/TS parity coverage. | Base repro: TS lost own key and inherited patched value; Python preserved key. File: `viewer/src/lib/bundleCodec.ts`. |
+| [x] | B4 | P1 | K3.1 Pro / Standard | Preserve own `__proto__` data keys through all viewer object-patch output paths; add Python/TS parity coverage. | Batch 4: safe own-property definitions cover fast/reference/ordered paths; Python and TS parity regressions, lint, and build passed. |
 | [ ] | B5 | P1 | K3.1 Pro / Max | Guard unresolved native exile `original_civ` before every index; decide whether malformed exiles reject in both runtimes or retain name-based restoration. | Rust UNRUN. Files: `chronicler-agents/src/politics.rs`, native regression tests. Do not silently invent parity semantics. |
 | [ ] | C1 | P1 | K3.1 Pro / High | Make batch failures finalize manifests and preserve completed-run evidence; specify fail-fast versus per-seed continuation. | Needs explicit lifecycle design and failure-injection tests. Files: `batch.py`, `batch_manifest.py`, live batch caller. |
 | [ ] | C2 | P1 | K3.1 Pro / High | Repair action entropy/persistence across leader resets, era boundaries, and late-founded civs; remove or implement dead checkpoints argument. | Prefer per-turn resolved actions over cumulative-count diffs. Base repro returned entropy 0 instead of 1.5 and persistence 100% instead of 50%. |
@@ -63,7 +63,8 @@ Status: `[ ]` pending, `[~]` active/interrupted, `[x]` landed and focused-checke
 | `852525cdfcdfdb78ef919d25b2a1fd1bc5092640` | Repository tracker only | No product code changed; no tests required for tracker commit. | Start B1a/B1b. |
 | `0f29cd14a7f109d6e8affcfa23df107826ca43be` | Batch 1: population-loss clamp and recursive checkpoint source identity | New regressions failed before the fix (2 failed, 1 passed), then passed (3 passed). Surrounding suites: 169 passed. | Start B2a/B2b/B2c. |
 | Batch-2 commits | Batch 2: restoration trait/asabiya and breakaway-capital bridge parity | New regressions failed before the fix (2 failed), then passed (2 passed). Politics suites: 204 passed, 53 skipped. Native cases remain unrun. | Start B3. |
-| this commit | Batch 3: extended resumed-live initial checkpoint length | Regression failed before the fix with saved `num_turns == 12` instead of 16, then passed. Surrounding checkpoint suites: 33 passed. | Start B4. |
+| `71127b5a` | Batch 3: extended resumed-live initial checkpoint length | Regression failed before the fix with saved `num_turns == 12` instead of 16, then passed. Surrounding checkpoint suites: 33 passed. | Start B4. |
+| this commit | Batch 4: viewer codec own `__proto__` safety and Python parity | TS regression failed before the fix, then 8 focused TS tests passed. Python codec module: 23 passed. Viewer lint and production build passed. | Start B5; native checks remain UNRUN. |
 
 ## Verification log
 
@@ -85,6 +86,10 @@ Remediation checks:
 - Batch 3 pre-fix regression control: `.venv/bin/python -m pytest -q tests/test_live_checkpoints.py::test_an_extended_resume_shows_and_saves_the_new_length` — 1 failed; the saved turn-12 checkpoint retained `num_turns == 12` instead of 16.
 - Batch 3 focused: same command — 1 passed in 1.91s.
 - Batch 3 surrounding: `.venv/bin/python -m pytest -q tests/test_live_checkpoints.py tests/test_run_checkpoint.py` — 33 passed in 21.10s.
+- Batch 4 pre-fix regression control: viewer `bundleCodec.test.ts` own-`__proto__` case failed because the key disappeared and ordered output no longer matched.
+- Batch 4 focused TS: `npx vitest run src/lib/__tests__/bundleCodec.test.ts src/lib/__tests__/bundleCodecFast.test.ts` from `viewer/` — 8 passed, including randomized fast/reference histories.
+- Batch 4 Python parity and surrounding codec module: `.venv/bin/python -m pytest -q tests/test_bundle_codec.py` — 23 passed in 2.64s.
+- Batch 4 viewer gates on Node 20.20.2: `npm run lint` passed; `npm run build` passed.
 - Environment: locked `uv sync` on CPython 3.13.18. No Rust/native execution or fresh CI.
 
 ## Handoff checklist for Codex or Claude

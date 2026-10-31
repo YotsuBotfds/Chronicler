@@ -130,6 +130,18 @@ class TestPatches:
         decoded = decode_history(json.loads(_text(encode_history(history))))
         assert _text(decoded) == _text(expected)
 
+    def test_proto_key_survives_json_round_trip_and_reordering(self):
+        history = json.loads("""[
+            {"safe": 0},
+            {"safe": 1, "__proto__": {"polluted": true}},
+            {"__proto__": {"polluted": false}, "safe": 1}
+        ]""")
+
+        decoded = _assert_round_trip(history)
+
+        assert list(decoded[2]) == ["__proto__", "safe"]
+        assert decoded[2]["__proto__"] == {"polluted": False}
+
     def test_reserved_keys_leave_the_history_whole(self):
         history = [{"turn": 1, "x": {"a": 1}}, {"turn": 2, "x": {"~d": 1}}]
         assert encode_history(history) is None

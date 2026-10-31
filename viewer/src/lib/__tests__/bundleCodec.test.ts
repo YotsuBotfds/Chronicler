@@ -75,4 +75,22 @@ describe("bundleCodec", () => {
     // The first snapshot is not changed by later patches.
     expect((history[0] as { wars: unknown[] }).wars).toHaveLength(3);
   });
+
+  it("preserves __proto__ as an own data key without changing prototypes", () => {
+    const encoded = JSON.parse(`[
+      {"safe":0},
+      {"safe":1,"__proto__":{"polluted":true},"~o":["__proto__","safe"]},
+      {"__proto__":{"polluted":false}}
+    ]`) as unknown[];
+    const history = decodeHistory(encoded) as Record<string, unknown>[];
+
+    for (const [index, polluted] of [[1, true], [2, false]] as const) {
+      const snapshot = history[index] as Record<string, unknown> & { polluted?: boolean };
+      expect(Object.prototype.hasOwnProperty.call(snapshot, "__proto__")).toBe(true);
+      expect(snapshot.__proto__).toEqual({ polluted });
+      expect(Object.getPrototypeOf(snapshot)).toBe(Object.prototype);
+      expect(snapshot.polluted).toBeUndefined();
+    }
+    expect(Object.keys(history[1])).toEqual(["__proto__", "safe"]);
+  });
 });
