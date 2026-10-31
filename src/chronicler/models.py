@@ -15,6 +15,7 @@ from typing import Annotated, Optional
 
 from pydantic import BaseModel, Field, PrivateAttr, field_validator, model_validator
 
+from chronicler.artifact_io import atomic_write_text
 from chronicler.experimental.fisheries import FisheryConfig
 from chronicler.governance_state import CivGovernance, GovernanceSettings
 from chronicler.contact_ledger import ContactLedgerState
@@ -1316,28 +1317,15 @@ class WorldState(BaseModel):
         self._self_trade_civs_cache = None
 
     def save(self, path: Path, *, artifact_budget=None) -> None:
-        """Persist world state to a JSON file."""
+        """Persist world state to a JSON file by atomically replacing it."""
         if artifact_budget is not None:
             artifact_budget.ensure_directory(path.parent)
-            artifact_budget.write_text(path, self.model_dump_json(indent=2), encoding="utf-8")
-            from chronicler.historiography import save_sidecar
-            save_sidecar(self, path, artifact_budget=artifact_budget)
-            from chronicler.languages import save_sidecar as save_languages
-            save_languages(self, path, artifact_budget=artifact_budget)
-            return
-        parent = path.parent
-        try:
-            parent_is_dir = parent.is_dir()
-        except OSError:
-            parent_is_dir = False
-        if not parent_is_dir:
-            parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(self.model_dump_json(indent=2), encoding="utf-8")
+        atomic_write_text(path, self.model_dump_json(indent=2), artifact_budget=artifact_budget)
         # The chronicles and the languages travel beside the state (removed while off).
         from chronicler.historiography import save_sidecar
-        save_sidecar(self, path)
+        save_sidecar(self, path, atomic=True, artifact_budget=artifact_budget)
         from chronicler.languages import save_sidecar as save_languages
-        save_languages(self, path)
+        save_languages(self, path, atomic=True, artifact_budget=artifact_budget)
 
     @classmethod
     def load(cls, path: Path) -> WorldState:

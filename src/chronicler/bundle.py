@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from chronicler.artifact_io import atomic_write_bytes, atomic_write_text
 from chronicler.models import ChronicleEntry, GapSummary, TurnSnapshot, WorldState
 from chronicler.bundle_codec import BUNDLE_VERSION, dumps_bundle
 from chronicler.snapshot_pruning import PRUNED_CIV_STATS_KEY, prune_history
@@ -119,17 +120,14 @@ def write_bundle(bundle: dict[str, Any], path: Path,
     """
     if artifact_budget is not None:
         artifact_budget.ensure_directory(path.parent)
-        artifact_budget.write_text(path, dumps_bundle(bundle), encoding="utf-8")
-        if world is not None:
-            write_agent_events_arrow(world, path.parent, artifact_budget=artifact_budget)
-        return
-    path.parent.mkdir(parents=True, exist_ok=True)
     # Bundles are machine-consumed and timeline-heavy; compact encoding and
     # the snapshot deltas keep the single-file artifact within its size budget.
-    path.write_text(dumps_bundle(bundle), encoding="utf-8")
+    # The completed body replaces any previous bundle atomically, so readers
+    # never observe a truncated artifact.
+    atomic_write_text(path, dumps_bundle(bundle), artifact_budget=artifact_budget)
 
     if world is not None:
-        write_agent_events_arrow(world, path.parent)
+        write_agent_events_arrow(world, path.parent, artifact_budget=artifact_budget)
 
 
 def write_agent_events_arrow(world: WorldState, bundle_dir: Path, *,
@@ -161,18 +159,12 @@ def write_agent_events_arrow(world: WorldState, bundle_dir: Path, *,
         "migration_driver": pa.array([e.migration_driver for e in events], type=pa.uint8()),
     })
 
-    out_path = bundle_dir / "agent_events.arrow"
-    if artifact_budget is not None:
-        with pa.BufferOutputStream() as f:
-            writer = ipc.new_file(f, batch.schema)
-            writer.write_batch(batch)
-            writer.close()
-            content = f.getvalue().to_pybytes()
-        artifact_budget.write_bytes(out_path, content)
-        return out_path
-    with pa.OSFile(str(out_path), "wb") as f:
+    with pa.BufferOutputStream() as f:
         writer = ipc.new_file(f, batch.schema)
         writer.write_batch(batch)
         writer.close()
+        content = f.getvalue().to_pybytes()
 
+    out_path = bundle_dir / "agent_events.arrow"
+    atomic_write_bytes(out_path, content, artifact_budget=artifact_budget)
     return out_path

@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any, Iterable
 from urllib.parse import parse_qs, urlsplit
 
+from chronicler.artifact_io import atomic_write_text
 from chronicler.interactive import VALID_STATS, CORE_STATS
 from chronicler.memory import MemoryStream, sanitize_civ_name
 from chronicler.models import WorldState
@@ -53,6 +54,13 @@ _REQUIRED_LIVE_BUNDLE_KEYS = (
     "era_reflections",
     "metadata",
 )
+
+
+def _write_batch_report(batch_dir: Path, report: dict[str, Any]) -> Path:
+    """Persist the Batch Lab report by atomically replacing any previous one."""
+    report_path = batch_dir / "batch_report.json"
+    atomic_write_text(report_path, json.dumps(report, indent=2))
+    return report_path
 
 
 def _normalize_narrator(value: Any, default: str = "local") -> str:
@@ -568,8 +576,7 @@ class LiveServer:
                 # Auto-run analytics and save report to disk
                 try:
                     report = generate_report(batch_dir)
-                    report_path = batch_dir / "batch_report.json"
-                    report_path.write_text(json.dumps(report, indent=2))
+                    _write_batch_report(batch_dir, report)
                     self.snapshot_queue.put({
                         "type": "batch_complete",
                         "report": report,

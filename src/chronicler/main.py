@@ -134,6 +134,20 @@ def _write_state_checkpoint(world: WorldState, path: Path, *, artifact_budget=No
     save_languages(world, path, atomic=True)
 
 
+def _write_chronicle_output(output_path: Path, output_text: str, *, artifact_budget=None) -> None:
+    """Write the final chronicle by atomically replacing any previous one."""
+    atomic_write_text(output_path, output_text, artifact_budget=artifact_budget)
+
+
+def _write_analysis_report(analyze_dir: Path, report: dict[str, Any]) -> Path:
+    """Write the CLI analytics report by atomically replacing any previous one."""
+    import json
+
+    report_path = analyze_dir / "batch_report.json"
+    atomic_write_text(report_path, json.dumps(report, indent=2))
+    return report_path
+
+
 def _resolve_checkpoint_every(args: argparse.Namespace) -> int | None:
     value = getattr(args, "checkpoint_every", None)
     if value is None:
@@ -1369,12 +1383,7 @@ def execute_run(
             output_text = provenance_header + "\n\n" + output_text
 
         # Write output
-        if artifact_budget is None:
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            output_path.write_text(output_text, encoding="utf-8")
-        else:
-            artifact_budget.ensure_directory(output_path.parent)
-            artifact_budget.write_text(output_path, output_text, encoding="utf-8")
+        _write_chronicle_output(output_path, output_text, artifact_budget=artifact_budget)
         print(f"\nChronicle written to {output_path} ({len(output_text)} characters)")
 
         # Save final state
@@ -2595,9 +2604,7 @@ def main() -> None:
         if getattr(args, "checkpoints", None):
             checkpoints = [int(x.strip()) for x in args.checkpoints.split(",")]
         report = generate_report(analyze_dir, checkpoints=checkpoints)
-        report_path = analyze_dir / "batch_report.json"
-        with open(report_path, "w") as f:
-            _json.dump(report, f, indent=2)
+        report_path = _write_analysis_report(analyze_dir, report)
         if getattr(args, "compare", None):
             with open(args.compare) as f:
                 baseline = _json.load(f)

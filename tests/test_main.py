@@ -20,6 +20,46 @@ def test_llm_actions_flag_in_parser():
     assert args.llm_actions is True
 
 
+def test_chronicle_output_preserves_existing_file_when_replace_fails(monkeypatch, tmp_path):
+    """The final chronicle is replaced atomically, never truncated in place."""
+    from chronicler import artifact_io
+    from chronicler.artifact_io import ArtifactIOError
+    import chronicler.main as main_mod
+
+    output_path = tmp_path / "chronicle.md"
+    output_path.write_text("old chronicle", encoding="utf-8")
+
+    def failing_replace(src, dst):
+        raise OSError("simulated replace failure")
+
+    monkeypatch.setattr(artifact_io.os, "replace", failing_replace)
+    with pytest.raises(ArtifactIOError, match="could not write artifact"):
+        main_mod._write_chronicle_output(output_path, "new chronicle")
+
+    assert output_path.read_text(encoding="utf-8") == "old chronicle"
+    assert list(tmp_path.glob(".*.tmp")) == []
+
+
+def test_analysis_report_preserves_existing_file_when_replace_fails(monkeypatch, tmp_path):
+    """The CLI batch report is replaced atomically, never truncated in place."""
+    from chronicler import artifact_io
+    from chronicler.artifact_io import ArtifactIOError
+    import chronicler.main as main_mod
+
+    report_path = tmp_path / "batch_report.json"
+    report_path.write_text('{"old": true}', encoding="utf-8")
+
+    def failing_replace(src, dst):
+        raise OSError("simulated replace failure")
+
+    monkeypatch.setattr(artifact_io.os, "replace", failing_replace)
+    with pytest.raises(ArtifactIOError, match="could not write artifact"):
+        main_mod._write_analysis_report(tmp_path, {"new": True})
+
+    assert report_path.read_text(encoding="utf-8") == '{"old": true}'
+    assert list(tmp_path.glob(".*.tmp")) == []
+
+
 class TestDefaultConfig:
     def test_config_has_required_keys(self):
         assert "num_turns" in DEFAULT_CONFIG

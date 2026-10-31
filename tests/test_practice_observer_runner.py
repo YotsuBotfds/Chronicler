@@ -11,9 +11,9 @@ import pytest
 from chronicler import main as M
 
 
-BASE = "1205b6e48215c3e5c44d2bcb6376ca65827a7aab"
-# Untouched parent, CPython 3.13 with the explicit canonical options below.
-BASE_MAIN_AST_SHA256 = "8e007835bad6dbc5dd3f327d8d5a3947777f806dd5adbb8436f57b0b483fefa6"
+BASE = "4a04b48367e4550b7cf32a243082ab1804def1ac"
+# C3 parent, CPython 3.13 with the explicit canonical options below.
+BASE_MAIN_AST_SHA256 = "c1f5482eafff4bb857b1e3590aa4c458d295b43bc9f26985f6d95105acfdb1bb"
 MODES = ("omitted", "none", "provided")
 
 
@@ -297,7 +297,6 @@ def test_entire_default_main_AST_matches_qualified_parent():
             "35a182173c13023b14b1a4d6a34c8b9be73e7a51f7de4836755a5b162b02b58f",
             "7a1be2cf45d0c3385c86380d7cebd850dcfd21b3736122273c140a9c510ca798",
             "35a182173c13023b14b1a4d6a34c8b9be73e7a51f7de4836755a5b162b02b58f",
-            "82529f78d5a11db9892f39bbbfad775e5e724472b3c734829aa9417a93b701a5",
             "81527809f85ab7b73e5a5ef129a0f68bbbaa99250c18e0dd4d16e807ce8a2001",
             "72896630165a2f42037bc22980bdc68432e355dda9783af4a70e196a93014a5c",
         ),
@@ -393,7 +392,7 @@ def test_entire_default_main_AST_matches_qualified_parent():
     assert projector.functions == set(parameters)
     assert projector.parameters == {"artifact_budget": 4, "practice_observer": 2}
     assert projector.branches == {scope: len(expected) for scope, expected in branches.items()}
-    assert projector.predicates == {"artifact_budget": 14, "practice_observer": 2}
+    assert projector.predicates == {"artifact_budget": 13, "practice_observer": 2}
     assert projector.documentation == 1
     actual = hashlib.sha256(ast_dump(projected).encode()).hexdigest()
     assert actual == BASE_MAIN_AST_SHA256, f"default main AST differs from {BASE}"
