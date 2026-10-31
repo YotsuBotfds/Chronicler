@@ -2384,6 +2384,15 @@ fn step_restoration(
         if restored_originals.contains(&exile.original_civ) {
             continue;
         }
+        // Python can restore an absent historical civ from its name, but this
+        // index-only native input cannot. Skip unresolved identities safely;
+        // valid native exile producers retain resolved original records.
+        if exile.original_civ == CIV_NONE
+            || (exile.original_civ as usize) >= civs.len()
+            || (exile.original_civ as usize) >= live_civs.len()
+        {
+            continue;
+        }
         let absorber_idx = exile.absorber_civ;
         if (absorber_idx as usize) >= live_civs.len() {
             continue;
@@ -3564,6 +3573,36 @@ mod tests {
             turns_remaining: 10, recognized_by: Vec::new(),
         }] };
         (civs, regions, exiles)
+    }
+
+    #[test]
+    fn test_restoration_skips_unresolved_original_identities() {
+        for unresolved in [CIV_NONE, 2] {
+            for hybrid_mode in [false, true] {
+                let (civs, regions, mut exiles) = capacity_restoration_fixture(2, true);
+                exiles.entries[0].original_civ = unresolved;
+                let mut live: Vec<LiveCiv> = civs.iter().map(LiveCiv::from_input).collect();
+                let before = format!("{live:?}");
+                let before_exiles = format!("{:?}", exiles.entries);
+                let mut live_regions = capacity_live_regions(&regions);
+                let before_controllers: Vec<u16> = live_regions.iter().map(|r| r.controller).collect();
+                let mut rels = LiveRelationships::from_topology(&PoliticsTopology::default());
+                let mut restored = HashSet::new();
+                let mut result = PoliticsResult::default();
+                let mut config = make_config();
+                config.restoration_base_prob = 1.0;
+
+                step_restoration(&civs, &regions, &mut live, &mut live_regions, &mut exiles,
+                    &mut rels, &config, 42, 100, hybrid_mode, &mut restored, &mut result);
+
+                assert_eq!(format!("{live:?}"), before);
+                assert_eq!(format!("{:?}", exiles.entries), before_exiles);
+                assert_eq!(live_regions.iter().map(|r| r.controller).collect::<Vec<_>>(), before_controllers);
+                assert!(rels.disposition.is_empty());
+                assert!(restored.is_empty());
+                assert_eq!(format!("{result:?}"), format!("{:?}", PoliticsResult::default()));
+            }
+        }
     }
 
     #[test]

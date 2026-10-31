@@ -8,10 +8,10 @@ This is the live handoff ledger for the remediation branch. Update it with every
 - Branch: `dev/kimi-remediation-20261031`
 - Base branch: `dev/claude-handoff-20261030`
 - Base commit: `2e7425f4f863274c2a973ceba5f9cfb89b857ffb`
-- Current head: this batch-4 commit; preceding remediation commits are recorded in branch history.
+- Current head: this batch-5 commit; preceding remediation commits are recorded in branch history.
 - Current owner: Kimi K3.1
 - Overall state: IN PROGRESS
-- Next exact action: resolve B5 malformed-exile semantics explicitly, add native and Python regressions, and leave native execution marked UNRUN.
+- Next exact action: design and implement C1 batch failure finalization with failure-injection coverage; preserve completed-run evidence and specify continuation semantics.
 
 ## Working rules
 
@@ -45,7 +45,7 @@ Status: `[ ]` pending, `[~]` active/interrupted, `[x]` landed and focused-checke
 | [x] | B2c | P0 | K3.1 Pro / High | Filter unreachable (`-1`) distances in bridge breakaway-capital selection. | Batch 2: mirrors the oracle's reachable-distance filter and fallback; disconnected-capital regression passed. |
 | [x] | B3 | P1 | K3.1 Pro / Standard | Update `num_turns` in the initial resumed-live `save_loaded` checkpoint. | Batch 3: initial resumed-pause checkpoint now stores the extended length; focused and surrounding checkpoint tests passed. |
 | [x] | B4 | P1 | K3.1 Pro / Standard | Preserve own `__proto__` data keys through all viewer object-patch output paths; add Python/TS parity coverage. | Batch 4: safe own-property definitions cover fast/reference/ordered paths; Python and TS parity regressions, lint, and build passed. |
-| [ ] | B5 | P1 | K3.1 Pro / Max | Guard unresolved native exile `original_civ` before every index; decide whether malformed exiles reject in both runtimes or retain name-based restoration. | Rust UNRUN. Files: `chronicler-agents/src/politics.rs`, native regression tests. Do not silently invent parity semantics. |
+| [x] | B5 | P1 | K3.1 Pro / Max | Guard unresolved native exile `original_civ` before every index; decide whether malformed exiles reject in both runtimes or retain name-based restoration. | Batch 5 source: native skips unresolved identities before indexing; Python name-based restoration remains unchanged. Native regression added but UNRUN; no native parity qualification. |
 | [ ] | C1 | P1 | K3.1 Pro / High | Make batch failures finalize manifests and preserve completed-run evidence; specify fail-fast versus per-seed continuation. | Needs explicit lifecycle design and failure-injection tests. Files: `batch.py`, `batch_manifest.py`, live batch caller. |
 | [ ] | C2 | P1 | K3.1 Pro / High | Repair action entropy/persistence across leader resets, era boundaries, and late-founded civs; remove or implement dead checkpoints argument. | Prefer per-turn resolved actions over cumulative-count diffs. Base repro returned entropy 0 instead of 1.5 and persistence 100% instead of 50%. |
 | [ ] | C3 | P1 | K3.1 Pro / Standard | Route primary artifact writes through existing atomic I/O helpers with fault-injection coverage. | Bundle JSON/Arrow, world state, chronicle, live batch report. |
@@ -63,8 +63,9 @@ Status: `[ ]` pending, `[~]` active/interrupted, `[x]` landed and focused-checke
 | `852525cdfcdfdb78ef919d25b2a1fd1bc5092640` | Repository tracker only | No product code changed; no tests required for tracker commit. | Start B1a/B1b. |
 | `0f29cd14a7f109d6e8affcfa23df107826ca43be` | Batch 1: population-loss clamp and recursive checkpoint source identity | New regressions failed before the fix (2 failed, 1 passed), then passed (3 passed). Surrounding suites: 169 passed. | Start B2a/B2b/B2c. |
 | Batch-2 commits | Batch 2: restoration trait/asabiya and breakaway-capital bridge parity | New regressions failed before the fix (2 failed), then passed (2 passed). Politics suites: 204 passed, 53 skipped. Native cases remain unrun. | Start B3. |
-| `71127b5a` | Batch 3: extended resumed-live initial checkpoint length | Regression failed before the fix with saved `num_turns == 12` instead of 16, then passed. Surrounding checkpoint suites: 33 passed. | Start B4. |
-| this commit | Batch 4: viewer codec own `__proto__` safety and Python parity | TS regression failed before the fix, then 8 focused TS tests passed. Python codec module: 23 passed. Viewer lint and production build passed. | Start B5; native checks remain UNRUN. |
+| batch-3 commit | Batch 3: extended resumed-live initial checkpoint length | Regression failed before the fix with saved `num_turns == 12` instead of 16, then passed. Surrounding checkpoint suites: 33 passed. | Start B4. |
+| batch-4 commit | Batch 4: viewer codec own `__proto__` safety and Python parity | TS regression failed before the fix, then 8 focused TS tests passed. Python codec module: 23 passed. Viewer lint and production build passed. | Start B5; native checks remain UNRUN. |
+| this commit | Batch 5: native unresolved-exile guard | Static base review confirmed unchecked original indices; regression covers sentinel and out-of-range identities in both modes. Rust/cargo unavailable, so native test is UNRUN. Python name-based restoration controls and surrounding politics suites passed unchanged. | Start C1; run the native regression when Rust tooling is available. |
 
 ## Verification log
 
@@ -90,6 +91,9 @@ Remediation checks:
 - Batch 4 focused TS: `npx vitest run src/lib/__tests__/bundleCodec.test.ts src/lib/__tests__/bundleCodecFast.test.ts` from `viewer/` — 8 passed, including randomized fast/reference histories.
 - Batch 4 Python parity and surrounding codec module: `.venv/bin/python -m pytest -q tests/test_bundle_codec.py` — 23 passed in 2.64s.
 - Batch 4 viewer gates on Node 20.20.2: `npm run lint` passed; `npm run build` passed.
+- Batch 5 native control: base source indexed `civs[exile.original_civ]` without validating sentinel/out-of-range identities. The new Rust regression covers `CIV_NONE` and `original_civ == civs.len()` in direct and hybrid modes, but is UNRUN because cargo is unavailable.
+- Batch 5 Python semantics control: `.venv/bin/python -m pytest -q tests/test_politics_bridge.py::test_python_restoration_reuses_dead_identity_at_full_capacity` — 2 passed; absent-historical name-based behavior and capacity refusal remain unchanged.
+- Batch 5 surrounding: `.venv/bin/python -m pytest -q tests/test_politics_bridge.py tests/test_politics.py tests/test_politics_parity.py` — 204 passed, 53 skipped in 2.26s.
 - Environment: locked `uv sync` on CPython 3.13.18. No Rust/native execution or fresh CI.
 
 ## Handoff checklist for Codex or Claude
