@@ -217,6 +217,7 @@ def test_aggregate_turns_conserve_population_flow_by_flow(monkeypatch):
 def test_the_ledger_catches_people_made_from_nothing(monkeypatch):
     import chronicler.simulation as sim
     from chronicler.utils import POPULATION_CHECK_ENV
+    from chronicler.world_gen import generate_world
     monkeypatch.setenv(POPULATION_CHECK_ENV, "1")
     real = sim.phase_production
 

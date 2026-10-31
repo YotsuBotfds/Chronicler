@@ -8,10 +8,10 @@ This is the live handoff ledger for the remediation branch. Update it with every
 - Branch: `dev/kimi-remediation-20261031`
 - Base branch: `dev/claude-handoff-20261030`
 - Base commit: `2e7425f4f863274c2a973ceba5f9cfb89b857ffb`
-- Current head: this batch-1 commit; previous tracker head `852525cdfcdfdb78ef919d25b2a1fd1bc5092640`.
+- Current head: this batch-2 commit; previous batch-1 head `0f29cd14a7f109d6e8affcfa23df107826ca43be`.
 - Current owner: Kimi K3.1
 - Overall state: IN PROGRESS
-- Next exact action: land batch 2 (restoration trait/asabiya and breakaway-capital parity) with focused bridge regressions.
+- Next exact action: land batch 3 (extended resumed-live initial checkpoint length) with its session regression.
 
 ## Working rules
 
@@ -40,9 +40,9 @@ Status: `[ ]` pending, `[~]` active/interrupted, `[x]` landed and focused-checke
 |---|---|---|---|---|---|
 | [x] | B1a | P0 | K3.1 Pro / Standard | Fix negative drains in `utils.distribute_pop_loss`; regression covers rounded overdraw and no regional growth. | Batch 1: clamp every drain to population and remaining non-negative budget; focused and surrounding tests passed. |
 | [x] | B1b | P0 | K3.1 Pro / Standard | Make checkpoint replay source identity include nested Python packages; share `batch_manifest.package_digest` if compatible. | Batch 1: replay now uses the canonical recursive package digest; top-level and nested-module checkpoint invalidation passed. |
-| [ ] | B2a | P0 | K3.1 Pro / High | Match restoration trait RNG to the Python oracle, including per-civilization stream identity. | Base repro: bridge `stubborn`, oracle `opportunistic`. Files: `politics_bridge.py`, `tests/test_politics_bridge.py`. |
-| [ ] | B2b | P0 | K3.1 Pro / High | Set restored region asabiya in both existing- and new-record bridge paths. | Base repro: region remained 0.13 while restored civ was 0.8. |
-| [ ] | B2c | P0 | K3.1 Pro / High | Filter unreachable (`-1`) distances in bridge breakaway-capital selection. | Base repro: bridge selected A, oracle algorithm selected C. |
+| [x] | B2a | P0 | K3.1 Pro / High | Match restoration trait RNG to the Python oracle, including per-civilization stream identity. | Batch 2: bridge uses the oracle's stable per-civilization restoration-trait stream. |
+| [x] | B2b | P0 | K3.1 Pro / High | Set restored region asabiya in both existing- and new-record bridge paths. | Batch 2: common post-materialization initialization covers both paths; new-record regression passed. |
+| [x] | B2c | P0 | K3.1 Pro / High | Filter unreachable (`-1`) distances in bridge breakaway-capital selection. | Batch 2: mirrors the oracle's reachable-distance filter and fallback; disconnected-capital regression passed. |
 | [ ] | B3 | P1 | K3.1 Pro / Standard | Update `num_turns` in the initial resumed-live `save_loaded` checkpoint. | Base repro: requested 16, saved turn-12 checkpoint retained 12; default resume hint rejects. File: `live.py`, `tests/test_live_checkpoints.py`. |
 | [ ] | B4 | P1 | K3.1 Pro / Standard | Preserve own `__proto__` data keys through all viewer object-patch output paths; add Python/TS parity coverage. | Base repro: TS lost own key and inherited patched value; Python preserved key. File: `viewer/src/lib/bundleCodec.ts`. |
 | [ ] | B5 | P1 | K3.1 Pro / Max | Guard unresolved native exile `original_civ` before every index; decide whether malformed exiles reject in both runtimes or retain name-based restoration. | Rust UNRUN. Files: `chronicler-agents/src/politics.rs`, native regression tests. Do not silently invent parity semantics. |
@@ -61,7 +61,8 @@ Status: `[ ]` pending, `[~]` active/interrupted, `[x]` landed and focused-checke
 | Commit | Scope | Checks | Follow-up |
 |---|---|---|---|
 | `852525cdfcdfdb78ef919d25b2a1fd1bc5092640` | Repository tracker only | No product code changed; no tests required for tracker commit. | Start B1a/B1b. |
-| this commit | Batch 1: population-loss clamp and recursive checkpoint source identity | New regressions failed before the fix (2 failed, 1 passed), then passed (3 passed). Surrounding suites: 169 passed. | Start B2a/B2b/B2c. |
+| `0f29cd14a7f109d6e8affcfa23df107826ca43be` | Batch 1: population-loss clamp and recursive checkpoint source identity | New regressions failed before the fix (2 failed, 1 passed), then passed (3 passed). Surrounding suites: 169 passed. | Start B2a/B2b/B2c. |
+| this commit | Batch 2: restoration trait/asabiya and breakaway-capital bridge parity | New regressions failed before the fix (2 failed), then passed (2 passed). Politics suites: 204 passed, 53 skipped. Native cases remain unrun. | Start B3. |
 
 ## Verification log
 
@@ -77,6 +78,9 @@ Remediation checks:
 - Batch 1 pre-fix regression control: `.venv/bin/python -m pytest -q tests/test_population_conservation.py::test_population_loss_never_grows_a_region_after_rounding_overdraw tests/test_turn_artifact_runner.py::test_new_source_module_changes_identity_and_rejects_checkpoint` — 2 failed, 1 passed; failures were the negative drain and unchanged nested-source digest.
 - Batch 1 focused: same command — 3 passed.
 - Batch 1 surrounding: `.venv/bin/python -m pytest -q tests/test_population_conservation.py tests/test_utils_civ_helpers.py tests/test_checkpoint_replay.py tests/test_turn_artifact_runner.py tests/test_batch_manifest.py` — 169 passed in 17.45s.
+- Batch 2 pre-fix regression control: `.venv/bin/python -m pytest -q tests/test_politics_bridge.py::TestApplyPoliticsOps::test_breakaway_capital_ignores_unreachable_parent_regions tests/test_politics_bridge.py::TestApplyPoliticsOps::test_new_restoration_matches_oracle_trait_and_initializes_region_asabiya` — 2 failed with the expected wrong capital and trait.
+- Batch 2 focused: same command — 2 passed.
+- Batch 2 surrounding: `.venv/bin/python -m pytest -q tests/test_politics_bridge.py tests/test_politics.py tests/test_politics_parity.py` — 204 passed, 53 skipped in 2.40s.
 - Environment: locked `uv sync` on CPython 3.13.18. No Rust/native execution or fresh CI.
 
 ## Handoff checklist for Codex or Claude
