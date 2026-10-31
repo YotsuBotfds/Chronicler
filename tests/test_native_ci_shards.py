@@ -200,9 +200,11 @@ def test_checked_in_partition_preserves_historical_assignment_with_explicit_new_
     old_owners = {name: shard for name, shard in owners.items() if name not in additions}
     assert len(old_owners) == 300
     # Canonical complete owner map from immutable parent 2572d5b9, including
-    # the original shard-0 controller test. Equal counts alone allow moves.
-    assert S.digest(old_owners) == 'fbde72231a68a0d4df1ca7f261501223df0fff6c3b6c14a99f337face13b26bb'
+    # the original shard-0 controller test and the D1 economy-oracle rename.
+    # Equal counts alone allow moves; the renamed module stays on shard 1.
+    assert S.digest(old_owners) == '29527dbf567b05d0c651c8a25d2e9d63c6960b722228364da3e09e77757da1e4'
     assert owners['tests/test_native_ci_shards.py'] == '0'
+    assert owners['tests/test_economy_oracle.py'] == '1'
     assert m['historical_module_counts'] == [159, 140]
     assert m['historical_partition_sha256'] == '0d4f05d3b53f5290f2cba3e6f6f4888a29de098cd0de6060f71a9f38a70d59cb'
     assert m['expected_skips'] == [
