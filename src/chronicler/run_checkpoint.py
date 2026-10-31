@@ -191,6 +191,8 @@ def _environment_identity() -> dict:
         "affinity_cpu_count": env["affinity_cpu_count"],
         "thread_env": env["thread_env"],
         "packages": env["packages"],
+        # Expansion receipts consume this field; exact resume compares the
+        # same PYTHONHASHSEED value through thread_env above.
         "hash_seed": os.environ.get("PYTHONHASHSEED"),
     }
     return _ENVIRONMENT_IDENTITY

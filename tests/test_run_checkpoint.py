@@ -214,6 +214,24 @@ def test_thread_settings_are_part_of_the_identity():
     assert any("thread_env" in m for m in rc._compare_identity(saved, current, False))
 
 
+@pytest.mark.parametrize(("checkpoint_seed", "resume_seed"), [("0", "42"), (None, "0")])
+def test_hash_seed_is_compared_through_thread_environment(checkpoint_seed, resume_seed):
+    saved = json.loads(json.dumps(rc.runtime_identity()))
+    current = json.loads(json.dumps(saved))
+    saved["environment"]["thread_env"]["PYTHONHASHSEED"] = checkpoint_seed
+    current["environment"]["thread_env"]["PYTHONHASHSEED"] = resume_seed
+
+    mismatches = rc._compare_identity(saved, current, False)
+
+    assert any("thread_env PYTHONHASHSEED" in mismatch for mismatch in mismatches)
+
+
+def test_hash_seed_receipt_field_mirrors_the_compared_environment_value():
+    environment = rc.runtime_identity()["environment"]
+
+    assert environment["hash_seed"] == environment["thread_env"].get("PYTHONHASHSEED")
+
+
 def test_the_loader_constructs_only_allowed_globals():
     with pytest.raises(rc.CheckpointError, match="may not construct"):
         rc._Unpickler(io.BytesIO(pickle.dumps(os.system))).load()

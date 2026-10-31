@@ -131,6 +131,12 @@ def _schema_digest() -> str:
 
 
 def _runtime_identity() -> dict[str, str]:
+    """Replay runtime identity; hash-seed invariance is tested separately.
+
+    ``test_real_cli_and_cross_process_resume_with_different_hashseeds``
+    demonstrates that this Python-only replay path does not depend on
+    PYTHONHASHSEED, so unlike exact run checkpoints it need not compare it.
+    """
     return {
         "python": platform.python_version(),
         "implementation": platform.python_implementation(),
