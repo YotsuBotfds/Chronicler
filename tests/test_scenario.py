@@ -284,6 +284,15 @@ class TestLoadScenario:
         with pytest.raises(ValueError, match="Alpha"):
             load_scenario(path)
 
+    @pytest.mark.parametrize("kind", ["civilizations", "regions"])
+    def test_load_duplicate_world_object_names_raise(self, tmp_path, kind):
+        path = self._write_yaml(tmp_path, {
+            "name": "Test",
+            kind: [{"name": "Duplicate"}, {"name": "Duplicate"}],
+        })
+        with pytest.raises(ValueError, match=f"Duplicate {kind[:-1]} name 'Duplicate'"):
+            load_scenario(path)
+
     def test_load_controller_invalid_civ_name(self, tmp_path):
         path = self._write_yaml(tmp_path, {
             "name": "Test",

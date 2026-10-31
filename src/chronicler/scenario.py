@@ -116,6 +116,17 @@ def load_scenario(path: Path) -> ScenarioConfig:
 
     # --- Custom validation beyond what Pydantic enforces ---
 
+    # Name-keyed world lookups require one unambiguous identity per object.
+    for label, entries in (
+        ("civilization", config.civilizations),
+        ("region", config.regions),
+    ):
+        seen_names: set[str] = set()
+        for entry in entries:
+            if entry.name in seen_names:
+                raise ValueError(f"Duplicate {label} name '{entry.name}'")
+            seen_names.add(entry.name)
+
     # tech_era strings must be valid TechEra values
     valid_eras = {e.value for e in TechEra}
     for civ in config.civilizations:
