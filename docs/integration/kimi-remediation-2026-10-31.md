@@ -8,10 +8,11 @@ This is the live handoff ledger for the remediation branch. Update it with every
 - Branch: `dev/kimi-remediation-20261031`
 - Base branch: `dev/claude-handoff-20261030`
 - Base commit: `2e7425f4f863274c2a973ceba5f9cfb89b857ffb`
-- Current head: this workflow-blocker handoff commit; the first final handoff is `d503efbdb59349563c0bd50184c35a4215c4bd98`, E8b is `803a91b2e1e9305383e2cc6b26fd787d5dabcb63`, and earlier remediation commits are recorded in branch history.
+- Finalization checkpoint: `cd4b3809924798ba1bdef796f42ceab233472102`; final product-code handoff: `05fdd541757e6b23efee3d9b32b796c975a2b258`; E8b: `803a91b2e1e9305383e2cc6b26fd787d5dabcb63`.
 - Current owner: Kimi K3.1
-- Overall state: LOCAL REMEDIATION COMPLETE; NON-WORKFLOW PUBLICATION AUDIT PENDING; WORKFLOW FILE BLOCKED BY OAUTH SCOPE
-- Next exact action: publish all non-workflow paths additively, verify every changed remote blob against local Git, confirm `tests/test_economy_parity.py` is absent, and report `.github/workflows/tests.yml` as the one known mismatch without claiming whole-tree or commit-for-commit equivalence.
+- Overall state: LOCAL REMEDIATION COMPLETE; FINALIZATION/PRESERVATION ONLY; REMOTE PARTIALLY PUBLISHED; WORKFLOW FILE BLOCKED BY OAUTH SCOPE
+- Single concise handoff: `docs/integration/kimi-final-handoff-2026-11-01.md`.
+- Next exact action for the next agent: follow that handoff's first priority; do not resume development automatically from this finalization session.
 
 ## Working rules
 
