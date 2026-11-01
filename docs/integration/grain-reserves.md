@@ -37,6 +37,58 @@ passes (20 seeds). With `CHRONICLER_CHECK_RESOURCES=1` the production
 ledger's mines' soil check stops some procedural worlds, `main`'s as well:
 a native ordering of PR #52, not a granary balance (section 4).
 
+## Optional food-shortfall procurement priority (2026-11-01)
+
+The default destination order fills the emptiest reserve relative to its target
+first, using food sufficiency and region index as ties. Under a scarce shared
+treasury this can refill an empty granary in a fed region before a nearby
+underfed region with a small residual reserve.
+
+To opt into prioritizing observed food shortfalls, use the existing tuning YAML
+with an agent economy and `--grain-reserves --tuning PATH`:
+
+```yaml
+grain_reserves:
+  shortfall_priority: 1
+```
+
+The registered key `grain_reserves.shortfall_priority` defaults to `0`; an
+omitted or zero value retains the original order. A nonzero value places known
+finite food sufficiency below `1 - 1e-6` first, lowest sufficiency first, then
+reserve fill ratio and region identity ties. Other destinations retain fill-ratio
+ordering and finite sufficiency ties. Missing, boolean, nonnumeric or nonfinite
+observations receive no shortfall priority and use a neutral ordering value;
+the economy's observations are never rewritten. Saved worlds and exact
+checkpoints retain the key through existing tuning overrides.
+
+This order applies within each existing domestic/foreign pass. Domestic-first
+sourcing, route permissions, merchant commitments, the four-demand-turn market
+retention floor, integer treasury budget, payments, transit losses and release
+rules still apply. Procurement changes stocks at Phase 10; it does not raise
+that turn's food sufficiency. Existing granary snapshots, purchase receipts and
+later release flows show the effects without a new export or event type.
+
+The small acceptance fixture gives one ruler one spendable coin, two targets of
+40 grain, a fed region holding no reserves and an underfed region holding 2.
+The default buys 8 into the fed region; the option sends 8 to the underfed
+region, receives 7.6 after transit loss, and leaves 9.6 in its granary. Both
+spend one coin and leave the source market at 72. On a subsequent zero-food
+turn with demand 10, the recipient releases 6 and reaches sufficiency 0.6,
+versus a default release of 2 and sufficiency 0.2. This fixture demonstrates
+allocation and bookkeeping only. Scientific efficacy, whole-world outcomes,
+native execution and full economic qualification of this option remain unrun;
+the historical results below do not qualify it. Granaries remain default off.
+
+Focused qualification on CPython 3.13.5: the existing offline guard ran
+`tests/test_grain_reserves.py`, `tests/test_public_purchase_receipts.py` and
+`tests/test_tuning.py` with `-m 'not native'`: **101 passed, 2 deselected**.
+The guard retained no native imports or blocked network/child-process attempts.
+Coverage includes both region identities, accumulator payments and resource
+ledgers, later releases, missing/zero parity and RNG, dormant/off worlds,
+unknown/nonfinite observations, ordering ties, route/commitment/budget rules,
+domestic-first passes and receipt-capture invariance. No native or scientific
+qualification is inferred from these focused checks.
+
 ## 1. Audit: how food moves today
 
 ### Who holds food, and why

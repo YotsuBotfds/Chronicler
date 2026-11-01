@@ -456,6 +456,16 @@ def _realm_hops(world, graph, target: int, owner_name: str) -> dict[int, int]:
     return hops
 
 
+def _shortfall_order(granary, sufficiency, rid):
+    """Known food shortfalls first; missing/nonfinite observations get no priority."""
+    if (not isinstance(sufficiency, (int, float)) or isinstance(sufficiency, bool)
+            or not math.isfinite(sufficiency)):
+        sufficiency = 1.0  # neutral ordering only; never written into the economy
+    shortfall = sufficiency < 1.0 - 1e-6
+    return (not shortfall, sufficiency if shortfall else 0.0,
+            granary.grain / granary.target, sufficiency, rid)
+
+
 def tick_grain_reserves(world: "WorldState", acc=None, economy_result: "EconomyResult | None" = None,
                         agent_bridge=None) -> list["Event"]:
     """Phase 10: observe harvests, set targets, buy toward them. Returns events."""
@@ -517,6 +527,8 @@ def tick_grain_reserves(world: "WorldState", acc=None, economy_result: "EconomyR
     purchase_flow_start = len(flows)
     graph = _route_graph(world)
     foreign_bought: dict[int, list] = {}
+    from chronicler.tuning import K_GRAIN_RESERVES_SHORTFALL_PRIORITY, get_override
+    shortfall_priority = bool(get_override(world, K_GRAIN_RESERVES_SHORTFALL_PRIORITY, 0.0))
 
     for foreign in (False, True):
         for ci, civ in enumerate(civs):
@@ -525,8 +537,12 @@ def tick_grain_reserves(world: "WorldState", acc=None, economy_result: "EconomyR
             targets = [rid for rid, (r, g) in enumerate(zip(regions, state.granaries))
                        if g.owner == ci and r.controller == civ.name and demand[rid] > 0
                        and g.target - g.grain > EPS]
-            targets.sort(key=lambda rid: (state.granaries[rid].grain / state.granaries[rid].target,
-                                          economy_result.food_sufficiency.get(regions[rid].name, 0.0), rid))
+            if shortfall_priority:
+                targets.sort(key=lambda rid: _shortfall_order(
+                    state.granaries[rid], economy_result.food_sufficiency.get(regions[rid].name), rid))
+            else:
+                targets.sort(key=lambda rid: (state.granaries[rid].grain / state.granaries[rid].target,
+                                              economy_result.food_sufficiency.get(regions[rid].name, 0.0), rid))
             for rid in targets:
                 granary = state.granaries[rid]
                 hops = _realm_hops(world, graph, rid, civ.name)
