@@ -1320,6 +1320,14 @@ class WorldState(BaseModel):
         """Persist world state to a JSON file by atomically replacing it."""
         if artifact_budget is not None:
             artifact_budget.ensure_directory(path.parent)
+        else:
+            parent = path.parent
+            try:
+                parent_is_dir = parent.is_dir()
+            except OSError:
+                parent_is_dir = False
+            if not parent_is_dir:
+                parent.mkdir(parents=True, exist_ok=True)
         atomic_write_text(path, self.model_dump_json(indent=2), artifact_budget=artifact_budget)
         # The chronicles and the languages travel beside the state (removed while off).
         from chronicler.historiography import save_sidecar
