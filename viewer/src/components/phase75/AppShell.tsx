@@ -27,6 +27,7 @@ import { snapshotPositionAt } from "../../lib/civRows";
 import { DISPOSITION_COLORS, factionColor, UNCONTROLLED_COLOR } from "../../lib/colors";
 import { RegionSystemsDetail } from "../systems/RegionSystemsDetail";
 import type { ArtifactIdentity } from "../../lib/artifactIdentity";
+import { SavedWorldDetails } from "./SavedWorldDetails";
 import { accountsForEvent, decodeAccounts, type EventAccounts } from "../../lib/historiography";
 import { InWorldAccounts } from "./InWorldAccounts";
 import {
@@ -995,13 +996,15 @@ export function AppShell({
       <input
         ref={openBundleRef}
         type="file"
-        accept=".json"
+        aria-label="Open saved world file"
+        accept=".json,.ckpt,.checkpoint"
         className="phase75-hidden-input"
         onChange={(event) => {
           const file = event.target.files?.[0];
           if (file) {
             onOpenBundleFile(file);
           }
+          event.target.value = "";
         }}
       />
 
@@ -1019,6 +1022,12 @@ export function AppShell({
         viewerReady={viewerReady}
         onOpenBundle={() => openBundleRef.current?.click()}
       />
+
+      {error && <div className="phase75-error-banner saved-world-message" role="alert">
+        {error}{bundle && <p>The loaded world is still available. Choose another file with Open Existing.</p>}
+      </div>}
+      {bundle && <SavedWorldDetails bundle={bundle} identity={artifactIdentity} />}
+      {bundleLoading && <div className="saved-world-loading" role="status">Reading saved world…</div>}
 
       <ModeTabs
         current={surface}
@@ -1225,10 +1234,6 @@ export function AppShell({
             selectedCivilization={selectedCivilization?.name ?? null}
           />
         </Suspense>
-      )}
-
-      {error && surface !== "setup" && surface !== "batch" && (
-        <div className="phase75-error-banner">{error}</div>
       )}
 
       <input
@@ -2071,8 +2076,6 @@ function SetupRail({
           Start the viewer from a live session to create a run, or choose Open Existing to explore a saved run.
         </div>
       )}
-
-      {state.error && <div className="phase75-inline-error">{state.error}</div>}
 
       <button
         type="button"

@@ -29,7 +29,7 @@
  */
 import type { Bundle } from "../types";
 import { identifyArtifact } from "./artifactIdentity";
-import { decodeBundleBytes, decodeBundleText, parseBundle, type DecodedBundleFile } from "./bundleFile";
+import { decodeBundleBytes, parseBundleBytes, type DecodedBundleFile } from "./bundleFile";
 
 /** Files at least this large are decoded in a worker (smaller ones decode faster than a worker starts). */
 export const WORKER_MIN_BYTES = 1024 * 1024;
@@ -146,7 +146,7 @@ export async function answerDecodeRequest(
     }
     // The hash runs alongside the parse; it is kept only for a bundle (as decodeBundleBytes does).
     const hashing = identifyArtifact(request.file.name ?? "", bytes);
-    const parsed = parseBundle(decodeBundleText(bytes));
+    const parsed = parseBundleBytes(bytes);
     const identity = parsed.bundle ? await hashing : null;
     const timings = { startedAt, read: read - started, decode: performance.now() - read };
     if (!parsed.bundle) {

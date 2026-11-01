@@ -199,6 +199,24 @@ describe("useBundle with a worker", () => {
     expect(result.current.error).toMatch(/^Invalid bundle history: history_delta\[3\]: '~o' must list/);
   });
 
+  it("retains a world through worker validation failure and can load again", async () => {
+    useStandIn("answer");
+    const { result } = renderHook(() => useBundle());
+    act(() => result.current.loadFromFile(new File([largeText()], "valid.json")));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    const loaded = result.current.bundle;
+    const identity = result.current.artifactIdentity;
+    act(() => result.current.loadFromFile(new File([largeText(citiesFixture)], "incomplete.json")));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.error).toContain("world_state.civilizations[0].regions");
+    expect(result.current.bundle).toBe(loaded);
+    expect(result.current.artifactIdentity).toBe(identity);
+    act(() => result.current.loadFromFile(new File([largeText()], "valid.json")));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.error).toBeNull();
+    expect(result.current.artifactIdentity).toEqual(identity);
+  });
+
   it("decodes on the main thread when the worker fails", async () => {
     useStandIn("crash");
     const raw = largeText();

@@ -1113,3 +1113,20 @@
   height: 0;
   border-top: 3px solid;
 }
+
+.saved-world-details {
+  margin: 8px 24px;
+  padding: 10px 14px;
+  border: 1px solid rgba(206, 181, 131, 0.22);
+  border-radius: 8px;
+  color: var(--phase75-muted-strong);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.saved-world-details summary { cursor: pointer; color: var(--phase75-ink); }
+.saved-world-details dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 12px; margin: 16px 0; }
+.saved-world-details dt { font-weight: 600; color: var(--phase75-ink); }
+.saved-world-details dd { margin: 3px 0 0; }
+.saved-world-details p { margin: 8px 0 0; line-height: 1.6; }
+.saved-world-loading { margin: 8px 24px; font-size: 13px; }
+.phase75-error-banner.saved-world-message { margin: 8px 24px; overflow-wrap: anywhere; }
