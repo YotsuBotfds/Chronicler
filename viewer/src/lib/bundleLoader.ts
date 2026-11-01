@@ -1,4 +1,4 @@
-import { validateBundleStructure, isRecord } from "./bundleValidation";
+import { isRecord } from "./bundleValidation";
 import type { Bundle } from "../types";
 import { BundleDecodeError, decodeBundlePayload } from "./bundleCodec";
 import { looksLikeBundleV2Manifest, parseBundleV2Manifest, type BundleV2Manifest } from "./bundleV2";
@@ -130,11 +130,8 @@ export function classifyParsedBundlePayload(parsed: unknown): BundleLoaderResult
     });
   }
 
-  const invalid = validateBundleStructure(obj);
-  if (invalid) {
-    return toErrorResult({ code: "INVALID_STRUCTURE", message: `Invalid bundle: ${invalid}. Open a complete chronicle_bundle.json export.` });
-  }
-
+  // Classification/codec adapters may use deliberate partial payloads. File
+  // uploads validate the expanded structure and viewability in bundleFile.
   return {
     kind: "legacy",
     bundle: obj as unknown as Bundle,

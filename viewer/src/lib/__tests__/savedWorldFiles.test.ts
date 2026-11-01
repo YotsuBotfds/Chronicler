@@ -98,3 +98,76 @@ it("rejects reversed snapshots rather than presenting a false history", async ()
   const result = await decodeBundleBytes("reversed.json", bytes(JSON.stringify({ ...fixture, history: [...fixture.history].reverse() })));
   expect(result.error).toContain("must follow the previous recorded turn");
 });
+
+// Native-shaped projections reproduce the incomplete optional records found
+// by production browser QA. Both decode paths must refuse before React.
+const financeRow = { debt: 11, foreign_debt: 4, revenue: 23, revenue_ema: 23, upkeep: 8, court: 5,
+  debt_service: 1, interest: 1, borrowed: 0, shortfall: 0, price_index: 1.0026, inflation: 0.00262,
+  fineness: 1, fiscal_stress: 0.1, arrears_turns: 0, defaults: 0, debasements: 0, credit_premium: 0 };
+const granaryRow = { region: 0, region_name: "Frostholm Tundra", owner: 1, owner_name: "Kethani Empire",
+  controller: "Kethani Empire", grain: 3, target: 8, observed: 2 };
+const reserveFlow = { kind: "bought", region: 0, amount: 2, source: 1, seller: 0, buyer: 1,
+  buyer_name: "Kethani Empire", seller_name: "Ashkari Nomads", sent: 2.5, cost: 4, before: 1, after: 3 };
+const reserveRecord = { source_turn: 0, granaries: [granaryRow], flows: [reserveFlow], counters: { bought: 2 } };
+
+it.each([
+  ["food", {}, "food.sufficiency"],
+  ["food", { sufficiency: {} }, "food.sufficiency"],
+  ["food", { sufficiency: [1, "unknown"] }, "food.sufficiency"],
+  ["food", { sufficiency: [1, null], aid: [[0, 1]] }, "food.aid"],
+  ["food", { sufficiency: [1], aid: [["region", 1, 2]] }, "food.aid"],
+  ["grain_reserves", {}, "grain_reserves.source_turn"],
+  ["grain_reserves", { ...reserveRecord, granaries: {} }, "grain_reserves.granaries"],
+  ["grain_reserves", { ...reserveRecord, granaries: [null] }, "granaries[0]"],
+  ["grain_reserves", { ...reserveRecord, granaries: [{ ...granaryRow, grain: "3" }] }, "granaries[0].grain"],
+  ["grain_reserves", { ...reserveRecord, granaries: [{ ...granaryRow, target: {} }] }, "granaries[0].target"],
+  ["grain_reserves", { ...reserveRecord, flows: {} }, "grain_reserves.flows"],
+  ["grain_reserves", { ...reserveRecord, flows: [{ ...reserveFlow, cost: "4" }] }, "flows[0].cost"],
+  ["grain_reserves", { ...reserveRecord, counters: { bought: "2" } }, "grain_reserves.counters"],
+  ["finance", {}, "finance.civs"],
+  ["finance", { civs: [] }, "finance.civs"],
+  ["finance", { civs: { realm: null } }, "finance.civs.realm"],
+  ["finance", { civs: { realm: {} } }, "finance.civs.realm.revenue_ema"],
+  ["finance", { civs: { realm: { ...financeRow, debt: {} } } }, "finance.civs.realm.debt"],
+  ["finance", { civs: { realm: financeRow }, totals: [] }, "finance.totals"],
+  ["finance", { civs: { realm: financeRow }, loans: "1" }, "finance.loans"],
+])("rejects malformed nested %s records at the shared file boundary", async (key, value, path) => {
+  const data = bytes(JSON.stringify({ ...fixture, history: fixture.history.map((row) => ({ ...row, [key as string]: value })) }));
+  const result = await decodeBundleBytes("malformed-optional.json", data);
+  const worker = await answerDecodeRequest({ file: { name: "malformed-optional.json", arrayBuffer: async () => data } as Blob & { name: string } });
+  expect(result.bundle).toBeNull();
+  expect(result.identity).toBeNull();
+  expect(result.error).toContain(path as string);
+  expect(worker.kind === "decoded" && worker.result).toEqual(result);
+});
+
+it("preserves absent systems and older partial metrics without inventing scalar values", async () => {
+  const plain = structuredClone(fixture) as unknown as Record<string, unknown>;
+  const history = plain.history as Record<string, unknown>[];
+  const finance = { ...financeRow } as Record<string, unknown>;
+  delete finance.debt;
+  delete finance.foreign_debt;
+  const granary = { ...granaryRow } as Record<string, unknown>;
+  delete granary.target;
+  delete granary.observed;
+  Object.assign(history[0], { food: { sufficiency: [null, 0, 1] }, finance: { civs: { realm: finance } },
+    grain_reserves: { ...reserveRecord, granaries: [granary] } });
+  const result = await decodeBundleBytes("old-partial-metrics.json", bytes(JSON.stringify(plain)));
+  expect(result.error).toBeNull();
+  expect(result.bundle?.history[0].food?.sufficiency).toEqual([null, 0, 1]);
+  expect(result.bundle?.history[0].finance?.civs.realm.debt).toBeUndefined();
+  expect(result.bundle?.history[0].grain_reserves?.granaries[0].target).toBeUndefined();
+  expect(result.bundle?.history[1].food).toBeUndefined();
+});
+
+it.each([
+  ["food", { sufficiency: ["OVERFLOW"] }],
+  ["grain_reserves", { ...reserveRecord, counters: { bought: "OVERFLOW" } }],
+  ["finance", { civs: { realm: { ...financeRow, debt: "OVERFLOW" } } }],
+])("rejects JSON numeric overflow in %s", async (key, value) => {
+  const text = JSON.stringify({ ...fixture, history: fixture.history.map((row) => ({ ...row, [key]: value })) })
+    .replaceAll('"OVERFLOW"', '1e999');
+  const result = await decodeBundleBytes("overflow.json", bytes(text));
+  expect(result.bundle).toBeNull();
+  expect(result.error).toContain(key);
+});

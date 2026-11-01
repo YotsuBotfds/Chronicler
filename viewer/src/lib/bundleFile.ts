@@ -13,7 +13,7 @@ import type { Bundle } from "../types";
 import { identifyArtifact, type ArtifactIdentity } from "./artifactIdentity";
 import { formatBundleLoaderDiagnostics, parseBundleJsonPayload } from "./bundleLoader";
 import { checkpointNotice } from "./checkpointFile";
-import { validateViewableBundle } from "./bundleValidation";
+import { validateBundleStructure, validateViewableBundle } from "./bundleValidation";
 
 export interface DecodedBundleFile {
   bundle: Bundle | null;
@@ -34,6 +34,8 @@ export function parseBundle(jsonString: string): {
     return { bundle: null, error: `Could not read bundle: ${error instanceof Error ? error.message : String(error)}` };
   }
   if (result.kind === "legacy") {
+    const invalid = validateBundleStructure(result.bundle as unknown as Record<string, unknown>);
+    if (invalid) return { bundle: null, error: `Invalid bundle: ${invalid}. Open a complete chronicle_bundle.json export.` };
     return { bundle: result.bundle, error: null };
   }
 

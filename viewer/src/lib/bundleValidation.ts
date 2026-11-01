@@ -10,6 +10,8 @@ const turn: Check = (value) => number(value) && Number.isInteger(value) && (valu
 const string: Check = (value) => typeof value === "string";
 const strings: Check = (value) => Array.isArray(value) && value.every(string);
 const nullableString: Check = (value) => value === null || string(value);
+const integer: Check = (value) => number(value) && Number.isSafeInteger(value);
+const numbers: Check = (value) => isRecord(value) && Object.values(value).every(number);
 const fields = (value: unknown, schema: Record<string, Check>, path: string): string | null => {
   if (!isRecord(value)) return `${path} must be an object`;
   for (const [key, check] of Object.entries(schema)) {
@@ -25,6 +27,60 @@ const rows = (value: unknown, schema: Record<string, Check>, path: string): stri
   }
   return null;
 };
+
+/** Renderer containers for the three history systems exercised by file loading.
+ * Missing optional systems and missing older scalar metrics stay unrecorded. */
+function validateOptionalHistory(snapshot: Record<string, unknown>, path: string): string | null {
+  const food = snapshot.food;
+  if (food != null) {
+    const invalid = fields(food, { sufficiency: (value) => Array.isArray(value)
+      && value.every((item) => item === null || number(item)) }, `${path}.food`);
+    if (invalid) return invalid;
+    const aid = (food as Record<string, unknown>).aid;
+    if (aid !== undefined && (!Array.isArray(aid) || !aid.every((flow) => Array.isArray(flow)
+      && flow.length === 3 && turn(flow[0]) && turn(flow[1]) && number(flow[2])))) {
+      return `${path}.food.aid must be a list of [donor index, recipient index, amount] triples`;
+    }
+  }
+  const reserves = snapshot.grain_reserves;
+  if (reserves != null) {
+    let invalid = fields(reserves, { source_turn: integer, granaries: Array.isArray, flows: Array.isArray,
+      counters: numbers }, `${path}.grain_reserves`);
+    if (invalid) return invalid;
+    const record = reserves as Record<string, unknown>;
+    invalid = rows(record.granaries, { region: turn, region_name: string, owner: integer,
+      owner_name: nullableString, controller: nullableString, grain: number }, `${path}.grain_reserves.granaries`);
+    if (invalid) return invalid;
+    for (const [index, row] of (record.granaries as Record<string, unknown>[]).entries()) {
+      for (const key of ["target", "observed"]) {
+        if (key in row && row[key] !== null && !number(row[key])) {
+          return `${path}.grain_reserves.granaries[${index}].${key} must be a finite number or unrecorded`;
+        }
+      }
+    }
+    invalid = rows(record.flows, { kind: string, region: turn, amount: number, source: integer,
+      seller: integer, buyer: integer, buyer_name: nullableString, seller_name: nullableString,
+      sent: number, cost: number, before: number, after: number }, `${path}.grain_reserves.flows`);
+    if (invalid) return invalid;
+  }
+  const finance = snapshot.finance;
+  if (finance != null) {
+    const invalid = fields(finance, { civs: isRecord }, `${path}.finance`);
+    if (invalid) return invalid;
+    const record = finance as Record<string, unknown>;
+    if ("totals" in record && !numbers(record.totals)) return `${path}.finance.totals must map counters to finite numbers`;
+    if ("loans" in record && !number(record.loans)) return `${path}.finance.loans must be a finite number`;
+    for (const [name, row] of Object.entries(record.civs as Record<string, unknown>)) {
+      if (!isRecord(row)) return `${path}.finance.civs.${name} must be an object`;
+      const missing = fields(row, { revenue_ema: number, price_index: number, fiscal_stress: number }, `${path}.finance.civs.${name}`);
+      if (missing) return missing;
+      for (const [key, value] of Object.entries(row)) {
+        if (!number(value)) return `${path}.finance.civs.${name}.${key} must be a finite number`;
+      }
+    }
+  }
+  return null;
+}
 
 export function validateBundleStructure(bundle: Record<string, unknown>): string | null {
   let invalid = fields(bundle.metadata, { seed: number, total_turns: turn }, "metadata");
@@ -138,6 +194,8 @@ export function validateViewableBundle(bundle: Record<string, unknown>): string 
   for (const [index, snapshot] of (bundle.history as Record<string, unknown>[]).entries()) {
     if ((snapshot.turn as number) <= previous) return `history[${index}].turn must follow the previous recorded turn`;
     previous = snapshot.turn as number;
+    invalid = validateOptionalHistory(snapshot, `history[${index}]`);
+    if (invalid) return invalid;
   }
   return null;
 }
