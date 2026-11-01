@@ -5,7 +5,7 @@
 - Repository: `yotsubotfds/Chronicler`.
 - Development branch: `dev/kimi-remediation-20261031`.
 - Base: `dev/claude-handoff-20261030` at `2e7425f4f863274c2a973ceba5f9cfb89b857ffb`.
-- Exact runnable checkpoint: `cd4b3809924798ba1bdef796f42ceab233472102`. Its product tree is identical to final code handoff `05fdd541757e6b23efee3d9b32b796c975a2b258`; the later handoff commit is documentation-only. Use the delivery report or `git rev-parse HEAD` for the final branch tip.
+- Exact runnable checkpoint: `cd4b3809924798ba1bdef796f42ceab233472102`. Its product tree is identical to final code handoff `05fdd541757e6b23efee3d9b32b796c975a2b258`; the later handoff commits are documentation-only. Use the delivery report or `git rev-parse HEAD` for the final branch tip.
 - `main` remains untouched at `cb9fe70c81658fb65c6f511b821447f1d7b55b54`. No PR, merge, branch deletion, force-push, paid narration, or bulk experiment consolidation occurred.
 - No unfinished product edit, untracked source, separate WIP commit, active worker, or active command remains. Finalization stopped remote file transfer, not a code change.
 - Detailed ledger: `docs/integration/kimi-remediation-2026-10-31.md`.
@@ -78,10 +78,9 @@ cargo test --locked --manifest-path chronicler-agents/Cargo.toml
 
 ## Remote publication state and smallest remaining reproduction
 
-At the finalization checkpoint, verified additive remote head was `e5969a65710fb9069378053cd4e66dd5b9508d40`. Forty of 47 nonworkflow changed-path entries matched local content or required absence. These six non-handoff files remained known mismatches and were deliberately left unpublished when finalization began:
+Immediately before handoff-only publication, verified additive remote head was `18e0d7adc9a3850e4b789672328df13208477654`. A delayed completion of the already-initiated `analytics.py` publication advanced the remote from checkpoint head `e5969a65710fb9069378053cd4e66dd5b9508d40`; its remote blob matches required local blob `11a16023d85a99457746d46a44656427255c7e8d`. No new product transfer was started. Forty-one of 47 nonworkflow changed-path entries now match local content or required absence. These five non-handoff files remain known mismatches and are deliberately unpublished:
 
 ```text
-src/chronicler/analytics.py
 src/chronicler/main.py
 src/chronicler/models.py
 tests/test_main.py
