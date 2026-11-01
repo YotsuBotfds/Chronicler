@@ -44,7 +44,8 @@ export function Granaries({ bundle, snapshot, currentTurn, onSeek, onSelectRegio
     <p className="systems-note">Stocks and targets after simulation turn {record.source_turn}; movements belong to that completed turn. Grain is in goods units. The keeper is the granary&apos;s recorded owner, which can differ from territorial control until the next ownership settlement.</p>
     <div className="systems-tiles">
       <StatTile label="Grain stored" value={show(totals.stock)} detail="all recorded granaries" />
-      <StatTile label="Stock target" value={show(totals.target)} />
+      <StatTile label="Stock target" value={totals.target === null ? "Not observed" : show(totals.target)}
+        detail={totals.target === null ? "Some granary demand observations are missing." : undefined} />
       <StatTile label="Grain procured" value={show(totals.bought)} detail="received this turn" />
       <StatTile label="Grain released" value={show(totals.released)} detail="eaten this turn" />
       <StatTile label="Storage spoilage" value={show(totals.spoiled)} detail="this turn" />
@@ -70,7 +71,7 @@ export function Granaries({ bundle, snapshot, currentTurn, onSeek, onSelectRegio
         return <tr key={row.region}>
           <td><button type="button" className="systems-link" onClick={() => onSelectRegion(row.region_name)}>{row.region_name}</button></td>
           <td>{row.owner_name ? <button type="button" className="systems-link" onClick={() => onSelectCivilization(row.owner_name!)}>{granaryKeeper(row)}</button> : granaryKeeper(row)}</td>
-          <td>{row.controller ?? "Nobody"}</td><td>{show(row.grain)}</td><td>{row.observed ? show(row.target) : "Not observed"}</td>
+          <td>{row.controller ?? "Nobody"}</td><td>{show(row.grain)}</td><td>{amounts.target === null ? "Not observed" : show(amounts.target)}</td>
           <td>{show(amounts.bought)}</td><td>{show(amounts.released)}</td><td>{show(amounts.spoiled)}</td><td>{show(amounts.seized)} / {show(amounts.abandoned)}</td>
         </tr>;
       })}</tbody>

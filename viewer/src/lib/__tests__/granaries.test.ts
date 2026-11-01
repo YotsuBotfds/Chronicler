@@ -20,6 +20,29 @@ describe("public granary history", () => {
     ]);
     expect(granarySeries([snapshot(5, record())], 5, 99)[0].Stocks).toBeNull();
   });
+  it.each([0, undefined])("does not turn an unobserved target into a measured total (%s observations)", (observed) => {
+    const unknown = record();
+    Object.assign(unknown.granaries[0], { observed, target: 99 });
+    expect(granaryAmounts(unknown)).toMatchObject({ stock: 12, target: null });
+    expect(granarySeries([snapshot(5, unknown)], 5, null)[0]).toMatchObject({ Stocks: 12, Targets: null });
+  });
+  it("leaves incomplete all-region targets unknown while retaining known regional targets and measured zero", () => {
+    const mixed = record();
+    mixed.granaries.push({ ...mixed.granaries[0], region: 1, region_name: "Market", grain: 8, observed: 0, target: 0 });
+    expect(granaryAmounts(mixed)).toMatchObject({ stock: 20, target: null });
+    expect(granaryAmounts(mixed, 0).target).toBe(20);
+    expect(granaryAmounts(mixed, 1).target).toBeNull();
+    expect(granaryAmounts(mixed, 99).target).toBeNull();
+    const measured = record();
+    measured.granaries[0].target = 0;
+    expect(granarySeries([snapshot(5, mixed), snapshot(8, measured)], 8, null).map((row) => row.Targets)).toEqual([null, 0]);
+    expect(granaryAmounts({ ...mixed, granaries: [] }).target).toBe(0);
+  });
+  it.each([undefined, Number.NaN, Number.POSITIVE_INFINITY])("keeps a missing or non-finite target out of plotted totals (%s)", (target) => {
+    const incomplete = record();
+    Object.assign(incomplete.granaries[0], { target });
+    expect(granarySeries([snapshot(5, incomplete)], 5, null)[0].Targets).toBeNull();
+  });
   it("uses the recorded keeper rather than the new controller or final owner", () => {
     const history = [snapshot(2), snapshot(5, record()), snapshot(8, record(1, 99))];
     const earlier = granaryOwnerRows(history, 5, null)[0];

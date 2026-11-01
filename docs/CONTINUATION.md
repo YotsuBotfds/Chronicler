@@ -1,3 +1,7 @@
+Current development: [active lead tracker](integration/development-lead.md).
+Its current-source results supersede the historical UNRUN snapshots below;
+their original evidence and source boundaries remain preserved.
+
 # Simulation staging005 - source-only civilization closure, 2026-10-30
 
 This child retains the complete Stage004 ledger and one genuine donor merge.

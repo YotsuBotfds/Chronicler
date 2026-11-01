@@ -45,6 +45,17 @@ it("handles older bundles without any granary snapshots", () => {
   expect(screen.getByText(/This bundle has no per-turn granary record/)).toBeInTheDocument();
 });
 
+it("keeps an unobserved stock target unknown in the summary as well as the table", () => {
+  const p = props();
+  p.snapshot!.grain_reserves!.granaries[0].observed = 0;
+  render(<Granaries {...p} />);
+  const targetTile = screen.getByText("Stock target").closest("div")!;
+  expect(within(targetTile).getByText("Not observed")).toBeInTheDocument();
+  const row = within(screen.getByRole("table", { name: "Granaries at snapshot 5" })).getAllByRole("row")[1];
+  expect(within(row).getByText("Not observed")).toBeInTheDocument();
+  expect(within(row).getByText("12")).toBeInTheDocument();
+});
+
 it("scrubs keeper changes without retaining future selection data", () => {
   const p = props(8);
   const { rerender } = render(<Granaries {...p} />);

@@ -7,9 +7,13 @@ export function granaryAmounts(record: GrainReservesSnapshot, region: number | n
   const rows = record.granaries.filter((row) => region === null || row.region === region);
   const flows = record.flows.filter((flow) => region === null || flow.region === region);
   const amount = (kind: string) => flows.filter((flow) => flow.kind === kind).reduce((n, flow) => n + flow.amount, 0);
+  // Stored grain is recorded independently of the demand samples used for a
+  // target. A partial sum would look like a complete target in tiles/charts.
+  const targetKnown = (region === null || rows.length > 0)
+    && rows.every((row) => row.observed > 0 && Number.isFinite(row.target));
   return {
     stock: rows.reduce((n, row) => n + row.grain, 0),
-    target: rows.reduce((n, row) => n + row.target, 0),
+    target: targetKnown ? rows.reduce((n, row) => n + row.target, 0) : null,
     bought: amount("bought"), released: amount("released"), spoiled: amount("spoiled"),
     seized: amount("seized"), abandoned: amount("abandoned"),
     paid: flows.reduce((n, flow) => n + flow.cost, 0),

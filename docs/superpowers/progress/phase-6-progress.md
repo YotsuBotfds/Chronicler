@@ -1,5 +1,8 @@
 # Phase 6+7 Progress — Living Society + Depth Track
 
+Current integration and verification: [active development lead](../../integration/development-lead.md).
+The dated source-scoped records below remain historical evidence.
+
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
 > **Branch update:** 2026-10-28, `lead/integration-20261028` based on main
