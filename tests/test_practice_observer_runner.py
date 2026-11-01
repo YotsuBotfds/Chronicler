@@ -9,10 +9,14 @@ from types import SimpleNamespace as NS
 import pytest
 
 from chronicler import main as M
+from scripts.testing.reviewed_main_witness import before_reviewed_live_callback_repair
 
 
 BASE = "44b9bdcea216788b5dab407a4f6bf7cb64541c1e"
-# D3a parent, CPython 3.13 with the explicit canonical options below.
+DEFAULT_MAIN_WITNESS_SOURCE = "ff57bf267a9fe7f74515fad4dc160092f5355ef4"
+# Historical D3a parent identifier. ff57 recorded the canonical digest below
+# after retaining its exact extracted admission helper; it is not raw BASE AST.
+# CPython 3.13 uses the explicit canonical options below.
 BASE_MAIN_AST_SHA256 = "1a4c739c1c5e53670f5775232d484f43b955a1c7fd5bba31c8b2ff6b9610b80c"
 MODES = ("omitted", "none", "provided")
 
@@ -284,7 +288,7 @@ def test_new_parameter_is_only_explicit_keyword_only_default_none():
         assert bound.arguments["practice_observer"] is None
 
 
-def test_entire_default_main_AST_matches_qualified_parent():
+def _assert_default_main_witness(source):
     # These are only the reviewed optional routing/admission additions. Keep the
     # original qualified module digest, including every unrelated docstring.
     parameters = {
@@ -407,14 +411,20 @@ def test_entire_default_main_AST_matches_qualified_parent():
             return retained
 
     projector = Defaults()
-    projected = projector.visit(_main_without_reviewed_civ_admissions(module_tree()))
+    # Keep ff57's immutable canonical witness, including its reviewed extracted
+    # helper. Verify those exact helper/call sites and invert only the later
+    # live callback repair before the existing optional/admission projection.
+    tree = ast.parse(before_reviewed_live_callback_repair(source))
+    projected = projector.visit(_main_without_reviewed_civ_admissions(tree))
     assert projector.functions == set(parameters)
     assert projector.parameters == {"artifact_budget": 4, "practice_observer": 2}
     assert projector.branches == {scope: len(expected) for scope, expected in branches.items()}
     assert projector.predicates == {"artifact_budget": 13, "practice_observer": 2}
     assert projector.documentation == 1
     actual = hashlib.sha256(ast_dump(projected).encode()).hexdigest()
-    assert actual == BASE_MAIN_AST_SHA256, f"default main AST differs from {BASE}"
+    assert actual == BASE_MAIN_AST_SHA256, (
+        f"default main AST differs from canonical witness at {DEFAULT_MAIN_WITNESS_SOURCE}"
+    )
 
     # Two bounded literal mutations stay visible; no code object is executed.
     literal = 'def unrelated():\n    """Preserve unrelated documentation."""\n    return physics(41)\n'
@@ -424,6 +434,59 @@ def test_entire_default_main_AST_matches_qualified_parent():
                     literal.replace("physics(41)", "physics(42)")):
         assert changed != literal
         assert ast_dump(Defaults().visit(ast.parse(changed))) != untouched
+
+
+def test_entire_default_main_AST_matches_qualified_parent():
+    _assert_default_main_witness(Path(M.__file__).read_text())
+
+
+@pytest.mark.parametrize("mutation", [
+    "helper_body", "helper_location", "helper_call", "callback_predicate",
+    "callback_extra_effect", "callback_second_interrupt", "atomic_writer",
+    "unrelated_result", "unrelated_documentation",
+])
+def test_default_main_inverse_refuses_unreviewed_mutations(mutation):
+    source = Path(M.__file__).read_text()
+    if mutation == "helper_location":
+        helper = next(node for node in ast.parse(source).body
+                      if isinstance(node, ast.FunctionDef)
+                      and node.name == "_require_artifact_budget_admission")
+        lines = source.splitlines(keepends=True)
+        block = "".join(lines[helper.lineno - 1:helper.end_lineno]) + "\n\n"
+        assert source.count(block) == 1
+        changed = source.replace(block, "", 1)
+        marker = "def _write_chronicle_output("
+        assert changed.count(marker) == 1
+        changed = changed.replace(marker, block + marker, 1)
+    else:
+        old, new = {
+            "helper_body": (
+                "    artifact_budget.require_healthy()\n    if (world is not None",
+                "    artifact_budget.reset()\n    if (world is not None"),
+            "helper_call": (
+                "_require_artifact_budget_admission(args, world, checkpoint_resume, artifact_budget)\n",
+                "_require_artifact_budget_admission(args, None, checkpoint_resume, artifact_budget)\n"),
+            "callback_predicate": (
+                "            if _interrupt_requested:\n                on_turn(",
+                "            if not _interrupt_requested:\n                on_turn("),
+            "callback_extra_effect": (
+                "                _interrupt_requested = deferral.requested\n",
+                "                _interrupt_requested = deferral.requested\n                world.turn += 1\n"),
+            "callback_second_interrupt": (
+                "            if _interrupt_requested:\n                on_turn(",
+                "            if False:\n                on_turn("),
+            "atomic_writer": (
+                "atomic_write_text(output_path, output_text, artifact_budget=artifact_budget)",
+                "atomic_write_text(output_path, output_text, artifact_budget=None)"),
+            "unrelated_result": ("return turn_result, deferral.requested", "return turn_result, False"),
+            "unrelated_documentation": (
+                "Main entry point — orchestrates world generation, simulation, and chronicle output.",
+                "Changed main documentation."),
+        }[mutation]
+        assert source.count(old) == 1
+        changed = source.replace(old, new, 1)
+    with pytest.raises(AssertionError):
+        _assert_default_main_witness(changed)
 
 
 @pytest.mark.parametrize("mutation", ["wrong_helper", "wrong_location", "between_pair", "extra_effect"])

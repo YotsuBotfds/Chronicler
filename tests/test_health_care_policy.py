@@ -1003,9 +1003,13 @@ def test_care_codec_stdlib_only_source_and_sentinel_objects_forbid_external_runt
 
 
 def test_care_codec_source_binding_preserves_reviewed_native_and_python_phase_witnesses():
-    # Strict current whole-file witnesses include b32's unrelated context-reader
-    # early exit. Care bodies remain exact829; mechanics.SOURCE_BINDINGS keeps
-    # its historical native09ec witness. These pins claim no native qualification.
+    # Keep the historical whole-file witnesses, including staging005's main.
+    # Three later reviewed Kimi changes touch only main's artifact writes,
+    # budget admission extraction and live interrupt handling. Invert those
+    # exact sites before comparing main; every other byte and all nine other
+    # whole-file pins remain bound. This does not requalify care/native physics.
+    from scripts.testing.reviewed_main_witness import before_reviewed_artifact_repairs
+
     root = _care_codec_Path(__file__).resolve().parents[1]
     pins = {
         "chronicler-agents/src/health_care.rs": "d853edb7b7d4b584e22aa919dde02696580ffaa5b10f49127007102cc7aabac7",
@@ -1020,7 +1024,10 @@ def test_care_codec_source_binding_preserves_reviewed_native_and_python_phase_wi
         "src/chronicler/main.py": "2e17f9652506c7a22278d1bb6f4ac6149b9b2007a8c36e6351a4a38c72f43f03",
     }
     for path, digest in pins.items():
-        assert _care_codec_hashlib.sha256((root / path).read_bytes()).hexdigest() == digest
+        source = (root / path).read_bytes()
+        if path == "src/chronicler/main.py":
+            source = before_reviewed_artifact_repairs(source.decode("utf-8")).encode("utf-8")
+        assert _care_codec_hashlib.sha256(source).hexdigest() == digest
     native = (root / "chronicler-agents/src/health_care_observation.rs").read_text(encoding="utf-8")
     pool = (root / "chronicler-agents/src/pool.rs").read_text(encoding="utf-8")
     assert "health_work_loss /* CAREOBS_TRANSIENT_BEGIN */, health_care_observation" in pool
@@ -1029,6 +1036,29 @@ def test_care_codec_source_binding_preserves_reviewed_native_and_python_phase_wi
     assert "CAREOBS1" in _care_codec.__doc__
     # These static bytes bind source witnesses only; no actual native schema,
     # copy truthfulness, World result, physics/RNG replay or efficacy is proved.
+
+
+@_care_codec_pytest.mark.parametrize("old,new", [
+    ("    artifact_budget.require_healthy()\n    if (world is not None",
+     "    artifact_budget.reset()\n    if (world is not None"),
+    ("with _SigintDeferral() as deferral:\n                    on_turn(",
+     "with _SigintDeferral() as deferral:\n                    changed_callback("),
+    ("atomic_write_text(report_path, json.dumps(report, indent=2))",
+     "atomic_write_text(report_path, json.dumps(report, indent=4))"),
+    ("return turn_result, deferral.requested", "return turn_result, False"),
+])
+def test_care_main_source_inverse_refuses_unreviewed_mutations(old, new):
+    from scripts.testing.reviewed_main_witness import before_reviewed_artifact_repairs
+
+    root = _care_codec_Path(__file__).resolve().parents[1]
+    source = (root / "src/chronicler/main.py").read_bytes().decode("utf-8")
+    assert source.count(old) == 1
+    changed = source.replace(old, new, 1)
+    with _care_codec_pytest.raises(AssertionError):
+        projected = before_reviewed_artifact_repairs(changed)
+        assert _care_codec_hashlib.sha256(projected.encode("utf-8")).hexdigest() == (
+            "2e17f9652506c7a22278d1bb6f4ac6149b9b2007a8c36e6351a4a38c72f43f03"
+        )
 
 
 # INDEPENDENT MECHANICS SOURCE CONTRACTS — invented primitive facts, UNRUN.
