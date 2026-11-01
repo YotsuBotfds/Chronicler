@@ -1,4 +1,4 @@
-"""Strict test-only inverse witnesses for three reviewed Kimi main changes.
+"""Strict test-only inverses for reviewed Kimi repairs and shipment entry sites.
 
 Historical targets remain immutable: ff57's canonical default witness retains
 its extracted admission helper; care parent 2e742 predates all three unrelated
@@ -210,3 +210,82 @@ def before_reviewed_live_callback_repair(source):
 def before_reviewed_artifact_repairs(source):
     """Additionally invert exact 0a49 atomic writer sites to care's 2e742 parent."""
     return _inverse_exact(before_reviewed_runner_repairs(source), _ARTIFACT_REPAIRS)
+
+
+_PUBLIC_GRAIN_CONFIGURATION = (
+    (
+        'src/chronicler/main.py shipment site 1',
+        r'''    if grain_reserves is not None:
+        from chronicler.grain_reserves import set_grain_reserves_enabled
+        set_grain_reserves_enabled(world, grain_reserves)
+    _shipments = getattr(args, "public_grain_shipments", None)
+    if _shipments is not None:
+        from chronicler.public_grain_shipments import set_public_grain_shipments_enabled
+        set_public_grain_shipments_enabled(world, _shipments, agent_mode=agent_mode)
+    # Community anchoring switch (persisted on the world): community ties
+    # hold agents back from moving. It acts in the native agent decision, so
+    # an explicit --community-anchoring needs an agent pool; a saved setting
+''',
+        r'''    if grain_reserves is not None:
+        from chronicler.grain_reserves import set_grain_reserves_enabled
+        set_grain_reserves_enabled(world, grain_reserves)
+    # Community anchoring switch (persisted on the world): community ties
+    # hold agents back from moving. It acts in the native agent decision, so
+    # an explicit --community-anchoring needs an agent pool; a saved setting
+''',
+    ),
+    (
+        'src/chronicler/main.py shipment site 2',
+        r'''                             "markets the merchants may reach, with transit and storage losses, "
+                             "and opens the granary in dearth or famine before hunger kills; needs "
+                             "an agent mode (default off; saved on resume)")
+    parser.add_argument("--public-grain-shipments", action=argparse.BooleanOptionalAction, default=None,
+                        help="Default-off public grain: foreign direct-neighbor orders arrive next Phase10, "
+                             "after its opening; requires --grain-reserves and agents. Disabling drains paid cargo.")
+    parser.add_argument("--community-anchoring", action=argparse.BooleanOptionalAction, default=None,
+                        help="Community anchoring: an agent's community ties (bonds of some warmth, "
+                             "kin or not but at least one not kin, to people of its own region "
+''',
+        r'''                             "markets the merchants may reach, with transit and storage losses, "
+                             "and opens the granary in dearth or famine before hunger kills; needs "
+                             "an agent mode (default off; saved on resume)")
+    parser.add_argument("--community-anchoring", action=argparse.BooleanOptionalAction, default=None,
+                        help="Community anchoring: an agent's community ties (bonds of some warmth, "
+                             "kin or not but at least one not kin, to people of its own region "
+''',
+    ),
+)
+
+
+def before_public_grain_configuration(source):
+    """Invert exact default-off shipment sites; retain all historical pins."""
+    return _inverse_exact(source, _PUBLIC_GRAIN_CONFIGURATION)
+
+
+_PUBLIC_GRAIN_TURN_ADMISSION = (
+    (
+        'src/chronicler/simulation.py shipment site 1',
+        r'''
+    from chronicler.ffi_constants import check_civ_capacity
+    check_civ_capacity(world)
+    if _grain_reserves_on(world) and getattr(world.grain_reserves, "shipments", None) is not None:
+        from chronicler.public_grain_shipments import validate_shipments
+        validate_shipments(world)
+    artifacts = TurnArtifacts(source_turn=world.turn)
+    # Permanent faith ids (chronicler.faiths): a world built or loaded without
+    # its table gets one; in a recorded run this changes nothing.
+''',
+        r'''
+    from chronicler.ffi_constants import check_civ_capacity
+    check_civ_capacity(world)
+    artifacts = TurnArtifacts(source_turn=world.turn)
+    # Permanent faith ids (chronicler.faiths): a world built or loaded without
+    # its table gets one; in a recorded run this changes nothing.
+''',
+    ),
+)
+
+
+def before_public_grain_turn_admission(source):
+    """Invert exact default-off shipment sites; retain all historical pins."""
+    return _inverse_exact(source, _PUBLIC_GRAIN_TURN_ADMISSION)

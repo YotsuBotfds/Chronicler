@@ -523,6 +523,101 @@ def _move_specie(world, from_idx: int | None, to_idx: int | None, silver: float)
     return silver
 
 
+class _ExactTransferWriteSet:
+    """Only the current transfer() write set, for public grain dispatch.
+
+    This is not a transaction facility for arbitrary callbacks. Capture is
+    read-only, includes legal empty finance initialization, and rollback
+    restores existing container/model identities and prior accumulator work.
+    """
+
+    def __init__(self, world, payer, payee, amount, acc):
+        if (type(payer) is not int or type(payee) is not int or payer == payee
+                or not 0 <= payer < len(world.civilizations)
+                or not 0 <= payee < len(world.civilizations)
+                or type(amount) is not int or amount <= 0):
+            raise ValueError("invalid exact public payment")
+        parties = (world.civilizations[payer], world.civilizations[payee])
+        if parties[0] is parties[1]:
+            raise ValueError("exact public payment parties alias")
+        self.parties = [(civ, civ.treasury, civ.__pydantic_fields_set__,
+                         "treasury" in civ.__pydantic_fields_set__) for civ in parties]
+        self.acc = acc
+        self.changes = None if acc is None else acc._changes
+        self.change_len = 0 if acc is None else len(acc._changes)
+        self.watermark = None if acc is None else acc._keep_applied_up_to
+        self.finance = world.finance if finance_enabled(world) else None
+        self.arrays, self.cells, self.absent_totals = [], [], ()
+        if self.finance is not None:
+            st = self.finance
+            names = ("civs", "region_output", "region_specie", "region_occupier")
+            self.arrays = [(name, getattr(st, name), len(getattr(st, name))) for name in names]
+            n = len(st.region_specie)
+            if (len(st.region_output) != n or len(st.region_occupier) != n
+                    or n > len(world.regions) or len(st.civs) > len(world.civilizations)):
+                raise ValueError("public payment finance dimensions are invalid")
+            self.totals = st.totals
+            self.absent_totals = tuple(key for key in _TOTAL_KEYS if key not in st.totals)
+            index = _region_indices(world)
+            anchors = {_anchor_region(world, civ, index) for civ in parties}
+            if None in anchors:
+                raise ValueError("public payment requires both finance anchors")
+            for rid in sorted(anchors):
+                if rid < n:
+                    value = st.region_specie[rid]
+                    if not math.isfinite(value) or value < 0:
+                        raise ValueError("public payment anchor specie is invalid")
+                    self.cells.append((rid, value))
+            self.anchors = tuple(sorted(anchors))
+            fineness = st.civs[payer].fineness if payer < len(st.civs) else CivFinance().fineness
+            if not math.isfinite(fineness) or fineness < 0:
+                raise ValueError("public payment fineness is invalid")
+            try:
+                requested = TRANSFER_SPECIE_SHARE * amount * fineness
+            except OverflowError as exc:
+                raise ValueError("public payment specie overflows") from exc
+            if not math.isfinite(requested):
+                raise ValueError("public payment specie overflows")
+            for rid in range(n, len(world.regions)):
+                output = _region_output_now(world, rid)
+                if not math.isfinite(output) or not math.isfinite(MONEY_PER_OUTPUT * output):
+                    raise ValueError("public payment initialization overflows")
+
+    def check_specie(self):
+        if self.finance is not None:
+            for rid in self.anchors:
+                value = self.finance.region_specie[rid]
+                if not math.isfinite(value) or value < 0:
+                    raise ValueError("public payment produced invalid anchor specie")
+
+    def restore(self):
+        for civ, treasury, fields, had in self.parties:
+            civ.__dict__["treasury"] = treasury
+            object.__setattr__(civ, "__pydantic_fields_set__", fields)
+            if had:
+                fields.add("treasury")
+            else:
+                fields.discard("treasury")
+        if self.acc is not None:
+            del self.changes[self.change_len:]
+            self.acc._changes = self.changes
+            self.acc._keep_applied_up_to = self.watermark
+        if self.finance is not None:
+            st = self.finance
+            for name, values, length in self.arrays:
+                del values[length:]
+                st.__dict__[name] = values
+            for rid, value in self.cells:
+                st.region_specie[rid] = value
+            st.__dict__["totals"] = self.totals
+            for key in self.absent_totals:
+                self.totals.pop(key, None)
+
+
+def _capture_exact_transfer(world, payer, payee, amount, *, acc=None):
+    return _ExactTransferWriteSet(world, payer, payee, amount, acc)
+
+
 def transfer(world: "WorldState", payer: int, payee: int, amount: int, *, acc=None) -> int:
     """Move up to ``amount`` treasury from ``payer`` to ``payee`` (civ indices).
 

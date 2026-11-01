@@ -289,6 +289,8 @@ def test_new_parameter_is_only_explicit_keyword_only_default_none():
 
 
 def _assert_default_main_witness(source):
+    from scripts.testing.reviewed_main_witness import before_public_grain_configuration
+    source = before_public_grain_configuration(source)
     # These are only the reviewed optional routing/admission additions. Keep the
     # original qualified module digest, including every unrelated docstring.
     parameters = {
@@ -507,3 +509,21 @@ def test_capacity_admission_projection_refuses_changed_shape_or_location(mutatio
         statements.insert(index + 2, ast.parse("world.turn += 1").body[0])
     with pytest.raises(AssertionError):
         _main_without_reviewed_civ_admissions(tree)
+
+
+@pytest.mark.parametrize("mutation", ["predicate", "location", "extra_effect", "parser"])
+def test_public_grain_source_inverse_refuses_unreviewed_changes(mutation):
+    source = Path(M.__file__).read_text()
+    setup = '    _shipments = getattr(args, "public_grain_shipments", None)\n    if _shipments is not None:\n        from chronicler.public_grain_shipments import set_public_grain_shipments_enabled\n        set_public_grain_shipments_enabled(world, _shipments, agent_mode=agent_mode)\n'
+    if mutation == "predicate":
+        changed = source.replace("if _shipments is not None:", "if _shipments is None:", 1)
+    elif mutation == "location":
+        changed = source.replace(setup, "", 1)
+        changed = changed.replace("    return parser\n", setup + "    return parser\n", 1)
+    elif mutation == "extra_effect":
+        changed = source.replace(setup, setup + "    world.turn += 1\n", 1)
+    else:
+        changed = source.replace("--public-grain-shipments", "--public-grain-shipping", 1)
+    assert changed != source
+    with pytest.raises(AssertionError):
+        _assert_default_main_witness(changed)

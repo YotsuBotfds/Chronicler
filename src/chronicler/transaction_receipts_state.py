@@ -77,6 +77,14 @@ class PublicPurchaseObservation(BaseModel):
     treasury_basis: str = "projected_keep_purchase_legs"
     quantity_basis: str = "committed_public_granary_purchase"
     financial_eligible: bool = False
+    shipment_id: str | None = Field(default=None, exclude_if=_is_none)
+    due_turn: int | None = Field(default=None, exclude_if=_is_none)
+    committed_net: float | None = Field(default=None, exclude_if=_is_none)
+
+    def __setstate__(self, state):
+        super().__setstate__(state)
+        for key in ("shipment_id", "due_turn", "committed_net"):
+            self.__dict__.setdefault(key, None)
 
 
 class PublicPurchaseFrame(BaseModel):

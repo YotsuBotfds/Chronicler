@@ -1004,11 +1004,14 @@ def test_care_codec_stdlib_only_source_and_sentinel_objects_forbid_external_runt
 
 def test_care_codec_source_binding_preserves_reviewed_native_and_python_phase_witnesses():
     # Keep the historical whole-file witnesses, including staging005's main.
-    # Three later reviewed Kimi changes touch only main's artifact writes,
-    # budget admission extraction and live interrupt handling. Invert those
-    # exact sites before comparing main; every other byte and all nine other
-    # whole-file pins remain bound. This does not requalify care/native physics.
-    from scripts.testing.reviewed_main_witness import before_reviewed_artifact_repairs
+    # Invert exact Kimi artifact/admission/interrupt repairs and the optional
+    # shipment entry sites before comparing main/simulation. Every historical
+    # digest, care block and unrelated byte remains bound. Source witnesses
+    # do not requalify care/native physics.
+    from scripts.testing.reviewed_main_witness import (
+        before_reviewed_artifact_repairs, before_public_grain_configuration,
+        before_public_grain_turn_admission,
+    )
 
     root = _care_codec_Path(__file__).resolve().parents[1]
     pins = {
@@ -1026,7 +1029,10 @@ def test_care_codec_source_binding_preserves_reviewed_native_and_python_phase_wi
     for path, digest in pins.items():
         source = (root / path).read_bytes()
         if path == "src/chronicler/main.py":
-            source = before_reviewed_artifact_repairs(source.decode("utf-8")).encode("utf-8")
+            source = before_reviewed_artifact_repairs(
+                before_public_grain_configuration(source.decode("utf-8"))).encode("utf-8")
+        elif path == "src/chronicler/simulation.py":
+            source = before_public_grain_turn_admission(source.decode("utf-8")).encode("utf-8")
         assert _care_codec_hashlib.sha256(source).hexdigest() == digest
     native = (root / "chronicler-agents/src/health_care_observation.rs").read_text(encoding="utf-8")
     pool = (root / "chronicler-agents/src/pool.rs").read_text(encoding="utf-8")
@@ -1048,14 +1054,16 @@ def test_care_codec_source_binding_preserves_reviewed_native_and_python_phase_wi
     ("return turn_result, deferral.requested", "return turn_result, False"),
 ])
 def test_care_main_source_inverse_refuses_unreviewed_mutations(old, new):
-    from scripts.testing.reviewed_main_witness import before_reviewed_artifact_repairs
+    from scripts.testing.reviewed_main_witness import (
+        before_reviewed_artifact_repairs, before_public_grain_configuration,
+    )
 
     root = _care_codec_Path(__file__).resolve().parents[1]
     source = (root / "src/chronicler/main.py").read_bytes().decode("utf-8")
     assert source.count(old) == 1
     changed = source.replace(old, new, 1)
     with _care_codec_pytest.raises(AssertionError):
-        projected = before_reviewed_artifact_repairs(changed)
+        projected = before_reviewed_artifact_repairs(before_public_grain_configuration(changed))
         assert _care_codec_hashlib.sha256(projected.encode("utf-8")).hexdigest() == (
             "2e17f9652506c7a22278d1bb6f4ac6149b9b2007a8c36e6351a4a38c72f43f03"
         )

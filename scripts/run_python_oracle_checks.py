@@ -269,6 +269,9 @@ CHUNKS = {
         "tests/test_interactive_checkpoints.py",
         "tests/test_interactive_checkpoints_native.py",
     ],
+    "public-grain-shipments": [
+        "tests/test_public_grain_shipments.py",
+    ],
     "grain-reserves": [
         "tests/test_grain_reserves.py",
     ],

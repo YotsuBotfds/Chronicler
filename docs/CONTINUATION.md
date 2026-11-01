@@ -1,3 +1,26 @@
+# 2026-11-01 — isolated public grain shipment fixture resolution
+
+Current-source composition from `061594a0` adds only the held default-off shipment
+feature, preserving shortage-first behavior and unchanged Rust/tuning. The
+original native fixture failure reproduces: sellers' domestic reserve purchases
+leave every foreign offer below the one-coin payment floor despite valid routes,
+cash and deficits. No economic policy or restore defect was identified. Preserve
+the original empty-public-stock fixture as an eight-turn zero-dispatch native
+regression; the positive case explicitly provisions finite opening public stocks
+before accounting, then requires real procurement and exact midtransit restore.
+
+Focused 620 tests and three corruption/immutable-witness checks pass. The new
+bounded offline chunk passes 92; both disabled variants match parent `061594a0`
+across 25 artifacts, native bytes, views and controlled global RNG. Native binary
+and unchanged Rust source identities match the existing `32ac5879` build, while
+historical-wheel reproduction, full combined CI and scientific qualification
+remain distinct/unrun. Historical care/main pins and the held inverse JSON remain
+immutable; a new exact parent composition inverse accounts for the overlay.
+See [diagnosis, correction and verification](integration/public-grain-shipments.md).
+The active shared development tracker is unchanged; integration review is pending.
+
+---
+
 Current development: [active lead tracker](integration/development-lead.md).
 Its current-source results supersede the historical UNRUN snapshots below;
 their original evidence and source boundaries remain preserved.
