@@ -866,6 +866,29 @@
   overflow: auto;
 }
 
+.phase75-event-links {
+  display: grid;
+  gap: 8px;
+}
+
+.phase75-inspector-link {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: var(--phase75-cyan-strong);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  overflow-wrap: anywhere;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.phase75-inspector-link:focus-visible {
+  outline: 2px solid var(--phase75-cyan-strong);
+  outline-offset: 3px;
+}
+
 .phase75-inspector-section {
   border-top: 1px solid rgba(255, 255, 255, 0.06);
 }

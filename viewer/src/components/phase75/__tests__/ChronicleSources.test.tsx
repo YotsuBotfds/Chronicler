@@ -1,7 +1,7 @@
 /**
  * A chronicle passage's sources: the feed card's toggle opens the lazily
  * loaded list; a later (retrospective) fact waits for its turn; a source's
- * turn link seeks and an event source opens in the inspector.
+ * event link pins without seeking, and its separate turn link seeks.
  */
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
@@ -44,9 +44,12 @@ describe("ChronicleSources", () => {
     const items = within(panel).getAllByRole("listitem");
     expect(items).toHaveLength(1);  // the later citation waits for its turn
     expect(items[0].textContent).toContain(events[5].description);
-    fireEvent.click(within(items[0]).getByRole("button"));
-    expect(onJump).toHaveBeenCalledWith(events[5].turn);
+    fireEvent.click(within(items[0]).getByRole("button", { name: /^Inspect source event:/ }));
+    expect(onJump).not.toHaveBeenCalled();
     expect(onSelect).toHaveBeenCalledWith(events[5]);
+    fireEvent.click(within(items[0]).getByRole("button", { name: /^Go to source turn/ }));
+    expect(onJump).toHaveBeenCalledExactlyOnceWith(events[5].turn);
+    expect(onSelect).toHaveBeenCalledTimes(1);
 
     fireEvent.click(within(panel).getByRole("button", { name: "All 3 facts given" }));
     expect(within(panel).getAllByRole("listitem")).toHaveLength(3);
@@ -56,6 +59,50 @@ describe("ChronicleSources", () => {
     const now = screen.getByLabelText("Passage sources");
     expect(now.textContent).not.toContain("dated later");
     expect(within(now).getAllByRole("listitem").some((li) => li.textContent?.includes("later"))).toBe(true);
+  });
+
+  it("keeps an explicit turn jump when no event inspector callback is supplied", () => {
+    const onJump = vi.fn();
+    render(<ChronicleSources bundle={base} entry={entry()} currentTurn={10} onJumpToTurn={onJump} />);
+    expect(screen.queryByRole("button", { name: /^Inspect source event:/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^Go to source turn/ }));
+    expect(onJump).toHaveBeenCalledExactlyOnceWith(events[5].turn);
+  });
+
+  it("keeps non-event sources as explicit turn jumps", () => {
+    const onJump = vi.fn();
+    const passage = entry();
+    passage.provenance!.facts = [["w2-6", 6]];
+    passage.provenance!.spans = [[0, 18, ["w2-6"]]];
+    render(<ChronicleSources bundle={base} entry={passage} currentTurn={10} onJumpToTurn={onJump} onSelectEvent={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /^Go to source turn 6:/ }));
+    expect(onJump).toHaveBeenCalledExactlyOnceWith(6);
+  });
+
+  it("waits for a completed-tick source's snapshot and uses its clock for the explicit turn jump", () => {
+    const receipt = { ...events[5], turn: 10, event_type: "harvest_preparedness", description: "Paid receipt at tick ten." };
+    const bundle = { ...base, events_timeline: [receipt] };
+    const passage = entry();
+    passage.provenance!.facts = [["e0", 10]];
+    passage.provenance!.spans = [[0, 18, ["e0"]]];
+    const onJump = vi.fn();
+    const onSelect = vi.fn();
+    const view = render(<ChronicleSources bundle={bundle} entry={passage} currentTurn={10} onJumpToTurn={onJump} onSelectEvent={onSelect} />);
+    expect(screen.queryByRole("button", { name: /^Inspect source event:/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Paid receipt/)).not.toBeInTheDocument();
+    view.rerender(<ChronicleSources bundle={bundle} entry={passage} currentTurn={11} onJumpToTurn={onJump} onSelectEvent={onSelect} />);
+    fireEvent.click(screen.getByRole("button", { name: /^Inspect source event:/ }));
+    expect(onSelect).toHaveBeenCalledExactlyOnceWith(receipt);
+    expect(onJump).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: /^Go to source turn 11:/ }));
+    expect(onJump).toHaveBeenCalledExactlyOnceWith(11);
+  });
+
+  it("renders nothing for a passage without provenance", () => {
+    const passage = entry();
+    delete passage.provenance;
+    const { container } = render(<ChronicleSources bundle={base} entry={passage} currentTurn={10} onJumpToTurn={vi.fn()} />);
+    expect(container).toBeEmptyDOMElement();
   });
 });
 

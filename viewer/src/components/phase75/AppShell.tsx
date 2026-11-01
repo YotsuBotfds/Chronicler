@@ -929,8 +929,9 @@ export function AppShell({
       label: event.description,
       turn: event.turn,
     });
-    onSeek(eventSnapshotTurn(event));
   };
+  const selectRegion = (name: string) => setSelectedEntity({ kind: "region", id: name, label: name });
+  const selectCivilization = (name: string) => setSelectedEntity({ kind: "civilization", id: name, label: name });
 
   const selectedRegion = selectedEntity?.kind === "region"
     ? atlasRegions.find((region) => region.name === selectedEntity.id) ?? null
@@ -1171,6 +1172,11 @@ export function AppShell({
           selectedEventRecorded={selectedEventRecorded}
           selectedEventProvenance={selectedEventProvenance}
           selectedEventAccounts={selectedEventAccounts}
+          onSelectEvent={selectEvent}
+          onSeek={onSeek}
+          onSelectRegion={selectRegion}
+          onSelectCivilization={selectCivilization}
+          civilizationNames={civilizationEntries.map((civilization) => civilization.name)}
           selectedRegionTerrain={selectedRegionTerrain}
           languages={bundle?.languages}
           languagesBundle={bundle}
@@ -1213,8 +1219,8 @@ export function AppShell({
             currentTurn={currentTurn}
             onSeek={onSeek}
             onSelectEvent={selectEvent}
-            onSelectRegion={(name) => setSelectedEntity({ kind: "region", id: name, label: name })}
-            onSelectCivilization={(name) => setSelectedEntity({ kind: "civilization", id: name, label: name })}
+            onSelectRegion={selectRegion}
+            onSelectCivilization={selectCivilization}
             selectedRegion={selectedRegion?.name ?? null}
             selectedCivilization={selectedCivilization?.name ?? null}
           />
@@ -1866,10 +1872,7 @@ function LeftRail({
                 key={`${event.turn}-${event.event_type}-${event.description}`}
                 type="button"
                 className="phase75-event-row"
-                onClick={() => {
-                  onJumpToTurn(eventSnapshotTurn(event));
-                  onSelectEvent(event);
-                }}
+                onClick={() => onSelectEvent(event)}
               >
                 <div className="phase75-event-turn">T{event.turn}</div>
                 <div className="phase75-event-copy">
@@ -2420,6 +2423,27 @@ function MapViewport({
   );
 }
 
+/** Only already-resolved provenance enters this list; selecting a link never seeks. */
+function RecordedEventLinks({ events, kind, onSelectEvent }: {
+  events: Event[];
+  kind: "causes" | "consequences";
+  onSelectEvent: (event: Event) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const limit = kind === "consequences" && !expanded ? 3 : events.length;
+  return <div className="phase75-event-links" aria-label={`Recorded ${kind}`}>
+    <span>{kind === "causes" ? "Because" : "Led to"} · {events.length} {events.length === 1 ? "event" : "events"}</span>
+    {events.slice(0, limit).map((event) => <button key={eventKey(event)} type="button"
+      className="phase75-inspector-link" onClick={() => onSelectEvent(event)}>
+      T{event.turn} {event.description || event.event_type.replace(/_/g, " ")}
+    </button>)}
+    {kind === "consequences" && events.length > 3 && <button type="button" className="phase75-ghost-button"
+      aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>
+      {expanded ? "Show fewer consequences" : `Show all ${events.length} recorded consequences`}
+    </button>}
+  </div>;
+}
+
 function RightInspector({
   surface,
   selection,
@@ -2429,6 +2453,11 @@ function RightInspector({
   selectedEventRecorded = true,
   selectedEventProvenance,
   selectedEventAccounts = null,
+  onSelectEvent,
+  onSeek,
+  onSelectRegion,
+  onSelectCivilization,
+  civilizationNames,
   selectedRegionTerrain,
   languages,
   languagesBundle = null,
@@ -2462,6 +2491,11 @@ function RightInspector({
   selectedEventRecorded?: boolean;
   selectedEventProvenance?: { causes: Event[]; effects: Event[] };
   selectedEventAccounts?: EventAccounts | null;
+  onSelectEvent: (event: Event) => void;
+  onSeek: (turn: number) => void;
+  onSelectRegion: (name: string) => void;
+  onSelectCivilization: (name: string) => void;
+  civilizationNames: string[];
   /** The selected region's terrain at the scrubbed turn (null: unreadable record). */
   selectedRegionTerrain?: string | null;
   languages?: LanguagesField;
@@ -2637,28 +2671,30 @@ function RightInspector({
                   <strong>{selectedEvent.event_type}</strong>
                 </div>
                 <p className="phase75-detail-copy">{selectedEvent.description}</p>
+                <button type="button" className="phase75-ghost-button"
+                  onClick={() => onSeek(eventSnapshotTurn(selectedEvent))}>Go to recorded turn</button>
+                {selectedEvent.actors.length > 0 && <div className="phase75-event-links" aria-label="Recorded actors">
+                  <span>Actors</span>
+                  {selectedEvent.actors.map((actor, index) => civilizationNames.includes(actor)
+                    ? <button key={`${index}:${actor}`} type="button" className="phase75-inspector-link"
+                      onClick={() => onSelectCivilization(actor)}>{actor}</button>
+                    : regionNames.includes(actor)
+                      ? <button key={`${index}:${actor}`} type="button" className="phase75-inspector-link"
+                        onClick={() => onSelectRegion(actor)}>{actor}</button>
+                      : <span key={`${index}:${actor}`}>{actor}</span>)}
+                </div>}
+                {selectedEvent.region && regionNames.includes(selectedEvent.region) && <div className="phase75-event-links">
+                  <span>Recorded region</span>
+                  <button type="button" className="phase75-inspector-link"
+                    onClick={() => onSelectRegion(selectedEvent.region!)}>{selectedEvent.region}</button>
+                </div>}
                 {selectedEventProvenance && selectedEventProvenance.causes.length > 0 && (
-                  <div className="phase75-stat-row" aria-label="Recorded causes">
-                    <span>Because</span>
-                    <strong>
-                      {selectedEventProvenance.causes
-                        .map((cause) => `T${cause.turn} ${cause.description || cause.event_type}`)
-                        .join("; ")}
-                    </strong>
-                  </div>
+                  <RecordedEventLinks key={`causes:${eventKey(selectedEvent)}`} kind="causes"
+                    events={selectedEventProvenance.causes} onSelectEvent={onSelectEvent} />
                 )}
                 {selectedEventProvenance && selectedEventProvenance.effects.length > 0 && (
-                  <div className="phase75-stat-row" aria-label="Recorded consequences">
-                    <span>Led to</span>
-                    <strong>
-                      {selectedEventProvenance.effects.length}
-                      {selectedEventProvenance.effects.length !== 1 ? " events: " : " event: "}
-                      {selectedEventProvenance.effects
-                        .slice(0, 3)
-                        .map((effect) => `T${effect.turn} ${effect.event_type.replace(/_/g, " ")}`)
-                        .join("; ")}
-                    </strong>
-                  </div>
+                  <RecordedEventLinks key={`consequences:${eventKey(selectedEvent)}`} kind="consequences"
+                    events={selectedEventProvenance.effects} onSelectEvent={onSelectEvent} />
                 )}
                 <InWorldAccounts accounts={selectedEventAccounts} />
               </>

@@ -70,9 +70,11 @@ describe("AppShell simulation systems", () => {
     fireEvent.click(screen.getByRole("button", { name: "Loans" }));
     const list = screen.getByRole("list", { name: "Finance events" });
     fireEvent.click(within(list).getAllByText(cited!.description)[0]);
-    expect(onSeek).toHaveBeenCalledWith(cited!.turn);
+    expect(onSeek).not.toHaveBeenCalled();
     const inspector = document.querySelector(".phase75-right-rail") as HTMLElement;
     expect(within(inspector).getByText("loan_taken")).toBeInTheDocument();
     expect(within(inspector).getByLabelText("Recorded causes")).toBeInTheDocument();
+    fireEvent.click(within(inspector).getByRole("button", { name: "Go to recorded turn" }));
+    expect(onSeek).toHaveBeenCalledWith(cited!.turn);
   });
 });
