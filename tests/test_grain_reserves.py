@@ -817,6 +817,51 @@ def test_metrics_and_event_classes():
     assert not is_routine(events[0]) and event_label(events[0]) == events[0].description
 
 
+# --- fixed paired evaluation ---------------------------------------------------------
+
+def _shortfall_evaluator():
+    spec = importlib.util.spec_from_file_location(
+        "shortfall_priority_evaluation", ROOT / "scripts/shortfall_priority_evaluation.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.mark.parametrize("case", ["scarce_budget", "multiple_hungry", "future_shortage",
+                                  "disconnected", "ownership_change", "no_supply"])
+def test_declared_shortfall_evaluation_pairs_balance_and_expose_tradeoffs(case, monkeypatch):
+    monkeypatch.setenv("CHRONICLER_CHECK_RESOURCES", "1")
+    evaluator = _shortfall_evaluator()
+    absent, off, on = [evaluator.constructed_arm(case, p) for p in (None, 0, 1)]
+    assert absent == off
+    assert evaluator.constructed_arm(case, 1) == on
+    assert off["input_sha256_without_priority"] == on["input_sha256_without_priority"]
+    if case == "no_supply":
+        assert off == on and not on["purchases"]
+    elif case == "disconnected":
+        assert off == on and on["purchases"][0]["region"] == 1
+    else:
+        assert [p["region"] for p in off["purchases"]] == [1]
+        assert [p["region"] for p in on["purchases"]] == [2]
+        if case in ("scarce_budget", "multiple_hungry", "ownership_change"):
+            assert on["next_food"][1] > off["next_food"][1]
+        if case in ("multiple_hungry", "future_shortage"):
+            assert on["next_food"][0] < off["next_food"][0]
+        if case == "ownership_change":
+            assert on["next_owner"][1] == 1
+            assert on["counters"]["captured"] > off["counters"]["captured"]
+
+
+def test_shortfall_evaluation_writes_the_fixed_six_case_matrix(tmp_path, monkeypatch):
+    monkeypatch.setenv("CHRONICLER_CHECK_RESOURCES", "1")
+    evaluator = _shortfall_evaluator()
+    report = evaluator.constructed(tmp_path)
+    assert set(report) == set(evaluator.CASES)
+    assert json.loads((tmp_path / "constructed.json").read_text()) == report
+    assert report["scarce_budget"]["food_delta"][1] > 0
+    assert report["future_shortage"]["food_delta"][0] < 0
+
+
 # --- native hybrid -------------------------------------------------------------------
 
 def _require_native():
