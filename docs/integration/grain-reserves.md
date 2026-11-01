@@ -75,9 +75,9 @@ region, receives 7.6 after transit loss, and leaves 9.6 in its granary. Both
 spend one coin and leave the source market at 72. On a subsequent zero-food
 turn with demand 10, the recipient releases 6 and reaches sufficiency 0.6,
 versus a default release of 2 and sufficiency 0.2. This fixture demonstrates
-allocation and bookkeeping only. Scientific efficacy, whole-world outcomes,
-native execution and full economic qualification of this option remain unrun;
-the historical results below do not qualify it. Granaries remain default off.
+allocation and bookkeeping only. Scientific efficacy, whole-world outcomes and
+full economic qualification of this option remain unrun; the historical results
+below do not qualify it. Granaries remain default off.
 
 Focused qualification on CPython 3.13.5: the existing offline guard ran
 `tests/test_grain_reserves.py`, `tests/test_public_purchase_receipts.py` and
@@ -88,6 +88,21 @@ ledgers, later releases, missing/zero parity and RNG, dormant/off worlds,
 unknown/nonfinite observations, ordering ties, route/commitment/budget rules,
 domestic-first passes and receipt-capture invariance. No native or scientific
 qualification is inferred from these focused checks.
+
+After integration at `62866079`, the selected source passed **105 focused tests**
+across the same modules plus `tests/test_public_purchase_receipts_native.py`,
+using the real compiled native extension without skips. A separate guarded
+no-native run repeated **101 passed, 2 deselected**. The unchanged Rust tree and
+native bytes were verified against their `32ac5879` build; Python project imports
+pointed to the integration checkout.
+
+The existing `hybrid_s42` checkpoint case ran 60 turns with this tuning YAML,
+`--grain-reserves`, `--transaction-receipts` and `CHRONICLER_CHECK_RESOURCES=1`:
+45 plain/checkpoint-writing comparisons and 33 turn-30 continuation comparisons
+passed with zero differences. The exact checkpoint and all final states retained
+the enabled key. This native smoke verifies economy wiring, accounting and
+continuation; it does not establish that this world encountered a scarce-budget
+ordering difference. The controlled fixture above supplies that witness.
 
 ## 1. Audit: how food moves today
 
