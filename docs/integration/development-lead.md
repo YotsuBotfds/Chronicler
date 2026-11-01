@@ -74,7 +74,8 @@ export PYTHONPATH="$PWD/src"
 
 The native extension is a real `cpython-313-x86_64-linux-gnu` module exposing all
 three simulator classes. Its `32ac5879` native build inputs remain identical at
-`061594a0` (Rust tree `edb263686adb7ea5e23864146a5f7d0c5a163da4`), binary SHA-256
+`061594a0` and through `88fdf829` (Rust tree
+`edb263686adb7ea5e23864146a5f7d0c5a163da4`), binary SHA-256
 `f6f78b0c63efcf5fd09e310d6901c460711e667f09e57d3e348df00ca57cab29`.
 This is explicit same-input reuse, not a claim of a fresh build at a later commit.
 Native source changes require an isolated matching build; never replace the shared
@@ -97,8 +98,51 @@ The example commands' shell syntax and parsed arguments match the actual CLI
 runs; both repeated generator calls and recorded shell commands refuse existing
 folders without changing bundle hashes. Artifacts/guide/provenance are outside
 Git at `/workspace/shared/chronicler-example-worlds-20261101`.
-All planned implementation and local/browser checks are complete. Current-source
-hosted CI and final clean backup remain before closeout.
+All planned implementation and local/browser checks are complete.
+
+## Final qualification and delivery
+
+Runnable code source **`88fdf8295db92b3e3af68ed1fe07bcc3a2a62daf`** is pushed to
+the development branch. [CI 41358475090](https://github.com/YotsuBotfds/Chronicler/actions/runs/41358475090)
+passed all nine jobs on that exact source, attempt one:
+
+- Native Python: 9,321 parent passes, six registered skips, 623 successful subtests;
+  both disjoint module shards and the exact-once aggregate/barrier passed.
+- No-Rust Python: 8,956 parent passes, 357 skips, 623 successful subtests.
+- Rust: 1,178 passed, two ignores. Viewer: 861 tests, lint and build passed.
+- All 44 bounded offline chunks passed (5,519 passed reports, 67 skipped reports;
+  these report counts are not added to the full-suite parent counts).
+
+The workflow built one current-source wheel with locked maturin/Cargo on Python
+3.13.17 and validated compiled classes plus same-run transfer and aggregate
+provenance. All nine job logs/status/build metadata are retained under
+`ci-41358475090/summary.json`. Raw archives were not downloaded: the earlier
+Azure artifact-transfer denial was respected, with no retry/bypass or new denial.
+Wheel/native hashes and exact import path not printed in those logs remain
+unobserved; artifact ZIP digests are not wheel hashes. The verified local build
+above is a separate, matching-input runtime. CI does not verify saved cloud
+configuration publication or fresh-task restoration.
+
+`chronicler-exploration-88fdf829.bundle` contains complete history and all five
+integration/worker refs, SHA-256
+`de634c8f5d6b7d0f5df6432b2f4ad2e72f231a1b3d0240a5f830a2aca2ce077e`.
+Bundle verification and clean exact-commit trial restoration passed. The final
+closing commit changes this handoff only; final bundle/hash/restoration details
+are retained externally in `FINAL-DEVELOPMENT-RECEIPT.json`.
+
+The three viewable worlds and guides are packaged outside Git at
+`/workspace/shared/chronicler-exploration-examples-20261101.zip` (385,790 bytes),
+SHA-256 `bf38d47e3591c03b548ecce67c6ae441351d619db12049fda229bb1ca7bd2d9a`.
+All three archived bundle hashes were verified against `examples.json`. No bulky
+worlds, logs, checkpoints or runtime dependencies were committed.
+
+Limits: regional historical population is not exported and remains unknown;
+cross-run provenance absent from a bundle remains unknown; food means explicitly
+cover observed regions without population weighting. The browser inspects checkpoint
+headers only; exact resume still requires the matching source/native/environment.
+Shipment tests use a declared constructed starting reserve, and shortage-priority
+evidence includes harms and a neutral natural run. Both options remain off; no
+scientific, balance, performance or default-promotion claim is made.
 
 ## Integration and continuation
 
@@ -109,8 +153,10 @@ selectively, qualify combined source, commit and push the dev branch, verify rem
 Preserve unfinished source via complete bundle/SHA-256/clean trial restoration
 before context or quota runs tight. Keep generated runs and private logs untracked.
 
-Next action: push the completed candidate, run exact-source CI once, record its
-results and verify final dev remote/bundle restoration. No further feature work
-is planned in this queue. Environment publication and scientific promotion stay
-deferred. Native build inputs and dependency locks remain unchanged.
-No user decision is currently blocking progress.
+Next action: none for this queue; it is complete. Environment publication and
+scientific promotion remain deferred. Main stays at
+`cb9fe70c81658fb65c6f511b821447f1d7b55b54`; native source and dependency locks are
+unchanged from the starting point. Owned local servers, tests and simulations
+have stopped; generated files stay ignored/external. The dev remote and clean
+final backup are verified during closeout. No merge, deployment, new credentials
+or paid narration/API calls occurred.
