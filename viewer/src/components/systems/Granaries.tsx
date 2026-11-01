@@ -77,7 +77,7 @@ export function Granaries({ bundle, snapshot, currentTurn, onSeek, onSelectRegio
         </tr>;
       })}</tbody>
     </table></div>
-    {record.shipments !== undefined && <section aria-label="Public grain shipments">
+    {record.shipments !== undefined && <section className="systems-stack" aria-label="Public grain shipments">
       <h4>Public grain shipments · all granaries</h4>
       {!shipments ? <p className="systems-note">Shipment details are not observed at this snapshot.</p> : <>
         <p className="systems-note">{shipments.accept_orders ? "Accepting new orders." : "New orders stopped."} Paid cargo in transit is separate from grain stored. Arrivals enter the granary after that turn&apos;s opening and can first be released next turn.</p>

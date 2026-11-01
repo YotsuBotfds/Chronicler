@@ -67,3 +67,23 @@ include `examples.json` for source provenance absent from older bundle metadata.
 The generated walkthrough names observations that actually occurred. Do not
 interpret nearby events as causes or deliberately constructed fixtures as
 evidence about typical worlds.
+
+## Verified examples in this session
+
+The three outputs were generated from clean `4ec56a41` under
+`/workspace/shared/chronicler-example-worlds-20261101`. Their `examples.json`
+records the exact source, separate interpreters, native hash, commands and raw
+bundle hashes. All three horizons completed, all 12 browser walkthrough checks
+passed, and the procedural care table fits a 390px phone. The final viewer adds
+only a responsive shipment-table fix to the code used for this generation;
+simulation code and these CLI inputs are unchanged.
+
+| Example | Useful recorded turns |
+|---|---|
+| Aggregate archive | Snapshot 1 records war; 2 records borrowing. Compare 1→10 and keep missing food unknown. |
+| Grain and finance | Finance at 2 records borrowing/debt 16. Food at 10 records a 3.31 release in Ashara Desert, stocks 14.35 and target 26.42; famine is recorded at 51. |
+| Procedural health | Care at 10 has 12 regional observations and one new injury. Learning honestly records zero seats; its enabling flag is not proof a seat arose. Final snapshot is 40. |
+
+The shipment checkpoint example is a different, deliberately constructed fixture
+with finite opening seller reserves; it is not one of these naturally evolving
+examples. Its original no-dispatch case and corrected positive are both retained.

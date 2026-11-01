@@ -39,8 +39,11 @@ remain out of scope. Optional economic changes stay off by default.
    policy tuning or immutable historical-pin changes. 620 isolated focused
    passes and 164 integrated native/Python passes include accounting and exact
    mid-transit restore. Default and explicit-off match parent in 25 artifacts,
-   native bytes, live views and controlled RNG. Small shipment UI is integrated;
-   its actual-browser check is in progress. See public-grain-shipments.md.
+   native bytes, live views and controlled RNG. Actual shipment-browser checks
+   pass 15 cases (stored versus pending, single payment, arrival/receipt clock,
+   metadata, desktop and cold/resized phone). A real phone overflow was fixed
+   with the existing minimum-width container; original failure is retained.
+   See public-grain-shipments.md.
 5. **Shortfall purchasing — evaluated, remains off.** Six preregistered matched
    constructed scenarios show immediate benefits and harms (competing hunger
    reduces total release 8→6; moving hunger loses relief elsewhere). The fixed
@@ -48,11 +51,15 @@ remain out of scope. Optional economic changes stay off by default.
    none. Accounting, deterministic defaults and both exact continuations pass.
    No policy parameter, seed selection or default changed. Full scientific
    promotion is not justified. See shortfall-priority-evaluation.md.
-6. **Guided real examples — generating next.** A small existing-CLI wrapper and
+6. **Guided real examples — generated and browser-verified.** A small existing-CLI wrapper and
    guide define three fixed template/procedural examples, separated aggregate
    and native runtimes, always simulate-only. Output/existing-folder guards,
-   shell quoting and Python syntax checks pass. Actual generation, walkthrough
-   observation and browser loading follow from a clean candidate commit.
+   shell quoting and Python syntax checks pass. Three examples at clean source
+   `4ec56a41` complete 24/60/40 turns; all 12 browser walkthrough checks pass,
+   including observed grain release/borrowing, real care rows, honest zero seats
+   of learning and final-turn loading. A 390px 12-region care table fits. No
+   manual initial-state changes or paid narration were used for these examples.
+   See exploring-example-worlds.md and the generated WALKTHROUGH.md.
 
 ## Working session and evidence
 
@@ -86,7 +93,12 @@ provenance is `baseline.json`; shipment and preregistered evaluation receipts ha
 their own directories. These are functional checks, not scientific qualification.
 A complete bundle plus working patch/untracked source archive was SHA-256 checked
 and restored byte-for-byte under `checkpoints/loader-history-integration`.
-Current-source hosted CI and final clean backup remain before closeout.
+The example commands' shell syntax and parsed arguments match the actual CLI
+runs; both repeated generator calls and recorded shell commands refuse existing
+folders without changing bundle hashes. Artifacts/guide/provenance are outside
+Git at `/workspace/shared/chronicler-example-worlds-20261101`.
+All planned implementation and local/browser checks are complete. Current-source
+hosted CI and final clean backup remain before closeout.
 
 ## Integration and continuation
 
@@ -97,7 +109,8 @@ selectively, qualify combined source, commit and push the dev branch, verify rem
 Preserve unfinished source via complete bundle/SHA-256/clean trial restoration
 before context or quota runs tight. Keep generated runs and private logs untracked.
 
-Next action: freeze a clean candidate, generate the three examples and verify
-copyable commands plus actual viewer walk; finish shipment browser QA; push and
-run exact-source CI once, then close this queue with final backup/handoff.
+Next action: push the completed candidate, run exact-source CI once, record its
+results and verify final dev remote/bundle restoration. No further feature work
+is planned in this queue. Environment publication and scientific promotion stay
+deferred. Native build inputs and dependency locks remain unchanged.
 No user decision is currently blocking progress.
