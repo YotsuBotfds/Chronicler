@@ -472,7 +472,7 @@ function selectionDescription(
     return buildRunSignalSummary(summary);
   }
   if (!selection) {
-    return "Map selection drives inspector context across Overview, Character, Trade, and Campaign.";
+    return "Choose a region, civilization, or event to view its recorded details.";
   }
   if (selection.kind === "event") {
     // An event pinned at a later turn is not described before it happens.
@@ -1250,14 +1250,14 @@ export function AppShell({
             <div className="phase75-modal-header">
               <div>
                 <div className="phase75-overline">Batch Compare</div>
-                <h2>Ranked report comparison workspace</h2>
+                <h2>Compare batch reports</h2>
               </div>
               <button className="phase75-ghost-button" onClick={() => setShowCompareOverlay(false)}>
                 Close
               </button>
             </div>
             <div className="phase75-modal-content">
-              <Suspense fallback={<PanelLoading label="the comparison workspace" />}>
+              <Suspense fallback={<PanelLoading label="the report comparison" />}>
                 <BatchCompare initialRight={batchReport} />
               </Suspense>
             </div>
@@ -1321,23 +1321,23 @@ function TopHeader({
       <div className="phase75-brand-block">
         <div className="phase75-brand-mark">C</div>
         <div>
-          <div className="phase75-overline">Chronicler Phase 7.5 Shell</div>
+          <div className="phase75-overline">Chronicler</div>
           <div className="phase75-brand-title">{worldName}</div>
           <div className="phase75-brand-subtitle">
-            {scenarioName ?? "Procedural workspace"}
+            {scenarioName ?? "World history"}
           </div>
         </div>
       </div>
 
       <div className="phase75-header-meta">
         <div className="phase75-meta-cluster">
-          <span className="phase75-meta-label">State</span>
+          <span className="phase75-meta-label">View</span>
           <span className="phase75-meta-value">{surface}</span>
         </div>
         <div className="phase75-meta-cluster">
           <span className="phase75-meta-label">Turn</span>
           <span className="phase75-meta-value">
-            {viewerReady && currentTurn !== null && totalTurns !== null ? `${currentTurn} / ${totalTurns}` : "Front door"}
+            {viewerReady && currentTurn !== null && totalTurns !== null ? `${currentTurn} / ${totalTurns}` : "No run loaded"}
           </span>
         </div>
         <div className="phase75-meta-cluster">
@@ -1436,9 +1436,9 @@ function TimelineRail({
       <div className="phase75-track-shell">
         <div className="phase75-track-header">
           <div>
-            <div className="phase75-overline">Timeline Rail</div>
+            <div className="phase75-overline">Timeline</div>
             <h2>
-              {bundle ? "Archive timeline, event markers, and narrated spans" : "Product flow, launch state, and handoff context"}
+              {bundle ? "Choose a turn to explore its recorded history" : "Open a saved run or start a new world"}
             </h2>
           </div>
 
@@ -1475,7 +1475,7 @@ function TimelineRail({
             </div>
           ) : (
             <div className="phase75-frontdoor-callout">
-              One shell now carries setup, run handoff, overview, diagnostics, and batch review.
+              Your timeline appears when a run is loaded.
             </div>
           )}
         </div>
@@ -1685,9 +1685,9 @@ function LeftRail({
         <div>
           <div className="phase75-overline">
             {surface === "setup"
-              ? "Launch Surface"
+              ? "New run"
               : surface === "progress"
-                ? "Progress Handoff"
+                ? "Starting run"
                 : surface === "batch"
                   ? "Batch Lab"
                   : leftRailTab === "events"
@@ -1696,14 +1696,14 @@ function LeftRail({
           </div>
           <h3>
             {surface === "batch"
-              ? "Interestingness-ranked runs and compare affordances"
+              ? "Explore and compare recorded runs"
               : surface === "setup"
-                ? "Single-run configuration wired into the shell"
+                ? "Choose how your world begins"
                 : surface === "progress"
-                  ? "Run state, launch confirmation, and handoff"
+                  ? "Preparing your world"
                   : leftRailTab === "events"
-                    ? "Event identity stays anchored on the left rail"
-                    : "Chronicle identity stays anchored on the left rail"}
+                    ? "Select an event to inspect its recorded details"
+                    : "Read the chronicle through the selected turn"}
           </h3>
         </div>
       </div>
@@ -1748,7 +1748,7 @@ function LeftRail({
               <strong>{setupState.narrativeModel || "Default"}</strong>
             </div>
             <div className="phase75-progress-note">
-              The shell stays intact through world generation so the handoff into Overview feels like the same product, not a route jump.
+              The map and history become available as the run progresses.
             </div>
           </div>
         )}
@@ -1762,14 +1762,14 @@ function LeftRail({
                   {batchReport.metadata.runs} runs · seeds {batchReport.metadata.seed_range[0]}-{batchReport.metadata.seed_range[1]}
                 </h4>
                 <p>
-                  Ranked results now feed directly into the viewer shell. Open any run below to land in Overview without leaving the app family.
+                  Select a run to preview its results, then open it to explore its history.
                 </p>
               </div>
 
               <div className="phase75-run-list">
                 {batchSummaries.length === 0 && (
                   <div className="phase75-empty-state">
-                    This report predates ranked run summaries. Generate a new batch to unlock direct-open viewer flow.
+                    This report has no ranked run summaries. Generate a new batch to open individual runs here.
                   </div>
                 )}
 
@@ -1822,7 +1822,7 @@ function LeftRail({
             </Suspense>
           ) : (
             <div className="phase75-empty-state">
-              Batch execution needs the live viewer bridge. You can still open existing bundles from the header and use compare mode once a report is available.
+              Start a live session to run a batch. You can open saved runs from the header and compare results when a report is available.
             </div>
           )
         )}
@@ -2068,7 +2068,7 @@ function SetupRail({
 
       {!state.lobbyReady && (
         <div className="phase75-empty-state">
-          Setup controls activate when the viewer is launched with a live WebSocket bridge. Until then, this shell still supports opening existing bundles from the header.
+          Start the viewer from a live session to create a run, or choose Open Existing to explore a saved run.
         </div>
       )}
 
@@ -2177,21 +2177,21 @@ function MapViewport({
         <div>
           <div className="phase75-overline">
             {surface === "setup"
-              ? "Setup Surface"
+              ? "World preview"
               : surface === "progress"
-                ? "Progress Surface"
+                ? "Starting run"
                 : surface === "batch"
-                  ? "Batch Surface"
-                  : "Map Workspace"}
+                  ? "Run preview"
+                  : "World map"}
           </div>
           <h2>
             {surface === "setup"
-              ? "Map-first launch workflow inside the same shell"
+              ? "Choose a scenario or generate a world"
               : surface === "progress"
-                ? "Run handoff stays inside the map-first frame"
+                ? "Preparing your world"
                 : surface === "batch"
-                  ? "Ranked runs feed back into the viewer without a separate page"
-                  : "Overview remains the anchor shell for all analysis modes"}
+                  ? "Select a run to preview"
+                  : "Explore the world at the selected turn"}
           </h2>
         </div>
 
@@ -2256,18 +2256,18 @@ function MapViewport({
           </h3>
           <p>
             {surface === "progress"
-              ? "The center canvas stays visually dominant even during world generation and handoff."
+              ? "Waiting for the first recorded turn."
               : surface === "batch"
                 ? (batchSummary
                   ? `${batchSummary.major_event_count} major events · ${batchSummary.signal_flags.join(" · ") || "steady signal profile"}`
-                  : "Run a batch to populate ranked previews and direct-open results.")
-                : "Map selection, overlays, and inspector behavior stay consistent across shell modes."}
+                  : "Run a batch to compare worlds and inspect individual results.")
+                : "Select a region or civilization to inspect it at this turn."}
           </p>
         </div>
 
         <div className="phase75-map-surface">
           <div className="phase75-map-texture" />
-          <svg className="phase75-atlas" viewBox="0 0 1000 640" aria-label="Chronicler atlas workspace">
+          <svg className="phase75-atlas" viewBox="0 0 1000 640" aria-label="World map">
             <g className="phase75-contours">
               <path d="M 30 122 C 210 48 418 84 642 112 S 926 142 972 116" />
               <path d="M 36 202 C 200 142 398 150 624 188 S 902 234 968 198" />
@@ -2413,8 +2413,8 @@ function MapViewport({
           {!viewerReady && (
             <div className="phase75-map-note">
               {surface === "setup"
-                ? "Setup and Batch Lab now live inside the same shell family as the archive viewer."
-                : "Open an existing bundle or launch a live run to populate the map with archive data."}
+                ? "Choose run settings, then select Run World to begin."
+                : "Choose Open Existing to explore a saved run, or start a live session."}
             </div>
           )}
         </div>
@@ -2530,7 +2530,7 @@ function RightInspector({
   return (
     <aside className="phase75-right-rail phase75-panel">
       <div className="phase75-inspector-header">
-        <div className="phase75-overline">Right Inspector</div>
+        <div className="phase75-overline">Details</div>
         <h3>
           {surface === "setup"
             ? "Launch details"
@@ -2538,7 +2538,7 @@ function RightInspector({
               ? "Batch diagnostics"
               : viewerReady
                 ? "Selection details"
-                : "Awaiting viewer data"}
+                : "Open a run to view details"}
         </h3>
         <p>{description}</p>
       </div>
@@ -2794,31 +2794,31 @@ function RightInspector({
 
         {surface !== "trade" && surface !== "campaign" && (
           <div className="phase75-empty-state">
-            Trade and campaign diagnostics plug into the same inspector shell without spawning a bespoke layout.
+            Choose Trade or Campaign to view civilization summaries for this turn.
           </div>
         )}
       </InspectorSection>
 
       <InspectorSection
-        title="Shell Signals"
+        title="Session status"
         open={inspectorSections.signals}
         onToggle={() => onToggleSection("signals")}
       >
         <div className="phase75-stat-row">
-          <span>Viewer state</span>
+          <span>Run status</span>
           <strong>{liveState.serverState}</strong>
         </div>
         <div className="phase75-stat-row">
-          <span>Connected</span>
+          <span>Live connection</span>
           <strong>{liveState.connected ? "Yes" : "No"}</strong>
         </div>
         <div className="phase75-stat-row">
-          <span>Paused</span>
+          <span>Run paused</span>
           <strong>{liveState.livePaused ? "Yes" : "No"}</strong>
         </div>
         <div className="phase75-stat-row">
-          <span>Mode cohesion</span>
-          <strong>{viewerReady ? "Unified shell" : "Front door active"}</strong>
+          <span>History</span>
+          <strong>{viewerReady ? "Loaded" : "No run loaded"}</strong>
         </div>
       </InspectorSection>
     </aside>
