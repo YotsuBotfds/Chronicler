@@ -2,6 +2,18 @@
 
 This is the live handoff ledger for the remediation branch. Update it with every commit and before any interruption. Do not describe source-only edits or unrun checks as qualified.
 
+## Cloud lead continuation
+
+The finalized bundle at `7a31e28418ddd2405079631cd86b221af483e614` was restored
+on `dev/codex-kimi-qualification-20261031` and published through ordinary Git,
+including its workflow. The partial additive Kimi remote and `main` remain
+unchanged. Supported Python 3.13 full lanes reproduced four integration failures;
+the directory-save compatibility correction and strict historical-witness repair
+are recorded in [the continuation report](codex-kimi-qualification.md), together
+with source-specific native, Rust, viewer and actual-run evidence. Historical
+UNRUN entries below retain their original source and date; use the continuation
+report and exact-head Actions run for later qualification.
+
 ## Branch and baseline
 
 - Repository: `yotsubotfds/Chronicler`
