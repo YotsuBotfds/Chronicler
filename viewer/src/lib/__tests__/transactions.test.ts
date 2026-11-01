@@ -19,6 +19,15 @@ describe("independent transaction observation domains", () => {
     expect(publicPurchasesAt(combined)!.source_turn).toBe(0);
   });
 
+  it("preserves zero immediate receipt for a paid public dispatch", () => {
+    const row = transactionFixture("public-foreign")[0];
+    const purchase = row.transaction_receipts!.public_purchases!.rows[0];
+    Object.assign(purchase, { received: 0, committed_net: 7.6, due_turn: row.turn,
+      shipment_id: "public-grain-shipment:30:0", quantity_basis: "committed_public_grain_dispatch" });
+    expect(publicPurchasesAt(row)!.rows[0]).toMatchObject({ received: 0, buyer_paid: 1,
+      committed_net: 7.6, quantity_basis: "committed_public_grain_dispatch" });
+  });
+
   it.each(["public-own-market", "public-same-realm"] as const)("preserves the actual domestic sink in %s", (name) => {
     expect(publicPurchasesAt(transactionFixture(name)[0])!.rows[0]).toMatchObject({ buyer_paid: 1,
       foreign_ruler_credited: 0, domestic_producer_sink: 1, seller_treasury_before: null, seller_treasury_after: null });

@@ -968,7 +968,7 @@ export interface GranarySnapshotRow {
 }
 
 export interface GranaryFlow {
-  kind: "bought" | "released" | "spoiled" | "seized" | "abandoned" | "captured";
+  kind: "bought" | "released" | "spoiled" | "seized" | "abandoned" | "captured" | "dispatched" | "arrived";
   region: number;
   amount: number;
   source: number;
@@ -982,12 +982,46 @@ export interface GranaryFlow {
   after: number;
 }
 
+export interface PublicGrainTransition {
+  id: string;
+  operation: "dispatched" | "arrived";
+  turn: number;
+  dispatch_turn: number;
+  due_turn: number;
+  source: number;
+  source_name: string;
+  dest: number;
+  dest_name: string;
+  buyer: number;
+  buyer_name: string;
+  seller: number;
+  seller_name: string;
+  keeper: number;
+  sent: number;
+  net: number;
+  loss: number;
+  /** Original payment, including on arrival rows; no second payment. */
+  paid: number;
+}
+
+export interface PublicGrainShipmentSnapshot {
+  schema_version: 1;
+  accept_orders: boolean;
+  source_turn: number;
+  pending_count: number;
+  /** Paid cargo in transit, excluded from granary stocks and edible supply. */
+  pending_net: number;
+  transitions: PublicGrainTransition[];
+}
+
 export interface GrainReservesSnapshot {
   /** Completed simulation turn: history turn T records source_turn T-1. */
   source_turn: number;
   granaries: GranarySnapshotRow[];
   flows: GranaryFlow[];
   counters: Record<string, number>;
+  /** Absent in older or never-enabled records; absence does not mean zero cargo. */
+  shipments?: PublicGrainShipmentSnapshot;
 }
 
 export interface Bundle {

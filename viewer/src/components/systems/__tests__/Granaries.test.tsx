@@ -64,3 +64,61 @@ it("scrubs keeper changes without retaining future selection data", () => {
   rerender(<Granaries {...p} snapshot={p.bundle.history[1]} currentTurn={5} />);
   expect(within(screen.getByRole("table", { name: "Granaries at snapshot 5" })).getByText("12")).toBeInTheDocument();
 });
+
+function withShipments() {
+  const p = props();
+  const granaries = p.snapshot!.grain_reserves!;
+  granaries.shipments = { schema_version: 1, accept_orders: true, source_turn: 4, pending_count: 1, pending_net: 7,
+    transitions: [
+      { id: "dispatch:4", operation: "dispatched", turn: 4, dispatch_turn: 4, due_turn: 5,
+        source: 1, source_name: "Recorded market", dest: 0, dest_name: "Valley", buyer: 0, buyer_name: "Original payer",
+        seller: 1, seller_name: "Recorded seller", keeper: 0, sent: 8, net: 7, loss: 1, paid: 9 },
+      { id: "dispatch:3", operation: "arrived", turn: 4, dispatch_turn: 3, due_turn: 4,
+        source: 1, source_name: "Recorded market", dest: 0, dest_name: "Valley", buyer: 0, buyer_name: "Original payer",
+        seller: 1, seller_name: "Recorded seller", keeper: 0, sent: 6, net: 5, loss: 1, paid: 6 },
+    ] };
+  granaries.flows.push({ ...granaries.flows[0], kind: "dispatched", amount: 7, sent: 8, cost: 9 },
+    { ...granaries.flows[0], kind: "arrived", amount: 5, sent: 0, cost: 0 });
+  return p;
+}
+
+it("shows observed in-transit cargo, dispatch and arrival without adding cargo to stocks or charging arrival again", () => {
+  render(<Granaries {...withShipments()} />);
+  const tile = (label: string) => within(screen.getByText(label).closest("div")!);
+  expect(tile("Grain stored").getByText("12")).toBeInTheDocument();
+  expect(tile("Immediate purchases").getByText("5")).toBeInTheDocument();
+  expect(tile("Paid cargo in transit").getByText("7")).toBeInTheDocument();
+  expect(tile("Grain dispatched").getByText("7")).toBeInTheDocument();
+  expect(tile("Grain arrived").getByText("5")).toBeInTheDocument();
+  const table = within(screen.getByRole("table", { name: "Public grain shipments in turn 4" }));
+  expect(table.getByText("Dispatched")).toBeInTheDocument();
+  expect(table.getByText("Arrived")).toBeInTheDocument();
+  expect(table.getAllByText("Recorded market")).toHaveLength(2);
+  expect(table.getAllByText("Original payer")).toHaveLength(2);
+  expect(table.getByRole("columnheader", { name: "Paid at dispatch" })).toBeInTheDocument();
+  expect(table.getByText(/arrivals make no new payment/)).toBeInTheDocument();
+  const movements = within(screen.getByRole("table", { name: "Granary movements in turn 4" }));
+  const arrived = movements.getByText("arrived").closest("tr")!;
+  expect(within(arrived).getAllByRole("cell")[5]).toHaveTextContent("—");
+  expect(screen.getByText(/18 treasury paid this turn/)).toBeInTheDocument();
+});
+
+it("does not show shipment zeroes for older snapshots or leak future cargo when scrubbing back", () => {
+  const p = withShipments();
+  const { rerender } = render(<Granaries {...p} />);
+  expect(screen.getByRole("region", { name: "Public grain shipments" })).toBeInTheDocument();
+  const earlier = snapshot(3, record());
+  rerender(<Granaries {...p} snapshot={earlier} currentTurn={3} />);
+  expect(screen.queryByRole("region", { name: "Public grain shipments" })).not.toBeInTheDocument();
+  expect(screen.queryByText("Paid cargo in transit")).not.toBeInTheDocument();
+  expect(screen.getByText("Grain procured")).toBeInTheDocument();
+});
+
+it("labels an invalid or future shipment frame unknown instead of displaying its cargo", () => {
+  const p = withShipments();
+  p.snapshot!.grain_reserves!.shipments!.source_turn = 8;
+  render(<Granaries {...p} />);
+  expect(screen.getByText(/Shipment details are not observed/)).toBeInTheDocument();
+  expect(screen.queryByText("Paid cargo in transit")).not.toBeInTheDocument();
+  expect(screen.queryByText("Original payer")).not.toBeInTheDocument();
+});

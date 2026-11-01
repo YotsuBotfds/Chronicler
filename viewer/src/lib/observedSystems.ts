@@ -8,6 +8,7 @@ export const SCIENTIFIC_EVENT_TYPES = ["scientific_claim_proposed", "scientific_
   "scientific_research_agenda_opened", "scientific_research_agenda_closed", "scientific_research_capacity_blocked"] as const;
 
 const OBSERVATION_EVENT_TYPES = new Set([
+  "public_grain_dispatched", "public_grain_arrived",
   "occupational_injury", "harvest_forecast_issued", "harvest_forecast_delivered", "harvest_forecast_resolved",
   "harvest_preparedness", "harvest_gathering_held", "harvest_gathering_cancelled",
   ...SCIENTIFIC_EVENT_TYPES,

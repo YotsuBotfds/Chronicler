@@ -121,3 +121,32 @@ used unequal initial RNG states. None is silently counted as a pass.
 Full offline/native suites, fresh hosted CI, scientific/balance campaigns and
 performance qualification remain unrun for this composition. The feature stays
 default off and awaits integration review.
+
+## Viewer connection follow-up
+
+The optional Granaries snapshot panel now distinguishes stored grain, paid cargo
+in transit, net dispatches and arrivals. Shipment rows show the recorded market,
+destination, payer, seller and original dispatch payment; an arrival is never a
+second payment or evidence of food eaten. Immediate purchases stay separate.
+Old snapshots without nested shipment records retain their existing UI, and
+missing/stale/future shipment frames are unknown rather than zero. Shipment
+receipt events use simulation turn + 1 as their visible snapshot clock, including
+provenance, so an arrival cannot appear one snapshot early.
+
+The existing Transactions inspector accepts a dispatch's zero immediate receipt
+and retains its actual payment; a focused test confirms this. Its older table
+does not expose the extended committed-net/due-date/delivery fields. The new
+Granaries panel supplies the cargo view without expanding that inspector.
+
+Focused viewer checks pass 59 tests, app TypeScript checking and lint of the
+changed viewer files. No full viewer suite or production build was run for this
+follow-up, and no Python/native/economic source changed. Evidence is external in
+`viewer-shipment-focused.log`, `viewer-shipment-typecheck.log` and
+`viewer-shipment-lint.log` alongside the native milestone evidence above.
+
+The newer saved-world summary and its loader-validation dependency are absent
+from this branch's parent. A three-line integration patch against the existing
+root helper is preserved externally as `saved-world-summary-shipments.patch`,
+with its exact parent-file hash. It recognizes nested recorded shipments and
+currently accepting orders; it does not label draining cargo as new-order
+activation. The root helper and frozen root viewer build were not edited here.

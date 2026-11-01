@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildEventFeed, eventProvenance } from "../../components/phase75/appShellHelpers";
 import { eventSnapshotTurn, observationEventKnown } from "../observedSystems";
 
-const kinds = ["occupational_injury", "harvest_forecast_issued", "harvest_forecast_delivered",
+const kinds = ["public_grain_dispatched", "public_grain_arrived", "occupational_injury", "harvest_forecast_issued", "harvest_forecast_delivered",
   "harvest_forecast_resolved", "harvest_preparedness", "harvest_gathering_held", "harvest_gathering_cancelled",
   "scientific_claim_proposed", "scientific_trial_funded", "scientific_trial_completed", "scientific_trial_cancelled",
   "scientific_trial_failed", "scientific_evidence_received", "scientific_adoption_allocated",
@@ -18,6 +18,15 @@ describe("completed-turn observation event clocks", () => {
     expect(eventSnapshotTurn(receipt)).toBe(7);
     expect(buildEventFeed([receipt], 6, null)).toEqual([]);
     expect(buildEventFeed([receipt], 7, null)).toEqual([receipt]);
+  });
+
+  it("withholds an arrival and its provenance until the completed arrival tick", () => {
+    const dispatch = event("public_grain_dispatched", 4, "dispatch");
+    const arrival = event("public_grain_arrived", 5, "arrival", ["Old realm"], ["dispatch"]);
+    expect(buildEventFeed([dispatch, arrival], 5, null)).toEqual([dispatch]);
+    expect(eventProvenance([dispatch, arrival], dispatch, 5)).toEqual({ causes: [], effects: [] });
+    expect(buildEventFeed([dispatch, arrival], 6, null)).toEqual([arrival, dispatch]);
+    expect(eventProvenance([dispatch, arrival], dispatch, 6)).toEqual({ causes: [], effects: [arrival] });
   });
 
   it("keeps legacy dates and fills the feed with known rows after excluding future receipts", () => {

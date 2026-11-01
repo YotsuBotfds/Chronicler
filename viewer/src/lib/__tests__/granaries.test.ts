@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { record, snapshot } from "../../__fixtures__/granaryHistory";
-import { granaryAmounts, granaryOwnerRows, granarySeries } from "../granaries";
+import { granaryAmounts, granaryOwnerRows, granarySeries, granaryShipmentsAt } from "../granaries";
 import { presentSystems } from "../systems";
 import { bundleFromInitMessage, snapshotFromMessage } from "../transport";
 import { parseBundleJsonPayload } from "../bundleLoader";
@@ -54,7 +54,7 @@ describe("public granary history", () => {
     expect(presentSystems([snapshot(5, record())])).toContain("food");
   });
   it("preserves the same summary through static, turn, batch and reconnect adapters", () => {
-    const row = snapshot(5, record());
+    const row = shipmentSnapshot();
     const bundle = { world_state: {}, history: [row], events_timeline: [], named_events: [],
       chronicle_entries: [], era_reflections: {}, metadata: {} };
     const parsed = parseBundleJsonPayload(JSON.stringify(bundle));
@@ -62,5 +62,49 @@ describe("public granary history", () => {
     if (parsed.kind === "legacy") expect(parsed.bundle.history[0]).toEqual(row);
     expect(snapshotFromMessage({ ...row, type: "turn" })).toEqual(row);
     expect(bundleFromInitMessage({ ...bundle, type: "init" }).history[0]).toEqual(row);
+  });
+});
+
+function shipmentSnapshot() {
+  const granaries = record();
+  granaries.shipments = { schema_version: 1, accept_orders: true, source_turn: 4,
+    pending_count: 1, pending_net: 7, transitions: [
+      { id: "dispatch:4", operation: "dispatched", turn: 4, dispatch_turn: 4, due_turn: 5,
+        source: 1, source_name: "Market", dest: 0, dest_name: "Valley", buyer: 0, buyer_name: "Old realm",
+        seller: 1, seller_name: "Seller", keeper: 0, sent: 8, net: 7, loss: 1, paid: 9 },
+      { id: "dispatch:3", operation: "arrived", turn: 4, dispatch_turn: 3, due_turn: 4,
+        source: 1, source_name: "Market", dest: 0, dest_name: "Valley", buyer: 0, buyer_name: "Old realm",
+        seller: 1, seller_name: "Seller", keeper: 0, sent: 6, net: 5, loss: 1, paid: 6 },
+    ] };
+  granaries.flows.push({ ...granaries.flows[0], kind: "dispatched", amount: 7, sent: 8, cost: 9 },
+    { ...granaries.flows[0], kind: "arrived", amount: 5, sent: 0, cost: 0 });
+  return snapshot(5, granaries);
+}
+
+describe("public grain shipment observations", () => {
+  it("keeps paid cargo and arrivals separate from immediate purchases and stored grain", () => {
+    const row = shipmentSnapshot();
+    expect(granaryAmounts(row.grain_reserves!)).toMatchObject({ stock: 12, bought: 5, paid: 18, transit: 2 });
+    expect(granaryShipmentsAt(row)).toMatchObject({ pending_count: 1, pending_net: 7, dispatched: 7, arrived: 5 });
+  });
+
+  it("leaves missing old observations unknown while retaining observed zero and draining state", () => {
+    expect(granaryShipmentsAt(snapshot(5, record()))).toBeNull();
+    expect(granaryShipmentsAt(snapshot(2))).toBeNull();
+    const row = shipmentSnapshot();
+    Object.assign(row.grain_reserves!.shipments!, { accept_orders: false, pending_count: 0, pending_net: 0, transitions: [] });
+    expect(granaryShipmentsAt(row)).toMatchObject({ accept_orders: false, pending_net: 0, dispatched: 0, arrived: 0 });
+  });
+
+  it.each(["source", "parent source", "future transition", "premature arrival", "invalid total", "missing rows"])("rejects an unknown shipment observation: %s", (fault) => {
+    const row = shipmentSnapshot();
+    const frame = row.grain_reserves!.shipments!;
+    if (fault === "source") frame.source_turn = 5;
+    else if (fault === "parent source") row.grain_reserves!.source_turn = 3;
+    else if (fault === "future transition") frame.transitions[0].turn = 5;
+    else if (fault === "premature arrival") Object.assign(frame.transitions[0], { operation: "arrived" });
+    else if (fault === "invalid total") frame.pending_net = Number.NaN;
+    else Object.assign(frame, { transitions: undefined });
+    expect(granaryShipmentsAt(row)).toBeNull();
   });
 });

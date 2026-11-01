@@ -1,3 +1,16 @@
+# 2026-11-01 — optional public shipment viewer connection
+
+Read-only Granaries snapshots now distinguish stored grain, cargo in transit,
+dispatches and arrivals, retaining original payment dates and unknown older
+observations. Both receipt events follow the completed-tick snapshot clock.
+Focused viewer tests (59), app typecheck and changed-file lint pass; no full
+viewer suite/build or Python/native rerun occurred. A narrow nested-shipment
+saved-world-summary patch is external for the newer loader's integration; that
+helper and its dependency are absent on this parent. No root build was changed.
+See [the follow-up boundary](integration/public-grain-shipments.md#viewer-connection-follow-up).
+
+---
+
 # 2026-11-01 — isolated public grain shipment fixture resolution
 
 Current-source composition from `061594a0` adds only the held default-off shipment

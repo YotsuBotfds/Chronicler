@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { granaryAmounts, granaryKeeper, granaryOwnerRows, granarySeries } from "../../lib/granaries";
+import { granaryAmounts, granaryKeeper, granaryOwnerRows, granarySeries, granaryShipmentsAt } from "../../lib/granaries";
 import type { SystemPanelProps } from "../../lib/systems";
 import { CivLineChart, StatTile, TurnStrip } from "./SystemParts";
 
@@ -37,6 +37,7 @@ export function Granaries({ bundle, snapshot, currentTurn, onSeek, onSelectRegio
     </section>;
   }
   const totals = granaryAmounts(record);
+  const shipments = granaryShipmentsAt(snapshot);
   const rows = record.granaries.filter((row) => region === null || row.region === region);
   const flows = record.flows.filter((flow) => region === null || flow.region === region);
   return <section className="systems-section" aria-label="Public granaries">
@@ -46,7 +47,7 @@ export function Granaries({ bundle, snapshot, currentTurn, onSeek, onSelectRegio
       <StatTile label="Grain stored" value={show(totals.stock)} detail="all recorded granaries" />
       <StatTile label="Stock target" value={totals.target === null ? "Not observed" : show(totals.target)}
         detail={totals.target === null ? "Some granary demand observations are missing." : undefined} />
-      <StatTile label="Grain procured" value={show(totals.bought)} detail="received this turn" />
+      <StatTile label={record.shipments ? "Immediate purchases" : "Grain procured"} value={show(totals.bought)} detail="received this turn" />
       <StatTile label="Grain released" value={show(totals.released)} detail="eaten this turn" />
       <StatTile label="Storage spoilage" value={show(totals.spoiled)} detail="this turn" />
     </div>
@@ -76,17 +77,41 @@ export function Granaries({ bundle, snapshot, currentTurn, onSeek, onSelectRegio
         </tr>;
       })}</tbody>
     </table></div>
+    {record.shipments !== undefined && <section aria-label="Public grain shipments">
+      <h4>Public grain shipments · all granaries</h4>
+      {!shipments ? <p className="systems-note">Shipment details are not observed at this snapshot.</p> : <>
+        <p className="systems-note">{shipments.accept_orders ? "Accepting new orders." : "New orders stopped."} Paid cargo in transit is separate from grain stored. Arrivals enter the granary after that turn&apos;s opening and can first be released next turn.</p>
+        <div className="systems-tiles">
+          <StatTile label="Orders in transit" value={shipments.pending_count} />
+          <StatTile label="Paid cargo in transit" value={show(shipments.pending_net)} detail="excluded from grain stored" />
+          <StatTile label="Grain dispatched" value={show(shipments.dispatched)} detail="committed this turn" />
+          <StatTile label="Grain arrived" value={show(shipments.arrived)} detail="received this turn" />
+        </div>
+        {shipments.transitions.length === 0 ? <p className="systems-note">No shipment movements recorded in this turn.</p> :
+          <div className="systems-table-wrap"><table className="systems-table" aria-label={`Public grain shipments in turn ${shipments.source_turn}`}>
+            <caption>Paid at dispatch is the original payment; arrivals make no new payment.</caption>
+            <thead><tr><th>Movement</th><th>From</th><th>To</th><th>Buyer</th><th>Seller</th><th>Net grain</th><th>Paid at dispatch</th><th>Dispatched turn</th><th>Due turn</th></tr></thead>
+            <tbody>{shipments.transitions.map((row) => <tr key={`${row.id}:${row.operation}`}>
+              <td>{row.operation === "dispatched" ? "Dispatched" : "Arrived"}</td>
+              <td>{row.source_name}</td><td>{row.dest_name}</td><td>{row.buyer_name}</td><td>{row.seller_name}</td>
+              <td>{show(row.net)}</td><td>{row.paid}</td><td>{row.dispatch_turn}</td><td>{row.due_turn}</td>
+            </tr>)}</tbody>
+          </table></div>}
+      </>}
+    </section>}
     <h4>Movements in simulation turn {record.source_turn}</h4>
     {flows.length === 0 ? <p className="systems-note">No granary movements recorded in this turn.</p> :
       <div className="systems-table-wrap"><table className="systems-table" aria-label={`Granary movements in turn ${record.source_turn}`}>
         <thead><tr><th>Kind</th><th>Granary</th><th>Amount</th><th>Market / previous keeper</th><th>Sent</th><th>Treasury paid</th><th>Food before → after</th></tr></thead>
         <tbody>{flows.map((flow, index) => <tr key={index}>
-          <td>{flow.kind}</td><td>{names.get(flow.region) ?? `Region ${flow.region}`}</td><td>{show(flow.amount)}</td>
-          <td>{flow.kind === "bought" ? `${bundle.world_state.regions[flow.source]?.name ?? `Region ${flow.source}`} (${flow.seller_name ?? "unknown seller"})` : flow.kind === "captured" ? flow.seller_name ?? "No keeper" : "—"}</td>
-          <td>{flow.kind === "bought" ? show(flow.sent) : "—"}</td><td>{flow.kind === "bought" ? flow.cost : "—"}</td>
+          <td>{flow.kind === "dispatched" ? "dispatched (in transit)" : flow.kind}</td><td>{names.get(flow.region) ?? `Region ${flow.region}`}</td><td>{show(flow.amount)}</td>
+          <td>{flow.kind === "bought" ? `${bundle.world_state.regions[flow.source]?.name ?? `Region ${flow.source}`} (${flow.seller_name ?? "unknown seller"})` : flow.kind === "dispatched" || flow.kind === "arrived" ? `${names.get(flow.source) ?? `Region ${flow.source}`} (${flow.seller_name ?? "unknown seller"})` : flow.kind === "captured" ? flow.seller_name ?? "No keeper" : "—"}</td>
+          <td>{flow.kind === "bought" || flow.kind === "dispatched" ? show(flow.sent) : "—"}</td><td>{flow.kind === "bought" || flow.kind === "dispatched" ? flow.cost : "—"}</td>
           <td>{flow.kind === "released" ? `${show(flow.before)} → ${show(flow.after)}` : "—"}</td>
         </tr>)}</tbody>
       </table></div>}
-    <p className="systems-note">Procurement receives grain after transit loss (this turn: {show(totals.transit)} lost, {totals.paid} treasury paid). Captured grain changes keeper without adding stock; seized and abandoned grain leave the granary. Missing older records remain gaps. Charts stop at the selected snapshot.</p>
+    <p className="systems-note">{record.shipments
+      ? <>Immediate purchases and dispatches lost {show(totals.transit)} grain in transit; {totals.paid} treasury paid this turn. Arrivals make no new payment. </>
+      : <>Procurement receives grain after transit loss (this turn: {show(totals.transit)} lost, {totals.paid} treasury paid). </>}Captured grain changes keeper without adding stock; seized and abandoned grain leave the granary. Missing older records remain gaps. Charts stop at the selected snapshot.</p>
   </section>;
 }
