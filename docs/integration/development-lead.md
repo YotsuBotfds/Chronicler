@@ -25,6 +25,10 @@ the current source. Native source digest was
 `33b3080877fb8deb6bf624f398cdaae871569fe717d8ef27742cea995a62c182` and native
 binary SHA-256 was
 `f6f78b0c63efcf5fd09e310d6901c460711e667f09e57d3e348df00ca57cab29`.
+The local wheel SHA-256 is
+`6355bb6a866a32db8866b1aab7e6c7cd4760981e98e9cd8f7f4be4300e8acc54`
+(`chronicler_agents-0.1.0-cp313-cp313-manylinux_2_34_x86_64.whl`), ABI
+`cpython-313-x86_64-linux-gnu`; the exact installed path is in `baseline.json`.
 Future native edits need a matching fresh build; never replace it beneath
 running tests. Working-session capability is distinct from fresh cloud
 configuration restoration, which has not been verified or published.
@@ -95,12 +99,50 @@ a product defect; the final harness checks the actual actor field and settled UI
 
 Live reports/screenshots are in `live-{hybrid,aggregate}-2f2e59eb`; the optional
 policy's actual-native identity report is
-`shortfall-native-identity-62866079/identity-receipt.json`. The development branch
-was pushed through `62866079`; a complete bundle containing `2f2e59eb` and both
-initial worker branches was SHA-256 verified and restored cleanly. Final viewer
-logs are `viewer-final-{tests,lint,build}.log`, with report/screenshots in
-`browser-final-56688c1f`. Final source publication, CI and backup receipts follow
-before this milestone is closed.
+`shortfall-native-identity-62866079/identity-receipt.json`. Final viewer logs are
+`viewer-final-{tests,lint,build}.log`, with report/screenshots in
+`browser-final-56688c1f`. The new native 60-turn bundle also passed five browser
+checks at `f371e6fa`: final-turn loading and observed stocks/targets, purchase and
+release rows at snapshots 6, 10 and 60 matched the saved records, with no browser
+errors. Evidence is in `browser-shortfall-native-f371e6fa`; this establishes
+correct display of recorded observations, not a policy-effect witness.
+
+## Final qualification and closure
+
+Code source `f371e6fa9ae2330331248a5c1010d01659462d34` was pushed and passed all
+nine jobs in [CI 41324808468](https://github.com/YotsuBotfds/Chronicler/actions/runs/41324808468),
+attempt one: fresh current-source native wheel build, both full native shards,
+their aggregate and barrier, full no-Rust Python, guarded offline chunks, Rust,
+and viewer tests/lint/build. Logs and status receipts are in
+`ci-41324808468`. Native passed 9,216 parents with six registered skips and 623
+subtests; no-Rust passed 8,853 with 355 skips and 623 subtests. Offline passed
+all 43 chunks (5,416 passed, 65 skipped). Rust passed 1,178 with two ignores;
+viewer passed 759, lint and build. CI built native source `f371e6fa` on CPython
+3.13.17 with Rust 1.99.1; the local matching-input build above remains distinct.
+Copying raw CI artifacts into this workspace was refused by
+artifact storage; job logs/status remain available and the in-runner audits
+passed. CI wheel/native hashes and exact import path were not printed in logs
+and have not been independently read from the blocked receipt archive; the
+artifact ZIP digest is not a wheel digest. No bypass or rerun was attempted.
+CI's clean runners do not verify
+restoration of the deferred reusable cloud configuration.
+
+The complete `playable-checkpoint-f371e6fa.bundle` includes the integration and
+three owned worker refs. SHA-256 is
+`1159095338befed7d6888f06aecc23c24b02b58de401f11e55d47308483dc96d`;
+bundle verification and a clean exact-commit trial restoration passed. Closing
+commits after `f371e6fa` contain documentation only; a final bundle/hash/restore
+receipt is retained alongside `CHECKPOINT-f371e6fa.json` outside the repository.
+
+All planned implementation in this queue is complete. Held shipment/merchant-tax
+experiments, scientific/balance campaigns and environment publication remain
+explicitly deferred; none is a prerequisite for using this dev build. Main is
+still `cb9fe70c81658fb65c6f511b821447f1d7b55b54`; Python/Node/Rust dependency
+locks and native source are unchanged from the qualified baseline. Generated
+files remain ignored under `output/`, `.pytest_cache/`, Python `__pycache__/`,
+`viewer/node_modules/` and `viewer/dist/`, with evidence and owned worktrees in
+`/workspace`. The owned preview and all local test/simulation processes stopped.
+No merge, deployment, new external credentials or paid narration/API call ran.
 
 ## Working-session commands
 

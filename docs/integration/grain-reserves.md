@@ -75,7 +75,7 @@ region, receives 7.6 after transit loss, and leaves 9.6 in its granary. Both
 spend one coin and leave the source market at 72. On a subsequent zero-food
 turn with demand 10, the recipient releases 6 and reaches sufficiency 0.6,
 versus a default release of 2 and sufficiency 0.2. This fixture demonstrates
-allocation and bookkeeping only. Scientific efficacy, whole-world outcomes and
+allocation and bookkeeping only. Scientific efficacy, world-scale balance and
 full economic qualification of this option remain unrun; the historical results
 below do not qualify it. Granaries remain default off.
 
