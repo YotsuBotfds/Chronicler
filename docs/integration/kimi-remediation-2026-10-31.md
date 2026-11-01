@@ -237,3 +237,10 @@ python -m pytest -q \
 ```
 
 The actual E8 lane used `PYTHONPATH=/mnt/agents/work/chronicler-python-deps:src` on CPython 3.12.12. A fresh Python 3.13/native run is a new qualification task, not a repetition of that environment.
+
+## Finalization checkpoint — 2026-11-01
+
+- **Runnable local source:** `dev/kimi-remediation-20261031` at `05fdd541757e6b23efee3d9b32b796c975a2b258`; the worktree was clean before this tracker-only checkpoint. There is no unfinished product-code change and no separate WIP commit. The only modified file at this checkpoint is this tracker; there are no untracked files. `main` is untouched.
+- **Workers/commands:** all delegated workers have been stopped and deleted. No test, server, benchmark, or publication command is active. A direct read of `analytics.py` made no remote write and is discontinued.
+- **Remote publication WIP:** additive publication stopped at verified remote head `e5969a65710fb9069378053cd4e66dd5b9508d40`. Forty of 47 nonworkflow changed-path entries have matching remote metadata/content or confirmed absence. Six non-handoff files remain known mismatches: `src/chronicler/analytics.py`, `src/chronicler/main.py`, `src/chronicler/models.py`, `tests/test_main.py`, `tests/test_scenario.py`, and `viewer/package-lock.json`. This tracker also still needs final publication. The workflow file remains the separately documented 403-scope blocker. Do not claim whole-tree equivalence or exact-final-tree CI.
+- **Exact next step:** commit this tracker checkpoint, create and verify the approved local preservation bundle, then publish only the final handoff if the authorized file API accepts it. Do not resume the six large file transfers or start another backlog item in this session.
