@@ -8,10 +8,11 @@ interface BatchCompareProps {
   initialRight?: BatchReport | null;
   initialBundle?: Bundle | null;
   initialIdentity?: ArtifactIdentity | null;
+  initialMode?: "runs" | "batch";
 }
 
-export function BatchCompare({ initialRight, initialBundle, initialIdentity }: BatchCompareProps) {
-  const [mode, setMode] = useState(initialRight && !initialBundle ? "batch" : "runs");
+export function BatchCompare({ initialRight, initialBundle, initialIdentity, initialMode }: BatchCompareProps) {
+  const [mode, setMode] = useState(initialMode ?? (initialRight && !initialBundle ? "batch" : "runs"));
   return <div className="flex flex-col h-full min-h-0">
     <nav className="run-compare-modes" aria-label="Comparison type">
       <button type="button" aria-pressed={mode === "runs"} onClick={() => setMode("runs")}>Completed runs</button>

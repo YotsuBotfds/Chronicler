@@ -1,182 +1,103 @@
 # Active development lead
 
-The active branch is `dev/codex-playable-build-20261031`, continued from clean,
-published `32ac587908b28167e45ff105f62ace988fbb8e12`. Main and the older additive
-Kimi remote are preserved. Reusable environment editing/publication is deferred
-by the user; it is not a prerequisite for work in the current running session.
+## Current baseline and scope
 
-## Qualified starting point
+Continue on `dev/codex-playable-build-20261031`. Remote refresh on 2026-11-01
+found the local and remote tip both `061594a0606b9a9dfdbd1a63de2afb7dfcc3c3db`,
+with a clean worktree and no newer work to reconcile. Main remains untouched.
+The prior queue is complete: [its handoff at 061594a0](https://github.com/YotsuBotfds/Chronicler/blob/061594a0606b9a9dfdbd1a63de2afb7dfcc3c3db/docs/integration/development-lead.md)
+records all nine passing CI jobs at code source `f371e6fa`, browser/live checks,
+optional shortfall procurement, backup verification and source boundaries.
+Do not repeat that queue or its full baseline checkpoint matrix.
 
-The previous remediation queue is complete. Do not restart its fixes from the
-older handoffs' historical UNRUN snapshots. Exact-source CI run
-[41266231344](https://github.com/YotsuBotfds/Chronicler/actions/runs/41266231344)
-passed all nine jobs: 9,184 native parents with six registered skips, 8,821
-no-native parents with 355 skips, 623 successful subtests in each full lane,
-43 guarded offline chunks, 1,178 Rust tests with two ignores, and 745 viewer
-tests plus lint/build. Subsequent full checkpoint verification on unchanged
-`32ac5879` passed all 23 registered cases: 707 resume points and 17,650 file
-comparisons, zero differences, with matching live views. Scientific/balance
-campaigns remain unrun; these are source-scoped functional results.
+The user authorized this new six-item development queue. Environment publication,
+main merges, public deployment, new credentials and paid narration/API calls
+remain out of scope. Optional economic changes stay off by default.
 
-The working session has complete system Python 3.13.5, Rust 1.99.1, Node
-20.19.0 and Chromium. At takeover, the real native module, wheel bytes, ABI,
-selected Python project and native source-input digest were verified against
-the current source. Native source digest was
-`33b3080877fb8deb6bf624f398cdaae871569fe717d8ef27742cea995a62c182` and native
-binary SHA-256 was
-`f6f78b0c63efcf5fd09e310d6901c460711e667f09e57d3e348df00ca57cab29`.
-The local wheel SHA-256 is
-`6355bb6a866a32db8866b1aab7e6c7cd4760981e98e9cd8f7f4be4300e8acc54`
-(`chronicler_agents-0.1.0-cp313-cp313-manylinux_2_34_x86_64.whl`), ABI
-`cpython-313-x86_64-linux-gnu`; the exact installed path is in `baseline.json`.
-Future native edits need a matching fresh build; never replace it beneath
-running tests. Working-session capability is distinct from fresh cloud
-configuration restoration, which has not been verified or published.
+## Queue
 
-## Chosen milestones
+1. **Saved worlds — browser-verified.** Existing loader now retains the world,
+   identity and selected turn on failure; detects checkpoint/state file types;
+   rejects incomplete required/nested food, finance and granary records; supports
+   legacy/new bundles and repeated/failed-then-successful loads. Details shows
+   actual recorded range, seed/mode, saved enabled systems and history coverage.
+2. **What changed — browser-verified.** Existing history inspector now compares
+   exact civilization/region endpoints through the selected turn. Missing/birth/
+   extinction rows stay unknown; territory/debt avoid double counting. Event
+   context follows completed ticks (snapshot T reflects T−1), without causal
+   claims. Inspect keeps target/turn; explicit View seeks. Phone 390 fits.
+3. **Completed-run comparison — browser-verified.** Existing BatchCompare now
+   includes completed runs, reachable from the main header. Exact-turn charts
+   and summaries retain null gaps/tails, source/settings warnings and original
+   hashes. JSON/Markdown sharing, failed-load retention and tab persistence pass.
+4. **Held grain shipments — integrated, native-verified.** Original fixture had
+   28 foreign offers floored below one coin after domestic depletion: no pending
+   dispatch, not a restore/product bug. Original native negative is retained;
+   finite opening seller granaries establish a genuine positive precondition.
+   A separate original manifest assertion omitted a second unspecified flag.
+   Existing default-off shipment overlay is composed selectively, without Rust,
+   policy tuning or immutable historical-pin changes. 620 isolated focused
+   passes and 164 integrated native/Python passes include accounting and exact
+   mid-transit restore. Default and explicit-off match parent in 25 artifacts,
+   native bytes, live views and controlled RNG. Small shipment UI is integrated;
+   its actual-browser check is in progress. See public-grain-shipments.md.
+5. **Shortfall purchasing — evaluated, remains off.** Six preregistered matched
+   constructed scenarios show immediate benefits and harms (competing hunger
+   reduces total release 8→6; moving hunger loses relief elsewhere). The fixed
+   natural seed42/60 native pair is neutral: purchases occur but order changes
+   none. Accounting, deterministic defaults and both exact continuations pass.
+   No policy parameter, seed selection or default changed. Full scientific
+   promotion is not justified. See shortfall-priority-evaluation.md.
+6. **Guided real examples — generating next.** A small existing-CLI wrapper and
+   guide define three fixed template/procedural examples, separated aggregate
+   and native runtimes, always simulate-only. Output/existing-folder guards,
+   shell quoting and Python syntax checks pass. Actual generation, walkthrough
+   observation and browser loading follow from a clean candidate commit.
 
-1. **Historical event exploration — verified.** Pinning an event keeps
-   the selected timeline turn. Deliberate Go actions seek using the existing
-   event clock. Resolved recorded causes/consequences and known actors become
-   navigable without inventing relationships or revealing future observations.
-   Worker component commit `80a5eb26` is integrated as `f3be89b0`. The combined
-   viewer passed 759 tests, lint and production build. Production Chromium QA
-   loaded an actual native bundle and passed six navigation/data/mobile checks,
-   with no console/page errors. The harness waits for responsive charts to
-   finish resizing before checking mobile overflow; no layout change was needed.
-2. **Unknown granary targets — verified.** A target needs demand
-   observations even when stored grain is known. Incomplete aggregate targets
-   must be gaps/Not observed rather than zero or a partial sum. Measured zero
-   remains zero; existing bundle formats and exports stay unchanged.
-3. **Actual run/save/resume path — verified.** An actual 12-turn hybrid
-   simulation with granaries resumed from turn four with seven byte-identical
-   artifacts; decoded bundles differed only in generation timestamp. Its bundle
-   also passed the production browser checks above. At clean `2f2e59eb`, live
-   browser QA passed 20/20 checks separately in hybrid/native and aggregate with
-   no native package: launch, save to disk, fork hint, quit, resume with matching
-   history/metrics, stale/missing-token refusal, continue to turn ten and quit.
-   All four processes exited normally. No product defect was found in this path.
-4. **Held simulation work — assessed, preserved.** Debt-holder fixes, arc event
-   reuse, native tick indexing and region partitions are already represented;
-   do not bulk-merge their old branches. The shipment negative never observed a
-   pending order and therefore never reached restore assertions. Its economic
-   gate values were not retained; changing the case or policy would be speculation.
-   Shipment/diagnostic and merchant-tax experiments remain separate.
-5. **Opt-in shortage-first granary procurement — integrated and smoke-tested.** The
-   current reserve-fill ordering can spend a scarce coin refilling a fed region
-   while another region is underfed. Register an existing-tuning opt-in,
-   `grain_reserves.shortfall_priority`, default zero. Enabled ordering promotes
-   known current shortages, retaining sourcing passes, ledger rules and ties.
-   Acceptance: the same coin buys eight units; the hungry destination receives
-   7.6 after transit, then can release six next turn for food sufficiency 0.6,
-   versus 0.2 under current allocation. Default/off outputs and RNG must remain
-   unchanged. Worker commit `af782dee` is integrated as `62866079`. On that source,
-   105 focused Python/native tests passed without skips, and 101 guarded offline
-   tests passed with two explicitly native tests deselected. The actual native
-   60-turn `hybrid_s42` case with resource accounting, receipt capture and this
-   tuning option passed 45 plain/checkpoint comparisons and 33 turn-30 resume
-   comparisons, zero differences. The exact checkpoint and all three final
-   worlds retain the enabled key. The unchanged compiled native inputs were
-   verified against their `32ac5879` build. The allocation fixture proves the
-   scarce-budget effect; the native smoke proves wiring/accounting/continuation,
-   not that this procedural run encountered competing purchase destinations.
-   Scientific/balance qualification remains unrun and the option stays off.
-6. **Plain-language viewer guidance — verified.** Replaced visible shell
-   scaffolding copy with useful selected-turn/history/selection guidance, keeping
-   existing controls and data semantics. Worker `43339a0e` is integrated as
-   `56688c1f`. The final combined viewer passed all 759 tests, lint, build and
-   seven production Chromium checks (navigation, unknown data, mobile layout and
-   the guidance), with no browser errors. No additional implementation is planned
-   for this queue; held experiments and scientific promotion remain separate.
+## Working session and evidence
 
-Working-session evidence is outside the repository at
-`/workspace/shared/chronicler-development-evidence`: baseline identity,
-`viewer-milestone1-{tests,lint,build}.log`, native walkthrough outputs and
-`browser-mobile-settled/report.json` plus screenshots. Two earlier browser
-harness attempts are retained: an actor locator assumed a heading and an
-overflow check ran before asynchronous chart resizing finished. Neither exposed
-a product defect; the final harness checks the actual actor field and settled UI.
-
-Live reports/screenshots are in `live-{hybrid,aggregate}-2f2e59eb`; the optional
-policy's actual-native identity report is
-`shortfall-native-identity-62866079/identity-receipt.json`. Final viewer logs are
-`viewer-final-{tests,lint,build}.log`, with report/screenshots in
-`browser-final-56688c1f`. The new native 60-turn bundle also passed five browser
-checks at `f371e6fa`: final-turn loading and observed stocks/targets, purchase and
-release rows at snapshots 6, 10 and 60 matched the saved records, with no browser
-errors. Evidence is in `browser-shortfall-native-f371e6fa`; this establishes
-correct display of recorded observations, not a policy-effect witness.
-
-## Final qualification and closure
-
-Code source `f371e6fa9ae2330331248a5c1010d01659462d34` was pushed and passed all
-nine jobs in [CI 41324808468](https://github.com/YotsuBotfds/Chronicler/actions/runs/41324808468),
-attempt one: fresh current-source native wheel build, both full native shards,
-their aggregate and barrier, full no-Rust Python, guarded offline chunks, Rust,
-and viewer tests/lint/build. Logs and status receipts are in
-`ci-41324808468`. Native passed 9,216 parents with six registered skips and 623
-subtests; no-Rust passed 8,853 with 355 skips and 623 subtests. Offline passed
-all 43 chunks (5,416 passed, 65 skipped). Rust passed 1,178 with two ignores;
-viewer passed 759, lint and build. CI built native source `f371e6fa` on CPython
-3.13.17 with Rust 1.99.1; the local matching-input build above remains distinct.
-Copying raw CI artifacts into this workspace was refused by
-artifact storage; job logs/status remain available and the in-runner audits
-passed. CI wheel/native hashes and exact import path were not printed in logs
-and have not been independently read from the blocked receipt archive; the
-artifact ZIP digest is not a wheel digest. No bypass or rerun was attempted.
-CI's clean runners do not verify
-restoration of the deferred reusable cloud configuration.
-
-The complete `playable-checkpoint-f371e6fa.bundle` includes the integration and
-three owned worker refs. SHA-256 is
-`1159095338befed7d6888f06aecc23c24b02b58de401f11e55d47308483dc96d`;
-bundle verification and a clean exact-commit trial restoration passed. Closing
-commits after `f371e6fa` contain documentation only; a final bundle/hash/restore
-receipt is retained alongside `CHECKPOINT-f371e6fa.json` outside the repository.
-
-All planned implementation in this queue is complete. Held shipment/merchant-tax
-experiments, scientific/balance campaigns and environment publication remain
-explicitly deferred; none is a prerequisite for using this dev build. Main is
-still `cb9fe70c81658fb65c6f511b821447f1d7b55b54`; Python/Node/Rust dependency
-locks and native source are unchanged from the qualified baseline. Generated
-files remain ignored under `output/`, `.pytest_cache/`, Python `__pycache__/`,
-`viewer/node_modules/` and `viewer/dist/`, with evidence and owned worktrees in
-`/workspace`. The owned preview and all local test/simulation processes stopped.
-No merge, deployment, new external credentials or paid narration/API call ran.
-
-## Working-session commands
-
-Run from `/workspace/Chronicler-kimi`. The existing runtime file activates tools;
-it does not install, rebuild or publish configuration. Its build provenance is
-`32ac5879`; native reuse above is justified by identical native inputs, not by
-assuming its recorded source commit tracks later Python/viewer changes.
+Python 3.13.5, official Rust 1.99.1, Node 20.19.0 and system Chromium work here.
+Reusable cloud configuration publication/restoration remains deferred and unverified.
+Activate existing tools without invoking installer/startup:
 
 ```bash
 source /workspace/shared/chronicler-onboarding/runtime-6da9acae6bda6d7a.env
 export PYTHONPATH="$PWD/src"
-"$CHRONICLER_NATIVE_ENV/bin/python" -m pytest -q tests/test_grain_reserves.py tests/test_public_purchase_receipts.py tests/test_public_purchase_receipts_native.py tests/test_tuning.py
-cd viewer
-npm test -- --run
-npm run lint
-npm run build
-npm run preview -- --host 127.0.0.1 --port 4173 --strictPort
 ```
 
-For actual-native identity, from the repository root run
-`python scripts/checkpoint_identity.py run OUT --case hybrid_s42 --ks 30 --jobs 1 --keep --cli-arg=--grain-reserves --cli-arg=--transaction-receipts --cli-arg=--tuning --cli-arg=YAML`
-with native Python, `CHRONICLER_CHECK_RESOURCES=1`, `OMP_NUM_THREADS=1` and
-`OPENBLAS_NUM_THREADS=1`. The script pins hash/Rayon settings. Use fresh external
-output paths. Live browser QA is `viewer/scripts/qa-live-checkpoint.mjs` with
-`--python PYTHON --viewer http://127.0.0.1:4173 --out OUT --agents hybrid --chromium /usr/bin/chromium`;
-set `NODE_PATH=/workspace/shared/chronicler-browser/node_modules`. Use the
-no-native interpreter and `--agents off` for the distinct aggregate lane.
+The native extension is a real `cpython-313-x86_64-linux-gnu` module exposing all
+three simulator classes. Its `32ac5879` native build inputs remain identical at
+`061594a0` (Rust tree `edb263686adb7ea5e23864146a5f7d0c5a163da4`), binary SHA-256
+`f6f78b0c63efcf5fd09e310d6901c460711e667f09e57d3e348df00ca57cab29`.
+This is explicit same-input reuse, not a claim of a fresh build at a later commit.
+Native source changes require an isolated matching build; never replace the shared
+extension while tests run. Each worker sets PYTHONPATH to its selected worktree.
 
-## Continuation rules
+New evidence is external at `/workspace/shared/chronicler-next-development-evidence`.
+Combined source at root `828e3c72` plus the recorded UI working diff passed **861
+viewer tests**, lint and production build, plus **164 Python/native tests without
+skips**. `browser-load-history/final828` passes old/new/error/recovery/repetition,
+exact metrics, all 46 civilization/nine regional event links, target retention and
+mobile layout; `browser-completed-comparison/report.json` passes four cases with
+actual completed 12/60-turn bundles, exports, null tails and source arithmetic.
+No browser console/page errors. First real product failures and separate external
+locator/float-precision harness negatives remain retained. Native input/binary
+provenance is `baseline.json`; shipment and preregistered evaluation receipts have
+their own directories. These are functional checks, not scientific qualification.
+A complete bundle plus working patch/untracked source archive was SHA-256 checked
+and restored byte-for-byte under `checkpoints/loader-history-integration`.
+Current-source hosted CI and final clean backup remain before closeout.
 
-Keep this one concise tracker current after integration. Use isolated worker
-branches with explicit ownership. Finish each milestone with focused checks,
-actual UI where applicable, integration review, a commit and a verified dev push.
-Preserve unfinished work through a bundle/hash/trial-restore checkpoint before
-context or quota runs tight. No main merge, destructive cleanup, deployment,
-new credentials, paid API/narration, automatic full startup suites or optional
-default promotion. Ask only for a genuinely blocking product/permission choice.
+## Integration and continuation
+
+Root owns integration, this tracker, turn comparison and final examples. Loader,
+shipment and evaluation workers have separate branches/worktrees and file ownership.
+No overlapping writers or recursive review chains. Inspect each commit, integrate
+selectively, qualify combined source, commit and push the dev branch, verify remote.
+Preserve unfinished source via complete bundle/SHA-256/clean trial restoration
+before context or quota runs tight. Keep generated runs and private logs untracked.
+
+Next action: freeze a clean candidate, generate the three examples and verify
+copyable commands plus actual viewer walk; finish shipment browser QA; push and
+run exact-source CI once, then close this queue with final backup/handoff.
+No user decision is currently blocking progress.

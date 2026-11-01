@@ -1,6 +1,7 @@
 /** Descriptive completed-run comparisons, using exact recorded snapshots only. */
 import type { Bundle, CivSnapshot, TurnSnapshot } from "../types";
 import type { ArtifactIdentity } from "./artifactIdentity";
+import { enabledSavedSystems } from "./savedWorldSummary";
 
 export interface CompletedRun { bundle: Bundle; identity: ArtifactIdentity | null; label: string }
 export const RUN_METRICS = [
@@ -132,9 +133,11 @@ export function completedRunIdentity(run: CompletedRun) {
     seed: finite(metadata.seed), horizon: finite(metadata.total_turns), bundleVersion: finite(metadata.bundle_version),
     firstSnapshot: valid[0] ?? null, lastSnapshot: valid.at(-1) ?? null,
     snapshots: valid.length, ambiguousTurns: [...turns.values()].filter((row) => row === null).length,
-    agentMode: typeof world.agent_mode === "string" ? world.agent_mode : null,
+    agentMode: Object.hasOwn(world, "agent_mode") && (world.agent_mode === null || world.agent_mode === "off") ? "off (aggregate)"
+      : typeof world.agent_mode === "string" ? world.agent_mode : null,
     source: Object.keys(source).length ? source : null,
     settings: { scenario: metadata.scenario_name ?? null, configuration, finalSettings,
+      enabledFinalSystems: enabledSavedSystems(world),
       models: { simulation: metadata.sim_model ?? null, narration: metadata.narrative_model ?? null,
         narratorMode: metadata.narrator_mode ?? null },
       geography: run.bundle.world_state.geography?.generator ?? null,

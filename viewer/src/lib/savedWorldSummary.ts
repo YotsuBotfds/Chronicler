@@ -14,6 +14,20 @@ const STATE_SWITCHES = ["finance", "diplomacy", "techniques", "maritime", "gp_ag
   "cities", "agent_movements", "guilds", "scholarship", "grain_reserves", "epidemics", "domestic_credit",
   "health_care", "harvest_forecasts", "ritual_gatherings", "scientific_claims", "transaction_receipts"];
 
+/** Recorded final configuration only; absence is not evidence a switch was off. */
+export function enabledSavedSystems(world: Record<string, unknown>): string[] {
+  const enabled = STATE_SWITCHES.filter((key) => isRecord(world[key])).map((key) => SYSTEMS[key]);
+  if (world.campaigns_enabled === true) enabled.push("Campaigns");
+  if (world.mutual_aid_enabled === true) enabled.push("Mutual aid");
+  if (isRecord(world.governance) && world.governance.enabled === true) enabled.push("Governance");
+  if (isRecord(world.contact_ledger)) enabled.push("Contact ledger");
+  if (world.community_anchoring === true) enabled.push("Community anchoring");
+  if (world.capacity_aware_refugees === true) enabled.push("Capacity-aware refugees");
+  if (isRecord(world.grain_reserves) && isRecord(world.grain_reserves.shipments)
+    && world.grain_reserves.shipments.accept_orders === true) enabled.push("Public grain shipments");
+  return enabled;
+}
+
 export function savedWorldSummary(bundle: Bundle) {
   const world = bundle.world_state as unknown as Record<string, unknown>;
   const mode = Object.hasOwn(world, "agent_mode")
@@ -31,13 +45,7 @@ export function savedWorldSummary(bundle: Bundle) {
       if (isRecord(row[key])) recorded.add(SYSTEMS[key]);
     }
     if (Object.values(snapshot.civ_stats).some((civ) => civ.governance)) recorded.add("Governance");
+    if (isRecord(row.grain_reserves) && isRecord(row.grain_reserves.shipments)) recorded.add("Public grain shipments");
   }
-  const enabled = STATE_SWITCHES.filter((key) => isRecord(world[key])).map((key) => SYSTEMS[key]);
-  if (world.campaigns_enabled === true) enabled.push("Campaigns");
-  if (world.mutual_aid_enabled === true) enabled.push("Mutual aid");
-  if (isRecord(world.governance) && world.governance.enabled === true) enabled.push("Governance");
-  if (isRecord(world.contact_ledger)) enabled.push("Contact ledger");
-  if (world.community_anchoring === true) enabled.push("Community anchoring");
-  if (world.capacity_aware_refugees === true) enabled.push("Capacity-aware refugees");
-  return { mode, first, last, enabled, recorded: [...recorded], snapshots: bundle.history.length };
+  return { mode, first, last, enabled: enabledSavedSystems(world), recorded: [...recorded], snapshots: bundle.history.length };
 }

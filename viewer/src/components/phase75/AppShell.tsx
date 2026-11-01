@@ -616,6 +616,7 @@ export function AppShell({
     batch: true,
   });
   const [showCompareOverlay, setShowCompareOverlay] = useState(false);
+  const [compareMode, setCompareMode] = useState<"runs" | "batch">("runs");
   const [historyOpen, setHistoryOpen] = useState(false);
   const [batchSelectionPath, setBatchSelectionPath] = useState<string | null>(null);
 
@@ -1021,6 +1022,7 @@ export function AppShell({
         serverState={serverState}
         viewerReady={viewerReady}
         onOpenBundle={() => openBundleRef.current?.click()}
+        onCompare={() => { setCompareMode("runs"); setShowCompareOverlay(true); }}
       />
 
       {error && <div className="phase75-error-banner saved-world-message" role="alert">
@@ -1067,15 +1069,17 @@ export function AppShell({
 
       {bundle && !isLive && surface !== "setup" && surface !== "progress" && surface !== "batch" && (
         <details className="region-history-disclosure" onToggle={(event) => setHistoryOpen(event.currentTarget.open)}>
-          <summary>Inspect region history</summary>
+          <summary>Compare turns and inspect history</summary>
           {historyOpen && <Suspense fallback={<PanelLoading label="the region history inspector" />}>
             <RegionHistoryInspector
               key={`${artifactIdentity?.sha256 ?? artifactIdentity?.name ?? "live"}:${bundle.metadata.seed}:${bundle.metadata.generated_at}:${bundle.world_state.name}`}
               bundle={bundle}
               artifactIdentity={artifactIdentity}
               selectedRegion={selectedRegion?.name}
+              selectedCivilization={selectedCivilization?.name}
               currentTurn={currentTurn}
               onSeek={onSeek}
+              onSelectEvent={selectEvent}
             />
           </Suspense>}
         </details>
@@ -1204,7 +1208,7 @@ export function AppShell({
           batchState={batchState}
           batchProgress={batchProgress}
           onOpenBatchResult={onOpenBatchResult}
-          onShowCompare={() => setShowCompareOverlay(true)}
+          onShowCompare={() => { setCompareMode("batch"); setShowCompareOverlay(true); }}
           viewerReady={viewerReady}
           liveState={{
             isLive,
@@ -1251,11 +1255,11 @@ export function AppShell({
 
       {showCompareOverlay && (
         <div className="phase75-modal-backdrop" onClick={() => setShowCompareOverlay(false)}>
-          <div className="phase75-modal-card" onClick={(event) => event.stopPropagation()}>
+          <div className="phase75-modal-card" role="dialog" aria-modal="true" aria-label="Compare saved runs and reports" onClick={(event) => event.stopPropagation()}>
             <div className="phase75-modal-header">
               <div>
-                <div className="phase75-overline">Batch Compare</div>
-                <h2>Compare batch reports</h2>
+                <div className="phase75-overline">Compare saved outputs</div>
+                <h2>Compare runs or batch reports</h2>
               </div>
               <button className="phase75-ghost-button" onClick={() => setShowCompareOverlay(false)}>
                 Close
@@ -1263,7 +1267,9 @@ export function AppShell({
             </div>
             <div className="phase75-modal-content">
               <Suspense fallback={<PanelLoading label="the report comparison" />}>
-                <BatchCompare initialRight={batchReport} />
+                <BatchCompare initialRight={batchReport} initialMode={compareMode}
+                  initialBundle={!isLive || serverState === "completed" ? bundle : null}
+                  initialIdentity={!isLive ? artifactIdentity : null} />
               </Suspense>
             </div>
           </div>
@@ -1299,6 +1305,7 @@ function TopHeader({
   serverState,
   viewerReady,
   onOpenBundle,
+  onCompare,
 }: {
   surface: AppSurface;
   worldName: string;
@@ -1312,6 +1319,7 @@ function TopHeader({
   serverState: "connecting" | "lobby" | "starting" | "running" | "completed";
   viewerReady: boolean;
   onOpenBundle: () => void;
+  onCompare: () => void;
 }) {
   const statusLabel = liveReconnecting
     ? "Reconnecting"
@@ -1356,6 +1364,7 @@ function TopHeader({
           </span>
         </div>
         <div className="phase75-status-badge">{statusLabel}</div>
+        <button type="button" className="phase75-ghost-button" onClick={onCompare}>Compare saved runs</button>
         <button className="phase75-primary-button phase75-open-bundle" onClick={onOpenBundle}>
           Open Existing
         </button>

@@ -190,7 +190,7 @@ async function drive(browser, url, bundle, total, turns, subset) {
   }
 
   await click(page.getByRole("button", { name: "Overview", exact: true }));
-  await click(page.getByText("Inspect region history", { exact: true }));
+  await click(page.getByText("Compare turns and inspect history", { exact: true }));
   for (const turn of subset) await capture("region-history", turn);
 
   const decoded = await page.evaluate(() => performance.getEntriesByName("chronicler:bundle-decoded").length > 0);

@@ -73,6 +73,15 @@ describe("completed-run exact metrics", () => {
 });
 
 describe("comparison provenance and exports", () => {
+  it("distinguishes explicitly aggregate mode from missing provenance and records enabled systems", () => {
+    const bundle = comparisonBundle();
+    Object.assign(bundle.world_state, { agent_mode: null, grain_reserves: { shipments: { accept_orders: true } } });
+    const identity = completedRunIdentity(input(bundle));
+    expect(identity.agentMode).toBe("off (aggregate)");
+    expect(identity.settings.enabledFinalSystems).toEqual(expect.arrayContaining(["Public granaries", "Public grain shipments"]));
+    delete (bundle.world_state as unknown as Record<string, unknown>).agent_mode;
+    expect(completedRunIdentity(input(bundle)).agentMode).toBeNull();
+  });
   it("warns for differing seed, horizon, mode, settings and source without assuming equal seeds control anything", () => {
     const a = comparisonBundle([1]), b = comparisonBundle([1, 2]);
     Object.assign(a.world_state, { agent_mode: "hybrid", tuning_overrides: {} });
