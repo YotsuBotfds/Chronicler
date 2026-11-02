@@ -13,7 +13,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import type { Bundle, Event, TurnSnapshot } from "../../types";
 import { buildEventFeed, eventProvenance, terrainAt } from "../../components/phase75/appShellHelpers";
 import {
-  actorEventsUpTo, eventByKey, eventKey, eventsOfType, eventsUpTo, typedEventsUpTo,
+  actorEventsUpTo, eventByKey, eventKey, eventKeyCount, eventsOfType, eventsUpTo, typedEventsUpTo,
 } from "../bundleIndex";
 import { decodeBundlePayload } from "../bundleCodec";
 import { massMigrations } from "../food";
@@ -327,6 +327,19 @@ describe("index invalidation", () => {
       expect(eventByKey(events, eventKey(events[events.length - 1] ?? all[0]))).toBe(
         events.length ? events.find((event) => eventKey(event) === eventKey(events[events.length - 1])) : null);
     }
+  });
+
+  it("keeps pin-key ambiguity exact across duplicates, appends and replacement timelines", () => {
+    const events = syntheticEvents(12, 60);
+    const key = eventKey(events[0]);
+    expect(eventKeyCount(events, key)).toBe(events.filter((event) => eventKey(event) === key).length);
+    events.push({ ...events[0], description: "Same selection key, distinct report" });
+    expect(eventKeyCount(events, key)).toBe(events.filter((event) => eventKey(event) === key).length);
+    const replacement = [{ ...events[0] }];
+    expect(eventKeyCount(replacement, key)).toBe(1);
+    expect(eventKeyCount(replacement, "missing")).toBe(0);
+    const legacy = [{ ...events[0], event_id: undefined }, { ...events[0], event_id: "" }];
+    expect(eventKeyCount(legacy, eventKey(legacy[0]))).toBe(2);
   });
 
   it("indexes an array again when its length changed in place", () => {

@@ -1,6 +1,6 @@
 /** Exact recorded endpoints only: never borrow a later/final world value. */
 import type { Bundle, Event, TurnSnapshot } from "../types";
-import { eventKey } from "./bundleIndex";
+import { eventKey, eventKeyCount } from "./bundleIndex";
 import { populationWeightedFood, readRegionalPopulation, weightedFoodNote } from "./regionalPopulation";
 
 export interface HistoryEntity { kind: "civilization" | "region"; name: string }
@@ -145,8 +145,6 @@ export function changeEventSnapshotTurn(event: Pick<Event, "turn">): number { re
 
 /** Only explicit timeline attribution; proximity is not causation. Window (from, to]. */
 export function changeEvents(bundle: Bundle, entity: HistoryEntity, from: number, to: number, through: number): ChangeEvent[] {
-  const keyCounts = new Map<string, number>();
-  for (const event of bundle.events_timeline) keyCounts.set(eventKey(event), (keyCounts.get(eventKey(event)) ?? 0) + 1);
   const seen = new Set<string>();
   return bundle.events_timeline.flatMap((event) => {
     const visibleTurn = changeEventSnapshotTurn(event);
@@ -155,6 +153,6 @@ export function changeEvents(bundle: Bundle, entity: HistoryEntity, from: number
     const identity = event.event_id ?? JSON.stringify([event.turn, event.event_type, event.region, event.actors, event.description]);
     if (seen.has(identity)) return [];
     seen.add(identity);
-    return [{ event, visibleTurn, canPin: keyCounts.get(eventKey(event)) === 1 }];
+    return [{ event, visibleTurn, canPin: eventKeyCount(bundle.events_timeline, eventKey(event)) === 1 }];
   }).sort((a, b) => a.visibleTurn - b.visibleTurn);
 }

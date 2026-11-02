@@ -9,7 +9,8 @@ interface Props {
   onSeek: (turn: number) => void; onSelectEvent?: (event: Event) => void;
 }
 const key = (entity: HistoryEntity) => JSON.stringify([entity.kind, entity.name]);
-const format = (value: number | null) => value === null ? "Not recorded" : value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+const numbers = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
+const format = (value: number | null) => value === null ? "Not recorded" : numbers.format(value);
 const signed = (value: number | null) => value === null ? "Unavailable" : `${value > 0 ? "+" : ""}${format(value)}`;
 
 function RecordedEvents({ rows, onSeek, onSelectEvent }: {

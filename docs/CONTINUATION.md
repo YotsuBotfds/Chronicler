@@ -1,3 +1,14 @@
+# 2026-11-02 — measured history interaction work
+
+A separate viewer performance slice reuses the What changed number formatter
+and caches event-key collision counts in the existing array index. Clean actual
+integrated-app Chromium measurements show lower history-scrub script work
+(22.15 → 16.60 ms medians), with no frame-time or general viewer speedup claim.
+A memo candidate failed measurement and was discarded. Real/older rendered DOM
+is equivalent; affected checks pass. See [measurements, sources and limits](performance/viewer-history-2026-11-02.md).
+
+---
+
 # 2026-11-02 — regional laboratory viewer and inspection prompts
 
 Additive schema-1 regional observations keep completed model and native counts
