@@ -13,6 +13,7 @@ from __future__ import annotations
 from pydantic import BaseModel, Field, PrivateAttr
 
 from chronicler.public_grain_shipments_state import PublicGrainShipmentState
+from chronicler.grain_storage_state import GrainStorageState
 
 
 def _is_none(value):
@@ -83,6 +84,7 @@ class GrainReserveState(BaseModel):
     counters: dict[str, float] = Field(default_factory=lambda: {k: 0.0 for k in COUNTER_KEYS})
     # None stays omitted for never-enabled old JSON. Paid cargo survives disabling.
     shipments: PublicGrainShipmentState | None = Field(default=None, exclude_if=_is_none)
+    storage: GrainStorageState | None = Field(default=None, exclude_if=_is_none)
     # The turn's resource ledger (``grain_reserves.ReserveLedger``) from the
     # Phase 2 tick to the end of the Phase 10 tick; None between turns.
     _ledger: object | None = PrivateAttr(default=None)
@@ -91,6 +93,7 @@ class GrainReserveState(BaseModel):
         super().__setstate__(state)
         # Exact pickle restoration bypasses Pydantic defaults.
         self.__dict__.setdefault("shipments", None)
+        self.__dict__.setdefault("storage", None)
 
 
 def grain_reserves_on(world) -> bool:
