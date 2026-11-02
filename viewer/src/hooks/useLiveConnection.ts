@@ -102,7 +102,7 @@ export function useLiveConnection(wsUrl: string, token: string | null = null): L
   }, []);
   const prepareWhatIf = useCallback((civ: string, value: number, turns: number) => {
     if (whatIfActive(whatIfRef.current) || wsRef.current?.readyState !== WebSocket.OPEN) return;
-    if (!civ || /[\r\n\x00]/.test(civ) || !Number.isInteger(value) || value < 1 || value > 100 || !validWhatIfHorizon(turns)) return;
+    if (!civ || /[\r\n]/.test(civ) || civ.includes("\0") || !Number.isInteger(value) || value < 1 || value > 100 || !validWhatIfHorizon(turns)) return;
     const request_id = crypto.randomUUID();
     publishWhatIf({ request_id, state: "preparing" });
     wsRef.current.send(JSON.stringify({ type: "what_if_prepare", request_id, civ, value, turns }));
@@ -318,7 +318,8 @@ export function useLiveConnection(wsUrl: string, token: string | null = null): L
             const state = msg.state === "complete" ? "completed" : msg.state;
             if (!["prepared", "running", "completed", "cancelled", "error"].includes(state)) break;
             const manifest = readWhatIfManifest(msg.manifest) ?? undefined;
-            if ((state === "prepared" || state === "running") && !manifest) {
+            if ((state === "prepared" || state === "running") && !manifest
+              || manifest && manifest.request_id !== msg.request_id) {
               publishWhatIf({ request_id: msg.request_id, state: "error", message: "Server returned an incompatible comparison manifest." });
               break;
             }

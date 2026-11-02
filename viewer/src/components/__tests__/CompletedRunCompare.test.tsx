@@ -7,6 +7,7 @@ import { BatchCompare } from "../BatchCompare";
 import { comparisonBundle } from "../../__fixtures__/completedRunHistory";
 import manifest from "../../__fixtures__/bundle_v2/small/manifest.json";
 import type { BatchReport } from "../../types";
+import { recipeManifest, whatIfPair } from "../../__fixtures__/whatIf";
 
 // The data/clock/gap contracts are tested in the library suite. Avoid jsdom layout warnings.
 vi.mock("recharts", () => ({
@@ -142,4 +143,45 @@ it("opens an exact pair through the existing comparison and shares its full prov
   upload("left", "replacement.json", comparisonBundle());
   await screen.findByText("replacement.json");
   expect(screen.queryByLabelText("What-if provenance")).not.toBeInTheDocument();
+});
+
+it("exports only portable provenance/settings and labels a global policy pair without claiming stability", async () => {
+  const manifest = { ...recipeManifest(), schema_version: 2 as const,
+    intervention: { command: "set" as const, civ: "@world" as const, stat: "grain_reserves.shortfall_priority" as const,
+      scope: "world" as const, before: 0 as const, value: 1 as const } };
+  const pair = { ...whatIfPair, manifest,
+    baseline: { ...whatIfPair.baseline, bundle: comparisonBundle(), label: "Unchanged continuation" },
+    intervention: { ...whatIfPair.intervention, bundle: comparisonBundle(), label: "Global granary priority intervention" } };
+  for (const [arm, run] of [["baseline", pair.baseline], ["intervention", pair.intervention]] as const) {
+    (run.bundle.metadata as unknown as Record<string, unknown>).what_if = { ...manifest, arm };
+  }
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+  const makeUrl = vi.fn<(blob: Blob) => string>(() => "blob:portable-summary");
+  Object.defineProperty(URL, "createObjectURL", { configurable: true, writable: true, value: makeUrl });
+  Object.defineProperty(URL, "revokeObjectURL", { configurable: true, writable: true, value: vi.fn() });
+  vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+  render(<CompletedRunCompare initialPair={pair} />);
+  const scrollRegion = screen.getByRole("region", { name: "Scrollable run metrics" });
+  scrollRegion.focus();
+  expect(scrollRegion).toHaveFocus();
+  expect(screen.getByLabelText("What-if provenance")).toHaveTextContent("World granary priority");
+  expect(screen.getByLabelText("What-if provenance")).not.toHaveTextContent("stability");
+  fireEvent.click(screen.getByRole("button", { name: "Copy Markdown" }));
+  await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+  const markdown = writeText.mock.calls[0][0] as string;
+  expect(markdown).toContain('"schema_version": 2');
+  expect(markdown).toContain("grain_reserves.shortfall_priority");
+  expect(markdown).not.toContain("PRIVATE_TOKEN");
+  expect(markdown).not.toContain("/private/");
+  fireEvent.click(screen.getByRole("button", { name: "Download JSON" }));
+  const blob = makeUrl.mock.calls[0][0] as unknown as Blob;
+  const json = await new Promise<string>((resolve) => {
+    const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(blob);
+  });
+  expect(json).not.toContain("PRIVATE_TOKEN");
+  expect(json).not.toContain("/private/");
+  expect(JSON.parse(json).what_if.intervention.scope).toBe("world");
+  expect(JSON.parse(json).inputs.left.settings.configuration.scenario).toBe("world.yaml");
+  expect(screen.getByLabelText("What-if provenance")).toBeVisible();
 });

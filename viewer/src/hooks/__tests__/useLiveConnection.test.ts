@@ -639,7 +639,7 @@ it("prepares the exact global policy request once and retains schema-two results
   (bundle.world_state as unknown as Record<string, unknown>).agent_mode = "hybrid";
   (bundle.world_state as unknown as Record<string, unknown>).grain_reserves = { granaries: [] };
   const { result } = renderHook(() => useLiveConnection("ws://localhost:8765"));
-  await vi.advanceTimersByTimeAsync(10);
+  await act(async () => vi.advanceTimersByTimeAsync(10));
   const ws = MockWebSocket.instances[0];
   act(() => result.current.whatIf.preparePolicy(1, 3));
   expect(ws.sent).toHaveLength(0);

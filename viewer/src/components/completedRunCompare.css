@@ -1,6 +1,6 @@
 .run-compare-modes { display: flex; gap: .5rem; margin-bottom: 1rem; }
 .run-compare-modes button, .completed-compare button, .completed-compare-load, .completed-compare select {
-  border: 1px solid #60635e; border-radius: 5px; padding: .4rem .65rem; color: #ecece8; background: #242724; cursor: pointer;
+  border: 1px solid #60635e; border-radius: 5px; padding: .4rem .65rem; color: #ecece8; background: #242724; cursor: pointer; min-height: 44px;
 }
 .run-compare-modes [aria-pressed="true"] { border-color: #a6c8c9; color: #c1e1e3; }
 .completed-compare { color: #d7d8d2; font-size: .82rem; line-height: 1.5; overflow-y: auto; max-height: 100%; padding-bottom: 1rem; }
@@ -10,7 +10,7 @@
 .completed-compare-input, .completed-compare-trajectory, .completed-compare-endpoint { border: 1px solid #454943; border-radius: 6px; padding: .9rem; min-width: 0; }
 .completed-compare h3, .completed-compare h4 { font-weight: 600; color: #ecece8; }
 .completed-compare-heading { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .5rem; }
-.completed-compare-load { position: relative; overflow: hidden; }
+.completed-compare-load { position: relative; overflow: hidden; display: inline-flex; align-items: center; }
 .completed-compare-load input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
 .completed-compare-load:focus-within, .completed-compare button:focus-visible, .run-compare-modes button:focus-visible { outline: 2px solid #a6c8c9; outline-offset: 2px; }
 .completed-compare-identity dl { display: grid; grid-template-columns: minmax(7rem, 1fr) minmax(0, 2fr); gap: .3rem .7rem; margin: .7rem 0; }
@@ -26,6 +26,7 @@
 .completed-compare-trajectory { margin-bottom: 1rem; }
 .completed-compare-trajectory p { color: #a8afa4; font-size: .74rem; }
 .completed-compare-table-wrap { overflow-x: auto; }
+.completed-compare-table-wrap:focus-visible, .completed-compare select:focus-visible { outline: 2px solid #a6c8c9; outline-offset: 2px; }
 .completed-compare table { width: 100%; text-align: right; border-collapse: collapse; white-space: nowrap; }
 .completed-compare th, .completed-compare td { padding: .5rem .6rem; border-bottom: 1px solid #3b403a; }
 .completed-compare th:first-child { text-align: left; }

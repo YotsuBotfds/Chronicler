@@ -10,12 +10,51 @@ import {
 import "./completedRunCompare.css";
 
 import { EntityRunComparison } from "./EntityRunComparison";
-import { whatIfArmLabel, whatIfInterventionLabel, type WhatIfPair } from "../lib/whatIf";
+import { artifactBasename, portableRuntime, portableSettings, portableWhatIfManifest,
+  whatIfArmLabel, whatIfInterventionLabel, type WhatIfPair } from "../lib/whatIf";
 
 type Side = "left" | "right";
 interface Slot { run: CompletedRun | null; error: string | null; loading: boolean }
 const value = (number: number | null | undefined) => number == null ? "Not recorded"
   : number.toLocaleString(undefined, { maximumFractionDigits: 3 });
+
+/** Sharing keeps named settings and content identities, never arbitrary metadata. */
+function shareIdentity(input: ReturnType<typeof completedRunIdentity>): ReturnType<typeof completedRunIdentity> {
+  const word = (value: unknown) => typeof value === "string" && /^[A-Za-z0-9_.+-]{1,120}$/.test(value) ? value : null;
+  const modes = ["off", "off (aggregate)", "hybrid", "shadow", "demographics-only"];
+  const rawSource = input.source as Record<string, unknown> | null;
+  let source = portableRuntime(rawSource);
+  if (!source && rawSource) {
+    source = {};
+    for (const key of ["source_commit", "source_revision", "git_commit", "native_sha256"]) {
+      const item = rawSource[key];
+      if (typeof item === "string" && /^[a-f0-9]{40,64}$/.test(item)) source[key] = item;
+    }
+    const nested = rawSource.source;
+    if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+      const known = nested as Record<string, unknown>;
+      source.source = Object.fromEntries(Object.entries(known).filter(([key, item]) =>
+        ["git_sha", "package_digest"].includes(key) && typeof item === "string" && /^[a-f0-9]{40,64}$/.test(item)));
+    }
+    if (!Object.keys(source).length) source = null;
+  }
+  const final = input.settings.finalSettings;
+  const safeFinal = { ...portableSettings({ tuning_overrides: final.tuning_overrides }),
+    ...(modes.includes(final.agent_mode as string) ? { agent_mode: final.agent_mode } : {}),
+    ...(typeof final.chaos_multiplier === "number" && Number.isFinite(final.chaos_multiplier)
+      ? { chaos_multiplier: final.chaos_multiplier } : {}) };
+  return { ...input, label: artifactBasename(input.label) ?? "Run", world: artifactBasename(input.world) ?? "Not recorded",
+    agentMode: modes.includes(input.agentMode ?? "") ? input.agentMode : null, source,
+    file: input.file ? { name: artifactBasename(input.file.name) ?? "bundle.json", byteLength: input.file.byteLength,
+      sha256: input.file.sha256 && /^[a-f0-9]{64}$/.test(input.file.sha256) ? input.file.sha256 : null } : null,
+    settings: { ...input.settings, scenario: artifactBasename(input.settings.scenario),
+      configuration: input.settings.configuration ? portableSettings(input.settings.configuration) : null,
+      finalSettings: safeFinal,
+      whatIf: input.settings.whatIf ? { ...portableWhatIfManifest(input.settings.whatIf), arm: input.settings.whatIf.arm } : null,
+      models: { simulation: word(input.settings.models.simulation), narration: word(input.settings.models.narration),
+        narratorMode: word(input.settings.models.narratorMode) },
+      geography: word(input.settings.geography) } };
+}
 
 export function CompletedRunCompare({ initialBundle, initialIdentity, initialPair }: {
   initialPair?: WhatIfPair | null;
@@ -44,11 +83,13 @@ export function CompletedRunCompare({ initialBundle, initialIdentity, initialPai
 
   const pairManifest = initialPair && left === initialPair.baseline && right === initialPair.intervention
     ? initialPair.manifest : null;
-  const shareSummary = summary && pairManifest ? { ...summary, what_if: pairManifest } : summary;
+  const safeSummary = summary ? { ...summary, inputs: { left: shareIdentity(summary.inputs.left), right: shareIdentity(summary.inputs.right) } } : null;
+  const safeManifest = pairManifest ? portableWhatIfManifest(pairManifest) : null;
+  const shareSummary = safeSummary && safeManifest ? { ...safeSummary, what_if: safeManifest } : safeSummary;
   function shareMarkdown() {
-    return summary ? comparisonMarkdown(summary) + (pairManifest
+    return safeSummary ? comparisonMarkdown(safeSummary) + (safeManifest
       ? "\n## Exact what-if provenance\n\nOne deterministic pair; no claim of general benefit. The override follows the starting snapshot.\n\n```json\n"
-        + JSON.stringify(pairManifest, null, 2) + "\n```\n" : "") : "";
+        + JSON.stringify(safeManifest, null, 2) + "\n```\n" : "") : "";
   }
 
   async function load(side: Side, file: File) {
@@ -143,7 +184,8 @@ export function CompletedRunCompare({ initialBundle, initialIdentity, initialPai
         <p>Weighted food left: {summary.weightedFoodCoverage.left}</p>
         <p>Weighted food right: {summary.weightedFoodCoverage.right}</p>
         {shared.length === 0 && <p>No unambiguous snapshot turn is shared. Cross-run differences stay unknown.</p>}
-        <div className="completed-compare-table-wrap"><table aria-label={`Run metrics at snapshot ${turn}`}>
+        <div className="completed-compare-table-wrap" role="region" aria-label="Scrollable run metrics" tabIndex={0}>
+          <table aria-label={`Run metrics at snapshot ${turn}`}>
           <thead><tr><th>Metric</th><th>Left</th><th>Right</th><th>Right − left</th><th>Observed snapshots: left / right</th></tr></thead>
           <tbody>{summary.metrics.map((metric) => <tr key={metric.key}>
             <th scope="row" title={metric.note}>{metric.label}</th><td>{value(metric.left)}</td><td>{value(metric.right)}</td>

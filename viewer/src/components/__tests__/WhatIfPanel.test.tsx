@@ -1,15 +1,18 @@
-import { afterEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+/// <reference types="node" />
+import { webcrypto } from "node:crypto";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { WhatIfPanel } from "../WhatIfPanel";
 import { InterventionPanel } from "../InterventionPanel";
-import type { WhatIfControls } from "../../lib/whatIf";
+import { createWhatIfRecipe, type WhatIfControls } from "../../lib/whatIf";
 import type { PauseContext } from "../../types";
-import { whatIfManifest, whatIfPair } from "../../__fixtures__/whatIf";
+import { recipeManifest, whatIfManifest, whatIfPair } from "../../__fixtures__/whatIf";
 import { comparisonBundle } from "../../__fixtures__/completedRunHistory";
 const context: PauseContext = { turn: 2, reason: "interval", civs: ["A", "B"],
   valid_commands: ["what_if_prepare", "checkpoint", "continue", "set", "fork", "quit"], injectable_events: ["famine"], settable_stats: ["stability"] };
 const controls = (): WhatIfControls => ({ status: null, connected: true, prepare: vi.fn(), preparePolicy: vi.fn(), run: vi.fn(), cancel: vi.fn() });
-afterEach(cleanup);
+beforeEach(() => vi.stubGlobal("crypto", webcrypto));
+afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 it("prepares only the named global binary policy, previews scope and preserves no-op controls", () => {
   const bundle = comparisonBundle();
   (bundle.world_state as unknown as Record<string, unknown>).agent_mode = "hybrid";
@@ -63,4 +66,101 @@ it("preserves failed-run explanation and exposes completed results through exist
   rerender(<WhatIfPanel context={context} controls={{ ...c, status: { request_id: "fixture-pair", state: "completed", manifest: whatIfManifest, pair: whatIfPair } }} onCompare={compare} />);
   fireEvent.click(screen.getByRole("button", { name: "Compare what-if results" }));
   expect(compare).toHaveBeenCalledWith(whatIfPair);
+});
+
+it("imports a recipe into the form without sending commands, then verifies preparation before explicit Run", async () => {
+  const manifest = recipeManifest(), recipe = await createWhatIfRecipe(manifest);
+  const bundle = comparisonBundle();
+  (bundle.world_state as unknown as Record<string, unknown>).agent_mode = "hybrid";
+  const c = { ...controls(), bundle };
+  const { rerender } = render(<WhatIfPanel context={context} controls={c} onCompare={vi.fn()} />);
+  const file = new File([JSON.stringify(recipe)], "plan.json");
+  fireEvent.change(screen.getByLabelText("Import what-if recipe"), { target: { files: [file] } });
+  expect(await screen.findByText(/Recipe loaded into the preparation form/)).toBeVisible();
+  expect(screen.getByLabelText("What-if stability")).toHaveValue(80);
+  expect(screen.getByLabelText("What-if horizon")).toHaveValue(3);
+  expect(c.prepare).not.toHaveBeenCalled();
+  expect(c.run).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Prepare comparison" }));
+  expect(c.prepare).toHaveBeenCalledExactlyOnceWith("A", 80, 3);
+  rerender(<WhatIfPanel context={context} controls={{ ...c, status: { request_id: "fixture-pair", state: "prepared", manifest } }} onCompare={vi.fn()} />);
+  await waitFor(() => expect(screen.getByRole("button", { name: "Run both continuations" })).toBeEnabled());
+  expect(c.run).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Run both continuations" }));
+  expect(c.run).toHaveBeenCalledOnce();
+});
+
+it("refuses a mismatched checkpoint identity and offers cancellation instead of silently running", async () => {
+  const manifest = recipeManifest(), recipe = await createWhatIfRecipe(manifest);
+  recipe.source.checkpoint.sha256 = "e".repeat(64);
+  const bundle = comparisonBundle();
+  (bundle.world_state as unknown as Record<string, unknown>).agent_mode = "hybrid";
+  const c = { ...controls(), bundle };
+  const { rerender } = render(<WhatIfPanel context={context} controls={c} onCompare={vi.fn()} />);
+  fireEvent.change(screen.getByLabelText("Import what-if recipe"), { target: { files: [new File([JSON.stringify(recipe)], "mismatch.json")] } });
+  await screen.findByText(/Recipe loaded into the preparation form/);
+  fireEvent.click(screen.getByRole("button", { name: "Prepare comparison" }));
+  rerender(<WhatIfPanel context={context} controls={{ ...c, status: { request_id: "fixture-pair", state: "prepared", manifest } }} onCompare={vi.fn()} />);
+  expect(await screen.findByRole("alert")).toHaveTextContent("identity differs");
+  expect(screen.getByRole("button", { name: "Run both continuations" })).toBeDisabled();
+  expect(c.run).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Cancel comparison" }));
+  expect(c.cancel).toHaveBeenCalledOnce();
+});
+
+it("rejects incompatible live recipes without replacing the current preparation form", async () => {
+  const recipe = await createWhatIfRecipe(recipeManifest());
+  recipe.source.seed = 7;
+  const bundle = comparisonBundle();
+  (bundle.world_state as unknown as Record<string, unknown>).agent_mode = "hybrid";
+  const c = { ...controls(), bundle };
+  render(<WhatIfPanel context={context} controls={c} onCompare={vi.fn()} />);
+  fireEvent.change(screen.getByLabelText("Import what-if recipe"), { target: { files: [new File([JSON.stringify(recipe)], "other-world.json")] } });
+  expect(await screen.findByRole("alert")).toHaveTextContent("seed, mode or starting turn differs");
+  expect(screen.getByLabelText("What-if stability")).toHaveValue(50);
+  expect(c.prepare).not.toHaveBeenCalled();
+});
+
+it("imports a global policy recipe and requires an explicit preparation without a civilization argument", async () => {
+  const manifest = { ...recipeManifest(), schema_version: 2 as const,
+    intervention: { command: "set" as const, civ: "@world" as const, stat: "grain_reserves.shortfall_priority" as const,
+      scope: "world" as const, before: 0 as const, value: 1 as const } };
+  const recipe = await createWhatIfRecipe(manifest);
+  const bundle = comparisonBundle();
+  const world = bundle.world_state as unknown as Record<string, unknown>;
+  world.agent_mode = "hybrid"; world.grain_reserves = { granaries: [] };
+  const c = { ...controls(), bundle };
+  render(<WhatIfPanel context={context} controls={c} onCompare={vi.fn()} />);
+  fireEvent.change(screen.getByLabelText("Import what-if recipe"), { target: { files: [new File([JSON.stringify(recipe)], "policy.json")] } });
+  await screen.findByText(/Recipe loaded into the preparation form/);
+  expect(screen.getByLabelText("What-if control")).toHaveValue("granary_shortfall_priority");
+  expect(screen.getByLabelText("What-if granary priority")).toHaveValue("1");
+  expect(c.preparePolicy).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Prepare comparison" }));
+  expect(c.preparePolicy).toHaveBeenCalledExactlyOnceWith(1, 3);
+  expect(c.prepare).not.toHaveBeenCalled();
+  expect(c.run).not.toHaveBeenCalled();
+});
+
+it("downloads a versioned recipe with reference output identities and no raw source headers", async () => {
+  const manifest = recipeManifest();
+  const pair = { ...whatIfPair, manifest };
+  const makeUrl = vi.fn<(blob: Blob) => string>(() => "blob:recipe");
+  Object.defineProperty(URL, "createObjectURL", { configurable: true, writable: true, value: makeUrl });
+  Object.defineProperty(URL, "revokeObjectURL", { configurable: true, writable: true, value: vi.fn() });
+  vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+  render(<WhatIfPanel context={context} controls={{ ...controls(), status: {
+    request_id: "fixture-pair", state: "completed", manifest, pair,
+  } }} onCompare={vi.fn()} />);
+  fireEvent.click(screen.getByRole("button", { name: "Download recipe" }));
+  await waitFor(() => expect(makeUrl).toHaveBeenCalledOnce());
+  const text = await new Promise<string>((resolve) => {
+    const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(makeUrl.mock.calls[0][0]);
+  });
+  const recipe = JSON.parse(text);
+  expect(recipe.kind).toBe("chronicler-what-if-recipe");
+  expect(recipe.version).toBe(1);
+  expect(recipe.outputs.baseline.sha256).toBe("a".repeat(64));
+  expect(text).not.toContain("PRIVATE_TOKEN");
+  expect(text).not.toContain("/private/");
 });
