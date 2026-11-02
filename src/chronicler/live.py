@@ -284,6 +284,10 @@ class LiveServer:
         if status.get("type") == "completed" and self._init_data is not None:
             # The finished run's historiography and languages, for reconnect.
             apply_completed_message(self._init_data, status)
+        if (status.get("type") == "ack" and status.get("still_paused") is True
+                and "academy_restoration" in status and self._last_paused_msg is not None):
+            self._last_paused_msg = {**self._last_paused_msg,
+                "academy_restoration": status["academy_restoration"]}
         if status.get("type") == "paused":
             self._paused = True
             self._last_paused_msg = status
@@ -958,6 +962,9 @@ def make_live_pause(
         if what_if is not None:
             valid_commands.extend(["what_if_prepare", "what_if_run", "what_if_cancel"])
 
+        # This is current pause state; it is never derived from a historical selection.
+        from chronicler.pause_academy import paused_context
+        academy_restoration = paused_context(world) if what_if is not None else None
         # Put paused status on the queue
         status_queue.put({
             "type": "paused",
@@ -967,6 +974,7 @@ def make_live_pause(
             "injectable_events": injectable_events,
             "settable_stats": sorted(VALID_STATS),
             "civs": civ_names,
+            **({"academy_restoration": academy_restoration} if academy_restoration is not None else {}),
         })
 
         # Block waiting for commands. Checkpoint requests arrive on their own
@@ -1066,7 +1074,8 @@ def make_live_pause(
                     if checkpoints is not None:
                         checkpoints.note_intervention(
                             world, {"command": "set", "civ": civ_name, "stat": stat, "value": value})
-                    status_queue.put({"type": "ack", "command": "set", "still_paused": True})
+                    status_queue.put({"type": "ack", "command": "set", "still_paused": True,
+                                      **({"academy_restoration": paused_context(world)} if what_if is not None else {})})
                     continue
 
                 # Validate civ
@@ -1119,6 +1128,7 @@ def make_live_pause(
                     "type": "ack",
                     "command": "set",
                     "still_paused": True,
+                    **({"academy_restoration": paused_context(world)} if what_if is not None else {}),
                     "civ": civ_name,
                     "stat": stat,
                     "value": value,

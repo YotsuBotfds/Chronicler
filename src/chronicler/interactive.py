@@ -57,6 +57,16 @@ def parse_command(raw: str) -> tuple[str, Any]:
         stat = tokens[2].lower()
         from chronicler.pause_policy import STAT, validate_policy_command
         from chronicler.pause_transport import STAT as TRANSPORT_STAT, decode as decode_transport
+        from chronicler.pause_academy import STAT as ACADEMY_STAT, validate_command as validate_academy
+        if stat == ACADEMY_STAT:
+            if len(tokens) != 4:
+                return ("error", "Invalid academy restoration command")
+            try:
+                value = int(tokens[3])
+                validate_academy(civ_name, stat, value)
+            except ValueError as exc:
+                return ("error", str(exc))
+            return ("set", (civ_name, stat, value))
         if stat == TRANSPORT_STAT:
             if len(tokens) != 4:
                 return ("error", "Invalid regional transport command")
@@ -217,6 +227,18 @@ def interactive_pause(
             civ_name, stat, value = cmd_args
             from chronicler.pause_policy import STAT, set_policy_value
             from chronicler.pause_transport import STAT as TRANSPORT_STAT, apply as apply_transport
+            from chronicler.pause_academy import STAT as ACADEMY_STAT, apply as apply_academy
+            if stat == ACADEMY_STAT:
+                try:
+                    receipt = apply_academy(world, civ_name, stat, value)
+                except ValueError as exc:
+                    print(f"Error: {exc}")
+                    continue
+                if interventions is not None:
+                    interventions.note_intervention(
+                        world, {"command": "set", "civ": civ_name, "stat": stat, "value": value})
+                print(f"Academy seat {receipt.new_seat_id}; fee {receipt.fee}")
+                continue
             if stat == TRANSPORT_STAT:
                 try:
                     receipt = apply_transport(world, civ_name, stat, value)

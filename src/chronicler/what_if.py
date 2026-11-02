@@ -31,6 +31,9 @@ from chronicler.pause_policy import CONTROL, STAT, TARGET, policy_value, validat
 from chronicler.pause_transport import (CONTROL as TRANSPORT_CONTROL, TARGET as TRANSPORT_TARGET,
     STAT as TRANSPORT_STAT, encode as encode_transport, decode as decode_transport, preview as preview_transport)
 
+from chronicler.pause_academy import (CONTROL as ACADEMY_CONTROL, TARGET as ACADEMY_TARGET,
+    STAT as ACADEMY_STAT, validate_command as validate_academy_command, preview as preview_academy)
+
 MAX_JOBS = 8
 MAX_BUNDLE_BYTES = 16 * 1024 * 1024
 MAX_CHECKPOINT_BYTES = 128 * 1024 * 1024
@@ -84,6 +87,15 @@ def _request_fields(msg: dict) -> tuple[str, str, str, int, int]:
     request_id = msg.get("request_id")
     if not isinstance(request_id, str) or not _REQUEST_ID.fullmatch(request_id):
         raise WhatIfError("request_id must contain 1–80 letters, digits, underscores or hyphens")
+    if msg.get("control") == ACADEMY_CONTROL:
+        if msg.get("type") != "what_if_prepare" or set(msg) != {"type", "request_id", "control", "region_id", "fallen_seat_id", "turns"}:
+            raise WhatIfError("Invalid academy restoration request fields")
+        rid, seat, turns = msg.get("region_id"), msg.get("fallen_seat_id"), msg.get("turns")
+        if type(rid) is not int or rid < 0 or type(seat) is not int or seat < 0:
+            raise WhatIfError("Invalid academy region or fallen seat ID")
+        if type(turns) is not int or not 1 <= turns <= 20:
+            raise WhatIfError("Horizon must be an integer from 1 to 20 additional turns")
+        return request_id, ACADEMY_TARGET, ACADEMY_STAT, seat, turns
     if msg.get("control") == TRANSPORT_CONTROL:
         if msg.get("type") != "what_if_prepare" or set(msg) != {"type", "request_id", "control", "region_id", "duration", "turns"}:
             raise WhatIfError("Invalid regional transport request fields")
@@ -117,6 +129,16 @@ def _request_fields(msg: dict) -> tuple[str, str, str, int, int]:
 
 def validate_request(msg: dict, world: Any) -> tuple[str, str, int, int, int]:
     request_id, name, stat, value, turns = _request_fields(msg)
+    if stat == ACADEMY_STAT:
+        try:
+            receipt = preview_academy(world, name, stat, value)
+            if receipt.request.region_id != msg["region_id"]:
+                raise ValueError("Fallen academy does not belong to the requested region")
+            if not receipt.changed:
+                raise ValueError("Academy is already restored at this boundary")
+        except ValueError as exc:
+            raise WhatIfError(str(exc)) from exc
+        return request_id, name, value, turns, value
     if stat == TRANSPORT_STAT:
         try:
             receipt = preview_transport(world, name, stat, value)
@@ -140,7 +162,16 @@ def intervention_command(intervention: dict) -> dict:
     command = {key: intervention.get(key) for key in ("command", "civ", "stat", "value")}
     if command["command"] != "set":
         raise WhatIfError("Unsupported intervention command")
-    if command["stat"] == TRANSPORT_STAT:
+    if command["stat"] == ACADEMY_STAT:
+        try:
+            validate_academy_command(command["civ"], command["stat"], command["value"])
+            if (type(intervention.get("fallen_seat_id")) is not int or
+                    intervention["fallen_seat_id"] != command["value"] or
+                    type(intervention.get("region_id")) is not int or intervention["region_id"] < 0):
+                raise ValueError("Academy manifest does not match its command")
+        except ValueError as exc:
+            raise WhatIfError(str(exc)) from exc
+    elif command["stat"] == TRANSPORT_STAT:
         try:
             decoded = decode_transport(command["civ"], command["stat"], command["value"])
             if (intervention.get("region_id") != decoded.region_id or
@@ -160,6 +191,34 @@ def intervention_command(intervention: dict) -> dict:
           or type(command["value"]) is not int or not 1 <= command["value"] <= 100):
         raise WhatIfError("Unsupported intervention control")
     return command
+
+
+
+def validate_academy_checkpoint(path: Path, intervention: dict) -> None:
+    """Bind the public manifest to the exact restored child source state."""
+    from chronicler.run_checkpoint import read_checkpoint
+    loaded = read_checkpoint(path)
+    if not loaded.exact:
+        raise WhatIfError("Academy restoration requires an exact checkpoint")
+    world, bridge = loaded.state.world, loaded.state.agent_bridge
+    try:
+        receipt = preview_academy(world, ACADEMY_TARGET, ACADEMY_STAT, intervention["fallen_seat_id"])
+        req = receipt.request
+        seat = world.scholarship.seats[req.fallen_seat_id]
+        expected = {"region_id": req.region_id, "region_name": world.regions[req.region_id].name,
+            "fallen_seat_id": req.fallen_seat_id, "fallen_seat_name": seat.name,
+            "fallen_founder": req.fallen_founder, "fallen_founded_turn": req.fallen_founded_turn,
+            "fallen_turn": req.fallen_turn, "current_lord": req.current_lord,
+            "current_lord_name": world.civilizations[req.current_lord].name,
+            "fee": receipt.fee, "treasury_before": receipt.treasury_before,
+            "treasury_after": receipt.treasury_after}
+        if not receipt.changed or any(intervention.get(k) != v for k, v in expected.items()):
+            raise WhatIfError("Academy manifest differs from its saved checkpoint")
+    except ValueError as exc:
+        raise WhatIfError(str(exc)) from exc
+    finally:
+        if bridge is not None:
+            bridge.close()
 
 
 def require_hash_seed() -> None:
@@ -290,6 +349,8 @@ class WhatIfPairs:
                         (m["intervention"]["civ"], m["intervention"]["stat"],
                          m["intervention"]["value"], m["turns"])):
                     raise WhatIfError("This request_id already describes a different pair")
+                if stat == ACADEMY_STAT and msg["region_id"] != m["intervention"]["region_id"]:
+                    raise WhatIfError("This request_id already describes a different pair")
                 return self._status(existing)
             request_id, civ, value, turns, before = validate_request(msg, world)
             if self._closed or self.busy:
@@ -315,11 +376,12 @@ class WhatIfPairs:
             config = header.get("run_config", {})
             if config.get("output_args", {}).get("simulate_only") is not True:
                 raise WhatIfError("Start this live run with --simulate-only before preparing exact what-if pairs")
+            is_academy = msg.get("control") == ACADEMY_CONTROL
             is_transport = msg.get("control") == TRANSPORT_CONTROL
             is_policy = msg.get("control") == CONTROL
-            if is_transport and config.get("simulation_args", {}).get("agents") != "hybrid":
+            if (is_transport or is_academy) and config.get("simulation_args", {}).get("agents") != "hybrid":
                 raise WhatIfError("Transport disruption requires an exact hybrid checkpoint")
-            stat = TRANSPORT_STAT if is_transport else STAT if is_policy else "stability"
+            stat = ACADEMY_STAT if is_academy else TRANSPORT_STAT if is_transport else STAT if is_policy else "stability"
             intervention = {"command": "set", "civ": civ, "stat": stat,
                             "before": before, "value": value}
             limits = list(LIMITS)
@@ -334,7 +396,21 @@ class WhatIfPairs:
                     effective_counter=receipt.effective_counter,
                     effective_through_turn=receipt.effective_through_turn)
                 limits[1] = "One regional transport disruption; 1–20 additional turns, simulation only."
-            manifest = {"schema_version": 3 if is_transport else 2 if is_policy else 1, "request_id": request_id,
+            if is_academy:
+                receipt = preview_academy(world, civ, stat, value)
+                req = receipt.request
+                if not receipt.changed or req.region_id != msg["region_id"]:
+                    raise WhatIfError("Academy restoration is no longer eligible")
+                old = world.scholarship.seats[req.fallen_seat_id]
+                intervention.update(scope="academy", region_id=req.region_id,
+                    region_name=world.regions[req.region_id].name, fallen_seat_id=req.fallen_seat_id,
+                    fallen_seat_name=old.name, fallen_founder=req.fallen_founder,
+                    fallen_founded_turn=req.fallen_founded_turn, fallen_turn=req.fallen_turn,
+                    current_lord=req.current_lord, current_lord_name=world.civilizations[req.current_lord].name,
+                    fee=receipt.fee, treasury_before=receipt.treasury_before, treasury_after=receipt.treasury_after)
+                limits[1] = "One eligible paid academy restoration; 1–20 additional turns, simulation only."
+                validate_academy_checkpoint(checkpoint, intervention)
+            manifest = {"schema_version": 4 if is_academy else 3 if is_transport else 2 if is_policy else 1, "request_id": request_id,
                         "source": {"checkpoint": artifact_identity(checkpoint), "header": header,
                                    "current_identity": fresh_identity()},
                         "mode": config.get("simulation_args", {}).get("agents", "off"),
@@ -418,6 +494,10 @@ class WhatIfPairs:
         script = "continue\n"
         if arm == "intervention":
             intervention = intervention_command(m["intervention"])
+            if m["schema_version"] == 4:
+                if intervention["civ"] != ACADEMY_TARGET or intervention["stat"] != ACADEMY_STAT:
+                    raise WhatIfError("Academy manifest requires the restoration command")
+                validate_academy_checkpoint(checkpoint, m["intervention"])
             if m["schema_version"] == 3 and (intervention["civ"] != TRANSPORT_TARGET or
                                                intervention["stat"] != TRANSPORT_STAT):
                 raise WhatIfError("Transport manifest requires the regional transport command")
