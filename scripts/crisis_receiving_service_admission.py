@@ -11,7 +11,7 @@ import pytest
 pytestmark = pytest.mark.native
 
 
-def test_distress_arrival_receiving_academy_capacity_and_exact_resume(tmp_path, monkeypatch):
+def run_receiving_service_admission(tmp_path, monkeypatch, require_positive=True):
     pytest.importorskip("chronicler_agents")
     from chronicler import scholarship
     from chronicler.agent_bridge import AgentBridge
@@ -97,13 +97,21 @@ def test_distress_arrival_receiving_academy_capacity_and_exact_resume(tmp_path, 
                 pre = _agents(sim)
                 observation = _advance(w, sim)
                 post = _agents(sim)
+                for event in observation["migration_events"]:
+                    aid = event["agent_id"]
+                    event["pre_occupation"] = pre.get(aid, {}).get("occupation")
+                    event["post_occupation"] = post.get(aid, {}).get("occupation")
                 services = w.scholarship.learning_services
                 procurement = [r.model_dump(mode="json") for r in (services.procurement_receipts or [])]
                 teaching = [r.model_dump(mode="json") for r in (services.teaching_receipts or [])]
                 observation.update(pre_non_scholar=sum(r["region"] == 2 and r["occupation"] != 3 for r in pre.values()),
                     post_non_scholar=sum(r["region"] == 2 and r["occupation"] != 3 for r in post.values()),
                     procurement=procurement, teaching=teaching,
-                    balance=services.material_balance)
+                    balance=services.material_balance,
+                    seat=w.scholarship.seats[0].model_dump(mode="json"),
+                    receiver_controller=w.regions[2].controller,
+                    owner_treasury=w.civilizations[owner].treasury,
+                    receiver_crafts=w.regions[2].stockpile.goods.get("crafts", 0.0))
                 traces[label].append(observation)
                 if label == "active":
                     after = random.getstate()
@@ -135,7 +143,23 @@ def test_distress_arrival_receiving_academy_capacity_and_exact_resume(tmp_path, 
         positive = [(r["source_turn"], t) for r in traces["active"] for t in r["teaching"]
                     if r["source_turn"] > first_arrival and (t["work_delivered"] or 0) > 0 and (t["crafts_used"] or 0) > 0
                     and t["learner_upper_bound"] > t["learners_delivered"]]
-        assert positive, "admission: no post-arrival actual work with positive potential-capacity gap"
+        if require_positive:
+            assert positive, "admission: no post-arrival actual work with positive potential-capacity gap"
+        else:
+            # A negative case: zero requested with no native result means unknown
+            # actual work, not a measured zero worker delivery.
+            assert not positive
+            for frame in traces["active"][first_arrival:]:
+                receipt = frame["teaching"][0]
+                purchase = frame["procurement"][0]
+                assert frame["seat"]["fallen_turn"] is None
+                assert frame["receiver_controller"] == worlds["active"].civilizations[owner].name
+                assert receipt["held_before"] == 0 and receipt["work_requested"] == 0
+                assert receipt["work_delivered"] is None and receipt["learners_delivered"] is None
+                assert purchase["market_stock"] == 0 and purchase["purchased"] == 0 and purchase["paid"] == 0
+                assert purchase["upkeep_satisfied"] is True
+                assert abs(frame["balance"]["residual"]) <= frame["balance"]["absolute_tolerance"]
+            assert traces["active"][3]["procurement"][0]["upkeep_amount_paid"] > 0
         for source, t in positive:
             later = [e for e in effects if e["arm"] == "active" and e["source"] == source + 1]
             if later:
@@ -148,3 +172,7 @@ def test_distress_arrival_receiving_academy_capacity_and_exact_resume(tmp_path, 
     finally:
         for b in owners:
             b.close()
+
+
+def test_distress_arrival_receiving_academy_capacity_and_exact_resume(tmp_path, monkeypatch):
+    run_receiving_service_admission(tmp_path, monkeypatch, require_positive=True)
