@@ -1014,7 +1014,7 @@ export interface GranarySnapshotRow {
 }
 
 export interface GranaryFlow {
-  kind: "bought" | "released" | "spoiled" | "seized" | "abandoned" | "captured" | "dispatched" | "arrived";
+  kind: "bought" | "released" | "spoiled" | "seized" | "abandoned" | "captured" | "dispatched" | "arrived" | "storage_returned";
   region: number;
   amount: number;
   source: number;
@@ -1060,6 +1060,18 @@ export interface PublicGrainShipmentSnapshot {
   transitions: PublicGrainTransition[];
 }
 
+export interface GrainStorageSnapshot {
+  schema_version: 1;
+  assets: Array<{ capacity: number; condition: number; repair_progress: number; expansion_progress: number; owner: number } | null>;
+  policies: Array<{ policy: "neglect" | "maintain" | "expand"; work_budget: number }>;
+  receipt_turn: number | null;
+  receipts: Array<{ turn: number; region: number; owner: number; policy: "neglect" | "maintain" | "expand";
+    requested: number; delivered: number; timber_reserved: number; timber_used: number; timber_returned: number;
+    treasury_paid: number; condition_before: number; condition_after: number; capacity_before: number; capacity_after: number;
+    repair_progress: number; expansion_progress: number; target_requested: number | null; target_feasible: number | null;
+    capacity_returned: number }>;
+}
+
 export interface GrainReservesSnapshot {
   /** Completed simulation turn: history turn T records source_turn T-1. */
   source_turn: number;
@@ -1068,6 +1080,8 @@ export interface GrainReservesSnapshot {
   counters: Record<string, number>;
   /** Absent in older or never-enabled records; absence does not mean zero cargo. */
   shipments?: PublicGrainShipmentSnapshot;
+  /** Optional versioned storage assets and completed work. */
+  storage?: GrainStorageSnapshot;
 }
 
 export interface Bundle {

@@ -16,7 +16,8 @@ export function granaryAmounts(record: GrainReservesSnapshot, region: number | n
     target: targetKnown ? rows.reduce((n, row) => n + row.target, 0) : null,
     bought: amount("bought"), released: amount("released"), spoiled: amount("spoiled"),
     seized: amount("seized"), abandoned: amount("abandoned"),
-    paid: flows.reduce((n, flow) => n + flow.cost, 0),
+    storageReturned: amount("storage_returned"),
+    paid: flows.filter((flow) => flow.kind === "bought" || flow.kind === "dispatched").reduce((n, flow) => n + flow.cost, 0),
     transit: flows.filter((flow) => flow.kind === "bought" || flow.kind === "dispatched")
       .reduce((n, flow) => n + flow.sent - flow.amount, 0),
   };
@@ -78,4 +79,30 @@ export function granaryShipmentsAt(snapshot: TurnSnapshot | null) {
   const dispatched = frame.transitions.filter((row) => row.operation === "dispatched").reduce((sum, row) => sum + row.net, 0);
   const arrived = frame.transitions.filter((row) => row.operation === "arrived").reduce((sum, row) => sum + row.net, 0);
   return Number.isFinite(dispatched) && Number.isFinite(arrived) ? { ...frame, dispatched, arrived } : null;
+}
+
+/** Storage is independently source-dated; do not substitute an adjacent or final frame. */
+export function granaryStorageAt(snapshot: TurnSnapshot | null, regionCount: number, civCount: number) {
+  const record = snapshot?.grain_reserves;
+  const frame = record?.storage;
+  const nonnegative = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v >= 0;
+  const owner = (v: unknown) => typeof v === "number" && Number.isInteger(v) && v >= -1 && v < civCount;
+  const policy = (v: unknown) => v === "neglect" || v === "maintain" || v === "expand";
+  const fields = (obj: object, keys: string[]) => keys.every((key) => nonnegative((obj as Record<string, unknown>)[key]));
+  if (!frame || !Number.isInteger(record!.source_turn) || record!.source_turn < 0
+    || record!.source_turn !== snapshot!.turn - 1 || frame.schema_version !== 1
+    || frame.receipt_turn !== record!.source_turn || !Array.isArray(frame.assets) || frame.assets.length !== regionCount
+    || !Array.isArray(frame.policies) || frame.policies.length !== regionCount || !Array.isArray(frame.receipts)
+    || !frame.assets.every((a) => a === null || (a && owner(a.owner) && fields(a, ["capacity", "condition", "repair_progress", "expansion_progress"]) && a.condition <= 1))
+    || !frame.policies.every((p) => p && policy(p.policy) && nonnegative(p.work_budget) && p.work_budget <= 4)) return null;
+  const seen = new Set<number>();
+  for (const row of frame.receipts) {
+    if (!row || row.turn !== frame.receipt_turn || !Number.isInteger(row.region) || row.region < 0 || row.region >= regionCount
+      || seen.has(row.region) || !owner(row.owner) || !policy(row.policy)
+      || !fields(row, ["requested", "delivered", "timber_reserved", "timber_used", "timber_returned", "treasury_paid", "condition_before", "condition_after", "capacity_before", "capacity_after", "repair_progress", "expansion_progress", "capacity_returned"])
+      || !Number.isInteger(row.treasury_paid) || row.delivered > row.requested || row.condition_before > 1 || row.condition_after > 1
+      || !(row.target_requested === null || nonnegative(row.target_requested)) || !(row.target_feasible === null || nonnegative(row.target_feasible))) return null;
+    seen.add(row.region);
+  }
+  return frame;
 }

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { granaryAmounts, granaryKeeper, granaryOwnerRows, granarySeries, granaryShipmentsAt } from "../../lib/granaries";
 import type { SystemPanelProps } from "../../lib/systems";
 import { CivLineChart, StatTile, TurnStrip } from "./SystemParts";
+import { GranaryStorage } from "./GranaryStorage";
 
 const COLORS: Record<string, string> = {
   Stocks: "#e8b84a", Targets: "#7d8a96", Bought: "#5aa88f", Released: "#5a8fd9", Spoiled: "#d9644a",
@@ -77,6 +78,7 @@ export function Granaries({ bundle, snapshot, currentTurn, onSeek, onSelectRegio
         </tr>;
       })}</tbody>
     </table></div>
+    <GranaryStorage bundle={bundle} snapshot={snapshot} region={region} />
     {record.shipments !== undefined && <section className="systems-stack" aria-label="Public grain shipments">
       <h4>Public grain shipments · all granaries</h4>
       {!shipments ? <p className="systems-note">Shipment details are not observed at this snapshot.</p> : <>
@@ -104,7 +106,7 @@ export function Granaries({ bundle, snapshot, currentTurn, onSeek, onSelectRegio
       <div className="systems-table-wrap"><table className="systems-table" aria-label={`Granary movements in turn ${record.source_turn}`}>
         <thead><tr><th>Kind</th><th>Granary</th><th>Amount</th><th>Market / previous keeper</th><th>Sent</th><th>Treasury paid</th><th>Food before → after</th></tr></thead>
         <tbody>{flows.map((flow, index) => <tr key={index}>
-          <td>{flow.kind === "dispatched" ? "dispatched (in transit)" : flow.kind}</td><td>{names.get(flow.region) ?? `Region ${flow.region}`}</td><td>{show(flow.amount)}</td>
+          <td>{flow.kind === "dispatched" ? "dispatched (in transit)" : flow.kind === "storage_returned" ? "capacity return to market" : flow.kind}</td><td>{names.get(flow.region) ?? `Region ${flow.region}`}</td><td>{show(flow.amount)}</td>
           <td>{flow.kind === "bought" ? `${bundle.world_state.regions[flow.source]?.name ?? `Region ${flow.source}`} (${flow.seller_name ?? "unknown seller"})` : flow.kind === "dispatched" || flow.kind === "arrived" ? `${names.get(flow.source) ?? `Region ${flow.source}`} (${flow.seller_name ?? "unknown seller"})` : flow.kind === "captured" ? flow.seller_name ?? "No keeper" : "—"}</td>
           <td>{flow.kind === "bought" || flow.kind === "dispatched" ? show(flow.sent) : "—"}</td><td>{flow.kind === "bought" || flow.kind === "dispatched" ? flow.cost : "—"}</td>
           <td>{flow.kind === "released" ? `${show(flow.before)} → ${show(flow.after)}` : "—"}</td>
@@ -112,6 +114,6 @@ export function Granaries({ bundle, snapshot, currentTurn, onSeek, onSelectRegio
       </table></div>}
     <p className="systems-note">{record.shipments
       ? <>Immediate purchases and dispatches lost {show(totals.transit)} grain in transit; {totals.paid} treasury paid this turn. Arrivals make no new payment. </>
-      : <>Procurement receives grain after transit loss (this turn: {show(totals.transit)} lost, {totals.paid} treasury paid). </>}Captured grain changes keeper without adding stock; seized and abandoned grain leave the granary. Missing older records remain gaps. Charts stop at the selected snapshot.</p>
+      : <>Procurement receives grain after transit loss (this turn: {show(totals.transit)} lost, {totals.paid} treasury paid). </>}Captured grain changes keeper without adding stock; seized and abandoned grain leave the granary. Capacity returns move grain to the regional market after the opening, not as spoilage or a purchase. Missing older records remain gaps. Charts stop at the selected snapshot.</p>
   </section>;
 }
