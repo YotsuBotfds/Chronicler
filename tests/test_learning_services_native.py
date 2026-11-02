@@ -331,3 +331,54 @@ def test_hostile_controller_transition_records_destroyed_holdings_once():
     assert world.scholarship.learning_services.inventories[0].lost_total == pytest.approx(held)
     assert world.scholarship.learning_services.material_balance["lost"] == 0
     bridge.close()
+
+
+def test_real_technique_phase_consumes_prior_native_academy_delivery(monkeypatch):
+    from chronicler import scholarship
+    from chronicler.techniques import set_techniques_enabled
+
+    world, bridge, region, owner = _paid_service_setup()
+    set_techniques_enabled(world, True)
+    original = scholarship.learning_factors
+    seen = []
+
+    def observe(current):
+        # Call the real producer exactly once and return its result unchanged.
+        result = original(current)
+        state = current.scholarship.learning_services
+        receipts = tuple(r.model_dump() for r in (state.teaching_receipts or ()))
+        seat = current.scholarship.seats[0]
+        seen.append({"source_turn": current.turn, "last_service_turn": state.last_service_turn,
+            "receipts": receipts, "hazard": dict(result[0]), "forget": dict(result[1]),
+            "level": seat.level, "research": scholarship.research_factor(current, current.civilizations[owner]),
+            "seat_levels": sum(s.level for s in current.scholarship.seats
+                               if s.fallen_turn is None and s.lord == owner),
+            "neighbors": tuple(i for i, candidate in enumerate(current.regions)
+                               if candidate.name in current.regions[region].adjacencies)})
+        return result
+
+    monkeypatch.setattr(scholarship, "learning_factors", observe)
+    for _ in range(3):
+        _service_turn(world, bridge)
+    assert [row["source_turn"] for row in seen] == [0, 1, 2]
+    first, _, third = seen
+    assert first["last_service_turn"] is None and not first["receipts"]
+    assert first["hazard"][region] == 1.0
+    assert first["forget"][region] == pytest.approx(1.0 - scholarship.LEARN_KEEP * first["level"])
+    assert first["neighbors"]
+    for neighbor in first["neighbors"]:
+        assert first["hazard"][neighbor] == pytest.approx(1.0 + scholarship.LEARN_NEAR * first["level"])
+    assert third["last_service_turn"] == 1
+    service = next(row for row in third["receipts"] if row["seat_id"] == 0)
+    assert service["source_turn"] == 1 and service["available_turn"] == 2
+    assert service["work_delivered"] > 0 and service["learners_delivered"] > 0
+    fraction = min(1.0, service["learners_delivered"] / service["learner_upper_bound"])
+    assert third["hazard"][region] == pytest.approx(1.0 + scholarship.LEARN_HAZARD * third["level"] * fraction)
+    assert third["hazard"][region] > 1.0
+    assert third["forget"][region] == pytest.approx(1.0 - scholarship.LEARN_KEEP * third["level"])
+    for neighbor in third["neighbors"]:
+        assert third["hazard"][neighbor] >= 1.0 + scholarship.LEARN_NEAR * third["level"] - 1e-7
+    for row in seen:
+        assert row["research"] == pytest.approx(1.0 + scholarship.RESEARCH_PER_LEVEL
+                                                * min(scholarship.RESEARCH_LEVELS, row["seat_levels"]))
+    bridge.close()
