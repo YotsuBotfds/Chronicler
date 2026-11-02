@@ -82,6 +82,7 @@ it("bounds historical snapshots and resets the page after seeking", () => {
   const view = render(<AcademyServices {...p} />);
   const table = screen.getByRole("table", { name: "Academy service history through snapshot 14" });
   expect(within(table).getAllByRole("row")).toHaveLength(9);
+  expect(within(table).getAllByRole("row")[1].querySelectorAll("td")[1]).toHaveStyle({ whiteSpace: "nowrap" });
   fireEvent.click(screen.getByRole("button", { name: "Show more service snapshots (5 remaining)" }));
   expect(within(table).getAllByRole("row")).toHaveLength(14);
   view.rerender(<AcademyServices {...p} snapshot={p.bundle.history[11]} currentTurn={13} />);

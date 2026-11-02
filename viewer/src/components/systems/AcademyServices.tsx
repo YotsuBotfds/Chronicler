@@ -61,9 +61,9 @@ export function AcademyServices({ bundle, snapshot, seatId, seat, currentTurn, o
     <div className="systems-table-wrap"><table className="systems-table" aria-label={`Academy service history through snapshot ${currentTurn}`}><thead><tr><th>Snapshot</th><th>Held</th><th>Purchase source / crafts / paid</th><th>Work source / delivered / learner-equivalents</th><th>Loss source / crafts</th></tr></thead><tbody>
       {history.slice(0, limit).map((s) => { const r = learningServicesAt(s, seatId, seat, ...bounds); return <tr key={s.turn}>
         <td><button type="button" className="systems-link" onClick={() => onSeek(s.turn)}>{s.turn}</button></td>
-        <td>{value(r?.inventory?.held)}</td><td>{r?.procurement ? `${r.procurement.source_turn} / ${value(r.procurement.purchased)} / ${value(r.procurement.paid)}` : "Not observed"}</td>
-        <td>{r?.teaching ? `${r.teaching.source_turn} / ${value(r.teaching.work_delivered)} / ${value(r.teaching.learners_delivered)}` : "Not observed"}</td>
-        <td>{r?.loss ? `${r.loss.source_turn} / ${value(r.loss.lost)}` : "Not observed"}</td></tr>; })}
+        <td style={{ whiteSpace: "nowrap" }}>{value(r?.inventory?.held)}</td><td style={{ whiteSpace: "nowrap" }}>{r?.procurement ? `${r.procurement.source_turn} / ${value(r.procurement.purchased)} / ${value(r.procurement.paid)}` : "Not observed"}</td>
+        <td style={{ whiteSpace: "nowrap" }}>{r?.teaching ? `${r.teaching.source_turn} / ${value(r.teaching.work_delivered)} / ${value(r.teaching.learners_delivered)}` : "Not observed"}</td>
+        <td style={{ whiteSpace: "nowrap" }}>{r?.loss ? `${r.loss.source_turn} / ${value(r.loss.lost)}` : "Not observed"}</td></tr>; })}
     </tbody></table></div>
     {limit < history.length && <button type="button" className="phase75-ghost-button" onClick={() => setPage({ scope, limit: limit + PAGE })}>Show more service snapshots ({history.length - limit} remaining)</button>}
   </section>;
