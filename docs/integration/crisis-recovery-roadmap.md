@@ -35,7 +35,7 @@ validate an epic. Runtime changes remain opt-in until evaluated. No paid narrati
 | M6 delayed information | partially covered | Report delay, real decision-boundary inputs/costs, issue-time construction records and Harvest inspector integrated; all nine CI jobs passed at3e852333. See forecast-decisions-candidate.md. | Actual timing/purchases, expiry, caps, exact continuation, observer neutrality and browser checks pass. Both the earlier and additional scarce-budget shuffle cases are purchase/food-neutral; misleading harm/food outcome criterion remains unmet. |
 | M7 crisis suite | partially covered | [Constructed A/B/C/D cases and E analysis](crisis-scenarios.md) execute shared native state. Regional shock now uses the existing exact pair coordinator; explicit paid academy restoration has a tested boundary API. | Development admissions pass within stated limits. Receiving services, complete common-point alternatives for each case and held evaluation remain unfinished. Supported drought injection is not a crop-yield shock; recorded migration is not proof of forced eviction. |
 | M8 usable laboratory | implementing | Regional closure preview → actual exact pair → native food comparison works in Chromium at desktop/390px. Old manifests stay supported; exported v3 provenance is readable and omits the internal command value. | One live client is the existing server contract. Academy restoration still needs coordinator/UI wiring; broader integrated crisis gallery and private export journey remain unfinished. |
-| M9 package | implementing | Quiet paired runtime/memory/history comparison and checkpoint controls recorded; periodic owner-only source/evidence recovery verified. Browser latency and combined final CI next. | Pending-shipment/partial-work/care/service checkpoints have bounded evidence, not full scientific qualification. Final flag matrix, held scenarios, package and handoff remain unfinished. |
+| M9 package | implementing | Quiet paired runtime/memory/history and actual browser interaction measurements recorded; periodic owner-only source/evidence recovery verified. Combined CI at16376f90 is pending. | Pending-shipment/partial-work/care/service checkpoints have bounded evidence, not full scientific qualification. Final flag matrix, held scenarios, package and handoff remain unfinished. |
 
 ## Current evidence and ownership
 
@@ -187,6 +187,14 @@ or rule out a regression. Median RSS rises7,208KiB/4.4%; compact history rises
 busy sample suggested85% slower wall time; paired profiles and quiet runs did
 not reproduce it. No speculative optimization was accepted.
 
+The [paired browser measurements](../performance/crisis-viewer-2026-11-02.md)
+load the same current2,472,132-byte world into both baseline/current production
+viewers. All six runs complete without browser errors/timeouts. Median overview
+load-frame377.5→383.6ms and comparison-file-load124.6→130.0ms vary alongside
+some lower history-script measurements; overlapping ranges and three rounds do
+not establish a general speedup or regression. The interrupted trial is retained
+and excluded. No rendering optimization was made without a demonstrated cause.
+
 Owner-only checkpoint8beb6e4f preserves M6 dev3e852333 plus43 WIP refs and161
 incremental evidence members. Source and evidence were independently downloaded,
 size/SHA checked, every member verified, and the downloaded source restored a
@@ -195,8 +203,14 @@ and [verification index](https://drive.google.com/file/d/18dJ0vMzeLl5RkVuIZ5q3lU
 were also independently downloaded and matched. Later M7/M8 work needs the next
 checkpoint. This is source/evidence recovery, not fresh environment provisioning.
 
-Next: complete combined M7/M8 checks and browser latency measurements, commit/push
-this bounded slice and verify a new private backup. Then wire deliberate academy
+Current bounded product checkpoint16376f90 is pushed and remote-verified; main
+remainscb9fe70c. [Combined CI](https://github.com/YotsuBotfds/Chronicler/actions/runs/41495453122)
+is pending (Viewer, Rust and matching-wheel builder passed at this update; full
+Python lanes still running). Subsequent browser-performance documentation does
+not change that tested product source. A new private source/evidence checkpoint
+is being prepared; its local draft is not yet verified remote recovery.
+
+Next: finish/record combined CI and verify the new private backup. Wire deliberate academy
 restoration at the real paused coordinator, complete C's receiving-service and
 matched alternatives, freeze/run modest held evaluations, and address M6's
 misleading-information acceptance without forcing favorable outcomes. The

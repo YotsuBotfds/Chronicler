@@ -19,8 +19,10 @@ partially covered, with receiving services, full alternatives and held evaluatio
 unfinished. M8's real transport exact-pair browser journey works at desktop and
 390px, including dated native-food comparison. Explicit paid academy restoration
 has native tests but still needs app/coordinator wiring. M9 has paired runtime,
-memory and history measurements; final browser responsiveness and combined CI
-are being checked. See the active roadmap for exact sources and limits.
+memory, history and real-browser interaction measurements. The bounded slice is
+pushed at16376f90; combined CI run41495453122 is pending. Deliberate academy
+restoration coordinator/UI wiring is the next implementation slice. See the
+active roadmap for exact sources and limits.
 This is not the completed roadmap. Previous remediation stays closed within its documented
 limits. Main/defaults remain unchanged; environment publication stays deferred.
 
