@@ -1,10 +1,12 @@
-# Active — exploration release qualification
+# Exploration release complete
 
-The new36-item exploration backlog is implemented or covered by checked existing
-mechanics. Final combined CI and closing source/data backup remain; no additional
-feature queue is planned. Use the [single active handoff](integration/development-lead.md)
-for actual commands, source/runtime identities, evidence and limits. Main and
-economic defaults remain unchanged; environment publication is deferred.
+The new 36-item backlog is complete; no planned development work remains.
+Runnable code `38116fc2` passed all nine [CI jobs](https://github.com/YotsuBotfds/Chronicler/actions/runs/41401640607),
+including 1,107 viewer, 9,510 native, 9,133 native-absent and 1,178 Rust tests.
+The closing commit changes documentation only. Main and economic defaults remain
+unchanged; environment publication is deferred. Use the [single handoff](integration/development-lead.md)
+for copyable commands, source/runtime identities, actual browser/performance
+results, verified source/data backups and precise qualification limits.
 
 ---
 

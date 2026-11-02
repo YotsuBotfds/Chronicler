@@ -1,11 +1,12 @@
 # Development lead — exploration release qualification
 
-Branch `dev/codex-playable-build-20261031`. Started from clean, refreshed local/
-remote977bab1a; the previous queue was complete and was not restarted. The new
-36-item backlog is implemented or covered by existing mechanics with concrete
-checks below. Final combined CI and the closing backup are the remaining release
-steps; there is no additional feature queue. Main remainscb9fe70c, economic
-options remain off by default, and environment publication stays deferred.
+Branch `dev/codex-playable-build-20261031`. The full 36-item backlog is complete:
+implemented features and checked existing equivalents are recorded below.
+**No planned development work remains.** Runnable code `38116fc2` passed all nine
+[CI jobs](https://github.com/YotsuBotfds/Chronicler/actions/runs/41401640607).
+The closing commit changes documentation only. Main stays `cb9fe70c`, optional
+economic policies stay off by default, and environment publication remains deferred.
+Started from clean, refreshed local/remote `977bab1a`; prior queues were not restarted.
 
 ## Backlog outcome
 
@@ -86,7 +87,12 @@ a mismatch override or silently reuse a wheel from changed Rust/ABI inputs.
 
 ## Actual checks and receipts
 
-Final combined local viewer1102 tests/101files, lint, TypeScript/Vite build pass.
+Final CI: **1,107 viewer tests / 101 files**, lint and production build;
+**9,510 native tests / six canonical skips / 623 subtests**; **9,133 native-absent
+tests / 369 skips / 623 subtests**; **1,178 Rust tests / two ignored**; all 46
+bounded offline chunks and current-source native wheel production/transfer gates
+pass. Python CI used 3.13.17; the working-session runtime below remains 3.13.5.
+Local combined viewer1,102 preceded the last five terminal-connection regressions.
 Learning62 focused +actual failing/fixed browser boundary; recipes20 focused +
 real strict same-pause roundtrip and explicit new-case workflow; paused inspection
 14 focused +actual draft/selection/turn preservation. Initial failures and
@@ -121,8 +127,10 @@ unreceived pair results unconfirmed. Ordinary reconnect and new sessions remain
 covered. Four-file integration44 plus the final hook32 tests pass; lint/build
 and the actual native16→Quit/no-new-turn browser pass, one socket/no retries.
 Selected opaque control contrast11.17–12.70 and reduced-motion0s checked; no
-full contrast/screen-reader certification. Final all9 CI will qualify this last
-viewer-only correction; Python64f/Rust/locks are unchanged.
+full contrast/screen-reader certification. All nine final CI jobs passed on
+`38116fc218902993978c2c3c695a776ae73e70f8`, run `41401640607`; final receipts/logs
+are retained as `CI-38116fc2-success.json` and `ci-final-*.log`. Python64f/Rust/
+locks are unchanged by this viewer-only correction.
 
 All new receipts/scripts/screenshots/data are under
 `/workspace/shared/chronicler-multiwave-evidence`, with subdirectories
@@ -153,8 +161,25 @@ referenced checkpoint bytes for strict identity; an explicit new case does not
 prove equivalent state. Live worlds lacking raw artifact identity cannot persist
 portable bookmarks. Screenshots/outputs are private external files, not Git blobs.
 
-Verified source push throughfcac1a59; maincb9fe70c unchanged. Previous verified
-checkpoint `/workspace/shared/chronicler-multiwave-evidence/checkpoint-9de396fb`
-contains multi-branch source.bundle and hashed example/browser archive. Final
-source/data archive and exact restoration checks remain the closing step. No
-public deployment, credentials, paid narration/API calls or environment publication.
+## Final recovery and shutdown
+
+Source is pushed and verified on the development branch. Only closing handoff
+text follows tested code `38116fc2`; verify a future checkout before development.
+No unfinished source/WIP remains. All owned simulations, browsers and the preview
+server are stopped. No further campaign or automatic startup test is queued.
+
+`/workspace/shared/chronicler-multiwave-evidence/release-final` contains:
+
+- `source-final.bundle`: final development head, bundle verification and a clean
+  exact trial restore in `restore-final`; Rust tree and 280 package/native/lock
+  files match. `restore-final.json` records the exact commit.
+- `worlds-and-evidence-final.tar.gz`: real worlds/checkpoints, private screenshots,
+  declarations, neutral/adverse outcomes, failed experiments, CI and browser
+  receipts. `archive-members-sha256.json` verifies every archived member.
+- `SHA256.json` and `release-receipt.json`: final byte counts/hashes and scope.
+
+The earlier `release-942da692` backup and failed CI remain preserved. Source is
+backed up remotely in Git; generated-data archives are local shared-workspace
+copies, not an off-machine upload. Source restoration is verified; reusable
+cloud configuration publication and a fresh cloud task remain deferred and
+unverified. No public deployment, new credentials or paid narration/API calls.
