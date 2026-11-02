@@ -1,9 +1,10 @@
-# Active — multi-wave exploration development
+# Active — exploration release qualification
 
-The previous world-laboratory queue below is complete. A new36-item backlog is
-in progress on the same dev branch. Use the [active tracker](integration/development-lead.md)
-for current source, completed evidence, bounded work and continuation. Do not
-restart old queues. Main/defaults/environment publication remain unchanged.
+The new36-item exploration backlog is implemented or covered by checked existing
+mechanics. Final combined CI and closing source/data backup remain; no additional
+feature queue is planned. Use the [single active handoff](integration/development-lead.md)
+for actual commands, source/runtime identities, evidence and limits. Main and
+economic defaults remain unchanged; environment publication is deferred.
 
 ---
 

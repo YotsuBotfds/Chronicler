@@ -765,3 +765,33 @@ the Rust is `main`'s) **1,051 passed, 2 ignored** in 36 test binaries.
   overpopulation degradation, its ledger before; with the switch on the
   resource checks stop on it in some procedural worlds (section 4). A
   correction of its own, outside this branch.
+
+## Optional local release tradeoff
+
+An explicit tuning YAML may select:
+
+```yaml
+grain_reserves:
+  full_meal_release: 1
+```
+
+Missing/0 preserves current low-stock famine-line rationing.1 uses the existing
+full-meal release target even with low local reserves. Stock and this region's
+food gap still bound release; no realm-wide grain pool, shared release capacity,
+new transfer, native state or automatic enablement is introduced. It requires
+active hybrid granaries. Invalid active nonbinary values refuse before effects;
+disabled systems remain inert.
+
+The declared two-region finite-stock case shows the tradeoff: immediate food/need
+1.0 instead of0.7, followed by a severe-shortage outcome0.485 instead of0.6.
+The other region's grain is not teleported. This constructed kernel evidence is
+not a general policy recommendation. Purchasing `shortfall_priority` is separate
+and remains off by default; its declared six natural matched pairs were neutral,
+while earlier constructed benefits and harms remain preserved.
+
+Four real parent/current default pairs (granaries off/on × missing/explicit0)
+matched114 emitted artifacts, world/native and Python/NumPy RNG evidence; only
+bundle generation time was normalized and source/argv manifests were explicitly
+excluded. Two actual native mid-transit same-horizon checkpoint cases passed
+for release0/1. Those quiet native cases qualify continuation, not efficacy.
+Evidence: `/workspace/shared/chronicler-multiwave-evidence/granary-release-policy`.

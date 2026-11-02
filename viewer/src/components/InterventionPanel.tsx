@@ -15,6 +15,8 @@ interface InterventionPanelProps {
   checkpointStatus?: CheckpointStatus | null;
   whatIf?: WhatIfControls;
   onCompareWhatIf?: (pair: WhatIfPair) => void;
+  onInspectWorld?: () => void;
+  inspectionHidden?: boolean;
 }
 
 let nextId = 0;
@@ -47,6 +49,8 @@ export function InterventionPanel({
   checkpointStatus,
   whatIf,
   onCompareWhatIf,
+  onInspectWorld,
+  inspectionHidden = false,
 }: InterventionPanelProps) {
   const comparisonActive = whatIfActive(whatIf?.status);
   const canCheckpoint = !!onSaveCheckpoint && pauseContext.valid_commands.includes("checkpoint");
@@ -91,14 +95,20 @@ export function InterventionPanel({
   const dialogRef = useRef<HTMLDivElement>(null);
   // Escape never silently resumes a world or cancels a running pair. Those
   // state-changing actions retain their explicit buttons inside the dialog.
-  useDialogFocus(dialogRef, true);
+  useDialogFocus(dialogRef, !inspectionHidden);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+    <div hidden={inspectionHidden} inert={inspectionHidden} style={inspectionHidden ? { display: "none" } : undefined} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
       <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={`Paused simulation at turn ${pauseContext.turn}`} className="bg-gray-800 rounded-lg shadow-2xl p-4 sm:p-6 w-[600px] max-w-[calc(100vw-24px)] max-h-[90vh] overflow-y-auto space-y-6">
         <h2 className="text-lg font-bold text-gray-100">
           Paused at Turn {pauseContext.turn}
         </h2>
+        {onInspectWorld && <div>
+          <button type="button" disabled={comparisonActive} onClick={onInspectWorld}
+            className="min-h-11 px-4 py-2 bg-gray-700 text-gray-100 rounded">Inspect world while paused</button>
+          <p className="text-sm text-gray-300">Inspect recorded conditions without continuing the simulation. Return to these controls when ready.
+            {comparisonActive && " Cancel or finish this comparison first so its reviewed recipe remains bound."}</p>
+        </div>}
 
         {whatIf && onCompareWhatIf && pauseContext.valid_commands.includes("what_if_prepare") && <WhatIfPanel context={pauseContext} controls={whatIf} onCompare={onCompareWhatIf} />}
         {comparisonActive && <p role="status" className="text-sm text-amber-200">The original world is locked while a comparison is prepared or running. Cancel it to change or continue this world.</p>}

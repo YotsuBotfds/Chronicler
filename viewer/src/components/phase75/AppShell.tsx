@@ -654,6 +654,9 @@ export function AppShell({
   const [searchChoice, setSearchResult] = useState<{ world: string; result: HistoricalSearchResult } | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [bookmarkOpen, setBookmarkOpen] = useState(false);
+  const [inspectedPause, setInspectedPause] = useState<string | null>(null);
+  const pauseKey = `${worldKey}:${livePauseContext?.turn ?? "none"}`;
+  const inspectingPausedWorld = !!livePaused && inspectedPause === pauseKey;
   const searchResult = searchChoice?.world === worldKey ? searchChoice.result : null;
   const searchEvidenceKnown = !!searchResult && (searchResult.turn === null || searchResult.turn <= currentTurn)
     && (searchResult.lastRecordedTurn === null || searchResult.lastRecordedTurn <= currentTurn);
@@ -1093,6 +1096,10 @@ export function AppShell({
       </div>}
       {bundle && <SavedWorldDetails bundle={bundle} identity={artifactIdentity} />}
       {bundleLoading && <div className="saved-world-loading" role="status">Reading saved world…</div>}
+      {inspectingPausedWorld && <div className="interesting-periods" role="status">
+        <p>Simulation paused at turn {livePauseContext?.turn}. Inspecting history does not advance the original world.</p>
+        <button type="button" onClick={() => setInspectedPause(null)}>Return to run controls</button>
+      </div>}
       <details className="interesting-periods" open={bookmarkOpen} onToggle={(event) => setBookmarkOpen(event.currentTarget.open)}>
         <summary>Bookmarks and investigation export</summary>
         {bookmarkOpen && <>
@@ -1400,6 +1407,11 @@ export function AppShell({
             checkpointStatus={liveCheckpointStatus}
             whatIf={liveWhatIf}
             onCompareWhatIf={(pair) => { setWhatIfPair(pair); setCompareMode("runs"); setShowCompareOverlay(true); }}
+            onInspectWorld={() => {
+              setInspectedPause(pauseKey);
+              window.requestAnimationFrame(() => document.getElementById("world-investigation-map")?.focus());
+            }}
+            inspectionHidden={inspectingPausedWorld}
           />
         </Suspense>
       )}

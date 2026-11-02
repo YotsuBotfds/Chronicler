@@ -1,9 +1,11 @@
 # Bounded live what-if continuations
 
 An authenticated viewer can prepare one exact paired continuation of the
-currently paused live world. This supports exactly one existing interactive
-control: `set <living civilization> stability <integer 1..100>`, followed by
-1–20 additional turns. The original remains paused and is never used as either
+currently paused live world. Two literal controls are supported: `set <living civilization> stability
+<integer 1..100>` and `set @world grain_reserves.shortfall_priority 0|1`,
+followed by1–20 additional turns. The latter requires hybrid mode and already
+enabled granaries. It changes procurement ordering within existing passes; it
+does not enable a system, create goods or money, or guarantee better outcomes. The original remains paused and is never used as either
 arm. This is one paired trajectory, not a population causal estimate.
 
 Start the live server with `PYTHONHASHSEED=0` and `--simulate-only`. The backend
@@ -18,6 +20,7 @@ The existing origin/token authenticated WebSocket accepts:
 
 ```json
 {"type":"what_if_prepare","request_id":"client-unique-id","civ":"Kethani Empire","value":65,"turns":5}
+{"type":"what_if_prepare","request_id":"another-unique-id","control":"granary_shortfall_priority","value":1,"turns":5}
 {"type":"what_if_run","request_id":"client-unique-id"}
 {"type":"what_if_cancel","request_id":"client-unique-id"}
 ```
@@ -33,7 +36,9 @@ changed environments and corrupt sections refuse; no mismatch override exists.
 `what_if_status` carries `request_id`, state (`prepared`, `running`, `complete`,
 `cancelled`, `error`), and the manifest when a prepared job exists. Running
 messages also carry `arm` (`baseline` or `intervention`). Errors carry `message`.
-The manifest is version 1 and contains `source` (checkpoint identity, complete
+The manifest is version1 for stability and version2 for the global policy;
+policy interventions add `scope:"world"`, `civ:"@world"` and
+`stat:"grain_reserves.shortfall_priority"`. Both contain `source` (checkpoint identity, complete
 checkpoint header, freshly read runtime identity), `mode`, `seed`, `start_turn`,
 `end_turn`, `turns`, the control including `before`,
 `semantics: "exact_checkpoint_pair"`, limits and resource bounds.
@@ -42,7 +47,9 @@ Run launches the two arms serially with the current interpreter and source path:
 `--interactive --resume <common exact checkpoint> --simulate-only --turns END`.
 Both inherit the same thread/hash environment, saved seed/configuration and
 checkpoint. The baseline receives only `continue`; the other receives the
-existing shlex-quoted `set ... stability ...` command, then `continue`. A final
+existing whitelisted shlex-quoted `set` command, then `continue`. Selecting
+the already-effective value is a genuine no-op, including missing/default-zero
+priority representation; it does not insert a zero override. A final
 exact checkpoint verifies the horizon/seed and full recorded intervention list.
 Both actual output bundles must also reach the declared horizon and seed.
 
@@ -97,3 +104,35 @@ that deliberately blocked an existing socket-start test are retained there;
 the supported new offline selection includes only the pure module. Full native
 CI, the full offline lane and viewer integration were not run by this backend
 slice.
+
+## Saved plans and exact references
+
+The same panel imports/exports a version1 `chronicler-what-if-recipe`. It records
+seed, mode, start/end/horizon, supported control, complete common-checkpoint
+identity, source/runtime/settings fingerprints and optional output identities.
+Exported display settings and artifact names are whitelisted; raw paths,
+headers, credentials and private bookmark notes are excluded. Existing comparison
+JSON/Markdown exports also sanitize nested provenance and settings.
+
+Import fills the form and sends no command. Explicit preparation must pass
+source/checkpoint/runtime/configuration/control checks before Run is enabled.
+Malformed recipes and incompatible seed/mode/start leave the current form and
+world available. Cancel remains available after a refused prepared match.
+
+The reference is byte-bound, stricter than loader-compatible continuation. A
+restart with retargeted output or presentation/lineage can change checkpoint
+bytes; an identical seed and turn cannot prove equal state. On a complete
+prepared mismatch, **Use this prepared checkpoint as a new case** explicitly
+adopts the displayed current point. It keeps the imported reference visible,
+sends no command and requires a separate Run. A new preparation invalidates
+adoption. Exports then identify the actual new point; the original file stays
+unchanged. This action does not establish reproduction or equivalent state.
+
+Current-source browser evidence uses the regenerated seed42 example under
+`/workspace/shared/chronicler-exploration-example-59d1de84`, Python package
+`64f0c573f16800434e2ca572ddf95efc56ac567b088c7c876c8f56b89a9ddba0`,
+compiled native SHA256 `f6f78b0c63efcf5fd09e310d6901c460711e667f09e57d3e348df00ca57cab29`.
+Actual schema2 preparation, recipe download, Cancel/import with no message,
+strict same-pause reprepare, duplicate-click single Run, both native arms,
+per-entity results and sanitized completed export passed. The original remained
+paused at8. Receipts/screenshots: `chronicler-multiwave-evidence/browser`.

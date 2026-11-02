@@ -162,6 +162,11 @@ using the supported preview server at port 4173 instead, change only the link's
 viewer origin and preserve its query string. The original simulation remains
 paused while the what-if pair runs.
 
+At a pause, **Inspect world while paused** hides the modal without advancing
+the original or discarding intervention drafts. Use **Return to run controls**
+to reopen it. A prepared/running comparison must be cancelled or finished first.
+A new pause automatically presents its controls again.
+
 In **Try a bounded what-if**:
 
 1. Choose the first living civilization in the list. Set **Set stability to**
@@ -219,7 +224,17 @@ fork; it cannot supply this workflow's exact native runtime. A comparison of
 unrelated saved bundles is exploratory and does not become an exact pair merely
 because their seeds match.
 
-Only stability values 1–100 and 1–20 additional turns are supported here. One
+The same control chooser also supports **Global granary procurement priority**:
+0 keeps reserve-fill-first ordering;1 uses shortage-first ordering within existing
+domestic/foreign passes. It requires already-enabled hybrid granaries. Choose the
+current value for a genuine no-op. Preview world scope and the authoritative
+baseline before Run; this policy does not create goods or money. Both controls
+allow1–20 additional turns and preserve current economic defaults.
+
+**Download recipe** saves the plan and exact reference. Import sends no command
+and must match the prepared point before Run. A complete mismatch may be
+explicitly adopted as a **new case**, with both references visible and a separate
+Run; that does not establish reproduction. See [recipe limits](live-what-if.md#saved-plans-and-exact-references). One
 paired trajectory describes this checkpoint and intervention, not a population
 causal estimate or general policy benefit. A cancelled or failed arm retains its
 partial output and cannot be presented as a completed comparison. No narration
@@ -302,3 +317,32 @@ if test -e "$world_lab_replay"; then echo 'Choose a fresh output folder'; exit 1
 
 Exact resume still requires matching package/native/interpreter/environment;
 regenerate on incompatible source rather than using a mismatch override.
+
+## Current exploration journey
+
+The final browser journey used the current Python64f0c573… and actual native
+f6f78b0c… with the regenerated natural example. After inspecting at pause8, the
+original continued to16. Thornwood actually recorded model population35 and
+food/need0.77; its population window8–16 was inspected without moving the turn.
+A schema2 priority0→1 pair then ran two native turns from16→18. The per-entity
+comparison and sanitized export loaded, and the original remained paused16.
+It was quit through the UI and the owned process exited0.
+
+The unchanged original completed file was reopened at16, Thornwood bookmarked,
+another region/turn selected, then the finding restored and exported. Packet
+values exactly matched35/0.77 and excluded the private note. All14 original
+generated artifacts/checkpoints remained byte-identical. This is a verified
+workflow example, not evidence that this intervention improved the world.
+
+Current evidence, actual comparison/packet and screenshots are under
+`/workspace/shared/chronicler-multiwave-evidence/browser/`: `final-journey-result.json`,
+`final-journey-comparison.json`, `final-investigation.json`,
+`final-thornwood-condition16.png`, `final-native-comparison18.png` and
+`final-bookmarked-investigation16.png`. The loaded file's hash identifies the
+source; its bundle does not embed a commit, so retain `example-manifest.json` too.
+
+The recovery gallery also exposed and fixed a Learning rewind leak. Selecting
+new seat3 at snapshot16 then rewinding15 now hides its future name, founding,
+chart and global event. Returning16 restores the selected identity; older seat
+history stays available. Learning source tick4 becomes observable at snapshot5.
+The failing screenshot and corrected actual-browser evidence are preserved.

@@ -4,16 +4,17 @@ import { regionalFixture } from "../../../__fixtures__/regionalPopulation";
 import { AppShell } from "../AppShell";
 import { preloadPanels } from "../lazyPanels";
 import { INVESTIGATION_BOOKMARKS_KEY } from "../../../lib/investigationBookmarks";
+import type { ComponentProps } from "react";
 beforeAll(() => preloadPanels());
 afterEach(() => { cleanup(); localStorage.clear(); });
 const hash = "a".repeat(64);
-function mount() {
+function mount(extra: Partial<ComponentProps<typeof AppShell>> = {}) {
   const onSeek = vi.fn(); const bundle = regionalFixture();
   const props = { surface: "overview" as const, onSurfaceChange: vi.fn(), bundle, artifactIdentity: { name: "world.json", byteLength: 123, sha256: hash },
     bundleLoading: false, error: null, isLive: false, connected: false, serverState: "completed" as const,
     currentTurn: 3, playing: false, speed: 1, onSeek, onPlay: vi.fn(), onPause: vi.fn(), onSetSpeed: vi.fn(),
-    lobbyInit: null, starting: false, onOpenBundleFile: vi.fn() };
-  return { ...render(<AppShell {...props} />), onSeek };
+    lobbyInit: null, starting: false, onOpenBundleFile: vi.fn(), ...extra };
+  return { ...render(<AppShell {...props} />), onSeek, props };
 }
 it("keeps map, region history and turn comparison synchronized without resetting the metric, window or selected turn", async () => {
   const { onSeek } = mount();
@@ -31,6 +32,28 @@ it("keeps map, region history and turn comparison synchronized without resetting
   expect(screen.getByRole("region", { name: "Selected region investigation" })).toHaveTextContent("Region identity 0");
   expect(screen.getByRole("combobox", { name: "Compare civilization or region" })).toHaveValue(JSON.stringify(["region", "A"]));
   expect(onSeek).not.toHaveBeenCalled();
+});
+it("lets a paused world be inspected without commands or lost intervention drafts, and reopens controls at a new pause", async () => {
+  const send = vi.fn();
+  const context = { turn: 3, reason: "interval", civs: ["A", "B"], valid_commands: ["continue", "inject", "set", "quit"],
+    injectable_events: ["plague"], settable_stats: ["stability"] };
+  const { props, rerender, onSeek } = mount({ isLive: true, connected: true, serverState: "running", livePaused: true,
+    livePauseContext: context, liveSendCommand: send });
+  let dialog = await screen.findByRole("dialog", { name: "Paused simulation at turn 3" });
+  fireEvent.change(within(dialog).getByRole("spinbutton"), { target: { value: "77" } });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Inject" }));
+  fireEvent.click(within(dialog).getByRole("button", { name: "Inspect world while paused" }));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  fireEvent.change(screen.getByRole("combobox", { name: "Inspect a region" }), { target: { value: "B" } });
+  expect(screen.getByRole("region", { name: "Selected region investigation" })).toHaveTextContent("Region identity 1");
+  fireEvent.click(screen.getByRole("button", { name: "Return to run controls" }));
+  dialog = screen.getByRole("dialog", { name: "Paused simulation at turn 3" });
+  expect(within(dialog).getByRole("spinbutton")).toHaveValue(77);
+  expect(within(dialog).getByText(/plague.*A/)).toBeInTheDocument();
+  expect(send).not.toHaveBeenCalled(); expect(onSeek).not.toHaveBeenCalled();
+  fireEvent.click(within(dialog).getByRole("button", { name: "Inspect world while paused" }));
+  rerender(<AppShell {...props} livePauseContext={{ ...context, turn: 4 }} />);
+  expect(screen.getByRole("dialog", { name: "Paused simulation at turn 4" })).toBeInTheDocument();
 });
 it("restores only an available entity and exact turn from a matching file, and leaves a forged target alone", async () => {
   localStorage.setItem(INVESTIGATION_BOOKMARKS_KEY, JSON.stringify({ version: 1, bookmarks: [
