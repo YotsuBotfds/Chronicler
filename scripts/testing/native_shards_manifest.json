@@ -277,6 +277,8 @@
       "tests/test_public_purchase_receipts.py",
       "tests/test_public_purchase_receipts_native.py",
       "tests/test_python_qualification.py",
+      "tests/test_regional_population.py",
+      "tests/test_regional_population_native.py",
       "tests/test_relationships.py",
       "tests/test_ritual_gatherings_native.py",
       "tests/test_ruler_ambitions.py",
