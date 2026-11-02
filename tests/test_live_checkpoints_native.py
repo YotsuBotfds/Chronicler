@@ -313,3 +313,22 @@ def _public_grain_live_checkpoint(tmp_path, monkeypatch, *, prefill_sellers):
                    if row["id"] == ident]
     assert [row["operation"] for row in transitions] == ["dispatched", "arrived"]
     assert transitions[1]["turn"] == transitions[0]["turn"] + 1
+
+
+@pytest.mark.parametrize("policy", [0, 1])
+def test_native_policy_midtransit_checkpoint_matches_same_terminal_horizon(tmp_path, monkeypatch, policy):
+    # Deliberately require the real binary: no importorskip or skip fallback.
+    import chronicler_agents.chronicler_agents as compiled
+    from chronicler import live
+    assert isinstance(compiled.AgentSimulator, type)
+    original = live._live_world
+
+    def initial_world(args, params):
+        candidate, scenario = original(args, params)
+        candidate.tuning_overrides["grain_reserves.full_meal_release"] = policy
+        return candidate, scenario
+
+    monkeypatch.setattr(live, "_live_world", initial_world)
+    # Existing finite-stock native fixture, horizon8 in both uninterrupted and
+    # resumed paths; no shorter terminal run is compared to an earlier checkpoint.
+    _public_grain_live_checkpoint(tmp_path, monkeypatch, prefill_sellers=True)

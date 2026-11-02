@@ -214,27 +214,6 @@ def test_release_option_never_feeds_agents_from_pending_cargo(world, monkeypatch
     _assert_existing_timing(world, monkeypatch)
 
 
-@pytest.mark.native
-@pytest.mark.parametrize("policy", [0, 1])
-def test_native_policy_midtransit_checkpoint_matches_same_terminal_horizon(tmp_path, monkeypatch, policy):
-    # Deliberately require the real binary: no importorskip or skip fallback.
-    import chronicler_agents.chronicler_agents as compiled
-    from chronicler import live
-    from test_live_checkpoints_native import _public_grain_live_checkpoint
-    assert isinstance(compiled.AgentSimulator, type)
-    original = live._live_world
-
-    def initial_world(args, params):
-        candidate, scenario = original(args, params)
-        candidate.tuning_overrides[KEY] = policy
-        return candidate, scenario
-
-    monkeypatch.setattr(live, "_live_world", initial_world)
-    # Existing finite-stock native fixture, horizon8 in both uninterrupted and
-    # resumed paths; no shorter terminal run is compared to an earlier checkpoint.
-    _public_grain_live_checkpoint(tmp_path, monkeypatch, prefill_sellers=True)
-
-
 def test_source_inverse_preserves_frozen_parent_and_rejects_changed_policy_and_unrelated_edits():
     import hashlib
     from pathlib import Path

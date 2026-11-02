@@ -101,8 +101,12 @@ registration311modules passes; existing6 native skips/623subtest seals unchanged
 Current-source long-run/lifecycle/output checks provide the combined proof above.
 
 The prior source5162 all9 CI result is historical unchanged-source evidence only;
-final combined CI has not yet been reported for this release. Rust inputs/locks
-are unchanged. Final CI dispatch/result will be recorded here before closure.
+first combined CI at942da692 passed viewer/Rust/new-wheel but exposed two strict
+native tests mistakenly included in native-absent lanes. They are moved intact
+into the existing native-checkpoint module; the corrected guarded chunk passes
+95/2 pre-existing skips, and both real native cases pass2/0 skips. Initial failures
+are retained. Rust/package/locks/UI are unchanged by this lane-only correction.
+The corrected full CI dispatch/result will be recorded before closure.
 
 All new receipts/scripts/screenshots/data are under
 `/workspace/shared/chronicler-multiwave-evidence`, with subdirectories
