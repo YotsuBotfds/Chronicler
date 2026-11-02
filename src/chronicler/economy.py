@@ -611,6 +611,9 @@ class EconomyResult:
     # economy tick, or from a native extension built before 2026-10.
     slot_output: dict[str, tuple[float, float, float]] = field(default_factory=dict)
     forage_output: dict[str, float] = field(default_factory=dict)
+    # Exact already-computed native post-trade Float32 prices. Missing complete
+    # columns in older extensions remain unknown, never reconstructed in f64.
+    market_prices: dict[str, dict[str, float]] = field(default_factory=dict)
 
 
 def compute_production(
@@ -1584,6 +1587,14 @@ def reconstruct_economy_result(
                 for c in cols]
         for i, rid in enumerate(rr_ids):
             target[region_names[rid]] = tuple(v[i] for v in vals)
+
+    price_cols = [f"market_price_{category}" for category in CATEGORIES]
+    if all(column in rr_names for column in price_cols):
+        prices = [pylist(region_result_batch.column(column)) for column in price_cols]
+        for i, rid in enumerate(rr_ids):
+            result.market_prices[region_names[rid]] = {
+                category: float(values[i]) for category, values in zip(CATEGORIES, prices, strict=True)
+            }
 
     # Crafts: wares made and wares on hand over demand (absent before 2026-10).
     for name, target in (("craft_output", result.craft_output),

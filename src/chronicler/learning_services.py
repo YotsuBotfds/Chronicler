@@ -302,8 +302,13 @@ def procure_learning_supplies(world, phase10, actual_upkeep, *, commitments, acc
         asset.upkeep_satisfied = upkeep.satisfied if upkeep else None
         staff = counts.scholars[seat.region] if counts else None
         learners = counts.learners[seat.region] if counts else None
-        goods = getattr(economy, "region_goods", None)
-        prices = getattr(goods.get(region.name), "prices", {}) if isinstance(goods, dict) else {}
+        native_prices = getattr(economy, "market_prices", None)
+        prices = native_prices.get(region.name) if isinstance(native_prices, dict) else None
+        if prices is None:
+            # The Python oracle's own prices are genuine observations too.
+            # Native region_goods is empty; an old native binary stays unknown.
+            goods = getattr(economy, "region_goods", None)
+            prices = getattr(goods.get(region.name), "prices", {}) if isinstance(goods, dict) else {}
         price = prices.get("craft") if isinstance(prices, dict) else None
         price = float(price) if _number(price) and price > 0 else None
         held = commitments.get(region.name, {}).get("crafts") if isinstance(commitments, dict) and isinstance(commitments.get(region.name), dict) else None
