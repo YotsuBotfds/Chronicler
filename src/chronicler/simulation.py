@@ -2019,11 +2019,16 @@ def run_turn_result(
 
     economy_result = None
     snapshot = None
+    _learning_counts = None
     if agent_bridge is not None:
         region_map = world.region_map
         snapshot = agent_bridge.get_snapshot()
         if snapshot is not None:
             artifacts.food_weights = capture_food_weights(world, snapshot)
+            _services = getattr(getattr(world, "scholarship", None), "learning_services", None)
+            if _services is not None and getattr(_services, "enabled", True) and world.agent_mode == "hybrid":
+                from chronicler.learning_services import learning_counts_from_snapshot
+                _learning_counts = learning_counts_from_snapshot(snapshot, world.turn, len(world.regions))
             # Lagged mutual aid moves existing stock (observed at N-1) before
             # this turn's inventory is packed; it does not read yields.
             if world.mutual_aid_enabled:
@@ -2267,7 +2272,7 @@ def run_turn_result(
     if (_learning_state is not None and getattr(_learning_state, "enabled", True)
             and world.agent_mode == "hybrid" and agent_bridge is not None):
         from chronicler.learning_services import (
-            learning_counts_from_snapshot, prepare_learning_work,
+            prepare_learning_work,
             finish_learning_work, cancel_learning_work, learning_work_pending,
         )
         sim = agent_bridge._sim
@@ -2278,8 +2283,7 @@ def run_turn_result(
         _ordinary_agent_tick = tick_agents
 
         def tick_agents(*args, **kwargs):
-            counts = learning_counts_from_snapshot(snapshot, world.turn, len(world.regions))
-            requests, plan = prepare_learning_work(world, counts)
+            requests, plan = prepare_learning_work(world, _learning_counts)
             native_prepared = False
             try:
                 if any(requests):
