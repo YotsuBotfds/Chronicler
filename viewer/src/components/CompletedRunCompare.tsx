@@ -169,6 +169,11 @@ function RunIdentity({ run }: { run: CompletedRun }) {
     <dl><dt>World</dt><dd>{identity.world}</dd>
       <dt>Seed / recorded horizon</dt><dd>{value(identity.seed)} / {value(identity.horizon)}</dd>
       <dt>Snapshots</dt><dd>{identity.firstSnapshot ?? "None"}–{identity.lastSnapshot ?? "None"} ({identity.snapshots} unambiguous)</dd>
+      {identity.settings.whatIf && <><dt>Recorded what-if arm</dt><dd>
+        {identity.settings.whatIf.arm === "baseline" ? "Unchanged continuation; no override. Paired control:" : "Stability intervention:"}
+        {identity.settings.whatIf.intervention.civ}: stability {identity.settings.whatIf.intervention.before} → {identity.settings.whatIf.intervention.value};
+        turns {identity.settings.whatIf.start_turn}–{identity.settings.whatIf.end_turn}
+      </dd></>}
       <dt>Agent mode</dt><dd>{identity.agentMode ?? "Not recorded"}</dd>
       <dt>Bundle format version</dt><dd>{value(identity.bundleVersion)}</dd>
       <dt>File bytes</dt><dd>{value(run.identity?.byteLength)}</dd>

@@ -1,6 +1,7 @@
 /** Descriptive completed-run comparisons, using exact recorded snapshots only. */
 import type { Bundle, CivSnapshot, TurnSnapshot } from "../types";
 import type { ArtifactIdentity } from "./artifactIdentity";
+import { readWhatIfManifest } from "./whatIf";
 import { enabledSavedSystems } from "./savedWorldSummary";
 import { populationWeightedFood, readRegionalPopulation, weightedFoodNote } from "./regionalPopulation";
 
@@ -131,9 +132,20 @@ export function alignCompletedRuns(left: Bundle, right: Bundle): AlignedRunPoint
 export function completedRunIdentity(run: CompletedRun) {
   const metadata = run.bundle.metadata as unknown as Record<string, unknown>;
   const world = run.bundle.world_state as unknown as Record<string, unknown>;
+  const tag = readWhatIfManifest(metadata.what_if);
+  const rawTag = record(metadata.what_if);
+  const arm = rawTag?.arm === "baseline" || rawTag?.arm === "intervention" ? rawTag.arm : null;
+  const header = tag && arm ? record(tag.source.header) : null;
+  const checkpoint = record(tag?.source.checkpoint);
+  const checkpointValid = header?.exact === true && header.turn === tag?.start_turn
+    && header.seed === tag?.seed && typeof checkpoint?.sha256 === "string" && /^[a-f0-9]{64}$/.test(checkpoint.sha256);
+  const checkpointIdentity = checkpointValid ? record(header.identity) : null;
+  const checkpointConfig = checkpointValid ? record(header.run_config) : null;
   const source = Object.fromEntries(["source", "source_commit", "source_revision", "git_commit", "native_sha256"]
     .filter((key) => metadata[key] != null).map((key) => [key, metadata[key]]));
-  const configuration = record(metadata.simulation_config) ?? record(metadata.simulation_args);
+  const exportedConfiguration = record(metadata.simulation_config) ?? record(metadata.simulation_args);
+  const configuration = exportedConfiguration ?? record(checkpointConfig?.simulation_args);
+  const recordedPair = checkpointValid && tag ? { ...tag, arm } : null;
   const finalSettings = Object.fromEntries(["agent_mode", "tuning_overrides", "chaos_multiplier"]
     .filter((key) => key in world).map((key) => [key, world[key]]));
   const turns = snapshots(run.bundle);
@@ -144,8 +156,10 @@ export function completedRunIdentity(run: CompletedRun) {
     snapshots: valid.length, ambiguousTurns: [...turns.values()].filter((row) => row === null).length,
     agentMode: Object.hasOwn(world, "agent_mode") && (world.agent_mode === null || world.agent_mode === "off") ? "off (aggregate)"
       : typeof world.agent_mode === "string" ? world.agent_mode : null,
-    source: Object.keys(source).length ? source : null,
+    source: Object.keys(source).length ? source : checkpointIdentity,
     settings: { scenario: metadata.scenario_name ?? null, configuration, finalSettings,
+      configurationOrigin: exportedConfiguration ? "bundle metadata" : configuration && tag ? `exact checkpoint at turn ${tag.start_turn}` : null,
+      whatIf: recordedPair,
       enabledFinalSystems: enabledSavedSystems(world),
       models: { simulation: metadata.sim_model ?? null, narration: metadata.narrative_model ?? null,
         narratorMode: metadata.narrator_mode ?? null },
@@ -172,6 +186,7 @@ export function comparisonWarnings(left: CompletedRun, right: CompletedRun): str
     else if (stable(a[key]) !== stable(b[key])) warnings.push(`${label} differ.`);
   }
   if (!a.file?.sha256 || !b.file?.sha256) warnings.push("An original-file SHA-256 is not recorded for one or both inputs.");
+  if (a.settings.whatIf || b.settings.whatIf) warnings.push("What-if configuration is recorded at the common checkpoint; earlier interventions may have changed it. Compare subsequent snapshots for the labeled control, not the unchanged starting snapshot.");
   if (!a.settings.configuration || !b.settings.configuration) warnings.push("Full initial simulation settings are not recorded; matching final settings cannot establish equivalence.");
   if (a.ambiguousTurns || b.ambiguousTurns) warnings.push("Duplicate snapshot turns are ambiguous and excluded.");
   if (a.firstSnapshot !== b.firstSnapshot || a.lastSnapshot !== b.lastSnapshot) warnings.push("Recorded snapshot ranges differ; shorter tails and gaps remain unknown.");

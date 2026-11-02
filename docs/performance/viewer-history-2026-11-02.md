@@ -71,8 +71,9 @@ overview consecutive script median was 8.95 ms. There were no browser errors.
 The worker's existing decoding behavior was preserved.
 
 The final integrated comparison used three rounds, alternating build order:
-root/candidate, candidate/root, root/candidate. Browser samples ran serially,
-without concurrent checks in this final lane. Initial profiling found repeated
+root/candidate, candidate/root, root/candidate. Browser samples ran serially. Other shared-workspace browser and focused-test
+work overlapped this session, so host contention can contribute noise; no
+otherwise-idle-machine claim is made. Initial profiling found repeated
 event-key counting and number formatting among the leading named history
 application costs; chart/layout work was larger overall.
 

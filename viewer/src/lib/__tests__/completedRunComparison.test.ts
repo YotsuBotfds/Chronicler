@@ -107,3 +107,21 @@ describe("comparison provenance and exports", () => {
     expect(JSON.parse(JSON.stringify(summary)).inputs.left.source).toBeNull();
   });
 });
+
+it("reads recorded exact-pair source/configuration and arm from completed files without inventing initial settings", async () => {
+  const { whatIfManifest } = await import("../../__fixtures__/whatIf");
+  const source = { source: { git_sha: "recorded-source", package_digest: "c".repeat(64) }, native: { sha256: "d".repeat(64) } };
+  const bundle = comparisonBundle();
+  const tag = { ...whatIfManifest, arm: "baseline", source: { ...whatIfManifest.source,
+    header: { exact: true, turn: 2, seed: 42, identity: source, run_config: { simulation_args: { agents: "hybrid", grain_reserves: true } } } } };
+  Object.assign(bundle.metadata, { what_if: tag });
+  const identity = completedRunIdentity(input(bundle));
+  expect(identity.source).toEqual(source);
+  expect(identity.settings.configuration).toEqual({ agents: "hybrid", grain_reserves: true });
+  expect(identity.settings.configurationOrigin).toBe("exact checkpoint at turn 2");
+  expect(identity.settings.whatIf?.arm).toBe("baseline");
+  expect(comparisonWarnings(input(bundle), input(bundle))).toContain("What-if configuration is recorded at the common checkpoint; earlier interventions may have changed it. Compare subsequent snapshots for the labeled control, not the unchanged starting snapshot.");
+  Object.assign(bundle.metadata, { what_if: { ...tag, source: { ...tag.source, header: { ...tag.source.header, exact: false } } } });
+  expect(completedRunIdentity(input(bundle)).source).toBeNull();
+  expect(completedRunIdentity(input(bundle)).settings.configuration).toBeNull();
+});

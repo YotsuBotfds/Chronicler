@@ -5,7 +5,7 @@
  * other AppShell tests preload them).
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import systemsFixture from "../../../__fixtures__/systems_bundle.json";
 import type { Bundle, LanguagesField } from "../../../types";
 import { sampleLanguages } from "../../../__fixtures__/languagesField";
@@ -35,7 +35,10 @@ describe("lazy panels", () => {
     render(shell());
     // The map, rail and inspector are there before the panels' chunks.
     expect(document.querySelectorAll(".phase75-region-node").length).toBe(bundle.world_state.regions.length);
-    const statuses = screen.getAllByRole("status");
+    // Ordinary observation statuses are not loading placeholders.
+    const conditionStatus = within(screen.getByRole("region", { name: "Where should I look?" })).getByRole("status");
+    expect(conditionStatus).not.toHaveAttribute("aria-busy", "true");
+    const statuses = screen.getAllByRole("status").filter((status) => status.hasAttribute("data-lazy-fallback"));
     expect(statuses.map((status) => status.textContent)).toEqual(expect.arrayContaining([
       "Loading the languages...", "Loading the simulation systems...",
     ]));

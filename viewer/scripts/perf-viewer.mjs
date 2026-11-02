@@ -324,7 +324,7 @@ async function sample(browser, url, bundle, options, total) {
   await page.waitForTimeout(1500);
   const longTasksBefore = await page.evaluate(() => window.__perf.longTasks.length);
 
-  await page.locator('input[type="file"][accept=".json"]').first().setInputFiles(bundle.path);
+  await page.getByLabel("Open saved world file").setInputFiles(bundle.path);
   await waitForMark(page, "overviewFrame");
   await waitForMark(page, "systemsFrame");
   await lazyIdle(page);

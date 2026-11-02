@@ -19,15 +19,25 @@ or out of scope. Economic defaults stay unchanged.
    Regional history/comparison and weighted food include denominator coverage.
    Worker checks: 118 focused tests, TypeScript and lint pass. Actual Chromium checks pass condition→history navigation without seeking,
    16 exported regional counts, old unknowns and phone390 layout.
-3. **Exact what-if pair: in progress.** Existing stability override, horizon 1–20,
+3. **Exact what-if pair: implemented and browser-verified.** Existing stability override, horizon 1–20,
    unchanged/treatment children from one exact checkpoint; source/provenance
    prepared before execution, original paused, owned child cancellation and
    duplicate safeguards. Simulate-only and fixed Python hash seed required.
    State forks are explicitly distinct; no arbitrary scripts or client paths.
-4. **Responsiveness: measuring.** One representative larger real saved world,
-   existing browser/equivalence tooling; optimize only measured bottlenecks.
-5. **Guided example: pending combined workflow.** Real generated output and
-   screenshots, copyable local launch, bulk files outside Git and backed up.
+   A real native turn8→16 pair completed; original remained paused8. Actual
+   duplicate clicks, reconnect replay, prepared/running cancellation and owned
+   child cleanup pass. Both 12-metric exports agree with raw arm snapshots.
+4. **Responsiveness: measured, narrow optimization integrated.** Real 32-region,
+   200-turn, 10.8MB native saved world. Cached event-key counts and shared number
+   formatting reduce measured history scripting median22.15→16.60ms. No frame,
+   loading or completed-comparison gain is claimed; shared-host noise remains.
+   A rejected memo candidate and slower measurements are retained. Real/older
+   rendered-DOM equivalence is exact. See viewer-history-2026-11-02.md.
+5. **Guided example: generated, whole workflow executed.** Fixed natural
+   seed42/hybrid24, 8regions/4civs, granaries+receipts, exact checkpoint8.
+   Deliberately constructed stability31→70 intervention, horizon8, compared
+   through16. Commands/native/source/byte identities and observations retained
+   outside Git. Final provenance screenshots/guide status update pending.
 
 ## Working session and evidence
 
@@ -62,8 +72,12 @@ comparison component. Independent isolated workers own Python regional exports,
 viewer observations/conditions then measured performance, and live what-if
 backend. No recursive workers, shared writers or changed native build.
 
-Next: integrate the exact-pair backend commit, then combined browser/live
-workflow and generated guide. Root what-if UI focus passes 50 tests, TypeScript,
-lint and production build; end-to-end paired execution remains pending. Then relevant
-combined Python/native/Rust/viewer checks and dev push/remote verification.
-No new full scientific/balance campaign is authorized or claimed.
+Next: finish final browser provenance check, existing nine-job CI on combined
+code, close guide/tracker and publish verified source/example backups. Combined
+focus:111 Python/native tests pass; unchanged Rust/native source remains matched.
+Viewer full initial run:893 passed plus two lazy-panel test failures caused by a
+new ordinary condition status being mistaken for a loading status. The test now
+selects actual loading fallbacks and separately checks the condition is not busy;
+both focused cases pass. Initial failure is retained; no product assertions or
+simulation behavior were weakened. Combined lint/build pass. Fresh full CI will
+qualify the final code; broad scientific/balance campaigns remain out of scope.
