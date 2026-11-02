@@ -206,6 +206,7 @@ def generate(output: Path):
         destination=shlex.quote(str(output/'live'))
         command=(f'if test -e {destination} || test -L {destination}; then\n'
             "  echo 'Live output exists; choose a fresh output directory.' >&2\n  exit 1\nfi\n"
+            +f'mkdir -m700 -- {destination}\n'
             +shlex.join(launch)+'\n')
         (output/'launch-live.sh').write_text('#!/usr/bin/env bash\nset -euo pipefail\numask 077\n'+command)
         (output/'WALKTHROUGH.txt').write_text(
