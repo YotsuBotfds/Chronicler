@@ -109,3 +109,22 @@ it("rejects impossible estimator lags and nonchronological observation evidence"
     expect(estimatorMetadataAt({ ...base, estimator_metadata: broken as HarvestEstimatorMetadata }, 6, 3)).toBeNull();
   }
 });
+
+it("labels severe classification and shows only validated recorded thresholds on resolved rows", () => {
+  const p = props();
+  const resolved = report({ status: "resolved", resolved_turn: 6, observed_ratio: .627537, outcome_shortfall: false,
+    brier: .49, estimator_metadata: metadata() });
+  p.snapshot.harvest_forecasts!.outcomes = [resolved];
+  const view = render(<HarvestForecasts {...p} />);
+  expect(screen.getByText(/risk of winter production ÷ demand falling below the severe-shortfall threshold/)).toBeVisible();
+  const table = screen.getByRole("table", { name: "Harvest outcomes at snapshot 7" });
+  expect(within(table).getByRole("columnheader", { name: "Severe shortfall" })).toBeVisible();
+  expect(within(within(table).getAllByRole("row")[1]).getAllByRole("cell").slice(5, 8).map((cell) => cell.textContent)).toEqual(["0.63", "0.6", "No"]);
+  expect(screen.getByText(/a ratio above it may still be below full demand/)).toBeVisible();
+  p.snapshot.harvest_forecasts!.outcomes = [{ ...resolved, estimator_metadata: undefined }];
+  view.rerender(<HarvestForecasts {...p} />);
+  expect(within(within(table).getAllByRole("row")[1]).getAllByRole("cell").slice(5, 8).map((cell) => cell.textContent)).toEqual(["0.63", "Not recorded", "No"]);
+  p.snapshot.harvest_forecasts!.outcomes = [{ ...resolved, resolved_turn: 7 }];
+  view.rerender(<HarvestForecasts {...p} />);
+  expect(screen.queryByRole("table", { name: "Harvest outcomes at snapshot 7" })).toBeNull();
+});

@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { estimatorMetadataAt } from "../../lib/forecastDecision";
 import { forecastTotals, harvestForecastSeries } from "../../lib/harvestForecasts";
 import { hasObservation, observationAt } from "../../lib/observedSystems";
 import type { SystemPanelProps } from "../../lib/systems";
@@ -25,7 +26,7 @@ export function HarvestForecasts({ bundle, snapshot, currentTurn, onSelectRegion
   const outcomes = record.outcomes.filter((row) => row.resolved_turn != null && row.resolved_turn <= record.source_turn);
   return <section className="systems-section" aria-label="Harvest forecasts">
     <h3>Harvest forecasts · snapshot {at}</h3>
-    <p className="systems-note">Report state after simulation turn {record.source_turn}. A pending or withheld report has not informed its recipient. Probability is the predicted risk of winter production falling short of food demand; confidence describes measurement completeness. Neither is an observation of famine.</p>
+    <p className="systems-note">Report state after simulation turn {record.source_turn}. A pending or withheld report has not informed its recipient. Probability is the predicted risk of winter production ÷ demand falling below the severe-shortfall threshold; confidence describes measurement completeness. The threshold is shown only when recorded in validated issue-time construction. Neither measure is an observation of famine.</p>
     <div className="systems-tiles">
       <StatTile label="Reports delivered" value={totals.delivered} detail="currently active" />
       <StatTile label="Reports pending" value={totals.pending} />
@@ -45,7 +46,7 @@ export function HarvestForecasts({ bundle, snapshot, currentTurn, onSelectRegion
     <h4>Active assessments</h4>
     {reports.length === 0 ? <p className="systems-note">No active report recorded in this snapshot.</p> :
       <div className="systems-table-wrap" role="region" aria-label="Scroll harvest reports" tabIndex={0}><table className="systems-table" aria-label={`Harvest reports at snapshot ${at}`}>
-        <thead><tr><th>Report</th><th>Recipient</th><th>Ruler at issue</th><th>Observer</th><th>Status</th><th>Issued</th><th>Planned / actual delivery</th><th>Expires</th><th>Winter window</th><th>Shortfall risk</th><th>Confidence</th><th>Predicted production ÷ demand</th></tr></thead>
+        <thead><tr><th>Report</th><th>Recipient</th><th>Ruler at issue</th><th>Observer</th><th>Status</th><th>Issued</th><th>Planned / actual delivery</th><th>Expires</th><th>Winter window</th><th>Severe shortfall risk</th><th>Confidence</th><th>Predicted production ÷ demand</th></tr></thead>
         <tbody>{reports.map((row) => <tr key={row.id}>
           <td>{row.id}{snapshot?.turn === currentTurn && <ForecastConstruction report={row} sourceTurn={record.source_turn} regions={bundle.world_state.regions ?? []} />}</td><td><button type="button" className="systems-link" onClick={() => onSelectRegion(row.recipient_region_name)}>{row.recipient_region_name}</button></td>
           <td><button type="button" className="systems-link" onClick={() => onSelectCivilization(row.owner_name)}>{row.owner_name}</button></td>
@@ -68,17 +69,18 @@ export function HarvestForecasts({ bundle, snapshot, currentTurn, onSelectRegion
     <h4>Resolved assessments retained by this snapshot</h4>
     {outcomes.length === 0 ? <p className="systems-note">No resolved assessment retained yet.</p> :
       <div className="systems-table-wrap" role="region" aria-label="Scroll harvest outcomes" tabIndex={0}><table className="systems-table" aria-label={`Harvest outcomes at snapshot ${at}`}>
-        <thead><tr><th>Report</th><th>Region</th><th>Status</th><th>Resolved</th><th>Original risk</th><th>Observed production ÷ demand</th><th>Shortfall</th><th>Brier score</th></tr></thead>
+        <thead><tr><th>Report</th><th>Region</th><th>Status</th><th>Resolved</th><th>Original risk</th><th>Observed production ÷ demand</th><th>Recorded severe threshold</th><th>Severe shortfall</th><th>Brier score</th></tr></thead>
         <tbody>{outcomes.map((row) => <tr key={row.id}><td>{row.id}{snapshot?.turn === currentTurn && <ForecastConstruction report={row} sourceTurn={record.source_turn} regions={bundle.world_state.regions ?? []} />}</td><td>{row.recipient_region_name}</td><td>{row.status}</td>
           <td>{row.resolved_turn}</td><td>{percent(row.probability)}</td><td>{row.observed_ratio == null ? "Unscored" : show(row.observed_ratio)}</td>
+          <td>{estimatorMetadataAt(row, record.source_turn, bundle.world_state.regions.length)?.shortfall_ratio ?? "Not recorded"}</td>
           <td>{row.outcome_shortfall == null ? "Unknown" : row.outcome_shortfall ? "Yes" : "No"}</td><td>{row.brier == null ? "Unscored" : show(row.brier)}</td>
         </tr>)}</tbody>
       </table></div>}
-    <p className="systems-note">Outcomes measure winter production against demand before trade and reserve releases. This bounded table can omit older resolved reports. Charts stop at this snapshot; missing history stays unknown.</p>
+    <p className="systems-note">Outcomes measure winter production ÷ demand before trade and reserve releases. Severe shortfall means below the recorded threshold; a ratio above it may still be below full demand. Household meals are not measured. This bounded table can omit older resolved reports. Charts stop at this snapshot; missing history stays unknown.</p>
     {record.calibration.some(([count]) => count > 0) && <>
       <h4>Calibration of scored reports</h4>
       <div className="systems-table-wrap"><table className="systems-table" aria-label={`Forecast calibration at snapshot ${at}`}>
-        <thead><tr><th>Probability bin</th><th>Scored reports</th><th>Mean predicted risk</th><th>Observed shortfall share</th></tr></thead>
+        <thead><tr><th>Probability bin</th><th>Scored reports</th><th>Mean predicted risk</th><th>Observed severe shortfall share</th></tr></thead>
         <tbody>{record.calibration.map(([count, probability, shortfalls], index) => <tr key={index}>
           <td>{index * 20}–{(index + 1) * 20}%</td><td>{count}</td><td>{count ? percent(probability / count) : "Unknown"}</td>
           <td>{count ? percent(shortfalls / count) : "Unknown"}</td>
