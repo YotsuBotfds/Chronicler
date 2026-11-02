@@ -83,9 +83,15 @@ def _fallen_world():
 
 
 def test_native_real_fallen_academy_pair(tmp_path):
-    pytest.importorskip('chronicler_agents')
-    if os.name != 'posix' or os.environ.get('PYTHONHASHSEED') != '0' or sys.flags.hash_randomization:
-        pytest.skip('requires POSIX and interpreter started with PYTHONHASHSEED=0')
+    from test_what_if_process import _assert_real_native
+    _assert_real_native()
+    if os.name != 'posix':
+        pytest.skip('requires POSIX process groups')
+    if os.environ.get('PYTHONHASHSEED') != '0' or sys.flags.hash_randomization:
+        from test_what_if_process import _run_hash_zero_native_fixture
+        _run_hash_zero_native_fixture(tmp_path, fixture_file=__file__,
+                                      function_name='test_native_real_fallen_academy_pair')
+        return
     import numpy as np
     from chronicler import main
     from chronicler.batch_manifest import simulation_config, output_config
