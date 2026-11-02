@@ -1,6 +1,6 @@
 {
   "base": "a298a47b3b2beb9fdac69bc30860074d52226cdd",
-  "head": "14ed88a6dbfb314a95a1c20d1336a353d10adc81",
+  "head": "7438503f244ec767ee4d9c3511d0843d5d042991",
   "files": {
     "src/chronicler/interactive.py": {
       "sha256": "d0cb8a53ad6e440eaccae3ca5dcd9d9e5ad82bb0baa751ddf96b35a8e52a7083",
@@ -241,6 +241,6 @@
   },
   "new_files": {
     "src/chronicler/pause_academy.py": "89f427aacaf97402fdf097356422b4321d890035fb2eacd32ea2f67f014c247e",
-    "scripts/crisis_academy_example.py": "e160ae15f773c40f48fe5595fdc2edafd9b9e5973c0b105dfc3e4932f39b963a"
+    "scripts/crisis_academy_example.py": "f775beb7dd66327feca27c4a30cb53149c79499095b6645e43f71c5fc5f114d0"
   }
 }
