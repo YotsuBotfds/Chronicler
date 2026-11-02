@@ -92,6 +92,9 @@ class GrainReserveState(BaseModel):
     def __getstate__(self):
         state = super().__getstate__()
         if self.storage is None:
+            # Pydantic returns the live __dict__; filtering the serialized
+            # shape must never delete a field from the running world.
+            state["__dict__"] = state["__dict__"].copy()
             state["__dict__"].pop("storage", None)
             if "storage" in state["__pydantic_fields_set__"]:
                 state["__pydantic_fields_set__"] = state["__pydantic_fields_set__"] - {"storage"}
