@@ -6,6 +6,8 @@ import math
 import pyarrow as pa
 import pytest
 
+pytest.importorskip("chronicler_agents")
+
 from chronicler.agent_bridge import AgentBridge, build_signals
 from chronicler.run_checkpoint import CheckpointError, RunState, read_checkpoint, write_checkpoint
 from chronicler.world_gen import generate_world
@@ -242,3 +244,90 @@ def test_common_paid_holdings_active_vs_paused_real_scholar_income(tmp_path):
     assert active.world.scholarship.learning_services.teaching_receipts[0].work_delivered > 0
     for obj in (bridge, active.agent_bridge, paused.agent_bridge):
         obj.close()
+
+
+def test_restored_market_supplies_recover_after_a_real_shortage():
+    world, bridge, region, owner = _paid_service_setup()
+    world.regions[region].stockpile.goods["crafts"] = 0.0
+    _service_turn(world, bridge)
+    first = world.scholarship.learning_services.procurement_receipts[0]
+    assert first.purchased == first.paid == 0
+    assert world.scholarship.seats[0].fallen_turn is None
+    # Explicit exogenous finite restock at a turn boundary; it is a 100-unit
+    # source addition, not production, an academy purchase, or a shipment.
+    stock_before = world.regions[region].stockpile.goods.get("crafts", 0.0)
+    world.regions[region].stockpile.goods["crafts"] = stock_before + 100.0
+    assert world.regions[region].stockpile.goods["crafts"] - stock_before == 100.0
+    _service_turn(world, bridge)
+    second = world.scholarship.learning_services.procurement_receipts[0]
+    blocked = world.scholarship.learning_services.teaching_receipts[0]
+    assert blocked.work_requested == 0 and blocked.crafts_used in (None, 0)
+    assert second.purchased > 0 and second.paid > 0 and second.held_after > 0
+    _service_turn(world, bridge)
+    recovered = world.scholarship.learning_services.teaching_receipts[0]
+    assert recovered.work_delivered > 0 and recovered.crafts_used > 0
+    assert recovered.held_before - recovered.held_after == pytest.approx(recovered.crafts_used)
+    bridge.close()
+
+
+def test_controller_change_preserves_held_material_and_needs_new_upkeep():
+    world, bridge, region, owner = _paid_service_setup()
+    _service_turn(world, bridge)
+    previous = world.scholarship.learning_services.inventories[0]
+    held = previous.held
+    assert held > 0 and previous.upkeep_lord == owner
+    new_owner = next(i for i, civ in enumerate(world.civilizations) if i != owner
+        and (civ.name, world.civilizations[owner].name) not in world.active_wars
+        and (world.civilizations[owner].name, civ.name) not in world.active_wars)
+    old_civ, new_civ = world.civilizations[owner], world.civilizations[new_owner]
+    name = world.regions[region].name
+    old_civ.regions = [r for r in old_civ.regions if r != name]
+    if name not in new_civ.regions:
+        new_civ.regions.append(name)
+    world.regions[region].controller = new_civ.name
+    new_civ.treasury = 500
+    # This is a declared controller transition, not a simulated battle.
+    _service_turn(world, bridge)
+    blocked = world.scholarship.learning_services.teaching_receipts[0]
+    assert blocked.source_turn == 1 and blocked.work_requested == 0
+    assert blocked.upkeep_lord == owner
+    assert blocked.crafts_used in (None, 0)
+    assert blocked.held_before == pytest.approx(held)
+    assert blocked.held_after == pytest.approx(held)
+    asset = next(a for a in world.scholarship.learning_services.inventories if not a.retired)
+    assert asset.upkeep_lord == new_owner and asset.upkeep_source_turn == 1
+    _service_turn(world, bridge)
+    recovered = world.scholarship.learning_services.teaching_receipts[0]
+    assert recovered.upkeep_lord == new_owner and recovered.upkeep_applies is True
+    assert recovered.work_delivered is not None and recovered.work_delivered > 0
+    bridge.close()
+
+
+def test_hostile_controller_transition_records_destroyed_holdings_once():
+    world, bridge, region, owner = _paid_service_setup()
+    _service_turn(world, bridge)
+    held = world.scholarship.learning_services.inventories[0].held
+    old_civ = world.civilizations[owner]
+    hostile = next(c for c in world.civilizations if c.name != old_civ.name
+        and ((c.name, old_civ.name) in world.active_wars or (old_civ.name, c.name) in world.active_wars))
+    name = world.regions[region].name
+    old_civ.regions = [r for r in old_civ.regions if r != name]
+    if name not in hostile.regions:
+        hostile.regions.append(name)
+    world.regions[region].controller = hostile.name
+    # Controlled transfer while the named rulers are at war; the simulated
+    # scholarship phase, not this test, decides whether the academy falls.
+    _service_turn(world, bridge)
+    seat = world.scholarship.seats[0]
+    asset = world.scholarship.learning_services.inventories[0]
+    assert seat.fallen_turn == 1 and asset.retired
+    assert asset.held == 0 and asset.lost_total == pytest.approx(held)
+    losses = world.scholarship.learning_services.supply_losses
+    assert len(losses) == 1 and losses[0].lost == pytest.approx(held)
+    balance = world.scholarship.learning_services.material_balance
+    assert balance["lost"] == pytest.approx(held)
+    assert abs(balance["residual"]) <= balance["absolute_tolerance"]
+    _service_turn(world, bridge)
+    assert world.scholarship.learning_services.inventories[0].lost_total == pytest.approx(held)
+    assert world.scholarship.learning_services.material_balance["lost"] == 0
+    bridge.close()
