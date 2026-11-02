@@ -1,53 +1,63 @@
 # Development lead — exploration release qualification
 
-Branch `dev/codex-playable-build-20261031`. The full 36-item backlog is complete:
-implemented features and checked existing equivalents are recorded below.
-**No planned development work remains.** Runnable code `38116fc2` passed all nine
-[CI jobs](https://github.com/YotsuBotfds/Chronicler/actions/runs/41401640607).
-The closing commit changes documentation only. Main stays `cb9fe70c`, optional
-economic policies stay off by default, and environment publication remains deferred.
-Started from clean, refreshed local/remote `977bab1a`; prior queues were not restarted.
+The 36 requested items have bounded outcomes, not a blanket completion or
+scientific-qualification claim. The matrix distinguishes newly implemented work,
+existing behavior checked/reused, partial coverage, and deferred work. Source
+links identify the implementation; evidence links point to external receipts for
+particular runs, which are not substitutes for tests on later commits.
+
+Historical runnable code `38116fc2` passed all nine [CI jobs](https://github.com/YotsuBotfds/Chronicler/actions/runs/41401640607).
+Search correction `71590379` and IndexedDB bookmark correction `ce2b4e96` are
+later changes and are not covered by that CI run. Current combined viewer and
+rendered two-tab checks are in progress; do not infer their result from this page.
+Economic policies remain optional and off by default; cloud environment
+publication remains deferred.
 
 ## Backlog outcome
 
-| # | Delivered / verified |
-| --- | --- |
-| A1 | Fixed-legend population and existing thematic overlays; unknown differs from zero. Exact control gaps also stay unknown. |
-| A2 | Map/list/history/comparison selection synchronized; metric/window/turn retained. Conditions and explicit regional reports linked. |
-| A3 | Bounded exact ownership changes, stable indices, ambiguity/renames unknown; no invented borders. |
-| A4 | Dated region/civilization/city/actor search, aliases and ambiguity, no future observations. |
-| A5 | Fixed five-snapshot disruption/recovery windows, explicit rule and paged underlying source reports. |
-| A6 | Actual live incoming-turn lock, explicit latest-edge lock, Return to live and UI Quit verified. |
-| B7 | Bounded recorded civilization lifecycle, restoration/successor uncertainty and event/history links. |
-| B8 | City-first institution histories; existing Learning reused. Real school rewind leak fixed and browser-regressed. |
-| B9 | Existing granary/transaction views cover food flows; corrected released-before-consumption caption. Actual consumption remains unrecorded. |
-| B10 | Fiscal borrowing/service/paid-interest/principal/default/write-off evidence; foreign subset not added twice, lender allocations unknown. |
-| B11 | Explicit migration origin/destination/source fields, summed duplicate pairs; net flow separate from model population change. |
-| B12 | Deterministic values, clocks, source refs and coverage; nearby reports never assigned causal meaning. |
-| C13 | Same existing stability panel now previews two supported controls and authoritative common point; no second workbench. |
-| C14 | Literal global granary priority0/1, already-enabled hybrid only, schema2 provenance, no-op/default preservation; real native browser pair. |
-| C15 | Per-region/civilization single-measure comparisons and identity limits; all8 real regional deltas checked against snapshots in browser. |
-| C16 | Declared starts8/12 to common20, seeds7/42/91; differing windows/starting states explicit. |
-| C17 | Six pairs/12 native children:6 neutral,0 failures, no retuning. Earlier constructed benefits/harms retained; no promotion. |
-| C18 | Strict saved plan with byte-bound reference; import sends no command. Explicit new-case adoption preserves mismatch/identity honesty. |
-| D19 | Public route/supplier/keeper/ownership contracts exercised; private transport source-audited. No proven new mechanics defect. |
-| D20 | Optional YAML full_meal_release0/1 from local stock. Immediate relief vs later shortage harm retained; current defaults byte/physics checked. |
-| D21 | Four declared forecast pairs plus no-supply: timely benefit, wrong/late cost, expiry refusal; existing delayed mechanics correctly wired. |
-| D22 | Actual native care reduces immediate production, advances recovery; same-horizon continuation and observation neutrality checked. |
-| D23 | Learning loss/new-incarnation recovery exercised; distinct school/faith/city identities. No demonstrated mechanical fix needed. |
-| D24 | Two declared64-turn constructed pressure/control pairs; unapplied conquest retained, no seed search or isolated welfare claim. |
-| E25 | Seed42 procedural32regions/8civs hybrid160; exact80→160 continuation matches64 artifacts and final native/RNG bytes. |
-| E26 | 53 targeted lifecycle interactions, including identity capacity/restoration/late entries and6 actual-native cases, zero skips. |
-| E27 | 91 current-source output/cancellation checks plus actual browser Cancel/retry/duplicate Run/new-case handling; owned parents exited0. |
-| E28 | Instrumented RSS/history/retention/export growth measured; final bundle19,052,995B. No demonstrated accidental history duplication. |
-| E29 | Actual endpoint frame legacy20058.8→25.6ms, current16068.95→26.55ms; chart memo only. History unchanged. |
-| E30 | No aggregation needed for measured improvement; exact points/gaps/extrema/tables retained,257 DOM captures equivalent. |
-| F31 | File-SHA-bound local entity/turn/panel/notes bookmarks; safe reload/restore and corrupt/full storage; notes excluded from sharing. |
-| F32 | Named keyboard map/list/timeline, modal containment/restoration, focus jumps, reduced motion and error/refusal flows checked. |
-| F33 | Actual390px selection/history/comparison/bookmark controls;44px targets, keyboard table scroll, no page overflow. |
-| F34 | Bounded exact observation/event-reference JSON/Markdown packet; missing values null, no private notes/raw metadata/paths. |
-| F35 | Existing generator extended opt-in with4 constructed institution cases; all7 current-source recipes and4 exact checkpoints verified. |
-| F36 | Actual shortage→history→native16→18 policy pair→entity comparison→Quit→bookmark/restore/export journey, no page errors. |
+Evidence links below are local to this working environment. `Implemented` means
+new or corrected code was exercised in the cited bounded checks; `reused` means
+existing behavior was inspected and/or tested as stated; `partial` names the
+uncovered boundary. Audits are source inspection, not executed simulations.
+
+| # | Classification and bounded outcome | Source | Executed evidence or audit |
+| --- | --- | --- | --- |
+| A1 | Implemented population overlay; unknown is distinct from zero and missing control. Existing thematic overlays reused. | [Map layers](../../viewer/src/lib/mapLayers.ts) | [Focused checks](/workspace/shared/chronicler-multiwave-evidence/map-territory/focused-tests.log) |
+| A2 | Implemented synchronized selection and retained metric/window/turn. | [App shell](../../viewer/src/components/phase75/AppShell.tsx) | [Browser workflows](/workspace/shared/chronicler-multiwave-evidence/browser/static-workflows-result.json) |
+| A3 | Implemented bounded ownership changes; ambiguous identity and renames stay unknown. | [Region history](../../viewer/src/lib/regionHistory.ts) | [Map checks](/workspace/shared/chronicler-multiwave-evidence/map-territory/focused-tests.log) |
+| A4 | Implemented dated search and later corrected actor history/rewind handling; no future observations. | [Search](../../viewer/src/lib/historicalSearch.ts) | [Historical tests](/workspace/shared/chronicler-multiwave-evidence/historical-search/focused-tests.log); [constructed browser result](/workspace/shared/chronicler-closeout-correction/search/browser-result.json) |
+| A5 | Implemented five-snapshot disruption/recovery windows and source reports; descriptive, not causal. | [Region history](../../viewer/src/lib/regionHistory.ts) | [Checks](/workspace/shared/chronicler-multiwave-evidence/wave-ab-corrected-focus-final.log) |
+| A6 | Implemented live-edge lock and return; existing live controls reused. | [Live controls](../../viewer/src/components/LiveInspectionControls.tsx) | [Browser timeline](/workspace/shared/chronicler-multiwave-evidence/browser/live-timeline-result.json) |
+| B7 | Implemented bounded civilization lifecycle; successor/restoration uncertainty retained. | [Civilization history](../../viewer/src/lib/civilizationHistory.ts) | [Focused tests](/workspace/shared/chronicler-multiwave-evidence/civilization-history/focused-tests.log) |
+| B8 | Partial: city-first institution histories, existing Learning reused; school rewind leak fixed. Full independent institution histories are not claimed. | [Institution history](../../viewer/src/lib/institutionHistory.ts) | [Checks](/workspace/shared/chronicler-multiwave-evidence/institution-history/check-receipt.json) |
+| B9 | Partial: existing granary/transaction views and corrected release caption; actual food consumption is unrecorded. | [Food](../../viewer/src/lib/food.ts) | [Food/debt checks](/workspace/shared/chronicler-multiwave-evidence/debt-food) |
+| B10 | Implemented fiscal evidence; foreign borrowing is a subset and lender allocations remain unknown. | [Debt evidence](../../viewer/src/lib/debtEvidence.ts) | [Food/debt checks](/workspace/shared/chronicler-multiwave-evidence/debt-food) |
+| B11 | Implemented recorded migration pairs; net flow is separate from population change. | [Migration](../../viewer/src/lib/migrationEvidence.ts) | [Focused tests](/workspace/shared/chronicler-multiwave-evidence/migration/final-focused-tests.log) |
+| B12 | Implemented deterministic values, clocks, source references and coverage; nearby reports are not causal proof. | [Investigation](../../viewer/src/lib/investigation.ts) | [Focused integration](/workspace/shared/chronicler-multiwave-evidence/root-focused-final.log) |
+| C13 | Existing stability panel reused for two supported previews and common point. | [What-if panel](../../viewer/src/components/WhatIfPanel.tsx) | [Control tests](/workspace/shared/chronicler-multiwave-evidence/what-if-viewer-recipes/control-tests.log) |
+| C14 | Implemented literal global granary priority 0/1 for already-enabled hybrid cases, with provenance and default preservation. | [What-if](../../viewer/src/lib/whatIf.ts) | [Native/process checks](/workspace/shared/chronicler-multiwave-evidence/what-if-policy/process-final-77f14fcd.log); [browser pair](/workspace/shared/chronicler-multiwave-evidence/browser/policy-recipe-result.json) |
+| C15 | Implemented single-measure entity comparison; identity limits remain explicit. | [Entity comparison](../../viewer/src/lib/entityRunComparison.ts) | [Browser comparison](/workspace/shared/chronicler-multiwave-evidence/browser/entity-comparison-result.json) |
+| C16 | Tested declared starts 8/12 through common turn 20 for seeds 7/42/91; windows and initial states differ. | [Session comparison](../../src/chronicler/session_comparison.py) | [Declaration](/workspace/shared/chronicler-multiwave-evidence/policy-evaluation/declaration.json); [run](/workspace/shared/chronicler-multiwave-evidence/policy-evaluation/run-77f14fcd.log) |
+| C17 | Partial: six declared native pairs were neutral; constructed benefits/harms retained. No policy promotion or general balance claim. | [Session comparison](../../src/chronicler/session_comparison.py) | [Evaluation](/workspace/shared/chronicler-multiwave-evidence/policy-evaluation/run-77f14fcd.log) |
+| C18 | Implemented strict byte-bound saved plans and explicit new-case adoption; import sends no command. | [What-if](../../viewer/src/lib/whatIf.ts) | [Recipe checks](/workspace/shared/chronicler-multiwave-evidence/what-if-viewer-recipes/final-focused-tests.log); [browser](/workspace/shared/chronicler-multiwave-evidence/browser/new-case-browser-result.json) |
+| D19 | Partial: public route/supplier/keeper contracts exercised; forced private native transport disruption is **source audit only**, deferred pending an actual native disruption test. | [Transport](../../src/chronicler/transport.py) | [Public contract tests](../../tests/test_public_grain_shipments.py) in [historical CI](/workspace/shared/chronicler-multiwave-evidence/CI-38116fc2-success.json); [private read-only audit](/workspace/shared/chronicler-multiwave-evidence/disruption-scarcity-audit/AUDIT.md) |
+| D20 | Implemented optional local full-meal release 0/1; immediate relief and later shortage tradeoff remain. | [Grain reserves](../../src/chronicler/grain_reserves.py) | [Focused and native checks](/workspace/shared/chronicler-multiwave-evidence/granary-release-policy/receipt.json) |
+| D21 | Existing delayed forecast mechanics checked with four declared pairs and no-supply control; not a general forecast qualification. | [Forecasts](../../src/chronicler/harvest_forecasts.py) | [Executed cases](/workspace/shared/chronicler-multiwave-evidence/forecast-audit) |
+| D22 | Existing native care exercised: immediate production cost and recovery on a matched horizon. | [Health care](../../src/chronicler/health_care.py) | [Care evidence](/workspace/shared/chronicler-multiwave-evidence/care-labor) |
+| D23 | Existing learning loss and new-incarnation recovery exercised; school, faith and city identities differ. No new mechanical defect demonstrated. | [Institutions](../../src/chronicler/institutions.py) | [Pressure checks](/workspace/shared/chronicler-multiwave-evidence/institution-pressure/current64f-checks.log) |
+| D24 | Partial: two constructed 64-turn pressure/control pairs; conquest was unapplied and no isolated welfare claim follows. | [Example generator](../../scripts/institution_pressure_example.py) | [Declared plan](/workspace/shared/chronicler-multiwave-evidence/institution-pressure/DECLARED_PLAN.json); [checks](/workspace/shared/chronicler-multiwave-evidence/institution-pressure/current64f-checks.log) |
+| E25 | Partial: one 160-turn native trajectory and exact 80→160 continuation, not a broad multi-seed gate. | [Checkpoints](../../src/chronicler/live_checkpoints.py) | [Long-run receipt](/workspace/shared/chronicler-multiwave-evidence/longrun-qualification/receipt.json) |
+| E26 | Targeted lifecycle interactions include constructed identity edges and actual-native cases; natural extremes not reached in E25. | [Sessions](../../src/chronicler/experiment_sessions.py) | [Lifecycle tests](/workspace/shared/chronicler-multiwave-evidence/longrun-qualification/lifecycle-tests.log) |
+| E27 | Output/cancellation checks and actual browser Cancel/retry/duplicate Run/new-case handling exercised. | [Session operations](../../src/chronicler/session_operations.py) | [Edge checks](/workspace/shared/chronicler-multiwave-evidence/longrun-qualification/what-if-edges.log); [browser](/workspace/shared/chronicler-multiwave-evidence/browser/new-case-browser-result.json) |
+| E28 | Partial: instrumented RSS, history, retention and export measured; allocator/observer effects prevent a leak-free bound. | [History index](../../src/chronicler/history_index.py) | [Footprint](/workspace/shared/chronicler-multiwave-evidence/longrun-qualification/history-footprint.json) |
+| E29 | Implemented chart memo improvement on measured endpoint frames; no general performance claim. | [Completed run comparison](../../viewer/src/components/CompletedRunCompare.tsx) | [Frame receipt](/workspace/shared/chronicler-multiwave-evidence/frame-performance/receipt.json) |
+| E30 | Existing exact points/gaps/extrema/tables retained; aggregation was unnecessary for measured improvement. | [History comparison](../../viewer/src/lib/historyComparison.ts) | [DOM equivalence](/workspace/shared/chronicler-multiwave-evidence/frame-performance/equivalence.json) |
+| F31 | Implemented file-bound local bookmarks and later atomic IndexedDB serialization; partial until current rendered two-tab checks complete. | [Bookmarks](../../viewer/src/lib/investigationBookmarks.ts) | [Browser API two-tab result](/workspace/shared/chronicler-closeout-correction/bookmarks/two-tabs-idb-output.json); [migration](/workspace/shared/chronicler-closeout-correction/bookmarks/migration-idb-output.json) |
+| F32 | Keyboard/focus/reduced-motion and error flows checked; physical-device and screen-reader certification deferred. | [App shell](../../viewer/src/components/phase75/AppShell.tsx) | [Browser QA](/workspace/shared/chronicler-multiwave-evidence/browser/QA_SUMMARY.md) |
+| F33 | 390px browser controls and overflow checked; physical-device certification deferred. | [Investigation controls](../../viewer/src/components/InvestigationBookmarks.tsx) | [Phone measurements](/workspace/shared/chronicler-multiwave-evidence/browser/phone-visual-measurements.json) |
+| F34 | Implemented bounded JSON/Markdown packet; missing values null, private notes and raw metadata excluded. | [Packet](../../viewer/src/lib/investigationPacket.ts) | [Browser download](/workspace/shared/chronicler-multiwave-evidence/browser/actual-investigation-download.json) |
+| F35 | Extended opt-in generator with four constructed institution cases; existing generator reused. | [Generator](../../scripts/institution_pressure_example.py) | [Reproduction checks](/workspace/shared/chronicler-multiwave-evidence/institution-pressure/GENERATOR_REPRODUCTION_CHECKS.json) |
+| F36 | Bounded end-to-end native and viewer journey exercised through bookmark/export; not an unrestricted production qualification. | [Example script](../../scripts/world-laboratory-example.sh) | [Journey result](/workspace/shared/chronicler-multiwave-evidence/browser/final-journey-result.json) |
 
 ## Runnable session
 
@@ -87,10 +97,10 @@ a mismatch override or silently reuse a wheel from changed Rust/ABI inputs.
 
 ## Actual checks and receipts
 
-Final CI: **1,107 viewer tests / 101 files**, lint and production build;
+Historical CI at `38116fc2`: **1,107 viewer tests / 101 files**, lint and production build;
 **9,510 native tests / six canonical skips / 623 subtests**; **9,133 native-absent
 tests / 369 skips / 623 subtests**; **1,178 Rust tests / two ignored**; all 46
-bounded offline chunks and current-source native wheel production/transfer gates
+bounded offline chunks and then-current native wheel production/transfer gates
 pass. Python CI used 3.13.17; the working-session runtime below remains 3.13.5.
 Local combined viewer1,102 preceded the last five terminal-connection regressions.
 Learning62 focused +actual failing/fixed browser boundary; recipes20 focused +
@@ -104,7 +114,7 @@ at77f14fcd. Current Python64f adds only the separately tested optional D20 layer
 current default pairs comparing114 artifacts/native/RNG. Existing frozen witness
 pins were retained through an exact, fail-closed inverse layer. Native ownership
 registration311modules passes; existing6 native skips/623subtest seals unchanged.
-Current-source long-run/lifecycle/output checks provide the combined proof above.
+Then-current-source long-run/lifecycle/output checks provide the combined proof above.
 
 The prior source5162 all9 CI result is historical unchanged-source evidence only;
 first combined CI at942da692 passed viewer/Rust/new-wheel but exposed two strict
@@ -161,16 +171,17 @@ referenced checkpoint bytes for strict identity; an explicit new case does not
 prove equivalent state. Live worlds lacking raw artifact identity cannot persist
 portable bookmarks. Screenshots/outputs are private external files, not Git blobs.
 
-## Final recovery and shutdown
+## Recovery and remaining verification
 
-Source is pushed and verified on the development branch. Only closing handoff
-text follows tested code `38116fc2`; verify a future checkout before development.
-No unfinished source/WIP remains. All owned simulations, browsers and the preview
-server are stopped. No further campaign or automatic startup test is queued.
+The earlier source bundle and trial restore below apply to their recorded historical
+head, not the later search/bookmark fixes or current uncommitted work. Verify the
+final source identity, its recovery bundle and a trial restore after integration.
+Current combined viewer checks and a rendered two-tab bookmark check are pending.
+
 
 `/workspace/shared/chronicler-multiwave-evidence/release-final` contains:
 
-- `source-final.bundle`: final development head, bundle verification and a clean
+- `source-final.bundle`: the then-final development head, bundle verification and a clean
   exact trial restore in `restore-final`; Rust tree and 280 package/native/lock
   files match. `restore-final.json` records the exact commit.
 - `worlds-and-evidence-final.tar.gz`: real worlds/checkpoints, private screenshots,
@@ -178,8 +189,11 @@ server are stopped. No further campaign or automatic startup test is queued.
   receipts. `archive-members-sha256.json` verifies every archived member.
 - `SHA256.json` and `release-receipt.json`: final byte counts/hashes and scope.
 
-The earlier `release-942da692` backup and failed CI remain preserved. Source is
-backed up remotely in Git; generated-data archives are local shared-workspace
-copies, not an off-machine upload. Source restoration is verified; reusable
-cloud configuration publication and a fresh cloud task remain deferred and
-unverified. No public deployment, new credentials or paid narration/API calls.
+The earlier `release-942da692` backup and failed CI remain preserved. An owner-only
+[ChroniclerArchives Drive folder](https://drive.google.com/drive/folders/1NfGQsBD4fvqus3qXM-8-xImPSWOX0gEm)
+now holds three parts of a recovery archive. Each part was independently downloaded
+and the reassembled archive hash verified; see [remote evidence](/workspace/shared/chronicler-closeout-correction/backup/verified-remote-evidence.json).
+This proves transfer integrity for that archive, not restoration of the final
+source or coverage of later corrections. Final source/restoration/correction
+evidence is pending. Reusable cloud configuration publication and a fresh
+cloud task remain deferred and unverified.

@@ -1,12 +1,18 @@
-# Exploration release complete
+# Exploration release handoff — bounded outcomes
 
-The new 36-item backlog is complete; no planned development work remains.
-Runnable code `38116fc2` passed all nine [CI jobs](https://github.com/YotsuBotfds/Chronicler/actions/runs/41401640607),
-including 1,107 viewer, 9,510 native, 9,133 native-absent and 1,178 Rust tests.
-The closing commit changes documentation only. Main and economic defaults remain
-unchanged; environment publication is deferred. Use the [single handoff](integration/development-lead.md)
-for copyable commands, source/runtime identities, actual browser/performance
-results, verified source/data backups and precise qualification limits.
+The 36 requested items have implemented, reused, partial and deferred outcomes;
+see the [outcome matrix and active handoff](integration/development-lead.md).
+The all-nine green [CI run](https://github.com/YotsuBotfds/Chronicler/actions/runs/41401640607)
+tested `38116fc2`, before the search correction `71590379` and atomic IndexedDB
+bookmark correction `ce2b4e96`. Current combined viewer and rendered two-tab
+checks are pending. Private native transport disruption remains source-audited
+only; actual food consumption remains unrecorded; institution histories are
+city-first. Broad scientific and accessibility qualification remain deferred.
+
+An owner-only remote archive has independently downloaded, checksum-verified
+parts, but final source/correction coverage and restoration evidence are still
+pending. Earlier dated entries below describe historical source and evidence;
+they do not override this handoff.
 
 ---
 
