@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from chronicler.household_mobility_state import capture_mobility_frame, liquid_requirement, snapshot_fields
+from test_expansion_feature_wiring import configure_without_native
 
 
 def world(value=None, turn=7):
@@ -128,3 +129,63 @@ def test_old_native_build_rejected_before_tick_mutation(monkeypatch):
     obj = bridge(monkeypatch, old)
     with pytest.raises(RuntimeError, match="fresh native build"):
         obj.tick_agents(world(1.0))
+
+
+def test_configuration_persists_control_and_saved_off_mode_is_dormant(configure_without_native):
+    from chronicler.world_gen import generate_world
+    from chronicler.main import _build_parser
+    from chronicler.batch_manifest import simulation_config
+    w = generate_world(seed=42)
+    assert "household_mobility_liquid_requirement" not in w.model_dump(mode="json")
+    assert "household_mobility_liquid_requirement" not in simulation_config(_build_parser().parse_args([]))
+    _, config = configure_without_native(w, "--household-mobility-liquid-requirement", "1")
+    assert w.household_mobility_liquid_requirement == 1
+    assert config["simulation_args"]["household_mobility_liquid_requirement"] == 1
+    _, dormant = configure_without_native(w, mode="off")
+    assert w.household_mobility_liquid_requirement == 1
+    assert dormant["simulation_args"]["household_mobility_liquid_requirement"] == 1
+    configure_without_native(w, "--household-mobility-liquid-requirement", "0", mode="off")
+    assert w.household_mobility_liquid_requirement is None
+
+
+@pytest.mark.parametrize("value,mode", [("-1", "hybrid"), ("nan", "hybrid"),
+    ("inf", "hybrid"), ("1001", "hybrid"), ("1", "off"), ("1", "shadow"),
+    ("1", "demographics-only")])
+def test_invalid_control_refused_before_native_construction(configure_without_native, value, mode):
+    from chronicler.world_gen import generate_world
+    with pytest.raises(ValueError):
+        configure_without_native(generate_world(seed=42),
+            "--household-mobility-liquid-requirement", value, mode=mode)
+    assert not configure_without_native.constructions
+
+
+def test_exact_resume_retains_control_and_rejects_changed_or_inconsistent_intent():
+    from chronicler.main import _adopt_checkpoint_args, _build_parser
+    from chronicler.world_gen import generate_world
+    w = generate_world(seed=42)
+    w.household_mobility_liquid_requirement = 1
+    state = SimpleNamespace(world=w, seed=42, num_turns=8,
+        run_config={"simulation_args": {"household_mobility_liquid_requirement": 1}})
+    parser = _build_parser()
+    args = parser.parse_args([])
+    assert _adopt_checkpoint_args(parser, args, SimpleNamespace(state=state)) == []
+    assert args.household_mobility_liquid_requirement == 1
+    for value in ("0", "2", "nan"):
+        changed = parser.parse_args(["--household-mobility-liquid-requirement", value])
+        conflicts = _adopt_checkpoint_args(parser, changed, SimpleNamespace(state=state))
+        assert any("household-mobility" in c for c in conflicts)
+        assert w.household_mobility_liquid_requirement == 1
+    state.run_config["simulation_args"]["household_mobility_liquid_requirement"] = 2
+    assert any("retained state" in c for c in _adopt_checkpoint_args(
+        parser, parser.parse_args([]), SimpleNamespace(state=state)))
+
+
+def test_turn_observation_rejects_other_turn_and_old_snapshot_stays_unknown():
+    from chronicler.models import TurnSnapshot
+    from chronicler.turn_artifacts import TurnObservation
+    observation = capture_mobility_frame(frame(), source_turn=7, mode="hybrid", requirement=1)
+    with pytest.raises(ValueError, match="household_mobility source_turn"):
+        TurnObservation(8, 9, None, household_mobility=observation)
+    old = TurnSnapshot(turn=8, civ_stats={}, region_control={}, relationships={})
+    assert old.household_mobility is None
+    assert "household_mobility" not in old.model_dump(mode="json")
