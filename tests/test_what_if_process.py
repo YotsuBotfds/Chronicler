@@ -198,12 +198,11 @@ def test_real_native_pair_preserves_original_and_unchanged_arm(tmp_path, changed
             assert baseline != intervention
         recorded["baseline"] = baseline
         if scarce:
-            from chronicler.grain_reserves_state import BOUGHT
             first_purchases = {}
             for arm, bundle in (("baseline", baseline), ("intervention", intervention)):
                 snapshot = next(row for row in bundle["history"] if row["turn"] == 3)
                 first_purchases[arm] = [flow["region"] for flow in snapshot["grain_reserves"]["flows"]
-                                        if flow["kind"] == BOUGHT]
+                                        if flow["kind"] == "bought"]
             assert first_purchases["baseline"] and first_purchases["intervention"], first_purchases
             assert first_purchases["baseline"][0] == recorded["scarce_regions"][0], first_purchases
             assert first_purchases["intervention"][0] == recorded["scarce_regions"][1], first_purchases
