@@ -10,7 +10,7 @@ import {
 import "./completedRunCompare.css";
 
 import { EntityRunComparison } from "./EntityRunComparison";
-import type { WhatIfPair } from "../lib/whatIf";
+import { whatIfArmLabel, whatIfInterventionLabel, type WhatIfPair } from "../lib/whatIf";
 
 type Side = "left" | "right";
 interface Slot { run: CompletedRun | null; error: string | null; loading: boolean }
@@ -92,7 +92,7 @@ export function CompletedRunCompare({ initialBundle, initialIdentity, initialPai
 
   return <div className="completed-compare" aria-label="Completed-run comparison">
     {pairManifest && <aside aria-label="What-if provenance" className="completed-compare-warnings">
-      <strong>Exact checkpoint pair: {pairManifest.intervention.civ} stability {pairManifest.intervention.before} → {pairManifest.intervention.value}</strong>
+      <strong>Exact checkpoint pair: {whatIfInterventionLabel(pairManifest)}</strong>
       <p>Common starting turn {pairManifest.start_turn}; {pairManifest.turns} additional turns.
         The starting snapshot precedes the override. This pair describes one bounded case, not general balance.</p>
     </aside>}
@@ -172,8 +172,8 @@ function RunIdentity({ run }: { run: CompletedRun }) {
       <dt>Seed / recorded horizon</dt><dd>{value(identity.seed)} / {value(identity.horizon)}</dd>
       <dt>Snapshots</dt><dd>{identity.firstSnapshot ?? "None"}–{identity.lastSnapshot ?? "None"} ({identity.snapshots} unambiguous)</dd>
       {identity.settings.whatIf && <><dt>Recorded what-if arm</dt><dd>
-        {identity.settings.whatIf.arm === "baseline" ? "Unchanged continuation; no override. Paired control:" : "Stability intervention:"}
-        {identity.settings.whatIf.intervention.civ}: stability {identity.settings.whatIf.intervention.before} → {identity.settings.whatIf.intervention.value};
+        {identity.settings.whatIf.arm === "baseline" ? "Unchanged continuation; no override. Paired control:" : `${whatIfArmLabel(identity.settings.whatIf)}:`}
+        {whatIfInterventionLabel(identity.settings.whatIf)};
         turns {identity.settings.whatIf.start_turn}–{identity.settings.whatIf.end_turn}
       </dd></>}
       <dt>Agent mode</dt><dd>{identity.agentMode ?? "Not recorded"}</dd>

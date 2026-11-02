@@ -631,3 +631,38 @@ it("surfaces checkpoint refusals and refuses malformed result payloads without r
   expect(result.current.whatIf.status?.state).toBe("error");
   expect(result.current.bundle).toBe(original);
 });
+
+it("prepares the exact global policy request once and retains schema-two results through cancellation and reconnect", async () => {
+  const { comparisonBundle } = await import("../../__fixtures__/completedRunHistory");
+  const { whatIfManifest } = await import("../../__fixtures__/whatIf");
+  const bundle = comparisonBundle();
+  (bundle.world_state as unknown as Record<string, unknown>).agent_mode = "hybrid";
+  (bundle.world_state as unknown as Record<string, unknown>).grain_reserves = { granaries: [] };
+  const { result } = renderHook(() => useLiveConnection("ws://localhost:8765"));
+  await vi.advanceTimersByTimeAsync(10);
+  const ws = MockWebSocket.instances[0];
+  act(() => result.current.whatIf.preparePolicy(1, 3));
+  expect(ws.sent).toHaveLength(0);
+  act(() => ws.simulateMessage({ ...SAMPLE_INIT, ...bundle, type: "init" }));
+  expect((result.current.whatIf.bundle?.world_state as unknown as Record<string, unknown>).agent_mode).toBe("hybrid");
+  act(() => {
+    result.current.whatIf.preparePolicy(1, 21);
+    result.current.whatIf.preparePolicy(true as unknown as 1, 3);
+  });
+  expect(ws.sent).toHaveLength(0);
+  act(() => { result.current.whatIf.preparePolicy(1, 3); result.current.whatIf.preparePolicy(0, 3); });
+  const request = JSON.parse(ws.sent[0]);
+  expect(request).toEqual({ type: "what_if_prepare", request_id: expect.any(String),
+    control: "granary_shortfall_priority", value: 1, turns: 3 });
+  const manifest = { ...whatIfManifest, schema_version: 2, request_id: request.request_id,
+    intervention: { command: "set", civ: "@world", stat: "grain_reserves.shortfall_priority", before: 0, value: 1, scope: "world" } };
+  act(() => ws.simulateMessage({ type: "what_if_status", request_id: request.request_id, state: "prepared", manifest }));
+  expect(result.current.whatIf.status?.manifest?.schema_version).toBe(2);
+  act(() => result.current.whatIf.cancel());
+  expect(JSON.parse(ws.sent[1])).toEqual({ type: "what_if_cancel", request_id: request.request_id });
+  act(() => ws.close());
+  await act(() => vi.advanceTimersByTimeAsync(1010));
+  act(() => MockWebSocket.instances[1].simulateMessage({ type: "what_if_status", request_id: request.request_id,
+    state: "prepared", manifest }));
+  expect(result.current.whatIf.status?.manifest?.schema_version).toBe(2);
+});

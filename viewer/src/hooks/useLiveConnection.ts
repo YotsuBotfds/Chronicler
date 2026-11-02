@@ -17,7 +17,7 @@ import {
   applyCompletedMessage, bundleFromInitMessage, snapshotFromMessage, withSessionToken,
 } from "../lib/transport";
 
-import { readWhatIfManifest, readWhatIfResult, whatIfActive, type WhatIfControls, type WhatIfStatus } from "../lib/whatIf";
+import { granaryPolicyValue, readWhatIfManifest, readWhatIfResult, validWhatIfHorizon, whatIfActive, type WhatIfControls, type WhatIfStatus } from "../lib/whatIf";
 
 /** Failed attempts without ever opening before the viewer explains the refusal. */
 const REFUSED_ATTEMPTS = 2;
@@ -102,9 +102,18 @@ export function useLiveConnection(wsUrl: string, token: string | null = null): L
   }, []);
   const prepareWhatIf = useCallback((civ: string, value: number, turns: number) => {
     if (whatIfActive(whatIfRef.current) || wsRef.current?.readyState !== WebSocket.OPEN) return;
+    if (!civ || /[\r\n\x00]/.test(civ) || !Number.isInteger(value) || value < 1 || value > 100 || !validWhatIfHorizon(turns)) return;
     const request_id = crypto.randomUUID();
     publishWhatIf({ request_id, state: "preparing" });
     wsRef.current.send(JSON.stringify({ type: "what_if_prepare", request_id, civ, value, turns }));
+  }, [publishWhatIf]);
+  const preparePolicy = useCallback((value: 0 | 1, turns: number) => {
+    if (whatIfActive(whatIfRef.current) || wsRef.current?.readyState !== WebSocket.OPEN
+      || (value !== 0 && value !== 1) || !validWhatIfHorizon(turns) || granaryPolicyValue(bundleRef.current) === null) return;
+    const request_id = crypto.randomUUID();
+    publishWhatIf({ request_id, state: "preparing" });
+    wsRef.current.send(JSON.stringify({ type: "what_if_prepare", request_id,
+      control: "granary_shortfall_priority", value, turns }));
   }, [publishWhatIf]);
   const runWhatIf = useCallback(() => {
     const status = whatIfRef.current;
@@ -426,7 +435,7 @@ export function useLiveConnection(wsUrl: string, token: string | null = null): L
     lastAck,
     lastForked,
     checkpointStatus,
-    whatIf: { status: whatIfStatus, connected, prepare: prepareWhatIf, run: runWhatIf, cancel: cancelWhatIf },
+    whatIf: { status: whatIfStatus, connected, bundle, prepare: prepareWhatIf, preparePolicy, run: runWhatIf, cancel: cancelWhatIf },
     saveCheckpoint,
     serverState,
     lobbyInit,
