@@ -58,7 +58,7 @@ export function AcademyServices({ bundle, snapshot, seatId, seat, currentTurn, o
     </>}
     <h4>Saved service history through snapshot {currentTurn}</h4>
     <p className="systems-note">Select a saved snapshot to inspect its own record. Missing rows remain unknown; retained receipts can repeat while paused.</p>
-    <div className="systems-table-wrap"><table className="systems-table" aria-label={`Academy service history through snapshot ${currentTurn}`}><thead><tr><th>Snapshot</th><th>Held</th><th>Purchase source / crafts / paid</th><th>Work source / delivered / learner-equivalents</th><th>Loss source / crafts</th></tr></thead><tbody>
+    <div className="systems-table-wrap" role="region" aria-label="Scroll academy service history" tabIndex={0}><table className="systems-table" aria-label={`Academy service history through snapshot ${currentTurn}`}><thead><tr><th>Snapshot</th><th>Held</th><th>Purchase source / crafts / paid</th><th>Work source / delivered / learner-equivalents</th><th>Loss source / crafts</th></tr></thead><tbody>
       {history.slice(0, limit).map((s) => { const r = learningServicesAt(s, seatId, seat, ...bounds); return <tr key={s.turn}>
         <td><button type="button" className="systems-link" onClick={() => onSeek(s.turn)}>{s.turn}</button></td>
         <td style={{ whiteSpace: "nowrap" }}>{value(r?.inventory?.held)}</td><td style={{ whiteSpace: "nowrap" }}>{r?.procurement ? `${r.procurement.source_turn} / ${value(r.procurement.purchased)} / ${value(r.procurement.paid)}` : "Not observed"}</td>
