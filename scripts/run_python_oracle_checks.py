@@ -18,6 +18,13 @@ import time
 ROOT = Path(__file__).resolve().parents[1]
 CHUNK_LIMIT_SECONDS = 110
 CHUNKS = {
+    "academy-restoration-controls": [
+        "tests/test_what_if_academy.py::test_bad_request",
+        "tests/test_what_if_academy.py::test_command_and_manifest_are_strict",
+        "tests/test_what_if_academy.py::test_paused_context_bounds_and_reconnect",
+        "tests/test_what_if_academy.py::test_paused_context_reports_unsupported",
+        "tests/test_restoration_candidate_witness.py",
+    ],
     "crisis-distribution-summary": [
         "tests/test_crisis_distribution_summary.py",
     ],
