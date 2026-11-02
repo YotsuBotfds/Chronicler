@@ -166,6 +166,7 @@ def test_backed_transit_route_closure_return_reopen_and_exact_resume(tmp_path):
     assert len(returned) == 1, f"in-flight trip must unwind: {interrupted!r}"
     assert returned[0].quantity == pytest.approx(qty)
     assert returned[0].return_reason is None  # ordinary route failure has no inferred cause
+    assert "return_reason" not in returned[0].model_dump(mode="json")
     assert not _rows(interrupted, "arrived", reserved.voyage_id)
 
     # The next economy phase consumes the queued return.  Open the route and
@@ -313,6 +314,18 @@ def test_controller_loss_unwinds_inflight_cargo_before_mobility(tmp_path):
     assert len(traced) == 1 and traced[0].quantity == pytest.approx(qty)
     assert traced[0].return_reason == "controller_change"
     assert traced[0].loss_reason is None and traced[0].cargo_basis == "regional_stock"
+    # Old pickle state predates the optional field and must remain readable.
+    from copy import deepcopy
+    from pydantic import ValidationError
+    from chronicler.transaction_receipts_state import TransactionObservation
+    old = deepcopy(traced[0].__getstate__())
+    old["__dict__"].pop("return_reason")
+    legacy = TransactionObservation.__new__(TransactionObservation)
+    legacy.__setstate__(old)
+    assert legacy.return_reason is None
+    assert "return_reason" not in legacy.model_dump(mode="json")
+    with pytest.raises(ValidationError):
+        TransactionObservation.model_validate(traced[0].model_dump(mode="json") | {"return_reason": "invented"})
     # Complete receipt quantities equal the native cumulative return delta;
     # the next Phase 2 checks their physical in-transit balance.
     observed_returns = sum(r.quantity for r in _rows(rows, "returned"))
@@ -411,3 +424,35 @@ def test_controller_receipt_observation_preserves_events_world_rng_and_native_st
     returned = _rows(rows, "returned", voyage)
     assert len(returned) == 1 and returned[0].return_reason == "controller_change"
     step_pair()  # consume the return in the economy in both modes
+
+
+def test_controller_return_and_mobility_share_one_bounded_receipt_frame():
+    from chronicler.action_engine import ActionEngine
+    from chronicler.columnar import pylist
+    from chronicler.simulation import run_turn_result
+
+    world, bridge = _setup(num_civs=2)
+    world.transaction_receipts.max_rows = 1
+    def turn():
+        engine = ActionEngine(world)
+        run_turn_result(world, lambda c, w: engine.select_action(c, seed=w.seed),
+                        lambda w, events: "", seed=world.seed + world.turn,
+                        agent_bridge=bridge)
+
+    turn()  # actual reservations
+    turn()  # actual departures
+    old, new = world.civilizations[:2]
+    region = world.regions[2]
+    old.regions.remove(region.name)
+    new.regions.append(region.name)
+    region.controller = new.name
+    region._controller_changed_this_turn = True
+    turn()
+    unwinds = int(bridge._sim.get_merchant_trip_stats()["unwind_count"])
+    source, limit, dropped, executed, batch = bridge._sim.get_transaction_receipt_frame()
+    assert unwinds > 1, "fixture must actually overflow the pre-mobility frame"
+    assert source == world.turn - 1 and limit == 1 and executed
+    assert batch.num_rows == 1 and pylist(batch.column("operation")) == [8]
+    assert dropped >= unwinds - 1
+    assert not world.transaction_receipts.complete
+    assert world.transaction_receipts.dropped_rows == dropped

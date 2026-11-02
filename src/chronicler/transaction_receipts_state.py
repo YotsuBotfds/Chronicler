@@ -1,6 +1,8 @@
 """Optional Python-authoritative merchant observation identity, not ownership."""
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -43,7 +45,7 @@ class TransactionObservation(BaseModel):
     # Custody/controller observations do not establish private cargo title.
     cargo_title_owner: str | None = None
     financial_eligible: bool = False
-    return_reason: str | None = Field(default=None, exclude_if=_is_none)
+    return_reason: Literal["controller_change"] | None = Field(default=None, exclude_if=_is_none)
 
     def __setstate__(self, state):
         super().__setstate__(state)
