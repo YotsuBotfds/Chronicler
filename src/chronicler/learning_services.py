@@ -26,6 +26,22 @@ class AcademyServiceInput:
     craft_price: float | None
     # Sum of native reserved loading and pending departures; None means unknown.
     crafts_committed: float | None
+    upkeep_due: int | None = None
+    upkeep_amount_paid: int | None = None
+
+
+@dataclass(frozen=True)
+class AcademyUpkeepObservation:
+    seat_id: int
+    region: int
+    founder: int
+    founded_turn: int
+    seat_name: str
+    lord: int
+    source_turn: int
+    due: int
+    paid: int
+    satisfied: bool
 
 
 def _nonnegative_int(value):
@@ -69,6 +85,12 @@ def settle_academy_services(world, inputs: list[AcademyServiceInput], *, acc=Non
             raise ValueError("invalid native demand or staff")
         if item.upkeep_paid is not None and type(item.upkeep_paid) is not bool:
             raise ValueError("invalid upkeep observation")
+        if ((item.upkeep_due is None) != (item.upkeep_amount_paid is None)
+                or (item.upkeep_due is not None and (not _nonnegative_int(item.upkeep_due)
+                    or not _nonnegative_int(item.upkeep_amount_paid) or item.upkeep_paid is None
+                    or (item.upkeep_paid and item.upkeep_amount_paid != item.upkeep_due)
+                    or (not item.upkeep_paid and item.upkeep_amount_paid != 0)))):
+            raise ValueError("invalid upkeep payment evidence")
         if item.craft_price is not None and (not _nonnegative_number(item.craft_price) or item.craft_price <= 0):
             raise ValueError("craft price must be finite and positive")
         if item.crafts_committed is not None and not _nonnegative_number(item.crafts_committed):
@@ -112,7 +134,7 @@ def settle_academy_services(world, inputs: list[AcademyServiceInput], *, acc=Non
         receipts.append(AcademyServiceReceipt(seat_id=item.seat_id, region=seat.region, founder=seat.founder,
             founded_turn=seat.founded_turn, seat_name=seat.name, lord=seat.lord, source_turn=world.turn,
             available_turn=world.turn + 1, promised=item.demand, demand=item.demand, upkeep_paid=item.upkeep_paid,
-            funded=funded, native_staff=item.native_staff, staff_capacity=capacity, craft_price=item.craft_price,
+            funded=funded, upkeep_due=item.upkeep_due, upkeep_amount_paid=item.upkeep_amount_paid, native_staff=item.native_staff, staff_capacity=capacity, craft_price=item.craft_price,
             crafts_stock=stock, crafts_committed=item.crafts_committed, crafts_available=available,
             budget_initial=budget, attempted=attempted, delivered=delivered, crafts_purchased=used, crafts_used=used,
             purchase_paid=paid, budget_remaining=budget - paid, shortfalls=shortfalls))
@@ -150,3 +172,67 @@ def academy_service_fraction(world, seat_id: int, *, turn: int) -> float:
             or not _nonnegative_number(r.delivered) or r.delivered > r.promised):
         return 0.0
     return r.delivered / r.promised
+
+
+def native_learning_counts(phase10, source_turn: int, region_count: int):
+    """Return native (scholar staff, non-scholar potential learners) by region.
+
+    Potential learners are all non-scholar agents in the Phase 10 row set, not
+    observed pupils, enrollment or a claim about ages or household access.
+    Unknown or stale inputs return None; no model-population fallback is used.
+    """
+    rows = getattr(phase10, "agents", None)
+    if (getattr(phase10, "source_turn", None) != source_turn or rows is None
+            or getattr(getattr(rows, "stamp", None), "source_turn", None) != source_turn
+            or getattr(getattr(rows, "stamp", None), "stage", None) != "phase10_entry"
+            or not rows.has("region") or not rows.has("occupation")):
+        return None
+    regions, occupations = rows.ints("region"), rows.ints("occupation")
+    if (len(regions) != len(occupations) or any(type(r) is not int or not 0 <= r < region_count for r in regions)
+            or any(type(o) is not int or not 0 <= o <= 4 for o in occupations)):
+        return None
+    staff, learners = [0] * region_count, [0] * region_count
+    for region, occupation in zip(regions, occupations, strict=True):
+        (staff if occupation == 3 else learners)[region] += 1
+    return staff, learners
+
+
+def settle_observed_academy_services(world, phase10, upkeep_observations, *, commitments, acc=None):
+    """Build service inputs from the current Phase 10 handoff and actual upkeep.
+
+    Explicit call after tick_scholarship(..., service_upkeep=upkeep_observations).
+    ``commitments`` is the same region-name -> good -> reserved-plus-departing
+    mapping used by mutual aid; omitted region/crafts is unknown, not zero.
+    Price is this economy result's local craft-category price; zero/missing is
+    unknown rather than an invented price. Only hybrid owns physical stock.
+    """
+    if (not scholarship_on(world) or getattr(world.scholarship, "learning_services", None) is None
+            or getattr(world, "agent_mode", None) != "hybrid"):
+        return []
+    counts = native_learning_counts(phase10, world.turn, len(world.regions))
+    economy = getattr(phase10, "economy", None) if getattr(phase10, "source_turn", None) == world.turn else None
+    result = []
+    for seat_id, seat in enumerate(world.scholarship.seats):
+        if (seat.kind != ACADEMY or seat.fallen_turn is not None or seat.level <= 0
+                or not 0 <= seat.region < len(world.regions) or not 0 <= seat.lord < len(world.civilizations)
+                or world.regions[seat.region].controller != world.civilizations[seat.lord].name):
+            continue
+        region = world.regions[seat.region]
+        upkeep = upkeep_observations.get(seat_id) if isinstance(upkeep_observations, dict) else None
+        if not isinstance(upkeep, AcademyUpkeepObservation) or (
+                upkeep.seat_id, upkeep.region, upkeep.founder, upkeep.founded_turn, upkeep.seat_name,
+                upkeep.lord, upkeep.source_turn) != (seat_id, seat.region, seat.founder, seat.founded_turn,
+                                                    seat.name, seat.lord, world.turn):
+            upkeep = None
+        prices = getattr(getattr(economy, "region_goods", {}).get(region.name), "prices", {})
+        price = prices.get("craft") if isinstance(prices, dict) else None
+        if not _nonnegative_number(price) or price <= 0:
+            price = None
+        held = commitments.get(region.name, {}).get("crafts") if isinstance(commitments, dict) and isinstance(commitments.get(region.name), dict) else None
+        if not _nonnegative_number(held):
+            held = None
+        result.append(AcademyServiceInput(seat_id=seat_id, demand=counts[1][seat.region] if counts else None,
+            native_staff=counts[0][seat.region] if counts else None, upkeep_paid=upkeep.satisfied if upkeep else None,
+            upkeep_due=upkeep.due if upkeep else None, upkeep_amount_paid=upkeep.paid if upkeep else None,
+            craft_price=price, crafts_committed=held))
+    return settle_academy_services(world, result, acc=acc)

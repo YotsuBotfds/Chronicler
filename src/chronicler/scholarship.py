@@ -258,10 +258,11 @@ _POLITY_WORDS = frozenset({
 # ---------------------------------------------------------------------------
 
 class _Tick:
-    def __init__(self, world, acc, phase10, events) -> None:
+    def __init__(self, world, acc, phase10, events, service_upkeep=None) -> None:
         from chronicler.cities import scale
         self.world = world
         self.acc = acc
+        self.service_upkeep = service_upkeep
         self.state: ScholarshipState = world.scholarship
         self.events: list = []
         self.turn_events = list(events)
@@ -324,13 +325,17 @@ def _emit(t: _Tick, event_type: str, actors: Iterable[str], description: str, *,
 
 
 def tick_scholarship(world: "WorldState", events: Iterable["Event"] = (), acc=None, *,
-                     phase10=None, agent_bridge=None) -> list["Event"]:
+                     phase10=None, agent_bridge=None, service_upkeep=None) -> list["Event"]:
     """Phase 10, after cities and guilds: per living seat its ruler and
     patron, strikes (sack, famine, persecution), upkeep, scholars and
-    masters, rise, pull; then foundings. Returns the turn's seat events."""
+    masters, rise, pull; then foundings. Returns the turn's seat events.
+    An optional service_upkeep dict receives actual academy upkeep evidence
+    for a separate, opt-in service settlement; it is cleared on each call."""
     if not scholarship_on(world):
         return []
-    t = _Tick(world, acc, phase10, events)
+    if service_upkeep is not None:
+        service_upkeep.clear()
+    t = _Tick(world, acc, phase10, events, service_upkeep)
     for si, seat in living_seats(world):
         _update(t, si, seat)
     _found_academies(t)
@@ -530,19 +535,32 @@ def _charge(t: _Tick, seat: Seat, region, amount: float) -> None:
         city.wealth = round(city.wealth - amount, 4)
 
 
+def _record_service_upkeep(t: _Tick, si: int, seat: Seat, due: int, paid: int, satisfied: bool) -> None:
+    """Transient evidence from this upkeep operation, never reconstructed from treasury."""
+    if t.service_upkeep is not None and seat.kind == ACADEMY:
+        from chronicler.learning_services import AcademyUpkeepObservation
+        t.service_upkeep[si] = AcademyUpkeepObservation(
+            seat_id=si, region=seat.region, founder=seat.founder, founded_turn=seat.founded_turn,
+            seat_name=seat.name, lord=seat.lord, source_turn=t.world.turn, due=due, paid=paid,
+            satisfied=satisfied)
+
+
 def _upkeep(t: _Tick, si: int, seat: Seat, region) -> bool:
     """The turn's upkeep, the whole units owed paid by the patron. Returns
     False when the seat fell of neglect."""
     seat.owed = _q(seat.owed + UPKEEP[seat.level])
     due = int(seat.owed)
     if due <= 0:
+        _record_service_upkeep(t, si, seat, due, 0, True)
         return True
     if _patron_funds(t, seat, region) >= due:
         _charge(t, seat, region, due)
         seat.owed = _q(seat.owed - due)
         seat.unpaid = 0
         _bump(t.state, "upkeep", due)
+        _record_service_upkeep(t, si, seat, due, due, True)
         return True
+    _record_service_upkeep(t, si, seat, due, 0, False)
     seat.unpaid += 1
     _bump(t.state, "unpaid")
     if seat.unpaid < NEGLECT_PAYMENTS:
@@ -878,16 +896,22 @@ def research_factor(world, civ) -> float:
 
 def learning_factors(world) -> tuple[dict[int, float], dict[int, float]] | None:
     """(adoption hazard factor, forgetting factor) by region index near
-    living seats; None with the switch off."""
+    living seats; None with the switch off. An opted-in academy scales only
+    its local adoption increment by prior-turn modeled service delivery.
+    Research, neighboring diffusion and forgetting retain their existing rules."""
     if not scholarship_on(world):
         return None
     hazard: dict[int, float] = {}
     forget: dict[int, float] = {}
     names = {r.name: i for i, r in enumerate(world.regions)}
-    for _i, s in living_seats(world):
+    for seat_id, s in living_seats(world):
         if s.region >= len(world.regions) or s.level <= 0:
             continue
-        hazard[s.region] = max(hazard.get(s.region, 1.0), 1.0 + LEARN_HAZARD * s.level)
+        local_level = s.level
+        if s.kind == ACADEMY and getattr(world.scholarship, "learning_services", None) is not None:
+            from chronicler.learning_services import academy_service_fraction
+            local_level *= academy_service_fraction(world, seat_id, turn=world.turn)
+        hazard[s.region] = max(hazard.get(s.region, 1.0), 1.0 + LEARN_HAZARD * local_level)
         forget[s.region] = min(forget.get(s.region, 1.0), 1.0 - LEARN_KEEP * s.level)
         for adj in world.regions[s.region].adjacencies:
             j = names.get(adj)

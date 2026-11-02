@@ -16,7 +16,10 @@ class AcademyServiceReceipt(BaseModel):
     available_turn: int
     promised: int | None
     demand: int | None
+    # Whether current upkeep was satisfied; zero due is satisfied with zero paid.
     upkeep_paid: bool | None
+    upkeep_due: int | None = None
+    upkeep_amount_paid: int | None = None
     funded: bool | None
     native_staff: int | None
     staff_capacity: int | None
