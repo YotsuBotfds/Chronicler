@@ -194,6 +194,7 @@ pub struct AgentSimulator {
     /// Detached decision observations; neither configuration nor frame persists.
     decision_delivery_config: Option<crate::decision_delivery::DeliveryConfig>,
     decision_delivery_frame: Option<crate::decision_delivery::DeliveryFrame>,
+    mobility_gate_frame: Option<crate::household::MobilityGateFrame>,
 }
 
 impl AgentSimulator {
@@ -249,6 +250,7 @@ impl AgentSimulator {
             transaction_receipts_limit: None,
             decision_delivery_config: None,
             decision_delivery_frame: None,
+            mobility_gate_frame: None,
         }
     }
 }
@@ -1317,7 +1319,12 @@ impl AgentSimulator {
     }
 
     /// Advance simulation by one turn. Returns an events RecordBatch.
-    pub fn tick(&mut self, py: Python<'_>, turn: u32, civ_signals: PyRecordBatch) -> PyResult<PyRecordBatch> {
+    #[pyo3(signature = (turn, civ_signals, liquid_requirement=0.0))]
+    pub fn tick(&mut self, py: Python<'_>, turn: u32, civ_signals: PyRecordBatch, liquid_requirement: f32) -> PyResult<PyRecordBatch> {
+        if !liquid_requirement.is_finite() || liquid_requirement < 0.0 {
+            return Err(PyValueError::new_err("liquid_requirement must be finite and nonnegative"));
+        }
+        self.mobility_gate_frame = None;
         // A failed tick must never expose a previous turn's observation.
         self.decision_delivery_frame = None;
         self.snapshot_cache = None; // pool may change: drop the cached snapshot
@@ -1365,9 +1372,23 @@ impl AgentSimulator {
         let mut delivery_frame = delivery_config.map(|_| {
             crate::decision_delivery::DeliveryFrame::new(turn, tick_options.ablation.active(turn))
         });
+        let mut mobility_frame = if liquid_requirement > 0.0 {
+            Some(crate::household::MobilityGateFrame { turn, ..Default::default() })
+        } else { None };
         let (events, kin_failures, formation_stats, demo_debug, household_stats, merchant_stats, knowledge_stats) =
             py.detach(|| {
-                if let (Some(config), Some(frame)) = (delivery_config, delivery_frame.as_mut()) {
+                if let Some(gate_frame) = mobility_frame.as_mut() {
+                    let delivery = match (delivery_config, delivery_frame.as_mut()) {
+                        (Some(config), Some(frame)) => Some((config, frame)), _ => None,
+                    };
+                    crate::tick::try_tick_agents_with_mobility_gate(
+                        &mut self.pool, &self.regions, &signals, self.master_seed, turn,
+                        &mut self.wealth_percentiles, &mut self.spatial_grids, &self.attractors,
+                        &mut spatial_diag, &self.settlement_grids, merchant_state,
+                        &targeted_deaths, tick_options, &mut self.movements, delivery,
+                        liquid_requirement, gate_frame,
+                    )
+                } else if let (Some(config), Some(frame)) = (delivery_config, delivery_frame.as_mut()) {
                     crate::tick::try_tick_agents_with_delivery(
                         &mut self.pool, &self.regions, &signals, self.master_seed, turn,
                         &mut self.wealth_percentiles, &mut self.spatial_grids, &self.attractors,
@@ -1425,7 +1446,20 @@ impl AgentSimulator {
         let batch = events_to_batch(&events).map_err(arrow_err)?;
         // Publish only after successful native execution and event packing.
         self.decision_delivery_frame = delivery_frame;
+        self.mobility_gate_frame = mobility_frame;
         Ok(PyRecordBatch::new(batch))
+    }
+
+    /// Last successfully published gate frame, if enabled. Counts describe
+    /// gate eligibility, not completed moves. Reasons: 0 sufficient, 1 short,
+    /// 2 no local distress, 3 invalid/unknown route, 4 on trip.
+    pub fn get_mobility_gate_frame(&self) -> Option<((u32, u32, u32, u32, u32, u32, u32, u32), Vec<(u32, u16, u16, u32, Option<f32>, f64, f64, u8)>)> {
+        self.mobility_gate_frame.as_ref().map(|f| (
+            (f.turn, f.proposed_groups, f.proposed_persons, f.passed_groups,
+             f.passed_persons, f.blocked_groups, f.blocked_persons, f.dropped_samples),
+            f.samples.iter().map(|r| (r.group_id, r.from, r.to, r.persons,
+                if r.local_food_sufficiency.is_finite() { Some(r.local_food_sufficiency) } else { None },
+                r.liquid, r.required, r.reason)).collect()))
     }
 
     /// Return an Arrow RecordBatch snapshot of all alive agents.
@@ -4026,6 +4060,49 @@ mod tests {
         }
     }
 
+    fn mobility_gate_signals() -> PyRecordBatch {
+        let schema = Schema::new(vec![
+            Field::new("civ_id", DataType::UInt8, false), Field::new("stability", DataType::UInt8, false),
+            Field::new("is_at_war", DataType::Boolean, false), Field::new("dominant_faction", DataType::UInt8, false),
+            Field::new("faction_military", DataType::Float32, false), Field::new("faction_merchant", DataType::Float32, false),
+            Field::new("faction_cultural", DataType::Float32, false),
+        ]);
+        PyRecordBatch::new(RecordBatch::new_empty(Arc::new(schema)))
+    }
+
+    #[test]
+    fn mobility_gate_ffi_zero_and_invalid_are_nonmutating_or_old_path() {
+        Python::initialize();
+        Python::attach(|py| {
+            let mut a = AgentSimulator::new(1, 42);
+            let mut b = AgentSimulator::new(1, 42);
+            a.set_region_state(region_ingress_batch(vec![Some(0)])).unwrap();
+            b.set_region_state(region_ingress_batch(vec![Some(0)])).unwrap();
+            let before = crate::persist::encode(crate::persist::KIND_AGENT, &a);
+            for invalid in [-1.0, f32::NAN, f32::INFINITY] {
+                assert!(a.tick(py, 0, mobility_gate_signals(), invalid).is_err());
+                assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &a), before);
+            }
+            for turn in 0..3 {
+                let ea = a.tick(py, turn, mobility_gate_signals(), 0.0).unwrap().into_inner();
+                let eb = b.tick(py, turn, mobility_gate_signals(), 0.0).unwrap().into_inner();
+                assert_eq!(ea, eb);
+                assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &a),
+                           crate::persist::encode(crate::persist::KIND_AGENT, &b));
+                assert!(a.mobility_gate_frame.is_none());
+            }
+            a.tick(py, 3, mobility_gate_signals(), 1.0).unwrap();
+            let before_read = crate::persist::encode(crate::persist::KIND_AGENT, &a);
+            let first = a.get_mobility_gate_frame().unwrap();
+            assert_eq!(first.0.0, 3);
+            assert_eq!(a.get_mobility_gate_frame().unwrap(), first);
+            assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &a), before_read);
+            assert!(!crate::persist::schema_of::<AgentSimulator>().contains("mobility_gate_frame"));
+            a.tick(py, 4, mobility_gate_signals(), 0.0).unwrap();
+            assert!(a.get_mobility_gate_frame().is_none());
+        });
+    }
+
     #[test]
     fn native_region_count_admission_keeps_empty_and_exact_upper_boundary() {
         // The maximum is admitted without allocating millions of reserve slots.
@@ -4644,7 +4721,7 @@ crate::persist_struct!(AgentSimulator {
     merchant_trip_stats, knowledge_stats, hybrid_economy_mode, pending_targeted_deaths,
     movements, pending_movement_leaders, pending_promotion_memories, tick_options,
 } skip { snapshot_cache } transient {
-    health_work, transaction_receipts_limit, decision_delivery_config, decision_delivery_frame
+    health_work, transaction_receipts_limit, decision_delivery_config, decision_delivery_frame, mobility_gate_frame
 });
 
 #[cfg(test)]

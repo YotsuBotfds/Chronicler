@@ -228,6 +228,91 @@ pub fn resolve_dependents(
     deps
 }
 
+/// Read-only diagnostics for the optional liquid-reserve eligibility proxy.
+/// `passed` means eligible at this gate, not successfully moved. Reason codes:
+/// 0 passed affordability; 1 insufficient; 2 no local distress; 3 unknown
+/// destination; 4 on trip. Samples are bounded; totals always count all groups.
+#[derive(Default)]
+pub struct MobilityGateFrame {
+    pub turn: u32,
+    pub proposed_groups: u32, pub proposed_persons: u32,
+    pub passed_groups: u32, pub passed_persons: u32,
+    pub blocked_groups: u32, pub blocked_persons: u32,
+    pub dropped_samples: u32,
+    pub samples: Vec<MobilityGateSample>,
+}
+
+pub struct MobilityGateSample {
+    pub group_id: u32, pub from: u16, pub to: u16, pub persons: u32,
+    pub local_food_sufficiency: f32, pub liquid: f64, pub required: f64, pub reason: u8,
+}
+
+/// Filter already-consolidated ordinary proposals. Connect only actually
+/// moving spouses and dependent children with the same origin/destination;
+/// IDs and wealth are read, never transferred. A sorted union ensures that
+/// shared children and independently proposing spouses are counted once.
+pub fn gate_household_mobility(
+    pool: &AgentPool, pending: &mut [PendingDecisions], regions: &[RegionState],
+    requirement: f32, frame: &mut MobilityGateFrame,
+    follower_leaders: &[std::collections::BTreeMap<usize, (usize, u16, u16)>],
+) -> Vec<Vec<usize>> {
+    let mut blocked_by_bucket = vec![Vec::new(); pending.len()];
+    for (bucket_index, bucket) in pending.iter_mut().enumerate() {
+        let mut moves = bucket.migrations.clone();
+        moves.sort_unstable_by_key(|m| (m.1, m.2, pool.ids.get(m.0).copied().unwrap_or(u32::MAX)));
+        moves.dedup_by_key(|m| m.0);
+        let mut parent: Vec<usize> = (0..moves.len()).collect();
+        fn root(parent: &[usize], mut i: usize) -> usize {
+            while parent[i] != i { i = parent[i]; } i
+        }
+        let moving_slots: std::collections::BTreeMap<usize, usize> = moves.iter()
+            .enumerate().map(|(i, m)| (m.0, i)).collect();
+        // Follow only links actually written by the consolidator. A child may
+        // have two moving parent pairs: the last follower write owns it.
+        for (&follower, &(leader, from, to)) in &follower_leaders[bucket_index] {
+            if let (Some(&i), Some(&j)) = (moving_slots.get(&follower), moving_slots.get(&leader)) {
+                if moves[i].1 == from && moves[i].2 == to && moves[j].1 == from && moves[j].2 == to {
+                    let x = root(&parent, i); let y = root(&parent, j);
+                    if x != y { parent[y] = x; }
+                }
+            }
+        }
+        let mut groups: std::collections::BTreeMap<usize, Vec<usize>> = std::collections::BTreeMap::new();
+        for i in 0..moves.len() { groups.entry(root(&parent, i)).or_default().push(i); }
+        for indices in groups.values() {
+            let (_, from, to) = moves[indices[0]];
+            let valid = indices.iter().all(|&i| { let (slot, f, _) = moves[i];
+                slot < pool.capacity() && pool.is_alive(slot) && pool.regions[slot] == f });
+            let count = indices.len() as u32;
+            let liquid: f64 = indices.iter().filter_map(|&i| { let slot = moves[i].0;
+                if slot < pool.capacity() && pool.is_alive(slot) && pool.ages[slot] >= crate::agent::AGE_ADULT {
+                    Some(pool.wealth[slot] as f64) } else { None } }).sum();
+            let required = requirement as f64 * count as f64;
+            let food = regions.get(from as usize).map(|r| r.food_sufficiency).unwrap_or(f32::NAN);
+            let reason = if !valid || (to as usize) >= regions.len() || (from as usize) >= regions.len()
+                || !regions[from as usize].adjacency.contains(&to) { 3 }
+                else if indices.iter().any(|&i| pool.is_on_trip(moves[i].0)) { 4 }
+                else if food >= 1.0 { 2 }
+                else if liquid < required { 1 } else { 0 };
+            frame.proposed_groups += 1; frame.proposed_persons += count;
+            if reason == 1 {
+                frame.blocked_groups += 1; frame.blocked_persons += count;
+                blocked_by_bucket[bucket_index].extend(indices.iter().map(|&i| moves[i].0));
+            } else { frame.passed_groups += 1; frame.passed_persons += count; }
+            if frame.samples.len() < 128 {
+                let group_id = indices.iter().filter_map(|&i| pool.ids.get(moves[i].0).copied()).min().unwrap_or(0);
+                frame.samples.push(MobilityGateSample { group_id, from, to, persons: count,
+                    local_food_sufficiency: food, liquid, required, reason });
+            } else { frame.dropped_samples += 1; }
+        }
+        if !blocked_by_bucket[bucket_index].is_empty() {
+            let blocked: std::collections::HashSet<usize> = blocked_by_bucket[bucket_index].iter().copied().collect();
+            bucket.migrations.retain(|m| !blocked.contains(&m.0));
+        }
+    }
+    blocked_by_bucket
+}
+
 // ─── Joint Migration Consolidation ─────────────────────────────────────────
 
 /// Consolidate household migrations in place. Runs post-decision, pre-apply.
@@ -259,6 +344,16 @@ pub(crate) fn consolidate_household_migrations_observed<
     id_to_slot: &L,
     stats: &mut HouseholdStats,
     observer: &mut O,
+) {
+    consolidate_household_migrations_with_groups(pool, pending_decisions, regions, contested_regions,
+        id_to_slot, stats, observer, None);
+}
+
+pub(crate) fn consolidate_household_migrations_with_groups<
+    L: crate::pool::SlotLookup, O: MoveObserver,
+>(pool: &AgentPool, pending_decisions: &mut [PendingDecisions], regions: &[RegionState],
+    contested_regions: &[bool], id_to_slot: &L, stats: &mut HouseholdStats, observer: &mut O,
+    mut groups: Option<&mut [std::collections::BTreeMap<usize, (usize, u16, u16)>]>,
 ) {
     // Build dependent index for this phase (pre-demographics, all alive)
     let dep_index = build_dependent_index_for_migration(pool);
@@ -422,6 +517,9 @@ pub(crate) fn consolidate_household_migrations_observed<
                 keep
             });
             bucket.migrations.push((trailing_slot, lead_from, lead_to));
+            if let Some(groups) = groups.as_mut() {
+                groups[bucket_idx].insert(trailing_slot, (lead_slot, lead_from, lead_to));
+            }
             if O::ENABLED {
                 observer.follower_written(pool, bucket_idx, trailing_slot, lead_from, lead_to,
                     lead_slot, MOVE_ROLE_SPOUSE, removed_count, last_removed);
@@ -447,6 +545,9 @@ pub(crate) fn consolidate_household_migrations_observed<
                     keep
                 });
                 bucket.migrations.push((dep, lead_from, lead_to));
+                if let Some(groups) = groups.as_mut() {
+                    groups[bucket_idx].insert(dep, (lead_slot, lead_from, lead_to));
+                }
                 if O::ENABLED {
                     observer.follower_written(pool, bucket_idx, dep, lead_from, lead_to,
                         lead_slot, MOVE_ROLE_DEPENDENT, removed_count, last_removed);
@@ -688,6 +789,119 @@ mod delivery_tests {
         assert_eq!(stats_bytes, crate::persist::encode(crate::persist::KIND_AGENT, &disabled_stats));
         assert_eq!(before, crate::persist::encode(crate::persist::KIND_AGENT, pool));
         (observed, recorder, observed_stats)
+    }
+
+    #[test]
+    fn mobility_gate_threshold_household_and_child_are_atomic() {
+        let mut pool = AgentPool::new(4);
+        let a = spawn(&mut pool, 25); let b = spawn(&mut pool, 25); let c = spawn(&mut pool, 10);
+        marry(&mut pool, a, b);
+        pool.parent_id_0[c] = pool.ids[a]; pool.parent_id_1[c] = pool.ids[b];
+        let mut rs = regions(); rs[0].food_sufficiency = 0.5; rs[0].adjacency = vec![1];
+        pool.wealth[a] = 1.0; pool.wealth[b] = 1.0; pool.wealth[c] = 100.0;
+        let mut p = PendingDecisions::new(); p.migrations = vec![(a, 0, 1), (b, 0, 1), (c, 0, 1)];
+        let mut blocked = vec![p]; let mut frame = MobilityGateFrame::default();
+        gate_household_mobility(&pool, &mut blocked, &rs, 1.0, &mut frame, &[[(b, (a, 0, 1)), (c, (a, 0, 1))].into_iter().collect()]);
+        assert!(blocked[0].migrations.is_empty());
+        assert_eq!((frame.proposed_groups, frame.proposed_persons, frame.blocked_groups, frame.blocked_persons), (1, 3, 1, 3));
+        assert_eq!(frame.samples[0].liquid, 2.0); assert_eq!(frame.samples[0].required, 3.0);
+        assert_eq!(pool.wealth[c], 100.0);
+        pool.wealth[b] = 2.0;
+        let mut p = PendingDecisions::new(); p.migrations = vec![(a, 0, 1), (b, 0, 1), (c, 0, 1)];
+        let mut passed = vec![p]; let mut frame = MobilityGateFrame::default();
+        gate_household_mobility(&pool, &mut passed, &rs, 1.0, &mut frame, &[[(b, (a, 0, 1)), (c, (a, 0, 1))].into_iter().collect()]);
+        assert_eq!(passed[0].migrations.len(), 3);
+        assert_eq!((frame.passed_groups, frame.passed_persons), (1, 3));
+        assert_eq!(frame.samples[0].reason, 0);
+    }
+
+    #[test]
+    fn mobility_gate_uses_actual_consolidated_pair_and_rejects_reused_spouse() {
+        let mut pool = AgentPool::new(4);
+        let a = spawn(&mut pool, 25); let b = spawn(&mut pool, 25); let child = spawn(&mut pool, 10);
+        marry(&mut pool, a, b); pool.parent_id_0[child] = pool.ids[a]; pool.parent_id_1[child] = pool.ids[b];
+        pool.wealth[a] = 1.0; pool.wealth[b] = 1.0;
+        let mut rs = regions(); rs[0].food_sufficiency = 0.5; rs[0].adjacency = vec![1, 2];
+        let mut p = PendingDecisions::new(); p.migrations = vec![(a, 0, 1), (b, 0, 2)];
+        let mut consolidated = vec![p];
+        let mut links = vec![std::collections::BTreeMap::new()];
+        let mut stats = HouseholdStats::default();
+        consolidate_household_migrations_with_groups(&pool, &mut consolidated, &rs, &[false; 4],
+            &pool.build_id_slots(), &mut stats, &mut NoDelivery, Some(&mut links));
+        assert_eq!(consolidated[0].migrations.len(), 3);
+        assert_eq!(links[0].get(&child), Some(&(a, 0, 1)));
+        let mut frame = MobilityGateFrame::default();
+        gate_household_mobility(&pool, &mut consolidated, &rs, 1.0, &mut frame, &links);
+        assert!(consolidated[0].migrations.is_empty()); assert_eq!(frame.blocked_persons, 3);
+        pool.kill(b); let reused = spawn(&mut pool, 25); assert_eq!(reused, b); pool.wealth[reused] = 100.0;
+        let mut p = PendingDecisions::new(); p.migrations = vec![(a, 0, 1), (reused, 0, 1)];
+        let mut pending = vec![p]; let mut frame = MobilityGateFrame::default();
+        gate_household_mobility(&pool, &mut pending, &rs, 2.0, &mut frame, &[Default::default()]);
+        assert_eq!(frame.proposed_groups, 2); assert_eq!(frame.blocked_persons, 1);
+        assert_eq!(pending[0].migrations, vec![(reused, 0, 1)]);
+    }
+
+    #[test]
+    fn mobility_gate_shared_child_uses_last_actual_follower_write() {
+        let mut pool = AgentPool::new(5);
+        let a = spawn(&mut pool, 25); let b = spawn(&mut pool, 25);
+        let c = spawn(&mut pool, 25); let d = spawn(&mut pool, 25); let child = spawn(&mut pool, 10);
+        marry(&mut pool, a, b); marry(&mut pool, c, d);
+        pool.parent_id_0[child] = pool.ids[a]; pool.parent_id_1[child] = pool.ids[c];
+        pool.wealth[a] = 10.0; pool.wealth[b] = 10.0; pool.wealth[c] = 0.0; pool.wealth[d] = 0.0;
+        let mut rs = regions(); rs[0].food_sufficiency = 0.5; rs[0].adjacency = vec![1];
+        let mut p = PendingDecisions::new(); p.migrations = vec![(a, 0, 1), (c, 0, 1)];
+        let mut pending = vec![p]; let mut links = vec![std::collections::BTreeMap::new()];
+        consolidate_household_migrations_with_groups(&pool, &mut pending, &rs, &[false; 4],
+            &pool.build_id_slots(), &mut HouseholdStats::default(), &mut NoDelivery, Some(&mut links));
+        assert_eq!(links[0].get(&child), Some(&(c, 0, 1)));
+        let mut frame = MobilityGateFrame::default();
+        gate_household_mobility(&pool, &mut pending, &rs, 1.0, &mut frame, &links);
+        assert_eq!((frame.proposed_groups, frame.blocked_groups, frame.blocked_persons), (2, 1, 3));
+        assert_eq!(pending[0].migrations.len(), 2);
+        assert!(pending[0].migrations.iter().any(|m| m.0 == a));
+        assert!(pending[0].migrations.iter().any(|m| m.0 == b));
+    }
+
+    #[test]
+    fn mobility_gate_samples_bounded_but_group_totals_complete() {
+        let mut pool = AgentPool::new(130);
+        let mut p = PendingDecisions::new();
+        for _ in 0..130 { let slot = spawn(&mut pool, 25); pool.wealth[slot] = 0.0; p.migrations.push((slot, 0, 1)); }
+        let mut rs = regions(); rs[0].food_sufficiency = 0.5; rs[0].adjacency = vec![1];
+        let mut pending = vec![p]; let mut frame = MobilityGateFrame::default();
+        gate_household_mobility(&pool, &mut pending, &rs, 1.0, &mut frame, &[Default::default()]);
+        assert_eq!(frame.proposed_groups, 130); assert_eq!(frame.blocked_persons, 130);
+        assert_eq!(frame.samples.len(), 128); assert_eq!(frame.dropped_samples, 2);
+        assert!(pending[0].migrations.is_empty());
+    }
+
+    #[test]
+    fn mobility_gate_excludes_absent_spouse_and_passes_unknown_or_not_distressed() {
+        let mut pool = AgentPool::new(3);
+        let a = spawn(&mut pool, 25); let b = spawn(&mut pool, 25);
+        marry(&mut pool, a, b); pool.wealth[a] = 0.0; pool.wealth[b] = 100.0;
+        pool.regions[b] = 1;
+        let mut rs = regions(); rs[0].food_sufficiency = 0.5; rs[0].adjacency = vec![1];
+        let mut p = PendingDecisions::new(); p.migrations = vec![(a, 0, 1)];
+        let mut pending = vec![p]; let mut frame = MobilityGateFrame::default();
+        gate_household_mobility(&pool, &mut pending, &rs, 1.0, &mut frame, &[Default::default()]);
+        assert!(pending[0].migrations.is_empty()); assert_eq!(frame.samples[0].liquid, 0.0);
+        let mut p = PendingDecisions::new(); p.migrations = vec![(a, 0, 3)];
+        let mut pending = vec![p]; let mut frame = MobilityGateFrame::default();
+        gate_household_mobility(&pool, &mut pending, &rs, 1.0, &mut frame, &[Default::default()]);
+        assert_eq!(pending[0].migrations.len(), 1); assert_eq!(frame.samples[0].reason, 3);
+        rs[0].food_sufficiency = 1.0;
+        let mut p = PendingDecisions::new(); p.migrations = vec![(a, 0, 1)];
+        let mut pending = vec![p]; let mut frame = MobilityGateFrame::default();
+        gate_household_mobility(&pool, &mut pending, &rs, 1.0, &mut frame, &[Default::default()]);
+        assert_eq!(pending[0].migrations.len(), 1); assert_eq!(frame.samples[0].reason, 2);
+        rs[0].food_sufficiency = 0.5;
+        pool.trip_phase[a] = crate::agent::TRIP_PHASE_TRANSIT;
+        let mut p = PendingDecisions::new(); p.migrations = vec![(a, 0, 1)];
+        let mut pending = vec![p]; let mut frame = MobilityGateFrame::default();
+        gate_household_mobility(&pool, &mut pending, &rs, 1.0, &mut frame, &[Default::default()]);
+        assert_eq!(pending[0].migrations.len(), 1); assert_eq!(frame.samples[0].reason, 4);
     }
 
     #[test]

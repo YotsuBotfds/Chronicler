@@ -376,7 +376,7 @@ pub fn try_tick_agents_with_movements(
     try_tick_agents_with_movements_observer(
         pool, regions, signals, master_seed, turn, wealth_percentiles,
         spatial_grids, attractors, spatial_diag, settlement_grids, merchant_state,
-        targeted_deaths, options, movements, None, &mut crate::decision_delivery::NoDelivery,
+        targeted_deaths, options, movements, None, &mut crate::decision_delivery::NoDelivery, None,
     )
 }
 
@@ -403,10 +403,55 @@ pub(crate) fn try_tick_agents_with_delivery(
     let result = try_tick_agents_with_movements_observer(
         pool, regions, signals, master_seed, turn, wealth_percentiles,
         spatial_grids, attractors, spatial_diag, settlement_grids, merchant_state,
-        targeted_deaths, options, movements, Some((config, &mut *frame)), &mut move_observer,
+        targeted_deaths, options, movements, Some((config, &mut *frame)), &mut move_observer, None,
     );
     if result.is_ok() { frame.moves = move_observer.finish(); }
     result
+}
+
+/// Tick with a per-call, nonpersistent household mobility gate.
+pub(crate) fn try_tick_agents_with_mobility_gate(
+    pool: &mut AgentPool, regions: &[RegionState], signals: &TickSignals,
+    master_seed: [u8; 32], turn: u32, wealth_percentiles: &mut [f32],
+    spatial_grids: &mut Vec<crate::spatial::SpatialGrid>, attractors: &[crate::spatial::RegionAttractors],
+    spatial_diag: &mut crate::spatial::SpatialDiagnostics, settlement_grids: &[[u16; 100]],
+    merchant_state: Option<(&crate::merchant::RouteGraph, &mut crate::merchant::ShadowLedger, &mut crate::merchant::DeliveryBuffer)>,
+    targeted_deaths: &[u32], options: crate::scale::TickOptions,
+    movements: &mut crate::movements::MovementRuntime,
+    delivery: Option<(&crate::decision_delivery::DeliveryConfig, &mut crate::decision_delivery::DeliveryFrame)>,
+    requirement: f32, gate_frame: &mut crate::household::MobilityGateFrame,
+) -> Result<(Vec<AgentEvent>, u32, crate::formation::FormationStats, DemographicDebug, crate::household::HouseholdStats, crate::merchant::MerchantTripStats, crate::knowledge::KnowledgeStats), &'static str> {
+    if let Some((config, frame)) = delivery {
+        *frame = crate::decision_delivery::DeliveryFrame::new(turn, options.ablation.active(turn));
+        let mut observer = crate::decision_delivery::MoveDelivery::new(config);
+        let result = try_tick_agents_with_movements_observer(pool, regions, signals, master_seed, turn,
+            wealth_percentiles, spatial_grids, attractors, spatial_diag, settlement_grids, merchant_state,
+            targeted_deaths, options, movements, Some((config, &mut *frame)), &mut observer, Some((requirement, gate_frame)));
+        if result.is_ok() { frame.moves = observer.finish(); }
+        result
+    } else {
+        try_tick_agents_with_movements_observer(pool, regions, signals, master_seed, turn,
+            wealth_percentiles, spatial_grids, attractors, spatial_diag, settlement_grids, merchant_state,
+            targeted_deaths, options, movements, None, &mut crate::decision_delivery::NoDelivery, Some((requirement, gate_frame)))
+    }
+}
+
+fn restore_blocked_primary_actions(
+    pending: &mut [crate::behavior::PendingDecisions], blocked: &[Vec<usize>],
+    original: &[(Vec<(usize, u16)>, Vec<(usize, u8)>)],
+) {
+    for (i, slots) in blocked.iter().enumerate() {
+        for &(slot, region) in &original[i].0 {
+            if slots.contains(&slot) && !pending[i].rebellions.iter().any(|v| v.0 == slot) {
+                pending[i].rebellions.push((slot, region));
+            }
+        }
+        for &(slot, occupation) in &original[i].1 {
+            if slots.contains(&slot) && !pending[i].occupation_switches.iter().any(|v| v.0 == slot) {
+                pending[i].occupation_switches.push((slot, occupation));
+            }
+        }
+    }
 }
 
 /// The unchanged physical migration application, with an opt-in hook only
@@ -455,6 +500,7 @@ fn try_tick_agents_with_movements_observer<M: crate::decision_delivery::MoveObse
     movements: &mut crate::movements::MovementRuntime,
     mut delivery: Option<(&crate::decision_delivery::DeliveryConfig, &mut crate::decision_delivery::DeliveryFrame)>,
     move_observer: &mut M,
+    gate: Option<(f32, &mut crate::household::MobilityGateFrame)>,
 ) -> Result<(Vec<AgentEvent>, u32, crate::formation::FormationStats, DemographicDebug, crate::household::HouseholdStats, crate::merchant::MerchantTripStats, crate::knowledge::KnowledgeStats), &'static str> {
     let scale_mode = options.scale_mode;
     let num_regions = regions.len();
@@ -719,8 +765,14 @@ fn try_tick_agents_with_movements_observer<M: crate::decision_delivery::MoveObse
     // M57b: Household migration consolidation (post-decision, pre-apply)
     // -----------------------------------------------------------------------
     let mut pending_decisions = pending_decisions; // make mutable for consolidation
+    // Consolidation may replace followers' rebellion/switch decisions. Retain
+    // those primary actions if the later household gate cancels their move.
+    let original_actions = gate.as_ref().map(|_| pending_decisions.iter()
+        .map(|pd| (pd.rebellions.clone(), pd.occupation_switches.clone())).collect::<Vec<_>>());
+    let mut gate_groups = gate.as_ref().map(|_| (0..pending_decisions.len())
+        .map(|_| std::collections::BTreeMap::new()).collect::<Vec<_>>());
     if M::ENABLED { move_observer.begin(pool, &pending_decisions); }
-    crate::household::consolidate_household_migrations_observed(
+    crate::household::consolidate_household_migrations_with_groups(
         pool,
         &mut pending_decisions,
         regions,
@@ -728,7 +780,15 @@ fn try_tick_agents_with_movements_observer<M: crate::decision_delivery::MoveObse
         &pre_decision_id_to_slot,
         &mut household_stats,
         move_observer,
+        gate_groups.as_deref_mut(),
     );
+
+    if let Some((requirement, frame)) = gate {
+        let blocked = crate::household::gate_household_mobility(pool, &mut pending_decisions, regions, requirement, frame, gate_groups.as_deref().unwrap());
+        if let Some(original) = original_actions {
+            restore_blocked_primary_actions(&mut pending_decisions, &blocked, &original);
+        }
+    }
 
     // -----------------------------------------------------------------------
     // 4. Apply decisions sequentially
@@ -2860,6 +2920,16 @@ mod tests {
         assert!(!pool.is_alive(slots[2]));
         assert!(!pool.is_alive(slots[7]));
         assert!(pool.is_alive(slots[0]));
+    }
+
+    #[test]
+    fn mobility_gate_restores_preexisting_follower_actions_only_when_blocked() {
+        let mut pending = vec![crate::behavior::PendingDecisions::new()];
+        pending[0].rebellions.push((9, 0));
+        let original = vec![(vec![(1, 0), (9, 0)], vec![(2, 3), (7, 4)])];
+        restore_blocked_primary_actions(&mut pending, &[vec![1, 2]], &original);
+        assert_eq!(pending[0].rebellions, vec![(9, 0), (1, 0)]);
+        assert_eq!(pending[0].occupation_switches, vec![(2, 3)]);
     }
 
     #[test]
