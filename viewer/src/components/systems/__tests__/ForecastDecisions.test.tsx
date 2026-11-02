@@ -96,3 +96,16 @@ it("bounds region cards, supports keyboard-focusable controls, and resets paging
   view.rerender(<HarvestForecasts {...p} />);
   expect(screen.getByText("Showing 8 of 10 recorded granary decisions.")).toBeInTheDocument();
 });
+
+it("rejects impossible estimator lags and nonchronological observation evidence", () => {
+  const base = report({ estimator_metadata: metadata() });
+  expect(estimatorMetadataAt(base, 6, 3)).not.toBeNull();
+  for (const broken of [
+    { ...metadata(), base_delivery_lag: 0 }, { ...metadata(), base_delivery_lag: 3 },
+    { ...metadata(), extra_delivery_delay: 13 }, { ...metadata(), extra_delivery_delay: 1 },
+    { ...metadata(), observations: [[2, .4], [2, .5], [4, .6]] },
+    { ...metadata(), observations: [[3, .4], [2, .5], [4, .6]] },
+  ]) {
+    expect(estimatorMetadataAt({ ...base, estimator_metadata: broken as HarvestEstimatorMetadata }, 6, 3)).toBeNull();
+  }
+});

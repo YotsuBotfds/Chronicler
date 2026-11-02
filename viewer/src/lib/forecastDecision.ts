@@ -45,9 +45,12 @@ export function estimatorMetadataAt(report: HarvestForecastReport, sourceTurn: n
   if (!m || m.schema_version !== 1 || !integer(m.issued_turn) || m.issued_turn !== report.issued_turn || m.issued_turn > sourceTurn
     || !index(m.reported_issuer_region, regions) || m.reported_issuer_region !== report.source_region || !index(m.estimate_origin_region, regions)
     || !["normal", "withhold", "shuffle"].includes(m.policy) || !["fixed", "local_credibility"].includes(m.preparation_policy)
-    || !integer(m.base_delivery_lag) || !integer(m.extra_delivery_delay) || m.observation_window !== 6
+    || !(m.base_delivery_lag === 1 || m.base_delivery_lag === 2)
+    || !integer(m.extra_delivery_delay) || m.extra_delivery_delay > 12
+    || m.issued_turn + m.base_delivery_lag + m.extra_delivery_delay !== report.delivery_turn || m.observation_window !== 6
     || !Array.isArray(m.observations) || m.observations.length < 3 || m.observations.length > 6
-    || !m.observations.every((row) => Array.isArray(row) && row.length === 2 && integer(row[0]) && row[0] <= m.issued_turn && m.issued_turn - row[0] < 6 && number(row[1]))
+    || !m.observations.every((row, i) => Array.isArray(row) && row.length === 2 && integer(row[0]) && row[0] <= m.issued_turn && m.issued_turn - row[0] < 6 && number(row[1])
+      && (i === 0 || row[0] > m.observations[i - 1][0]))
     || !number(m.season_multiplier) || !number(m.shortfall_ratio) || !finite(m.noise_draw)
     || !probability(m.claimed_probability) || !probability(m.claimed_confidence) || !number(m.claimed_predicted_ratio)
     || m.claimed_probability !== report.probability || m.claimed_confidence !== report.confidence || m.claimed_predicted_ratio !== report.predicted_ratio) return null;
