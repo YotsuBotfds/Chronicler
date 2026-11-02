@@ -15,6 +15,7 @@ validate an epic. Runtime changes remain opt-in until evaluated. No paid narrati
 | --- | --- | --- |
 | People | Python `Region.population` is model population; native alive agents are independent pool counts. Phase-2 demand uses the latter; completed population follows later births/deaths/migration/conquest. | Existing regional population records keep counts and epochs separate. Never apportion civ totals. |
 | Native goods | `economy.rs`/FFI: Phase 2, model goods per region; food goods share the kernel's demand convention (default 0.5 per native alive agent). Production, physical net transport or abstract flows, craft input, proportional food drawdown, storage decay and per-good cap. | Pre-consumption sufficiency is stock / max(demand,0.1), clamped0–2. It is not a measured meal, calories or household purchasing access. |
+| Resource initial state | Python ecology computes current yield from base yield, the existing effective/base extraction factor, season and ecology before passing it to native economy. | Raising base alone can retain a smaller damaged effective value. Official new-resource scenario paths synchronize them; constructed fixtures must declare both. Forecast severe-production threshold0.6 is distinct from full food demand1.0. |
 | Private transport | Rust `merchant.rs`, trips/graph/buffer. Reservation is not stock debit; actual departure queues a debit; mobility arrivals/returns are consumed in the **following** Phase2 economy. Hybrid uses physical cargo; other backed modes use abstract allocation. | Grain arrival loses5%; no second payment. A three-node trip is needed to interrupt mid-transit. Existing unwind/return and reopen behavior must be executed, not inferred from names. |
 | Public reserves | Python `grain_reserves.py`: distinct public grain/keeper. Phase2 normalizes custody, directly allocates release to sufficiency, then3% spoilage. Native consumption has already happened. | Release is modeled as eaten directly, not added to native consumed stock. Procurement target is not capacity. Late Phase10 buys surplus with whole-coin treasury budgets; pending paid public cargo is neither reserve nor private cargo. |
 | Work/care/households | Rust `health_care.rs` deducts real eligible farmer work before production; Python persists episodes. Households are derived marriage/parent identities, not another persisted inventory economy. | Mobility/care/urban exclusion gates matter. No personal food-purchase constraint may be invented for observational explanations. |
@@ -32,7 +33,7 @@ validate an epic. Runtime changes remain opt-in until evaluated. No paid narrati
 | M3 storage choices | validated | Opt-in paid work, timber/treasury costs, capacity, condition, spoilage, custody and existing inspector integration. All nine combined CI jobs passed at fc50bf8e. | Actual benefit/harm pair, total goods balance, partial-work exact continuation and four-mode default-off parity passed. Care/work interaction and held scenario evaluation remain M7–9. |
 | M4 household coping | validated | Opt-in native liquid gate, persisted controls, bounded history and Migration inspector; corrected omitted/mock/no-native boundaries. All nine CI jobs passed at4dddb88b. | This establishes constrained native moves and exact continuation in declared controls, not a new household food/credit/care model or general unequal recovery. M7–9 retain those limits. |
 | M5 resource-backed service | validated | Actual paid academy supplies, native exclusive Scholar work/income cost, prior-turn learning effect, dated Learning inspector and material balances. All nine CI jobs passed atd7061f42. | Nine native controls, funded/no-stock/restock/ownership/adverse cases, exact held-supplies continuation, off parity and browser journey pass. General efficacy, rebuilding suite and Scholar illness remain outside this bounded qualification. |
-| M6 delayed information | partially covered | Report delay, real decision-boundary inputs/costs, issue-time construction records and Harvest inspector integrated; all nine CI jobs passed at3e852333. See forecast-decisions-candidate.md. | Actual timing/purchases, expiry, caps, exact continuation, observer neutrality and browser checks pass. Both the earlier and additional scarce-budget shuffle cases are purchase/food-neutral; misleading harm/food outcome criterion remains unmet. |
+| M6 delayed information | integrated | Existing delay/decision/expiry contracts plus a corrected, declared full-main adverse-information case and truthful severe-threshold inspector. See forecast-decisions-candidate.md. | Earlier neutral/failed cases remain negative. Same initial world/RNG, actual budget diversion, higher coins/spoilage, exact pending-report resume and real browser checks pass; current combined CI next. Unique household hardship, general policy superiority and held evaluation are not established. |
 | M7 crisis suite | partially covered | [Constructed A/B/C/D cases and E analysis](crisis-scenarios.md) execute shared native state. Regional shock now uses the existing exact pair coordinator; explicit paid academy restoration has a tested boundary API. | Development admissions pass within stated limits. Receiving services, complete common-point alternatives for each case and held evaluation remain unfinished. Supported drought injection is not a crop-yield shock; recorded migration is not proof of forced eviction. |
 | M8 usable laboratory | partially covered | Regional closure and paid academy restoration preview → real exact pair → existing food/Learning inspectors work at desktop/390px. Versions1–4 and descriptive private-safe recipes are supported. A full-main academy guide preserves history1–12. | One live client is the existing server contract. The broader crisis gallery and remaining scenario/evaluation boundaries are unfinished; this is not whole-roadmap completion. |
 | M9 package | implementing | Quiet paired runtime/memory/history and actual browser measurements recorded; private source/evidence recovery independently verified. All nine corrected M8 CI jobs pass at0fb973cf. | Failed CI16376f90 remains preserved; fixed-hash supervision executes the new tests without relaxed skip rules. Held scenarios, final feature-enabled qualification and release handoff remain unfinished. |
@@ -268,8 +269,25 @@ also match independently downloaded bytes. Primary archives retain their origina
 running-CI capture state; the separate receipt records the later success. This
 verifies source/evidence recovery, not reusable environment publication.
 
-Next: preserve new WIP as it develops. Complete C's receiving-service and
-matched alternatives, freeze/run modest held evaluations, and address M6's
-misleading-information acceptance without forcing favorable outcomes. The
+The separately corrected M6 fixture synchronizes base/effective yield rather
+than changing model rules. Three full-main20-turn arms have equal initial
+world/native/Python/NumPy RNG apart from report policy. A shuffled high-risk
+report for region2 resolves above the recorded0.6 severe threshold; its actual
+source6 three-coin budget goes to region2 instead of region3. Relative normal
+cost53/spoilage45.0348, shuffle records60/66.2710. Region2 receives no public
+release in the horizon; immediate region3 releases match, and later food
+outcomes vary both ways. This establishes a bounded adverse resource path,
+not unique household harm. The6→20 checkpoint and desktop/390px current/legacy
+views pass; snapshot7 hides the outcome that is recorded at13. A bounded UI
+wording fix distinguishes severe production shortfall from all unmet demand.
+Two native regressions,220 focused owner/source checks and a guarded witness
+pass. Current combined CI and the next backup are not yet claimed complete.
+
+Next: verify the information slice and preserve its evidence. The receiving
+resupply graph gate failed before turns; a separate declared chain ran12 turns
+with actual distress arrivals and craft0→1 traffic, but no loaded0→2 voyage, so
+no route what-if or recovery was run. Inspect actual destination/stock/price
+gates before proposing a connection; do not force dispatches. Complete C's
+matched service alternatives and freeze/run modest held evaluations. The
 roadmap remains unfinished; no scientific gate, default promotion or reusable-
 environment publication has been claimed.

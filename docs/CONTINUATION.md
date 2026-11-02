@@ -9,11 +9,12 @@ work continuation, browser checks and default-off parity are retained. M4 native
 household mobility, dated history and Migration UI are integrated with bounded
 native/browser validation and all nine CI jobs green at4dddb88b. M5 actual
 teaching work/paid supplies and Learning history passed all nine CI jobs at
-d7061f42. M6 real delayed-report procurement/history is integrated with native,
-checkpoint, neutrality and browser checks, but remains partially covered: the
-controls have not demonstrated misleading-information harm or a food benefit.
-All nine M6 CI jobs passed at3e852333 in run41489913862; its unmet harmful-
-misinformation/food-outcome acceptance remains explicit. M7 now has constructed
+d7061f42. M6 delayed-report procurement/history passed all nine CI jobs at
+3e852333. A later corrected initial-resource case now records false severe-warning
+classification, a real three-coin budget diversion, higher costs/spoilage, exact
+6→20 continuation and actual desktop/390px inspection. It is integrated pending
+current CI; unique household harm or general forecasting quality is not claimed.
+Earlier neutral and unadmitted cases remain preserved. M7 now has constructed
 native A/B/C/D cases and recorded regional distribution analysis; it remains
 partially covered, with receiving services, full alternatives and held evaluation
 unfinished. M8's transport and paid academy restoration workflows now run through
@@ -29,8 +30,9 @@ tests/six unchanged historical skips/623 subtests,1,151 viewer tests and1,203 Ru
 tests/two ignored. Its owner-only backup independently restores exact source and
 561 new evidence files;502 omitted files match prior downloaded archives. This
 is bounded development qualification, not completed M6–9 or fresh provisioning.
-Next work: a separately declared receiving-service resupply case and the real
-harvest-production authority behind the failed false-warning fixtures. See the
+Next work: qualify the new information example, inspect the actual private
+craft-destination gates in the unadmitted receiving-service resupply cases, and
+freeze the modest held evaluation. See the
 active roadmap for exact sources and limits.
 This is not the completed roadmap. Previous remediation stays closed within its documented
 limits. Main/defaults remain unchanged; environment publication stays deferred.

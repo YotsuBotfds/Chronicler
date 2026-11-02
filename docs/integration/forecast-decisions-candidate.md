@@ -1,10 +1,12 @@
 # Delayed reports and recorded procurement decisions
 
-M6 is **partially covered**. Delayed information changes an actual procurement
-decision in a constructed development case, with exact continuation and a
-working inspector. The required harmful misleading-information case has not
-been demonstrated. The integrated crisis suite and independent evaluation are
-still ahead; no policy or scientific promotion follows from these examples.
+M6 now has an **integrated bounded adverse-information control**, in addition
+to the earlier timing/expiry controls. A corrected constructed initial-resource
+contract produces a misassigned high-risk report, an actual budget diversion,
+higher procurement spending and more modeled spoilage. It does not establish
+unique household harm or overall policy superiority. The original neutral and
+failed-admission cases remain intact. Current combined CI is a separate gate;
+the broader crisis suite and independent evaluation remain unfinished.
 
 Use the existing harvest forecasts with grain reserves and contact ledger.
 `--harvest-report-delay N` adds0–12 turns to reports issued subsequently, default
@@ -87,6 +89,67 @@ guard; seven focused final checks, lint/build and actual desktop/390px journeys
 pass. Real normal/delayed/legacy/shuffle bundles agree with source targets, dates,
 budgets and payments. A final valid-producer browser check also passed after the
 guard. Broader combined CI is recorded in the roadmap, not inferred here.
+
+## Corrected resource-contract case
+
+The later scarce-budget and heterogeneous-capital cases were also neutral for
+normal versus shuffled purchases. Inspection then found a fixture error:
+changing region2's base yield to1.8 left its generated effective yield0.956621.
+The existing extraction factor0.956621/1.8 cancels much of the intended increase.
+Its measured winter mean0.345717 follows the actual production/demand records.
+The official scenario paths inspected synchronize yields when initializing a
+new resource; no scenario-loader defect was identified. These were direct
+fixture mutations, and the earlier negative regression is retained.
+
+One separately declared correction initializes **both** region2 yields to1.8,
+without changing thresholds, noise, seeds or subsequent stocks. Three actual
+20-turn main runs use identical starting world/native bytes and Python/NumPy RNG,
+apart from existing normal/shuffle/withhold report policy. No held seeds are used.
+
+- At source5, normal estimates recipient2 risk0.4579; shuffle assigns a different
+  origin's0.9473 estimate. It arrives at source6 and is visible in snapshot7.
+- The same owner's three-coin budget then buys31.085 net goods for region3 in
+  normal, versus32.722 for region2 under shuffle. Region3's next opening public
+  stock is80.382 versus49.297. Later purchases catch up; its source9/10 releases
+  match, so this is not evidence of an immediate household meal shortfall.
+- The report's realized source9–11 mean production/demand is0.627537. It lies
+  above the model's **severe-shortfall** threshold0.6, while remaining below full
+  demand1.0. Another recipient really has a severe shortfall, mean0.302782.
+- Whole-case normal/shuffle/withhold procurement costs are53/60/52 model coins;
+  public spoilage is45.0348/66.2710/40.3093 model food goods. Region2 receives no
+  public release during this horizon. Higher costs and destroyed goods are
+  observed adverse resource effects; later regional sufficiency moves in both
+  directions with changed populations. They are not a universal welfare score
+  or a unique causal attribution of household hardship to one warning.
+
+All60 turn frames cover four regions; native/public balances stay within
+tolerance and private receipt
+frames are complete without drops. A pending-report checkpoint at6 resumes to
+the same20 snapshots, final world/native bytes and Python/NumPy RNG. Two focused
+native regressions require the actual classification, allocation, costs and
+continuation; an unadmitted case is not accepted as success.
+
+Actual desktop/390px inspection shows the decision at snapshot7, the later score
+at13 and no outcome after rewinding to7. The existing forecast table now names
+the severe classification and reads a numeric threshold only from validated
+recorded metadata; older missing thresholds remain unknown. Per-turn Food
+spoilage at snapshot13 is0.7912 versus3.1804, distinct from the20-turn totals.
+Both completed bundles load in the existing comparison; legacy decisions remain
+unknown. No paid narration or new economic behavior is involved.
+
+Reproduce with a matching compiled native interpreter and a fresh external path:
+
+```sh
+env PYTHONPATH="$PWD/src:$PWD" PYTHONHASHSEED=0 \
+  "$NATIVE_PYTHON" scripts/crisis_forecast_misleading_example.py \
+  /absolute/fresh/forecast-controls --simulate-only
+```
+
+Read the generated`WALKTHROUGH.txt` and`case.json`; open the normal/shuffle/withhold
+`chronicle_bundle.json` files. Local evidence and the retained authority audit
+are under`/workspace/shared/chronicler-crisis/m6-forecast`. This post-null
+constructed case closes a specific mechanism gap, not a scientific evaluation
+or a recommendation to promote a forecasting policy.
 
 ## Reproduce and inspect
 
