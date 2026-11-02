@@ -438,6 +438,14 @@ def write_checkpoint(path: Path, state: RunState, *, exact: bool = True,
     storage = getattr(getattr(state.world, "grain_reserves", None), "storage", None)
     if storage is not None and getattr(storage, "_active_plan", None) is not None:
         raise CheckpointError("storage work is pending; write checkpoints at a completed turn boundary")
+    learning = getattr(getattr(state.world, "scholarship", None), "learning_services", None)
+    if learning is not None and getattr(learning, "_active_plan", None) is not None:
+        raise CheckpointError("academy work is pending; write checkpoints at a completed turn boundary")
+    simulator = getattr(state.agent_bridge, "_sim", None)
+    pending_teaching = getattr(type(simulator), "has_pending_teaching_work", None)
+    if callable(pending_teaching) and pending_teaching(simulator):
+        # Native checkpoints deliberately omit transient work reservations.
+        raise CheckpointError("native teaching work is pending; finish or cancel it before checkpointing")
     t0 = time.perf_counter()
     state.markers = _markers(state)
     buf = io.BytesIO()
