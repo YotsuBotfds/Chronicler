@@ -4,6 +4,8 @@ import random
 import pyarrow as pa
 import pytest
 
+pytest.importorskip("chronicler_agents")
+
 from chronicler.action_engine import ActionEngine
 from chronicler.agent_bridge import AgentBridge
 from chronicler.household_mobility_state import snapshot_fields
