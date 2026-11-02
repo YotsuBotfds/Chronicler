@@ -1,6 +1,7 @@
 """POSIX process/native what-if evidence; outside the guarded offline lane."""
 import copy
 import hashlib
+import importlib.machinery
 import json
 import io
 import os
@@ -8,6 +9,7 @@ from pathlib import Path
 import pickle
 import queue
 import random
+import signal
 import subprocess
 import sys
 import threading
@@ -83,10 +85,15 @@ def test_cancel_kills_owned_cli_group_including_descendant(tmp_path, monkeypatch
 
 @pytest.mark.parametrize("changed", [False, True])
 def test_real_native_pair_preserves_original_and_unchanged_arm(tmp_path, changed):
-    if os.environ.get("PYTHONHASHSEED") != "0" or sys.flags.hash_randomization:
-        pytest.skip("launch PYTHONHASHSEED=0 for exact parent/children")
     native = pytest.importorskip("chronicler_agents")
-    assert isinstance(native.AgentSimulator, type)
+    import chronicler_agents.chronicler_agents as compiled
+    assert any(compiled.__file__.endswith(suffix) for suffix in importlib.machinery.EXTENSION_SUFFIXES)
+    assert all(isinstance(getattr(native, name, None), type)
+               and getattr(native, name) is getattr(compiled, name)
+               for name in ("AgentSimulator", "EcologySimulator", "PoliticsSimulator"))
+    if os.environ.get("PYTHONHASHSEED") != "0" or sys.flags.hash_randomization:
+        _run_hash_zero_native_fixture(tmp_path, changed)
+        return
     import chronicler.main as main
     from chronicler.bundle_codec import load_bundle
     from chronicler.run_checkpoint import read_header
@@ -159,3 +166,51 @@ def test_real_native_pair_preserves_original_and_unchanged_arm(tmp_path, changed
     original = load_bundle(output_dir / "chronicle_bundle.json")
     original["metadata"].pop("generated_at", None)
     assert original == recorded["baseline"]
+
+
+def _run_hash_zero_native_fixture(tmp_path, changed):
+    """Execute this exact fixture without inheriting pytest plugins/JUnit writers.
+
+    A hash seed cannot be changed in a running interpreter. CI's unpinned
+    pytest therefore supervises one ordinary fixed-hash Python process; it
+    does not skip or replace either real native continuation assertion.
+    """
+    script = """
+import json, runpy, signal, sys
+from pathlib import Path
+def terminate(signum, frame):
+    raise SystemExit("hash-zero fixture terminated")
+signal.signal(signal.SIGTERM, terminate)
+namespace = runpy.run_path(sys.argv[1])
+changed = sys.argv[3] == "True"
+namespace["test_real_native_pair_preserves_original_and_unchanged_arm"](Path(sys.argv[2]), changed)
+print("HASH_ZERO_NATIVE_PAIR_COMPLETE " + json.dumps({"changed": changed, "hash_seed": "0", "hash_randomization": sys.flags.hash_randomization}), flush=True)
+"""
+    env = dict(os.environ, PYTHONHASHSEED="0")
+    source = str(Path(__file__).resolve().parents[1] / "src")
+    env["PYTHONPATH"] = source + os.pathsep + env.get("PYTHONPATH", "")
+    process = subprocess.Popen(
+        [sys.executable, "-c", script, str(Path(__file__).resolve()), str(tmp_path), str(changed)],
+        env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+        start_new_session=True,
+    )
+    try:
+        stdout, _ = process.communicate(timeout=110)
+        assert process.returncode == 0, stdout
+        receipt = next((line.removeprefix("HASH_ZERO_NATIVE_PAIR_COMPLETE ")
+                        for line in stdout.splitlines() if line.startswith("HASH_ZERO_NATIVE_PAIR_COMPLETE ")), None)
+        assert receipt is not None, stdout
+        assert json.loads(receipt) == {"changed": changed, "hash_seed": "0", "hash_randomization": 0}, stdout
+    finally:
+        if process.poll() is None:
+            # Unwind the same fixture's finally/pair.close first: its arm CLI
+            # processes deliberately own separate process groups.
+            try:
+                os.killpg(process.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+            try:
+                process.communicate(timeout=5)
+            except subprocess.TimeoutExpired:
+                pass
+        WhatIfPairs._kill_group(process)
