@@ -68,6 +68,8 @@ it("bounds retained rows and resets the displayed sample page on scrubbing", () 
   view.rerender(<MigrationEvidence bundle={bundle} currentTurn={3} />);
   expect(screen.getByText("Showing 8 of 12 matching retained samples.")).toBeInTheDocument();
   expect(screen.getByText(/128 group samples omitted/)).toBeInTheDocument();
+  view.rerender(<MigrationEvidence bundle={bundle} currentTurn={2} />);
+  expect(screen.getByText("Showing 8 of 12 matching retained samples.")).toBeInTheDocument();
 });
 
 it("preserves small nonzero recorded wealth and requirements", () => {
@@ -76,4 +78,15 @@ it("preserves small nonzero recorded wealth and requirements", () => {
   bundle.history[1].household_mobility = f;
   render(<MigrationEvidence bundle={bundle} currentTurn={2} selectedRegionIndex={0} />);
   expect(screen.getByText(/Blocked: insufficient liquid wealth/)).toHaveTextContent("available: 1.000e-5; required: 1.000e-4");
+});
+
+it("renders native negative zero as zero and one person in the singular", () => {
+  const bundle = regionalFixture(); const f = frame();
+  f.samples[0].native_adult_liquid_wealth = -0; f.samples[0].native_persons = 1;
+  f.proposed_native_persons = 5; f.blocked_native_persons = 1;
+  bundle.history[1].household_mobility = f;
+  render(<MigrationEvidence bundle={bundle} currentTurn={2} selectedRegionIndex={0} />);
+  expect(screen.getByText(/Group 10:/)).toHaveTextContent("1 native person");
+  expect(screen.getByText(/Blocked: insufficient liquid wealth/)).toHaveTextContent("available: 0; required: 4");
+  expect(screen.queryByText(/available: -0/)).not.toBeInTheDocument();
 });
