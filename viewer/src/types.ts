@@ -1,3 +1,4 @@
+import type { LearningServicesSnapshot } from "./learningServicesTypes";
 import type { HarvestForecastSnapshot, HealthCareSnapshot, RitualGatheringsSnapshot, ScientificClaimsSnapshot, TransactionReceiptsSnapshot } from "./expansionTypes";
 export type {
   HarvestForecastReport, HarvestForecastSnapshot, HarvestPreparedness, HealthCareRegion, HealthCareSnapshot,
@@ -506,6 +507,8 @@ export interface SeatSnapshotRow {
 }
 
 export interface ScholarshipSnapshot {
+  /** Optional source-dated academy materials and modeled service records. */
+  learning_services?: LearningServicesSnapshot;
   seats: SeatSnapshotRow[];
   fallen: number;
   /** Running totals (founded, rises, declines, fallen, refuges, carried, upkeep, ...). */

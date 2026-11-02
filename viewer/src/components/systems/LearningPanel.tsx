@@ -6,6 +6,7 @@ import {
 import { eventsOfTypes, recordedSpan, SYSTEM_EVENT_TYPES, type SystemPanelProps } from "../../lib/systems";
 import { CivLineChart, StatTile, StripLegend, SystemEventList, TurnStrip } from "./SystemParts";
 import { ScientificClaims } from "./ScientificClaims";
+import { AcademyServices } from "./AcademyServices";
 
 const SCHOLARS = "Scholars";
 
@@ -139,6 +140,8 @@ export function LearningPanel({
               {record.fell ? `; ${fallLabel(bundle, record.record, currentTurn)}` : ""}.
             </p>
           )}
+          <AcademyServices bundle={bundle} snapshot={currentSnapshot} seatId={selected} seat={record?.record ?? null}
+            currentTurn={currentTurn} onSeek={onSeek} onSelectRegion={onSelectRegion} onSelectCivilization={onSelectCivilization} />
           <CivLineChart
             data={scholars}
             civs={[SCHOLARS]}
