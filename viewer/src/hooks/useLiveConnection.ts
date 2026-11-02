@@ -34,6 +34,7 @@ interface LiveConnectionState {
   paused: boolean;
   pauseContext: PauseContext | null;
   error: string | null;
+  notice?: string | null;
   sendCommand: (cmd: Command) => void;
   speed: number;
   setSpeed: (s: number) => void;
@@ -64,6 +65,7 @@ export function useLiveConnection(wsUrl: string, token: string | null = null): L
   const [paused, setPaused] = useState(false);
   const [pauseContext, setPauseContext] = useState<PauseContext | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [speed, setSpeedState] = useState(1);
   const [lastAck, setLastAck] = useState<AckMessage | null>(null);
   const [lastForked, setLastForked] = useState<ForkedMessage | null>(null);
@@ -74,6 +76,8 @@ export function useLiveConnection(wsUrl: string, token: string | null = null): L
   const [lobbyInit, setLobbyInit] = useState<LobbyInit | null>(null);
   const bundleRef = useRef<Bundle | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const quitSocketRef = useRef<WebSocket | null>(null);
+  const completedSocketRef = useRef<WebSocket | null>(null);
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectDelayRef = useRef(1000);
   const serverStateRef = useRef<ServerState>("connecting");
@@ -91,8 +95,10 @@ export function useLiveConnection(wsUrl: string, token: string | null = null): L
   }, []);
 
   const sendCommand = useCallback((cmd: Command) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify(cmd));
+    const ws = wsRef.current;
+    if (ws?.readyState === WebSocket.OPEN && quitSocketRef.current !== ws) {
+      ws.send(JSON.stringify(cmd));
+      if (cmd.type === "quit") quitSocketRef.current = ws;
     }
   }, []);
 
@@ -191,6 +197,7 @@ export function useLiveConnection(wsUrl: string, token: string | null = null): L
         failures = 0;
         setConnected(true);
         setError(null);
+        setNotice(null);
         reconnectDelayRef.current = 1000;
       };
 
@@ -203,6 +210,19 @@ export function useLiveConnection(wsUrl: string, token: string | null = null): L
         setConnected(false);
         wsRef.current = null;
         if (reconnectRef.current) clearTimeout(reconnectRef.current);
+        const quitSent = quitSocketRef.current === ws;
+        const completed = completedSocketRef.current === ws;
+        if (quitSent || completed) {
+          setServerState("completed");
+          serverStateRef.current = "completed";
+          setPaused(false);
+          setPauseContext(null);
+          if (quitSent && !completed) setNotice("Live connection closed after Quit. Recorded history remains available; no completed file was announced.");
+          const pending = whatIfRef.current;
+          if (whatIfActive(pending)) publishWhatIf({ ...pending!, state: "error",
+            message: "The live connection ended before a final comparison result was received. Retained outputs are unconfirmed." });
+          return;
+        }
         const delay = reconnectDelayRef.current;
         reconnectRef.current = setTimeout(() => {
           reconnectDelayRef.current = Math.min(delay * 2, 10000);
@@ -373,6 +393,7 @@ export function useLiveConnection(wsUrl: string, token: string | null = null): L
             break;
 
           case "completed":
+            completedSocketRef.current = ws;
             setServerState("completed");
             serverStateRef.current = "completed";
             setPaused(false);
@@ -430,6 +451,7 @@ export function useLiveConnection(wsUrl: string, token: string | null = null): L
     paused,
     pauseContext,
     error,
+    notice,
     sendCommand,
     speed,
     setSpeed,

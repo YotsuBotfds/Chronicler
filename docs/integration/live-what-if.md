@@ -136,3 +136,9 @@ Actual schema2 preparation, recipe download, Cancel/import with no message,
 strict same-pause reprepare, duplicate-click single Run, both native arms,
 per-entity results and sanitized completed export passed. The original remained
 paused at8. Receipts/screenshots: `chronicler-multiwave-evidence/browser`.
+
+A zero-turn resumed Quit can end the server without a `completed` message or new
+output. The viewer stops terminal reconnects, exits its pause dialog and retains
+recorded history. It explicitly reports that no completed file was announced;
+unreceived comparison results remain unconfirmed. Ordinary connection loss still
+reconnects, and terminal intent is scoped to its exact socket.

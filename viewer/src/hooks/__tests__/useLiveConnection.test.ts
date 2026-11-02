@@ -65,6 +65,80 @@ const SAMPLE_INIT = {
   speed: 1.0,
 };
 
+it("ends inspection after a sent Quit closes without a completed message and never invents saved output", async () => {
+  const { result } = renderHook(() => useLiveConnection("ws://localhost:8765"));
+  await act(async () => { await vi.advanceTimersByTimeAsync(10); });
+  const ws = MockWebSocket.instances[0];
+  act(() => {
+    ws.simulateMessage(SAMPLE_INIT);
+    ws.simulateMessage({ type: "paused", turn: 16, reason: "interval", valid_commands: ["quit"], civs: [], injectable_events: [], settable_stats: [] });
+  });
+  const bundle = result.current.bundle;
+  act(() => { result.current.sendCommand({ type: "quit" }); result.current.sendCommand({ type: "quit" }); });
+  expect(ws.sent.map((raw) => JSON.parse(raw).type)).toEqual(["quit"]);
+  expect(result.current.paused).toBe(true);
+  act(() => ws.close());
+  expect(result.current.paused).toBe(false);
+  expect(result.current.pauseContext).toBeNull();
+  expect(result.current.serverState).toBe("completed");
+  expect(result.current.bundle).toBe(bundle);
+  expect(result.current.notice).toContain("no completed file was announced");
+  await act(async () => { await vi.advanceTimersByTimeAsync(20000); });
+  expect(MockWebSocket.instances).toHaveLength(1);
+});
+
+it("does not reconnect a normally completed socket", async () => {
+  const { result } = renderHook(() => useLiveConnection("ws://localhost:8765"));
+  await act(async () => { await vi.advanceTimersByTimeAsync(10); });
+  const ws = MockWebSocket.instances[0];
+  act(() => { ws.simulateMessage(SAMPLE_INIT); ws.simulateMessage({ type: "completed" }); ws.close(); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(20000); });
+  expect(MockWebSocket.instances).toHaveLength(1);
+  expect(result.current.serverState).toBe("completed");
+  expect(result.current.notice).toBeNull();
+});
+
+it("keeps an unfinished comparison unconfirmed when the connection ends after Quit", async () => {
+  const { result } = renderHook(() => useLiveConnection("ws://localhost:8765"));
+  await act(async () => { await vi.advanceTimersByTimeAsync(10); });
+  const ws = MockWebSocket.instances[0];
+  act(() => { ws.simulateMessage(SAMPLE_INIT); result.current.whatIf.prepare("A", 50, 2); });
+  expect(result.current.whatIf.status?.state).toBe("preparing");
+  act(() => { result.current.sendCommand({ type: "quit" }); ws.close(); });
+  expect(result.current.whatIf.status?.state).toBe("error");
+  expect(result.current.whatIf.status?.message).toContain("unconfirmed");
+  expect(result.current.whatIf.status?.pair).toBeUndefined();
+  await act(async () => { await vi.advanceTimersByTimeAsync(20000); });
+  expect(MockWebSocket.instances).toHaveLength(1);
+});
+
+it("keeps ordinary reconnect behavior if Quit was not sent on an open socket", async () => {
+  const { result } = renderHook(() => useLiveConnection("ws://localhost:8765"));
+  act(() => result.current.sendCommand({ type: "quit" }));
+  await act(async () => { await vi.advanceTimersByTimeAsync(10); });
+  const ws = MockWebSocket.instances[0];
+  expect(ws.sent).toEqual([]);
+  ws.send = () => { throw new Error("send failed"); };
+  expect(() => result.current.sendCommand({ type: "quit" })).toThrow("send failed");
+  act(() => ws.close());
+  await act(async () => { await vi.advanceTimersByTimeAsync(1500); });
+  expect(MockWebSocket.instances).toHaveLength(2);
+  expect(result.current.notice).toBeNull();
+});
+
+it("does not carry terminal intent into another socket or URL", async () => {
+  const { result, rerender } = renderHook(({ url }) => useLiveConnection(url), { initialProps: { url: "ws://localhost:8765" } });
+  await act(async () => { await vi.advanceTimersByTimeAsync(10); });
+  act(() => { MockWebSocket.instances[0].simulateMessage(SAMPLE_INIT); result.current.sendCommand({ type: "quit" }); MockWebSocket.instances[0].close(); });
+  rerender({ url: "ws://localhost:8766" });
+  await act(async () => { await vi.advanceTimersByTimeAsync(10); });
+  expect(result.current.notice).toBeNull();
+  const ws = MockWebSocket.instances[1];
+  act(() => { ws.simulateMessage(SAMPLE_INIT); ws.close(); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(1500); });
+  expect(MockWebSocket.instances).toHaveLength(3);
+});
+
 describe("useLiveConnection", () => {
   it("does not connect when wsUrl is empty", async () => {
     renderHook(() => useLiveConnection(""));

@@ -165,6 +165,7 @@ function App() {
       artifactIdentity={isLive ? null : artifactIdentity}
       bundleLoading={loading}
       error={error}
+      liveNotice={isLive ? liveConn.notice : null}
       isLive={isLive}
       connected={liveConn.connected}
       serverState={liveConn.serverState}

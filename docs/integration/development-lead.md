@@ -109,7 +109,20 @@ identified the explicit module-registration test's old310 count; its new module
 is now listed explicitly,311 total, with the original300-owner digest, six skips
 and623subtest seals unchanged. All210 metadata tests pass under the guard.
 Initial native/no-native/metadata failures are retained. Rust/package/locks/UI are unchanged by this lane-only correction.
-The corrected full CI dispatch/result will be recorded before closure.
+All9 corrected CI jobs passed atf021f204, run41399429636 (Python3.13.17):
+9133 no-Rust tests,623subtests; Rust1178/2ignored; viewer1102. Final native
+shards/aggregate succeeded with6canonical skips.
+
+A final zero-turn resume/browser check then found the terminal-close edge:
+the server exits0 without a completed message and no new output, but the client
+kept reconnecting/paused. A viewer-only fix tracks sent Quit and received completion
+per socket, stops terminal retries, preserves history and explicitly leaves files/
+unreceived pair results unconfirmed. Ordinary reconnect and new sessions remain
+covered. Four-file integration44 plus the final hook32 tests pass; lint/build
+and the actual native16→Quit/no-new-turn browser pass, one socket/no retries.
+Selected opaque control contrast11.17–12.70 and reduced-motion0s checked; no
+full contrast/screen-reader certification. Final all9 CI will qualify this last
+viewer-only correction; Python64f/Rust/locks are unchanged.
 
 All new receipts/scripts/screenshots/data are under
 `/workspace/shared/chronicler-multiwave-evidence`, with subdirectories

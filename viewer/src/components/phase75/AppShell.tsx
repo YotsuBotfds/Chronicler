@@ -100,6 +100,7 @@ interface AppShellProps {
   artifactIdentity?: ArtifactIdentity | null;
   bundleLoading: boolean;
   error: string | null;
+  liveNotice?: string | null;
   isLive: boolean;
   connected: boolean;
   serverState: "connecting" | "lobby" | "starting" | "running" | "completed";
@@ -586,6 +587,7 @@ export function AppShell({
   artifactIdentity,
   bundleLoading,
   error,
+  liveNotice,
   isLive,
   connected,
   serverState,
@@ -1096,6 +1098,7 @@ export function AppShell({
       </div>}
       {bundle && <SavedWorldDetails bundle={bundle} identity={artifactIdentity} />}
       {bundleLoading && <div className="saved-world-loading" role="status">Reading saved world…</div>}
+      {liveNotice && <div className="saved-world-loading" role="status">{liveNotice}</div>}
       {inspectingPausedWorld && <div className="interesting-periods" role="status">
         <p>Simulation paused at turn {livePauseContext?.turn}. Inspecting history does not advance the original world.</p>
         <button type="button" onClick={() => setInspectedPause(null)}>Return to run controls</button>

@@ -337,7 +337,7 @@ workflow example, not evidence that this intervention improved the world.
 Current evidence, actual comparison/packet and screenshots are under
 `/workspace/shared/chronicler-multiwave-evidence/browser/`: `final-journey-result.json`,
 `final-journey-comparison.json`, `final-investigation.json`,
-`final-thornwood-condition16.png`, `final-native-comparison18.png` and
+`final-live-condition16-fixed-stable.png`, `final-native-comparison18.png` and
 `final-bookmarked-investigation16.png`. The loaded file's hash identifies the
 source; its bundle does not embed a commit, so retain `example-manifest.json` too.
 
