@@ -9,6 +9,7 @@ import { Granaries } from "./Granaries";
 import { HarvestForecasts } from "./HarvestForecasts";
 import { observationEventKnown } from "../../lib/observedSystems";
 import { Transactions } from "./Transactions";
+import { FoodAccounting } from "./FoodAccounting";
 
 const SERIES = ["Short of food", "In dearth", "In famine"];
 const SERIES_COLORS: Record<string, string> = {
@@ -56,6 +57,7 @@ export function FoodPanel({
 
   return (
     <div className="systems-panel-body" aria-label="Food">
+      <FoodAccounting bundle={bundle} snapshot={snapshot} currentTurn={currentTurn} onSelectRegion={onSelectRegion} />
       <Transactions bundle={bundle} snapshot={snapshot} currentTurn={currentTurn} onSeek={onSeek}
         onSelectEvent={onSelectEvent} onSelectRegion={onSelectRegion} onSelectCivilization={onSelectCivilization} />
       <HarvestForecasts bundle={bundle} snapshot={snapshot} currentTurn={currentTurn} onSeek={onSeek}

@@ -247,6 +247,25 @@ export interface RelationshipSnapshot {
   disposition: string;
 }
 
+export interface FoodAccountingNative {
+  opening: number; produced: number; transport_net: number; craft_input: number;
+  clamp_correction: number; pre_consumption: number; consumed: number; storage_loss: number;
+  cap_overflow: number; closing: number; demand: number; sufficiency: number;
+  balance_residual: number; balance_tolerance: number;
+}
+export interface FoodAccountingPublic {
+  owner_id: number; opening: number | null; released: number; spoiled: number; abandoned: number;
+  captured: number; after_open: number; balance_residual: number | null;
+}
+export interface FoodAccountingSnapshot {
+  schema_version: 1; mode: string; source_turn: number; completed_turn: number;
+  timing: "phase2"; units: "model_food_goods";
+  transport: "physical_delivery" | "abstract_allocation" | "none";
+  regions: Array<{ region_id: number; native_count: number | null; model_population: number;
+    native: FoodAccountingNative | null; sufficiency_after_relief: number | null; public: FoodAccountingPublic | null }>;
+  procurement: Array<{ civilization_id: number; budget_initial: number; budget_remaining: number; spent: number }>;
+}
+
 export interface TurnSnapshot {
   turn: number;
   civ_stats: Record<string, CivSnapshot>;
@@ -312,6 +331,8 @@ export interface TurnSnapshot {
    * written after the viewer map layers).
    */
   food?: FoodSnapshot;
+  /** Completed Phase 2 food accounting, when recorded. */
+  food_accounting?: FoodAccountingSnapshot;
   /** Versioned regional model/native counts and Phase 2 food weights; absent in older bundles. */
   regional_population?: RegionalPopulationSnapshot;
   /** Public granaries at this snapshot, only with active --grain-reserves. */
