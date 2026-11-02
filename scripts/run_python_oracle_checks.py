@@ -33,6 +33,9 @@ CHUNKS = {
         "tests/test_what_if_transport.py::test_command_closed_and_manifest_bound",
         "tests/test_scenarios_candidate_witness.py",
     ],
+    "forecast-information-qualification": [
+        "tests/test_information_qualification_witness.py",
+    ],
     "forecast-information-contracts": [
         "tests/test_harvest_forecast_delay.py",
         "tests/test_information_candidate_witness.py",
