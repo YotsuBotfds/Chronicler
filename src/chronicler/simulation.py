@@ -1917,6 +1917,10 @@ def run_turn_result(
         from chronicler.public_grain_shipments import validate_shipments
         validate_shipments(world)
     artifacts = TurnArtifacts(source_turn=world.turn)
+    _learning_inventory_opening = None
+    if getattr(getattr(world, "scholarship", None), "learning_services", None) is not None:
+        from chronicler.learning_services import learning_inventory_totals, learning_inventory_turn_balance
+        _learning_inventory_opening = learning_inventory_totals(world)
     # Permanent faith ids (chronicler.faiths): a world built or loaded without
     # its table gets one; in a recorded run this changes nothing.
     from chronicler.faiths import ensure as _ensure_faiths
@@ -2701,6 +2705,18 @@ def run_turn_result(
     clear_active_trade_routes_snapshot(world)
     if _population_ledger is not None:
         _finish_population_check(world, *_population_ledger)
+    _learning_state = getattr(getattr(world, "scholarship", None), "learning_services", None)
+    if _learning_state is not None:
+        balance = learning_inventory_turn_balance(
+            _learning_inventory_opening, learning_inventory_totals(world))
+        if balance is not None:
+            known = balance["opening"] is not None
+            residual = (balance["opening"] + balance["purchased"] - balance["used"]
+                        - balance["lost"] - balance["closing"]) if known else None
+            _learning_state.material_balance = {"schema_version": 1,
+                "source_turn": artifacts.source_turn, "available_turn": artifacts.source_turn + 1,
+                "units": "model_crafts_goods", **balance, "residual": residual,
+                "absolute_tolerance": 1e-6}
     world.turn += 1
 
     return TurnResult(

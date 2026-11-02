@@ -9,6 +9,7 @@ not calibrated efficacy. Purchases and work take place in separate phases/turns.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from copy import deepcopy
 import math
 import struct
 from types import SimpleNamespace
@@ -663,4 +664,5 @@ def learning_services_snapshot(world):
             "procurement_receipts": rows("procurement_receipts"),
             "teaching_receipts": rows("teaching_receipts"),
             "supply_losses": rows("supply_losses"),
+            "material_balance": deepcopy(getattr(state, "material_balance", None)),
             "totals": learning_inventory_totals(world)}

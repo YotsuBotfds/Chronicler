@@ -136,6 +136,7 @@ class LearningServicesState(BaseModel):
     teaching_receipts: list[AcademyTeachingReceipt] | None = Field(default=None, exclude_if=lambda v: v is None)
     last_procurement_turn: int | None = Field(default=None, exclude_if=lambda v: v is None)
     last_service_turn: int | None = Field(default=None, exclude_if=lambda v: v is None)
+    material_balance: dict | None = Field(default=None, exclude_if=lambda v: v is None)
     _active_plan: object | None = PrivateAttr(default=None)
 
     def __getstate__(self):
