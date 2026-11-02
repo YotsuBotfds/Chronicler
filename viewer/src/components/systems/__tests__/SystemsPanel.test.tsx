@@ -877,6 +877,20 @@ describe("LearningPanel", () => {
     expect(screen.getByText(`No record of seats of learning at turn ${LAST.turn}.`)).toBeInTheDocument();
   });
 
+  it("describes missing seat timelines without making a claim about unrecorded history", () => {
+    for (const retainOldSeat of [true, false]) {
+      const partial = structuredClone(learning);
+      partial.history = [structuredClone(LEARNING_LAST)];
+      partial.history[0].scholarship!.seats = [];
+      if (!retainOldSeat) partial.world_state.scholarship!.seats = [];
+      partial.events_timeline = [];
+      render(<LearningPanel {...props(partial, partial.history[0])} />);
+      expect(screen.getByText("No seat timeline is recorded in the available snapshots.")).toBeInTheDocument();
+      expect(screen.queryByText("No seat of learning was founded in this run.")).toBeNull();
+      cleanup();
+    }
+  });
+
   it("hides the real Amber recovery until snapshot16, including after selection and rewind", () => {
     // Minimal recorded slice of current64f seed42 constructed patron-pressure run.
     // Seat2 fell at tick4; distinct seat3 was founded at tick15, exported at16.

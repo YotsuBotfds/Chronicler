@@ -68,7 +68,7 @@ export function LearningPanel({
           endTurn={end}
           currentTurn={currentTurn}
           label="Level of each seat of learning over time"
-          emptyText="No seat of learning was founded in this run."
+          emptyText="No seat timeline is recorded in the available snapshots."
           onSeek={onSeek}
           onSelectRow={(row) => setChosen(Number(row.id))}
           isRowSelected={(row) => Number(row.id) === selected}
