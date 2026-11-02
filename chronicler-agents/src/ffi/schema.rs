@@ -236,6 +236,7 @@ pub fn economy_region_result_schema() -> Schema {
     for name in crate::economy::FOOD_LEDGER_NAMES {
         fields.push(Field::new(name, DataType::Float64, false));
     }
+    fields.push(Field::new("granary_work_delivered", DataType::Float32, false));
     Schema::new(fields)
 }
 

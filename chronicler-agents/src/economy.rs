@@ -305,6 +305,8 @@ pub struct EconomyRegionResult {
     pub region_id: u16,
     /// Ephemeral Phase 2 food ledger, ordered as FOOD_LEDGER_NAMES.
     pub food_ledger: [f64; 10],
+    /// Regional farmer-equivalent work-turns reserved from land production.
+    pub granary_work_delivered: f32,
     pub stockpile: [f32; NUM_GOODS],
     pub farmer_income_modifier: f32,
     pub food_sufficiency: f32,
@@ -987,6 +989,29 @@ pub fn tick_economy_core(
     is_winter: bool,
     hybrid_delivery: Option<&HybridDeliveryInput>,
 ) -> EconomyOutput {
+    tick_economy_core_with_granary_work(region_inputs, agent_counts, routes,
+        civ_merchant_wealth, civ_priest_count, n_civs, region_civ_owner, config,
+        trade_friction, is_winter, hybrid_delivery, &[])
+}
+
+/// The optional request reserves aggregate land-work after city and care
+/// adjustments. This does not select people or imply a worker roster.
+pub fn tick_economy_core_with_granary_work(
+    region_inputs: &[EconomyRegionInput],
+    agent_counts: &[RegionAgentCounts],
+    routes: &[TradeRouteInput],
+    civ_merchant_wealth: &[f32],
+    civ_priest_count: &[u32],
+    n_civs: usize,
+    region_civ_owner: &[u8],
+    config: &EconomyConfig,
+    trade_friction: f32,
+    is_winter: bool,
+    hybrid_delivery: Option<&HybridDeliveryInput>,
+    granary_work_requested: &[f32],
+) -> EconomyOutput {
+    assert!(granary_work_requested.is_empty() || granary_work_requested.len() == region_inputs.len());
+    assert!(granary_work_requested.iter().all(|v| v.is_finite() && *v >= 0.0));
     let n_regions = region_inputs.len();
     assert_eq!(agent_counts.len(), n_regions, "agent_counts length mismatch");
 
@@ -1015,6 +1040,7 @@ pub fn tick_economy_core(
     let mut craft_output: Vec<f32> = Vec::with_capacity(n_regions);
     let mut slot_output: Vec<[f32; 3]> = Vec::with_capacity(n_regions);
     let mut forage_output: Vec<f32> = Vec::with_capacity(n_regions);
+    let mut granary_work_delivered: Vec<f32> = Vec::with_capacity(n_regions);
     for (i, inp) in region_inputs.iter().enumerate() {
         let ac = &agent_counts[i];
         // Split a finite farmer labor budget equally across occupied slots.
@@ -1028,6 +1054,10 @@ pub fn tick_economy_core(
         } else {
             ac.farmer_count as f32
         };
+        let requested = granary_work_requested.get(i).copied().unwrap_or(0.0);
+        let delivered = if requested > 0.0 { requested.min(headcount_labor) } else { 0.0 };
+        let headcount_labor = if requested > 0.0 { headcount_labor - delivered } else { headcount_labor };
+        granary_work_delivered.push(delivered);
         let (labor, productivity) = if inp.slot_curves {
             split_labor_on_slot_curves(inp, headcount_labor, ac.population as f32 * config.per_capita_food)
         } else {
@@ -1778,6 +1808,7 @@ pub fn tick_economy_core(
         region_results.push(EconomyRegionResult {
             region_id: inp.region_id,
             food_ledger,
+            granary_work_delivered: granary_work_delivered[ri],
             stockpile,
             farmer_income_modifier,
             food_sufficiency,
@@ -1994,6 +2025,52 @@ mod tests {
         assert!(row.food_ledger[7] > 0.0 && row.food_ledger[8] > 0.0);
         assert_eq!(row.food_ledger[9], 2.5);
         assert_food_balance(&row.food_ledger);
+    }
+
+    #[test]
+    fn granary_work_reserves_adjusted_budget_and_preserves_default() {
+        let mut region = city_market_region(0.4, 0.0); // 10 * .5 city - 1 care
+        let counts = [RegionAgentCounts { population: 10, farmer_count: 10,
+            soldier_count: 0, merchant_count: 0, wealthy_count: 0 }];
+        let run = |requests: &[f32], r: &EconomyRegionInput| tick_economy_core_with_granary_work(
+            std::slice::from_ref(r), &counts, &[], &[0.0], &[0], 1, &[0],
+            &EconomyConfig::default(), 1.0, false, None, requests);
+        for curves in [false, true] {
+            region.slot_curves = curves;
+            let base = run(&[], &region);
+            let zero = run(&[0.0], &region);
+            let a = &base.region_results[0];
+            let b = &zero.region_results[0];
+            assert_eq!(a.granary_work_delivered.to_bits(), 0.0f32.to_bits());
+            assert_eq!(a.stockpile.map(f32::to_bits), b.stockpile.map(f32::to_bits));
+            assert_eq!(a.food_ledger.map(f64::to_bits), b.food_ledger.map(f64::to_bits));
+            assert_eq!(a.food_sufficiency.to_bits(), b.food_sufficiency.to_bits());
+            assert_eq!(a.farm_productivity.to_bits(), b.farm_productivity.to_bits());
+            assert_eq!(a.slot_output.map(f32::to_bits), b.slot_output.map(f32::to_bits));
+            let requested = run(&[3.0], &region);
+            let row = &requested.region_results[0];
+            assert_eq!(row.granary_work_delivered, 3.0);
+            assert_eq!(a.slot_output[0], 4.0);
+            assert_eq!(row.slot_output[0], 1.0);
+            assert_eq!(a.market_demand, row.market_demand);
+            assert_food_balance(&row.food_ledger);
+            let capped = run(&[8.0], &region);
+            assert_eq!(capped.region_results[0].granary_work_delivered, 4.0);
+            assert_eq!(capped.region_results[0].slot_output[0], 0.0);
+        }
+        region.farm_labor_ref = 4.0;
+        region.farm_labor_half = 4.0;
+        let curved = run(&[3.0], &region);
+        assert!((curved.region_results[0].slot_output[0] - 1.6).abs() < 1e-6);
+        region.resource_types = [255; 3];
+        region.subsistence_yield = 0.5;
+        let forage = run(&[3.0], &region);
+        assert!((forage.region_results[0].forage_output - 0.8).abs() < 1e-6);
+        let no_farmers = [RegionAgentCounts { population: 10, farmer_count: 0,
+            soldier_count: 0, merchant_count: 0, wealthy_count: 0 }];
+        let no = tick_economy_core_with_granary_work(&[region], &no_farmers, &[], &[0.0], &[0],
+            1, &[0], &EconomyConfig::default(), 1.0, false, None, &[3.0]);
+        assert_eq!(no.region_results[0].granary_work_delivered, 0.0);
     }
 
     #[test]

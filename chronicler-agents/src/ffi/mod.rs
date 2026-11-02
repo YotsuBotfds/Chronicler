@@ -2760,11 +2760,11 @@ impl AgentSimulator {
         trade_friction: f32,
     ) -> PyResult<(PyRecordBatch, PyRecordBatch, PyRecordBatch, PyRecordBatch, PyRecordBatch)> {
         use arrow::array::{
-            Float32Array, Float64Array, UInt8Array, UInt16Array, BooleanArray,
+            Array, Float32Array, Float64Array, UInt8Array, UInt16Array, BooleanArray,
             Float32Builder, UInt8Builder, UInt16Builder, BooleanBuilder,
         };
         use crate::economy::{
-            EconomyRegionInput, RegionAgentCounts, TradeRouteInput, tick_economy_core,
+            EconomyRegionInput, RegionAgentCounts, TradeRouteInput, tick_economy_core_with_granary_work,
         };
 
         let _ = season_id; // reserved for future seasonal modifiers
@@ -2807,6 +2807,20 @@ impl AgentSimulator {
                     .as_any().downcast_ref::<BooleanArray>()
                     .ok_or_else(|| PyValueError::new_err(format!("column {} not Boolean", $name)))?
             };
+        }
+
+        // Validate the complete optional request before any simulator mutation
+        // or delivery-buffer consumption. Null is distinct from an absent column.
+        let mut granary_work_requested = vec![0.0f32; n_regions];
+        if let Some(column) = ri_rb.column_by_name("granary_work_requested") {
+            let values = column.as_any().downcast_ref::<Float32Array>()
+                .ok_or_else(|| PyValueError::new_err("granary_work_requested must be Float32"))?;
+            for (i, request) in granary_work_requested.iter_mut().enumerate() {
+                if values.is_null(i) || !values.value(i).is_finite() || values.value(i) < 0.0 {
+                    return Err(PyValueError::new_err("invalid granary_work_requested"));
+                }
+                *request = values.value(i);
+            }
         }
 
         let ri_region_ids = col_u16!(&ri_rb, "region_id");
@@ -3131,7 +3145,7 @@ impl AgentSimulator {
             .collect();
 
         // --- Call the core ---
-        let output = tick_economy_core(
+        let output = tick_economy_core_with_granary_work(
             &region_inputs,
             &agent_counts,
             &routes,
@@ -3143,6 +3157,7 @@ impl AgentSimulator {
             trade_friction,
             is_winter,
             hybrid_delivery.as_ref(),
+            &granary_work_requested,
         );
 
         // M58b: Write transit decay diagnostics back to delivery buffer before clearing.
@@ -3185,6 +3200,7 @@ impl AgentSimulator {
         let mut rr_craft_suff = Float32Builder::with_capacity(n_out);
         let mut rr_slot_out: Vec<Float32Builder> = (0..3).map(|_| Float32Builder::with_capacity(n_out)).collect();
         let mut rr_forage = Float32Builder::with_capacity(n_out);
+        let mut rr_granary_work = Float32Builder::with_capacity(n_out);
         let mut rr_food_ledger: Vec<arrow::array::Float64Builder> =
             (0..crate::economy::FOOD_LEDGER_NAMES.len())
                 .map(|_| arrow::array::Float64Builder::with_capacity(n_out)).collect();
@@ -3195,7 +3211,9 @@ impl AgentSimulator {
             }
             if let Some(work) = &mut self.health_work {
                 let r = rr.region_id as usize;
-                if r < work.worked.len() { work.worked[r] = rr.slot_output.iter().any(|&x| x > 0.0) || rr.forage_output > 0.0; }
+                // Existing injury exposure is a region-level proxy, not an
+                // assignment of particular farmers to granary work.
+                if r < work.worked.len() { work.worked[r] = rr.slot_output.iter().any(|&x| x > 0.0) || rr.forage_output > 0.0 || rr.granary_work_delivered > 0.0; }
             }
             // CAREOBS_SOURCE_BEGIN: actual economy work result
             if let Some(observation) = &mut self.pool.health_care_observation {
@@ -3207,6 +3225,7 @@ impl AgentSimulator {
                 builder.append_value(rr.slot_output[slot]);
             }
             rr_forage.append_value(rr.forage_output);
+            rr_granary_work.append_value(rr.granary_work_delivered);
             for c in 0..NC {
                 rr_market[c].append_value(rr.market_demand[c]);
                 rr_market[NC + c].append_value(rr.market_supply[c]);
@@ -3252,6 +3271,7 @@ impl AgentSimulator {
         for builder in rr_food_ledger.iter_mut() {
             rr_columns.push(Arc::new(builder.finish()));
         }
+        rr_columns.push(Arc::new(rr_granary_work.finish()));
         let region_result_batch = RecordBatch::try_new(
             Arc::new(economy_region_result_schema()),
             rr_columns,
@@ -3903,6 +3923,107 @@ mod tests {
             Field::new("forest_cover", DataType::Float32, false),
         ]));
         PyRecordBatch::new(RecordBatch::try_new(schema, columns).unwrap())
+    }
+
+    fn granary_work_input(request: Option<arrow::array::ArrayRef>, yield_value: f32) -> PyRecordBatch {
+        use arrow::array::{Float32Array, ArrayRef};
+        let mut fields: Vec<Field> = economy_region_input_schema().fields().iter()
+            .map(|f| f.as_ref().clone()).collect();
+        let mut cols: Vec<ArrayRef> = vec![
+            Arc::new(UInt16Array::from(vec![0])), Arc::new(UInt8Array::from(vec![0])),
+            Arc::new(UInt16Array::from(vec![80])), Arc::new(UInt8Array::from(vec![0])),
+            Arc::new(UInt8Array::from(vec![255])), Arc::new(UInt8Array::from(vec![255])),
+            Arc::new(Float32Array::from(vec![yield_value])),
+            Arc::new(Float32Array::from(vec![0.0])), Arc::new(Float32Array::from(vec![0.0])),
+        ];
+        for _ in 0..8 { cols.push(Arc::new(Float32Array::from(vec![0.0]))); }
+        fields.push(Field::new("farm_labor_factor", DataType::Float32, false));
+        cols.push(Arc::new(Float32Array::from(vec![0.5])));
+        if let Some(value) = request {
+            fields.push(Field::new("granary_work_requested", value.data_type().clone(), true));
+            cols.push(value);
+        }
+        PyRecordBatch::new(RecordBatch::try_new(Arc::new(Schema::new(fields)), cols).unwrap())
+    }
+
+    fn granary_work_routes() -> PyRecordBatch {
+        PyRecordBatch::new(RecordBatch::new_empty(Arc::new(economy_trade_route_schema())))
+    }
+
+    fn granary_work_sim() -> AgentSimulator {
+        let mut sim = AgentSimulator::new(1, 42);
+        sim.set_region_state(region_ingress_batch(vec![Some(0)])).unwrap();
+        sim.pool = AgentPool::new(10);
+        for _ in 0..10 {
+            sim.pool.spawn(0, 0, Occupation::Farmer, 30, 0.5, 0.5, 0.5, 255, 255, 255, 255);
+        }
+        sim.health_work = Some(crate::health_care::HealthWork {
+            losses: vec![1.0], worked: vec![false], ..Default::default()
+        });
+        sim
+    }
+
+    #[test]
+    fn granary_work_ffi_after_health_and_city_and_work_injury_proxy() {
+        use arrow::array::Float32Array;
+        let mut sim = granary_work_sim();
+        let batch = sim.tick_economy(granary_work_input(Some(Arc::new(Float32Array::from(vec![3.0]))), 1.0),
+            granary_work_routes(), 0, false, 1.0).unwrap().0.into_inner();
+        let val = |name| batch.column_by_name(name).unwrap().as_any().downcast_ref::<Float32Array>().unwrap().value(0);
+        assert_eq!(val("granary_work_delivered"), 3.0);
+        assert_eq!(val("slot_output_0"), 1.0);
+        assert_eq!(val("market_demand_food"), 5.0);
+        assert!(sim.health_work.as_ref().unwrap().worked[0]);
+        let barren = sim.tick_economy(granary_work_input(Some(Arc::new(Float32Array::from(vec![8.0]))), 0.0),
+            granary_work_routes(), 0, false, 1.0).unwrap().0.into_inner();
+        let delivered = barren.column_by_name("granary_work_delivered").unwrap().as_any()
+            .downcast_ref::<Float32Array>().unwrap().value(0);
+        assert_eq!(delivered, 4.0);
+        assert!(sim.health_work.as_ref().unwrap().worked[0]);
+        let zero = sim.tick_economy(granary_work_input(None, 0.0), granary_work_routes(), 0, false, 1.0).unwrap();
+        assert!(!sim.health_work.as_ref().unwrap().worked[0]);
+        assert_eq!(zero.0.into_inner().column_by_name("granary_work_delivered").unwrap().as_any()
+            .downcast_ref::<Float32Array>().unwrap().value(0), 0.0);
+    }
+
+    #[test]
+    fn granary_work_ffi_absent_and_zero_keep_existing_outputs_and_state() {
+        use arrow::array::Float32Array;
+        let mut absent = granary_work_sim();
+        let mut zero = granary_work_sim();
+        let a = absent.tick_economy(granary_work_input(None, 1.0), granary_work_routes(), 0, false, 1.0).unwrap();
+        let b = zero.tick_economy(granary_work_input(Some(Arc::new(Float32Array::from(vec![0.0]))), 1.0),
+            granary_work_routes(), 0, false, 1.0).unwrap();
+        let a = [a.0, a.1, a.2, a.3, a.4];
+        let b = [b.0, b.1, b.2, b.3, b.4];
+        for (left, right) in a.into_iter().zip(b) {
+            assert_eq!(left.into_inner(), right.into_inner());
+        }
+        assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &absent),
+                   crate::persist::encode(crate::persist::KIND_AGENT, &zero));
+        assert_eq!(absent.health_work.as_ref().unwrap().worked, zero.health_work.as_ref().unwrap().worked);
+    }
+
+    #[test]
+    fn granary_work_ffi_invalid_inputs_preserve_delivery_and_checkpoint() {
+        use arrow::array::{ArrayRef, Float32Array, Float64Array};
+        let inputs: Vec<ArrayRef> = vec![Arc::new(Float32Array::from(vec![-1.0])),
+            Arc::new(Float32Array::from(vec![f32::NAN])), Arc::new(Float32Array::from(vec![f32::INFINITY])),
+            Arc::new(Float32Array::from(vec![None::<f32>])), Arc::new(Float64Array::from(vec![1.0]))];
+        for input in inputs {
+            let mut sim = granary_work_sim();
+            sim.set_hybrid_economy_mode(true);
+            let mut buffer = crate::merchant::DeliveryBuffer::new(1);
+            buffer.record_arrival(0, 0, 0, 1.0);
+            sim.merchant_delivery_buf = Some(buffer);
+            let before = crate::persist::encode(crate::persist::KIND_AGENT, &sim);
+            assert!(sim.tick_economy(granary_work_input(Some(input), 1.0), granary_work_routes(),
+                                     0, false, 1.0).is_err());
+            assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &sim), before);
+            assert_eq!(sim.merchant_delivery_buf.as_ref().unwrap().arrival_imports.len(), 1);
+            assert_eq!(sim.health_work.as_ref().unwrap().losses, vec![1.0]);
+            assert!(!sim.health_work.as_ref().unwrap().worked[0]);
+        }
     }
 
     #[test]
