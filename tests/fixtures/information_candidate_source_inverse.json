@@ -1,6 +1,6 @@
 {
   "base": "d7061f423b38b804ec9bc03dc32539bf6455400d",
-  "head": "1e2a15ae2bbd5a09ed0715fc1f5dc3b7b3843443",
+  "head": "747edb9f7d833058cb55ccb5571b7702e6d215fe",
   "files": {
     "src/chronicler/batch_manifest.py": {
       "sha256": "4923c725a41aa20e388321faaae2b1f19b8ff28611ae19502b4e59de03f689b4",
@@ -96,11 +96,11 @@
     },
     "src/chronicler/main.py": {
       "sha256": "bdaddfef51a2d6eb4cb6d4d024284a79dd67b7f08fc0d846f6ac6387e28b124e",
-      "current_sha256": "6d33c2922ba4fbb7b2a56a07bc1398a76228fc7caa27b9ac6f3cc7a27a4a2882",
+      "current_sha256": "bec057e2c36603770ebffa7160a1f1b9c845374ab47f4fbcd004dc8eeda98d58",
       "patches": [
         {
           "old": "        set_languages_enabled(world, languages)\n    from chronicler.expansion_features import configure_expansion_features\n    configure_expansion_features(world, args, agent_mode=agent_mode)\n    agent_bridge = None\n    if agent_mode in (\"demographics-only\", \"shadow\", \"hybrid\"):\n        world.agent_mode = agent_mode\n",
-          "new": "        set_languages_enabled(world, languages)\n    from chronicler.expansion_features import configure_expansion_features\n    configure_expansion_features(world, args, agent_mode=agent_mode)\n    report_delay = getattr(args, \"harvest_report_delay\", None)\n    if report_delay is not None:\n        if report_delay and agent_mode != \"hybrid\":\n            raise ValueError(\"harvest report delay requires --agents hybrid\")\n        from chronicler.harvest_forecasts import set_report_delay\n        set_report_delay(world, report_delay)\n    agent_bridge = None\n    if agent_mode in (\"demographics-only\", \"shadow\", \"hybrid\"):\n        world.agent_mode = agent_mode\n"
+          "new": "        set_languages_enabled(world, languages)\n    from chronicler.expansion_features import configure_expansion_features\n    configure_expansion_features(world, args, agent_mode=agent_mode)\n    report_delay = getattr(args, \"harvest_report_delay\", None)\n    if report_delay is not None:\n        from chronicler.harvest_forecasts import set_report_delay\n        set_report_delay(world, report_delay)\n    agent_bridge = None\n    if agent_mode in (\"demographics-only\", \"shadow\", \"hybrid\"):\n        world.agent_mode = agent_mode\n"
         },
         {
           "old": "        run_config[\"simulation_args\"][\"household_mobility_liquid_requirement\"] = world.household_mobility_liquid_requirement\n    if services is not None:\n        run_config[\"simulation_args\"][\"academy_services\"] = services.enabled\n    if world.scientific_claims is not None and world.scientific_claims.research_agendas is not None:\n        run_config[\"simulation_args\"][\"scientific_research_agendas\"] = world.scientific_claims.research_agendas.enabled\n    if decision_ablation is not None:\n",
@@ -160,6 +160,6 @@
   "new_files": {
     "viewer/src/components/systems/ForecastConstruction.tsx": "0febe53b1e52e99b2727d0489a5388393888e511c0aec9e8f1b47e138f86dae7",
     "viewer/src/components/systems/ForecastDecisions.tsx": "82d06be609f39801415afc7f082d7f16e5d8fdf8b9de2154f3ea2170cdde10a6",
-    "viewer/src/lib/forecastDecision.ts": "3d01187bfb06523b7a580122e87fd8f1cdda18a94683577270982df59f6b2bfd"
+    "viewer/src/lib/forecastDecision.ts": "32c6dd3b4cb93ae4ed27d7a8aadb6ce04f69f9b049cc26e7f926eb8eaa647ea2"
   }
 }

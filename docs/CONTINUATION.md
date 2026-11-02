@@ -8,9 +8,11 @@ reproduced serialization defect was corrected. Constructed benefit/harm, partial
 work continuation, browser checks and default-off parity are retained. M4 native
 household mobility, dated history and Migration UI are integrated with bounded
 native/browser validation and all nine CI jobs green at4dddb88b. M5 actual
-teaching work/paid supplies and Learning history are integrated with nine
-native controls, old/new disabled parity and actual browser verification;
-final combined CI is next. M6 report-delay helpers remain WIP; M7–9 are
+teaching work/paid supplies and Learning history passed all nine CI jobs at
+d7061f42. M6 real delayed-report procurement/history is integrated with native,
+checkpoint, neutrality and browser checks, but remains partially covered: the
+controls have not demonstrated misleading-information harm or a food benefit.
+M6 combined CI is next. M7 supported-shock integration is starting; M8/M9 remain
 unfinished (one representative starting performance baseline is recorded).
 This is not the completed roadmap. Previous remediation stays closed within its documented
 limits. Main/defaults remain unchanged; environment publication stays deferred.

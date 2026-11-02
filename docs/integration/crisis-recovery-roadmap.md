@@ -31,11 +31,11 @@ validate an epic. Runtime changes remain opt-in until evaluated. No paid narrati
 | M2 logistics consequences | validated | Actual native interruption, return, reroute, reopening, supplier harm and in-flight restore; controller-change receipt and combined public/private shortage executed. All nine combined CI jobs passed at fc50bf8e. | This establishes the specified bounded mechanics, not general transport economics. The declared integrated crisis suite remains M7. |
 | M3 storage choices | validated | Opt-in paid work, timber/treasury costs, capacity, condition, spoilage, custody and existing inspector integration. All nine combined CI jobs passed at fc50bf8e. | Actual benefit/harm pair, total goods balance, partial-work exact continuation and four-mode default-off parity passed. Care/work interaction and held scenario evaluation remain M7–9. |
 | M4 household coping | validated | Opt-in native liquid gate, persisted controls, bounded history and Migration inspector; corrected omitted/mock/no-native boundaries. All nine CI jobs passed at4dddb88b. | This establishes constrained native moves and exact continuation in declared controls, not a new household food/credit/care model or general unequal recovery. M7–9 retain those limits. |
-| M5 resource-backed service | integrated | Actual paid academy supplies, native exclusive Scholar work/income cost, prior-turn learning effect, dated Learning inspector and material balances. See academy-services-candidate.md. | Nine real-native checks, actual funded/no-stock/restock/ownership/adverse cases, exact held-supplies continuation, off parity and desktop/phone journey pass. Combined final CI remains next; general efficacy and Scholar illness remain unmodeled. |
-| M6 delayed information | implementing | Isolated report-delay and then-known procurement receipt candidate b405717c. Integrate into actual Phase10 procurement and snapshots next. | Timely/delayed/misleading/absent controls must change decisions from same initial truth; record actual inputs/costs without future leaks. Pure tests alone do not establish this. |
-| M7 crisis suite | planned | After relevant M1–6 mechanics. Declare exploration cases and held evaluation cases before running. | A route-shortfall; B harvest+care; C constrained displacement; D institution loss/costly recovery; E unequal recovery. Verify shock application, baseline/alternatives, adverse/neutral results and shared-state accounting. |
+| M5 resource-backed service | validated | Actual paid academy supplies, native exclusive Scholar work/income cost, prior-turn learning effect, dated Learning inspector and material balances. All nine CI jobs passed atd7061f42. | Nine native controls, funded/no-stock/restock/ownership/adverse cases, exact held-supplies continuation, off parity and browser journey pass. General efficacy, rebuilding suite and Scholar illness remain outside this bounded qualification. |
+| M6 delayed information | partially covered | Report delay, real decision-boundary inputs/costs, issue-time construction records and existing Harvest inspector integrated. See forecast-decisions-candidate.md. | Actual timing/purchases, expiry, caps, exact continuation, observer neutrality and browser checks pass. Shuffle is a distinct signal but purchase-neutral here; misleading harm/food outcome criterion remains unmet. Final combined CI next. |
+| M7 crisis suite | implementing | Read-only supported-control assessment completed; isolated typed regional-disruption helper796364d4 has nine native checks but no coordinator/UI wiring. Freeze development and held cases before evaluation. | A route-shortfall; B harvest+care; C constrained displacement; D institution loss/costly recovery; E unequal recovery. Supported injection alone is not proof of a crop/route shock. Integrated cases are not yet admitted. |
 | M8 usable laboratory | planned | Extend current views/interventions/comparison after contracts, not parallel panels. | Actual app journey and390px controls: detection → evidence → bounded what-if → comparison → private bookmark/export, old files/cancel preserved. |
-| M9 package | planned | Integrated source/build/scenarios; compare starting baseline with same budgets. | Relevant Python/native/Rust/viewer, active-state checkpoints, runtime/memory/history/frame measurements, verified owner-only recovery; flags, limits and next tasks. Full scientific promotion is separate and unrun. |
+| M9 package | implementing | Starting performance baseline and periodic owner-only source/evidence recovery verified; final active-state matrix and scenario performance comparison remain ahead. | Relevant Python/native/Rust/viewer, pending-shipment/partial-work/care/institution checkpoints, runtime/memory/history/UI measurements; final flags, limits and handoff. Scientific promotion is separate and unrun. |
 
 ## Current evidence and ownership
 
@@ -94,11 +94,19 @@ writers or shared-wheel replacement. Viewer work starts after export agreement.
  absences pass. Four-mode disabled pairs retain39 artifacts/24 native states;
  a standing-academy pair adds eight unchanged artifacts/native states. Viewer
  1,131 broad tests and six final focused checks, lint/build and desktop/390px
- production journeys pass. Final combined CI remains a separate gate.
-- M6 report-delay/decision-receipt candidate `b405717c` is isolated WIP:227 focused
-  tests passed, one immutable source inverse was explicitly deselected after its
-  retained failure. No final phase integration/native impact claim. A later exact
-  source composition must account for its edits without changing frozen witnesses.
+ production journeys pass. All nine combined jobs passed atd7061f42 in
+ [run41481053005](https://github.com/YotsuBotfds/Chronicler/actions/runs/41481053005).
+- M6 [actual controls and limits](forecast-decisions-candidate.md):477 combined
+  Python/native/source checks,240 guarded contracts/metadata,539 focused frozen/
+  compatibility checks with61 subtests, and four actual-native control/checkpoint
+  tests pass.14-turn normal-delay0 old/new behavior/RNG/native hashes match after
+  removing only the new observations. Viewer1,137 broad tests, seven final guard
+  checks, lint/build and real desktop/390px normal/delay/legacy/shuffle journeys
+  pass. An initial null fixture remains null; a separately designed, post-null
+  finite-stock development case admits warning purchases50.719/six coins with
+  timely information versus none under delayed/withheld warnings. Shuffle changes
+  claims but has the same purchase total; no food benefit or harm was demonstrated.
+  This is partial acceptance, not a policy or scientific victory.
 - Evidence root: `/workspace/shared/chronicler-crisis`; older verified private
   backups remain intact. Current program source/evidence recovery index is prepared
   at integration checkpoints. Cloud publication/fresh provisioning remain deferred.
@@ -136,7 +144,15 @@ procedural32 regions/10 civilizations/40 turns, seed42 hybrid, three sequential
 fixed-thread runs. Median2.802s/max RSS163,372KiB;16 files/4,853,141 bytes per run,
 including bundle2,224,098 bytes. No warmup and no current-source speedup claim.
 
-Next action: push and CI M5, preserve the current source/WIP and evidence in
-verified owner-only storage, then integrate M6 decision/delay hooks and execute
-declared information controls. M7–9 remain unfinished. No scientific gate, full-roadmap completion,
+Owner-only checkpointd7061f42 is independently verified: downloaded source bundle
+restores the exact clean commit/1,894 tracked files and25 refs;462 incremental
+evidence members match, and26 omitted identical members were checked in the prior
+verified598-file archive. Recovery instructions/index were independently downloaded
+and matched. CI was pending at archive capture; its subsequent green receipt is
+retained locally and in GitHub. Newer M6 source/evidence needs the next checkpoint.
+
+Next action: push and CI M6 as partially covered, preserve current evidence, then
+integrate the typed regional shock with the existing exact paired workflow and
+freeze/admit M7 cases. Queue A/B/C/D/E remains unfinished; injection and climate
+effects must be verified separately. No scientific gate, full-roadmap completion,
 default promotion or reusable-environment publication has been claimed.

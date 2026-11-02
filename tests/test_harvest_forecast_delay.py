@@ -10,6 +10,7 @@ import chronicler.harvest_forecasts as H
 from chronicler.contact_ledger import ContactLedgerState
 from test_grain_reserves import _economy
 from test_harvest_forecasts import _world, _forecast_tick, _publish, _warning, AMBER, FROST
+from test_expansion_feature_wiring import configure_without_native
 
 
 def test_zero_and_missing_delay_preserve_existing_world_output_and_rng():
@@ -416,3 +417,53 @@ def test_issued_source_controller_change_does_not_rewrite_delivered_claim():
     row = next(r for r in batch.decisions if r.region == AMBER)
     assert row.reports[0].source_region == 3 and row.reports[0].id == report.id
     assert not hasattr(row.reports[0], "estimator_metadata")
+
+
+@pytest.mark.parametrize("mode", ["hybrid", "shadow", "demographics-only"])
+def test_shared_configuration_uses_existing_forecast_modes_and_cohort(configure_without_native, mode):
+    from chronicler.main import _build_parser
+    from chronicler.batch_manifest import simulation_config
+    from chronicler.world_gen import generate_world
+    assert "harvest_report_delay" not in simulation_config(_build_parser().parse_args([]))
+    world = generate_world(seed=42)
+    _, config = configure_without_native(world, "--grain-reserves", "--contact-ledger",
+        "--harvest-forecasts", "--harvest-report-delay", "3", mode=mode)
+    assert H.get_report_delay(world.harvest_forecasts) == 3
+    assert config["simulation_args"]["harvest_report_delay"] == 3
+    _, dormant = configure_without_native(world, mode="off")
+    assert H.get_report_delay(world.harvest_forecasts) == 3
+    assert dormant["simulation_args"]["harvest_report_delay"] == 3
+
+
+@pytest.mark.parametrize("flags", [
+    ["--harvest-report-delay", "3"],
+    ["--grain-reserves", "--contact-ledger", "--harvest-forecasts", "--harvest-report-delay", "13"],
+    ["--grain-reserves", "--contact-ledger", "--harvest-forecasts", "--harvest-report-delay", "-1"],
+])
+def test_bad_delay_configuration_refused_before_runtime(configure_without_native, flags):
+    from chronicler.world_gen import generate_world
+    with pytest.raises(ValueError):
+        configure_without_native(generate_world(seed=42), *flags)
+    assert not configure_without_native.constructions
+
+
+def test_exact_resume_retains_delay_and_existing_report_schedules():
+    from types import SimpleNamespace as NS
+    import pickle
+    from chronicler.main import _adopt_checkpoint_args, _build_parser
+    world = _world()
+    H.set_report_delay(world, 3)
+    reports = _publish(world)
+    report = reports[AMBER]
+    assert report.delivery_turn == 9
+    saved = NS(state=NS(world=world, seed=42, num_turns=world.turn + 14,
+        run_config={"simulation_args": {"harvest_report_delay": 3}}))
+    parser = _build_parser()
+    args = parser.parse_args([])
+    before = pickle.dumps(world)
+    assert _adopt_checkpoint_args(parser, args, saved) == []
+    assert args.harvest_report_delay == 3
+    for value in ("0", "12"):
+        changed = parser.parse_args(["--harvest-report-delay", value])
+        assert any("--harvest-report-delay conflicts" in c for c in _adopt_checkpoint_args(parser, changed, saved))
+    assert report.delivery_turn == 9 and pickle.dumps(world) == before
