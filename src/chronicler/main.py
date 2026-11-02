@@ -1090,7 +1090,7 @@ def execute_run(
             **_migration_snapshot_fields(world),
             **regional_population_snapshot_fields(world, agent_bridge, turn_result.observation),
             **food_accounting_snapshot_fields(world, turn_result.observation),
-            **household_mobility_snapshot_fields(turn_result.observation.household_mobility, world.turn),
+            **household_mobility_snapshot_fields(getattr(turn_result.observation, "household_mobility", None), world.turn),
         )
 
         # M56b: Urban fraction aggregation from agent snapshot

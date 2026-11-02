@@ -1,6 +1,6 @@
 {
   "base": "fc50bf8e87f55c52fa1ab7127788cc48178ec2aa",
-  "head": "572e003f95ba5130727f6599653cd1a1d1adfc14",
+  "head": "8926a48a070ea9dd3bc17bfd26a414748b26671c",
   "files": {
     "chronicler-agents/src/ffi/mod.rs": {
       "sha256": "26143638709baa562c4b4159f6c3a2d62a654e159688c96f115829b452ec739e",
@@ -142,7 +142,7 @@
     },
     "src/chronicler/main.py": {
       "sha256": "4575c6201feaf1a3a30882b4343d232f4722674675c952cf4f6fd2cb8ca0a608",
-      "current_sha256": "61235d096f6705f9d261dae5077ef7bec9a8823fb3d6ce56fc26c3087f26bc80",
+      "current_sha256": "c14d5f821be80ba13f47d85b0c73bf6976718c68f3d04848863921fb8788c361",
       "patches": [
         {
           "old": "\nimport argparse\nimport logging\nimport signal\nimport sys\nimport threading\n",
@@ -154,7 +154,7 @@
         },
         {
           "old": "            **_migration_snapshot_fields(world),\n            **regional_population_snapshot_fields(world, agent_bridge, turn_result.observation),\n            **food_accounting_snapshot_fields(world, turn_result.observation),\n        )\n\n        # M56b: Urban fraction aggregation from agent snapshot\n",
-          "new": "            **_migration_snapshot_fields(world),\n            **regional_population_snapshot_fields(world, agent_bridge, turn_result.observation),\n            **food_accounting_snapshot_fields(world, turn_result.observation),\n            **household_mobility_snapshot_fields(turn_result.observation.household_mobility, world.turn),\n        )\n\n        # M56b: Urban fraction aggregation from agent snapshot\n"
+          "new": "            **_migration_snapshot_fields(world),\n            **regional_population_snapshot_fields(world, agent_bridge, turn_result.observation),\n            **food_accounting_snapshot_fields(world, turn_result.observation),\n            **household_mobility_snapshot_fields(getattr(turn_result.observation, \"household_mobility\", None), world.turn),\n        )\n\n        # M56b: Urban fraction aggregation from agent snapshot\n"
         },
         {
           "old": "    # hold agents back from moving. It acts in the native agent decision, so\n    # an explicit --community-anchoring needs an agent pool; a saved setting\n    # is dormant under --agents off.\n    community_anchoring = getattr(args, \"community_anchoring\", None)\n    if community_anchoring is True and agent_mode == \"off\":\n        raise ValueError(\"Community anchoring requires an agent pool (--agents hybrid, shadow or demographics-only)\")\n",
@@ -200,11 +200,11 @@
     },
     "src/chronicler/simulation.py": {
       "sha256": "8277d5105189085ce5aaf5bcd94d6742699c2b438608eaa2817919b5bb300bfd",
-      "current_sha256": "4ac36cbd6a72bca285d644e204a9fc8fffcb823b591790d57ae360c725989a1d",
+      "current_sha256": "97b427fae8cfc26384619282a4176126ceb4f38020f7fa92d14213e84fa55a24",
       "patches": [
         {
           "old": "        # --agents=off: apply ALL categories (no agents to produce guard stats)\n        acc.apply(world)\n\n    if getattr(world, \"health_care\", None) is not None and agent_bridge is not None:\n        from chronicler.health_care import finish_health_care\n        _emit(finish_health_care(world, agent_bridge))\n",
-          "new": "        # --agents=off: apply ALL categories (no agents to produce guard stats)\n        acc.apply(world)\n\n    if agent_bridge is not None:\n        take_mobility = getattr(agent_bridge, \"take_household_mobility_observation\", None)\n        if callable(take_mobility):\n            artifacts.household_mobility = take_mobility(artifacts.source_turn)\n\n    if getattr(world, \"health_care\", None) is not None and agent_bridge is not None:\n        from chronicler.health_care import finish_health_care\n        _emit(finish_health_care(world, agent_bridge))\n"
+          "new": "        # --agents=off: apply ALL categories (no agents to produce guard stats)\n        acc.apply(world)\n\n    if agent_bridge is not None and getattr(world, \"household_mobility_liquid_requirement\", None):\n        take_mobility = getattr(agent_bridge, \"take_household_mobility_observation\", None)\n        if callable(take_mobility):\n            artifacts.household_mobility = take_mobility(artifacts.source_turn)\n\n    if getattr(world, \"health_care\", None) is not None and agent_bridge is not None:\n        from chronicler.health_care import finish_health_care\n        _emit(finish_health_care(world, agent_bridge))\n"
         },
         {
           "old": "            food_accounting=artifacts.food_accounting,\n            food_procurement=tuple((ci, initial, remaining) for ci, (initial, remaining)\n                                   in sorted(getattr(economy_result, \"food_procurement_budget\", {}).items())) if economy_result is not None else (),\n        ),\n    )\n\n",

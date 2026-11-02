@@ -2334,7 +2334,7 @@ def run_turn_result(
         # --agents=off: apply ALL categories (no agents to produce guard stats)
         acc.apply(world)
 
-    if agent_bridge is not None:
+    if agent_bridge is not None and getattr(world, "household_mobility_liquid_requirement", None):
         take_mobility = getattr(agent_bridge, "take_household_mobility_observation", None)
         if callable(take_mobility):
             artifacts.household_mobility = take_mobility(artifacts.source_turn)
