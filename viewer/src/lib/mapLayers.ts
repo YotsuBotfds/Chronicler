@@ -16,11 +16,15 @@ import {
   BLOCKADE_COLOR, CONTESTED_COLOR, formatShare, pathogenColor, pathogenLabel, techniqueLabel,
 } from "./systems";
 import { hasCampaignRecord } from "./wars";
+import { readRegionalPopulation } from "./regionalPopulation";
+import { compareTerritory, territoryEarlierTurns, TERRITORY_COLORS, TERRITORY_LABELS } from "./territoryChanges";
 
-export type MapLayerKey = "control" | "food" | "epidemics" | "wars" | "migration" | "techniques" | "sea";
+export type MapLayerKey = "control" | "population" | "territory" | "food" | "epidemics" | "wars" | "migration" | "techniques" | "sea";
 
 export const MAP_LAYER_LABELS: Record<MapLayerKey, string> = {
   control: "Control",
+  population: "Population",
+  territory: "Territory changes",
   food: "Food",
   epidemics: "Epidemics",
   wars: "Wars",
@@ -29,7 +33,7 @@ export const MAP_LAYER_LABELS: Record<MapLayerKey, string> = {
   sea: "Sea",
 };
 
-const LAYER_ORDER: MapLayerKey[] = ["control", "food", "epidemics", "wars", "migration", "techniques", "sea"];
+const LAYER_ORDER: MapLayerKey[] = ["control", "population", "territory", "food", "epidemics", "wars", "migration", "techniques", "sea"];
 
 /** Turns of agent migration summed on the migration layer. */
 export const MIGRATION_WINDOW = 10;
@@ -44,6 +48,8 @@ export function availableMapLayers(bundle: Bundle | null): MapLayerKey[] {
   const history = bundle.history;
   const has: Record<MapLayerKey, boolean> = {
     control: true,
+    population: history.some((snapshot) => readRegionalPopulation(bundle, snapshot) !== null),
+    territory: territoryEarlierTurns(bundle, history.reduce((latest, snapshot) => Math.max(latest, snapshot.turn), 0)).length > 0,
     food: hasFoodRecord(history) || hasFamineRecord(bundle.events_timeline),
     epidemics: history.some((snapshot) => snapshot.epidemics != null),
     wars: hasCampaignRecord(history),
@@ -117,6 +123,10 @@ export interface MapLayerInput {
   /** Food-crisis spans of the run, both labels (`lib/food.foodCrisisSpans`). */
   famine: FamineSpan[];
   technique: string | null;
+  /** Exact earlier endpoint; omitted selects the previous recorded turn. */
+  territoryFromTurn?: number;
+  /** Stable world.civilizations index; null/omitted compares all controllers. */
+  territoryCivilizationIndex?: number | null;
 }
 
 function emptyView(key: MapLayerKey, note: string): MapLayerView {
@@ -137,6 +147,56 @@ function mixHex(from: string, to: string, t: number): string {
   const [a, b] = [parse(from), parse(to)];
   const clamped = Math.max(0, Math.min(1, t));
   return `rgb(${a.map((value, index) => Math.round(value + (b[index] - value) * clamped)).join(", ")})`;
+}
+
+/** Fixed scale in completed model population units; comparable between turns. */
+export const POPULATION_BANDS = [
+  { through: 0, label: "0 model population", color: "#24484d" },
+  { through: 10, label: "1–10", color: "#326671" },
+  { through: 50, label: "11–50", color: "#428b9a" },
+  { through: 100, label: "51–100", color: "#73b7c1" },
+  { through: Infinity, label: "101+", color: "#b6e3dc" },
+];
+
+function populationLayer({ bundle, snapshot }: MapLayerInput): MapLayerView {
+  const population = readRegionalPopulation(bundle, snapshot);
+  const view = emptyView("population", population
+    ? `Completed regional model population at T${snapshot!.turn} (${population.mode}); fixed scale in model population units. Native alive counts are separate observations, not this fill.`
+    : "Regional model population not recorded or unsupported at this turn. Unknown is not zero; final-world populations are not used.");
+  const nameCounts = new Map<string, number>();
+  for (const region of bundle.world_state.regions) nameCounts.set(region.name, (nameCounts.get(region.name) ?? 0) + 1);
+  bundle.world_state.regions.forEach((region, index) => {
+    if ((nameCounts.get(region.name) ?? 0) !== 1) {
+      view.titles.set(region.name, `${region.name} · ambiguous region name; model population unknown`);
+      return;
+    }
+    const value = population?.counts[index];
+    if (value !== undefined) {
+      view.fills.set(region.name, POPULATION_BANDS.find((band) => value <= band.through)!.color);
+      view.titles.set(region.name, `${region.name} · model population ${value} · ${population!.sources[index]}`
+        + (population!.agent_counts ? ` · native alive ${population!.agent_counts[index]} (separate measure)` : ""));
+    } else view.titles.set(region.name, `${region.name} · model population unknown`);
+  });
+  view.legend = [...POPULATION_BANDS.map((band) => ({ label: band.label, color: band.color, kind: "fill" as const })),
+    { label: "unknown", color: NO_DATA, kind: "fill" }];
+  return view;
+}
+
+function territoryLayer({ bundle, snapshot, territoryFromTurn, territoryCivilizationIndex }: MapLayerInput): MapLayerView {
+  const comparison = compareTerritory(bundle, snapshot?.turn ?? 0, territoryFromTurn, territoryCivilizationIndex);
+  const view = emptyView("territory", comparison.valid
+    ? `Ownership T${comparison.fromTurn} → T${comparison.toTurn}${comparison.civilization ? ` for ${comparison.civilization}` : " across all controllers"}. Recorded endpoints only; transfers do not establish conquest. ${comparison.status}.`
+    : `${comparison.status}. No ownership change is inferred.`);
+  for (const row of comparison.rows) {
+    // Legacy map keys are names; ambiguous names cannot receive a stable-ID fill.
+    if (row.inspectable) view.fills.set(row.name, TERRITORY_COLORS[row.status]);
+    view.titles.set(row.name, `${row.name} · ${TERRITORY_LABELS[row.status]} · ${row.before.label} → ${row.after.label}`
+      + `${row.before.reason ? ` · earlier: ${row.before.reason}` : ""}${row.after.reason ? ` · selected: ${row.after.reason}` : ""}`);
+  }
+  const statuses = comparison.civilization ? ["gained", "lost", "unchanged", "outside", "unknown"] as const
+    : ["gained", "lost", "transferred", "unchanged", "unknown"] as const;
+  view.legend = statuses.map((status) => ({ label: `${TERRITORY_LABELS[status]} (${comparison.counts[status]})`, color: TERRITORY_COLORS[status], kind: "fill" }));
+  return view;
 }
 
 function foodLayer({ bundle, snapshot, famine }: MapLayerInput): MapLayerView {
@@ -216,12 +276,12 @@ function epidemicsLayer({ bundle, snapshot }: MapLayerInput): MapLayerView {
   const quarantined = new Set(epidemics?.quarantine ?? []);
   for (const region of bundle.world_state.regions) {
     const controller = snapshot?.region_control[region.name];
-    const base = view.titles.get(region.name) ?? `${region.name} · no reportable outbreak`;
+    const base = view.titles.get(region.name) ?? `${region.name} · ${epidemics ? "no reportable outbreak" : "epidemiology unknown"}`;
     view.titles.set(region.name, controller && quarantined.has(controller) ? `${base} · ${controller} in quarantine` : base);
   }
   view.legend = [
     ...[...seen].sort().map((name) => ({ label: pathogenLabel(name), color: pathogenColor(name), kind: "fill" as const })),
-    { label: "no outbreak", color: NO_DATA, kind: "fill" },
+    { label: epidemics ? "no outbreak" : "unknown", color: NO_DATA, kind: "fill" },
   ];
   if (!epidemics) {
     view.note = "No epidemiology record at this turn.";
@@ -284,9 +344,14 @@ function warsLayer({ bundle, snapshot }: MapLayerInput): MapLayerView {
 function migrationLayer({ bundle, snapshot }: MapLayerInput): MapLayerView {
   const at = snapshot?.turn ?? 0;
   const names = bundle.world_state.regions.map((region) => region.name);
-  const flows = migrationFlows(bundle.history, at, MIGRATION_WINDOW, names);
+  const windowStart = Math.max(1, at - MIGRATION_WINDOW + 1);
+  const windowRecords = bundle.history.filter((row) => row.turn >= windowStart && row.turn <= at);
+  const uniqueRecords = windowRecords.filter((row) => windowRecords.filter((other) => other.turn === row.turn).length === 1);
+  const observedTurns = uniqueRecords.filter((row) => row.migration != null).length;
+  const expectedTurns = Math.max(0, at - windowStart + 1);
+  const flows = migrationFlows(uniqueRecords, at, MIGRATION_WINDOW, names);
   const view = emptyView("migration",
-    `Agents who moved between regions in the last ${MIGRATION_WINDOW} recorded turns (arrow width by people).`);
+    `Recorded agent moves between regions from T${windowStart} through T${at} (arrow width by people).`);
   view.dimControl = true;
   const max = Math.max(1, ...flows.map((flow) => flow.amount));
   for (const flow of flows.slice(0, MIGRATION_FLOW_LIMIT)) {
@@ -312,7 +377,7 @@ function migrationLayer({ bundle, snapshot }: MapLayerInput): MapLayerView {
     view.titles.set(name, parts.join(" · "));
   }
   if (flows.length === 0) {
-    view.note = `No agent moved between regions in the ${MIGRATION_WINDOW} turns to ${at}.`;
+    view.note = `No moves recorded from T${windowStart} through T${at}.`;
   } else if (flows.length > MIGRATION_FLOW_LIMIT) {
     view.note += ` The ${MIGRATION_FLOW_LIMIT} largest of ${flows.length} are drawn.`;
   }
@@ -320,6 +385,7 @@ function migrationLayer({ bundle, snapshot }: MapLayerInput): MapLayerView {
     view.note += ` Mass departures: ${[...kinds.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
       .map(([kind, count]) => `${count} ${kind}`).join(", ")}.`;
   }
+  view.note += ` Migration coverage: ${observedTurns}/${expectedTurns} completed turns; missing or ambiguous records are unknown, never zero.`;
   view.legend = [{ label: "people moving", color: MIGRATION_COLOR, kind: "line" }];
   return view;
 }
@@ -388,14 +454,14 @@ function techniquesLayer({ bundle, snapshot, technique }: MapLayerInput): MapLay
       view.fills.set(region.name, mixHex(PRACTICE_LOW, PRACTICE_HIGH, level));
       view.titles.set(region.name, `${region.name} · ${label} ${formatShare(level, 0)}`);
     } else {
-      view.titles.set(region.name, `${region.name} · ${label} not practised (below 3%)`);
+      view.titles.set(region.name, `${region.name} · ${regions ? `${label} not practised (below 3%)` : "regional practice unknown"}`);
     }
   }
   view.legend = [
     { label: "3%", color: mixHex(PRACTICE_LOW, PRACTICE_HIGH, 0.03), kind: "fill" },
     { label: "50%", color: mixHex(PRACTICE_LOW, PRACTICE_HIGH, 0.5), kind: "fill" },
     { label: "100%", color: PRACTICE_HIGH, kind: "fill" },
-    { label: "not practised", color: NO_DATA, kind: "fill" },
+    { label: regions ? "not practised" : "unknown", color: NO_DATA, kind: "fill" },
   ];
   if (!regions) {
     view.note = "No regional practice record at this turn.";
@@ -447,6 +513,8 @@ function seaLayer({ bundle, snapshot }: MapLayerInput): MapLayerView {
 /** The layer's marks at the snapshot; null for the plain control map. */
 export function buildMapLayer(key: MapLayerKey, input: MapLayerInput): MapLayerView | null {
   switch (key) {
+    case "population": return populationLayer(input);
+    case "territory": return territoryLayer(input);
     case "food": return foodLayer(input);
     case "epidemics": return epidemicsLayer(input);
     case "wars": return warsLayer(input);
