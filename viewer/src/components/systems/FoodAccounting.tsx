@@ -3,6 +3,9 @@ import type { Bundle, TurnSnapshot } from "../../types";
 import { foodAccountingAt } from "../../lib/foodAccounting";
 
 const show = (value: number | null) => value === null ? "Not observed" : value.toLocaleString(undefined, { maximumFractionDigits: 4 });
+// Preserve small nonzero quantities when comparing a balance residual with its tolerance.
+const showBalance = (value: number | null) => value !== null && value !== 0 && Math.abs(value) < 0.0001
+  ? value.toExponential(4) : show(value);
 
 export function FoodAccounting({ bundle, snapshot, currentTurn, onSelectRegion }: {
   bundle: Bundle; snapshot: TurnSnapshot | null; currentTurn: number; onSelectRegion: (name: string) => void;
@@ -39,12 +42,12 @@ export function FoodAccounting({ bundle, snapshot, currentTurn, onSelectRegion }
         {native ? <>
           {native.pre_consumption <= 0 && native.demand > 0 && <p className="systems-note">Recorded native food before consumption was empty while demand was positive.</p>}
           {native.consumed < native.demand && <p className="systems-note">Native consumption was below recorded demand{pub && pub.released > 0 && row.sufficiency_after_relief !== null && row.sufficiency_after_relief < 1 ? "; public release did not cover the remaining modeled need" : ""}.</p>}
-          <div className="systems-table-wrap"><table className="systems-table" aria-label="Native food accounting"><tbody>{nativeRows.map(([label, value]) => <tr key={label}><th scope="row">{label}</th><td>{show(value)}</td></tr>)}</tbody></table></div>
+          <div className="systems-table-wrap"><table className="systems-table" aria-label="Native food accounting"><tbody>{nativeRows.map(([label, value]) => <tr key={label}><th scope="row">{label}</th><td>{label.startsWith("Balance ") ? showBalance(value) : show(value)}</td></tr>)}</tbody></table></div>
           <p className="systems-note">Opening + production + transport net − craft input + clamp correction − consumption − storage loss − capacity overflow = closing; compare the recorded residual with tolerance.</p>
         </> : <p className="systems-note">Native food accounting is not observed for this region.{(record.mode === "off" || record.mode === "aggregate") && " Aggregate mode has no native kernel."}</p>}
         <p>Sufficiency after relief: {show(row.sufficiency_after_relief)}</p>
         {pub ? <><h4>Public granary opening</h4><div className="systems-table-wrap"><table className="systems-table" aria-label="Public food accounting"><tbody>
-          {([["Keeper", pub.owner_id === -1 ? "Unowned" : civs[pub.owner_id].name], ["Opening", show(pub.opening)], ["Released", show(pub.released)], ["Spoiled", show(pub.spoiled)], ["Abandoned", show(pub.abandoned)], ["Captured custody", show(pub.captured)], ["After opening", show(pub.after_open)], ["Balance residual", show(pub.balance_residual)]] as Array<[string, string]>).map(([label, value]) => <tr key={label}><th scope="row">{label}</th><td>{value}</td></tr>)}
+          {([["Keeper", pub.owner_id === -1 ? "Unowned" : civs[pub.owner_id].name], ["Opening", show(pub.opening)], ["Released", show(pub.released)], ["Spoiled", show(pub.spoiled)], ["Abandoned", show(pub.abandoned)], ["Captured custody", show(pub.captured)], ["After opening", show(pub.after_open)], ["Balance residual", showBalance(pub.balance_residual)]] as Array<[string, string]>).map(([label, value]) => <tr key={label}><th scope="row">{label}</th><td>{value}</td></tr>)}
         </tbody></table></div><p className="systems-note">Opening − release − spoilage − abandonment = after opening. Capture changes custody and adds no goods. Public release is modeled as directly eaten, separately from native consumption; this does not establish household distribution. See Public granaries for later arrivals.</p></> : <p className="systems-note">Public granary accounting is not observed for this region.</p>}
       </>}
     </>}

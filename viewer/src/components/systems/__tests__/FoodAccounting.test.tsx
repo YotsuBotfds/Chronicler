@@ -23,6 +23,7 @@ it("shows separate native, public and later budget evidence", () => {
   expect(screen.getByText(/public release did not cover/)).toBeInTheDocument();
   expect(within(screen.getByRole("table", { name: "Public food accounting" })).getByText("Unowned")).toBeInTheDocument();
   expect(screen.getByText(/late Phase 10 budget receipts/)).toBeInTheDocument();
+  expect(within(screen.getByRole("table", { name: "Native food accounting" })).getByRole("row", { name: /Balance residual/ })).toHaveTextContent(/^Balance residual0$/);
   fireEvent.click(screen.getByRole("button", { name: "Valley" }));
   expect(p.onSelectRegion).toHaveBeenCalledWith("Valley");
 });
@@ -50,4 +51,17 @@ it("preserves null observations and handles partial region lists", () => {
   expect(screen.queryByText(/Aggregate mode has no native kernel/)).not.toBeInTheDocument();
   fireEvent.change(screen.getByRole("combobox", { name: "Region accounting" }), { target: { value: "1" } });
   expect(screen.getByText(/Accounting for this region is not observed/)).toBeInTheDocument();
+});
+
+it("preserves small signed residuals and tolerance when showing balances", () => {
+  const p = props();
+  const row = p.snapshot.food_accounting!.regions[0];
+  row.native!.balance_residual = -2.980232e-8;
+  row.native!.balance_tolerance = 1e-5;
+  row.public!.balance_residual = 2e-8;
+  render(<FoodAccounting {...p} />);
+  const native = within(screen.getByRole("table", { name: "Native food accounting" }));
+  expect(native.getByRole("row", { name: /Balance residual/ })).toHaveTextContent("-2.9802e-8");
+  expect(native.getByRole("row", { name: /Balance tolerance/ })).toHaveTextContent("1.0000e-5");
+  expect(within(screen.getByRole("table", { name: "Public food accounting" })).getByRole("row", { name: /Balance residual/ })).toHaveTextContent("2.0000e-8");
 });
