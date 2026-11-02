@@ -34,8 +34,8 @@ validate an epic. Runtime changes remain opt-in until evaluated. No paid narrati
 | M5 resource-backed service | validated | Actual paid academy supplies, native exclusive Scholar work/income cost, prior-turn learning effect, dated Learning inspector and material balances. All nine CI jobs passed atd7061f42. | Nine native controls, funded/no-stock/restock/ownership/adverse cases, exact held-supplies continuation, off parity and browser journey pass. General efficacy, rebuilding suite and Scholar illness remain outside this bounded qualification. |
 | M6 delayed information | partially covered | Report delay, real decision-boundary inputs/costs, issue-time construction records and Harvest inspector integrated; all nine CI jobs passed at3e852333. See forecast-decisions-candidate.md. | Actual timing/purchases, expiry, caps, exact continuation, observer neutrality and browser checks pass. Both the earlier and additional scarce-budget shuffle cases are purchase/food-neutral; misleading harm/food outcome criterion remains unmet. |
 | M7 crisis suite | partially covered | [Constructed A/B/C/D cases and E analysis](crisis-scenarios.md) execute shared native state. Regional shock now uses the existing exact pair coordinator; explicit paid academy restoration has a tested boundary API. | Development admissions pass within stated limits. Receiving services, complete common-point alternatives for each case and held evaluation remain unfinished. Supported drought injection is not a crop-yield shock; recorded migration is not proof of forced eviction. |
-| M8 usable laboratory | implementing | Regional closure preview → actual exact pair → native food comparison works in Chromium at desktop/390px. Old manifests stay supported; exported v3 provenance is readable and omits the internal command value. | One live client is the existing server contract. Academy restoration still needs coordinator/UI wiring; broader integrated crisis gallery and private export journey remain unfinished. |
-| M9 package | implementing | Quiet paired runtime/memory/history and actual browser interaction measurements recorded; periodic owner-only source/evidence recovery verified. Combined CI at16376f90 is pending. | Pending-shipment/partial-work/care/service checkpoints have bounded evidence, not full scientific qualification. Final flag matrix, held scenarios, package and handoff remain unfinished. |
+| M8 usable laboratory | partially covered | Regional closure and paid academy restoration preview → real exact pair → existing food/Learning inspectors work at desktop/390px. Versions1–4 and descriptive private-safe recipes are supported. A full-main academy guide preserves history1–12. | One live client is the existing server contract. The broader crisis gallery and remaining scenario/evaluation boundaries are unfinished; this is not whole-roadmap completion. |
+| M9 package | implementing | Quiet paired runtime/memory/history and actual browser measurements recorded; private source/evidence recovery independently verified. Corrected M8 combined CI next. | CI16376f90 failed its strict skip audit after seven successful jobs; fixed-hash supervision now executes those tests. Final flag matrix, held scenarios and release handoff remain unfinished. |
 
 ## Current evidence and ownership
 
@@ -164,7 +164,9 @@ real care/food opportunity cost, constrained receiving-market migration and
 explicit paid restoration after the natural founding lottery failed. See
 `crisis-scenarios.md` for executed admissions and exact unmet boundaries. The
 new paused-restoration API cannot independently detect an active accumulator:
-its coordinator must attest a safe boundary; no web caller is wired yet.
+its coordinator must attest a safe boundary. The real paused coordinator now
+provides that boundary; bounded current eligibility and the v4 manifest bind
+region, fallen incarnation, patron, fee and treasury before any execution.
 Browser testing also reproduced fresh live output preparation failing before
 the output root existed. Creation of that private root plus a focused regression
 fixes the actual workflow; earlier failures are retained.
@@ -205,13 +207,48 @@ checkpoint. This is source/evidence recovery, not fresh environment provisioning
 
 Current bounded product checkpoint16376f90 is pushed and remote-verified; main
 remainscb9fe70c. [Combined CI](https://github.com/YotsuBotfds/Chronicler/actions/runs/41495453122)
-is pending (Viewer, Rust and matching-wheel builder passed at this update; full
-Python lanes still running). Subsequent browser-performance documentation does
-not change that tested product source. A new private source/evidence checkpoint
-is being prepared; its local draft is not yet verified remote recovery.
+passed seven build/test jobs (including both actual native shards) but failed
+the final skip audit:8 observed versus6 registered. The two new exact native
+tests incorrectly skipped under an unpinned parent hash. The existing supervised
+fixed-hash runner now executes them with case-specific completion receipts;
+nine relevant cases passed under both parent configurations, without skips.
+The skip registry and623 expected subtests were not relaxed. The new academy
+pair uses the same supervisor and passes from an unfixed parent.
 
-Next: finish/record combined CI and verify the new private backup. Wire deliberate academy
-restoration at the real paused coordinator, complete C's receiving-service and
+Checkpoint16376f90 is independently recovered owner-only: all four archive
+objects match downloaded bytes/SHA,334 new members match their manifest,168
+omitted identical files and the preceding46 omitted files match downloaded
+prior archives, and the downloaded source restores exact clean16376f90 with
+1,924 tracked files. [Recovery instructions](https://drive.google.com/file/d/1EQQqVW37aRlx-CXxkXSh5kq8roW53jF6/view),
+[verification index](https://drive.google.com/file/d/1cu0ir5uw2D8KGDGkGJVyzCKtgbq6N15c/view),
+[omission proof](https://drive.google.com/file/d/1nDEUz8u3y0DIMHgotiTqWYlFkDCu7-Ce/view)
+and the [failed CI receipt](https://drive.google.com/file/d/1b5fXjyHd1KSFp2HGOxLgRxv2OA6EDNDn/view)
+also match independent downloads. It preserves a failed-CI checkpoint; newer
+restoration work needs its next backup. No fresh provisioning is claimed.
+
+M8 restoration is now integrated:155 focused native/live checks,366 combined
+native/ownership/witness passes,610 frozen source passes/61 subtests and11
+guarded pure checks qualify the bounded connection. The viewer passed1,150
+tests before a final focused partial-history wording correction; lint/build
+and real desktop/390px checks pass. The full-main guide admits at12 with actual
+prior snapshots1–12 and continues through19. Actual UI receipts show the30-coin
+fee, causal fall event, paid crafts and native teaching, with no target-site
+replacement in baseline (another region may independently found an academy).
+The older turn13 diagnostic remains explicitly missing its prior snapshots.
+Generated exact-launch instructions preserve unset thread variables, start
+successfully from incompatible parent settings and refuse duplicate output.
+
+C's combined receiving-service probe is a retained negative admission. Actual
+arrivals increase the modeled potential learner bound, but the academy had
+already used its7.623 purchased crafts before arrival. After arrival the living
+institution pays upkeep and has budget/quotes, but no market stock or holdings;
+no teaching work is requested, and actual native work remains unknown rather
+than a measured zero. This does not satisfy its declared positive post-arrival
+service-work criterion. Neither it nor the third, heterogeneous-capital forecast
+case is relabeled success: both scored warnings are true shortfalls, and
+normal/shuffle purchases and food outcomes remain identical.
+
+Next: run/record corrected combined CI and verify the new private backup. Complete C's receiving-service and
 matched alternatives, freeze/run modest held evaluations, and address M6's
 misleading-information acceptance without forcing favorable outcomes. The
 roadmap remains unfinished; no scientific gate, default promotion or reusable-

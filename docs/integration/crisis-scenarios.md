@@ -10,7 +10,7 @@ is part of this slice. Source and receipts identify each actual producer.
 | A transport | Finite grain2000/300/0, model people400/20/400 and a three-region chain; the real hybrid planner must reserve and depart grain0→2 before comparing eight further turns. The intervention closes region2's incident routes for two economy phases. | The original cargo arrives in the baseline and returns under disruption; a new delivery arrives after reopening. Snapshot4 destination native sufficiency is1.1755 versus0.4516 in the browser pair. Original paused state/native bytes/RNG stay unchanged. | Constructed geography/inventories; regional closure, not arbitrary individual edge deletion. Sufficiency is not household meals. |
 | B work and care | Eight turns with actual native occupational injuries, existing spouse care off/on, identical initial pool/RNG. Explicit low yields0.05, soil/water0.2, empty grain, injury rate0.25 and recovery work10. | At the first matched care boundary, source2/region5, care uses0.4 worker-turns for two recipients. Recovery progress7 versus5; production0.09320 versus0.09544, both below demand11.5. | Constructed production stress, not a demonstrated crop effect from an injected drought or infectious illness. Later divergent paths do not isolate an instantaneous marginal effect. |
 | C receiving region | Four turns with existing native household migration and liquid gate1. A separately declared development variant reduces region2's initial yield to0.25 of its generated value. | Two real1→2 migration events at source2 have dominant diagnostic term`famine_memory`; one matches a two-person household sample. Next native count32→35, demand16→17.5, sufficiency0.701→0.657. Ledger balances and post-arrival exact continuation pass. | Diagnostic contribution is not sole cause or forced eviction. Net growth also includes other demographic changes. Receiving service demand/enrollment is not demonstrated. |
-| D institutional loss | Existing paid academy teaching followed by a constructed hostile transfer. The unchanged 20-turn case loses13.321908 held crafts once and never re-founds. A separate explicit restoration arm acts at paused source13. | Restoration pays the existing30-coin fee, creates a distinct seat with fall provenance; later buys actual crafts and delivers native teaching. Exact continuation covers the fee, paid holdings and delivered work. | Deliberate restoration bypasses the spontaneous lottery; no construction labor/material model. The API requires an attested pause boundary and still needs app/coordinator integration. |
+| D institutional loss | The first20-turn diagnostic loses13.321908 held crafts and has no target replacement; deliberate restoration at13 works. A later full-main case records the complete preceding history and actual source2 transfer/loss, then admits restoration at12. | The real paused coordinator and v4 UI preview30 coins (625→595 in the full-main browser case), run seven further turns, and expose a new seat, causal fall event, paid crafts and actual native teaching in Learning. Baseline has no replacement at the target site. | Deliberate action bypasses spontaneous founding; no construction labor/material model. Another region can independently found an academy. The earlier diagnostic's missing snapshots remain unknown; the newer full-main guide retains1–12. |
 | E distribution | Analysis of **every** recorded A/B/C turn, with hashes checked against A's actual bundles. Demand-weighted known native sufficiency, regional deficits and two-consecutive-snapshot recovery are declared before extraction. | A's mean rises1.1723→1.2858 while region2 remains below1 and worsens. B and C have no sustained recovery; all qualifying and neutral transitions, coverage and changing weights are retained. | Regional differences, not household access/meal inequality. A changing demand-weighted mean is not a pure fixed-population welfare change. |
 
 Negative evidence remains part of the suite. C's original abundant receiver did
@@ -59,13 +59,39 @@ layout; it does not launch simulations. D's bounded cases are in
 `tests/test_crisis_institution_recovery_native.py` and`tests/test_lab_academy.py`.
 These Python/native checks do not stand in for browser verification.
 
+The complete academy journey uses the same viewer and exact-pair machinery:
+
+```sh
+env PYTHONPATH="$PWD/src:$PWD" PYTHONHASHSEED=0 \
+  "$NATIVE_PYTHON" scripts/crisis_academy_example.py \
+  /absolute/fresh/crisis-academy --simulate-only
+```
+
+Read the generated`WALKTHROUGH.txt`; it provides a copyable`launch-live.sh` command.
+The launcher preserves the checkpoint's actual thread environment, including
+**unset** variables, and atomically reserves a fresh private output directory.
+Actual startup passed even from deliberately incompatible parent thread settings;
+a repeated launch refused the existing output before starting another process.
+This is current-session verification, not fresh environment publication.
+
+In the app, inspect the recorded turn2 fall and the current paused candidate.
+Preview the fee before running seven turns. Compare the target region and open
+Learning in each completed bundle. At snapshot14, the full-main browser case
+shows source13 teaching0.031 Scholar-days/0.245 crafts; at snapshot19 it shows
+source18 purchase0.902 crafts/one coin and delivered0.255 Scholar-days/2.041 crafts
+used (rounded UI values). These are separate acquisition, inventory and service
+receipts, not the same-turn consumption of that new purchase. Baseline has no
+Verdant replacement but does record a separate Frostholm academy. The original
+world stays paused. The single-client live contract is explicit; private saved
+bookmarks retain their existing independent storage behavior.
+
 ## Qualification state
 
 M7 remains partially covered: completed outputs and bounded admissions exist,
 but receiving services, complete common-point alternatives for every case and
-held evaluation remain unfinished. M8's actual transport browser journey passes
-at desktop/390px with recorded pre-relief food comparison; academy restoration
-is not yet a UI control. Delayed report
+held evaluation remain unfinished. Both transport and paid academy restoration
+have actual desktop/390px browser journeys, including dated food/service receipts
+and the new full-main history. Delayed report
 harm/food outcomes remain M6's explicit unmet acceptance. Full scientific gates
 and default-policy promotion remain unrun.
 

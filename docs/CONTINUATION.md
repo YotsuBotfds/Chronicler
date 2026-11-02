@@ -16,13 +16,17 @@ All nine M6 CI jobs passed at3e852333 in run41489913862; its unmet harmful-
 misinformation/food-outcome acceptance remains explicit. M7 now has constructed
 native A/B/C/D cases and recorded regional distribution analysis; it remains
 partially covered, with receiving services, full alternatives and held evaluation
-unfinished. M8's real transport exact-pair browser journey works at desktop and
-390px, including dated native-food comparison. Explicit paid academy restoration
-has native tests but still needs app/coordinator wiring. M9 has paired runtime,
-memory, history and real-browser interaction measurements. The bounded slice is
-pushed at16376f90; combined CI run41495453122 is pending. Deliberate academy
-restoration coordinator/UI wiring is the next implementation slice. See the
-active roadmap for exact sources and limits.
+unfinished. M8's transport and paid academy restoration workflows now run through
+preview, exact pairs and existing inspectors at desktop/390px. The full-main
+academy example retains actual history1–12 and continues through19; its older
+diagnostic predecessor explicitly lacks earlier snapshots. M9 has paired runtime,
+memory, history and real-browser interaction measurements. CI41495453122 passed
+seven test/build jobs but failed the native skip audit: two new tests skipped
+under an unpinned parent hash. They now execute in supervised fixed-hash children,
+with no skip-registry relaxation; combined CI on the corrected slice is next.
+The source/evidence backup at16376f90 is independently verified owner-only;
+newer restoration source/evidence needs its next checkpoint. See the active
+roadmap for exact sources and limits.
 This is not the completed roadmap. Previous remediation stays closed within its documented
 limits. Main/defaults remain unchanged; environment publication stays deferred.
 

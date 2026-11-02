@@ -55,12 +55,14 @@ def run_receiving_service_admission(tmp_path, monkeypatch, require_positive=True
     monkeypatch.setattr(scholarship, "learning_factors", capture_factors)
     def checkpoint(w, b, path):
         write_checkpoint(path, RunState(world=w, agent_bridge=b, memories={}, history=[],
-            chronicle_entries=[], era_reflections=[], pending_injections=[], start_turn=0,
+            chronicle_entries=[], era_reflections={}, pending_injections=[], start_turn=0,
             seed=42, num_turns=8))
     def verify_checkpoint(w, sim, path):
         checkpoint(w, sim, path)
         left, right = read_checkpoint(path), read_checkpoint(path)
         assert left.exact and right.exact
+        assert left.state.world.model_dump_json() == w.model_dump_json()
+        assert left.state.agent_bridge._sim.checkpoint_state() == sim._sim.checkpoint_state()
         before_rng = random.getstate()
         try:
             one = _advance(left.state.world, left.state.agent_bridge)
