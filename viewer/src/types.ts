@@ -266,6 +266,19 @@ export interface FoodAccountingSnapshot {
   procurement: Array<{ civilization_id: number; budget_initial: number; budget_remaining: number; spent: number }>;
 }
 
+export interface HouseholdMobilitySample {
+  group_id: number; origin_region_id: number; destination_region_id: number; native_persons: number;
+  local_food_sufficiency: number | null; native_adult_liquid_wealth: number; required_liquid: number;
+  reason: "sufficient" | "insufficient" | "no_local_distress" | "unknown_destination" | "on_trip";
+}
+export interface HouseholdMobilitySnapshot {
+  schema_version: 1; source_turn: number; completed_turn: number; timing: "agent_decision_post_consolidation";
+  mode: string; wealth_units: "native_agent_wealth"; person_units: "native_agents";
+  passed_means: "gate_passed_not_observed_move"; requirement_per_native_person: number;
+  proposed_groups: number; proposed_native_persons: number; passed_groups: number; passed_native_persons: number;
+  blocked_groups: number; blocked_native_persons: number; dropped_samples: number; samples: HouseholdMobilitySample[];
+}
+
 export interface TurnSnapshot {
   turn: number;
   civ_stats: Record<string, CivSnapshot>;
@@ -353,6 +366,8 @@ export interface TurnSnapshot {
    * viewer map layers.
    */
   migration?: MigrationFlow[];
+  /** Optional native household mobility gate observation for the completed turn. */
+  household_mobility?: HouseholdMobilitySnapshot;
 }
 
 export interface ContactTradePair {

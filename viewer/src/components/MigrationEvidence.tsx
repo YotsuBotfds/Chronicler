@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { Bundle } from "../types";
 import { readMigrationEvidence } from "../lib/migrationEvidence";
+import { HouseholdMobilityEvidence } from "./HouseholdMobilityEvidence";
 import "./migration-evidence.css";
 
 interface MigrationEvidenceProps {
@@ -50,6 +51,7 @@ export function MigrationEvidence({ bundle, currentTurn, selectedRegionIndex, on
           {limit < reading.flows.length && <button type="button" onClick={() => setPage({ scope, limit: limit + PAGE_SIZE })}>Show more flows ({reading.flows.length - limit} remaining)</button>}
         </>}
       </>}
+      <HouseholdMobilityEvidence bundle={bundle} turn={currentTurn} selectedRegionIndex={selectedRegionIndex} />
       {reading.sourcePointer && <p className="migration-evidence-source">Flow field: <code>{reading.sourcePointer}</code></p>}
 
       {selectedRegionIndex != null && <details>
