@@ -11,7 +11,7 @@ import {
 } from "../transport";
 
 const staticBundle = parseBundle(JSON.stringify(fixture)).bundle as Bundle;
-// The checked-in fixture predates food accounting. This explicit current
+// The checked-in fixture predates food accounting and household mobility. This current
 // example exercises the new field without rewriting that historical fixture.
 const currentBundle: Bundle = {
   ...staticBundle,
@@ -21,6 +21,15 @@ const currentBundle: Bundle = {
       schema_version: 1, mode: "off", source_turn: snapshot.turn - 1,
       completed_turn: snapshot.turn, timing: "phase2", units: "model_food_goods",
       transport: "none", regions: [], procurement: [],
+    },
+    household_mobility: {
+      schema_version: 1, source_turn: snapshot.turn - 1, completed_turn: snapshot.turn,
+      timing: "agent_decision_post_consolidation", mode: "hybrid",
+      wealth_units: "native_agent_wealth", person_units: "native_agents",
+      passed_means: "gate_passed_not_observed_move", requirement_per_native_person: 1,
+      proposed_groups: 0, proposed_native_persons: 0, passed_groups: 0,
+      passed_native_persons: 0, blocked_groups: 0, blocked_native_persons: 0,
+      dropped_samples: 0, samples: [],
     },
   })),
 };
@@ -39,6 +48,7 @@ describe("transport contract", () => {
     const named = new Set<string>([...SNAPSHOT_FIELDS, ...SNAPSHOT_SYSTEMS]);
     for (const snapshot of staticBundle.history) {
       expect(snapshot.food_accounting).toBeUndefined();
+      expect("household_mobility" in snapshot).toBe(false);
     }
     for (const snapshot of currentBundle.history) {
       for (const key of Object.keys(snapshot)) {

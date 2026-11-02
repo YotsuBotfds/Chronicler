@@ -10,6 +10,8 @@ WITNESS = ROOT / "tests/fixtures/crisis_candidate_source_inverse.json"
 
 
 def before_crisis_candidate(source: str, path: str, *, allow_parent: bool = False) -> str:
+    from scripts.testing.household_candidate_witness import before_household_candidate
+    source = before_household_candidate(source, path, allow_parent=True)
     row = json.loads(WITNESS.read_text(encoding="utf-8"))["files"].get(path)
     if row is None:
         return source
