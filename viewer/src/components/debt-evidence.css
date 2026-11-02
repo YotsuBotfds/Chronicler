@@ -1,0 +1,17 @@
+.debt-evidence { min-width: 0; padding: .8rem 0; color: #d6d3ce; border-top: 1px solid #454945; }
+.debt-evidence h3 { font-size: 1rem; margin: .5rem 0; }
+.debt-evidence h4 { margin: 1rem 0 .5rem; }
+.debt-evidence p, .debt-evidence li, .debt-evidence details { font-size: .85rem; line-height: 1.5; overflow-wrap: anywhere; }
+.debt-evidence p { color: #b8b9b4; }
+.debt-evidence-window { display: grid; gap: .4rem; max-width: 18rem; font-size: .85rem; }
+.debt-evidence select, .debt-evidence button { min-height: 44px; max-width: 100%; border: 1px solid #648580; border-radius: .25rem; padding: .45rem .65rem; background: #293c3c; color: #d7eeed; font: inherit; }
+.debt-evidence button { cursor: pointer; display: block; margin: .3rem 0; }
+.debt-evidence-table { max-width: 100%; overflow-x: auto; margin: 1rem 0; }
+.debt-evidence table { border-collapse: collapse; min-width: 850px; width: 100%; font-size: .8rem; }
+.debt-evidence :is(th, td) { border-bottom: 1px solid #454945; padding: .5rem; text-align: left; vertical-align: top; }
+.debt-evidence caption { text-align: left; color: #a8b8b5; padding-bottom: .5rem; }
+.debt-evidence summary { min-height: 44px; align-content: center; cursor: pointer; }
+.debt-evidence :is(select, button, summary):focus-visible, .debt-evidence-table:focus-visible { outline: 2px solid #e0b14c; outline-offset: 3px; }
+.debt-evidence code { display: block; font-size: .75rem; overflow-wrap: anywhere; color: #b4c6c1; margin: .3rem 0; }
+.debt-evidence-events { list-style: none; padding: 0; display: grid; gap: .7rem; }
+.debt-evidence-events > li { border: 1px solid #454945; border-radius: .3rem; padding: .7rem; }
