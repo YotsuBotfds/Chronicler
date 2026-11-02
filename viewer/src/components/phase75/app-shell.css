@@ -996,6 +996,7 @@
   .region-history select, .region-history input[type="number"], .region-history button,
   .interesting-periods button, .interesting-periods select, .interesting-periods summary,
   .phase75-layer-chip, .phase75-ghost-button, .phase75-primary-button { min-height: 44px; }
+  .entity-run-comparison select, .entity-run-comparison button { min-height: 44px; }
   .region-history-controls .region-history-checkbox { min-height: 44px; }
 }
 @media (prefers-reduced-motion: reduce) {

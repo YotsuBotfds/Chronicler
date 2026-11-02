@@ -77,7 +77,7 @@ export function TurnChanges({ bundle, currentTurn, selectedRegion, selectedCivil
         {largest.map((row) => <li key={row.id}>{row.label}: {signed(row.delta)} ({signed(row.percent)}%)</li>)}
       </ul></div>}
       {fromZero.length > 0 && <p>Changed from zero: {fromZero.map((row) => `${row.label} → ${format(row.after)}`).join("; ")}. Percentage change is undefined.</p>}
-      <div className="turn-changes-table"><table aria-label="Changes between recorded turns">
+      <div className="turn-changes-table" role="region" aria-label="Scrollable changes between recorded turns" tabIndex={0}><table aria-label="Changes between recorded turns">
         <thead><tr><th>Measure</th><th>Turn {from}</th><th>Turn {to}</th><th>Change</th></tr></thead>
         <tbody>{changes.map((row) => <tr key={row.id}><th scope="row">{row.label}{row.note && <small>{row.note}</small>}</th>
           <td>{format(row.before)}</td><td>{format(row.after)}</td><td>{signed(row.delta)}</td></tr>)}</tbody>

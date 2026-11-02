@@ -43,7 +43,7 @@ function EntityTable({ rows, label }: { rows: ReturnType<typeof orderEntityRunRo
   const [limit, setLimit] = useState(20);
   return <>
     <p>Showing {Math.min(rows.length, limit)} of {rows.length} entities. Unknown differences follow recorded differences.</p>
-    <div className="entity-run-table"><table aria-label={`Entity ${label} differences`}>
+    <div className="entity-run-table" role="region" aria-label={`Scrollable entity ${label} differences`} tabIndex={0}><table aria-label={`Entity ${label} differences`}>
       <thead><tr><th>Entity / matching</th><th>Left</th><th>Right</th><th>Right − left</th><th>Relative to left</th></tr></thead>
       <tbody>{rows.slice(0, limit).map((row) => <tr key={row.key}>
         <th scope="row">{row.name}{" "}<small>{row.matching === "checkpoint-index" ? "Checkpoint-existing index" : row.matching === "name-only" ? "Name-only; identity unverified" : row.matching === "ambiguous" ? "Ambiguous name" : "Unmatched identity"}</small>

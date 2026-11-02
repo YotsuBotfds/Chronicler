@@ -41,7 +41,7 @@ function Results({ rows, events, currentTurn, onSeek, maxTurn }: {
     </div>
   );
   return <>
-    <div className="region-history-table">
+    <div className="region-history-table" role="region" aria-label="Scrollable region metric observations" tabIndex={0}>
       <table aria-label="Region metric observations">
         <thead><tr><th>Turn</th><th>Controller</th><th>Value / availability</th><th>Source (JSON pointer)</th></tr></thead>
         <tbody>{rows.slice(rowPage * PAGE_SIZE, (rowPage + 1) * PAGE_SIZE).map((row, index) => (
@@ -57,7 +57,7 @@ function Results({ rows, events, currentTurn, onSeek, maxTurn }: {
     {pages(rows.length, rowPage, setRowPage, "observations")}
     <h3>Events in this window</h3>
     <p>Recorded-region events use the explicit named-event region. Optional controller context matches actors to the controller recorded at that exact turn; it does not establish where an event happened or what caused a metric change. Agent-event sidecars are not loaded here.</p>
-    <div className="region-history-table">
+    <div className="region-history-table" role="region" aria-label="Scrollable region history events" tabIndex={0}>
       <table aria-label="Region history events">
         <thead><tr><th>Turn</th><th>Type / scope</th><th>Description</th><th>Source (JSON pointer)</th></tr></thead>
         <tbody>{events.slice(eventPage * PAGE_SIZE, (eventPage + 1) * PAGE_SIZE).map((event) => (
