@@ -13,6 +13,7 @@ def test_food_layer_projects_exact_source_and_rejects_mutations():
     assert witness["head"] == "5e5cc5ec2062b99270c26411b91a12c1b31b8ad5"
     assert witness["registry_correction_commit"] == "0bc144f19f5243803334bf2483f727e887ca1386"
     assert "src/chronicler/transport_contract.json" in witness["files"]
+    from scripts.testing.crisis_candidate_witness import before_crisis_candidate
     for path, row in witness["files"].items():
         source = (ROOT / path).read_bytes().decode("utf-8")
         parent = before_food_accounting(source, path)
@@ -23,6 +24,7 @@ def test_food_layer_projects_exact_source_and_rejects_mutations():
         for changed in (source + "\n# unrelated mutation\n", source.replace("\n", "\r\n")):
             with pytest.raises(AssertionError):
                 before_food_accounting(changed, path)
+        source = before_crisis_candidate(source, path, allow_parent=True)
         for patch in row["patches"]:
             assert source.count(patch["new"]) == 1
             for changed in (source.replace(patch["new"], patch["old"], 1),
