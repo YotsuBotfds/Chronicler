@@ -137,15 +137,16 @@ def test_real_native_pair_preserves_original_and_unchanged_arm(tmp_path, changed
             owner = world.regions[fed].controller
             assert owner is not None and world.regions[hungry].controller == owner
             for civ in world.civilizations:
-                civ.treasury = 30 if civ.name == owner else 0
+                civ.treasury = 45 if civ.name == owner else 0
             for region in world.regions:
                 region.stockpile.goods = {}
-            world.regions[fed].stockpile.goods = {"grain": 80.}
+            world.regions[fed].stockpile.goods = {"grain": 500.}
             world.regions[hungry].resource_base_yields = [0., 0., 0.]
             grain._ensure(world)
-            for region, stock in ((fed, 0.), (hungry, 2.)):
+            for region, stock in ((fed, 0.), (hungry, 6.)):
                 granary = world.grain_reserves.granaries[region]
                 granary.grain = stock
+                granary.target = 1000.
                 granary.observed, granary.harvest_mean, granary.harvest_sq = 12, .5, .5
             recorded["scarce_regions"] = fed, hungry
         # Serialize the real original graph/private RNG before any preparation.
