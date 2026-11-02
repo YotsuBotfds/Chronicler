@@ -1484,6 +1484,9 @@ class TurnSnapshot(BaseModel):
     # [from region index, to region index, agents]; None (and omitted)
     # without an agent pool that records events (hybrid, shadow).
     migration: list | None = Field(default=None, exclude_if=_is_none)
+    # Versioned, indexed completed model populations, native alive counts and
+    # separately stamped Phase 2 food weights. Historical missing means unknown.
+    regional_population: dict | None = Field(default=None, exclude_if=_is_none)
 
 
 # --- M20a: Narration Pipeline v2 models ---

@@ -18,6 +18,9 @@ import time
 ROOT = Path(__file__).resolve().parents[1]
 CHUNK_LIMIT_SECONDS = 110
 CHUNKS = {
+    "regional-population": [
+        "tests/test_regional_population.py",
+    ],
     "wealth-floor-checkpoint-metadata-v2": [
         "tests/test_wealth_floor_outcome_checkpoints_v2.py",
     ],

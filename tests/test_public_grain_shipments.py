@@ -592,8 +592,9 @@ def test_composition_inverse_is_literal_complete_and_refuses_unrelated_edits():
     assert witness["base"] == "061594a0606b9a9dfdbd1a63de2afb7dfcc3c3db"
     for path, digest in witness["new_files"].items():
         assert hashlib.sha256((ROOT / path).read_bytes()).hexdigest() == digest
+    from scripts.testing.regional_population_witness import before_regional_population
     for path, row in witness["files"].items():
-        body = (ROOT / path).read_text()
+        body = before_regional_population((ROOT / path).read_text(), path)
         for patch in reversed(row["patches"]):
             assert set(patch) == {"old", "new"}
             assert body.count(patch["new"]) == 1

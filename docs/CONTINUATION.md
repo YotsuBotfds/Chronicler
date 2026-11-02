@@ -10,6 +10,27 @@ Full suite/build/browser and App integration remain root-owned. See [contract, m
 
 ---
 
+# 2026-11-02 — authoritative regional population observations
+
+An additive version-1 snapshot observation preserves actual completed regional
+model populations, separately labelled raw native alive counts, and immutable
+Phase 2 food weights/controller IDs. Stable world-region indices identify every
+array; no civilization total is apportioned into estimates. Shadow and clamped
+demographics model/pool differences stay explicit. Older absent observations
+remain unknown. Existing bundle v6 and registered live transport retain the field.
+
+Focused Python/native/main/checkpoint/source-witness checks pass 577 tests and
+61 subtests with one existing mock skip; the new offline chunk passes 32 without
+native imports or blocked IO. Actual parent/current 16-turn pairs in all four
+modes preserve existing artifacts, decisions, full state, RNG traces and native
+bytes after removing only the new exported field. Same-source 8→16 exact resumes
+preserve the complete new history and final state in all modes. Rust/build inputs,
+defaults and immutable historical witness hashes are unchanged. Full fresh CI,
+Rust/scientific gates and the broad checkpoint matrix remain unrun for this slice.
+See [the contract and evidence](integration/regional-population-observations.md).
+
+---
+
 # 2026-11-01 — optional public shipment viewer connection
 
 Read-only Granaries snapshots now distinguish stored grain, cargo in transit,

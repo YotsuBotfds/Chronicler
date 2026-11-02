@@ -56,7 +56,8 @@
     "ritual_gatherings",
     "scientific_claims",
     "transaction_receipts",
-    "migration"
+    "migration",
+    "regional_population"
   ],
   "bundle_systems": [
     "historiography",

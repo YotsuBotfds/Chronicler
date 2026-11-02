@@ -1026,8 +1026,9 @@ def test_care_codec_source_binding_preserves_reviewed_native_and_python_phase_wi
         "src/chronicler/simulation.py": "bfecb967f6405d8c2acc2d3342880c2735405457608672678fbffe4f2e6f9b61",
         "src/chronicler/main.py": "2e17f9652506c7a22278d1bb6f4ac6149b9b2007a8c36e6351a4a38c72f43f03",
     }
+    from scripts.testing.regional_population_witness import before_regional_population
     for path, digest in pins.items():
-        source = (root / path).read_bytes()
+        source = before_regional_population((root / path).read_bytes().decode("utf-8"), path).encode("utf-8")
         if path == "src/chronicler/main.py":
             source = before_reviewed_artifact_repairs(
                 before_public_grain_configuration(source.decode("utf-8"))).encode("utf-8")
@@ -1062,7 +1063,9 @@ def test_care_main_source_inverse_refuses_unreviewed_mutations(old, new):
     source = (root / "src/chronicler/main.py").read_bytes().decode("utf-8")
     assert source.count(old) == 1
     changed = source.replace(old, new, 1)
+    from scripts.testing.regional_population_witness import before_regional_population
     with _care_codec_pytest.raises(AssertionError):
+        changed = before_regional_population(changed, "src/chronicler/main.py")
         projected = before_reviewed_artifact_repairs(before_public_grain_configuration(changed))
         assert _care_codec_hashlib.sha256(projected.encode("utf-8")).hexdigest() == (
             "2e17f9652506c7a22278d1bb6f4ac6149b9b2007a8c36e6351a4a38c72f43f03"

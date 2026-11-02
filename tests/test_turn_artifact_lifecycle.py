@@ -197,6 +197,11 @@ def test_coordinator_order_identities_and_prior_publication(api, monkeypatch, ma
         assert output.observation.source_turn == n and output.observation.completed_turn == n + 1
         assert output.observation.phase10_agents is owners[n].phase10.agents
         assert output.observation.phase10_agents.batch is raw[n * 3 + 1]
+        if n < 2:
+            assert output.observation.food_weights.counts == (1, 0)
+            assert output.observation.food_weights.source_turn == n
+        else:
+            assert output.observation.food_weights is None
         assert world.regions[0].controller == world.civilizations[1].name
         stages = [log.index(name) for name in ("pre_economy", "sync", "ecology", "tick",
                   "bootstrap", "phase10_snapshot", "settlements", "consequences", "post_politics", "narrator")]

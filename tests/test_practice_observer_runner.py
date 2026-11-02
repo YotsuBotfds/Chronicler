@@ -289,6 +289,8 @@ def test_new_parameter_is_only_explicit_keyword_only_default_none():
 
 
 def _assert_default_main_witness(source):
+    from scripts.testing.regional_population_witness import before_regional_population
+    source = before_regional_population(source, "src/chronicler/main.py")
     from scripts.testing.reviewed_main_witness import before_public_grain_configuration
     source = before_public_grain_configuration(source)
     # These are only the reviewed optional routing/admission additions. Keep the

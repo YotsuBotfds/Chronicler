@@ -940,6 +940,7 @@ def execute_run(
                     _acc_cache[(_obs.name, _tgt.name)] = compute_accuracy(
                         _obs, _tgt, world, borders=_borders,
                     )
+        from chronicler.regional_population import snapshot_fields as regional_population_snapshot_fields
         snapshot = TurnSnapshot(
             turn=world.turn,
             civ_stats={
@@ -1084,6 +1085,7 @@ def execute_run(
             **_grain_reserves_snapshot_fields(world),
             **expansion_snapshot_fields(world),
             **_migration_snapshot_fields(world),
+            **regional_population_snapshot_fields(world, agent_bridge, turn_result.observation),
         )
 
         # M56b: Urban fraction aggregation from agent snapshot

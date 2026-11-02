@@ -1910,6 +1910,7 @@ def run_turn_result(
         AgentRows, Phase10Inputs, Stamp, TurnArtifacts, TurnObservation, TurnResult,
     )
 
+    from chronicler.regional_population import capture_food_weights, capture_population_sources
     from chronicler.ffi_constants import check_civ_capacity
     check_civ_capacity(world)
     if _grain_reserves_on(world) and getattr(world.grain_reserves, "shipments", None) is not None:
@@ -2022,6 +2023,7 @@ def run_turn_result(
         region_map = world.region_map
         snapshot = agent_bridge.get_snapshot()
         if snapshot is not None:
+            artifacts.food_weights = capture_food_weights(world, snapshot)
             # Lagged mutual aid moves existing stock (observed at N-1) before
             # this turn's inventory is packed; it does not read yields.
             if world.mutual_aid_enabled:
@@ -2262,6 +2264,8 @@ def run_turn_result(
 
     from chronicler.economy import settle_pending_stockpile_bootstraps
     settle_pending_stockpile_bootstraps(world.regions)
+
+    population_sources = capture_population_sources(world)
 
     # Capture at the original post-bridge/post-bootstrap boundary. The runner
     # receives these historical rows only through the explicit result handoff.
@@ -2603,6 +2607,8 @@ def run_turn_result(
             source_turn=artifacts.source_turn,
             completed_turn=world.turn,
             phase10_agents=artifacts.phase10.agents,
+            food_weights=artifacts.food_weights if economy_result is not None else None,
+            population_sources=population_sources,
         ),
     )
 

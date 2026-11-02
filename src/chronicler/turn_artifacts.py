@@ -21,6 +21,7 @@ from chronicler.columnar import numeric_array, ordered_counts, pylist, schema_na
 if TYPE_CHECKING:
     from chronicler.economy import EconomyResult
     from chronicler.models import AgentEventRecord
+    from chronicler.regional_population import FoodWeights
 
 Stage = Literal["phase10_entry"]
 
@@ -184,6 +185,7 @@ class TurnArtifacts:
     conquered_civ_ids: set[int] = field(default_factory=set)
     deaths: tuple[AgentEventRecord, ...] = ()
     phase10: Phase10Inputs | None = None
+    food_weights: FoodWeights | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -191,10 +193,14 @@ class TurnObservation:
     source_turn: int
     completed_turn: int
     phase10_agents: AgentRows | None
+    food_weights: FoodWeights | None = None
+    population_sources: tuple[str, ...] | None = None
 
     def __post_init__(self) -> None:
         if self.phase10_agents is not None:
             _check_agent_rows(self.phase10_agents.batch, self.phase10_agents, source_turn=self.source_turn)
+        if self.food_weights is not None and self.food_weights.source_turn != self.source_turn:
+            raise ValueError("food_weights source_turn does not match the consumer turn")
         if self.completed_turn != self.source_turn + 1:
             raise ValueError("completed_turn must label the completed source_turn as N+1")
 
