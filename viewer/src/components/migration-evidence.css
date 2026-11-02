@@ -1,0 +1,13 @@
+.migration-evidence { min-width: 0; max-width: 100%; padding: 0.75rem 0; }
+.migration-evidence h3 { margin: 0.5rem 0; }
+.migration-evidence p { margin: 0.6rem 0; overflow-wrap: anywhere; }
+.migration-evidence button { max-width: 100%; min-height: 2.75rem; padding: 0.4rem 0.65rem; border: 1px solid #5e5b46; border-radius: 0.4rem; background: #242726; color: #ebe7d5; font: inherit; cursor: pointer; overflow-wrap: anywhere; }
+.migration-evidence button:focus-visible, .migration-evidence summary:focus-visible { outline: 2px solid #efc775; outline-offset: 2px; }
+.migration-evidence-flows { padding-left: 1.4rem; }
+.migration-evidence li { margin: 0.65rem 0; overflow-wrap: anywhere; }
+.migration-evidence-flows > li { padding-bottom: 0.65rem; border-bottom: 1px solid #393d3a; }
+.migration-evidence-flows > li > div { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+.migration-evidence details { min-width: 0; margin: 0.65rem 0; }
+.migration-evidence summary { cursor: pointer; padding: 0.45rem 0; }
+.migration-evidence code { white-space: normal; overflow-wrap: anywhere; font-size: 0.8rem; }
+.migration-evidence-source { color: #b7b09d; font-size: 0.85rem; }
