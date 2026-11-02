@@ -2,6 +2,7 @@
 import type { Bundle, Event, TurnSnapshot } from "../types";
 import { eventKey, eventKeyCount } from "./bundleIndex";
 import { populationWeightedFood, readRegionalPopulation, weightedFoodNote } from "./regionalPopulation";
+import { foodAccountingAt } from "./foodAccounting";
 
 export interface HistoryEntity { kind: "civilization" | "region"; name: string }
 export interface RecordedMetric {
@@ -77,6 +78,20 @@ function foodValues(bundle: Bundle, snapshot: TurnSnapshot | null, names: string
     short: measured.filter((value) => value < 1).length };
 }
 
+/** Existing food observations take precedence, including their missing values. */
+function regionalFood(bundle: Bundle, snapshot: TurnSnapshot | null, index: number): { value: number | null; note?: string } {
+  if (snapshot?.food != null) return { value: number(snapshot.food.sufficiency?.[index]) };
+  const ledger = foodAccountingAt(snapshot, bundle.world_state.regions.length, bundle.world_state.civilizations.length);
+  if (!ledger || !["hybrid", "shadow", "demographics-only"].includes(ledger.mode)) return { value: null };
+  const row = ledger.regions.find((item) => item.region_id === index);
+  const native = row?.native;
+  if (!row || row.native_count === null || row.native_count <= 0 || !native || native.demand <= 0 || native.sufficiency < 0)
+    return { value: null };
+  return { value: native.sufficiency, note: NATIVE_FOOD_NOTE };
+}
+
+export const NATIVE_FOOD_NOTE = "Phase 2 native food goods / demand before public relief; not household distribution.";
+
 export function readEntityTurn(bundle: Bundle, entity: HistoryEntity, turn: number): EntityReading {
   const snapshot = exactSnapshot(bundle, turn);
   if (entity.kind === "region") {
@@ -85,6 +100,7 @@ export function readEntityTurn(bundle: Bundle, entity: HistoryEntity, turn: numb
     const ecology = snapshot?.ecology?.[entity.name];
     const grain = granaryValues(bundle, snapshot, [entity.name]);
     const population = readRegionalPopulation(bundle, snapshot);
+    const food = index >= 0 ? regionalFood(bundle, snapshot, index) : { value: null };
     return {
       turn, recorded: snapshot !== null, status: snapshot ? "Recorded snapshot" : "Snapshot not recorded or ambiguous",
       controller: control === null ? "Uncontrolled" : control ?? "Not recorded",
@@ -92,7 +108,7 @@ export function readEntityTurn(bundle: Bundle, entity: HistoryEntity, turn: numb
         metric("population", "Regional model population", index >= 0 ? population?.counts[index] : null,
           population && index >= 0 ? `Completed model Region.population; source: ${population.sources[index]}; mode: ${population.mode}.` : "Regional population not recorded or unsupported; no civilization allocation is inferred."),
         metric("nativePopulation", "Native agents alive", index >= 0 ? population?.agent_counts?.[index] : null, "Completed native pool count; may differ from model population in shadow and demographics-only modes."),
-        metric("food", "Food / need", index >= 0 ? snapshot?.food?.sufficiency?.[index] : null),
+        metric("food", "Food / need", food.value, food.note),
         metric("grain", "Public grain stored", grain.grain),
         metric("target", "Public grain target", grain.target, "Requires recorded demand observations."),
         ...["soil", "water", "forest_cover"].map((key) => metric(key,

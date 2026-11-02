@@ -740,3 +740,34 @@ it("prepares the exact global policy request once and retains schema-two results
     state: "prepared", manifest }));
   expect(result.current.whatIf.status?.manifest?.schema_version).toBe(2);
 });
+
+it("sends one bounded regional disruption request and accepts its schema-three preview", async () => {
+  const { comparisonBundle } = await import("../../__fixtures__/completedRunHistory");
+  const { whatIfManifest } = await import("../../__fixtures__/whatIf");
+  const bundle = comparisonBundle();
+  (bundle.world_state as unknown as Record<string, unknown>).agent_mode = "hybrid";
+  const { result } = renderHook(() => useLiveConnection("ws://localhost:8765"));
+  await act(async () => vi.advanceTimersByTimeAsync(10));
+  const ws = MockWebSocket.instances[0];
+  act(() => result.current.whatIf.prepareTransport(1, 2, 3)); expect(ws.sent).toHaveLength(0);
+  act(() => ws.simulateMessage({ ...SAMPLE_INIT, ...bundle, type: "init" }));
+  act(() => { result.current.whatIf.prepareTransport(-1, 2, 3); result.current.whatIf.prepareTransport(2, 2, 3);
+    result.current.whatIf.prepareTransport(1, 0, 3); result.current.whatIf.prepareTransport(1, 7, 3);
+    result.current.whatIf.prepareTransport(1, 2, 21); });
+  expect(ws.sent).toHaveLength(0);
+  act(() => { result.current.whatIf.prepareTransport(1, 2, 3); result.current.whatIf.prepareTransport(0, 1, 3); });
+  const req = JSON.parse(ws.sent[0]); expect(ws.sent).toHaveLength(1);
+  expect(req).toEqual({ type: "what_if_prepare", request_id: expect.any(String), control: "regional_transport_disruption", region_id: 1, duration: 2, turns: 3 });
+  const manifest = { ...whatIfManifest, schema_version: 3, request_id: req.request_id,
+    intervention: { command: "set", civ: "@transport", stat: "lab.transport_disruption", before: 0, value: 12,
+      scope: "region", region_id: 1, region_name: "B", duration: 2, prior_counter: 0, effective_counter: 3, effective_through_turn: 3 } };
+  act(() => ws.simulateMessage({ type: "what_if_status", request_id: req.request_id, state: "prepared", manifest }));
+  expect(result.current.whatIf.status?.manifest?.schema_version).toBe(3);
+  act(() => result.current.whatIf.cancel());
+  expect(JSON.parse(ws.sent[1])).toEqual({ type: "what_if_cancel", request_id: req.request_id });
+  act(() => ws.simulateMessage({ type: "what_if_status", request_id: req.request_id, state: "cancelled", manifest }));
+  expect(result.current.whatIf.status?.state).toBe("cancelled");
+  act(() => ws.close()); await act(() => vi.advanceTimersByTimeAsync(1010));
+  act(() => MockWebSocket.instances[1].simulateMessage({ type: "what_if_status", request_id: req.request_id, state: "prepared", manifest }));
+  expect(result.current.whatIf.status?.manifest?.schema_version).toBe(3);
+});

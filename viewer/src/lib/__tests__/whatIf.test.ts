@@ -109,3 +109,35 @@ it("refuses incompatible seed/turn/mode at import and exact runtime/settings/con
   expect((await checkPreparedRecipe(recipe, { ...manifest, turns: 4, end_turn: 6 })).mismatch).toBe("plan");
   await expect(createWhatIfRecipe(whatIfManifest)).rejects.toThrow("complete compatible exact-checkpoint");
 });
+
+it("validates readable schema-three transport manifests and preserves legacy controls", async () => {
+  const m = { ...recipeManifest(), schema_version: 3 as const,
+    intervention: { command: "set" as const, civ: "@transport" as const, stat: "lab.transport_disruption" as const,
+      before: 5, value: 12, scope: "region" as const, region_id: 1, region_name: "B", duration: 2,
+      prior_counter: 5, effective_counter: 5, effective_through_turn: 5 } };
+  expect(readWhatIfManifest(m)).toEqual(m);
+  expect(whatIfInterventionLabel(m)).toContain("B (#1), 2 turns; existing counter 5, effective counter 5, through simulation turn 5");
+  expect(whatIfInterventionLabel(m)).not.toContain("12");
+  for (const diff of [{ region_id: 2 }, { duration: 7 }, { duration: true }, { value: 13 }, { before: 0 },
+    { prior_counter: -1 }, { effective_counter: 3 }, { effective_through_turn: 6 }, { scope: "world" },
+    { region_name: "X\nY" }, { path: "/private/file" }]) {
+    expect(readWhatIfManifest({ ...m, intervention: { ...m.intervention, ...diff } })).toBeNull();
+  }
+  expect(readWhatIfManifest({ ...m, mode: "shadow" })).toBeNull();
+  const recipe = await createWhatIfRecipe(m);
+  expect(recipe.control).toEqual({ kind: "regional_transport_disruption", region_id: 1, duration: 2 });
+  expect(readWhatIfRecipe(JSON.parse(JSON.stringify(recipe)))).toEqual(recipe);
+  expect(JSON.stringify(recipe)).not.toContain("lab.transport_disruption");
+  expect(JSON.stringify(recipe)).not.toContain("PRIVATE_TOKEN");
+  expect(JSON.stringify(recipe)).not.toContain("/private/");
+  const exported = JSON.stringify(portableWhatIfManifest(m));
+  expect(exported).not.toContain("lab.transport_disruption");
+  expect(exported).not.toContain('"value":12');
+  expect(exported).not.toContain("/private/");
+  expect(readWhatIfManifest(JSON.parse(exported))).toBeNull(); // descriptive export is not a backend command
+  expect(await recipePreparedMismatch(recipe, m)).toBeNull();
+  const b = comparisonBundle(); (b.world_state as unknown as Record<string, unknown>).agent_mode = "hybrid";
+  expect(recipeLiveMismatch(recipe, b, 2, ["A"])).toBeNull();
+  expect(recipeLiveMismatch({ ...recipe, control: { kind: "regional_transport_disruption", region_id: 99, duration: 2 } }, b, 2, ["A"])).toContain("selected region");
+  expect(readWhatIfResult({ manifest: m, baseline: whatIfPair.baseline, intervention: whatIfPair.intervention })?.intervention.label).toBe("Regional transport disruption");
+});

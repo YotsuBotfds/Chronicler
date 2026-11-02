@@ -185,3 +185,34 @@ it("exports only portable provenance/settings and labels a global policy pair wi
   expect(JSON.parse(json).inputs.left.settings.configuration.scenario).toBe("world.yaml");
   expect(screen.getByLabelText("What-if provenance")).toBeVisible();
 });
+
+it("exports readable regional transport provenance without the encoded backend command", async () => {
+  const manifest = { ...recipeManifest(), schema_version: 3 as const,
+    intervention: { command: "set" as const, civ: "@transport" as const, stat: "lab.transport_disruption" as const,
+      before: 0, value: 12, scope: "region" as const, region_id: 1, region_name: "B", duration: 2,
+      prior_counter: 0, effective_counter: 3, effective_through_turn: 3 } };
+  const pair = { ...whatIfPair, manifest, baseline: { ...whatIfPair.baseline, bundle: comparisonBundle() },
+    intervention: { ...whatIfPair.intervention, bundle: comparisonBundle() } };
+  for (const [arm, run] of [["baseline", pair.baseline], ["intervention", pair.intervention]] as const)
+    (run.bundle.metadata as unknown as Record<string, unknown>).what_if = { ...manifest, arm };
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+  const makeUrl = vi.fn<(blob: Blob) => string>(() => "blob:transport-summary");
+  Object.defineProperty(URL, "createObjectURL", { configurable: true, writable: true, value: makeUrl });
+  Object.defineProperty(URL, "revokeObjectURL", { configurable: true, writable: true, value: vi.fn() });
+  vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+  render(<CompletedRunCompare initialPair={pair} />);
+  expect(screen.getByLabelText("What-if provenance")).toHaveTextContent("B (#1), 2 turns");
+  fireEvent.click(screen.getByRole("button", { name: "Copy Markdown" }));
+  await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+  const markdown = writeText.mock.calls[0][0] as string;
+  expect(markdown).toContain('"region_id": 1');
+  expect(markdown).not.toContain('"value": 12');
+  expect(markdown).not.toContain("lab.transport_disruption");
+  expect(markdown).not.toContain("PRIVATE_TOKEN");
+  fireEvent.click(screen.getByRole("button", { name: "Download JSON" }));
+  const json = await new Promise<string>((resolve) => { const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result)); reader.readAsText(makeUrl.mock.calls[0][0]); });
+  expect(JSON.parse(json).what_if.intervention).toMatchObject({ region_id: 1, duration: 2, effective_counter: 3 });
+  expect(json).not.toContain('"value": 12'); expect(json).not.toContain("lab.transport_disruption");
+});

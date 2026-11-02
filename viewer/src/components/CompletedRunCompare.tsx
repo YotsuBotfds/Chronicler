@@ -19,7 +19,7 @@ const value = (number: number | null | undefined) => number == null ? "Not recor
   : number.toLocaleString(undefined, { maximumFractionDigits: 3 });
 
 /** Sharing keeps named settings and content identities, never arbitrary metadata. */
-function shareIdentity(input: ReturnType<typeof completedRunIdentity>): ReturnType<typeof completedRunIdentity> {
+function shareIdentity(input: ReturnType<typeof completedRunIdentity>) {
   const word = (value: unknown) => typeof value === "string" && /^[A-Za-z0-9_.+-]{1,120}$/.test(value) ? value : null;
   const modes = ["off", "off (aggregate)", "hybrid", "shadow", "demographics-only"];
   const rawSource = input.source as Record<string, unknown> | null;

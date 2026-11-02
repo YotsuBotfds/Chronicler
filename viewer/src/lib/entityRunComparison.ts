@@ -1,14 +1,14 @@
 /** Per-entity descriptive comparisons. Matching evidence and missing observations stay explicit. */
 import type { Bundle } from "../types";
 import type { CompletedRun } from "./completedRunComparison";
-import { compareReadings, exactSnapshot, readEntityTurn, type HistoryEntity } from "./historyComparison";
+import { compareReadings, exactSnapshot, NATIVE_FOOD_NOTE, readEntityTurn, type HistoryEntity } from "./historyComparison";
 import { readWhatIfManifest } from "./whatIf";
 
 export type EntityRunKind = HistoryEntity["kind"];
 export const ENTITY_RUN_MEASURES = [
   { id: "population", label: "Population", kinds: ["civilization", "region"], note: "Civilization snapshot population or completed regional model population, depending on entity kind. Higher is a larger recorded count, not a welfare judgment." },
   { id: "territory", label: "Controlled regions", kinds: ["civilization"], note: "Recorded controlled-region count. Higher means more territory; no conquest, utility or success is inferred." },
-  { id: "food", label: "Food / need", kinds: ["civilization", "region"], note: "Regional ratio, or unweighted mean of every recorded controlled region for a civilization. Higher means more food relative to need; this is not an overall welfare score." },
+  { id: "food", label: "Food / need", kinds: ["civilization", "region"], note: "Regional ratio, or unweighted mean of every recorded controlled region for a civilization. Phase 2 native food is before public relief; differing recorded bases are not compared. This is not an overall welfare score." },
   { id: "weightedFood", label: "Population-weighted food / need", kinds: ["civilization"], note: "Recorded Phase 2 population weights and ownership; excludes unknown ratios with denominator coverage. Higher is a larger ratio, not a universal benefit." },
   { id: "treasury", label: "Treasury", kinds: ["civilization"], note: "Recorded public treasury. Higher means more stored public money, not more household wealth or overall benefit." },
   { id: "debt", label: "Outstanding debt", kinds: ["civilization"], note: "Recorded principal, already including foreign debt. Lower means less debt, not necessarily lower cost or a better outcome." },
@@ -170,7 +170,14 @@ export function compareEntityRuns(left: CompletedRun, right: CompletedRun, turn:
     const ar = reading(left.bundle, first, kind, measure, turn), br = reading(right.bundle, last, kind, measure, turn);
     const changes = compareReadings({ turn, recorded: ar.value !== null, status: ar.status, metrics: [{ id: measure, label: definition.label, value: ar.value }] },
       { turn, recorded: br.value !== null, status: br.status, metrics: [{ id: measure, label: definition.label, value: br.value }] })[0];
-    const comparable = indexMatch || nameMatch;
+    const sameFoodBasis = !(kind === "region" && measure === "food" && ar.value !== null && br.value !== null)
+      || (ar.note === NATIVE_FOOD_NOTE) === (br.note === NATIVE_FOOD_NOTE);
+    if (!sameFoodBasis) {
+      const explanation = "Food bases differ; the difference is unknown.";
+      ar.note = [ar.note, explanation].filter(Boolean).join(" ");
+      br.note = [br.note, explanation].filter(Boolean).join(" ");
+    }
+    const comparable = (indexMatch || nameMatch) && sameFoodBasis;
     const delta = comparable ? finite(changes.delta) : null;
     const percent = comparable && delta !== null ? finite(changes.percent) : null;
     rows.push({ key: `${kind}:${index}`, name: first?.name ?? last!.name,

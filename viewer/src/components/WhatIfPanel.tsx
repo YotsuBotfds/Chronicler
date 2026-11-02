@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { PauseContext } from "../types";
 import { checkPreparedRecipe, createWhatIfRecipe, granaryPolicyValue, portableWhatIfManifest, readWhatIfRecipe,
-  recipeLiveMismatch, whatIfActive, whatIfInterventionLabel,
+  recipeLiveMismatch, transportRegions, validTransportDuration, whatIfActive, whatIfInterventionLabel,
   type WhatIfControls, type WhatIfManifest, type WhatIfPair, type WhatIfRecipe } from "../lib/whatIf";
 import "./what-if.css";
 
@@ -11,7 +11,10 @@ export function WhatIfPanel({ context, controls, onCompare }: {
   const [civ, setCiv] = useState(context.civs[0] ?? "");
   const [value, setValue] = useState(50);
   const [turns, setTurns] = useState(5);
-  const [control, setControl] = useState<"stability" | "granary_shortfall_priority">("stability");
+  const [control, setControl] = useState<"stability" | "granary_shortfall_priority" | "regional_transport_disruption">("stability");
+  const [regionId, setRegionId] = useState(0);
+  const [duration, setDuration] = useState(2);
+  const regions = transportRegions(controls.bundle);
   const [policy, setPolicy] = useState<0 | 1>(1);
   const policyBefore = granaryPolicyValue(controls.bundle);
   const [recipe, setRecipe] = useState<WhatIfRecipe | null>(null);
@@ -45,7 +48,8 @@ export function WhatIfPanel({ context, controls, onCompare }: {
   const recipeRunReady = !recipe || !liveMismatch && verified
     && (verification?.error === null || adoptedManifest && verification?.sourceMismatch === true);
   const valid = (control === "stability" ? context.civs.includes(civ) && Number.isInteger(value) && value >= 1 && value <= 100
-    : policyBefore !== null)
+    : control === "granary_shortfall_priority" ? policyBefore !== null
+      : regions.some((row) => row.id === regionId) && validTransportDuration(duration))
     && Number.isInteger(turns) && turns >= 1 && turns <= 20;
 
   async function importRecipe(file: File) {
@@ -53,7 +57,7 @@ export function WhatIfPanel({ context, controls, onCompare }: {
     try {
       if (file.size > 1024 * 1024) throw new Error("Recipe exceeds the 1 MiB limit.");
       const parsed = readWhatIfRecipe(JSON.parse(new TextDecoder().decode(await file.arrayBuffer())));
-      if (!parsed) throw new Error("Unsupported or malformed recipe. Only stability and global granary priority recipes are supported.");
+      if (!parsed) throw new Error("Unsupported or malformed recipe. Only supported stability, granary priority and regional transport recipes are accepted.");
       const mismatch = recipeLiveMismatch(parsed, controls.bundle, context.turn, context.civs);
       if (mismatch) throw new Error(mismatch);
       setAdoption(null);
@@ -61,7 +65,8 @@ export function WhatIfPanel({ context, controls, onCompare }: {
       setTurns(parsed.turns);
       setControl(parsed.control.kind);
       if (parsed.control.kind === "stability") { setCiv(parsed.control.civ); setValue(parsed.control.value); }
-      else setPolicy(parsed.control.value);
+      else if (parsed.control.kind === "granary_shortfall_priority") setPolicy(parsed.control.value);
+      else { setRegionId(parsed.control.region_id); setDuration(parsed.control.duration); }
       setRecipeMessage("Recipe loaded into the preparation form. No command was sent. Prepare to verify its exact checkpoint, source and settings.");
     } catch (error) {
       setRecipeError(error instanceof Error ? error.message : "Could not read this recipe.");
@@ -90,7 +95,8 @@ export function WhatIfPanel({ context, controls, onCompare }: {
     }
     setAdoption(null);
     if (control === "stability") controls.prepare(civ, value, turns);
-    else controls.preparePolicy(policy, turns);
+    else if (control === "granary_shortfall_priority") controls.preparePolicy(policy, turns);
+    else controls.prepareTransport(regionId, duration, turns);
   }
   return <section className="what-if-panel" aria-label="Bounded what-if">
     <h3>Try a bounded what-if</h3>
@@ -120,18 +126,25 @@ export function WhatIfPanel({ context, controls, onCompare }: {
       <label>Control<select aria-label="What-if control" value={control} onChange={(e) => setControl(e.target.value as typeof control)}>
         <option value="stability">Civilization stability</option>
         <option value="granary_shortfall_priority" disabled={policyBefore === null}>Global granary procurement priority</option>
+        <option value="regional_transport_disruption" disabled={regions.length === 0}>Regional transport disruption</option>
       </select></label>
       {control === "stability" ? <><label>Civilization<select aria-label="What-if civilization" value={civ} onChange={(e) => setCiv(e.target.value)}>
         {context.civs.map((name) => <option key={name}>{name}</option>)}
       </select></label>
       <label>Set stability to<input aria-label="What-if stability" type="number" min={1} max={100}
         value={value} onChange={(e) => setValue(Number(e.target.value))} /></label></>
-        : <><label>Priority<select aria-label="What-if granary priority" value={policy} onChange={(e) => setPolicy(Number(e.target.value) as 0 | 1)}>
+        : control === "granary_shortfall_priority" ? <><label>Priority<select aria-label="What-if granary priority" value={policy} onChange={(e) => setPolicy(Number(e.target.value) as 0 | 1)}>
           <option value={0}>Reserve fill first (0)</option><option value={1}>Food shortfall first (1)</option>
         </select></label>
         <p>World scope: every existing public granary. Baseline priority {policyBefore}; intervention priority {policy}.
           Purchase ordering changes within domestic and foreign passes. This does not enable granaries or create grain or money.
-          {policyBefore === policy && " The selected value is unchanged; this is a no-op control."}</p></>}
+          {policyBefore === policy && " The selected value is unchanged; this is a no-op control."}</p></>
+        : <><label>Region<select aria-label="What-if transport region" value={regionId} onChange={(e) => setRegionId(Number(e.target.value))}>
+          {regions.map((row) => <option key={row.id} value={row.id}>{row.name} (#{row.id})</option>)}
+        </select></label>
+        <label>Disruption duration (turns)<input aria-label="What-if transport duration" type="number" min={1} max={6}
+          value={Number.isNaN(duration) ? "" : duration} onChange={(e) => setDuration(e.target.valueAsNumber)} /></label>
+        <p>Closes every trade route incident to the selected region for the requested future simulation turns. An existing longer disruption can remain in effect. Preparation reports the actual prior and effective window; hybrid mode is required.</p></>}
       {policyBefore === null && <p>Global granary priority requires hybrid mode and already-enabled public granaries with a binary saved priority.</p>}
       <label>Additional turns<input aria-label="What-if horizon" type="number" min={1} max={20}
         value={turns} onChange={(e) => setTurns(Number(e.target.value))} /></label>

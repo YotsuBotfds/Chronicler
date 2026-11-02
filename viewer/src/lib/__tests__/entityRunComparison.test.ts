@@ -96,6 +96,24 @@ describe("per-entity cross-run comparison", () => {
     b.bundle.history[1].civ_stats.A.treasury = 1e308;
     expect(compareEntityRuns(a, b, 2, "civilization", "treasury").rows.find((row) => row.name === "A")).toMatchObject({ delta: null, percent: null });
   });
+  it("does not subtract a native pre-relief ratio from a legacy food ratio", () => {
+    const a = input(regionalFixture()), b = input(regionalFixture());
+    const snap = b.bundle.history[1];
+    delete snap.food;
+    const native = { opening: 1, produced: 0, transport_net: 0, craft_input: 0, clamp_correction: 0,
+      pre_consumption: 1, consumed: 1, storage_loss: 0, cap_overflow: 0, closing: 0,
+      demand: 1, sufficiency: 1.25, balance_residual: 0, balance_tolerance: 0.00001 };
+    snap.food_accounting = { schema_version: 1, mode: "hybrid", source_turn: 1, completed_turn: 2,
+      timing: "phase2", units: "model_food_goods", transport: "physical_delivery", procurement: [],
+      regions: [{ region_id: 0, native_count: 3, model_population: 3, native, sufficiency_after_relief: null, public: null }] };
+    const row = compareEntityRuns(a, b, 2, "region", "food").rows.find((item) => item.name === "A")!;
+    expect(row).toMatchObject({ left: { value: 0.5 }, right: { value: 1.25 }, delta: null, percent: null });
+    expect(row.right.note).toContain("Food bases differ");
+    delete a.bundle.history[1].food;
+    a.bundle.history[1].food_accounting = structuredClone(snap.food_accounting);
+    a.bundle.history[1].food_accounting!.regions[0].native!.sufficiency = 1;
+    expect(compareEntityRuns(a, b, 2, "region", "food").rows.find((item) => item.name === "A")!.delta).toBe(0.25);
+  });
   it("keeps regional model population separate, follows each input index and never substitutes final populations", () => {
     const a = input(regionalFixture()), b = input(regionalFixture());
     b.bundle.world_state.regions.reverse();

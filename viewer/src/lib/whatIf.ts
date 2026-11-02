@@ -17,6 +17,9 @@ export type WhatIfManifest = WhatIfManifestBase & (
   { schema_version: 1; intervention: { command: "set"; civ: string; stat: "stability"; before: number; value: number } }
   | { schema_version: 2; intervention: { command: "set"; civ: "@world";
       stat: "grain_reserves.shortfall_priority"; before: 0 | 1; value: 0 | 1; scope: "world" } }
+  | { schema_version: 3; intervention: { command: "set"; civ: "@transport"; stat: "lab.transport_disruption";
+      before: number; value: number; scope: "region"; region_id: number; region_name: string; duration: number;
+      prior_counter: number; effective_counter: number; effective_through_turn: number } }
 );
 export interface WhatIfPair {
   manifest: WhatIfManifest;
@@ -36,6 +39,7 @@ export interface WhatIfControls {
   connected: boolean;
   prepare: (civ: string, value: number, turns: number) => void;
   preparePolicy: (value: 0 | 1, turns: number) => void;
+  prepareTransport: (regionId: number, duration: number, turns: number) => void;
   /** Current server bundle, used only for eligibility and recipe checks. */
   bundle?: Bundle | null;
   run: () => void;
@@ -57,17 +61,33 @@ export function granaryPolicyValue(bundle?: Bundle | null): 0 | 1 | null {
   const value = record(world.tuning_overrides) ? world.tuning_overrides["grain_reserves.shortfall_priority"] ?? 0 : 0;
   return binary(value) ? value : null;
 }
+/** Region indices are authoritative; an ambiguous or non-hybrid world cannot prepare this control. */
+export function transportRegions(bundle?: Bundle | null): Array<{ id: number; name: string }> {
+  if (!bundle || (bundle.world_state as unknown as Record<string, unknown>).agent_mode !== "hybrid"
+    || !Array.isArray(bundle.world_state.regions)) return [];
+  const regions = bundle.world_state.regions;
+  if (!regions.length || regions.some((r) => !r || typeof r.name !== "string" || !r.name.trim()
+    || r.name.length > 200 || /[\r\n\0]/.test(r.name)) || new Set(regions.map((r) => r.name)).size !== regions.length) return [];
+  return regions.map((r, id) => ({ id, name: r.name }));
+}
+export const validTransportDuration = (duration: number) => Number.isSafeInteger(duration) && duration >= 1 && duration <= 6;
+
 export function whatIfInterventionLabel(manifest: WhatIfManifest): string {
-  const action = manifest.intervention;
-  return manifest.schema_version === 2
-    ? `World granary priority: ${action.before === 0 ? "reserve fill first (0)" : "shortfall first (1)"} → ${action.value === 0 ? "reserve fill first (0)" : "shortfall first (1)"}`
-    : `${action.civ}: stability ${action.before} → ${action.value}`;
+  if (manifest.schema_version === 3) {
+    const a = manifest.intervention;
+    return `Transport disruption: ${a.region_name} (#${a.region_id}), ${a.duration} turns; existing counter ${a.prior_counter}, effective counter ${a.effective_counter}, through simulation turn ${a.effective_through_turn}`;
+  }
+  if (manifest.schema_version === 2) {
+    const a = manifest.intervention;
+    return `World granary priority: ${a.before === 0 ? "reserve fill first (0)" : "shortfall first (1)"} → ${a.value === 0 ? "reserve fill first (0)" : "shortfall first (1)"}`;
+  }
+  return `${manifest.intervention.civ}: stability ${manifest.intervention.before} → ${manifest.intervention.value}`;
 }
 export function whatIfArmLabel(manifest: WhatIfManifest): string {
-  return manifest.schema_version === 2 ? "Global granary priority intervention" : "Stability intervention";
+  return manifest.schema_version === 3 ? "Regional transport disruption" : manifest.schema_version === 2 ? "Global granary priority intervention" : "Stability intervention";
 }
 export function readWhatIfManifest(value: unknown): WhatIfManifest | null {
-  if (!record(value) || ![1, 2].includes(value.schema_version as number) || value.semantics !== "exact_checkpoint_pair"
+  if (!record(value) || ![1, 2, 3].includes(value.schema_version as number) || value.semantics !== "exact_checkpoint_pair"
     || typeof value.request_id !== "string" || !/^[A-Za-z0-9_-]{1,80}$/.test(value.request_id)
     || !record(value.source) || typeof value.mode !== "string"
     || !Number.isSafeInteger(value.seed) || !Number.isSafeInteger(value.start_turn) || (value.start_turn as number) < 0
@@ -76,14 +96,24 @@ export function readWhatIfManifest(value: unknown): WhatIfManifest | null {
     || !record(value.intervention)) return null;
   const action = value.intervention;
   const allowed = value.schema_version === 1 ? ["command", "civ", "stat", "before", "value"]
-    : ["command", "civ", "stat", "before", "value", "scope"];
+    : value.schema_version === 2 ? ["command", "civ", "stat", "before", "value", "scope"]
+    : ["command", "civ", "stat", "before", "value", "scope", "region_id", "region_name", "duration", "prior_counter", "effective_counter", "effective_through_turn"];
   if (Object.keys(action).some((key) => !allowed.includes(key)) || action.command !== "set") return null;
   if (value.schema_version === 1) {
     if (action.stat !== "stability" || typeof action.civ !== "string" || !action.civ
       || /[\r\n]/.test(action.civ) || action.civ.includes("\0") || !Number.isFinite(action.before) || !Number.isInteger(action.value)
       || (action.value as number) < 1 || (action.value as number) > 100) return null;
-  } else if (value.mode !== "hybrid" || action.stat !== "grain_reserves.shortfall_priority"
-    || action.civ !== "@world" || action.scope !== "world" || !binary(action.before) || !binary(action.value)) return null;
+  } else if (value.schema_version === 2) {
+    if (value.mode !== "hybrid" || action.stat !== "grain_reserves.shortfall_priority"
+      || action.civ !== "@world" || action.scope !== "world" || !binary(action.before) || !binary(action.value)) return null;
+  } else if (value.mode !== "hybrid" || action.stat !== "lab.transport_disruption" || action.civ !== "@transport" || action.scope !== "region"
+    || !Number.isSafeInteger(action.region_id) || (action.region_id as number) < 0 || typeof action.region_name !== "string"
+    || !action.region_name.trim() || action.region_name.length > 200 || /[\r\n\0]/.test(action.region_name)
+    || !validTransportDuration(action.duration as number) || !Number.isSafeInteger(action.value)
+    || action.value !== (action.region_id as number) * 10 + (action.duration as number)
+    || !Number.isSafeInteger(action.prior_counter) || (action.prior_counter as number) < 0 || action.before !== action.prior_counter
+    || !Number.isSafeInteger(action.effective_counter) || action.effective_counter !== Math.max(action.prior_counter as number, (action.duration as number) + 1)
+    || !Number.isSafeInteger(action.effective_through_turn) || action.effective_through_turn !== (value.start_turn as number) + (action.effective_counter as number) - 2) return null;
   return value as unknown as WhatIfManifest;
 }
 function readArm(value: unknown, label: string): CompletedRun | null {
@@ -182,8 +212,11 @@ export function portableRuntime(value: unknown): Record<string, unknown> | null 
   return { source: { git_sha: source.git_sha, package_digest: source.package_digest }, native: nativeOut, environment };
 }
 
-/** Safe provenance for the existing comparison exports; not an executable recipe. */
-export function portableWhatIfManifest(manifest: WhatIfManifest): WhatIfManifest {
+/** Public provenance is descriptive, not an executable backend manifest. */
+export type PortableWhatIfManifest = WhatIfManifest | (WhatIfManifestBase & { schema_version: 3;
+  intervention: { control: "regional_transport_disruption"; scope: "region"; region_id: number; region_name: string;
+    duration: number; prior_counter: number; effective_counter: number; effective_through_turn: number } });
+export function portableWhatIfManifest(manifest: WhatIfManifest): PortableWhatIfManifest {
   const source = manifest.source;
   const header = record(source.header) ? source.header : {};
   const config = record(header.run_config) ? header.run_config : {};
@@ -196,15 +229,21 @@ export function portableWhatIfManifest(manifest: WhatIfManifest): WhatIfManifest
     header: { exact: header.exact === true, turn: manifest.start_turn, seed: manifest.seed,
       identity: portableRuntime(header.identity), run_config: { simulation_args: portableSettings(config.simulation_args),
         output_args: { simulate_only: record(config.output_args) && config.output_args.simulate_only === true } } } } };
-  const action = manifest.intervention;
-  return manifest.schema_version === 2 ? { ...common, schema_version: 2,
+  if (manifest.schema_version === 3) {
+    const a = manifest.intervention;
+    return { ...common, schema_version: 3, intervention: { control: "regional_transport_disruption", scope: "region",
+      region_id: a.region_id, region_name: a.region_name, duration: a.duration, prior_counter: a.prior_counter,
+      effective_counter: a.effective_counter, effective_through_turn: a.effective_through_turn } };
+  }
+  if (manifest.schema_version === 2) return { ...common, schema_version: 2,
     intervention: { command: "set", civ: "@world", stat: "grain_reserves.shortfall_priority",
-      scope: "world", before: manifest.intervention.before, value: manifest.intervention.value } }
-    : { ...common, schema_version: 1, intervention: { command: "set", civ: action.civ, stat: "stability", before: action.before, value: action.value } };
+      scope: "world", before: manifest.intervention.before, value: manifest.intervention.value } };
+  return { ...common, schema_version: 1, intervention: { ...manifest.intervention } };
 }
 
 type RecipeControl = { kind: "stability"; civ: string; value: number }
-  | { kind: "granary_shortfall_priority"; value: 0 | 1 };
+  | { kind: "granary_shortfall_priority"; value: 0 | 1 }
+  | { kind: "regional_transport_disruption"; region_id: number; duration: number };
 export interface WhatIfRecipe {
   kind: "chronicler-what-if-recipe";
   version: 1;
@@ -240,10 +279,10 @@ export async function createWhatIfRecipe(manifest: WhatIfManifest, pair?: WhatIf
   }
   const runtime = portableRuntime(header.identity);
   if (!runtime) throw new Error("The prepared manifest does not contain complete source and runtime identity.");
-  const action = manifest.intervention;
-  const control: RecipeControl = manifest.schema_version === 2
-    ? { kind: "granary_shortfall_priority", value: manifest.intervention.value }
-    : { kind: "stability", civ: action.civ, value: action.value };
+  const control: RecipeControl = manifest.schema_version === 3
+    ? { kind: "regional_transport_disruption", region_id: manifest.intervention.region_id, duration: manifest.intervention.duration }
+    : manifest.schema_version === 2 ? { kind: "granary_shortfall_priority", value: manifest.intervention.value }
+      : { kind: "stability", civ: manifest.intervention.civ, value: manifest.intervention.value };
   const baseline = pair ? portableArtifact(pair.baseline.identity) : null;
   const intervention = pair ? portableArtifact(pair.intervention.identity) : null;
   if (pair && (!baseline || !intervention)) throw new Error("Recipe output identities are incomplete.");
@@ -271,8 +310,14 @@ function parseRecipe(value: unknown): WhatIfRecipe | null {
   if (control.kind === "stability") {
     if (!exactKeys(control, ["kind", "civ", "value"]) || !plain(control.civ)
       || !Number.isInteger(control.value) || (control.value as number) < 1 || (control.value as number) > 100) return null;
-  } else if (control.kind !== "granary_shortfall_priority" || source.mode !== "hybrid"
-    || !exactKeys(control, ["kind", "value"]) || !binary(control.value)) return null;
+  } else if (control.kind === "granary_shortfall_priority") {
+    if (source.mode !== "hybrid" || !exactKeys(control, ["kind", "value"]) || !binary(control.value)) return null;
+  } else if (control.kind === "regional_transport_disruption") {
+    if (source.mode !== "hybrid" || !exactKeys(control, ["kind", "region_id", "duration"])
+      || !Number.isSafeInteger(control.region_id) || (control.region_id as number) < 0
+      || !Number.isSafeInteger((control.region_id as number) * 10 + (control.duration as number))
+      || !validTransportDuration(control.duration as number)) return null;
+  } else return null;
   if (value.outputs !== null) {
     if (!record(value.outputs) || !exactKeys(value.outputs, ["baseline", "intervention"])) return null;
     for (const key of ["baseline", "intervention"]) {
@@ -293,6 +338,10 @@ export function recipeLiveMismatch(recipe: WhatIfRecipe, bundle: Bundle | null |
   }
   if (recipe.control.kind === "stability" && !civs.includes(recipe.control.civ)) return "Recipe civilization is unavailable in this paused world.";
   if (recipe.control.kind === "granary_shortfall_priority" && granaryPolicyValue(bundle) === null) return "Recipe requires already-enabled hybrid granaries.";
+  if (recipe.control.kind === "regional_transport_disruption") {
+    const regionId = recipe.control.region_id;
+    if (!transportRegions(bundle).some((r) => r.id === regionId)) return "Recipe requires the selected region in an eligible hybrid world.";
+  }
   return null;
 }
 export interface PreparedRecipeCheck {

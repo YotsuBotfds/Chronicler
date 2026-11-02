@@ -87,6 +87,42 @@ describe("exact-turn comparison", () => {
     expect(readEntityTurn(bundle, North, 1).controller).toBe("Not recorded");
   });
 
+  it("uses only dated native food accounting for a missing regional observation", () => {
+    const bundle = comparisonFixture();
+    const snapshot = bundle.history[0];
+    delete snapshot.food;
+    const native = { opening: 1, produced: 0, transport_net: 0, craft_input: 0, clamp_correction: 0,
+      pre_consumption: 1, consumed: 1, storage_loss: 0, cap_overflow: 0, closing: 0,
+      demand: 1, sufficiency: 1.1755, balance_residual: 0, balance_tolerance: 0.00001 };
+    snapshot.food_accounting = { schema_version: 1, mode: "hybrid", source_turn: 0, completed_turn: 1,
+      timing: "phase2", units: "model_food_goods", transport: "physical_delivery", procurement: [],
+      regions: [{ region_id: 0, native_count: 3, model_population: 3, native,
+        sufficiency_after_relief: null, public: null }] };
+    expect(values(bundle, North).food).toBe(1.1755);
+    expect(values(bundle, { kind: "region", name: "South" }).food).toBeNull();
+    native.sufficiency = 0;
+    expect(values(bundle, North).food).toBe(0);
+    native.demand = 0;
+    expect(values(bundle, North).food).toBeNull();
+    native.demand = 1;
+    snapshot.food_accounting.regions[0].native_count = null;
+    expect(values(bundle, North).food).toBeNull();
+    snapshot.food_accounting.regions[0].native_count = 3;
+    snapshot.food_accounting.source_turn = 1;
+    expect(values(bundle, North).food).toBeNull();
+    snapshot.food_accounting.source_turn = 0;
+    snapshot.food_accounting.schema_version = 2 as 1;
+    expect(values(bundle, North).food).toBeNull();
+    snapshot.food_accounting.schema_version = 1;
+    snapshot.food_accounting.mode = "off";
+    expect(values(bundle, North).food).toBeNull();
+    snapshot.food_accounting.mode = "hybrid";
+    snapshot.food = { sufficiency: [null, 1], aid: [] };
+    expect(values(bundle, North).food).toBeNull();
+    snapshot.food.sufficiency[0] = 0.5;
+    expect(values(bundle, North).food).toBe(0.5);
+  });
+
   it("requires granary demand evidence for targets, and never adds duplicate region records", () => {
     const bundle = comparisonFixture();
     const granary = { region: 0, region_name: "North", owner: 0, owner_name: "A", controller: "A", grain: 0, target: 0, observed: 0 };

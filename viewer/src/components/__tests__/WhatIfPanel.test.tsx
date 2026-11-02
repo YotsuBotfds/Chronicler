@@ -10,7 +10,7 @@ import { recipeManifest, whatIfManifest, whatIfPair } from "../../__fixtures__/w
 import { comparisonBundle } from "../../__fixtures__/completedRunHistory";
 const context: PauseContext = { turn: 2, reason: "interval", civs: ["A", "B"],
   valid_commands: ["what_if_prepare", "checkpoint", "continue", "set", "fork", "quit"], injectable_events: ["famine"], settable_stats: ["stability"] };
-const controls = (): WhatIfControls => ({ status: null, connected: true, prepare: vi.fn(), preparePolicy: vi.fn(), run: vi.fn(), cancel: vi.fn() });
+const controls = (): WhatIfControls => ({ status: null, connected: true, prepare: vi.fn(), preparePolicy: vi.fn(), prepareTransport: vi.fn(), run: vi.fn(), cancel: vi.fn() });
 beforeEach(() => vi.stubGlobal("crypto", webcrypto));
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 it("prepares only the named global binary policy, previews scope and preserves no-op controls", () => {
@@ -256,4 +256,54 @@ it("does not offer new-case adoption when the prepared manifest lacks verifiable
   expect(screen.queryByRole("button", { name: "Use this prepared checkpoint as a new case" })).toBeNull();
   expect(screen.getByRole("button", { name: "Run both continuations" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Cancel comparison" })).toBeEnabled();
+});
+
+it("prepares a bounded regional disruption by index, then shows the readable real preview", () => {
+  const bundle = comparisonBundle(); (bundle.world_state as unknown as Record<string, unknown>).agent_mode = "hybrid";
+  const c = { ...controls(), bundle }; const view = render(<WhatIfPanel context={context} controls={c} onCompare={vi.fn()} />);
+  fireEvent.change(screen.getByLabelText("What-if control"), { target: { value: "regional_transport_disruption" } });
+  fireEvent.change(screen.getByLabelText("What-if transport region"), { target: { value: "1" } });
+  fireEvent.change(screen.getByLabelText("What-if transport duration"), { target: { value: "7" } });
+  expect(screen.getByRole("button", { name: "Prepare comparison" })).toBeDisabled();
+  fireEvent.change(screen.getByLabelText("What-if transport duration"), { target: { value: "2" } });
+  fireEvent.change(screen.getByLabelText("What-if horizon"), { target: { value: "4" } });
+  fireEvent.click(screen.getByRole("button", { name: "Prepare comparison" }));
+  expect(c.prepareTransport).toHaveBeenCalledExactlyOnceWith(1, 2, 4);
+  expect(c.run).not.toHaveBeenCalled();
+  const manifest = { ...whatIfManifest, schema_version: 3 as const, end_turn: 6, turns: 4,
+    intervention: { command: "set" as const, civ: "@transport" as const, stat: "lab.transport_disruption" as const,
+      before: 0, value: 12, scope: "region" as const, region_id: 1, region_name: "B", duration: 2,
+      prior_counter: 0, effective_counter: 3, effective_through_turn: 3 } };
+  view.rerender(<WhatIfPanel context={context} controls={{ ...c, status: { request_id: "fixture-pair", state: "prepared", manifest } }} onCompare={vi.fn()} />);
+  const preview = screen.getByLabelText("Prepared what-if");
+  expect(preview).toHaveTextContent("B (#1), 2 turns; existing counter 0, effective counter 3, through simulation turn 3");
+  expect(preview).not.toHaveTextContent("lab.transport_disruption");
+  expect(preview).not.toHaveTextContent("@transport");
+  fireEvent.click(screen.getByRole("button", { name: "Run both continuations" })); expect(c.run).toHaveBeenCalledOnce();
+});
+it("disables regional disruption without a compatible hybrid world", () => {
+  render(<WhatIfPanel context={context} controls={controls()} onCompare={vi.fn()} />);
+  expect(screen.getByRole("option", { name: "Regional transport disruption" })).toBeDisabled();
+});
+
+it("imports a transport recipe without exposing an encoded command or sending it", async () => {
+  const manifest = { ...recipeManifest(), schema_version: 3 as const,
+    intervention: { command: "set" as const, civ: "@transport" as const, stat: "lab.transport_disruption" as const,
+      before: 0, value: 12, scope: "region" as const, region_id: 1, region_name: "B", duration: 2,
+      prior_counter: 0, effective_counter: 3, effective_through_turn: 3 } };
+  const recipe = await createWhatIfRecipe(manifest);
+  const bundle = comparisonBundle(); (bundle.world_state as unknown as Record<string, unknown>).agent_mode = "hybrid";
+  const c = { ...controls(), bundle };
+  const view = render(<WhatIfPanel context={context} controls={c} onCompare={vi.fn()} />);
+  fireEvent.change(screen.getByLabelText("Import what-if recipe"), { target: { files: [new File([JSON.stringify(recipe)], "transport.json")] } });
+  await screen.findByText(/Recipe loaded into the preparation form/);
+  expect(screen.getByLabelText("What-if transport region")).toHaveValue("1");
+  expect(screen.getByLabelText("What-if transport duration")).toHaveValue(2);
+  expect(screen.getByLabelText("What-if horizon")).toHaveValue(3);
+  expect(c.prepareTransport).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Prepare comparison" }));
+  expect(c.prepareTransport).toHaveBeenCalledExactlyOnceWith(1, 2, 3);
+  view.rerender(<WhatIfPanel context={context} controls={{ ...c, status: { request_id: "fixture-pair", state: "prepared", manifest } }} onCompare={vi.fn()} />);
+  await waitFor(() => expect(screen.getByRole("button", { name: "Run both continuations" })).toBeEnabled());
+  expect(c.run).not.toHaveBeenCalled();
 });

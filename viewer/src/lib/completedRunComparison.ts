@@ -214,7 +214,9 @@ export function completedComparisonSummary(left: CompletedRun, right: CompletedR
   };
 }
 
-export function comparisonMarkdown(summary: ReturnType<typeof completedComparisonSummary>): string {
+type MarkdownInput = Omit<ReturnType<typeof completedRunIdentity>, "settings"> & { settings: unknown };
+type MarkdownSummary = Omit<ReturnType<typeof completedComparisonSummary>, "inputs"> & { inputs: { left: MarkdownInput; right: MarkdownInput } };
+export function comparisonMarkdown(summary: MarkdownSummary): string {
   const text = (value: unknown) => String(value ?? "Not recorded").replace(/[|\r\n]/g, " ");
   const lines = ["# Completed-run comparison", "", ...summary.limits.map((line) => `- ${line}`), "",
     "## Inputs", "", "| Input | File | SHA-256 (original bytes) | Seed | Horizon | Agent mode | Source |",
