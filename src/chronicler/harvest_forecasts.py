@@ -848,9 +848,17 @@ def snapshot_summary(world) -> dict:
     source_turn = world.turn - 1
     if state.last_tick_turn != source_turn:
         return {}
-    return {"source_turn": source_turn,
+    result = {"source_turn": source_turn,
             "reports": [r.model_dump() for r in state.reports],
             "outcomes": [r.model_dump() for r in state.outcomes],
             "preparedness": [dict(row) for row in state.preparedness]
             if state.last_tick_turn == source_turn else [],
             "counters": dict(state.counters), "calibration": [list(b) for b in state.calibration]}
+    decisions = getattr(state, "procurement_decisions", None)
+    if decisions is not None and decisions.get("source_turn") == source_turn:
+        from copy import deepcopy
+        result["procurement_decisions"] = deepcopy(decisions)
+    delay = get_report_delay(state)
+    if delay:
+        result["report_delay"] = delay
+    return result

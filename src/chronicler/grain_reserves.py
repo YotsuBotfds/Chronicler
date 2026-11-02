@@ -509,6 +509,7 @@ def tick_grain_reserves(world: "WorldState", acc=None, economy_result: "EconomyR
         if harvest_forecasts_on(world):
             from chronicler.harvest_forecasts import tick_harvest_forecasts
             events.extend(tick_harvest_forecasts(world, None))
+            world.harvest_forecasts.procurement_decisions = None
         if ledger is not None:
             ledger.finish(world, state, agent_bridge)
         from chronicler.transaction_receipts_state import transaction_receipts_on
@@ -520,10 +521,13 @@ def tick_grain_reserves(world: "WorldState", acc=None, economy_result: "EconomyR
     # Default-off public assessments see only the production already measured
     # this turn. Rebuild their temporary target from the normal target above.
     from chronicler.harvest_forecasts_state import harvest_forecasts_on
+    _forecast_target_before = _forecast_requested_targets = None
     if harvest_forecasts_on(world):
         from chronicler.harvest_forecasts import apply_preparedness, tick_harvest_forecasts
         events.extend(tick_harvest_forecasts(world, economy_result))
+        _forecast_target_before = tuple(g.target for g in state.granaries)
         apply_preparedness(world, economy_result)
+        _forecast_requested_targets = tuple(g.target for g in state.granaries)
 
     shipments = getattr(state, "shipments", None)
     inbound = None
@@ -562,6 +566,17 @@ def tick_grain_reserves(world: "WorldState", acc=None, economy_result: "EconomyR
     loss = _transit_loss()
     flows = _flows(world, state)
     purchase_flow_start = len(flows)
+    _forecast_decisions = None
+    if harvest_forecasts_on(world):
+        from chronicler.harvest_forecasts import begin_forecast_decisions
+        storage = getattr(state, "storage", None)
+        _forecast_decisions = begin_forecast_decisions(
+            world, economy_result, opening_budget,
+            inbound if inbound is not None else [0.0] * len(regions),
+            target_before=_forecast_target_before,
+            requested_targets=_forecast_requested_targets,
+            capacity_records=storage.receipts if storage is not None and storage.receipt_turn == world.turn else None,
+        )
     graph = _route_graph(world)
     foreign_bought: dict[int, list] = {}
     from chronicler.tuning import K_GRAIN_RESERVES_SHORTFALL_PRIORITY, get_override
@@ -672,7 +687,14 @@ def tick_grain_reserves(world: "WorldState", acc=None, economy_result: "EconomyR
         ledger.after_buy(world, acc, state)
         ledger.finish(world, state, agent_bridge)
     if harvest_forecasts_on(world):
-        from chronicler.harvest_forecasts import record_preparedness_purchases
+        from chronicler.harvest_forecasts import finish_forecast_decisions, record_preparedness_purchases
+        from dataclasses import asdict
+        receipts = finish_forecast_decisions(world, _forecast_decisions)
+        world.harvest_forecasts.procurement_decisions = {
+            "schema_version": 1, "source_turn": world.turn, "available_turn": world.turn + 1,
+            "mode": world.agent_mode, "goods_units": "model_food_goods",
+            "currency_units": "model_treasury_coins", "rows": [asdict(row) for row in receipts],
+        } if _forecast_decisions is not None else None
         events.extend(record_preparedness_purchases(world))
     from chronicler.transaction_receipts_state import transaction_receipts_on
     if transaction_receipts_on(world):

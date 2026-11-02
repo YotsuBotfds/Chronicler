@@ -132,6 +132,8 @@ class HarvestForecastState(BaseModel):
     # Five probability bins: [count, probability_sum, observed_shortfalls].
     calibration: list[list[float]] = Field(default_factory=lambda: [[0.0, 0.0, 0.0] for _ in range(5)])
     last_tick_turn: int | None = None
+    # Dated public procurement receipts; absent in older saves and when unknown.
+    procurement_decisions: dict | None = Field(default=None, exclude_if=lambda value: value is None)
 
 
 def harvest_forecasts_on(world) -> bool:
