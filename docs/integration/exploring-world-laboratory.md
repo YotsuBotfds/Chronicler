@@ -29,8 +29,9 @@ scripts/world-laboratory-example.sh generate \
   "$CHRONICLER_NATIVE_ENV/bin/python"
 ```
 
-Generate after the what-if backend has been integrated, from committed simulation
-source. The wrapper rejects dirty simulation/native source, output paths inside
+This session's destination already exists and is preserved. To regenerate,
+choose a fresh external destination in both commands. Generate from committed
+simulation source with the integrated what-if backend. The wrapper rejects dirty simulation/native source, output paths inside
 the repository, and any existing destination. It sets `PYTHONHASHSEED=0` and
 `RAYON_NUM_THREADS`, `OMP_NUM_THREADS`, `OPENBLAS_NUM_THREADS` and
 `MKL_NUM_THREADS` to 1 for both generation and live resume. The native probe
@@ -180,13 +181,74 @@ causal estimate or general policy benefit. A cancelled or failed arm retains its
 partial output and cannot be presented as a completed comparison. No narration
 or paid API calls are part of this workflow.
 
-## Session verification status
+## Verified session walkthrough
 
-At this guide's initial commit, shell syntax and command/guard checks are the
-local wrapper checks. Actual generation is deliberately pending integration of
-the what-if backend, so the exact checkpoint is produced by the same package
-that resumes it. The real turn-8 manifest, completed pair, observed values and
-browser screenshots remain pending until recorded by the integration owner.
-Do not treat the documented commands or UI labels as evidence that those steps
-have run. The completed producer slice has its own separate regional-observation
-parity evidence; that does not qualify this new end-to-end walkthrough.
+The fixed recipe was generated at source `42817457`; simulation package digest
+`11557116ca9a60f5e1f3b60009b4dcc62b9035f479f1c2757acecc1ffdf43ab2`.
+Final browser verification used the viewer at `612e67bb`; intervening viewer and
+documentation commits did not change the simulation package. Python 3.13.5,
+Chromium154 and the actual compiled native binary `f6f78b0c…` were used. Current
+Rust inputs match that binary's separately recorded build source; this was not a
+fresh local native build. The original turn-8 checkpoint hash stayed unchanged.
+
+At turn16 the original world records Thornwood food/need0.77 and five native
+agents leaving; Ashara Desert records three leaving. The condition cards keep
+these as observations, without labeling movement as forced displacement or
+claiming it caused the population changes. Choose **Inspect history: Ashara
+Desert**, select **Regional model population**, and use turns8–16. Its nine exact
+counts are18,25,23,18,14,13,12,10,9; the timeline stays at16. These are real
+naturally generated observations, not adjusted opening-state fixtures.
+
+The constructed comparison sets **Ashkari Nomads stability31→70** from exact
+turn8 for eight further ticks. Both actual arms finish16 and leave the original
+paused8. The unchanged arm matches the original through16; both arms share the
+entire history prefix through8. Source, checkpoint configuration epoch, native
+identity and arm labels survive reopening the saved files and exporting them.
+
+| Turn16 measure | Unchanged | Stability intervention |
+| --- | ---: | ---: |
+| Regional model population | 199 | 195 |
+| Public treasury | 165 | 203 |
+| Outstanding debt | 57 | 53 |
+| Population-weighted recorded food/need | 1.641385 | 1.693077 |
+
+These differences describe this single constructed intervention. They show
+tradeoffs and do not establish general balance or scientific policy effects.
+Food uses each arm's Phase2 agent weights and known-ratio coverage, rather than
+completed population or a physical inventory ratio.
+
+Actual browser checks pass prepare/review/run, duplicate clicks, reconnect,
+refusal then recovery, prepared/running cancel, real owned-child cleanup,
+12-metric JSON/Markdown arithmetic and390px layout. Wide metric tables scroll
+inside their container. The original world and exact checkpoint are preserved;
+failed/cancelled job directories remain as evidence. The live parent quit at8
+and owned browser/live processes stopped.
+
+External report: `/workspace/shared/chronicler-world-lab-evidence/browser/what-if/QA_REPORT.json`.
+The example archive includes `WALKTHROUGH.md`, manifests, original/pair files,
+comparison exports and these actual UI screenshots under `screenshots/`:
+
+- `regional-history.png`: Ashara's exact recorded8–16 observations.
+- `prepared-phone.png`: labeled intervention before execution.
+- `comparison-identities.png`: recorded source/native/runtime and both arms.
+- `comparison-metrics.png`: actual shared-turn values and coverage.
+- `comparison-phone.png`: phone-width comparison with contained table scroll.
+
+For another live session, keep the old `live/` results. Use a fresh output
+folder with the ordinary CLI instead of overwriting them:
+
+```bash
+cd /workspace/Chronicler-kimi
+source /workspace/shared/chronicler-onboarding/runtime-6da9acae6bda6d7a.env
+export PYTHONPATH="$PWD/src" PYTHONHASHSEED=0
+export RAYON_NUM_THREADS=1 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
+world_lab_replay=/workspace/shared/chronicler-world-lab-replay-02
+if test -e "$world_lab_replay"; then echo 'Choose a fresh output folder'; exit 1; fi
+"$CHRONICLER_NATIVE_ENV/bin/python" -m chronicler.main --live --live-port 0 \
+  --resume /workspace/shared/chronicler-world-lab-example-20261102/original/checkpoints/turn_0008.ckpt \
+  --turns 24 --pause-every 8 --simulate-only \
+  --output "$world_lab_replay/chronicle.md" --state "$world_lab_replay/state.json"
+```
+
+Exact resume still requires matching package/native/interpreter/environment;
+regenerate on incompatible source rather than using a mismatch override.

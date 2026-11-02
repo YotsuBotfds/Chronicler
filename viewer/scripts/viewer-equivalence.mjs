@@ -127,7 +127,12 @@ async function drive(browser, url, bundle, total, turns, subset) {
   });
   await page.goto(url, { waitUntil: "load" });
   await page.waitForSelector(".phase75-shell");
-  await page.getByLabel("Open saved world file").setInputFiles(bundle.path);
+  // Historical builds predate the named loader; current builds also have a
+  // separate resume-state input accepting .json, which must not receive bundles.
+  const namedLoader = page.getByLabel("Open saved world file");
+  const loader = await namedLoader.count() ? namedLoader
+    : page.locator('input[type="file"][accept=".json"]').first();
+  await loader.setInputFiles(bundle.path);
   await page.waitForFunction(() => document.querySelector(".phase75-mode-tab.active")?.textContent === "Overview"
     && !!document.querySelector(".phase75-playhead-label") && !document.querySelector("[data-lazy-fallback]"),
   null, { timeout: 120000, polling: 50 });
