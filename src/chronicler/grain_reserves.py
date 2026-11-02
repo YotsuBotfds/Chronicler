@@ -241,6 +241,10 @@ def open_granaries(world: "WorldState", economy_result: "EconomyResult | None",
     sufficiency and post-trade food supply), then spoil. Returns events."""
     if not grain_reserves_active(world):
         return []
+    from chronicler.tuning import K_GRAIN_RESERVES_FULL_MEAL_RELEASE, get_override
+    full_meal_release = get_override(world, K_GRAIN_RESERVES_FULL_MEAL_RELEASE, 0.0)
+    if type(full_meal_release) not in (int, float) or full_meal_release not in (0.0, 1.0):
+        raise ValueError("grain_reserves.full_meal_release must be 0 or 1")
     from chronicler.harvest_forecasts_state import harvest_forecasts_on
     if harvest_forecasts_on(world):
         from chronicler.harvest_forecasts import clear_stale_preparedness
@@ -293,7 +297,9 @@ def open_granaries(world: "WorldState", economy_result: "EconomyResult | None",
             # Well stocked, it covers the whole shortfall; low, it keeps the
             # people above the famine line and saves the rest for worse.
             full = granary.target <= EPS or granary.grain >= RESERVE_FOR_FAMINE * granary.target
-            level = RELEASE_TO if full else FAMINE_SEVERE_SUFFICIENCY
+            # The opt-in alternative spends only this region's existing stock
+            # for present relief; it may leave less for a later severe shortage.
+            level = RELEASE_TO if full or full_meal_release else FAMINE_SEVERE_SUFFICIENCY
             if sufficiency >= level - 1e-6:
                 granary.releasing = granary.announced = granary.emptied = False
                 continue
