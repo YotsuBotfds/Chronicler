@@ -1,6 +1,6 @@
 {
   "base": "a298a47b3b2beb9fdac69bc30860074d52226cdd",
-  "head": "7438503f244ec767ee4d9c3511d0843d5d042991",
+  "head": "36a50a2378fb63250f9ce0c267b01242f3cb2724",
   "files": {
     "src/chronicler/interactive.py": {
       "sha256": "d0cb8a53ad6e440eaccae3ca5dcd9d9e5ad82bb0baa751ddf96b35a8e52a7083",
@@ -241,6 +241,7 @@
   },
   "new_files": {
     "src/chronicler/pause_academy.py": "89f427aacaf97402fdf097356422b4321d890035fb2eacd32ea2f67f014c247e",
-    "scripts/crisis_academy_example.py": "f775beb7dd66327feca27c4a30cb53149c79499095b6645e43f71c5fc5f114d0"
+    "scripts/crisis_academy_example.py": "f112fbf0653114af28f4970c72b2010b2c73c2284a49f3f1b2d5b580f8f81afc",
+    "scripts/crisis_receiving_service_admission.py": "6eaefa8f97dc4a306c4d1942cafed08e4174269f9c11a6c0de5f1bf144f1c3f0"
   }
 }
