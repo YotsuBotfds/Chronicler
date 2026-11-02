@@ -29,6 +29,7 @@ import { WarsPanel } from "../WarsPanel";
 import { crisesAtSnapshot, famineSpans, foodCrisisSpans } from "../../../lib/food";
 import { cityRecord, cityRecordAt } from "../../../lib/cities";
 import { movementRecord } from "../../../lib/movements";
+import { seatKeys } from "../../../lib/learning";
 import { TechniquesPanel } from "../TechniquesPanel";
 
 afterEach(cleanup);
@@ -842,13 +843,11 @@ describe("LearningPanel", () => {
   it("follows a seat chosen in the table and says where a fallen seat's scholars went", () => {
     const seats = learning.world_state.scholarship!.seats!;
     const index = seats.findIndex((seat) => seat.fallen_turn != null && seat.refuge >= 0);
-    const standing = learning.history.find((snapshot) =>
-      snapshot.scholarship!.seats.some((row) => row.id === index))!;
-    const p = props(learning, standing);
-    p.currentTurn = LEARNING_LAST.turn;
+    const p = props(learning, LEARNING_LAST);
     render(<LearningPanel {...p} />);
-    const table = screen.getByRole("table", { name: `Seats of learning at turn ${standing.turn}` });
-    fireEvent.click(within(table).getByRole("button", { name: seats[index].name }));
+    const strip = screen.getByRole("group", { name: "Level of each seat of learning over time" });
+    // Duplicate display names are separate seat identities; strip order follows keys.
+    fireEvent.click(within(strip).getAllByRole("button")[seatKeys(learning.history).findIndex((key) => key.id === index)]);
     const history = screen.getByRole("region", { name: `History of ${seats[index].name}` });
     expect(within(history).getByText(new RegExp(`its scholars fled to ${seats[seats[index].refuge].name}`)))
       .toBeInTheDocument();
@@ -863,8 +862,8 @@ describe("LearningPanel", () => {
     const table = screen.getByRole("table", { name: `Seats of learning at turn ${standing.turn}` });
     fireEvent.click(within(table).getByRole("button", { name: seats[index].name }));
     const history = screen.getByRole("region", { name: `History of ${seats[index].name}` });
-    expect(within(history).getByText(new RegExp(`founded turn ${seats[index].founded_turn}`))).toBeInTheDocument();
-    expect(within(history).queryByText(/fell at turn|its scholars fled to/)).toBeNull();
+    expect(within(history).getByText(new RegExp(`founded source tick ${seats[index].founded_turn}`))).toBeInTheDocument();
+    expect(within(history).queryByText(/fell at source tick|its scholars fled to/)).toBeNull();
   });
 
   it("says so before the first seat and is a tab only when the run records seats", () => {
@@ -876,6 +875,60 @@ describe("LearningPanel", () => {
     cleanup();
     render(<LearningPanel {...props(fixture, LAST)} />);
     expect(screen.getByText(`No record of seats of learning at turn ${LAST.turn}.`)).toBeInTheDocument();
+  });
+
+  it("hides the real Amber recovery until snapshot16, including after selection and rewind", () => {
+    // Minimal recorded slice of current64f seed42 constructed patron-pressure run.
+    // Seat2 fell at tick4; distinct seat3 was founded at tick15, exported at16.
+    const ashara = { id: 1, name: "Constructed opening academy of Ashara Desert", kind: "academy",
+      region: "Ashara Desert", lord: "Selurian Republic", level: 2, scholars: 9.6, masters: 0 };
+    const old = { ...ashara, id: 2, name: "Constructed opening temple school of Amber Valley",
+      kind: "temple school", region: "Amber Valley", lord: "Kethani Empire", level: 1, scholars: 3.9 };
+    const recovered = { ...old, id: 3, name: "the Academy of Amber Valley", kind: "academy", scholars: 0 };
+    const history = [
+      { ...learning.history[0], turn: 4, scholarship: { seats: [ashara, old], fallen: 1, counters: { founded: 0 } } },
+      { ...learning.history[0], turn: 15, scholarship: { seats: [ashara], fallen: 2, counters: { founded: 0 } } },
+      { ...learning.history[0], turn: 16, scholarship: { seats: [{ ...ashara, scholars: 5.6 }, recovered], fallen: 2, counters: { founded: 1 } } },
+      { ...learning.history[0], turn: 17, scholarship: { seats: [{ ...recovered, scholars: 999 },
+        { ...recovered, id: 4, name: "Future secret school" }], fallen: 2, counters: { founded: 2 } } },
+    ];
+    const record = { ...learning.world_state.scholarship!.seats![0], region: 5, founder: 1, founded_turn: 0,
+      fallen_turn: null, refuge: -1, history: [] };
+    const fall = { ...learning.events_timeline[0], turn: 4, event_type: "seat_fell", event_id: "4:seat_fell:0",
+      description: "Constructed opening temple school of Amber Valley closes: its temple is gone" };
+    const foundation = { ...fall, turn: 15, event_type: "seat_founded", event_id: "15:seat_founded:0",
+      description: "The Academy of Amber Valley: learning returns after the fall of the old temple school",
+      causes: [fall.event_id] };
+    const bundle: Bundle = { ...learning, history, events_timeline: [fall, foundation],
+      world_state: { ...learning.world_state, scholarship: { seats: [record,
+        { ...record, name: ashara.name, region: 3 },
+        { ...record, name: old.name, fallen_turn: 4, fall_cause: 3, history: [[4, "fell", fall.event_id]] },
+        { ...record, name: recovered.name, founded_turn: 15, peak_level: 3, peak_scholars: 999,
+          history: [[15, "founded", foundation.event_id]] },
+      ] } } };
+    const p = props(bundle, history[2]);
+    const { rerender } = render(<LearningPanel {...p} />);
+    fireEvent.click(within(screen.getByRole("table", { name: "Seats of learning at turn 16" }))
+      .getByRole("button", { name: recovered.name }));
+    expect(screen.getByRole("region", { name: `History of ${recovered.name}` })).toHaveTextContent("founded source tick 15");
+    expect(screen.queryByText("Future secret school")).toBeNull();
+    rerender(<LearningPanel {...p} snapshot={history[1]} currentTurn={15} />);
+    expect(screen.queryByText(recovered.name)).toBeNull();
+    expect(screen.queryByText(/learning returns after/)).toBeNull();
+    expect(screen.queryByLabelText(`Scholars of ${recovered.name}`)).toBeNull();
+    expect(screen.queryByText(/founded source tick 15|999|Future secret/)).toBeNull();
+    // Revisit16 restores the chosen known ID; an older fallen identity remains selectable.
+    rerender(<LearningPanel {...p} />);
+    expect(screen.getByRole("region", { name: `History of ${recovered.name}` })).toBeInTheDocument();
+    fireEvent.click(within(screen.getByRole("group", { name: "Level of each seat of learning over time" }))
+      .getByRole("button", { name: old.name }));
+    rerender(<LearningPanel {...p} snapshot={history[1]} currentTurn={15} />);
+    expect(screen.getByRole("region", { name: `History of ${old.name}` })).toHaveTextContent("fell at source tick 4");
+    // A nearest previous row is not current measurement at a missing snapshot.
+    rerender(<LearningPanel {...p} snapshot={history[1]} currentTurn={14} />);
+    expect(screen.getByText("No record of seats of learning at turn 14.")).toBeInTheDocument();
+    expect(screen.queryByRole("table", { name: /Seats of learning at turn/ })).toBeNull();
+    expect(screen.getByRole("region", { name: `History of ${old.name}` })).toBeInTheDocument();
   });
 });
 
