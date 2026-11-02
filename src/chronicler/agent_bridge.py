@@ -1466,6 +1466,7 @@ class AgentBridge:
         Assumes sync_regions() was already called this turn.
         Does NOT call set_region_state() again.
         """
+        requirement = self._prepare_household_mobility(world)
         delivery = self._begin_decision_delivery(world)
         # M58a: Sync merchant route graph before tick
         from chronicler.economy import build_merchant_route_graph
@@ -1484,10 +1485,12 @@ class AgentBridge:
             capture_transaction_receipts, prepare_transaction_receipts,
         )
         prepare_transaction_receipts(world, self)
-        agent_events = self._sim.tick(world.turn, signals)
+        agent_events, mobility = self._tick_with_household_mobility(world, signals, requirement)
         capture_transaction_receipts(world, self)
         result = self._process_tick_results(agent_events, world, death_output=death_output)
         self._capture_decision_delivery(delivery, agent_events)
+        if mobility is not None:
+            self._household_mobility_observation = mobility
         return result
 
     def tick(
@@ -1498,6 +1501,7 @@ class AgentBridge:
 
         Use sync_regions() + tick_agents() separately when ecology runs between them.
         """
+        requirement = self._prepare_household_mobility(world)
         delivery = self._begin_decision_delivery(world)
         self.sync_regions(world)
 
@@ -1518,11 +1522,38 @@ class AgentBridge:
             capture_transaction_receipts, prepare_transaction_receipts,
         )
         prepare_transaction_receipts(world, self)
-        agent_events = self._sim.tick(world.turn, signals)
+        agent_events, mobility = self._tick_with_household_mobility(world, signals, requirement)
         capture_transaction_receipts(world, self)
         result = self._process_tick_results(agent_events, world, death_output=death_output)
         self._capture_decision_delivery(delivery, agent_events)
+        if mobility is not None:
+            self._household_mobility_observation = mobility
         return result
+
+    def _prepare_household_mobility(self, world):
+        # Turn-scoped output is never reused after a failed or disabled tick.
+        self.__dict__.pop("_household_mobility_observation", None)
+        from chronicler.household_mobility_state import liquid_requirement
+        requirement = liquid_requirement(world)
+        if requirement > 0 and not callable(getattr(self._sim, "get_mobility_gate_frame", None)):
+            raise RuntimeError("household mobility requires a fresh native build with the liquid gate")
+        return requirement
+
+    def _tick_with_household_mobility(self, world, signals, requirement):
+        if requirement == 0:
+            return self._sim.tick(world.turn, signals), None
+        events = self._sim.tick(world.turn, signals, liquid_requirement=requirement)
+        from chronicler.household_mobility_state import capture_mobility_frame
+        observation = capture_mobility_frame(self._sim.get_mobility_gate_frame(),
+            source_turn=world.turn, mode=self._mode, requirement=requirement)
+        return events, observation
+
+    def take_household_mobility_observation(self, source_turn: int):
+        """Consume this tick's detached observation; stale frames are discarded."""
+        observation = self.__dict__.pop("_household_mobility_observation", None)
+        if observation is None or observation.source_turn != source_turn:
+            return None
+        return observation
 
     def _begin_decision_delivery(self, world):
         observer = self.__dict__.get("_decision_delivery_observer")
@@ -3068,6 +3099,7 @@ class AgentBridge:
     def reset(self) -> None:
         """Clear stateful data for batch mode reuse."""
         self._stop_decision_delivery("reset")
+        self.__dict__.pop("_household_mobility_observation", None)
         self._event_window.clear()
         self._demand_manager.reset()
         self.named_agents.clear()
@@ -3099,7 +3131,7 @@ class AgentBridge:
     # native simulator replaced by the simulator's own state blob. These are
     # derived caches keyed by object identity or by the turn being processed;
     # each is rebuilt on demand from the state that is kept.
-    _CHECKPOINT_DERIVED = ("_window_stats_cache", "_named_actor_memo", "_post_tick_snapshot", "_decision_delivery_observer")
+    _CHECKPOINT_DERIVED = ("_window_stats_cache", "_named_actor_memo", "_post_tick_snapshot", "_decision_delivery_observer", "_household_mobility_observation")
 
     def __getstate__(self) -> dict:
         if "_artifact_budget" in self.__dict__:
@@ -3112,6 +3144,7 @@ class AgentBridge:
     def __setstate__(self, state: dict) -> None:
         self.__dict__.update(state)
         self.__dict__.pop("_decision_delivery_observer", None)
+        self.__dict__.pop("_household_mobility_observation", None)
 
     def get_snapshot(self): return self._sim.get_snapshot()
     def get_aggregates(self): return self._sim.get_aggregates()
