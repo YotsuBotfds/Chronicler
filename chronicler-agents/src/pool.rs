@@ -186,6 +186,8 @@ pub struct AgentPool {
     /// Derived one-turn manual-work deductions, (expected stable id, loss)
     /// by slot. Cleared when wealth consumes them; never checkpointed.
     pub health_work_loss: Vec<(u32, f32)>,
+    /// Prepared/consumed one-turn teaching reservation, never checkpointed.
+    pub teaching_plan: Option<crate::teaching_work::TeachingPlan>,
     // CAREOBS_SOURCE_BEGIN: pool field
     /// Opt-in primitive care prefix; transient and absent by default.
     pub health_care_observation: Option<crate::health_care_observation::CareObservation>,
@@ -263,6 +265,7 @@ impl AgentPool {
             next_id: 1,
             free_slots: Vec::new(),
             health_work_loss: Vec::new(),
+            teaching_plan: None,
             // CAREOBS_SOURCE_BEGIN: pool default
             health_care_observation: None,
             // CAREOBS_SOURCE_END: pool default
@@ -1829,4 +1832,4 @@ crate::persist_struct!(AgentPool {
     trip_path_len, trip_path_cursor, pkt_type_and_hops, pkt_source_region, pkt_source_turn,
     pkt_intensity, pkt_source_civ, arrived_this_turn, trip_home_region, alive, count, next_id,
     free_slots,
-} transient { health_work_loss /* CAREOBS_TRANSIENT_BEGIN */, health_care_observation /* CAREOBS_TRANSIENT_END */ });
+} transient { health_work_loss /* CAREOBS_TRANSIENT_BEGIN */, health_care_observation /* CAREOBS_TRANSIENT_END */, teaching_plan });

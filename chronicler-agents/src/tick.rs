@@ -1475,6 +1475,14 @@ pub fn wealth_tick(
     // The Python-authoritative health builder supplies exactly one turn.
     // Stable-id guards prevent deductions reaching a reused slot.
     let health_loss = std::mem::take(&mut pool.health_work_loss);
+    let mut teaching_plan = pool.teaching_plan.take().filter(|plan| !plan.consumed);
+    let teaching_by_slot = teaching_plan.as_ref().map(|plan| {
+        let mut index = vec![None; pool.capacity()];
+        for (i, row) in plan.rows.iter().enumerate() {
+            if row.slot < index.len() { index[row.slot] = Some(i); }
+        }
+        index
+    });
     // CAREOBS_SOURCE_BEGIN: actual consumed loss vector
     let mut health_care_observation = pool.health_care_observation.take();
     if let Some(observation) = &mut health_care_observation {
@@ -1528,6 +1536,21 @@ pub fn wealth_tick(
             }
         };
 
+        // Teaching reserves the Scholar's existing ordinary income work.
+        // The care observer's pre-health operand is the remaining ordinary
+        // income; teaching has its own separately labelled receipt.
+        let income = if let (Some(plan), Some(index)) = (&mut teaching_plan, &teaching_by_slot) {
+            if let Some(i) = index[slot] {
+                let row = &mut plan.rows[i];
+                if occ == crate::agent::Occupation::Scholar as u8 && row.agent_id == pool.ids[slot]
+                    && row.region == pool.regions[slot] {
+                    let other_loss = health_loss.get(slot).filter(|&&(id, _)| id == row.agent_id)
+                        .map_or(0.0, |&(_, value)| value.clamp(0.0, 1.0));
+                    row.delivered = row.fraction.min((1.0 - other_loss).max(0.0));
+                    income * (1.0 - other_loss - row.delivered).max(0.0)
+                } else { income }
+            } else { income }
+        } else { income };
         // CAREOBS_SOURCE_BEGIN: actual pre-health base income
         if let Some(observation) = &mut health_care_observation { observation.wealth_value(slot, 1, income); }
         // CAREOBS_SOURCE_END: actual pre-health base income
@@ -1553,6 +1576,11 @@ pub fn wealth_tick(
         // CAREOBS_SOURCE_BEGIN: actual wealth after clamp
         if let Some(observation) = &mut health_care_observation { observation.wealth_value(slot, 5, pool.wealth[slot]); }
         // CAREOBS_SOURCE_END: actual wealth after clamp
+    }
+
+    if let Some(mut plan) = teaching_plan {
+        plan.consumed = true;
+        pool.teaching_plan = Some(plan);
     }
 
     // CAREOBS_SOURCE_BEGIN: finish wealth copies

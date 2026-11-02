@@ -195,6 +195,9 @@ pub struct AgentSimulator {
     decision_delivery_config: Option<crate::decision_delivery::DeliveryConfig>,
     decision_delivery_frame: Option<crate::decision_delivery::DeliveryFrame>,
     mobility_gate_frame: Option<crate::household::MobilityGateFrame>,
+    /// Transient teaching receipt; not an additional persistent work account.
+    teaching_result: Option<crate::teaching_work::TeachingPlan>,
+    last_teaching_turn: Option<u32>,
 }
 
 impl AgentSimulator {
@@ -251,6 +254,8 @@ impl AgentSimulator {
             decision_delivery_config: None,
             decision_delivery_frame: None,
             mobility_gate_frame: None,
+            teaching_result: None,
+            last_teaching_turn: None,
         }
     }
 }
@@ -297,6 +302,9 @@ impl AgentSimulator {
     #[pyo3(signature = (ids, excluded, urban, impairment, care_fraction, *, care_policy = "spouse"))]
     pub fn prepare_health_work(&mut self, ids: Vec<u32>, excluded: Vec<u32>, urban: Vec<u16>,
         impairment: f32, care_fraction: f32, care_policy: &str) -> PyResult<Vec<(u32, u16, u32, f32)>> {
+        if self.pool.teaching_plan.is_some() {
+            return Err(PyValueError::new_err("prepare health work before teaching work"));
+        }
         let policy = crate::health_care::CarePolicy::from_name(care_policy)
             .ok_or_else(|| PyValueError::new_err("health care policy must be spouse or retained_kin"))?;
         if !impairment.is_finite() || !(0.0..=1.0).contains(&impairment)
@@ -324,6 +332,9 @@ impl AgentSimulator {
 
     pub fn finish_health_work(&mut self, turn: u32, rate: f32)
         -> PyResult<(Vec<(u32, u16)>, Vec<(u32, u16, u16)>, Vec<(u16, f64, f64, u32)>)> {
+        if self.pool.teaching_plan.is_some() {
+            return Err(PyValueError::new_err("consume or cancel teaching work before finishing health work"));
+        }
         if !rate.is_finite() || !(0.0..=1.0).contains(&rate) {
             return Err(PyValueError::new_err("health injury rate must be finite in 0..1"));
         }
@@ -344,6 +355,56 @@ impl AgentSimulator {
         }
         Ok(result)
         // CAREOBS_FINISH_END
+    }
+
+    /// Prepare a single regional teaching budget before this turn's economy.
+    /// Fractions are Scholar-equivalent work-turns; no pay is created.
+    pub fn prepare_teaching_work(&mut self, source_turn: u32, requests: Vec<f32>, excluded_ids: Vec<u32>)
+        -> PyResult<Option<(u32, Vec<(u16, f64, f64, f64, f64)>, Vec<(u32, u16, f32, f32)>, usize)>> {
+        if requests.len() != self.num_regions {
+            return Err(PyValueError::new_err("teaching requests must match the region count"));
+        }
+        if requests.iter().any(|v| !v.is_finite() || *v < 0.0) {
+            return Err(PyValueError::new_err("teaching work requests must be finite and nonnegative"));
+        }
+        if self.pool.teaching_plan.is_some() {
+            return Err(PyValueError::new_err("teaching work already prepared"));
+        }
+        if requests.iter().all(|v| *v == 0.0) { return Ok(None); }
+        if !self.initialized { return Err(PyValueError::new_err("teaching work requires initialized agents")); }
+        if self.last_teaching_turn.is_some_and(|previous| source_turn <= previous) {
+            return Err(PyValueError::new_err("teaching work already consumed for this turn"));
+        }
+        let plan = crate::teaching_work::prepare(&self.pool, source_turn, &requests, &excluded_ids)
+            .map_err(PyValueError::new_err)?.expect("nonzero request yields a plan");
+        let (receipts, dropped) = plan.receipts();
+        let result = Some((source_turn, plan.regions(), receipts, dropped));
+        self.teaching_result = None;
+        self.pool.teaching_plan = Some(plan);
+        Ok(result)
+    }
+
+    /// Cancel only the unconsumed teaching reservation, never health work.
+    pub fn cancel_teaching_work(&mut self, source_turn: u32) -> PyResult<bool> {
+        let Some(plan) = &self.pool.teaching_plan else { return Ok(false) };
+        if plan.source_turn != source_turn || plan.consumed {
+            return Err(PyValueError::new_err("teaching work is not a pending plan for this turn"));
+        }
+        self.pool.teaching_plan = None;
+        Ok(true)
+    }
+
+    pub fn has_pending_teaching_work(&self) -> bool {
+        self.pool.teaching_plan.as_ref().is_some_and(|p| !p.consumed)
+    }
+
+    /// Read the last consumed teaching receipt without changing native state.
+    pub fn get_teaching_work_result(&self)
+        -> Option<(u32, Vec<(u16, f64, f64, f64, f64)>, Vec<(u32, u16, f32, f32)>, usize)> {
+        self.teaching_result.as_ref().map(|plan| {
+            let (receipts, dropped) = plan.receipts();
+            (plan.source_turn, plan.regions(), receipts, dropped)
+        })
     }
 
     /// Exact checkpoint: every field this simulator carries between ticks,
@@ -1324,6 +1385,12 @@ impl AgentSimulator {
         if !liquid_requirement.is_finite() || liquid_requirement < 0.0 {
             return Err(PyValueError::new_err("liquid_requirement must be finite and nonnegative"));
         }
+        if let Some(plan) = &self.pool.teaching_plan {
+            if plan.source_turn != turn || plan.consumed {
+                return Err(PyValueError::new_err("teaching work must be prepared for this tick"));
+            }
+        }
+        self.teaching_result = None;
         self.mobility_gate_frame = None;
         // A failed tick must never expose a previous turn's observation.
         self.decision_delivery_frame = None;
@@ -1447,6 +1514,12 @@ impl AgentSimulator {
         // Publish only after successful native execution and event packing.
         self.decision_delivery_frame = delivery_frame;
         self.mobility_gate_frame = mobility_frame;
+        if let Some(plan) = self.pool.teaching_plan.take() {
+            if plan.consumed {
+                self.last_teaching_turn = Some(plan.source_turn);
+                self.teaching_result = Some(plan);
+            }
+        }
         Ok(PyRecordBatch::new(batch))
     }
 
@@ -4103,6 +4176,142 @@ mod tests {
         });
     }
 
+    fn teaching_work_sim() -> (AgentSimulator, usize) {
+        let mut sim = AgentSimulator::new(1, 42);
+        sim.set_region_state(region_ingress_batch(vec![Some(0)])).unwrap();
+        sim.pool = AgentPool::new(4);
+        let scholar = sim.pool.spawn(0, 0, Occupation::Scholar, 30,
+            0.5, 0.5, 0.5, 255, 255, 255, 255);
+        (sim, scholar)
+    }
+
+    #[test]
+    fn teaching_work_ffi_cancel_validation_and_noop_preserve_existing_state() {
+        let (mut sim, slot) = teaching_work_sim();
+        let id = sim.pool.ids[slot];
+        sim.pool.health_work_loss = vec![(id, 0.25)];
+        let saved = crate::persist::encode(crate::persist::KIND_AGENT, &sim);
+        assert!(sim.prepare_teaching_work(0, vec![0.0], vec![]).unwrap().is_none());
+        assert!(!sim.has_pending_teaching_work());
+        for bad in [vec![], vec![-1.0], vec![f32::NAN], vec![f32::INFINITY]] {
+            assert!(sim.prepare_teaching_work(0, bad, vec![]).is_err());
+            assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &sim), saved);
+            assert_eq!(sim.pool.health_work_loss, vec![(id, 0.25)]);
+        }
+        let before = sim.prepare_teaching_work(0, vec![0.5], vec![]).unwrap().unwrap();
+        assert_eq!(before.1[0], (0, 0.75, 0.5, 0.5, 0.0));
+        assert_eq!(before.2, vec![(id, 0, 0.5, 0.0)]);
+        assert!(sim.has_pending_teaching_work());
+        assert!(sim.prepare_teaching_work(0, vec![0.5], vec![]).is_err());
+        assert!(sim.cancel_teaching_work(1).is_err());
+        assert!(sim.cancel_teaching_work(0).unwrap());
+        assert!(!sim.cancel_teaching_work(0).unwrap());
+        assert_eq!(sim.pool.health_work_loss, vec![(id, 0.25)]);
+        assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &sim), saved);
+        assert!(!crate::persist::schema_of::<AgentSimulator>().contains("teaching_result"));
+        assert!(!crate::persist::schema_of::<AgentSimulator>().contains("teaching_plan"));
+    }
+
+    #[test]
+    fn teaching_work_ffi_charges_actual_income_once_and_receipt_is_read_only() {
+        Python::initialize();
+        Python::attach(|py| {
+            let (mut sim, slot) = teaching_work_sim();
+            let id = sim.pool.ids[slot];
+            sim.pool.health_work_loss = vec![(id, 0.25)];
+            sim.prepare_teaching_work(0, vec![0.5], vec![]).unwrap();
+            let saved = crate::persist::encode(crate::persist::KIND_AGENT, &sim);
+            assert!(sim.tick(py, 1, mobility_gate_signals(), 0.0).is_err());
+            assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &sim), saved);
+            assert!(sim.has_pending_teaching_work());
+            sim.tick(py, 0, mobility_gate_signals(), 0.0).unwrap();
+            assert!(!sim.has_pending_teaching_work());
+            let result = sim.get_teaching_work_result().unwrap();
+            assert_eq!(result.0, 0);
+            assert_eq!(result.1[0], (0, 0.75, 0.5, 0.5, 0.5));
+            assert_eq!(result.2, vec![(id, 0, 0.5, 0.5)]);
+            let expected = (crate::agent::STARTING_WEALTH + crate::agent::SCHOLAR_INCOME * 0.25)
+                * (1.0 - crate::agent::WEALTH_DECAY);
+            assert!((sim.pool.wealth[slot] - expected).abs() < 1e-6);
+            let after = crate::persist::encode(crate::persist::KIND_AGENT, &sim);
+            assert_eq!(sim.get_teaching_work_result().unwrap(), result);
+            assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &sim), after);
+            assert!(sim.prepare_teaching_work(0, vec![0.1], vec![]).is_err());
+            sim.tick(py, 1, mobility_gate_signals(), 0.0).unwrap();
+            assert!(sim.get_teaching_work_result().is_none());
+        });
+    }
+
+    #[test]
+    fn teaching_work_ffi_does_not_double_charge_actual_farmer_care() {
+        Python::initialize();
+        Python::attach(|py| {
+            let build = || {
+                let (mut sim, scholar) = teaching_work_sim();
+                let farmer = sim.pool.spawn(0, 0, Occupation::Farmer, 30,
+                    0.5, 0.5, 0.5, 255, 255, 255, 255);
+                sim.pool.health_work_loss = vec![(0, 0.0), (sim.pool.ids[farmer], 0.5)];
+                (sim, scholar, farmer)
+            };
+            let (mut a, _, farmer_a) = build(); let (mut b, _, farmer_b) = build();
+            b.prepare_teaching_work(0, vec![0.5], vec![]).unwrap();
+            a.tick(py, 0, mobility_gate_signals(), 0.0).unwrap();
+            b.tick(py, 0, mobility_gate_signals(), 0.0).unwrap();
+            assert_eq!(a.pool.wealth[farmer_a].to_bits(), b.pool.wealth[farmer_b].to_bits());
+            assert_eq!(b.get_teaching_work_result().unwrap().1[0].4, 0.5);
+        });
+    }
+
+    #[test]
+    fn teaching_work_ffi_reused_slot_cannot_receive_or_deliver_other_id_work() {
+        Python::initialize();
+        Python::attach(|py| {
+            let (mut sim, slot) = teaching_work_sim();
+            let original = sim.pool.ids[slot];
+            sim.prepare_teaching_work(0, vec![1.0], vec![]).unwrap();
+            sim.pool.kill(slot);
+            let fresh = sim.pool.spawn(0, 0, Occupation::Scholar, 30,
+                0.5, 0.5, 0.5, 255, 255, 255, 255);
+            assert_eq!(fresh, slot); assert_ne!(sim.pool.ids[fresh], original);
+            sim.tick(py, 0, mobility_gate_signals(), 0.0).unwrap();
+            let result = sim.get_teaching_work_result().unwrap();
+            assert_eq!(result.2, vec![(original, 0, 1.0, 0.0)]);
+            let expected = (crate::agent::STARTING_WEALTH + crate::agent::SCHOLAR_INCOME)
+                * (1.0 - crate::agent::WEALTH_DECAY);
+            assert!((sim.pool.wealth[fresh] - expected).abs() < 1e-6);
+        });
+    }
+
+    #[test]
+    fn teaching_work_ffi_death_before_wealth_does_not_deliver() {
+        Python::initialize();
+        Python::attach(|py| {
+            let (mut sim, slot) = teaching_work_sim();
+            let id = sim.pool.ids[slot];
+            sim.prepare_teaching_work(0, vec![1.0], vec![]).unwrap();
+            sim.queue_targeted_deaths(vec![id]);
+            sim.tick(py, 0, mobility_gate_signals(), 0.0).unwrap();
+            let result = sim.get_teaching_work_result().unwrap();
+            assert_eq!(result.1[0], (0, 1.0, 1.0, 1.0, 0.0));
+            assert_eq!(result.2, vec![(id, 0, 1.0, 0.0)]);
+        });
+    }
+
+    #[test]
+    fn teaching_work_ffi_zero_is_bitwise_old_path() {
+        Python::initialize();
+        Python::attach(|py| {
+            let (mut a, _) = teaching_work_sim(); let (mut b, _) = teaching_work_sim();
+            assert!(b.prepare_teaching_work(0, vec![0.0], vec![]).unwrap().is_none());
+            let ea = a.tick(py, 0, mobility_gate_signals(), 0.0).unwrap().into_inner();
+            let eb = b.tick(py, 0, mobility_gate_signals(), 0.0).unwrap().into_inner();
+            assert_eq!(ea, eb);
+            assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &a),
+                       crate::persist::encode(crate::persist::KIND_AGENT, &b));
+            assert!(a.get_teaching_work_result().is_none() && b.get_teaching_work_result().is_none());
+        });
+    }
+
     #[test]
     fn native_region_count_admission_keeps_empty_and_exact_upper_boundary() {
         // The maximum is admitted without allocating millions of reserve slots.
@@ -4721,7 +4930,8 @@ crate::persist_struct!(AgentSimulator {
     merchant_trip_stats, knowledge_stats, hybrid_economy_mode, pending_targeted_deaths,
     movements, pending_movement_leaders, pending_promotion_memories, tick_options,
 } skip { snapshot_cache } transient {
-    health_work, transaction_receipts_limit, decision_delivery_config, decision_delivery_frame, mobility_gate_frame
+    health_work, transaction_receipts_limit, decision_delivery_config, decision_delivery_frame, mobility_gate_frame,
+    teaching_result, last_teaching_turn
 });
 
 #[cfg(test)]
