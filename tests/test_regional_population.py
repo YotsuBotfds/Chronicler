@@ -242,6 +242,7 @@ def test_static_delta_live_reconnect_pickle_and_legacy_roundtrips(make_world):
 
 def test_exact_source_inverse_preserves_parent_and_rejects_all_unrelated_changes():
     from scripts.testing.regional_population_witness import before_regional_population
+    from scripts.testing.food_accounting_witness import before_food_accounting
     witness = json.loads((ROOT / "tests/fixtures/regional_population_source_inverse.json").read_text())
     assert witness["base"] == "c04b32adef05e54c46f597d9fece9568e719c7c7"
     for path, row in witness["files"].items():
@@ -252,6 +253,7 @@ def test_exact_source_inverse_preserves_parent_and_rejects_all_unrelated_changes
             before_regional_population(source + "\n# unrelated mutation\n", path)
         with pytest.raises(AssertionError):
             before_regional_population(source.replace("\n", "\r\n"), path)
+        source = before_food_accounting(source, path, allow_parent=True)
         for patch in row["patches"]:
             with pytest.raises(AssertionError):
                 before_regional_population(source.replace(patch["new"], patch["old"], 1), path)

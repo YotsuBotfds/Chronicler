@@ -92,9 +92,11 @@ K_GRAIN_RESERVES_FULL_MEAL_RELEASE = "grain_reserves.full_meal_release"
 
 
 def before_grain_release(source: str, path: str) -> str:
+    from scripts.testing.food_accounting_witness import before_food_accounting
     row = _LAYERS.get(path)
     if row is None:
         return source
+    source = before_food_accounting(source, path, allow_parent=True)
     for patch in reversed(row["patches"]):
         assert source.count(patch["new"]) == 1, f"grain release witness changed: {path}"
         source = source.replace(patch["new"], patch["old"], 1)

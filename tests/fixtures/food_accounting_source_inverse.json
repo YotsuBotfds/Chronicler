@@ -1,0 +1,163 @@
+{
+  "base": "6ff45ec33a86ff72b84d0d493fefcc3cd3a89601",
+  "head": "5e5cc5ec2062b99270c26411b91a12c1b31b8ad5",
+  "files": {
+    "chronicler-agents/src/economy.rs": {
+      "sha256": "97e8010d161e288f86833090bca935064a192a25574f874d78c0dcd492a8a626",
+      "current_sha256": "717a67c9562a8a8eb572a64fe621574d3422ddf0b959c84dbc2df45ab03d7ceb",
+      "patches": [
+        {
+          "old": "// Output structs\n// ---------------------------------------------------------------------------\n\n/// Output row per region.\npub struct EconomyRegionResult {\n    pub region_id: u16,\n    pub stockpile: [f32; NUM_GOODS],\n    pub farmer_income_modifier: f32,\n    pub food_sufficiency: f32,\n",
+          "new": "// Output structs\n// ---------------------------------------------------------------------------\n\n/// Region food ledger columns. Values are native goods units per economy tick.\n/// Transport is signed: hybrid imports + returns - departures, abstract\n/// imports - exports. Floating-point rounding prevents exact reconciliation.\npub const FOOD_LEDGER_NAMES: [&str; 10] = [\n    \"food_opening\", \"food_produced\", \"food_transport_net\", \"food_craft_input\",\n    \"food_clamp_correction\", \"food_pre_consumption\", \"food_consumed\",\n    \"food_storage_loss\", \"food_cap_overflow\", \"food_closing\",\n];\n\n/// Output row per region.\npub struct EconomyRegionResult {\n    pub region_id: u16,\n    /// Ephemeral Phase 2 food ledger, ordered as FOOD_LEDGER_NAMES.\n    pub food_ledger: [f64; 10],\n    pub stockpile: [f32; NUM_GOODS],\n    pub farmer_income_modifier: f32,\n    pub food_sufficiency: f32,\n"
+        },
+        {
+          "old": "        // Hybrid: old + production + net_mobility (imports + returns - departures)\n        // Abstract: old + production - exports + imports\n        let mut stockpile = w.stockpile;\n        for g in 0..NUM_GOODS {\n            let new_val = if hybrid_delivery.is_some() {\n                stockpile[g] + w.per_good_production[g] + per_good_net_mobility[ri][g] - w.craft_input[g]\n            } else {\n",
+          "new": "        // Hybrid: old + production + net_mobility (imports + returns - departures)\n        // Abstract: old + production - exports + imports\n        let mut stockpile = w.stockpile;\n        let mut food_ledger = [0.0f64; 10];\n        for g in 0..NUM_GOODS {\n            if IS_FOOD[g] {\n                food_ledger[0] += stockpile[g] as f64;\n                food_ledger[1] += w.per_good_production[g] as f64;\n                food_ledger[2] += if hybrid_delivery.is_some() {\n                    per_good_net_mobility[ri][g] as f64\n                } else {\n                    per_good_imports[ri][g] as f64 - per_good_exports[ri][g] as f64\n                };\n                food_ledger[3] += w.craft_input[g] as f64;\n            }\n            let new_val = if hybrid_delivery.is_some() {\n                stockpile[g] + w.per_good_production[g] + per_good_net_mobility[ri][g] - w.craft_input[g]\n            } else {\n"
+        },
+        {
+          "old": "            };\n            if new_val < 0.0 {\n                conservation.clamp_floor_loss += (-new_val) as f64;\n                stockpile[g] = 0.0;\n            } else {\n                stockpile[g] = new_val;\n",
+          "new": "            };\n            if new_val < 0.0 {\n                conservation.clamp_floor_loss += (-new_val) as f64;\n                if IS_FOOD[g] { food_ledger[4] += (-new_val) as f64; }\n                stockpile[g] = 0.0;\n            } else {\n                stockpile[g] = new_val;\n"
+        },
+        {
+          "old": "            .filter(|&g| IS_FOOD[g])\n            .map(|g| stockpile[g])\n            .sum();\n        let food_suff_denom = food_demand.max(SUPPLY_FLOOR);\n        let food_sufficiency = (total_food_stock / food_suff_denom).clamp(0.0, 2.0);\n\n",
+          "new": "            .filter(|&g| IS_FOOD[g])\n            .map(|g| stockpile[g])\n            .sum();\n        food_ledger[5] = total_food_stock as f64;\n        let food_suff_denom = food_demand.max(SUPPLY_FLOOR);\n        let food_sufficiency = (total_food_stock / food_suff_denom).clamp(0.0, 2.0);\n\n"
+        },
+        {
+          "old": "                let consumed = demand_for_good.min(amount);\n                stockpile[g] -= consumed;\n                conservation.consumption += consumed as f64;\n            }\n        }\n\n",
+          "new": "                let consumed = demand_for_good.min(amount);\n                stockpile[g] -= consumed;\n                conservation.consumption += consumed as f64;\n                food_ledger[6] += consumed as f64;\n            }\n        }\n\n"
+        },
+        {
+          "old": "                let old = stockpile[g];\n                stockpile[g] *= 1.0 - effective_rate;\n                conservation.storage_loss += (old - stockpile[g]) as f64;\n            }\n        }\n\n",
+          "new": "                let old = stockpile[g];\n                stockpile[g] *= 1.0 - effective_rate;\n                conservation.storage_loss += (old - stockpile[g]) as f64;\n                if IS_FOOD[g] { food_ledger[7] += (old - stockpile[g]) as f64; }\n            }\n        }\n\n"
+        },
+        {
+          "old": "        for g in 0..NUM_GOODS {\n            if stockpile[g] > cap {\n                conservation.cap_overflow += (stockpile[g] - cap) as f64;\n                stockpile[g] = cap;\n            }\n        }\n\n        // Step 6: Derive signals.\n",
+          "new": "        for g in 0..NUM_GOODS {\n            if stockpile[g] > cap {\n                conservation.cap_overflow += (stockpile[g] - cap) as f64;\n                if IS_FOOD[g] { food_ledger[8] += (stockpile[g] - cap) as f64; }\n                stockpile[g] = cap;\n            }\n        }\n\n        for g in 0..NUM_GOODS {\n            if IS_FOOD[g] { food_ledger[9] += stockpile[g] as f64; }\n        }\n\n        // Step 6: Derive signals.\n"
+        },
+        {
+          "old": "        }\n        region_results.push(EconomyRegionResult {\n            region_id: inp.region_id,\n            stockpile,\n            farmer_income_modifier,\n            food_sufficiency,\n",
+          "new": "        }\n        region_results.push(EconomyRegionResult {\n            region_id: inp.region_id,\n            food_ledger,\n            stockpile,\n            farmer_income_modifier,\n            food_sufficiency,\n"
+        },
+        {
+          "old": "#[cfg(test)]\nmod tests {\n    use super::*;\n\n    #[test]\n    fn test_smoke_single_region() {\n",
+          "new": "#[cfg(test)]\nmod tests {\n    use super::*;\n\n    fn food_ledger_run(region: EconomyRegionInput, count: u32,\n                       delivery: Option<&HybridDeliveryInput>) -> EconomyOutput {\n        let counts = [RegionAgentCounts { population: count, farmer_count: 0,\n            soldier_count: 0, merchant_count: 0, wealthy_count: 0 }];\n        tick_economy_core(&[region], &counts, &[], &[0.0], &[0], 1, &[0],\n                          &EconomyConfig::default(), 1.0, false, delivery)\n    }\n\n    fn assert_food_balance(ledger: &[f64; 10]) {\n        let expected = ledger[0] + ledger[1] + ledger[2] - ledger[3] + ledger[4]\n            - ledger[6] - ledger[7] - ledger[8];\n        assert!((expected - ledger[9]).abs() < 1e-5, \"ledger: {ledger:?}\");\n        let pre = ledger[0] + ledger[1] + ledger[2] - ledger[3] + ledger[4];\n        assert!((pre - ledger[5]).abs() < 1e-5, \"ledger: {ledger:?}\");\n    }\n\n    #[test]\n    fn food_ledger_abundant_empty_and_next_tick_reset() {\n        let mut region = city_market_region(1.0, 0.0);\n        region.stockpile[SLOT_GRAIN] = 3.0;\n        region.stockpile[SLOT_FISH] = 7.0;\n        let result = food_ledger_run(region, 10, None);\n        let row = &result.region_results[0];\n        assert_eq!(row.food_ledger[0], 10.0);\n        assert_eq!(row.food_ledger[1..5], [0.0; 4]);\n        assert_eq!(row.food_ledger[5], 10.0);\n        assert_eq!(row.food_ledger[6], 5.0);\n        assert_eq!(row.food_sufficiency, 2.0);\n        assert_eq!(row.market_demand[CAT_FOOD], 5.0);\n        assert_eq!(row.stockpile[SLOT_GRAIN], 1.5_f32 * 0.97_f32);\n        assert_eq!(row.stockpile[SLOT_FISH], 3.5_f32 * 0.94_f32);\n        assert_food_balance(&row.food_ledger);\n        let mut empty = city_market_region(1.0, 0.0);\n        empty.resource_types = [255; 3];\n        let empty_result = food_ledger_run(empty, 10, None);\n        let row = &empty_result.region_results[0];\n        assert_eq!(row.food_ledger, [0.0; 10]);\n        assert_eq!(row.food_sufficiency, 0.0);\n        assert_food_balance(&row.food_ledger);\n    }\n\n    #[test]\n    fn food_ledger_hybrid_arrival_and_returns_accounted_once() {\n        let mut region = city_market_region(1.0, 0.0);\n        region.resource_types = [255; 3];\n        let empty = HybridDeliveryInput::from_buffer(&crate::merchant::DeliveryBuffer::new(1), 1);\n        let before = food_ledger_run(region, 10, Some(&empty));\n        assert_eq!(before.region_results[0].food_ledger, [0.0; 10]);\n        let mut buf = crate::merchant::DeliveryBuffer::new(1);\n        buf.arrival_imports.push(crate::merchant::ArrivalRecord {\n            source_region: 0, dest_region: 0, good_slot: SLOT_GRAIN as u8, qty: 4.0,\n        });\n        buf.return_credits[0][SLOT_GRAIN] = 0.2;\n        let delivery = HybridDeliveryInput::from_buffer(&buf, 1);\n        let mut region = city_market_region(1.0, 0.0);\n        region.resource_types = [255; 3];\n        let arriving = food_ledger_run(region, 10, Some(&delivery));\n        let row = &arriving.region_results[0];\n        assert!((row.food_ledger[2] - 4.0).abs() < 1e-6);\n        assert!((row.food_ledger[5] - 4.0).abs() < 1e-6);\n        assert!((row.food_ledger[6] - 4.0).abs() < 1e-6);\n        assert!((row.food_sufficiency - 0.8).abs() < 1e-6);\n        assert_eq!(row.food_ledger[1], 0.0);\n        assert_food_balance(&row.food_ledger);\n        let mut region = city_market_region(1.0, 0.0);\n        region.resource_types = [255; 3];\n        let next = food_ledger_run(region, 10, Some(&empty));\n        assert_eq!(next.region_results[0].food_ledger, [0.0; 10]);\n    }\n\n    #[test]\n    fn food_ledger_production_storage_and_cap() {\n        let mut region = city_market_region(1.0, 0.0);\n        region.storage_population = 1;\n        let counts = [RegionAgentCounts { population: 0, farmer_count: 10,\n            soldier_count: 0, merchant_count: 0, wealthy_count: 0 }];\n        let out = tick_economy_core(&[region], &counts, &[], &[0.0], &[0], 1,\n            &[0], &EconomyConfig::default(), 1.0, false, None);\n        let row = &out.region_results[0];\n        assert_eq!(row.food_ledger[1], 10.0);\n        assert_eq!(row.food_ledger[6], 0.0);\n        assert!(row.food_ledger[7] > 0.0 && row.food_ledger[8] > 0.0);\n        assert_eq!(row.food_ledger[9], 2.5);\n        assert_food_balance(&row.food_ledger);\n    }\n\n    #[test]\n    fn test_smoke_single_region() {\n"
+        }
+      ]
+    },
+    "chronicler-agents/src/ffi/mod.rs": {
+      "sha256": "42513302f4d089fb0b769b480e5c685804cc738a50bf01b645763f192ad21677",
+      "current_sha256": "118d2ef10e61439f2cac71b7951b4f61076c45ab01d66514b5a37489bad20497",
+      "patches": [
+        {
+          "old": "        let mut rr_craft_suff = Float32Builder::with_capacity(n_out);\n        let mut rr_slot_out: Vec<Float32Builder> = (0..3).map(|_| Float32Builder::with_capacity(n_out)).collect();\n        let mut rr_forage = Float32Builder::with_capacity(n_out);\n\n        for rr in &output.region_results {\n            if let Some(work) = &mut self.health_work {\n                let r = rr.region_id as usize;\n                if r < work.worked.len() { work.worked[r] = rr.slot_output.iter().any(|&x| x > 0.0) || rr.forage_output > 0.0; }\n",
+          "new": "        let mut rr_craft_suff = Float32Builder::with_capacity(n_out);\n        let mut rr_slot_out: Vec<Float32Builder> = (0..3).map(|_| Float32Builder::with_capacity(n_out)).collect();\n        let mut rr_forage = Float32Builder::with_capacity(n_out);\n        let mut rr_food_ledger: Vec<arrow::array::Float64Builder> =\n            (0..crate::economy::FOOD_LEDGER_NAMES.len())\n                .map(|_| arrow::array::Float64Builder::with_capacity(n_out)).collect();\n\n        for rr in &output.region_results {\n            for (builder, value) in rr_food_ledger.iter_mut().zip(rr.food_ledger) {\n                builder.append_value(value);\n            }\n            if let Some(work) = &mut self.health_work {\n                let r = rr.region_id as usize;\n                if r < work.worked.len() { work.worked[r] = rr.slot_output.iter().any(|&x| x > 0.0) || rr.forage_output > 0.0; }\n"
+        },
+        {
+          "old": "        }\n        rr_columns.push(Arc::new(rr_forage.finish()));\n\n        let region_result_batch = RecordBatch::try_new(\n            Arc::new(economy_region_result_schema()),\n            rr_columns,\n",
+          "new": "        }\n        rr_columns.push(Arc::new(rr_forage.finish()));\n\n        for builder in rr_food_ledger.iter_mut() {\n            rr_columns.push(Arc::new(builder.finish()));\n        }\n        let region_result_batch = RecordBatch::try_new(\n            Arc::new(economy_region_result_schema()),\n            rr_columns,\n"
+        }
+      ]
+    },
+    "chronicler-agents/src/ffi/schema.rs": {
+      "sha256": "f98a4977ec9b63127f8e342be4aabeeddec59b28bb260b536250501884f5d726",
+      "current_sha256": "ef736753d10efd50f1bf4444de1fbb19af2c8b70efefe15f8f6ee18f74d94a26",
+      "patches": [
+        {
+          "old": "        fields.push(Field::new(format!(\"slot_output_{slot}\"), DataType::Float32, false));\n    }\n    fields.push(Field::new(\"forage_output\", DataType::Float32, false));\n    Schema::new(fields)\n}\n\n",
+          "new": "        fields.push(Field::new(format!(\"slot_output_{slot}\"), DataType::Float32, false));\n    }\n    fields.push(Field::new(\"forage_output\", DataType::Float32, false));\n    for name in crate::economy::FOOD_LEDGER_NAMES {\n        fields.push(Field::new(name, DataType::Float64, false));\n    }\n    Schema::new(fields)\n}\n\n"
+        }
+      ]
+    },
+    "src/chronicler/economy.py": {
+      "sha256": "d368887c975363610a75614e344723abb9cb8547083c867969d56509edaffb91",
+      "current_sha256": "8350d445b28e488d3896f4fc26678d874cd3f6917f7b637e38b18313560f8e25",
+      "patches": [
+        {
+          "old": "    trade_dependent: dict[str, bool] = field(default_factory=dict)\n    # M58b: Oracle shadow imports (from observability batch oracle columns)\n    oracle_imports: dict[str, dict[str, float]] = field(default_factory=dict)\n    # Merchant routing (2026-10): demand and post-trade supply per category\n    # (``CATEGORIES`` order), the merchant planner's market prices. Filled by\n    # the native economy; empty for the Python oracle.\n",
+          "new": "    trade_dependent: dict[str, bool] = field(default_factory=dict)\n    # M58b: Oracle shadow imports (from observability batch oracle columns)\n    oracle_imports: dict[str, dict[str, float]] = field(default_factory=dict)\n    # Observational only: native Phase-2 food ledger by stable region index.\n    # Tuples are FOOD_LEDGER_FIELDS followed by demand and pre-relief sufficiency.\n    # Empty when an older extension does not export the entire versioned ledger.\n    food_ledger: dict[int, tuple[float, ...]] = field(default_factory=dict)\n    # Exact late-Phase-10 procurement budgets, not household purchasing access.\n    food_procurement_budget: dict[int, tuple[int, int]] = field(default_factory=dict)\n    # Merchant routing (2026-10): demand and post-trade supply per category\n    # (``CATEGORIES`` order), the merchant planner's market prices. Filled by\n    # the native economy; empty for the Python oracle.\n"
+        },
+        {
+          "old": "        for i, rid in enumerate(rr_ids):\n            target[region_names[rid]] = vals[i]\n\n    trc_vals = pylist(region_result_batch.column(\"trade_route_count\"))\n    for i, rid in enumerate(rr_ids):\n        result.trade_route_counts[region_names[rid]] = trc_vals[i]\n",
+          "new": "        for i, rid in enumerate(rr_ids):\n            target[region_names[rid]] = vals[i]\n\n    from chronicler.food_accounting import FOOD_LEDGER_FIELDS\n    food_cols = [f\"food_{key}\" for key in FOOD_LEDGER_FIELDS]\n    if all(c in rr_names for c in (*food_cols, \"market_demand_food\")):\n        # Capture before public granaries mutate food_sufficiency in Python.\n        columns = [pylist(region_result_batch.column(c)) for c in\n                   (*food_cols, \"market_demand_food\", \"food_sufficiency\")]\n        for i, rid in enumerate(rr_ids):\n            result.food_ledger[rid] = tuple(float(col[i]) for col in columns)\n\n    trc_vals = pylist(region_result_batch.column(\"trade_route_count\"))\n    for i, rid in enumerate(rr_ids):\n        result.trade_route_counts[region_names[rid]] = trc_vals[i]\n"
+        }
+      ]
+    },
+    "src/chronicler/grain_reserves.py": {
+      "sha256": "97133305ed60bb9e0d2a3147dc9a3f43bb91ee0b14d9f1f4d5f4a77b58e52267",
+      "current_sha256": "83311ca0d28cb167a6d6dc7af406ad16368f9ce39e13635c5e3ae01574c06169",
+      "patches": [
+        {
+          "old": "    projected = _projections(world, acc)\n    budget = [int(BUDGET_SHARE * max(0, projected[i] - TREASURY_FLOOR)) if civs[i].regions else 0\n              for i in range(len(civs))]\n    loss = _transit_loss()\n    flows = _flows(world, state)\n    purchase_flow_start = len(flows)\n",
+          "new": "    projected = _projections(world, acc)\n    budget = [int(BUDGET_SHARE * max(0, projected[i] - TREASURY_FLOOR)) if civs[i].regions else 0\n              for i in range(len(civs))]\n    opening_budget = tuple(budget)\n    loss = _transit_loss()\n    flows = _flows(world, state)\n    purchase_flow_start = len(flows)\n"
+        },
+        {
+          "old": "            description=(f\"{civs[ci].name} buys {grain:.1f} grain for its granaries in the markets \"\n                         f\"of {', '.join(names)} ({cost} treasury).\"),\n        ))\n    if ledger is not None:\n        ledger.after_buy(world, acc, state)\n        ledger.finish(world, state, agent_bridge)\n",
+          "new": "            description=(f\"{civs[ci].name} buys {grain:.1f} grain for its granaries in the markets \"\n                         f\"of {', '.join(names)} ({cost} treasury).\"),\n        ))\n    economy_result.food_procurement_budget = {\n        ci: (initial, budget[ci]) for ci, initial in enumerate(opening_budget)\n    }\n    if ledger is not None:\n        ledger.after_buy(world, acc, state)\n        ledger.finish(world, state, agent_bridge)\n"
+        }
+      ]
+    },
+    "src/chronicler/main.py": {
+      "sha256": "9e8f6745792d6bea9da987267a4875f76eb5a4072f45c7dc2f2f631294e6c3cc",
+      "current_sha256": "6c3f218e2c3f0560e777b19862dca388330859f285f64c490e781ac4801a28cb",
+      "patches": [
+        {
+          "old": "                        _obs, _tgt, world, borders=_borders,\n                    )\n        from chronicler.regional_population import snapshot_fields as regional_population_snapshot_fields\n        snapshot = TurnSnapshot(\n            turn=world.turn,\n            civ_stats={\n",
+          "new": "                        _obs, _tgt, world, borders=_borders,\n                    )\n        from chronicler.regional_population import snapshot_fields as regional_population_snapshot_fields\n        from chronicler.food_accounting import snapshot_fields as food_accounting_snapshot_fields\n        snapshot = TurnSnapshot(\n            turn=world.turn,\n            civ_stats={\n"
+        },
+        {
+          "old": "            **expansion_snapshot_fields(world),\n            **_migration_snapshot_fields(world),\n            **regional_population_snapshot_fields(world, agent_bridge, turn_result.observation),\n        )\n\n        # M56b: Urban fraction aggregation from agent snapshot\n",
+          "new": "            **expansion_snapshot_fields(world),\n            **_migration_snapshot_fields(world),\n            **regional_population_snapshot_fields(world, agent_bridge, turn_result.observation),\n            **food_accounting_snapshot_fields(world, turn_result.observation),\n        )\n\n        # M56b: Urban fraction aggregation from agent snapshot\n"
+        }
+      ]
+    },
+    "src/chronicler/models.py": {
+      "sha256": "2284c9528a31e68ec435cb40834c16c18bfa01c576094b33608e253a54911028",
+      "current_sha256": "00f0e8425e3226f4af759bdc779ee72ee8f738428993be2185eeb3e7d0426738",
+      "patches": [
+        {
+          "old": "    # Versioned, indexed completed model populations, native alive counts and\n    # separately stamped Phase 2 food weights. Historical missing means unknown.\n    regional_population: dict | None = Field(default=None, exclude_if=_is_none)\n\n\n# --- M20a: Narration Pipeline v2 models ---\n",
+          "new": "    # Versioned, indexed completed model populations, native alive counts and\n    # separately stamped Phase 2 food weights. Historical missing means unknown.\n    regional_population: dict | None = Field(default=None, exclude_if=_is_none)\n    # Version1 detached native food drawdown/public relief observations.\n    food_accounting: dict | None = Field(default=None, exclude_if=_is_none)\n\n\n# --- M20a: Narration Pipeline v2 models ---\n"
+        }
+      ]
+    },
+    "src/chronicler/simulation.py": {
+      "sha256": "8fbcf150c3d16a9d5675c060d533621d408d879790cd2666a591cd4e075298a7",
+      "current_sha256": "85374722ff13da60232f94a9862ad719e686d94558d7d2aed83fe17be8cca946",
+      "patches": [
+        {
+          "old": "                *rust_return, world,\n                require_oracle_shadow=(world.agent_mode == \"hybrid\"),\n            )\n            if _grain_reserves_on(world):\n                # Public granaries (--grain-reserves): cover the shortfall of\n                # food on hand before anything reads this turn's sufficiency.\n                from chronicler.grain_reserves import open_granaries\n                _emit(open_granaries(world, economy_result, agent_bridge))\n            artifacts.economy = economy_result\n            agent_bridge.set_economy_result(economy_result)\n\n",
+          "new": "                *rust_return, world,\n                require_oracle_shadow=(world.agent_mode == \"hybrid\"),\n            )\n            from chronicler.food_accounting import public_opening, capture_food_accounting\n            _public_food_opening = public_opening(world)\n            if _grain_reserves_on(world):\n                # Public granaries (--grain-reserves): cover the shortfall of\n                # food on hand before anything reads this turn's sufficiency.\n                from chronicler.grain_reserves import open_granaries\n                _emit(open_granaries(world, economy_result, agent_bridge))\n            artifacts.food_accounting = capture_food_accounting(\n                world, economy_result, artifacts.food_weights, _public_food_opening,\n            )\n            artifacts.economy = economy_result\n            agent_bridge.set_economy_result(economy_result)\n\n"
+        },
+        {
+          "old": "    if world.mutual_aid_enabled:\n        from chronicler.mutual_aid import observe_mutual_aid\n        observe_mutual_aid(world, economy_result, snapshot)\n    # Pre-economy rows have no Phase 10 view and no post-observation lifetime.\n    del snapshot\n\n",
+          "new": "    if world.mutual_aid_enabled:\n        from chronicler.mutual_aid import observe_mutual_aid\n        observe_mutual_aid(world, economy_result, snapshot)\n    if artifacts.food_accounting is None:\n        from chronicler.food_accounting import capture_food_accounting\n        artifacts.food_accounting = capture_food_accounting(world, None, None, None)\n    # Pre-economy rows have no Phase 10 view and no post-observation lifetime.\n    del snapshot\n\n"
+        },
+        {
+          "old": "            phase10_agents=artifacts.phase10.agents,\n            food_weights=artifacts.food_weights if economy_result is not None else None,\n            population_sources=population_sources,\n        ),\n    )\n\n",
+          "new": "            phase10_agents=artifacts.phase10.agents,\n            food_weights=artifacts.food_weights if economy_result is not None else None,\n            population_sources=population_sources,\n            food_accounting=artifacts.food_accounting,\n            food_procurement=tuple((ci, initial, remaining) for ci, (initial, remaining)\n                                   in sorted(getattr(economy_result, \"food_procurement_budget\", {}).items())) if economy_result is not None else (),\n        ),\n    )\n\n"
+        }
+      ]
+    },
+    "src/chronicler/turn_artifacts.py": {
+      "sha256": "c160060022d912aa1cb4087d7a82e99f4bb4e4187d50b7850dc39256457bec7c",
+      "current_sha256": "b276144c8a58fafd383d994494d1044f51631528c0614592075e32f8a05581a5",
+      "patches": [
+        {
+          "old": "    from chronicler.economy import EconomyResult\n    from chronicler.models import AgentEventRecord\n    from chronicler.regional_population import FoodWeights\n\nStage = Literal[\"phase10_entry\"]\n\n",
+          "new": "    from chronicler.economy import EconomyResult\n    from chronicler.models import AgentEventRecord\n    from chronicler.regional_population import FoodWeights\n    from chronicler.food_accounting import FoodAccounting\n\nStage = Literal[\"phase10_entry\"]\n\n"
+        },
+        {
+          "old": "    deaths: tuple[AgentEventRecord, ...] = ()\n    phase10: Phase10Inputs | None = None\n    food_weights: FoodWeights | None = None\n\n\n@dataclass(frozen=True, slots=True)\n",
+          "new": "    deaths: tuple[AgentEventRecord, ...] = ()\n    phase10: Phase10Inputs | None = None\n    food_weights: FoodWeights | None = None\n    food_accounting: FoodAccounting | None = None\n\n\n@dataclass(frozen=True, slots=True)\n"
+        },
+        {
+          "old": "    phase10_agents: AgentRows | None\n    food_weights: FoodWeights | None = None\n    population_sources: tuple[str, ...] | None = None\n\n    def __post_init__(self) -> None:\n        if self.phase10_agents is not None:\n",
+          "new": "    phase10_agents: AgentRows | None\n    food_weights: FoodWeights | None = None\n    population_sources: tuple[str, ...] | None = None\n    food_accounting: FoodAccounting | None = None\n    food_procurement: tuple[tuple[int, int, int], ...] = ()\n\n    def __post_init__(self) -> None:\n        if self.phase10_agents is not None:\n"
+        }
+      ]
+    }
+  },
+  "new_files": {
+    "src/chronicler/food_accounting.py": "d1cc60a693a2b8958e584661d65a89717da7021f9cc9d90f6edcebba02828b31"
+  }
+}

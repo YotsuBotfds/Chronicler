@@ -218,10 +218,12 @@ def test_source_inverse_preserves_frozen_parent_and_rejects_changed_policy_and_u
     import hashlib
     from pathlib import Path
     from scripts.testing.grain_release_witness import _LAYERS, before_grain_release
+    from scripts.testing.food_accounting_witness import before_food_accounting
     root = Path(__file__).resolve().parents[1]
     for path, row in _LAYERS.items():
         source = (root / path).read_text()
         assert hashlib.sha256(before_grain_release(source, path).encode()).hexdigest() == row["sha256"]
+        source = before_food_accounting(source, path, allow_parent=True)
         for patch in row["patches"]:
             with pytest.raises(AssertionError):
                 before_grain_release(source.replace(patch["new"], patch["old"], 1), path)
