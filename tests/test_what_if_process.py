@@ -25,6 +25,15 @@ import chronicler.what_if as wi
 pytestmark = pytest.mark.skipif(os.name != "posix", reason="POSIX process groups required")
 
 
+def _assert_real_native():
+    native = pytest.importorskip("chronicler_agents")
+    import chronicler_agents.chronicler_agents as compiled
+    assert any(compiled.__file__.endswith(suffix) for suffix in importlib.machinery.EXTENSION_SUFFIXES)
+    assert all(isinstance(getattr(native, name, None), type)
+               and getattr(native, name) is getattr(compiled, name)
+               for name in ("AgentSimulator", "EcologySimulator", "PoliticsSimulator"))
+
+
 def wait_file(path):
     deadline = time.monotonic() + 4
     while not path.exists():
@@ -290,7 +299,7 @@ def _assert_policy_checkpoint_continuations(tmp_path, checkpoints):
                     _section(split / "turn_6.ckpt", h2, b2, section["name"])
 
 
-def _run_hash_zero_native_fixture(tmp_path, changed, policy_case=None):
+def _run_hash_zero_native_fixture(tmp_path, changed=None, policy_case=None, *, fixture_file=None, function_name=None):
     """Execute this exact fixture without inheriting pytest plugins/JUnit writers.
 
     A hash seed cannot be changed in a running interpreter. CI's unpinned
@@ -298,22 +307,37 @@ def _run_hash_zero_native_fixture(tmp_path, changed, policy_case=None):
     does not skip or replace either real native continuation assertion.
     """
     script = """
-import json, runpy, signal, sys
+import importlib.machinery, json, runpy, signal, sys
 from pathlib import Path
+import chronicler_agents as native
+import chronicler_agents.chronicler_agents as compiled
+assert any(compiled.__file__.endswith(suffix) for suffix in importlib.machinery.EXTENSION_SUFFIXES)
+assert all(isinstance(getattr(native, name, None), type) and getattr(native, name) is getattr(compiled, name)
+           for name in ("AgentSimulator", "EcologySimulator", "PoliticsSimulator"))
+assert sys.flags.hash_randomization == 0
+
 def terminate(signum, frame):
     raise SystemExit("hash-zero fixture terminated")
 signal.signal(signal.SIGTERM, terminate)
 namespace = runpy.run_path(sys.argv[1])
 changed = sys.argv[3] == "True"
 policy_case = None if sys.argv[4] == "None" else sys.argv[4]
-namespace["test_real_native_pair_preserves_original_and_unchanged_arm"](Path(sys.argv[2]), changed, policy_case=policy_case)
-print("HASH_ZERO_NATIVE_PAIR_COMPLETE " + json.dumps({"changed": changed, "hash_seed": "0", "hash_randomization": sys.flags.hash_randomization}), flush=True)
+function_name = sys.argv[5]
+if function_name:
+    namespace[function_name](Path(sys.argv[2]))
+    receipt = {"fixture": function_name, "hash_seed": "0", "hash_randomization": sys.flags.hash_randomization}
+else:
+    namespace["test_real_native_pair_preserves_original_and_unchanged_arm"](Path(sys.argv[2]), changed, policy_case=policy_case)
+    receipt = {"changed": changed, "hash_seed": "0", "hash_randomization": sys.flags.hash_randomization}
+print("HASH_ZERO_NATIVE_PAIR_COMPLETE " + json.dumps(receipt), flush=True)
 """
     env = dict(os.environ, PYTHONHASHSEED="0")
     source = str(Path(__file__).resolve().parents[1] / "src")
-    env["PYTHONPATH"] = source + os.pathsep + env.get("PYTHONPATH", "")
+    tests = str(Path(__file__).resolve().parent)
+    env["PYTHONPATH"] = os.pathsep.join((source, tests, env.get("PYTHONPATH", "")))
     process = subprocess.Popen(
-        [sys.executable, "-c", script, str(Path(__file__).resolve()), str(tmp_path), str(changed), str(policy_case)],
+        [sys.executable, "-c", script, str(Path(fixture_file).resolve() if fixture_file else Path(__file__).resolve()),
+         str(tmp_path), str(changed), str(policy_case), function_name or ""],
         env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
         start_new_session=True,
     )
@@ -323,7 +347,9 @@ print("HASH_ZERO_NATIVE_PAIR_COMPLETE " + json.dumps({"changed": changed, "hash_
         receipt = next((line.removeprefix("HASH_ZERO_NATIVE_PAIR_COMPLETE ")
                         for line in stdout.splitlines() if line.startswith("HASH_ZERO_NATIVE_PAIR_COMPLETE ")), None)
         assert receipt is not None, stdout
-        assert json.loads(receipt) == {"changed": changed, "hash_seed": "0", "hash_randomization": 0}, stdout
+        expected = ({"fixture": function_name, "hash_seed": "0", "hash_randomization": 0} if function_name else
+                    {"changed": changed, "hash_seed": "0", "hash_randomization": 0})
+        assert json.loads(receipt) == expected, stdout
     finally:
         if process.poll() is None:
             # Unwind the same fixture's finally/pair.close first: its arm CLI

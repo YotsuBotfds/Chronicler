@@ -1,5 +1,6 @@
 """Real constructed cargo admission and replay using ordinary CLI children."""
 import os
+import sys
 from pathlib import Path
 
 import pytest
@@ -8,9 +9,13 @@ pytestmark = pytest.mark.native
 
 
 def test_constructed_transport_crisis_reaches_arrival_return_and_recovery(tmp_path):
-    pytest.importorskip("chronicler_agents")
-    if os.environ.get("PYTHONHASHSEED") != "0":
-        pytest.skip("exact child pair requires interpreter-start PYTHONHASHSEED=0")
+    from test_what_if_process import _assert_real_native
+    _assert_real_native()
+    if os.environ.get("PYTHONHASHSEED") != "0" or sys.flags.hash_randomization:
+        from test_what_if_process import _run_hash_zero_native_fixture
+        _run_hash_zero_native_fixture(tmp_path, fixture_file=__file__,
+                                      function_name="test_constructed_transport_crisis_reaches_arrival_return_and_recovery")
+        return
     from scripts.crisis_transport_example import generate
     from chronicler.run_checkpoint import read_checkpoint
     result = generate(tmp_path / "transport")
