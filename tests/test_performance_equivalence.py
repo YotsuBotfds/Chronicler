@@ -21,14 +21,15 @@ proof below pins exactly what each link changed.
 The older fixtures and the edf7299 artifacts remain frozen as historical
 evidence.
 Every turn's pre-existing snapshot/events/narrative and ordered RNG primitives are
-checked; only the independently tested version-1 regional observation export is
-projected out of these older frozen snapshot witnesses. No approximate float
+checked; only the independently tested version-1 regional population and food
+accounting observation exports are projected out of these older frozen snapshot witnesses. No approximate float
 comparisons or relaxed precision are used.
 """
 from copy import deepcopy
 import hashlib
 from chronicler.turn_artifacts import TurnObservation, TurnResult
 import json
+import math
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -61,14 +62,80 @@ ORACLE_CHAIN = {"backlog": (PRIOR_BASELINE, BACKLOG_BASELINE),
 PERCEPTIONS = json.loads((FIXTURES / "perception_edf7299.json").read_text())
 
 
+def _validate_food_accounting(value, turn):
+    """Validate the reviewed v1 shape before excluding it from old hashes."""
+    assert type(value) is dict and set(value) == {
+        "schema_version", "source_turn", "completed_turn", "mode", "timing",
+        "units", "transport", "regions", "procurement"}
+    assert type(value["schema_version"]) is int and value["schema_version"] == 1
+    assert type(value["source_turn"]) is int and value["source_turn"] >= 0
+    assert type(value["completed_turn"]) is int and value["completed_turn"] == value["source_turn"] + 1 == turn
+    assert type(value["mode"]) is str and value["mode"] in {"off", "hybrid", "shadow", "demographics-only"}
+    assert value["timing"] == "phase2" and value["units"] == "model_food_goods"
+    assert type(value["transport"]) is str and value["transport"] in {"none", "physical_delivery", "abstract_allocation"}
+    if value["transport"] == "physical_delivery":
+        assert value["mode"] == "hybrid"
+    if value["transport"] == "abstract_allocation":
+        assert value["mode"] not in {"off", "hybrid"}
+
+    def number(x, *, nonnegative=False):
+        return (type(x) in (int, float) and math.isfinite(x)
+                and (not nonnegative or x >= 0))
+
+    def integer(x):
+        return type(x) is int and x >= 0
+
+    regions = value["regions"]
+    assert type(regions) is list
+    for rid, row in enumerate(regions):
+        assert type(row) is dict and set(row) == {"region_id", "model_population", "native_count", "native", "sufficiency_after_relief", "public"}
+        assert type(row["region_id"]) is int and row["region_id"] == rid
+        assert integer(row["model_population"])
+        assert row["native_count"] is None or integer(row["native_count"])
+        suff = row["sufficiency_after_relief"]
+        assert suff is None or number(suff) and 0 <= suff <= 2
+        native = row["native"]
+        if value["transport"] == "none":
+            assert native is None and row["native_count"] is None and suff is None
+        if native is not None:
+            keys = {"opening", "produced", "transport_net", "craft_input", "clamp_correction", "pre_consumption", "consumed", "storage_loss", "cap_overflow", "closing", "demand", "sufficiency", "balance_residual", "balance_tolerance"}
+            assert type(native) is dict and set(native) == keys
+            assert all(number(v) for v in native.values())
+            assert all(native[k] >= 0 for k in keys - {"transport_net", "balance_residual"})
+            assert native["sufficiency"] <= 2 and native["balance_tolerance"] > 0
+        public = row["public"]
+        if public is not None:
+            assert type(public) is dict and set(public) == {"owner_id", "opening", "released", "spoiled", "abandoned", "captured", "after_open", "balance_residual"}
+            assert type(public["owner_id"]) is int and public["owner_id"] >= -1
+            assert public["opening"] is None or number(public["opening"], nonnegative=True)
+            assert all(number(public[k], nonnegative=True) for k in ("released", "spoiled", "abandoned", "captured", "after_open"))
+            assert (public["balance_residual"] is None) == (public["opening"] is None)
+            assert public["balance_residual"] is None or number(public["balance_residual"])
+    procurement = value["procurement"]
+    assert type(procurement) is list
+    if value["transport"] == "none":
+        assert procurement == []
+    ids = []
+    for row in procurement:
+        assert type(row) is dict and set(row) == {"civilization_id", "budget_initial", "budget_remaining", "spent"}
+        assert all(integer(v) for v in row.values())
+        assert row["budget_remaining"] <= row["budget_initial"]
+        assert row["spent"] == row["budget_initial"] - row["budget_remaining"]
+        ids.append(row["civilization_id"])
+    assert ids == list(range(len(ids)))
+
+
 def _frozen_snapshot(snapshot):
-    """Project only the independently tested v1 regional observation export.
+    """Project only the independently tested v1 observation exports.
 
     The historical fixtures still pin every pre-existing snapshot field. Refuse
     unknown/malformed additions so a future export contract needs explicit
     review instead of silently disappearing behind this frozen witness.
     """
     fields = snapshot.model_dump(mode="json")
+    if "food_accounting" in fields:
+        _validate_food_accounting(fields["food_accounting"], fields["turn"])
+        fields.pop("food_accounting")
     if "regional_population" not in fields:
         return fields
     value = fields["regional_population"]
@@ -117,7 +184,7 @@ def _frozen_snapshot(snapshot):
 
 
 def _frozen_artifact_bytes(path, *, pre_pruning=False):
-    """Retain the existing legacy artifact projection, then the reviewed v1 field.
+    """Retain the existing legacy artifact projection, then the reviewed v1 fields.
 
     The legacy helper still owns dormant/provenance/faith/schema projection and
     its original pre-pruning assertion. Only decoded bundle history receives the
@@ -455,3 +522,60 @@ def test_benchmark_comparison_rejects_rng_artifact_and_environment_changes():
         else:
             changed["workloads"]["small"]["equivalence"][change] = "different"
         assert not compare(original, changed)["passed"]
+
+
+def _food_projection_case(make_world):
+    from chronicler.food_accounting import FoodAccounting, RegionFood
+    fields = _projection_case(make_world)
+    row = RegionFood(0, 11, 4, (5., 1., -1., 0., 0., 5., 2., .5, 0., 2.5, 4., 1.25),
+                     1.5, (0, 5., 1., .5, 0., 0., 3.5))
+    fields["food_accounting"] = FoodAccounting(0, "hybrid", "physical_delivery", (row,)).as_dict(1, ((0, 10, 7),))
+    return fields
+
+
+def test_frozen_food_projection_only_removes_valid_export(make_world):
+    fields = _food_projection_case(make_world)
+    original = deepcopy(fields)
+    expected = deepcopy(fields)
+    expected.pop("food_accounting")
+    assert _frozen_snapshot(_snapshot_double(fields)) == _frozen_snapshot(_snapshot_double(expected))
+    assert fields == original
+    fields["food_accounting"]["regions"][0]["native"] = None
+    fields["food_accounting"]["regions"][0]["native_count"] = None
+    fields["food_accounting"]["regions"][0]["public"]["opening"] = None
+    fields["food_accounting"]["regions"][0]["public"]["balance_residual"] = None
+    assert _frozen_snapshot(_snapshot_double(fields)) == _frozen_snapshot(_snapshot_double(expected))
+
+
+@pytest.mark.parametrize("mutation", ["null", "version", "version_bool", "extra", "missing", "mode", "clock", "transport", "region_id", "region_duplicate", "population", "native_count", "native_extra", "native_nan", "native_negative", "sufficiency", "public_extra", "public_missing_balance", "public_owner", "public_negative", "budget_extra", "budget_bool", "budget_arithmetic", "budget_duplicate", "unknown_fabricated"])
+def test_frozen_food_projection_rejects_unreviewed_export(make_world, mutation):
+    fields = _food_projection_case(make_world)
+    food = fields["food_accounting"]
+    row, budget = food["regions"][0], food["procurement"][0]
+    if mutation == "null": fields["food_accounting"] = None
+    elif mutation == "version": food["schema_version"] = 2
+    elif mutation == "version_bool": food["schema_version"] = True
+    elif mutation == "extra": food["extra"] = 1
+    elif mutation == "missing": food.pop("units")
+    elif mutation == "mode": food["mode"] = "future"
+    elif mutation == "clock": food["source_turn"] = 1
+    elif mutation == "transport": food["transport"] = "new_kind"
+    elif mutation == "region_id": row["region_id"] = 1
+    elif mutation == "region_duplicate": food["regions"].append(deepcopy(row))
+    elif mutation == "population": row["model_population"] = True
+    elif mutation == "native_count": row["native_count"] = -1
+    elif mutation == "native_extra": row["native"]["future"] = 0
+    elif mutation == "native_nan": row["native"]["opening"] = float("nan")
+    elif mutation == "native_negative": row["native"]["consumed"] = -1
+    elif mutation == "sufficiency": row["sufficiency_after_relief"] = 2.1
+    elif mutation == "public_extra": row["public"]["future"] = 0
+    elif mutation == "public_missing_balance": row["public"]["balance_residual"] = None
+    elif mutation == "public_owner": row["public"]["owner_id"] = -2
+    elif mutation == "public_negative": row["public"]["released"] = -1
+    elif mutation == "budget_extra": budget["future"] = 1
+    elif mutation == "budget_bool": budget["spent"] = True
+    elif mutation == "budget_arithmetic": budget["spent"] = 2
+    elif mutation == "budget_duplicate": food["procurement"].append(deepcopy(budget))
+    elif mutation == "unknown_fabricated": food["transport"] = "none"
+    with pytest.raises(AssertionError):
+        _frozen_snapshot(_snapshot_double(fields))

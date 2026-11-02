@@ -57,7 +57,8 @@
     "scientific_claims",
     "transaction_receipts",
     "migration",
-    "regional_population"
+    "regional_population",
+    "food_accounting"
   ],
   "bundle_systems": [
     "historiography",
