@@ -22,10 +22,9 @@ def test_full_main_case_keeps_declared_history_and_real_observations(tmp_path):
     assert result.returncode==0, result.stdout+'\n'+result.stderr
     manifest=json.loads((output/'crisis-case.json').read_text())
     assert manifest['conditions']==CONDITIONS
-    assert manifest['state'] in ('validated','partial')
-    if manifest['state']=='partial':
-        assert manifest['reason']
-        return
+    # The runner preserves partial/failed admissions for diagnosis. This fixed
+    # capability regression must still fail if its intended path stops working.
+    assert manifest['state']=='validated', manifest.get('reason')
     admission=manifest['admission']; turn=admission['source_turn']
     assert 12<=turn<=18 and admission['complete_prior_history_turns']==list(range(1,turn+1))
     assert 'agent_bridge' in admission['runtime_fields'] and 'economy_tracker' in admission['runtime_fields']
