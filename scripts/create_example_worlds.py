@@ -60,14 +60,29 @@ def main() -> None:
     parser.add_argument("--aggregate-python", required=True, help="Python 3.13+ with chronicler_agents absent")
     parser.add_argument("--native-python", required=True, help="Python 3.13+ with a matching real native extension")
     parser.add_argument("--commands-only", action="store_true", help="Print the exact shell-safe run commands without executing")
+    parser.add_argument("--institution-pressure", action="store_true", help="Also generate two fixed constructed institution pressure/control pairs (64 turns each; explicit staged inputs)")
     options = parser.parse_args()
+    if options.output.expanduser().is_symlink():
+        parser.error("Existing symlinks are preserved; choose a fresh external directory")
     output = options.output.expanduser().resolve()
     if output.is_relative_to(ROOT):
         parser.error("Keep generated worlds outside the source repository")
     interpreters = {"aggregate": options.aggregate_python, "native": options.native_python}
-    commands = [command(interpreters[kind], args, output / name) for name, _, kind, args in RECIPES]
+    recipes = list(RECIPES)
+    institution_names = set()
+    if options.institution_pressure:
+        from institution_pressure_example import CASES
+        for case in CASES:
+            for arm in ("control", "pressure"):
+                name = f"institution-{case}-{arm}"
+                institution_names.add(name)
+                recipes.append((name, f"Constructed opening institutions and resources; {case}, {arm}; fixed tick4/12 stages, no guaranteed recovery",
+                                "native", ["--case", case, "--arm", arm]))
+    commands = [([interpreters[kind], str(ROOT / "scripts/institution_pressure_example.py"), *args,
+                  "--simulate-only", "--output", str(output / name)] if name in institution_names
+                 else command(interpreters[kind], args, output / name)) for name, _, kind, args in recipes]
     lines = []
-    for (name, _, _, _), cmd in zip(RECIPES, commands):
+    for (name, _, _, _), cmd in zip(recipes, commands):
         folder = shlex.quote(str(output / name))
         lines.append(f"if test -e {folder}\nthen\n  echo 'Example folder exists; choose a fresh output path.' >&2\n  exit 1\nfi\n"
                      + shlex.join(["env", *(f"{key}={value}" for key, value in SETTINGS.items()), *cmd]))
@@ -96,18 +111,24 @@ def main() -> None:
     from chronicler.bundle_codec import load_bundle
 
     guide = ["# Guided Chronicler examples", "", f"Source: `{source}`.",
-             "No manually edited state, market, treasury or event inputs. No narration/API calls.",
+             ("The three baseline starts have no manually edited inputs; opt-in institution cases have explicit constructed institutions/resources and staged interventions. No narration/API calls."
+              if options.institution_pressure else "No manually edited state, market, treasury or event inputs. No narration/API calls."),
              "Template starts use the repository's existing map; the procedural start generates geography.",
              "These small selected examples are not evidence of general balance or a policy effect.", "",
              "Start the viewer, choose **Open Existing**, and choose each `chronicle_bundle.json` below.",
              "Saved world details explains mode and available history. Checkpoint and state files are different file types.",
              "Use **Compare turns and inspect history** after selecting the later turn; start with 1 versus 10.",
              "Use **Compare saved runs** for different examples; differences in seeds, horizons and modes are exploratory.", ""]
-    for (name, description, kind, _), cmd in zip(RECIPES, commands):
+    for (name, description, kind, _), cmd in zip(recipes, commands):
         folder = output / name
-        folder.mkdir()
-        with (folder / "run.log").open("w") as log:
+        constructed = name in institution_names
+        if not constructed:
+            folder.mkdir()
+        log_path = output / f"{name}.run.log" if constructed else folder / "run.log"
+        with log_path.open("w") as log:
             subprocess.run(cmd, cwd=ROOT, env=env, check=True, stdout=log, stderr=subprocess.STDOUT)
+        if constructed:
+            log_path.rename(folder / "run.log")
         bundle_path = folder / "chronicle_bundle.json"
         data = load_bundle(bundle_path)
         turns = [row["turn"] for row in data["history"]]
@@ -117,11 +138,19 @@ def main() -> None:
                "bundle": str(bundle_path), "bundle_sha256": hashlib.sha256(bundle_path.read_bytes()).hexdigest(),
                "seed": data["metadata"]["seed"], "snapshot_range": [min(turns), max(turns)],
                "events": len(data["events_timeline"]), "snapshots": len(turns)}
+        if constructed:
+            case_receipt = json.loads((folder / "institution-case.json").read_text())
+            row.update(constructed=True, case_receipt=str(folder / "institution-case.json"),
+                       interventions=case_receipt["interventions"], observations=case_receipt["observations"])
         manifest["examples"].append(row)
         (output / "examples.json").write_text(json.dumps(manifest, indent=2) + "\n")
         guide.extend([f"## {name}", "", description + ".", f"Bundle: `{bundle_path}`.",
                       f"Seed {row['seed']}; recorded snapshots {min(turns)}–{max(turns)}; {row['events']} timeline records.", ""])
-        if name == "aggregate-archive":
+        if constructed:
+            guide.append("Read institution-case.json for the declared opening inputs, actual applied/unapplied stages, source/runtime hashes and outcomes. A school is not a faith; reestablishment uses a new seat ID and a prior-fall event reference. Checkpoint16 is exact, not a viewer bundle. Recovery or net benefit is not guaranteed.")
+            for event in case_receipt["observations"]["reestablishments"]:
+                guide.append(f"- At snapshot {event['snapshot_turn']}, inspect recorded reestablishment: {event['description']}")
+        elif name == "aggregate-archive":
             guide.append("Inspect population, territory and treasury. Food observations may be absent: unknown is not zero.")
         elif name == "grain-and-finance":
             guide.append("Choose Trade → Food and inspect granary purchases/releases; choose Finance for borrowing and debt. Neither shortage-first priority nor delayed public shipments is enabled.")
