@@ -1,6 +1,6 @@
 {
   "base": "fc50bf8e87f55c52fa1ab7127788cc48178ec2aa",
-  "head": "d13b3509ba9452a38b5345d10aa9d0624ec4833f",
+  "head": "5a1a67b86ae153bfb59ff7c43c6e89df4a32b106",
   "files": {
     "chronicler-agents/src/ffi/mod.rs": {
       "sha256": "26143638709baa562c4b4159f6c3a2d62a654e159688c96f115829b452ec739e",
@@ -239,9 +239,39 @@
           "new": "    population_sources: tuple[str, ...] | None = None\n    food_accounting: FoodAccounting | None = None\n    food_procurement: tuple[tuple[int, int, int], ...] = ()\n    household_mobility: HouseholdMobilityObservation | None = None\n\n    def __post_init__(self) -> None:\n        if self.phase10_agents is not None:\n            _check_agent_rows(self.phase10_agents.batch, self.phase10_agents, source_turn=self.source_turn)\n        if self.food_weights is not None and self.food_weights.source_turn != self.source_turn:\n            raise ValueError(\"food_weights source_turn does not match the consumer turn\")\n        if self.household_mobility is not None and self.household_mobility.source_turn != self.source_turn:\n            raise ValueError(\"household_mobility source_turn does not match the consumer turn\")\n        if self.completed_turn != self.source_turn + 1:\n            raise ValueError(\"completed_turn must label the completed source_turn as N+1\")\n\n"
         }
       ]
+    },
+    "viewer/src/components/MigrationEvidence.tsx": {
+      "sha256": "aff7a44cb213c527ad98473eb55319dd4d206c26fa146017b5ddd04e2b2d7f28",
+      "current_sha256": "d1b1d7900c9914859c3d9e2077167475711abe999b6b943076f30647ea04f41f",
+      "patches": [
+        {
+          "old": "import { useMemo, useState } from \"react\";\nimport type { Bundle } from \"../types\";\nimport { readMigrationEvidence } from \"../lib/migrationEvidence\";\nimport \"./migration-evidence.css\";\n\ninterface MigrationEvidenceProps {\n",
+          "new": "import { useMemo, useState } from \"react\";\nimport type { Bundle } from \"../types\";\nimport { readMigrationEvidence } from \"../lib/migrationEvidence\";\nimport { HouseholdMobilityEvidence } from \"./HouseholdMobilityEvidence\";\nimport \"./migration-evidence.css\";\n\ninterface MigrationEvidenceProps {\n"
+        },
+        {
+          "old": "          {limit < reading.flows.length && <button type=\"button\" onClick={() => setPage({ scope, limit: limit + PAGE_SIZE })}>Show more flows ({reading.flows.length - limit} remaining)</button>}\n        </>}\n      </>}\n      {reading.sourcePointer && <p className=\"migration-evidence-source\">Flow field: <code>{reading.sourcePointer}</code></p>}\n\n      {selectedRegionIndex != null && <details>\n",
+          "new": "          {limit < reading.flows.length && <button type=\"button\" onClick={() => setPage({ scope, limit: limit + PAGE_SIZE })}>Show more flows ({reading.flows.length - limit} remaining)</button>}\n        </>}\n      </>}\n      <HouseholdMobilityEvidence bundle={bundle} turn={currentTurn} selectedRegionIndex={selectedRegionIndex} />\n      {reading.sourcePointer && <p className=\"migration-evidence-source\">Flow field: <code>{reading.sourcePointer}</code></p>}\n\n      {selectedRegionIndex != null && <details>\n"
+        }
+      ]
+    },
+    "viewer/src/types.ts": {
+      "sha256": "cb5108e42c0e0ae85f25f38b880e6d61e347d4e85e26d554d75b4f31c262aa5b",
+      "current_sha256": "db2acc35341980a410004339e87f158523391ae2e1c60ad421c62328887c05d3",
+      "patches": [
+        {
+          "old": "  procurement: Array<{ civilization_id: number; budget_initial: number; budget_remaining: number; spent: number }>;\n}\n\nexport interface TurnSnapshot {\n  turn: number;\n  civ_stats: Record<string, CivSnapshot>;\n",
+          "new": "  procurement: Array<{ civilization_id: number; budget_initial: number; budget_remaining: number; spent: number }>;\n}\n\nexport interface HouseholdMobilitySample {\n  group_id: number; origin_region_id: number; destination_region_id: number; native_persons: number;\n  local_food_sufficiency: number | null; native_adult_liquid_wealth: number; required_liquid: number;\n  reason: \"sufficient\" | \"insufficient\" | \"no_local_distress\" | \"unknown_destination\" | \"on_trip\";\n}\nexport interface HouseholdMobilitySnapshot {\n  schema_version: 1; source_turn: number; completed_turn: number; timing: \"agent_decision_post_consolidation\";\n  mode: string; wealth_units: \"native_agent_wealth\"; person_units: \"native_agents\";\n  passed_means: \"gate_passed_not_observed_move\"; requirement_per_native_person: number;\n  proposed_groups: number; proposed_native_persons: number; passed_groups: number; passed_native_persons: number;\n  blocked_groups: number; blocked_native_persons: number; dropped_samples: number; samples: HouseholdMobilitySample[];\n}\n\nexport interface TurnSnapshot {\n  turn: number;\n  civ_stats: Record<string, CivSnapshot>;\n"
+        },
+        {
+          "old": "   * viewer map layers.\n   */\n  migration?: MigrationFlow[];\n}\n\nexport interface ContactTradePair {\n",
+          "new": "   * viewer map layers.\n   */\n  migration?: MigrationFlow[];\n  /** Optional native household mobility gate observation for the completed turn. */\n  household_mobility?: HouseholdMobilitySnapshot;\n}\n\nexport interface ContactTradePair {\n"
+        }
+      ]
     }
   },
   "new_files": {
-    "src/chronicler/household_mobility_state.py": "7fab141b618edcd596462ace1b076dde99baeab37c46aeabb5ada67a3121901b"
+    "src/chronicler/household_mobility_state.py": "7fab141b618edcd596462ace1b076dde99baeab37c46aeabb5ada67a3121901b",
+    "viewer/src/components/HouseholdMobilityEvidence.tsx": "783672f25dbf3fed5c1fee1e00e4694a2f8261a9094e15c2bc0a89be02f99bac",
+    "viewer/src/lib/householdMobility.ts": "adc8d6efbf3c473c99c12d53cbacebf6277ac79e95e09650e25f00af270c380a"
   }
 }
