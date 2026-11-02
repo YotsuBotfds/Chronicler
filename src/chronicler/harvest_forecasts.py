@@ -11,7 +11,7 @@ import random
 from dataclasses import dataclass
 from typing import Sequence
 from chronicler.harvest_forecasts_state import (
-    ForecastCredibilityEvidence, HarvestForecastState, HarvestObserver, HarvestReport,
+    ForecastCredibilityEvidence, HarvestEstimatorMetadata, HarvestForecastState, HarvestObserver, HarvestReport,
     harvest_forecasts_on,
 )
 from chronicler.resources import SEASON_MOD, get_season_id
@@ -366,9 +366,10 @@ def _publish(world, state, index) -> list:
         if len(observations) < MIN_OBSERVATIONS:
             continue
         predicted = math.fsum(value for _, value in observations) / len(observations) * SEASON_MOD[0][3]
+        noise = _noise(world, rid)
         probability = min(0.95, max(0.05, 0.5 + 0.5 * (SHORTFALL_RATIO - predicted)
-                                      / SHORTFALL_RATIO + _noise(world, rid)))
-        estimates[rid] = (probability, len(observations) / OBSERVATIONS, predicted)
+                                      / SHORTFALL_RATIO + noise))
+        estimates[rid] = (probability, len(observations) / OBSERVATIONS, predicted, rid, tuple(observations), noise)
     # A deterministic circular permutation is a signal-destruction control;
     # it does not consume another stream or inspect outcomes.
     if state.policy == "shuffle" and len(estimates) > 1:
@@ -394,7 +395,7 @@ def _publish(world, state, index) -> list:
     events = []
     year = world.turn // 12
     extra_delay = get_report_delay(state)
-    for recipient, (_, source, delay, (probability, confidence, predicted)) in sorted(candidates.items()):
+    for recipient, (_, source, delay, (probability, confidence, predicted, origin, observations, noise)) in sorted(candidates.items()):
         region = world.regions[recipient]
         report = HarvestReport(
             id=f"harvest:{year}:{source}:{recipient}", source_region=source,
@@ -403,6 +404,12 @@ def _publish(world, state, index) -> list:
             issued_turn=world.turn, delivery_turn=world.turn + delay + extra_delay, expires_turn=12 * year + 11,
             target_start=12 * year + 9, target_end=12 * year + 11, probability=probability,
             confidence=confidence, predicted_ratio=predicted,
+            estimator_metadata=HarvestEstimatorMetadata(
+                issued_turn=world.turn, reported_issuer_region=source, estimate_origin_region=origin,
+                policy=state.policy, preparation_policy=get_preparation_policy(state),
+                base_delivery_lag=delay, extra_delivery_delay=extra_delay, observations=observations,
+                season_multiplier=SEASON_MOD[0][3], shortfall_ratio=SHORTFALL_RATIO, noise_draw=noise,
+                claimed_probability=probability, claimed_confidence=confidence, claimed_predicted_ratio=predicted),
         )
         event = _emit(world, "harvest_forecast_issued", report,
                       f"Assessors in {report.source_region_name} estimate a {probability:.0%} chance "
@@ -564,6 +571,7 @@ class ForecastDecision:
     reports: tuple[KnownHarvestReport, ...]
     target_before: float | None
     requested_target: float
+    feasible_target: float
     granary_stock: float
     food_demand: float | None
     pending_inbound: float | None
@@ -599,7 +607,9 @@ def _nonnegative_number(value, name):
 
 def begin_forecast_decisions(world, economy_result, opening_budget: Sequence[int],
                              inbound: Sequence[float] | None = None, *,
-                             target_before: Sequence[float | None] | None = None
+                             target_before: Sequence[float | None] | None = None,
+                             requested_targets: Sequence[float] | None = None,
+                             capacity_records=None
                              ) -> ForecastDecisionBatch | None:
     """Capture a read-only, then-known Phase 10 procurement boundary.
 
@@ -607,8 +617,11 @@ def begin_forecast_decisions(world, economy_result, opening_budget: Sequence[int
     computing the actual per-civ budget, immediately before purchase loops.
     `target_before` may supply targets captured before preparedness; absent
     values stay unknown unless the existing preparedness record supplies one.
-    An omitted inbound vector is unknown, not an invented zero. Do not retain a
-    batch across turns/checkpoints. An inactive feature returns None.
+    Freeze `requested_targets` immediately after forecast preparedness and pass
+    the live same-turn storage receipts after its capacity settlement. Changed
+    targets must match those receipts and the real current storage limit. With
+    no cap, callers may omit both. An omitted inbound vector is unknown, not
+    an invented zero. Do not retain a batch across turns/checkpoints.
     """
     if not harvest_forecasts_active(world):
         return None
@@ -625,6 +638,38 @@ def begin_forecast_decisions(world, economy_result, opening_budget: Sequence[int
         raise ValueError("invalid forecast decision inbound vector")
     if target_before is not None and len(target_before) != n:
         raise ValueError("invalid forecast decision prior target vector")
+    if requested_targets is not None and len(requested_targets) != n:
+        raise ValueError("invalid forecast decision requested target vector")
+    if capacity_records is not None and requested_targets is None:
+        raise ValueError("capacity evidence requires requested targets")
+    actual_targets = [_nonnegative_number(g.target, "feasible target") for g in reserves.granaries]
+    requested_values = (actual_targets if requested_targets is None else
+                        [_nonnegative_number(v, "requested target") for v in requested_targets])
+    cap_by_region = {}
+    if capacity_records is not None:
+        from chronicler.grain_storage_state import StorageReceipt
+        from chronicler.grain_storage import storage_limit
+        storage = getattr(reserves, "storage", None)
+        if (storage is None or getattr(storage, "receipt_turn", None) != world.turn
+                or capacity_records is not storage.receipts):
+            raise ValueError("storage cap evidence is not the current authoritative receipt list")
+        for row in capacity_records:
+            if (not isinstance(row, StorageReceipt) or type(row.region) is not int
+                    or not 0 <= row.region < n or row.region in cap_by_region or row.turn != world.turn):
+                raise ValueError("invalid or duplicate storage cap evidence")
+            if row.target_requested is None or row.target_feasible is None:
+                raise ValueError("storage cap evidence is incomplete")
+            before = _nonnegative_number(row.target_requested, "storage requested target")
+            after = _nonnegative_number(row.target_feasible, "storage feasible target")
+            limit = storage_limit(world, row.region)
+            if (limit is None or not math.isclose(before, requested_values[row.region], rel_tol=0, abs_tol=1e-9)
+                    or not math.isclose(after, actual_targets[row.region], rel_tol=0, abs_tol=1e-9)
+                    or not math.isclose(after, min(before, limit), rel_tol=0, abs_tol=1e-9)):
+                raise ValueError("storage cap evidence conflicts with targets or capacity")
+            cap_by_region[row.region] = row
+    for rid, (requested, actual) in enumerate(zip(requested_values, actual_targets, strict=True)):
+        if not math.isclose(requested, actual, rel_tol=0, abs_tol=1e-9) and rid not in cap_by_region:
+            raise ValueError("changed forecast target lacks actual storage cap evidence")
     inbound_values = ([None] * n if inbound is None else
                       [_nonnegative_number(v, "inbound") for v in inbound])
     prior_values = ([None] * n if target_before is None else [
@@ -680,7 +725,7 @@ def begin_forecast_decisions(world, economy_result, opening_budget: Sequence[int
             raise ValueError("preparedness has no eligible forecast")
         base = _nonnegative_number(row.get("base_target"), "base target")
         extra = _nonnegative_number(row.get("extra_target"), "target increment")
-        if not math.isclose(reserves.granaries[rid].target, base + extra, rel_tol=0, abs_tol=1e-9):
+        if not math.isclose(requested_values[rid], base + extra, rel_tol=0, abs_tol=1e-9):
             raise ValueError("preparedness conflicts with requested target")
         if prior_values[rid] is not None and not math.isclose(prior_values[rid], base, rel_tol=0, abs_tol=1e-9):
             raise ValueError("prior target conflicts with preparedness")
@@ -695,14 +740,15 @@ def begin_forecast_decisions(world, economy_result, opening_budget: Sequence[int
         if owner < 0:
             continue
         controller = owners.get(region.controller)
-        target = _nonnegative_number(granary.target, "requested target")
+        requested = requested_values[rid]
+        feasible = actual_targets[rid]
         stock = _nonnegative_number(granary.grain, "stock")
         raw = economy_result.market_demand.get(region.name)
         demand = None if not raw else _nonnegative_number(raw[0], "food demand")
         report = selected.get(rid)
         decisions.append(ForecastDecision(
             rid, owner, controller, () if report is None else (report,),
-            prepared.get(rid, prior_values[rid]), target, stock, demand,
+            prepared.get(rid, prior_values[rid]), requested, feasible, stock, demand,
             inbound_values[rid], opening_budget[owner]))
     return ForecastDecisionBatch(world.turn, tuple(decisions), id(world), id(reserves.flows), len(reserves.flows))
 

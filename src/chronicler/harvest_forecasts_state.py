@@ -51,6 +51,31 @@ class HarvestObserver(BaseModel):
         default_factory=list, max_length=4, exclude_if=_empty)
 
 
+def _none(value) -> bool:
+    return value is None
+
+
+class HarvestEstimatorMetadata(BaseModel):
+    """Frozen issue-time construction evidence, not actor-visible report text."""
+    model_config = {"frozen": True}
+    schema_version: Literal[1] = 1
+    issued_turn: int
+    reported_issuer_region: int
+    estimate_origin_region: int
+    policy: Literal["normal", "withhold", "shuffle"]
+    preparation_policy: Literal["fixed", "local_credibility"]
+    base_delivery_lag: int
+    extra_delivery_delay: int
+    observations: tuple[ForecastObservation, ...] = Field(min_length=3, max_length=6)
+    observation_window: Literal[6] = 6
+    season_multiplier: float = Field(allow_inf_nan=False)
+    shortfall_ratio: float = Field(allow_inf_nan=False)
+    noise_draw: float = Field(allow_inf_nan=False)
+    claimed_probability: float = Field(allow_inf_nan=False)
+    claimed_confidence: float = Field(allow_inf_nan=False)
+    claimed_predicted_ratio: float = Field(allow_inf_nan=False)
+
+
 class HarvestReport(BaseModel):
     id: str
     source_region: int
@@ -78,9 +103,15 @@ class HarvestReport(BaseModel):
     evaluation_count: int = 0
     issued_event_id: str = ""
     delivered_event_id: str = ""
+    # Issue-time construction evidence is distinct from actor-known text.
+    estimator_metadata: HarvestEstimatorMetadata | None = Field(default=None, exclude_if=_none)
     # Only explicit credibility mode records these present production ratios.
     credibility_observations: list[ForecastObservation] = Field(
         default_factory=list, max_length=3, exclude_if=_empty)
+
+    def __setstate__(self, state):
+        super().__setstate__(state)
+        self.__dict__.setdefault("estimator_metadata", None)
 
 
 class HarvestForecastState(BaseModel):

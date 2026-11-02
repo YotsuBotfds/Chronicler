@@ -280,3 +280,139 @@ def test_known_warning_keeps_its_granary_keeper_during_late_control_change():
     assert row.reports[0].id == report.id
     assert row.requested_target > row.target_before
     assert H.finish_forecast_decisions(world, batch)[0].attempted is None
+
+
+def test_real_storage_cap_records_requested_and_feasible_separately():
+    from chronicler import grain_storage as storage
+    world = _world()
+    report = _warning(world)
+    economy = _economy(world)
+    G.open_granaries(world, economy)
+    state = G._ensure(world)
+    demand = economy.market_demand[world.regions[AMBER].name][0]
+    state.granaries[AMBER].target = 3 * demand
+    storage.enable_storage(world)
+    demands = [economy.market_demand[r.name][0] for r in world.regions]
+    plan = storage.prepare_storage_work(world, demands, commitments={})
+    storage.finish_storage_work(world, plan, [0.0] * len(world.regions))
+    H.tick_harvest_forecasts(world, economy)
+    before = [g.target for g in state.granaries]
+    H.apply_preparedness(world, economy)
+    requested = tuple(g.target for g in state.granaries)
+    storage.settle_storage_capacity(world)
+    feasible = state.granaries[AMBER].target
+    assert requested[AMBER] > feasible
+    original, rng = world.model_dump_json(), random.getstate()
+    batch = H.begin_forecast_decisions(world, economy, [20] * len(world.civilizations),
+        target_before=before, requested_targets=requested, capacity_records=state.storage.receipts)
+    row = next(r for r in batch.decisions if r.region == AMBER)
+    assert row.reports[0].id == report.id
+    assert row.target_before == pytest.approx(before[AMBER])
+    assert row.requested_target == pytest.approx(requested[AMBER])
+    assert row.feasible_target == pytest.approx(feasible)
+    assert world.model_dump_json() == original and random.getstate() == rng
+    with pytest.raises(ValueError, match="lacks actual storage cap evidence"):
+        H.begin_forecast_decisions(world, economy, [20] * len(world.civilizations),
+            target_before=before, requested_targets=requested)
+    with pytest.raises(ValueError, match="not the current authoritative"):
+        H.begin_forecast_decisions(world, economy, [20] * len(world.civilizations),
+            target_before=before, requested_targets=requested,
+            capacity_records=list(state.storage.receipts))
+    record = next(r for r in state.storage.receipts if r.region == AMBER)
+    value = record.target_feasible
+    record.target_feasible += 1
+    with pytest.raises(ValueError, match="conflicts with targets or capacity"):
+        H.begin_forecast_decisions(world, economy, [20] * len(world.civilizations),
+            target_before=before, requested_targets=requested, capacity_records=state.storage.receipts)
+    record.target_feasible = value
+    state.storage.receipts.append(record.model_copy())
+    with pytest.raises(ValueError, match="invalid or duplicate"):
+        H.begin_forecast_decisions(world, economy, [20] * len(world.civilizations),
+            target_before=before, requested_targets=requested, capacity_records=state.storage.receipts)
+    state.storage.receipts.pop()
+    state.storage.receipt_turn -= 1
+    with pytest.raises(ValueError, match="not the current authoritative"):
+        H.begin_forecast_decisions(world, economy, [20] * len(world.civilizations),
+            target_before=before, requested_targets=requested, capacity_records=state.storage.receipts)
+
+
+def test_no_cap_receipt_remains_compatible_with_previous_call(monkeypatch):
+    world = _world()
+    _warning(world)
+    world.regions[AMBER].stockpile.goods["grain"] = 100
+    economy = _economy(world)
+    G.open_granaries(world, economy)
+    batch = _capture_in_real_procurement(monkeypatch, world, economy)
+    row = next(r for r in H.finish_forecast_decisions(world, batch) if r.decision.region == AMBER)
+    assert row.decision.requested_target == row.decision.feasible_target
+
+
+def test_original_assessor_observations_are_frozen_at_issue_and_legacy_unknown():
+    from copy import deepcopy
+    from chronicler.harvest_forecasts_state import HarvestReport
+    world = _world()
+    report = _publish(world)[AMBER]
+    meta = report.estimator_metadata
+    assert meta.schema_version == 1 and meta.policy == "normal"
+    assert meta.reported_issuer_region == meta.estimate_origin_region == report.source_region
+    assert meta.issued_turn == report.issued_turn
+    assert len(meta.observations) == 6
+    assert all(0 <= report.issued_turn - turn < H.OBSERVATIONS for turn, _ in meta.observations)
+    observer = next(o for o in world.harvest_forecasts.observers if o.region == meta.estimate_origin_region)
+    assert meta.observations == tuple(observer.observations)
+    import math
+    predicted = math.fsum(value for _, value in meta.observations) / len(meta.observations) * meta.season_multiplier
+    assert predicted == meta.claimed_predicted_ratio
+    assert len(meta.observations) / meta.observation_window == meta.claimed_confidence
+    assert min(.95, max(.05, .5 + .5 * (meta.shortfall_ratio - predicted) / meta.shortfall_ratio
+                         + meta.noise_draw)) == meta.claimed_probability
+    assert (meta.claimed_probability, meta.claimed_confidence, meta.claimed_predicted_ratio) == (
+        report.probability, report.confidence, report.predicted_ratio)
+    assert meta.base_delivery_lag + meta.extra_delivery_delay == report.delivery_turn - report.issued_turn
+    with pytest.raises(ValueError):
+        meta.issued_turn = 100
+    old = deepcopy(report.__getstate__())
+    old["__dict__"].pop("estimator_metadata")
+    legacy = HarvestReport.__new__(HarvestReport)
+    legacy.__setstate__(old)
+    assert legacy.estimator_metadata is None and "estimator_metadata" not in legacy.model_dump(mode="json")
+    as_json = report.model_dump(mode="json")
+    assert as_json["estimator_metadata"]["observations"] == [list(x) for x in meta.observations]
+    captured = meta.observations
+    world.harvest_forecasts.policy = "shuffle"
+    world.turn = 6
+    _forecast_tick(world)
+    assert meta.policy == "normal" and meta.observations == captured
+    assert all(turn <= meta.issued_turn for turn, _ in captured)
+
+
+def test_shuffle_records_real_estimator_origin_without_relabeling_issuer():
+    normal, shuffled = _world(), _world("shuffle")
+    ratios = {2: .05, 3: 1.0, 5: 3.5, 7: 2.0}
+    a, b = _publish(normal, ratios), _publish(shuffled, ratios)
+    by_source = {r.source_region: r for r in a.values()}
+    assert any(r.estimator_metadata.estimate_origin_region != r.source_region for r in b.values())
+    for row in b.values():
+        meta = row.estimator_metadata
+        source = by_source[meta.estimate_origin_region]
+        assert meta.policy == "shuffle" and meta.reported_issuer_region == row.source_region
+        assert meta.observations == source.estimator_metadata.observations
+        assert meta.noise_draw == source.estimator_metadata.noise_draw
+        assert (row.probability, row.confidence, row.predicted_ratio) == (
+            source.probability, source.confidence, source.predicted_ratio)
+
+
+def test_issued_source_controller_change_does_not_rewrite_delivered_claim():
+    world = _world()
+    report = _warning(world)
+    report.source_region = 3
+    report.source_region_name = world.regions[3].name
+    world.regions[3].controller = None
+    economy = _economy(world)
+    G.open_granaries(world, economy)
+    H.tick_harvest_forecasts(world, economy)
+    H.apply_preparedness(world, economy)
+    batch = H.begin_forecast_decisions(world, economy, [0] * len(world.civilizations))
+    row = next(r for r in batch.decisions if r.region == AMBER)
+    assert row.reports[0].source_region == 3 and row.reports[0].id == report.id
+    assert not hasattr(row.reports[0], "estimator_metadata")
