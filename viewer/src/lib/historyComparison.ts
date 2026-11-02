@@ -1,6 +1,7 @@
 /** Exact recorded endpoints only: never borrow a later/final world value. */
 import type { Bundle, Event, TurnSnapshot } from "../types";
 import { eventKey } from "./bundleIndex";
+import { populationWeightedFood, readRegionalPopulation, weightedFoodNote } from "./regionalPopulation";
 
 export interface HistoryEntity { kind: "civilization" | "region"; name: string }
 export interface RecordedMetric {
@@ -83,11 +84,14 @@ export function readEntityTurn(bundle: Bundle, entity: HistoryEntity, turn: numb
     const control = snapshot?.region_control[entity.name];
     const ecology = snapshot?.ecology?.[entity.name];
     const grain = granaryValues(bundle, snapshot, [entity.name]);
+    const population = readRegionalPopulation(bundle, snapshot);
     return {
       turn, recorded: snapshot !== null, status: snapshot ? "Recorded snapshot" : "Snapshot not recorded or ambiguous",
       controller: control === null ? "Uncontrolled" : control ?? "Not recorded",
       metrics: [
-        metric("population", "Population", null, "Regional population is not exported in these history snapshots."),
+        metric("population", "Regional model population", index >= 0 ? population?.counts[index] : null,
+          population && index >= 0 ? `Completed model Region.population; source: ${population.sources[index]}; mode: ${population.mode}.` : "Regional population not recorded or unsupported; no civilization allocation is inferred."),
+        metric("nativePopulation", "Native agents alive", index >= 0 ? population?.agent_counts?.[index] : null, "Completed native pool count; may differ from model population in shadow and demographics-only modes."),
         metric("food", "Food / need", index >= 0 ? snapshot?.food?.sufficiency?.[index] : null),
         metric("grain", "Public grain stored", grain.grain),
         metric("target", "Public grain target", grain.target, "Requires recorded demand observations."),
@@ -105,6 +109,7 @@ export function readEntityTurn(bundle: Bundle, entity: HistoryEntity, turn: numb
   const regions = row && Array.isArray(row.regions) ? [...new Set(row.regions)] : null;
   const food = foodValues(bundle, snapshot, regions ?? []);
   const grain = granaryValues(bundle, snapshot, regions ?? []);
+  const weighted = populationWeightedFood(bundle, snapshot, entity.name);
   return { turn, recorded: snapshot !== null && row !== undefined, status, metrics: [
     metric("population", "Population", row?.population),
     metric("territory", "Controlled regions", regions?.length),
@@ -112,6 +117,7 @@ export function readEntityTurn(bundle: Bundle, entity: HistoryEntity, turn: numb
     metric("debt", "Outstanding debt", row ? snapshot?.finance?.civs?.[entity.name]?.debt : null,
       "Total principal already includes foreign debt; it is not added twice."),
     metric("food", "Mean regional food / need", food.mean, "Unweighted mean; every controlled region must have an observation."),
+    metric("weightedFood", "Population-weighted food / need", row ? weighted.value : null, weightedFoodNote(weighted)),
     metric("short", "Regions short of food", food.short),
     metric("grain", "Public grain in controlled regions", grain.grain),
     ...(["military", "economy", "culture", "stability", "asabiya"] as const).map((key) =>
@@ -124,7 +130,7 @@ export function compareReadings(before: EntityReading, after: EntityReading): Me
     const last = after.metrics.find((item) => item.id === first.id);
     const a = first.value, b = last?.value ?? null;
     const delta = a !== null && b !== null ? b - a : null;
-    return { id: first.id, label: first.label, note: first.note, before: a, after: b, delta,
+    return { id: first.id, label: first.label, note: last?.note === first.note ? first.note : `Earlier: ${first.note ?? "No additional note"} Later: ${last?.note ?? "No additional note"}`, before: a, after: b, delta,
       percent: delta !== null && a !== 0 && a !== null ? delta / Math.abs(a) * 100 : null };
   });
 }

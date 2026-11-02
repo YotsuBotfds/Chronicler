@@ -1,3 +1,15 @@
+# 2026-11-02 — regional laboratory viewer and inspection prompts
+
+Additive schema-1 regional observations keep completed model and native counts
+separate, preserve unknown older records, and compute population-weighted food
+only from recorded Phase 2 weights/ownership with denominator coverage. A new
+selected-turn Where should I look panel groups explicit recorded conditions and
+links to existing history inspection without predictions or causal claims.
+Affected 118 tests, TypeScript and full viewer lint passed on Node 20.19.0.
+Full suite/build/browser and App integration remain root-owned. See [contract, mount API and limits](integration/regional-laboratory-viewer-2026-11-02.md).
+
+---
+
 # 2026-11-01 — optional public shipment viewer connection
 
 Read-only Granaries snapshots now distinguish stored grain, cargo in transit,

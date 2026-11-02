@@ -2,10 +2,14 @@
 import type { Bundle, CivSnapshot, TurnSnapshot } from "../types";
 import type { ArtifactIdentity } from "./artifactIdentity";
 import { enabledSavedSystems } from "./savedWorldSummary";
+import { populationWeightedFood, readRegionalPopulation, weightedFoodNote } from "./regionalPopulation";
 
 export interface CompletedRun { bundle: Bundle; identity: ArtifactIdentity | null; label: string }
 export const RUN_METRICS = [
   { key: "population", label: "Landholding population", note: "Sum of current landholding civilizations; fallen rows are excluded." },
+  { key: "regionalPopulation", label: "Regional model population", note: "Sum of completed model Region.population over every region, including uncontrolled regions; unknown in older or invalid records." },
+  { key: "nativePopulation", label: "Native agents alive", note: "Sum of actual completed native pool counts; separate from regional model population, especially in shadow and demographics-only modes." },
+  { key: "weightedFood", label: "Population-weighted food / need", note: "Known food ratios weighted by Phase 2 agent counts; denominator excludes unknown ratios. Phase 2 ownership and weights are not completed model or native counts." },
   { key: "food", label: "Regional food / need", note: "Unweighted mean of observed regions, not population weighted; regional coverage is shown separately." },
   { key: "short", label: "Regions short of food", note: "Food below 1; requires an observation for every region." },
   { key: "wars", label: "Active conflict pairs", note: "Unique unordered pairs in active_wars, not declarations or causes." },
@@ -16,7 +20,7 @@ export const RUN_METRICS = [
   { key: "economy", label: "Aggregate economy score", note: "Sum of simulation economy scores, not money, output or wealth." },
 ] as const;
 export type RunMetric = typeof RUN_METRICS[number]["key"];
-export type RunReading = Record<RunMetric, number | null> & { foodObserved: number | null; foodRegions: number };
+export type RunReading = Record<RunMetric, number | null> & { foodObserved: number | null; foodRegions: number; weightedFoodCoverage: string };
 export interface AlignedRunPoint { turn: number; left: RunReading | null; right: RunReading | null }
 const record = (value: unknown): Record<string, unknown> | null =>
   value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
@@ -82,6 +86,8 @@ function read(bundle: Bundle, snapshot: TurnSnapshot, incidents: number[]): RunR
   const finance = record(snapshot.finance?.civs);
   const fin = (key: "debt" | "revenue") => finance
     ? total(rows?.map(([name]) => record(finance[name])?.[key]) ?? null) : null;
+  const regional = readRegionalPopulation(bundle, snapshot);
+  const weighted = populationWeightedFood(bundle, snapshot);
   const rawFood = snapshot.food?.sufficiency;
   const foodRegions = bundle.world_state.regions.length;
   const foodShape = Array.isArray(rawFood) && rawFood.length === foodRegions;
@@ -93,6 +99,9 @@ function read(bundle: Bundle, snapshot: TurnSnapshot, incidents: number[]): RunR
     wars = new Set(snapshot.active_wars.map((pair) => stable([...pair].sort()))).size;
   }
   return {
+    regionalPopulation: regional ? total(regional.counts) : null,
+    nativePopulation: regional?.agent_counts ? total(regional.agent_counts) : null,
+    weightedFood: weighted.value, weightedFoodCoverage: weightedFoodNote(weighted),
     population: stat("population"), treasury: stat("treasury"), economy: stat("economy"), debt: fin("debt"), revenue: fin("revenue"),
     food: food.length && foodTotal !== null ? foodTotal / food.length : null,
     short: foodShape && food.length === foodRegions ? food.filter((value) => value < 1).length : null,
@@ -148,8 +157,8 @@ export function completedRunIdentity(run: CompletedRun) {
 export const COMPARISON_LIMITS = [
   "Descriptive comparison only. Equal seeds do not establish a controlled experiment.",
   "Snapshot T reflects completed tick T−1; event incidents use that same clock. Gaps and shorter tails stay unknown, never zero or interpolated.",
-  "Population, treasury and economy cover current landholding civilizations only. Totals require every relevant current row; no fallen civilization is carried forward.",
-  "Food is an unweighted mean of observed regions, not a population-weighted measure. Missing regions are excluded from the mean and reported in coverage.",
+  "Civilization population, treasury and economy cover current landholding civilizations only. Totals require every relevant current row; no fallen civilization is carried forward.",
+  "Observed food is an unweighted regional mean, not a population-weighted measure. Population-weighted food uses only recorded Phase 2 agent counts and ownership with known ratios; unknown ratios are excluded and denominator coverage is reported. Missing weights or a zero denominator stays unknown. Neither completed model population nor completed native counts substitute for Phase 2 weights.",
   "Event incidents cover the exported timeline only; repeated IDs or exact duplicate reports count once. They are not war counts or causal evidence.",
   "Source versions and full initial settings often are not embedded. Final-world settings may have changed during a run; final-world outcome values are never used.",
 ];
@@ -179,6 +188,7 @@ export function completedComparisonSummary(left: CompletedRun, right: CompletedR
     warnings: comparisonWarnings(left, right), limits: COMPARISON_LIMITS, snapshotTurn: turn,
     foodCoverage: { left: at?.left ? `${at.left.foodObserved ?? "unknown"}/${at.left.foodRegions}` : "Not recorded",
       right: at?.right ? `${at.right.foodObserved ?? "unknown"}/${at.right.foodRegions}` : "Not recorded" },
+    weightedFoodCoverage: { left: at?.left?.weightedFoodCoverage ?? "Not recorded", right: at?.right?.weightedFoodCoverage ?? "Not recorded" },
     metrics: RUN_METRICS.map((metric) => {
       const a = at?.left?.[metric.key] ?? null, b = at?.right?.[metric.key] ?? null;
       return { ...metric, left: a, right: b, delta: a !== null && b !== null ? b - a : null,
@@ -200,6 +210,7 @@ export function comparisonMarkdown(summary: ReturnType<typeof completedCompariso
     right: summary.inputs.right.settings }, null, 2), "```", "", "## Warnings", "",
     ...summary.warnings.map((line) => `- ${line}`), "", `## Snapshot ${summary.snapshotTurn}`, "",
     `Observed food regions: left ${summary.foodCoverage.left}; right ${summary.foodCoverage.right}.`, "",
+    `Weighted food left: ${summary.weightedFoodCoverage.left}`, `Weighted food right: ${summary.weightedFoodCoverage.right}`, "",
     "| Metric | Left | Right | Right − left | Recorded snapshots left / right |", "|---|---|---|---|---|");
   for (const metric of summary.metrics) lines.push(`| ${metric.label} | ${text(metric.left)} | ${text(metric.right)} | ${text(metric.delta)} | ${metric.coverage.left}/${metric.coverage.leftSnapshots} / ${metric.coverage.right}/${metric.coverage.rightSnapshots} |`);
   lines.push("", ...summary.metrics.map((metric) => `- ${metric.label}: ${metric.note}`));

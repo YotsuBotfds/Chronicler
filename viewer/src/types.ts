@@ -312,6 +312,8 @@ export interface TurnSnapshot {
    * written after the viewer map layers).
    */
   food?: FoodSnapshot;
+  /** Versioned regional model/native counts and Phase 2 food weights; absent in older bundles. */
+  regional_population?: RegionalPopulationSnapshot;
   /** Public granaries at this snapshot, only with active --grain-reserves. */
   grain_reserves?: GrainReservesSnapshot;
   /** Actual hybrid injury and household-care observations; absent when off. */
@@ -640,6 +642,29 @@ export interface CityRecord {
   fall_cause: string;
   /** (turn, kind, event id) in order. */
   history: Array<[number, string, string]>;
+}
+
+export type RegionalPopulationSource = "python_region_state" | "hybrid_region_state" | "demographics_clamped_region_state" | "uncontrolled_region_state";
+export interface RegionalPopulationSnapshot {
+  schema_version: 1;
+  mode: "off" | "hybrid" | "shadow" | "demographics-only";
+  source_turn: number;
+  completed_turn: number;
+  timing: "completed_turn";
+  /** Indexed exactly by world.regions; completed MODEL Region.population. */
+  counts: number[];
+  sources: RegionalPopulationSource[];
+  /** Actual completed native pool counts, separately measured from the model. */
+  agent_counts: number[] | null;
+  agent_source: "native_region_alive_count" | null;
+  food_weights: {
+    source: "phase2_agent_pool";
+    source_turn: number;
+    timing: "phase2_entry";
+    counts: number[];
+    /** Stable world.civilizations indices at Phase 2 entry, not completed owners. */
+    controller_ids: (number | null)[];
+  } | null;
 }
 
 export interface FoodSnapshot {

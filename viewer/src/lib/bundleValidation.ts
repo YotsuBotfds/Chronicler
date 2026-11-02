@@ -1,7 +1,29 @@
+import type { RegionalPopulationSnapshot } from "../types";
+
 /** Validate the required viewer containers before they reach React. Optional
  * historical fields remain optional; this does not upgrade old file schemas. */
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Optional additive observations fail to unknown, never make an old bundle unreadable. */
+export function validatedRegionalPopulation(value: unknown, snapshotTurn: number, regionCount: number,
+  civilizationCount: number): RegionalPopulationSnapshot | null {
+  const count = (v: unknown): v is number => typeof v === "number" && Number.isSafeInteger(v) && v >= 0;
+  const counts = (v: unknown) => Array.isArray(v) && v.length === regionCount && Array.from(v).every(count);
+  const sources = new Set(["python_region_state", "hybrid_region_state", "demographics_clamped_region_state", "uncontrolled_region_state"]);
+  if (!isRecord(value) || value.schema_version !== 1 || typeof value.mode !== "string" || !["off", "hybrid", "shadow", "demographics-only"].includes(value.mode)
+    || !count(value.source_turn) || !count(value.completed_turn) || value.completed_turn !== value.source_turn + 1 || value.completed_turn !== snapshotTurn
+    || value.timing !== "completed_turn" || !counts(value.counts) || !Array.isArray(value.sources)
+    || value.sources.length !== regionCount || !Array.from(value.sources).every((source) => sources.has(source))) return null;
+  if (value.agent_counts === null ? value.agent_source !== null
+    : !counts(value.agent_counts) || value.agent_source !== "native_region_alive_count") return null;
+  const weights = value.food_weights;
+  if (weights !== null && (!isRecord(weights) || weights.source !== "phase2_agent_pool"
+    || weights.source_turn !== value.source_turn || weights.timing !== "phase2_entry" || !counts(weights.counts)
+    || !Array.isArray(weights.controller_ids) || weights.controller_ids.length !== regionCount
+    || !Array.from(weights.controller_ids).every((id) => id === null || count(id) && id < civilizationCount))) return null;
+  return value as unknown as RegionalPopulationSnapshot;
 }
 
 type Check = (value: unknown) => boolean;
@@ -28,8 +50,11 @@ const rows = (value: unknown, schema: Record<string, Check>, path: string): stri
   return null;
 };
 
-/** Renderer containers for the three history systems exercised by file loading.
- * Missing optional systems and missing older scalar metrics stay unrecorded. */
+/** Renderer containers for history systems exercised by file loading.
+ * Missing optional systems and older scalar metrics stay unrecorded.
+ * regional_population is deliberately tolerant: readRegionalPopulation validates its
+ * version, clock, stable-index arrays and counts at use; invalid records read unknown
+ * without rejecting a historical bundle. No inferred counts or schema upgrades. */
 function validateOptionalHistory(snapshot: Record<string, unknown>, path: string): string | null {
   const food = snapshot.food;
   if (food != null) {

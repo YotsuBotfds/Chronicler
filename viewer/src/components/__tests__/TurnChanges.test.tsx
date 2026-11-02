@@ -35,7 +35,7 @@ describe("What changed controls", () => {
     const onSeek = vi.fn();
     render(<TurnChanges bundle={bundle} currentTurn={12} selectedRegion={region} onSeek={onSeek} />);
     const table = screen.getByRole("table", { name: "Changes between recorded turns" });
-    const population = within(table).getByRole("row", { name: /Population/ });
+    const population = within(table).getByRole("row", { name: /Regional model population/ });
     expect(within(population).getAllByText("Not recorded")).toHaveLength(2);
     fireEvent.change(screen.getByLabelText("Compare civilization or region"), {
       target: { value: JSON.stringify(["civilization", civ]) },

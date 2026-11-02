@@ -105,9 +105,10 @@ export function CompletedRunCompare({ initialBundle, initialIdentity }: {
       <div className="completed-compare-charts">
         <Trajectory points={points} metric="population" />
         <Trajectory points={points} metric="food" />
+        <Trajectory points={points} metric="weightedFood" />
         <div><label className="completed-compare-select">Additional trajectory
           <select value={financialMetric} onChange={(event) => setFinancialMetric(event.target.value as RunMetric)}>
-            {RUN_METRICS.filter((metric) => !["population", "food"].includes(metric.key)).map((metric) =>
+            {RUN_METRICS.filter((metric) => !["population", "food", "weightedFood"].includes(metric.key)).map((metric) =>
               <option key={metric.key} value={metric.key}>{metric.label}</option>)}
           </select></label><Trajectory points={points} metric={financialMetric} />
         </div>
@@ -120,6 +121,8 @@ export function CompletedRunCompare({ initialBundle, initialIdentity }: {
           </select></label>
         </div>
         <p>Food regions observed: left {summary.foodCoverage.left}; right {summary.foodCoverage.right}.</p>
+        <p>Weighted food left: {summary.weightedFoodCoverage.left}</p>
+        <p>Weighted food right: {summary.weightedFoodCoverage.right}</p>
         {shared.length === 0 && <p>No unambiguous snapshot turn is shared. Cross-run differences stay unknown.</p>}
         <div className="completed-compare-table-wrap"><table aria-label={`Run metrics at snapshot ${turn}`}>
           <thead><tr><th>Metric</th><th>Left</th><th>Right</th><th>Right − left</th><th>Observed snapshots: left / right</th></tr></thead>

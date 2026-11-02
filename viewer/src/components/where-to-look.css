@@ -1,0 +1,13 @@
+.where-to-look { padding: 1rem; color: #d6d3ce; }
+.where-to-look > p, .where-to-look details { color: #b8b9b4; font-size: .85rem; }
+.where-to-look h2 { font-size: 1.15rem; margin: 0 0 .5rem; }
+.where-to-look h3 { font-size: 1rem; margin: 0 0 .6rem; }
+.where-to-look h3 small { font-weight: normal; }
+.where-to-look-items { list-style: none; margin: 1rem 0; padding: 0; display: grid; gap: .8rem; }
+.where-to-look-items > li { border: 1px solid #454945; border-radius: .4rem; padding: .8rem; }
+.where-to-look-reason { margin: .5rem 0 .9rem; font-size: .85rem; }
+.where-to-look-reason span { display: block; color: #adb9b7; margin-top: .2rem; }
+.where-to-look-reason p { margin: .35rem 0; overflow-wrap: anywhere; }
+.where-to-look button { background: #293c3c; color: #d7eeed; border: 1px solid #648580; border-radius: .25rem; padding: .35rem .6rem; cursor: pointer; }
+.where-to-look button:focus-visible, .where-to-look summary:focus-visible { outline: 2px solid #e0b14c; outline-offset: 3px; }
+.where-to-look details { margin-top: 1rem; }

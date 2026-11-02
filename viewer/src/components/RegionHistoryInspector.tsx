@@ -97,7 +97,7 @@ export function RegionHistoryInspector({ bundle, artifactIdentity, selectedRegio
     <TurnChanges bundle={bundle} currentTurn={currentTurn} selectedRegion={selectedRegion}
       selectedCivilization={selectedCivilization} onSeek={onSeek} onSelectEvent={onSelectEvent} />
     <h2>Region history</h2>
-    <p>Inspect exported observations without interpolation. Ecology values are raw fractions; stockpiles show each named good in its exported units. No food aggregate is computed.</p>
+    <p>Inspect exported observations without interpolation. Ecology values are raw fractions; stockpiles show each named good in its exported units. Regional model population is the completed model count; native agents alive is a separate observation and can differ. Older, malformed or unsupported population records stay unknown. Food weights use Phase 2 agents and ownership, not these completed counts.</p>
     <div className="region-history-provenance">
       <span>Run: {bundle.world_state.name} · seed {bundle.metadata.seed} · bundle version {bundle.metadata.bundle_version ?? "unrecorded"} · generated {bundle.metadata.generated_at || "unrecorded"}</span>
       {artifactIdentity ? <>
@@ -124,7 +124,7 @@ export function RegionHistoryInspector({ bundle, artifactIdentity, selectedRegio
     {!validRange ? <p role="alert">Choose whole turns from {first} through {last}, with the start at or before the end.</p> : <>
       <p role="status" aria-label="Region observation coverage">{observed} recorded values · {inspection.rows.length - observed} missing values · {inspection.unrecordedTurns} turns without observations in this inclusive window. Missing values are not zero.</p>
       {metric.kind === "stockpile" && <p>Historical stockpiles are not exported. The final-state observation at turn {bundle.world_state.turn} is shown separately, even when a history snapshot has the same turn. Salt remains a separate good.</p>}
-      {metric.kind === "ecology" && observed > 0 && <div className="region-history-chart" aria-label={`${metric.label} by recorded turn`}>
+      {metric.kind !== "stockpile" && observed > 0 && <div className="region-history-chart" aria-label={`${metric.label} by recorded turn`}>
         <ResponsiveContainer width="100%" height={220}>
           <LineChart data={inspection.rows}>
             <CartesianGrid stroke="#374151" strokeDasharray="3 3" />

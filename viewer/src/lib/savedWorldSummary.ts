@@ -1,5 +1,6 @@
 import type { Bundle } from "../types";
 import { isRecord } from "./bundleValidation";
+import { readRegionalPopulation } from "./regionalPopulation";
 
 const SYSTEMS: Record<string, string> = {
   campaign: "Campaigns", governance: "Governance", contact: "Contact ledger", epidemics: "Epidemiology",
@@ -40,6 +41,10 @@ export function savedWorldSummary(bundle: Bundle) {
   for (const snapshot of bundle.history) {
     first = first === null ? snapshot.turn : Math.min(first, snapshot.turn);
     last = last === null ? snapshot.turn : Math.max(last, snapshot.turn);
+    const population = readRegionalPopulation(bundle, snapshot);
+    if (population) recorded.add("Regional model population");
+    if (population?.agent_counts) recorded.add("Native regional agent counts");
+    if (population?.food_weights) recorded.add("Phase 2 population food weights");
     const row = snapshot as unknown as Record<string, unknown>;
     for (const key of Object.keys(SYSTEMS)) {
       if (isRecord(row[key])) recorded.add(SYSTEMS[key]);
