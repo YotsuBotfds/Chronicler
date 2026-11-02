@@ -298,8 +298,11 @@ class WhatIfPairs:
                 raise WhatIfError("This session has reached its eight retained what-if requests")
             require_hash_seed()
             root = self.output_dir.resolve()
+            # A resumed live session can pause before ordinary output creates
+            # its directory. Preparation owns a private checkpoint immediately.
+            root.mkdir(mode=0o700, parents=True, exist_ok=True)
             parent = root / "what_if"
-            parent.mkdir(exist_ok=True)
+            parent.mkdir(mode=0o700, exist_ok=True)
             if parent.is_symlink() or not parent.resolve().is_relative_to(root):
                 raise WhatIfError("Private what-if output directory leads outside the live output")
             directory = parent / uuid.uuid4().hex

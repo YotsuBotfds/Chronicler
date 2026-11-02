@@ -70,6 +70,19 @@ def test_dead_civ_refused(world):
         wi.validate_request(request(), world)
 
 
+def test_prepare_before_live_output_directory_exists(pair, world, tmp_path):
+    pair.output_dir = tmp_path / "fresh" / "live"
+    assert not pair.output_dir.exists()
+    status = pair.prepare(request(), world)
+    assert status["state"] == "prepared"
+    job = pair.jobs["pair_1"]
+    assert job.directory.is_relative_to(pair.output_dir)
+    assert (job.directory / "common.ckpt").is_file()
+    assert pair.prepare(request(), world) == status
+    assert len(pair.writes) == 1
+    pair.close()
+
+
 @pytest.mark.parametrize("kind", ["state", "corrupt", "nonexact", "incompatible", "turn", "seed"])
 def test_checkpoint_refusals(pair, tmp_path, kind):
     path = tmp_path / "test.ckpt"
