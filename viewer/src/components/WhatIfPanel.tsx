@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { PauseContext } from "../types";
 import { checkPreparedRecipe, createWhatIfRecipe, granaryPolicyValue, portableWhatIfManifest, readWhatIfRecipe,
-  recipeLiveMismatch, transportRegions, validTransportDuration, whatIfActive, whatIfInterventionLabel,
+  recipeLiveMismatch, restorationContext, transportRegions, validTransportDuration, whatIfActive, whatIfInterventionLabel,
   type WhatIfControls, type WhatIfManifest, type WhatIfPair, type WhatIfRecipe } from "../lib/whatIf";
 import "./what-if.css";
 
@@ -11,8 +11,11 @@ export function WhatIfPanel({ context, controls, onCompare }: {
   const [civ, setCiv] = useState(context.civs[0] ?? "");
   const [value, setValue] = useState(50);
   const [turns, setTurns] = useState(5);
-  const [control, setControl] = useState<"stability" | "granary_shortfall_priority" | "regional_transport_disruption">("stability");
+  const [control, setControl] = useState<"stability" | "granary_shortfall_priority" | "regional_transport_disruption" | "academy_restoration">("stability");
   const [regionId, setRegionId] = useState(0);
+  const [seatId, setSeatId] = useState<number | null>(null);
+  const restoration = restorationContext(context);
+  const selectedSeat = restoration?.candidates.find((row) => row.fallen_seat_id === seatId) ?? restoration?.candidates[0];
   const [duration, setDuration] = useState(2);
   const regions = transportRegions(controls.bundle);
   const [policy, setPolicy] = useState<0 | 1>(1);
@@ -41,7 +44,7 @@ export function WhatIfPanel({ context, controls, onCompare }: {
     return () => { cancelled = true; };
   }, [recipe, manifest]);
   const verified = !!recipe && verification?.recipe === recipe && verification.manifest === manifest;
-  const liveMismatch = recipe ? recipeLiveMismatch(recipe, controls.bundle, context.turn, context.civs) : null;
+  const liveMismatch = recipe ? recipeLiveMismatch(recipe, controls.bundle, context.turn, context.civs, context) : null;
   const adoptedRequest = !!recipe && adoption?.recipe === recipe && adoption.requestId === status?.request_id;
   const adoptedManifest = adoptedRequest && adoption?.manifest === manifest;
   const adoptedCase = adoptedRequest && (status?.state !== "prepared" || adoptedManifest);
@@ -49,7 +52,8 @@ export function WhatIfPanel({ context, controls, onCompare }: {
     && (verification?.error === null || adoptedManifest && verification?.sourceMismatch === true);
   const valid = (control === "stability" ? context.civs.includes(civ) && Number.isInteger(value) && value >= 1 && value <= 100
     : control === "granary_shortfall_priority" ? policyBefore !== null
-      : regions.some((row) => row.id === regionId) && validTransportDuration(duration))
+      : control === "regional_transport_disruption" ? regions.some((row) => row.id === regionId) && validTransportDuration(duration)
+      : !!restoration?.supported && !!selectedSeat?.eligible)
     && Number.isInteger(turns) && turns >= 1 && turns <= 20;
 
   async function importRecipe(file: File) {
@@ -57,8 +61,8 @@ export function WhatIfPanel({ context, controls, onCompare }: {
     try {
       if (file.size > 1024 * 1024) throw new Error("Recipe exceeds the 1 MiB limit.");
       const parsed = readWhatIfRecipe(JSON.parse(new TextDecoder().decode(await file.arrayBuffer())));
-      if (!parsed) throw new Error("Unsupported or malformed recipe. Only supported stability, granary priority and regional transport recipes are accepted.");
-      const mismatch = recipeLiveMismatch(parsed, controls.bundle, context.turn, context.civs);
+      if (!parsed) throw new Error("Unsupported or malformed recipe. Only supported stability, granary priority, regional transport and academy restoration recipes are accepted.");
+      const mismatch = recipeLiveMismatch(parsed, controls.bundle, context.turn, context.civs, context);
       if (mismatch) throw new Error(mismatch);
       setAdoption(null);
       setRecipe(parsed);
@@ -66,7 +70,8 @@ export function WhatIfPanel({ context, controls, onCompare }: {
       setControl(parsed.control.kind);
       if (parsed.control.kind === "stability") { setCiv(parsed.control.civ); setValue(parsed.control.value); }
       else if (parsed.control.kind === "granary_shortfall_priority") setPolicy(parsed.control.value);
-      else { setRegionId(parsed.control.region_id); setDuration(parsed.control.duration); }
+      else if (parsed.control.kind === "regional_transport_disruption") { setRegionId(parsed.control.region_id); setDuration(parsed.control.duration); }
+      else { setRegionId(parsed.control.region_id); setSeatId(parsed.control.fallen_seat_id); }
       setRecipeMessage("Recipe loaded into the preparation form. No command was sent. Prepare to verify its exact checkpoint, source and settings.");
     } catch (error) {
       setRecipeError(error instanceof Error ? error.message : "Could not read this recipe.");
@@ -90,13 +95,14 @@ export function WhatIfPanel({ context, controls, onCompare }: {
 
   function prepare() {
     if (recipe) {
-      const mismatch = recipeLiveMismatch(recipe, controls.bundle, context.turn, context.civs);
+      const mismatch = recipeLiveMismatch(recipe, controls.bundle, context.turn, context.civs, context);
       if (mismatch) { setRecipeError(mismatch); return; }
     }
     setAdoption(null);
     if (control === "stability") controls.prepare(civ, value, turns);
     else if (control === "granary_shortfall_priority") controls.preparePolicy(policy, turns);
-    else controls.prepareTransport(regionId, duration, turns);
+    else if (control === "regional_transport_disruption") controls.prepareTransport(regionId, duration, turns);
+    else if (selectedSeat) controls.prepareRestoration(selectedSeat.region_id, selectedSeat.fallen_seat_id, turns);
   }
   return <section className="what-if-panel" aria-label="Bounded what-if">
     <h3>Try a bounded what-if</h3>
@@ -127,6 +133,7 @@ export function WhatIfPanel({ context, controls, onCompare }: {
         <option value="stability">Civilization stability</option>
         <option value="granary_shortfall_priority" disabled={policyBefore === null}>Global granary procurement priority</option>
         <option value="regional_transport_disruption" disabled={regions.length === 0}>Regional transport disruption</option>
+        <option value="academy_restoration" disabled={!restoration?.supported || !restoration.candidates.length}>Paid academy re-founding</option>
       </select></label>
       {control === "stability" ? <><label>Civilization<select aria-label="What-if civilization" value={civ} onChange={(e) => setCiv(e.target.value)}>
         {context.civs.map((name) => <option key={name}>{name}</option>)}
@@ -139,12 +146,19 @@ export function WhatIfPanel({ context, controls, onCompare }: {
         <p>World scope: every existing public granary. Baseline priority {policyBefore}; intervention priority {policy}.
           Purchase ordering changes within domestic and foreign passes. This does not enable granaries or create grain or money.
           {policyBefore === policy && " The selected value is unchanged; this is a no-op control."}</p></>
+        : control === "academy_restoration" ? <><label>Fallen academy<select aria-label="What-if fallen academy" value={selectedSeat?.fallen_seat_id ?? ""} onChange={(e) => setSeatId(Number(e.target.value))}>
+          {restoration?.candidates.map((row) => <option key={row.fallen_seat_id} value={row.fallen_seat_id}>{row.fallen_seat_name} (#{row.fallen_seat_id}), {row.region_name} — {row.current_lord_name ?? "Uncontrolled"}{row.eligible ? "" : " (ineligible)"}</option>)}
+        </select></label>
+        <p>Current paused turn {context.turn}; backend eligibility is checked again during preparation. {selectedSeat?.eligible ? `Recorded fee ${selectedSeat.fee} treasury coins.` : selectedSeat?.reason}</p>
+        {!!restoration?.omitted && <p>{restoration.omitted} additional candidates omitted from this bounded list.</p>}
+        <p>This deliberate paid re-founding bypasses the spontaneous founding lottery; construction labor and materials are not modeled. Subsequent service requires paid crafts, upkeep and actual Scholar work.</p></>
         : <><label>Region<select aria-label="What-if transport region" value={regionId} onChange={(e) => setRegionId(Number(e.target.value))}>
           {regions.map((row) => <option key={row.id} value={row.id}>{row.name} (#{row.id})</option>)}
         </select></label>
         <label>Disruption duration (turns)<input aria-label="What-if transport duration" type="number" min={1} max={6}
           value={Number.isNaN(duration) ? "" : duration} onChange={(e) => setDuration(e.target.valueAsNumber)} /></label>
         <p>Closes every trade route incident to the selected region for the requested future simulation turns. An existing longer disruption can remain in effect. Preparation reports the actual prior and effective window; hybrid mode is required.</p></>}
+      {!restoration?.supported && <p>Academy re-founding requires current paused candidate information and enabled hybrid cities, scholarship and academy services. {restoration?.unavailable_reason}</p>}
       {policyBefore === null && <p>Global granary priority requires hybrid mode and already-enabled public granaries with a binary saved priority.</p>}
       <label>Additional turns<input aria-label="What-if horizon" type="number" min={1} max={20}
         value={turns} onChange={(e) => setTurns(Number(e.target.value))} /></label>

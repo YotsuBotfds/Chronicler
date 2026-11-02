@@ -17,7 +17,7 @@ import {
   applyCompletedMessage, bundleFromInitMessage, snapshotFromMessage, withSessionToken,
 } from "../lib/transport";
 
-import { granaryPolicyValue, readWhatIfManifest, readWhatIfResult, validWhatIfHorizon, validTransportDuration, transportRegions, whatIfActive, type WhatIfControls, type WhatIfStatus } from "../lib/whatIf";
+import { granaryPolicyValue, readWhatIfManifest, readWhatIfResult, validWhatIfHorizon, validTransportDuration, transportRegions, restorationContext, whatIfActive, type WhatIfControls, type WhatIfStatus } from "../lib/whatIf";
 
 /** Failed attempts without ever opening before the viewer explains the refusal. */
 const REFUSED_ATTEMPTS = 2;
@@ -130,6 +130,16 @@ export function useLiveConnection(wsUrl: string, token: string | null = null): L
     wsRef.current.send(JSON.stringify({ type: "what_if_prepare", request_id,
       control: "regional_transport_disruption", region_id: regionId, duration, turns }));
   }, [publishWhatIf]);
+  const prepareRestoration = useCallback((regionId: number, seatId: number, turns: number) => {
+    const info = restorationContext(pauseContext);
+    if (whatIfActive(whatIfRef.current) || wsRef.current?.readyState !== WebSocket.OPEN || !info?.supported
+      || !info.candidates.some((row) => row.region_id === regionId && row.fallen_seat_id === seatId && row.eligible)
+      || !validWhatIfHorizon(turns)) return;
+    const request_id = crypto.randomUUID();
+    publishWhatIf({ request_id, state: "preparing" });
+    wsRef.current.send(JSON.stringify({ type: "what_if_prepare", request_id,
+      control: "academy_restoration", region_id: regionId, fallen_seat_id: seatId, turns }));
+  }, [pauseContext, publishWhatIf]);
   const runWhatIf = useCallback(() => {
     const status = whatIfRef.current;
     if (status?.state !== "prepared" || wsRef.current?.readyState !== WebSocket.OPEN) return;
@@ -217,6 +227,8 @@ export function useLiveConnection(wsUrl: string, token: string | null = null): L
           setError(LIVE_REFUSED_MESSAGE);
         }
         setConnected(false);
+        // A reconnect must receive a fresh paused-boundary candidate list.
+        setPauseContext((previous) => previous ? { ...previous, academy_restoration: undefined } : null);
         wsRef.current = null;
         if (reconnectRef.current) clearTimeout(reconnectRef.current);
         const quitSent = quitSocketRef.current === ws;
@@ -313,12 +325,16 @@ export function useLiveConnection(wsUrl: string, token: string | null = null): L
               injectable_events: msg.injectable_events,
               settable_stats: msg.settable_stats,
               civs: msg.civs,
+              academy_restoration: msg.academy_restoration,
             });
             break;
 
           case "ack": {
             const ack = msg as AckMessage;
             setLastAck(ack);
+            if (ack.still_paused && Object.hasOwn(msg, "academy_restoration")) {
+              setPauseContext((previous) => previous ? { ...previous, academy_restoration: msg.academy_restoration } : null);
+            }
             if (!ack.still_paused) {
               setPaused(false);
               setPauseContext(null);
@@ -467,7 +483,7 @@ export function useLiveConnection(wsUrl: string, token: string | null = null): L
     lastAck,
     lastForked,
     checkpointStatus,
-    whatIf: { status: whatIfStatus, connected, bundle, prepare: prepareWhatIf, preparePolicy, prepareTransport, run: runWhatIf, cancel: cancelWhatIf },
+    whatIf: { status: whatIfStatus, connected, bundle, prepare: prepareWhatIf, preparePolicy, prepareTransport, prepareRestoration, run: runWhatIf, cancel: cancelWhatIf },
     saveCheckpoint,
     serverState,
     lobbyInit,

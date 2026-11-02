@@ -1,4 +1,4 @@
-import type { Bundle } from "../types";
+import type { Bundle, PauseContext } from "../types";
 import { identifyArtifact, type ArtifactIdentity } from "./artifactIdentity";
 import type { CompletedRun } from "./completedRunComparison";
 import { classifyParsedBundlePayload } from "./bundleLoader";
@@ -20,6 +20,7 @@ export type WhatIfManifest = WhatIfManifestBase & (
   | { schema_version: 3; intervention: { command: "set"; civ: "@transport"; stat: "lab.transport_disruption";
       before: number; value: number; scope: "region"; region_id: number; region_name: string; duration: number;
       prior_counter: number; effective_counter: number; effective_through_turn: number } }
+  | { schema_version: 4; intervention: { command: "set"; civ: "@academy"; stat: "lab.academy_restore"; value: number; before: number; scope: "academy"; region_id: number; region_name: string; fallen_seat_id: number; fallen_seat_name: string; fallen_founder: number; fallen_founded_turn: number; fallen_turn: number; current_lord: number; current_lord_name: string; fee: number; treasury_before: number; treasury_after: number } }
 );
 export interface WhatIfPair {
   manifest: WhatIfManifest;
@@ -40,6 +41,7 @@ export interface WhatIfControls {
   prepare: (civ: string, value: number, turns: number) => void;
   preparePolicy: (value: 0 | 1, turns: number) => void;
   prepareTransport: (regionId: number, duration: number, turns: number) => void;
+  prepareRestoration: (regionId: number, seatId: number, turns: number) => void;
   /** Current server bundle, used only for eligibility and recipe checks. */
   bundle?: Bundle | null;
   run: () => void;
@@ -61,6 +63,40 @@ export function granaryPolicyValue(bundle?: Bundle | null): 0 | 1 | null {
   const value = record(world.tuning_overrides) ? world.tuning_overrides["grain_reserves.shortfall_priority"] ?? 0 : 0;
   return binary(value) ? value : null;
 }
+export interface RestorationCandidate {
+  region_id: number; region_name: string; fallen_seat_id: number; fallen_seat_name: string;
+  fallen_founder: number; fallen_founded_turn: number; fallen_turn: number;
+  current_lord: number | null; current_lord_name: string | null; eligible: boolean; reason: string | null;
+  fee: number | null; treasury_before: number | null; treasury_after: number | null;
+}
+export interface RestorationContext { turn: number; supported: boolean; unavailable_reason: string | null;
+  candidates: RestorationCandidate[]; total_candidates: number; omitted: number }
+/** Only current pause context is eligible; never infer candidates from a saved final world. */
+export function restorationContext(context: PauseContext | null): RestorationContext | null {
+  const x = context?.academy_restoration;
+  const int = (v: unknown) => Number.isSafeInteger(v) && (v as number) >= 0;
+  const name = (v: unknown) => typeof v === "string" && !!v.trim() && v.length <= 200 && !/[\r\n\0]/.test(v);
+  const reason = (v: unknown) => typeof v === "string" && !!v.trim() && v.length <= 500 && !/[\r\n\0]/.test(v);
+  if (!record(x) || x.schema_version !== 1 || x.turn !== context?.turn || typeof x.supported !== "boolean"
+    || !(x.unavailable_reason === null || reason(x.unavailable_reason)) || !Array.isArray(x.candidates)
+    || x.candidates.length > 64 || !int(x.total_candidates) || !int(x.omitted)
+    || x.total_candidates !== x.candidates.length + (x.omitted as number)) return null;
+  const regions = new Set<number>(), seats = new Set<number>();
+  for (const item of x.candidates) {
+    if (!record(item) || ![item.region_id, item.fallen_seat_id, item.fallen_founder, item.fallen_founded_turn,
+      item.fallen_turn].every(int) || ![item.region_name, item.fallen_seat_name].every(name)
+      || !(item.current_lord === null && item.current_lord_name === null || int(item.current_lord) && name(item.current_lord_name))
+      || (item.fallen_founded_turn as number) > (item.fallen_turn as number) || (item.fallen_turn as number) >= (context?.turn ?? -1)
+      || typeof item.eligible !== "boolean" || !(item.reason === null || reason(item.reason))
+      || ![item.fee, item.treasury_before, item.treasury_after].every((v) => v === null || int(v))
+      || !item.eligible && !reason(item.reason)
+      || item.eligible && (!int(item.current_lord) || !name(item.current_lord_name) || item.fee !== 30 || (item.treasury_before as number) < 60 || !int(item.treasury_before) || !int(item.treasury_after)
+        || (item.treasury_before as number) - 30 !== item.treasury_after)
+      || regions.has(item.region_id as number) || seats.has(item.fallen_seat_id as number)) return null;
+    regions.add(item.region_id as number); seats.add(item.fallen_seat_id as number);
+  }
+  return x as unknown as RestorationContext;
+}
 /** Region indices are authoritative; an ambiguous or non-hybrid world cannot prepare this control. */
 export function transportRegions(bundle?: Bundle | null): Array<{ id: number; name: string }> {
   if (!bundle || (bundle.world_state as unknown as Record<string, unknown>).agent_mode !== "hybrid"
@@ -73,6 +109,10 @@ export function transportRegions(bundle?: Bundle | null): Array<{ id: number; na
 export const validTransportDuration = (duration: number) => Number.isSafeInteger(duration) && duration >= 1 && duration <= 6;
 
 export function whatIfInterventionLabel(manifest: WhatIfManifest): string {
+  if (manifest.schema_version === 4) {
+    const a = manifest.intervention;
+    return `Paid academy re-founding: ${a.fallen_seat_name} (#${a.fallen_seat_id}) in ${a.region_name} (#${a.region_id}); founder #${a.fallen_founder}, founded turn ${a.fallen_founded_turn}, fell turn ${a.fallen_turn}; current ruler ${a.current_lord_name} (#${a.current_lord}); fee ${a.fee} treasury coins (${a.treasury_before} → ${a.treasury_after})`;
+  }
   if (manifest.schema_version === 3) {
     const a = manifest.intervention;
     return `Transport disruption: ${a.region_name} (#${a.region_id}), ${a.duration} turns; existing counter ${a.prior_counter}, effective counter ${a.effective_counter}, through simulation turn ${a.effective_through_turn}`;
@@ -84,10 +124,10 @@ export function whatIfInterventionLabel(manifest: WhatIfManifest): string {
   return `${manifest.intervention.civ}: stability ${manifest.intervention.before} → ${manifest.intervention.value}`;
 }
 export function whatIfArmLabel(manifest: WhatIfManifest): string {
-  return manifest.schema_version === 3 ? "Regional transport disruption" : manifest.schema_version === 2 ? "Global granary priority intervention" : "Stability intervention";
+  return manifest.schema_version === 4 ? "Paid academy re-founding" : manifest.schema_version === 3 ? "Regional transport disruption" : manifest.schema_version === 2 ? "Global granary priority intervention" : "Stability intervention";
 }
 export function readWhatIfManifest(value: unknown): WhatIfManifest | null {
-  if (!record(value) || ![1, 2, 3].includes(value.schema_version as number) || value.semantics !== "exact_checkpoint_pair"
+  if (!record(value) || ![1, 2, 3, 4].includes(value.schema_version as number) || value.semantics !== "exact_checkpoint_pair"
     || typeof value.request_id !== "string" || !/^[A-Za-z0-9_-]{1,80}$/.test(value.request_id)
     || !record(value.source) || typeof value.mode !== "string"
     || !Number.isSafeInteger(value.seed) || !Number.isSafeInteger(value.start_turn) || (value.start_turn as number) < 0
@@ -97,7 +137,8 @@ export function readWhatIfManifest(value: unknown): WhatIfManifest | null {
   const action = value.intervention;
   const allowed = value.schema_version === 1 ? ["command", "civ", "stat", "before", "value"]
     : value.schema_version === 2 ? ["command", "civ", "stat", "before", "value", "scope"]
-    : ["command", "civ", "stat", "before", "value", "scope", "region_id", "region_name", "duration", "prior_counter", "effective_counter", "effective_through_turn"];
+    : value.schema_version === 3 ? ["command", "civ", "stat", "before", "value", "scope", "region_id", "region_name", "duration", "prior_counter", "effective_counter", "effective_through_turn"]
+    : ["command", "civ", "stat", "before", "value", "scope", "region_id", "region_name", "fallen_seat_id", "fallen_seat_name", "fallen_founder", "fallen_founded_turn", "fallen_turn", "current_lord", "current_lord_name", "fee", "treasury_before", "treasury_after"];
   if (Object.keys(action).some((key) => !allowed.includes(key)) || action.command !== "set") return null;
   if (value.schema_version === 1) {
     if (action.stat !== "stability" || typeof action.civ !== "string" || !action.civ
@@ -106,6 +147,15 @@ export function readWhatIfManifest(value: unknown): WhatIfManifest | null {
   } else if (value.schema_version === 2) {
     if (value.mode !== "hybrid" || action.stat !== "grain_reserves.shortfall_priority"
       || action.civ !== "@world" || action.scope !== "world" || !binary(action.before) || !binary(action.value)) return null;
+  } else if (value.schema_version === 4) {
+    const nonnegative = (x: unknown) => Number.isSafeInteger(x) && (x as number) >= 0;
+    const name = (x: unknown) => typeof x === "string" && !!x.trim() && x.length <= 200 && !/[\r\n\0]/.test(x);
+    if (value.mode !== "hybrid" || action.stat !== "lab.academy_restore" || action.civ !== "@academy" || action.scope !== "academy"
+      || ![action.region_id, action.fallen_seat_id, action.fallen_founder, action.fallen_founded_turn, action.fallen_turn, action.current_lord, action.treasury_before, action.treasury_after].every(nonnegative)
+      || ![action.region_name, action.fallen_seat_name, action.current_lord_name].every(name)
+      || action.value !== action.fallen_seat_id || action.before !== action.fallen_seat_id
+      || (action.fallen_founded_turn as number) > (action.fallen_turn as number) || (action.fallen_turn as number) >= (value.start_turn as number)
+      || action.fee !== 30 || (action.treasury_before as number) < 60 || (action.treasury_before as number) - 30 !== action.treasury_after) return null;
   } else if (value.mode !== "hybrid" || action.stat !== "lab.transport_disruption" || action.civ !== "@transport" || action.scope !== "region"
     || !Number.isSafeInteger(action.region_id) || (action.region_id as number) < 0 || typeof action.region_name !== "string"
     || !action.region_name.trim() || action.region_name.length > 200 || /[\r\n\0]/.test(action.region_name)
@@ -215,7 +265,7 @@ export function portableRuntime(value: unknown): Record<string, unknown> | null 
 /** Public provenance is descriptive, not an executable backend manifest. */
 export type PortableWhatIfManifest = WhatIfManifest | (WhatIfManifestBase & { schema_version: 3;
   intervention: { control: "regional_transport_disruption"; scope: "region"; region_id: number; region_name: string;
-    duration: number; prior_counter: number; effective_counter: number; effective_through_turn: number } });
+    duration: number; prior_counter: number; effective_counter: number; effective_through_turn: number } }) | (WhatIfManifestBase & { schema_version: 4; intervention: { control: "academy_restoration"; scope: "academy"; region_id: number; region_name: string; fallen_seat_id: number; fallen_seat_name: string; fallen_founder: number; fallen_founded_turn: number; fallen_turn: number; current_lord: number; current_lord_name: string; fee: number; treasury_before: number; treasury_after: number } });
 export function portableWhatIfManifest(manifest: WhatIfManifest): PortableWhatIfManifest {
   const source = manifest.source;
   const header = record(source.header) ? source.header : {};
@@ -229,6 +279,14 @@ export function portableWhatIfManifest(manifest: WhatIfManifest): PortableWhatIf
     header: { exact: header.exact === true, turn: manifest.start_turn, seed: manifest.seed,
       identity: portableRuntime(header.identity), run_config: { simulation_args: portableSettings(config.simulation_args),
         output_args: { simulate_only: record(config.output_args) && config.output_args.simulate_only === true } } } } };
+  if (manifest.schema_version === 4) {
+    const a = manifest.intervention;
+    return { ...common, schema_version: 4, intervention: { control: "academy_restoration", scope: "academy",
+      region_id: a.region_id, region_name: a.region_name, fallen_seat_id: a.fallen_seat_id, fallen_seat_name: a.fallen_seat_name,
+      fallen_founder: a.fallen_founder, fallen_founded_turn: a.fallen_founded_turn, fallen_turn: a.fallen_turn,
+      current_lord: a.current_lord, current_lord_name: a.current_lord_name, fee: a.fee,
+      treasury_before: a.treasury_before, treasury_after: a.treasury_after } };
+  }
   if (manifest.schema_version === 3) {
     const a = manifest.intervention;
     return { ...common, schema_version: 3, intervention: { control: "regional_transport_disruption", scope: "region",
@@ -243,7 +301,8 @@ export function portableWhatIfManifest(manifest: WhatIfManifest): PortableWhatIf
 
 type RecipeControl = { kind: "stability"; civ: string; value: number }
   | { kind: "granary_shortfall_priority"; value: 0 | 1 }
-  | { kind: "regional_transport_disruption"; region_id: number; duration: number };
+  | { kind: "regional_transport_disruption"; region_id: number; duration: number }
+  | { kind: "academy_restoration"; region_id: number; fallen_seat_id: number };
 export interface WhatIfRecipe {
   kind: "chronicler-what-if-recipe";
   version: 1;
@@ -279,7 +338,9 @@ export async function createWhatIfRecipe(manifest: WhatIfManifest, pair?: WhatIf
   }
   const runtime = portableRuntime(header.identity);
   if (!runtime) throw new Error("The prepared manifest does not contain complete source and runtime identity.");
-  const control: RecipeControl = manifest.schema_version === 3
+  const control: RecipeControl = manifest.schema_version === 4
+    ? { kind: "academy_restoration", region_id: manifest.intervention.region_id, fallen_seat_id: manifest.intervention.fallen_seat_id }
+    : manifest.schema_version === 3
     ? { kind: "regional_transport_disruption", region_id: manifest.intervention.region_id, duration: manifest.intervention.duration }
     : manifest.schema_version === 2 ? { kind: "granary_shortfall_priority", value: manifest.intervention.value }
       : { kind: "stability", civ: manifest.intervention.civ, value: manifest.intervention.value };
@@ -312,6 +373,10 @@ function parseRecipe(value: unknown): WhatIfRecipe | null {
       || !Number.isInteger(control.value) || (control.value as number) < 1 || (control.value as number) > 100) return null;
   } else if (control.kind === "granary_shortfall_priority") {
     if (source.mode !== "hybrid" || !exactKeys(control, ["kind", "value"]) || !binary(control.value)) return null;
+  } else if (control.kind === "academy_restoration") {
+    if (source.mode !== "hybrid" || !exactKeys(control, ["kind", "region_id", "fallen_seat_id"])
+      || !Number.isSafeInteger(control.region_id) || (control.region_id as number) < 0
+      || !Number.isSafeInteger(control.fallen_seat_id) || (control.fallen_seat_id as number) < 0) return null;
   } else if (control.kind === "regional_transport_disruption") {
     if (source.mode !== "hybrid" || !exactKeys(control, ["kind", "region_id", "duration"])
       || !Number.isSafeInteger(control.region_id) || (control.region_id as number) < 0
@@ -330,7 +395,7 @@ export function readWhatIfRecipe(value: unknown): WhatIfRecipe | null {
   try { return parseRecipe(value); } catch { return null; }
 }
 /** Import fills a plan only; exact checkpoint/source/settings checks follow preparation. */
-export function recipeLiveMismatch(recipe: WhatIfRecipe, bundle: Bundle | null | undefined, turn: number, civs: string[]): string | null {
+export function recipeLiveMismatch(recipe: WhatIfRecipe, bundle: Bundle | null | undefined, turn: number, civs: string[], context?: PauseContext | null): string | null {
   if (!bundle) return "Connect a compatible live world before importing a recipe.";
   const world = bundle.world_state as unknown as Record<string, unknown>;
   if (recipe.source.seed !== bundle.metadata.seed || recipe.source.mode !== (world.agent_mode ?? "off") || recipe.source.start_turn !== turn) {
@@ -341,6 +406,12 @@ export function recipeLiveMismatch(recipe: WhatIfRecipe, bundle: Bundle | null |
   if (recipe.control.kind === "regional_transport_disruption") {
     const regionId = recipe.control.region_id;
     if (!transportRegions(bundle).some((r) => r.id === regionId)) return "Recipe requires the selected region in an eligible hybrid world.";
+  }
+  if (recipe.control.kind === "academy_restoration") {
+    const control = recipe.control;
+    const info = restorationContext(context ?? null);
+    if (!info?.supported || !info.candidates.some((c) => c.eligible && c.region_id === control.region_id && c.fallen_seat_id === control.fallen_seat_id))
+      return "Recipe requires the recorded eligible fallen academy in the current paused context.";
   }
   return null;
 }

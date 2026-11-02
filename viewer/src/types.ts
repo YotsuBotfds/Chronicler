@@ -1131,6 +1131,8 @@ export interface Bundle {
 // --- Live mode types ---
 
 export interface PauseContext {
+  /** Fresh server-provided paused-boundary restoration candidates, never historical state. */
+  academy_restoration?: unknown;
   turn: number;
   reason: string;
   valid_commands: string[];

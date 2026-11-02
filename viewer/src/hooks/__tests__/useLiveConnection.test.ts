@@ -771,3 +771,28 @@ it("sends one bounded regional disruption request and accepts its schema-three p
   act(() => MockWebSocket.instances[1].simulateMessage({ type: "what_if_status", request_id: req.request_id, state: "prepared", manifest }));
   expect(result.current.whatIf.status?.manifest?.schema_version).toBe(3);
 });
+
+it("sends one restoration request only for an eligible fresh paused candidate", async () => {
+  const { result } = renderHook(() => useLiveConnection("ws://localhost:8765"));
+  await act(async () => vi.advanceTimersByTimeAsync(10));
+  const ws = MockWebSocket.instances[0];
+  act(() => result.current.whatIf.prepareRestoration(1, 4, 3));
+  expect(ws.sent).toHaveLength(0);
+  const candidate = { region_id: 1, region_name: "South", fallen_seat_id: 4, fallen_seat_name: "Old Academy", fallen_founder: 0,
+    fallen_founded_turn: 0, fallen_turn: 1, current_lord: 0, current_lord_name: "A", eligible: true, reason: null,
+    fee: 30, treasury_before: 100, treasury_after: 70 };
+  act(() => ws.simulateMessage({ type: "paused", turn: 2, reason: "interval", valid_commands: [], injectable_events: [], settable_stats: [], civs: ["A"],
+    academy_restoration: { schema_version: 1, turn: 2, supported: true, unavailable_reason: null, candidates: [candidate], total_candidates: 1, omitted: 0 } }));
+  const updated = { schema_version: 1, turn: 2, supported: true, unavailable_reason: null,
+    candidates: [{ ...candidate, eligible: false, reason: "Patron cannot pay", fee: null, treasury_before: null, treasury_after: null }], total_candidates: 1, omitted: 0 };
+  act(() => ws.simulateMessage({ type: "ack", command: "set", still_paused: true, academy_restoration: updated }));
+  act(() => result.current.whatIf.prepareRestoration(1, 4, 3));
+  expect(ws.sent).toHaveLength(0);
+  act(() => ws.simulateMessage({ type: "paused", turn: 2, reason: "interval", valid_commands: [], injectable_events: [], settable_stats: [], civs: ["A"],
+    academy_restoration: { ...updated, candidates: [candidate] } }));
+  act(() => { result.current.whatIf.prepareRestoration(0, 4, 3); result.current.whatIf.prepareRestoration(1, 4, 21); });
+  expect(ws.sent).toHaveLength(0);
+  act(() => { result.current.whatIf.prepareRestoration(1, 4, 3); result.current.whatIf.prepareRestoration(1, 4, 3); });
+  expect(ws.sent).toHaveLength(1);
+  expect(JSON.parse(ws.sent[0])).toEqual({ type: "what_if_prepare", request_id: expect.any(String), control: "academy_restoration", region_id: 1, fallen_seat_id: 4, turns: 3 });
+});

@@ -10,7 +10,7 @@ import { recipeManifest, whatIfManifest, whatIfPair } from "../../__fixtures__/w
 import { comparisonBundle } from "../../__fixtures__/completedRunHistory";
 const context: PauseContext = { turn: 2, reason: "interval", civs: ["A", "B"],
   valid_commands: ["what_if_prepare", "checkpoint", "continue", "set", "fork", "quit"], injectable_events: ["famine"], settable_stats: ["stability"] };
-const controls = (): WhatIfControls => ({ status: null, connected: true, prepare: vi.fn(), preparePolicy: vi.fn(), prepareTransport: vi.fn(), run: vi.fn(), cancel: vi.fn() });
+const controls = (): WhatIfControls => ({ status: null, connected: true, prepare: vi.fn(), preparePolicy: vi.fn(), prepareTransport: vi.fn(), prepareRestoration: vi.fn(), run: vi.fn(), cancel: vi.fn() });
 beforeEach(() => vi.stubGlobal("crypto", webcrypto));
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 it("prepares only the named global binary policy, previews scope and preserves no-op controls", () => {
@@ -306,4 +306,21 @@ it("imports a transport recipe without exposing an encoded command or sending it
   view.rerender(<WhatIfPanel context={context} controls={{ ...c, status: { request_id: "fixture-pair", state: "prepared", manifest } }} onCompare={vi.fn()} />);
   await waitFor(() => expect(screen.getByRole("button", { name: "Run both continuations" })).toBeEnabled());
   expect(c.run).not.toHaveBeenCalled();
+});
+
+it("prepares the current eligible fallen academy and explains a blocked selection", () => {
+  const candidate = { region_id: 1, region_name: "South", fallen_seat_id: 4, fallen_seat_name: "Old Academy", fallen_founder: 0,
+    fallen_founded_turn: 0, fallen_turn: 1, current_lord: 0, current_lord_name: "A", eligible: true, reason: null,
+    fee: 30, treasury_before: 100, treasury_after: 70 };
+  const paused = { ...context, academy_restoration: { schema_version: 1, turn: 2, supported: true, unavailable_reason: null,
+    candidates: [candidate, { ...candidate, region_id: 0, fallen_seat_id: 5, fallen_seat_name: "Blocked", eligible: false, reason: "Patron cannot pay", fee: null, treasury_before: null, treasury_after: null }], total_candidates: 2, omitted: 0 } };
+  const c = controls(); render(<WhatIfPanel context={paused} controls={c} onCompare={vi.fn()} />);
+  fireEvent.change(screen.getByLabelText("What-if control"), { target: { value: "academy_restoration" } });
+  expect(screen.getByText(/bypasses the spontaneous founding lottery/)).toBeVisible();
+  expect(screen.getByText(/Current paused turn 2/)).toHaveTextContent("fee 30");
+  fireEvent.click(screen.getByRole("button", { name: "Prepare comparison" }));
+  expect(c.prepareRestoration).toHaveBeenCalledWith(1, 4, 5);
+  fireEvent.change(screen.getByLabelText("What-if fallen academy"), { target: { value: "5" } });
+  expect(screen.getByText(/Patron cannot pay/)).toBeVisible();
+  expect(screen.getByRole("button", { name: "Prepare comparison" })).toBeDisabled();
 });
