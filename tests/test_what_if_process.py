@@ -239,8 +239,10 @@ def _assert_policy_checkpoint_continuations(tmp_path, checkpoints):
             assert (STAT in final.state.world.tuning_overrides) == (STAT in source_state.state.world.tuning_overrides)
             return directory
         straight = resume(source, "straight", 6)
-        first = resume(source, "split-first", 5)
-        split = resume(first / "turn_5.ckpt", "split-last", 6)
+        # Keep the declared final horizon equal: a run that ends at 5 forces
+        # terminal settlement detection there, while the horizon-6 run does
+        # not. Resume the ordinary nonterminal checkpoint from that same run.
+        split = resume(straight / "turn_5.ckpt", "split-last", 6)
         def outputs(directory):
             bundle = load_bundle(directory / "chronicle_bundle.json")
             bundle["metadata"].pop("generated_at", None)
