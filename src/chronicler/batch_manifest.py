@@ -83,6 +83,7 @@ SIMULATION_ARG_KEYS = WORLD_ARG_KEYS + (
     "grain_storage",
     "grain_storage_policy",
     "grain_storage_work_budget",
+    "household_mobility_liquid_requirement",
     "community_anchoring",
     "capacity_aware_refugees",
     "health_care",
@@ -202,7 +203,7 @@ def simulation_config(args: Any, tuning_overrides: dict | None = None) -> dict[s
     tuning overrides in effect. The new nested research switch is omitted
     when unspecified so legacy manifests/checkpoints keep their exact shape."""
     config = {key: _json_value(getattr(args, key, None)) for key in SIMULATION_ARG_KEYS
-              if key not in ("scientific_research_agendas", "public_grain_shipments", "grain_storage", "grain_storage_policy", "grain_storage_work_budget")
+              if key not in ("scientific_research_agendas", "public_grain_shipments", "grain_storage", "grain_storage_policy", "grain_storage_work_budget", "household_mobility_liquid_requirement")
               or getattr(args, key, None) is not None}
     overrides = tuning_overrides if tuning_overrides is not None else getattr(args, "tuning_overrides", None)
     config["tuning_overrides"] = _json_value(overrides or {})

@@ -1216,6 +1216,10 @@ class WorldState(BaseModel):
     # Community anchoring: community ties hold agents back from moving
     # (chronicler.community_anchoring; True = on, None = off and omitted).
     community_anchoring: bool | None = Field(default=None, exclude_if=_is_none)
+    # Default-off liquidity eligibility proxy for existing household migration.
+    # Native wealth is a constraint here, never a travel payment or new debt.
+    household_mobility_liquid_requirement: float | None = Field(
+        default=None, ge=0, le=1000, strict=True, exclude_if=_is_none)
     # Capacity-aware aggregate/shadow refugees (default off and omitted).
     capacity_aware_refugees: bool = Field(default=False, exclude_if=operator.not_)
     # Domestic credit through real lenders: merchants, guilds and cities fund
@@ -1489,6 +1493,8 @@ class TurnSnapshot(BaseModel):
     regional_population: dict | None = Field(default=None, exclude_if=_is_none)
     # Version1 detached native food drawdown/public relief observations.
     food_accounting: dict | None = Field(default=None, exclude_if=_is_none)
+    # Dated, bounded native eligibility observations; absent in old bundles.
+    household_mobility: dict | None = Field(default=None, exclude_if=_is_none)
 
 
 # --- M20a: Narration Pipeline v2 models ---

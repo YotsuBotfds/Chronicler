@@ -284,6 +284,7 @@ def feature_flags(world: Any) -> dict[str, bool]:
         "scholarship": bool(scholarship_enabled(world)),
         "grain_reserves": bool(grain_reserves_enabled(world)),
         **({"grain_storage": True} if getattr(getattr(world, "grain_reserves", None), "storage", None) is not None else {}),
+        **({"household_mobility": True} if getattr(world, "household_mobility_liquid_requirement", None) else {}),
         "community_anchoring": bool(community_anchoring_enabled(world)),
         "capacity_aware_refugees": getattr(world, "capacity_aware_refugees", False) is True,
         "domestic_credit": bool(domestic_credit_on(world)),

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import math
 import signal
 import sys
 import threading
@@ -942,6 +943,7 @@ def execute_run(
                     )
         from chronicler.regional_population import snapshot_fields as regional_population_snapshot_fields
         from chronicler.food_accounting import snapshot_fields as food_accounting_snapshot_fields
+        from chronicler.household_mobility_state import snapshot_fields as household_mobility_snapshot_fields
         snapshot = TurnSnapshot(
             turn=world.turn,
             civ_stats={
@@ -1088,6 +1090,7 @@ def execute_run(
             **_migration_snapshot_fields(world),
             **regional_population_snapshot_fields(world, agent_bridge, turn_result.observation),
             **food_accounting_snapshot_fields(world, turn_result.observation),
+            **household_mobility_snapshot_fields(turn_result.observation.household_mobility, world.turn),
         )
 
         # M56b: Urban fraction aggregation from agent snapshot
@@ -1806,6 +1809,16 @@ def _configure_run(args: argparse.Namespace, world: WorldState, fresh_world: boo
     # hold agents back from moving. It acts in the native agent decision, so
     # an explicit --community-anchoring needs an agent pool; a saved setting
     # is dormant under --agents off.
+    mobility_requirement = getattr(args, "household_mobility_liquid_requirement", None)
+    if mobility_requirement is not None:
+        # Validate the control before changing the persisted world.
+        if not math.isfinite(mobility_requirement) or not 0 <= mobility_requirement <= 1000:
+            raise ValueError("household mobility liquid requirement must be finite and in [0, 1000]")
+        if mobility_requirement > 0 and agent_mode != "hybrid":
+            raise ValueError("household mobility currently requires --agents hybrid")
+        world.household_mobility_liquid_requirement = mobility_requirement or None
+    if getattr(world, "household_mobility_liquid_requirement", None) and agent_mode not in ("hybrid", "off"):
+        raise ValueError("saved household mobility is supported in hybrid mode (dormant with agents off)")
     community_anchoring = getattr(args, "community_anchoring", None)
     if community_anchoring is True and agent_mode == "off":
         raise ValueError("Community anchoring requires an agent pool (--agents hybrid, shadow or demographics-only)")
@@ -1925,6 +1938,8 @@ def _configure_run(args: argparse.Namespace, world: WorldState, fresh_world: boo
         budgets = {p.work_budget for p in storage.policies}
         run_config["simulation_args"]["grain_storage_policy"] = next(iter(policies)) if len(policies) == 1 else None
         run_config["simulation_args"]["grain_storage_work_budget"] = next(iter(budgets)) if len(budgets) == 1 else None
+    if getattr(world, "household_mobility_liquid_requirement", None):
+        run_config["simulation_args"]["household_mobility_liquid_requirement"] = world.household_mobility_liquid_requirement
     if world.scientific_claims is not None and world.scientific_claims.research_agendas is not None:
         run_config["simulation_args"]["scientific_research_agendas"] = world.scientific_claims.research_agendas.enabled
     if decision_ablation is not None:
@@ -2210,6 +2225,9 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="Apply a storage policy to every region; saved policies otherwise persist")
     parser.add_argument("--grain-storage-work-budget", type=float, default=None,
                         help="Requested farmer-equivalent work per region per turn, 0–4; default zero")
+    parser.add_argument("--household-mobility-liquid-requirement", type=float, default=None,
+                        help="Opt-in hybrid migration eligibility: native adult liquid wealth required per moving "
+                             "person, 0–1000; zero disables. No wealth is spent and passage is not a completed move.")
     parser.add_argument("--public-grain-shipments", action=argparse.BooleanOptionalAction, default=None,
                         help="Default-off public grain: foreign direct-neighbor orders arrive next Phase10, "
                              "after its opening; requires --grain-reserves and agents. Disabling drains paid cargo.")
@@ -2446,6 +2464,15 @@ def _adopt_checkpoint_args(parser: argparse.ArgumentParser, args: argparse.Names
         given = getattr(args, name, None)
         if given is not None and (storage is None or any(getattr(p, field) != given for p in storage.policies)):
             conflicts.append("--" + name.replace("_", "-") + " conflicts with the checkpoint's per-region policies")
+    mobility = getattr(state.world, "household_mobility_liquid_requirement", None) or 0
+    given_mobility = getattr(args, "household_mobility_liquid_requirement", None)
+    recorded_mobility = saved.pop("household_mobility_liquid_requirement", mobility) or 0
+    if recorded_mobility != mobility:
+        conflicts.append("checkpoint household mobility control conflicts with its retained state")
+    if given_mobility is not None and given_mobility != mobility:
+        conflicts.append("--household-mobility-liquid-requirement conflicts with the checkpoint; use a declared state fork")
+    elif mobility:
+        args.household_mobility_liquid_requirement = mobility
     for key, value in saved.items():
         if key in _RESUME_FREE_ARGS:
             continue

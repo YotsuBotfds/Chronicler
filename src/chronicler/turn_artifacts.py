@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from chronicler.models import AgentEventRecord
     from chronicler.regional_population import FoodWeights
     from chronicler.food_accounting import FoodAccounting
+    from chronicler.household_mobility_state import HouseholdMobilityObservation
 
 Stage = Literal["phase10_entry"]
 
@@ -188,6 +189,7 @@ class TurnArtifacts:
     phase10: Phase10Inputs | None = None
     food_weights: FoodWeights | None = None
     food_accounting: FoodAccounting | None = None
+    household_mobility: HouseholdMobilityObservation | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -199,12 +201,15 @@ class TurnObservation:
     population_sources: tuple[str, ...] | None = None
     food_accounting: FoodAccounting | None = None
     food_procurement: tuple[tuple[int, int, int], ...] = ()
+    household_mobility: HouseholdMobilityObservation | None = None
 
     def __post_init__(self) -> None:
         if self.phase10_agents is not None:
             _check_agent_rows(self.phase10_agents.batch, self.phase10_agents, source_turn=self.source_turn)
         if self.food_weights is not None and self.food_weights.source_turn != self.source_turn:
             raise ValueError("food_weights source_turn does not match the consumer turn")
+        if self.household_mobility is not None and self.household_mobility.source_turn != self.source_turn:
+            raise ValueError("household_mobility source_turn does not match the consumer turn")
         if self.completed_turn != self.source_turn + 1:
             raise ValueError("completed_turn must label the completed source_turn as N+1")
 

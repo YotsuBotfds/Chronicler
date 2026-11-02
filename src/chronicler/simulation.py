@@ -2289,6 +2289,11 @@ def run_turn_result(
         # --agents=off: apply ALL categories (no agents to produce guard stats)
         acc.apply(world)
 
+    if agent_bridge is not None:
+        take_mobility = getattr(agent_bridge, "take_household_mobility_observation", None)
+        if callable(take_mobility):
+            artifacts.household_mobility = take_mobility(artifacts.source_turn)
+
     if getattr(world, "health_care", None) is not None and agent_bridge is not None:
         from chronicler.health_care import finish_health_care
         _emit(finish_health_care(world, agent_bridge))
@@ -2653,6 +2658,7 @@ def run_turn_result(
             food_accounting=artifacts.food_accounting,
             food_procurement=tuple((ci, initial, remaining) for ci, (initial, remaining)
                                    in sorted(getattr(economy_result, "food_procurement_budget", {}).items())) if economy_result is not None else (),
+            household_mobility=artifacts.household_mobility,
         ),
     )
 
