@@ -109,15 +109,21 @@ async function transact(storage: BookmarkStorage | null, change?: (bookmarks: In
       const store = tx.objectStore(STORE);
       const request = store.get("v1");
       request.onsuccess = () => {
-        const existing = request.result as string | undefined;
-        const read = existing === undefined ? readInvestigationBookmarks(storage) : readInvestigationBookmarks({ getItem: () => existing, setItem: () => {} });
-        if (!read.ok) { result = read; return; }
-        if (change) {
-          result = change(read.bookmarks);
-          if (result.ok && "bookmark" in result) store.put(JSON.stringify({ version: 1, bookmarks: result.bookmarks }), "v1");
-        } else {
-          result = read;
-          if (existing === undefined) store.put(JSON.stringify({ version: 1, bookmarks: read.bookmarks }), "v1");
+        try {
+          const existing = request.result as string | undefined;
+          const read = existing === undefined ? readInvestigationBookmarks(storage) : readInvestigationBookmarks({ getItem: () => existing, setItem: () => {} });
+          if (!read.ok) { result = read; return; }
+          if (change) {
+            result = change(read.bookmarks);
+            if (result.ok && "bookmark" in result) store.put(JSON.stringify({ version: 1, bookmarks: result.bookmarks }), "v1");
+          } else {
+            result = read;
+            if (existing === undefined) store.put(JSON.stringify({ version: 1, bookmarks: read.bookmarks }), "v1");
+          }
+        } catch {
+          // Request callbacks run after the outer try has returned. Abort
+          // synchronous cloning/quota failures without an uncaught page error.
+          tx.abort();
         }
       };
       tx.oncomplete = () => { db.close(); resolve(result ?? { ok: false, bookmarks: [], error: "Bookmark database returned no result. Your draft is kept." }); };

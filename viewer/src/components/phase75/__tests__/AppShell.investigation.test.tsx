@@ -1,12 +1,16 @@
-import { afterEach, beforeAll, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { regionalFixture } from "../../../__fixtures__/regionalPopulation";
 import { AppShell } from "../AppShell";
 import { preloadPanels } from "../lazyPanels";
 import { INVESTIGATION_BOOKMARKS_KEY } from "../../../lib/investigationBookmarks";
 import type { ComponentProps } from "react";
+import { bookmarkIdbStub } from "../../../lib/__tests__/bookmarkIdbStub";
 beforeAll(() => preloadPanels());
-afterEach(() => { cleanup(); localStorage.clear(); });
+// Component wiring/migration only; actual two-tab transaction guarantees are
+// checked in Chromium, not by this asynchronous stand-in.
+beforeEach(() => vi.stubGlobal("indexedDB", bookmarkIdbStub().factory));
+afterEach(() => { cleanup(); localStorage.clear(); vi.unstubAllGlobals(); });
 const hash = "a".repeat(64);
 function mount(extra: Partial<ComponentProps<typeof AppShell>> = {}) {
   const onSeek = vi.fn(); const bundle = regionalFixture();
@@ -63,7 +67,7 @@ it("restores only an available entity and exact turn from a matching file, and l
   const { onSeek } = mount();
   fireEvent.click(screen.getByText("Bookmarks and investigation export"));
   const bookmarks = await screen.findByRole("region", { name: "Investigation bookmarks" });
-  fireEvent.click(within(bookmarks).getByRole("button", { name: "Restore bookmark: A, turn 1, history" }));
+  fireEvent.click(await within(bookmarks).findByRole("button", { name: "Restore bookmark: A, turn 1, history" }));
   expect(within(bookmarks).getByRole("status")).toHaveTextContent("identity is unavailable or ambiguous");
   expect(onSeek).not.toHaveBeenCalled();
   fireEvent.click(within(bookmarks).getByRole("button", { name: "Restore bookmark: B, turn 2, history" }));

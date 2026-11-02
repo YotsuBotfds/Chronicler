@@ -4,8 +4,8 @@ The 36 requested items have implemented, reused, partial and deferred outcomes;
 see the [outcome matrix and active handoff](integration/development-lead.md).
 The all-nine green [CI run](https://github.com/YotsuBotfds/Chronicler/actions/runs/41401640607)
 tested `38116fc2`, before the search correction `71590379` and atomic IndexedDB
-bookmark correction `ce2b4e96`. Current combined viewer and rendered two-tab
-checks are pending. Private native transport disruption remains source-audited
+bookmark correction `ce2b4e96`. The corrected combined viewer passes 1,112 tests, lint and build; rendered two-tab
+bookmark checks passed. See the [closeout receipt](integration/closeout-correction-2026-11-02.md). Private native transport disruption remains source-audited
 only; actual food consumption remains unrecorded; institution histories are
 city-first. Broad scientific and accessibility qualification remain deferred.
 
