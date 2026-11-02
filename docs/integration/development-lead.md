@@ -104,8 +104,11 @@ The prior source5162 all9 CI result is historical unchanged-source evidence only
 first combined CI at942da692 passed viewer/Rust/new-wheel but exposed two strict
 native tests mistakenly included in native-absent lanes. They are moved intact
 into the existing native-checkpoint module; the corrected guarded chunk passes
-95/2 pre-existing skips, and both real native cases pass2/0 skips. Initial failures
-are retained. Rust/package/locks/UI are unchanged by this lane-only correction.
+95/2 pre-existing skips, and both real native cases pass2/0 skips. CI also
+identified the explicit module-registration test's old310 count; its new module
+is now listed explicitly,311 total, with the original300-owner digest, six skips
+and623subtest seals unchanged. All210 metadata tests pass under the guard.
+Initial native/no-native/metadata failures are retained. Rust/package/locks/UI are unchanged by this lane-only correction.
 The corrected full CI dispatch/result will be recorded before closure.
 
 All new receipts/scripts/screenshots/data are under
