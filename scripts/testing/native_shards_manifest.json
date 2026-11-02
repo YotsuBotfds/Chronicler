@@ -208,6 +208,7 @@
       "tests/test_community_anchoring.py",
       "tests/test_contact_ledger.py",
       "tests/test_crafts.py",
+      "tests/test_crisis_academy_example.py",
       "tests/test_crisis_institution_recovery_native.py",
       "tests/test_crisis_labor_example.py",
       "tests/test_crisis_migration_example.py",
