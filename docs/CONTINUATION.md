@@ -23,10 +23,15 @@ diagnostic predecessor explicitly lacks earlier snapshots. M9 has paired runtime
 memory, history and real-browser interaction measurements. CI41495453122 passed
 seven test/build jobs but failed the native skip audit: two new tests skipped
 under an unpinned parent hash. They now execute in supervised fixed-hash children,
-with no skip-registry relaxation; combined CI on the corrected slice is next.
-The source/evidence backup at16376f90 is independently verified owner-only;
-newer restoration source/evidence needs its next checkpoint. See the active
-roadmap for exact sources and limits.
+with no skip-registry relaxation; the corrected combined result follows.
+The corrected source0fb973cf passed all nine jobs in run41503054596:9,728 native
+tests/six unchanged historical skips/623 subtests,1,151 viewer tests and1,203 Rust
+tests/two ignored. Its owner-only backup independently restores exact source and
+561 new evidence files;502 omitted files match prior downloaded archives. This
+is bounded development qualification, not completed M6–9 or fresh provisioning.
+Next work: a separately declared receiving-service resupply case and the real
+harvest-production authority behind the failed false-warning fixtures. See the
+active roadmap for exact sources and limits.
 This is not the completed roadmap. Previous remediation stays closed within its documented
 limits. Main/defaults remain unchanged; environment publication stays deferred.
 

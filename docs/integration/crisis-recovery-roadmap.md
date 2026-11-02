@@ -35,7 +35,7 @@ validate an epic. Runtime changes remain opt-in until evaluated. No paid narrati
 | M6 delayed information | partially covered | Report delay, real decision-boundary inputs/costs, issue-time construction records and Harvest inspector integrated; all nine CI jobs passed at3e852333. See forecast-decisions-candidate.md. | Actual timing/purchases, expiry, caps, exact continuation, observer neutrality and browser checks pass. Both the earlier and additional scarce-budget shuffle cases are purchase/food-neutral; misleading harm/food outcome criterion remains unmet. |
 | M7 crisis suite | partially covered | [Constructed A/B/C/D cases and E analysis](crisis-scenarios.md) execute shared native state. Regional shock now uses the existing exact pair coordinator; explicit paid academy restoration has a tested boundary API. | Development admissions pass within stated limits. Receiving services, complete common-point alternatives for each case and held evaluation remain unfinished. Supported drought injection is not a crop-yield shock; recorded migration is not proof of forced eviction. |
 | M8 usable laboratory | partially covered | Regional closure and paid academy restoration preview → real exact pair → existing food/Learning inspectors work at desktop/390px. Versions1–4 and descriptive private-safe recipes are supported. A full-main academy guide preserves history1–12. | One live client is the existing server contract. The broader crisis gallery and remaining scenario/evaluation boundaries are unfinished; this is not whole-roadmap completion. |
-| M9 package | implementing | Quiet paired runtime/memory/history and actual browser measurements recorded; private source/evidence recovery independently verified. Corrected M8 combined CI next. | CI16376f90 failed its strict skip audit after seven successful jobs; fixed-hash supervision now executes those tests. Final flag matrix, held scenarios and release handoff remain unfinished. |
+| M9 package | implementing | Quiet paired runtime/memory/history and actual browser measurements recorded; private source/evidence recovery independently verified. All nine corrected M8 CI jobs pass at0fb973cf. | Failed CI16376f90 remains preserved; fixed-hash supervision executes the new tests without relaxed skip rules. Held scenarios, final feature-enabled qualification and release handoff remain unfinished. |
 
 ## Current evidence and ownership
 
@@ -248,7 +248,27 @@ service-work criterion. Neither it nor the third, heterogeneous-capital forecast
 case is relabeled success: both scored warnings are true shortfalls, and
 normal/shuffle purchases and food outcomes remain identical.
 
-Next: run/record corrected combined CI and verify the new private backup. Complete C's receiving-service and
+Corrected product checkpoint0fb973cf passed all nine jobs in
+[run41503054596](https://github.com/YotsuBotfds/Chronicler/actions/runs/41503054596).
+The native shards pass9,728 tests with six unchanged registered historical skips
+and623 successful subtests; the strict ownership/skip audit passes. Viewer
+passes1,151 tests, lint/build; Rust passes1,203 tests/two ignored. No new native
+test is accepted as a skip. Source, locks, defaults and main boundaries remain
+as documented; no scientific default promotion is implied.
+
+Owner-only recovery at0fb973cf is independently verified: three archive objects,
+561 new evidence members,502 directly checked prior-identical omissions, and a
+clean downloaded-source restoration with1,935 tracked files/62 preserved refs.
+[Recovery instructions](https://drive.google.com/file/d/1nB9U33JBLx0TzZQmUd_V3A9NRNuds5R5/view),
+[verification index](https://drive.google.com/file/d/1V1qIyOFiDQbt6i1GwleQXNAljOs5H-cx/view),
+[omission proof](https://drive.google.com/file/d/1lwxT7pUeOrnJ-cAaca0_cURol6DC1xpg/view),
+[matching current native identity](https://drive.google.com/file/d/14KZfLHAnrHU7bWJtSKU3fMq0fsDJ3vUC/view)
+and [subsequent final CI receipt](https://drive.google.com/file/d/191zX6APtyYIDT8Rfnv4DwPUGNxDWF4HK/view)
+also match independently downloaded bytes. Primary archives retain their original
+running-CI capture state; the separate receipt records the later success. This
+verifies source/evidence recovery, not reusable environment publication.
+
+Next: preserve new WIP as it develops. Complete C's receiving-service and
 matched alternatives, freeze/run modest held evaluations, and address M6's
 misleading-information acceptance without forcing favorable outcomes. The
 roadmap remains unfinished; no scientific gate, default promotion or reusable-
