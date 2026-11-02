@@ -82,3 +82,10 @@ native-tested M2 controller-return receipt.
 Then qualify a declared investment and opportunity-cost pair, including active
 work checkpoints. M4–9 remain planned, not complete. No scientific/default
 promotion gate has been claimed.
+
+Compatibility follow-up: CI4963c379 reached9,168 no-native passes but rejected
+one missing exact registry inverse; Viewer had1,115 passes and one historical
+fixture/current-contract mismatch. Both are corrected without changing old
+fixtures or expected hashes:76 focused Python passes, five viewer transport
+passes, lint/build. The next combined run is the qualification gate; no green
+claim is inferred from these focused checks.
