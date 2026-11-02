@@ -6,6 +6,7 @@
   "scope": "Dormant whole-module native CI partition; saved JUnit weights are attribution, not a timing prediction. No RNG reseed or xdist.",
   "shards": {
     "0": [
+      "tests/test_academy_candidate_witness.py",
       "tests/test_acc_hardening.py",
       "tests/test_accumulator.py",
       "tests/test_action_engine.py",
@@ -87,6 +88,7 @@
       "tests/test_interactive_checkpoints.py",
       "tests/test_interestingness.py",
       "tests/test_leaders.py",
+      "tests/test_learning_services.py",
       "tests/test_live.py",
       "tests/test_live_checkpoints.py",
       "tests/test_live_checkpoints_native.py",
@@ -249,6 +251,7 @@
       "tests/test_interactive.py",
       "tests/test_interactive_checkpoints_native.py",
       "tests/test_languages.py",
+      "tests/test_learning_services_native.py",
       "tests/test_live_integration.py",
       "tests/test_m10_integration.py",
       "tests/test_m19_integration.py",

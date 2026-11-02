@@ -30,9 +30,9 @@ validate an epic. Runtime changes remain opt-in until evaluated. No paid narrati
 | M1 received/consumed | validated | Native food ledger, separate public relief and procurement observations in the existing Food inspector; all nine CI jobs passed at ecfa06ac. | Controlled native/aggregate cases, balances, actual exact continuation and four-mode neutrality passed. Physical household food purchasing remains outside this model; integrated crisis/distributional qualification belongs to M7–9. |
 | M2 logistics consequences | validated | Actual native interruption, return, reroute, reopening, supplier harm and in-flight restore; controller-change receipt and combined public/private shortage executed. All nine combined CI jobs passed at fc50bf8e. | This establishes the specified bounded mechanics, not general transport economics. The declared integrated crisis suite remains M7. |
 | M3 storage choices | validated | Opt-in paid work, timber/treasury costs, capacity, condition, spoilage, custody and existing inspector integration. All nine combined CI jobs passed at fc50bf8e. | Actual benefit/harm pair, total goods balance, partial-work exact continuation and four-mode default-off parity passed. Care/work interaction and held scenario evaluation remain M7–9. |
-| M4 household coping | integrated | Opt-in native liquid gate for existing household migration, persisted controls, bounded dated history and existing Migration inspector. No household food inventory or new credit model. | Fresh wheel, actual unequal constrained moves, disabled four-mode parity, exact continuation and real desktop/phone journey passed. Combined CI next; long-run/care-obligation/distributional limits stay explicit. |
-| M5 resource-backed service | implementing | Isolated academy-service helper and explicit upkeep/staff integration hooks; not active on dev. | Phase hooks, real service interruption/restoration, dated learning effect, supplies/costs, identity and exact continuation remain required. |
-| M6 delayed information | planned | Depends authoritative procurement/service inputs. Reuse report/expiry/preparedness machinery. | Timely/delayed/misleading/absent controls change decisions from same initial truth; record decision inputs and costs; no future leaks. |
+| M4 household coping | validated | Opt-in native liquid gate, persisted controls, bounded history and Migration inspector; corrected omitted/mock/no-native boundaries. All nine CI jobs passed at4dddb88b. | This establishes constrained native moves and exact continuation in declared controls, not a new household food/credit/care model or general unequal recovery. M7–9 retain those limits. |
+| M5 resource-backed service | integrated | Actual paid academy supplies, native exclusive Scholar work/income cost, prior-turn learning effect, dated Learning inspector and material balances. See academy-services-candidate.md. | Nine real-native checks, actual funded/no-stock/restock/ownership/adverse cases, exact held-supplies continuation, off parity and desktop/phone journey pass. Combined final CI remains next; general efficacy and Scholar illness remain unmodeled. |
+| M6 delayed information | implementing | Isolated report-delay and then-known procurement receipt candidate b405717c. Integrate into actual Phase10 procurement and snapshots next. | Timely/delayed/misleading/absent controls must change decisions from same initial truth; record actual inputs/costs without future leaks. Pure tests alone do not establish this. |
 | M7 crisis suite | planned | After relevant M1–6 mechanics. Declare exploration cases and held evaluation cases before running. | A route-shortfall; B harvest+care; C constrained displacement; D institution loss/costly recovery; E unequal recovery. Verify shock application, baseline/alternatives, adverse/neutral results and shared-state accounting. |
 | M8 usable laboratory | planned | Extend current views/interventions/comparison after contracts, not parallel panels. | Actual app journey and390px controls: detection → evidence → bounded what-if → comparison → private bookmark/export, old files/cancel preserved. |
 | M9 package | planned | Integrated source/build/scenarios; compare starting baseline with same budgets. | Relevant Python/native/Rust/viewer, active-state checkpoints, runtime/memory/history/frame measurements, verified owner-only recovery; flags, limits and next tasks. Full scientific promotion is separate and unrun. |
@@ -77,12 +77,24 @@ writers or shared-wheel replacement. Viewer work starts after export agreement.
   moves and exact history/native/RNG continuation passed. Source lineage and
   four-mode actual disabled parity are separate proofs. Viewer1,124 broad tests,
   five focused final paging/format checks, lint/build and real desktop/390px
-  journey passed. The initial browser paging failure is retained. Fresh CI next.
-- M5 isolated helpers `a3d0aecb`/`ce419f7f` have82 pure service/scholarship passes,
-  but an audit found alive-scholar counts do not establish available work. This
-  prototype is not a completed service. A real native Scholar-day income/work
-  budget and prior-paid supply inventory are implementing in separate branches.
-  Actual phase scheduling, enablement/export and native execution remain gates.
+  journey passed. The initial browser paging failure is retained. CI048ed0dd
+  exposed a no-native collection omission and optional-observation mock/legacy
+  compatibility defects; production defaults now skip the disabled observer,
+  older optional handoffs stay unknown, and native collection skips only when
+  the extension is absent.81 actual-native/factory checks,79 no-native checks
+  with one expected module absence, and80 guarded passes qualify the fix. All
+  nine jobs passed at4dddb88b in run41477763575; failures remain retained.
+- M5 [contract, commands and actual limits](academy-services-candidate.md): the
+  original alive-scholar proxy was replaced by native reserved/delivered work
+  and prior-paid craft holdings. Nine actual-native cases execute purchases,
+  material use/income cost, shortage/restock, peaceful and destructive patron
+  transitions, exact checkpoint and the actual technique-phase consumer.
+ 389 combined focused tests passed before the final additional native test;
+ 241 guarded contracts/metadata and135 no-native tests/three expected native
+ absences pass. Four-mode disabled pairs retain39 artifacts/24 native states;
+ a standing-academy pair adds eight unchanged artifacts/native states. Viewer
+ 1,131 broad tests and six final focused checks, lint/build and desktop/390px
+ production journeys pass. Final combined CI remains a separate gate.
 - M6 report-delay/decision-receipt candidate `b405717c` is isolated WIP:227 focused
   tests passed, one immutable source inverse was explicitly deselected after its
   retained failure. No final phase integration/native impact claim. A later exact
@@ -119,7 +131,12 @@ size/SHA checked, and every archive member verified. It explicitly preserves a
 failed-CI checkpoint, not a claimed release. Newer source and M4/M6 evidence need
 their next checkpoint; keep local originals.
 
-Next action: push and CI the qualified M4 candidate, checkpoint source/evidence,
-then integrate M5 paid materials and actual work. M6 production decision/delay
-hooks follow; M7–9 are still planned. No scientific gate, full-roadmap completion,
+M9 starting measurement is retained under `m9-baseline`: actual6ff45ec3/native,
+procedural32 regions/10 civilizations/40 turns, seed42 hybrid, three sequential
+fixed-thread runs. Median2.802s/max RSS163,372KiB;16 files/4,853,141 bytes per run,
+including bundle2,224,098 bytes. No warmup and no current-source speedup claim.
+
+Next action: push and CI M5, preserve the current source/WIP and evidence in
+verified owner-only storage, then integrate M6 decision/delay hooks and execute
+declared information controls. M7–9 remain unfinished. No scientific gate, full-roadmap completion,
 default promotion or reusable-environment publication has been claimed.

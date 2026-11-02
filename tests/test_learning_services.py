@@ -16,6 +16,7 @@ from chronicler.learning_services_state import LearningServicesState
 from chronicler.scholarship_state import ACADEMY, LIBRARY, ScholarshipState, Seat
 from chronicler.war.common import projected_treasury
 from test_scholarship import _world, _seat, _rows, _no_draw, VERDANT
+from test_expansion_feature_wiring import configure_without_native
 
 
 def setup(monkeypatch, *, crafts=8, treasury=200):
@@ -444,3 +445,63 @@ def test_corrupt_paid_upkeep_cannot_produce_work_or_mutate_inventory(monkeypatch
     with pytest.raises(ValueError, match="invalid academy upkeep evidence"):
         L.prepare_learning_work(world, counts(world))
     assert world.model_dump_json() == before
+
+
+def test_candidate_configuration_preserves_pause_and_default_cohort(configure_without_native):
+    from chronicler.main import _build_parser
+    from chronicler.batch_manifest import simulation_config
+    from chronicler.world_gen import generate_world
+    assert "academy_services" not in simulation_config(_build_parser().parse_args([]))
+    world = generate_world(seed=42)
+    _, config = configure_without_native(world, "--scholarship", "--techniques", "--academy-services")
+    state = world.scholarship.learning_services
+    assert state.enabled and config["simulation_args"]["academy_services"] is True
+    _, config = configure_without_native(world, mode="off")
+    assert world.scholarship.learning_services is state and state.enabled
+    assert config["simulation_args"]["academy_services"] is True
+    _, config = configure_without_native(world, "--no-academy-services", mode="off")
+    assert world.scholarship.learning_services is state and not state.enabled
+    assert config["simulation_args"]["academy_services"] is False
+
+
+@pytest.mark.parametrize("flags,mode", [
+    (["--academy-services"], "hybrid"),
+    (["--academy-services", "--scholarship"], "hybrid"),
+    (["--academy-services", "--scholarship", "--techniques"], "off"),
+    (["--academy-services", "--scholarship", "--techniques"], "shadow"),
+    (["--academy-services", "--scholarship", "--techniques"], "demographics-only"),
+])
+def test_invalid_service_configuration_refused_before_native(configure_without_native, flags, mode):
+    from chronicler.world_gen import generate_world
+    with pytest.raises(ValueError, match="academy services"):
+        configure_without_native(generate_world(seed=42), *flags, mode=mode)
+    assert not configure_without_native.constructions
+
+
+def test_cannot_discard_paid_or_unknown_supplies_by_disabling_scholarship(monkeypatch):
+    world, seat_id, _ = setup(monkeypatch)
+    purchase, _ = upkeep_and_purchase(world, seat_id)
+    assert purchase.purchased > 0
+    before = world.model_dump_json()
+    with pytest.raises(ValueError, match="cannot discard"):
+        scholarship.set_scholarship_enabled(world, False)
+    assert world.model_dump_json() == before
+    world.scholarship.learning_services.inventories[0].held = None
+    with pytest.raises(ValueError, match="unknown academy supplies"):
+        scholarship.set_scholarship_enabled(world, False)
+
+
+def test_exact_resume_retains_service_switch_and_refuses_changed_intent(monkeypatch):
+    from chronicler.main import _adopt_checkpoint_args, _build_parser
+    world, seat_id, _ = setup(monkeypatch)
+    upkeep_and_purchase(world, seat_id)
+    saved = NS(state=NS(world=world, seed=42, num_turns=world.turn + 8,
+        run_config={"simulation_args": {"academy_services": True}}))
+    parser = _build_parser()
+    args = parser.parse_args([])
+    before = pickle.dumps(world)
+    assert _adopt_checkpoint_args(parser, args, saved) == []
+    assert args.academy_services is True
+    conflicts = _adopt_checkpoint_args(parser, parser.parse_args(["--no-academy-services"]), saved)
+    assert any("--academy-services conflicts" in c for c in conflicts)
+    assert pickle.dumps(world) == before

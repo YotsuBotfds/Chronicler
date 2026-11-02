@@ -7,8 +7,12 @@ and M3 paid storage/capacity/condition passed all nine jobs atfc50bf8e after a
 reproduced serialization defect was corrected. Constructed benefit/harm, partial-
 work continuation, browser checks and default-off parity are retained. M4 native
 household mobility, dated history and Migration UI are integrated with bounded
-native/browser validation; combined CI is next. M5 actual teaching work/paid
-supplies and M6 report-delay helpers are WIP; M7–9 remain planned. This is not the completed roadmap. Previous remediation stays closed within its documented
+native/browser validation and all nine CI jobs green at4dddb88b. M5 actual
+teaching work/paid supplies and Learning history are integrated with nine
+native controls, old/new disabled parity and actual browser verification;
+final combined CI is next. M6 report-delay helpers remain WIP; M7–9 are
+unfinished (one representative starting performance baseline is recorded).
+This is not the completed roadmap. Previous remediation stays closed within its documented
 limits. Main/defaults remain unchanged; environment publication stays deferred.
 
 ---

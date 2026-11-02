@@ -10,7 +10,7 @@ from scripts.testing.academy_candidate_witness import ROOT, WITNESS, before_acad
 def test_academy_candidate_projects_exact_reviewed_sources_and_rejects_mutations():
     witness = json.loads(WITNESS.read_text(encoding="utf-8"))
     assert witness["base"] == "4dddb88b9dfc3625fc52628846ea218718410b95"
-    assert witness["head"] == "f6277e0c36a77930c9feb8d45e6e0749cee79c73"
+    assert witness["head"] == "6768fc5d236e03d3da98fb10b40e07c6d6d6c2ae"
     for path, row in witness["files"].items():
         source = (ROOT / path).read_bytes().decode("utf-8")
         parent = before_academy_candidate(source, path)

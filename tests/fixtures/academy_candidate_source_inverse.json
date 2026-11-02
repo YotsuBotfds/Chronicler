@@ -1,6 +1,6 @@
 {
   "base": "4dddb88b9dfc3625fc52628846ea218718410b95",
-  "head": "f6277e0c36a77930c9feb8d45e6e0749cee79c73",
+  "head": "6768fc5d236e03d3da98fb10b40e07c6d6d6c2ae",
   "files": {
     "chronicler-agents/src/economy.rs": {
       "sha256": "d1694e44b83d6a013714bbceeec9cff633e7c7058f1a8433d34bc125e18700e4",
@@ -305,8 +305,8 @@
     "chronicler-agents/src/teaching_work.rs": "87b20e814af049a8d4a189e306e0c09ec7f65fbef6b4f8c4fbc230ea1fc83a47",
     "src/chronicler/learning_services.py": "aac50b104372f3a6add7eeba1c24a2c413589ca02f486b08da17ed2a7370cd23",
     "src/chronicler/learning_services_state.py": "88bc4a292b5c4835ac1a28d65743d1663eb4c89e99e8ffeae814437e8b062be8",
-    "viewer/src/components/systems/AcademyServices.tsx": "399d7186c80d333307abbffb74afaac2f2cda9290e81c30739aca9e9cdbf3aea",
+    "viewer/src/components/systems/AcademyServices.tsx": "bd8f7705657d465f5f75044e88ab6ab8db7d00fa56dd7f77d1c5ba828de5b939",
     "viewer/src/learningServicesTypes.ts": "718df5e495492545b6c86c1ce89a36e76ccb7f052fb540468547782d09f00fc2",
-    "viewer/src/lib/learningServices.ts": "5f25e57d6b0879dc9781e41736ba1a38a7fa40f0964ec8668ee10ee393e237d7"
+    "viewer/src/lib/learningServices.ts": "3880a24ae6aa9984b7475d95f17b6a08b9421c828fa1429de6203fa0d717185e"
   }
 }
