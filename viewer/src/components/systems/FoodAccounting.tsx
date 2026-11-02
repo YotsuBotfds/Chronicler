@@ -8,8 +8,8 @@ export function FoodAccounting({ bundle, snapshot, currentTurn, onSelectRegion }
   bundle: Bundle; snapshot: TurnSnapshot | null; currentTurn: number; onSelectRegion: (name: string) => void;
 }) {
   const [selected, setSelected] = useState<number | null>(null);
-  const regions = bundle.world_state.regions;
-  const civs = bundle.world_state.civilizations;
+  const regions = bundle.world_state.regions ?? [];
+  const civs = bundle.world_state.civilizations ?? [];
   const record = foodAccountingAt(snapshot, regions.length, civs.length);
   if (!record) return <section className="systems-section" aria-label="Food accounting">
     <h3>Food accounting</h3><p className="systems-note">Food accounting is not observed or is unavailable at snapshot {snapshot?.turn ?? currentTurn}.</p>
