@@ -37,7 +37,7 @@ or out of scope. Economic defaults stay unchanged.
    seed42/hybrid24, 8regions/4civs, granaries+receipts, exact checkpoint8.
    Deliberately constructed stability31→70 intervention, horizon8, compared
    through16. Commands/native/source/byte identities and observations retained
-   outside Git. Final provenance screenshots/guide status update pending.
+   outside Git. Final provenance UI, screenshot and guide checks pass.
 
 ## Working session and evidence
 
@@ -72,8 +72,16 @@ comparison component. Independent isolated workers own Python regional exports,
 viewer observations/conditions then measured performance, and live what-if
 backend. No recursive workers, shared writers or changed native build.
 
-Next: finish final browser provenance check, existing nine-job CI on combined
-code, close guide/tracker and publish verified source/example backups. Combined
+Next: complete final CI after the fixed-hash native test harness correction,
+then close the tracker and verify the final source backup. Actual browser,
+example archive and guide are complete. At39b0793d, both native shards passed
+9413 tests but aggregation correctly refused two new hash-seed-dependent skips.
+The original six-skip seal stays unchanged; both real what-if checks now execute
+in bounded hash-zero children when pytest itself has no fixed seed. Native
+unset/hash-zero each pass5; no-native passes3 with2 honest native-import skips.
+The frozen snapshot and artifact comparisons also retain every old fixture/RNG
+expectation through one validated v1-only export projection across all16 goldens.
+No simulation behavior was changed to fix these harness failures. Combined
 focus:111 Python/native tests pass; unchanged Rust/native source remains matched.
 Viewer full initial run:893 passed plus two lazy-panel test failures caused by a
 new ordinary condition status being mistaken for a loading status. The test now
