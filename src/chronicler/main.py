@@ -1883,6 +1883,12 @@ def _configure_run(args: argparse.Namespace, world: WorldState, fresh_world: boo
         set_languages_enabled(world, languages)
     from chronicler.expansion_features import configure_expansion_features
     configure_expansion_features(world, args, agent_mode=agent_mode)
+    report_delay = getattr(args, "harvest_report_delay", None)
+    if report_delay is not None:
+        if report_delay and agent_mode != "hybrid":
+            raise ValueError("harvest report delay requires --agents hybrid")
+        from chronicler.harvest_forecasts import set_report_delay
+        set_report_delay(world, report_delay)
     agent_bridge = None
     if agent_mode in ("demographics-only", "shadow", "hybrid"):
         world.agent_mode = agent_mode
@@ -1955,6 +1961,10 @@ def _configure_run(args: argparse.Namespace, world: WorldState, fresh_world: boo
         run_config["simulation_args"]["household_mobility_liquid_requirement"] = world.household_mobility_liquid_requirement
     if services is not None:
         run_config["simulation_args"]["academy_services"] = services.enabled
+    if getattr(world, "harvest_forecasts", None) is not None:
+        from chronicler.harvest_forecasts import get_report_delay
+        if get_report_delay(world.harvest_forecasts):
+            run_config["simulation_args"]["harvest_report_delay"] = get_report_delay(world.harvest_forecasts)
     if world.scientific_claims is not None and world.scientific_claims.research_agendas is not None:
         run_config["simulation_args"]["scientific_research_agendas"] = world.scientific_claims.research_agendas.enabled
     if decision_ablation is not None:
@@ -2246,6 +2256,9 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--academy-services", action=argparse.BooleanOptionalAction, default=None,
                         help="Default-off hybrid academy teaching: buys real supplies for next-turn native "
                              "Scholar work; requires scholarship and techniques. Disabling pauses and retains supplies.")
+    parser.add_argument("--harvest-report-delay", type=int, default=None,
+                        help="Add 0–12 turns to future harvest reports; existing pending schedules and expiry "
+                             "stay fixed. Requires harvest forecasts; default zero.")
     parser.add_argument("--public-grain-shipments", action=argparse.BooleanOptionalAction, default=None,
                         help="Default-off public grain: foreign direct-neighbor orders arrive next Phase10, "
                              "after its opening; requires --grain-reserves and agents. Disabling drains paid cargo.")
@@ -2501,6 +2514,17 @@ def _adopt_checkpoint_args(parser: argparse.ArgumentParser, args: argparse.Names
         conflicts.append("--academy-services conflicts with the checkpoint; use a declared state fork")
     elif services is not None:
         args.academy_services = effective_services
+    forecasts = getattr(state.world, "harvest_forecasts", None)
+    from chronicler.harvest_forecasts import get_report_delay
+    effective_delay = get_report_delay(forecasts) if forecasts is not None else 0
+    given_delay = getattr(args, "harvest_report_delay", None)
+    recorded_delay = saved.pop("harvest_report_delay", effective_delay) or 0
+    if recorded_delay != effective_delay:
+        conflicts.append("checkpoint harvest report delay conflicts with its retained state")
+    if given_delay is not None and given_delay != effective_delay:
+        conflicts.append("--harvest-report-delay conflicts with the checkpoint; use a declared state fork")
+    elif effective_delay:
+        args.harvest_report_delay = effective_delay
     for key, value in saved.items():
         if key in _RESUME_FREE_ARGS:
             continue
