@@ -1,0 +1,389 @@
+"""Bounded live exact-checkpoint pairs; never accepts paths or executable controls.
+
+Preparation runs at the original simulation's pause boundary. Execution uses
+ordinary interactive exact-resume CLI processes, with one fixed intervention.
+The private files, including failed and cancelled arms, are retained as evidence.
+"""
+from __future__ import annotations
+
+import copy
+import hashlib
+import json
+import os
+from pathlib import Path
+import queue
+import re
+import shlex
+import signal
+import subprocess
+import sys
+import threading
+import time
+import uuid
+import zlib
+from dataclasses import dataclass, field
+from typing import Any
+
+from chronicler.artifact_io import atomic_write_text
+from chronicler.bundle_codec import decode_bundle, dumps_bundle
+
+MAX_JOBS = 8
+MAX_BUNDLE_BYTES = 16 * 1024 * 1024
+MAX_CHECKPOINT_BYTES = 128 * 1024 * 1024
+MAX_RAW_CHECKPOINT_BYTES = 512 * 1024 * 1024
+MAX_OUTPUT_BYTES = 192 * 1024 * 1024
+MAX_LOG_BYTES = 2 * 1024 * 1024
+ARM_TIMEOUT_SECONDS = 120
+LIMITS = [
+    "One paired trajectory at one seed; not a population causal estimate.",
+    "Only stability can be set; 1–20 additional turns, simulation only.",
+    "Bundle metadata.what_if is an intentional export change before hashing.",
+]
+_REQUEST_ID = re.compile(r"[A-Za-z0-9_-]{1,80}\Z")
+
+
+class WhatIfError(ValueError):
+    pass
+
+
+def validate_request(msg: dict, world: Any) -> tuple[str, str, int, int, int]:
+    request_id = msg.get("request_id")
+    if not isinstance(request_id, str) or not _REQUEST_ID.fullmatch(request_id):
+        raise WhatIfError("request_id must contain 1–80 letters, digits, underscores or hyphens")
+    if set(msg) - {"type", "request_id", "civ", "value", "turns"}:
+        raise WhatIfError("Only civilization, stability value and horizon are supported")
+    value, turns, name = msg.get("value"), msg.get("turns"), msg.get("civ")
+    if type(value) is not int or not 1 <= value <= 100:
+        raise WhatIfError("Stability must be an integer from 1 to 100")
+    if type(turns) is not int or not 1 <= turns <= 20:
+        raise WhatIfError("Horizon must be an integer from 1 to 20 additional turns")
+    if not isinstance(name, str) or any(c in name for c in "\n\r\x00"):
+        raise WhatIfError("Invalid civilization name")
+    civs = [c for c in world.civilizations if c.name == name and c.regions]
+    if len(civs) != 1:
+        raise WhatIfError("Choose one living civilization in the currently paused world")
+    return request_id, name, value, turns, civs[0].stability
+
+
+def require_hash_seed() -> None:
+    # Checking only os.environ is insufficient: changing it after startup does
+    # not change the current interpreter's hash secret.
+    if os.environ.get("PYTHONHASHSEED") != "0" or sys.flags.hash_randomization != 0:
+        raise WhatIfError("Exact what-if pairs require starting the live server with PYTHONHASHSEED=0")
+    if os.name != "posix":
+        raise WhatIfError("Exact what-if process-group cleanup currently requires POSIX")
+
+
+def fresh_identity() -> dict:
+    """Read package, extension bytes and environment again, bypassing caches."""
+    from chronicler.batch_manifest import source_identity, native_identity, environment_identity
+    from chronicler.run_checkpoint import runtime_identity
+    source, native, env = source_identity(), native_identity(), environment_identity()
+    old = runtime_identity()
+    native_out = {"status": native["status"], "state_layouts": old["native"].get("state_layouts", {})}
+    if native["status"] == "found":
+        native_out.update(sha256=native["sha256"], bytes=native["bytes"])
+    return {"source": {k: source[k] for k in ("git_sha", "package_digest")},
+            "native": native_out,
+            "environment": {k: env[k] for k in ("python", "implementation", "machine",
+                                                  "affinity_cpu_count", "thread_env", "packages")}}
+
+
+def verified_header(path: Path, *, turn: int | None = None, seed: int | None = None) -> dict:
+    """Verify all section digests and compatibility without restoring objects."""
+    from chronicler.run_checkpoint import read_header, _compare_identity, runtime_identity
+    if not path.is_file() or path.is_symlink() or path.stat().st_size > MAX_CHECKPOINT_BYTES:
+        raise WhatIfError("Checkpoint is missing, not regular or exceeds the size limit")
+    header, body = read_header(path)
+    if header.get("exact") is not True or header.get("run_config", {}).get("resume_info"):
+        raise WhatIfError("What-if requires an exact checkpoint; approximate resumes are refused")
+    sections = header.get("sections", [])
+    if not sections or sum(s.get("name") == "python" for s in sections) != 1:
+        raise WhatIfError("Checkpoint must contain exactly one Python state section")
+    if sum(s.get("raw_length", -1) for s in sections) > MAX_RAW_CHECKPOINT_BYTES:
+        raise WhatIfError("Checkpoint decompressed state exceeds its size limit")
+    for section in sections:
+        data = body[section["offset"]:section["offset"] + section["length"]]
+        if hashlib.sha256(data).hexdigest() != section["sha256"]:
+            raise WhatIfError("Checkpoint section is corrupt (SHA-256 differs)")
+        raw_length = section.get("raw_length")
+        if type(raw_length) is not int or not 0 <= raw_length <= MAX_RAW_CHECKPOINT_BYTES:
+            raise WhatIfError("Checkpoint section has an invalid raw length")
+        try:
+            decoder = zlib.decompressobj()
+            raw = decoder.decompress(data, raw_length + 1)
+            if len(raw) != raw_length or not decoder.eof or decoder.unused_data or decoder.unconsumed_tail:
+                raise WhatIfError("Checkpoint section is corrupt (compressed length differs)")
+        except zlib.error as exc:
+            raise WhatIfError("Checkpoint section is corrupt (invalid compression)") from exc
+    current = fresh_identity()
+    native = any(s["name"].startswith("native.") for s in sections)
+    mismatches = _compare_identity(header["identity"], current, native)
+    # A running interpreter may have cached identity before source/env changes.
+    mismatches += _compare_identity(runtime_identity(), current, native)
+    if mismatches:
+        raise WhatIfError("Exact checkpoint compatibility refusal: " + "; ".join(mismatches))
+    if turn is not None and header.get("turn") != turn:
+        raise WhatIfError("Checkpoint turn differs from the currently paused world")
+    if seed is not None and header.get("seed") != seed:
+        raise WhatIfError("Checkpoint seed differs from the currently paused world")
+    return header
+
+
+def artifact_identity(path: Path) -> dict:
+    data = path.read_bytes()
+    return {"name": path.name, "byteLength": len(data), "sha256": hashlib.sha256(data).hexdigest()}
+
+
+@dataclass
+class Job:
+    directory: Path
+    manifest: dict
+    state: str = "prepared"
+    arm: str | None = None
+    message: str | None = None
+    result: dict | None = None
+    cancel: threading.Event = field(default_factory=threading.Event)
+    thread: threading.Thread | None = None
+    process: subprocess.Popen | None = None
+
+
+class WhatIfPairs:
+    """One active pair and bounded retained request IDs per live session."""
+
+    def __init__(self, output_dir: Path, status_queue: queue.Queue, checkpoints: Any):
+        self.output_dir = Path(output_dir)
+        self.status_queue = status_queue
+        self.checkpoints = checkpoints
+        self.jobs: dict[str, Job] = {}
+        self._lock = threading.RLock()
+        self._closed = False
+        self._attempts = 0
+
+    @property
+    def busy(self) -> bool:
+        with self._lock:
+            return any(j.state in {"prepared", "running"} for j in self.jobs.values())
+
+    def _status(self, job: Job) -> dict:
+        msg = {"type": "what_if_status", "request_id": job.manifest["request_id"],
+               "state": job.state, "manifest": copy.deepcopy(job.manifest)}
+        if job.arm:
+            msg["arm"] = job.arm
+        if job.message:
+            msg["message"] = job.message
+        self.status_queue.put(msg)
+        return msg
+
+    def _persist(self, job: Job) -> None:
+        atomic_write_text(job.directory / "manifest.json", json.dumps(
+            {**job.manifest, "state": job.state, "arm": job.arm, "message": job.message},
+            indent=2, ensure_ascii=False))
+
+    def prepare(self, msg: dict, world: Any) -> dict:
+        with self._lock:
+            request_id = msg.get("request_id")
+            if not isinstance(request_id, str):
+                raise WhatIfError("request_id must be a string")
+            existing = self.jobs.get(request_id)
+            if existing:
+                m = existing.manifest
+                if (set(msg) - {"type", "request_id", "civ", "value", "turns"} or
+                        type(msg.get("value")) is not int or type(msg.get("turns")) is not int or
+                        (msg.get("civ"), msg.get("value"), msg.get("turns")) !=
+                        (m["intervention"]["civ"], m["intervention"]["value"], m["turns"])):
+                    raise WhatIfError("This request_id already describes a different pair")
+                return self._status(existing)
+            request_id, civ, value, turns, before = validate_request(msg, world)
+            if self._closed or self.busy:
+                raise WhatIfError("Cancel or finish the current pair before preparing another")
+            if self._attempts >= MAX_JOBS:
+                raise WhatIfError("This session has reached its eight retained what-if requests")
+            require_hash_seed()
+            root = self.output_dir.resolve()
+            parent = root / "what_if"
+            parent.mkdir(exist_ok=True)
+            if parent.is_symlink() or not parent.resolve().is_relative_to(root):
+                raise WhatIfError("Private what-if output directory leads outside the live output")
+            directory = parent / uuid.uuid4().hex
+            self._attempts += 1  # Failed preparations also retain bounded private evidence.
+            directory.mkdir(mode=0o700)
+            checkpoint = directory / "common.ckpt"
+            # Only the simulation thread owns this binding. No client path.
+            self.checkpoints.save_private(checkpoint)
+            header = verified_header(checkpoint, turn=world.turn, seed=world.seed)
+            config = header.get("run_config", {})
+            if config.get("output_args", {}).get("simulate_only") is not True:
+                raise WhatIfError("Start this live run with --simulate-only before preparing exact what-if pairs")
+            manifest = {"schema_version": 1, "request_id": request_id,
+                        "source": {"checkpoint": artifact_identity(checkpoint), "header": header,
+                                   "current_identity": fresh_identity()},
+                        "mode": config.get("simulation_args", {}).get("agents", "off"),
+                        "seed": header["seed"], "start_turn": world.turn,
+                        "end_turn": world.turn + turns, "turns": turns,
+                        "intervention": {"command": "set", "civ": civ, "stat": "stability",
+                                         "before": before, "value": value},
+                        "semantics": "exact_checkpoint_pair", "limits": list(LIMITS),
+                        "bounds": {"arm_seconds": ARM_TIMEOUT_SECONDS, "bundle_bytes": MAX_BUNDLE_BYTES}}
+            job = Job(directory, manifest)
+            self._persist(job)  # Durable plan precedes status and every launch.
+            self.jobs[request_id] = job
+            return self._status(job)
+
+    def run(self, request_id: str) -> None:
+        with self._lock:
+            job = self.jobs.get(request_id)
+            if job is None:
+                raise WhatIfError("Prepare this request before running it")
+            if job.state != "prepared":
+                self._status(job)
+                if job.result is not None:
+                    self.status_queue.put(copy.deepcopy(job.result))
+                return
+            if self._closed:
+                raise WhatIfError("The live session has closed")
+            job.state = "running"
+            self._persist(job)
+            job.thread = threading.Thread(target=self._execute, args=(job,), daemon=True,
+                                          name="chronicler-what-if")
+            job.thread.start()
+
+    def cancel(self, request_id: str) -> None:
+        with self._lock:
+            job = self.jobs.get(request_id)
+            if job is None:
+                raise WhatIfError("Unknown what-if request")
+            if job.state not in {"prepared", "running"}:
+                self._status(job)
+                return
+            job.cancel.set()
+            thread = job.thread
+            if thread is None:
+                job.state, job.message = "cancelled", "Cancelled before execution; private files retained"
+                self._persist(job)
+                self._status(job)
+        if thread is not None:
+            thread.join(timeout=5)
+            if thread.is_alive():
+                raise WhatIfError("What-if worker did not acknowledge cancellation")
+
+    def close(self) -> None:
+        with self._lock:
+            self._closed = True
+            ids = [key for key, job in self.jobs.items() if job.state in {"prepared", "running"}]
+        for request_id in ids:
+            self.cancel(request_id)
+
+    @staticmethod
+    def _kill_group(process: subprocess.Popen) -> None:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        process.wait(timeout=3)
+
+    def _child(self, job: Job, arm: str) -> dict:
+        m, checkpoint = job.manifest, job.directory / "common.ckpt"
+        require_hash_seed()
+        verified_header(checkpoint, turn=m["start_turn"], seed=m["seed"])
+        if artifact_identity(checkpoint) != m["source"]["checkpoint"]:
+            raise WhatIfError("Common checkpoint changed after preparation")
+        if job.cancel.is_set():
+            raise InterruptedError("Cancelled")
+        directory = job.directory / arm
+        directory.mkdir()
+        end = m["end_turn"]
+        command = [sys.executable, "-m", "chronicler.main", "--interactive", "--resume", str(checkpoint),
+                   "--simulate-only", "--turns", str(end), "--pause-every", str(end + 1),
+                   "--output", str(directory / "chronicle.md"), "--state", str(directory / "state.json"),
+                   "--checkpoint-every", "1", "--checkpoint", str(directory / "final.ckpt")]
+        script = "continue\n"
+        if arm == "intervention":
+            intervention = m["intervention"]
+            script = f"set {shlex.quote(intervention['civ'])} stability {intervention['value']}\n" + script
+        env = os.environ.copy()  # Same seed/thread env/config, no override flags.
+        env["PYTHONPATH"] = str(Path(__file__).resolve().parents[1]) + os.pathsep + env.get("PYTHONPATH", "")
+        log_path = directory / "process.log"
+        with log_path.open("xb") as log:
+            process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=log, stderr=subprocess.STDOUT,
+                                       env=env, start_new_session=True)
+            with self._lock:
+                job.process = process
+            started = time.monotonic()
+            try:
+                process.stdin.write(script.encode())
+                process.stdin.close()
+                while process.poll() is None:
+                    if job.cancel.wait(0.05):
+                        raise InterruptedError("Cancelled")
+                    if time.monotonic() - started > ARM_TIMEOUT_SECONDS:
+                        raise WhatIfError(f"{arm} exceeded its {ARM_TIMEOUT_SECONDS}s time limit")
+                    files = [p for p in directory.rglob("*") if p.is_file()]
+                    if log_path.stat().st_size > MAX_LOG_BYTES or sum(p.stat().st_size for p in files) > MAX_OUTPUT_BYTES:
+                        raise WhatIfError(f"{arm} exceeded its output limit")
+                if job.cancel.is_set():
+                    raise InterruptedError("Cancelled")
+                if process.returncode != 0:
+                    raise WhatIfError(f"{arm} CLI failed (exit {process.returncode}); private process.log retained")
+            finally:
+                self._kill_group(process)
+                with self._lock:
+                    job.process = None
+        final = verified_header(directory / "final.ckpt", turn=end, seed=m["seed"])
+        if sum(p.stat().st_size for p in directory.rglob("*") if p.is_file()) > MAX_OUTPUT_BYTES:
+            raise WhatIfError(f"{arm} exceeded its output limit")
+        expected = list(m["source"]["header"].get("run_config", {}).get("interventions", []))
+        if arm == "intervention":
+            expected.append({"turn": m["start_turn"], **{k: v for k, v in m["intervention"].items() if k != "before"}})
+        if final.get("run_config", {}).get("interventions", []) != expected:
+            raise WhatIfError(f"{arm} intervention record differs from the declared control")
+        bundle_path = directory / "chronicle_bundle.json"
+        if not bundle_path.is_file() or bundle_path.stat().st_size > MAX_BUNDLE_BYTES:
+            raise WhatIfError(f"{arm} bundle is missing or exceeds 16 MiB")
+        bundle = decode_bundle(json.loads(bundle_path.read_text(encoding="utf-8")))
+        if len(json.dumps(bundle, ensure_ascii=False).encode("utf-8")) > MAX_BUNDLE_BYTES:
+            raise WhatIfError(f"{arm} decoded bundle exceeds 16 MiB")
+        if (bundle.get("metadata", {}).get("total_turns") != end or
+                bundle.get("world_state", {}).get("turn") != end or
+                bundle.get("metadata", {}).get("seed") != m["seed"] or
+                bundle.get("world_state", {}).get("seed") != m["seed"]):
+            raise WhatIfError(f"{arm} bundle did not finish the declared horizon")
+        tag = {k: copy.deepcopy(m[k]) for k in ("schema_version", "request_id", "source", "mode", "seed",
+                                               "start_turn", "end_turn", "turns", "intervention", "semantics", "limits", "bounds")}
+        tag["arm"] = arm
+        bundle["metadata"]["what_if"] = tag
+        encoded = dumps_bundle(bundle)
+        if len(encoded.encode("utf-8")) > MAX_BUNDLE_BYTES:
+            raise WhatIfError(f"{arm} tagged bundle exceeds 16 MiB")
+        atomic_write_text(bundle_path, encoded)
+        return {"bundle": bundle, "identity": artifact_identity(bundle_path)}
+
+    def _execute(self, job: Job) -> None:
+        try:
+            results = {}
+            for arm in ("baseline", "intervention"):
+                with self._lock:
+                    if job.cancel.is_set():
+                        raise InterruptedError("Cancelled")
+                    job.arm = arm
+                    self._persist(job)
+                    self._status(job)
+                results[arm] = self._child(job, arm)
+            with self._lock:
+                if job.cancel.is_set():
+                    raise InterruptedError("Cancelled")
+                job.state, job.arm = "complete", None
+                job.manifest["artifacts"] = {
+                    arm: {"path": f"{arm}/chronicle_bundle.json", "identity": result["identity"]}
+                    for arm, result in results.items()}
+                job.result = {"type": "what_if_result", "request_id": job.manifest["request_id"],
+                              "manifest": copy.deepcopy(job.manifest), **results}
+                self._persist(job)
+                self._status(job)
+                self.status_queue.put(copy.deepcopy(job.result))
+        except Exception as exc:
+            with self._lock:
+                job.state = "cancelled" if job.cancel.is_set() or isinstance(exc, InterruptedError) else "error"
+                job.message = f"{exc}; private files retained"
+                self._persist(job)
+                self._status(job)

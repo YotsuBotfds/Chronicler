@@ -180,6 +180,21 @@ class PauseInterventions:
             self._run_config["interventions"] = [
                 *self._run_config.get("interventions", []), {"turn": world.turn, **command}]
 
+    def save_private(self, path: Path) -> Path:
+        """Simulation-thread exact save to a fresh, server-owned path.
+
+        Used by the bounded live what-if pair; this is not a client-path API.
+        The caller owns a fresh private directory and verifies the envelope.
+        """
+        if self._save is None:
+            raise LiveCheckpointError("the run is not ready to checkpoint")
+        if path.exists() or path.is_symlink():
+            raise LiveCheckpointError("private checkpoint path already exists")
+        written = self._save(str(path).replace("{", "{{").replace("}", "}}"))
+        if Path(written).resolve() != path.resolve():
+            raise LiveCheckpointError("private checkpoint writer returned a different path")
+        return Path(written)
+
     def turn_end(self, world: Any) -> bool:
         """At a turn boundary, after its pause: True when an intervention
         changed the run since the last boundary."""

@@ -21,6 +21,9 @@ CHUNKS = {
     "regional-population": [
         "tests/test_regional_population.py",
     ],
+    "live-what-if": [
+        "tests/test_what_if.py",
+    ],
     "wealth-floor-checkpoint-metadata-v2": [
         "tests/test_wealth_floor_outcome_checkpoints_v2.py",
     ],

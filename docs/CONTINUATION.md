@@ -31,6 +31,27 @@ See [the contract and evidence](integration/regional-population-observations.md)
 
 ---
 
+# 2026-11-02 — bounded exact live what-if backend
+
+Authenticated paused live sessions can prepare and separately run one serial
+pair of exact checkpoint continuations: unchanged versus one existing stability
+set command, for 1–20 additional turns. The commonpoint uses the current
+simulation-thread checkpoint binding; state JSON and compatibility overrides
+are refused. The original stays paused and its world, RNG, configuration and
+native state remain untouched. Private UUID outputs retain planned manifests,
+arm provenance/identities and partial failure/cancellation files. Bounded owned
+process groups are cancelled/joined on cancel, quit and server shutdown; latest
+status/results replay after reconnect. The first backend requires a server
+started with PYTHONHASHSEED=0, --simulate-only and POSIX process groups.
+
+Focused pure/offline, existing live/interactive and tiny real hybrid paired
+checks are recorded in [the backend contract](integration/live-what-if.md).
+The shared matching native binary/Rust tree were not rebuilt. This is one
+paired trajectory, not population causal qualification; no full sweep, default
+change, merge or deployment follows. Frontend integration remains separate.
+
+---
+
 # 2026-11-01 — optional public shipment viewer connection
 
 Read-only Granaries snapshots now distinguish stored grain, cargo in transit,

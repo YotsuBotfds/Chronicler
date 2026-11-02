@@ -213,6 +213,9 @@ class LiveServer:
         # The running session's checkpoint control (chronicler.live_checkpoints),
         # set by run_live once the simulation starts.
         self.checkpoints: LiveCheckpoints | None = None
+        self.what_if = None
+        self._last_what_if_status: dict | None = None
+        self._last_what_if_result: dict | None = None
 
     def ws_url(self) -> str:
         """The WebSocket URL a client opens, with the session token."""
@@ -269,6 +272,15 @@ class LiveServer:
 
     def _record_status(self, status: dict) -> None:
         """Keep a status message's effect on the session (pause, completion)."""
+        # Validation errors for unrelated IDs must not hide the owned active
+        # job on reconnect (and leave a prepared world with no visible ID).
+        if status.get("type") == "what_if_status" and "manifest" in status:
+            if (self._last_what_if_status is None or
+                    status.get("request_id") != self._last_what_if_status.get("request_id")):
+                self._last_what_if_result = None
+            self._last_what_if_status = status
+        elif status.get("type") == "what_if_result":
+            self._last_what_if_result = status
         if status.get("type") == "completed" and self._init_data is not None:
             # The finished run's historiography and languages, for reconnect.
             apply_completed_message(self._init_data, status)
@@ -459,6 +471,8 @@ class LiveServer:
 
     def stop(self) -> None:
         """Signal the server to stop."""
+        if self.what_if is not None:
+            self.what_if.close()
         if self._loop is not None and self._stop_event is not None:
             self._loop.call_soon_threadsafe(self._stop_event.set)
 
@@ -637,6 +651,10 @@ class LiveServer:
                 # Send last paused msg if paused
                 if self._paused and self._last_paused_msg is not None:
                     await websocket.send(json.dumps(self._last_paused_msg))
+                if self._last_what_if_status is not None:
+                    await websocket.send(json.dumps(self._last_what_if_status))
+                if self._last_what_if_result is not None:
+                    await websocket.send(json.dumps(self._last_what_if_result))
 
                 async for raw_msg in websocket:
                     try:
@@ -665,7 +683,7 @@ class LiveServer:
 
                     if msg_type == "quit":
                         self.quit_event.set()
-                        if self._paused:
+                        if self._paused or (self.what_if is not None and self.what_if.busy):
                             self.command_queue.put(msg)
                         continue
 
@@ -915,6 +933,7 @@ def make_live_pause(
     status_queue: queue.Queue,
     output_dir: Path | None = None,
     checkpoints: LiveCheckpoints | None = None,
+    what_if: Any = None,
 ):
     """Create a pause callback for live mode that communicates via queues.
 
@@ -936,6 +955,8 @@ def make_live_pause(
         valid_commands = ["continue", "quit", "inject", "set", "fork"]
         if checkpoints is not None:
             valid_commands.append("checkpoint")
+        if what_if is not None:
+            valid_commands.extend(["what_if_prepare", "what_if_run", "what_if_cancel"])
 
         # Put paused status on the queue
         status_queue.put({
@@ -962,6 +983,29 @@ def make_live_pause(
                 checkpoints.service(world)
             cmd_type = cmd.get("type")
 
+            if what_if is not None and cmd_type in {"what_if_prepare", "what_if_run", "what_if_cancel"}:
+                try:
+                    request_id = cmd.get("request_id")
+                    if not isinstance(request_id, str):
+                        raise ValueError("request_id must be a string")
+                    if cmd_type == "what_if_prepare":
+                        what_if.prepare(cmd, world)
+                    elif set(cmd) - {"type", "request_id"}:
+                        raise ValueError("Run and cancel accept only request_id")
+                    elif cmd_type == "what_if_run":
+                        what_if.run(request_id)
+                    else:
+                        what_if.cancel(request_id)
+                except Exception as exc:
+                    status_queue.put({"type": "what_if_status", "request_id": cmd.get("request_id"),
+                                      "state": "error", "message": str(exc)})
+                continue
+
+            if what_if is not None and what_if.busy and cmd_type != "quit":
+                status_queue.put({"type": "error", "message":
+                                  "Finish or cancel the prepared what-if pair before changing or continuing this world"})
+                continue
+
             if cmd_type == "continue":
                 status_queue.put({
                     "type": "ack",
@@ -971,6 +1015,8 @@ def make_live_pause(
                 return True
 
             elif cmd_type == "quit":
+                if what_if is not None:
+                    what_if.close()
                 return False
 
             elif cmd_type == "inject":
@@ -1500,6 +1546,8 @@ def run_live(
         print(f"Paused at turn {world.turn}: continue from the viewer.", flush=True)
 
     checkpoints = server.checkpoints
+    from chronicler.what_if import WhatIfPairs
+    server.what_if = WhatIfPairs(output_dir, server.status_queue, checkpoints)
 
     def on_turn_cb(
         snapshot: TurnSnapshot,
@@ -1527,6 +1575,7 @@ def run_live(
         server.status_queue,
         output_dir=output_dir,
         checkpoints=checkpoints,
+        what_if=server.what_if,
     )
 
     try:
@@ -1575,6 +1624,7 @@ def run_live(
             turn_boundary=checkpoints,
         )
     finally:
+        server.what_if.close()
         checkpoints.close("The run has finished; no turn boundary is left to checkpoint")
 
     bundle_path = output_dir / "chronicle_bundle.json"
