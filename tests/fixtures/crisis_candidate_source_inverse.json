@@ -1,6 +1,6 @@
 {
   "base": "ecfa06aca86e1cfbe986f2f853c60d13a2a50723",
-  "head": "b5f3a5c60c1e84e62fb8a7e58cb04c4d1a12a959",
+  "head": "ae3feb3bbadb60c82694634862b7b364b457d9a4",
   "files": {
     "chronicler-agents/src/economy.rs": {
       "sha256": "717a67c9562a8a8eb572a64fe621574d3422ddf0b959c84dbc2df45ab03d7ceb",
@@ -214,7 +214,7 @@
     },
     "src/chronicler/grain_reserves_state.py": {
       "sha256": "852d30c8b348611e729ca586b1e1daba6ccc7aac366711b3baaf35a67832c31d",
-      "current_sha256": "de08fb94aa9e4136841961e957a5bbbbb4c1ea74fbdced4381d87b69fcc4be5a",
+      "current_sha256": "ca12ad57c3b7a0cd6d211abaf9c4572cfb8a25c138cb2803577228d2df0eb727",
       "patches": [
         {
           "old": "from pydantic import BaseModel, Field, PrivateAttr\n\nfrom chronicler.public_grain_shipments_state import PublicGrainShipmentState\n\n\ndef _is_none(value):\n",
@@ -226,7 +226,7 @@
         },
         {
           "old": "    counters: dict[str, float] = Field(default_factory=lambda: {k: 0.0 for k in COUNTER_KEYS})\n    # None stays omitted for never-enabled old JSON. Paid cargo survives disabling.\n    shipments: PublicGrainShipmentState | None = Field(default=None, exclude_if=_is_none)\n    # The turn's resource ledger (``grain_reserves.ReserveLedger``) from the\n    # Phase 2 tick to the end of the Phase 10 tick; None between turns.\n    _ledger: object | None = PrivateAttr(default=None)\n\n    def __setstate__(self, state):\n        super().__setstate__(state)\n        # Exact pickle restoration bypasses Pydantic defaults.\n        self.__dict__.setdefault(\"shipments\", None)\n\n\ndef grain_reserves_on(world) -> bool:\n",
-          "new": "    counters: dict[str, float] = Field(default_factory=lambda: {k: 0.0 for k in COUNTER_KEYS})\n    # None stays omitted for never-enabled old JSON. Paid cargo survives disabling.\n    shipments: PublicGrainShipmentState | None = Field(default=None, exclude_if=_is_none)\n    storage: GrainStorageState | None = Field(default=None, exclude_if=_is_none)\n    # The turn's resource ledger (``grain_reserves.ReserveLedger``) from the\n    # Phase 2 tick to the end of the Phase 10 tick; None between turns.\n    _ledger: object | None = PrivateAttr(default=None)\n\n    def __getstate__(self):\n        state = super().__getstate__()\n        if self.storage is None:\n            state[\"__dict__\"].pop(\"storage\", None)\n            if \"storage\" in state[\"__pydantic_fields_set__\"]:\n                state[\"__pydantic_fields_set__\"] = state[\"__pydantic_fields_set__\"] - {\"storage\"}\n        return state\n\n    def __setstate__(self, state):\n        super().__setstate__(state)\n        # Exact pickle restoration bypasses Pydantic defaults.\n        self.__dict__.setdefault(\"shipments\", None)\n        self.__dict__.setdefault(\"storage\", None)\n\n\ndef grain_reserves_on(world) -> bool:\n"
+          "new": "    counters: dict[str, float] = Field(default_factory=lambda: {k: 0.0 for k in COUNTER_KEYS})\n    # None stays omitted for never-enabled old JSON. Paid cargo survives disabling.\n    shipments: PublicGrainShipmentState | None = Field(default=None, exclude_if=_is_none)\n    storage: GrainStorageState | None = Field(default=None, exclude_if=_is_none)\n    # The turn's resource ledger (``grain_reserves.ReserveLedger``) from the\n    # Phase 2 tick to the end of the Phase 10 tick; None between turns.\n    _ledger: object | None = PrivateAttr(default=None)\n\n    def __getstate__(self):\n        state = super().__getstate__()\n        if self.storage is None:\n            # Pydantic returns the live __dict__; filtering the serialized\n            # shape must never delete a field from the running world.\n            state[\"__dict__\"] = state[\"__dict__\"].copy()\n            state[\"__dict__\"].pop(\"storage\", None)\n            if \"storage\" in state[\"__pydantic_fields_set__\"]:\n                state[\"__pydantic_fields_set__\"] = state[\"__pydantic_fields_set__\"] - {\"storage\"}\n        return state\n\n    def __setstate__(self, state):\n        super().__setstate__(state)\n        # Exact pickle restoration bypasses Pydantic defaults.\n        self.__dict__.setdefault(\"shipments\", None)\n        self.__dict__.setdefault(\"storage\", None)\n\n\ndef grain_reserves_on(world) -> bool:\n"
         }
       ]
     },
