@@ -1,6 +1,6 @@
 {
   "base": "3e852333bcfc6b1e8a33c153ab8a9b8879b979ac",
-  "head": "8beb6e4f94183da1aed4022a79b0d56ae7c32648",
+  "head": "cb816603f6c30138922e59b9ba89ffaf7d150b5b",
   "files": {
     "src/chronicler/interactive.py": {
       "sha256": "8941b92175a616d9cdab0c90dd74b5f96f91b52aaf349f2400caadbaab09c541",
@@ -18,7 +18,7 @@
     },
     "src/chronicler/what_if.py": {
       "sha256": "f101de0ec96d0d4bee930813acb44f54878c1ee4b795e47601a27d92d8e93f78",
-      "current_sha256": "4e436b619977c865e2882c3dbe17ed3c7d9465bb22005aa36129f4b2ea60f8e0",
+      "current_sha256": "a04f59af7ac1908a90d4ba9a55442a169a40fc4d9e29f613bc0c92794e104938",
       "patches": [
         {
           "old": "from chronicler.artifact_io import atomic_write_text\nfrom chronicler.bundle_codec import decode_bundle, dumps_bundle\nfrom chronicler.pause_policy import CONTROL, STAT, TARGET, policy_value, validate_policy_command\n\nMAX_JOBS = 8\nMAX_BUNDLE_BYTES = 16 * 1024 * 1024\n",
@@ -37,6 +37,10 @@
           "new": "    command = {key: intervention.get(key) for key in (\"command\", \"civ\", \"stat\", \"value\")}\n    if command[\"command\"] != \"set\":\n        raise WhatIfError(\"Unsupported intervention command\")\n    if command[\"stat\"] == TRANSPORT_STAT:\n        try:\n            decoded = decode_transport(command[\"civ\"], command[\"stat\"], command[\"value\"])\n            if (intervention.get(\"region_id\") != decoded.region_id or\n                    intervention.get(\"duration\") != decoded.duration or\n                    type(intervention.get(\"region_id\")) is not int or\n                    type(intervention.get(\"duration\")) is not int):\n                raise ValueError(\"Transport manifest does not match its command\")\n        except ValueError as exc:\n            raise WhatIfError(str(exc)) from exc\n    elif command[\"stat\"] == STAT:\n        try:\n            validate_policy_command(command[\"civ\"], command[\"stat\"], command[\"value\"])\n        except ValueError as exc:\n"
         },
         {
+          "old": "                raise WhatIfError(\"This session has reached its eight retained what-if requests\")\n            require_hash_seed()\n            root = self.output_dir.resolve()\n            parent = root / \"what_if\"\n            parent.mkdir(exist_ok=True)\n            if parent.is_symlink() or not parent.resolve().is_relative_to(root):\n                raise WhatIfError(\"Private what-if output directory leads outside the live output\")\n            directory = parent / uuid.uuid4().hex\n",
+          "new": "                raise WhatIfError(\"This session has reached its eight retained what-if requests\")\n            require_hash_seed()\n            root = self.output_dir.resolve()\n            # A resumed live session can pause before ordinary output creates\n            # its directory. Preparation owns a private checkpoint immediately.\n            root.mkdir(mode=0o700, parents=True, exist_ok=True)\n            parent = root / \"what_if\"\n            parent.mkdir(mode=0o700, exist_ok=True)\n            if parent.is_symlink() or not parent.resolve().is_relative_to(root):\n                raise WhatIfError(\"Private what-if output directory leads outside the live output\")\n            directory = parent / uuid.uuid4().hex\n"
+        },
+        {
           "old": "            config = header.get(\"run_config\", {})\n            if config.get(\"output_args\", {}).get(\"simulate_only\") is not True:\n                raise WhatIfError(\"Start this live run with --simulate-only before preparing exact what-if pairs\")\n            is_policy = \"control\" in msg\n            intervention = {\"command\": \"set\", \"civ\": civ, \"stat\": STAT if is_policy else \"stability\",\n                            \"before\": before, \"value\": value}\n            limits = list(LIMITS)\n            if is_policy:\n                intervention[\"scope\"] = \"world\"\n                limits[1] = \"Global granary procurement priority only; 1\u201320 additional turns, simulation only.\"\n            manifest = {\"schema_version\": 2 if is_policy else 1, \"request_id\": request_id,\n                        \"source\": {\"checkpoint\": artifact_identity(checkpoint), \"header\": header,\n                                   \"current_identity\": fresh_identity()},\n                        \"mode\": config.get(\"simulation_args\", {}).get(\"agents\", \"off\"),\n",
           "new": "            config = header.get(\"run_config\", {})\n            if config.get(\"output_args\", {}).get(\"simulate_only\") is not True:\n                raise WhatIfError(\"Start this live run with --simulate-only before preparing exact what-if pairs\")\n            is_transport = msg.get(\"control\") == TRANSPORT_CONTROL\n            is_policy = msg.get(\"control\") == CONTROL\n            if is_transport and config.get(\"simulation_args\", {}).get(\"agents\") != \"hybrid\":\n                raise WhatIfError(\"Transport disruption requires an exact hybrid checkpoint\")\n            stat = TRANSPORT_STAT if is_transport else STAT if is_policy else \"stability\"\n            intervention = {\"command\": \"set\", \"civ\": civ, \"stat\": stat,\n                            \"before\": before, \"value\": value}\n            limits = list(LIMITS)\n            if is_policy:\n                intervention[\"scope\"] = \"world\"\n                limits[1] = \"Global granary procurement priority only; 1\u201320 additional turns, simulation only.\"\n            if is_transport:\n                receipt = preview_transport(world, civ, stat, value)\n                intervention.update(scope=\"region\", region_id=receipt.region_id,\n                    region_name=world.regions[receipt.region_id].name,\n                    duration=receipt.requested_duration, prior_counter=receipt.prior_counter,\n                    effective_counter=receipt.effective_counter,\n                    effective_through_turn=receipt.effective_through_turn)\n                limits[1] = \"One regional transport disruption; 1\u201320 additional turns, simulation only.\"\n            manifest = {\"schema_version\": 3 if is_transport else 2 if is_policy else 1, \"request_id\": request_id,\n                        \"source\": {\"checkpoint\": artifact_identity(checkpoint), \"header\": header,\n                                   \"current_identity\": fresh_identity()},\n                        \"mode\": config.get(\"simulation_args\", {}).get(\"agents\", \"off\"),\n"
         },
@@ -48,7 +52,12 @@
     }
   },
   "new_files": {
+    "src/chronicler/lab_academy.py": "51593d560ca2c3048a85a91f8c70eba2373ff2d910215bd90898a3733730534c",
     "src/chronicler/lab_transport.py": "6f6f09fabaaf7aa3fa98a24ccc7e24511e52196bae6e0dd7a85433ad64462a82",
-    "src/chronicler/pause_transport.py": "aac3912d58771253751c9bcb2892e14949fbf75604022197c6d944d495dcba79"
+    "src/chronicler/pause_transport.py": "aac3912d58771253751c9bcb2892e14949fbf75604022197c6d944d495dcba79",
+    "scripts/crisis_distribution_summary.py": "9fb9caa22f7621d874ea4e0a608d5e3c657fc05c1470bf2a374de77edba3ecb6",
+    "scripts/crisis_labor_example.py": "07ea72ad423232a66860ee48a9aa65b1c1c4a4ae929af3bed6e730206aabd056",
+    "scripts/crisis_migration_example.py": "61cb9b077a7865b5d08268ffe013c778de11d0669ba4495178666fd9c7d97cc4",
+    "scripts/crisis_transport_example.py": "9c5ec37ef608b7b4dc3c2e07a7858f93e0a902dc5b712d58d1320496467f3acb"
   }
 }

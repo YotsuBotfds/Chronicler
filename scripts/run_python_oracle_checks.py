@@ -18,6 +18,9 @@ import time
 ROOT = Path(__file__).resolve().parents[1]
 CHUNK_LIMIT_SECONDS = 110
 CHUNKS = {
+    "crisis-distribution-summary": [
+        "tests/test_crisis_distribution_summary.py",
+    ],
     "regional-transport-controls": [
         "tests/test_what_if_transport.py::test_bad_requests_rejected",
         "tests/test_what_if_transport.py::test_command_closed_and_manifest_bound",
