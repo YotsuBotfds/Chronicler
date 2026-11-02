@@ -12,7 +12,7 @@ const seat = { region: 0, kind: 0, name: "Academy", founded_turn: 1, founder: 0,
 const id = { seat_id: 0, region: 0, founder: 0, founded_turn: 1, seat_name: "Academy" };
 /** Constructed contract fixture; not a native simulation observation. */
 function data(source = 4): LearningServicesSnapshot {
-  return { schema_version: 1, captured_turn: source, enabled: true, active: true,
+  return { schema_version: 1, captured_turn: source + 1, enabled: true, active: true,
     inventories: [{ ...id, held: 5, purchased_total: 12, used_total: 7, lost_total: 0, retired: false,
       upkeep_source_turn: source, upkeep_lord: 0, upkeep_due: 0, upkeep_amount_paid: 0, upkeep_satisfied: true }],
     procurement_receipts: [{ ...id, lord: 0, source_turn: source, upkeep_source_turn: source, upkeep_due: 0,
@@ -68,7 +68,9 @@ it("does not attach a replacement seat, future, stale or malformed observations"
   expect(learningServicesAt(p.snapshot, 0, seat, 1, 1, 1)?.teaching).toBeNull();
   f.procurement_receipts![0].paid = NaN;
   expect(learningServicesAt(p.snapshot, 0, seat, 1, 1, 1)?.procurement).toBeNull();
-  f.captured_turn = 5;
+  f.captured_turn = 4; // source turn is not the completed capture turn
+  expect(learningServicesAt(p.snapshot, 0, seat, 1, 1, 1)).toBeNull();
+  f.captured_turn = 6; // future capture
   expect(learningServicesAt(p.snapshot, 0, seat, 1, 1, 1)).toBeNull();
   render(<AcademyServices {...p} />);
   expect(screen.getByText(/not observed or unavailable for this seat/)).toBeInTheDocument();

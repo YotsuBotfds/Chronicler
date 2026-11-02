@@ -26,7 +26,7 @@ export function AcademyServices({ bundle, snapshot, seatId, seat, currentTurn, o
   const history = prefix.filter((s) => occurrences.get(s.turn) === 1).sort((a, b) => b.turn - a.turn);
   const regionName = seat && bundle.world_state.regions[seat.region]?.name;
   const civName = (id: number) => bundle.world_state.civilizations?.[id]?.name;
-  const status = (source: number) => data && source < data.frame.captured_turn ? "Last retained record" : "Recorded";
+  const status = (source: number) => data && source < data.frame.captured_turn - 1 ? "Last retained record" : "Recorded";
   return <section className="systems-stack" style={{ overflowWrap: "anywhere" }} aria-label="Academy service evidence">
     <h4>Academy service and supplies · snapshot {currentTurn}</h4>
     {!data ? <p className="systems-note">Service evidence is not observed or unavailable for this seat at the selected snapshot.</p> : <>

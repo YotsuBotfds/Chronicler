@@ -25,7 +25,7 @@ export function learningServicesAt(snapshot: TurnSnapshot | null, id: number, se
   regionCount: number, civCount: number, seatCount: number): Reading | null {
   const frame = snapshot?.scholarship?.learning_services;
   const through = snapshot ? snapshot.turn - 1 : -1;
-  if (!frame || !count(through) || frame.schema_version !== 1 || frame.captured_turn !== through
+  if (!frame || !count(through) || frame.schema_version !== 1 || frame.captured_turn !== snapshot!.turn
     || !bool(frame.enabled) || !bool(frame.active) || (frame.active && !frame.enabled)
     || !seat || seat.kind !== 0 || !count(id) || id >= seatCount || seat.founded_turn > through || !count(seat.region) || seat.region >= regionCount
     || !owner(seat.founder) || seat.founder >= civCount || typeof seat.name !== "string") return null;
