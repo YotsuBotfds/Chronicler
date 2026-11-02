@@ -27,11 +27,11 @@ validate an epic. Runtime changes remain opt-in until evaluated. No paid narrati
 | Milestone | State | Dependencies and next bounded tasks | Acceptance before validated |
 | --- | --- | --- | --- |
 | M0 contract | integrated | Bounded source assessment above; first implementation is M1. | Authority/units/phases, budgets and explicit missing mechanisms recorded; not an epic-delivery claim. |
-| M1 received/consumed | integrated | Native food kernel ledger; detached Phase2/public-relief observations; actual procurement-budget receipt; existing Food/history integration. | Abundant/empty/late-arrival/no-public-budget controls; separate wealth-access limit; native stock balance and public stock balance; old unknowns, behavior/RNG neutrality, actual native execution and exact continuation. |
-| M2 logistics consequences | partially covered | Genuine three-region private disruption fixture in isolated worktree; M1 observations then downstream evidence. | Actual reservation/transit/route loss/return/reopen/recovery, adverse diversion, ownership/accounting and in-flight checkpoint. Implement recovery only if demonstrated missing. |
-| M3 storage choices | implementing | Depends M1/M2. Public target lacks asset/capacity; select one opt-in public grain asset with paid work, condition, spoil/cap connection and custody. | Useful investment and opportunity-cost failure; default-off parity; partial work/damage/conquest persistence. |
-| M4 household coping | planned | Depends accounting/logistics/care constraints. Audit native wealth, debt, household migration and actual work; choose one missing bounded coping interaction. | Legitimately different household trajectories; constrained transfers, time-known inputs and exact continuation; uneven costs. |
-| M5 resource-backed service | planned | Depends work/resources. Choose supported learning/care institution and distinguish funded/attempted/delivered/interrupted. | Institution can exist and fail to serve; restored resources recover service with costs; identity and checkpoints. |
+| M1 received/consumed | validated | Native food ledger, separate public relief and procurement observations in the existing Food inspector; all nine CI jobs passed at ecfa06ac. | Controlled native/aggregate cases, balances, actual exact continuation and four-mode neutrality passed. Physical household food purchasing remains outside this model; integrated crisis/distributional qualification belongs to M7–9. |
+| M2 logistics consequences | partially covered | Actual native interruption, return, reroute, reopening, supplier harm and in-flight restore executed; missing controller-change receipt corrected and integrated. Combined public/private competition check is next. | Do not equate private regional margin signals with paid public orders. Combined-source CI and integrated substitution evidence remain gates. |
+| M3 storage choices | integrated | Opt-in paid work, timber/treasury costs, capacity, condition, spoilage, custody and existing inspector integration. See grain-storage-candidate.md. | Actual benefit/harm pair, total goods balance, partial-work exact continuation and four-mode default-off parity passed; combined-source CI remains pending. Care/work interaction and held scenario evaluation remain M7–9. |
+| M4 household coping | implementing | Opt-in native liquid-reserve gate for existing household migration and its Python adapter are isolated WIP; no household food inventory or new credit model. Not active on dev. | Fresh matching wheel, persisted config/history, actual constrained trajectories, disabled parity and exact continuation remain required. |
+| M5 resource-backed service | implementing | Isolated academy-service helper and explicit upkeep/staff integration hooks; not active on dev. | Phase hooks, real service interruption/restoration, dated learning effect, supplies/costs, identity and exact continuation remain required. |
 | M6 delayed information | planned | Depends authoritative procurement/service inputs. Reuse report/expiry/preparedness machinery. | Timely/delayed/misleading/absent controls change decisions from same initial truth; record decision inputs and costs; no future leaks. |
 | M7 crisis suite | planned | After relevant M1–6 mechanics. Declare exploration cases and held evaluation cases before running. | A route-shortfall; B harvest+care; C constrained displacement; D institution loss/costly recovery; E unequal recovery. Verify shock application, baseline/alternatives, adverse/neutral results and shared-state accounting. |
 | M8 usable laboratory | planned | Extend current views/interventions/comparison after contracts, not parallel panels. | Actual app journey and390px controls: detection → evidence → bounded what-if → comparison → private bookmark/export, old files/cancel preserved. |
@@ -50,42 +50,51 @@ writers or shared-wheel replacement. Viewer work starts after export agreement.
   390px inspection. Four-mode baseline/current pairs preserve decisions/RNG/native
   state/world/39 prior artifacts after only the new export is removed. Exact
   hybrid4→8 retains complete new observations. Physical household access is not
-  claimed; aggregate has no mass ledger.
+  claimed; aggregate has no mass ledger. All nine jobs passed on
+  [ecfa06ac](https://github.com/YotsuBotfds/Chronicler/actions/runs/41462372701).
 - M2 existing mechanics genuinely executed: reservation/departure, interruption/
   return, alternate-path replan, ownership unwind, exact checkpoint and reopened
   delivery with a supplying-region harm. Private cash semantics are regional
-  margin signals, not public paid orders. A concrete diagnostic defect remains:
-  conquest return lacks a per-voyage receipt. A separate correction is implementing;
-  a combined public/private substitution scenario remains pending. Do not call
-  the entire logistics epic complete from the private fixtures alone.
-- M3 native aggregate land-work hook and pure asset module are committed in
-  isolated branches but **not integrated or native-qualified as an asset**.
-  They reserve existing farmer-equivalent work after city/health deductions;
-  no person-level work roster is invented. Construction/repair costs, custody,
-  capacity/spoilage hooks, combined conservation and actual paired qualification
-  are still next. Neglect/investment are explicit candidate policies, off by default.
+  margin signals, not public paid orders. Conquest now records its queued gross
+  return with `return_reason=controller_change`; 88 matching-native focused tests
+  passed with no skips. Receipt-disabled old/new worlds/native/RNG match. Combined
+  public/private competition is still an explicit next test, not inferred evidence.
+- M3 [storage contract and evidence](grain-storage-candidate.md): five actual
+  native controls cover investment benefit, opportunity-cost harm, whole-goods
+  accounting, partial-work exact continuation, damage and conquest. The 276-test
+  combined focused selection passed; two additional config/pending-plan tests
+  passed in the 13-test guarded chunk with no native imports or blocked IO.
+  Default-off seed42/eight-turn pairs in all four modes retain all 39 artifacts,
+  decisions, RNG and 24 native states without stripping M1 observations.
+  The combined viewer passed1,120 tests/103 files; focused lint/build and actual
+  desktop/390px checks include positive capacity return, selected-turn navigation
+  and old bundles. Full combined CI remains a separate gate.
+- M4 isolated native gate `1b7b03fd` and Python adapter `e094e8cd` are WIP, not
+  integrated. Seven gate and11 household Rust tests plus18 mock adapter cases
+  passed; actual M4 wheel/config/history/continuation remain next.
+- M5 isolated helpers `a3d0aecb`/`ce419f7f` have82 pure service/scholarship passes.
+  Actual phase scheduling, enablement/export and native execution are unfinished.
 - Evidence root: `/workspace/shared/chronicler-crisis`; older verified private
   backups remain intact. Current program source/evidence recovery index is prepared
   at integration checkpoints. Cloud publication/fresh provisioning remain deferred.
 
-CI at d4893de4 (41452525060) passed Viewer/Rust/current native wheel build but
+Retained negative evidence: CI at d4893de4 (41452525060) passed Viewer/Rust/current native wheel build but
 failed old frozen snapshot projections (15 shared hash cases) and the optional
 snapshot-system field registry (one case). Frozen expected hashes remain fixed;
 a strict independently validated food-v1 projection and registry integration are
 corrected with246 focused compatibility passes and26 strict new projection regressions.
-The old expected hashes are unchanged. Fresh combined CI remains pending.
+The old expected hashes are unchanged.
 The actual four-mode behavior/RNG/state comparisons remain positive evidence.
-
-Next action: run fresh combined CI on the compatibility correction, regenerate
-the qualified example/checkpoint, then integrate the opt-in M3 asset/work hooks and the now
-native-tested M2 controller-return receipt.
-Then qualify a declared investment and opportunity-cost pair, including active
-work checkpoints. M4–9 remain planned, not complete. No scientific/default
-promotion gate has been claimed.
 
 Compatibility follow-up: CI4963c379 reached9,168 no-native passes but rejected
 one missing exact registry inverse; Viewer had1,115 passes and one historical
 fixture/current-contract mismatch. Both are corrected without changing old
 fixtures or expected hashes:76 focused Python passes, five viewer transport
-passes, lint/build. The next combined run is the qualification gate; no green
-claim is inferred from these focused checks.
+passes, lint/build. The subsequent ecfa06ac CI passed all nine jobs. The failures
+remain recorded rather than being relabeled as successful checks.
+
+Next action: push the combined M2/M3 milestone and run its CI, preserve current
+source/WIP/worlds in independently verified owner-only storage, then integrate
+M4 config/history and a fresh matching wheel. M5 phase hooks follow. M6–9 remain
+planned; M2/M3 integrated scenario/combined gates remain unfinished. No scientific
+gate, full-roadmap completion or default promotion has been claimed.

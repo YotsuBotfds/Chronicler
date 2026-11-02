@@ -237,3 +237,46 @@ def test_bad_work_result_never_charges_and_failed_hold_can_be_rolled_back(world)
     assert world.grain_reserves.storage.assets == [None, None, None]
     S.rollback_storage_work(world, plan)
     assert world.regions[0].stockpile.goods["timber"] == 20
+
+
+def test_exact_resume_retains_mixed_region_policies_and_rejects_changes(world):
+    from types import SimpleNamespace
+    from chronicler.main import _adopt_checkpoint_args, _build_parser
+    S.enable_storage(world)
+    S.set_storage_policy(world, 0, "expand", 2)
+    S.set_storage_policy(world, 1, "maintain", 1)
+    saved = SimpleNamespace(state=SimpleNamespace(world=world, seed=42, num_turns=8,
+        run_config={"simulation_args": {"grain_storage": True,
+                                       "grain_storage_policy": None,
+                                       "grain_storage_work_budget": None}}))
+    parser = _build_parser()
+    args = parser.parse_args([])
+    before = world.grain_reserves.storage.model_dump_json()
+    assert _adopt_checkpoint_args(parser, args, saved) == []
+    assert args.grain_storage is True
+    assert args.grain_storage_policy is None
+    assert args.grain_storage_work_budget is None
+    assert world.grain_reserves.storage.model_dump_json() == before
+    for flags in (["--no-grain-storage"], ["--grain-storage-policy", "maintain"],
+                  ["--grain-storage-work-budget", "2"]):
+        conflicts = _adopt_checkpoint_args(parser, parser.parse_args(flags), saved)
+        assert any("conflicts with the checkpoint" in c for c in conflicts)
+        assert world.grain_reserves.storage.model_dump_json() == before
+
+
+def test_checkpoint_refuses_pending_work_without_writing_or_losing_hold(world, tmp_path):
+    from types import SimpleNamespace
+    from chronicler.run_checkpoint import CheckpointError, write_checkpoint
+    S.enable_storage(world)
+    S.set_storage_policy(world, 0, "expand", 4)
+    before = world.model_dump_json()
+    plan = prepare(world)
+    with pytest.raises(RuntimeError, match="pending plan"):
+        S.set_storage_policy(world, 0, "neglect", 0)
+    target = tmp_path / "pending.ckpt"
+    with pytest.raises(CheckpointError, match="completed turn boundary"):
+        write_checkpoint(target, SimpleNamespace(world=world))
+    assert not target.exists()
+    assert world.regions[0].stockpile.goods["timber"] == 16
+    S.rollback_storage_work(world, plan)
+    assert world.model_dump_json() == before

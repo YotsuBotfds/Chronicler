@@ -2,10 +2,12 @@
 
 Continue the new [crisis/adaptation/recovery roadmap](integration/crisis-recovery-roadmap.md)
 from verified dev baseline6ff45ec3. M0 authority contract is integrated; M1 food
-accounting is integrated with bounded mechanical/browser validation; fresh CI
-found legacy export-projection/field-registry integration defects now correcting. M2 has real private disruption/
-recovery evidence and a return-receipt correction pending; M3 asset/work
-integration is next. M4–9 remain planned. This is not the completed roadmap. Previous remediation stays closed within its documented
+accounting passed all nine CI jobs at ecfa06ac. M2 has actual private disruption/
+recovery evidence and its controller-change return receipt is integrated. M3
+paid storage work/capacity/condition is integrated with constructed benefit and
+harm, exact partial-work continuation, browser checks and default-off parity;
+combined CI is next. M4 household mobility and M5 academy services are isolated
+WIP; M6–9 remain planned. This is not the completed roadmap. Previous remediation stays closed within its documented
 limits. Main/defaults remain unchanged; environment publication stays deferred.
 
 ---

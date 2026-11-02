@@ -156,3 +156,25 @@ def test_damaged_capacity_returns_grain_and_conquest_keeps_paid_work(monkeypatch
         assert asset.capacity==old.capacity and asset.expansion_progress==old.expansion_progress
         assert asset.condition<old.condition
     finally:bridge.close()
+
+
+def test_complete_first_turn_goods_balance_includes_paid_storage_material(monkeypatch):
+    from chronicler.agent_bridge import AgentBridge
+    from chronicler.grain_reserves_state import RELEASED, SPOILED, BOUGHT
+    monkeypatch.setenv('CHRONICLER_CHECK_RESOURCES','1')
+    world=_world(reserve=2000,market=1000)
+    set_storage_policy(world,0,'maintain',4)
+    total=lambda: sum(sum(r.stockpile.goods.values()) for r in world.regions)+sum(g.grain for g in world.grain_reserves.granaries)
+    before=total()
+    bridge=AgentBridge(world,mode='hybrid')
+    try:
+        _tick(world,bridge)
+        c=world._economy_result.conservation
+        used=sum(r.timber_used for r in world.grain_reserves.storage.receipts)
+        assert used==4
+        public_loss=sum(f.amount for f in world.grain_reserves.flows if f.kind in (RELEASED,SPOILED))
+        public_loss+=sum(f.sent-f.amount for f in world.grain_reserves.flows if f.kind==BOUGHT)
+        expected=(before+c['production']+c['clamp_floor_loss']-c['consumption']-c['storage_loss']
+                  -c['cap_overflow']-c['transit_loss']-c['in_transit_delta']-used-public_loss)
+        assert total()==pytest.approx(expected,rel=2e-6,abs=1e-5)
+    finally:bridge.close()
