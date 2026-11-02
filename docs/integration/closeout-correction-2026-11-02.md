@@ -44,10 +44,14 @@ Reusable environment publication remains deferred.
   found; rewinding excludes future observations; repeated names remain bounded.
 - Historical [nine-job CI](https://github.com/YotsuBotfds/Chronicler/actions/runs/41401640607)
   tested `38116fc2`, before these viewer fixes. Its Python/native/Rust checks are
-  unchanged-input evidence, not new execution on this correction. No unrelated
-  scientific campaign or native rebuild was performed.
+  historical evidence. Fresh [CI at `13871eb3`](https://github.com/YotsuBotfds/Chronicler/actions/runs/41424054835)
+  was dispatched for all nine jobs, including a current-source native wheel and
+  Python/Rust lanes; its final status is preserved in `CLOSEOUT-RELEASE.json`.
+  Closing documentation leaves all runtime/test/build inputs identical to that
+  tested commit. No local native rebuild or scientific campaign was performed.
 
 External evidence root: `/workspace/shared/chronicler-closeout-correction`.
+[Production search browser](/workspace/shared/chronicler-closeout-correction/search/production-browser-result.json),
 [Search reproduction](/workspace/shared/chronicler-closeout-correction/search/reproduction.txt),
 [original lost-note race](/workspace/shared/chronicler-closeout-correction/bookmarks/original-race-output.json),
 [rendered two-tab receipt](/workspace/shared/chronicler-closeout-correction/bookmarks/rendered-two-tabs-result.json),
@@ -73,9 +77,16 @@ The monolithic redundant upload has verified size/access only; the three verifie
 parts are the authoritative recovery copy. Stopped browser session tokens were
 redacted in the recovery archive; disposable test scratch/cache and nonregular
 aliases were excluded. Worlds/checkpoints are unchanged and local originals kept.
-Final corrected source, correction evidence and restoration instructions are
-being added; final transfer/restoration verification is recorded in the external
-release manifest rather than inferred from upload success.
+Corrected source at `13871eb3` (15,428,983 bytes; SHA-256
+`130274c1419db30f04326153bf7f8c9ee0d95ed1fe0fe3fcc12ca9e0e2ab4b8f`),
+[correction evidence](https://drive.google.com/file/d/13bWjLzUrFxcjDORHgkmeQWWUiTK7Al7D/view)
+(5,864,898 bytes; SHA-256
+`9e8925b37494ce8689c4a8adc8959e6f756f383f4e1dd926099069010f117787`), and
+[restoration instructions](https://drive.google.com/file/d/1Iak62MEAfj0M8RlpRJsPRZzP43EptgIo/view)
+were independently downloaded and verified. All 2,068 sanitized archive members
+and all 1,849 restored source files matched. The final documentation-only source
+identity, CI receipt and object inventory are indexed by `CLOSEOUT-RELEASE.json`
+in the private folder. No new credential or public permission was created.
 
 Bookmarks are private to the browser origin/storage partition. Atomicity applies
 to tabs running this corrected version. Reload older open tabs to migrate; old

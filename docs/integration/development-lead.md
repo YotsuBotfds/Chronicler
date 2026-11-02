@@ -12,10 +12,17 @@ later changes and are not covered by that CI run. The corrected combined viewer 
 production build. Actual rendered Chromium tabs verified concurrent saves,
 same-bookmark conflicts, legacy migration, reload and storage failures; see the
 [targeted closeout receipt](closeout-correction-2026-11-02.md).
-Economic policies remain optional and off by default; cloud environment
+Fresh [CI at corrected code `13871eb3`](https://github.com/YotsuBotfds/Chronicler/actions/runs/41424054835)
+was dispatched for all nine jobs; its final status is preserved in the private
+release manifest. The closing change is documentation only, with unchanged
+runtime/test/build inputs. Economic policies remain optional and off by default; cloud environment
 publication remains deferred.
 
 ## Backlog outcome
+
+Primary outcomes: **18 newly implemented/tested, seven existing checked/reused,
+11 partially covered**. No item is wholly unaddressed; unrun/deferred subparts
+and their reasons are explicit below. A partial row is not a completion claim.
 
 Evidence links below are local to this working environment. `Implemented` means
 new or corrected code was exercised in the cited bounded checks; `reused` means
@@ -32,8 +39,8 @@ uncovered boundary. Audits are source inspection, not executed simulations.
 | A6 | **Newly implemented and tested**: live-edge lock and return; existing live controls reused. | [Live controls](../../viewer/src/components/LiveInspectionControls.tsx) | [Browser timeline](/workspace/shared/chronicler-multiwave-evidence/browser/live-timeline-result.json) |
 | B7 | **Newly implemented and tested**: bounded civilization lifecycle; successor/restoration uncertainty retained. | [Civilization history](../../viewer/src/lib/civilizationHistory.ts) | [Focused tests](/workspace/shared/chronicler-multiwave-evidence/civilization-history/focused-tests.log) |
 | B8 | **Partially covered**: city-first institution histories, existing Learning reused; school rewind leak fixed. Full independent institution histories are not claimed. | [Institution history](../../viewer/src/lib/institutionHistory.ts) | [Checks](/workspace/shared/chronicler-multiwave-evidence/institution-history/check-receipt.json) |
-| B9 | **Partially covered**: existing granary/transaction views and corrected release caption; actual food consumption is unrecorded. | [Food](../../viewer/src/lib/food.ts) | [Food/debt checks](/workspace/shared/chronicler-multiwave-evidence/debt-food) |
-| B10 | **Newly implemented and tested**: fiscal evidence; foreign borrowing is a subset and lender allocations remain unknown. | [Debt evidence](../../viewer/src/lib/debtEvidence.ts) | [Food/debt checks](/workspace/shared/chronicler-multiwave-evidence/debt-food) |
+| B9 | **Partially covered**: existing granary/transaction views and corrected release caption; actual food consumption is unrecorded. | [Food](../../viewer/src/lib/food.ts) | [Food/debt checks](/workspace/shared/chronicler-multiwave-evidence/debt-food/focused-tests.log) |
+| B10 | **Newly implemented and tested**: fiscal evidence; foreign borrowing is a subset and lender allocations remain unknown. | [Debt evidence](../../viewer/src/lib/debtEvidence.ts) | [Food/debt checks](/workspace/shared/chronicler-multiwave-evidence/debt-food/focused-tests.log) |
 | B11 | **Newly implemented and tested**: recorded migration pairs; net flow is separate from population change. | [Migration](../../viewer/src/lib/migrationEvidence.ts) | [Focused tests](/workspace/shared/chronicler-multiwave-evidence/migration/final-focused-tests.log) |
 | B12 | **Newly implemented and tested**: deterministic values, clocks, source references and coverage; nearby reports are not causal proof. | [Investigation](../../viewer/src/lib/investigation.ts) | [Focused integration](/workspace/shared/chronicler-multiwave-evidence/root-focused-final.log) |
 | C13 | **Existing functionality checked and reused**: stability panel reused for two supported previews and common point. | [What-if panel](../../viewer/src/components/WhatIfPanel.tsx) | [Control tests](/workspace/shared/chronicler-multiwave-evidence/what-if-viewer-recipes/control-tests.log) |
@@ -44,8 +51,8 @@ uncovered boundary. Audits are source inspection, not executed simulations.
 | C18 | **Newly implemented and tested**: strict byte-bound saved plans and explicit new-case adoption; import sends no command. | [What-if](../../viewer/src/lib/whatIf.ts) | [Recipe checks](/workspace/shared/chronicler-multiwave-evidence/what-if-viewer-recipes/final-focused-tests.log); [browser](/workspace/shared/chronicler-multiwave-evidence/browser/new-case-browser-result.json) |
 | D19 | **Partially covered**: public route/supplier/keeper contracts exercised; forced private native transport disruption is **source audit only**, deferred pending an actual native disruption test. | [Transport](../../src/chronicler/transport.py) | [Public contract tests](../../tests/test_public_grain_shipments.py) in [historical CI](/workspace/shared/chronicler-multiwave-evidence/CI-38116fc2-success.json); [private read-only audit](/workspace/shared/chronicler-multiwave-evidence/disruption-scarcity-audit/AUDIT.md) |
 | D20 | **Newly implemented and tested**: optional local full-meal release 0/1; immediate relief and later shortage tradeoff remain. | [Grain reserves](../../src/chronicler/grain_reserves.py) | [Focused and native checks](/workspace/shared/chronicler-multiwave-evidence/granary-release-policy/receipt.json) |
-| D21 | **Existing functionality checked and reused**: delayed forecast mechanics checked with four declared pairs and no-supply control; not a general forecast qualification. | [Forecasts](../../src/chronicler/harvest_forecasts.py) | [Executed cases](/workspace/shared/chronicler-multiwave-evidence/forecast-audit) |
-| D22 | **Existing functionality checked and reused**: native care exercised: immediate production cost and recovery on a matched horizon. | [Health care](../../src/chronicler/health_care.py) | [Care evidence](/workspace/shared/chronicler-multiwave-evidence/care-labor) |
+| D21 | **Existing functionality checked and reused**: delayed forecast mechanics checked with four declared pairs and no-supply control; not a general forecast qualification. | [Forecasts](../../src/chronicler/harvest_forecasts.py) | [Executed cases](/workspace/shared/chronicler-multiwave-evidence/forecast-audit/fixed-cases-final.log) |
+| D22 | **Existing functionality checked and reused**: native care exercised: immediate production cost and recovery on a matched horizon. | [Health care](../../src/chronicler/health_care.py) | [Care evidence](/workspace/shared/chronicler-multiwave-evidence/care-labor/final-case-77f14fcd/receipt.json) |
 | D23 | **Partially covered**: learning loss and new-incarnation recovery exercised; school, faith and city identities differ. No new mechanical defect demonstrated. Learning loss/recovery is exercised; generalized city fall/recovery and all institution types are not established. | [Institutions](../../src/chronicler/institutions.py) | [Pressure checks](/workspace/shared/chronicler-multiwave-evidence/institution-pressure/current64f-checks.log) |
 | D24 | **Partially covered**: two constructed 64-turn pressure/control pairs; conquest was unapplied and no isolated welfare claim follows. | [Example generator](../../scripts/institution_pressure_example.py) | [Declared plan](/workspace/shared/chronicler-multiwave-evidence/institution-pressure/DECLARED_PLAN.json); [checks](/workspace/shared/chronicler-multiwave-evidence/institution-pressure/current64f-checks.log) |
 | E25 | **Partially covered**: one 160-turn native trajectory and exact 80→160 continuation, not a broad multi-seed gate. | [Checkpoints](../../src/chronicler/live_checkpoints.py) | [Long-run receipt](/workspace/shared/chronicler-multiwave-evidence/longrun-qualification/receipt.json) |
@@ -188,10 +195,14 @@ portable bookmarks. Screenshots/outputs are private external files, not Git blob
 
 ## Recovery and remaining verification
 
-The earlier source bundle and trial restore below apply to their recorded historical
-head, not the later search/bookmark fixes or current uncommitted work. Verify the
-final source identity, its recovery bundle and a trial restore after integration.
-Current combined viewer and rendered two-tab bookmark checks passed; the targeted closeout receipt records their scope.
+Corrected runtime/viewer source is `13871eb39e98771caad574af48f3780148e69b32`;
+any later closing change is documentation only. Its complete source bundle was
+independently downloaded from private Drive, hash-verified, restored cleanly and
+all 1,849 tracked files compared. Current combined viewer and rendered two-tab
+checks passed; the [targeted closeout receipt](closeout-correction-2026-11-02.md)
+records their scope. Final source identity and remote objects are indexed in
+`CLOSEOUT-RELEASE.json` in the private folder. Source recovery is not fresh cloud
+environment provisioning.
 
 
 `/workspace/shared/chronicler-multiwave-evidence/release-final` contains:
@@ -208,7 +219,9 @@ The earlier `release-942da692` backup and failed CI remain preserved. An owner-o
 [ChroniclerArchives Drive folder](https://drive.google.com/drive/folders/1NfGQsBD4fvqus3qXM-8-xImPSWOX0gEm)
 now holds three parts of a recovery archive. Each part was independently downloaded
 and the reassembled archive hash verified; see [remote evidence](/workspace/shared/chronicler-closeout-correction/backup/verified-remote-evidence.json).
-This proves transfer integrity for that archive, not restoration of the final
-source or coverage of later corrections. Final source/restoration/correction
-evidence is pending. Reusable cloud configuration publication and a fresh
+All 2,068 regular members were extracted from those downloaded parts and
+matched the sanitized archive manifest. Corrected source, targeted correction
+evidence and `Chronicler-closeout-RESTORE.txt` have also been independently
+downloaded and verified. Local originals remain intact. The redundant monolithic
+archive has size/access verification only; use the independently verified parts. Reusable cloud configuration publication and a fresh
 cloud task remain deferred and unverified.

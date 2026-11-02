@@ -5,13 +5,15 @@ see the [outcome matrix and active handoff](integration/development-lead.md).
 The all-nine green [CI run](https://github.com/YotsuBotfds/Chronicler/actions/runs/41401640607)
 tested `38116fc2`, before the search correction `71590379` and atomic IndexedDB
 bookmark correction `ce2b4e96`. The corrected combined viewer passes 1,112 tests, lint and build; rendered two-tab
-bookmark checks passed. See the [closeout receipt](integration/closeout-correction-2026-11-02.md). Private native transport disruption remains source-audited
+bookmark checks passed. Fresh [CI at corrected code `13871eb3`](https://github.com/YotsuBotfds/Chronicler/actions/runs/41424054835)
+is linked with its final receipt in the private release manifest; subsequent
+closing changes are documentation only. See the [closeout receipt](integration/closeout-correction-2026-11-02.md). Private native transport disruption remains source-audited
 only; actual food consumption remains unrecorded; institution histories are
 city-first. Broad scientific and accessibility qualification remain deferred.
 
-An owner-only remote archive has independently downloaded, checksum-verified
-parts, but final source/correction coverage and restoration evidence are still
-pending. Earlier dated entries below describe historical source and evidence;
+Owner-only remote backups have independently downloaded, checksum-verified
+world/evidence parts, corrected source, correction receipts and restoration
+instructions. All 2,068 archived files and 1,849 restored source files matched. Earlier dated entries below describe historical source and evidence;
 they do not override this handoff.
 
 ---
