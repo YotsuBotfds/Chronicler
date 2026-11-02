@@ -18,6 +18,10 @@ import time
 ROOT = Path(__file__).resolve().parents[1]
 CHUNK_LIMIT_SECONDS = 110
 CHUNKS = {
+    "household-mobility-contracts": [
+        "tests/test_household_mobility_adapter.py",
+        "tests/test_household_mobility_witness.py",
+    ],
     "grain-storage-contracts": [
         "tests/test_grain_storage.py",
         "tests/test_crisis_candidate_witness.py",

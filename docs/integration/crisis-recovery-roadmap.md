@@ -28,9 +28,9 @@ validate an epic. Runtime changes remain opt-in until evaluated. No paid narrati
 | --- | --- | --- | --- |
 | M0 contract | integrated | Bounded source assessment above; first implementation is M1. | Authority/units/phases, budgets and explicit missing mechanisms recorded; not an epic-delivery claim. |
 | M1 received/consumed | validated | Native food ledger, separate public relief and procurement observations in the existing Food inspector; all nine CI jobs passed at ecfa06ac. | Controlled native/aggregate cases, balances, actual exact continuation and four-mode neutrality passed. Physical household food purchasing remains outside this model; integrated crisis/distributional qualification belongs to M7–9. |
-| M2 logistics consequences | integrated | Actual native interruption, return, reroute, reopening, supplier harm and in-flight restore executed; missing controller-change receipt corrected. Combined public/private shortage check passes. | Do not equate private regional margin signals with paid public orders. Combined-source CI and the declared integrated crisis suite remain gates. |
-| M3 storage choices | integrated | Opt-in paid work, timber/treasury costs, capacity, condition, spoilage, custody and existing inspector integration. See grain-storage-candidate.md. | Actual benefit/harm pair, total goods balance, partial-work exact continuation and four-mode default-off parity passed; combined-source CI remains pending. Care/work interaction and held scenario evaluation remain M7–9. |
-| M4 household coping | implementing | Opt-in native liquid-reserve gate for existing household migration and its Python adapter are isolated WIP; no household food inventory or new credit model. Not active on dev. | Fresh matching wheel, persisted config/history, actual constrained trajectories, disabled parity and exact continuation remain required. |
+| M2 logistics consequences | validated | Actual native interruption, return, reroute, reopening, supplier harm and in-flight restore; controller-change receipt and combined public/private shortage executed. All nine combined CI jobs passed at fc50bf8e. | This establishes the specified bounded mechanics, not general transport economics. The declared integrated crisis suite remains M7. |
+| M3 storage choices | validated | Opt-in paid work, timber/treasury costs, capacity, condition, spoilage, custody and existing inspector integration. All nine combined CI jobs passed at fc50bf8e. | Actual benefit/harm pair, total goods balance, partial-work exact continuation and four-mode default-off parity passed. Care/work interaction and held scenario evaluation remain M7–9. |
+| M4 household coping | integrated | Opt-in native liquid gate for existing household migration, persisted controls, bounded dated history and existing Migration inspector. No household food inventory or new credit model. | Fresh wheel, actual unequal constrained moves, disabled four-mode parity, exact continuation and real desktop/phone journey passed. Combined CI next; long-run/care-obligation/distributional limits stay explicit. |
 | M5 resource-backed service | implementing | Isolated academy-service helper and explicit upkeep/staff integration hooks; not active on dev. | Phase hooks, real service interruption/restoration, dated learning effect, supplies/costs, identity and exact continuation remain required. |
 | M6 delayed information | planned | Depends authoritative procurement/service inputs. Reuse report/expiry/preparedness machinery. | Timely/delayed/misleading/absent controls change decisions from same initial truth; record decision inputs and costs; no future leaks. |
 | M7 crisis suite | planned | After relevant M1–6 mechanics. Declare exploration cases and held evaluation cases before running. | A route-shortfall; B harvest+care; C constrained displacement; D institution loss/costly recovery; E unequal recovery. Verify shock application, baseline/alternatives, adverse/neutral results and shared-state accounting. |
@@ -72,11 +72,21 @@ writers or shared-wheel replacement. Viewer work starts after export agreement.
   The combined viewer passed1,120 tests/103 files; focused lint/build and actual
   desktop/390px checks include positive capacity return, selected-turn navigation
   and old bundles. Full combined CI remains a separate gate.
-- M4 isolated native gate `1b7b03fd` and Python adapter `e094e8cd` are WIP, not
-  integrated. Seven gate and11 household Rust tests plus18 mock adapter cases
-  passed; actual M4 wheel/config/history/continuation remain next.
-- M5 isolated helpers `a3d0aecb`/`ce419f7f` have82 pure service/scholarship passes.
-  Actual phase scheduling, enablement/export and native execution are unfinished.
+- M4 [contract, commands and limits](household-mobility-candidate.md):384 focused
+  combined tests,239 guarded contracts/metadata, actual fixed-threshold paired
+  moves and exact history/native/RNG continuation passed. Source lineage and
+  four-mode actual disabled parity are separate proofs. Viewer1,124 broad tests,
+  five focused final paging/format checks, lint/build and real desktop/390px
+  journey passed. The initial browser paging failure is retained. Fresh CI next.
+- M5 isolated helpers `a3d0aecb`/`ce419f7f` have82 pure service/scholarship passes,
+  but an audit found alive-scholar counts do not establish available work. This
+  prototype is not a completed service. A real native Scholar-day income/work
+  budget and prior-paid supply inventory are implementing in separate branches.
+  Actual phase scheduling, enablement/export and native execution remain gates.
+- M6 report-delay/decision-receipt candidate `b405717c` is isolated WIP:227 focused
+  tests passed, one immutable source inverse was explicitly deselected after its
+  retained failure. No final phase integration/native impact claim. A later exact
+  source composition must account for its edits without changing frozen witnesses.
 - Evidence root: `/workspace/shared/chronicler-crisis`; older verified private
   backups remain intact. Current program source/evidence recovery index is prepared
   at integration checkpoints. Cloud publication/fresh provisioning remain deferred.
@@ -96,10 +106,20 @@ fixtures or expected hashes:76 focused Python passes, five viewer transport
 passes, lint/build. The subsequent ecfa06ac CI passed all nine jobs. The failures
 remain recorded rather than being relabeled as successful checks.
 
-Next action: combined M2/M3 CI at60bbbcf7 is running
-([run41469349385](https://github.com/YotsuBotfds/Chronicler/actions/runs/41469349385));
-the subsequent43dcb642 adds only the locally passing shipment test. Preserve current
-source/WIP/worlds in independently verified owner-only storage, then integrate
-M4 config/history and a fresh matching wheel. M5 phase hooks follow. M6–9 remain
-planned; M2/M3 integrated scenario/combined gates remain unfinished. No scientific
-gate, full-roadmap completion or default promotion has been claimed.
+Combined M2/M3 CI60bbbcf7 failed repeated pickle/live checkpoint checks: the new
+serialization filter mutated Pydantic's live dictionary. The actual failure is
+retained. A copied dictionary fixes it,101 focused checks passed, the guarded
+selection passed102 and16 actual native live/process tests passed. All nine
+jobs subsequently passed atfc50bf8e in
+[run41470386347](https://github.com/YotsuBotfds/Chronicler/actions/runs/41470386347).
+
+Owner-only checkpoint8ad00910 includes source/six WIP refs and598 evidence files;
+both remote objects and recovery instructions were independently downloaded,
+size/SHA checked, and every archive member verified. It explicitly preserves a
+failed-CI checkpoint, not a claimed release. Newer source and M4/M6 evidence need
+their next checkpoint; keep local originals.
+
+Next action: push and CI the qualified M4 candidate, checkpoint source/evidence,
+then integrate M5 paid materials and actual work. M6 production decision/delay
+hooks follow; M7–9 are still planned. No scientific gate, full-roadmap completion,
+default promotion or reusable-environment publication has been claimed.

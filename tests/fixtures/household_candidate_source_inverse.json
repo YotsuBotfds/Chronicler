@@ -1,6 +1,6 @@
 {
   "base": "fc50bf8e87f55c52fa1ab7127788cc48178ec2aa",
-  "head": "5a1a67b86ae153bfb59ff7c43c6e89df4a32b106",
+  "head": "572e003f95ba5130727f6599653cd1a1d1adfc14",
   "files": {
     "chronicler-agents/src/ffi/mod.rs": {
       "sha256": "26143638709baa562c4b4159f6c3a2d62a654e159688c96f115829b452ec739e",
@@ -271,7 +271,7 @@
   },
   "new_files": {
     "src/chronicler/household_mobility_state.py": "7fab141b618edcd596462ace1b076dde99baeab37c46aeabb5ada67a3121901b",
-    "viewer/src/components/HouseholdMobilityEvidence.tsx": "783672f25dbf3fed5c1fee1e00e4694a2f8261a9094e15c2bc0a89be02f99bac",
+    "viewer/src/components/HouseholdMobilityEvidence.tsx": "0187ea1087e201bcea4d204dcd5de9031a7444f03b1a130d7e759b54c3678bbf",
     "viewer/src/lib/householdMobility.ts": "adc8d6efbf3c473c99c12d53cbacebf6277ac79e95e09650e25f00af270c380a"
   }
 }
