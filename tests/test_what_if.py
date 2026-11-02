@@ -254,3 +254,94 @@ def test_failed_preparations_are_also_bounded_and_preserved(pair, world, monkeyp
     with pytest.raises(wi.WhatIfError, match="retained"):
         pair.prepare(request(request_id="other"), world)
     assert len(pair.writes) == 1
+
+
+@pytest.mark.parametrize("running", [True, False])
+def test_output_scan_atomic_rename_between_enumeration_and_stat(tmp_path, monkeypatch, running):
+    directory = tmp_path / "arm"
+    directory.mkdir()
+    destination = directory / "state.json"
+    destination.write_bytes(b"old")
+    temporary = directory / ".state.json.123.tmp"
+    temporary.write_bytes(b"completed replacement")
+    log = directory / "process.log"
+    log.write_bytes(b"")
+    real_stat = Path.stat
+    renamed = False
+
+    def stat_after_atomic_replace(path, *args, **kwargs):
+        nonlocal renamed
+        if path == temporary and not renamed:
+            # The observer already has this directory entry; the actual atomic
+            # writer removes it immediately before its metadata is requested.
+            temporary.replace(destination)
+            renamed = True
+        return real_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", stat_after_atomic_replace)
+    if running:
+        wi._check_output_limits(directory, log, "baseline", running=True)
+    else:
+        with pytest.raises(FileNotFoundError):
+            wi._check_output_limits(directory, log, "baseline")
+    assert renamed and not temporary.exists()
+    assert destination.read_bytes() == b"completed replacement"
+    # Once the child exits, the destination is measured exactly; a vanished
+    # temp never excuses an oversized completed artifact.
+    assert wi._output_size(directory) == len(b"completed replacement")
+    monkeypatch.setattr(wi, "MAX_OUTPUT_BYTES", len(b"completed replacement") - 1)
+    with pytest.raises(wi.WhatIfError, match="output limit"):
+        wi._check_output_limits(directory, log, "baseline")
+
+
+@pytest.mark.parametrize("running", [True, False])
+@pytest.mark.parametrize("limit", ["log", "total"])
+def test_output_caps_still_refuse_running_and_completed_outputs(tmp_path, monkeypatch, running, limit):
+    log = tmp_path / "process.log"
+    log.write_bytes(b"1234" if limit == "log" else b"")
+    nested = tmp_path / "nested"
+    nested.mkdir()
+    (nested / "state.json").write_bytes(b"12345")
+    monkeypatch.setattr(wi, "MAX_LOG_BYTES", 3 if limit == "log" else 100)
+    monkeypatch.setattr(wi, "MAX_OUTPUT_BYTES", 100 if limit == "log" else 4)
+    with pytest.raises(wi.WhatIfError, match="output limit"):
+        wi._check_output_limits(tmp_path, log, "intervention", running=running)
+
+
+@pytest.mark.parametrize("running", [True, False])
+@pytest.mark.parametrize("error", [PermissionError("denied"), OSError("device I/O failure")])
+def test_output_file_stat_errors_are_not_missing_outputs(tmp_path, monkeypatch, running, error):
+    log = tmp_path / "process.log"
+    log.write_bytes(b"")
+    output = tmp_path / "state.json"
+    output.write_bytes(b"data")
+    real_stat = Path.stat
+
+    def refuse_stat(path, *args, **kwargs):
+        if path == output:
+            raise error
+        return real_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", refuse_stat)
+    with pytest.raises(type(error)) as caught:
+        wi._check_output_limits(tmp_path, log, "baseline", running=running)
+    assert caught.value is error
+
+
+@pytest.mark.parametrize("running", [True, False])
+def test_output_directory_permission_errors_are_not_silently_skipped(tmp_path, monkeypatch, running):
+    log = tmp_path / "process.log"
+    log.write_bytes(b"")
+    nested = tmp_path / "nested"
+    nested.mkdir()
+    (nested / "state.json").write_bytes(b"data")
+    real_scandir = wi.os.scandir
+
+    def refuse_directory(path):
+        if Path(path) == nested:
+            raise PermissionError("cannot scan output directory")
+        return real_scandir(path)
+
+    monkeypatch.setattr(wi.os, "scandir", refuse_directory)
+    with pytest.raises(PermissionError, match="cannot scan"):
+        wi._check_output_limits(tmp_path, log, "baseline", running=running)

@@ -15,6 +15,7 @@ import queue
 import re
 import shlex
 import signal
+import stat
 import subprocess
 import sys
 import threading
@@ -44,6 +45,36 @@ _REQUEST_ID = re.compile(r"[A-Za-z0-9_-]{1,80}\Z")
 
 class WhatIfError(ValueError):
     pass
+
+
+def _output_size(directory: Path, *, allow_vanished: bool = False) -> int:
+    """Observe regular outputs; a running atomic writer may rename a temp.
+
+    This is a changing observation while the child runs, followed by a strict
+    scan after it exits. Only an enumerated file disappearing is tolerated;
+    permission, traversal and other I/O failures remain errors.
+    """
+    def walk_error(error: OSError) -> None:
+        raise error
+
+    total = 0
+    for parent, _, names in os.walk(directory, onerror=walk_error):
+        for name in names:
+            try:
+                info = (Path(parent) / name).stat()
+            except FileNotFoundError:
+                if allow_vanished:
+                    continue
+                raise
+            if stat.S_ISREG(info.st_mode):
+                total += info.st_size
+    return total
+
+
+def _check_output_limits(directory: Path, log_path: Path, arm: str, *, running: bool = False) -> None:
+    if (log_path.stat().st_size > MAX_LOG_BYTES or
+            _output_size(directory, allow_vanished=running) > MAX_OUTPUT_BYTES):
+        raise WhatIfError(f"{arm} exceeded its output limit")
 
 
 def validate_request(msg: dict, world: Any) -> tuple[str, str, int, int, int]:
@@ -318,9 +349,7 @@ class WhatIfPairs:
                         raise InterruptedError("Cancelled")
                     if time.monotonic() - started > ARM_TIMEOUT_SECONDS:
                         raise WhatIfError(f"{arm} exceeded its {ARM_TIMEOUT_SECONDS}s time limit")
-                    files = [p for p in directory.rglob("*") if p.is_file()]
-                    if log_path.stat().st_size > MAX_LOG_BYTES or sum(p.stat().st_size for p in files) > MAX_OUTPUT_BYTES:
-                        raise WhatIfError(f"{arm} exceeded its output limit")
+                    _check_output_limits(directory, log_path, arm, running=True)
                 if job.cancel.is_set():
                     raise InterruptedError("Cancelled")
                 if process.returncode != 0:
@@ -330,8 +359,7 @@ class WhatIfPairs:
                 with self._lock:
                     job.process = None
         final = verified_header(directory / "final.ckpt", turn=end, seed=m["seed"])
-        if sum(p.stat().st_size for p in directory.rglob("*") if p.is_file()) > MAX_OUTPUT_BYTES:
-            raise WhatIfError(f"{arm} exceeded its output limit")
+        _check_output_limits(directory, log_path, arm)
         expected = list(m["source"]["header"].get("run_config", {}).get("interventions", []))
         if arm == "intervention":
             expected.append({"turn": m["start_turn"], **{k: v for k, v in m["intervention"].items() if k != "before"}})
