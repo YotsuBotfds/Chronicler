@@ -78,6 +78,21 @@ def test_disabled_and_old_state_are_unchanged(world):
         world.grain_reserves.model_dump_json()).model_dump(mode="json")
 
 
+def test_disabled_pickle_filter_never_mutates_live_fields(world):
+    state = world.grain_reserves
+    before = deepcopy(state.__dict__)
+    fields = state.__pydantic_fields_set__.copy()
+    first = pickle.dumps(state)
+    assert state.__dict__ == before
+    assert state.storage is None
+    assert state.__pydantic_fields_set__ == fields
+    assert pickle.dumps(state) == first
+    restored = pickle.loads(first)
+    assert restored.storage is None
+    assert pickle.dumps(restored) == first
+    assert restored.storage is None
+
+
 def test_inherited_asset_wear_and_snapshot_are_explicit(world):
     state = S.enable_storage(world)
     world.grain_reserves.granaries[0].grain = 55.0
