@@ -1,6 +1,6 @@
 {
   "base": "ecfa06aca86e1cfbe986f2f853c60d13a2a50723",
-  "head": "921075fc0e619101a5e93a2356ffeb7e91aee350",
+  "head": "b5f3a5c60c1e84e62fb8a7e58cb04c4d1a12a959",
   "files": {
     "chronicler-agents/src/economy.rs": {
       "sha256": "717a67c9562a8a8eb572a64fe621574d3422ddf0b959c84dbc2df45ab03d7ceb",
@@ -308,6 +308,28 @@
         }
       ]
     },
+    "viewer/src/components/systems/Granaries.tsx": {
+      "sha256": "57a0f4c178d1ed0a58ea8d5b0db6d17c71efffae910bb6808e65801a0b8f1d73",
+      "current_sha256": "60fe4dc4bdd19af286c34f35abd9a0203979f03abe927f5f11312f08075d78f4",
+      "patches": [
+        {
+          "old": "import { granaryAmounts, granaryKeeper, granaryOwnerRows, granarySeries, granaryShipmentsAt } from \"../../lib/granaries\";\nimport type { SystemPanelProps } from \"../../lib/systems\";\nimport { CivLineChart, StatTile, TurnStrip } from \"./SystemParts\";\n\nconst COLORS: Record<string, string> = {\n  Stocks: \"#e8b84a\", Targets: \"#7d8a96\", Bought: \"#5aa88f\", Released: \"#5a8fd9\", Spoiled: \"#d9644a\",\n",
+          "new": "import { granaryAmounts, granaryKeeper, granaryOwnerRows, granarySeries, granaryShipmentsAt } from \"../../lib/granaries\";\nimport type { SystemPanelProps } from \"../../lib/systems\";\nimport { CivLineChart, StatTile, TurnStrip } from \"./SystemParts\";\nimport { GranaryStorage } from \"./GranaryStorage\";\n\nconst COLORS: Record<string, string> = {\n  Stocks: \"#e8b84a\", Targets: \"#7d8a96\", Bought: \"#5aa88f\", Released: \"#5a8fd9\", Spoiled: \"#d9644a\",\n"
+        },
+        {
+          "old": "        </tr>;\n      })}</tbody>\n    </table></div>\n    {record.shipments !== undefined && <section className=\"systems-stack\" aria-label=\"Public grain shipments\">\n      <h4>Public grain shipments \u00b7 all granaries</h4>\n      {!shipments ? <p className=\"systems-note\">Shipment details are not observed at this snapshot.</p> : <>\n",
+          "new": "        </tr>;\n      })}</tbody>\n    </table></div>\n    <GranaryStorage bundle={bundle} snapshot={snapshot} region={region} />\n    {record.shipments !== undefined && <section className=\"systems-stack\" aria-label=\"Public grain shipments\">\n      <h4>Public grain shipments \u00b7 all granaries</h4>\n      {!shipments ? <p className=\"systems-note\">Shipment details are not observed at this snapshot.</p> : <>\n"
+        },
+        {
+          "old": "      <div className=\"systems-table-wrap\"><table className=\"systems-table\" aria-label={`Granary movements in turn ${record.source_turn}`}>\n        <thead><tr><th>Kind</th><th>Granary</th><th>Amount</th><th>Market / previous keeper</th><th>Sent</th><th>Treasury paid</th><th>Food before \u2192 after</th></tr></thead>\n        <tbody>{flows.map((flow, index) => <tr key={index}>\n          <td>{flow.kind === \"dispatched\" ? \"dispatched (in transit)\" : flow.kind}</td><td>{names.get(flow.region) ?? `Region ${flow.region}`}</td><td>{show(flow.amount)}</td>\n          <td>{flow.kind === \"bought\" ? `${bundle.world_state.regions[flow.source]?.name ?? `Region ${flow.source}`} (${flow.seller_name ?? \"unknown seller\"})` : flow.kind === \"dispatched\" || flow.kind === \"arrived\" ? `${names.get(flow.source) ?? `Region ${flow.source}`} (${flow.seller_name ?? \"unknown seller\"})` : flow.kind === \"captured\" ? flow.seller_name ?? \"No keeper\" : \"\u2014\"}</td>\n          <td>{flow.kind === \"bought\" || flow.kind === \"dispatched\" ? show(flow.sent) : \"\u2014\"}</td><td>{flow.kind === \"bought\" || flow.kind === \"dispatched\" ? flow.cost : \"\u2014\"}</td>\n          <td>{flow.kind === \"released\" ? `${show(flow.before)} \u2192 ${show(flow.after)}` : \"\u2014\"}</td>\n",
+          "new": "      <div className=\"systems-table-wrap\"><table className=\"systems-table\" aria-label={`Granary movements in turn ${record.source_turn}`}>\n        <thead><tr><th>Kind</th><th>Granary</th><th>Amount</th><th>Market / previous keeper</th><th>Sent</th><th>Treasury paid</th><th>Food before \u2192 after</th></tr></thead>\n        <tbody>{flows.map((flow, index) => <tr key={index}>\n          <td>{flow.kind === \"dispatched\" ? \"dispatched (in transit)\" : flow.kind === \"storage_returned\" ? \"capacity return to market\" : flow.kind}</td><td>{names.get(flow.region) ?? `Region ${flow.region}`}</td><td>{show(flow.amount)}</td>\n          <td>{flow.kind === \"bought\" ? `${bundle.world_state.regions[flow.source]?.name ?? `Region ${flow.source}`} (${flow.seller_name ?? \"unknown seller\"})` : flow.kind === \"dispatched\" || flow.kind === \"arrived\" ? `${names.get(flow.source) ?? `Region ${flow.source}`} (${flow.seller_name ?? \"unknown seller\"})` : flow.kind === \"captured\" ? flow.seller_name ?? \"No keeper\" : \"\u2014\"}</td>\n          <td>{flow.kind === \"bought\" || flow.kind === \"dispatched\" ? show(flow.sent) : \"\u2014\"}</td><td>{flow.kind === \"bought\" || flow.kind === \"dispatched\" ? flow.cost : \"\u2014\"}</td>\n          <td>{flow.kind === \"released\" ? `${show(flow.before)} \u2192 ${show(flow.after)}` : \"\u2014\"}</td>\n"
+        },
+        {
+          "old": "      </table></div>}\n    <p className=\"systems-note\">{record.shipments\n      ? <>Immediate purchases and dispatches lost {show(totals.transit)} grain in transit; {totals.paid} treasury paid this turn. Arrivals make no new payment. </>\n      : <>Procurement receives grain after transit loss (this turn: {show(totals.transit)} lost, {totals.paid} treasury paid). </>}Captured grain changes keeper without adding stock; seized and abandoned grain leave the granary. Missing older records remain gaps. Charts stop at the selected snapshot.</p>\n  </section>;\n}\n",
+          "new": "      </table></div>}\n    <p className=\"systems-note\">{record.shipments\n      ? <>Immediate purchases and dispatches lost {show(totals.transit)} grain in transit; {totals.paid} treasury paid this turn. Arrivals make no new payment. </>\n      : <>Procurement receives grain after transit loss (this turn: {show(totals.transit)} lost, {totals.paid} treasury paid). </>}Captured grain changes keeper without adding stock; seized and abandoned grain leave the granary. Capacity returns move grain to the regional market after the opening, not as spoilage or a purchase. Missing older records remain gaps. Charts stop at the selected snapshot.</p>\n  </section>;\n}\n"
+        }
+      ]
+    },
     "viewer/src/components/systems/Transactions.tsx": {
       "sha256": "0ae446fcb14d8d366c146c126c6851edbaec00cbcc8a15c8d6af48198d4fe346",
       "current_sha256": "99328938063226941ced5960a60b47090fa53b27f6e0ac726bbfac55f7ee845c",
@@ -315,6 +337,20 @@
         {
           "old": "        <div className=\"systems-table-wrap\"><table className=\"systems-table\" aria-label={`Native transactions at snapshot ${at}`}>\n          <thead><tr><th>Merchant / affiliation then</th><th>Operation</th><th>Cargo basis</th><th>Good</th><th>Quantity / basis</th><th>Recorded route</th><th>Voyage and observation</th></tr></thead>\n          <tbody>{(allNative ? nativeRows : nativeRows.slice(0, LIMIT)).map((row) => <tr key={row.id}>\n            <td>{row.merchant_id} / {civ(row.merchant_civ_name)}</td><td>{row.operation}{row.loss_reason ? ` \u00b7 ${row.loss_reason}` : \"\"}</td><td>{cargoBasis(row.cargo_basis)}</td><td>{transactionGood(row.good_slot)} (slot {row.good_slot})</td>\n            <td>{show(row.quantity)}<div>{row.quantity_basis}</div></td><td>{region(row.origin_region_name)} \u2192 {region(row.dest_region_name)}<div>Observed leg: region index {row.from_region} \u2192 {row.to_region}</div></td>\n            <td><details><summary>{row.voyage_id ? \"Known voyage identity\" : \"Voyage identity unknown\"}</summary><div>{row.voyage_id ?? \"No observed continuous start establishes this identity.\"}</div><div>Observation: {row.id}; source {row.source_turn}.</div><div>Regional controllers: {civ(row.origin_controller_name)} / {civ(row.dest_controller_name)}. These are not cargo title owners.</div>{row.loss_id && <div>Loss observation: {row.loss_id}</div>}</details></td>\n          </tr>)}</tbody>\n",
           "new": "        <div className=\"systems-table-wrap\"><table className=\"systems-table\" aria-label={`Native transactions at snapshot ${at}`}>\n          <thead><tr><th>Merchant / affiliation then</th><th>Operation</th><th>Cargo basis</th><th>Good</th><th>Quantity / basis</th><th>Recorded route</th><th>Voyage and observation</th></tr></thead>\n          <tbody>{(allNative ? nativeRows : nativeRows.slice(0, LIMIT)).map((row) => <tr key={row.id}>\n            <td>{row.merchant_id} / {civ(row.merchant_civ_name)}</td><td>{row.operation}{row.operation === \"returned\" ? row.return_reason === \"controller_change\" ? \" \u00b7 controller changed\" : \" \u00b7 return cause not recorded\" : \"\"}{row.loss_reason ? ` \u00b7 ${row.loss_reason}` : \"\"}</td><td>{cargoBasis(row.cargo_basis)}</td><td>{transactionGood(row.good_slot)} (slot {row.good_slot})</td>\n            <td>{show(row.quantity)}<div>{row.quantity_basis}</div></td><td>{region(row.origin_region_name)} \u2192 {region(row.dest_region_name)}<div>Observed leg: region index {row.from_region} \u2192 {row.to_region}</div></td>\n            <td><details><summary>{row.voyage_id ? \"Known voyage identity\" : \"Voyage identity unknown\"}</summary><div>{row.voyage_id ?? \"No observed continuous start establishes this identity.\"}</div><div>Observation: {row.id}; source {row.source_turn}.</div><div>Regional controllers: {civ(row.origin_controller_name)} / {civ(row.dest_controller_name)}. These are not cargo title owners.</div>{row.loss_id && <div>Loss observation: {row.loss_id}</div>}</details></td>\n          </tr>)}</tbody>\n"
+        }
+      ]
+    },
+    "viewer/src/lib/granaries.ts": {
+      "sha256": "ba6ea9717338fe32a06199d5494d8d1fbff6459d011c99ffc1ce84e242bb2cec",
+      "current_sha256": "ac1ffb0f9d59f6df7a315861c5ab49b609469ddbdc829ad6cd2cc8fdb0c38f2d",
+      "patches": [
+        {
+          "old": "    target: targetKnown ? rows.reduce((n, row) => n + row.target, 0) : null,\n    bought: amount(\"bought\"), released: amount(\"released\"), spoiled: amount(\"spoiled\"),\n    seized: amount(\"seized\"), abandoned: amount(\"abandoned\"),\n    paid: flows.reduce((n, flow) => n + flow.cost, 0),\n    transit: flows.filter((flow) => flow.kind === \"bought\" || flow.kind === \"dispatched\")\n      .reduce((n, flow) => n + flow.sent - flow.amount, 0),\n  };\n",
+          "new": "    target: targetKnown ? rows.reduce((n, row) => n + row.target, 0) : null,\n    bought: amount(\"bought\"), released: amount(\"released\"), spoiled: amount(\"spoiled\"),\n    seized: amount(\"seized\"), abandoned: amount(\"abandoned\"),\n    storageReturned: amount(\"storage_returned\"),\n    paid: flows.filter((flow) => flow.kind === \"bought\" || flow.kind === \"dispatched\").reduce((n, flow) => n + flow.cost, 0),\n    transit: flows.filter((flow) => flow.kind === \"bought\" || flow.kind === \"dispatched\")\n      .reduce((n, flow) => n + flow.sent - flow.amount, 0),\n  };\n"
+        },
+        {
+          "old": "  const arrived = frame.transitions.filter((row) => row.operation === \"arrived\").reduce((sum, row) => sum + row.net, 0);\n  return Number.isFinite(dispatched) && Number.isFinite(arrived) ? { ...frame, dispatched, arrived } : null;\n}\n",
+          "new": "  const arrived = frame.transitions.filter((row) => row.operation === \"arrived\").reduce((sum, row) => sum + row.net, 0);\n  return Number.isFinite(dispatched) && Number.isFinite(arrived) ? { ...frame, dispatched, arrived } : null;\n}\n\n/** Storage is independently source-dated; do not substitute an adjacent or final frame. */\nexport function granaryStorageAt(snapshot: TurnSnapshot | null, regionCount: number, civCount: number) {\n  const record = snapshot?.grain_reserves;\n  const frame = record?.storage;\n  const nonnegative = (v: unknown): v is number => typeof v === \"number\" && Number.isFinite(v) && v >= 0;\n  const owner = (v: unknown) => typeof v === \"number\" && Number.isInteger(v) && v >= -1 && v < civCount;\n  const policy = (v: unknown) => v === \"neglect\" || v === \"maintain\" || v === \"expand\";\n  const fields = (obj: object, keys: string[]) => keys.every((key) => nonnegative((obj as Record<string, unknown>)[key]));\n  if (!frame || !Number.isInteger(record!.source_turn) || record!.source_turn < 0\n    || record!.source_turn !== snapshot!.turn - 1 || frame.schema_version !== 1\n    || frame.receipt_turn !== record!.source_turn || !Array.isArray(frame.assets) || frame.assets.length !== regionCount\n    || !Array.isArray(frame.policies) || frame.policies.length !== regionCount || !Array.isArray(frame.receipts)\n    || !frame.assets.every((a) => a === null || (a && owner(a.owner) && fields(a, [\"capacity\", \"condition\", \"repair_progress\", \"expansion_progress\"]) && a.condition <= 1))\n    || !frame.policies.every((p) => p && policy(p.policy) && nonnegative(p.work_budget) && p.work_budget <= 4)) return null;\n  const seen = new Set<number>();\n  for (const row of frame.receipts) {\n    if (!row || row.turn !== frame.receipt_turn || !Number.isInteger(row.region) || row.region < 0 || row.region >= regionCount\n      || seen.has(row.region) || !owner(row.owner) || !policy(row.policy)\n      || !fields(row, [\"requested\", \"delivered\", \"timber_reserved\", \"timber_used\", \"timber_returned\", \"treasury_paid\", \"condition_before\", \"condition_after\", \"capacity_before\", \"capacity_after\", \"repair_progress\", \"expansion_progress\", \"capacity_returned\"])\n      || !Number.isInteger(row.treasury_paid) || row.delivered > row.requested || row.condition_before > 1 || row.condition_after > 1\n      || !(row.target_requested === null || nonnegative(row.target_requested)) || !(row.target_feasible === null || nonnegative(row.target_feasible))) return null;\n    seen.add(row.region);\n  }\n  return frame;\n}\n"
         }
       ]
     },
@@ -341,10 +377,29 @@
           "new": "  cargo_basis: string;\n  quantity_basis: string;\n  loss_reason: string | null;\n  /** Absent in earlier observations and when the return cause was not recorded. */\n  return_reason?: \"controller_change\";\n  loss_id: string | null;\n  cargo_title_owner?: string | null;\n  financial_eligible: boolean;\n"
         }
       ]
+    },
+    "viewer/src/types.ts": {
+      "sha256": "dd4250c3cf056e2f3b24c91c9abef3a173b53a6a4ad2f9f669a38efedd8b0527",
+      "current_sha256": "cb5108e42c0e0ae85f25f38b880e6d61e347d4e85e26d554d75b4f31c262aa5b",
+      "patches": [
+        {
+          "old": "}\n\nexport interface GranaryFlow {\n  kind: \"bought\" | \"released\" | \"spoiled\" | \"seized\" | \"abandoned\" | \"captured\" | \"dispatched\" | \"arrived\";\n  region: number;\n  amount: number;\n  source: number;\n",
+          "new": "}\n\nexport interface GranaryFlow {\n  kind: \"bought\" | \"released\" | \"spoiled\" | \"seized\" | \"abandoned\" | \"captured\" | \"dispatched\" | \"arrived\" | \"storage_returned\";\n  region: number;\n  amount: number;\n  source: number;\n"
+        },
+        {
+          "old": "  transitions: PublicGrainTransition[];\n}\n\nexport interface GrainReservesSnapshot {\n  /** Completed simulation turn: history turn T records source_turn T-1. */\n  source_turn: number;\n",
+          "new": "  transitions: PublicGrainTransition[];\n}\n\nexport interface GrainStorageSnapshot {\n  schema_version: 1;\n  assets: Array<{ capacity: number; condition: number; repair_progress: number; expansion_progress: number; owner: number } | null>;\n  policies: Array<{ policy: \"neglect\" | \"maintain\" | \"expand\"; work_budget: number }>;\n  receipt_turn: number | null;\n  receipts: Array<{ turn: number; region: number; owner: number; policy: \"neglect\" | \"maintain\" | \"expand\";\n    requested: number; delivered: number; timber_reserved: number; timber_used: number; timber_returned: number;\n    treasury_paid: number; condition_before: number; condition_after: number; capacity_before: number; capacity_after: number;\n    repair_progress: number; expansion_progress: number; target_requested: number | null; target_feasible: number | null;\n    capacity_returned: number }>;\n}\n\nexport interface GrainReservesSnapshot {\n  /** Completed simulation turn: history turn T records source_turn T-1. */\n  source_turn: number;\n"
+        },
+        {
+          "old": "  counters: Record<string, number>;\n  /** Absent in older or never-enabled records; absence does not mean zero cargo. */\n  shipments?: PublicGrainShipmentSnapshot;\n}\n\nexport interface Bundle {\n",
+          "new": "  counters: Record<string, number>;\n  /** Absent in older or never-enabled records; absence does not mean zero cargo. */\n  shipments?: PublicGrainShipmentSnapshot;\n  /** Optional versioned storage assets and completed work. */\n  storage?: GrainStorageSnapshot;\n}\n\nexport interface Bundle {\n"
+        }
+      ]
     }
   },
   "new_files": {
     "src/chronicler/grain_storage.py": "d62eeb3f24dc4ebdef524ea1314cdf636c8fc97a9dd0e106a746d8047580de99",
-    "src/chronicler/grain_storage_state.py": "436c3a6931ddb6cd96cecce2d72662e04b18f6f9e628bd9a3f7f799faabd48a8"
+    "src/chronicler/grain_storage_state.py": "436c3a6931ddb6cd96cecce2d72662e04b18f6f9e628bd9a3f7f799faabd48a8",
+    "viewer/src/components/systems/GranaryStorage.tsx": "0f7a72843d64117abf3fd1b225575562f3b3df970bc238ba6924fb72c9627c62"
   }
 }
