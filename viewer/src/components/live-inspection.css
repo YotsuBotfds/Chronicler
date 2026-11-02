@@ -1,0 +1,43 @@
+.live-inspection-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 0;
+}
+
+.live-inspection-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.75rem;
+  min-width: 0;
+  font-size: 0.85rem;
+}
+
+.live-inspection-status span {
+  color: var(--text-secondary, #a8abb5);
+}
+
+.live-inspection-controls button {
+  min-height: 2.75rem;
+  padding: 0.5rem 0.85rem;
+  border: 1px solid currentColor;
+  border-radius: 0.4rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.live-inspection-controls .live-inspection-return {
+  color: var(--accent, #efc775);
+  font-weight: 600;
+}
+
+.live-inspection-controls button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
