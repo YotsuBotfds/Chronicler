@@ -4,6 +4,14 @@ import { comparisonSnapshot } from "../../__fixtures__/completedRunHistory";
 import { buildHistoricalSearchIndex, searchHistoricalEntities } from "../historicalSearch";
 
 describe("selected-turn historical search", () => {
+  it("finds an older exact actor observation beyond the latest 200", () => {
+    const bundle = historicalSearchFixture();
+    bundle.history = Array.from({ length: 250 }, (_, i) => comparisonSnapshot(i + 1));
+    bundle.history[0].civ_stats.A.leader_name = "Ancient Unique Actor";
+    const result = searchHistoricalEntities(buildHistoricalSearchIndex(bundle, 250), "Ancient Unique Actor", "actor");
+    expect(result.total).toBe(1);
+    expect(result.items[0]).toMatchObject({ turn: 1, identity: null, sourceRef: "/history/0/civ_stats/A/leader_name" });
+  });
   it("indexes stable identities with first/last observed coverage through selected turn", () => {
     const index = buildHistoricalSearchIndex(historicalSearchFixture(), 3);
     expect(searchHistoricalEntities(index, "Old Realm", "civilization").items[0]).toMatchObject({
@@ -123,15 +131,30 @@ describe("selected-turn historical search", () => {
     expect(searchHistoricalEntities(index, "UNCOINED").total).toBe(0);
   });
 
-  it("bounds actor observations and search output, reporting actual coverage", () => {
+  it("searches all actor observations while bounding output and reporting coverage", () => {
     const bundle = historicalSearchFixture();
     bundle.history = Array.from({ length: 250 }, (_, index) => comparisonSnapshot(index + 1));
     const index = buildHistoricalSearchIndex(bundle, 250);
-    expect(index.items.filter((item) => item.kind === "actor")).toHaveLength(200);
-    expect(index.coverage.join(" ")).toContain("most recent 200 of 750");
+    expect(index.items.filter((item) => item.kind === "actor")).toHaveLength(0);
+    expect(index.coverage.join(" ")).toContain("750 dated observations searchable");
+    expect(searchHistoricalEntities(index, "", "actor").total).toBe(750);
     expect(searchHistoricalEntities(index, "", "actor").items).toHaveLength(30);
     expect(searchHistoricalEntities(index, "", "actor", 500).items).toHaveLength(100);
     expect(searchHistoricalEntities(index, "", "actor", -1).items).toHaveLength(0);
+  });
+
+  it("keeps repeated old names as separate observations and follows the selected turn", () => {
+    const bundle = historicalSearchFixture();
+    bundle.history = Array.from({ length: 1000 }, (_, i) => comparisonSnapshot(i + 1));
+    bundle.history[0].civ_stats.A.leader_name = "Shared Name";
+    bundle.history[1].civ_stats.B.leader_name = "Shared Name";
+    bundle.history[999].civ_stats.A.leader_name = "Shared Name";
+    const old = searchHistoricalEntities(buildHistoricalSearchIndex(bundle, 999), "Shared Name", "actor");
+    expect(old.total).toBe(2);
+    expect(old.items.map((item) => item.turn)).toEqual([2, 1]);
+    expect(old.items.every((item) => item.identity === null && item.aliases.length === 0)).toBe(true);
+    expect(searchHistoricalEntities(buildHistoricalSearchIndex(bundle, 1000), "Shared Name", "actor").total).toBe(3);
+    expect(searchHistoricalEntities(buildHistoricalSearchIndex(bundle, 1), "Shared Name", "actor").total).toBe(1);
   });
 
   it("excludes ambiguous snapshot turns and preserves input order and bytes", () => {

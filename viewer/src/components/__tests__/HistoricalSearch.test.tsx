@@ -1,10 +1,27 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { historicalSearchFixture } from "../../__fixtures__/historicalSearch";
+import { comparisonSnapshot } from "../../__fixtures__/completedRunHistory";
 import { HistoricalSearch } from "../HistoricalSearch";
 
 afterEach(() => vi.useRealTimers());
 describe("historical search controls", () => {
+  it("finds an old actor after many observations and updates on turn changes", () => {
+    vi.useFakeTimers();
+    const bundle = historicalSearchFixture();
+    bundle.history = Array.from({ length: 250 }, (_, i) => comparisonSnapshot(i + 1));
+    bundle.history[0].civ_stats.A.leader_name = "Ancient Unique Actor";
+    bundle.history[249].civ_stats.A.leader_name = "Future Unique Actor";
+    const { rerender } = render(<HistoricalSearch bundle={bundle} currentTurn={250} onInspect={vi.fn()} />);
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "Ancient Unique Actor" } });
+    act(() => vi.advanceTimersByTime(160));
+    expect(screen.getByRole("status")).toHaveTextContent("Showing 1 of 1");
+    expect(screen.getByRole("button", { name: "Inspect: Ancient Unique Actor" })).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "Future Unique Actor" } });
+    act(() => vi.advanceTimersByTime(160));
+    rerender(<HistoricalSearch bundle={bundle} currentTurn={249} onInspect={vi.fn()} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Showing 0 of 0");
+  });
   it("inspects without seeking and makes viewing a recorded turn a separate action", () => {
     const inspect = vi.fn(), seek = vi.fn();
     render(<HistoricalSearch bundle={historicalSearchFixture()} currentTurn={4} onInspect={inspect} onViewRecordedTurn={seek} />);

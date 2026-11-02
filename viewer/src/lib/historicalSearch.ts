@@ -20,6 +20,8 @@ export interface HistoricalSearchIndex {
   through: number;
   items: HistoricalSearchResult[];
   coverage: string[];
+  /** Visit eligible actor observations newest first without retaining result objects. */
+  visitActors?: (visit: (name: string, turn: number, sourceRef: string, role: string, civ: string) => void) => void;
 }
 const pointer = (value: string) => value.replace(/~/g, "~0").replace(/\//g, "~1");
 const dated = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value) && value >= 0;
@@ -41,7 +43,6 @@ export function buildHistoricalSearchIndex(bundle: Bundle, through: number): His
   const regionIndices = indices(bundle.world_state.regions);
   const civIndices = indices(bundle.world_state.civilizations);
   const records = new Map<string, HistoricalSearchResult>();
-  const actors: HistoricalSearchResult[] = [];
   const turns = new Map<number, number>();
   for (const row of bundle.history) if (dated(row.turn) && row.turn <= through) turns.set(row.turn, (turns.get(row.turn) ?? 0) + 1);
   const snapshots = bundle.history.map((row, index) => ({ row, index }))
@@ -86,15 +87,8 @@ export function buildHistoricalSearchIndex(bundle: Bundle, through: number): His
         status: civ.alive === false ? "Fallen in this recorded snapshot." : "Recorded at this snapshot.",
         ...(identity ? { mapEntity: { kind: "civilization" as const, name } }
           : { ambiguity: candidates.length > 1 ? "Repeated civilization name; history cannot identify an array index." : "Legacy name has no recorded stable array identity." }) });
-      const actor = (actorName: unknown, actorSource: string, role: string) => {
-        if (!text(actorName)) return;
-        actorCount += 1;
-        actors.push({ ...observation("actor", actorName, actorSource), status: `${role} observed in ${name} at snapshot ${row.turn}.`,
-          ambiguity: "Person identity unrecorded; repeated names may describe different people. This is one observation, not a life history." });
-        if (actors.length > 200) actors.shift();
-      };
-      actor(civ.leader_name, `${sourceRef}/leader_name`, "Leader");
-      civ.great_persons?.forEach((person, personIndex) => actor(person.name, `${sourceRef}/great_persons/${personIndex}`, text(person.role) ? person.role : "Named actor"));
+      if (text(civ.leader_name)) actorCount += 1;
+      civ.great_persons?.forEach((person) => { if (text(person.name)) actorCount += 1; });
     }
     const datedRows = [
       { namespace: "city" as const, kind: "city" as const, rows: row.cities?.cities ?? [], path: "cities/cities" },
@@ -132,11 +126,27 @@ export function buildHistoricalSearchIndex(bundle: Bundle, through: number): His
     });
   }
   const ambiguousTurns = [...turns.values()].filter((count) => count > 1).length;
-  return { through, items: [...records.values(), ...actors.reverse()], coverage: [
+  const visitActors: NonNullable<HistoricalSearchIndex["visitActors"]> = (visit) => {
+    for (let snapshotIndex = snapshots.length - 1; snapshotIndex >= 0; snapshotIndex--) {
+      const { row, index } = snapshots[snapshotIndex];
+      const civs = Object.entries(row.civ_stats);
+      for (let civIndex = civs.length - 1; civIndex >= 0; civIndex--) {
+        const [name, civ] = civs[civIndex];
+        const source = `/history/${index}/civ_stats/${pointer(name)}`;
+        const people = civ.great_persons ?? [];
+        for (let personIndex = people.length - 1; personIndex >= 0; personIndex--) {
+          const person = people[personIndex];
+          if (text(person.name)) visit(person.name, row.turn, `${source}/great_persons/${personIndex}`, text(person.role) ? person.role : "Named actor", name);
+        }
+        if (text(civ.leader_name)) visit(civ.leader_name, row.turn, `${source}/leader_name`, "Leader", name);
+      }
+    }
+  };
+  return { through, items: [...records.values()], visitActors, coverage: [
     `${snapshots.length} unique recorded snapshots through selected turn ${through}; ${ambiguousTurns} duplicate snapshot turns excluded. Gaps remain unknown.`,
     "First/last recorded means observed through the selected turn, not founded/extinct. Final world values and final actor/institution records are excluded.",
     "Regions and civilizations use world array indices where unambiguous; cities use settlement IDs; learning seats and guilds use their documented world-list IDs.",
-    `Named actors: most recent ${actors.length} of ${actorCount} dated observations. Person IDs are unavailable; observations are not combined into life histories.`,
+    `Named actors: ${actorCount} dated observations searchable through the selected turn. Person IDs are unavailable; observations are not combined into life histories.`,
     "Aliases use dated snapshot names and language word forms only; undated final suffixes, language labels and person names are excluded. No dated alias means alias history is unknown.",
     "Events are not entity identities and are not mined for names. Language form tick T becomes visible at completed snapshot T+1; prehistoric forms are visible from turn 0. Alias dates show this snapshot clock.",
   ] };
@@ -144,7 +154,22 @@ export function buildHistoricalSearchIndex(bundle: Bundle, through: number): His
 
 export function searchHistoricalEntities(index: HistoricalSearchIndex, query: string, kind: HistoricalSearchKind | "all" = "all", limit = 30) {
   const terms = normalize(query).split(/\s+/).filter(Boolean);
-  const matches = index.items.filter((item) => (kind === "all" || item.kind === kind) && terms.every((term) =>
-    normalize([item.name, ...item.aliases.map((alias) => alias.name)].join(" ")).includes(term)));
-  return { items: matches.slice(0, Math.max(0, Math.min(100, limit))), total: matches.length };
+  const cap = Math.max(0, Math.min(100, limit));
+  const items: HistoricalSearchResult[] = [];
+  let total = 0;
+  const matches = (name: string) => terms.every((term) => normalize(name).includes(term));
+  for (const item of index.items) {
+    if ((kind === "all" || item.kind === kind) && matches([item.name, ...item.aliases.map((alias) => alias.name)].join(" "))) {
+      total += 1;
+      if (items.length < cap) items.push(item);
+    }
+  }
+  if (kind === "all" || kind === "actor") index.visitActors?.((name, turn, sourceRef, role, civ) => {
+    if (!matches(name)) return;
+    total += 1;
+    if (items.length < cap) items.push({ kind: "actor", identity: null, name, turn, sourceRef,
+      firstRecordedTurn: turn, lastRecordedTurn: turn, status: `${role} observed in ${civ} at snapshot ${turn}.`, aliases: [],
+      ambiguity: "Person identity unrecorded; repeated names may describe different people. This is one observation, not a life history." });
+  });
+  return { items, total };
 }
