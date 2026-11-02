@@ -1766,6 +1766,19 @@ def _configure_run(args: argparse.Namespace, world: WorldState, fresh_world: boo
     if scholarship is not None:
         from chronicler.scholarship import set_scholarship_enabled
         set_scholarship_enabled(world, scholarship)
+    services_switch = getattr(args, "academy_services", None)
+    if services_switch is True:
+        if agent_mode != "hybrid" or world.scholarship is None or world.techniques is None:
+            raise ValueError("academy services require --agents hybrid, --scholarship and --techniques")
+    if services_switch is not None:
+        from chronicler.learning_services import set_learning_services_enabled
+        set_learning_services_enabled(world, services_switch)
+    services = getattr(getattr(world, "scholarship", None), "learning_services", None)
+    if services is not None and getattr(services, "enabled", True):
+        if agent_mode not in ("hybrid", "off"):
+            raise ValueError("saved academy services require hybrid mode (dormant with agents off)")
+        if agent_mode == "hybrid" and world.techniques is None:
+            raise ValueError("active academy services require techniques; pause services to disable their effect")
     # Public granaries switch (persisted on the world): stock-target grain
     # procurement and reserves. They move goods-economy stocks, so an explicit
     # --grain-reserves needs an agent mode; a saved setting is dormant under
@@ -1940,6 +1953,8 @@ def _configure_run(args: argparse.Namespace, world: WorldState, fresh_world: boo
         run_config["simulation_args"]["grain_storage_work_budget"] = next(iter(budgets)) if len(budgets) == 1 else None
     if getattr(world, "household_mobility_liquid_requirement", None):
         run_config["simulation_args"]["household_mobility_liquid_requirement"] = world.household_mobility_liquid_requirement
+    if services is not None:
+        run_config["simulation_args"]["academy_services"] = services.enabled
     if world.scientific_claims is not None and world.scientific_claims.research_agendas is not None:
         run_config["simulation_args"]["scientific_research_agendas"] = world.scientific_claims.research_agendas.enabled
     if decision_ablation is not None:
@@ -2228,6 +2243,9 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--household-mobility-liquid-requirement", type=float, default=None,
                         help="Opt-in hybrid migration eligibility: native adult liquid wealth required per moving "
                              "person, 0–1000; zero disables. No wealth is spent and passage is not a completed move.")
+    parser.add_argument("--academy-services", action=argparse.BooleanOptionalAction, default=None,
+                        help="Default-off hybrid academy teaching: buys real supplies for next-turn native "
+                             "Scholar work; requires scholarship and techniques. Disabling pauses and retains supplies.")
     parser.add_argument("--public-grain-shipments", action=argparse.BooleanOptionalAction, default=None,
                         help="Default-off public grain: foreign direct-neighbor orders arrive next Phase10, "
                              "after its opening; requires --grain-reserves and agents. Disabling drains paid cargo.")
@@ -2473,6 +2491,16 @@ def _adopt_checkpoint_args(parser: argparse.ArgumentParser, args: argparse.Names
         conflicts.append("--household-mobility-liquid-requirement conflicts with the checkpoint; use a declared state fork")
     elif mobility:
         args.household_mobility_liquid_requirement = mobility
+    services = getattr(getattr(state.world, "scholarship", None), "learning_services", None)
+    effective_services = services is not None and services.enabled
+    given_services = getattr(args, "academy_services", None)
+    recorded_services = saved.pop("academy_services", effective_services)
+    if recorded_services != effective_services:
+        conflicts.append("checkpoint academy service switch conflicts with its retained state")
+    if given_services is not None and given_services != effective_services:
+        conflicts.append("--academy-services conflicts with the checkpoint; use a declared state fork")
+    elif services is not None:
+        args.academy_services = effective_services
     for key, value in saved.items():
         if key in _RESUME_FREE_ARGS:
             continue

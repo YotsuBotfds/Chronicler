@@ -146,6 +146,11 @@ def set_scholarship_enabled(world: "WorldState", enabled: bool) -> None:
         if world.scholarship is None:
             world.scholarship = ScholarshipState()
         return
+    if getattr(getattr(world, "scholarship", None), "learning_services", None) is not None:
+        from chronicler.learning_services import learning_inventory_totals
+        totals = learning_inventory_totals(world)
+        if totals["held"] is None or totals["held"] > 0:
+            raise ValueError("cannot discard paid or unknown academy supplies; pause academy services instead")
     world.scholarship = None
 
 
@@ -1020,11 +1025,15 @@ def snapshot_summary(world: "WorldState") -> dict:
         if s.unpaid:
             row["unpaid"] = s.unpaid
         seats.append(row)
-    return {
+    result = {
         "seats": seats,
         "fallen": sum(1 for s in state.seats if s.fallen_turn is not None),
         "counters": {k: state.counters.get(k, 0) for k in COUNTER_KEYS},
     }
+    if getattr(state, "learning_services", None) is not None:
+        from chronicler.learning_services import learning_services_snapshot
+        result["learning_services"] = learning_services_snapshot(world)
+    return result
 
 
 def seat_history(world: "WorldState", index: int) -> list[str]:

@@ -2259,6 +2259,47 @@ def run_turn_result(
     conquered_dict = {i: True for i in artifacts.conquered_civ_ids}
     death_output = []
 
+    # The academy candidate reserves Scholar work immediately before its real
+    # native wealth phase. Counts captured at Phase 2 are request upper bounds;
+    # current native eligibility and stable identities determine actual work.
+    tick_agents = agent_bridge.tick_agents if agent_bridge is not None else None
+    _learning_state = getattr(getattr(world, "scholarship", None), "learning_services", None)
+    if (_learning_state is not None and getattr(_learning_state, "enabled", True)
+            and world.agent_mode == "hybrid" and agent_bridge is not None):
+        from chronicler.learning_services import (
+            learning_counts_from_snapshot, prepare_learning_work,
+            finish_learning_work, cancel_learning_work, learning_work_pending,
+        )
+        sim = agent_bridge._sim
+        if not all(callable(getattr(sim, name, None)) for name in (
+                "prepare_teaching_work", "has_pending_teaching_work",
+                "cancel_teaching_work", "get_teaching_work_result")):
+            raise RuntimeError("academy services require a fresh native build with teaching work")
+        _ordinary_agent_tick = tick_agents
+
+        def tick_agents(*args, **kwargs):
+            counts = learning_counts_from_snapshot(snapshot, world.turn, len(world.regions))
+            requests, plan = prepare_learning_work(world, counts)
+            native_prepared = False
+            try:
+                if any(requests):
+                    armies = getattr(getattr(world, "war_state", None), "armies", [])
+                    enlisted = sorted({int(aid) for army in armies for aid, _ in army.roster})
+                    sim.prepare_teaching_work(world.turn, list(requests), enlisted)
+                    native_prepared = True
+                events = _ordinary_agent_tick(*args, **kwargs)
+                native_result = sim.get_teaching_work_result() if native_prepared else None
+                finish_learning_work(world, plan, native_result)
+                return events
+            except BaseException:
+                # A failed kernel is not rolled back. Release only a reservation
+                # that remains pending; the prior completed checkpoint is safe.
+                if sim.has_pending_teaching_work():
+                    sim.cancel_teaching_work(world.turn)
+                if learning_work_pending(world):
+                    cancel_learning_work(world, plan)
+                raise
+
     # Apply accumulated stat mutations and route agent signals
     if world.agent_mode == "hybrid" and agent_bridge is not None:
         acc.apply_keep(world)  # Apply treasury, prestige (asabiya now regional, M55b)
@@ -2273,7 +2314,7 @@ def run_turn_result(
         for ds in demands:
             agent_bridge._demand_manager.add(ds)
         # Run agent tick via split bridge (no second set_region_state)
-        _emit(agent_bridge.tick_agents(
+        _emit(tick_agents(
             world, shocks=shocks, demands=demand_shifts, conquered=conquered_dict,
             death_output=death_output,
         ))
@@ -2282,7 +2323,7 @@ def run_turn_result(
         # match hybrid mode's stat application, making comparison fair.
         # "guard" mutations are intentionally skipped — agents produce them.
         acc.apply_keep(world)
-        _emit(agent_bridge.tick_agents(
+        _emit(tick_agents(
             world, conquered=conquered_dict, death_output=death_output,
         ))
     else:
@@ -2426,10 +2467,21 @@ def run_turn_result(
     # after cities and guilds of this turn, before the Phase 10 flush below.
     if _scholarship_on(world):
         from chronicler.scholarship import tick_scholarship
+        _learning_state = getattr(world.scholarship, "learning_services", None)
+        service_upkeep = {} if _learning_state is not None else None
+        _service_kwargs = {"service_upkeep": service_upkeep} if service_upkeep is not None else {}
         _emit(tick_scholarship(
             world, world.events_timeline[_hazard_timeline_start:] + turn_events[_pre_phase10_count:],
             acc=phase10_acc, phase10=artifacts.phase10, agent_bridge=agent_bridge,
+            **_service_kwargs,
         ))
+        if _learning_state is not None:
+            from chronicler.learning_services import reconcile_learning_assets, procure_learning_supplies
+            reconcile_learning_assets(world)
+            if getattr(_learning_state, "enabled", True) and world.agent_mode == "hybrid" and agent_bridge is not None:
+                from chronicler.mutual_aid import read_stockpile_commitments
+                procure_learning_supplies(world, artifacts.phase10, service_upkeep,
+                    commitments=read_stockpile_commitments(world, agent_bridge._sim), acc=phase10_acc)
 
     # Public granaries (--grain-reserves): this turn's harvests and targets,
     # purchases toward them from real surplus; after the merchants planned
