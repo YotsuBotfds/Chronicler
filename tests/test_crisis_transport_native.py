@@ -456,3 +456,165 @@ def test_controller_return_and_mobility_share_one_bounded_receipt_frame():
     assert dropped >= unwinds - 1
     assert not world.transaction_receipts.complete
     assert world.transaction_receipts.dropped_rows == dropped
+
+
+@pytest.fixture
+def _combined_seed():
+    state = random.getstate()
+    random.seed(42)
+    yield
+    random.setstate(state)
+
+
+def test_private_commitments_compete_with_paid_public_grain_and_both_feed_shortage(
+        monkeypatch, _combined_seed):
+    """One real market: reserved private cargo and paid public cargo stay distinct."""
+    import importlib.machinery
+    import math
+    native = pytest.importorskip("chronicler_agents.chronicler_agents")
+    assert any(native.__file__.endswith(s) for s in importlib.machinery.EXTENSION_SUFFIXES)
+    from chronicler import grain_reserves as G, public_grain_shipments as S
+    from chronicler.agent_bridge import AgentBridge
+    from chronicler.finance import _projections
+    from chronicler.grain_reserves_state import ARRIVED, BOUGHT, RELEASED, SPOILED
+    from chronicler.models import Disposition
+    from chronicler.mutual_aid import read_stockpile_commitments
+    from chronicler.transaction_receipts import set_transaction_receipts_enabled
+    from chronicler.world_gen import generate_world
+
+    monkeypatch.setenv("CHRONICLER_CHECK_RESOURCES", "1")
+    world = generate_world(seed=42, num_regions=3, num_civs=2)
+    world.agent_mode = "hybrid"
+    seller, buyer = world.civilizations
+    seller.regions = [world.regions[0].name, world.regions[1].name]
+    buyer.regions = [world.regions[2].name]
+    seller.capital_region, buyer.capital_region = seller.regions[0], buyer.regions[0]
+    for civ in world.civilizations:
+        civ.treasury = 500
+    for i, region in enumerate(world.regions):
+        region.controller = (seller if i < 2 else buyer).name
+        region.population = (400, 100, 400)[i]
+        region.carrying_capacity = 400
+        region.stockpile.goods = {"grain": (2000.0, 600.0, 0.0)[i]}
+        region.adjacencies = [world.regions[j].name for j in ((1,), (0, 2), (1,))[i]]
+        region.route_suspensions.clear()
+        region.resource_types = [0, 255, 255] if i != 2 else [255, 255, 255]
+        region.resource_base_yields = [1.0, 0.0, 0.0] if i != 2 else [0.0, 0.0, 0.0]
+    for civ in world.civilizations:
+        civ.population = sum(r.population for r in world.regions if r.controller == civ.name)
+    for relationships in world.relationships.values():
+        for relation in relationships.values():
+            relation.disposition = Disposition.NEUTRAL
+    G.set_grain_reserves_enabled(world, True)
+    state = G._ensure(world)
+    for i, granary in enumerate(state.granaries):
+        granary.owner = 0 if i < 2 else 1
+        granary.observed, granary.harvest_mean, granary.harvest_sq = 12, .5, .5
+        # Finite opening public stocks stop domestic procurement exhausting
+        # the foreign offer; they do not enter the seller's market stock.
+        granary.grain = 5000.0 if i < 2 else 0.0
+    S.set_public_grain_shipments_enabled(world, True)
+    set_transaction_receipts_enabled(world, True)
+    bridge = AgentBridge(world, mode="hybrid")
+    assert type(bridge._sim) is native.AgentSimulator
+    dispatches, arrivals = [], []
+    original_dispatch, original_arrivals = S.dispatch_order, S.settle_arrivals
+
+    def observe_dispatch(candidate, **kwargs):
+        source, dest = kwargs["source"], kwargs["dest"]
+        stock = candidate.regions[source].stockpile.goods["grain"]
+        committed = read_stockpile_commitments(candidate, bridge._sim)[candidate.regions[source].name]["grain"]
+        projection = _projections(candidate, kwargs["acc"])
+        old_surplus = kwargs["surplus"][source]
+        budget = kwargs["budget"][kwargs["buyer"]]
+        inbound = kwargs["inbound"][dest]
+        target = state.granaries[dest].target - state.granaries[dest].grain - inbound
+        economy = bridge._economy_result
+        demand = economy.market_demand[candidate.regions[source].name][0]
+        price = G._food_price(economy, candidate.regions[source].name)
+        result = original_dispatch(candidate, **kwargs)
+        if result is not None:
+            order = state.shipments.pending[-1]
+            dispatches.append({"order": order.model_copy(deep=True), "stock": stock,
+                "committed": committed, "surplus": old_surplus, "budget": budget,
+                "target": target, "demand": demand, "price": price,
+                "market_after": candidate.regions[source].stockpile.goods["grain"],
+                "money_before": projection, "money_after": _projections(candidate, kwargs["acc"])})
+        return result
+
+    def observe_arrivals(candidate):
+        before_money = tuple(c.treasury for c in candidate.civilizations)
+        before_grain = state.granaries[2].grain
+        result = original_arrivals(candidate)
+        frame = state.shipments.frame
+        for transition in frame:
+            if transition.operation == "arrived" and transition.turn == candidate.turn:
+                arrivals.append((transition.model_copy(deep=True), before_grain,
+                                 state.granaries[2].grain, before_money,
+                                 tuple(c.treasury for c in candidate.civilizations)))
+        return result
+
+    monkeypatch.setattr(S, "dispatch_order", observe_dispatch)
+    monkeypatch.setattr(S, "settle_arrivals", observe_arrivals)
+    _, first = _advance(world, bridge)
+    private = [r for r in _rows(first, "reserved") if
+               (r.origin_region, r.dest_region, r.good_slot) == (1, 2, 0)]
+    assert private and all(r.cargo_basis == "regional_stock" for r in private)
+    assert len(dispatches) == 1 and len(state.shipments.pending) == 1, "real foreign order required"
+    d = dispatches[0]
+    order = d["order"]
+    assert (order.source, order.dest, order.seller, order.buyer) == (1, 2, 0, 1)
+    assert order.paid > 0 and order.sent > 0 and order.net == pytest.approx(order.sent * .95)
+    assert d["committed"] == pytest.approx(sum(r.quantity for r in private))
+    assert d["committed"] > 0
+    assert d["stock"] - d["market_after"] == pytest.approx(order.sent)
+    assert order.sent <= d["surplus"] <= d["stock"] - d["committed"]
+    assert d["surplus"] == pytest.approx(max(0.0, d["stock"] - d["committed"] - G.KEEP_TURNS * d["demand"]))
+    assert d["money_after"][1] == d["money_before"][1] - order.paid
+    assert d["money_after"][0] == d["money_before"][0] + order.paid
+    # An explicit local arithmetic counterfactual at the observed dispatch
+    # boundary isolates the public constraint due to the private commitment.
+    # It is not another simulated arm or a prediction of a future outcome.
+    uncommitted_surplus = max(0.0, d["stock"] - G.KEEP_TURNS * d["demand"])
+    want = d["target"] / .95
+    no_commitment_cost = min(d["budget"], math.floor(min(uncommitted_surplus, want) * d["price"] + G.EPS))
+    assert no_commitment_cost > order.paid
+    assert state.granaries[2].grain == 0, "pending public cargo is not yet granary stock"
+    assert not _rows(first, "arrived")
+
+    # Public delivery is next Phase 10; the direct private cargo also arrives
+    # this mobility tick but becomes a market import only in the next Phase 2.
+    _, second = _advance(world, bridge)
+    assert len(arrivals) == 1 and arrivals[0][0].order == order.order
+    assert arrivals[0][1] == 0 and arrivals[0][2] == pytest.approx(order.net)
+    assert arrivals[0][3] == arrivals[0][4], "arrival must not make a second payment"
+    assert state.shipments.pending == []
+    private_arrivals = [r for r in _rows(second, "arrived") if
+                        (r.origin_region, r.dest_region, r.good_slot) == (1, 2, 0)]
+    departed = [r for r in _rows(second, "departed") if
+                (r.origin_region, r.dest_region, r.good_slot) == (1, 2, 0)]
+    assert private_arrivals and sum(r.quantity for r in departed) == pytest.approx(sum(r.quantity for r in private_arrivals))
+    private_raw = sum(r.quantity for r in private_arrivals)
+    public_before = state.granaries[2].grain
+    _, _ = _advance(world, bridge)
+    assert bridge._economy_result.imports_by_region[world.regions[2].name]["food"] >= private_raw * .95 - 2e-4
+    assert not any(f.kind == RELEASED and f.region == 2 for f in state.flows)
+    assert state.granaries[2].grain == pytest.approx(public_before * .97)
+
+    # Observe the real later public release, without adding it to private imports.
+    seen_release = None
+    for _ in range(4):
+        before = state.granaries[2].grain
+        _advance(world, bridge)
+        flows = [f for f in state.flows if f.region == 2]
+        assert not any(f.kind in (ARRIVED, BOUGHT) for f in flows)
+        released = sum(f.amount for f in flows if f.kind == RELEASED)
+        spoiled = sum(f.amount for f in flows if f.kind == SPOILED)
+        assert state.granaries[2].grain == pytest.approx(before - released - spoiled)
+        if released:
+            seen_release = next(f for f in flows if f.kind == RELEASED)
+            break
+    assert seen_release is not None and seen_release.amount > 0
+    assert seen_release.before < seen_release.after <= 1
+    demand = bridge._economy_result.market_demand[world.regions[2].name][0]
+    assert seen_release.after - seen_release.before == pytest.approx(seen_release.amount / demand)
