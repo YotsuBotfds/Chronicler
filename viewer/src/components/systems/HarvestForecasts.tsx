@@ -3,6 +3,8 @@ import { forecastTotals, harvestForecastSeries } from "../../lib/harvestForecast
 import { hasObservation, observationAt } from "../../lib/observedSystems";
 import type { SystemPanelProps } from "../../lib/systems";
 import { CivLineChart, StatTile } from "./SystemParts";
+import { ForecastDecisions } from "./ForecastDecisions";
+import { ForecastConstruction } from "./ForecastConstruction";
 
 const show = (value: number) => value.toLocaleString(undefined, { maximumFractionDigits: 2 });
 const percent = (value: number) => `${show(value * 100)}%`;
@@ -10,7 +12,7 @@ const COLORS: Record<string, string> = { Pending: "#7d8a96", Delivered: "#5aa88f
   "Extra stock target": "#e8b84a", "Bought while warned": "#5a8fd9", "Paid while warned": "#b07ad9" };
 
 /** Delayed information, its measured winter outcome, and actual purchases under warning. */
-export function HarvestForecasts({ bundle, snapshot, currentTurn, onSelectRegion, onSelectCivilization }: SystemPanelProps) {
+export function HarvestForecasts({ bundle, snapshot, currentTurn, onSelectRegion, onSelectCivilization, onSelectEvent }: SystemPanelProps) {
   const record = observationAt(snapshot, "harvest_forecasts");
   const at = snapshot?.turn ?? currentTurn;
   const series = useMemo(() => harvestForecastSeries(bundle.history, at), [bundle.history, at]);
@@ -38,12 +40,14 @@ export function HarvestForecasts({ bundle, snapshot, currentTurn, onSelectRegion
       <CivLineChart data={series} civs={["Extra stock target", "Bought while warned"]} color={(name) => COLORS[name]}
         currentTurn={at} label="Recorded preparedness target and purchases" format={show} step />
     </div>
+    <ForecastDecisions bundle={bundle} snapshot={snapshot} currentTurn={currentTurn} onSelectRegion={onSelectRegion}
+      onSelectCivilization={onSelectCivilization} onSelectEvent={onSelectEvent} />
     <h4>Active assessments</h4>
     {reports.length === 0 ? <p className="systems-note">No active report recorded in this snapshot.</p> :
-      <div className="systems-table-wrap"><table className="systems-table" aria-label={`Harvest reports at snapshot ${at}`}>
+      <div className="systems-table-wrap" role="region" aria-label="Scroll harvest reports" tabIndex={0}><table className="systems-table" aria-label={`Harvest reports at snapshot ${at}`}>
         <thead><tr><th>Report</th><th>Recipient</th><th>Ruler at issue</th><th>Observer</th><th>Status</th><th>Issued</th><th>Planned / actual delivery</th><th>Expires</th><th>Winter window</th><th>Shortfall risk</th><th>Confidence</th><th>Predicted production ÷ demand</th></tr></thead>
         <tbody>{reports.map((row) => <tr key={row.id}>
-          <td>{row.id}</td><td><button type="button" className="systems-link" onClick={() => onSelectRegion(row.recipient_region_name)}>{row.recipient_region_name}</button></td>
+          <td>{row.id}{snapshot?.turn === currentTurn && <ForecastConstruction report={row} sourceTurn={record.source_turn} regions={bundle.world_state.regions ?? []} />}</td><td><button type="button" className="systems-link" onClick={() => onSelectRegion(row.recipient_region_name)}>{row.recipient_region_name}</button></td>
           <td><button type="button" className="systems-link" onClick={() => onSelectCivilization(row.owner_name)}>{row.owner_name}</button></td>
           <td>{row.source_region_name}</td><td>{row.status}</td><td>{row.issued_turn}</td>
           <td>{row.delivery_turn} / {row.delivered_turn ?? "Not delivered"}</td><td>{row.expires_turn}</td><td>{row.target_start}–{row.target_end}</td>
@@ -63,9 +67,9 @@ export function HarvestForecasts({ bundle, snapshot, currentTurn, onSelectRegion
     <p className="systems-note">Purchases and payments are actual completed-turn flows during an active warning. They are not estimated extra purchases or losses avoided by the report. Treasury units and grain units stay separate.</p>
     <h4>Resolved assessments retained by this snapshot</h4>
     {outcomes.length === 0 ? <p className="systems-note">No resolved assessment retained yet.</p> :
-      <div className="systems-table-wrap"><table className="systems-table" aria-label={`Harvest outcomes at snapshot ${at}`}>
+      <div className="systems-table-wrap" role="region" aria-label="Scroll harvest outcomes" tabIndex={0}><table className="systems-table" aria-label={`Harvest outcomes at snapshot ${at}`}>
         <thead><tr><th>Report</th><th>Region</th><th>Status</th><th>Resolved</th><th>Original risk</th><th>Observed production ÷ demand</th><th>Shortfall</th><th>Brier score</th></tr></thead>
-        <tbody>{outcomes.map((row) => <tr key={row.id}><td>{row.id}</td><td>{row.recipient_region_name}</td><td>{row.status}</td>
+        <tbody>{outcomes.map((row) => <tr key={row.id}><td>{row.id}{snapshot?.turn === currentTurn && <ForecastConstruction report={row} sourceTurn={record.source_turn} regions={bundle.world_state.regions ?? []} />}</td><td>{row.recipient_region_name}</td><td>{row.status}</td>
           <td>{row.resolved_turn}</td><td>{percent(row.probability)}</td><td>{row.observed_ratio == null ? "Unscored" : show(row.observed_ratio)}</td>
           <td>{row.outcome_shortfall == null ? "Unknown" : row.outcome_shortfall ? "Yes" : "No"}</td><td>{row.brier == null ? "Unscored" : show(row.brier)}</td>
         </tr>)}</tbody>

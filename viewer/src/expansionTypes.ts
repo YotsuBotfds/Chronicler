@@ -28,6 +28,27 @@ export interface HealthCareSnapshot {
   regions: HealthCareRegion[];
 }
 
+export interface HarvestEstimatorMetadata {
+  schema_version: 1; issued_turn: number; reported_issuer_region: number; estimate_origin_region: number;
+  policy: "normal" | "withhold" | "shuffle"; preparation_policy: "fixed" | "local_credibility";
+  base_delivery_lag: number; extra_delivery_delay: number; observations: Array<[number, number]>; observation_window: 6;
+  season_multiplier: number; shortfall_ratio: number; noise_draw: number;
+  claimed_probability: number; claimed_confidence: number; claimed_predicted_ratio: number;
+}
+export interface KnownHarvestReport {
+  id: string; source_region: number; recipient_region: number; issued_turn: number; planned_delivery_turn: number;
+  delivered_turn: number; expires_turn: number; probability: number; confidence: number; predicted_ratio: number;
+  target_start: number; target_end: number; issued_event_id: string; delivered_event_id: string;
+}
+export interface HarvestProcurementDecisions {
+  schema_version: 1; source_turn: number; available_turn: number; mode: string;
+  goods_units: "model_food_goods"; currency_units: "model_treasury_coins";
+  rows: Array<{ turn: number; decision: { region: number; owner: number; controller: number | null;
+    reports: KnownHarvestReport[]; target_before: number | null; requested_target: number; feasible_target: number;
+    granary_stock: number; food_demand: number | null; pending_inbound: number | null; opening_budget: number };
+    purchased_grain: number; committed_grain: number; paid: number; attempted: null }>;
+}
+
 export interface HarvestForecastReport {
   id: string;
   source_region: number;
@@ -52,6 +73,7 @@ export interface HarvestForecastReport {
   brier: number | null;
   issued_event_id?: string;
   delivered_event_id?: string;
+  estimator_metadata?: HarvestEstimatorMetadata;
 }
 
 export interface HarvestPreparedness {
@@ -69,6 +91,7 @@ export interface HarvestPreparedness {
 
 export interface HarvestForecastSnapshot {
   source_turn: number;
+  procurement_decisions?: HarvestProcurementDecisions;
   reports: HarvestForecastReport[];
   outcomes: HarvestForecastReport[];
   preparedness: HarvestPreparedness[];
