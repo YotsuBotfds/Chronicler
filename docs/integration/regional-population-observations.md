@@ -169,3 +169,36 @@ the actual c04 SHA corrected the assertion before the reported passing checks.
 Full fresh CI, all Rust tests, the full exact-checkpoint matrix and scientific
 qualification were not run for this observation-only change. Native reuse is
 qualified here by matching build inputs and binary identity, not a fresh build.
+
+
+## Frozen performance witness compatibility
+
+Fresh CI [41372982015](https://github.com/YotsuBotfds/Chronicler/actions/runs/41372982015)
+at combined source `612e67bb` first exposed a frozen snapshot-hash mismatch in
+`test_corrected_baseline_all_turns_and_rng[single]`. Its first snapshot hash
+changed from `8b19493b…` to `9d6b9fa2…` because the test hashed the new exported
+`regional_population` field alongside the older fields. An isolated reproduction
+recovered every original single-workload turn hash by removing only that field;
+the complete RNG trace already matched. No runtime-private state difference was
+involved.
+
+The correction is confined to the test's historical snapshot projection and
+this note. Before projection it checks the complete known version-1 field shape,
+count/source arrays and observation epochs; null, boolean, future or malformed
+versions refuse. It removes only the top-level `regional_population` export in
+both the ordinary workload and duplicate-name witnesses. Every pre-existing
+snapshot field, event, narrative, numeric precision and ordered RNG assertion
+remains pinned by the unchanged fixtures. Mutation regressions require all other
+snapshot fields, nested ecology/food values and unrelated future fields to remain
+visible to the exact hash. The real version-1 producer remains independently
+tested. No simulation source, default, historical fixture or golden hash was
+changed.
+
+The actual offline guard passes **121 tests** across the complete performance
+witness file and independent population producer tests: all three golden
+workloads and the duplicate-name trace pass, with zero native imports/attempts
+or blocked IO. The three existing real-native read-only observation cases also
+pass with the same verified binary. Evidence is external at
+`/workspace/shared/chronicler-regional-performance-witness-20261102`, including
+the original reproduction, guarded receipt/log and native log. This focused
+correction does not claim a fresh full CI, build or scientific gate.

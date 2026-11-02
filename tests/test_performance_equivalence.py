@@ -20,9 +20,12 @@ file's provenance lists only its own corrections and the scoped-difference
 proof below pins exactly what each link changed.
 The older fixtures and the edf7299 artifacts remain frozen as historical
 evidence.
-Every turn's complete snapshot/events/narrative and ordered RNG primitives are
-checked; no approximate float comparisons or relaxed precision are used.
+Every turn's pre-existing snapshot/events/narrative and ordered RNG primitives are
+checked; only the independently tested version-1 regional observation export is
+projected out of these older frozen snapshot witnesses. No approximate float
+comparisons or relaxed precision are used.
 """
+from copy import deepcopy
 import hashlib
 from chronicler.turn_artifacts import TurnObservation, TurnResult
 import json
@@ -58,6 +61,61 @@ ORACLE_CHAIN = {"backlog": (PRIOR_BASELINE, BACKLOG_BASELINE),
 PERCEPTIONS = json.loads((FIXTURES / "perception_edf7299.json").read_text())
 
 
+def _frozen_snapshot(snapshot):
+    """Project only the independently tested v1 regional observation export.
+
+    The historical fixtures still pin every pre-existing snapshot field. Refuse
+    unknown/malformed additions so a future export contract needs explicit
+    review instead of silently disappearing behind this frozen witness.
+    """
+    fields = snapshot.model_dump(mode="json")
+    if "regional_population" not in fields:
+        return fields
+    value = fields["regional_population"]
+    assert type(value) is dict and set(value) == {
+        "schema_version", "mode", "source_turn", "completed_turn", "timing",
+        "counts", "sources", "agent_counts", "agent_source", "food_weights"}
+    assert type(value["schema_version"]) is int and value["schema_version"] == 1
+    assert type(value["mode"]) is str and value["mode"] in {"off", "hybrid", "shadow", "demographics-only"}
+    assert type(value["source_turn"]) is int and value["source_turn"] >= 0
+    assert type(value["completed_turn"]) is int
+    assert value["completed_turn"] == value["source_turn"] + 1 == fields["turn"]
+    assert value["timing"] == "completed_turn"
+    counts = value["counts"]
+    assert type(counts) is list
+    size = len(counts)
+
+    def valid_counts(values):
+        return (type(values) is list and len(values) == size
+                and all(type(item) is int and item >= 0 for item in values))
+
+    assert valid_counts(counts)
+    sources = value["sources"]
+    allowed = ({"demographics_clamped_region_state", "uncontrolled_region_state"}
+               if value["mode"] == "demographics-only" else
+               {"hybrid_region_state" if value["mode"] == "hybrid" else "python_region_state"})
+    assert type(sources) is list and len(sources) == size
+    assert all(type(source) is str and source in allowed for source in sources)
+    if value["agent_counts"] is None:
+        assert value["agent_source"] is None
+    else:
+        assert value["mode"] != "off"
+        assert valid_counts(value["agent_counts"])
+        assert value["agent_source"] == "native_region_alive_count"
+    food = value["food_weights"]
+    if food is not None:
+        assert value["mode"] != "off"
+        assert type(food) is dict and set(food) == {
+            "source", "source_turn", "timing", "counts", "controller_ids"}
+        assert food["source"] == "phase2_agent_pool" and food["timing"] == "phase2_entry"
+        assert type(food["source_turn"]) is int and food["source_turn"] == value["source_turn"]
+        assert valid_counts(food["counts"])
+        assert type(food["controller_ids"]) is list and len(food["controller_ids"]) == size
+        assert all(item is None or type(item) is int and item >= 0 for item in food["controller_ids"])
+    fields.pop("regional_population")
+    return fields
+
+
 def _run_workload(spec, tmp_path, monkeypatch):
     # Fix the lane even in environments where the optional Rust extension exists.
     monkeypatch.setattr("chronicler.main._create_ecology_runtime", lambda world: None)
@@ -68,7 +126,7 @@ def _run_workload(spec, tmp_path, monkeypatch):
     turns = []
 
     def capture(snapshot, text, events, named):
-        data = [snapshot.model_dump(mode="json"), text,
+        data = [_frozen_snapshot(snapshot), text,
                 [legacy_event_dump(event) for event in events],
                 [event.model_dump(mode="json") for event in named]]
         turns.append(hashlib.sha256(json.dumps(data, ensure_ascii=False,
@@ -85,6 +143,85 @@ def test_corrected_baseline_all_turns_and_rng(name, tmp_path, monkeypatch):
     turns, trace = _run_workload(expected["spec"], tmp_path, monkeypatch)
     assert turns == expected["turn_sha256"]
     assert trace == expected["rng"]
+
+
+def _projection_case(make_world):
+    from chronicler.models import TurnSnapshot
+    from chronicler.regional_population import snapshot_fields
+
+    world = make_world()
+    world.agent_mode = "off"
+    world.turn = 1
+    world.regions[0].population, world.regions[1].population = 11, 17
+    snapshot = TurnSnapshot(turn=1, civ_stats={}, region_control={"R0": "Civ0"},
+                            relationships={}, ecology={"R0": {"soil": 0.4}},
+                            food={"sufficiency": [1.0, None], "aid": []},
+                            **snapshot_fields(world, None, TurnObservation(0, 1, None)))
+    return snapshot.model_dump(mode="json")
+
+
+def _snapshot_double(fields):
+    return SimpleNamespace(model_dump=lambda **kwargs: deepcopy(fields))
+
+
+def test_frozen_projection_retains_every_other_snapshot_field(make_world):
+    fields = _projection_case(make_world)
+    original = deepcopy(fields)
+    # This is a real v1 producer observation, not a made-up empty dictionary.
+    assert fields["regional_population"]["counts"] == [11, 17]
+    assert fields["regional_population"]["sources"] == ["python_region_state"] * 2
+    legacy = {key: value for key, value in fields.items() if key != "regional_population"}
+    expected = _frozen_snapshot(_snapshot_double(fields))
+    assert expected == legacy and fields == original
+    assert _frozen_snapshot(_snapshot_double(legacy)) == legacy
+    digest = lambda row: hashlib.sha256(json.dumps(row, ensure_ascii=False,
+                                                  separators=(",", ":")).encode()).hexdigest()
+    for key in legacy:
+        changed = deepcopy(fields)
+        # Every retained field stays in the exact hash, including empty tables,
+        # ordering, numeric values and nested ecology/food observations.
+        changed[key] = {"changed_pre_existing_field": changed[key]}
+        if key == "turn":
+            with pytest.raises(AssertionError):
+                _frozen_snapshot(_snapshot_double(changed))
+        else:
+            assert digest(_frozen_snapshot(_snapshot_double(changed))) != digest(expected), key
+    for key, replacement in (("ecology", {"R0": {"soil": 0.4000000000000001}}),
+                             ("food", {"sufficiency": [0.99, None], "aid": []})):
+        changed = deepcopy(fields); changed[key] = replacement
+        assert digest(_frozen_snapshot(_snapshot_double(changed))) != digest(expected)
+    changed = deepcopy(fields); changed["future_retained_export"] = 1
+    assert digest(_frozen_snapshot(_snapshot_double(changed))) != digest(expected)
+
+
+@pytest.mark.parametrize("version", [None, False, True, 2, "1", 1.0])
+def test_frozen_projection_refuses_unreviewed_regional_versions(make_world, version):
+    fields = _projection_case(make_world)
+    fields["regional_population"]["schema_version"] = version
+    with pytest.raises(AssertionError):
+        _frozen_snapshot(_snapshot_double(fields))
+
+
+@pytest.mark.parametrize("malformation", ["null", "missing_key", "extra_key", "counts_bool",
+    "counts_negative", "counts_float", "sources_length", "unknown_source", "unknown_mode",
+    "agent_unpaired", "food_shape", "wrong_epoch"])
+def test_frozen_projection_refuses_malformed_regional_shape(make_world, malformation):
+    fields = _projection_case(make_world)
+    value = fields["regional_population"]
+    if malformation == "null": fields["regional_population"] = None
+    elif malformation == "missing_key": value.pop("counts")
+    elif malformation == "extra_key": value["unreviewed"] = 1
+    elif malformation == "counts_bool": value["counts"][0] = True
+    elif malformation == "counts_negative": value["counts"][0] = -1
+    elif malformation == "counts_float": value["counts"][0] = 11.0
+    elif malformation == "sources_length": value["sources"].pop()
+    elif malformation == "unknown_source": value["sources"][0] = "estimated_from_civ"
+    elif malformation == "unknown_mode": value["mode"] = "estimated"
+    elif malformation == "agent_unpaired": value["agent_source"] = "native_region_alive_count"
+    elif malformation == "food_shape": value["food_weights"] = {}
+    elif malformation == "wrong_epoch": value["completed_turn"] = 2
+    with pytest.raises(AssertionError):
+        _frozen_snapshot(_snapshot_double(fields))
 
 
 @pytest.mark.parametrize("link", ORACLE_CHAIN)
@@ -217,7 +354,7 @@ def test_duplicate_names_preserve_discarded_rng_draws(tmp_path, monkeypatch):
     turns = []
 
     def capture(snapshot, text, events, named):
-        data = [snapshot.model_dump(mode="json"), text,
+        data = [_frozen_snapshot(snapshot), text,
                 [event.model_dump(mode="json") for event in events],
                 [event.model_dump(mode="json") for event in named]]
         turns.append(hashlib.sha256(json.dumps(data, ensure_ascii=False,
