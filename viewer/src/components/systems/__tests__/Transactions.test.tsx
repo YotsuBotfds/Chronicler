@@ -47,6 +47,18 @@ describe("recorded Transactions inspector", () => {
     expect(screen.getByRole("table", { name: "Public purchases at snapshot 1" })).toBeInTheDocument();
   });
 
+  it("shows only the recorded cause of a queued return", () => {
+    const p = props(); const row = p.snapshot.transaction_receipts!.rows[0];
+    Object.assign(row, { operation: "returned", quantity_basis: "return_credit_queued_gross" });
+    const view = render(<Transactions {...p} />);
+    expect(screen.getByText("returned · return cause not recorded")).toBeInTheDocument();
+    expect(screen.queryByText(/controller changed/)).not.toBeInTheDocument();
+    row.return_reason = "controller_change";
+    view.rerender(<Transactions {...p} />);
+    expect(screen.getByText("returned · controller changed")).toBeInTheDocument();
+    expect(screen.getByText("return_credit_queued_gross")).toBeInTheDocument();
+  });
+
   it("withholds only the future domain, without hiding the independently dated public frame", () => {
     const p = props(); p.snapshot.transaction_receipts!.rows[0].source_turn = 8;
     const view = render(<Transactions {...p} />);

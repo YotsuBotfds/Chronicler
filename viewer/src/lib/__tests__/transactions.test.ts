@@ -46,6 +46,28 @@ describe("independent transaction observation domains", () => {
     expect(nativeTransactionsAt(other)).toBeNull();
   });
 
+  it("validates optional controller-change causes only on queued native returns", () => {
+    const snapshot = transactionFixture("hybrid-public")[0];
+    const row = snapshot.transaction_receipts!.rows[0];
+    Object.assign(row, { operation: "returned", quantity_basis: "return_credit_queued_gross" });
+    expect(nativeTransactionsAt(snapshot)).not.toBeNull(); // old return, cause unknown
+    Object.assign(row, { return_reason: "controller_change" });
+    expect(nativeTransactionsAt(snapshot)!.rows[0].return_reason).toBe("controller_change");
+    for (const invalid of [
+      { return_reason: "other", operation: "returned", quantity_basis: "return_credit_queued_gross" },
+      { return_reason: null, operation: "returned", quantity_basis: "return_credit_queued_gross" },
+      { return_reason: "controller_change", operation: "arrived", quantity_basis: "return_credit_queued_gross" },
+      { return_reason: "controller_change", operation: "returned", quantity_basis: "arrival_credit" },
+    ]) {
+      Object.assign(row, invalid);
+      expect(nativeTransactionsAt(snapshot)).toBeNull();
+      expect(publicPurchasesAt(snapshot)).not.toBeNull();
+    }
+    const purchase = snapshot.transaction_receipts!.public_purchases!.rows[0];
+    Object.assign(purchase, { return_reason: "controller_change" });
+    expect(publicPurchasesAt(snapshot)).toBeNull();
+  });
+
   it("allows a dated not-captured marker without presenting it as an observed zero", () => {
     const row = transactionFixture("native-bridge")[0];
     expect(publicPurchasesAt(row)).toMatchObject({ source_turn: null, as_of_turn: 0, available: false, complete: false });

@@ -20,6 +20,8 @@ export interface NativeTransactionObservation {
   cargo_basis: string;
   quantity_basis: string;
   loss_reason: string | null;
+  /** Absent in earlier observations and when the return cause was not recorded. */
+  return_reason?: "controller_change";
   loss_id: string | null;
   cargo_title_owner?: string | null;
   financial_eligible: boolean;

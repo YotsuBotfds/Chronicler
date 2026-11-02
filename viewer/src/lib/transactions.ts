@@ -1,12 +1,15 @@
 import type { TurnSnapshot } from "../types";
 
+const hasReturnReason = (row: object) => Object.prototype.hasOwnProperty.call(row, "return_reason");
 const finiteNonnegative = (n: unknown) => typeof n === "number" && Number.isFinite(n) && n >= 0;
 
 /** Native and public observations have separate source clocks and validity. */
 export function nativeTransactionsAt(snapshot: TurnSnapshot | null) {
   const frame = snapshot?.transaction_receipts;
   if (!frame || frame.source_turn !== snapshot!.turn - 1 || frame.phase !== "merchant_mobility"
-    || !Array.isArray(frame.rows) || !frame.rows.every((row) => row && row.source_turn === frame.source_turn && finiteNonnegative(row.quantity))
+    || !Array.isArray(frame.rows) || !frame.rows.every((row) => row && row.source_turn === frame.source_turn && finiteNonnegative(row.quantity)
+      && (!hasReturnReason(row) || (row.return_reason === "controller_change" && row.operation === "returned"
+        && row.quantity_basis === "return_credit_queued_gross")))
     || (!frame.mobility_executed && frame.rows.length > 0)
     || (frame.complete && (!frame.mobility_executed || frame.dropped_rows !== 0))) return null;
   return frame;
@@ -19,6 +22,7 @@ export function publicPurchasesAt(snapshot: TurnSnapshot | null) {
   if (frame.source_turn === null) return frame.as_of_turn === snapshot!.turn - 1
     && !frame.available && !frame.complete && frame.rows.length === 0 ? frame : null;
   if (frame.source_turn !== snapshot!.turn - 1 || !frame.rows.every((row) => row && row.source_turn === frame.source_turn
+    && !hasReturnReason(row)
     && [row.sent, row.received, row.transit_loss, row.buyer_paid, row.foreign_ruler_credited, row.domestic_producer_sink].every(finiteNonnegative))
     || (!frame.available && frame.rows.length > 0) || (frame.complete && (!frame.available || frame.dropped_rows !== 0))) return null;
   return frame;
