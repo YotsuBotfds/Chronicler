@@ -27,9 +27,9 @@ validate an epic. Runtime changes remain opt-in until evaluated. No paid narrati
 | Milestone | State | Dependencies and next bounded tasks | Acceptance before validated |
 | --- | --- | --- | --- |
 | M0 contract | integrated | Bounded source assessment above; first implementation is M1. | Authority/units/phases, budgets and explicit missing mechanisms recorded; not an epic-delivery claim. |
-| M1 received/consumed | implementing | Native food kernel ledger; detached Phase2/public-relief observations; actual procurement-budget receipt; existing Food/history integration. | Abundant/empty/late-arrival/no-public-budget controls; separate wealth-access limit; native stock balance and public stock balance; old unknowns, behavior/RNG neutrality, actual native execution and exact continuation. |
-| M2 logistics consequences | implementing | Genuine three-region private disruption fixture in isolated worktree; M1 observations then downstream evidence. | Actual reservation/transit/route loss/return/reopen/recovery, adverse diversion, ownership/accounting and in-flight checkpoint. Implement recovery only if demonstrated missing. |
-| M3 storage choices | planned | Depends M1/M2. Public target lacks asset/capacity; select one opt-in public grain asset with paid work, condition, spoil/cap connection and custody. | Useful investment and opportunity-cost failure; default-off parity; partial work/damage/conquest persistence. |
+| M1 received/consumed | validated (bounded mechanics) | Native food kernel ledger; detached Phase2/public-relief observations; actual procurement-budget receipt; existing Food/history integration. | Abundant/empty/late-arrival/no-public-budget controls; separate wealth-access limit; native stock balance and public stock balance; old unknowns, behavior/RNG neutrality, actual native execution and exact continuation. |
+| M2 logistics consequences | partially covered | Genuine three-region private disruption fixture in isolated worktree; M1 observations then downstream evidence. | Actual reservation/transit/route loss/return/reopen/recovery, adverse diversion, ownership/accounting and in-flight checkpoint. Implement recovery only if demonstrated missing. |
+| M3 storage choices | implementing | Depends M1/M2. Public target lacks asset/capacity; select one opt-in public grain asset with paid work, condition, spoil/cap connection and custody. | Useful investment and opportunity-cost failure; default-off parity; partial work/damage/conquest persistence. |
 | M4 household coping | planned | Depends accounting/logistics/care constraints. Audit native wealth, debt, household migration and actual work; choose one missing bounded coping interaction. | Legitimately different household trajectories; constrained transfers, time-known inputs and exact continuation; uneven costs. |
 | M5 resource-backed service | planned | Depends work/resources. Choose supported learning/care institution and distinguish funded/attempted/delivered/interrupted. | Institution can exist and fail to serve; restored resources recover service with costs; identity and checkpoints. |
 | M6 delayed information | planned | Depends authoritative procurement/service inputs. Reuse report/expiry/preparedness machinery. | Timely/delayed/misleading/absent controls change decisions from same initial truth; record decision inputs and costs; no future leaks. |
@@ -44,18 +44,32 @@ owns Rust economy/result/schema in its isolated worktree. Logistics worker owns
 only a new native integration fixture in another worktree. No overlapping phase
 writers or shared-wheel replacement. Viewer work starts after export agreement.
 
-- Rust food ledger: three new balance cases and all19 focused economy cases
-  passed; FFI/native integration and neutrality remain pending.
-- A fresh locked baseline wheel was built from baseline Rust tree
-  `edb263686adb7ea5e23864146a5f7d0c5a163da4`; real simulator classes verified.
-  Separate baseline environment stays fixed; M1 builds into a separate environment.
-- First logistics run genuinely reached transit, return and exact-resume checks,
-  but failed the recovery precondition; preserved as negative evidence, not a
-  demonstrated product defect or a neutral result. Fixture admission is in progress.
-- Evidence root: `/workspace/shared/chronicler-crisis`; earlier verified private
-  release backups remain intact. No new program backup publication claimed yet.
+- M1 [food contract and verification](food-accounting.md):502 focused Python/native
+  passes/one existing skip,9 guarded offline passes; full Rust1,181/two ignored;
+  viewer1,115 broad plus4 precision-focused checks, lint/build and actual desktop/
+  390px inspection. Four-mode baseline/current pairs preserve decisions/RNG/native
+  state/world/39 prior artifacts after only the new export is removed. Exact
+  hybrid4→8 retains complete new observations. Physical household access is not
+  claimed; aggregate has no mass ledger.
+- M2 existing mechanics genuinely executed: reservation/departure, interruption/
+  return, alternate-path replan, ownership unwind, exact checkpoint and reopened
+  delivery with a supplying-region harm. Private cash semantics are regional
+  margin signals, not public paid orders. A concrete diagnostic defect remains:
+  conquest return lacks a per-voyage receipt. A separate correction is implementing;
+  a combined public/private substitution scenario remains pending. Do not call
+  the entire logistics epic complete from the private fixtures alone.
+- M3 native aggregate land-work hook and pure asset module are committed in
+  isolated branches but **not integrated or native-qualified as an asset**.
+  They reserve existing farmer-equivalent work after city/health deductions;
+  no person-level work roster is invented. Construction/repair costs, custody,
+  capacity/spoilage hooks, combined conservation and actual paired qualification
+  are still next. Neglect/investment are explicit candidate policies, off by default.
+- Evidence root: `/workspace/shared/chronicler-crisis`; older verified private
+  backups remain intact. Current program source/evidence recovery index is prepared
+  at integration checkpoints. Cloud publication/fresh provisioning remain deferred.
 
-Next action: finish the M1 Python capture/schema and focused integration, then
-attach the existing Food inspector. Run the real native controls against the
-matching new wheel before claiming actual consumed-food coverage. Preserve a
-verified source/evidence checkpoint before context becomes tight.
+Next action: publish the verified M1 dev checkpoint and run combined CI while
+integrating the opt-in M3 asset/work hooks; finish the M2 ownership-return receipt.
+Then qualify a declared investment and opportunity-cost pair, including active
+work checkpoints. M4–9 remain planned, not complete. No scientific/default
+promotion gate has been claimed.

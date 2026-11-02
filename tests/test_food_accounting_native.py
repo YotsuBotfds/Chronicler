@@ -11,6 +11,7 @@ from chronicler.food_accounting import FOOD_LEDGER_FIELDS, capture_food_accounti
 from chronicler.regional_population import capture_food_weights
 from chronicler.turn_artifacts import TurnObservation
 
+pytest.importorskip("chronicler_agents")
 pytestmark = pytest.mark.native
 
 
