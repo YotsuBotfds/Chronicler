@@ -11,6 +11,19 @@ import {
 } from "../transport";
 
 const staticBundle = parseBundle(JSON.stringify(fixture)).bundle as Bundle;
+// The checked-in fixture predates food accounting. This explicit current
+// example exercises the new field without rewriting that historical fixture.
+const currentBundle: Bundle = {
+  ...staticBundle,
+  history: staticBundle.history.map((snapshot) => ({
+    ...snapshot,
+    food_accounting: {
+      schema_version: 1, mode: "off", source_turn: snapshot.turn - 1,
+      completed_turn: snapshot.turn, timing: "phase2", units: "model_food_goods",
+      transport: "none", regions: [], procurement: [],
+    },
+  })),
+};
 
 describe("transport contract", () => {
   it("is the file the Python side reads", () => {
@@ -22,9 +35,12 @@ describe("transport contract", () => {
     expect([...BUNDLE_SYSTEMS]).toEqual(python.bundle_systems);
   });
 
-  it("names every field of the fixture's snapshots, and the fixture holds every system", () => {
+  it("names every field of historical and current snapshots, with all current systems", () => {
     const named = new Set<string>([...SNAPSHOT_FIELDS, ...SNAPSHOT_SYSTEMS]);
     for (const snapshot of staticBundle.history) {
+      expect(snapshot.food_accounting).toBeUndefined();
+    }
+    for (const snapshot of currentBundle.history) {
       for (const key of Object.keys(snapshot)) {
         expect(named.has(key), key).toBe(true);
       }
@@ -38,7 +54,7 @@ describe("transport contract", () => {
   });
 
   it("turns a turn message into the static snapshot", () => {
-    for (const snapshot of staticBundle.history) {
+    for (const snapshot of [...staticBundle.history, ...currentBundle.history]) {
       const message = { ...snapshot, type: "turn", chronicle_text: "t", events: [], named_events: [] };
       expect(snapshotFromMessage(message)).toEqual(snapshot);
       expect(Object.keys(snapshotFromMessage(message)).some((k) => TURN_MESSAGE_KEYS.includes(k))).toBe(false);
@@ -46,15 +62,18 @@ describe("transport contract", () => {
   });
 
   it("rebuilds the static bundle from a reconnect init, and merges completion systems", () => {
+    // Round-trip both the historical and current bundle through batch parsing.
+    const batch = parseBundle(JSON.stringify(currentBundle)).bundle as Bundle;
+    expect(batch).toEqual(currentBundle);
     const init = {
-      type: "init", state: "running", world_state: staticBundle.world_state, history: staticBundle.history,
+      type: "init", state: "running", world_state: currentBundle.world_state, history: currentBundle.history,
       events_timeline: staticBundle.events_timeline, named_events: staticBundle.named_events,
       chronicle_entries: staticBundle.chronicle_entries, gap_summaries: staticBundle.gap_summaries,
       era_reflections: staticBundle.era_reflections, metadata: staticBundle.metadata,
       historiography: staticBundle.historiography, languages: staticBundle.languages,
       pruned_civ_stats: staticBundle.pruned_civ_stats,
     };
-    expect(bundleFromInitMessage(init)).toEqual(staticBundle);
+    expect(bundleFromInitMessage(init)).toEqual(currentBundle);
     const bare = bundleFromInitMessage({ ...init, historiography: undefined, languages: null });
     expect(bare.historiography).toBeUndefined();
     const done = applyCompletedMessage(bare, { type: "completed", systems: { historiography: staticBundle.historiography } });

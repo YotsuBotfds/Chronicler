@@ -155,9 +155,20 @@
           "new": "    phase10_agents: AgentRows | None\n    food_weights: FoodWeights | None = None\n    population_sources: tuple[str, ...] | None = None\n    food_accounting: FoodAccounting | None = None\n    food_procurement: tuple[tuple[int, int, int], ...] = ()\n\n    def __post_init__(self) -> None:\n        if self.phase10_agents is not None:\n"
         }
       ]
+    },
+    "src/chronicler/transport_contract.json": {
+      "sha256": "c0333a2b09c7848257e54d88595e364edd784e81c851a4d34b09280aee2883f8",
+      "current_sha256": "4629e32e1b2c94760fba8fa5765f2a27e42946e527dfd013a8ac65e7d04f4a3f",
+      "patches": [
+        {
+          "old": "    \"migration\",\n    \"regional_population\"\n  ],\n",
+          "new": "    \"migration\",\n    \"regional_population\",\n    \"food_accounting\"\n  ],\n"
+        }
+      ]
     }
   },
   "new_files": {
     "src/chronicler/food_accounting.py": "d1cc60a693a2b8958e584661d65a89717da7021f9cc9d90f6edcebba02828b31"
-  }
+  },
+  "registry_correction_commit": "0bc144f19f5243803334bf2483f727e887ca1386"
 }
