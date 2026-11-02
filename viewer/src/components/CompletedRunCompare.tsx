@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { Bundle } from "../types";
 import type { ArtifactIdentity } from "../lib/artifactIdentity";
@@ -229,7 +229,7 @@ function RunIdentity({ run }: { run: CompletedRun }) {
   </div>;
 }
 
-function Trajectory({ points, metric }: { points: AlignedRunPoint[]; metric: RunMetric }) {
+const Trajectory = memo(function Trajectory({ points, metric }: { points: AlignedRunPoint[]; metric: RunMetric }) {
   const definition = RUN_METRICS.find((entry) => entry.key === metric)!;
   const data = points.map((point) => ({ turn: point.turn, left: point.left?.[metric] ?? null, right: point.right?.[metric] ?? null }));
   const observed = data.some((point) => point.left !== null || point.right !== null);
@@ -245,4 +245,4 @@ function Trajectory({ points, metric }: { points: AlignedRunPoint[]; metric: Run
     </ResponsiveContainer> : <p>No observations recorded in either run.</p>}
     <p>{definition.note}</p>
   </section>;
-}
+});
