@@ -28,6 +28,8 @@ from typing import Any
 from chronicler.artifact_io import atomic_write_text
 from chronicler.bundle_codec import decode_bundle, dumps_bundle
 from chronicler.pause_policy import CONTROL, STAT, TARGET, policy_value, validate_policy_command
+from chronicler.pause_transport import (CONTROL as TRANSPORT_CONTROL, TARGET as TRANSPORT_TARGET,
+    STAT as TRANSPORT_STAT, encode as encode_transport, decode as decode_transport, preview as preview_transport)
 
 MAX_JOBS = 8
 MAX_BUNDLE_BYTES = 16 * 1024 * 1024
@@ -82,6 +84,17 @@ def _request_fields(msg: dict) -> tuple[str, str, str, int, int]:
     request_id = msg.get("request_id")
     if not isinstance(request_id, str) or not _REQUEST_ID.fullmatch(request_id):
         raise WhatIfError("request_id must contain 1–80 letters, digits, underscores or hyphens")
+    if msg.get("control") == TRANSPORT_CONTROL:
+        if msg.get("type") != "what_if_prepare" or set(msg) != {"type", "request_id", "control", "region_id", "duration", "turns"}:
+            raise WhatIfError("Invalid regional transport request fields")
+        turns = msg.get("turns")
+        if type(turns) is not int or not 1 <= turns <= 20:
+            raise WhatIfError("Horizon must be an integer from 1 to 20 additional turns")
+        try:
+            value = encode_transport(msg.get("region_id"), msg.get("duration"))
+        except ValueError as exc:
+            raise WhatIfError(str(exc)) from exc
+        return request_id, TRANSPORT_TARGET, TRANSPORT_STAT, value, turns
     policy = "control" in msg
     allowed = {"type", "request_id", "value", "turns", "control" if policy else "civ"}
     if set(msg) - allowed or (policy and msg.get("control") != CONTROL):
@@ -104,6 +117,12 @@ def _request_fields(msg: dict) -> tuple[str, str, str, int, int]:
 
 def validate_request(msg: dict, world: Any) -> tuple[str, str, int, int, int]:
     request_id, name, stat, value, turns = _request_fields(msg)
+    if stat == TRANSPORT_STAT:
+        try:
+            receipt = preview_transport(world, name, stat, value)
+        except ValueError as exc:
+            raise WhatIfError(str(exc)) from exc
+        return request_id, name, value, turns, receipt.prior_counter
     if stat == STAT:
         try:
             before = policy_value(world)
@@ -121,7 +140,17 @@ def intervention_command(intervention: dict) -> dict:
     command = {key: intervention.get(key) for key in ("command", "civ", "stat", "value")}
     if command["command"] != "set":
         raise WhatIfError("Unsupported intervention command")
-    if command["stat"] == STAT:
+    if command["stat"] == TRANSPORT_STAT:
+        try:
+            decoded = decode_transport(command["civ"], command["stat"], command["value"])
+            if (intervention.get("region_id") != decoded.region_id or
+                    intervention.get("duration") != decoded.duration or
+                    type(intervention.get("region_id")) is not int or
+                    type(intervention.get("duration")) is not int):
+                raise ValueError("Transport manifest does not match its command")
+        except ValueError as exc:
+            raise WhatIfError(str(exc)) from exc
+    elif command["stat"] == STAT:
         try:
             validate_policy_command(command["civ"], command["stat"], command["value"])
         except ValueError as exc:
@@ -283,14 +312,26 @@ class WhatIfPairs:
             config = header.get("run_config", {})
             if config.get("output_args", {}).get("simulate_only") is not True:
                 raise WhatIfError("Start this live run with --simulate-only before preparing exact what-if pairs")
-            is_policy = "control" in msg
-            intervention = {"command": "set", "civ": civ, "stat": STAT if is_policy else "stability",
+            is_transport = msg.get("control") == TRANSPORT_CONTROL
+            is_policy = msg.get("control") == CONTROL
+            if is_transport and config.get("simulation_args", {}).get("agents") != "hybrid":
+                raise WhatIfError("Transport disruption requires an exact hybrid checkpoint")
+            stat = TRANSPORT_STAT if is_transport else STAT if is_policy else "stability"
+            intervention = {"command": "set", "civ": civ, "stat": stat,
                             "before": before, "value": value}
             limits = list(LIMITS)
             if is_policy:
                 intervention["scope"] = "world"
                 limits[1] = "Global granary procurement priority only; 1–20 additional turns, simulation only."
-            manifest = {"schema_version": 2 if is_policy else 1, "request_id": request_id,
+            if is_transport:
+                receipt = preview_transport(world, civ, stat, value)
+                intervention.update(scope="region", region_id=receipt.region_id,
+                    region_name=world.regions[receipt.region_id].name,
+                    duration=receipt.requested_duration, prior_counter=receipt.prior_counter,
+                    effective_counter=receipt.effective_counter,
+                    effective_through_turn=receipt.effective_through_turn)
+                limits[1] = "One regional transport disruption; 1–20 additional turns, simulation only."
+            manifest = {"schema_version": 3 if is_transport else 2 if is_policy else 1, "request_id": request_id,
                         "source": {"checkpoint": artifact_identity(checkpoint), "header": header,
                                    "current_identity": fresh_identity()},
                         "mode": config.get("simulation_args", {}).get("agents", "off"),
@@ -374,6 +415,9 @@ class WhatIfPairs:
         script = "continue\n"
         if arm == "intervention":
             intervention = intervention_command(m["intervention"])
+            if m["schema_version"] == 3 and (intervention["civ"] != TRANSPORT_TARGET or
+                                               intervention["stat"] != TRANSPORT_STAT):
+                raise WhatIfError("Transport manifest requires the regional transport command")
             script = f"set {shlex.quote(intervention['civ'])} {intervention['stat']} {intervention['value']}\n" + script
         env = os.environ.copy()  # Same seed/thread env/config, no override flags.
         env["PYTHONPATH"] = str(Path(__file__).resolve().parents[1]) + os.pathsep + env.get("PYTHONPATH", "")

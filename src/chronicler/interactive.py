@@ -56,6 +56,16 @@ def parse_command(raw: str) -> tuple[str, Any]:
         civ_name = tokens[1]
         stat = tokens[2].lower()
         from chronicler.pause_policy import STAT, validate_policy_command
+        from chronicler.pause_transport import STAT as TRANSPORT_STAT, decode as decode_transport
+        if stat == TRANSPORT_STAT:
+            if len(tokens) != 4:
+                return ("error", "Invalid regional transport command")
+            try:
+                value = int(tokens[3])
+                decode_transport(civ_name, stat, value)
+            except ValueError as exc:
+                return ("error", str(exc))
+            return ("set", (civ_name, stat, value))
         if stat == STAT:
             if len(tokens) != 4 or tokens[3] not in ("0", "1"):
                 return ("error", "Usage: set @world grain_reserves.shortfall_priority 0|1")
@@ -206,6 +216,18 @@ def interactive_pause(
         elif cmd == "set":
             civ_name, stat, value = cmd_args
             from chronicler.pause_policy import STAT, set_policy_value
+            from chronicler.pause_transport import STAT as TRANSPORT_STAT, apply as apply_transport
+            if stat == TRANSPORT_STAT:
+                try:
+                    receipt = apply_transport(world, civ_name, stat, value)
+                except ValueError as exc:
+                    print(f"Error: {exc}")
+                    continue
+                if interventions is not None:
+                    interventions.note_intervention(
+                        world, {"command": "set", "civ": civ_name, "stat": stat, "value": value})
+                print(f"Transport region {receipt.region_id} through turn {receipt.effective_through_turn}")
+                continue
             if stat == STAT:
                 try:
                     set_policy_value(world, civ_name, stat, value)
