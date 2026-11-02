@@ -43,6 +43,11 @@ class TransactionObservation(BaseModel):
     # Custody/controller observations do not establish private cargo title.
     cargo_title_owner: str | None = None
     financial_eligible: bool = False
+    return_reason: str | None = Field(default=None, exclude_if=_is_none)
+
+    def __setstate__(self, state):
+        super().__setstate__(state)
+        self.__dict__.setdefault("return_reason", None)
 
 
 class PublicPurchaseObservation(BaseModel):

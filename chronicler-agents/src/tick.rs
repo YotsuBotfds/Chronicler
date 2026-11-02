@@ -538,17 +538,20 @@ fn try_tick_agents_with_movements_observer<M: crate::decision_delivery::MoveObse
     // 0.9 Merchant mobility (M58a)
     // -----------------------------------------------------------------------
     // M58a: Conquest unwind before mobility — cancel trips impacted by controller change
-    let mut conquest_unwind_count: u32 = 0;
-    if let Some((_, ref mut ledger, ref mut buf)) = merchant_state {
+    let mut conquest_stats = crate::merchant::MerchantTripStats::default();
+    if let Some((graph, ref mut ledger, ref mut buf)) = merchant_state {
         let conquered: Vec<u16> = regions
             .iter()
             .filter(|r| r.controller_changed_this_turn)
             .map(|r| r.region_id)
             .collect();
         if !conquered.is_empty() {
-            let mut conquest_stats = crate::merchant::MerchantTripStats::default();
-            crate::merchant::conquest_unwind(pool, ledger, &conquered, &mut conquest_stats, Some(buf));
-            conquest_unwind_count = conquest_stats.unwind_count;
+            if graph.receipt_limit > 0 {
+                conquest_stats.receipts = Some(crate::transaction_receipts::ReceiptFrame::new(
+                    turn, graph.receipt_limit));
+            }
+            crate::merchant::conquest_unwind(pool, ledger, &conquered, &mut conquest_stats,
+                Some(buf), Some(regions));
         }
     }
     let mut merchant_stats = if let Some((graph, ref mut ledger, ref mut buf)) = merchant_state {
@@ -556,7 +559,15 @@ fn try_tick_agents_with_movements_observer<M: crate::decision_delivery::MoveObse
     } else {
         crate::merchant::MerchantTripStats::default()
     };
-    merchant_stats.unwind_count += conquest_unwind_count;
+    merchant_stats.unwind_count += conquest_stats.unwind_count;
+    // Both phases share the same bounded observation budget. Conquest runs
+    // first, so retain its rows first and count every dropped later row.
+    if let Some(mut before) = conquest_stats.receipts {
+        if let Some(after) = merchant_stats.receipts.take() {
+            before = crate::transaction_receipts::prepend(before, after);
+        }
+        merchant_stats.receipts = Some(before);
+    }
 
     // -----------------------------------------------------------------------
     // 0.95 Knowledge phase — packet decay, observation, propagation (M59a)

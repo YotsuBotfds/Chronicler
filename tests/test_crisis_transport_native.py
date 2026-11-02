@@ -12,7 +12,7 @@ import pytest
 pytestmark = pytest.mark.native
 
 
-def _setup(num_civs=1):
+def _setup(num_civs=1, receipts=True):
     native = pytest.importorskip("chronicler_agents")
     assert isinstance(getattr(native, "AgentSimulator", None), type), "compiled native simulator required"
     from chronicler.agent_bridge import AgentBridge
@@ -36,11 +36,12 @@ def _setup(num_civs=1):
         region.resource_types = ([0, 255, 255] if i != 2 else [255, 255, 255])
         region.resource_base_yields = ([1.0, 0.0, 0.0] if i != 2 else [0.0, 0.0, 0.0])
     civ.population = sum(r.population for r in world.regions)
-    set_transaction_receipts_enabled(world, True)
+    if receipts:
+        set_transaction_receipts_enabled(world, True)
     return world, AgentBridge(world, mode="hybrid")
 
 
-def _advance(world, bridge, *, conquest_return=0):
+def _advance(world, bridge):
     from chronicler.action_engine import ActionEngine
     from chronicler.simulation import run_turn_result
     engine = ActionEngine(world)
@@ -64,7 +65,7 @@ def _advance(world, bridge, *, conquest_return=0):
     # physical in-flight balance, including all merchants and goods.
     expected = sum(r.quantity * {"departed": 1, "returned": -1, "arrived": -1}.get(r.operation, 0)
                    for r in previous)
-    assert economy.conservation["in_transit_delta"] == pytest.approx(expected - conquest_return, abs=2e-4)
+    assert economy.conservation["in_transit_delta"] == pytest.approx(expected, abs=2e-4)
     if pending_food:
         destination = world.regions[2].name
         assert economy.imports_by_region[destination]["food"] == pytest.approx(pending_food, abs=2e-4)
@@ -164,6 +165,7 @@ def test_backed_transit_route_closure_return_reopen_and_exact_resume(tmp_path):
     returned = _rows(interrupted, "returned", reserved.voyage_id)
     assert len(returned) == 1, f"in-flight trip must unwind: {interrupted!r}"
     assert returned[0].quantity == pytest.approx(qty)
+    assert returned[0].return_reason is None  # ordinary route failure has no inferred cause
     assert not _rows(interrupted, "arrived", reserved.voyage_id)
 
     # The next economy phase consumes the queued return.  Open the route and
@@ -307,13 +309,15 @@ def test_controller_loss_unwinds_inflight_cargo_before_mobility(tmp_path):
     assert returned >= qty - 1e-5, "controller-change unwind must queue physical return"
     assert bridge._sim.get_merchant_trip_stats()["unwind_count"] > 0
     assert not _rows(rows, "arrived", reserved.voyage_id)
-    assert not _rows(rows, "returned", reserved.voyage_id), "conquest has no per-voyage return receipt"
-    # Conquest unwind queues returns before the receipt recorder's mobility
-    # frame. Account for those native diagnostics when checking next Phase 2.
-    mobility_returns = sum(r.quantity for r in _rows(rows, "returned"))
-    unobserved = returned - mobility_returns
-    assert unobserved >= qty - 1e-5
-    _advance(world, bridge, conquest_return=unobserved)
+    traced = _rows(rows, "returned", reserved.voyage_id)
+    assert len(traced) == 1 and traced[0].quantity == pytest.approx(qty)
+    assert traced[0].return_reason == "controller_change"
+    assert traced[0].loss_reason is None and traced[0].cargo_basis == "regional_stock"
+    # Complete receipt quantities equal the native cumulative return delta;
+    # the next Phase 2 checks their physical in-transit balance.
+    observed_returns = sum(r.quantity for r in _rows(rows, "returned"))
+    assert returned == pytest.approx(observed_returns, abs=2e-4)
+    _advance(world, bridge)
 
 
 def test_reopening_restores_delivery_but_draws_food_from_another_region(tmp_path):
@@ -360,3 +364,50 @@ def test_reopening_restores_delivery_but_draws_food_from_another_region(tmp_path
     assert open_economy.food_sufficiency[harmed] < closed_economy.food_sufficiency[harmed]
     assert (closed_economy.food_sufficiency[harmed] - open_economy.food_sufficiency[harmed]
             == pytest.approx(dispatched / demand, abs=2e-5))
+
+
+def test_controller_receipt_observation_preserves_events_world_rng_and_native_state():
+    from chronicler.action_engine import ActionEngine
+    from chronicler.simulation import run_turn_result
+
+    observed, ob = _setup(num_civs=2)
+    plain, pb = _setup(num_civs=2, receipts=False)
+
+    def step_pair():
+        before = random.getstate()
+        result, rows = _advance(observed, ob)
+        after = random.getstate()
+        random.setstate(before)
+        engine = ActionEngine(plain)
+        control = run_turn_result(plain, lambda c, w: engine.select_action(c, seed=w.seed),
+                                  lambda w, events: "", seed=plain.seed + plain.turn,
+                                  agent_bridge=pb)
+        assert random.getstate() == after
+        assert result.chronicle_text == control.chronicle_text
+        assert observed.model_dump(mode="json", exclude={"transaction_receipts"}) == plain.model_dump(
+            mode="json", exclude={"transaction_receipts"})
+        assert ob._sim.get_snapshot().equals(pb._sim.get_snapshot())
+        assert ob._sim.checkpoint_state() == pb._sim.checkpoint_state()
+        return rows
+
+    voyage = None
+    for _ in range(4):
+        rows = step_pair()
+        departures = [r for r in _rows(rows, "departed") if
+                      (r.origin_region, r.dest_region, r.good_slot) == (0, 2, 0)]
+        if departures:
+            voyage = departures[0].voyage_id
+            assert not _rows(rows, "arrived", voyage)
+            break
+    assert voyage is not None, "observer-neutrality fixture needs actual in-flight grain"
+    for w in (observed, plain):
+        old, new = w.civilizations[:2]
+        region = w.regions[2]
+        old.regions.remove(region.name)
+        new.regions.append(region.name)
+        region.controller = new.name
+        region._controller_changed_this_turn = True
+    rows = step_pair()
+    returned = _rows(rows, "returned", voyage)
+    assert len(returned) == 1 and returned[0].return_reason == "controller_change"
+    step_pair()  # consume the return in the economy in both modes

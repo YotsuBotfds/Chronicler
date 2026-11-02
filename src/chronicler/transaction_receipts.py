@@ -23,6 +23,7 @@ _OPERATIONS = {
     5: ("sea_crossing", "cargo_crossing_gross"),
     6: ("arrived", "arrival_queued_before_transit_decay"),
     7: ("active", "mobility_phase_commitment"),
+    8: ("returned", "return_credit_queued_gross"),  # controller change
 }
 
 
@@ -189,6 +190,7 @@ def consume_transaction_frame(world, source_turn: int, limit: int, dropped: int,
             dest_controller=dest_owner, dest_controller_name=dest_owner_name,
             cargo_basis="regional_stock" if row["physical_stock"] else "virtual_shadow",
             quantity_basis=basis, loss_reason="raid" if loss == 1 else None,
+            return_reason="controller_change" if op == 8 else None,
             loss_id=f"{ident}:loss:raid" if loss == 1 else None,
         ))
         if known_id is None:
@@ -196,7 +198,7 @@ def consume_transaction_frame(world, source_turn: int, limit: int, dropped: int,
         if loss == 1:
             key = "regional_cargo_raided" if row["physical_stock"] else "virtual_cargo_raided"
             counters[key] += quantity
-        if op in (2, 4, 6) or loss == 1:
+        if op in (2, 4, 6, 8) or loss == 1:
             prior.pop(merchant, None)
     # An incomplete final set cannot establish absence, survival or a closed trip.
     # Clear prior identities rather than carrying potentially stale assignments.

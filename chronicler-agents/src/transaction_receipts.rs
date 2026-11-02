@@ -20,6 +20,8 @@ pub const RETURNED: u8 = 4;
 pub const SEA_CROSSING: u8 = 5;
 pub const ARRIVED: u8 = 6;
 pub const ACTIVE: u8 = 7;
+/// Gross return queued by a controller-change unwind, not a cargo loss.
+pub const RETURNED_CONTROLLER_CHANGE: u8 = 8;
 pub const NO_LOSS: u8 = 255;
 
 #[derive(Clone, Debug)]
@@ -55,6 +57,16 @@ impl ReceiptFrame {
         if self.rows.len() < self.limit { self.rows.push(row); }
         else { self.dropped = self.dropped.saturating_add(1); }
     }
+}
+
+/// Merge the earlier pre-mobility observations without exceeding the original
+/// per-turn cap; both frames may already have dropped their own overflow.
+pub fn prepend(mut before: ReceiptFrame, after: ReceiptFrame) -> ReceiptFrame {
+    debug_assert_eq!(before.source_turn, after.source_turn);
+    debug_assert_eq!(before.limit, after.limit);
+    before.dropped = before.dropped.saturating_add(after.dropped);
+    for row in after.rows { before.push(row); }
+    before
 }
 
 /// Called only from existing mobility loops. Off means no allocation or pool reads.
@@ -103,4 +115,25 @@ pub fn to_batch(frame: Option<&ReceiptFrame>) -> Result<RecordBatch, arrow::erro
     ];
     let (fields, arrays): (Vec<_>, Vec<_>) = columns.into_iter().unzip();
     RecordBatch::try_new(Arc::new(Schema::new(fields)), arrays)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pre_mobility_merge_counts_overflow_from_both_frames() {
+        let row = Receipt { merchant_id: 1, merchant_civ: 0, operation: RETURNED,
+            origin_region: 0, dest_region: 1, from_region: 1, to_region: 0,
+            good_slot: 0, quantity: 1.0, origin_controller: 0, dest_controller: 0,
+            physical_stock: true, loss_reason: NO_LOSS };
+        let mut before = ReceiptFrame::new(4, 1);
+        let mut after = ReceiptFrame::new(4, 1);
+        for _ in 0..3 { before.push(row.clone()); }
+        for _ in 0..2 { after.push(row.clone()); }
+        let merged = prepend(before, after);
+        assert_eq!(merged.rows.len(), 1);
+        assert_eq!(merged.dropped, 4);
+        assert!(merged.mobility_executed);
+    }
 }

@@ -1329,6 +1329,7 @@ pub fn conquest_unwind(
     conquered_regions: &[u16],
     stats: &mut MerchantTripStats,
     mut delivery_buf: Option<&mut DeliveryBuffer>,
+    receipt_regions: Option<&[RegionState]>,
 ) {
     let conquered_set: std::collections::HashSet<u16> = conquered_regions.iter().copied().collect();
     if conquered_set.is_empty() {
@@ -1357,6 +1358,12 @@ pub fn conquest_unwind(
                 ledger.cancel_reservation(origin_idx, good, qty);
             }
             TRIP_PHASE_TRANSIT => {
+                if let Some(regions) = receipt_regions {
+                    let physical = delivery_buf.as_deref().is_some_and(|buf| buf.physical_stock);
+                    receipts::record(&mut stats.receipts, pool, regions, slot,
+                        receipts::RETURNED_CONTROLLER_CHANGE, current, origin, physical,
+                        receipts::NO_LOSS);
+                }
                 ledger.unwind(origin_idx, good, qty, delivery_buf.as_deref_mut());
                 stats.unwind_count += 1;
             }
@@ -2335,14 +2342,14 @@ mod tests {
         let mut stats = MerchantTripStats::default();
 
         // Conquer region 0 — should unwind s0 (Loading, cancel reservation)
-        conquest_unwind(&mut pool, &mut ledger, &[0], &mut stats, None);
+        conquest_unwind(&mut pool, &mut ledger, &[0], &mut stats, None, None);
         assert_eq!(pool.trip_phase[s0], TRIP_PHASE_IDLE);
         assert_eq!(ledger.reserved[0][0], 0.0);
         // s1 should be unaffected
         assert_eq!(pool.trip_phase[s1], TRIP_PHASE_TRANSIT);
 
         // Conquer region 3 (s1's destination) — should unwind s1
-        conquest_unwind(&mut pool, &mut ledger, &[3], &mut stats, None);
+        conquest_unwind(&mut pool, &mut ledger, &[3], &mut stats, None, None);
         assert_eq!(pool.trip_phase[s1], TRIP_PHASE_IDLE);
         assert_eq!(stats.unwind_count, 1); // only transit counts toward unwind_count
     }
