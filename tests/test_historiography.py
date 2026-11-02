@@ -12,6 +12,8 @@ from pathlib import Path
 
 import pytest
 
+from test_performance_equivalence import _frozen_artifact_bytes, _frozen_snapshot
+
 import chronicler.historiography as H
 from chronicler.curator import curate
 from chronicler.governance_state import CivGovernance
@@ -889,12 +891,13 @@ def _frozen():
 
 @pytest.mark.parametrize("name", sorted(_frozen()[0]["workloads"]))
 def test_frozen_oracles_hold_with_historiography_on(name, tmp_path, monkeypatch):
-    """Every turn's snapshot, events and narration hash, the ordered RNG trace
-    and every artifact byte match the frozen corrected oracle with chronicles
-    kept; the only additions are the bundle field and the state sidecar."""
+    """Retained snapshots/events/narration, RNG and projected artifact bytes
+    match the frozen oracle with chronicles kept. The known version-1 regional
+    observation is excluded by the shared reviewed projection; the chronicles
+    bundle field and state sidecar are checked separately."""
     import hashlib
     from scripts.benchmark_headless import rng_trace, run
-    from scripts.third_wave_controls import legacy_artifact_bytes, legacy_event_dump
+    from scripts.third_wave_controls import legacy_event_dump
     monkeypatch.setattr("chronicler.main._create_ecology_runtime", lambda world: None)
     monkeypatch.setattr("chronicler.main._create_politics_runtime", lambda world: None)
     monkeypatch.setattr("chronicler.provenance.LEGACY_TIMELINE", True)
@@ -903,7 +906,7 @@ def test_frozen_oracles_hold_with_historiography_on(name, tmp_path, monkeypatch)
     turns = []
 
     def capture(snapshot, text, events, named):
-        data = [snapshot.model_dump(mode="json"), text,
+        data = [_frozen_snapshot(snapshot), text,
                 [legacy_event_dump(event) for event in events],
                 [event.model_dump(mode="json") for event in named]]
         turns.append(hashlib.sha256(json.dumps(
@@ -927,7 +930,7 @@ def test_frozen_oracles_hold_with_historiography_on(name, tmp_path, monkeypatch)
         if not path.is_file() or path == sidecar:
             continue
         source = stripped / path.name if path.name == "chronicle_bundle.json" else path
-        data = legacy_artifact_bytes(source)
+        data = _frozen_artifact_bytes(source)
         if path.name not in ("state.json", "chronicle_bundle.json"):
             data = data.replace(b"\r\n", b"\n")
         emitted[path.name] = {"sha256": hashlib.sha256(data).hexdigest(), "bytes": len(data)}

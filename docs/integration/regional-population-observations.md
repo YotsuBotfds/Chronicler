@@ -202,3 +202,27 @@ pass with the same verified binary. Evidence is external at
 `/workspace/shared/chronicler-regional-performance-witness-20261102`, including
 the original reproduction, guarded receipt/log and native log. This focused
 correction does not claim a fresh full CI, build or scientific gate.
+
+
+The same first CI run also exposed the new field in three independent frozen
+captures: dormant governance (six cases), enabled historiography (three) and
+enabled languages (three). Those callbacks now import the same reviewed snapshot
+projection. Governance and historiography also retain frozen bundle-byte checks;
+a single test-local `_frozen_artifact_bytes` wrapper first applies the unchanged
+legacy artifact helper, then projects decoded history through `_frozen_snapshot`
+and uses the legacy helper's exact JSON formatting. Other artifact bytes pass
+through unchanged, including state files; the original pre-pruning assertion
+still refuses nonempty pruned rows. No production script or fixture changed.
+
+On isolated parent `58b97633`, the actual offline guard passes **69 tests**:
+all 16 frozen trajectories, the existing version/retained-field mutation guards,
+two new artifact projection guards and the independent producer's 32 tests.
+There are no loaded native modules or blocked IO. Historiography and languages
+retain their original module-level native-availability probes: the guard blocks
+their two import attempts, without altering flags or selecting native cases.
+The artifact guards retain unrelated bundle/history fields, numeric precision,
+state/binary bytes and both pre-pruning modes. Evidence is at
+`/workspace/shared/chronicler-regional-independent-witnesses-20261102`.
+A search of frozen snapshot/hash consumers found the five capture paths now
+covered by these shared projections. Full corrected CI remains an integration
+step; this follow-up changes tests and documentation only.

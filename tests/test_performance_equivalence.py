@@ -116,6 +116,26 @@ def _frozen_snapshot(snapshot):
     return fields
 
 
+def _frozen_artifact_bytes(path, *, pre_pruning=False):
+    """Retain the existing legacy artifact projection, then the reviewed v1 field.
+
+    The legacy helper still owns dormant/provenance/faith/schema projection and
+    its original pre-pruning assertion. Only decoded bundle history receives the
+    same strict snapshot projection; all other artifact bytes pass through.
+    """
+    from scripts.third_wave_controls import legacy_artifact_bytes
+
+    raw = legacy_artifact_bytes(path, pre_pruning=pre_pruning)
+    if path.name != "chronicle_bundle.json":
+        return raw
+    bundle = json.loads(raw)
+    bundle["history"] = [
+        _frozen_snapshot(SimpleNamespace(model_dump=lambda row=row, **_: dict(row)))
+        for row in bundle["history"]
+    ]
+    return json.dumps(bundle, ensure_ascii=False, separators=(",", ":")).encode()
+
+
 def _run_workload(spec, tmp_path, monkeypatch):
     # Fix the lane even in environments where the optional Rust extension exists.
     monkeypatch.setattr("chronicler.main._create_ecology_runtime", lambda world: None)
@@ -222,6 +242,53 @@ def test_frozen_projection_refuses_malformed_regional_shape(make_world, malforma
     elif malformation == "wrong_epoch": value["completed_turn"] = 2
     with pytest.raises(AssertionError):
         _frozen_snapshot(_snapshot_double(fields))
+
+
+@pytest.mark.parametrize("pre_pruning", [False, True])
+def test_frozen_artifact_projection_retains_other_fields_and_legacy_guards(make_world, tmp_path, pre_pruning):
+    from chronicler.bundle_codec import encode_bundle
+    from scripts.third_wave_controls import legacy_artifact_bytes
+
+    snapshot = _projection_case(make_world)
+    snapshot["future_retained_snapshot_field"] = {"value": 1}
+    bundle = {"metadata": {"bundle_version": 6, "seed": 42},
+              "world_state": {"regions": []}, "history": [snapshot],
+              "pruned_civ_stats": {}, "events_timeline": [], "chronicle_entries": [],
+              "future_retained_bundle_field": {"value": 1}}
+    path = tmp_path / "chronicle_bundle.json"
+
+    def write(value):
+        path.write_text(json.dumps(encode_bundle(value), ensure_ascii=False), encoding="utf-8")
+
+    write(bundle)
+    expected = json.loads(legacy_artifact_bytes(path, pre_pruning=pre_pruning))
+    expected["history"][0].pop("regional_population")
+    first = _frozen_artifact_bytes(path, pre_pruning=pre_pruning)
+    assert first == json.dumps(expected, ensure_ascii=False, separators=(",", ":")).encode()
+    for key in ("metadata", "future_retained_bundle_field", "history"):
+        changed = deepcopy(bundle)
+        if key == "history":
+            changed[key][0]["ecology"]["R0"]["soil"] = 0.4000000000000001
+            changed[key][0]["future_retained_snapshot_field"]["value"] = 2
+        else:
+            changed[key]["changed_retained_value"] = 2
+        write(changed)
+        assert _frozen_artifact_bytes(path, pre_pruning=pre_pruning) != first, key
+    changed = deepcopy(bundle)
+    changed["history"][0]["regional_population"]["schema_version"] = 2
+    write(changed)
+    with pytest.raises(AssertionError):
+        _frozen_artifact_bytes(path, pre_pruning=pre_pruning)
+    if pre_pruning:
+        changed = deepcopy(bundle); changed["pruned_civ_stats"] = {"Civ0": []}
+        write(changed)
+        with pytest.raises(AssertionError, match="a civ was pruned"):
+            _frozen_artifact_bytes(path, pre_pruning=True)
+    state = tmp_path / "state.json"
+    state.write_text('{"name":"kept","regions":[]}', encoding="utf-8")
+    assert _frozen_artifact_bytes(state, pre_pruning=pre_pruning) == legacy_artifact_bytes(state, pre_pruning=pre_pruning)
+    other = tmp_path / "unrelated.bin"; other.write_bytes(b"retained\r\nbytes\x00")
+    assert _frozen_artifact_bytes(other, pre_pruning=pre_pruning) == other.read_bytes()
 
 
 @pytest.mark.parametrize("link", ORACLE_CHAIN)
