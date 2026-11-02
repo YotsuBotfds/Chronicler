@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import math
 import random
+from dataclasses import dataclass
+from typing import Sequence
 from chronicler.harvest_forecasts_state import (
     ForecastCredibilityEvidence, HarvestForecastState, HarvestObserver, HarvestReport,
     harvest_forecasts_on,
@@ -36,6 +38,29 @@ def get_preparation_policy(state) -> str:
         raise ValueError("unknown harvest preparation policy")
     return policy
 
+
+
+def get_report_delay(state) -> int:
+    """Old pickles missing the optional field retain the original schedule."""
+    delay = getattr(state, "report_delay", None)
+    if delay is None:
+        return 0
+    if type(delay) is not int or not 0 <= delay <= 12:
+        raise ValueError("harvest report delay must be an integer from 0 to 12")
+    return delay
+
+
+def set_report_delay(world, delay: int | None) -> None:
+    """Set delay for future issues only; never reschedule an existing report."""
+    if delay is not None and (type(delay) is not int or not 0 <= delay <= 12):
+        raise ValueError("harvest report delay must be an integer from 0 to 12")
+    if not harvest_forecasts_on(world):
+        raise ValueError("harvest report delay requires an enabled system")
+    state = world.harvest_forecasts
+    normalized = 0 if delay is None else delay
+    if get_report_delay(state) == normalized:
+        return  # do not materialize a missing old-pickle field on no-op
+    state.report_delay = normalized or None
 
 def _observation_sum(observations):
     # Builtin sum(float) uses compensated arithmetic in newer CPython. Match
@@ -368,13 +393,14 @@ def _publish(world, state, index) -> list:
                 candidates[recipient] = (rank, source, delay, estimate)
     events = []
     year = world.turn // 12
+    extra_delay = get_report_delay(state)
     for recipient, (_, source, delay, (probability, confidence, predicted)) in sorted(candidates.items()):
         region = world.regions[recipient]
         report = HarvestReport(
             id=f"harvest:{year}:{source}:{recipient}", source_region=source,
             source_region_name=world.regions[source].name, recipient_region=recipient,
             recipient_region_name=region.name, owner=index[region.controller], owner_name=region.controller,
-            issued_turn=world.turn, delivery_turn=world.turn + delay, expires_turn=12 * year + 11,
+            issued_turn=world.turn, delivery_turn=world.turn + delay + extra_delay, expires_turn=12 * year + 11,
             target_start=12 * year + 9, target_end=12 * year + 11, probability=probability,
             confidence=confidence, predicted_ratio=predicted,
         )
@@ -509,6 +535,202 @@ def apply_preparedness(world, economy_result) -> None:
                        credibility_evidence_ids=evidence_ids)
         state.preparedness.append(row)
 
+
+
+@dataclass(frozen=True, slots=True)
+class KnownHarvestReport:
+    """Only report information already visible at the decision boundary."""
+    id: str
+    source_region: int
+    recipient_region: int
+    issued_turn: int
+    planned_delivery_turn: int
+    delivered_turn: int
+    expires_turn: int
+    probability: float
+    confidence: float
+    predicted_ratio: float
+    target_start: int
+    target_end: int
+    issued_event_id: str
+    delivered_event_id: str
+
+
+@dataclass(frozen=True, slots=True)
+class ForecastDecision:
+    region: int
+    owner: int  # actual granary keeper, which may precede current control
+    controller: int | None
+    reports: tuple[KnownHarvestReport, ...]
+    target_before: float | None
+    requested_target: float
+    granary_stock: float
+    food_demand: float | None
+    pending_inbound: float | None
+    opening_budget: int
+
+
+@dataclass(frozen=True, slots=True)
+class ForecastDecisionBatch:
+    """Transient capture; cannot be moved across worlds, turns or flow resets."""
+    turn: int
+    decisions: tuple[ForecastDecision, ...]
+    _world_id: int
+    _flows_id: int
+    _flow_start: int
+
+
+@dataclass(frozen=True, slots=True)
+class ForecastDecisionReceipt:
+    turn: int
+    decision: ForecastDecision
+    purchased_grain: float
+    committed_grain: float
+    paid: int
+    # Current procurement does not expose unsuccessful attempts.
+    attempted: None = None
+
+
+def _nonnegative_number(value, name):
+    if type(value) not in (int, float) or not math.isfinite(value) or value < 0:
+        raise ValueError(f"invalid forecast decision {name}")
+    return float(value)
+
+
+def begin_forecast_decisions(world, economy_result, opening_budget: Sequence[int],
+                             inbound: Sequence[float] | None = None, *,
+                             target_before: Sequence[float | None] | None = None
+                             ) -> ForecastDecisionBatch | None:
+    """Capture a read-only, then-known Phase 10 procurement boundary.
+
+    Call after forecast processing, target adjustment and paid arrivals, after
+    computing the actual per-civ budget, immediately before purchase loops.
+    `target_before` may supply targets captured before preparedness; absent
+    values stay unknown unless the existing preparedness record supplies one.
+    An omitted inbound vector is unknown, not an invented zero. Do not retain a
+    batch across turns/checkpoints. An inactive feature returns None.
+    """
+    if not harvest_forecasts_active(world):
+        return None
+    state = world.harvest_forecasts
+    reserves = world.grain_reserves
+    n = len(world.regions)
+    if (state.last_tick_turn != world.turn or reserves.flows_turn != world.turn
+            or len(reserves.granaries) != n or economy_result is None):
+        raise ValueError("forecast decision requires the current procurement boundary")
+    if (len(opening_budget) != len(world.civilizations)
+            or any(type(x) is not int or x < 0 for x in opening_budget)):
+        raise ValueError("invalid forecast decision opening budget")
+    if inbound is not None and len(inbound) != n:
+        raise ValueError("invalid forecast decision inbound vector")
+    if target_before is not None and len(target_before) != n:
+        raise ValueError("invalid forecast decision prior target vector")
+    inbound_values = ([None] * n if inbound is None else
+                      [_nonnegative_number(v, "inbound") for v in inbound])
+    prior_values = ([None] * n if target_before is None else [
+        None if v is None else _nonnegative_number(v, "prior target") for v in target_before])
+    owners = {c.name: i for i, c in enumerate(world.civilizations)}
+    selected = {}
+    selected_ids = set()
+    for report in state.reports:
+        # This is the same visibility/threshold filter used by the decider.
+        if (report.status != "delivered" or report.probability < WARNING_THRESHOLD
+                or report.delivered_turn is None or report.delivered_turn > world.turn
+                or not report.delivery_turn <= world.turn <= report.expires_turn):
+            continue
+        rid = report.recipient_region
+        if type(rid) is not int or not 0 <= rid < n:
+            raise ValueError("invalid forecast decision recipient")
+        region, granary = world.regions[rid], reserves.granaries[rid]
+        raw = economy_result.market_demand.get(region.name)
+        demand = float(raw[0]) if raw else 0.0
+        if granary.owner != report.owner or demand <= 0 or region.population <= 0:
+            continue
+        if (type(report.source_region) is not int or not 0 <= report.source_region < n
+                or type(report.owner) is not int or not 0 <= report.owner < len(world.civilizations)
+                or report.owner_name != world.civilizations[report.owner].name
+                or report.recipient_region_name != region.name
+                or report.source_region_name != world.regions[report.source_region].name
+                or type(report.id) is not str or not report.id
+                or any(type(t) is not int for t in (report.issued_turn, report.delivery_turn,
+                                                     report.delivered_turn, report.expires_turn,
+                                                     report.target_start, report.target_end))
+                or not report.issued_turn < report.delivery_turn <= report.delivered_turn <= world.turn
+                or not report.issued_turn < report.target_start <= report.target_end == report.expires_turn
+                or not all(math.isfinite(x) and 0 <= x <= 1
+                           for x in (report.probability, report.confidence))
+                or not math.isfinite(report.predicted_ratio) or report.predicted_ratio < 0
+                or type(report.issued_event_id) is not str or type(report.delivered_event_id) is not str):
+            raise ValueError("contradictory forecast decision report")
+        if rid in selected or report.id in selected_ids:
+            raise ValueError("contradictory eligible forecast reports")
+        selected_ids.add(report.id)
+        selected[rid] = KnownHarvestReport(
+            report.id, report.source_region, rid, report.issued_turn, report.delivery_turn,
+            report.delivered_turn, report.expires_turn, report.probability, report.confidence,
+            report.predicted_ratio, report.target_start, report.target_end,
+            report.issued_event_id, report.delivered_event_id)
+    prepared = {}
+    for row in state.preparedness:
+        rid = row.get("region")
+        if type(rid) is not int or not 0 <= rid < n or rid in prepared:
+            raise ValueError("contradictory forecast preparedness")
+        report = selected.get(rid)
+        if report is None or row.get("forecast_id") != report.id:
+            raise ValueError("preparedness has no eligible forecast")
+        base = _nonnegative_number(row.get("base_target"), "base target")
+        extra = _nonnegative_number(row.get("extra_target"), "target increment")
+        if not math.isclose(reserves.granaries[rid].target, base + extra, rel_tol=0, abs_tol=1e-9):
+            raise ValueError("preparedness conflicts with requested target")
+        if prior_values[rid] is not None and not math.isclose(prior_values[rid], base, rel_tol=0, abs_tol=1e-9):
+            raise ValueError("prior target conflicts with preparedness")
+        prepared[rid] = base
+    if set(selected) != set(prepared):
+        raise ValueError("eligible forecast was not applied to preparedness")
+    decisions = []
+    for rid, (region, granary) in enumerate(zip(world.regions, reserves.granaries, strict=True)):
+        owner = granary.owner
+        if type(owner) is not int or not -1 <= owner < len(world.civilizations):
+            raise ValueError("invalid forecast decision granary keeper")
+        if owner < 0:
+            continue
+        controller = owners.get(region.controller)
+        target = _nonnegative_number(granary.target, "requested target")
+        stock = _nonnegative_number(granary.grain, "stock")
+        raw = economy_result.market_demand.get(region.name)
+        demand = None if not raw else _nonnegative_number(raw[0], "food demand")
+        report = selected.get(rid)
+        decisions.append(ForecastDecision(
+            rid, owner, controller, () if report is None else (report,),
+            prepared.get(rid, prior_values[rid]), target, stock, demand,
+            inbound_values[rid], opening_budget[owner]))
+    return ForecastDecisionBatch(world.turn, tuple(decisions), id(world), id(reserves.flows), len(reserves.flows))
+
+
+def finish_forecast_decisions(world, batch: ForecastDecisionBatch | None) -> tuple[ForecastDecisionReceipt, ...]:
+    """Freeze actual new purchase/dispatch flows; never infer an attempt or outcome."""
+    if batch is None:
+        return ()
+    from chronicler.grain_reserves_state import BOUGHT, DISPATCHED
+    reserves = world.grain_reserves
+    if (batch._world_id != id(world) or batch.turn != world.turn
+            or reserves.flows_turn != batch.turn or id(reserves.flows) != batch._flows_id
+            or len(reserves.flows) < batch._flow_start):
+        raise ValueError("forecast decision capture no longer matches procurement")
+    totals = {row.region: [[], [], 0] for row in batch.decisions}
+    owners = {row.region: row.owner for row in batch.decisions}
+    for flow in reserves.flows[batch._flow_start:]:
+        if flow.kind not in (BOUGHT, DISPATCHED) or flow.region not in totals:
+            continue
+        if flow.buyer != owners[flow.region] or type(flow.cost) is not int or flow.cost < 0:
+            raise ValueError("contradictory forecast decision purchase")
+        amount = _nonnegative_number(flow.amount, "purchase amount")
+        row = totals[flow.region]
+        row[0 if flow.kind == BOUGHT else 1].append(amount)
+        row[2] += flow.cost
+    return tuple(ForecastDecisionReceipt(batch.turn, row, math.fsum(totals[row.region][0]),
+                                        math.fsum(totals[row.region][1]), totals[row.region][2])
+                 for row in batch.decisions)
 
 def record_preparedness_purchases(world) -> list:
     """Actual completed-turn purchases while warned, not causal excess."""

@@ -13,6 +13,10 @@ def _fixed(value) -> bool:
     return value == "fixed"
 
 
+def _no_delay(value) -> bool:
+    return value is None or value == 0
+
+
 ForecastObservation = tuple[
     Annotated[int, Field(ge=0, strict=True)],
     Annotated[float, Field(ge=0, allow_inf_nan=False, strict=True)],
@@ -84,6 +88,7 @@ class HarvestForecastState(BaseModel):
     policy: Literal["normal", "withhold", "shuffle"] = "normal"
     preparation_policy: Literal["fixed", "local_credibility"] = Field(
         default="fixed", exclude_if=_fixed)
+    report_delay: int | None = Field(default=None, ge=0, le=12, strict=True, exclude_if=_no_delay)
     observers: list[HarvestObserver] = Field(default_factory=list)
     reports: list[HarvestReport] = Field(default_factory=list)
     outcomes: list[HarvestReport] = Field(default_factory=list)
