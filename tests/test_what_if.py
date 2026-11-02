@@ -104,6 +104,9 @@ def test_prepare_is_durable_but_never_executes_and_duplicate_runs_only_two(pair,
     monkeypatch.setattr(pair, "_child", child)
     first = pair.prepare(request(), world)
     assert first["state"] == "prepared" and calls == []
+    assert first["manifest"]["schema_version"] == 1
+    assert first["manifest"]["intervention"] == {
+        "command": "set", "civ": "King's Realm", "stat": "stability", "before": 60, "value": 70}
     assert pair.prepare(request(), world) == first
     assert len(pair.writes) == 1
     job = pair.jobs["pair_1"]
@@ -345,3 +348,144 @@ def test_output_directory_permission_errors_are_not_silently_skipped(tmp_path, m
     monkeypatch.setattr(wi.os, "scandir", refuse_directory)
     with pytest.raises(PermissionError, match="cannot scan"):
         wi._check_output_limits(tmp_path, log, "baseline", running=running)
+
+
+def policy_request(**extra):
+    return {"type": "what_if_prepare", "request_id": "policy_1", "control": "granary_shortfall_priority",
+            "value": 1, "turns": 2, **extra}
+
+
+def policy_world(world):
+    from chronicler.grain_reserves_state import GrainReserveState
+    world.agent_mode = "hybrid"
+    world.grain_reserves = GrainReserveState()
+    world.tuning_overrides = {}
+    return world
+
+
+@pytest.mark.parametrize("extra", [{"value": True}, {"value": 1.0}, {"value": "1"}, {"value": -1},
+                                   {"value": 2}, {"civ": "King's Realm"}, {"scope": "world"},
+                                   {"control": "other_policy"}, {"control": None}, {"turns": 21}])
+def test_policy_request_rejects_arbitrary_or_nonbinary_controls(world, extra):
+    with pytest.raises(wi.WhatIfError):
+        wi.validate_request(policy_request(**extra), policy_world(world))
+
+
+@pytest.mark.parametrize("fault", ["off", "shadow", "missing", "nonbinary", "nan", "boolean"])
+def test_policy_requires_existing_hybrid_granaries_and_binary_saved_policy(world, fault):
+    from chronicler.pause_policy import STAT
+    policy_world(world)
+    if fault in ("off", "shadow"):
+        world.agent_mode = fault
+    elif fault == "missing":
+        world.grain_reserves = None
+    else:
+        world.tuning_overrides[STAT] = {"nonbinary": 2., "nan": float("nan"), "boolean": True}[fault]
+    before = copy.deepcopy(world.__dict__)
+    with pytest.raises(wi.WhatIfError):
+        wi.validate_request(policy_request(), world)
+    assert world.agent_mode == before["agent_mode"]
+    assert world.grain_reserves == before["grain_reserves"]
+
+
+@pytest.mark.parametrize("raw", [None, 0, 0., -0., 1, 1.])
+def test_policy_unchanged_value_preserves_raw_override_representation(world, raw):
+    import pickle
+    from chronicler.pause_policy import STAT, TARGET, set_policy_value
+    policy_world(world)
+    if raw is not None:
+        world.tuning_overrides[STAT] = raw
+    before = pickle.dumps(world)
+    set_policy_value(world, TARGET, STAT, 0 if raw is None else int(raw))
+    assert pickle.dumps(world) == before
+    assert (STAT in world.tuning_overrides) is (raw is not None)
+
+
+def test_policy_prepare_is_read_only_schema_two_and_replay_keeps_the_original_plan(pair, world):
+    from chronicler.pause_policy import STAT
+    policy_world(world)
+    before = copy.deepcopy(world.__dict__)
+    status = pair.prepare(policy_request(), world)
+    assert world.__dict__ == before
+    manifest = status["manifest"]
+    assert manifest["schema_version"] == 2
+    assert manifest["intervention"] == {"command": "set", "civ": "@world", "stat": STAT,
+                                         "before": 0, "value": 1, "scope": "world"}
+    assert wi.intervention_command(manifest["intervention"]) == {
+        "command": "set", "civ": "@world", "stat": STAT, "value": 1}
+    pair.cancel("policy_1")
+    world.tuning_overrides[STAT] = 1.
+    world.turn = 9
+    assert pair.prepare(policy_request(), world)["manifest"] == manifest
+    with pytest.raises(wi.WhatIfError, match="different"):
+        pair.prepare(policy_request(value=0), world)
+    with pytest.raises(wi.WhatIfError):
+        pair.prepare(policy_request(value=True), world)
+
+
+@pytest.mark.parametrize("change", [{"stat": "treasury"}, {"stat": "other.override"},
+                                    {"civ": "King's Realm"}, {"value": True}, {"value": 2},
+                                    {"command": "inject"}])
+def test_child_command_compiler_refuses_controls_outside_the_whitelist(change):
+    from chronicler.pause_policy import STAT
+    action = {"command": "set", "civ": "@world", "stat": STAT, "value": 1, **change}
+    with pytest.raises(wi.WhatIfError):
+        wi.intervention_command(action)
+
+
+@pytest.mark.parametrize("text", ["set @world grain_reserves.shortfall_priority 0",
+                                  "set @world grain_reserves.shortfall_priority 1"])
+def test_policy_uses_existing_set_grammar(text):
+    from chronicler.interactive import parse_command
+    from chronicler.pause_policy import STAT
+    assert parse_command(text) == ("set", ("@world", STAT, int(text[-1])))
+
+
+@pytest.mark.parametrize("text", ["set Civ grain_reserves.shortfall_priority 1",
+                                  "set @world other.override 1", "set @world grain_reserves.shortfall_priority 2",
+                                  "set @world grain_reserves.shortfall_priority true",
+                                  "set @world grain_reserves.shortfall_priority 1 extra"])
+def test_policy_parser_refuses_other_targets_fields_and_values(text):
+    from chronicler.interactive import parse_command
+    assert parse_command(text)[0] == "error"
+
+
+@pytest.mark.parametrize("value", [True, "1", 1., 2, -1])
+def test_live_policy_refuses_coercion_without_mutating_world(world, value):
+    from chronicler.pause_policy import STAT
+    policy_world(world)
+    commands, statuses = queue.Queue(), queue.Queue()
+    commands.put({"type": "set", "civ": "@world", "stat": STAT, "value": value})
+    commands.put({"type": "continue"})
+    assert make_live_pause(commands, statuses)(world, {}, []) is True
+    assert world.tuning_overrides == {}
+    assert any(status["type"] == "error" for status in list(statuses.queue))
+
+
+def test_live_policy_applies_only_the_named_override_and_records_the_existing_command_schema(world):
+    from chronicler.pause_policy import STAT
+    policy_world(world)
+    commands, statuses = queue.Queue(), queue.Queue()
+    recorded = []
+    checkpoints = SimpleNamespace(service=lambda world: None,
+                                  note_intervention=lambda world, command: recorded.append(command),
+                                  turn_end=lambda world: False)
+    commands.put({"type": "set", "civ": "@world", "stat": STAT, "value": 1})
+    commands.put({"type": "continue"})
+    assert make_live_pause(commands, statuses, checkpoints=checkpoints)(world, {}, []) is True
+    assert world.tuning_overrides == {STAT: 1.}
+    assert recorded == [{"command": "set", "civ": "@world", "stat": STAT, "value": 1}]
+
+
+def test_interactive_policy_applies_at_pause_and_preserves_command_log_shape(world, monkeypatch):
+    from chronicler.interactive import interactive_pause
+    from chronicler.pause_policy import STAT
+    policy_world(world)
+    responses = iter(["set @world grain_reserves.shortfall_priority 1", "continue"])
+    monkeypatch.setattr("builtins.input", lambda _: next(responses))
+    monkeypatch.setattr("chronicler.interactive.format_state_summary", lambda *args: "paused")
+    recorded = []
+    boundary = SimpleNamespace(note_intervention=lambda world, command: recorded.append(command))
+    assert interactive_pause(world, {}, [], interventions=boundary) is True
+    assert world.tuning_overrides == {STAT: 1.}
+    assert recorded == [{"command": "set", "civ": "@world", "stat": STAT, "value": 1}]

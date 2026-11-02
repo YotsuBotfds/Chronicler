@@ -1054,6 +1054,21 @@ def make_live_pause(
                 stat = cmd.get("stat", "")
                 value = cmd.get("value")
 
+                from chronicler.pause_policy import STAT, set_policy_value
+                if stat == STAT:
+                    try:
+                        if set(cmd) - {"type", "civ", "stat", "value"}:
+                            raise ValueError("Granary policy accepts only target, policy and binary value")
+                        set_policy_value(world, civ_name, stat, value)
+                    except ValueError as exc:
+                        status_queue.put({"type": "error", "message": str(exc)})
+                        continue
+                    if checkpoints is not None:
+                        checkpoints.note_intervention(
+                            world, {"command": "set", "civ": civ_name, "stat": stat, "value": value})
+                    status_queue.put({"type": "ack", "command": "set", "still_paused": True})
+                    continue
+
                 # Validate civ
                 civ_obj = next((c for c in world.civilizations if c.name == civ_name), None)
                 if civ_obj is None:

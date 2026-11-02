@@ -27,6 +27,7 @@ from typing import Any
 
 from chronicler.artifact_io import atomic_write_text
 from chronicler.bundle_codec import decode_bundle, dumps_bundle
+from chronicler.pause_policy import CONTROL, STAT, TARGET, policy_value, validate_policy_command
 
 MAX_JOBS = 8
 MAX_BUNDLE_BYTES = 16 * 1024 * 1024
@@ -77,23 +78,59 @@ def _check_output_limits(directory: Path, log_path: Path, arm: str, *, running: 
         raise WhatIfError(f"{arm} exceeded its output limit")
 
 
-def validate_request(msg: dict, world: Any) -> tuple[str, str, int, int, int]:
+def _request_fields(msg: dict) -> tuple[str, str, str, int, int]:
     request_id = msg.get("request_id")
     if not isinstance(request_id, str) or not _REQUEST_ID.fullmatch(request_id):
         raise WhatIfError("request_id must contain 1–80 letters, digits, underscores or hyphens")
-    if set(msg) - {"type", "request_id", "civ", "value", "turns"}:
-        raise WhatIfError("Only civilization, stability value and horizon are supported")
-    value, turns, name = msg.get("value"), msg.get("turns"), msg.get("civ")
-    if type(value) is not int or not 1 <= value <= 100:
-        raise WhatIfError("Stability must be an integer from 1 to 100")
+    policy = "control" in msg
+    allowed = {"type", "request_id", "value", "turns", "control" if policy else "civ"}
+    if set(msg) - allowed or (policy and msg.get("control") != CONTROL):
+        raise WhatIfError("Only the declared stability or granary shortfall policy control is supported")
+    value, turns = msg.get("value"), msg.get("turns")
+    if policy:
+        if type(value) is not int or value not in (0, 1):
+            raise WhatIfError("Granary shortfall priority must be integer 0 or 1")
+        name, stat = TARGET, STAT
+    else:
+        if type(value) is not int or not 1 <= value <= 100:
+            raise WhatIfError("Stability must be an integer from 1 to 100")
+        name, stat = msg.get("civ"), "stability"
     if type(turns) is not int or not 1 <= turns <= 20:
         raise WhatIfError("Horizon must be an integer from 1 to 20 additional turns")
     if not isinstance(name, str) or any(c in name for c in "\n\r\x00"):
         raise WhatIfError("Invalid civilization name")
+    return request_id, name, stat, value, turns
+
+
+def validate_request(msg: dict, world: Any) -> tuple[str, str, int, int, int]:
+    request_id, name, stat, value, turns = _request_fields(msg)
+    if stat == STAT:
+        try:
+            before = policy_value(world)
+        except ValueError as exc:
+            raise WhatIfError(str(exc)) from exc
+        return request_id, name, value, turns, before
     civs = [c for c in world.civilizations if c.name == name and c.regions]
     if len(civs) != 1:
         raise WhatIfError("Choose one living civilization in the currently paused world")
     return request_id, name, value, turns, civs[0].stability
+
+
+def intervention_command(intervention: dict) -> dict:
+    """Compile only declared controls; metadata such as scope is never a command."""
+    command = {key: intervention.get(key) for key in ("command", "civ", "stat", "value")}
+    if command["command"] != "set":
+        raise WhatIfError("Unsupported intervention command")
+    if command["stat"] == STAT:
+        try:
+            validate_policy_command(command["civ"], command["stat"], command["value"])
+        except ValueError as exc:
+            raise WhatIfError(str(exc)) from exc
+    elif (command["stat"] != "stability" or not isinstance(command["civ"], str)
+          or any(c in command["civ"] for c in "\n\r\x00")
+          or type(command["value"]) is not int or not 1 <= command["value"] <= 100):
+        raise WhatIfError("Unsupported intervention control")
+    return command
 
 
 def require_hash_seed() -> None:
@@ -219,10 +256,10 @@ class WhatIfPairs:
             existing = self.jobs.get(request_id)
             if existing:
                 m = existing.manifest
-                if (set(msg) - {"type", "request_id", "civ", "value", "turns"} or
-                        type(msg.get("value")) is not int or type(msg.get("turns")) is not int or
-                        (msg.get("civ"), msg.get("value"), msg.get("turns")) !=
-                        (m["intervention"]["civ"], m["intervention"]["value"], m["turns"])):
+                _, name, stat, value, turns = _request_fields(msg)
+                if ((name, stat, value, turns) !=
+                        (m["intervention"]["civ"], m["intervention"]["stat"],
+                         m["intervention"]["value"], m["turns"])):
                     raise WhatIfError("This request_id already describes a different pair")
                 return self._status(existing)
             request_id, civ, value, turns, before = validate_request(msg, world)
@@ -246,15 +283,21 @@ class WhatIfPairs:
             config = header.get("run_config", {})
             if config.get("output_args", {}).get("simulate_only") is not True:
                 raise WhatIfError("Start this live run with --simulate-only before preparing exact what-if pairs")
-            manifest = {"schema_version": 1, "request_id": request_id,
+            is_policy = "control" in msg
+            intervention = {"command": "set", "civ": civ, "stat": STAT if is_policy else "stability",
+                            "before": before, "value": value}
+            limits = list(LIMITS)
+            if is_policy:
+                intervention["scope"] = "world"
+                limits[1] = "Global granary procurement priority only; 1–20 additional turns, simulation only."
+            manifest = {"schema_version": 2 if is_policy else 1, "request_id": request_id,
                         "source": {"checkpoint": artifact_identity(checkpoint), "header": header,
                                    "current_identity": fresh_identity()},
                         "mode": config.get("simulation_args", {}).get("agents", "off"),
                         "seed": header["seed"], "start_turn": world.turn,
                         "end_turn": world.turn + turns, "turns": turns,
-                        "intervention": {"command": "set", "civ": civ, "stat": "stability",
-                                         "before": before, "value": value},
-                        "semantics": "exact_checkpoint_pair", "limits": list(LIMITS),
+                        "intervention": intervention,
+                        "semantics": "exact_checkpoint_pair", "limits": limits,
                         "bounds": {"arm_seconds": ARM_TIMEOUT_SECONDS, "bundle_bytes": MAX_BUNDLE_BYTES}}
             job = Job(directory, manifest)
             self._persist(job)  # Durable plan precedes status and every launch.
@@ -330,8 +373,8 @@ class WhatIfPairs:
                    "--checkpoint-every", "1", "--checkpoint", str(directory / "final.ckpt")]
         script = "continue\n"
         if arm == "intervention":
-            intervention = m["intervention"]
-            script = f"set {shlex.quote(intervention['civ'])} stability {intervention['value']}\n" + script
+            intervention = intervention_command(m["intervention"])
+            script = f"set {shlex.quote(intervention['civ'])} {intervention['stat']} {intervention['value']}\n" + script
         env = os.environ.copy()  # Same seed/thread env/config, no override flags.
         env["PYTHONPATH"] = str(Path(__file__).resolve().parents[1]) + os.pathsep + env.get("PYTHONPATH", "")
         log_path = directory / "process.log"
@@ -362,7 +405,7 @@ class WhatIfPairs:
         _check_output_limits(directory, log_path, arm)
         expected = list(m["source"]["header"].get("run_config", {}).get("interventions", []))
         if arm == "intervention":
-            expected.append({"turn": m["start_turn"], **{k: v for k, v in m["intervention"].items() if k != "before"}})
+            expected.append({"turn": m["start_turn"], **intervention_command(m["intervention"])})
         if final.get("run_config", {}).get("interventions", []) != expected:
             raise WhatIfError(f"{arm} intervention record differs from the declared control")
         bundle_path = directory / "chronicle_bundle.json"
