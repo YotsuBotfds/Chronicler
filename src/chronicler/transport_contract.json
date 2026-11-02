@@ -58,7 +58,8 @@
     "transaction_receipts",
     "migration",
     "regional_population",
-    "food_accounting"
+    "food_accounting",
+    "household_mobility"
   ],
   "bundle_systems": [
     "historiography",
