@@ -97,14 +97,22 @@ def test_real_native_pair_preserves_original_and_unchanged_arm(tmp_path, changed
     import chronicler.main as main
     from chronicler.bundle_codec import load_bundle
     from chronicler.run_checkpoint import read_header
+    scarce = policy_case == "enable-scarce"
     command = [
-        "--seed", "42", "--turns", "4", "--regions", "4", "--civs", "2", "--agents", "hybrid",
+        "--seed", "42", "--turns", "4", "--regions", "8" if scarce else "4",
+        "--civs", "4" if scarce else "2", "--agents", "hybrid",
         "--simulate-only", "--output", str(tmp_path / "original" / "chronicle.md"),
         "--state", str(tmp_path / "original" / "state.json"),
     ]
     if policy_case is not None:
         command.append("--grain-reserves")
     args = main._build_parser().parse_args(command)
+    if policy_case in ("disable", "noop-enabled"):
+        from chronicler.pause_policy import STAT
+        args.tuning_overrides = {STAT: 1.}
+    if scarce:
+        from chronicler.tuning import K_SUBSISTENCE_BASELINE
+        args.tuning_overrides = {K_SUBSISTENCE_BASELINE: 0.}
     output_dir = Path(args.output).parent
     output_dir.mkdir()
     checkpoints = LiveCheckpoints(output_dir, queue.Queue(), LiveView(), lambda: 0, 2)
@@ -119,11 +127,27 @@ def test_real_native_pair_preserves_original_and_unchanged_arm(tmp_path, changed
     def pause(world, memories, pending):
         if world.turn != 2:
             return True
-        if policy_case in ("disable", "noop-enabled"):
-            # Both arms and the original receive this explicitly declared
-            # common input before saving. No arm enables the host system.
-            from chronicler.pause_policy import STAT
-            world.tuning_overrides[STAT] = 1.
+        if scarce:
+            # Explicit constructed opening stocks/harvest moments shared by
+            # both arms and the original; native population is never replaced.
+            import chronicler.grain_reserves as grain
+            fed, hungry = 2, 4
+            assert world.regions[fed].name == "Verdant Plains"
+            assert world.regions[hungry].name == "Thornwood"
+            owner = world.regions[fed].controller
+            assert owner is not None and world.regions[hungry].controller == owner
+            for civ in world.civilizations:
+                civ.treasury = 30 if civ.name == owner else 0
+            for region in world.regions:
+                region.stockpile.goods = {}
+            world.regions[fed].stockpile.goods = {"grain": 80.}
+            world.regions[hungry].resource_base_yields = [0., 0., 0.]
+            grain._ensure(world)
+            for region, stock in ((fed, 0.), (hungry, 2.)):
+                granary = world.grain_reserves.granaries[region]
+                granary.grain = stock
+                granary.observed, granary.harvest_mean, granary.harvest_sq = 12, .5, .5
+            recorded["scarce_regions"] = fed, hungry
         # Serialize the real original graph/private RNG before any preparation.
         before = world_bytes(world)
         py_rng, np_rng = random.getstate(), pickle.dumps(np.random.get_state())
@@ -133,7 +157,7 @@ def test_real_native_pair_preserves_original_and_unchanged_arm(tmp_path, changed
         if policy_case is not None:
             msg = {"type": "what_if_prepare", "request_id": "native_pair",
                    "control": "granary_shortfall_priority", "turns": 2,
-                   "value": int(policy_case in ("enable", "noop-enabled"))}
+                   "value": int(policy_case in ("enable", "enable-scarce", "noop-enabled"))}
         pair.prepare(msg, world)
         job = pair.jobs["native_pair"]
         if policy_case is not None:
@@ -173,6 +197,16 @@ def test_real_native_pair_preserves_original_and_unchanged_arm(tmp_path, changed
         else:
             assert baseline != intervention
         recorded["baseline"] = baseline
+        if scarce:
+            from chronicler.grain_reserves_state import BOUGHT
+            first_purchases = {}
+            for arm, bundle in (("baseline", baseline), ("intervention", intervention)):
+                snapshot = next(row for row in bundle["history"] if row["turn"] == 3)
+                first_purchases[arm] = [flow["region"] for flow in snapshot["grain_reserves"]["flows"]
+                                        if flow["kind"] == BOUGHT]
+            assert first_purchases["baseline"] and first_purchases["intervention"], first_purchases
+            assert first_purchases["baseline"][0] == recorded["scarce_regions"][0], first_purchases
+            assert first_purchases["intervention"][0] == recorded["scarce_regions"][1], first_purchases
         if policy_case is not None:
             from chronicler.run_checkpoint import read_checkpoint
             from chronicler.pause_policy import STAT, policy_value
@@ -211,7 +245,7 @@ def test_real_native_pair_preserves_original_and_unchanged_arm(tmp_path, changed
         _assert_policy_checkpoint_continuations(tmp_path, recorded["policy_checkpoints"])
 
 
-@pytest.mark.parametrize("policy_case", ["enable", "disable", "noop-default", "noop-enabled"])
+@pytest.mark.parametrize("policy_case", ["enable", "disable", "noop-default", "noop-enabled", "enable-scarce"])
 def test_real_native_granary_policy_pair_and_exact_continuations(tmp_path, policy_case):
     test_real_native_pair_preserves_original_and_unchanged_arm(tmp_path, True, policy_case=policy_case)
 
