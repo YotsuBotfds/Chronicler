@@ -35,3 +35,4 @@ def test_full_main_case_keeps_declared_history_and_real_observations(tmp_path):
     assert all(p['purchased']>0 and p['paid']>0 for p in admission['paid_purchases'])
     assert all(t['work_delivered']>0 and t['crafts_used']>0 for t in admission['native_teaching'])
     assert (Path(manifest['exact_pair_directory'])/'common.ckpt').is_file()
+    assert (output/'launch-live.sh').is_file() and (output/'WALKTHROUGH.txt').is_file()

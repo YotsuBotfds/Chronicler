@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import queue
 import random
+import shlex
 import subprocess
 import sys
 
@@ -73,6 +74,7 @@ def generate(output: Path):
         'source_commit':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
         'native_source_tree':subprocess.check_output(['git','rev-parse','HEAD:chronicler-agents'],cwd=ROOT,text=True).strip(),
         'native_sha256':hashlib.sha256(Path(native.__file__).read_bytes()).hexdigest(),
+        'helper_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         'limits':['Constructed initial resources and declared control transfer/peace; development only.',
             'Explicit paid restoration is not spontaneous founding; fee does not model construction labor or materials.',
             'Common checkpoint is a full execute_run boundary; a single seed is not an efficacy evaluation.']}
@@ -187,6 +189,38 @@ def generate(output: Path):
     except BaseException as exc:
         manifest.update(state='failed',reason=f'{type(exc).__name__}: {exc}');write(receipt,manifest);raise
     finally:pairs.close()
+    if manifest['state']=='validated':
+        from chronicler.run_checkpoint import read_header
+        checkpoint=Path(manifest['exact_pair_directory'])/'common.ckpt'
+        header,_=read_header(checkpoint)
+        threads=header['identity']['environment']['thread_env']
+        # Exact continuation distinguishes absent variables from explicit 1.
+        # Do not silently substitute this shell's current thread settings.
+        launch=['env']
+        for key,value in threads.items():
+            if value is None:launch.extend(['-u',key])
+        launch.extend(f'{key}={value}' for key,value in threads.items() if value is not None)
+        launch.extend([f'PYTHONPATH={ROOT / "src"}{os.pathsep}{ROOT}',sys.executable,'-m','chronicler.main',
+            '--live','--live-port','0','--resume',str(checkpoint),'--turns','20','--simulate-only',
+            '--output',str(output/'live'/'chronicle.md'),'--state',str(output/'live'/'state.json')])
+        destination=shlex.quote(str(output/'live'))
+        command=(f'if test -e {destination} || test -L {destination}; then\n'
+            "  echo 'Live output exists; choose a fresh output directory.' >&2\n  exit 1\nfi\n"
+            +shlex.join(launch)+'\n')
+        (output/'launch-live.sh').write_text('#!/usr/bin/env bash\nset -euo pipefail\numask 077\n'+command)
+        (output/'WALKTHROUGH.txt').write_text(
+            'Constructed full-main development case, not natural recovery or held-out evidence.\n'
+            f'Read crisis-case.json. The common checkpoint has actual snapshots1–{header["turn"]}; '
+            'both child bundles preserve this history. Open either child chronicle_bundle.json in the viewer.\n'
+            'For the paused app, first start the viewer with: cd viewer && npm run build && npm run preview\n'
+            'Then copy this launch command (it preserves the checkpoint thread settings and refuses reused output):\n'
+            +shlex.join(['bash',str(output/'launch-live.sh')])+'\n'
+            'Open the private viewer link printed by the CLI; keep its token out of screenshots and exports.\n'
+            'Inspect Learning and the recorded turn2 fall. At the CURRENT paused turn, choose paid academy '
+            're-founding, preview the named seat and 30-coin fee, then compare seven further turns. '
+            'The original remains paused. In the completed result, inspect the new seat, paid craft purchases '
+            'and native teaching with their source/available dates. The fee does not model construction '
+            'labor or materials, and paid founding alone does not guarantee service.\n',encoding='utf-8')
     return manifest
 
 
@@ -201,6 +235,7 @@ def main():
     os.umask(0o077)
     result=generate(output)
     print(json.dumps({'state':result['state'],'output':str(output),'reason':result.get('reason')}))
+    if result['state']!='validated':raise SystemExit(2)
 
 
 if __name__=='__main__':main()
