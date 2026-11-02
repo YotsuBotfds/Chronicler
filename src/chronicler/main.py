@@ -1885,8 +1885,6 @@ def _configure_run(args: argparse.Namespace, world: WorldState, fresh_world: boo
     configure_expansion_features(world, args, agent_mode=agent_mode)
     report_delay = getattr(args, "harvest_report_delay", None)
     if report_delay is not None:
-        if report_delay and agent_mode != "hybrid":
-            raise ValueError("harvest report delay requires --agents hybrid")
         from chronicler.harvest_forecasts import set_report_delay
         set_report_delay(world, report_delay)
     agent_bridge = None
