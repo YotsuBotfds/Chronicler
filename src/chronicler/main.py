@@ -941,6 +941,7 @@ def execute_run(
                         _obs, _tgt, world, borders=_borders,
                     )
         from chronicler.regional_population import snapshot_fields as regional_population_snapshot_fields
+        from chronicler.food_accounting import snapshot_fields as food_accounting_snapshot_fields
         snapshot = TurnSnapshot(
             turn=world.turn,
             civ_stats={
@@ -1086,6 +1087,7 @@ def execute_run(
             **expansion_snapshot_fields(world),
             **_migration_snapshot_fields(world),
             **regional_population_snapshot_fields(world, agent_bridge, turn_result.observation),
+            **food_accounting_snapshot_fields(world, turn_result.observation),
         )
 
         # M56b: Urban fraction aggregation from agent snapshot

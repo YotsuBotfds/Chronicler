@@ -1,3 +1,13 @@
+# Active program — societies under pressure
+
+Continue the new [crisis/adaptation/recovery roadmap](integration/crisis-recovery-roadmap.md)
+from verified dev baseline6ff45ec3. M0 authority contract is integrated; M1 food
+accounting and M2 genuine private-transport fixture are implementing. These are
+not complete epics. Previous remediation stays closed within its documented
+limits. Main/defaults remain unchanged; environment publication stays deferred.
+
+---
+
 # Exploration release handoff — bounded outcomes
 
 The 36 requested items have implemented, reused, partial and deferred outcomes;

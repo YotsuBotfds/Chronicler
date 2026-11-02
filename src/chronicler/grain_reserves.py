@@ -543,6 +543,7 @@ def tick_grain_reserves(world: "WorldState", acc=None, economy_result: "EconomyR
     projected = _projections(world, acc)
     budget = [int(BUDGET_SHARE * max(0, projected[i] - TREASURY_FLOOR)) if civs[i].regions else 0
               for i in range(len(civs))]
+    opening_budget = tuple(budget)
     loss = _transit_loss()
     flows = _flows(world, state)
     purchase_flow_start = len(flows)
@@ -649,6 +650,9 @@ def tick_grain_reserves(world: "WorldState", acc=None, economy_result: "EconomyR
             description=(f"{civs[ci].name} buys {grain:.1f} grain for its granaries in the markets "
                          f"of {', '.join(names)} ({cost} treasury)."),
         ))
+    economy_result.food_procurement_budget = {
+        ci: (initial, budget[ci]) for ci, initial in enumerate(opening_budget)
+    }
     if ledger is not None:
         ledger.after_buy(world, acc, state)
         ledger.finish(world, state, agent_bridge)

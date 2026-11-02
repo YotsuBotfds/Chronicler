@@ -1487,6 +1487,8 @@ class TurnSnapshot(BaseModel):
     # Versioned, indexed completed model populations, native alive counts and
     # separately stamped Phase 2 food weights. Historical missing means unknown.
     regional_population: dict | None = Field(default=None, exclude_if=_is_none)
+    # Version1 detached native food drawdown/public relief observations.
+    food_accounting: dict | None = Field(default=None, exclude_if=_is_none)
 
 
 # --- M20a: Narration Pipeline v2 models ---

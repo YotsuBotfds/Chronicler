@@ -583,6 +583,12 @@ class EconomyResult:
     trade_dependent: dict[str, bool] = field(default_factory=dict)
     # M58b: Oracle shadow imports (from observability batch oracle columns)
     oracle_imports: dict[str, dict[str, float]] = field(default_factory=dict)
+    # Observational only: native Phase-2 food ledger by stable region index.
+    # Tuples are FOOD_LEDGER_FIELDS followed by demand and pre-relief sufficiency.
+    # Empty when an older extension does not export the entire versioned ledger.
+    food_ledger: dict[int, tuple[float, ...]] = field(default_factory=dict)
+    # Exact late-Phase-10 procurement budgets, not household purchasing access.
+    food_procurement_budget: dict[int, tuple[int, int]] = field(default_factory=dict)
     # Merchant routing (2026-10): demand and post-trade supply per category
     # (``CATEGORIES`` order), the merchant planner's market prices. Filled by
     # the native economy; empty for the Python oracle.
@@ -1546,6 +1552,15 @@ def reconstruct_economy_result(
         }[signal]
         for i, rid in enumerate(rr_ids):
             target[region_names[rid]] = vals[i]
+
+    from chronicler.food_accounting import FOOD_LEDGER_FIELDS
+    food_cols = [f"food_{key}" for key in FOOD_LEDGER_FIELDS]
+    if all(c in rr_names for c in (*food_cols, "market_demand_food")):
+        # Capture before public granaries mutate food_sufficiency in Python.
+        columns = [pylist(region_result_batch.column(c)) for c in
+                   (*food_cols, "market_demand_food", "food_sufficiency")]
+        for i, rid in enumerate(rr_ids):
+            result.food_ledger[rid] = tuple(float(col[i]) for col in columns)
 
     trc_vals = pylist(region_result_batch.column("trade_route_count"))
     for i, rid in enumerate(rr_ids):

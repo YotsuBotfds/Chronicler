@@ -2083,11 +2083,16 @@ def run_turn_result(
                 *rust_return, world,
                 require_oracle_shadow=(world.agent_mode == "hybrid"),
             )
+            from chronicler.food_accounting import public_opening, capture_food_accounting
+            _public_food_opening = public_opening(world)
             if _grain_reserves_on(world):
                 # Public granaries (--grain-reserves): cover the shortfall of
                 # food on hand before anything reads this turn's sufficiency.
                 from chronicler.grain_reserves import open_granaries
                 _emit(open_granaries(world, economy_result, agent_bridge))
+            artifacts.food_accounting = capture_food_accounting(
+                world, economy_result, artifacts.food_weights, _public_food_opening,
+            )
             artifacts.economy = economy_result
             agent_bridge.set_economy_result(economy_result)
 
@@ -2115,6 +2120,9 @@ def run_turn_result(
     if world.mutual_aid_enabled:
         from chronicler.mutual_aid import observe_mutual_aid
         observe_mutual_aid(world, economy_result, snapshot)
+    if artifacts.food_accounting is None:
+        from chronicler.food_accounting import capture_food_accounting
+        artifacts.food_accounting = capture_food_accounting(world, None, None, None)
     # Pre-economy rows have no Phase 10 view and no post-observation lifetime.
     del snapshot
 
@@ -2609,6 +2617,9 @@ def run_turn_result(
             phase10_agents=artifacts.phase10.agents,
             food_weights=artifacts.food_weights if economy_result is not None else None,
             population_sources=population_sources,
+            food_accounting=artifacts.food_accounting,
+            food_procurement=tuple((ci, initial, remaining) for ci, (initial, remaining)
+                                   in sorted(getattr(economy_result, "food_procurement_budget", {}).items())) if economy_result is not None else (),
         ),
     )
 

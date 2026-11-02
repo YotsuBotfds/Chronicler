@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from chronicler.economy import EconomyResult
     from chronicler.models import AgentEventRecord
     from chronicler.regional_population import FoodWeights
+    from chronicler.food_accounting import FoodAccounting
 
 Stage = Literal["phase10_entry"]
 
@@ -186,6 +187,7 @@ class TurnArtifacts:
     deaths: tuple[AgentEventRecord, ...] = ()
     phase10: Phase10Inputs | None = None
     food_weights: FoodWeights | None = None
+    food_accounting: FoodAccounting | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -195,6 +197,8 @@ class TurnObservation:
     phase10_agents: AgentRows | None
     food_weights: FoodWeights | None = None
     population_sources: tuple[str, ...] | None = None
+    food_accounting: FoodAccounting | None = None
+    food_procurement: tuple[tuple[int, int, int], ...] = ()
 
     def __post_init__(self) -> None:
         if self.phase10_agents is not None:
