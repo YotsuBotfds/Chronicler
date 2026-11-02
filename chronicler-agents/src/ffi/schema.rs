@@ -233,6 +233,9 @@ pub fn economy_region_result_schema() -> Schema {
         fields.push(Field::new(format!("slot_output_{slot}"), DataType::Float32, false));
     }
     fields.push(Field::new("forage_output", DataType::Float32, false));
+    for name in crate::economy::FOOD_LEDGER_NAMES {
+        fields.push(Field::new(name, DataType::Float64, false));
+    }
     Schema::new(fields)
 }
 

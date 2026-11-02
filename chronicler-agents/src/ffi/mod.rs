@@ -3185,8 +3185,14 @@ impl AgentSimulator {
         let mut rr_craft_suff = Float32Builder::with_capacity(n_out);
         let mut rr_slot_out: Vec<Float32Builder> = (0..3).map(|_| Float32Builder::with_capacity(n_out)).collect();
         let mut rr_forage = Float32Builder::with_capacity(n_out);
+        let mut rr_food_ledger: Vec<arrow::array::Float64Builder> =
+            (0..crate::economy::FOOD_LEDGER_NAMES.len())
+                .map(|_| arrow::array::Float64Builder::with_capacity(n_out)).collect();
 
         for rr in &output.region_results {
+            for (builder, value) in rr_food_ledger.iter_mut().zip(rr.food_ledger) {
+                builder.append_value(value);
+            }
             if let Some(work) = &mut self.health_work {
                 let r = rr.region_id as usize;
                 if r < work.worked.len() { work.worked[r] = rr.slot_output.iter().any(|&x| x > 0.0) || rr.forage_output > 0.0; }
@@ -3243,6 +3249,9 @@ impl AgentSimulator {
         }
         rr_columns.push(Arc::new(rr_forage.finish()));
 
+        for builder in rr_food_ledger.iter_mut() {
+            rr_columns.push(Arc::new(builder.finish()));
+        }
         let region_result_batch = RecordBatch::try_new(
             Arc::new(economy_region_result_schema()),
             rr_columns,
