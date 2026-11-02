@@ -60,10 +60,14 @@ def test_preview_and_apply_preserve_native_and_record_one_event():
 
 @pytest.mark.skipif(__import__('os').name != 'posix', reason='POSIX child process group required')
 def test_native_whatif_loaded_cargo_and_recovery(tmp_path):
-    pytest.importorskip('chronicler_agents')
+    from test_what_if_process import _assert_real_native
+    _assert_real_native()
     import os, queue, sys
     if os.environ.get('PYTHONHASHSEED') != '0' or sys.flags.hash_randomization:
-        pytest.skip('requires interpreter started with PYTHONHASHSEED=0')
+        from test_what_if_process import _run_hash_zero_native_fixture
+        _run_hash_zero_native_fixture(tmp_path, fixture_file=__file__,
+                                      function_name='test_native_whatif_loaded_cargo_and_recovery')
+        return
     from chronicler import main
     from chronicler.batch_manifest import simulation_config, output_config
     from chronicler.run_checkpoint import RunState, read_checkpoint, write_checkpoint
