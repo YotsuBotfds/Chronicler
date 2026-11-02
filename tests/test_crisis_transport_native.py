@@ -175,10 +175,15 @@ def test_backed_transit_route_closure_return_reopen_and_exact_resume(tmp_path):
                ("source_region", "dest_region", "good_slot", "qty")))]
     assert any((src, dst, good) == (0, 2, 0) and q >= qty - 1e-5
                for src, dst, good, q in pending)
+    assert not [r for r in uninterrupted if r.operation == "departed"
+                and r.origin_region == 2 and r.good_slot in (0, 1, 2, 5, 7)]
     _advance(control, control_bridge)
     destination = control.regions[2].name
-    assert control._economy_result.imports_by_region[destination]["food"] >= qty * 0.95 - 2e-4
-    assert control._economy_result.food_sufficiency[destination] > 0
+    economy = control._economy_result
+    assert economy.imports_by_region[destination]["food"] >= qty * 0.95 - 2e-4
+    demand = economy.market_demand[destination][0]
+    assert demand > 0
+    assert economy.food_sufficiency[destination] >= min(2.0, qty * 0.95 / demand) - 2e-5
     recovery = []
     for _ in range(5):
         _, rows = _paired_turn(world, bridge, restored, resumed)
