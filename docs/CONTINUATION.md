@@ -12,8 +12,15 @@ teaching work/paid supplies and Learning history passed all nine CI jobs at
 d7061f42. M6 real delayed-report procurement/history is integrated with native,
 checkpoint, neutrality and browser checks, but remains partially covered: the
 controls have not demonstrated misleading-information harm or a food benefit.
-M6 combined CI is next. M7 supported-shock integration is starting; M8/M9 remain
-unfinished (one representative starting performance baseline is recorded).
+All nine M6 CI jobs passed at3e852333 in run41489913862; its unmet harmful-
+misinformation/food-outcome acceptance remains explicit. M7 now has constructed
+native A/B/C/D cases and recorded regional distribution analysis; it remains
+partially covered, with receiving services, full alternatives and held evaluation
+unfinished. M8's real transport exact-pair browser journey works at desktop and
+390px, including dated native-food comparison. Explicit paid academy restoration
+has native tests but still needs app/coordinator wiring. M9 has paired runtime,
+memory and history measurements; final browser responsiveness and combined CI
+are being checked. See the active roadmap for exact sources and limits.
 This is not the completed roadmap. Previous remediation stays closed within its documented
 limits. Main/defaults remain unchanged; environment publication stays deferred.
 

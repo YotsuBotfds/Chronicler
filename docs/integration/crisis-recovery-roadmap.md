@@ -32,10 +32,10 @@ validate an epic. Runtime changes remain opt-in until evaluated. No paid narrati
 | M3 storage choices | validated | Opt-in paid work, timber/treasury costs, capacity, condition, spoilage, custody and existing inspector integration. All nine combined CI jobs passed at fc50bf8e. | Actual benefit/harm pair, total goods balance, partial-work exact continuation and four-mode default-off parity passed. Care/work interaction and held scenario evaluation remain M7–9. |
 | M4 household coping | validated | Opt-in native liquid gate, persisted controls, bounded history and Migration inspector; corrected omitted/mock/no-native boundaries. All nine CI jobs passed at4dddb88b. | This establishes constrained native moves and exact continuation in declared controls, not a new household food/credit/care model or general unequal recovery. M7–9 retain those limits. |
 | M5 resource-backed service | validated | Actual paid academy supplies, native exclusive Scholar work/income cost, prior-turn learning effect, dated Learning inspector and material balances. All nine CI jobs passed atd7061f42. | Nine native controls, funded/no-stock/restock/ownership/adverse cases, exact held-supplies continuation, off parity and browser journey pass. General efficacy, rebuilding suite and Scholar illness remain outside this bounded qualification. |
-| M6 delayed information | partially covered | Report delay, real decision-boundary inputs/costs, issue-time construction records and existing Harvest inspector integrated. See forecast-decisions-candidate.md. | Actual timing/purchases, expiry, caps, exact continuation, observer neutrality and browser checks pass. Shuffle is a distinct signal but purchase-neutral here; misleading harm/food outcome criterion remains unmet. Final combined CI next. |
-| M7 crisis suite | implementing | Read-only supported-control assessment completed; isolated typed regional-disruption helper796364d4 has nine native checks but no coordinator/UI wiring. Freeze development and held cases before evaluation. | A route-shortfall; B harvest+care; C constrained displacement; D institution loss/costly recovery; E unequal recovery. Supported injection alone is not proof of a crop/route shock. Integrated cases are not yet admitted. |
-| M8 usable laboratory | planned | Extend current views/interventions/comparison after contracts, not parallel panels. | Actual app journey and390px controls: detection → evidence → bounded what-if → comparison → private bookmark/export, old files/cancel preserved. |
-| M9 package | implementing | Starting performance baseline and periodic owner-only source/evidence recovery verified; final active-state matrix and scenario performance comparison remain ahead. | Relevant Python/native/Rust/viewer, pending-shipment/partial-work/care/institution checkpoints, runtime/memory/history/UI measurements; final flags, limits and handoff. Scientific promotion is separate and unrun. |
+| M6 delayed information | partially covered | Report delay, real decision-boundary inputs/costs, issue-time construction records and Harvest inspector integrated; all nine CI jobs passed at3e852333. See forecast-decisions-candidate.md. | Actual timing/purchases, expiry, caps, exact continuation, observer neutrality and browser checks pass. Both the earlier and additional scarce-budget shuffle cases are purchase/food-neutral; misleading harm/food outcome criterion remains unmet. |
+| M7 crisis suite | partially covered | [Constructed A/B/C/D cases and E analysis](crisis-scenarios.md) execute shared native state. Regional shock now uses the existing exact pair coordinator; explicit paid academy restoration has a tested boundary API. | Development admissions pass within stated limits. Receiving services, complete common-point alternatives for each case and held evaluation remain unfinished. Supported drought injection is not a crop-yield shock; recorded migration is not proof of forced eviction. |
+| M8 usable laboratory | implementing | Regional closure preview → actual exact pair → native food comparison works in Chromium at desktop/390px. Old manifests stay supported; exported v3 provenance is readable and omits the internal command value. | One live client is the existing server contract. Academy restoration still needs coordinator/UI wiring; broader integrated crisis gallery and private export journey remain unfinished. |
+| M9 package | implementing | Quiet paired runtime/memory/history comparison and checkpoint controls recorded; periodic owner-only source/evidence recovery verified. Browser latency and combined final CI next. | Pending-shipment/partial-work/care/service checkpoints have bounded evidence, not full scientific qualification. Final flag matrix, held scenarios, package and handoff remain unfinished. |
 
 ## Current evidence and ownership
 
@@ -151,8 +151,54 @@ verified598-file archive. Recovery instructions/index were independently downloa
 and matched. CI was pending at archive capture; its subsequent green receipt is
 retained locally and in GitHub. Newer M6 source/evidence needs the next checkpoint.
 
-Next action: push and CI M6 as partially covered, preserve current evidence, then
-integrate the typed regional shock with the existing exact paired workflow and
-freeze/admit M7 cases. Queue A/B/C/D/E remains unfinished; injection and climate
-effects must be verified separately. No scientific gate, full-roadmap completion,
-default promotion or reusable-environment publication has been claimed.
+M6 all-nine CI success is independently read from GitHub run41489913862 and
+retained in`m6-forecast/ci-final-receipt.json`. An additional predeclared20-turn
+45-coin starting-treasury case has identical normal/shuffle purchases and native
+food outcomes. Its scarcity is transient (initial procurement budget1 per ruler;
+one owner has0 when warnings arrive). Two reports score actual shortfalls and
+one remains unscored. It establishes no harmful misinformation or budget
+crowdout, and does not close M6.
+
+M7/M8 source includes actual loaded-cargo admission, bounded closure and recovery,
+real care/food opportunity cost, constrained receiving-market migration and
+explicit paid restoration after the natural founding lottery failed. See
+`crisis-scenarios.md` for executed admissions and exact unmet boundaries. The
+new paused-restoration API cannot independently detect an active accumulator:
+its coordinator must attest a safe boundary; no web caller is wired yet.
+Browser testing also reproduced fresh live output preparation failing before
+the output root existed. Creation of that private root plus a focused regression
+fixes the actual workflow; earlier failures are retained.
+
+Combined M7/M8 local verification:327 focused Python/native/ownership/source
+checks pass without skips;652 frozen source/compatibility checks plus61 subtests
+and six offline layered witnesses pass. Viewer1,146 tests/106 files, lint and
+production build pass. Actual Chromium verifies preparation from an absent
+output root, readable v3 preview, both native continuations, regional native
+food comparison, desktop and390px keyboard scrolling without page errors. A
+second simultaneous client receives the existing explicit one-client refusal.
+Original missing-directory and overly rounded browser assertions are retained.
+These checks do not close the unfinished M6–9 boundaries or replace fresh CI.
+
+M9 [paired measurements](../performance/crisis-development-2026-11-02.md) use the
+same32-region/10-civ/40-turn seed42 hybrid case and matching separate native
+builds. Quiet alternating median wall2.729→2.682s does not establish a speedup
+or rule out a regression. Median RSS rises7,208KiB/4.4%; compact history rises
+248,034bytes/28.2%, exactly the intentional food-accounting observations. A first
+busy sample suggested85% slower wall time; paired profiles and quiet runs did
+not reproduce it. No speculative optimization was accepted.
+
+Owner-only checkpoint8beb6e4f preserves M6 dev3e852333 plus43 WIP refs and161
+incremental evidence members. Source and evidence were independently downloaded,
+size/SHA checked, every member verified, and the downloaded source restored a
+clean M6 tree/1,904 tracked files. Its [remote recovery instructions](https://drive.google.com/file/d/1IkWe1bSHpxao7V041Jfb576wvF6VOR5Z/view)
+and [verification index](https://drive.google.com/file/d/18dJ0vMzeLl5RkVuIZ5q3lUNWcNCa6Ps-/view)
+were also independently downloaded and matched. Later M7/M8 work needs the next
+checkpoint. This is source/evidence recovery, not fresh environment provisioning.
+
+Next: complete combined M7/M8 checks and browser latency measurements, commit/push
+this bounded slice and verify a new private backup. Then wire deliberate academy
+restoration at the real paused coordinator, complete C's receiving-service and
+matched alternatives, freeze/run modest held evaluations, and address M6's
+misleading-information acceptance without forcing favorable outcomes. The
+roadmap remains unfinished; no scientific gate, default promotion or reusable-
+environment publication has been claimed.
