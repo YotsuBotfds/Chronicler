@@ -1,0 +1,11 @@
+.investigation-bookmarks { min-width: 0; margin-top: 1rem; padding-top: .5rem; border-top: 1px solid #444336; }
+.investigation-bookmarks p, .investigation-bookmarks li, .investigation-bookmarks code { overflow-wrap: anywhere; }
+.investigation-bookmarks h2, .investigation-bookmarks h3, .investigation-bookmarks h4 { margin: .7rem 0; }
+.investigation-bookmarks textarea, .investigation-bookmarks button { max-width: 100%; min-width: 0; border: 1px solid #5e5b46; border-radius: .4rem; background: #242726; color: #ebe7d5; padding: .5rem .6rem; }
+.investigation-bookmarks button:disabled { opacity: .55; }
+.investigation-note { display: flex; flex-direction: column; gap: .4rem; }
+.investigation-note textarea { width: 100%; box-sizing: border-box; resize: vertical; }
+.investigation-bookmark-list { list-style: none; padding: 0; }
+.investigation-bookmark-list > li { margin: .8rem 0; padding: .6rem .7rem; border: 1px solid #444b41; border-radius: .4rem; }
+.investigation-bookmark-list small { color: #b7b09d; font-weight: normal; }
+.investigation-saved-note { white-space: pre-wrap; }
