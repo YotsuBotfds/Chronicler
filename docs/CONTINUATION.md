@@ -1,3 +1,23 @@
+# 2026-11-02 — interactive world laboratory complete
+
+The new five-item queue is complete at verified code `5162ab05`, with all nine
+[CI jobs green](https://github.com/YotsuBotfds/Chronicler/actions/runs/41376993245).
+Authoritative regional observations, selected-turn inspection prompts, exact
+bounded what-if pairs, measured history scripting improvements and a real guided
+example are integrated. An actual atomic-output monitor race found by native CI
+is fixed; strict caps, the six registered native skips and old frozen fixtures/
+RNG traces remain intact. The final-source example/checkpoint was regenerated
+and browser-verified; its old-source predecessor is preserved and correctly
+refuses exact continuation after the source change. No planned development
+remains in this queue. Main/defaults/locks/Rust inputs stay untouched; environment
+publication is deferred. The closing commit changes documentation only.
+
+Use the [single active handoff](integration/development-lead.md) for commands,
+source/ABI boundaries, actual evidence, backups and limits. Earlier dated slices
+below describe their own source/platform and are not additional queues.
+
+---
+
 # 2026-11-02 — measured history interaction work
 
 A separate viewer performance slice reuses the What changed number formatter

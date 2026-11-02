@@ -22,10 +22,10 @@ Activate the existing tools without running the environment installer:
 cd /workspace/Chronicler-kimi
 source /workspace/shared/chronicler-onboarding/runtime-6da9acae6bda6d7a.env
 scripts/world-laboratory-example.sh commands \
-  /workspace/shared/chronicler-world-lab-example-20261102 \
+  /workspace/shared/chronicler-world-lab-example-final-20261102 \
   "$CHRONICLER_NATIVE_ENV/bin/python"
 scripts/world-laboratory-example.sh generate \
-  /workspace/shared/chronicler-world-lab-example-20261102 \
+  /workspace/shared/chronicler-world-lab-example-final-20261102 \
   "$CHRONICLER_NATIVE_ENV/bin/python"
 ```
 
@@ -103,7 +103,7 @@ In a terminal using the same runtime activation, run:
 ```bash
 cd /workspace/Chronicler-kimi
 scripts/world-laboratory-example.sh live \
-  /workspace/shared/chronicler-world-lab-example-20261102 \
+  /workspace/shared/chronicler-world-lab-example-final-20261102 \
   "$CHRONICLER_NATIVE_ENV/bin/python"
 ```
 
@@ -183,10 +183,13 @@ or paid API calls are part of this workflow.
 
 ## Verified session walkthrough
 
-The fixed recipe was generated at source `42817457`; simulation package digest
-`11557116ca9a60f5e1f3b60009b4dcc62b9035f479f1c2757acecc1ffdf43ab2`.
-Final browser verification used the viewer at `612e67bb`; intervening viewer and
-documentation commits did not change the simulation package. Python 3.13.5,
+The fixed recipe was generated at source `5162ab05`; simulation package digest
+`922054b0de4d6d326686d2bc295d5bff5424e872a591dd16ddf19b319c333e7d`.
+The viewer code is unchanged from `612e67bb`; the final walkthrough uses the
+corrected `5162ab05` backend. The example was regenerated after fixing the
+output-size monitor's race with atomic checkpoint renames. The earlier V1
+example remains preserved separately; its exact checkpoint is correctly refused
+by this new source. Both old and new viewer bundles remain viewable. Python 3.13.5,
 Chromium154 and the actual compiled native binary `f6f78b0c…` were used. Current
 Rust inputs match that binary's separately recorded build source; this was not a
 fresh local native build. The original turn-8 checkpoint hash stayed unchanged.
@@ -217,19 +220,22 @@ tradeoffs and do not establish general balance or scientific policy effects.
 Food uses each arm's Phase2 agent weights and known-ratio coverage, rather than
 completed population or a physical inventory ratio.
 
-Actual browser checks pass prepare/review/run, duplicate clicks, reconnect,
-refusal then recovery, prepared/running cancel, real owned-child cleanup,
-12-metric JSON/Markdown arithmetic and390px layout. Wide metric tables scroll
+The final-source browser walkthrough passes prepare/review/run, exact source
+headers, 12-metric JSON/Markdown arithmetic and390px layout. The prior browser
+lifecycle checks additionally covered duplicate clicks, reconnect, refusal then
+recovery, prepared/running cancel and real owned-child cleanup. Those UI/lifecycle
+paths are unchanged by the atomic-size-monitor correction; current-source pure
+and native/process tests separately cover cancellation, shutdown and timeouts. Wide metric tables scroll
 inside their container. The original world and exact checkpoint are preserved;
 failed/cancelled job directories remain as evidence. The live parent quit at8
 and owned browser/live processes stopped.
 
-External report: `/workspace/shared/chronicler-world-lab-evidence/browser/what-if/QA_REPORT.json`.
+External report: `/workspace/shared/chronicler-world-lab-evidence/browser/what-if-final/QA_REPORT.json`.
 The example archive includes `WALKTHROUGH.md`, manifests, original/pair files,
 comparison exports and these actual UI screenshots under `screenshots/`:
 
 - `regional-history.png`: Ashara's exact recorded8–16 observations.
-- `prepared-phone.png`: labeled intervention before execution.
+- `prepared-intervention.png`: labeled intervention before execution.
 - `comparison-identities.png`: recorded source/native/runtime and both arms.
 - `comparison-metrics.png`: actual shared-turn values and coverage.
 - `comparison-phone.png`: phone-width comparison with contained table scroll.
@@ -245,7 +251,7 @@ export RAYON_NUM_THREADS=1 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THRE
 world_lab_replay=/workspace/shared/chronicler-world-lab-replay-02
 if test -e "$world_lab_replay"; then echo 'Choose a fresh output folder'; exit 1; fi
 "$CHRONICLER_NATIVE_ENV/bin/python" -m chronicler.main --live --live-port 0 \
-  --resume /workspace/shared/chronicler-world-lab-example-20261102/original/checkpoints/turn_0008.ckpt \
+  --resume /workspace/shared/chronicler-world-lab-example-final-20261102/original/checkpoints/turn_0008.ckpt \
   --turns 24 --pause-every 8 --simulate-only \
   --output "$world_lab_replay/chronicle.md" --state "$world_lab_replay/state.json"
 ```

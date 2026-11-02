@@ -87,7 +87,11 @@ regional food sufficiency can use these weights. Attribute a civilization's
 food observation using the Phase 2 `controller_ids`, including regions it lost
 later that turn. Do not use completed ownership. Any positive-weight region
 with missing food sufficiency makes a complete weighted mean unavailable;
-a zero total denominator is also unavailable. Unknown controllers cannot be
+a zero total denominator is also unavailable. The viewer can report the
+known-ratio subset's weighted mean with explicit known/eligible-agent and region
+coverage. Unknown ratios are excluded from both numerator and denominator;
+they are never treated as food/need zero. Their population stays visible in the
+eligible denominator for coverage. Unknown controllers cannot be
 assigned to a civilization. The existing sufficiency is clipped to 0–2 and
 rounded to two decimals for export, so its weighted mean is a mean of recorded
 regional sufficiency, not an exact physical food inventory ratio. Existing
@@ -96,8 +100,9 @@ unweighted food metrics remain compatible and explicitly unweighted.
 ## Transport and historical compatibility
 
 The model field defaults to `None` and is omitted while absent. Existing saved
-history and pre-feature exact checkpoints remain readable without backfilling
-observations. Newly completed turns receive the field. It is registered in
+history can be decoded without backfilling observations. Exact continuation
+still requires matching source/runtime identity; this additive payload does not
+waive checkpoint compatibility checks. Newly completed turns receive the field. It is registered in
 `transport_contract.json` so static bundles, Batch Lab, live turns, reconnect
 and checkpoint-carried live history preserve it. Generic snapshot pruning and
 version-6 delta encoding already preserve arbitrary registered fields; no
