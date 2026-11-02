@@ -295,11 +295,20 @@ export function recipeLiveMismatch(recipe: WhatIfRecipe, bundle: Bundle | null |
   if (recipe.control.kind === "granary_shortfall_priority" && granaryPolicyValue(bundle) === null) return "Recipe requires already-enabled hybrid granaries.";
   return null;
 }
-export async function recipePreparedMismatch(recipe: WhatIfRecipe, manifest: WhatIfManifest): Promise<string | null> {
+export interface PreparedRecipeCheck {
+  current: WhatIfRecipe;
+  mismatch: "source" | "plan" | null;
+  message: string | null;
+}
+export async function checkPreparedRecipe(recipe: WhatIfRecipe, manifest: WhatIfManifest): Promise<PreparedRecipeCheck> {
   const current = await createWhatIfRecipe(manifest);
-  if (canonical(recipe.source) !== canonical(current.source)) return "Recipe checkpoint, source, runtime or settings identity differs. This prepared comparison cannot run as the imported recipe.";
+  if (canonical(recipe.source) !== canonical(current.source)) return { current, mismatch: "source",
+    message: "Recipe checkpoint, source, runtime or settings identity differs. This prepared comparison cannot run as the imported recipe." };
   if (canonical(recipe.control) !== canonical(current.control) || recipe.turns !== current.turns || recipe.end_turn !== current.end_turn) {
-    return "The prepared control or horizon differs from the imported recipe.";
+    return { current, mismatch: "plan", message: "The prepared control or horizon differs from the imported recipe." };
   }
-  return null;
+  return { current, mismatch: null, message: null };
+}
+export async function recipePreparedMismatch(recipe: WhatIfRecipe, manifest: WhatIfManifest): Promise<string | null> {
+  return (await checkPreparedRecipe(recipe, manifest)).message;
 }

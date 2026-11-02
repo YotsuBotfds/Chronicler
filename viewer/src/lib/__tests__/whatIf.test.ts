@@ -1,7 +1,7 @@
 /// <reference types="node" />
 import { webcrypto } from "node:crypto";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { createWhatIfRecipe, granaryPolicyValue, portableWhatIfManifest, readWhatIfManifest, readWhatIfRecipe,
+import { checkPreparedRecipe, createWhatIfRecipe, granaryPolicyValue, portableWhatIfManifest, readWhatIfManifest, readWhatIfRecipe,
   readWhatIfResult, recipeLiveMismatch, recipePreparedMismatch, whatIfInterventionLabel } from "../whatIf";
 import { comparisonBundle } from "../../__fixtures__/completedRunHistory";
 import { recipeManifest, whatIfManifest, whatIfPair } from "../../__fixtures__/whatIf";
@@ -101,9 +101,11 @@ it("refuses incompatible seed/turn/mode at import and exact runtime/settings/con
   const config = header.run_config as Record<string, unknown>;
   (config.simulation_args as Record<string, unknown>).grain_reserves = false;
   expect(await recipePreparedMismatch(recipe, changed)).toContain("settings identity differs");
+  expect((await checkPreparedRecipe(recipe, changed)).mismatch).toBe("source");
   const otherContent = structuredClone(manifest);
   (otherContent.source.checkpoint as Record<string, unknown>).sha256 = "e".repeat(64);
   expect(await recipePreparedMismatch(recipe, otherContent)).toContain("checkpoint");
   expect(await recipePreparedMismatch(recipe, { ...manifest, turns: 4, end_turn: 6 })).toContain("horizon");
+  expect((await checkPreparedRecipe(recipe, { ...manifest, turns: 4, end_turn: 6 })).mismatch).toBe("plan");
   await expect(createWhatIfRecipe(whatIfManifest)).rejects.toThrow("complete compatible exact-checkpoint");
 });

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { PauseContext } from "../types";
-import { createWhatIfRecipe, granaryPolicyValue, portableWhatIfManifest, readWhatIfRecipe,
-  recipeLiveMismatch, recipePreparedMismatch, whatIfActive, whatIfInterventionLabel,
+import { checkPreparedRecipe, createWhatIfRecipe, granaryPolicyValue, portableWhatIfManifest, readWhatIfRecipe,
+  recipeLiveMismatch, whatIfActive, whatIfInterventionLabel,
   type WhatIfControls, type WhatIfManifest, type WhatIfPair, type WhatIfRecipe } from "../lib/whatIf";
 import "./what-if.css";
 
@@ -17,24 +17,33 @@ export function WhatIfPanel({ context, controls, onCompare }: {
   const [recipe, setRecipe] = useState<WhatIfRecipe | null>(null);
   const [recipeMessage, setRecipeMessage] = useState("");
   const [recipeError, setRecipeError] = useState("");
-  const [verification, setVerification] = useState<{ recipe: WhatIfRecipe; manifest: WhatIfManifest; error: string | null } | null>(null);
+  const [verification, setVerification] = useState<{ recipe: WhatIfRecipe; manifest: WhatIfManifest;
+    error: string | null; current: WhatIfRecipe | null; sourceMismatch: boolean } | null>(null);
+  const [adoption, setAdoption] = useState<{ recipe: WhatIfRecipe; manifest: WhatIfManifest; requestId: string } | null>(null);
   const status = controls.status;
   const active = whatIfActive(status);
   const manifest = status?.manifest;
+  if (adoption && status?.state === "preparing") setAdoption(null);
   useEffect(() => {
     if (!recipe || !manifest) return;
     let cancelled = false;
-    void recipePreparedMismatch(recipe, manifest).then((error) => {
-      if (!cancelled) setVerification({ recipe, manifest, error });
+    void checkPreparedRecipe(recipe, manifest).then((checked) => {
+      if (!cancelled) setVerification({ recipe, manifest, error: checked.message,
+        current: checked.current, sourceMismatch: checked.mismatch === "source" });
     }).catch((error: unknown) => {
       if (!cancelled) setVerification({ recipe, manifest,
+        current: null, sourceMismatch: false,
         error: error instanceof Error ? error.message : "Recipe identity could not be verified." });
     });
     return () => { cancelled = true; };
   }, [recipe, manifest]);
   const verified = !!recipe && verification?.recipe === recipe && verification.manifest === manifest;
   const liveMismatch = recipe ? recipeLiveMismatch(recipe, controls.bundle, context.turn, context.civs) : null;
-  const recipeRunReady = !recipe || !liveMismatch && verified && verification?.error === null;
+  const adoptedRequest = !!recipe && adoption?.recipe === recipe && adoption.requestId === status?.request_id;
+  const adoptedManifest = adoptedRequest && adoption?.manifest === manifest;
+  const adoptedCase = adoptedRequest && (status?.state !== "prepared" || adoptedManifest);
+  const recipeRunReady = !recipe || !liveMismatch && verified
+    && (verification?.error === null || adoptedManifest && verification?.sourceMismatch === true);
   const valid = (control === "stability" ? context.civs.includes(civ) && Number.isInteger(value) && value >= 1 && value <= 100
     : policyBefore !== null)
     && Number.isInteger(turns) && turns >= 1 && turns <= 20;
@@ -47,6 +56,7 @@ export function WhatIfPanel({ context, controls, onCompare }: {
       if (!parsed) throw new Error("Unsupported or malformed recipe. Only stability and global granary priority recipes are supported.");
       const mismatch = recipeLiveMismatch(parsed, controls.bundle, context.turn, context.civs);
       if (mismatch) throw new Error(mismatch);
+      setAdoption(null);
       setRecipe(parsed);
       setTurns(parsed.turns);
       setControl(parsed.control.kind);
@@ -78,6 +88,7 @@ export function WhatIfPanel({ context, controls, onCompare }: {
       const mismatch = recipeLiveMismatch(recipe, controls.bundle, context.turn, context.civs);
       if (mismatch) { setRecipeError(mismatch); return; }
     }
+    setAdoption(null);
     if (control === "stability") controls.prepare(civ, value, turns);
     else controls.preparePolicy(policy, turns);
   }
@@ -94,7 +105,7 @@ export function WhatIfPanel({ context, controls, onCompare }: {
         }} /></label>
       {manifest && <button type="button" onClick={() => void exportRecipe()}>Download recipe</button>}
       {recipe && <button type="button" disabled={active} onClick={() => {
-        setRecipe(null); setRecipeError(""); setRecipeMessage("Imported recipe cleared; the form is a new preparation.");
+        setRecipe(null); setAdoption(null); setRecipeError(""); setRecipeMessage("Imported recipe cleared; the form is a new preparation.");
       }}>Clear imported recipe</button>}
       {recipeMessage && <p role="status">{recipeMessage}</p>}
       {recipeError && <p role="alert">{recipeError}</p>}
@@ -133,10 +144,29 @@ export function WhatIfPanel({ context, controls, onCompare }: {
       <p>Both arms restore the same exact runtime. One deterministic pair describes this case;
         it does not establish a general benefit. The override applies after the starting snapshot.</p>
       <details><summary>Source and runtime identity</summary><pre>{JSON.stringify(portableWhatIfManifest(manifest).source, null, 2)}</pre></details>
-      {recipe && <p role={liveMismatch || verified && verification?.error ? "alert" : "status"}>
+      {recipe && (liveMismatch || !adoptedCase) && <p role={liveMismatch || verified && verification?.error ? "alert" : "status"}>
         {liveMismatch ?? (verified ? verification?.error ?? "Imported recipe checkpoint, source, runtime, settings, control and horizon match this preparation."
           : "Verifying imported recipe identity; running remains disabled.")}
       </p>}
+      {recipe && verified && verification?.current && <div aria-label="Recipe source comparison">
+        <p><strong>Imported recipe reference:</strong> {recipe.source.checkpoint.name}
+          <br />Checkpoint SHA-256: <code>{recipe.source.checkpoint.sha256}</code>
+          <br />Source identifiers: <code>{JSON.stringify(recipe.source.runtime.source)}</code></p>
+        <p><strong>Current prepared checkpoint:</strong> {verification.current.source.checkpoint.name}
+          <br />Checkpoint SHA-256: <code>{verification.current.source.checkpoint.sha256}</code>
+          <br />Source identifiers: <code>{JSON.stringify(verification.current.source.runtime.source)}</code></p>
+        {status?.state === "prepared" && verification.sourceMismatch && !liveMismatch && !adoptedManifest && <>
+          <p>You can select this prepared checkpoint for a new case. The original recipe is not reproduced, and equivalent state is unproven.
+            This choice sends no command; running remains a separate action.</p>
+          <button type="button" disabled={!controls.connected} onClick={() => {
+            if (manifest && verified && verification.sourceMismatch && !liveMismatch) {
+              setAdoption({ recipe, manifest, requestId: status.request_id });
+            }
+          }}>Use this prepared checkpoint as a new case</button>
+        </>}
+      </div>}
+      {adoptedCase && !liveMismatch && <p role="status">New case selected for this preparation. The original recipe is not reproduced; equivalent state is unproven.
+        Its imported reference remains above. New recipe exports describe the current checkpoint and leave the original recipe file unchanged.</p>}
     </div>}
     {status && <p role={status.state === "error" ? "alert" : "status"}>
       {status.state === "preparing" ? "Preparing exact checkpoint…" : status.state === "prepared" ? "Ready. Review the intervention, then run both continuations."

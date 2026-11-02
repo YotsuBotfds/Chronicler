@@ -1,7 +1,7 @@
 /// <reference types="node" />
 import { webcrypto } from "node:crypto";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { WhatIfPanel } from "../WhatIfPanel";
 import { InterventionPanel } from "../InterventionPanel";
 import { createWhatIfRecipe, type WhatIfControls } from "../../lib/whatIf";
@@ -163,4 +163,97 @@ it("downloads a versioned recipe with reference output identities and no raw sou
   expect(recipe.outputs.baseline.sha256).toBe("a".repeat(64));
   expect(text).not.toContain("PRIVATE_TOKEN");
   expect(text).not.toContain("/private/");
+});
+
+it("adopts a different prepared checkpoint only after an explicit new-case choice, retaining the old reference and exporting the new source", async () => {
+  const manifest = recipeManifest(), recipe = await createWhatIfRecipe(manifest);
+  recipe.source.checkpoint.sha256 = "e".repeat(64);
+  const originalText = JSON.stringify(recipe);
+  const originalFile = new File([originalText], "saved-reference.json");
+  const bundle = comparisonBundle();
+  (bundle.world_state as unknown as Record<string, unknown>).agent_mode = "hybrid";
+  const c = { ...controls(), bundle };
+  const makeUrl = vi.fn<(blob: Blob) => string>(() => "blob:new-case-recipe");
+  Object.defineProperty(URL, "createObjectURL", { configurable: true, writable: true, value: makeUrl });
+  Object.defineProperty(URL, "revokeObjectURL", { configurable: true, writable: true, value: vi.fn() });
+  vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+  const { rerender } = render(<WhatIfPanel context={context} controls={c} onCompare={vi.fn()} />);
+  fireEvent.change(screen.getByLabelText("Import what-if recipe"), { target: { files: [originalFile] } });
+  await screen.findByText(/Recipe loaded into the preparation form/);
+  fireEvent.click(screen.getByRole("button", { name: "Prepare comparison" }));
+  rerender(<WhatIfPanel context={context} controls={{ ...c, status: { request_id: "fixture-pair", state: "prepared", manifest } }} onCompare={vi.fn()} />);
+  const adopt = await screen.findByRole("button", { name: "Use this prepared checkpoint as a new case" });
+  const sources = screen.getByLabelText("Recipe source comparison");
+  expect(within(sources).getByText("e".repeat(64))).toBeVisible();
+  expect(within(sources).getByText("f".repeat(64))).toBeVisible();
+  expect(sources).toHaveTextContent("Source identifiers:");
+  expect(screen.getByRole("button", { name: "Run both continuations" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Cancel comparison" })).toBeEnabled();
+  expect(c.prepare).toHaveBeenCalledOnce();
+  expect(c.run).not.toHaveBeenCalled();
+  fireEvent.click(adopt);
+  expect(screen.getByText(/New case selected for this preparation/)).toHaveTextContent("original recipe is not reproduced; equivalent state is unproven");
+  expect(within(screen.getByLabelText("Recipe source comparison")).getByText("e".repeat(64))).toBeVisible();
+  expect(screen.getByRole("button", { name: "Run both continuations" })).toBeEnabled();
+  expect(c.prepare).toHaveBeenCalledOnce();
+  expect(c.run).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Download recipe" }));
+  await waitFor(() => expect(makeUrl).toHaveBeenCalledOnce());
+  const exportedText = await new Promise<string>((resolve) => {
+    const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(makeUrl.mock.calls[0][0]);
+  });
+  expect(JSON.parse(exportedText).source.checkpoint.sha256).toBe("f".repeat(64));
+  expect(new TextDecoder().decode(await originalFile.arrayBuffer())).toBe(originalText);
+  expect(c.run).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Run both continuations" }));
+  expect(c.run).toHaveBeenCalledOnce();
+});
+
+it("invalidates new-case adoption on another preparation and on a different manifest reference while preserving cancellation", async () => {
+  const manifest = recipeManifest(), recipe = await createWhatIfRecipe(manifest);
+  recipe.source.checkpoint.sha256 = "e".repeat(64);
+  const bundle = comparisonBundle();
+  (bundle.world_state as unknown as Record<string, unknown>).agent_mode = "hybrid";
+  const c = { ...controls(), bundle };
+  const { rerender } = render(<WhatIfPanel context={context} controls={c} onCompare={vi.fn()} />);
+  fireEvent.change(screen.getByLabelText("Import what-if recipe"), { target: { files: [new File([JSON.stringify(recipe)], "reference.json")] } });
+  await screen.findByText(/Recipe loaded into the preparation form/);
+  rerender(<WhatIfPanel context={context} controls={{ ...c, status: { request_id: "fixture-pair", state: "prepared", manifest } }} onCompare={vi.fn()} />);
+  fireEvent.click(await screen.findByRole("button", { name: "Use this prepared checkpoint as a new case" }));
+  expect(screen.getByRole("button", { name: "Run both continuations" })).toBeEnabled();
+  const otherWorld = structuredClone(bundle);
+  otherWorld.metadata.seed = 7;
+  rerender(<WhatIfPanel context={context} controls={{ ...c, bundle: otherWorld, status: { request_id: "fixture-pair", state: "prepared", manifest } }} onCompare={vi.fn()} />);
+  expect(screen.getByRole("alert")).toHaveTextContent("seed, mode or starting turn differs");
+  expect(screen.getByRole("button", { name: "Run both continuations" })).toBeDisabled();
+  rerender(<WhatIfPanel context={context} controls={{ ...c, status: { request_id: "fixture-pair", state: "prepared", manifest } }} onCompare={vi.fn()} />);
+  expect(screen.getByRole("button", { name: "Run both continuations" })).toBeEnabled();
+  rerender(<WhatIfPanel context={context} controls={{ ...c, status: { request_id: "fixture-pair", state: "preparing", manifest } }} onCompare={vi.fn()} />);
+  rerender(<WhatIfPanel context={context} controls={{ ...c, status: { request_id: "fixture-pair", state: "prepared", manifest } }} onCompare={vi.fn()} />);
+  expect(screen.getByRole("button", { name: "Run both continuations" })).toBeDisabled();
+  fireEvent.click(await screen.findByRole("button", { name: "Use this prepared checkpoint as a new case" }));
+  expect(screen.getByRole("button", { name: "Run both continuations" })).toBeEnabled();
+  const replacement = structuredClone(manifest);
+  rerender(<WhatIfPanel context={context} controls={{ ...c, status: { request_id: "fixture-pair", state: "prepared", manifest: replacement } }} onCompare={vi.fn()} />);
+  expect(screen.getByRole("button", { name: "Run both continuations" })).toBeDisabled();
+  await screen.findByRole("button", { name: "Use this prepared checkpoint as a new case" });
+  expect(screen.queryByText(/New case selected for this preparation/)).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Cancel comparison" }));
+  expect(c.cancel).toHaveBeenCalledOnce();
+  expect(c.run).not.toHaveBeenCalled();
+});
+
+it("does not offer new-case adoption when the prepared manifest lacks verifiable checkpoint identity", async () => {
+  const recipe = await createWhatIfRecipe(recipeManifest());
+  const bundle = comparisonBundle();
+  (bundle.world_state as unknown as Record<string, unknown>).agent_mode = "hybrid";
+  const c = { ...controls(), bundle };
+  const { rerender } = render(<WhatIfPanel context={context} controls={c} onCompare={vi.fn()} />);
+  fireEvent.change(screen.getByLabelText("Import what-if recipe"), { target: { files: [new File([JSON.stringify(recipe)], "reference.json")] } });
+  await screen.findByText(/Recipe loaded into the preparation form/);
+  rerender(<WhatIfPanel context={context} controls={{ ...c, status: { request_id: "fixture-pair", state: "prepared", manifest: whatIfManifest } }} onCompare={vi.fn()} />);
+  expect(await screen.findByRole("alert")).toHaveTextContent("complete compatible exact-checkpoint manifest");
+  expect(screen.queryByRole("button", { name: "Use this prepared checkpoint as a new case" })).toBeNull();
+  expect(screen.getByRole("button", { name: "Run both continuations" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Cancel comparison" })).toBeEnabled();
 });
