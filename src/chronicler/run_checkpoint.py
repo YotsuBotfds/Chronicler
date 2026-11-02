@@ -283,6 +283,7 @@ def feature_flags(world: Any) -> dict[str, bool]:
         "guilds": bool(guilds_enabled(world)),
         "scholarship": bool(scholarship_enabled(world)),
         "grain_reserves": bool(grain_reserves_enabled(world)),
+        **({"grain_storage": True} if getattr(getattr(world, "grain_reserves", None), "storage", None) is not None else {}),
         "community_anchoring": bool(community_anchoring_enabled(world)),
         "capacity_aware_refugees": getattr(world, "capacity_aware_refugees", False) is True,
         "domestic_credit": bool(domestic_credit_on(world)),
@@ -433,6 +434,9 @@ def write_checkpoint(path: Path, state: RunState, *, exact: bool = True,
     """Write ``state`` atomically to ``path``. Reads the run only."""
     from chronicler.artifact_io import atomic_write_bytes
 
+    storage = getattr(getattr(state.world, "grain_reserves", None), "storage", None)
+    if storage is not None and getattr(storage, "_active_plan", None) is not None:
+        raise CheckpointError("storage work is pending; write checkpoints at a completed turn boundary")
     t0 = time.perf_counter()
     state.markers = _markers(state)
     buf = io.BytesIO()

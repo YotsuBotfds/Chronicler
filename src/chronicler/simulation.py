@@ -2049,40 +2049,73 @@ def run_turn_result(
             )
             from chronicler.tuning import get_multiplier, K_TRADE_FRICTION
             economic_routes = filter_goods_trade_routes(world, phase2_trade_routes)
-            region_input = build_economy_region_input_batch(world)
-            if _cities_on(world):
-                # Cities: city farmers' labour on the land and the crafts'
-                # raw-material demand (optional economy columns).
-                from chronicler.cities import with_economy_columns
-                region_input = with_economy_columns(world, region_input, snapshot)
-            trade_route_input = build_economy_trade_route_batch(
-                world, active_trade_routes=economic_routes,
-            )
-            if _maritime_on(world):
-                # Maritime: blockaded sea lanes carry no goods.
-                from chronicler.maritime import filter_boundary_batch
-                trade_route_input = filter_boundary_batch(
-                    world, trade_route_input, "origin_region_id", "dest_region_id",
+            _storage_plan = None
+            if getattr(getattr(world, "grain_reserves", None), "storage", None) is not None:
+                from chronicler.grain_storage import (
+                    prepare_storage_work, finish_storage_work, rollback_storage_work,
                 )
-            season_id = get_season_id(world.turn)
-            is_winter = season_id == 3
-            trade_friction = get_multiplier(world, K_TRADE_FRICTION)
-            if _contact_ledger_on(world):
-                # Contact ledger: read (never drain) the merchant deliveries
-                # this economy tick is about to consume.
-                from chronicler.contact_ledger import observe_phase2
-                observe_phase2(world, phase2_trade_routes, agent_bridge)
-            if getattr(world, "health_care", None) is not None:
-                from chronicler.health_care import prepare_health_care
-                prepare_health_care(world, agent_bridge)
-            rust_return = agent_bridge._sim.tick_economy(
-                region_input, trade_route_input,
-                season_id, is_winter, trade_friction,
-            )
-            economy_result = reconstruct_economy_result(
-                *rust_return, world,
-                require_oracle_shadow=(world.agent_mode == "hybrid"),
-            )
+                from chronicler.economy import PER_CAPITA_FOOD
+                from chronicler.tuning import get_override
+                # Same configured per-alive-agent demand used by the native
+                # economy. This sizes only inherited existing storage, not meals.
+                from numpy import float32
+                demand_per_agent = float32(get_override(world, "economy.per_capita_food", PER_CAPITA_FOOD))
+                if artifacts.food_weights is None:
+                    raise RuntimeError("Storage requires authoritative Phase 2 native counts")
+                _storage_plan = prepare_storage_work(
+                    world, [float(float32(count) * demand_per_agent) for count in artifacts.food_weights.counts],
+                    acc=acc, simulator=agent_bridge._sim,
+                )
+            try:
+                region_input = build_economy_region_input_batch(world)
+                if _storage_plan is not None:
+                    import pyarrow as pa
+                    region_input = region_input.append_column(
+                        "granary_work_requested", pa.array(_storage_plan.requests, type=pa.float32()),
+                    )
+                if _cities_on(world):
+                    # Cities: city farmers' labour on the land and the crafts'
+                    # raw-material demand (optional economy columns).
+                    from chronicler.cities import with_economy_columns
+                    region_input = with_economy_columns(world, region_input, snapshot)
+                trade_route_input = build_economy_trade_route_batch(
+                    world, active_trade_routes=economic_routes,
+                )
+                if _maritime_on(world):
+                    # Maritime: blockaded sea lanes carry no goods.
+                    from chronicler.maritime import filter_boundary_batch
+                    trade_route_input = filter_boundary_batch(
+                        world, trade_route_input, "origin_region_id", "dest_region_id",
+                    )
+                season_id = get_season_id(world.turn)
+                is_winter = season_id == 3
+                trade_friction = get_multiplier(world, K_TRADE_FRICTION)
+                if _contact_ledger_on(world):
+                    # Contact ledger: read (never drain) the merchant deliveries
+                    # this economy tick is about to consume.
+                    from chronicler.contact_ledger import observe_phase2
+                    observe_phase2(world, phase2_trade_routes, agent_bridge)
+                if getattr(world, "health_care", None) is not None:
+                    from chronicler.health_care import prepare_health_care
+                    prepare_health_care(world, agent_bridge)
+                rust_return = agent_bridge._sim.tick_economy(
+                    region_input, trade_route_input,
+                    season_id, is_winter, trade_friction,
+                )
+                economy_result = reconstruct_economy_result(
+                    *rust_return, world,
+                    require_oracle_shadow=(world.agent_mode == "hybrid"),
+                )
+                if _storage_plan is not None:
+                    delivered = economy_result.granary_work_delivered
+                    if set(delivered) != set(range(len(world.regions))):
+                        raise RuntimeError("Storage work requires a matching native extension with delivered-work observations")
+                    finish_storage_work(world, _storage_plan,
+                                        [delivered[rid] for rid in range(len(world.regions))], acc=acc)
+            except BaseException:
+                if _storage_plan is not None and _storage_plan.status == "pending":
+                    rollback_storage_work(world, _storage_plan)
+                raise
             from chronicler.food_accounting import public_opening, capture_food_accounting
             _public_food_opening = public_opening(world)
             if _grain_reserves_on(world):

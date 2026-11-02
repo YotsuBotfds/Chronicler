@@ -589,6 +589,8 @@ class EconomyResult:
     food_ledger: dict[int, tuple[float, ...]] = field(default_factory=dict)
     # Exact late-Phase-10 procurement budgets, not household purchasing access.
     food_procurement_budget: dict[int, tuple[int, int]] = field(default_factory=dict)
+    # Native aggregate farmer-equivalent work, only for the opt-in asset caller.
+    granary_work_delivered: dict[int, float] = field(default_factory=dict)
     # Merchant routing (2026-10): demand and post-trade supply per category
     # (``CATEGORIES`` order), the merchant planner's market prices. Filled by
     # the native economy; empty for the Python oracle.
@@ -1561,6 +1563,10 @@ def reconstruct_economy_result(
                    (*food_cols, "market_demand_food", "food_sufficiency")]
         for i, rid in enumerate(rr_ids):
             result.food_ledger[rid] = tuple(float(col[i]) for col in columns)
+
+    if "granary_work_delivered" in rr_names:
+        delivered = pylist(region_result_batch.column("granary_work_delivered"))
+        result.granary_work_delivered = {rid: float(delivered[i]) for i, rid in enumerate(rr_ids)}
 
     trc_vals = pylist(region_result_batch.column("trade_route_count"))
     for i, rid in enumerate(rr_ids):

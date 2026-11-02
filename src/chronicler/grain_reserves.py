@@ -79,7 +79,7 @@ import math
 from typing import TYPE_CHECKING
 
 from chronicler.grain_reserves_state import (
-    ABANDONED, ARRIVED, BOUGHT, CAPTURED, COUNTER_KEYS, DISPATCHED, FLOW_KINDS, RELEASED, SEIZED, SPOILED, GrainReserveState, Granary,
+    ABANDONED, ARRIVED, BOUGHT, CAPTURED, COUNTER_KEYS, DISPATCHED, FLOW_KINDS, RELEASED, SEIZED, SPOILED, STORAGE_RETURNED, GrainReserveState, Granary,
     ReserveFlow, grain_reserves_on,
 )
 
@@ -135,6 +135,10 @@ def set_grain_reserves_enabled(world: "WorldState", enabled: bool) -> None:
         shipments = getattr(state, "shipments", None)
         if shipments is not None and shipments.pending:
             raise ValueError("cannot disable grain reserves with paid public grain pending")
+        storage = getattr(state, "storage", None)
+        if storage is not None and (getattr(storage, "_active_plan", None) is not None
+                                    or any(asset is not None for asset in storage.assets)):
+            raise ValueError("cannot discard existing storage assets; use neglect with zero work to pause investment")
         world.grain_reserves = None
 
 
@@ -177,6 +181,9 @@ def snapshot_summary(world: "WorldState") -> dict:
     if getattr(state, "shipments", None) is not None:
         from chronicler.public_grain_shipments import snapshot_summary as shipment_summary
         summary["shipments"] = shipment_summary(world)
+    if getattr(state, "storage", None) is not None:
+        from chronicler.grain_storage import storage_snapshot
+        summary["storage"] = storage_snapshot(world).as_dict()
     return summary
 
 
@@ -350,10 +357,15 @@ def open_granaries(world: "WorldState", economy_result: "EconomyResult | None",
     # Storage: grain spoils in the granary as it does in the market.
     rate = _spoilage()
     for rid, granary in enumerate(state.granaries):
+        if getattr(state, "storage", None) is not None:
+            from chronicler.grain_storage import storage_spoilage
+            region_rate = storage_spoilage(world, rid, rate)
+        else:
+            region_rate = rate
         if granary.grain <= 0:
             granary.grain = 0.0
             continue
-        loss = granary.grain * rate
+        loss = granary.grain * region_rate
         if granary.grain - loss < DUST:
             loss = granary.grain  # the last crumbs spoil
         granary.grain -= loss
@@ -520,6 +532,9 @@ def tick_grain_reserves(world: "WorldState", acc=None, economy_result: "EconomyR
         events.extend(settle_arrivals(world))
         inbound = inbound_by_destination(world)
 
+    if getattr(state, "storage", None) is not None:
+        from chronicler.grain_storage import settle_storage_capacity
+        settle_storage_capacity(world)
     civs = world.civilizations
     index = _civ_index(world)
     regions = world.regions
@@ -737,6 +752,8 @@ RESERVE_LEDGER_COLUMNS: dict[str, str] = {
     "sufficiency_after": "float32",
 }
 
+STORAGE_LEDGER_COLUMNS: dict[str, str] = {"storage_returned": "float64"}
+
 SHIPMENT_LEDGER_COLUMNS: dict[str, str] = {
     "dispatched_net": "float64", "arrived": "float64",
     "pending_before": "float64", "pending_after": "float64",
@@ -899,6 +916,9 @@ class ReserveLedger:
                 row["released"] += f.amount
             elif f.kind == SPOILED:
                 row["spoiled"] += f.amount
+                if getattr(state, "storage", None) is not None:
+                    from chronicler.grain_storage import storage_spoilage
+                    rate = storage_spoilage(world, f.region, _spoilage())
                 if (abs(f.before * rate - f.amount) > _TOL * max(1.0, f.before)
                         and not (f.amount == f.before and f.before * (1.0 - rate) < DUST)):
                     self.problems.append(f"granary {f.region}: spoiled {f.amount} of {f.before}")
@@ -906,12 +926,16 @@ class ReserveLedger:
                 row["seized"] += f.amount
             elif f.kind == ABANDONED:
                 row["abandoned"] += f.amount
+            elif f.kind == STORAGE_RETURNED:
+                row["storage_returned"] = row.get("storage_returned", 0.0) + f.amount
         schema = dict(RESERVE_LEDGER_COLUMNS)
         pending_after = None
         if getattr(state, "shipments", None) is not None:
             from chronicler.public_grain_shipments import inbound_by_destination
             pending_after = inbound_by_destination(world)
             schema.update(SHIPMENT_LEDGER_COLUMNS)
+        if getattr(state, "storage", None) is not None:
+            schema.update(STORAGE_LEDGER_COLUMNS)
         columns: dict[str, list] = {name: [] for name in schema}
         for rid, granary in enumerate(state.granaries):
             before = self.start[rid] if rid < len(self.start) else 0.0
@@ -919,7 +943,7 @@ class ReserveLedger:
                                  "abandoned": 0.0, "sent": 0.0, "paid": 0.0})
             arrived = row.get("arrived", 0.0)
             dispatched = row.get("dispatched", 0.0)
-            expect = before + row["bought"] + arrived - row["released"] - row["spoiled"] - row["seized"] - row["abandoned"]
+            expect = before + row["bought"] + arrived - row["released"] - row["spoiled"] - row["seized"] - row["abandoned"] - row.get("storage_returned", 0.0)
             pending0 = (self.pending_before[rid] if self.pending_before is not None else 0.0)
             pending1 = pending_after[rid] if pending_after is not None else 0.0
             if abs(pending1 - pending0 - dispatched + arrived) > _TOL * max(1.0, pending0 + dispatched):
@@ -936,6 +960,8 @@ class ReserveLedger:
                       int(row["paid"]), s0, s1)
             if pending_after is not None:
                 values += (dispatched, arrived, pending0, pending1)
+            if getattr(state, "storage", None) is not None:
+                values += (row.get("storage_returned", 0.0),)
             for name, value in zip(schema, values):
                 columns[name].append(value)
         state._ledger = None
@@ -958,11 +984,18 @@ def write_reserve_ledger(path, columns: dict[str, list], *, artifact_budget=None
     schema = dict(RESERVE_LEDGER_COLUMNS)
     if any(name in columns for name in SHIPMENT_LEDGER_COLUMNS):
         schema.update(SHIPMENT_LEDGER_COLUMNS)
+    if any(name in columns for name in STORAGE_LEDGER_COLUMNS):
+        schema.update(STORAGE_LEDGER_COLUMNS)
     arrays = [pa.array(columns.get(name, []), type=getattr(pa, kind)())
               for name, kind in schema.items()]
     batch = pa.record_batch(arrays, names=list(schema))
-    if len(schema) != len(RESERVE_LEDGER_COLUMNS):
-        batch = batch.replace_schema_metadata({b"public_grain_shipments": b"1"})
+    metadata = {}
+    if any(name in columns for name in SHIPMENT_LEDGER_COLUMNS):
+        metadata[b"public_grain_shipments"] = b"1"
+    if any(name in columns for name in STORAGE_LEDGER_COLUMNS):
+        metadata[b"grain_storage"] = b"1"
+    if metadata:
+        batch = batch.replace_schema_metadata(metadata)
     options = ipc.IpcWriteOptions(compression="zstd") if pa.Codec.is_available("zstd") else None
     if artifact_budget is None:
         with pa.OSFile(str(path), "wb") as handle:

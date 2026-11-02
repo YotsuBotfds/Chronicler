@@ -1776,6 +1776,28 @@ def _configure_run(args: argparse.Namespace, world: WorldState, fresh_world: boo
     if grain_reserves is not None:
         from chronicler.grain_reserves import set_grain_reserves_enabled
         set_grain_reserves_enabled(world, grain_reserves)
+    storage_switch = getattr(args, "grain_storage", None)
+    storage_policy = getattr(args, "grain_storage_policy", None)
+    storage_budget = getattr(args, "grain_storage_work_budget", None)
+    storage = getattr(getattr(world, "grain_reserves", None), "storage", None)
+    if storage_switch is True:
+        if agent_mode != "hybrid":
+            raise ValueError("grain storage currently requires --agents hybrid and --grain-reserves")
+        from chronicler.grain_storage import enable_storage
+        storage = enable_storage(world)
+    elif storage_switch is False and storage is not None:
+        if any(asset is not None for asset in storage.assets) or storage._active_plan is not None:
+            raise ValueError("cannot discard existing storage assets; choose neglect with zero work")
+        world.grain_reserves.storage = storage = None
+    if storage is not None and agent_mode not in ("hybrid", "off"):
+        raise ValueError("saved grain storage is currently supported in hybrid mode (dormant with agents off)")
+    if storage_policy is not None or storage_budget is not None:
+        if storage is None:
+            raise ValueError("storage policy and work budget require enabled grain storage")
+        from chronicler.grain_storage import set_storage_policy
+        for rid, policy in enumerate(storage.policies):
+            set_storage_policy(world, rid, storage_policy if storage_policy is not None else policy.policy,
+                               storage_budget if storage_budget is not None else policy.work_budget)
     _shipments = getattr(args, "public_grain_shipments", None)
     if _shipments is not None:
         from chronicler.public_grain_shipments import set_public_grain_shipments_enabled
@@ -1897,6 +1919,12 @@ def _configure_run(args: argparse.Namespace, world: WorldState, fresh_world: boo
         "simulation_args": simulation_config(args),
         "output_args": output_config(args),
     }
+    if storage is not None:
+        run_config["simulation_args"]["grain_storage"] = True
+        policies = {p.policy for p in storage.policies}
+        budgets = {p.work_budget for p in storage.policies}
+        run_config["simulation_args"]["grain_storage_policy"] = next(iter(policies)) if len(policies) == 1 else None
+        run_config["simulation_args"]["grain_storage_work_budget"] = next(iter(budgets)) if len(budgets) == 1 else None
     if world.scientific_claims is not None and world.scientific_claims.research_agendas is not None:
         run_config["simulation_args"]["scientific_research_agendas"] = world.scientific_claims.research_agendas.enabled
     if decision_ablation is not None:
@@ -2176,6 +2204,12 @@ def _build_parser() -> argparse.ArgumentParser:
                              "markets the merchants may reach, with transit and storage losses, "
                              "and opens the granary in dearth or famine before hunger kills; needs "
                              "an agent mode (default off; saved on resume)")
+    parser.add_argument("--grain-storage", action=argparse.BooleanOptionalAction, default=None,
+                        help="Opt-in finite public storage with condition, timber/treasury costs and competing farmer work; requires hybrid granaries")
+    parser.add_argument("--grain-storage-policy", choices=("neglect", "maintain", "expand"), default=None,
+                        help="Apply a storage policy to every region; saved policies otherwise persist")
+    parser.add_argument("--grain-storage-work-budget", type=float, default=None,
+                        help="Requested farmer-equivalent work per region per turn, 0–4; default zero")
     parser.add_argument("--public-grain-shipments", action=argparse.BooleanOptionalAction, default=None,
                         help="Default-off public grain: foreign direct-neighbor orders arrive next Phase10, "
                              "after its opening; requires --grain-reserves and agents. Disabling drains paid cargo.")
@@ -2404,6 +2438,14 @@ def _adopt_checkpoint_args(parser: argparse.ArgumentParser, args: argparse.Names
                          f"(saved: {effective_research!r}); use a declared experiment fork to change research policy")
     elif research is not None:
         args.scientific_research_agendas = effective_research
+    storage = getattr(getattr(state.world, "grain_reserves", None), "storage", None)
+    given_storage = getattr(args, "grain_storage", None)
+    if given_storage is not None and given_storage != (storage is not None):
+        conflicts.append("--grain-storage conflicts with the checkpoint; use a state fork for a different configuration")
+    for name, field in (("grain_storage_policy", "policy"), ("grain_storage_work_budget", "work_budget")):
+        given = getattr(args, name, None)
+        if given is not None and (storage is None or any(getattr(p, field) != given for p in storage.policies)):
+            conflicts.append("--" + name.replace("_", "-") + " conflicts with the checkpoint's per-region policies")
     for key, value in saved.items():
         if key in _RESUME_FREE_ARGS:
             continue

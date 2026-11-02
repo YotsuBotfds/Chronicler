@@ -39,9 +39,13 @@ class StorageReceipt(BaseModel):
     capacity_after: float
     repair_progress: float
     expansion_progress: float
+    target_requested: float | None = None
+    target_feasible: float | None = None
+    capacity_returned: float = 0.0
 
 
 class GrainStorageState(BaseModel):
+    schema_version: Literal[1] = 1
     # None entries are initialized with the first successful economy tick.
     assets: list[StorageAsset | None] = Field(default_factory=list)
     policies: list[StoragePolicy] = Field(default_factory=list)

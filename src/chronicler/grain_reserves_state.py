@@ -26,8 +26,8 @@ def _is_none(value):
 #: share a conquest or an occupying army took; ``abandoned`` is grain left to
 #: the region's market when its granary has no owner; ``captured`` records a
 #: new owner taking the granary (no grain moves).
-FLOW_KINDS: tuple[str, ...] = ("bought", "released", "spoiled", "seized", "abandoned", "captured", "dispatched", "arrived")
-BOUGHT, RELEASED, SPOILED, SEIZED, ABANDONED, CAPTURED, DISPATCHED, ARRIVED = range(len(FLOW_KINDS))
+FLOW_KINDS: tuple[str, ...] = ("bought", "released", "spoiled", "seized", "abandoned", "captured", "dispatched", "arrived", "storage_returned")
+BOUGHT, RELEASED, SPOILED, SEIZED, ABANDONED, CAPTURED, DISPATCHED, ARRIVED, STORAGE_RETURNED = range(len(FLOW_KINDS))
 
 #: Cumulative counters kept on ``GrainReserveState.counters`` (insertion order).
 COUNTER_KEYS: tuple[str, ...] = (
@@ -88,6 +88,14 @@ class GrainReserveState(BaseModel):
     # The turn's resource ledger (``grain_reserves.ReserveLedger``) from the
     # Phase 2 tick to the end of the Phase 10 tick; None between turns.
     _ledger: object | None = PrivateAttr(default=None)
+
+    def __getstate__(self):
+        state = super().__getstate__()
+        if self.storage is None:
+            state["__dict__"].pop("storage", None)
+            if "storage" in state["__pydantic_fields_set__"]:
+                state["__pydantic_fields_set__"] = state["__pydantic_fields_set__"] - {"storage"}
+        return state
 
     def __setstate__(self, state):
         super().__setstate__(state)

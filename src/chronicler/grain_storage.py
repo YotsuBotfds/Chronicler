@@ -304,3 +304,38 @@ def storage_snapshot(world) -> StorageSnapshot | None:
     """Freeze current recorded state without reconciling or mutating the world."""
     state = _state(world)
     return None if state is None else StorageSnapshot(state.model_dump_json())
+
+
+def settle_storage_capacity(world) -> None:
+    """Late Phase10: cap targets and conservatively return excess to the market.
+
+    Public release/spoilage occurred in Phase2. Arrivals settle before this
+    boundary; capacity cannot erase already-paid cargo. These returned goods
+    reach native consumption next turn, never retrospectively this turn.
+    """
+    state = _state(world)
+    if state is None or world.agent_mode in (None, "off"):
+        return
+    _validate_shape(world, state)
+    from chronicler.grain_reserves import _flows, _bump
+    from chronicler.grain_reserves_state import ReserveFlow, STORAGE_RETURNED
+    receipts = {r.region: r for r in state.receipts} if state.receipt_turn == world.turn else {}
+    flows = _flows(world, world.grain_reserves)
+    for rid, (region, granary) in enumerate(zip(world.regions, world.grain_reserves.granaries, strict=True)):
+        limit = storage_limit(world, rid)
+        requested = granary.target
+        granary.target = min(granary.target, limit)
+        excess = max(0.0, granary.grain - limit)
+        if excess:
+            before = granary.grain
+            granary.grain -= excess
+            goods = region.stockpile.goods
+            goods["grain"] = goods.get("grain", 0.0) + excess
+            flows.append(ReserveFlow(kind=STORAGE_RETURNED, region=rid, source=rid,
+                                     amount=excess, buyer=granary.owner, seller=granary.owner,
+                                     before=before, after=granary.grain))
+            _bump(world.grain_reserves, "storage_returned", excess)
+        if rid in receipts:
+            receipts[rid].target_requested = requested
+            receipts[rid].target_feasible = granary.target
+            receipts[rid].capacity_returned += excess
