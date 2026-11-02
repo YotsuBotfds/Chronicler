@@ -319,6 +319,8 @@ pub struct EconomyRegionResult {
     /// market prices (`merchant::market_price`).
     pub market_demand: [f32; NUM_CATEGORIES],
     pub market_supply: [f32; NUM_CATEGORIES],
+    /// Actual Phase 2 post-trade prices, before public relief and consumption.
+    pub market_price: [f32; NUM_CATEGORIES],
     /// Output per farmer relative to constant returns (effective over
     /// headcount labour, `effective_farm_labor`); 1.0 without the curve or
     /// without farmers. Scales farmer income in the agent tick.
@@ -1817,6 +1819,7 @@ pub fn tick_economy_core_with_granary_work(
             trade_route_count,
             market_demand: w.demand,
             market_supply,
+            market_price: post_trade_prices[ri],
             farm_productivity: farm_productivity[ri],
             craft_output: craft_output[ri],
             craft_sufficiency,

@@ -237,6 +237,9 @@ pub fn economy_region_result_schema() -> Schema {
         fields.push(Field::new(name, DataType::Float64, false));
     }
     fields.push(Field::new("granary_work_delivered", DataType::Float32, false));
+    for cat in CATEGORY_NAMES {
+        fields.push(Field::new(format!("market_price_{cat}"), DataType::Float32, false));
+    }
     Schema::new(fields)
 }
 

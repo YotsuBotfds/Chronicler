@@ -3308,6 +3308,8 @@ impl AgentSimulator {
         let mut rr_slot_out: Vec<Float32Builder> = (0..3).map(|_| Float32Builder::with_capacity(n_out)).collect();
         let mut rr_forage = Float32Builder::with_capacity(n_out);
         let mut rr_granary_work = Float32Builder::with_capacity(n_out);
+        let mut rr_market_price: Vec<Float32Builder> =
+            (0..NC).map(|_| Float32Builder::with_capacity(n_out)).collect();
         let mut rr_food_ledger: Vec<arrow::array::Float64Builder> =
             (0..crate::economy::FOOD_LEDGER_NAMES.len())
                 .map(|_| arrow::array::Float64Builder::with_capacity(n_out)).collect();
@@ -3333,6 +3335,7 @@ impl AgentSimulator {
             }
             rr_forage.append_value(rr.forage_output);
             rr_granary_work.append_value(rr.granary_work_delivered);
+            for c in 0..NC { rr_market_price[c].append_value(rr.market_price[c]); }
             for c in 0..NC {
                 rr_market[c].append_value(rr.market_demand[c]);
                 rr_market[NC + c].append_value(rr.market_supply[c]);
@@ -3379,6 +3382,9 @@ impl AgentSimulator {
             rr_columns.push(Arc::new(builder.finish()));
         }
         rr_columns.push(Arc::new(rr_granary_work.finish()));
+        for builder in rr_market_price.iter_mut() {
+            rr_columns.push(Arc::new(builder.finish()));
+        }
         let region_result_batch = RecordBatch::try_new(
             Arc::new(economy_region_result_schema()),
             rr_columns,
@@ -4068,6 +4074,31 @@ mod tests {
             losses: vec![1.0], worked: vec![false], ..Default::default()
         });
         sim
+    }
+
+    #[test]
+    fn market_price_ffi_exports_actual_native_post_trade_prices() {
+        use arrow::array::{ArrayRef, Float32Array};
+        let mut sim = granary_work_sim();
+        sim.economy_config.base_price = 2.0;
+        let input = granary_work_input(None, 1.0).into_inner();
+        let mut fields: Vec<Field> = input.schema().fields().iter().map(|f| f.as_ref().clone()).collect();
+        let mut columns: Vec<ArrayRef> = input.columns().to_vec();
+        fields.push(Field::new("craft_demand", DataType::Float32, false));
+        columns.push(Arc::new(Float32Array::from(vec![1.0])));
+        fields.push(Field::new("stockpile_crafts", DataType::Float32, false));
+        columns.push(Arc::new(Float32Array::from(vec![2.0])));
+        let batch = PyRecordBatch::new(RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).unwrap());
+        let output = sim.tick_economy(batch, granary_work_routes(), 0, false, 1.0).unwrap().0.into_inner();
+        let val = |name| output.column_by_name(name).unwrap().as_any().downcast_ref::<Float32Array>().unwrap().value(0);
+        assert_eq!(val("market_demand_craft"), 1.0);
+        assert_eq!(val("market_supply_craft"), 2.0);
+        assert_eq!(val("market_price_craft"), 1.0);
+        assert_eq!(val("market_price_food"), 2.5);
+        assert_eq!(val("market_price_luxury"), 0.0);
+        assert_eq!(val("stockpile_crafts"), 0.99); // lifecycle after price
+        let names = output.schema().fields().iter().map(|f| f.name().clone()).collect::<Vec<_>>();
+        assert_eq!(&names[names.len()-4..], &["market_price_food", "market_price_raw_material", "market_price_luxury", "market_price_craft"]);
     }
 
     #[test]
