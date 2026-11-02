@@ -27,7 +27,7 @@ validate an epic. Runtime changes remain opt-in until evaluated. No paid narrati
 | Milestone | State | Dependencies and next bounded tasks | Acceptance before validated |
 | --- | --- | --- | --- |
 | M0 contract | integrated | Bounded source assessment above; first implementation is M1. | Authority/units/phases, budgets and explicit missing mechanisms recorded; not an epic-delivery claim. |
-| M1 received/consumed | validated (bounded mechanics) | Native food kernel ledger; detached Phase2/public-relief observations; actual procurement-budget receipt; existing Food/history integration. | Abundant/empty/late-arrival/no-public-budget controls; separate wealth-access limit; native stock balance and public stock balance; old unknowns, behavior/RNG neutrality, actual native execution and exact continuation. |
+| M1 received/consumed | integrated | Native food kernel ledger; detached Phase2/public-relief observations; actual procurement-budget receipt; existing Food/history integration. | Abundant/empty/late-arrival/no-public-budget controls; separate wealth-access limit; native stock balance and public stock balance; old unknowns, behavior/RNG neutrality, actual native execution and exact continuation. |
 | M2 logistics consequences | partially covered | Genuine three-region private disruption fixture in isolated worktree; M1 observations then downstream evidence. | Actual reservation/transit/route loss/return/reopen/recovery, adverse diversion, ownership/accounting and in-flight checkpoint. Implement recovery only if demonstrated missing. |
 | M3 storage choices | implementing | Depends M1/M2. Public target lacks asset/capacity; select one opt-in public grain asset with paid work, condition, spoil/cap connection and custody. | Useful investment and opportunity-cost failure; default-off parity; partial work/damage/conquest persistence. |
 | M4 household coping | planned | Depends accounting/logistics/care constraints. Audit native wealth, debt, household migration and actual work; choose one missing bounded coping interaction. | Legitimately different household trajectories; constrained transfers, time-known inputs and exact continuation; uneven costs. |
@@ -68,8 +68,17 @@ writers or shared-wheel replacement. Viewer work starts after export agreement.
   backups remain intact. Current program source/evidence recovery index is prepared
   at integration checkpoints. Cloud publication/fresh provisioning remain deferred.
 
-Next action: publish the verified M1 dev checkpoint and run combined CI while
-integrating the opt-in M3 asset/work hooks; finish the M2 ownership-return receipt.
+CI at d4893de4 (41452525060) passed Viewer/Rust/current native wheel build but
+failed old frozen snapshot projections (15 shared hash cases) and the optional
+snapshot-system field registry (one case). Frozen expected hashes remain fixed;
+a strict independently validated food-v1 projection and registry integration are
+corrected with246 focused compatibility passes and26 strict new projection regressions.
+The old expected hashes are unchanged. Fresh combined CI remains pending.
+The actual four-mode behavior/RNG/state comparisons remain positive evidence.
+
+Next action: run fresh combined CI on the compatibility correction, regenerate
+the qualified example/checkpoint, then integrate the opt-in M3 asset/work hooks and the now
+native-tested M2 controller-return receipt.
 Then qualify a declared investment and opportunity-cost pair, including active
 work checkpoints. M4–9 remain planned, not complete. No scientific/default
 promotion gate has been claimed.

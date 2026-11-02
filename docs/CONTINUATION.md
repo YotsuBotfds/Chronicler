@@ -2,7 +2,8 @@
 
 Continue the new [crisis/adaptation/recovery roadmap](integration/crisis-recovery-roadmap.md)
 from verified dev baseline6ff45ec3. M0 authority contract is integrated; M1 food
-accounting has bounded end-to-end validation. M2 has real private disruption/
+accounting is integrated with bounded mechanical/browser validation; fresh CI
+found legacy export-projection/field-registry integration defects now correcting. M2 has real private disruption/
 recovery evidence and a return-receipt correction pending; M3 asset/work
 integration is next. M4–9 remain planned. This is not the completed roadmap. Previous remediation stays closed within its documented
 limits. Main/defaults remain unchanged; environment publication stays deferred.
