@@ -1,4 +1,5 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { useDialogFocus } from "../hooks/useDialogFocus";
 import type { PauseContext, Command, PendingAction, InjectCommand, CheckpointStatus } from "../types";
 
 import { WhatIfPanel } from "./WhatIfPanel";
@@ -87,10 +88,14 @@ export function InterventionPanel({
   const handleSet = useCallback(() => {
     sendCommand({ type: "set", civ: setCiv, stat: setStat, value: setValue });
   }, [sendCommand, setCiv, setStat, setValue]);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  // Escape never silently resumes a world or cancels a running pair. Those
+  // state-changing actions retain their explicit buttons inside the dialog.
+  useDialogFocus(dialogRef, true);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="bg-gray-800 rounded-lg shadow-2xl p-4 sm:p-6 w-[600px] max-w-[calc(100vw-24px)] max-h-[90vh] overflow-y-auto space-y-6">
+      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={`Paused simulation at turn ${pauseContext.turn}`} className="bg-gray-800 rounded-lg shadow-2xl p-4 sm:p-6 w-[600px] max-w-[calc(100vw-24px)] max-h-[90vh] overflow-y-auto space-y-6">
         <h2 className="text-lg font-bold text-gray-100">
           Paused at Turn {pauseContext.turn}
         </h2>

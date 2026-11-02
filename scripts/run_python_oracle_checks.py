@@ -280,6 +280,7 @@ CHUNKS = {
     ],
     "grain-reserves": [
         "tests/test_grain_reserves.py",
+        "tests/test_grain_release_policy.py",
     ],
     "expansion-wiring": [
         "tests/test_expansion_feature_wiring.py",

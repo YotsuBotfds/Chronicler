@@ -11,7 +11,7 @@ export interface InvestigationBookmarksProps {
   target?: InvestigationTarget | null;
   panel?: InvestigationPanel;
   /** Root validates the saved index/name against the loaded bundle before seeking/selecting. */
-  onRestore: (bookmark: InvestigationBookmark) => void;
+  onRestore: (bookmark: InvestigationBookmark) => string | void;
 }
 function browserStorage(): Storage | null {
   try { return typeof window === "undefined" ? null : window.localStorage; } catch { return null; }
@@ -38,8 +38,8 @@ export function InvestigationBookmarks({ artifactIdentity, currentTurn, target =
   const restore = (bookmark: InvestigationBookmark) => {
     const checked = bookmarkRestoreStatus(bookmark, artifactIdentity);
     if (!checked.canRestore) { setStatus(checked.reason); return; }
-    onRestore(bookmark);
-    setStatus("Matching-file bookmark sent for entity, turn and panel restoration.");
+    const error = onRestore(bookmark);
+    setStatus(error || "Matching-file bookmark restored to its entity, turn and panel.");
   };
   const canSave = stored.ok && artifact !== null && validInvestigationTarget(target) && Number.isSafeInteger(currentTurn) && currentTurn >= 0;
   return <section className="investigation-bookmarks" aria-label="Investigation bookmarks">

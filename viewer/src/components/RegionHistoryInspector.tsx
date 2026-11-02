@@ -18,6 +18,7 @@ interface Props {
   currentTurn: number;
   onSeek: (turn: number) => void;
   onSelectEvent?: (event: Event) => void;
+  onSelectEntity?: (entity: import("../lib/historyComparison").HistoryEntity) => void;
 }
 
 const PAGE_SIZE = 50;
@@ -70,11 +71,12 @@ function Results({ rows, events, currentTurn, onSeek, maxTurn }: {
   </>;
 }
 
-export function RegionHistoryInspector({ bundle, artifactIdentity, selectedRegion, selectedCivilization, currentTurn, onSeek, onSelectEvent }: Props) {
+export function RegionHistoryInspector({ bundle, artifactIdentity, selectedRegion, selectedCivilization, currentTurn, onSeek, onSelectEvent, onSelectEntity }: Props) {
   const names = useMemo(() => regionNames(bundle), [bundle]);
   const metrics = useMemo(() => regionMetrics(bundle), [bundle]);
   const [first, last] = useMemo(() => recordedTurnBounds(bundle), [bundle]);
-  const [region, setRegion] = useState(selectedRegion ?? names[0] ?? "");
+  const [localRegion, setRegion] = useState(selectedRegion ?? names[0] ?? "");
+  const region = onSelectEntity && selectedRegion && names.includes(selectedRegion) ? selectedRegion : localRegion;
   const [metricId, setMetricId] = useState("ecology:soil");
   const [startText, setStart] = useState(String(first));
   const [endText, setEnd] = useState(String(last));
@@ -95,7 +97,7 @@ export function RegionHistoryInspector({ bundle, artifactIdentity, selectedRegio
 
   return <section className="region-history" aria-label="Region history inspector">
     <TurnChanges bundle={bundle} currentTurn={currentTurn} selectedRegion={selectedRegion}
-      selectedCivilization={selectedCivilization} onSeek={onSeek} onSelectEvent={onSelectEvent} />
+      selectedCivilization={selectedCivilization} onSeek={onSeek} onSelectEvent={onSelectEvent} onSelectEntity={onSelectEntity} />
     <h2>Region history</h2>
     <p>Inspect exported observations without interpolation. Ecology values are raw fractions; stockpiles show each named good in its exported units. Regional model population is the completed model count; native agents alive is a separate observation and can differ. Older, malformed or unsupported population records stay unknown. Food weights use Phase 2 agents and ownership, not these completed counts.</p>
     <div className="region-history-provenance">
@@ -106,7 +108,7 @@ export function RegionHistoryInspector({ bundle, artifactIdentity, selectedRegio
       </> : <span>Raw artifact identity unavailable for in-memory data. Run metadata is not a content identity.</span>}
     </div>
     <div className="region-history-controls">
-      <label>Region<select aria-label="Region" value={region} onChange={(event) => setRegion(event.target.value)}>
+      <label>Region<select aria-label="Region" value={region} onChange={(event) => { setRegion(event.target.value); onSelectEntity?.({ kind: "region", name: event.target.value }); }}>
         {names.map((name) => <option key={name}>{name}</option>)}
       </select></label>
       {selectedRegion && names.includes(selectedRegion) && selectedRegion !== region &&

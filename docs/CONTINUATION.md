@@ -1,3 +1,12 @@
+# Active — multi-wave exploration development
+
+The previous world-laboratory queue below is complete. A new36-item backlog is
+in progress on the same dev branch. Use the [active tracker](integration/development-lead.md)
+for current source, completed evidence, bounded work and continuation. Do not
+restart old queues. Main/defaults/environment publication remain unchanged.
+
+---
+
 # 2026-11-02 — interactive world laboratory complete
 
 The new five-item queue is complete at verified code `5162ab05`, with all nine

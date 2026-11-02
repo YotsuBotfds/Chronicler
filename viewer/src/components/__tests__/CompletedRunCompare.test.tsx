@@ -40,7 +40,7 @@ it("keeps the initial bundle, loads the other side through the shared decoder an
 it("shows null tails and preserves both loaded runs across unsupported, malformed, and repeated type-error loads", async () => {
   render(<CompletedRunCompare initialBundle={comparisonBundle([1, 2])} />);
   upload("left", "left.json", comparisonBundle([1, 3]));
-  await screen.findByRole("table");
+  await screen.findByRole("table", { name: /Run metrics at snapshot/ });
   fireEvent.change(screen.getByLabelText("Comparison snapshot"), { target: { value: "3" } });
   expect(screen.getByRole("row", { name: /Landholding population 100 Not recorded Not recorded/ })).toBeInTheDocument();
   upload("left", "manifest.json", manifest);
@@ -82,7 +82,7 @@ it("copies a concise summary with inputs, settings, coverage and limits and offe
   const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
   render(<CompletedRunCompare initialBundle={comparisonBundle()} />);
   upload("left", "left.json", comparisonBundle());
-  await screen.findByRole("table");
+  await screen.findByRole("table", { name: /Run metrics at snapshot/ });
   fireEvent.click(screen.getByRole("button", { name: "Copy Markdown" }));
   await waitFor(() => expect(writeText).toHaveBeenCalled());
   expect(writeText.mock.calls[0][0]).toContain("SHA-256 (original bytes)");
@@ -97,12 +97,12 @@ it("copies a concise summary with inputs, settings, coverage and limits and offe
 it("retains the completed-run inputs when switching to existing batch reports and back", async () => {
   render(<BatchCompare initialBundle={comparisonBundle()} />);
   upload("left", "left.json", comparisonBundle());
-  await screen.findByRole("table");
+  await screen.findByRole("table", { name: /Run metrics at snapshot/ });
   fireEvent.click(screen.getByRole("button", { name: "Batch reports" }));
   expect(screen.getByText("Baseline")).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "Completed runs" }));
   expect(screen.getByText("left.json")).toBeVisible();
-  expect(screen.getByRole("table")).toBeVisible();
+  expect(screen.getByRole("table", { name: /Run metrics at snapshot/ })).toBeVisible();
 });
 
 it("keeps the existing batch report mode and rejects a bundle dropped into it without replacing a report", async () => {
@@ -127,7 +127,7 @@ it("loads a completed bundle by drop and reports clipboard failure without losin
   fireEvent.click(screen.getByRole("button", { name: "Copy Markdown" }));
   expect(await screen.findByText("Copy is unavailable here. Download the summary instead.")).toBeVisible();
   expect(screen.getByRole("button", { name: "Download JSON" })).toBeEnabled();
-  expect(screen.getByRole("table")).toBeVisible();
+  expect(screen.getByRole("table", { name: /Run metrics at snapshot/ })).toBeVisible();
 });
 
 it("opens an exact pair through the existing comparison and shares its full provenance until a side is replaced", async () => {

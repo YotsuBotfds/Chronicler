@@ -985,6 +985,22 @@
 }
 
 /* Thematic map layers (MapLayerMarks.tsx, lib/mapLayers.ts). */
+.phase75-region-navigation { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; padding: 14px; }
+.phase75-region-navigation label { display: grid; gap: 6px; min-width: 0; }
+.phase75-region-navigation p { width: 100%; font-size: 13px; color: var(--phase75-muted-strong); margin: 0; }
+.phase75-region-navigation select, .phase75-region-navigation button, .phase75-back-to-map {
+  min-height: 44px; min-width: 44px; max-width: 100%; padding: 8px; background: #1d2426; color: var(--phase75-ink); border: 1px solid var(--phase75-edge-strong); border-radius: 6px;
+}
+.phase75-shell :focus-visible { outline: 2px solid var(--phase75-cyan); outline-offset: 3px; }
+@media (max-width: 600px) {
+  .region-history select, .region-history input[type="number"], .region-history button,
+  .interesting-periods button, .interesting-periods select, .interesting-periods summary,
+  .phase75-layer-chip, .phase75-ghost-button, .phase75-primary-button { min-height: 44px; }
+  .region-history-controls .region-history-checkbox { min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .phase75-shell *, .phase75-shell *::before, .phase75-shell *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
 
 /* Rows keep their own height when a long inspector stretches the workspace. */
 .phase75-map-column {

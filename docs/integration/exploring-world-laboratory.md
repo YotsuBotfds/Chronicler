@@ -22,10 +22,10 @@ Activate the existing tools without running the environment installer:
 cd /workspace/Chronicler-kimi
 source /workspace/shared/chronicler-onboarding/runtime-6da9acae6bda6d7a.env
 scripts/world-laboratory-example.sh commands \
-  /workspace/shared/chronicler-world-lab-example-final-20261102 \
+  /workspace/shared/chronicler-exploration-example-59d1de84 \
   "$CHRONICLER_NATIVE_ENV/bin/python"
 scripts/world-laboratory-example.sh generate \
-  /workspace/shared/chronicler-world-lab-example-final-20261102 \
+  /workspace/shared/chronicler-exploration-example-59d1de84 \
   "$CHRONICLER_NATIVE_ENV/bin/python"
 ```
 
@@ -95,6 +95,50 @@ point. Inspect that region's population and food trajectory around its recorded
 snapshot, then open Trade/Food or Finance for the same recorded turn. A zero
 flow remains zero; a missing food observation stays unknown.
 
+## Map, evidence, bookmarks and a shareable finding
+
+Use **Population** for completed regional model counts; its fixed legend keeps
+unknown distinct from zero without reading future maxima. **Territory changes**
+compares two exact recorded ownership endpoints. Name-keyed ambiguity stays
+unknown; a rename is not inferred to be conquest. A missing selected snapshot
+also makes control ownership unknown rather than carrying an older row forward.
+
+Choose **Inspect a region** above the map when markers are small. **View selection
+details** and **Back to map** move keyboard focus without changing the region or
+turn. The details show exact conditions, explicitly regional reports, recorded
+migration and links to the owner and history. History and map region selectors
+stay synchronized while the chosen metric and interval remain intact.
+Civilization details include bounded life-history and fiscal payment evidence;
+total debt already includes its foreign subset. Releases are food supply before
+consumption, not a measurement of food actually eaten.
+
+**Search recorded entities** exposes only observations known by the selected
+snapshot, including city histories where recorded. **Recorded interesting
+periods** groups qualifying reports into fixed five-snapshot windows and exposes
+the actual source reports; these are activity filters, not causal scores.
+During a live run, seeking locks the inspection turn even at the latest edge;
+**Return to live** explicitly resumes following incoming turns.
+
+Open **Bookmarks and investigation export** after selecting a region or
+civilization. Save an optional private note, then move elsewhere and restore the
+bookmark. It binds to the original file SHA-256, entity index, turn and panel.
+After reload, reopen that exact file to restore; another file remains loaded and
+is not replaced. Unsupported/corrupt/full local storage is reported without
+clearing stored notes. Live worlds without an original artifact hash cannot
+create portable persisted bookmarks.
+
+**Export investigation JSON** or **Markdown** shares the exact selected measures,
+source pointers, at most50 explicitly attributed timeline reports from the last10
+snapshots and limitations. Missing values remain null. Private bookmark notes,
+raw world data, runtime paths and credentials are excluded. Source hashes absent
+from a bundle are reported as unrecorded. This packet is evidence, not a saved
+world or exact checkpoint.
+
+The current phone checks used actual390px Chromium controls, including selection,
+focus jumps, history, bookmark restore after reload and file export. Comparison
+modal Tab/Shift+Tab containment, Escape and restored focus passed. These checks
+are not a full screen-reader or physical-device certification.
+
 ## Resume the exact common point and prepare a manifest
 
 Keep the same simulation package, interpreter, native binary and thread settings.
@@ -103,7 +147,7 @@ In a terminal using the same runtime activation, run:
 ```bash
 cd /workspace/Chronicler-kimi
 scripts/world-laboratory-example.sh live \
-  /workspace/shared/chronicler-world-lab-example-final-20261102 \
+  /workspace/shared/chronicler-exploration-example-59d1de84 \
   "$CHRONICLER_NATIVE_ENV/bin/python"
 ```
 
@@ -181,7 +225,7 @@ causal estimate or general policy benefit. A cancelled or failed arm retains its
 partial output and cannot be presented as a completed comparison. No narration
 or paid API calls are part of this workflow.
 
-## Verified session walkthrough
+## Prior verified session walkthrough (source5162ab05)
 
 The fixed recipe was generated at source `5162ab05`; simulation package digest
 `922054b0de4d6d326686d2bc295d5bff5424e872a591dd16ddf19b319c333e7d`.
@@ -251,7 +295,7 @@ export RAYON_NUM_THREADS=1 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THRE
 world_lab_replay=/workspace/shared/chronicler-world-lab-replay-02
 if test -e "$world_lab_replay"; then echo 'Choose a fresh output folder'; exit 1; fi
 "$CHRONICLER_NATIVE_ENV/bin/python" -m chronicler.main --live --live-port 0 \
-  --resume /workspace/shared/chronicler-world-lab-example-final-20261102/original/checkpoints/turn_0008.ckpt \
+  --resume /workspace/shared/chronicler-exploration-example-59d1de84/original/checkpoints/turn_0008.ckpt \
   --turns 24 --pause-every 8 --simulate-only \
   --output "$world_lab_replay/chronicle.md" --state "$world_lab_replay/state.json"
 ```

@@ -23,7 +23,7 @@ export function LiveInspectionControls({
         <strong>{inspectionLocked ? "Inspecting history" : followMode ? "Following live" : "Live follow ready"}</strong>
         <span>
           {inspectionLocked && newTurns > 0
-            ? `${newTurns} new ${newTurns === 1 ? "turn" : "turns"} available · `
+            ? `Latest advanced by ${newTurns} ${newTurns === 1 ? "turn" : "turns"} since lock · `
             : ""}
           Latest available: turn {latestTurn}
         </span>

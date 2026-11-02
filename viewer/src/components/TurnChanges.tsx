@@ -7,6 +7,7 @@ import "./turn-changes.css";
 interface Props {
   bundle: Bundle; currentTurn: number; selectedRegion?: string | null; selectedCivilization?: string | null;
   onSeek: (turn: number) => void; onSelectEvent?: (event: Event) => void;
+  onSelectEntity?: (entity: HistoryEntity) => void;
 }
 const key = (entity: HistoryEntity) => JSON.stringify([entity.kind, entity.name]);
 const numbers = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
@@ -29,7 +30,7 @@ function RecordedEvents({ rows, onSeek, onSelectEvent }: {
   </>;
 }
 
-export function TurnChanges({ bundle, currentTurn, selectedRegion, selectedCivilization, onSeek, onSelectEvent }: Props) {
+export function TurnChanges({ bundle, currentTurn, selectedRegion, selectedCivilization, onSeek, onSelectEvent, onSelectEntity }: Props) {
   const entities = useMemo(() => comparisonEntities(bundle, currentTurn), [bundle, currentTurn]);
   const turns = useMemo(() => comparisonTurns(bundle, currentTurn), [bundle, currentTurn]);
   const mapSelection: HistoryEntity | null = selectedRegion ? { kind: "region", name: selectedRegion }
@@ -39,7 +40,8 @@ export function TurnChanges({ bundle, currentTurn, selectedRegion, selectedCivil
   const [chosen, setChosen] = useState<string | null>(() => mapSelection ? key(mapSelection) : null);
   const [fromChoice, setFrom] = useState<number | null>(null);
   const [toChoice, setTo] = useState<number | null>(null);
-  const entity = entities.find((row) => key(row) === chosen)
+  const entity = (onSelectEntity && mapSelection ? entities.find((row) => key(row) === key(mapSelection)) : undefined)
+    ?? entities.find((row) => key(row) === chosen)
     ?? entities.find((row) => mapSelection && key(row) === key(mapSelection)) ?? entities[0];
   const from = fromChoice !== null && turns.includes(fromChoice) ? fromChoice : turns[0];
   const to = toChoice !== null && turns.includes(toChoice) ? toChoice : turns[turns.length - 1];
@@ -56,7 +58,7 @@ export function TurnChanges({ bundle, currentTurn, selectedRegion, selectedCivil
     <p>Compare two recorded turns through the selected turn ({currentTurn}). Changing this comparison keeps your timeline position.</p>
     <div className="turn-changes-controls">
       <label>Civilization or region<select aria-label="Compare civilization or region" value={entity ? key(entity) : ""}
-        onChange={(event) => setChosen(event.target.value)}>
+        onChange={(event) => { setChosen(event.target.value); const target = entities.find((row) => key(row) === event.target.value); if (target) onSelectEntity?.(target); }}>
         {entities.map((row) => <option key={key(row)} value={key(row)}>{row.kind === "civilization" ? "Civilization" : "Region"}: {row.name}</option>)}
       </select></label>
       <label>Earlier turn<select aria-label="Compare from turn" value={from ?? ""} onChange={(event) => setFrom(Number(event.target.value))}>

@@ -48,7 +48,7 @@ export function Granaries({ bundle, snapshot, currentTurn, onSeek, onSelectRegio
       <StatTile label="Stock target" value={totals.target === null ? "Not observed" : show(totals.target)}
         detail={totals.target === null ? "Some granary demand observations are missing." : undefined} />
       <StatTile label={record.shipments ? "Immediate purchases" : "Grain procured"} value={show(totals.bought)} detail="received this turn" />
-      <StatTile label="Grain released" value={show(totals.released)} detail="eaten this turn" />
+      <StatTile label="Grain released" value={show(totals.released)} detail="released before consumption this turn" />
       <StatTile label="Storage spoilage" value={show(totals.spoiled)} detail="this turn" />
     </div>
     <label className="phase75-field"><span>Granary history</span>

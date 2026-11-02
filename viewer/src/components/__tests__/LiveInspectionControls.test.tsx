@@ -29,7 +29,7 @@ describe("LiveInspectionControls", () => {
     expect(screen.queryByText(/new turns available/)).toBeNull();
 
     rerender(<LiveInspectionControls {...props} newTurns={5} latestTurn={105} />);
-    expect(screen.getByRole("status")).toHaveTextContent("5 new turns available");
+    expect(screen.getByRole("status")).toHaveTextContent("Latest advanced by 5 turns since lock");
     expect(screen.getByRole("status")).toHaveTextContent("Latest available: turn 105");
     expect(onReturnToLive).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Return to live" }));
@@ -42,7 +42,7 @@ describe("LiveInspectionControls", () => {
       onLock: vi.fn(), onReturnToLive: vi.fn(),
     };
     const { rerender } = render(<LiveInspectionControls {...props} />);
-    expect(screen.getByRole("status")).toHaveTextContent("1 new turn available");
+    expect(screen.getByRole("status")).toHaveTextContent("Latest advanced by 1 turn since lock");
     rerender(<LiveInspectionControls {...props} inspectionLocked={false} newTurns={0} />);
     expect(screen.getByRole("status")).toHaveTextContent("Live follow ready");
     expect(screen.queryByText("Following live")).toBeNull();

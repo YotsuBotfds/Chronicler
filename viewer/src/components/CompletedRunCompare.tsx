@@ -9,6 +9,7 @@ import {
 } from "../lib/completedRunComparison";
 import "./completedRunCompare.css";
 
+import { EntityRunComparison } from "./EntityRunComparison";
 import type { WhatIfPair } from "../lib/whatIf";
 
 type Side = "left" | "right";
@@ -119,6 +120,7 @@ export function CompletedRunCompare({ initialBundle, initialIdentity, initialPai
         <ul>{summary.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>
       </aside>
       <p>Snapshot T reflects completed tick T−1. Lines stop at missing observations; no values are interpolated.</p>
+      <EntityRunComparison left={left!} right={right!} turn={turn} />
       <div className="completed-compare-charts">
         <Trajectory points={points} metric="population" />
         <Trajectory points={points} metric="food" />

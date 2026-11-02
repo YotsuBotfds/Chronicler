@@ -1,84 +1,73 @@
-# Interactive world laboratory — complete
+# Active development lead — exploration backlog
 
-Runnable branch: `dev/codex-playable-build-20261031`. Final verified code is
-`5162ab051365fd483dd6106979aa0513648503d3`; the closing handoff changes documentation
-only. [All nine CI jobs](https://github.com/YotsuBotfds/Chronicler/actions/runs/41376993245)
-passed on that exact code. No planned development remains in this queue.
+Continue `dev/codex-playable-build-20261031`. Refresh found clean local/remote
+`977bab1ad7adc6cd0e636706ccb6783305977ff5`, no newer work to reconcile.
+The [previous world-laboratory queue is complete](https://github.com/YotsuBotfds/Chronicler/blob/977bab1ad7adc6cd0e636706ccb6783305977ff5/docs/integration/development-lead.md): its code `5162ab05` passed all nine CI jobs, including9427native,
+9057no-Rust,895viewer and1178Rust tests. Reuse unchanged-source evidence.
+This is a new multi-wave backlog; do not restart previous queues or stop after
+one wave. Main, default promotion, public deployment, credentials, paid API/
+narration and environment publication remain out of scope.
 
-Initial refresh on 2026-11-02 found clean local/remote `c04b32ad`, with no newer
-work to reconcile. The [previous queue remains complete](https://github.com/YotsuBotfds/Chronicler/blob/c04b32adef05e54c46f597d9fece9568e719c7c7/docs/integration/development-lead.md).
-Remote main stays `cb9fe70c81658fb65c6f511b821447f1d7b55b54`, untouched. Economic
-defaults, dependency locks and Rust inputs are unchanged. No deployment, new
-credentials, paid API/narration calls or environment publication occurred.
+## Bounded current work
 
-## Delivered
+A/B exploration integration is implemented and under actual browser verification.
+The real live inspection lock passed against the unchanged Python source922054b0;
+Continue, historical lock, return-to-live, explicit latest-turn lock and Quit all
+worked with incoming native turns. That owned parent exited0 at turn16.
+Root connects map/history/conditions, grouped periods, debt evidence, bookmarks
+and a bounded investigation packet. The C14 backend and optional D20 policy are integrated; its viewer
+chooser and strict portable recipes are isolated worker work in progress.
 
-1. **Authoritative regional history.** Version-1 observations export each stable
-   world-region index's actual completed model population, separately labeled
-   native counts and frozen Phase2 food weights/ownership. Completed snapshotT
-   follows tickT−1, including subsequent migration/birth/death/political effects.
-   Demographics clamp and shadow/model differences remain explicit. Absent or
-   invalid observations stay unknown. Existing history, turn comparison and run
-   comparison expose the data, with weighted-food coverage/denominators.
-2. **Where should I look?** Selected-turn food distress, population changes,
-   finance, movement, recovery and institution prompts show recorded values and
-   windows, grouped per entity. Links open existing history without seeking.
-   No universal score, inferred cause or future observation is used.
-3. **Exact what-if pair.** A paused simulate-only live session prepares a labeled
-   stability1–100 control and 1–20 additional turns, then explicitly runs unchanged
-   and intervention continuations from one exact checkpoint. The original stays
-   paused. Strict compatibility, private UUID output paths, duplicate safeguards,
-   bounded serial children, cancel/quit cleanup and reconnect replay are covered.
-   Existing completed-run comparison accepts both real arms and retains source,
-   checkpoint-epoch settings, arm roles and raw hashes in JSON/Markdown exports.
-4. **Measured history cost reduction.** On a real 10.8MB,32-region/200-turn saved
-   world, event-key caching and reused number formatting reduced history scripting
-   median22.15→16.60ms. Frame time was52.60→52.95ms; loading/comparison did not
-   improve. Shared-host contention and overlapping ranges limit the result.
-   Rejected memo experiments and slower measurements remain in the evidence.
-   Real/legacy rendered-DOM equivalence found zero differences.
-5. **Guided real example.** Fixed natural seed42, hybrid24,8regions/4civs,
-   granaries+receipts, exact checkpoint8. The deliberately constructed Ashkari
-   stability31→70 pair continues through16; population199→195 and treasury165→203
-   illustrate a single case's tradeoffs. Original prefix and checkpoint are
-   preserved. [Launch/load walkthrough](exploring-world-laboratory.md) includes
-   actual observations, copyable commands, screenshot names and limitations.
+Current independent work: root integration/accessibility/performance; one worker
+C14/C18 viewer; one D19/D20 opt-in local release policy and unchanged-default
+parity; one browser QA followed by D23/D24 institution/compound-shock evidence.
+Python source now includes the supported purchasing-policy intervention; old exact
+checkpoints must refuse it. Regenerate the final example after source freeze.
 
-Contracts: [regional population](regional-population-observations.md),
-[viewer conditions](regional-laboratory-viewer-2026-11-02.md),
-[exact-pair backend](live-what-if.md),
-[performance measurements](../performance/viewer-history-2026-11-02.md).
+## Backlog
 
-## Actual checks and limits
+Status describes current implementation, not plans counted as completion.
 
-- CI: native9427 passes/6 registered skips/623 subtests; no-Rust9057 passes/362 skips/623 subtests; viewer895/80files plus lint/build; Rust1178 passes/2 ignored; guarded offline46 chunks. Fresh native build/install and real native execution are
-  distinct from the no-Rust and guarded offline lanes. Rust links and executes.
-- Isolated observation proof:577 passes/61subtests/one existing mock skip;
-  guarded32. Parent/current16-turn pairs in all four modes preserve world,
-  decisions, RNG and native bytes after removing only the intentional observation
-  export. Same-source8→16 exact resumes retain complete new history in all modes.
-- Combined local focus:111 Python/native passes. Backend pure/registration,
-  process/native and real browser lifecycle checks pass. Final current package
-  reads the original exact8 checkpoint under the declared environment, with its
-  hash unchanged. All12 exported comparison metrics match actual source files.
-- Actual Chromium154 checks include condition→history without timeline movement,
-  all16 regional rows against source, older unknowns, prepare/run review, duplicate
-  clicks, refusal/recovery, prepared/running cancellation and reconnect. An observed
-  native child was killed/joined146ms after cancel. Phone390 layouts fit; wide
-  tables scroll inside their container. All owned servers/browser work stopped.
-- Intentional export changes required updating frozen-witness projections, not
-  the historical fixtures or expected RNG. One strict test-local v1 projection
-  is shared across every frozen snapshot/artifact capture; other fields and
-  malformed/future versions remain checked. All16 golden trajectories pass.
-  Original failures, the cancelled follow-up and the gate that rejected two hash-seed skips are retained. Fixed-hash native fixtures now execute in bounded supervised children; the original six-skip seal is unchanged. Their execution exposed an actual output-monitor race with atomic temporary-file renames. The fix tolerates only vanished file stats during running scans, keeps strict final scans/real I/O errors and enforces unchanged log/total caps;45 guarded regressions and CI-style native5 passed. Prior failures remain preserved.
-- Exact what-if requires POSIX, PYTHONHASHSEED=0, a simulate-only source and matching
-  package/native/interpreter/packages/thread settings. It caps each arm at120s,
-  16MiB bundle and192MiB output, with eight retained requests/session. State JSON
-  forks cannot supply this exact runtime. One pair is not scientific qualification.
-- No general balance/promotion, large campaign or broader scientific gate is
-  claimed. Shortage-first purchasing and delayed shipments remain default-off.
+| # | Work | Status / concrete gap |
+| --- | --- | --- |
+| A1 | Linked map overlays | Implemented population/territory plus existing layers; focused tests/build pass, real browser passed. |
+| A2 | Map-to-history navigation | Implemented controlled map/history/comparison selection;2 integration tests pass; real browser passed. |
+| A3 | Territory changes | Implemented exact bounded ownership endpoints; unknown/aliases explicit; real browser passed. |
+| A4 | Historical entity search | Implemented dated search with ambiguity and tick visibility;19 tests; real browser passed. |
+| A5 | Interesting periods | Implemented fixed5-snapshot disruption/recovery groups, all source refs paged; focused tests pass. |
+| A6 | Live inspection lock | Verified real native incoming turns and UI Quit in Chromium; parent exited0. |
+| B7 | Civilization life histories | Implemented bounded civilization lifecycle history;17 tests; real browser passed. |
+| B8 | Institution histories | Implemented city-first recorded institution history;20 new tests; unsupported types explicit. |
+| B9 | Food-flow inspection | Covered existing granary/transaction flows; audited units/timing. Corrected release≠consumption caption. |
+| B10 | Debt consequences | Implemented exact fiscal ledger, paid interest/principal, defaults/write-offs and unknown claims;19 tests. |
+| B11 | Migration evidence | Implemented explicitly recorded OD flows distinct from model population delta;34 focused tests. |
+| B12 | Evidence-first explanation | Covered deterministic conditions/prompts and new source-linked histories; no LLM or inferred causes. |
+| C13 | Discoverable what-if | Existing stability baseline/preview/bounds covered; extend same panel for policy, no parallel UI. |
+| C14 | Additional supported intervention | Backend integrated: literal global0/1 granary priority, strict validation/no-op/native checks; viewer active. |
+| C15 | Winners/losers comparison | Implemented exact per-entity measures, identity limits and ranked single-measure changes;19 tests. |
+| C16 | Intervention timing | Complete declared seed7/42/91 T8 vsT12 pairs to commonT20; different starts explicit. |
+| C17 | Small matched evaluations | Complete6 pairs/12 children;6 neutral,0 failures, no retuning/default promotion; benefits/harms retained. |
+| C18 | Saved recipes | Active: strict minimal source/settings/control recipe import/export and share-path sanitization. |
+| D19 | Supply disruption/recovery | Audited public vsprivate transport contracts; no proven defect; focused loss/ownership/collapse gates active. |
+| D20 | Granary allocation tradeoffs | Active isolated opt-in full_meal_release; default-parity, scarcity tradeoffs/native checkpoints and inverse witness. |
+| D21 | Forecast delay/usefulness | Complete4 predeclared forecast pairs plus no-supply: timely benefit, wrong/late cost, expiry refusal. |
+| D22 | Care/labor interaction | Complete actual native care/labor/recovery and same-horizon resume; constructed evidence only. |
+| D23 | Institution loss/recovery | Worker next: institution loss/recovery interactions, no assumed common rules. |
+| D24 | Compound shocks | Worker next: declared constructed compound pressures, retain brittle/neutral outcomes. |
+| E25 | Longer continuation | Queued bounded representative integration path. |
+| E26 | Lifecycle edges | Queued interaction cases, reuse existing capacity/restoration tests. |
+| E27 | Cancel/interruption | Existing pair lifecycle covered; extend new preparation/run paths. |
+| E28 | Memory/output growth | Queued measurement, preserve valuable history. |
+| E29 | Actual frame response | Queued; previous script gain did not improve frames. |
+| E30 | Honest large-history charts | Queued; only aggregate if measured rendering requires it. |
+| F31 | Local bookmarks | Implemented file-SHA-bound local notes/bookmarks with strict restore; mounted and focused tests pass. |
+| F32 | Accessibility | Actual live keyboard check passed; broader dialogs/phone/accessibility under inspection. |
+| F33 | Phone investigation | Actual narrow-screen navigation QA active; retain selections when switching surfaces. |
+| F34 | Investigation packet | Implemented selected exact observations/references JSON/Markdown, no notes/raw metadata/private paths;4 tests. |
+| F35 | Scenario gallery | Queued real examples incl recovery/backfire; descriptive only. |
+| F36 | Integrated exploration release | Queued whole open→inspect→intervene→compare→bookmark→export journey. |
 
-## Working session, backups and continuation
+## Runtime and recovery
 
 ```bash
 cd /workspace/Chronicler-kimi
@@ -86,33 +75,52 @@ source /workspace/shared/chronicler-onboarding/runtime-6da9acae6bda6d7a.env
 export PYTHONPATH="$PWD/src"
 ```
 
-Session tools: Python3.13.5, Rust1.99.1, Node20.19.0, Chromium154. The session's real
-native extension exposes all three simulator classes, ABI
-`cpython-313-x86_64-linux-gnu`. Its `32ac5879` build inputs still match Rust tree
-`edb263686adb7ea5e23864146a5f7d0c5a163da4`; binary SHA-256
-`f6f78b0c63efcf5fd09e310d6901c460711e667f09e57d3e348df00ca57cab29`.
-This is explicit same-input reuse. CI separately builds a current-source wheel.
-A future native-source/ABI change requires an isolated matching build; never
-replace a shared extension under tests. Reusable environment publication and
-fresh-environment restoration remain deferred and unverified.
+Use Node20.19, Python3.13.5 and system Chromium154. Native Rust tree remains
+`edb263686adb7ea5e23864146a5f7d0c5a163da4`, matching the recorded32ac5879 build;
+compiled binary SHA256 `f6f78b0c63efcf5fd09e310d6901c460711e667f09e57d3e348df00ca57cab29`.
+Verify source inputs/ABI before native work; never replace the shared extension
+under active tests. Keep native and no-native checks distinct. Fresh environment
+publication/restoration remains deferred/unverified.
 
-New evidence: `/workspace/shared/chronicler-world-lab-evidence`;
-regional parity/resume evidence:
-`/workspace/shared/chronicler-regional-population-evidence-20261102`.
-Frozen-witness proof receipts also live in the regional performance/independent
-witness directories. Final source bundle/hash/clean trial restore and evidence
-archive identities are recorded in the external `FINAL.json` under the evidence
-root. Trial source restoration does not qualify a fresh runtime environment.
+Current evidence: `/workspace/shared/chronicler-multiwave-evidence`.
+User backlog retained there as `authorized-backlog.txt`. Previous verified source
+backup `/workspace/shared/chronicler-world-lab-evidence/chronicler-world-laboratory-final.bundle`
+restores977bab1a; SHA256 `3f07f364cf936f2fbd90acd6952459fd0cb3f64735ff803bd7127213ce8d26d2`.
+Previous real examples/receipts remain preserved and viewable. Any Python-package
+change requires new matching exact checkpoints, not a mismatch override.
 
-Example: `/workspace/shared/chronicler-world-lab-example-final-20261102`.
-Shareable archive: `/workspace/shared/chronicler-world-lab-5162ab05.zip`,
-2,585,911bytes; SHA-256
-`e7e46cfd0daa215d8858e4b60bfeeb303a8ab965210349565e10f5850ba00a26`.
-All57 archived files/CRC/content hashes verify. It includes source/runtime
-manifests, original/paired outputs, comparison exports and actual screenshots.
-No bulky generated worlds, private runtime files or machine configuration are
-committed. The root worktree is clean and the dev remote matches the closing tip.
+## Current checks and evidence
 
-Nothing remains to implement or approve for this queue. To explore, follow the
-walkthrough; existing outputs are preserved, so use a fresh path for another live
-session. Do not restart an older queue or make environment publication a prerequisite.
+- Viewer focused root integration:24/24; new bookmark/debt/packet47/47;
+  map→history/window/turn + strict bookmark restore2/2. Typecheck and initial
+  production build/lint pass. Combined viewer1082/101files passes; an added exact
+  control-gap regression passes6/6 focused. Initial broad run1026pass/7 selector/
+  copy failures is retained. Actual browser map/history/search/migration/legacy
+  and phone bookmark/reload/export/dialog focus checks pass; all tested phone
+  history controls are now44px high. No page errors were observed.
+- New backend worker source77f14fcd:101 guarded pure,58 lifecycle,10 actual
+  native/process tests pass. Root source matches that Python slice; final combined
+  tests remain due after granary integration.
+- D21 forecast audit23 mechanical +6 JSON/checkpoint checks pass;4 native-identity
+  imports blocked by that explicitly native-absent guard, not native execution.
+- D22 actual native fixed care fixture and each arm checkpoint continuation pass;
+ 12 existing care tests pass. No general efficacy claim.
+- C16/C17 sanitized exports and verification:
+ `/workspace/shared/chronicler-multiwave-evidence/policy-evaluation/run-77f14fcd`.
+- Live screenshots/receipt:
+ `/workspace/shared/chronicler-multiwave-evidence/browser/live-timeline-result.json`.
+
+Latest recoverable WIP checkpoint:
+`/workspace/shared/chronicler-multiwave-evidence/checkpoint-fdd6e25b` contains a
+verified multi-branch source bundle, root binary patch, untracked-source archive
+and SHA256.json. It precedes the C14 cherry-picks; update before handoff.
+The connected milestone is ready to commit/push; verify the remote immediately
+after committing. Main remains unchanged.
+
+New exact example: `/workspace/shared/chronicler-exploration-example-59d1de84`,
+24real hybrid turns and checkpoints8/16/24, package64f0c573f16800434e2ca572ddf95efc56ac567b088c7c876c8f56b89a9ddba0,
+unchanged nativef6. Later UI-only commits can resume it; Python changes require
+a fresh example. Old worlds remain viewable, old exact source is refused.
+
+Next: commit/push the connected milestone and verify backup; integrate C14/C18
+viewer and continue native/long-run/institution qualification; continue E/F without requesting another queue.
