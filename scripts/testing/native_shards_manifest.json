@@ -140,6 +140,7 @@
       "tests/test_rust_debug_info_experiment.py",
       "tests/test_rust_turn_speed.py",
       "tests/test_scenario.py",
+      "tests/test_scenarios_candidate_witness.py",
       "tests/test_schisms.py",
       "tests/test_scientific_claims.py",
       "tests/test_scientific_native_proof_reader.py",
@@ -253,6 +254,7 @@
       "tests/test_institutions.py",
       "tests/test_interactive.py",
       "tests/test_interactive_checkpoints_native.py",
+      "tests/test_lab_transport.py",
       "tests/test_languages.py",
       "tests/test_learning_services_native.py",
       "tests/test_live_integration.py",
@@ -333,6 +335,7 @@
       "tests/test_wealth_floor_outcome_checkpoints_v2.py",
       "tests/test_what_if.py",
       "tests/test_what_if_process.py",
+      "tests/test_what_if_transport.py",
       "tests/test_world_gen.py",
       "tests/test_writer_cadence_diagnostic.py"
     ]

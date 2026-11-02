@@ -18,6 +18,11 @@ import time
 ROOT = Path(__file__).resolve().parents[1]
 CHUNK_LIMIT_SECONDS = 110
 CHUNKS = {
+    "regional-transport-controls": [
+        "tests/test_what_if_transport.py::test_bad_requests_rejected",
+        "tests/test_what_if_transport.py::test_command_closed_and_manifest_bound",
+        "tests/test_scenarios_candidate_witness.py",
+    ],
     "forecast-information-contracts": [
         "tests/test_harvest_forecast_delay.py",
         "tests/test_information_candidate_witness.py",
