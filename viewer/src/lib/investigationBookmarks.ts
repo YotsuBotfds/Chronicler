@@ -76,24 +76,79 @@ export function bookmarkRestoreStatus(bookmark: InvestigationBookmark, identity:
   return { canRestore: true, reason: "Loaded file SHA-256 matches. Restore will select the saved entity, turn and panel." };
 }
 
-export function saveInvestigationBookmark(storage: BookmarkStorage | null, identity: ArtifactIdentity | null, target: InvestigationTarget | null,
-  turn: number, panel: InvestigationPanel, notes = ""): BookmarkSaveResult {
+const DATABASE = "chronicler.investigation-bookmarks";
+const STORE = "bookmarks";
+export const BOOKMARKS_CHANNEL = "chronicler.investigation-bookmarks.changed";
+
+function openDatabase(factory: IDBFactory | null): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    if (!factory) { reject(new Error("unavailable")); return; }
+    let request: IDBOpenDBRequest;
+    try { request = factory.open(DATABASE, 1); } catch { reject(new Error("unavailable")); return; }
+    let failed = false;
+    request.onupgradeneeded = () => { request.result.createObjectStore(STORE); };
+    request.onblocked = () => { failed = true; reject(new Error("blocked")); };
+    request.onerror = () => { failed = true; reject(new Error("unavailable")); };
+    request.onsuccess = () => {
+      const db = request.result;
+      if (failed) { db.close(); return; }
+      db.onversionchange = () => db.close();
+      resolve(db);
+    };
+  });
+}
+
+/** One readwrite transaction imports v1 exactly once and serializes all subsequent saves. */
+async function transact(storage: BookmarkStorage | null, change?: (bookmarks: InvestigationBookmark[]) => BookmarkSaveResult): Promise<BookmarkReadResult | BookmarkSaveResult> {
+  let db: IDBDatabase;
+  try { db = await openDatabase(typeof indexedDB === "undefined" ? null : indexedDB); } catch { return { ok: false, bookmarks: [], error: "Bookmark database is unavailable or blocked. Existing data and your draft are kept; retry after closing older tabs." }; }
+  return new Promise((resolve) => {
+    let result: BookmarkReadResult | BookmarkSaveResult | null = null;
+    try {
+      const tx = db.transaction(STORE, "readwrite");
+      const store = tx.objectStore(STORE);
+      const request = store.get("v1");
+      request.onsuccess = () => {
+        const existing = request.result as string | undefined;
+        const read = existing === undefined ? readInvestigationBookmarks(storage) : readInvestigationBookmarks({ getItem: () => existing, setItem: () => {} });
+        if (!read.ok) { result = read; return; }
+        if (change) {
+          result = change(read.bookmarks);
+          if (result.ok && "bookmark" in result) store.put(JSON.stringify({ version: 1, bookmarks: result.bookmarks }), "v1");
+        } else {
+          result = read;
+          if (existing === undefined) store.put(JSON.stringify({ version: 1, bookmarks: read.bookmarks }), "v1");
+        }
+      };
+      tx.oncomplete = () => { db.close(); resolve(result ?? { ok: false, bookmarks: [], error: "Bookmark database returned no result. Your draft is kept." }); };
+      tx.onabort = tx.onerror = () => { db.close(); resolve({ ok: false, bookmarks: [], error: "Bookmark storage failed (storage may be blocked or full). Existing bookmarks and your unsaved note are kept. You can retry." }); };
+    } catch { db.close(); resolve({ ok: false, bookmarks: [], error: "Bookmark storage is unavailable. Existing data and your draft are kept." }); }
+  });
+}
+
+export async function readStoredInvestigationBookmarks(storage: BookmarkStorage | null): Promise<BookmarkReadResult> {
+  return await transact(storage) as BookmarkReadResult;
+}
+
+export async function saveInvestigationBookmark(storage: BookmarkStorage | null, identity: ArtifactIdentity | null, target: InvestigationTarget | null,
+  turn: number, panel: InvestigationPanel, notes: string, expected: InvestigationBookmark | null): Promise<BookmarkSaveResult> {
   const world = portableBookmarkArtifact(identity);
   if (!world) return { ok: false, error: "Save requires a verified raw-file SHA-256. Live or in-memory worlds without that artifact identity cannot persist a portable bookmark." };
   const bookmark = { world, target, turn, panel, ...(notes.length ? { notes } : {}) };
   if (!validInvestigationBookmark(bookmark)) return { ok: false, error: "Bookmark target, turn, panel or note is invalid. Notes may contain at most 1000 characters; names at most 200." };
-  // Re-read immediately before writing so a stale mounted list cannot silently
-  // discard another tab's saved records. Invalid data is never overwritten.
-  const previous = readInvestigationBookmarks(storage);
-  if (!previous.ok) return { ok: false, error: previous.error };
-  const key = investigationBookmarkKey(bookmark), existing = previous.bookmarks.findIndex((row) => investigationBookmarkKey(row) === key);
-  if (existing < 0 && previous.bookmarks.length >= MAX_INVESTIGATION_BOOKMARKS)
-    return { ok: false, error: "The local limit is 50 bookmarks. Existing bookmarks and your unsaved note are kept; a new bookmark was not saved." };
-  const bookmarks = [...previous.bookmarks];
-  if (existing >= 0) bookmarks[existing] = bookmark; else bookmarks.unshift(bookmark);
-  try { storage!.setItem(INVESTIGATION_BOOKMARKS_KEY, JSON.stringify({ version: 1, bookmarks })); }
-  catch { return { ok: false, error: "Bookmark save failed (storage may be blocked or full). Existing bookmarks and your unsaved note are kept. You can retry." }; }
-  return { ok: true, bookmarks, bookmark, updated: existing >= 0 };
+  const result = await transact(storage, (previous) => {
+    const key = investigationBookmarkKey(bookmark), existing = previous.findIndex((row) => investigationBookmarkKey(row) === key);
+    const current = existing < 0 ? null : previous[existing];
+    if (JSON.stringify(current) !== JSON.stringify(expected)) return { ok: false, error: "This bookmark changed in another tab. Your draft is kept. Review the latest saved bookmark before choosing to save your draft." };
+    if (existing < 0 && previous.length >= MAX_INVESTIGATION_BOOKMARKS) return { ok: false, error: "The local limit is 50 bookmarks. Existing bookmarks and your unsaved note are kept; a new bookmark was not saved." };
+    const bookmarks = [...previous];
+    if (existing >= 0) bookmarks[existing] = bookmark; else bookmarks.unshift(bookmark);
+    return { ok: true, bookmarks, bookmark, updated: existing >= 0 };
+  }) as BookmarkSaveResult;
+  if (result.ok && typeof BroadcastChannel !== "undefined") {
+    try { const channel = new BroadcastChannel(BOOKMARKS_CHANNEL); channel.postMessage("changed"); channel.close(); } catch { /* persisted; other tabs can reload */ }
+  }
+  return result;
 }
 
 /** Safe reference for optional future sharing. Private notes are excluded by construction. */
