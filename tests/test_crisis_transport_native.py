@@ -12,16 +12,18 @@ import pytest
 pytestmark = pytest.mark.native
 
 
-def _setup():
+def _setup(num_civs=1):
     native = pytest.importorskip("chronicler_agents")
     assert isinstance(getattr(native, "AgentSimulator", None), type), "compiled native simulator required"
     from chronicler.agent_bridge import AgentBridge
     from chronicler.transaction_receipts import set_transaction_receipts_enabled
     from chronicler.world_gen import generate_world
 
-    world = generate_world(seed=42, num_regions=3, num_civs=1)
+    world = generate_world(seed=42, num_regions=3, num_civs=num_civs)
     world.agent_mode = "hybrid"
     civ = world.civilizations[0]
+    for other in world.civilizations[1:]:
+        other.regions = []
     civ.regions = [r.name for r in world.regions]
     civ.capital_region = world.regions[0].name
     for i, region in enumerate(world.regions):
@@ -38,7 +40,7 @@ def _setup():
     return world, AgentBridge(world, mode="hybrid")
 
 
-def _advance(world, bridge):
+def _advance(world, bridge, *, conquest_return=0):
     from chronicler.action_engine import ActionEngine
     from chronicler.simulation import run_turn_result
     engine = ActionEngine(world)
@@ -62,7 +64,7 @@ def _advance(world, bridge):
     # physical in-flight balance, including all merchants and goods.
     expected = sum(r.quantity * {"departed": 1, "returned": -1, "arrived": -1}.get(r.operation, 0)
                    for r in previous)
-    assert economy.conservation["in_transit_delta"] == pytest.approx(expected, abs=2e-4)
+    assert economy.conservation["in_transit_delta"] == pytest.approx(expected - conquest_return, abs=2e-4)
     if pending_food:
         destination = world.regions[2].name
         assert economy.imports_by_region[destination]["food"] == pytest.approx(pending_food, abs=2e-4)
@@ -198,3 +200,163 @@ def test_backed_transit_route_closure_return_reopen_and_exact_resume(tmp_path):
     pending = bridge._sim.get_pending_arrivals()
     if pending.num_rows:
         _paired_turn(world, bridge, restored, resumed)
+
+
+def _alternate_setup():
+    """Two equal-length land paths, with one removable interior region."""
+    native = pytest.importorskip("chronicler_agents")
+    assert isinstance(getattr(native, "AgentSimulator", None), type)
+    from chronicler.agent_bridge import AgentBridge
+    from chronicler.transaction_receipts import set_transaction_receipts_enabled
+    from chronicler.world_gen import generate_world
+    world = generate_world(seed=42, num_regions=5, num_civs=1)
+    world.agent_mode = "hybrid"
+    civ = world.civilizations[0]
+    civ.regions = [r.name for r in world.regions]
+    civ.capital_region = world.regions[0].name
+    # 0-1-2-3 is the deterministic shortest path; 1-4-3 is the detour.
+    adjacency = ((1,), (0, 2, 4), (1, 3), (2, 4), (1, 3))
+    for i, region in enumerate(world.regions):
+        region.controller = civ.name
+        region.population = (400, 20, 20, 400, 20)[i]
+        region.carrying_capacity = 400
+        region.stockpile.goods = {"grain": (2000.0, 300.0, 300.0, 0.0, 300.0)[i]}
+        region.adjacencies = [world.regions[j].name for j in adjacency[i]]
+        region.route_suspensions.clear()
+        region.resource_types = ([0, 255, 255] if i != 3 else [255, 255, 255])
+        region.resource_base_yields = ([1.0, 0.0, 0.0] if i != 3 else [0.0, 0.0, 0.0])
+    civ.population = sum(r.population for r in world.regions)
+    set_transaction_receipts_enabled(world, True)
+    return world, AgentBridge(world, mode="hybrid")
+
+
+def test_interrupted_transit_replans_alternate_path_and_delivers(tmp_path):
+    world, bridge = _alternate_setup()
+    reserved = None
+    for _ in range(3):
+        _, rows = _advance(world, bridge)
+        candidates = [r for r in _rows(rows, "reserved") if
+                      (r.origin_region, r.dest_region, r.good_slot) == (0, 3, 0)]
+        if candidates:
+            reserved = candidates[0]
+            break
+    assert reserved is not None, "alternate-path fixture must reserve 0→3 grain"
+    _, rows = _advance(world, bridge)
+    departures = _rows(rows, "departed", reserved.voyage_id)
+    assert len(departures) == 1
+    qty = departures[0].quantity
+    assert qty > 0 and not _rows(rows, "arrived", reserved.voyage_id)
+    restored, resumed = _checkpoint(tmp_path, world, bridge)
+    for w in (world, restored):
+        w.regions[2].route_suspensions["trade_route"] = 2
+    _, rows = _paired_turn(world, bridge, restored, resumed)
+    assert len(_rows(rows, "replanned", reserved.voyage_id)) == 1, "detour must be chosen"
+    assert not _rows(rows, "returned", reserved.voyage_id)
+    assert not _rows(rows, "arrived", reserved.voyage_id)
+    _, rows = _paired_turn(world, bridge, restored, resumed)
+    arrived = _rows(rows, "arrived", reserved.voyage_id)
+    assert len(arrived) == 1 and arrived[0].quantity == pytest.approx(qty)
+    _paired_turn(world, bridge, restored, resumed)
+    destination = world.regions[3].name
+    assert bridge._economy_result.imports_by_region[destination]["food"] >= qty * 0.95 - 2e-4
+
+
+def _native_total_returns(bridge):
+    from chronicler.columnar import pylist
+    batch = bridge._sim.get_delivery_diagnostics()
+    return sum(pylist(batch.column("total_returns")))
+
+
+def test_controller_loss_unwinds_inflight_cargo_before_mobility(tmp_path):
+    world, bridge = _setup(num_civs=2)
+    reserved = None
+    for _ in range(3):
+        _, rows = _advance(world, bridge)
+        choices = [r for r in _rows(rows, "reserved") if
+                   (r.origin_region, r.dest_region, r.good_slot) == (0, 2, 0)]
+        if choices:
+            reserved = choices[0]
+            break
+    assert reserved is not None, "ownership fixture must reserve 0→2 grain"
+    _, rows = _advance(world, bridge)
+    departures = _rows(rows, "departed", reserved.voyage_id)
+    assert len(departures) == 1 and departures[0].quantity > 0
+    qty = departures[0].quantity
+    assert not _rows(rows, "arrived", reserved.voyage_id)
+    before = _native_total_returns(bridge)
+    control, control_bridge = _checkpoint(tmp_path, world, bridge)
+
+    # Apply the same owner-change marker as the production ownership path.
+    old_owner, new_owner = world.civilizations[:2]
+    region = world.regions[2]
+    assert region.name in old_owner.regions and region.controller == old_owner.name
+    old_owner.regions.remove(region.name)
+    new_owner.regions.append(region.name)
+    region.controller = new_owner.name
+    region._controller_changed_this_turn = True
+    before_tick = random.getstate()
+    _, rows = _advance(world, bridge)
+    after_tick = random.getstate()
+    random.setstate(before_tick)
+    _, control_rows = _advance(control, control_bridge)
+    assert random.getstate() == after_tick
+    arrival = _rows(control_rows, "arrived", reserved.voyage_id)
+    assert len(arrival) == 1 and arrival[0].quantity == pytest.approx(qty)
+    assert region.controller == new_owner.name
+    returned = _native_total_returns(bridge) - before
+    assert returned >= qty - 1e-5, "controller-change unwind must queue physical return"
+    assert bridge._sim.get_merchant_trip_stats()["unwind_count"] > 0
+    assert not _rows(rows, "arrived", reserved.voyage_id)
+    assert not _rows(rows, "returned", reserved.voyage_id), "conquest has no per-voyage return receipt"
+    # Conquest unwind queues returns before the receipt recorder's mobility
+    # frame. Account for those native diagnostics when checking next Phase 2.
+    mobility_returns = sum(r.quantity for r in _rows(rows, "returned"))
+    unobserved = returned - mobility_returns
+    assert unobserved >= qty - 1e-5
+    _advance(world, bridge, conquest_return=unobserved)
+
+
+def test_reopening_restores_delivery_but_draws_food_from_another_region(tmp_path):
+    # Closed path to region 2; region 1 receives grain from region 0.
+    # Its deliberately empty opening market is shared by both continuations.
+    closed, cb = _setup()
+    closed.regions[2].route_suspensions["trade_route"] = 20
+    for _ in range(2):
+        _advance(closed, cb)
+    closed.regions[1].stockpile.goods.clear()
+    _advance(closed, cb)
+    opened, ob = _checkpoint(tmp_path, closed, cb)
+    opened.regions[2].route_suspensions.pop("trade_route", None)
+    histories = []
+    for _ in range(3):
+        state = random.getstate()
+        _, closed_rows = _advance(closed, cb)
+        after = random.getstate()
+        random.setstate(state)
+        _, open_rows = _advance(opened, ob)
+        # Both arms receive the same starting global RNG on every turn.
+        random.setstate(after)
+        histories.append((closed_rows, open_rows, cb._economy_result, ob._economy_result))
+
+    def grain(rows, operation, origin, dest):
+        return sum(r.quantity for r in rows if r.operation == operation
+                   and (r.origin_region, r.dest_region, r.good_slot) == (origin, dest, 0))
+
+    # Reopening induces a new shipment from the other food market (1) to 2.
+    planned = grain(histories[0][1], "reserved", 1, 2)
+    dispatched = grain(histories[1][1], "departed", 1, 2)
+    arrived = grain(histories[1][1], "arrived", 1, 2)
+    assert planned > 0 and dispatched == pytest.approx(planned)
+    assert arrived == pytest.approx(dispatched)
+    assert grain(histories[0][0], "reserved", 1, 2) == 0
+    assert grain(histories[1][0], "departed", 1, 2) == 0
+    # Phase 2 consumes the queued departure/arrival on the following turn.
+    closed_economy, open_economy = histories[2][2:]
+    harmed = closed.regions[1].name
+    recipient = closed.regions[2].name
+    demand = closed_economy.market_demand[harmed][0]
+    assert demand > 0 and open_economy.market_demand[harmed][0] == pytest.approx(demand)
+    assert open_economy.imports_by_region[recipient]["food"] >= dispatched * 0.95 - 2e-4
+    assert open_economy.food_sufficiency[harmed] < closed_economy.food_sufficiency[harmed]
+    assert (closed_economy.food_sufficiency[harmed] - open_economy.food_sufficiency[harmed]
+            == pytest.approx(dispatched / demand, abs=2e-5))
