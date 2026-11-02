@@ -591,3 +591,43 @@ describe("lobby state", () => {
     expect(result.current.serverState).toBe("starting");
   });
 });
+
+it("prepares and runs one exact pair despite duplicate clicks, receives results and replays them on reconnect", async () => {
+  const { whatIfManifest, whatIfPair } = await import("../../__fixtures__/whatIf");
+  const { result } = renderHook(() => useLiveConnection("ws://localhost:8765"));
+  await vi.advanceTimersByTimeAsync(10);
+  const ws = MockWebSocket.instances[0];
+  act(() => { result.current.whatIf.prepare("A", 80, 3); result.current.whatIf.prepare("A", 80, 3); });
+  expect(ws.sent).toHaveLength(1);
+  const request = JSON.parse(ws.sent[0]);
+  const manifest = { ...whatIfManifest, request_id: request.request_id };
+  act(() => ws.simulateMessage({ type: "what_if_status", request_id: request.request_id, state: "prepared", manifest }));
+  act(() => { result.current.whatIf.run(); result.current.whatIf.run(); });
+  expect(ws.sent.map((s) => JSON.parse(s).type)).toEqual(["what_if_prepare", "what_if_run"]);
+  act(() => ws.simulateMessage({ type: "what_if_result", request_id: request.request_id, manifest,
+    baseline: whatIfPair.baseline, intervention: whatIfPair.intervention }));
+  expect(result.current.whatIf.status?.state).toBe("completed");
+  expect(result.current.whatIf.status?.pair?.baseline.identity?.name).toBe("baseline.json");
+  act(() => ws.close());
+  expect(result.current.whatIf.connected).toBe(false);
+  expect(result.current.whatIf.status?.pair).toBeDefined();
+  await act(() => vi.advanceTimersByTimeAsync(1010));
+  const second = MockWebSocket.instances[1];
+  act(() => second.simulateMessage({ type: "what_if_status", request_id: request.request_id, state: "complete", manifest }));
+  expect(result.current.whatIf.status?.pair).toBeDefined();
+});
+
+it("surfaces checkpoint refusals and refuses malformed result payloads without replacing the live world", async () => {
+  const { result } = renderHook(() => useLiveConnection("ws://localhost:8765"));
+  await vi.advanceTimersByTimeAsync(10);
+  const ws = MockWebSocket.instances[0];
+  act(() => ws.simulateMessage(SAMPLE_INIT));
+  const original = result.current.bundle;
+  act(() => result.current.whatIf.prepare("A", 80, 3));
+  const request_id = JSON.parse(ws.sent[0]).request_id;
+  act(() => ws.simulateMessage({ type: "what_if_status", request_id, state: "error", message: "Incompatible checkpoint source" }));
+  expect(result.current.whatIf.status?.message).toContain("Incompatible checkpoint");
+  act(() => ws.simulateMessage({ type: "what_if_result", request_id, manifest: {}, baseline: {} }));
+  expect(result.current.whatIf.status?.state).toBe("error");
+  expect(result.current.bundle).toBe(original);
+});

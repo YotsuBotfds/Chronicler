@@ -129,3 +129,17 @@ it("loads a completed bundle by drop and reports clipboard failure without losin
   expect(screen.getByRole("button", { name: "Download JSON" })).toBeEnabled();
   expect(screen.getByRole("table")).toBeVisible();
 });
+
+it("opens an exact pair through the existing comparison and shares its full provenance until a side is replaced", async () => {
+  const { whatIfPair } = await import("../../__fixtures__/whatIf");
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+  render(<CompletedRunCompare initialPair={whatIfPair} />);
+  expect(screen.getByLabelText("What-if provenance")).toHaveTextContent("60 → 80");
+  fireEvent.click(screen.getByRole("button", { name: "Copy Markdown" }));
+  await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+  expect(writeText.mock.calls[0][0]).toContain('"semantics": "exact_checkpoint_pair"');
+  upload("left", "replacement.json", comparisonBundle());
+  await screen.findByText("replacement.json");
+  expect(screen.queryByLabelText("What-if provenance")).not.toBeInTheDocument();
+});

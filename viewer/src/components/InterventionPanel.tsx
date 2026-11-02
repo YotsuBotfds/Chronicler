@@ -1,6 +1,9 @@
 import { useState, useCallback, useEffect } from "react";
 import type { PauseContext, Command, PendingAction, InjectCommand, CheckpointStatus } from "../types";
 
+import { WhatIfPanel } from "./WhatIfPanel";
+import { whatIfActive, type WhatIfControls, type WhatIfPair } from "../lib/whatIf";
+
 interface InterventionPanelProps {
   pauseContext: PauseContext;
   sendCommand: (cmd: Command) => void;
@@ -9,6 +12,8 @@ interface InterventionPanelProps {
   /** Ask for an exact checkpoint; shown when the server lists `checkpoint`. */
   onSaveCheckpoint?: () => void;
   checkpointStatus?: CheckpointStatus | null;
+  whatIf?: WhatIfControls;
+  onCompareWhatIf?: (pair: WhatIfPair) => void;
 }
 
 let nextId = 0;
@@ -39,7 +44,10 @@ export function InterventionPanel({
   forkedHint,
   onSaveCheckpoint,
   checkpointStatus,
+  whatIf,
+  onCompareWhatIf,
 }: InterventionPanelProps) {
+  const comparisonActive = whatIfActive(whatIf?.status);
   const canCheckpoint = !!onSaveCheckpoint && pauseContext.valid_commands.includes("checkpoint");
   const [injectEvent, setInjectEvent] = useState(pauseContext.injectable_events[0] || "");
   const [injectCiv, setInjectCiv] = useState(pauseContext.civs[0] || "");
@@ -82,11 +90,14 @@ export function InterventionPanel({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="bg-gray-800 rounded-lg shadow-2xl p-6 w-[500px] max-h-[80vh] overflow-y-auto space-y-6">
+      <div className="bg-gray-800 rounded-lg shadow-2xl p-4 sm:p-6 w-[600px] max-w-[calc(100vw-24px)] max-h-[90vh] overflow-y-auto space-y-6">
         <h2 className="text-lg font-bold text-gray-100">
           Paused at Turn {pauseContext.turn}
         </h2>
 
+        {whatIf && onCompareWhatIf && pauseContext.valid_commands.includes("what_if_prepare") && <WhatIfPanel context={pauseContext} controls={whatIf} onCompare={onCompareWhatIf} />}
+        {comparisonActive && <p role="status" className="text-sm text-amber-200">The original world is locked while a comparison is prepared or running. Cancel it to change or continue this world.</p>}
+        <fieldset disabled={comparisonActive} className="space-y-6 min-w-0">
         {/* Event Injection */}
         <div className="space-y-2">
           <h3 className="text-sm font-semibold text-gray-300">Stage Event</h3>
@@ -212,10 +223,12 @@ export function InterventionPanel({
         {/* Checkpoint result */}
         {canCheckpoint && checkpointStatus && <CheckpointResult status={checkpointStatus} />}
 
+        </fieldset>
         {/* Action buttons */}
         <div className="flex gap-3 justify-between">
           <div className="flex gap-2">
             <button
+              disabled={comparisonActive}
               onClick={() => sendCommand({ type: "fork" })}
               className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-gray-200 rounded text-sm"
             >
@@ -224,7 +237,7 @@ export function InterventionPanel({
             {canCheckpoint && (
               <button
                 onClick={onSaveCheckpoint}
-                disabled={checkpointStatus?.state === "saving"}
+                disabled={comparisonActive || checkpointStatus?.state === "saving"}
                 className="px-4 py-2 bg-gray-600 hover:bg-gray-500 disabled:opacity-50 text-gray-200 rounded text-sm"
               >
                 Save checkpoint
@@ -238,7 +251,8 @@ export function InterventionPanel({
             </button>
           </div>
           <button
-            onClick={handleContinue}
+            disabled={comparisonActive}
+              onClick={handleContinue}
             className="px-6 py-2 bg-green-600 hover:bg-green-500 text-white rounded text-sm font-semibold"
           >
             Continue

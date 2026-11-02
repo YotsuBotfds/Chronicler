@@ -53,6 +53,9 @@ import "../region-history.css";
 import "../systems/systems.css";
 import "./app-shell.css";
 
+import { WhereToLook } from "../WhereToLook";
+import type { WhatIfControls, WhatIfPair } from "../../lib/whatIf";
+
 export type AppSurface =
   | "setup"
   | "progress"
@@ -101,6 +104,7 @@ interface AppShellProps {
   onBatchReset?: () => void;
   onOpenBatchResult?: (path: string) => void;
   onOpenBundleFile: (file: File) => void;
+  liveWhatIf?: WhatIfControls;
   livePaused?: boolean;
   livePauseContext?: PauseContext | null;
   liveSendCommand?: (cmd: Command) => void;
@@ -585,6 +589,7 @@ export function AppShell({
   onBatchReset,
   onOpenBatchResult,
   onOpenBundleFile,
+  liveWhatIf,
   livePaused,
   livePauseContext,
   liveSendCommand,
@@ -618,6 +623,8 @@ export function AppShell({
   const [showCompareOverlay, setShowCompareOverlay] = useState(false);
   const [compareMode, setCompareMode] = useState<"runs" | "batch">("runs");
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyRequest, setHistoryRequest] = useState(0);
+  const [whatIfPair, setWhatIfPair] = useState<WhatIfPair | null>(null);
   const [batchSelectionPath, setBatchSelectionPath] = useState<string | null>(null);
 
   const [scenario, setScenario] = useState("");
@@ -1022,7 +1029,7 @@ export function AppShell({
         serverState={serverState}
         viewerReady={viewerReady}
         onOpenBundle={() => openBundleRef.current?.click()}
-        onCompare={() => { setCompareMode("runs"); setShowCompareOverlay(true); }}
+        onCompare={() => { setWhatIfPair(null); setCompareMode("runs"); setShowCompareOverlay(true); }}
       />
 
       {error && <div className="phase75-error-banner saved-world-message" role="alert">
@@ -1067,12 +1074,18 @@ export function AppShell({
         civilizations={civilizations}
       />
 
-      {bundle && !isLive && surface !== "setup" && surface !== "progress" && surface !== "batch" && (
-        <details className="region-history-disclosure" onToggle={(event) => setHistoryOpen(event.currentTarget.open)}>
+      {bundle && surface !== "setup" && surface !== "progress" && surface !== "batch" && <WhereToLook
+        bundle={bundle} currentTurn={currentTurn} onInspectEntity={(entity) => {
+          setSelectedEntity({ kind: entity.kind, id: entity.name, label: entity.name });
+          setHistoryRequest((value) => value + 1);
+          setHistoryOpen(true);
+        }} />}
+      {bundle && surface !== "setup" && surface !== "progress" && surface !== "batch" && (
+        <details open={historyOpen} className="region-history-disclosure" onToggle={(event) => setHistoryOpen(event.currentTarget.open)}>
           <summary>Compare turns and inspect history</summary>
           {historyOpen && <Suspense fallback={<PanelLoading label="the region history inspector" />}>
             <RegionHistoryInspector
-              key={`${artifactIdentity?.sha256 ?? artifactIdentity?.name ?? "live"}:${bundle.metadata.seed}:${bundle.metadata.generated_at}:${bundle.world_state.name}`}
+              key={`${artifactIdentity?.sha256 ?? artifactIdentity?.name ?? "live"}:${bundle.metadata.seed}:${bundle.metadata.generated_at}:${bundle.world_state.name}:${historyRequest}`}
               bundle={bundle}
               artifactIdentity={artifactIdentity}
               selectedRegion={selectedRegion?.name}
@@ -1208,7 +1221,7 @@ export function AppShell({
           batchState={batchState}
           batchProgress={batchProgress}
           onOpenBatchResult={onOpenBatchResult}
-          onShowCompare={() => { setCompareMode("batch"); setShowCompareOverlay(true); }}
+          onShowCompare={() => { setWhatIfPair(null); setCompareMode("batch"); setShowCompareOverlay(true); }}
           viewerReady={viewerReady}
           liveState={{
             isLive,
@@ -1267,7 +1280,7 @@ export function AppShell({
             </div>
             <div className="phase75-modal-content">
               <Suspense fallback={<PanelLoading label="the report comparison" />}>
-                <BatchCompare initialRight={batchReport} initialMode={compareMode}
+                <BatchCompare initialPair={whatIfPair} initialRight={batchReport} initialMode={compareMode}
                   initialBundle={!isLive || serverState === "completed" ? bundle : null}
                   initialIdentity={!isLive ? artifactIdentity : null} />
               </Suspense>
@@ -1276,7 +1289,7 @@ export function AppShell({
         </div>
       )}
 
-      {livePaused && livePauseContext && liveSendCommand && (
+      {!showCompareOverlay && livePaused && livePauseContext && liveSendCommand && (
         <Suspense fallback={<PanelLoading label="the intervention panel" className="phase75-panel" />}>
           <InterventionPanel
             pauseContext={livePauseContext}
@@ -1285,6 +1298,8 @@ export function AppShell({
             forkedHint={liveForkedHint}
             onSaveCheckpoint={liveSaveCheckpoint}
             checkpointStatus={liveCheckpointStatus}
+            whatIf={liveWhatIf}
+            onCompareWhatIf={(pair) => { setWhatIfPair(pair); setCompareMode("runs"); setShowCompareOverlay(true); }}
           />
         </Suspense>
       )}

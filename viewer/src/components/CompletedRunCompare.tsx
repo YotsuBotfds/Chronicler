@@ -9,18 +9,21 @@ import {
 } from "../lib/completedRunComparison";
 import "./completedRunCompare.css";
 
+import type { WhatIfPair } from "../lib/whatIf";
+
 type Side = "left" | "right";
 interface Slot { run: CompletedRun | null; error: string | null; loading: boolean }
 const value = (number: number | null | undefined) => number == null ? "Not recorded"
   : number.toLocaleString(undefined, { maximumFractionDigits: 3 });
 
-export function CompletedRunCompare({ initialBundle, initialIdentity }: {
+export function CompletedRunCompare({ initialBundle, initialIdentity, initialPair }: {
+  initialPair?: WhatIfPair | null;
   initialBundle?: Bundle | null; initialIdentity?: ArtifactIdentity | null;
 }) {
   const [slots, setSlots] = useState<Record<Side, Slot>>(() => ({
-    left: { run: null, error: null, loading: false },
-    right: { run: initialBundle ? { bundle: initialBundle, identity: initialIdentity ?? null,
-      label: initialIdentity?.name ?? "Current viewer bundle" } : null, error: null, loading: false },
+    left: { run: initialPair?.baseline ?? null, error: null, loading: false },
+    right: { run: initialPair?.intervention ?? (initialBundle ? { bundle: initialBundle, identity: initialIdentity ?? null,
+      label: initialIdentity?.name ?? "Current viewer bundle" } : null), error: null, loading: false },
   }));
   const pending = useRef({ left: 0, right: 0 });
   useEffect(() => {
@@ -37,6 +40,15 @@ export function CompletedRunCompare({ initialBundle, initialIdentity }: {
     : shared.at(-1)?.turn ?? points.at(-1)?.turn ?? 0;
   const summary = useMemo(() => left && right ? completedComparisonSummary(left, right, points, turn) : null,
     [left, right, points, turn]);
+
+  const pairManifest = initialPair && left === initialPair.baseline && right === initialPair.intervention
+    ? initialPair.manifest : null;
+  const shareSummary = summary && pairManifest ? { ...summary, what_if: pairManifest } : summary;
+  function shareMarkdown() {
+    return summary ? comparisonMarkdown(summary) + (pairManifest
+      ? "\n## Exact what-if provenance\n\nOne deterministic pair; no claim of general benefit. The override follows the starting snapshot.\n\n```json\n"
+        + JSON.stringify(pairManifest, null, 2) + "\n```\n" : "") : "";
+  }
 
   async function load(side: Side, file: File) {
     const request = ++pending.current[side];
@@ -57,7 +69,7 @@ export function CompletedRunCompare({ initialBundle, initialIdentity }: {
 
   function download(format: "json" | "markdown") {
     if (!summary) return;
-    const blob = new Blob([format === "json" ? JSON.stringify(summary, null, 2) + "\n" : comparisonMarkdown(summary)],
+    const blob = new Blob([format === "json" ? JSON.stringify(shareSummary, null, 2) + "\n" : shareMarkdown()],
       { type: format === "json" ? "application/json" : "text/markdown;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -70,7 +82,7 @@ export function CompletedRunCompare({ initialBundle, initialIdentity }: {
   async function copy() {
     if (!summary) return;
     try {
-      await navigator.clipboard.writeText(comparisonMarkdown(summary));
+      await navigator.clipboard.writeText(shareMarkdown());
       setExportStatus("Comparison copied as Markdown.");
     } catch {
       setExportStatus("Copy is unavailable here. Download the summary instead.");
@@ -78,6 +90,11 @@ export function CompletedRunCompare({ initialBundle, initialIdentity }: {
   }
 
   return <div className="completed-compare" aria-label="Completed-run comparison">
+    {pairManifest && <aside aria-label="What-if provenance" className="completed-compare-warnings">
+      <strong>Exact checkpoint pair: {pairManifest.intervention.civ} stability {pairManifest.intervention.before} → {pairManifest.intervention.value}</strong>
+      <p>Common starting turn {pairManifest.start_turn}; {pairManifest.turns} additional turns.
+        The starting snapshot precedes the override. This pair describes one bounded case, not general balance.</p>
+    </aside>}
     <p className="completed-compare-intro">Compare two saved run bundles. Files stay in this browser; no simulation or narration runs.</p>
     <div className="completed-compare-inputs">
       {(["left", "right"] as const).map((side) => <section key={side} className="completed-compare-input"

@@ -4,14 +4,17 @@ import type { ArtifactIdentity } from "../lib/artifactIdentity";
 import { BatchAnalytics } from "./BatchAnalytics";
 import { CompletedRunCompare } from "./CompletedRunCompare";
 
+import type { WhatIfPair } from "../lib/whatIf";
+
 interface BatchCompareProps {
+  initialPair?: WhatIfPair | null;
   initialRight?: BatchReport | null;
   initialBundle?: Bundle | null;
   initialIdentity?: ArtifactIdentity | null;
   initialMode?: "runs" | "batch";
 }
 
-export function BatchCompare({ initialRight, initialBundle, initialIdentity, initialMode }: BatchCompareProps) {
+export function BatchCompare({ initialRight, initialBundle, initialIdentity, initialMode, initialPair }: BatchCompareProps) {
   const [mode, setMode] = useState(initialMode ?? (initialRight && !initialBundle ? "batch" : "runs"));
   return <div className="flex flex-col h-full min-h-0">
     <nav className="run-compare-modes" aria-label="Comparison type">
@@ -19,7 +22,7 @@ export function BatchCompare({ initialRight, initialBundle, initialIdentity, ini
       <button type="button" aria-pressed={mode === "batch"} onClick={() => setMode("batch")}>Batch reports</button>
     </nav>
     <div hidden={mode !== "runs"} className="flex-1 min-h-0">
-      <CompletedRunCompare initialBundle={initialBundle} initialIdentity={initialIdentity} />
+      <CompletedRunCompare initialBundle={initialBundle} initialIdentity={initialIdentity} initialPair={initialPair} />
     </div>
     <div hidden={mode !== "batch"} className="flex-1 min-h-0">
       <BatchReportComparison initialRight={initialRight} />

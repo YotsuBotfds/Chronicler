@@ -17,6 +17,8 @@ import {
   applyCompletedMessage, bundleFromInitMessage, snapshotFromMessage, withSessionToken,
 } from "../lib/transport";
 
+import { readWhatIfManifest, readWhatIfResult, whatIfActive, type WhatIfControls, type WhatIfStatus } from "../lib/whatIf";
+
 /** Failed attempts without ever opening before the viewer explains the refusal. */
 const REFUSED_ATTEMPTS = 2;
 export const LIVE_REFUSED_MESSAGE =
@@ -38,6 +40,7 @@ interface LiveConnectionState {
   lastAck: AckMessage | null;
   lastForked: ForkedMessage | null;
   /** The last checkpoint request's outcome (null before the first). */
+  whatIf: WhatIfControls;
   checkpointStatus: CheckpointStatus | null;
   /** Ask the server for an exact checkpoint at the next turn boundary. */
   saveCheckpoint: () => void;
@@ -65,6 +68,8 @@ export function useLiveConnection(wsUrl: string, token: string | null = null): L
   const [lastAck, setLastAck] = useState<AckMessage | null>(null);
   const [lastForked, setLastForked] = useState<ForkedMessage | null>(null);
   const [checkpointStatus, setCheckpointStatus] = useState<CheckpointStatus | null>(null);
+  const [whatIfStatus, setWhatIfStatus] = useState<WhatIfStatus | null>(null);
+  const whatIfRef = useRef<WhatIfStatus | null>(null);
   const [serverState, setServerState] = useState<ServerState>("connecting");
   const [lobbyInit, setLobbyInit] = useState<LobbyInit | null>(null);
   const bundleRef = useRef<Bundle | null>(null);
@@ -89,6 +94,28 @@ export function useLiveConnection(wsUrl: string, token: string | null = null): L
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify(cmd));
     }
+  }, []);
+
+  const publishWhatIf = useCallback((status: WhatIfStatus) => {
+    whatIfRef.current = status;
+    setWhatIfStatus(status);
+  }, []);
+  const prepareWhatIf = useCallback((civ: string, value: number, turns: number) => {
+    if (whatIfActive(whatIfRef.current) || wsRef.current?.readyState !== WebSocket.OPEN) return;
+    const request_id = crypto.randomUUID();
+    publishWhatIf({ request_id, state: "preparing" });
+    wsRef.current.send(JSON.stringify({ type: "what_if_prepare", request_id, civ, value, turns }));
+  }, [publishWhatIf]);
+  const runWhatIf = useCallback(() => {
+    const status = whatIfRef.current;
+    if (status?.state !== "prepared" || wsRef.current?.readyState !== WebSocket.OPEN) return;
+    publishWhatIf({ ...status, state: "running" });
+    wsRef.current.send(JSON.stringify({ type: "what_if_run", request_id: status.request_id }));
+  }, [publishWhatIf]);
+  const cancelWhatIf = useCallback(() => {
+    const status = whatIfRef.current;
+    if (!status || !whatIfActive(status) || wsRef.current?.readyState !== WebSocket.OPEN) return;
+    wsRef.current.send(JSON.stringify({ type: "what_if_cancel", request_id: status.request_id }));
   }, []);
 
   const saveCheckpoint = useCallback(() => {
@@ -277,6 +304,29 @@ export function useLiveConnection(wsUrl: string, token: string | null = null): L
             setLastForked(msg as ForkedMessage);
             break;
 
+          case "what_if_status": {
+            if (typeof msg.request_id !== "string") break;
+            const state = msg.state === "complete" ? "completed" : msg.state;
+            if (!["prepared", "running", "completed", "cancelled", "error"].includes(state)) break;
+            const manifest = readWhatIfManifest(msg.manifest) ?? undefined;
+            if ((state === "prepared" || state === "running") && !manifest) {
+              publishWhatIf({ request_id: msg.request_id, state: "error", message: "Server returned an incompatible comparison manifest." });
+              break;
+            }
+            const previous = whatIfRef.current;
+            publishWhatIf({ request_id: msg.request_id, state, manifest,
+              arm: typeof msg.arm === "string" ? msg.arm : undefined,
+              message: typeof msg.message === "string" ? msg.message : undefined,
+              pair: previous && previous.request_id === msg.request_id ? previous.pair : undefined });
+            break;
+          }
+          case "what_if_result": {
+            const pair = readWhatIfResult(msg);
+            if (pair) publishWhatIf({ request_id: pair.manifest.request_id, state: "completed", manifest: pair.manifest, pair });
+            else if (typeof msg.request_id === "string") publishWhatIf({ request_id: msg.request_id, state: "error", message: "The comparison results were incomplete or incompatible. Server outputs are retained." });
+            break;
+          }
+
           case "checkpoint_requested":
             // Written at the next turn boundary; checkpoint_saved follows.
             break;
@@ -362,7 +412,7 @@ export function useLiveConnection(wsUrl: string, token: string | null = null): L
       if (reconnectRef.current) clearTimeout(reconnectRef.current);
       wsRef.current?.close();
     };
-  }, [wsUrl, token, handleBatchMessage, publishBundleMutation, replaceBundle]);
+  }, [wsUrl, token, handleBatchMessage, publishBundleMutation, publishWhatIf, replaceBundle]);
 
   return {
     bundle,
@@ -376,6 +426,7 @@ export function useLiveConnection(wsUrl: string, token: string | null = null): L
     lastAck,
     lastForked,
     checkpointStatus,
+    whatIf: { status: whatIfStatus, connected, prepare: prepareWhatIf, run: runWhatIf, cancel: cancelWhatIf },
     saveCheckpoint,
     serverState,
     lobbyInit,
