@@ -28,7 +28,7 @@ validate an epic. Runtime changes remain opt-in until evaluated. No paid narrati
 | --- | --- | --- | --- |
 | M0 contract | integrated | Bounded source assessment above; first implementation is M1. | Authority/units/phases, budgets and explicit missing mechanisms recorded; not an epic-delivery claim. |
 | M1 received/consumed | validated | Native food ledger, separate public relief and procurement observations in the existing Food inspector; all nine CI jobs passed at ecfa06ac. | Controlled native/aggregate cases, balances, actual exact continuation and four-mode neutrality passed. Physical household food purchasing remains outside this model; integrated crisis/distributional qualification belongs to M7–9. |
-| M2 logistics consequences | partially covered | Actual native interruption, return, reroute, reopening, supplier harm and in-flight restore executed; missing controller-change receipt corrected and integrated. Combined public/private competition check is next. | Do not equate private regional margin signals with paid public orders. Combined-source CI and integrated substitution evidence remain gates. |
+| M2 logistics consequences | integrated | Actual native interruption, return, reroute, reopening, supplier harm and in-flight restore executed; missing controller-change receipt corrected. Combined public/private shortage check passes. | Do not equate private regional margin signals with paid public orders. Combined-source CI and the declared integrated crisis suite remain gates. |
 | M3 storage choices | integrated | Opt-in paid work, timber/treasury costs, capacity, condition, spoilage, custody and existing inspector integration. See grain-storage-candidate.md. | Actual benefit/harm pair, total goods balance, partial-work exact continuation and four-mode default-off parity passed; combined-source CI remains pending. Care/work interaction and held scenario evaluation remain M7–9. |
 | M4 household coping | implementing | Opt-in native liquid-reserve gate for existing household migration and its Python adapter are isolated WIP; no household food inventory or new credit model. Not active on dev. | Fresh matching wheel, persisted config/history, actual constrained trajectories, disabled parity and exact continuation remain required. |
 | M5 resource-backed service | implementing | Isolated academy-service helper and explicit upkeep/staff integration hooks; not active on dev. | Phase hooks, real service interruption/restoration, dated learning effect, supplies/costs, identity and exact continuation remain required. |
@@ -57,8 +57,11 @@ writers or shared-wheel replacement. Viewer work starts after export agreement.
   delivery with a supplying-region harm. Private cash semantics are regional
   margin signals, not public paid orders. Conquest now records its queued gross
   return with `return_reason=controller_change`; 88 matching-native focused tests
-  passed with no skips. Receipt-disabled old/new worlds/native/RNG match. Combined
-  public/private competition is still an explicit next test, not inferred evidence.
+  passed with no skips. Receipt-disabled old/new worlds/native/RNG match. A further
+  101-test native selection passes the combined shortage case: private reservation20,
+  paid public gross26.008/net24.708, two-coin treasury transfer, distinct arrivals
+  and later15.17 public release, with real resource checks. The same-boundary
+  arithmetic alternative is not a second simulated arm or general policy ranking.
 - M3 [storage contract and evidence](grain-storage-candidate.md): five actual
   native controls cover investment benefit, opportunity-cost harm, whole-goods
   accounting, partial-work exact continuation, damage and conquest. The 276-test
@@ -93,7 +96,9 @@ fixtures or expected hashes:76 focused Python passes, five viewer transport
 passes, lint/build. The subsequent ecfa06ac CI passed all nine jobs. The failures
 remain recorded rather than being relabeled as successful checks.
 
-Next action: push the combined M2/M3 milestone and run its CI, preserve current
+Next action: combined M2/M3 CI at60bbbcf7 is running
+([run41469349385](https://github.com/YotsuBotfds/Chronicler/actions/runs/41469349385));
+the subsequent43dcb642 adds only the locally passing shipment test. Preserve current
 source/WIP/worlds in independently verified owner-only storage, then integrate
 M4 config/history and a fresh matching wheel. M5 phase hooks follow. M6–9 remain
 planned; M2/M3 integrated scenario/combined gates remain unfinished. No scientific
