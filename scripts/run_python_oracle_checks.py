@@ -26,6 +26,7 @@ CHUNKS = {
         "tests/test_restoration_candidate_witness.py",
     ],
     "crisis-distribution-summary": [
+        "tests/test_crisis_held_evaluation.py",
         "tests/test_crisis_distribution_summary.py",
     ],
     "regional-transport-controls": [

@@ -211,6 +211,7 @@
       "tests/test_crafts.py",
       "tests/test_crisis_academy_example.py",
       "tests/test_crisis_forecast_misleading_example.py",
+      "tests/test_crisis_held_evaluation.py",
       "tests/test_crisis_institution_recovery_native.py",
       "tests/test_crisis_labor_example.py",
       "tests/test_crisis_migration_example.py",
