@@ -117,6 +117,29 @@ describe("FinancePanel", () => {
     expect(within(list()).getAllByRole("listitem")[0]).toHaveTextContent("debasement");
   });
 
+  it.each(["loan_taken", "state_default", "debt_written_off", "debasement"])(
+    "keeps a source-tick-2 %s out of snapshot 2, shows it at 3, and hides it after rewind", (eventType) => {
+      const bundle = structuredClone(fixture);
+      const event: Event = { ...bundle.events_timeline[0], turn: 2, event_type: eventType,
+        actors: [bundle.world_state.civilizations[0].name], event_id: `finance-clock:${eventType}`,
+        description: `Source tick 2 ${eventType}` };
+      bundle.events_timeline = [event];
+      const snapshot = { ...bundle.history[0], turn: 2 };
+      const p = props(bundle, snapshot);
+      const view = render(<FinancePanel {...p} currentTurn={2} />);
+      expect(screen.queryByRole("list", { name: "Finance events" })).not.toBeInTheDocument();
+      expect(screen.getByText("Event labels show source ticks. At selected turn 2, events are shown through completed tick 1."))
+        .toBeInTheDocument();
+      view.rerender(<FinancePanel {...p} snapshot={{ ...snapshot, turn: 3 }} currentTurn={3} />);
+      const events = screen.getByRole("list", { name: "Finance events" });
+      expect(within(events).getByText(event.description)).toBeInTheDocument();
+      expect(within(events).getByText("T2")).toBeInTheDocument();
+      fireEvent.click(within(events).getByRole("listitem"));
+      expect(p.onSelectEvent).toHaveBeenCalledWith(event);
+      view.rerender(<FinancePanel {...p} currentTurn={2} />);
+      expect(screen.queryByRole("list", { name: "Finance events" })).not.toBeInTheDocument();
+    });
+
   it("shows a finance-only run's debt as the abstract domestic class and one foreign total", () => {
     render(<FinancePanel {...props()} />);
     expect(screen.getByText(/This snapshot records finance totals only/)).toBeInTheDocument();

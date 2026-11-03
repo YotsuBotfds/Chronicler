@@ -36,7 +36,9 @@ export function FinancePanel(props: SystemPanelProps) {
   const finance = snapshot?.finance;
   const at = snapshot?.turn ?? currentTurn;
   const active = FILTERS.find((entry) => entry.key === filter) ?? FILTERS[0];
-  const events = eventsOfTypes(bundle.events_timeline, active.types, currentTurn);
+  // Fiscal events are stamped during tick T; its finance snapshot is T+1.
+  const completedTick = currentTurn - 1;
+  const events = eventsOfTypes(bundle.events_timeline, active.types, completedTick);
   const totals = finance?.totals ?? {};
 
   return (
@@ -124,6 +126,7 @@ export function FinancePanel(props: SystemPanelProps) {
 
         <section className="systems-section">
           <h3>Loans, defaults and debasements</h3>
+          <p className="systems-note">Event labels show source ticks. At selected turn {currentTurn}, events are shown through completed tick {completedTick}.</p>
           <div className="systems-filter" role="group" aria-label="Finance event filter">
             {FILTERS.map((entry) => (
               <button
@@ -140,7 +143,7 @@ export function FinancePanel(props: SystemPanelProps) {
           <SystemEventList
             events={events}
             label="Finance events"
-            emptyText={`No ${active.key === "all" ? "loan, default or debasement" : active.label.toLowerCase()} by turn ${currentTurn}.`}
+            emptyText={`No ${active.key === "all" ? "loan, default or debasement" : active.label.toLowerCase()} through completed tick ${completedTick} (selected turn ${currentTurn}).`}
             onSelectEvent={onSelectEvent}
           />
         </section>
