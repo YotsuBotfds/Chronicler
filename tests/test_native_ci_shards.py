@@ -199,6 +199,8 @@ def test_checked_in_partition_preserves_historical_assignment_with_explicit_new_
         'tests/test_restoration_candidate_witness.py': '0',
         'tests/test_information_qualification_witness.py': '0',
         'tests/test_crisis_forecast_misleading_example.py': '1',
+        'tests/test_crisis_held_evaluation.py': '1',
+        'tests/test_crisis_receiving_service_example.py': '1',
         'tests/test_what_if_academy.py': '1',
         'tests/test_crisis_academy_example.py': '1',
         'tests/test_crisis_receiving_service_negative_native.py': '1',
@@ -232,7 +234,7 @@ def test_checked_in_partition_preserves_historical_assignment_with_explicit_new_
         'tests/test_what_if.py': '1',
         'tests/test_what_if_process.py': '1',
     }
-    assert len(owners) == 342
+    assert len(owners) == 344
     assert {name: owners[name] for name in additions} == additions
     old_owners = {name: shard for name, shard in owners.items() if name not in additions}
     assert len(old_owners) == 300

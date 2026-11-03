@@ -215,6 +215,7 @@
       "tests/test_crisis_institution_recovery_native.py",
       "tests/test_crisis_labor_example.py",
       "tests/test_crisis_migration_example.py",
+      "tests/test_crisis_receiving_service_example.py",
       "tests/test_crisis_receiving_service_negative_native.py",
       "tests/test_crisis_transport_example.py",
       "tests/test_crisis_transport_native.py",
