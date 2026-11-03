@@ -95,7 +95,8 @@ def test_thread_count_determinism(tmp_path):
         assert all({"active_trips", "completed_trips", "route_utilization"} <= row.keys() for row in stats)
         assert [row["turn"] for row in bundle["history"]] == list(range(1, 21))
         runs.append((bundle["history"], bundle["world_state"], bundle["events_timeline"], stats, native_sections))
-    assert dict(os.environ) == parent_environment
+    parent_unchanged = dict(os.environ) == parent_environment
+    assert parent_unchanged, "merchant children changed their parent environment"
     assert runs[0] == runs[1], "native simulation or recorded merchant outcomes diverge between thread counts"
 
 
