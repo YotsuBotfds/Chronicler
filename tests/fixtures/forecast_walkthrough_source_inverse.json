@@ -1,0 +1,43 @@
+{
+  "base": "63581a9a1a1297396ce2227ac2683aeefd5ad8a3",
+  "head": "448d4bcbdf4ab6ac561352c440b0c20c7dce1764",
+  "scope": "Exact report walkthrough and CLI-exit correction only; no simulation change or runtime parity claim.",
+  "files": {
+    "scripts/crisis_forecast_misleading_example.py": {
+      "sha256": "be00629ed95f7b4b45e944db1808b1c1d70bddd464adf4f97f790dc67b354e2f",
+      "current_sha256": "77595139f38a2b0452797e0950489946208f6da6e5425b4237bc698cb10356ab",
+      "patches": [
+        {
+          "old": "import argparse\nimport copy\nimport hashlib\n",
+          "new": "import argparse\nimport hashlib\n"
+        },
+        {
+          "old": "        _json(output/'case.json',manifest)\n    except BaseException as exc:\n",
+          "new": "        _json(output/'case.json',manifest)\n        write_walkthrough(output, manifest)\n    except BaseException as exc:\n"
+        },
+        {
+          "old": "    return manifest\n\n",
+          "new": "    return manifest\n\n\ndef write_walkthrough(output: Path, manifest: dict):\n    \"\"\"Explain actual outputs and qualification without promising an admission.\"\"\"\n    lines = [\n        'Corrected-yield forecast development comparison',\n        f\"Qualification state: {manifest['state']}\",\n        'Constructed seed 42 case, not held-out or a policy recommendation.',\n        'Open the production viewer and load normal/chronicle_bundle.json.',\n        'Open Compare runs and load shuffle/chronicle_bundle.json; repeat for withhold.',\n        'Inspect Granaries / Harvest forecasts at snapshots 6, 7 and 13.',\n        'Snapshot 6 records reports; snapshot 7 records source-6 procurement.',\n        'Snapshot 13 records resolution. Earlier snapshots cannot show future outcomes.',\n        'The severe-production threshold is 0.6, distinct from full food demand 1.0.',\n        'Food accounting separates native stock/demand before relief from public relief.',\n        'Neither observation measures household meals.',\n        'Read case.json for actual admissions, budget allocation, costs, spoilage and limits.',\n        'A partial or failed case does not establish the intended contrast.',\n        'Exact checkpoints require the same Python source, native binary and runtime identity.',\n    ]\n    (output / 'WALKTHROUGH.txt').write_text('\\n'.join(lines) + '\\n', encoding='utf-8')\n\n"
+        },
+        {
+          "old": "    os.umask(0o077);result=generate(output);print(json.dumps({'state':result['state'],'output':str(output)}))\n\nif __name__=='__main__':main()\n",
+          "new": "    os.umask(0o077);result=generate(output);print(json.dumps({'state':result['state'],'output':str(output)}))\n    return 0 if result['state']=='validated' else 1\n\nif __name__=='__main__':raise SystemExit(main())\n"
+        }
+      ]
+    },
+    "tests/test_crisis_forecast_misleading_example.py": {
+      "sha256": "a06da9d92f03aa87f3fbe4d75e6b3758d810e3f599355fb11a0aee02b462991f",
+      "current_sha256": "600270db3a572c697037c25ac64109f961894feb2a6217e90fcb4396e738bb6b",
+      "patches": [
+        {
+          "old": "    assert case['state']=='validated'\n    assert all(case['checkpoint'][k] for k in ('pending_report','history_equal','world_equal',\n",
+          "new": "    assert case['state']=='validated'\n    walkthrough=(out/'WALKTHROUGH.txt').read_text()\n    assert 'Qualification state: validated' in walkthrough\n    assert 'snapshot 7 records source-6 procurement' in walkthrough.lower()\n    assert all(case['checkpoint'][k] for k in ('pending_report','history_equal','world_equal',\n"
+        },
+        {
+          "old": "    assert all(case['analysis'][mode]['region2_public_released']==0 for mode in ('normal','shuffle','withhold'))\n",
+          "new": "    assert all(case['analysis'][mode]['region2_public_released']==0 for mode in ('normal','shuffle','withhold'))\n\n\ndef test_partial_cli_returns_failure_and_walkthrough_keeps_limits(tmp_path, monkeypatch):\n    from scripts import crisis_forecast_misleading_example as example\n    monkeypatch.setenv('PYTHONHASHSEED', '0')\n    # Unit-level CLI behavior does not start a native simulation.\n    monkeypatch.setattr(example.sys, 'flags', type('Flags', (), {'hash_randomization': 0})())\n    monkeypatch.setattr(example.sys, 'argv', ['forecast', str(tmp_path/'partial'), '--simulate-only'])\n    monkeypatch.setattr(example, 'generate', lambda output: {'state': 'partial'})\n    monkeypatch.setattr(example.os, 'umask', lambda mode: None)\n    assert example.main() == 1\n    example.write_walkthrough(tmp_path, {'state': 'partial'})\n    text=(tmp_path/'WALKTHROUGH.txt').read_text()\n    assert 'Qualification state: partial' in text\n    assert 'not held-out' in text and 'does not establish' in text\n"
+        }
+      ]
+    }
+  }
+}
