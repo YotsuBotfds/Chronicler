@@ -52,7 +52,10 @@ PR head; historical green runs alone do not qualify later commits.
 Constructed examples and twelve held trajectories are not a 200-seed scientific
 gate, a general policy ranking, measured household meals/access, forced eviction,
 or qualification of every crisis family. No new default behavior or paid
-narration was enabled. The one-client live-session contract remains. Native
+narration was enabled. Native CI now pins one common CPython3.13.17 patch across
+producer/consumers after a real runner rollout triggered the strict identity
+guard; the guard was preserved. Test-isolation repairs restore import identities
+and the inherited environment, and use fresh processes for real Rayon1/4 checks. The one-client live-session contract remains. Native
 checkpoint replay requires matching source, binary, interpreter and thread
 identity; old viewable bundles retain unknown optional data.
 
