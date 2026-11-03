@@ -122,7 +122,7 @@ complete rerun.
 | Viewer tests, lint and TypeScript/Vite build | After the Finance clock correction, 1,175 tests / 108 files, zero skips; lint and build passed at `93334a1c3307cb9e5f54d3d3e8d6e25663ab6ee9`, viewer tree `be79d9c1b5848765fd6abe04e147be301942ef07` |
 | Actual desktop/mobile comparison and gallery browser checks | Chromium 154, 1,440px and 390px; actual receiving bundles, gallery, dated services, unknown observations and private-path-free export passed |
 | Held evaluation | Twelve integrated trajectories replayed with identical initial witnesses, metrics, coverage, per-turn regional distributions and scored-report evidence; see declared scope below |
-| Nine-job GitHub CI | Pending exact final integrated head |
+| Nine-job GitHub CI | Final verdict is the [PR69 head/check list](https://github.com/YotsuBotfds/Chronicler/pull/69/checks), not the historical runs above; final-source CI had not run at this document capture |
 | Scientific 200-seed/default-promotion gate | Not run by this integration; no promotion claimed |
 
 The earlier 1,171-test viewer check started at `db51b8ea` and ended at
