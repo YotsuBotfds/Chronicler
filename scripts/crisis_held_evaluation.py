@@ -63,8 +63,8 @@ def initial_world(seed: int, family: str):
         world.health_care.recovery_work = 10.0
         world.health_care.care_enabled = False
     elif family == "forecast":
-        # Same finite-resource construction as the forecast development case,
-        # with the declared seed replacing its development seed.
+        # Related finite-resource stress family with the frozen declaration
+        # synchronizing all productive regions, unlike the development helper.
         from chronicler.contact_ledger import set_contact_ledger_enabled
         from chronicler.grain_reserves import set_grain_reserves_enabled, _ensure
         from chronicler.grain_storage import enable_storage
