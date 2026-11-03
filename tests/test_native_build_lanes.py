@@ -210,6 +210,17 @@ def test_standard_workflow_preserves_independent_bodies_and_public_gate_names():
         assert names.count(name) == 1, name
 
 
+def test_standard_native_producer_consumers_share_one_exact_python_patch():
+    # A floating 3.13 resolved to 3.13.18 on the builder and 3.13.17 on
+    # a shard during one real run; the exact producer-identity guard refused it.
+    jobs = _workflow_jobs(".github/workflows/tests.yml")
+    for name in ("python-native-build", "python-native-tests", "python-native-shard-aggregate"):
+        setup = [step for step in jobs[name]["steps"]
+                 if step.get("uses", "").startswith("actions/setup-python@")]
+        assert len(setup) == 1, name
+        assert setup[0]["with"] == {"python-version": "3.13.17"}, name
+
+
 def test_standard_native_graph_requires_both_shards_and_rust_without_failure_allowance():
     jobs = _workflow_jobs(".github/workflows/tests.yml")
     assert set(jobs) == {"python-offline", "python-no-rust", "python-native-build", "python-native-tests", "python-native-shard-aggregate", "rust", "python-native", "viewer"}
@@ -273,6 +284,13 @@ def test_standard_native_delegation_keeps_the_qualified_v2_bodies():
     qualified = _workflow_jobs("docs/workflows/native-two-shards-v2.yml.in")
     for name in ("python-native-build", "python-native-tests", "python-native-shard-aggregate", "python-native"):
         expected = deepcopy(qualified[name])
+        if name in ("python-native-build", "python-native-tests", "python-native-shard-aggregate"):
+            # Explicitly admit only the reviewed runtime pin. The frozen
+            # qualified workflow stays unchanged; all other fields still compare.
+            setup = [step for step in expected["steps"]
+                     if step.get("uses", "").startswith("actions/setup-python@")]
+            assert len(setup) == 1 and setup[0]["with"] == {"python-version": "3.13"}
+            setup[0]["with"]["python-version"] = "3.13.17"
         branch_guard = expected.pop("if")
         assert "refs/heads/lead/native-two-shard-qualification-v2-20261029" in branch_guard
         if name in ("python-native-shard-aggregate", "python-native"):
