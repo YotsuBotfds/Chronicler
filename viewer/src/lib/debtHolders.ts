@@ -300,7 +300,7 @@ export function foreignLenderSeries(
 }
 
 export interface WriteOff {
-  /** Snapshot turn by which it was recorded. */
+  /** Completed snapshot boundary where the loss is available. */
   turn: number;
   /** Debt written off since the snapshot before (lenders detail; null otherwise). */
   amount: number | null;
@@ -327,7 +327,7 @@ export function eventOnlyBorrowers(
   const names = new Set<string>();
   for (const event of events) {
     const name = event.actors[0];
-    if (event.turn <= currentTurn && WRITE_OFF_EVENTS.has(event.event_type)
+    if (event.turn < currentTurn && WRITE_OFF_EVENTS.has(event.event_type)
       && name !== undefined && indices.has(name) && indices.get(name) !== null) {
       names.add(name);
     }
@@ -411,8 +411,8 @@ export function writeOffs(
     return [...out, ...eventOnlyWriteOffs(history, civ, unrepresented)]
       .sort((left, right) => left.turn - right.turn);
   }
-  // At a scrubbed turn, a structured event is evidence even if the later
-  // counter snapshot is unavailable. Its amount stays unknown until recorded.
+  // A tick-T event becomes available at completed boundary T+1, even if
+  // its counter snapshot is missing. Its amount stays unknown until recorded.
   const byTurn = new Map<number, Event[]>();
   for (const event of unrepresented) {
     const atTurn = byTurn.get(event.turn) ?? [];
@@ -420,7 +420,7 @@ export function writeOffs(
     byTurn.set(event.turn, atTurn);
   }
   for (const [turn, atTurn] of byTurn) {
-    out.push({ turn, amount: null, defaulted: atTurn.some((event) => event.event_type === "state_default"), events: atTurn });
+    out.push({ turn: turn + 1, amount: null, defaulted: atTurn.some((event) => event.event_type === "state_default"), events: atTurn });
   }
   return out.sort((left, right) => left.turn - right.turn);
 }

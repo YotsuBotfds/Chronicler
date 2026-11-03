@@ -91,7 +91,7 @@ export function DebtHolders({
   const losses = useMemo(
     () => (civ ? writeOffs(
       history.filter((row) => row.turn <= currentTurn), civ,
-      uniqueCiv ? bundle.events_timeline.filter((event) => event.turn <= currentTurn) : [],
+      uniqueCiv ? bundle.events_timeline.filter((event) => event.turn < currentTurn) : [],
       level, eventBorrowers.includes(civ),
     ) : []), [history, civ, bundle.events_timeline, level, currentTurn, eventBorrowers, uniqueCiv]);
 
@@ -106,7 +106,7 @@ export function DebtHolders({
   const { first, end } = recordedSpan(history);
   const lossesSoFar = losses.filter((loss) => loss.turn <= currentTurn).reverse();
   const events = civ && uniqueCiv
-    ? creditEventsOf(eventsOfTypes(bundle.events_timeline, SYSTEM_EVENT_TYPES.finance, currentTurn), civ)
+    ? creditEventsOf(eventsOfTypes(bundle.events_timeline, SYSTEM_EVENT_TYPES.finance, currentTurn - 1), civ)
     : [];
   // Timelines retain the bundle's richest detail, but the scrubbed snapshot
   // may predate lender records (for example, after resuming an older save).

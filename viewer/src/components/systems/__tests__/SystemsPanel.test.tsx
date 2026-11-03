@@ -335,15 +335,19 @@ describe("FinancePanel debt evidence boundaries", () => {
     expect(within(table).getByText("20")).toBeInTheDocument();
   });
 
-  it("reveals the event at its turn but takes an amount only from an already-recorded snapshot", () => {
+  it("reveals a loss after its source tick and takes its amount only from an available snapshot, including rewind", () => {
     const bundle = lossBundle();
     const last = withCounter(bundle, 20, 1);
+    last.turn = 4;
     bundle.events_timeline = [lossEvent(), lossEvent({ turn: 4, event_id: "future", description: "Future loss" })];
     const view = render(<FinancePanel {...props(bundle, bundle.history[0])} selectedCivilization={CIV} />);
     expect(screen.queryByRole("table", { name: `Defaults and write-offs of ${CIV}` })).not.toBeInTheDocument();
     view.rerender(<FinancePanel {...props(bundle, bundle.history[0])} currentTurn={2} selectedCivilization={CIV} />);
+    expect(screen.queryByRole("table", { name: `Defaults and write-offs of ${CIV}` })).not.toBeInTheDocument();
+    view.rerender(<FinancePanel {...props(bundle, bundle.history[0])} currentTurn={3} selectedCivilization={CIV} />);
     const early = screen.getByRole("table", { name: `Defaults and write-offs of ${CIV}` });
     expect(within(early).getByText("Not recorded")).toBeInTheDocument();
+    expect(within(early).getAllByRole("row")[1].firstElementChild).toHaveTextContent("2");
     expect(within(early).queryByText("20")).not.toBeInTheDocument();
     expect(within(early).queryByRole("button", { name: "Future loss" })).not.toBeInTheDocument();
     view.rerender(<FinancePanel {...props(bundle, last)} selectedCivilization={CIV} />);
@@ -351,6 +355,8 @@ describe("FinancePanel debt evidence boundaries", () => {
     expect(within(recorded).getByText("20")).toBeInTheDocument();
     expect(within(recorded).queryByText("Not recorded")).not.toBeInTheDocument();
     expect(within(recorded).getAllByRole("row")).toHaveLength(2);
+    view.rerender(<FinancePanel {...props(bundle, bundle.history[0])} currentTurn={2} selectedCivilization={CIV} />);
+    expect(screen.queryByRole("table", { name: `Defaults and write-offs of ${CIV}` })).not.toBeInTheDocument();
   });
 
   it("does not mistake a cumulative-counter reset for another loss", () => {
@@ -368,7 +374,7 @@ describe("FinancePanel debt evidence boundaries", () => {
     bundle.history[0].finance!.civs[CIV].defaults = 2;
     withCounter(bundle, 0, 0);
     const losses = writeOffs(bundle.history, CIV, [lossEvent()], "lenders", true);
-    expect(losses.map((loss) => [loss.turn, loss.amount])).toEqual([[1, 20], [2, null]]);
+    expect(losses.map((loss) => [loss.turn, loss.amount])).toEqual([[1, 20], [3, null]]);
   });
 
   it("includes a uniquely named event-only borrower with no stored finance row, including world index zero", () => {
@@ -379,6 +385,19 @@ describe("FinancePanel debt evidence boundaries", () => {
     expect(screen.getByRole("region", { name: `Creditors of ${CIV}` })).toBeInTheDocument();
     expect(screen.getByRole("table", { name: `Defaults and write-offs of ${CIV}` })).toHaveTextContent("Not recorded");
     expect(screen.getByText(`${CIV} has no holder record at turn 3.`)).toBeInTheDocument();
+  });
+
+  it("hides an event-only borrower before its completed boundary and after rewind", () => {
+    const bundle = lossBundle(false);
+    bundle.events_timeline = [lossEvent()];
+    const p = { ...props(bundle, bundle.history[0]), selectedCivilization: CIV };
+    const view = render(<FinancePanel {...p} currentTurn={2} />);
+    expect(screen.queryByRole("option", { name: CIV })).not.toBeInTheDocument();
+    view.rerender(<FinancePanel {...p} snapshot={bundle.history[1]} currentTurn={3} />);
+    expect(screen.getByRole("option", { name: CIV })).toBeInTheDocument();
+    view.rerender(<FinancePanel {...p} currentTurn={2} />);
+    expect(screen.queryByRole("option", { name: CIV })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: `Creditors of ${CIV}` })).not.toBeInTheDocument();
   });
 
   it("keeps name-keyed counter losses but leaves ambiguous events global even with a positive counter", () => {

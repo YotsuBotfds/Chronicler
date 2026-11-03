@@ -53,8 +53,8 @@ was closed, relabeled, commented on, merged or deployed by this audit.
 
 The selected change preserves newer mixed-version notes, missing lender gaps,
 nullable cumulative-counter behavior and existing snapshot-based strip records.
-The detail table now admits structured, uniquely attributable events at the
-selected turn, displaying `Not recorded` until an already available counter
+The detail table now admits structured, uniquely attributable events after the source tick has completed at the
+selected snapshot boundary, displaying `Not recorded` until an already available counter
 supplies an amount. It does not parse prose or use a future counter. Named
 lenders matching category labels remain inspectable; small bar segments no
 longer gain fixed-width inflation.
@@ -68,3 +68,21 @@ simulation source changed. JSDOM's style assertion does not establish practical
 browser layout; browser checks remain a separate lead-owned lane. Full final integration checks and exact-head CI must
 be recorded by the lead on the final integrated commit. Scientific balance,
 held-out efficacy and browser qualification are separate from these UI checks.
+
+### Independent timing correction
+
+Review caught a donor-clock incompatibility before final integration acceptance.
+`finance._event` and `domestic_credit._lapse_event` stamp source `world.turn`;
+`simulation.run_turn` then advances `world.turn`, and `main.execute_run` constructs
+`TurnSnapshot(turn=world.turn)` with finance fields. Tick-T losses therefore
+become visible at completed boundary T+1. The donor's event-at-T assertion was
+replaced: event-only selections and loss rows require `event.turn < currentTurn`,
+new rows use availability turn T+1 while their displayed source tick stays T.
+Sparse counter gaps and forward/rewind boundaries have explicit regression
+coverage. The shared global event helper was not changed.
+
+The corrected composition passed 82 focused tests, full viewer lint and
+TypeScript/Vite production build; the independent reviewer
+confirmed the producer-to-snapshot clock and found no remaining material debt
+source blocker. Final integrated CI and browser results belong to the lead's
+final commit, rather than being inferred from this donor lane.
