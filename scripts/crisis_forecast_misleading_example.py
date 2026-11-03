@@ -6,7 +6,6 @@ The only changed input between the three arms is the existing report policy.
 """
 from __future__ import annotations
 import argparse
-import copy
 import hashlib
 import json
 import os
@@ -195,9 +194,31 @@ def generate(output:Path):
             'source6_warning_delivered':bool(delivered),'same_budget_diversion':allocation,
             'signals':signals,'capital2_resolved':resolved,'other_resolved':severe,'source6_decisions':decision},analysis=analysis)
         _json(output/'case.json',manifest)
+        write_walkthrough(output, manifest)
     except BaseException as exc:
         manifest.update(state='failed',reason=f'{type(exc).__name__}: {exc}');_json(output/'case.json',manifest);raise
     return manifest
+
+
+def write_walkthrough(output: Path, manifest: dict):
+    """Explain actual outputs and qualification without promising an admission."""
+    lines = [
+        'Corrected-yield forecast development comparison',
+        f"Qualification state: {manifest['state']}",
+        'Constructed seed 42 case, not held-out or a policy recommendation.',
+        'Open the production viewer and load normal/chronicle_bundle.json.',
+        'Open Compare runs and load shuffle/chronicle_bundle.json; repeat for withhold.',
+        'Inspect Granaries / Harvest forecasts at snapshots 6, 7 and 13.',
+        'Snapshot 6 records reports; snapshot 7 records source-6 procurement.',
+        'Snapshot 13 records resolution. Earlier snapshots cannot show future outcomes.',
+        'The severe-production threshold is 0.6, distinct from full food demand 1.0.',
+        'Food accounting separates native stock/demand before relief from public relief.',
+        'Neither observation measures household meals.',
+        'Read case.json for actual admissions, budget allocation, costs, spoilage and limits.',
+        'A partial or failed case does not establish the intended contrast.',
+        'Exact checkpoints require the same Python source, native binary and runtime identity.',
+    ]
+    (output / 'WALKTHROUGH.txt').write_text('\n'.join(lines) + '\n', encoding='utf-8')
 
 
 def main():
@@ -208,5 +229,6 @@ def main():
     if sys.version_info<(3,13) or os.environ.get('PYTHONHASHSEED')!='0' or sys.flags.hash_randomization:
         parser.error('requires CPython3.13+ and PYTHONHASHSEED=0')
     os.umask(0o077);result=generate(output);print(json.dumps({'state':result['state'],'output':str(output)}))
+    return 0 if result['state']=='validated' else 1
 
-if __name__=='__main__':main()
+if __name__=='__main__':raise SystemExit(main())

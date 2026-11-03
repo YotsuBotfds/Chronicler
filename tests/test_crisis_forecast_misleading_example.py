@@ -36,6 +36,9 @@ def test_full_main_false_warning_observation_and_exact_resume(tmp_path):
     assert proc.returncode==0,proc.stdout+'\n'+proc.stderr
     case=json.loads((out/'case.json').read_text())
     assert case['state']=='validated'
+    walkthrough=(out/'WALKTHROUGH.txt').read_text()
+    assert 'Qualification state: validated' in walkthrough
+    assert 'snapshot 7 records source-6 procurement' in walkthrough.lower()
     assert all(case['checkpoint'][k] for k in ('pending_report','history_equal','world_equal',
                                                'native_bytes_equal','python_rng_equal','numpy_rng_equal'))
     starts=[{k:v for k,v in x['start'].items() if k!='policy'} for x in case['arms'].values()]
@@ -65,3 +68,18 @@ def test_full_main_false_warning_observation_and_exact_resume(tmp_path):
     assert case['analysis']['shuffle']['procurement_paid']>case['analysis']['normal']['procurement_paid']
     assert case['analysis']['shuffle']['public_spoiled']>case['analysis']['normal']['public_spoiled']
     assert all(case['analysis'][mode]['region2_public_released']==0 for mode in ('normal','shuffle','withhold'))
+
+
+def test_partial_cli_returns_failure_and_walkthrough_keeps_limits(tmp_path, monkeypatch):
+    from scripts import crisis_forecast_misleading_example as example
+    monkeypatch.setenv('PYTHONHASHSEED', '0')
+    # Unit-level CLI behavior does not start a native simulation.
+    monkeypatch.setattr(example.sys, 'flags', type('Flags', (), {'hash_randomization': 0})())
+    monkeypatch.setattr(example.sys, 'argv', ['forecast', str(tmp_path/'partial'), '--simulate-only'])
+    monkeypatch.setattr(example, 'generate', lambda output: {'state': 'partial'})
+    monkeypatch.setattr(example.os, 'umask', lambda mode: None)
+    assert example.main() == 1
+    example.write_walkthrough(tmp_path, {'state': 'partial'})
+    text=(tmp_path/'WALKTHROUGH.txt').read_text()
+    assert 'Qualification state: partial' in text
+    assert 'not held-out' in text and 'does not establish' in text
