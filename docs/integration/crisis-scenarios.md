@@ -91,8 +91,8 @@ M7 remains partially covered: completed outputs and bounded admissions exist,
 but receiving services, complete common-point alternatives for every case and
 held evaluation remain unfinished. Both transport and paid academy restoration
 have actual desktop/390px browser journeys, including dated food/service receipts
-and the new full-main history. Delayed report
-harm/food outcomes remain M6's explicit unmet acceptance. Full scientific gates
+and the new full-main history. The later corrected M6 case demonstrates a specific adverse resource path
+(cost and spoilage), while unique household harm remains unestablished. Full scientific gates
 and default-policy promotion remain unrun.
 
 Local evidence:`/workspace/shared/chronicler-crisis/m7-suite`, with original

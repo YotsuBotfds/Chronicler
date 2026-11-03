@@ -1,3 +1,16 @@
+# Current integration — 2026-11-03
+
+Current work uses `integration/crisis-recovery-20261103`, isolated from the
+preserved development branch and original checkout. Start with the
+[durable progress log](progress-20261103.md),
+[branch integration ledger](integration-ledger-20261103.md),
+[active crisis roadmap](crisis-recovery-roadmap.md) and
+[frozen held results](crisis-held-results-2026-11-03.md).
+The historical exploration release below is evidence for its named commits,
+not an active unfinished queue or final qualification of this integration.
+
+---
+
 # Development lead — exploration release qualification
 
 The 36 requested items have bounded outcomes, not a blanket completion or
