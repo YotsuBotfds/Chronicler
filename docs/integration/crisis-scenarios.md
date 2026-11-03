@@ -5,6 +5,15 @@ general realism. Seed42 was already used in development. No seed search, paid
 narration, threshold changes to obtain a preferred result or default promotion
 is part of this slice. Source and receipts identify each actual producer.
 
+Current integration (2026-11-03): the later
+[receiving-service variant](receiving-service-resupply.md) executes real resupply,
+three common-boundary alternatives, service interruption/recovery and exact
+continuation. The [frozen held evaluation](crisis-held-results-2026-11-03.md)
+completed twelve trajectories with mixed outcomes. The table and dated admissions
+below retain the original development evidence; their unfinished boundaries are
+not the current release status. See the [review handoff](review-handoff-20261103.md)
+and [release qualification](release-qualification-20261103.md).
+
 | Case | What actually ran | Admission / result | Remaining boundary |
 | --- | --- | --- | --- |
 | A transport | Finite grain2000/300/0, model people400/20/400 and a three-region chain; the real hybrid planner must reserve and depart grain0→2 before comparing eight further turns. The intervention closes region2's incident routes for two economy phases. | The original cargo arrives in the baseline and returns under disruption; a new delivery arrives after reopening. Snapshot4 destination native sufficiency is1.1755 versus0.4516 in the browser pair. Original paused state/native bytes/RNG stay unchanged. | Constructed geography/inventories; regional closure, not arbitrary individual edge deletion. Sufficiency is not household meals. |
@@ -85,9 +94,9 @@ Verdant replacement but does record a separate Frostholm academy. The original
 world stays paused. The single-client live contract is explicit; private saved
 bookmarks retain their existing independent storage behavior.
 
-## Qualification state
+## Historical qualification state before the 2026-11-03 integration
 
-M7 remains partially covered: completed outputs and bounded admissions exist,
+At that source M7 remained partially covered: completed outputs and bounded admissions exist,
 but receiving services, complete common-point alternatives for every case and
 held evaluation remain unfinished. Both transport and paid academy restoration
 have actual desktop/390px browser journeys, including dated food/service receipts
