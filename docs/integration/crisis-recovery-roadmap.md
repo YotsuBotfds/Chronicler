@@ -9,6 +9,30 @@ States: planned → implementing → integrated → validated; partially covered
 blocked and deferred name unfinished boundaries. A focused kernel pass does not
 validate an epic. Runtime changes remain opt-in until evaluated. No paid narration.
 
+## Current integration — 2026-11-03
+
+The new isolated branch is `integration/crisis-recovery-20261103`, based on fresh
+verified `63581a9a` (all nine jobs green in run41510735220). Main remains
+`cb9fe70c`; previous task work and all remote branches are preserved.
+The [integration ledger](integration-ledger-20261103.md) distinguishes ancestry,
+selective useful debt fixes and deferred experiments.
+
+The [receiving-service case](receiving-service-resupply.md) now diagnoses actual
+diplomatic route, destination, stock and quote gates and executes three matched
+full-main arms, a real service gap/resupply/recovery chain and exact continuation.
+The original failed no-stock case remains a native regression. The
+[frozen modest evaluation](crisis-held-results-2026-11-03.md) completes all twelve
+trajectories with mixed outcomes. The gallery retains actual loaded/completed
+comparisons in session memory and shows dated resource-backed service receipts,
+unknown delivery and coverage at desktop/mobile widths.
+
+These complete the selected bounded implementation queue; final combined
+qualification and release evidence are tracked in
+[release qualification](release-qualification-20261103.md). They do not complete
+scientific/default promotion, household welfare modeling, every crisis family,
+or reusable environment publication. Historical evidence/next-step paragraphs
+below describe their original source, not a second active backlog.
+
 ## Authority and dependency map
 
 | Boundary | Runtime/authority, units and timing | Dependency / limit |
@@ -33,10 +57,10 @@ validate an epic. Runtime changes remain opt-in until evaluated. No paid narrati
 | M3 storage choices | validated | Opt-in paid work, timber/treasury costs, capacity, condition, spoilage, custody and existing inspector integration. All nine combined CI jobs passed at fc50bf8e. | Actual benefit/harm pair, total goods balance, partial-work exact continuation and four-mode default-off parity passed. Care/work interaction and held scenario evaluation remain M7–9. |
 | M4 household coping | validated | Opt-in native liquid gate, persisted controls, bounded history and Migration inspector; corrected omitted/mock/no-native boundaries. All nine CI jobs passed at4dddb88b. | This establishes constrained native moves and exact continuation in declared controls, not a new household food/credit/care model or general unequal recovery. M7–9 retain those limits. |
 | M5 resource-backed service | validated | Actual paid academy supplies, native exclusive Scholar work/income cost, prior-turn learning effect, dated Learning inspector and material balances. All nine CI jobs passed atd7061f42. | Nine native controls, funded/no-stock/restock/ownership/adverse cases, exact held-supplies continuation, off parity and browser journey pass. General efficacy, rebuilding suite and Scholar illness remain outside this bounded qualification. |
-| M6 delayed information | integrated | Existing delay/decision/expiry contracts plus a corrected, declared full-main adverse-information case and truthful severe-threshold inspector. See forecast-decisions-candidate.md. | Earlier neutral/failed cases remain negative. Same initial world/RNG, actual budget diversion, higher coins/spoilage, exact pending-report resume and real browser checks pass; current combined CI next. Unique household hardship, general policy superiority and held evaluation are not established. |
-| M7 crisis suite | partially covered | [Constructed A/B/C/D cases and E analysis](crisis-scenarios.md) execute shared native state. Regional shock now uses the existing exact pair coordinator; explicit paid academy restoration has a tested boundary API. | Development admissions pass within stated limits. Receiving services, complete common-point alternatives for each case and held evaluation remain unfinished. Supported drought injection is not a crop-yield shock; recorded migration is not proof of forced eviction. |
-| M8 usable laboratory | partially covered | Regional closure and paid academy restoration preview → real exact pair → existing food/Learning inspectors work at desktop/390px. Versions1–4 and descriptive private-safe recipes are supported. A full-main academy guide preserves history1–12. | One live client is the existing server contract. The broader crisis gallery and remaining scenario/evaluation boundaries are unfinished; this is not whole-roadmap completion. |
-| M9 package | implementing | Quiet paired runtime/memory/history and actual browser measurements recorded; private source/evidence recovery independently verified. All nine corrected M8 CI jobs pass at0fb973cf. | Failed CI16376f90 remains preserved; fixed-hash supervision executes the new tests without relaxed skip rules. Held scenarios, final feature-enabled qualification and release handoff remain unfinished. |
+| M6 delayed information | bounded validation | Existing delay/decision/expiry contracts plus a corrected, declared full-main adverse-information case and truthful severe-threshold inspector. See forecast-decisions-candidate.md. | Earlier neutral/failed cases remain negative. Same initial world/RNG, actual budget diversion, higher coins/spoilage, exact pending-report resume and real browser checks pass; all nine baseline jobs passed at63581a9a. Final integration checks remain distinct. Unique household hardship, general policy superiority and held evaluation are not established. |
+| M7 crisis suite | bounded suite implemented | [Constructed A/B/C/D cases and E analysis](crisis-scenarios.md) execute shared native state. Regional shock now uses the existing exact pair coordinator; explicit paid academy restoration has a tested boundary API. | Development admissions and receiving open/closure/service-pause alternatives pass within stated limits; six frozen held pairs have mixed outcomes. This is not an exhaustive crisis or scientific evaluation. Supported drought injection is not a crop-yield shock; recorded migration is not proof of forced eviction. |
+| M8 usable laboratory | bounded implementation | Regional closure and paid academy restoration preview → real exact pair → existing food/Learning inspectors work at desktop/390px. Versions1–4 and descriptive private-safe recipes are supported. A full-main academy guide preserves history1–12. | Actual comparison gallery and dated academy comparisons are integrated with incomplete-data handling. One live client remains the server contract; gallery memory is bounded to six cases and clears on page reload. No policy ranking or persistent published gallery is claimed. |
+| M9 package | implementing | Quiet paired runtime/memory/history and actual browser measurements recorded; private source/evidence recovery independently verified. All nine corrected M8 CI jobs pass at0fb973cf. | Failed CI16376f90 remains preserved; fixed-hash supervision executes the new tests without relaxed skip rules. Held scenarios are complete within the frozen two-family design; final feature-enabled qualification and release handoff are recorded separately for this integration. |
 
 ## Current evidence and ownership
 

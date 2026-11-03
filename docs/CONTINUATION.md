@@ -1,41 +1,33 @@
-# Active program — societies under pressure
+# Current crisis integration — 2026-11-03
 
-Continue the new [crisis/adaptation/recovery roadmap](integration/crisis-recovery-roadmap.md)
-from verified dev baseline6ff45ec3. M0 authority contract is integrated; M1 food
-accounting passed all nine CI jobs at ecfa06ac. M2 actual private/public logistics
-and M3 paid storage/capacity/condition passed all nine jobs atfc50bf8e after a
-reproduced serialization defect was corrected. Constructed benefit/harm, partial-
-work continuation, browser checks and default-off parity are retained. M4 native
-household mobility, dated history and Migration UI are integrated with bounded
-native/browser validation and all nine CI jobs green at4dddb88b. M5 actual
-teaching work/paid supplies and Learning history passed all nine CI jobs at
-d7061f42. M6 delayed-report procurement/history passed all nine CI jobs at
-3e852333. A later corrected initial-resource case now records false severe-warning
-classification, a real three-coin budget diversion, higher costs/spoilage, exact
-6→20 continuation and actual desktop/390px inspection. It is integrated pending
-current CI; unique household harm or general forecasting quality is not claimed.
-Earlier neutral and unadmitted cases remain preserved. M7 now has constructed
-native A/B/C/D cases and recorded regional distribution analysis; it remains
-partially covered, with receiving services, full alternatives and held evaluation
-unfinished. M8's transport and paid academy restoration workflows now run through
-preview, exact pairs and existing inspectors at desktop/390px. The full-main
-academy example retains actual history1–12 and continues through19; its older
-diagnostic predecessor explicitly lacks earlier snapshots. M9 has paired runtime,
-memory, history and real-browser interaction measurements. CI41495453122 passed
-seven test/build jobs but failed the native skip audit: two new tests skipped
-under an unpinned parent hash. They now execute in supervised fixed-hash children,
-with no skip-registry relaxation; the corrected combined result follows.
-The corrected source0fb973cf passed all nine jobs in run41503054596:9,728 native
-tests/six unchanged historical skips/623 subtests,1,151 viewer tests and1,203 Rust
-tests/two ignored. Its owner-only backup independently restores exact source and
-561 new evidence files;502 omitted files match prior downloaded archives. This
-is bounded development qualification, not completed M6–9 or fresh provisioning.
-Next work: qualify the new information example, inspect the actual private
-craft-destination gates in the unadmitted receiving-service resupply cases, and
-freeze the modest held evaluation. See the
-active roadmap for exact sources and limits.
-This is not the completed roadmap. Previous remediation stays closed within its documented
-limits. Main/defaults remain unchanged; environment publication stays deferred.
+Continue from `integration/crisis-recovery-20261103`, isolated from preserved dev
+`63581a9a1a1297396ce2227ac2683aeefd5ad8a3` and main `cb9fe70c`.
+Read the [progress log](integration/progress-20261103.md),
+[integration ledger](integration/integration-ledger-20261103.md),
+[crisis roadmap](integration/crisis-recovery-roadmap.md) and
+[release qualification](integration/release-qualification-20261103.md).
+They supersede stale next-work claims in historical entries below.
+
+The receiving-service queue now has a diagnosed diplomatic route constraint
+and a finite, declared trade-permitting variant with actual distress-associated
+arrivals, craft destinations, paid supplies, native work, a service gap and
+recovery. Three exact common-boundary arms and turn8→16 replay preserve state,
+history and RNG; the original negative stays intact. Pausing resource-backed
+services restores legacy unmetered scholarship, so it is not a no-learning
+counterfactual. Twelve preregistered held trajectories complete with mixed
+outcomes and full coverage/balance reporting; no general policy claim follows.
+
+The viewer gallery retains six actual comparisons in session memory, reopens
+selected snapshots and shows dated academy purchases/work with unknowns intact.
+A useful distinct debt-holder donor was composed with current compatibility;
+independent review corrected its one-tick future-event leak. Forecast helper
+walkthrough and incomplete CLI status are fixed. Feature defaults, package
+runtime, Rust and dependency inputs remain unchanged from verified dev.
+
+Final qualification status belongs to the release document and exact PR checks.
+No merge, deploy, paid narration, scientific/default promotion or reusable
+cloud-environment publication is authorized. The old thread's uncommitted work
+is inaccessible and it may resume; never overwrite its branch or checkout.
 
 ---
 
