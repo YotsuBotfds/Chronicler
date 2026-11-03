@@ -40,7 +40,7 @@ before the stated control, and matching Python/NumPy RNG:
 | Arm | Only boundary control | Observed bounded result |
 | --- | --- | --- |
 | open | Keep academy services and routes enabled | Real craft deliveries fund purchases and subsequent native Scholar work. |
-| closed | Set the existing receiver trade suspension to3; normal countdown reopens it | An unladen craft reservation is cancelled, new deliveries pause, and later real resupply restores actual teaching. This is not a mid-transit cargo return. |
+| closed | Set the existing receiver trade suspension counter to3; two economy phases are blocked | An unladen craft reservation is cancelled, new deliveries pause, and later real resupply restores actual teaching. This is not a mid-transit cargo return. |
 | paused | Pause the existing academy-services switch | No new supply purchases or native teaching requests are made. Legacy unmetered scholarship efficacy returns; this does not disable learning. Missing native delivery receipts remain unknown; a sum over known receipts is not measured zero work. |
 
 The paused arm is an existing compatibility control, not a pure "no institution" counterfactual: `academy_service_fraction` returns1 when the resource-backed feature is disabled. No general learning-effect comparison is claimed.
@@ -60,6 +60,12 @@ and its shadow inbound/outbound tally. These observed economy prices do not
 claim to expose its complete marginal route score. All dated market quotes,
 closing stocks, actual imports and destinations are preserved in each
 `market-trace.json` and bundle's transaction receipts.
+
+The environment phase decrements the counter before each economy: source3
+sees2, source4 sees1, and source5 sees0/reopened. Counter3 therefore means two
+blocked economy phases in this direct-boundary example, not three. Earlier
+private receipts retain their original descriptive label; actual timing and
+model inputs are unchanged by this wording correction.
 
 The closure preserves an already queued arrival: it still buys at source3 and
 teaches at4. At source7 its held inventory and work request are0, with actual

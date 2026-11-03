@@ -26,7 +26,7 @@ CONDITIONS = {
     "receiver": 2, "receiver_base_yield_multiplier": .25,
     "receiver_owner_treasury": 500, "native_liquid_requirement": 1.,
     "diplomacy": "both starting realms neutral, enabling the generated cross-realm merchant edges",
-    "arms": {"open": "services enabled and routes open", "closed": "receiver routes suspended for three economy phases then reopen",
+    "arms": {"open": "services enabled and routes open", "closed": "receiver route counter set to 3; two economy phases blocked before reopening",
              "paused": "resource-backed work/accounting paused; routes open and legacy scholarship effect continues"},
     "qualification": "constructed post-negative development variant, not held-out or a diplomatic intervention estimate",
 }
