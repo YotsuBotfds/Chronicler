@@ -9,6 +9,31 @@ from unittest.mock import MagicMock
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _preserve_import_identity():
+    """Keep absence/stub probes from invalidating already collected classes."""
+    import chronicler
+
+    def isolated_module(name):
+        return name in {"chronicler.agent_bridge", "chronicler.religion"} or (
+            name == "chronicler_agents" or name.startswith("chronicler_agents.")
+        )
+
+    original_modules = {name: module for name, module in sys.modules.items() if isolated_module(name)}
+    missing = object()
+    original_attributes = {name: getattr(chronicler, name, missing) for name in ("agent_bridge", "religion")}
+    yield
+    for name in list(sys.modules):
+        if isolated_module(name):
+            sys.modules.pop(name)
+    sys.modules.update(original_modules)
+    for name, value in original_attributes.items():
+        if value is missing:
+            chronicler.__dict__.pop(name, None)
+        else:
+            setattr(chronicler, name, value)
+
+
 class _BlockChroniclerAgentsImport:
     def __init__(self, monkeypatch):
         self._orig_import = builtins.__import__
