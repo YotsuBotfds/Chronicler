@@ -10,13 +10,15 @@ import {
 import "./completedRunCompare.css";
 
 import { EntityRunComparison } from "./EntityRunComparison";
+import { ComparisonGallery } from "./ComparisonGallery";
+import { AcademyRunComparison } from "./AcademyRunComparison";
 import { artifactBasename, portableRuntime, portableSettings, portableWhatIfManifest,
   whatIfArmLabel, whatIfInterventionLabel, type WhatIfPair } from "../lib/whatIf";
 
 type Side = "left" | "right";
 interface Slot { run: CompletedRun | null; error: string | null; loading: boolean }
 const value = (number: number | null | undefined) => number == null ? "Not recorded"
-  : number.toLocaleString(undefined, { maximumFractionDigits: 3 });
+  : number !== 0 && Math.abs(number) < .001 ? number.toExponential(3) : number.toLocaleString(undefined, { maximumFractionDigits: 3 });
 
 /** Sharing keeps named settings and content identities, never arbitrary metadata. */
 function shareIdentity(input: ReturnType<typeof completedRunIdentity>) {
@@ -70,6 +72,7 @@ export function CompletedRunCompare({ initialBundle, initialIdentity, initialPai
     const requests = pending.current;
     return () => { requests.left++; requests.right++; };
   }, []);
+  const [activePair, setActivePair] = useState(initialPair ?? null);
   const [selectedTurn, setSelectedTurn] = useState<number | null>(null);
   const [financialMetric, setFinancialMetric] = useState<RunMetric>("treasury");
   const [exportStatus, setExportStatus] = useState("");
@@ -81,8 +84,8 @@ export function CompletedRunCompare({ initialBundle, initialIdentity, initialPai
   const summary = useMemo(() => left && right ? completedComparisonSummary(left, right, points, turn) : null,
     [left, right, points, turn]);
 
-  const pairManifest = initialPair && left === initialPair.baseline && right === initialPair.intervention
-    ? initialPair.manifest : null;
+  const pair = activePair && left === activePair.baseline && right === activePair.intervention ? activePair : null;
+  const pairManifest = pair?.manifest ?? null;
   const safeSummary = summary ? { ...summary, inputs: { left: shareIdentity(summary.inputs.left), right: shareIdentity(summary.inputs.right) } } : null;
   const safeManifest = pairManifest ? portableWhatIfManifest(pairManifest) : null;
   const shareSummary = safeSummary && safeManifest ? { ...safeSummary, what_if: safeManifest } : safeSummary;
@@ -132,6 +135,11 @@ export function CompletedRunCompare({ initialBundle, initialIdentity, initialPai
   }
 
   return <div className="completed-compare" aria-label="Completed-run comparison">
+    <ComparisonGallery left={left} right={right} turn={turn} pair={pair} onOpen={(entry) => {
+      pending.current.left++; pending.current.right++;
+      setSlots({ left: { run: entry.left, error: null, loading: false }, right: { run: entry.right, error: null, loading: false } });
+      setActivePair(entry.pair); setSelectedTurn(entry.turn); setExportStatus("");
+    }} />
     {pairManifest && <aside aria-label="What-if provenance" className="completed-compare-warnings">
       <strong>Exact checkpoint pair: {whatIfInterventionLabel(pairManifest)}</strong>
       <p>Common starting turn {pairManifest.start_turn}; {pairManifest.turns} additional turns.
@@ -162,6 +170,7 @@ export function CompletedRunCompare({ initialBundle, initialIdentity, initialPai
       </aside>
       <p>Snapshot T reflects completed tick T−1. Lines stop at missing observations; no values are interpolated.</p>
       <EntityRunComparison left={left!} right={right!} turn={turn} />
+      <AcademyRunComparison left={left!} right={right!} turn={turn} />
       <div className="completed-compare-charts">
         <Trajectory points={points} metric="population" />
         <Trajectory points={points} metric="food" />
