@@ -70,7 +70,7 @@ def main(argv: list[str] | None = None) -> int:
     return _cli_main(sys.modules[__name__], argv, causal_help=_CAUSAL_ORACLES_HELP)
 
 
-__all__ =list(_validation_io_all) + list(_validation_oracle_all) + [
+__all__ = list(_validation_io_all) + list(_validation_oracle_all) + [
     "ORACLE_RUNNERS",
     "SEED_RUN_ORACLES",
     "_normalize_requested_oracles",

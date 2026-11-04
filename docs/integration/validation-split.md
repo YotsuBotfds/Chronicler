@@ -309,3 +309,26 @@ their new `__module__`. `scripts/archive/benchmark_validation_turn_index.py`
 hashes the `validation_io.py` of its source tree, which now covers less of
 the validator. Batch manifests' package digests change, as with any source
 change.
+
+## 5. Checks
+
+Linux, Python 3.13.18, no native extension installed, at `c1b86f3`:
+
+- Full no-Rust pytest (`pytest -q -x`): 9,427 passed, 402 skipped, 623
+  subtests (`fb25429`: 9,309 passed, 402 skipped; the difference is the 118
+  parity tests).
+- `python scripts/run_python_oracle_checks.py`: PASS, 55 chunks in 180 s,
+  5,890 passed, 69 skipped, 2 deselected, every guard PASS;
+  `validation-tooling` 415 passed in 11 s (limit 110).
+- The validation tests and every test module importing these modules
+  (`tests/test_validat*.py` and 13 more, 20 modules): 768 passed, 8 skipped
+  (the native-extension cases). `test_native_ci_shards.py` and
+  `test_native_build_lanes.py`: 230 passed.
+- Both `python -m` entry points as child processes against the goldens: 28
+  runs each on `fb25429` and on the branch.
+
+Not run: the native Python lane, the 200-seed gate and remote CI. The first
+full run failed one parity test: `tests/test_main.py` leaves `sys.argv`
+rebound to the `chronicler` CLI, and the `--help` pins labelled every
+occurrence of the program name; they now pin `sys.argv` and label only the
+usage and error prefixes.
