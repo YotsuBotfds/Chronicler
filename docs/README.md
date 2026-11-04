@@ -54,6 +54,7 @@ link to these by path, so keep their names stable.
 ## Validation and qualification
 
 [Validation integrity](integration/validation-integrity.md),
+[the validation module split](integration/validation-split.md),
 [ablation oracles](integration/ablation-oracles.md),
 [community anchoring](integration/community-anchoring.md),
 [spec communities](integration/spec-communities.md), the `needs-*` and
