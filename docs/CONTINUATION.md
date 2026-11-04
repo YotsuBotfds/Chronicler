@@ -58,9 +58,11 @@ behavior, default, serialization, RNG or dependency version changed.
 - **Viewer/setup:** `@types/d3-force` is a dev dependency; the viewer README
   lists real commands, demo pages and scripts; `setup.sh`/`setup.bat` build
   with `--locked`.
-- **Guardrails found:** source-witness fixtures pin the SHA-256 of about 150
-  source files, tests pin workflow text, and the native shard manifest pins test
-  modules and skipped node IDs. DEVELOPMENT.md now lists these under "Before
+- **Guardrails found:** source-witness fixtures and recorded digests pin 108
+  tracked files (an earlier count of about 150 wrongly included historical
+  provenance hashes; `utils.py` and the `validation_*` modules are not pinned),
+  tests pin workflow text, and the native shard manifest pins test modules and
+  skipped node IDs. DEVELOPMENT.md now lists these under "Before
   refactoring, moving or deleting files". Pinned files were not edited.
 
 Checks on Linux, Python 3.13.18, no native extension installed: full no-Rust
@@ -72,8 +74,8 @@ tests and the production build pass (Node 22.23.4, not the CI floor 20.19.0).
 Not run: the native Python lane (no extension was built into the environment),
 the 200-seed scientific gate and remote CI on this branch.
 
-Deferred, each blocked by pins or needing review: a shared `_at_war` (copies in
-pinned `finance.py`; the natural home `utils.py` is pinned), the unused
+Deferred, each blocked by pins or needing review: a shared `_at_war` (one copy
+is in pinned `finance.py`), the unused
 `AgentBridge.apply_conquest_transitions` (pinned file), shared helpers for the
 scripts' repeated sha256/git/JSON code, test world-builder consolidation (about
 60 local `_world`/`_make_civ` variants with differing defaults), the two

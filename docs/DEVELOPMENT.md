@@ -200,11 +200,14 @@ Several tests pin repository content, so a change that looks mechanical can
 fail far from the file you touched:
 
 - **Source witnesses.** `scripts/testing/*_witness.py` with
-  `tests/fixtures/*_source_inverse.json` (and related fixtures) assert the
-  SHA-256 of about 150 current source files, including `main.py`,
-  `simulation.py`, `agent_bridge.py`, `utils.py`, `models.py` and several
-  viewer `lib/` files. Before editing a file, search `tests/fixtures` for its
-  path; a pinned file needs a reviewed witness update, not a silent edit.
+  `tests/fixtures/*_source_inverse.json` (and related fixtures) pin the exact
+  bytes of 83 tracked files, and test data records the current SHA-256 of 25
+  more, including `main.py`, `simulation.py`, `agent_bridge.py`, `models.py`,
+  twelve Rust files and 26 viewer files. Hashes in
+  `tests/fixtures/performance/` and the reference-baseline manifests describe
+  older source and pin nothing current. Before editing a file, search
+  `tests/fixtures` and `scripts/testing` for its path and current SHA-256; a
+  pinned file needs a reviewed witness update, not a silent edit.
 - **Workflows.** `tests/test_native_ci_shards.py` and
   `tests/test_native_build_lanes.py` read `.github/workflows/*.yml`,
   `docs/workflows/*.yml.in` (byte-identical copies) and parts of `README.md`.
