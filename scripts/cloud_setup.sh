@@ -25,4 +25,9 @@ step "native venv" uv venv -q --allow-existing --python python3.13 "$NATIVE"
 step "native deps" env VIRTUAL_ENV="$NATIVE" uv sync -q --frozen --active
 step "maturin" uv pip install -q --python "$NATIVE/bin/python" "maturin>=1.5,<2"
 
+# Report both environments (scripts/check_python_env.py). The default .venv
+# must have no chronicler_agents; the native venv has none until you build it.
+step "check .venv (no native)" .venv/bin/python scripts/check_python_env.py --expect no-native
+step "check native venv" "$NATIVE/bin/python" scripts/check_python_env.py
+
 echo "== Chronicler setup done"
