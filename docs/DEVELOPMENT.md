@@ -13,14 +13,19 @@ git status --short --branch
 ## Python environments
 
 Development uses two virtual environments. `.venv` is the no-native lane: it
-must never contain `chronicler_agents`. The Rust extension is built only into
-a separate native venv, `CHRONICLER_NATIVE_VENV` (default
-`~/.venvs/chronicler-native`; `%USERPROFILE%\.venvs\chronicler-native` on
-Windows). `maturin develop` installs into `VIRTUAL_ENV`, or into `./.venv` when
-none is set, so always build with the native venv active.
+must not contain `chronicler_agents` while you run the no-Rust or offline
+lanes. Build the Rust extension into a separate native venv,
+`CHRONICLER_NATIVE_VENV` (default `~/.venvs/chronicler-native`;
+`%USERPROFILE%\.venvs\chronicler-native` on Windows). `maturin develop`
+installs into `VIRTUAL_ENV`, or into `./.venv` when none is set, so always
+build with the native venv active.
 
-`bash setup.sh` (Mac, Linux, Git Bash) and `setup.bat` (Windows Command
-Prompt) set both up. With [uv](https://docs.astral.sh/uv/) on PATH they run
+`bash setup.sh --native-venv` (Mac, Linux, Git Bash) and
+`setup.bat --native-venv` (Windows Command Prompt) set both up. Without
+`--native-venv` the scripts keep the end-user layout: one `.venv` with the
+extension built into it, so `chronicler --agents hybrid` runs there; that
+`.venv` is not a no-native lane until `uv sync --frozen` (or
+`setup --no-rust`) removes the extension again. With [uv](https://docs.astral.sh/uv/) on PATH they run
 `uv lock --check` and install `.venv` exactly from `uv.lock` with
 `uv sync --frozen` (the `dev` group, plus `--extra api`/`--extra gemini` for
 `--api`/`--gemini`), as CI does. An exact sync also uninstalls packages the lock
@@ -29,11 +34,12 @@ setup. Without uv they warn and fall back to an unlocked
 `pip install -e . pytest pytest-asyncio`, with whatever versions the index
 serves that day, and uninstall `chronicler-agents` from `.venv` explicitly.
 Install uv for a reproducible environment. Unless `--no-rust` is given or
-`cargo` is missing, setup then syncs the native venv the same way (removing the
-previous build), installs maturin and builds a fresh release extension into it.
-It finishes with `scripts/check_python_env.py --expect no-native` on `.venv`
-and, after a build, `--expect native` on the native venv, and fails if either
-check fails. `CHRONICLER_PYTHON` picks the interpreter (default: the first
+`cargo` is missing, setup then installs maturin and builds a fresh release
+extension into `.venv`, or with `--native-venv` syncs the native venv the same
+way (removing the previous build) and builds into it. It finishes with
+`scripts/check_python_env.py --expect native` on the venv it built into and
+`--expect no-native` on `.venv` whenever `.venv` should be extension-free, and
+fails if a check fails. `CHRONICLER_PYTHON` picks the interpreter (default: the first
 3.13+ of `python3.13`, `python3` and `python`; `setup.bat` uses `python`), and
 `UV_PROJECT_ENVIRONMENT` moves `.venv`. The native venv's editable install
 points at the last checkout that synced it, so give each checkout its own
@@ -50,8 +56,8 @@ worktree whose venv belongs to another checkout, with `PYTHONPATH=src`).
 
 | Path | Interpreter | `.venv` dependencies | Native extension | Viewer |
 | --- | --- | --- | --- | --- |
-| `setup.sh` / `setup.bat`, uv present | see above | `uv lock --check`, `uv sync --frozen` | fresh `maturin develop --release --locked` into the native venv | not installed |
-| `setup.sh` / `setup.bat`, no uv | see above | unlocked `pip install -e .` | the same, into a pip-built native venv | not installed |
+| `setup.sh` / `setup.bat`, uv present | see above | `uv lock --check`, `uv sync --frozen` | fresh `maturin develop --release --locked` into `.venv`, or the native venv with `--native-venv`; none with `--no-rust` | not installed |
+| `setup.sh` / `setup.bat`, no uv | see above | unlocked `pip install -e .` | the same, with pip-built venvs | not installed |
 | `scripts/cloud_setup.sh` | `python3.13` | `uv lock --check`, `uv sync --frozen` | native venv synced with maturin, nothing built | `npm ci` |
 | CI (`tests.yml`) | setup-python 3.13 / 3.13.17 | `uv lock --check`, `uv sync --frozen` | `maturin build` wheel installed into the job's own fresh `.venv` | `npm ci`, Node 20.19.0 |
 
@@ -150,8 +156,9 @@ pause panel's Save checkpoint and `--live --resume`.
 
 ## Native and full qualification
 
-Build into the native venv, never into `.venv`, with an appropriate Rust
-toolchain (`bash setup.sh` does the first four steps):
+For native development, build into the native venv rather than `.venv`, with
+an appropriate Rust toolchain (`bash setup.sh --native-venv` does the first
+four steps):
 
 ```sh
 NATIVE=${CHRONICLER_NATIVE_VENV:-$HOME/.venvs/chronicler-native}

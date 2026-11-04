@@ -46,7 +46,7 @@ bash setup.sh            # Linux / Mac / Git Bash
 setup.bat                # Windows Command Prompt
 ```
 
-The setup script installs the Python dependencies into `.venv`: exactly from `uv.lock` when [uv](https://docs.astral.sh/uv/) is installed (recommended, as CI does), otherwise with an unlocked `pip install -e .` and a warning. If Rust is installed it builds the Rust agent crate into a separate native venv (`~/.venvs/chronicler-native`; set `CHRONICLER_NATIVE_VENV` to move it), never into `.venv`, and it finishes by checking both with `scripts/check_python_env.py`. Run agent mode (`--agents`) from the native venv. See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md#python-environments). Optional flags:
+The setup script installs the Python dependencies into `.venv`: exactly from `uv.lock` when [uv](https://docs.astral.sh/uv/) is installed (recommended, as CI does), otherwise with an unlocked `pip install -e .` and a warning. It first removes any `chronicler_agents` already in `.venv`; if Rust is installed it then builds a fresh agent crate into `.venv`, so agent mode (`--agents`) works there, and it finishes by checking the result with `scripts/check_python_env.py`. `--no-rust` leaves `.venv` verified extension-free. Developers who run the no-Rust test lanes pass `--native-venv` to build into a separate native venv (`~/.venvs/chronicler-native`; `CHRONICLER_NATIVE_VENV` moves it) and keep `.venv` extension-free. See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md#python-environments). Optional flags:
 
 | Flag | Effect |
 |------|--------|
@@ -96,7 +96,7 @@ chronicler --seed 42 --turns 50 --civs 4 --regions 8 --output output/chronicle.m
 # Simulation only (no LLM needed)
 chronicler --seed 42 --turns 100 --simulate-only
 
-# Hybrid agent path with validation sidecars (requires the Rust crate: run from the native venv)
+# Hybrid agent path with validation sidecars (requires the Rust crate; with --native-venv, run from the native venv)
 chronicler --seed 42 --turns 100 --agents hybrid --simulate-only --validation-sidecar
 
 # Use a scenario
@@ -167,12 +167,13 @@ Available presets: `pangaea`, `archipelago`, `golden-age`, `dark-age`, `ice-age`
 
 ```bash
 # No-Rust Python lane: run from an environment where chronicler_agents is absent
-# (.venv; `python scripts/check_python_env.py --expect no-native` confirms it).
+# (.venv after `setup.sh --no-rust` or `--native-venv`;
+# `python scripts/check_python_env.py --expect no-native` confirms it).
 # Pure-Python tests should pass; native-only tests should skip.
 python -m pytest -q
 
-# Native Python lane: activate the native venv (never .venv) and build a fresh
-# chronicler_agents into it; the setup scripts install maturin there.
+# Native Python lane: activate the native venv (`setup.sh --native-venv` sets
+# it up and installs maturin there) and build a fresh chronicler_agents into it.
 source ~/.venvs/chronicler-native/bin/activate
 cd chronicler-agents
 python -m maturin develop --release --locked

@@ -206,15 +206,19 @@ def test_main_exit_status_follows_the_report(tool, monkeypatch, capsys):
         tool.main(["--expect", "maybe"])
 
 
-def test_setup_scripts_build_native_only_in_the_native_venv_and_check_both():
+def test_setup_scripts_build_into_the_target_venv_and_check_it():
     unix = (ROOT / "setup.sh").read_text()
     windows = (ROOT / "setup.bat").read_text()
     cloud = (ROOT / "scripts/cloud_setup.sh").read_text()
     assert "uv sync --frozen" in unix and "uv sync --frozen" in windows and "uv sync" in cloud
-    assert unix.index('source "$(venv_activate "$NATIVE_VENV")"') < unix.index("python -m maturin develop")
-    assert windows.index('call "%NATIVE_VENV%\\Scripts\\activate.bat"') < windows.index("python -m maturin develop")
+    # The build target is .venv by default and the native venv with --native-venv.
+    assert "if [ \"$SEPARATE_NATIVE\" -eq 1 ]; then TARGET_VENV=$NATIVE_VENV; else TARGET_VENV=$VENV; fi" in unix
+    assert 'if %SEPARATE_NATIVE%==1 set "TARGET_VENV=%NATIVE_VENV%"' in windows
+    assert unix.index('source "$(venv_activate "$TARGET_VENV")"') < unix.index("python -m maturin develop")
+    assert windows.index('call "%TARGET_VENV%\\Scripts\\activate.bat"') < windows.index("python -m maturin develop")
     for script in (unix, windows, cloud):
         assert "scripts/check_python_env.py --expect no-native" in script.replace("\\", "/")
     assert '"$NATIVE_PY" scripts/check_python_env.py --expect native' in unix
+    assert '"%TARGET_VENV%\\Scripts\\python.exe" scripts\\check_python_env.py --expect native' in windows
     # Cloud setup warns and continues: its checks run through step().
     assert 'step "check .venv (no native)" .venv/bin/python scripts/check_python_env.py --expect no-native' in cloud

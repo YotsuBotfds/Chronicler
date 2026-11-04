@@ -3,15 +3,18 @@
 # Usage: bash setup.sh
 #
 # Options:
-#   --no-rust     Skip Rust agent crate build
+#   --no-rust     Skip Rust agent crate build; .venv is verified to hold none
+#   --native-venv Build the agent crate into a separate native venv instead of
+#                 .venv, keeping .venv extension-free for the no-Rust and
+#                 offline test lanes (development; see docs/DEVELOPMENT.md)
 #   --api         Install Claude API narration support
 #   --gemini      Install Gemini API narration support
 #
 # With uv (https://docs.astral.sh/uv/) the default .venv is installed exactly
 # from uv.lock (`uv sync --frozen`, like CI). Without uv it falls back to an
-# UNLOCKED `pip install -e .` and says so. The Rust extension is built only
-# into a separate native venv, never into .venv, and
-# scripts/check_python_env.py verifies both environments at the end.
+# UNLOCKED `pip install -e .` and says so. Any chronicler_agents already in
+# .venv is removed first, so the extension present afterwards is the one this
+# run built (or none), and scripts/check_python_env.py verifies that at the end.
 #
 # Environment overrides:
 #   CHRONICLER_PYTHON       interpreter to use (default: python3.13, python3, python)
@@ -21,12 +24,14 @@
 set -euo pipefail
 
 NO_RUST=0
+SEPARATE_NATIVE=0
 INSTALL_API=0
 INSTALL_GEMINI=0
 
 for arg in "$@"; do
     case "$arg" in
         --no-rust)   NO_RUST=1 ;;
+        --native-venv) SEPARATE_NATIVE=1 ;;
         --api)       INSTALL_API=1 ;;
         --gemini)    INSTALL_GEMINI=1 ;;
         *) echo "Unknown option: $arg"; exit 1 ;;
@@ -108,17 +113,19 @@ fi
 install_env "$VENV"
 DEFAULT_PY=$(venv_python "$VENV")
 if [ "$USE_UV" -eq 0 ] && "$DEFAULT_PY" -m pip show chronicler-agents &>/dev/null; then
-    echo "  Removing chronicler_agents from $VENV (native builds use $NATIVE_VENV)"
+    echo "  Removing the previously installed chronicler_agents from $VENV"
     "$DEFAULT_PY" -m pip uninstall -y chronicler-agents --quiet
 fi
 
-# Build Rust agent crate into the separate native venv, never into $VENV.
+# Build the Rust agent crate into $VENV, or with --native-venv into the
+# separate native venv so that $VENV stays extension-free.
 BUILT_NATIVE=0
+if [ "$SEPARATE_NATIVE" -eq 1 ]; then TARGET_VENV=$NATIVE_VENV; else TARGET_VENV=$VENV; fi
 if [ "$NO_RUST" -eq 0 ]; then
     if command -v cargo &>/dev/null; then
-        echo "[3/4] Building Rust agent crate into the native venv $NATIVE_VENV..."
-        install_env "$NATIVE_VENV"
-        NATIVE_PY=$(venv_python "$NATIVE_VENV")
+        echo "[3/4] Building Rust agent crate into $TARGET_VENV..."
+        if [ "$SEPARATE_NATIVE" -eq 1 ]; then install_env "$NATIVE_VENV"; fi
+        NATIVE_PY=$(venv_python "$TARGET_VENV")
         MATURIN_FLAGS=()
         if [ "$USE_UV" -eq 1 ]; then
             uv pip install --quiet --python "$NATIVE_PY" "maturin>=1.5,<2"
@@ -127,7 +134,7 @@ if [ "$NO_RUST" -eq 0 ]; then
         (
             # Activation sets VIRTUAL_ENV, which maturin develop installs into.
             # shellcheck disable=SC1090
-            source "$(venv_activate "$NATIVE_VENV")"
+            source "$(venv_activate "$TARGET_VENV")"
             if [ "$USE_UV" -eq 0 ]; then
                 python -m pip install "maturin>=1.5,<2" --quiet
             fi
@@ -145,12 +152,14 @@ else
 fi
 
 echo "[4/4] Verifying environments..."
-if ! "$DEFAULT_PY" scripts/check_python_env.py --expect no-native; then
-    echo "ERROR: $VENV is not a clean no-native environment for this checkout (see above)."
-    exit 1
+if [ "$BUILT_NATIVE" -eq 0 ] || [ "$SEPARATE_NATIVE" -eq 1 ]; then
+    if ! "$DEFAULT_PY" scripts/check_python_env.py --expect no-native; then
+        echo "ERROR: $VENV is not a clean no-native environment for this checkout (see above)."
+        exit 1
+    fi
 fi
 if [ "$BUILT_NATIVE" -eq 1 ] && ! "$NATIVE_PY" scripts/check_python_env.py --expect native; then
-    echo "ERROR: the native venv $NATIVE_VENV does not hold a compiled chronicler_agents (see above)."
+    echo "ERROR: $TARGET_VENV does not hold a compiled chronicler_agents for this checkout (see above)."
     exit 1
 fi
 
@@ -160,11 +169,14 @@ echo ""
 echo "To get started:"
 echo "  source $(venv_activate "$VENV")"
 echo "  chronicler --seed 42 --turns 50 --simulate-only"
-if [ "$BUILT_NATIVE" -eq 1 ]; then
+if [ "$BUILT_NATIVE" -eq 1 ] && [ "$SEPARATE_NATIVE" -eq 1 ]; then
     echo ""
     echo "Agent mode (--agents) runs from the native venv:"
     echo "  source $(venv_activate "$NATIVE_VENV")"
     echo "  chronicler --seed 42 --turns 100 --agents hybrid --simulate-only"
+elif [ "$BUILT_NATIVE" -eq 1 ]; then
+    echo "  chronicler --seed 42 --turns 100 --agents hybrid --simulate-only"
+    echo "  (a later \`uv sync\` removes the extension from $VENV; rerun setup to rebuild)"
 fi
 echo ""
 echo "For narration, run LM Studio with a model loaded, then:"
