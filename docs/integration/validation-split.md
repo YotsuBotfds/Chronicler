@@ -150,3 +150,27 @@ module-local callbacks and `python -m` entry points.
   inspects their functions' source. `batch_manifest.package_digest` hashes
   every package file when a batch runs, so new modules change future
   digests as any source change does.
+
+## 2. Parity tests
+
+`tests/test_validation_parity.py` (shard 0, the `validation-tooling` chunk of
+`scripts/run_python_oracle_checks.py`) builds small deterministic batches in
+the test: three 160-turn seeds with every sidecar and a verified manifest,
+design-1 and design-2 ablation arms for them, a determinism batch with a
+matching and a differing pair, a legacy procedural batch, a batch whose
+needs table lacks columns (an `ERROR` result) and one whose summary holds
+NaN. Its goldens (`tests/fixtures/validation_parity/goldens.json`) were
+generated from `fb25429`; paths and input digests are replaced by labels so
+they hold on any platform and pyarrow version. It pins:
+
+- each surface's report text for 9 scenarios, its CLI stdout, stderr and exit
+  status for the same scenarios, 5 request errors (message and CLI error
+  report), the unserializable report, and argparse's help, usage and
+  invalid-choice output (whitespace collapsed);
+- the import surface: the three `__all__` lists, every name `validation_io`
+  binds with its kind (211), the values of its 72 constants, and the identity
+  of every re-export;
+- which monkeypatch reaches which surface: seven `validation_io` helpers with
+  their call counts, each orchestration and CLI collaborator per surface, the
+  module-function and registry dispatch including the re-entry above, the
+  determinism standalone call, and registry entries added and removed.

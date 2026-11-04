@@ -283,6 +283,7 @@ CHUNKS = {
         "tests/test_batch_manifest_inputs.py",
         "tests/test_batch_manifest_reconciliation.py",
         "tests/test_validation_turn_index.py",
+        "tests/test_validation_parity.py",
         "tests/test_batch.py",
         "tests/test_validation_gate.py",
         "tests/test_validation_compare.py",
