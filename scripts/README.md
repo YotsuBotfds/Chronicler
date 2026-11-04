@@ -25,6 +25,7 @@ session (or a fresh Linux checkout) and prepares a separate native venv; see
 | `ci_critical_path.py`, `ci_artifact_intake.py` | Offline CI timing analysis and bounded artifact intake. |
 | `hosted_native_functional_smoke.py`, `hosted_kin_capture.py` | Opt-in hosted workflows. |
 | `benchmark_named_context.py`, `paired_context_benchmark.py` | Opt-in compiled-context benchmark workflows. |
+| `refactor_preflight.py` | Read-only map from files you plan to change or move to the witnesses, digests, workflows, importers and manifests that pin or name them (see `docs/DEVELOPMENT.md`). |
 | `testing/` | Test-only guard (`python_oracle_guard.py`), source witnesses and the native shard manifest. Never product code. |
 
 ## Identity checks

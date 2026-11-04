@@ -197,25 +197,62 @@ merchant houses lend finance's revenue term, fading as `0.98 ** turn`
 ## Before refactoring, moving or deleting files
 
 Several tests pin repository content, so a change that looks mechanical can
-fail far from the file you touched:
+fail far from the file you touched. Run the read-only preflight first:
 
-- **Source witnesses.** `scripts/testing/*_witness.py` with
-  `tests/fixtures/*_source_inverse.json` (and related fixtures) assert the
-  SHA-256 of about 150 current source files, including `main.py`,
-  `simulation.py`, `agent_bridge.py`, `utils.py`, `models.py` and several
-  viewer `lib/` files. Before editing a file, search `tests/fixtures` for its
-  path; a pinned file needs a reviewed witness update, not a silent edit.
-- **Workflows.** `tests/test_native_ci_shards.py` and
-  `tests/test_native_build_lanes.py` read `.github/workflows/*.yml`,
-  `docs/workflows/*.yml.in` (byte-identical copies) and parts of `README.md`.
-  The benchmark scripts hash their workflow files into receipts.
-- **Native shard manifest.** `scripts/testing/native_shards_manifest.json`
-  assigns every test module to a shard and lists expected skipped node IDs and
-  the subtest count, so adding, renaming or deleting a test module or a skipped
-  test needs a manifest update.
+```sh
+.venv/bin/python scripts/refactor_preflight.py src/chronicler/utils.py tests/test_foo.py
+.venv/bin/python scripts/refactor_preflight.py --move scripts/a.py:scripts/tools/a.py
+.venv/bin/python scripts/refactor_preflight.py --git-diff origin/main   # every changed path
+```
+
+It reports four levels per path (`--json` for tooling, `--fail-on-enforced`
+to exit 1 on a pin):
+
+- **enforced:** a known check fails when the bytes change or the path moves.
+- **digest:** the file's current SHA-256 or Git blob id appears in test data;
+  treat it as pinned until you have read the test.
+- **reference:** tests, witnesses, workflows, importers or docs name the path
+  or module; read each hit.
+- **historical:** an older recorded hash (performance and reference-baseline
+  provenance). The current file already differs, so it is not a pin; never
+  rewrite it to match.
+
+It always prints what it cannot see (runtime-built paths, `inspect.getsource`,
+whole-tree digests, behavioral goldens, TypeScript and Rust module graphs). "No
+known pins" is not a safety proof; run the lanes above. On 2026-11-04 it found
+83 tracked source, script, viewer and workflow files with enforced pins and 25
+more with a recorded current digest, including `main.py`, `simulation.py`,
+`models.py`, `agent_bridge.py`, twelve Rust files and 26 viewer files. `utils.py`,
+the `validation_*` modules and `AppShell.tsx` have none. An earlier version of
+this section listed `utils.py` among about 150 pinned files; that list counted
+historical provenance hashes as pins.
+
+The mechanisms it checks:
+
+- **Source witnesses.** `scripts/testing/*_witness.py` project current source
+  back through each reviewed candidate's patches
+  (`tests/fixtures/*_source_inverse.json`; `grain_release_witness.py` embeds its
+  own layers) and compare hashes at every step. Editing a pinned file breaks the
+  chain. Do not rewrite a fixture's hashes to match new source: either leave the
+  file alone or add a reviewed exact-inverse layer, as
+  `scripts/testing/reviewed_main_witness.py` does for `main.py`, and review it
+  like source.
+- **Workflows.** `docs/workflows/native-two-shards*.yml.in` must stay
+  byte-identical to `.github/workflows/`, and `tests/test_native_ci_shards.py`
+  records the workflow's SHA-256. `tests/test_native_build_lanes.py` reads
+  `tests.yml` and parts of `README.md`. The benchmark scripts hash their workflow
+  files into receipts.
+- **Test-module ownership.** Every test module must be in exactly one shard of
+  `scripts/testing/native_shards_manifest.json`, which also lists expected
+  skipped node IDs and the successful-subtest count (623). A new module also
+  goes into the `additions` map and module count in
+  `tests/test_native_ci_shards.py`, and, if it is offline-safe, into a chunk of
+  `scripts/run_python_oracle_checks.py` with headroom.
 - **Import compatibility.** `tests/test_import_compatibility.py` and the
   re-export blocks (for example in `politics.py` and `validate.py`) keep
   historical import paths working; an unused-looking import may be one of them.
+  Tests also monkeypatch module attributes by string target, so moving a helper
+  can silently disconnect a patch.
 - **Script paths.** Tests import scripts as `scripts.<name>` or load them by
   path, and workflows call them by path (see [scripts/README.md](../scripts/README.md)).
 

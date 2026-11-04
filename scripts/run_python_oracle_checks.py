@@ -73,6 +73,9 @@ CHUNKS = {
     "arc-event-types": [
         "tests/test_arc_event_types.py",
     ],
+    "refactor-preflight": [
+        "tests/test_refactor_preflight.py",
+    ],
     "diagnostics": [
         "tests/test_community_admissibility.py::test_decomposes_saved_counters_without_changing_report_or_verdict",
         "tests/test_community_admissibility.py::test_capacity_does_not_imply_region_share_pass",

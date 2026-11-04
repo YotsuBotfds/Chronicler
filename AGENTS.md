@@ -37,8 +37,9 @@ with fetched `main` without force-push. The preserved desktop foundation line
 has competing architecture and must be reviewed separately, not overlaid.
 
 Source-witness fixtures, workflow tests and the native shard manifest pin file
-contents and paths; check DEVELOPMENT.md's pinned-content list before
-refactoring, moving or deleting files.
+contents and paths. Before refactoring, moving or deleting files, run
+`scripts/refactor_preflight.py` on them (see DEVELOPMENT.md); never rewrite a
+pinned hash to make a change pass.
 
 Keep environments, credentials, personal data, generated runs, private logs and
 app/session databases outside commits. Commit source, tests and relevant project
