@@ -9,14 +9,14 @@
 - sync progress/spec/roadmap status language
 - create the next plan for the exported-data validation pipeline
 
-**Architecture boundary:** `scripts/m53_oracle_probe.py` remains an ad-hoc live-sim tool. `src/chronicler/validate.py` remains a library of oracle functions until the sidecar/export pipeline exists. Do not turn `validate.py` into a simulation runner in this plan.
+**Architecture boundary:** `scripts/archive/m53_oracle_probe.py` remains an ad-hoc live-sim tool. `src/chronicler/validate.py` remains a library of oracle functions until the sidecar/export pipeline exists. Do not turn `validate.py` into a simulation runner in this plan.
 
 ---
 
 ## Task 1: Preflight the Partial-Cleanup Outputs
 
 **Files:**
-- Verify: `scripts/m53_oracle_probe.py`
+- Verify: `scripts/archive/m53_oracle_probe.py`
 - Verify: `src/chronicler/validate.py`
 - Verify: `tuning/m53a_frozen.yaml`
 - Verify: `docs/superpowers/specs/2026-03-21-m53-depth-tuning-validation-design.md`
@@ -51,7 +51,7 @@ Expected:
 Run:
 
 ```bash
-PYTHONPATH=src python scripts/m53_oracle_probe.py --seeds 2 --turns 50 --seed-start 42
+PYTHONPATH=src python scripts/archive/m53_oracle_probe.py --seeds 2 --turns 50 --seed-start 42
 ```
 
 Expected:
@@ -84,7 +84,7 @@ This report remains **ad-hoc** and **20-seed**, but it should reflect the correc
 Run:
 
 ```bash
-PYTHONPATH=src python scripts/m53_oracle_probe.py --seeds 20 --turns 200 --seed-start 42 > output/m53/oracle_probe_post_cleanup_42_61.txt
+PYTHONPATH=src python scripts/archive/m53_oracle_probe.py --seeds 20 --turns 200 --seed-start 42 > output/m53/oracle_probe_post_cleanup_42_61.txt
 ```
 
 Capture the key outputs:

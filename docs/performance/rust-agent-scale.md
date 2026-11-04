@@ -56,7 +56,7 @@ Two benchmarks, both new:
 
       python scripts/agent_scale_benchmark.py --targets 1000,5000,20000,50000,100000 \
           --agent-scale-mode fast --out curve_fast.json
-      python scripts/agent_scale_compare.py exact.json fast.json
+      python scripts/archive/agent_scale_compare.py exact.json fast.json
 
 The machine is a shared 4-core host; other agents kept it at load 3-6, so
 wall times are noisy. Process CPU times are the steadier numbers. Default
@@ -192,7 +192,7 @@ thread count (1 / 3 / 4); and an exact-mode CLI run equal to the default.
 ## Statistical equivalence (fast vs exact)
 
 Fast mode is judged by whether its outcomes stay within seed-to-seed noise
-of exact mode. `scripts/agent_scale_compare.py` prints means and standard
+of exact mode. `scripts/archive/agent_scale_compare.py` prints means and standard
 deviations over seeds and Welch's t for the difference (|t| < 2: within
 noise).
 

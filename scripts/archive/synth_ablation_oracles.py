@@ -37,7 +37,7 @@ from pathlib import Path
 
 import numpy as np
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
 from chronicler.ablation_arms import ABLATION_WINDOW_TURNS  # noqa: E402

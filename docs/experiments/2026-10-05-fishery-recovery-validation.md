@@ -135,7 +135,7 @@ The supplemental evidence records their hashes.
 
 ## Safe local backup and transfer
 
-`scripts/package_fishery_experiment.py` packages a **clean committed** isolated
+`scripts/archive/package_fishery_experiment.py` packages a **clean committed** isolated
 branch. The archive contains only changed tracked source/tests/scripts/docs,
 the baseline-to-final Git patch, an incremental bundle requiring exact `edf7299`,
 transfer instructions, and a SHA-256 manifest. It validates every intermediate
@@ -149,7 +149,7 @@ The bundle preserves the experiment commits without being a full repository
 backup. Rebuilding the native extension is required on the receiving machine.
 
 ```bash
-.venv/bin/python scripts/package_fishery_experiment.py \
+.venv/bin/python scripts/archive/package_fishery_experiment.py \
   --output chronicler-agents/target/transfer/fishery-stock-scoped.tar.gz
 ```
 

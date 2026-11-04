@@ -4,7 +4,7 @@ Collects edge, memory, needs, event, and artifact data from live sims
 and feeds it to validate.py oracle functions.
 
 Usage:
-  PYTHONPATH=src python scripts/m53_oracle_probe.py --seeds 20 --turns 200
+  PYTHONPATH=src python scripts/archive/m53_oracle_probe.py --seeds 20 --turns 200
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ import math
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 import pyarrow as pa
 from chronicler.world_gen import generate_world

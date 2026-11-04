@@ -12,7 +12,7 @@ the alive agents and each section's raw and compressed size, and how other zlib 
 
 Example::
 
-    RAYON_NUM_THREADS=1 python scripts/checkpoint_cost.py --target 43700 --warmup 20 --out cost52k.json
+    RAYON_NUM_THREADS=1 python scripts/archive/checkpoint_cost.py --target 43700 --warmup 20 --out cost52k.json
 """
 from __future__ import annotations
 

@@ -7,7 +7,7 @@ deviation over seeds for both inputs, the difference of means, and Welch's t
 (difference over its standard error). |t| < 2 means the difference is within
 seed-to-seed noise.
 
-    python scripts/agent_scale_compare.py exact.json fast.json
+    python scripts/archive/agent_scale_compare.py exact.json fast.json
 """
 from __future__ import annotations
 

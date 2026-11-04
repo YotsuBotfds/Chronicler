@@ -283,7 +283,7 @@ wealth read from the economy.
 
 ### Flag-off identity
 
-`scripts/finance_identity.py compare` (adapted from
+`scripts/archive/finance_identity.py compare` (adapted from
 `scripts/epidemiology_identity.py`). Base `db26681` (source exported and put
 on `PYTHONPATH`) against this branch with no flag and with an explicit
 `--no-finance`, same interpreter and native build, `PYTHONHASHSEED=0`:
@@ -376,7 +376,7 @@ series such as debt among the signals), not in finance; it is not made here.
 Late in long runs revenue outgrows every cost, so rich states borrow mainly
 for war (the war chest) and the court absorbs the rest; credit stays busy
 where famine and war keep a polity poor. Per-run numbers for every table
-come from `scripts/finance_census.py <batch dirs> --json <file>`.
+come from `scripts/archive/finance_census.py <batch dirs> --json <file>`.
 
 ## Seed-42 fiscal stories
 

@@ -4,8 +4,8 @@ Runs simulations and checks GP promotion frequency, Mule assignment rate,
 legacy memory persistence, legitimacy activation, and artifact creation.
 
 Usage:
-  PYTHONPATH=src python scripts/m53_mule_probe.py --seeds 10 --turns 200
-  PYTHONPATH=src python scripts/m53_mule_probe.py --seeds 20 --turns 500 --verbose
+  PYTHONPATH=src python scripts/archive/m53_mule_probe.py --seeds 10 --turns 200
+  PYTHONPATH=src python scripts/archive/m53_mule_probe.py --seeds 20 --turns 500 --verbose
 """
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ import argparse
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 import pyarrow as pa
 from chronicler.world_gen import generate_world

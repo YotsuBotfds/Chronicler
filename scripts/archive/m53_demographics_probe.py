@@ -8,8 +8,8 @@ Supports three probe modes:
   baseline: current constants, no modifications
 
 Usage:
-  PYTHONPATH=src python scripts/m53_demographics_probe.py --probe baseline --seeds 5 --turns 100
-  PYTHONPATH=src python scripts/m53_demographics_probe.py --probe A --seeds 5 --turns 100
+  PYTHONPATH=src python scripts/archive/m53_demographics_probe.py --probe baseline --seeds 5 --turns 100
+  PYTHONPATH=src python scripts/archive/m53_demographics_probe.py --probe A --seeds 5 --turns 100
 """
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ import sys
 from pathlib import Path
 
 # Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from chronicler.world_gen import generate_world
 from chronicler.models import WorldState

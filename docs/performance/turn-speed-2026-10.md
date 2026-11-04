@@ -57,7 +57,7 @@ structure.
   * *22k and 52k*: the 12-region template world scaled to 18,800 and
     43,700 starting agents (`scripts/agent_scale_benchmark.py`'s scaling),
     about 23,700 and 53,300 alive; 20 warm-up and 8 measured turns.
-* **Tools.** `scripts/turn_phase_profile.py` (new) wraps `run_turn_result`,
+* **Tools.** `scripts/archive/turn_phase_profile.py` (new) wraps `run_turn_result`,
   the functions it calls two levels down, the snapshot builders of the main
   loop, every `AgentBridge` method and every native simulator method with
   process-CPU timers and books cyclic-GC pauses separately; exclusive times
@@ -74,7 +74,7 @@ structure.
 
 ## Profile before (`main` `b3ad9a4`)
 
-Exclusive process CPU per phase (`scripts/turn_phase_profile.py`, mean of
+Exclusive process CPU per phase (`scripts/archive/turn_phase_profile.py`, mean of
 the measured turns; the wrappers add up to 18% to a turn, most in the
 procedural world: compare the summary). `native.*` is a call into the
 extension; `gc.gen2` the cyclic collector's full passes;
@@ -487,9 +487,9 @@ same environment and its compiled module checked:
 ## Reproduce
 
     # phase profile (base: --source-root <export> --native-root <dir with its chronicler_agents>)
-    RAYON_NUM_THREADS=1 python scripts/turn_phase_profile.py --target 43700 --regions 12 --civs 4 \
+    RAYON_NUM_THREADS=1 python scripts/archive/turn_phase_profile.py --target 43700 --regions 12 --civs 4 \
         --warmup 20 --turns 8 --out prof.json
-    RAYON_NUM_THREADS=1 python scripts/turn_phase_profile.py --warmup 0 --turns 500 \
+    RAYON_NUM_THREADS=1 python scripts/archive/turn_phase_profile.py --warmup 0 --turns 500 \
         --cli-arg=--validation-sidecar --out gate.json
     # identity
     python scripts/turn_speed_identity.py run out/base --source-root <export> --native-root <native>

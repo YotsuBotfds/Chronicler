@@ -12,7 +12,7 @@ USAGE
   exit 2
 fi
 world_lab_script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-world_lab_repo="$(cd -- "$world_lab_script_dir/.." && pwd)"
+world_lab_repo="$(cd -- "$world_lab_script_dir/../.." && pwd)"
 world_lab_python="${3:-${CHRONICLER_NATIVE_ENV:+$CHRONICLER_NATIVE_ENV/bin/python}}"
 world_lab_python="${world_lab_python:-python3}"
 export PYTHONPATH="$world_lab_repo/src"
@@ -84,7 +84,7 @@ os.umask(0o077)
 identity = {"source": source_identity(), "native": native_identity(), "environment": environment_identity(),
             "native_source_tree": subprocess.check_output(["git", "rev-parse", "HEAD:chronicler-agents"], cwd=repo, text=True).strip(),
             "source_status": subprocess.check_output(["git", "status", "--porcelain"], cwd=repo, text=True).splitlines(),
-            "script_sha256": hashlib.sha256((repo / "scripts/world-laboratory-example.sh").read_bytes()).hexdigest()}
+            "script_sha256": hashlib.sha256((repo / "scripts/archive/world-laboratory-example.sh").read_bytes()).hexdigest()}
 
 def write_json(path, value):
     path.write_text(json.dumps(value, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -160,5 +160,5 @@ except BaseException as exc:
 print(f"Created {base / 'chronicle_bundle.json'}")
 print(f"Identity, hashes and actual observations: {output / 'example-manifest.json'}")
 print("Resume paused at turn 8 using the same source/native environment:")
-print(shlex.join([str(repo / "scripts/world-laboratory-example.sh"), "live", str(output), sys.executable]))
+print(shlex.join([str(repo / "scripts/archive/world-laboratory-example.sh"), "live", str(output), sys.executable]))
 PY

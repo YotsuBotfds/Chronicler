@@ -1,7 +1,7 @@
 # Compare expansion experiment evidence
 
 ```sh
-python scripts/compare_system_expansion.py path/to/forecast-study path/to/gathering-study path/to/health-study --json reports/comparison.json --markdown reports/comparison.md
+python scripts/archive/compare_system_expansion.py path/to/forecast-study path/to/gathering-study path/to/health-study --json reports/comparison.json --markdown reports/comparison.md
 ```
 
 Inputs are explicit bundle files or directories searched for

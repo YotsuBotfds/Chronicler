@@ -14,7 +14,7 @@ from pathlib import Path
 import sys
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from chronicler.action_engine import ActionEngine
 from chronicler.agent_bridge import AgentBridge

@@ -1,6 +1,6 @@
 """Small paired check against an untouched public-main checkout, no LLM calls.
 
-Usage: .venv/bin/python scripts/validate_fishery_experiment.py \
+Usage: .venv/bin/python scripts/archive/validate_fishery_experiment.py \
     --baseline-src /path/to/untouched/Chronicler/src --output /tmp/fishery.json
 """
 from __future__ import annotations
@@ -77,7 +77,7 @@ def main():
         parser.error(f"baseline must be untouched public main {BASELINE}; got {baseline_head}")
     if subprocess.check_output(["git", "-C", str(baseline_root), "status", "--porcelain"], text=True).strip():
         parser.error("baseline checkout must be clean")
-    source = Path(__file__).resolve().parents[1] / "src"
+    source = Path(__file__).resolve().parents[2] / "src"
 
     def launch(src, enabled):
         command = [sys.executable, str(Path(__file__).resolve()), "--worker", "--source", str(src),

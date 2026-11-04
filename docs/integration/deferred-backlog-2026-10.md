@@ -5,7 +5,7 @@ against current code before any change, and each item has one commit. The
 sources were `docs/superpowers/progress/phase-6-progress.md`,
 `docs/superpowers/plans/audit-remediation-2026-04-05.md`,
 `docs/superpowers/plans/2026-04-03-reaudit-remediation-plan.md`,
-`masteraudit.md` and `opusaudit4-1-26.md`. Parallel work owns economy and
+`docs/superpowers/audits/masteraudit.md` and `docs/superpowers/audits/opusaudit4-1-26.md`. Parallel work owns economy and
 ecology reconciliation, governance in Phase 10, wars and occupation, and world
 extinction (events.py and twilight absorption). Edits near those areas are
 limited to the specific lines each fix needed.

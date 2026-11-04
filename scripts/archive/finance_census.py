@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Per-run fiscal census of chronicle bundles (finance on or off).
 
-``python scripts/finance_census.py BATCH_DIR [BATCH_DIR ...] [--json OUT]``
+``python scripts/archive/finance_census.py BATCH_DIR [BATCH_DIR ...] [--json OUT]``
 
 Reads every ``seed_*/chronicle_bundle.json`` (or bundle paths given
 directly) and reports, per run and pooled: the treasury distribution over

@@ -5,7 +5,7 @@ migration and the persecution fix), merged with `origin/main` at `a95e4d7`
 (PR #27, Wave 8 defaults: great-person agendas, maritime and nomads on for
 new worlds) without rebase. Code: `src/chronicler/cities.py` (behaviour),
 `src/chronicler/cities_state.py` (persisted state), one migration driver in
-`chronicler-agents/src/migration_drivers.rs`, and `scripts/cities_report.py`
+`chronicler-agents/src/migration_drivers.rs`, and `scripts/archive/cities_report.py`
 / `scripts/cities_identity.py`.
 
 **Status.** **On by default for new worlds** since the city-markets full
@@ -194,7 +194,7 @@ absent.
 
 City events name the settlement canonically (`Sunfire Steppe Settlement
 1`). With `--languages` (on by default) the narrator's IN-WORLD NAMES block
-gives the name each people uses, and `scripts/cities_report.py` prints it:
+gives the name each people uses, and `scripts/archive/cities_report.py` prints it:
 `Sunfire Steppe Settlement 1 (Sokre in Vrashni, 'sun town')`.
 
 ### Contracts
@@ -240,7 +240,7 @@ gives the name each people uses, and `scripts/cities_report.py` prints it:
 
 ## A city's history
 
-`scripts/cities_report.py RUN_DIR` prints each city's record with the event
+`scripts/archive/cities_report.py RUN_DIR` prints each city's record with the event
 text the simulation wrote. Template world, seed 70, 300 turns, hybrid,
 `--cities`, everything else at its default (`--simulate-only`,
 `PYTHONHASHSEED=0`, merged head):

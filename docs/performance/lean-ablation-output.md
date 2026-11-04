@@ -183,7 +183,7 @@ an otherwise idle host and run:
 
 ```sh
 RAYON_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 \
-PYTHONHASHSEED=0 python scripts/benchmark_lean_ablation.py \
+PYTHONHASHSEED=0 python scripts/archive/benchmark_lean_ablation.py \
   --source-root /path/to/frozen-source --output-root /path/to/new-external-evidence \
   --turns 500 --seeds 42,43 --trials 5
 ```

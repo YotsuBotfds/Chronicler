@@ -4,8 +4,8 @@ Runs simulations and snapshots social-need distribution, bond counts,
 satisfaction, and migration at T50/T100/T200.
 
 Usage:
-  PYTHONPATH=src python scripts/m53_social_probe.py --seeds 10 --turns 200
-  PYTHONPATH=src python scripts/m53_social_probe.py --seeds 20 --turns 200 --verbose
+  PYTHONPATH=src python scripts/archive/m53_social_probe.py --seeds 10 --turns 200
+  PYTHONPATH=src python scripts/archive/m53_social_probe.py --seeds 20 --turns 200 --verbose
 """
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ import argparse
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 import pyarrow as pa
 from chronicler.world_gen import generate_world

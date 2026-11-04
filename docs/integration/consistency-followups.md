@@ -181,7 +181,7 @@ threshold changed.
 
 ### Method 1 against method 2 on retained sidecars
 
-Oracle code only (`scripts/rescore_cohort_oracle.py`). The cohort oracle
+Oracle code only (`scripts/archive/rescore_cohort_oracle.py`). The cohort oracle
 reads relationship and memory sidecars, which the 48 needs sidecar sets of
 `validation-integrity.md` do not hold (only `agent_events.arrow` and
 `validation_needs.arrow`): none of them can be cohort-scored. Every other
@@ -323,7 +323,7 @@ pytest-xdist), `PYTHONHASHSEED=0`; Node 22.22.0.
   nine single runs and the live subset. Comparisons against reports scored
   with cohort method 1 are flagged for re-baselining; re-score the baseline
   batch with `run_cohort_oracle(..., method_version=2)` (or
-  `scripts/rescore_cohort_oracle.py`) to compare.
+  `scripts/archive/rescore_cohort_oracle.py`) to compare.
 * The curator's contested bonus reads the final losses (moment selection
   only).
 * Viewer: map node size (final carrying capacity); a language revived after

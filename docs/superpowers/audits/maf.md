@@ -217,7 +217,7 @@ For each candidate item, write:
 Use this when starting a new planning session:
 
 ```md
-Use `maf.md` as the operating rulebook.
+Use `docs/superpowers/audits/maf.md` as the operating rulebook.
 
 Classify each finding into M-AF1, M-AF2, or M-AF3 using:
 - M-AF1 = runtime truth + runtime safety for supported modes
@@ -231,7 +231,7 @@ For each item, answer in spec style B:
 - Required regression coverage
 - Expected macro effect if relevant
 
-Do not re-litigate default decisions in `maf.md` unless new repo evidence contradicts them.
+Do not re-litigate default decisions in `docs/superpowers/audits/maf.md` unless new repo evidence contradicts them.
 ```
 
 ## Practical Goal
@@ -286,7 +286,7 @@ If a future session follows this doc, it should:
 
 ### Resume prompt
 
-Use `maf.md` as the operating rulebook.
+Use `docs/superpowers/audits/maf.md` as the operating rulebook.
 
 Plan `M-AF2` in spec style `B`, starting from:
 - validation/CLI honesty
@@ -346,7 +346,7 @@ Prefer the smallest tranche that makes the tooling and validation surfaces trust
 - Scope: `validate.py` structural split after M-AF2 lands.
 - Why this seam:
   - it is already being touched heavily by M-AF2
-  - it is explicitly listed in `maf.md` as an M-AF3 example
+  - it is explicitly listed in `docs/superpowers/audits/maf.md` as an M-AF3 example
   - it is materially smaller and safer than an `AgentBridge` or `ffi.rs` split
 - Non-goals for this tranche:
   - no `AgentBridge` split

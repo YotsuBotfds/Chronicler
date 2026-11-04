@@ -7,7 +7,7 @@ and, where present, ``validation_resource_ledger.arrow`` (the production
 ledger, written with the validation sidecar since 2026-10). A batch from a
 source without the ledger is summarized from its bundles alone. Read-only.
 
-    python scripts/production_ledger_report.py --batch main=<batch dir> \
+    python scripts/archive/production_ledger_report.py --batch main=<batch dir> \
         --batch branch=<batch dir> --json out.json --markdown out.md
 
 See docs/integration/production-ledger.md.
@@ -20,7 +20,7 @@ import re
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT / "src") not in sys.path:
     sys.path.insert(0, str(ROOT / "src"))
 

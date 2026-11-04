@@ -18,7 +18,7 @@ leaves the world as generated. Warm-up turns are excluded.
 
 Example::
 
-    RAYON_NUM_THREADS=1 python scripts/turn_phase_profile.py --target 43700 \\
+    RAYON_NUM_THREADS=1 python scripts/archive/turn_phase_profile.py --target 43700 \\
         --warmup 20 --turns 8 --out prof.json
 
 ``--source-root`` runs another checkout's ``src`` (and ``--native-root`` a

@@ -1,6 +1,6 @@
 """Small paired fixture; no narrator, agent behavior tick, or external services.
 
-Run: .venv/bin/python scripts/mutual_aid_example.py --backend python
+Run: .venv/bin/python scripts/archive/mutual_aid_example.py --backend python
 Use --backend native after building chronicler-agents for the real Rust economy.
 """
 from __future__ import annotations

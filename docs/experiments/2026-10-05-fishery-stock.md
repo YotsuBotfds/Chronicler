@@ -140,7 +140,7 @@ uv sync --frozen --group dev
 # Build the current native extension in this same environment for native tests.
 python -m maturin develop --manifest-path chronicler-agents/Cargo.toml
 python -m pytest tests/test_fishery_experiment.py -q
-python scripts/validate_fishery_experiment.py \
+python scripts/archive/validate_fishery_experiment.py \
   --baseline-src /path/to/clean/edf7299/checkout/src --output /tmp/fishery-pair.json
 ```
 

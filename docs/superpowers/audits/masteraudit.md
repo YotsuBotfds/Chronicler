@@ -9,7 +9,7 @@
 Two independent audits cross-referenced and verified against live code. Every finding below was confirmed by reading the actual source at the cited locations. False findings from either audit are listed at the bottom.
 
 **Sources:**
-- **Opus audit** (`opusaudit4-1-26.md`) — 22 agents, ~1,100 tool calls
+- **Opus audit** (`docs/superpowers/audits/opusaudit4-1-26.md`) — 22 agents, ~1,100 tool calls
 - **Codex audit** — 12 high-severity findings, simulation-focused
 
 **Verification:** 7 parallel agents checked every Opus finding; 3 parallel agents checked every Codex finding. All line references validated against current code.

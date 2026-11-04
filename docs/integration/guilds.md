@@ -250,7 +250,7 @@ when it is founded, and is not founded when none of them is free to join
 
 ## A guild's history
 
-`scripts/guilds_report.py RUN_DIR --guild INDEX` prints a guild's record
+`scripts/archive/guilds_report.py RUN_DIR --guild INDEX` prints a guild's record
 and the record of each movement it raised, with the event text the
 simulation wrote. Template world, seed 71, 500 hybrid turns, `--guilds`,
 every other system at its default (a world of the full gate below);
@@ -322,7 +322,7 @@ the guild keeps its monopoly and its say through the city's own charter.
 Measured as guilds on with news against guilds on with news off (tuning
 `guilds.movement_news: 0`; everything else the same), template seeds 42-81,
 200 hybrid turns, 40 worlds, differences paired by seed
-(`scripts/guilds_probe.py`). The news-on arm is the subset gates' runs.
+(`scripts/archive/guilds_probe.py`). The news-on arm is the subset gates' runs.
 
 How far news reaches (template seed 44, 200 turns; the census each turn):
 
@@ -428,7 +428,7 @@ lower bound and four seeds while its binding component gains 0.010; the
 binding component, required in the full profile, passes.
 
 Guilds per 500-turn world (the `f0aa299` full gate, 200 worlds;
-`scripts/guilds_probe.py`): 6.9 guilds founded, 3.0 dissolved, 8.2
+`scripts/archive/guilds_probe.py`): 6.9 guilds founded, 3.0 dissolved, 8.2
 privileges won, 3.1 levies, 4.3 threats, 0.68 guild movements, 0.19 guild
 charters, 0.24 walls helped; at turn 500, 2.1 realms have burghers (mean
 influence 0.29), 0.40 are ruled by them as the dominant faction. Movements

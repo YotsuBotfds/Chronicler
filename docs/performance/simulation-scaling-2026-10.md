@@ -332,9 +332,9 @@ unchanged.
 `scripts/benchmark_headless.py` remains a useful frozen exactness benchmark,
 but explicitly disables native agents and most modern systems. It cannot
 stand in for current production throughput. Use
-[`turn_phase_profile.py`](../../scripts/turn_phase_profile.py),
+[`turn_phase_profile.py`](../../scripts/archive/turn_phase_profile.py),
 [`agent_scale_benchmark.py`](../../scripts/agent_scale_benchmark.py),
-[`checkpoint_cost.py`](../../scripts/checkpoint_cost.py) and
+[`checkpoint_cost.py`](../../scripts/archive/checkpoint_cost.py) and
 [`checkpoint_identity.py`](../../scripts/checkpoint_identity.py) for the
 boundaries they actually cover. None currently provides the whole matrix
 and admission-control workflow above.
@@ -344,16 +344,16 @@ extension in the selected interpreter; paths below are new local outputs:
 
 ```sh
 RAYON_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 PYTHONHASHSEED=0 \
-  python scripts/turn_phase_profile.py --target 43700 --regions 12 --civs 4 --seed 7 \
+  python scripts/archive/turn_phase_profile.py --target 43700 --regions 12 --civs 4 --seed 7 \
   --warmup 20 --turns 8 --no-instrument --out /tmp/scaling-52k-uninstrumented.json
 
 RAYON_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 PYTHONHASHSEED=0 \
-  python scripts/turn_phase_profile.py --regions 48 --civs 10 --worldgen procedural \
+  python scripts/archive/turn_phase_profile.py --regions 48 --civs 10 --worldgen procedural \
   --seed 42 --warmup 200 --turns 100 --cli-arg=--validation-sidecar \
   --out /tmp/scaling-procedural-late-profile.json
 
 RAYON_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 PYTHONHASHSEED=0 \
-  python scripts/checkpoint_cost.py --target 43700 --seed 7 --warmup 20 --repeat 5 \
+  python scripts/archive/checkpoint_cost.py --target 43700 --seed 7 --warmup 20 --repeat 5 \
   --out /tmp/scaling-checkpoint-52k.json
 ```
 

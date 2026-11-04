@@ -10,7 +10,7 @@ Verifies:
 - Memory/bond health
 
 Usage:
-  PYTHONPATH=src python scripts/m53_integration_probe.py --seeds 20 --turns 500
+  PYTHONPATH=src python scripts/archive/m53_integration_probe.py --seeds 20 --turns 500
 """
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ import argparse
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 import pyarrow as pa
 from chronicler.world_gen import generate_world

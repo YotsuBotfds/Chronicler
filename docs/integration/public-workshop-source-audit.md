@@ -51,7 +51,7 @@ Farmer income is a scarcity signal weighted by resource production
 (`:1653`). Neither is an actual workshop purchase, wage or private sale.
 Public procurement's domestic producer sink is likewise not a private wallet;
 see [the public purchase receipts](public-purchase-receipts.md) and
-[the cash/trade audit](../roadmap/public-trade-accounting-seams.md).
+[the cash/trade audit](../superpowers/roadmaps/public-trade-accounting-seams.md).
 
 For a later public operation, an honest public budget would have to close as:
 

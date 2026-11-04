@@ -2,7 +2,7 @@
 """Print the cities of a run: counters, and each city's history as the
 simulation recorded it, with its in-world name when the languages layer ran.
 
-    python scripts/cities_report.py RUN_DIR [--city SETTLEMENT_ID]
+    python scripts/archive/cities_report.py RUN_DIR [--city SETTLEMENT_ID]
 
 RUN_DIR holds ``state.json`` (and its sidecars) and ``chronicle_bundle.json``
 from a ``--cities`` run. See docs/integration/cities.md.

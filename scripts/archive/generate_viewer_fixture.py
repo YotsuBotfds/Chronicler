@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate a sample chronicle_bundle.json for the viewer test fixtures.
 
-Run: python scripts/generate_viewer_fixture.py
+Run: python scripts/archive/generate_viewer_fixture.py
 Output: viewer/src/__fixtures__/sample_bundle.json
 """
 import argparse
@@ -10,7 +10,7 @@ import shutil
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from chronicler.bundle_codec import load_bundle
 from chronicler.main import execute_run
