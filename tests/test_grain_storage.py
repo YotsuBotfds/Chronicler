@@ -89,7 +89,11 @@ def test_disabled_pickle_filter_never_mutates_live_fields(world):
     assert pickle.dumps(state) == first
     restored = pickle.loads(first)
     assert restored.storage is None
-    assert pickle.dumps(restored) == first
+    # Unpickling rebuilds __pydantic_fields_set__ (a set of str), whose
+    # iteration order depends on PYTHONHASHSEED, so compare its state rather
+    # than raw bytes with the original, and bytes only between restorations.
+    assert restored.__getstate__() == state.__getstate__()
+    assert pickle.dumps(restored) == pickle.dumps(pickle.loads(first))
     assert restored.storage is None
 
 
