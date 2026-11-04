@@ -21,7 +21,8 @@ guidance. Read the index before following old paths or restarting old queues.
 
 # 2026-11-04 — repository cleanup (branch `cleanup/repo-streamline-20261104`)
 
-Based on main `bd1693f`. Organization and dead-code cleanup only; no simulation
+Based on main `bd1693f`, merged with main `65e09aa` (PR #70). Organization and
+dead-code cleanup only; no simulation
 behavior, default, serialization, RNG or dependency version changed.
 
 - **Docs:** [docs/README.md](README.md) maps the tree. The April audit notes

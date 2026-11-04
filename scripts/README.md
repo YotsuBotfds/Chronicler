@@ -7,6 +7,12 @@ CI workflows call several by exact path, so renaming or moving a script needs
 matching test and workflow edits. Experimental drivers stay default-off: their
 default invocation executes nothing or writes only to stdout.
 
+## Setup
+
+`cloud_setup.sh` installs the locked dependencies for a Claude Code cloud
+session (or a fresh Linux checkout) and prepares a separate native venv; see
+`docs/DEVELOPMENT.md`.
+
 ## Gates, CI lanes and qualification
 
 | Script | Purpose |
