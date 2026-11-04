@@ -13,9 +13,163 @@ access gaps. The scientific 200-seed gate and default promotion are unfinished.
 Preserve other checkouts and inaccessible prior-thread work. A merge does not
 recover uncommitted files or publish every session-local receipt.
 
+Open and unmerged as of 2026-11-04: PR #71 (`cleanup/repo-streamline-20261104`,
+cleanup) and the stacked streamlining pass 2
+(`cleanup/streamline-pass-2-20261104`), both recorded below.
+
 Everything below is a dated historical handoff. Its statements about unchanged
 main, pending CI or merge authorization describe that time, not current branch
 guidance. Read the index before following old paths or restarting old queues.
+
+---
+
+# 2026-11-04 — streamlining pass 2 (branch `cleanup/streamline-pass-2-20261104`)
+
+Stacked on PR #71 (`cleanup/repo-streamline-20261104`, head `6528dde`,
+unmerged; [CI run 41878123500](https://github.com/YotsuBotfds/Chronicler/actions/runs/41878123500)
+green on all nine jobs). Tooling, tests, setup, docs and behavior-preserving
+refactors: no simulation behavior, default, RNG, serialization, threshold or
+dependency version changed. Checks ran at `4dbc8e4`; this entry is docs only.
+
+- **Refactor preflight** (`043c1e8`). `scripts/refactor_preflight.py`
+  (read-only; `--move`, `--git-diff`, `--json`, `--fail-on-enforced`) reports
+  for each path:
+  - **enforced pins:** witness fixtures, byte-identical workflow copies,
+    native-shard, expected-skip and oracle-chunk ownership;
+  - **current digests** recorded in test data;
+  - **references:** tests, witness helpers, workflows, importers, string
+    monkeypatch targets and docs;
+  - **historical provenance hashes**, which no longer match and pin nothing.
+
+  It always prints what it cannot see. On this tree it found 83 files with
+  enforced pins and 25 with recorded current digests. The "about 150 pinned
+  files including `utils.py`" in PR #71's first text counted provenance hashes;
+  `utils.py`, the `validation_*` modules and `AppShell.tsx` are unpinned.
+  DEVELOPMENT.md ("Before refactoring…") and AGENTS.md now point to the tool.
+  New test modules also go into `tests/test_native_ci_shards.py`'s `additions`
+  map and module count (now 348).
+- **`at_war`** (`8ef3695`). The identical private copies in `cities`,
+  `diplomacy`, `gp_agendas` and `nomads` now bind `utils.at_war`, and
+  `war.common.at_war` re-exports it. The expression and call sites are
+  unchanged.
+- **Fixture lifecycle** (`7e9d833`, `a5a2aab`).
+  - `build_learning_fixture.py` and `generate_viewer_fixture.py` are back in
+    `scripts/`; their checked-in viewer fixtures are still read by tests.
+  - `generate_viewer_fixture.py` now needs `--out PATH` or `--write`. A bare
+    call exits 2 and writes nothing. Its deliberate output equals the archived
+    script's apart from `metadata.generated_at`.
+  - The checked-in `sample_bundle.json` (233,170 bytes, generated 2026-04-01)
+    does not reproduce: current output is version 6 with 126 events where the
+    file has 70. It was left unchanged; `tests/test_bundle.py` checks key subsets only.
+  - Re-projecting `learning_bundle.json` with `--every 1` reproduces it byte for
+    byte. Its source run needs the native extension and was not regenerated.
+  - `scripts/README.md` maps each JSON fixture to its generator, or records
+    that it has none.
+  - `scripts/testing/script_smoke_manifest.json` (38 entries, expected exits,
+    mutation, native and input notes) is checked statically by
+    `tests/test_script_smoke_manifest.py`. `scripts/testing/script_smoke.py`
+    runs the 37 safe entries in a throwaway worktree: 37 of 37 matched and the
+    worktree stayed clean.
+- **Setup** (`f6e8c11`, `0ceac99`, `657e382`, `9bf9e27`, `769385a`, `8b56f9a`).
+  - `setup.sh` and `setup.bat` run `uv lock --check` and `uv sync --frozen`.
+    Without uv they warn and fall back to an unlocked `pip install -e .`.
+  - They first remove any `chronicler_agents` from `.venv`, then build into
+    `.venv` (the end-user layout, agent mode works there). With `--native-venv`
+    they build into `CHRONICLER_NATIVE_VENV` and keep `.venv` extension-free.
+  - `--no-rust` leaves `.venv` verified extension-free.
+  - `scripts/check_python_env.py --expect native|no-native` verifies the result
+    (compiled submodule, real classes, the extension's SHA-256; no import for
+    no-native). `cloud_setup.sh` runs it warn-only.
+  - `.gitattributes` checks out `*.bat` with CRLF.
+  - All three setup.sh modes passed against throwaway venvs here (default
+    native PASS; `--no-rust` after a build removed the extension;
+    `--native-venv` both PASS). `setup.bat`, Git Bash and macOS are untested.
+- **Validation split** (`d17631a`…`19eae4c`; see
+  [validation-split.md](integration/validation-split.md)).
+  - `tests/test_validation_parity.py` (118 tests, goldens from `fb25429`) pins
+    both `run_oracles`, both CLIs (stdout, stderr, exit), the import surface and
+    which monkeypatch reaches which surface.
+  - Both surfaces now run `validation_io._run_oracles` and `_cli_main`; each
+    keeps its own registry or lookups and its own `--require-causal-oracles`
+    help text (methods 8/5 against 7/4, documented, not corrected).
+  - 54 definitions moved verbatim into `validation_common`,
+    `validation_artifacts`, `validation_trajectories` and
+    `validation_regression`. `validation_io.py` went from 4,631 to 3,063 lines
+    and `validate.py` from 187 to 85.
+  - Loaders and the needs, cohort, community and determinism oracles stayed,
+    because tests patch their helpers in `validation_io`; a test guards that
+    rule.
+  - Behavior changes only under patches nothing makes: deleting a
+    `validation_io` runner now raises, and rebinding flags on `validate` alone
+    no longer changes its CLI.
+- **Viewer shell** (`52ff87d`…`4dbc8e4`).
+  - `TimelineRail`, `SetupRail`, `MapViewport` and `RightInspector` moved
+    verbatim into their own modules; `AppShell.tsx` went from 3,054 to 1,829
+    lines. No state, effect, key, memo or lazy chunk moved.
+  - 20 new characterization tests cover world switching, interrupted and failed
+    loads, dialog cancellation, rewind and selection, plus the setup form.
+  - The build has the same 23 assets, with byte-identical lazy chunks and CSS.
+    The entry chunk gzips about 1.2 kB larger.
+  - `viewer/scripts/qa-shell-journeys.mjs` desktop and phone journeys and
+    `viewer-equivalence.mjs` showed zero differences before and after.
+    `LeftRail` is the next candidate.
+- **PR #71 corrections made during this pass:**
+  - `fb25429`: archived-script `--help` record (23 of 37 Python scripts print
+    usage; exit codes match `main`).
+  - `6f4dffa`: hash-seed-independent grain-storage pickle check. It failed for
+    `PYTHONHASHSEED` 8 and 9 on `main` too.
+  - `6528dde`: pinned-file count.
+
+Debt dispositions:
+- **`_at_war`:** finance.py keeps its copy because the public-grain witnesses
+  pin it. `maritime._at_war` takes a frozenset set and `intelligence.at_war`
+  compares civilization objects, so neither is the same function.
+- **`AgentBridge.apply_conquest_transitions`:** still uncalled (only a comment
+  in `relationships.py` names it). `agent_bridge.py` is pinned by the household
+  witness, whose current hash matches, so removing it needs a reviewed inverse
+  layer. Left in place.
+- **Script hashing, Git and JSON helpers:** they share names, not contracts.
+  - `digest` hashes bytes in `a01_acceptance`/`benchmark_headless` and
+    canonical JSON elsewhere.
+  - `canonical` ends with a newline in `native_ci_shards` and not in
+    `native_release_cache`.
+  - `write_json` variants differ in caps, indentation and atomic writes.
+  - `git` helpers differ in environment scrubbing and `--no-replace-objects`.
+
+  Merging them would change receipt bytes or guard properties. Not
+  consolidated.
+- **Test world builders:** 56 modules define local builders (36 `_world`, 16
+  `_make_world`, 16 `_make_civ`) with different signatures and defaults, beside
+  conftest's `make_civ`/`make_world`. Merging them would change worlds that
+  deterministic assertions depend on. Not consolidated.
+- **Placeholder skips:**
+  `tests/test_m38b_regression.py::TestFullCascade::test_full_cascade_end_to_end`
+  and `::TestPilgrimageFrequency::test_pilgrimage_frequency_calibration` only
+  call `pytest.skip`. Their node IDs are in `expected_skips`, which
+  `test_native_ci_shards.py` pins. Kept.
+
+Checks at `4dbc8e4` (Linux, Python 3.13.18):
+- **Full no-Rust pytest:** 9,461 passed, 402 skipped, 623 subtests. Against
+  `fb25429`'s 9,309 passed, that adds 118 parity, 15 environment-check, 10
+  preflight, 7 smoke-manifest and 2 `at_war` tests.
+- **Native Python suite** (fresh extension built from this source into the
+  native venv, compiled classes verified): 9,895 passed, 6 skipped (the
+  manifest's six expected skips), 623 subtests.
+- **Bounded offline lane:** PASS in 185.8 s, 56 chunks, 6,021 passed, 69
+  skipped.
+- **Rust:** `cargo test --locked` 1,203 passed, 0 failed, 2 ignored, no
+  warnings (Rust 1.97.0).
+- **Viewer** on CI's Node 20.19.0: 110 files and 1,195 tests passed; lint and
+  build pass.
+- **Other checks:**
+  - actionlint 1.7.12 (checksum-verified) on every workflow: exit 0.
+  - `uv lock --check`: passes.
+  - The script smoke runner: PASS.
+  - `check_python_env.py`: `.venv` no-native PASS, native venv PASS.
+  - pyflakes: clean on the new and changed modules.
+
+Not run: the 200-seed scientific gate, `setup.bat` on Windows, a live WebSocket
+session in a browser, and remote CI on this branch before its first push.
 
 ---
 
