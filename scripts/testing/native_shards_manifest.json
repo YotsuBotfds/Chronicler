@@ -203,6 +203,7 @@
       "tests/test_bundle.py",
       "tests/test_bundle_codec.py",
       "tests/test_campaign_logistics.py",
+      "tests/test_check_python_env.py",
       "tests/test_city_markets.py",
       "tests/test_climate.py",
       "tests/test_community_admissibility.py",

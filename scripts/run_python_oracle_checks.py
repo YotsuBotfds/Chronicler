@@ -69,6 +69,7 @@ CHUNKS = {
     "build-provenance": [
         "tests/test_native_build_lanes.py",
         "tests/test_native_wheel_receipt.py",
+        "tests/test_check_python_env.py",
     ],
     "arc-event-types": [
         "tests/test_arc_event_types.py",
