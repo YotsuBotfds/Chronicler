@@ -35,7 +35,7 @@ Files changed:
 - Five new test files under `viewer/src/__tests__`, `components/__tests__`,
   `hooks/__tests__`, and `lib/__tests__`: 18 additional regression tests.
 - `viewer/scripts/qa_region_history.py`: reproducible local Chromium smoke test.
-- `viewer/README.md`, `docs/experiment-inspector.md`, and this manifest:
+- `viewer/README.md`, `docs/viewer/experiment-inspector.md`, and this manifest:
   entry instructions, evidence semantics, limits, verification, and transfer scope.
 
 Python/Rust simulation code, export schemas, scientific evidence, reporting
