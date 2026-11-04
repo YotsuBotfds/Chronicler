@@ -75,6 +75,7 @@ Opt-in tools in `scripts/`; none run in CI.
 | `qa-live-checkpoint.mjs` | Live checkpoint browser QA (above). |
 | `qa_region_history.py`, `qa_settlement_inspector.py`, `qa_event_ledger.py`, `qa_combined_inspection.py`, `qa_combined_accessibility.py` | Browser QA for the inspectors and demo pages; see the guides in [`docs/viewer/`](../docs/viewer/). |
 | `perf-viewer.mjs`, `viewer-equivalence.mjs` | Performance measurements and rendered-DOM equivalence of two builds ([viewer performance](../docs/performance/viewer-2026-10.md)). |
+| `qa-shell-journeys.mjs` | Desktop and phone journeys through the shell (load and switch worlds, select, rewind, cancel the compare dialog) on one build, or two builds compared step by step: DOM, ARIA snapshot, roles, screenshots and console. `--build a=DIR [--build b=DIR] --bundle FILE --bundle FILE --out DIR`. |
 | `build-harvest-observations.mjs` | Copy dated forecast observations from a decoded run into `src/__fixtures__/harvest_forecast_observations.json` unless given OUTPUT ([expansion inspectors](../docs/integration/expansion-inspectors.md)). |
 | `build-transaction-observations.py` | Copy transaction summaries with source labels and hashes into `src/__fixtures__/transaction_observations.json` unless given `--output` ([transactions view](../docs/integration/transactions-view.md)). |
 
