@@ -1,8 +1,14 @@
-"""Validation IO helpers and oracle implementations restored from the M53b monolith.
+"""Batch admission, bundle and sidecar loading, and the oracles bound to them.
 
-This module intentionally contains the recovered implementation so the
-``chronicler.validate`` facade can import again while the split modules remain
-small and auditable.
+Besides the loaders, this module holds the needs, cohort, community and
+determinism oracles, which call helpers that tests patch here (for example
+``chronicler.validation_io._read_arrow_columns``) or re-enter themselves
+through their module-level names, and ``_run_oracles`` and ``_cli_main``, the
+one orchestration and CLI of ``validation_io`` and ``chronicler.validate``.
+The era and arc, artifact and regression oracles live in
+``validation_trajectories``, ``validation_artifacts`` and
+``validation_regression``, shared helpers in ``validation_common``; every
+name is re-exported here (docs/integration/validation-split.md).
 """
 from __future__ import annotations
 import argparse

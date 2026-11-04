@@ -370,6 +370,15 @@ def _prog() -> str:
     return argparse.ArgumentParser().prog
 
 
+def _argparse_text(text: str) -> str:
+    """argparse output with its program name labelled where argparse prints
+    it (only there: a name such as ``chronicler`` also occurs in the help
+    text) and runs of whitespace collapsed."""
+    prog = _prog()
+    text = text.replace(f"usage: {prog} ", "usage: <prog> ").replace(f"{prog}: error:", "<prog>: error:")
+    return _collapse(text)
+
+
 
 
 # ---------------------------------------------------------------------------
@@ -448,6 +457,8 @@ def _run_main(surface: str, argv: list[str], capsys) -> tuple[int, str, str]:
 
 @pytest.fixture
 def stable_argparse(monkeypatch):
+    # Other tests may leave sys.argv rebound (argparse derives its prog from it).
+    monkeypatch.setattr("sys.argv", ["validation-parity"])
     monkeypatch.setenv("COLUMNS", "80")
     monkeypatch.setenv("NO_COLOR", "1")
     for name in ("FORCE_COLOR", "PYTHON_COLORS"):
@@ -498,7 +509,7 @@ def test_a_nonfinite_report_is_returned_but_not_written(workspace, capsys, surfa
 @pytest.mark.parametrize("case", sorted(ARGPARSE_CASES))
 def test_argparse_output_is_pinned(stable_argparse, capsys, surface, case):
     status, out, err = _run_main(surface, ARGPARSE_CASES[case], capsys)
-    out, err = (_collapse(text.replace(_prog(), "<prog>")) for text in (out, err))
+    out, err = (_argparse_text(text) for text in (out, err))
     assert {"status": status, "stdout": out, "stderr": err} == GOLDENS["argparse"][case][surface]
 
 
@@ -864,3 +875,90 @@ def test_functions_reading_patched_names_stay_in_validation_io():
     assert _global_reads(validation_io.load_seed_runs.__code__) >= {"_read_arrow_columns", "_world_shape"}
     assert "_build_turn_rows" in _global_reads(validation_io._IndexedColumns.__init__.__code__)
     assert "run_needs_oracle" in _global_reads(validation_io.run_needs_oracle.__code__)
+
+
+# ---------------------------------------------------------------------------
+# Regenerating the goldens
+# ---------------------------------------------------------------------------
+
+def _generate_goldens() -> dict:
+    """The behaviour goldens of the current tree; the import-surface pins are
+    kept as committed (they record the surface before the split, which may
+    only grow). Refuses when the two surfaces disagree where the goldens
+    hold one value for both."""
+    import contextlib
+    import io
+    import os
+    import tempfile
+
+    os.environ.update(COLUMNS="80", NO_COLOR="1")
+    for name in ("FORCE_COLOR", "PYTHON_COLORS"):
+        os.environ.pop(name, None)
+
+    def run_main(surface, argv):
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            try:
+                status = importlib.import_module(surface).main(argv)
+            except SystemExit as exc:
+                status = exc.code
+        return status, out.getvalue(), err.getvalue()
+
+    def one(values: dict, what: str):
+        assert len({json.dumps(value, sort_keys=True) for value in values.values()}) == 1, (what, values)
+        return next(iter(values.values()))
+
+    goldens = {"run_oracles": {}, "cli_status": {}, "request_errors": {}, "cli_error_reports": {}, "argparse": {}}
+    with tempfile.TemporaryDirectory() as tmp:
+        inputs, normalize = _build_workspace(Path(tmp) / "ws")
+        for case, spec in sorted(RUN_CASES.items()):
+            text = one({s: normalize(strict_json_dumps(_run(s, inputs, spec))) for s in SURFACES}, case)
+            goldens["run_oracles"][case] = text
+            if case != "rich_empty_selection":
+                status, out, err = one({s: run_main(s, _argv(inputs, *spec)) for s in SURFACES}, case)
+                assert (normalize(out), err) == (text, ""), case
+                goldens["cli_status"][case] = status
+        for case, spec in sorted(REQUEST_ERROR_CASES.items()):
+            messages = {}
+            for surface in SURFACES:
+                with pytest.raises(validation_io.ValidationRequestError) as raised:
+                    _run(surface, inputs, spec)
+                messages[surface] = normalize(str(raised.value))
+            goldens["request_errors"][case] = one(messages, case)
+            status, out, err = one({s: run_main(s, _argv(inputs, *spec)) for s in SURFACES}, case)
+            assert (status, err) == (1, ""), case
+            goldens["cli_error_reports"][case] = normalize(out)
+        status, out, err = one({s: run_main(s, _argv(inputs, "nonfinite", ["regression"], {})) for s in SURFACES},
+                               "nonfinite_report")
+        assert (status, err) == (1, "")
+        goldens["cli_error_reports"]["nonfinite_report"] = normalize(out)
+    for case, argv in sorted(ARGPARSE_CASES.items()):
+        goldens["argparse"][case] = {}
+        for surface in SURFACES:
+            status, out, err = run_main(surface, argv)
+            goldens["argparse"][case][surface] = {"status": status,
+                                                  "stdout": _argparse_text(out),
+                                                  "stderr": _argparse_text(err)}
+    # Reports are kept as JSON objects for reviewable diffs; the text must round-trip.
+    for section in ("run_oracles", "cli_error_reports"):
+        for case, text in goldens[section].items():
+            goldens[section][case] = json.loads(text)
+            assert strict_json_dumps(goldens[section][case]) == text, (section, case)
+    goldens["imports"] = GOLDENS["imports"]
+    return goldens
+
+
+if __name__ == "__main__":
+    # python tests/test_validation_parity.py [--write]: compare (or rewrite) the
+    # goldens with the current tree's output. Run it from the repository root
+    # with PYTHONPATH=src.
+    import sys
+
+    text = json.dumps(_generate_goldens(), indent=1, ensure_ascii=True) + "\n"
+    if "--write" in sys.argv[1:]:
+        GOLDENS_PATH.write_text(text, encoding="utf-8")
+        print(f"wrote {GOLDENS_PATH}")
+    else:
+        same = text == GOLDENS_PATH.read_text(encoding="utf-8")
+        print("goldens match the current tree" if same else "goldens differ from the current tree (--write)")
+        raise SystemExit(0 if same else 1)

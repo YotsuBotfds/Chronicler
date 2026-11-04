@@ -61,7 +61,7 @@ docstrings.
 | `validation_io._load_bundle` | `test_batch_manifest_reconciliation.py` (`_track_loader`) | both `run_oracles` (`iter_bundles`, `run_determinism_gate`) |
 | `validation_io._read_arrow_columns` | `test_batch_manifest.py` | both (`load_seed_runs`) |
 | `"chronicler.validation_io._has_pyarrow"`, `V._has_pyarrow` | `test_validate.py` (3), `test_validation_shared_event_table.py` | both, and both CLIs |
-| `"chronicler.validation_io._load_agent_events"` | `test_validate.py` | nothing: no production path calls it (`load_seed_runs` reads `_load_agent_events_and_deaths`); the `validation_oracles` docstring's claim that the split keeps this target effective is stale |
+| `"chronicler.validation_io._load_agent_events"` | `test_validate.py` | nothing: no production path calls it (`load_seed_runs` reads `_load_agent_events_and_deaths`); the `validation_oracles` docstring's claim that the split keeps this target effective was stale (corrected in section 4) |
 | `V._world_shape` | `test_validation_shared_event_table.py` | `load_seed_runs` |
 | `V._build_turn_rows` | `test_validation_turn_index.py` | `_IndexedColumns`; the test forbids calls, so moving the class away from this lookup would make it pass vacuously |
 | `validation_io._filter_events_window`, `compute_cohort_distinctiveness` | `test_validate.py` | the cohort oracle (`_cohort_observational`) |
@@ -216,16 +216,96 @@ check that each module owns a distinct copy is limited to `run_oracles`,
 `main` and `_normalize_requested_oracles` (the per-module lookup of the
 helpers is pinned separately and unchanged). Both `python -m` entry points
 give the pinned output as child processes, on `fb25429` and here (28 runs
-each, outside pytest, whose guard forbids child processes).
+each, run outside pytest because the bounded lane's offline guard forbids
+child processes).
 
-One difference remains, under a patch nobody makes: `validation_io` used to
-look up a runner inside each oracle's `try`, so deleting
-`validation_io.run_era_oracle` (`monkeypatch.delattr`) gave that oracle an
-`ERROR` result; the engine looks runners up before the `try`, as
-`validate` always did, so the `AttributeError` now propagates.
+Two differences remain, both under patches no test or script makes:
+
+- `validation_io` used to look up a runner inside each oracle's `try`, so
+  deleting `validation_io.run_era_oracle` (`monkeypatch.delattr`) gave that
+  oracle an `ERROR` result; the engine looks runners up before the `try`, as
+  `validate` always did, so the `AttributeError` now propagates.
+- `validate.main` used to build its parser from `validate`'s own bindings of
+  the flag names and profile choices, catch `validate`'s bindings of the
+  exception classes and serialize with `validate`'s `strict_json_dumps`; they
+  are the same objects as `validation_io`'s, which the shared CLI now uses,
+  so rebinding one of them on `validate` alone no longer changes its CLI.
 
 `validate.py` is 85 lines (187 before), `validation_io.py` 4,707 (4,631).
 pyflakes ignores `# noqa`: it now reports the explicit re-exports of
 `validate.py` (which the engine reads as module attributes, so they stay
 patchable) and `validation_io`'s module-level `causal_oracles_required` as
 unused; there are no other new findings.
+
+## 4. Extraction
+
+Four modules now hold definitions moved verbatim out of `validation_io`, one
+commit each. `validation_io` re-exports every moved name (the same
+objects), so every import path, the three `__all__` lists, `validate`'s and
+`validation_oracles`' re-exports and `ORACLE_RUNNERS` are unchanged.
+
+| Module | Lines | Holds |
+| --- | --- | --- |
+| `validation_common.py` | 31 | `EVENT_NAME_TO_CODE`, `required_seed_count`, `_mean`; a leaf that imports no validation module, so the others share them without an import cycle |
+| `validation_artifacts.py` | 187 | the artifact oracle: the `ARTIFACT_*` thresholds, `check_artifact_lifecycle`, `run_artifact_oracle` (8 names) |
+| `validation_trajectories.py` | 721 | the era and arc oracles, which share their series helpers: the `ERA_*` thresholds, `detect_inflection_points`, `detect_collapse_episodes`, `run_era_oracle`, the arc classifiers, `run_arc_oracle` (20 names) |
+| `validation_regression.py` | 789 | the regression summary: the `REGRESSION_*` floors, `run_regression_summary` and its helpers (23 names) |
+
+`validation_io.py` went from 4,631 to 3,063 lines, `validate.py` from 187
+to 85; `validation_oracles.py` is 38 (a corrected docstring).
+
+**What may move.** A family moves only with its whole dependency closure
+(computed from the AST), when no definition in it reads as a global a name
+that tests patch through `validation_io`, and when the closure needs nothing
+from `validation_io` but `validation_common` and the standard library.
+`test_functions_reading_patched_names_stay_in_validation_io` enforces the
+first rule for every validation module, so a later move that would silently
+detach a patch fails.
+
+**How each move was checked**, by script against `fb25429`: every moved
+definition (54) has the baseline's AST and source text; every global a moved
+function reads (188) resolves in its new module to the object
+`validation_io` binds; the parity goldens, the import-surface pins, the
+placement guard and the focused validation suites pass.
+`python tests/test_validation_parity.py` regenerates the behaviour goldens
+from the current tree and compares them with the fixture (`--write`
+rewrites them; the import-surface pins are kept as committed): they match
+both `fb25429` and the split tree byte for byte. The module docstrings of
+`validation_io` and `validation_oracles` now describe where each oracle
+lives.
+
+**What stays in `validation_io`, and why.**
+
+- Batch admission and bundle and sidecar loading: tests patch
+  `_load_bundle`, `_read_arrow_columns`, `_has_pyarrow`, `_world_shape` and
+  `_build_turn_rows` here, and the loaders are their callers.
+- The needs, cohort and community oracles with their helpers and ablation
+  method results: the runners re-enter through their module-level names, and
+  the cohort and best-of paths call the patched `_filter_events_window` and
+  `compute_cohort_distinctiveness`. Their pure helpers (pair matching,
+  concordance statistics, `detect_communities`) could move alone, but each
+  family would then be split across two modules.
+- `run_determinism_gate`, which calls the patched `_load_bundle`.
+- The crisis event types (`ERA_CRISIS_*`), read by the loader.
+- `_run_oracles`, `_cli_main` and the report helpers: they catch
+  `validation_io`'s exception classes and build the parser from its flags, so
+  moving them would need imports inside the functions (changed bodies, not a
+  verbatim move) or moving the exception classes (whose `__module__` would
+  change). Not done.
+
+**pyflakes.** The new modules have no findings. In `validation_io`, the new
+findings are the re-export imports of moved names that are not in its
+`__all__` (marked `# noqa: F401`, which pyflakes ignores) and `math.ceil`,
+kept because every name `validation_io` bound before the split stays bound;
+`validate.py`'s are its explicit re-exports (section 3). The baseline's
+findings remain: `verify_batch_manifest` (an unused import), the
+`pyarrow.ipc` probe and `validate.py`'s star imports.
+
+**Risks.** Code outside the repository that patches a moved name through
+`validation_io` (say `validation_io.classify_civ_arc`) and expects
+`run_arc_oracle` to see the patch no longer reaches it; no test or script
+does, and the guard covers every name patched today. Moved functions report
+their new `__module__`. `scripts/archive/benchmark_validation_turn_index.py`
+hashes the `validation_io.py` of its source tree, which now covers less of
+the validator. Batch manifests' package digests change, as with any source
+change.
