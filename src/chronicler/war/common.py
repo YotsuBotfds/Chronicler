@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Iterable
 from chronicler.campaign_logistics import Region as KernelRegion
 from chronicler.campaign_logistics import Topology, validated_graph
 from chronicler.utils import STAT_FLOOR, civ_index, clamp, stable_hash_int
+from chronicler import utils as _utils
 from chronicler.war.params import POLICY
 
 if TYPE_CHECKING:
@@ -137,8 +138,9 @@ def living_civ(world: "WorldState", name: str | None) -> "Civilization | None":
     return civ
 
 
-def at_war(world: "WorldState", a: str, b: str) -> bool:
-    return (a, b) in world.active_wars or (b, a) in world.active_wars
+# Shared with cities, diplomacy, gp_agendas and nomads; war.ai, war.runtime
+# and war.logistics import it from here.
+at_war = _utils.at_war
 
 
 def holds(region: "Region", civ_name: str) -> bool:

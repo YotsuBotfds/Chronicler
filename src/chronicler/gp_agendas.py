@@ -73,6 +73,7 @@ from chronicler.gp_agendas_state import (
 )
 from chronicler.models import ActionType, Disposition, Event, FactionType
 from chronicler.utils import stable_hash_int
+from chronicler.utils import at_war as _at_war
 
 if TYPE_CHECKING:  # pragma: no cover
     from chronicler.models import GreatPerson, WorldState
@@ -375,10 +376,6 @@ class _Ctx:
         dist = self.region_beliefs.get(rid, {}) if rid is not None else {}
         total = sum(dist.values())
         return dist.get(faith, 0) / total if total else None
-
-
-def _at_war(world, a: str, b: str) -> bool:
-    return (a, b) in world.active_wars or (b, a) in world.active_wars
 
 
 def _hostile(world, a: str, b: str) -> bool:

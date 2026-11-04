@@ -196,3 +196,29 @@ class TestSyncAllPopulations:
         sync_civ_population(expected_world.civilizations[0], expected_world)
         sync_all_populations(world)
         assert world.civilizations[0].population == expected_world.civilizations[0].population == 3
+
+
+class TestAtWar:
+    """utils.at_war replaced four identical module copies; finance.py's pinned
+    copy and maritime.py's frozenset variant keep their own definitions."""
+
+    def test_modules_share_one_definition(self):
+        from chronicler import cities, diplomacy, gp_agendas, nomads, utils
+        from chronicler.war import common
+        for module in (cities, diplomacy, gp_agendas, nomads):
+            assert module._at_war is utils.at_war
+        assert common.at_war is utils.at_war
+
+    def test_symmetric_and_matches_previous_expression(self):
+        from chronicler import finance
+        from chronicler.utils import at_war
+        names = ["A", "B", "C", "D"]
+        world = _make_world(names)
+        world.active_wars = [("A", "B"), ("C", "A")]
+        for a in names:
+            for b in names:
+                expected = (a, b) in world.active_wars or (b, a) in world.active_wars
+                assert at_war(world, a, b) is expected
+                assert finance._at_war(world, a, b) is expected
+        assert at_war(world, "B", "A") and at_war(world, "A", "C")
+        assert not at_war(world, "B", "C") and not at_war(world, "D", "D")
