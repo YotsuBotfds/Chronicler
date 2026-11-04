@@ -1246,7 +1246,7 @@ fn plan_region_marriages(
         let dirty: Vec<usize> = (0..n)
             .filter(|&a| {
                 !matched[a]
-                    && top[a].entries.first().map_or(false, |&(_, b)| matched[b as usize])
+                    && top[a].entries.first().is_some_and(|&(_, b)| matched[b as usize])
             })
             .collect();
         let refreshed: Vec<(usize, TopPartners)> = {

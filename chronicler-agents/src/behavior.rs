@@ -1576,7 +1576,7 @@ mod tests {
         let slots: Vec<usize> = (0..20).collect();
         let mut rng = ChaCha8Rng::from_seed([0u8; 32]);
         let pending = eval_region_decisions(&pool, &slots, &regions, &stats, 0, &mut rng);
-        assert!(pending.occupation_switches.len() > 0);
+        assert!(!pending.occupation_switches.is_empty());
         for &(_, new_occ) in &pending.occupation_switches {
             assert_eq!(new_occ, Occupation::Farmer as u8);
         }

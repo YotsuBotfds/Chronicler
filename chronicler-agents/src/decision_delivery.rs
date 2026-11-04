@@ -48,7 +48,7 @@ impl DeliveryConfig {
 
     #[inline]
     fn selected(&self, id: u32) -> bool {
-        self.selected_ids.as_ref().map_or(true, |ids| ids.binary_search(&id).is_ok())
+        self.selected_ids.as_ref().is_none_or(|ids| ids.binary_search(&id).is_ok())
     }
 }
 
