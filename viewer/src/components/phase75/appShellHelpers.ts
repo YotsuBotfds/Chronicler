@@ -3,6 +3,9 @@ import {
 } from "../../lib/bundleIndex";
 import { observationEventKnown } from "../../lib/observedSystems";
 
+/** Inspector text for a value the history does not hold yet at the snapshot. */
+export const UNAVAILABLE = "Unavailable";
+
 /**
  * The header's setup line for a loaded bundle without a scenario: what kind of
  * world it records (procedural worlds carry `world_state.geography`).

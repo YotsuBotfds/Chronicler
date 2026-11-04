@@ -8,7 +8,6 @@ import type {
   Event,
   LanguagesField,
   LobbyInit,
-  NamedEvent,
   NewChronicleEntry,
   PauseContext,
   StartCommand,
@@ -25,8 +24,8 @@ import {
 } from "../../lib/civilizationViews";
 import { snapshotPositionAt } from "../../lib/civRows";
 import { DISPOSITION_COLORS, factionColor, UNCONTROLLED_COLOR } from "../../lib/colors";
-import { RegionSystemsDetail } from "../systems/RegionSystemsDetail";
 import type { ArtifactIdentity } from "../../lib/artifactIdentity";
+import { RegionSystemsDetail } from "../systems/RegionSystemsDetail";
 import { SavedWorldDetails } from "./SavedWorldDetails";
 import { accountsForEvent, decodeAccounts, type EventAccounts } from "../../lib/historiography";
 import { InWorldAccounts } from "./InWorldAccounts";
@@ -43,9 +42,21 @@ import {
 import { techniqueLabel } from "../../lib/systems";
 import { eventByKey } from "../../lib/bundleIndex";
 import {
-  atlasPoint, buildEventFeed, buildTradeLinks, bundleWorldKind, eventKey, eventProvenance, percentToTurn, pinFrame,
-  regionNodeRadius, terrainAt, turnToPercent, type PinFrame,
+  atlasPoint,
+  buildEventFeed,
+  buildTradeLinks,
+  bundleWorldKind,
+  eventKey,
+  eventProvenance,
+  percentToTurn,
+  pinFrame,
+  regionNodeRadius,
+  terrainAt,
+  turnToPercent,
+  UNAVAILABLE,
+  type PinFrame,
 } from "./appShellHelpers";
+import type { AppSurface, LiveTimelineControls, MapNode, OverlayKey, RegionLike, SelectedEntity } from "./appShellTypes";
 import { MapLayerLegend, MapLayerMarks } from "./MapLayerMarks";
 // The lazy panels' styles stay in the entry stylesheet, in the cascade order
 // they had when the panels were static imports (before the shell's own).
@@ -57,8 +68,8 @@ import { WhereToLook } from "../WhereToLook";
 import type { WhatIfControls, WhatIfPair } from "../../lib/whatIf";
 
 import { LiveInspectionControls } from "../LiveInspectionControls";
-import { RegionInvestigation } from "../RegionInvestigation";
 import { InterestingPeriods } from "../InterestingPeriods";
+import { RegionInvestigation } from "../RegionInvestigation";
 import { TerritoryChanges } from "../TerritoryChanges";
 import { HistoricalSearch } from "../HistoricalSearch";
 import type { HistoricalSearchResult } from "../../lib/historicalSearch";
@@ -72,26 +83,10 @@ import { InvestigationPacket } from "../InvestigationPacket";
 import { useDialogFocus } from "../../hooks/useDialogFocus";
 import { resolveInvestigationTarget, type InvestigationTarget } from "../../lib/investigationPacket";
 
-type LiveTimelineControls = Parameters<typeof LiveInspectionControls>[0];
-
-export type AppSurface =
-  | "setup"
-  | "progress"
-  | "overview"
-  | "character"
-  | "trade"
-  | "campaign"
-  | "batch";
+// App.tsx and the shell's tests name the surfaces from here.
+export type { AppSurface } from "./appShellTypes";
 
 type LeftRailTab = "launch" | "status" | "chronicle" | "events" | "runs";
-type OverlayKey = "borders" | "settlements" | "chronicle" | "trade" | "campaign" | "fog" | "asabiya";
-
-interface SelectedEntity {
-  kind: "civilization" | "region" | "event" | "run";
-  id: string;
-  label: string;
-  turn?: number;
-}
 
 interface AppShellProps {
   surface: AppSurface;
@@ -135,22 +130,6 @@ interface AppShellProps {
   liveReconnecting?: boolean;
 }
 
-interface RegionLike {
-  name: string;
-  terrain: string;
-  x: number | null;
-  y: number | null;
-  resources?: string;
-  carrying_capacity?: number;
-}
-
-interface MapNode {
-  region: RegionLike;
-  controller: string | null | undefined;
-  x: number;
-  y: number;
-}
-
 interface ChronicleFeedItem {
   id: string;
   turn: number;
@@ -175,8 +154,6 @@ const FLOW_STEPS: { surface: AppSurface; label: string; index: string }[] = [
 const SPEED_OPTIONS = [1, 2, 5, 10];
 /** The timeline of a shell without a bundle (one array, so its index is built once). */
 const NO_EVENTS: Event[] = [];
-/** Inspector text for a value the history does not hold yet at the snapshot. */
-const UNAVAILABLE = "Unavailable";
 
 /**
  * The snapshot shown at `currentTurn`: the latest at or before it. Null
@@ -1503,32 +1480,6 @@ function TopHeader({
   );
 }
 
-function ModeTabs({
-  current,
-  onSelect,
-  canActivateSurface,
-}: {
-  current: AppSurface;
-  onSelect: (surface: AppSurface) => void;
-  canActivateSurface: (surface: AppSurface) => boolean;
-}) {
-  return (
-    <nav className="phase75-mode-tabs">
-      {FLOW_STEPS.map((step) => (
-        <button
-          key={step.surface}
-          type="button"
-          className={`phase75-mode-tab${current === step.surface ? " active" : ""}`}
-          disabled={!canActivateSurface(step.surface)}
-          onClick={() => onSelect(step.surface)}
-        >
-          {step.label}
-        </button>
-      ))}
-    </nav>
-  );
-}
-
 function TimelineRail({
   surface,
   flowSteps,
@@ -1557,7 +1508,7 @@ function TimelineRail({
   bundle: Bundle | null;
   eraBands: { label: string; start: number; end: number }[];
   narratedSpans: { start: number; end: number }[];
-  namedEvents: NamedEvent[];
+  namedEvents: Bundle["named_events"];
   trackRef: React.RefObject<HTMLDivElement | null>;
   onTrackSeek: (event: React.MouseEvent<HTMLDivElement>) => void;
   playing: boolean;
@@ -1657,7 +1608,7 @@ const TrackMarks = memo(function TrackMarks({
 }: {
   eraBands: { label: string; start: number; end: number }[];
   narratedSpans: { start: number; end: number }[];
-  markers: NamedEvent[];
+  markers: Bundle["named_events"];
   totalTurns: number;
 }) {
   return (
@@ -1698,63 +1649,6 @@ const TrackMarks = memo(function TrackMarks({
     </>
   );
 });
-
-function ValidationRibbon({
-  visible,
-  bundle,
-  batchReport,
-  selectedCivilization,
-  civilizations,
-}: {
-  visible: boolean;
-  bundle: Bundle | null;
-  batchReport: BatchReport | null;
-  selectedCivilization: CivilizationEntry | null;
-  civilizations: CivilizationView[];
-}) {
-  if (!visible) {
-    return null;
-  }
-  const focus = selectedCivilization && isFounded(selectedCivilization) ? selectedCivilization : null;
-
-  const anomalies = batchReport?.anomalies.length ?? 0;
-  const lateEraCount = civilizations.filter((civilization) => civilization.techEra === "industrial" || civilization.techEra === "information").length;
-  const focusValue = focus ? focus.stability.toFixed(1) : selectedCivilization ? UNAVAILABLE : "none";
-
-  const checks = [
-    {
-      label: "Interestingness",
-      status: bundle?.metadata.interestingness_score && bundle.metadata.interestingness_score >= 20 ? "pass" : "warn",
-      value: bundle?.metadata.interestingness_score?.toFixed(1) ?? "pending",
-    },
-    {
-      label: "Anomalies",
-      status: anomalies === 0 ? "pass" : "warn",
-      value: String(anomalies),
-    },
-    {
-      label: "Late Era",
-      status: lateEraCount > 0 ? "pass" : "warn",
-      value: String(lateEraCount),
-    },
-    {
-      label: "Focus Stability",
-      status: focus && focus.stability <= 1 ? "warn" : "pass",
-      value: focusValue,
-    },
-  ];
-
-  return (
-    <div className="phase75-validation-ribbon">
-      {checks.map((check) => (
-        <div key={check.label} className={`phase75-validation-pill ${check.status}`}>
-          <span>{check.label}</span>
-          <strong>{check.value}</strong>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 function LeftRail({
   surface,
@@ -2244,6 +2138,32 @@ function SetupRail({
   );
 }
 
+function ModeTabs({
+  current,
+  onSelect,
+  canActivateSurface,
+}: {
+  current: AppSurface;
+  onSelect: (surface: AppSurface) => void;
+  canActivateSurface: (surface: AppSurface) => boolean;
+}) {
+  return (
+    <nav className="phase75-mode-tabs">
+      {FLOW_STEPS.map((step) => (
+        <button
+          key={step.surface}
+          type="button"
+          className={`phase75-mode-tab${current === step.surface ? " active" : ""}`}
+          disabled={!canActivateSurface(step.surface)}
+          onClick={() => onSelect(step.surface)}
+        >
+          {step.label}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
 function MapViewport({
   surface,
   atlasNodes,
@@ -2294,7 +2214,7 @@ function MapViewport({
   campaignLinks: Array<{ key: string; source: { x: number; y: number }; target: { x: number; y: number }; disposition: string }>;
   selectedEntity: SelectedEntity | null;
   onSelectEntity: (selection: SelectedEntity | null) => void;
-  namedEvents: NamedEvent[];
+  namedEvents: Bundle["named_events"];
   selectedScenario: string | null;
   resumeState: WorldState | null;
   batchSummary: BatchRunSummary | null;
@@ -2591,6 +2511,63 @@ function MapViewport({
         </div>
       </div>
     </section>
+  );
+}
+
+function ValidationRibbon({
+  visible,
+  bundle,
+  batchReport,
+  selectedCivilization,
+  civilizations,
+}: {
+  visible: boolean;
+  bundle: Bundle | null;
+  batchReport: BatchReport | null;
+  selectedCivilization: CivilizationEntry | null;
+  civilizations: CivilizationView[];
+}) {
+  if (!visible) {
+    return null;
+  }
+  const focus = selectedCivilization && isFounded(selectedCivilization) ? selectedCivilization : null;
+
+  const anomalies = batchReport?.anomalies.length ?? 0;
+  const lateEraCount = civilizations.filter((civilization) => civilization.techEra === "industrial" || civilization.techEra === "information").length;
+  const focusValue = focus ? focus.stability.toFixed(1) : selectedCivilization ? UNAVAILABLE : "none";
+
+  const checks = [
+    {
+      label: "Interestingness",
+      status: bundle?.metadata.interestingness_score && bundle.metadata.interestingness_score >= 20 ? "pass" : "warn",
+      value: bundle?.metadata.interestingness_score?.toFixed(1) ?? "pending",
+    },
+    {
+      label: "Anomalies",
+      status: anomalies === 0 ? "pass" : "warn",
+      value: String(anomalies),
+    },
+    {
+      label: "Late Era",
+      status: lateEraCount > 0 ? "pass" : "warn",
+      value: String(lateEraCount),
+    },
+    {
+      label: "Focus Stability",
+      status: focus && focus.stability <= 1 ? "warn" : "pass",
+      value: focusValue,
+    },
+  ];
+
+  return (
+    <div className="phase75-validation-ribbon">
+      {checks.map((check) => (
+        <div key={check.label} className={`phase75-validation-pill ${check.status}`}>
+          <span>{check.label}</span>
+          <strong>{check.value}</strong>
+        </div>
+      ))}
+    </div>
   );
 }
 
