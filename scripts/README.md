@@ -26,7 +26,7 @@ session (or a fresh Linux checkout) and prepares a separate native venv; see
 | `hosted_native_functional_smoke.py`, `hosted_kin_capture.py` | Opt-in hosted workflows. |
 | `benchmark_named_context.py`, `paired_context_benchmark.py` | Opt-in compiled-context benchmark workflows. |
 | `refactor_preflight.py` | Read-only map from files you plan to change or move to the witnesses, digests, workflows, importers and manifests that pin or name them (see `docs/DEVELOPMENT.md`). |
-| `testing/` | Test-only guard (`python_oracle_guard.py`), source witnesses and the native shard manifest. Never product code. |
+| `testing/` | Test-only guard (`python_oracle_guard.py`), source witnesses, the native shard manifest and the script smoke manifest with its runner (`script_smoke.py`). Never product code. |
 
 ## Identity checks
 
@@ -96,5 +96,13 @@ and `m53_baseline.py`.
 ## Archive
 
 [`archive/`](archive/README.md) holds one-off probes, milestone comparisons and
-reports that only dated docs cite. They are kept runnable for reproducing
-those records but are not maintained by tests or CI.
+reports that only dated docs cite, kept for reproducing those records.
+Tests and CI do not run them. `testing/script_smoke_manifest.json` records,
+for each archived script and for the two fixture generators that left the
+archive, a smoke invocation, its exit status, whether it writes files and
+what it needs (native extension, network, inputs).
+`tests/test_script_smoke_manifest.py` checks that manifest statically;
+`python scripts/testing/script_smoke.py` runs the entries marked safe in a
+detached temporary worktree of HEAD and fails on a changed exit status or
+any file change. It shows only that those invocations exit as recorded and
+write nothing, not that the scripts' results still hold.

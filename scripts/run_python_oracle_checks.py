@@ -375,6 +375,7 @@ CHUNKS = {
     ],
     "native-ci-metadata-contracts": [
         "tests/test_native_ci_shards.py",
+        "tests/test_script_smoke_manifest.py",
     ],
     "ci-artifact-intake-pure-contracts": [
         "tests/ci_artifact_intake_contracts.py",
