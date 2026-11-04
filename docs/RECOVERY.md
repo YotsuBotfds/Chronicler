@@ -142,8 +142,9 @@ qualify their declared inputs. The twelve held trajectories use three seeds and
 two families with mixed outcomes. They do **not** complete the unfinished
 200-seed scientific gate, establish a general policy ranking or qualify household
 welfare/actual meals. Resource-backed service pause restores legacy scholarship,
-not zero learning. The one-client live contract and six-comparison session-memory
-gallery remain; reload clears the gallery. Twelve moderate development-tool npm
+not zero learning. Two viewer limits remain by design: a live session accepts one
+client, and the comparison gallery keeps at most six comparisons in session memory
+(a reload clears it). Twelve moderate development-tool npm
 findings were documented premerge, with zero production audit findings at that
 time. Reusable cloud-environment publication remains deferred.
 

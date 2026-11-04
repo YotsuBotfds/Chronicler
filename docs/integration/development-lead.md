@@ -6,8 +6,8 @@
 > use [development setup](../DEVELOPMENT.md) on a fresh machine. Archive manifests
 > determine which evidence is recoverable; a local path alone does not.
 
-Current work uses `integration/crisis-recovery-20261103`, isolated from the
-preserved development branch and original checkout. Start with the
+This handoff's work used `integration/crisis-recovery-20261103`, isolated from the
+preserved development branch and original checkout. Its records start with the
 [durable progress log](progress-20261103.md),
 [branch integration ledger](integration-ledger-20261103.md),
 [active crisis roadmap](crisis-recovery-roadmap.md) and

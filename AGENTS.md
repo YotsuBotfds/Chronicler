@@ -1,7 +1,8 @@
 # Chronicler agent guide
 
 Read [current source and recovery/archive index](docs/RECOVERY.md),
-`docs/CONTINUATION.md` and `docs/DEVELOPMENT.md` before changing code.
+`docs/CONTINUATION.md` and `docs/DEVELOPMENT.md` before changing code;
+[docs/README.md](docs/README.md) maps the rest of the documentation.
 Start new work from fetched `main`; PR #69 merged on 2026-11-04 at `cc4f70e2`.
 Older branch instructions and machine paths are dated historical evidence.
 The current milestone ledger is `docs/superpowers/progress/phase-6-progress.md`;
@@ -32,6 +33,10 @@ untracked project source before mutation; work in a fresh clone or isolated
 branch. Do not reset, rebase or overwrite another agent's checkout. Reconcile
 with fetched `main` without force-push. The preserved desktop foundation line
 has competing architecture and must be reviewed separately, not overlaid.
+
+Source-witness fixtures, workflow tests and the native shard manifest pin file
+contents and paths; check DEVELOPMENT.md's pinned-content list before
+refactoring, moving or deleting files.
 
 Keep environments, credentials, personal data, generated runs, private logs and
 app/session databases outside commits. Commit source, tests and relevant project

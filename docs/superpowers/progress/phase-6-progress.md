@@ -1,7 +1,9 @@
 # Phase 6+7 Progress — Living Society + Depth Track
 
-Current integration and verification: [active development lead](../../integration/development-lead.md).
-The dated source-scoped records below remain historical evidence.
+Current source, gates and onboarding: [recovery index](../../RECOVERY.md) and
+[continuation ledger](../../CONTINUATION.md) (main after PR #69, 2026-11-04).
+The [2026-11-03 integration handoff](../../integration/development-lead.md) and the
+dated source-scoped records below remain historical evidence.
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >

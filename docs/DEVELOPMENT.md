@@ -194,6 +194,34 @@ merchant houses lend finance's revenue term, fading as `0.98 ** turn`
 (section 13 there). The gate runner forwards it to the agent-mode runs;
 `CHRONICLER_CHECK_RESOURCES=1` also checks its books.
 
+## Before refactoring, moving or deleting files
+
+Several tests pin repository content, so a change that looks mechanical can
+fail far from the file you touched:
+
+- **Source witnesses.** `scripts/testing/*_witness.py` with
+  `tests/fixtures/*_source_inverse.json` (and related fixtures) assert the
+  SHA-256 of about 150 current source files, including `main.py`,
+  `simulation.py`, `agent_bridge.py`, `utils.py`, `models.py` and several
+  viewer `lib/` files. Before editing a file, search `tests/fixtures` for its
+  path; a pinned file needs a reviewed witness update, not a silent edit.
+- **Workflows.** `tests/test_native_ci_shards.py` and
+  `tests/test_native_build_lanes.py` read `.github/workflows/*.yml`,
+  `docs/workflows/*.yml.in` (byte-identical copies) and parts of `README.md`.
+  The benchmark scripts hash their workflow files into receipts.
+- **Native shard manifest.** `scripts/testing/native_shards_manifest.json`
+  assigns every test module to a shard and lists expected skipped node IDs and
+  the subtest count, so adding, renaming or deleting a test module or a skipped
+  test needs a manifest update.
+- **Import compatibility.** `tests/test_import_compatibility.py` and the
+  re-export blocks (for example in `politics.py` and `validate.py`) keep
+  historical import paths working; an unused-looking import may be one of them.
+- **Script paths.** Tests import scripts as `scripts.<name>` or load them by
+  path, and workflows call them by path (see [scripts/README.md](../scripts/README.md)).
+
+Evidence JSON under `docs/` records hashes and paths as they were; leave it
+byte-for-byte unchanged when moving the files it names.
+
 ## Continuing on another machine
 
 Fetch `main`, create a personal branch from its current remote SHA,

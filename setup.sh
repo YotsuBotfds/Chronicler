@@ -74,7 +74,7 @@ if [ "$NO_RUST" -eq 0 ]; then
         echo "[4/4] Building Rust agent crate..."
         python -m pip install "maturin>=1.5,<2" --quiet
         cd chronicler-agents
-        python -m maturin develop --release
+        python -m maturin develop --release --locked
         cd ..
     else
         echo "[4/4] Rust toolchain not found — skipping agent crate"
