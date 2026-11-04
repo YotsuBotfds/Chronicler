@@ -13,7 +13,7 @@ import statistics
 import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass
-from math import ceil, comb
+from math import ceil, comb  # noqa: F401  (ceil: every name bound here before the split stays bound)
 from pathlib import Path
 from types import MappingProxyType
 from typing import Mapping
@@ -33,18 +33,12 @@ from .validation_gate import (
     CAUSAL_ORACLES_FLAG, NEEDS_BINDING_REQUIRED_PROFILES, PROFILE_CHOICES, causal_oracles_required,
 )
 from .snapshot_pruning import restore_bundle
+from .validation_common import (  # noqa: F401  (split out; every name stays importable here)
+    EVENT_NAME_TO_CODE, required_seed_count, _mean,
+)
 
 SCRUB_KEYS = {"generated_at"}
 BUNDLE_FILENAME = "chronicle_bundle.json"
-EVENT_NAME_TO_CODE = {
-    "death": 0,
-    "migration": 1,
-    "rebellion": 2,
-    "occupation_switch": 3,
-    "loyalty_flip": 4,
-    "birth": 5,
-    "dissolution": 6,
-}
 # Agent event codes any oracle counts (needs, cohort, regression).
 _ORACLE_COUNTED_EVENT_CODES = frozenset(
     EVENT_NAME_TO_CODE[name] for name in ("migration", "rebellion", "occupation_switch")
@@ -594,13 +588,6 @@ def _oracle_bundle_view(bundle: dict) -> dict:
             if isinstance(world, dict) else world
         )
     return view
-
-
-def required_seed_count(total_seeds: int, fraction: float) -> int:
-    """Return the minimum passing seed count for a fractional threshold."""
-    if total_seeds <= 0:
-        return 0
-    return max(1, ceil(total_seeds * fraction))
 
 
 def _read_json(path: Path) -> dict:
@@ -1185,10 +1172,6 @@ def _filter_events_window(events: list[dict], start_turn: int, window: int = 20)
         event for event in events
         if start_turn <= int(event.get("turn", -1)) < end_turn
     ]
-
-
-def _mean(values: list[float]) -> float:
-    return sum(values) / len(values) if values else 0.0
 
 
 def _cohen_d(sample_a: list[float], sample_b: list[float]) -> float:

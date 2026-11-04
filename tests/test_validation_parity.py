@@ -808,3 +808,59 @@ def test_cli_collaborators_resolve_in_their_own_surface(workspace, monkeypatch, 
     calls.clear()
     assert _run_main(other, argv, capsys) == expected[other]
     assert calls == []
+
+
+# Names that tests patch on validation_io (docs/integration/validation-split.md,
+# section 1), the oracle runners that re-enter through their module-level name
+# among them. A function reading one of them as a global must stay defined in
+# validation_io: moved elsewhere, it would read its own module's binding and
+# the patch would stop reaching it (or a test forbidding the call would pass
+# vacuously).
+PATCHED_THROUGH_VALIDATION_IO = frozenset({
+    "_load_bundle", "_read_arrow_columns", "_has_pyarrow", "_world_shape", "_build_turn_rows",
+    "_filter_events_window", "compute_cohort_distinctiveness", "load_seed_runs", "_load_agent_events",
+    "run_community_oracle", "run_needs_oracle", "run_cohort_oracle",
+})
+
+
+def _global_reads(code) -> set[str]:
+    import dis
+    import types
+
+    names = {instruction.argval for instruction in dis.get_instructions(code)
+             if instruction.opname in ("LOAD_GLOBAL", "LOAD_NAME")}
+    for const in code.co_consts:
+        if isinstance(const, types.CodeType):
+            names |= _global_reads(const)
+    return names
+
+
+def test_functions_reading_patched_names_stay_in_validation_io():
+    import pkgutil
+    import types
+
+    import chronicler
+
+    modules = [importlib.import_module(f"chronicler.{info.name}") for info in pkgutil.iter_modules(chronicler.__path__)
+               if info.name == "validate" or info.name.startswith("validation_")]
+    assert validation_io in modules and validate in modules
+    misplaced = []
+    for module in modules:
+        for value in vars(module).values():
+            if getattr(value, "__module__", None) != module.__name__:
+                continue
+            if isinstance(value, types.FunctionType):
+                functions = [value]
+            elif isinstance(value, type):
+                functions = [member for member in vars(value).values() if isinstance(member, types.FunctionType)]
+            else:
+                continue
+            for function in functions:
+                reads = _global_reads(function.__code__) & PATCHED_THROUGH_VALIDATION_IO
+                if reads and module is not validation_io:
+                    misplaced.append(f"{module.__name__}.{function.__qualname__} reads {sorted(reads)}")
+    assert misplaced == []
+    # The guard sees the callers it protects.
+    assert _global_reads(validation_io.load_seed_runs.__code__) >= {"_read_arrow_columns", "_world_shape"}
+    assert "_build_turn_rows" in _global_reads(validation_io._IndexedColumns.__init__.__code__)
+    assert "run_needs_oracle" in _global_reads(validation_io.run_needs_oracle.__code__)
