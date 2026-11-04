@@ -174,3 +174,58 @@ they hold on any platform and pyarrow version. It pins:
   their call counts, each orchestration and CLI collaborator per surface, the
   module-function and registry dispatch including the re-entry above, the
   determinism standalone call, and registry entries added and removed.
+
+## 3. One orchestration and one CLI
+
+Neither public `run_oracles` can simply call the other: `validate`'s would
+then see patches of `validation_io.run_*` (and its `load_seed_runs`), or
+`validation_io`'s would see `validate.ORACLE_RUNNERS`. So the canonical path
+is one private engine, `validation_io._run_oracles`, and both public
+functions are one-statement wrappers that keep their signatures, defaults and
+docstrings:
+
+- The engine is `validate`'s registry algorithm, the general form: it takes
+  the calling module (`surface`), a registry and the seed-run oracles, and
+  reads `causal_oracles_required`, `_normalize_requested_oracles`,
+  `_prepare_batch_admission`, `_load_arms`, `load_seed_runs`,
+  `ablation_methods`, `summarize_world_shapes` and `run_determinism_gate`
+  from `surface` when it uses them. The determinism standalone call is
+  kept: it applies when the registry entry is not
+  `surface.run_determinism_gate`.
+- `validate.run_oracles` passes its module, `ORACLE_RUNNERS` and
+  `SEED_RUN_ORACLES`. It is the production path (`python -m
+  chronicler.validate`, run by the gate runner).
+- `validation_io.run_oracles` passes its module, `_ModuleRunners` (its
+  `run_*` functions as a registry, read from the module when each oracle
+  runs) and `SEED_RUN_ORACLE_NAMES`. Its determinism entry is always its
+  own `run_determinism_gate`, so it always shares the admission, as before.
+- `_normalize_oracle_selection(oracles, names)` is the one normalization;
+  each module's `_normalize_requested_oracles` passes its names (the live
+  registry keys, or `ORACLE_RUNNER_NAMES`).
+- `validation_io._cli_main(surface, argv, causal_help=...)` is the one CLI.
+  Both `main` functions pass their module and their own
+  `--require-causal-oracles` help (`_CAUSAL_ORACLES_HELP`), so each CLI's
+  output stays byte for byte as pinned, the method 8/5 against 7/4
+  mismatch included. `validate` imports `_error_report`, `_dump_report` and
+  `_serialization_error_report` instead of defining copies; each `main`
+  still reads them, and `run_oracles`, from its own module.
+
+The parity tests pass unchanged on `fb25429` and after this stage, except
+one assertion: the report helpers are now shared objects, so the identity
+check that each module owns a distinct copy is limited to `run_oracles`,
+`main` and `_normalize_requested_oracles` (the per-module lookup of the
+helpers is pinned separately and unchanged). Both `python -m` entry points
+give the pinned output as child processes, on `fb25429` and here (28 runs
+each, outside pytest, whose guard forbids child processes).
+
+One difference remains, under a patch nobody makes: `validation_io` used to
+look up a runner inside each oracle's `try`, so deleting
+`validation_io.run_era_oracle` (`monkeypatch.delattr`) gave that oracle an
+`ERROR` result; the engine looks runners up before the `try`, as
+`validate` always did, so the `AttributeError` now propagates.
+
+`validate.py` is 85 lines (187 before), `validation_io.py` 4,707 (4,631).
+pyflakes ignores `# noqa`: it now reports the explicit re-exports of
+`validate.py` (which the engine reads as module attributes, so they stay
+patchable) and `validation_io`'s module-level `causal_oracles_required` as
+unused; there are no other new findings.

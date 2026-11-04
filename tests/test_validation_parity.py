@@ -563,8 +563,11 @@ def test_validation_io_constants_keep_their_values():
 
 
 def test_reexports_are_the_same_objects():
-    own = {"run_oracles", "main", "_normalize_requested_oracles", "_error_report", "_dump_report",
-           "_serialization_error_report"}
+    # Each surface binds its own entry points to its registry or module and
+    # its help text. (The report helpers may be shared objects: what callers
+    # rely on is that each main reads them from its own module, pinned by
+    # test_cli_collaborators_resolve_in_their_own_surface.)
+    own = {"run_oracles", "main", "_normalize_requested_oracles"}
     for name in validation_oracles.__all__:
         assert getattr(validation_oracles, name) is getattr(validation_io, name), name
     for name in set(validation_io.__all__) - own:
@@ -576,7 +579,6 @@ def test_reexports_are_the_same_objects():
         assert getattr(validate, name) is getattr(validation_io, name), name
     from chronicler import validation_gate
     assert validation_io.causal_oracles_required is validation_gate.causal_oracles_required
-    # Each surface owns its orchestration and CLI functions, so a patch of one never reaches the other.
     for name in own:
         assert getattr(validate, name) is not getattr(validation_io, name), name
 
