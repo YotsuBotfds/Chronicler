@@ -10,17 +10,66 @@ cd Chronicler
 git status --short --branch
 ```
 
+## Python environments
+
+Development uses two virtual environments. `.venv` is the no-native lane: it
+must never contain `chronicler_agents`. The Rust extension is built only into
+a separate native venv, `CHRONICLER_NATIVE_VENV` (default
+`~/.venvs/chronicler-native`; `%USERPROFILE%\.venvs\chronicler-native` on
+Windows). `maturin develop` installs into `VIRTUAL_ENV`, or into `./.venv` when
+none is set, so always build with the native venv active.
+
+`bash setup.sh` (Mac, Linux, Git Bash) and `setup.bat` (Windows Command
+Prompt) set both up. With [uv](https://docs.astral.sh/uv/) on PATH they run
+`uv lock --check` and install `.venv` exactly from `uv.lock` with
+`uv sync --frozen` (the `dev` group, plus `--extra api`/`--extra gemini` for
+`--api`/`--gemini`), as CI does. An exact sync also uninstalls packages the lock
+does not list, including a `chronicler_agents` left in `.venv` by an older
+setup. Without uv they warn and fall back to an unlocked
+`pip install -e . pytest pytest-asyncio`, with whatever versions the index
+serves that day, and uninstall `chronicler-agents` from `.venv` explicitly.
+Install uv for a reproducible environment. Unless `--no-rust` is given or
+`cargo` is missing, setup then syncs the native venv the same way (removing the
+previous build), installs maturin and builds a fresh release extension into it.
+It finishes with `scripts/check_python_env.py --expect no-native` on `.venv`
+and, after a build, `--expect native` on the native venv, and fails if either
+check fails. `CHRONICLER_PYTHON` picks the interpreter (default: the first
+3.13+ of `python3.13`, `python3` and `python`; `setup.bat` uses `python`), and
+`UV_PROJECT_ENVIRONMENT` moves `.venv`. The native venv's editable install
+points at the last checkout that synced it, so give each checkout its own
+`CHRONICLER_NATIVE_VENV`.
+
+`scripts/check_python_env.py` reports the interpreter and venv, whether
+`chronicler` resolves to this checkout's `src/` and has its console script, and
+whether `chronicler_agents` is importable, from where, and the SHA-256 of its
+compiled file. `--expect no-native` never imports it; `--expect native` imports
+it and requires the compiled `chronicler_agents.chronicler_agents` submodule and
+real `AgentSimulator`, `EcologySimulator` and `PoliticsSimulator` classes. It
+exits 1 on any mismatch; run it with the interpreter you are checking (from a
+worktree whose venv belongs to another checkout, with `PYTHONPATH=src`).
+
+| Path | Interpreter | `.venv` dependencies | Native extension | Viewer |
+| --- | --- | --- | --- | --- |
+| `setup.sh` / `setup.bat`, uv present | see above | `uv lock --check`, `uv sync --frozen` | fresh `maturin develop --release --locked` into the native venv | not installed |
+| `setup.sh` / `setup.bat`, no uv | see above | unlocked `pip install -e .` | the same, into a pip-built native venv | not installed |
+| `scripts/cloud_setup.sh` | `python3.13` | `uv lock --check`, `uv sync --frozen` | native venv synced with maturin, nothing built | `npm ci` |
+| CI (`tests.yml`) | setup-python 3.13 / 3.13.17 | `uv lock --check`, `uv sync --frozen` | `maturin build` wheel installed into the job's own fresh `.venv` | `npm ci`, Node 20.19.0 |
+
 ## Python on Windows
 
-Use Python 3.13 or newer. In PowerShell:
+Use Python 3.13 or newer. `setup.bat --no-rust` is the scripted form. By hand,
+in PowerShell:
 
 ```powershell
-py -3.13 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e . pytest pytest-asyncio
+uv sync --frozen --python 3.13
+.\.venv\Scripts\python.exe scripts/check_python_env.py --expect no-native
 .\.venv\Scripts\python.exe scripts/run_python_oracle_checks.py
 .\.venv\Scripts\python.exe -m chronicler.main --seed 42 --turns 20 --agents off --simulate-only --output output/smoke/chronicle.md
 ```
 
+Without uv, replace the first line with the unlocked
+`py -3.13 -m venv .venv` and
+`.\.venv\Scripts\python.exe -m pip install -e . pytest pytest-asyncio`.
 Substitute an installed newer Python version if necessary. Do not reuse an
 unrelated virtual environment for native qualification. The simulation-only
 smoke command needs no narration credential. `--agents off` alone does not
@@ -29,12 +78,18 @@ The guarded test command explicitly enforces the Python oracle lane.
 
 ## Python on Mac or Linux
 
+`bash setup.sh --no-rust` is the scripted form. By hand:
+
 ```sh
-python3.13 -m venv .venv
-.venv/bin/python -m pip install -e . pytest pytest-asyncio
+uv sync --frozen --python 3.13
+.venv/bin/python scripts/check_python_env.py --expect no-native
 .venv/bin/python scripts/run_python_oracle_checks.py
 .venv/bin/python -m chronicler.main --seed 42 --turns 20 --agents off --simulate-only --output output/smoke/chronicle.md
 ```
+
+Without uv, replace the first line with the unlocked
+`python3.13 -m venv .venv` and
+`.venv/bin/python -m pip install -e . pytest pytest-asyncio`.
 
 Use `.venv/bin/python -m pytest -q` for the full no-Rust lane in a clean environment
 where `chronicler_agents` is absent. The detached durable session tools require
@@ -95,18 +150,23 @@ pause panel's Save checkpoint and `--live --resume`.
 
 ## Native and full qualification
 
-Build into the active virtual environment, with an appropriate Rust toolchain:
+Build into the native venv, never into `.venv`, with an appropriate Rust
+toolchain (`bash setup.sh` does the first four steps):
 
 ```sh
-python -m pip install "maturin>=1.5,<2"
-python -m maturin develop --release --locked --manifest-path chronicler-agents/Cargo.toml
+NATIVE=${CHRONICLER_NATIVE_VENV:-$HOME/.venvs/chronicler-native}
+UV_PROJECT_ENVIRONMENT=$NATIVE uv sync --frozen --python 3.13
+uv pip install --python "$NATIVE/bin/python" "maturin>=1.5,<2"
+VIRTUAL_ENV=$NATIVE "$NATIVE/bin/python" -m maturin develop --release --locked --manifest-path chronicler-agents/Cargo.toml
+"$NATIVE/bin/python" scripts/check_python_env.py --expect native
 cargo test --locked --manifest-path chronicler-agents/Cargo.toml
 ```
 
 Before native Python tests, verify `chronicler_agents.chronicler_agents` resolves
 to a compiled extension and `AgentSimulator`, `EcologySimulator`, and
-`PoliticsSimulator` are real classes. The exact verification and full-suite
-commands are in `README.md` and `.github/workflows/tests.yml`. Native CI builds
+`PoliticsSimulator` are real classes (`check_python_env.py --expect native`
+does this and prints the extension's SHA-256). The in-process verification and
+full-suite commands are in `README.md` and `.github/workflows/tests.yml`. Native CI builds
 fresh source. A previously installed extension is not evidence for this branch.
 
 Full population/regression qualification remains the explicit validation-profile
@@ -279,7 +339,12 @@ breaks the lanes that require `chronicler_agents` to be absent:
 ```sh
 VIRTUAL_ENV=$HOME/.venvs/chronicler-native $HOME/.venvs/chronicler-native/bin/python \
   -m maturin develop --release --locked --manifest-path chronicler-agents/Cargo.toml
+$HOME/.venvs/chronicler-native/bin/python scripts/check_python_env.py --expect native
 ```
+
+The script ends by running `scripts/check_python_env.py --expect no-native` on
+`.venv` and a report-only check on the native venv; like its other steps, a
+failed check prints `!!` and setup continues.
 
 Observed on a 4-core cloud container (2026-11-04): bounded offline lane
 about 4 minutes, viewer tests/lint/build about 2 minutes, `cargo test` about

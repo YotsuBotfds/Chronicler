@@ -11,10 +11,12 @@ extension is installed.
 From the repository root:
 
 ```sh
-python3.13 -m venv .venv
-.venv/bin/python -m pip install -e .
-.venv/bin/python -c "import importlib.util; assert importlib.util.find_spec('chronicler_agents') is None"
+uv sync --frozen --python 3.13
+.venv/bin/python scripts/check_python_env.py --expect no-native
 ```
+
+Without uv, `python3.13 -m venv .venv` and `.venv/bin/python -m pip install -e .`
+install unlocked versions instead; the check applies either way.
 
 No API key, LM Studio server, or paid narration is used below.
 

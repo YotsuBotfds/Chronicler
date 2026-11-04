@@ -11,7 +11,10 @@ default invocation executes nothing or writes only to stdout.
 
 `cloud_setup.sh` installs the locked dependencies for a Claude Code cloud
 session (or a fresh Linux checkout) and prepares a separate native venv; see
-`docs/DEVELOPMENT.md`.
+`docs/DEVELOPMENT.md`. `check_python_env.py` reports an environment's
+interpreter, Chronicler source and `chronicler_agents` state, and with
+`--expect native|no-native` exits 1 on a mismatch; `cloud_setup.sh`, `setup.sh`
+and `setup.bat` run it last.
 
 ## Gates, CI lanes and qualification
 
