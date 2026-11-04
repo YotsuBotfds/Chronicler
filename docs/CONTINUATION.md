@@ -33,8 +33,21 @@ behavior, default, serialization, RNG or dependency version changed.
   unchanged. Stale "current work" pointers in the milestone ledger and the
   2026-11-03 handoff now read as history.
 - **Scripts:** 38 scripts cited only by dated docs moved to `scripts/archive/`
-  (root lookups adjusted; documented commands updated; each passes `--help`).
-  `scripts/README.md` maps the rest.
+  (root lookups adjusted; documented commands updated). `scripts/README.md`
+  maps the rest. Correction to the first version of this entry: not every
+  archived script handles `--help`. Run in a throwaway worktree, 23 of the 37
+  Python scripts print usage and exit 0; `build_learning_fixture`, `curator_spread`, `epidemiology_stats`,
+  `finance_identity`, `narration_coverage`, `scholarship_probe` and
+  `viewer_systems_identity` print their docstring and exit 2;
+  `agent_movements_report`, `guilds_report`, `m_af1_compare` and
+  `scholarship_report` treat `--help` as a path and exit 1;
+  `mutual_aid_control_snapshot` needs the native extension; `guilds_probe`
+  treats it as a run label; and `generate_viewer_fixture` ignores arguments and
+  rewrites `viewer/src/__fixtures__/sample_bundle.json` (the shell example was
+  not run). The exit codes are
+  identical for the same scripts at `main` `65e09aa`, so these quirks predate
+  the move. `build_learning_fixture` and `generate_viewer_fixture` produce
+  fixtures that current viewer tests read.
 - **Removed:** `prototype/`, `viewer/antigravity-prototype/`,
   `viewer/src/components/Layout.tsx` and eight unreferenced Python helpers.
   `git show bd1693f:<path>` recovers them.
