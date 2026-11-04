@@ -68,7 +68,7 @@ fn world() -> (AgentPool, Vec<RegionState>) {
     regions[0].adjacency = vec![1];
     regions[1].adjacency = vec![0];
     for i in 0..40u16 {
-        let region = (i % 2) as u16;
+        let region = i % 2;
         let bold = -0.8 + 0.04 * i as f32;
         let slot = pool.spawn(region, 0, Occupation::Farmer, 20 + i % 20, bold, 0.0, 0.0, 0, 1, 2, 0);
         pool.satisfactions[slot] = 0.2;

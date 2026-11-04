@@ -2,7 +2,7 @@
 
 This walkthrough uses the existing simulation CLI, saved-world loader, regional
 history inspector, completed-run comparison and paused live session. The small
-wrapper `scripts/world-laboratory-example.sh` supplies a fixed recipe; it does
+wrapper `scripts/archive/world-laboratory-example.sh` supplies a fixed recipe; it does
 not add a simulation service or edit initial state. It always uses
 `--simulate-only`, including the exact what-if continuations.
 
@@ -21,10 +21,10 @@ Activate the existing tools without running the environment installer:
 ```bash
 cd /workspace/Chronicler-kimi
 source /workspace/shared/chronicler-onboarding/runtime-6da9acae6bda6d7a.env
-scripts/world-laboratory-example.sh commands \
+scripts/archive/world-laboratory-example.sh commands \
   /workspace/shared/chronicler-exploration-example-59d1de84 \
   "$CHRONICLER_NATIVE_ENV/bin/python"
-scripts/world-laboratory-example.sh generate \
+scripts/archive/world-laboratory-example.sh generate \
   /workspace/shared/chronicler-exploration-example-59d1de84 \
   "$CHRONICLER_NATIVE_ENV/bin/python"
 ```
@@ -146,7 +146,7 @@ In a terminal using the same runtime activation, run:
 
 ```bash
 cd /workspace/Chronicler-kimi
-scripts/world-laboratory-example.sh live \
+scripts/archive/world-laboratory-example.sh live \
   /workspace/shared/chronicler-exploration-example-59d1de84 \
   "$CHRONICLER_NATIVE_ENV/bin/python"
 ```

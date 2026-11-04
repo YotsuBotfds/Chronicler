@@ -6,8 +6,8 @@
 > use [development setup](../DEVELOPMENT.md) on a fresh machine. Archive manifests
 > determine which evidence is recoverable; a local path alone does not.
 
-Current work uses `integration/crisis-recovery-20261103`, isolated from the
-preserved development branch and original checkout. Start with the
+This handoff's work used `integration/crisis-recovery-20261103`, isolated from the
+preserved development branch and original checkout. Its records start with the
 [durable progress log](progress-20261103.md),
 [branch integration ledger](integration-ledger-20261103.md),
 [active crisis roadmap](crisis-recovery-roadmap.md) and
@@ -85,7 +85,7 @@ uncovered boundary. Audits are source inspection, not executed simulations.
 | F33 | **Existing functionality checked and reused**: 390px browser controls and overflow checked; physical-device certification deferred. | [Investigation controls](../../viewer/src/components/InvestigationBookmarks.tsx) | [Phone measurements](/workspace/shared/chronicler-multiwave-evidence/browser/phone-visual-measurements.json) |
 | F34 | **Newly implemented and tested**: bounded JSON/Markdown packet; missing values null, private notes and raw metadata excluded. | [Packet](../../viewer/src/lib/investigationPacket.ts) | [Browser download](/workspace/shared/chronicler-multiwave-evidence/browser/actual-investigation-download.json) |
 | F35 | **Partially covered**: Extended opt-in generator with four constructed institution cases; existing generator reused. Recovery and older mixed adverse outcomes are illustrated, not general policy benefit/backfire balance. | [Generator](../../scripts/institution_pressure_example.py) | [Reproduction checks](/workspace/shared/chronicler-multiwave-evidence/institution-pressure/GENERATOR_REPRODUCTION_CHECKS.json) |
-| F36 | **Newly implemented and tested**: Bounded end-to-end native and viewer journey exercised through bookmark/export; not an unrestricted production qualification. | [Example script](../../scripts/world-laboratory-example.sh) | [Journey result](/workspace/shared/chronicler-multiwave-evidence/browser/final-journey-result.json) |
+| F36 | **Newly implemented and tested**: Bounded end-to-end native and viewer journey exercised through bookmark/export; not an unrestricted production qualification. | [Example script](../../scripts/archive/world-laboratory-example.sh) | [Journey result](/workspace/shared/chronicler-multiwave-evidence/browser/final-journey-result.json) |
 
 ## Deferred or blocked boundaries
 
@@ -131,7 +131,7 @@ npm run build
 npm run preview -- --host 127.0.0.1 --port 4173 --strictPort
 ```
 
-Use a fresh output directory with `scripts/world-laboratory-example.sh generate`
+Use a fresh output directory with `scripts/archive/world-laboratory-example.sh generate`
 and `live`, passing `$CHRONICLER_NATIVE_ENV/bin/python`. Existing older bundles
 remain viewable; older-source/native checkpoints refuse exact loading. Never use
 a mismatch override or silently reuse a wheel from changed Rust/ABI inputs.

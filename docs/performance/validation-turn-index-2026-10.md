@@ -123,7 +123,7 @@ cohorts are still needed to measure end-to-end gains.
 
 ## Reproduction
 
-The exact probe is [`benchmark_validation_turn_index.py`](../../scripts/benchmark_validation_turn_index.py).
+The exact probe is [`benchmark_validation_turn_index.py`](../../scripts/archive/benchmark_validation_turn_index.py).
 Retain both source worktrees and the unchanged real input directory. Generate
 synthetic files outside the repository:
 
@@ -152,7 +152,7 @@ report paths must match when comparing raw report digests.
 
 ```sh
 RAYON_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 PYTHONHASHSEED=0 \
-  python scripts/benchmark_validation_turn_index.py \
+  python scripts/archive/benchmark_validation_turn_index.py \
   --source /path/to/before-or-indexed-worktree \
   --inputs /path/to/retained/procedural-seed \
   --synthetic /tmp/validation-index-bench/dense.arrow /tmp/validation-index-bench/manyturns.arrow \

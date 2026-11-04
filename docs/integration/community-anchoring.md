@@ -345,7 +345,7 @@ arm's events per agent-turn, SE the realized seed-clustered standard error.
 
 The procedural material cohort is 3.6 agents a fork on average (720
 agent-forks over 200 forks, 63 informative seeds), a fifth of the model's.
-`scripts/synth_ablation_oracles.py` now carries these measured exposures
+`scripts/archive/synth_ablation_oracles.py` now carries these measured exposures
 (`template_gate`, `procedural_gate`) and the candidate designs; with them it
 still underestimates the realized SE of the sparse pairings (procedural:
 material 0.040 against 0.060, safety 0.078 against 0.100, autonomy 0.034

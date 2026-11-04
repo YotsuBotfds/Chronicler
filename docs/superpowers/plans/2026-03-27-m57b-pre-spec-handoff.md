@@ -15,41 +15,41 @@ Equip the next spec-writing agent to draft **M57b: Households, Inheritance & Joi
 
 These are the important post-M57a facts the next agent should treat as authoritative:
 
-- Rust marriage formation is live in [`chronicler-agents/src/formation.rs`](../../chronicler-agents/src/formation.rs):
+- Rust marriage formation is live in [`chronicler-agents/src/formation.rs`](../../../chronicler-agents/src/formation.rs):
   - `marriage_scan()` runs before `formation_scan()`
   - one spouse max
   - marriage is eviction-protected
   - cross-civ marriages are allowed when the civs are not at war
 - Two-parent lineage is live in:
-  - [`chronicler-agents/src/pool.rs`](../../chronicler-agents/src/pool.rs)
-  - [`chronicler-agents/src/tick.rs`](../../chronicler-agents/src/tick.rs)
-  - [`chronicler-agents/src/ffi.rs`](../../chronicler-agents/src/ffi.rs)
-  - [`src/chronicler/models.py`](../../src/chronicler/models.py)
+  - [`chronicler-agents/src/pool.rs`](../../../chronicler-agents/src/pool.rs)
+  - [`chronicler-agents/src/tick.rs`](../../../chronicler-agents/src/tick.rs)
+  - [`chronicler-agents/src/ffi/mod.rs`](../../../chronicler-agents/src/ffi/mod.rs)
+  - [`src/chronicler/models.py`](../../../src/chronicler/models.py)
 - Python dynasty logic now assumes:
   - single operative `dynasty_id`
   - optional secondary `lineage_house`
   - either parent qualifies for direct-heir legitimacy
-  - see [`src/chronicler/dynasties.py`](../../src/chronicler/dynasties.py)
+  - see [`src/chronicler/dynasties.py`](../../../src/chronicler/dynasties.py)
 - Kin bonds and legacy memories already widen across both parents.
-- Named-character marriage formation events are live in [`src/chronicler/simulation.py`](../../src/chronicler/simulation.py) as `marriage_formed`.
-- Lineage-house narrator context is live in [`src/chronicler/narrative.py`](../../src/chronicler/narrative.py).
+- Named-character marriage formation events are live in [`src/chronicler/simulation.py`](../../../src/chronicler/simulation.py) as `marriage_formed`.
+- Lineage-house narrator context is live in [`src/chronicler/narrative.py`](../../../src/chronicler/narrative.py).
 
 ## Key Architectural Seams for M57b
 
 These are the parts of the codebase M57b will most likely need to touch:
 
 - **Wealth is still purely per-agent.**
-  - See `wealth_tick()` in [`chronicler-agents/src/tick.rs`](../../chronicler-agents/src/tick.rs).
+  - See `wealth_tick()` in [`chronicler-agents/src/tick.rs`](../../../chronicler-agents/src/tick.rs).
   - M41/M53 analytics, Gini, and wealth-percentile satisfaction all assume personal `pool.wealth[slot]`.
 - **Migration is still purely per-agent.**
-  - See `evaluate_region_decisions()` and `best_migration_target_for_agent()` in [`chronicler-agents/src/behavior.rs`](../../chronicler-agents/src/behavior.rs).
-  - Tick application of migrations is in [`chronicler-agents/src/tick.rs`](../../chronicler-agents/src/tick.rs).
+  - See `evaluate_region_decisions()` and `best_migration_target_for_agent()` in [`chronicler-agents/src/behavior.rs`](../../../chronicler-agents/src/behavior.rs).
+  - Tick application of migrations is in [`chronicler-agents/src/tick.rs`](../../../chronicler-agents/src/tick.rs).
 - **Marriage exists, but there is no household entity yet.**
   - No `household_id` in the pool or Python models.
   - Household membership would currently have to be derived from marriage bonds + parent links.
 - **Death cleanup removes bonds, but widowhood payload is still lossy.**
-  - [`chronicler-agents/src/formation.rs`](../../chronicler-agents/src/formation.rs) `death_cleanup_sweep()` emits only survivor `agent_id` + bond type.
-  - [`src/chronicler/agent_bridge.py`](../../src/chronicler/agent_bridge.py) stores dissolved Rust edges as `(agent_id, 0, rel_type, turn)`.
+  - [`chronicler-agents/src/formation.rs`](../../../chronicler-agents/src/formation.rs) `death_cleanup_sweep()` emits only survivor `agent_id` + bond type.
+  - [`src/chronicler/agent_bridge.py`](../../../src/chronicler/agent_bridge.py) stores dissolved Rust edges as `(agent_id, 0, rel_type, turn)`.
   - If M57b wants explicit widowhood events or spouse-aware custody transfer on the Python side, dissolution tracking likely needs widening.
 - **`--agents=off` still has to remain unchanged.**
   - Household behavior must stay agent-only.
@@ -226,9 +226,9 @@ These are probably design/implementation decisions rather than user-meaning deci
 - M57b should continue to avoid divorce/polygamy/household trees.
 - Any widowhood narration that needs dead-spouse identity probably requires widening dissolution payloads.
 - Household consumers should integrate at the existing seams:
-  - wealth / percentiles in [`chronicler-agents/src/tick.rs`](../../chronicler-agents/src/tick.rs)
-  - migration decisions in [`chronicler-agents/src/behavior.rs`](../../chronicler-agents/src/behavior.rs)
-  - death cleanup / dissolution in [`chronicler-agents/src/formation.rs`](../../chronicler-agents/src/formation.rs)
+  - wealth / percentiles in [`chronicler-agents/src/tick.rs`](../../../chronicler-agents/src/tick.rs)
+  - migration decisions in [`chronicler-agents/src/behavior.rs`](../../../chronicler-agents/src/behavior.rs)
+  - death cleanup / dissolution in [`chronicler-agents/src/formation.rs`](../../../chronicler-agents/src/formation.rs)
 
 ---
 

@@ -194,6 +194,37 @@ merchant houses lend finance's revenue term, fading as `0.98 ** turn`
 (section 13 there). The gate runner forwards it to the agent-mode runs;
 `CHRONICLER_CHECK_RESOURCES=1` also checks its books.
 
+## Before refactoring, moving or deleting files
+
+Several tests pin repository content, so a change that looks mechanical can
+fail far from the file you touched:
+
+- **Source witnesses.** `scripts/testing/*_witness.py` with
+  `tests/fixtures/*_source_inverse.json` (and related fixtures) pin the exact
+  bytes of 83 tracked files, and test data records the current SHA-256 of 25
+  more, including `main.py`, `simulation.py`, `agent_bridge.py`, `models.py`,
+  twelve Rust files and 26 viewer files. Hashes in
+  `tests/fixtures/performance/` and the reference-baseline manifests describe
+  older source and pin nothing current. Before editing a file, search
+  `tests/fixtures` and `scripts/testing` for its path and current SHA-256; a
+  pinned file needs a reviewed witness update, not a silent edit.
+- **Workflows.** `tests/test_native_ci_shards.py` and
+  `tests/test_native_build_lanes.py` read `.github/workflows/*.yml`,
+  `docs/workflows/*.yml.in` (byte-identical copies) and parts of `README.md`.
+  The benchmark scripts hash their workflow files into receipts.
+- **Native shard manifest.** `scripts/testing/native_shards_manifest.json`
+  assigns every test module to a shard and lists expected skipped node IDs and
+  the subtest count, so adding, renaming or deleting a test module or a skipped
+  test needs a manifest update.
+- **Import compatibility.** `tests/test_import_compatibility.py` and the
+  re-export blocks (for example in `politics.py` and `validate.py`) keep
+  historical import paths working; an unused-looking import may be one of them.
+- **Script paths.** Tests import scripts as `scripts.<name>` or load them by
+  path, and workflows call them by path (see [scripts/README.md](../scripts/README.md)).
+
+Evidence JSON under `docs/` records hashes and paths as they were; leave it
+byte-for-byte unchanged when moving the files it names.
+
 ## Claude Code cloud sessions
 
 The cloud container already provides Python 3.13, uv, Node 22, npm and a

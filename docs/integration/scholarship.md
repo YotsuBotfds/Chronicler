@@ -210,7 +210,7 @@ it.
 ## A seat's history
 
 Template world, seed 42, 500 turns, `--agents hybrid --scholarship`
-(`scripts/scholarship_report.py RUN_DIR --seat 0`). Twelve seats were founded
+(`scripts/archive/scholarship_report.py RUN_DIR --seat 0`). Twelve seats were founded
 (2 academies, 8 temple schools, 2 libraries); 8 fell (7 for loss of
 patronage, 1 to famine), every one with a refuge in reach.
 
@@ -254,7 +254,7 @@ scholars fled to the Ashkari Academy of Stormbreak Cliffs.
 
 ## What seats do to techniques and archives
 
-`scripts/scholarship_probe.py` over paired worlds (the same seeds with the
+`scripts/archive/scholarship_probe.py` over paired worlds (the same seeds with the
 switch off and on), mean per world and the paired difference with its
 standard error. The subsets are 200 turns. The off arms' reports equal
 main's, and the on arms' reports equal the gated ones. The archive
@@ -554,7 +554,7 @@ because the history differs, not because the field is free.
   learning in Y" (`agent_bridge.MASS_MIGRATION_BY_DRIVER`).
 - **Coverage.** Checked against the coverage table of
   [narration-coverage.md](narration-coverage.md#5-coverage-table) with
-  `scripts/narration_coverage.py`. The table's seat rows come from the
+  `scripts/archive/narration_coverage.py`. The table's seat rows come from the
   seed 42 run above (12 foundings, 15 rises, 10 declines, 8 falls, 8
   flights, 5 great scholars; 22 of these listed among the 50 curated
   moments). 17 of the 50 prompts carry a seat line.

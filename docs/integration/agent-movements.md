@@ -217,7 +217,7 @@ Live mode passes the field through. Fixture
 Needs calibration made material bind in dearth and famine and autonomy under
 persecution, martial law and conquest; foreign rule settles at 0.61, the fed
 poorest at 0.56, a dearth's median at 0.44. Movement grievance thresholds
-were set for the old needs. `scripts/agent_movements_probe.py --grid`
+were set for the old needs. `scripts/archive/agent_movements_probe.py --grid`
 samples every agent's needs every 10 turns and scores, per region with 5+
 adults, whether a creed reaches the founding share (20%, 5 adults) under a
 grid of thresholds and under each bad condition: an open famine episode,
@@ -275,7 +275,7 @@ lapsed 4, in force at turn 500 12. The first column is slice 1 as merged
 
 ### A 500-turn example
 
-`scripts/agent_movements_report.py RUN_DIR --reforms` prints each movement's
+`scripts/archive/agent_movements_report.py RUN_DIR --reforms` prints each movement's
 record and the reform it won with the event text the simulation wrote.
 Template world, seed 48, 500 turns, hybrid, `--agent-movements`, every other
 system at its default (`--simulate-only`, `PYTHONHASHSEED=0`); spread lines
@@ -855,7 +855,7 @@ secessions use the existing `Schism` and `secession` event types.
 
 ## Slice 1: a movement's history
 
-`scripts/agent_movements_report.py RUN_DIR` prints each movement's record
+`scripts/archive/agent_movements_report.py RUN_DIR` prints each movement's record
 with the event text the simulation wrote. Template world, seed 46, 300
 turns, hybrid, `--agent-movements`, everything else at its default
 (`--simulate-only`, `PYTHONHASHSEED=0`, head `c93e87e`):

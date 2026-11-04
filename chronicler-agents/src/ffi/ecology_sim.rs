@@ -236,12 +236,12 @@ impl EcologySimulator {
                         resource_effective_yield_2_col.map_or(0.0, |arr| arr.value(i)),
                     ];
                     r.resource_suspension = [
-                        resource_suspension_0_col.map_or(false, |arr| arr.value(i)),
-                        resource_suspension_1_col.map_or(false, |arr| arr.value(i)),
-                        resource_suspension_2_col.map_or(false, |arr| arr.value(i)),
+                        resource_suspension_0_col.is_some_and(|arr| arr.value(i)),
+                        resource_suspension_1_col.is_some_and(|arr| arr.value(i)),
+                        resource_suspension_2_col.is_some_and(|arr| arr.value(i)),
                     ];
-                    r.has_irrigation = has_irrigation_col.map_or(false, |arr| arr.value(i));
-                    r.has_mines = has_mines_col.map_or(false, |arr| arr.value(i));
+                    r.has_irrigation = has_irrigation_col.is_some_and(|arr| arr.value(i));
+                    r.has_mines = has_mines_col.is_some_and(|arr| arr.value(i));
                     r.active_focus = active_focus_col.map_or(0, |arr| arr.value(i));
                     r.prev_turn_water = prev_turn_water_col.map_or(0.0, |arr| arr.value(i));
                     r.soil_pressure_streak = soil_pressure_streak_col.map_or(0, |arr| arr.value(i));
@@ -261,7 +261,7 @@ impl EcologySimulator {
                         resource_yield_2.map_or(0.0, |arr| arr.value(i)),
                     ];
                     r.endemic_severity = endemic_severity_col.map_or(0.0, |arr| arr.value(i));
-                    r.is_capital = is_capital_col.map_or(false, |arr| arr.value(i));
+                    r.is_capital = is_capital_col.is_some_and(|arr| arr.value(i));
                     r.temple_prestige = temple_prestige_col.map_or(0.0, |arr| arr.value(i));
                     r.climate_exposure = climate_exposure_col.map_or(1.0, |arr| arr.value(i));
                     r.harvest_shock = harvest_shock_col.map_or(0.0, |arr| arr.value(i));
@@ -295,11 +295,11 @@ impl EcologySimulator {
                 if let Some(arr) = resource_effective_yield_0_col { r.resource_effective_yield[0] = arr.value(i); }
                 if let Some(arr) = resource_effective_yield_1_col { r.resource_effective_yield[1] = arr.value(i); }
                 if let Some(arr) = resource_effective_yield_2_col { r.resource_effective_yield[2] = arr.value(i); }
-                r.resource_suspension[0] = resource_suspension_0_col.map_or(false, |arr| arr.value(i));
-                r.resource_suspension[1] = resource_suspension_1_col.map_or(false, |arr| arr.value(i));
-                r.resource_suspension[2] = resource_suspension_2_col.map_or(false, |arr| arr.value(i));
-                r.has_irrigation = has_irrigation_col.map_or(false, |arr| arr.value(i));
-                r.has_mines = has_mines_col.map_or(false, |arr| arr.value(i));
+                r.resource_suspension[0] = resource_suspension_0_col.is_some_and(|arr| arr.value(i));
+                r.resource_suspension[1] = resource_suspension_1_col.is_some_and(|arr| arr.value(i));
+                r.resource_suspension[2] = resource_suspension_2_col.is_some_and(|arr| arr.value(i));
+                r.has_irrigation = has_irrigation_col.is_some_and(|arr| arr.value(i));
+                r.has_mines = has_mines_col.is_some_and(|arr| arr.value(i));
                 if let Some(arr) = active_focus_col { r.active_focus = arr.value(i); }
                 if let Some(arr) = prev_turn_water_col { r.prev_turn_water = arr.value(i); }
                 if let Some(arr) = soil_pressure_streak_col { r.soil_pressure_streak = arr.value(i); }
@@ -313,7 +313,7 @@ impl EcologySimulator {
                 r.resource_yields[1] = resource_yield_1.map_or(r.resource_yields[1], |arr| arr.value(i));
                 r.resource_yields[2] = resource_yield_2.map_or(r.resource_yields[2], |arr| arr.value(i));
                 r.endemic_severity = endemic_severity_col.map_or(r.endemic_severity, |arr| arr.value(i));
-                r.is_capital = is_capital_col.map_or(false, |arr| arr.value(i));
+                r.is_capital = is_capital_col.is_some_and(|arr| arr.value(i));
                 r.temple_prestige = temple_prestige_col.map_or(0.0, |arr| arr.value(i));
                 r.climate_exposure = climate_exposure_col.map_or(1.0, |arr| arr.value(i));
                 r.harvest_shock = harvest_shock_col.map_or(0.0, |arr| arr.value(i));

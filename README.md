@@ -28,12 +28,9 @@ the 200-seed scientific/default-promotion gate remains unfinished.
 Start with the [recovery and archive index](docs/RECOVERY.md),
 [continuation status and historical locations](docs/CONTINUATION.md),
 [Windows/Mac/Linux setup](docs/DEVELOPMENT.md), and [agent instructions](AGENTS.md).
-For milestone history and designs, use:
-
-- `docs/superpowers/progress/phase-6-progress.md`
-- `docs/superpowers/roadmaps/`
-- `docs/superpowers/specs/`
-- `docs/superpowers/plans/`
+The [documentation map](docs/README.md) lists the per-system references,
+validation notes, viewer guides and where the dated milestone history lives
+(`docs/superpowers/`).
 
 ## Installation
 
@@ -248,12 +245,15 @@ See [ecology/goods coupling validation](docs/validation/economy-coupling.md) for
 ## Project Structure
 
 ```
-src/chronicler/       # Python simulation + narration (main codebase)
-chronicler-agents/    # Rust agent crate (per-agent computation via PyO3/Arrow)
-chronicler-agents/tests/  # Rust integration tests
-docs/superpowers/     # Roadmaps, specs, plans, and current progress notes
+src/chronicler/       # Python simulation, CLI, narration, analytics, detached experiments
+chronicler-agents/    # Rust/PyO3 agent, ecology and politics runtimes (+ tests/, benches/)
+viewer/               # React/TypeScript viewer (see viewer/README.md)
+tests/                # Python test suite and fixtures
+scripts/              # Gates, CI lanes, identity checks, reports (see scripts/README.md)
+docs/                 # Documentation (start at docs/README.md)
 scenarios/            # YAML scenario files
-tests/                # Python test suite
+tuning/               # Tuning override YAML used by the M53 calibration runs
+examples/             # Standalone usage examples (detached governance kernels)
 ```
 
 ## Output

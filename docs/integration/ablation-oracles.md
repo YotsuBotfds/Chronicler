@@ -202,7 +202,7 @@ synthetic null and reversed worlds".
 
 ## 2. Synthetic worlds
 
-`scripts/synth_ablation_oracles.py` (in the repository): 1,000 replicate
+`scripts/archive/synth_ablation_oracles.py` (in the repository): 1,000 replicate
 batches per world and scale, forked as the gate forks (template full: 200
 seeds x 4 forks, about 170 agents a fork; procedural full: 100 x 2, about
 550; subsets: 20 x 1). Per fork and cohort the share of forks with a cohort,

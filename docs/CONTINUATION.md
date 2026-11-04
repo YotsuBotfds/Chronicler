@@ -19,6 +19,72 @@ guidance. Read the index before following old paths or restarting old queues.
 
 ---
 
+# 2026-11-04 — repository cleanup (branch `cleanup/repo-streamline-20261104`)
+
+Based on main `bd1693f`, merged with main `65e09aa` (PR #70). Organization and
+dead-code cleanup only; no simulation
+behavior, default, serialization, RNG or dependency version changed.
+
+- **Docs:** [docs/README.md](README.md) maps the tree. The April audit notes
+  moved from the repository root to `docs/superpowers/audits/`; singleton
+  `docs/plans/` (a byte-identical duplicate), `docs/roadmap/` and
+  `docs/superpowers/audit/` were folded into their siblings; six viewer guides
+  moved to `docs/viewer/`. Inbound links were rewritten; evidence JSON is
+  unchanged. Stale "current work" pointers in the milestone ledger and the
+  2026-11-03 handoff now read as history.
+- **Scripts:** 38 scripts cited only by dated docs moved to `scripts/archive/`
+  (root lookups adjusted; documented commands updated). `scripts/README.md`
+  maps the rest. Correction to the first version of this entry: not every
+  archived script handles `--help`. Run in a throwaway worktree, 23 of the 37
+  Python scripts print usage and exit 0; `build_learning_fixture`, `curator_spread`, `epidemiology_stats`,
+  `finance_identity`, `narration_coverage`, `scholarship_probe` and
+  `viewer_systems_identity` print their docstring and exit 2;
+  `agent_movements_report`, `guilds_report`, `m_af1_compare` and
+  `scholarship_report` treat `--help` as a path and exit 1;
+  `mutual_aid_control_snapshot` needs the native extension; `guilds_probe`
+  treats it as a run label; and `generate_viewer_fixture` ignores arguments and
+  rewrites `viewer/src/__fixtures__/sample_bundle.json` (the shell example was
+  not run). The exit codes are
+  identical for the same scripts at `main` `65e09aa`, so these quirks predate
+  the move. `build_learning_fixture` and `generate_viewer_fixture` produce
+  fixtures that current viewer tests read.
+- **Removed:** `prototype/`, `viewer/antigravity-prototype/`,
+  `viewer/src/components/Layout.tsx` and eight unreferenced Python helpers.
+  `git show bd1693f:<path>` recovers them.
+- **Rust:** the stale file-wide lint allow in `politics.rs` is gone (it hid
+  only unused locals and parameters); the test-only migration helper is
+  `#[cfg(test)]`; duplicate dev-dependencies are dropped; four exact clippy
+  rewrites were applied to unpinned files. `cargo build --all-targets` has no warnings.
+- **Viewer/setup:** `@types/d3-force` is a dev dependency; the viewer README
+  lists real commands, demo pages and scripts; `setup.sh`/`setup.bat` build
+  with `--locked`.
+- **Guardrails found:** source-witness fixtures and recorded digests pin 108
+  tracked files (an earlier count of about 150 wrongly included historical
+  provenance hashes; `utils.py` and the `validation_*` modules are not pinned),
+  tests pin workflow text, and the native shard manifest pins test modules and
+  skipped node IDs. DEVELOPMENT.md now lists these under "Before
+  refactoring, moving or deleting files". Pinned files were not edited.
+
+Checks on Linux, Python 3.13.18, no native extension installed: full no-Rust
+pytest 9,309 passed, 402 skipped, 0 failed (623 subtests); the bounded offline
+lane (`scripts/run_python_oracle_checks.py`) PASS; `cargo test --locked` 1,203
+passed, 0 failed, 2 ignored (Rust 1.97.0); viewer lint, `tsc -b`, 1,175 Vitest
+tests and the production build pass (Node 22.23.4, not the CI floor 20.19.0).
+
+Not run: the native Python lane (no extension was built into the environment),
+the 200-seed scientific gate and remote CI on this branch.
+
+Deferred, each blocked by pins or needing review: a shared `_at_war` (one copy
+is in pinned `finance.py`), the unused
+`AgentBridge.apply_conquest_transitions` (pinned file), shared helpers for the
+scripts' repeated sha256/git/JSON code, test world-builder consolidation (about
+60 local `_world`/`_make_civ` variants with differing defaults), the two
+placeholder skips in `tests/test_m38b_regression.py` (their node IDs are in the
+native shard manifest), and the remaining clippy lints (argument counts, complex
+types, clamp-like patterns, whose NaN behavior differs from `clamp`).
+
+---
+
 # Historical crisis integration — 2026-11-03
 
 Continue from `integration/crisis-recovery-20261103`, isolated from preserved dev

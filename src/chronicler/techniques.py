@@ -64,7 +64,7 @@ from chronicler.techniques_state import (
 )
 
 if TYPE_CHECKING:  # pragma: no cover
-    from chronicler.models import Civilization, Event, Region, WorldState
+    from chronicler.models import Event, WorldState
 
 #: Default for worlds newly created by the CLI/batch/live entry points
 #: (on since the 2026-10 techniques full gate,
@@ -1036,10 +1036,6 @@ def _civ_levels(world, civ_i: int) -> dict[int, float]:
     if civ_i < 0 or civ_i >= len(st.civ_levels):
         return {}
     return dict(st.civ_levels[civ_i])
-
-
-def _region_level(world, region_i: int, key: str) -> float:
-    return world.techniques.practice_map().get((region_i, TECHNIQUE_INDEX[key]), 0.0)
 
 
 def _region_index(world, region) -> int:

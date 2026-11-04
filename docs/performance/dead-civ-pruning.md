@@ -99,7 +99,7 @@ dead civilizations are not kept anywhere.
 | `analytics.load_bundle_records` (batch reports, Batch Lab, `governance_metrics`) | restores |
 | `main._run_narrate`, live `narrate_range` | restore, so re-narration reads the history the run held |
 | `live._validate_legacy_live_bundle`, `_build_init_data_from_bundle` | pass `pruned_civ_stats` through |
-| `scripts/epidemiology_stats.py`, `m_af1_compare.py`, `run_oracle_gate.py` | restore (they sum or compare over every civ) |
+| `scripts/archive/epidemiology_stats.py`, `m_af1_compare.py`, `run_oracle_gate.py` | restore (they sum or compare over every civ) |
 | `curator`, `narrative`, `finance_census.py`, `techniques_report.py`, `diplomacy_report.py`, `governance_metrics` | already skip missing or dead civs; tested on pruned and restored histories |
 | `scripts/build_viewer_systems_fixture.py` | also keeps each snapshot that holds a dead civ's final row |
 | `scripts/third_wave_controls.legacy_artifact_bytes` | accepts version 5; `pre_pruning=True` projects a bundle with nothing pruned back to version 3 |

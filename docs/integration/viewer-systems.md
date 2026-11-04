@@ -122,7 +122,7 @@ Linux, Python 3.13.17, a fresh `maturin develop --release` build of the
 unchanged Rust tree (compiled `AgentSimulator`, `EcologySimulator`,
 `PoliticsSimulator` verified), Node 22.
 
-**Identity** (`scripts/viewer_systems_identity.py`, base `6e6fae6` source on
+**Identity** (`scripts/archive/viewer_systems_identity.py`, base `6e6fae6` source on
 `PYTHONPATH` against this branch, same interpreter and extension,
 `PYTHONHASHSEED=0`):
 

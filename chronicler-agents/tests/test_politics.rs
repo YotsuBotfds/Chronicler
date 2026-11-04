@@ -50,7 +50,7 @@ fn make_5_regions_star(controller: u16) -> Vec<RegionInput> {
         let mut r = RegionInput::new(i);
         r.adjacencies = vec![0];
         r.controller = controller;
-        r.effective_capacity = (50 - i * 5) as u16;
+        r.effective_capacity = 50 - i * 5;
         regs.push(r);
     }
     regs
@@ -1586,7 +1586,7 @@ fn test_different_turns_produce_different_rng() {
     // Different turns should produce potentially different outcomes
     // (Not necessarily different every time, but the RNG path diverges)
     // Just verify both runs complete without error
-    assert!(r1.bookkeeping.len() > 0 || r2.bookkeeping.len() > 0,
+    assert!(!r1.bookkeeping.is_empty() || !r2.bookkeeping.is_empty(),
         "At least one run should have bookkeeping ops");
 }
 

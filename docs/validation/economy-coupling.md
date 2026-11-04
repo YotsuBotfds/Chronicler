@@ -55,7 +55,7 @@ Use the virtual environment's Python to avoid importing stale wheels:
 python -m maturin develop --release --manifest-path chronicler-agents/Cargo.toml
 python scripts/economy_coupling_experiment.py --backend python
 python scripts/economy_coupling_experiment.py --backend rust --output /tmp/coupling.json
-python scripts/economy_hybrid_smoke.py --output /tmp/hybrid-accounting.json
+python scripts/archive/economy_hybrid_smoke.py --output /tmp/hybrid-accounting.json
 python -m pytest -q tests/test_economy_coupling.py tests/test_ecology_harvest_timing.py
 cargo test --manifest-path chronicler-agents/Cargo.toml --quiet
 ```

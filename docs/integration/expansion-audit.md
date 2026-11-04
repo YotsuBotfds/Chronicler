@@ -4,8 +4,8 @@ Run this against a run's existing `chronicle_bundle.json`, including an arm
 written by the expansion experiment runner:
 
 ```sh
-python scripts/audit_system_expansion.py path/to/chronicle_bundle.json
-python scripts/audit_system_expansion.py path/to/chronicle_bundle.json --as-of 20 --phase start --json reports/turn20.json --markdown reports/turn20.md
+python scripts/archive/audit_system_expansion.py path/to/chronicle_bundle.json
+python scripts/archive/audit_system_expansion.py path/to/chronicle_bundle.json --as-of 20 --phase start --json reports/turn20.json --markdown reports/turn20.md
 ```
 
 The default view ends at the run's declared last completed turn. `--as-of T

@@ -353,14 +353,14 @@ pub fn restore_needs_with_bonds(
 
         // Look up civ signals (guard for out-of-bounds)
         let civ_signals = signals.civs.get(civ as usize);
-        let is_at_war = civ_signals.map_or(false, |c| c.is_at_war);
+        let is_at_war = civ_signals.is_some_and(|c| c.is_at_war);
         let contested = signals.contested_regions.get(region_idx).copied().unwrap_or(false);
         // A war zone: armies, battles or occupation in a region whose ruler
         // or whose people's civ is at war (armies alone, in peace, are not).
         let ruler_at_war = signals
             .civs
             .get(region.controller_civ as usize)
-            .map_or(false, |c| c.is_at_war);
+            .is_some_and(|c| c.is_at_war);
         let war_zone = contested && (is_at_war || ruler_at_war);
 
         // ----- Safety -----

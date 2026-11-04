@@ -177,7 +177,7 @@ fn setup(args: &Args) -> (AgentPool, Vec<RegionState>, TickSignals, Vec<RegionAt
         let civ = regions[r as usize].controller_civ;
         for j in 0..per_region {
             // 60/15/10/10/5 occupation mix, as in the FFI initial spawn.
-            let pct = (j * 100 / per_region.max(1)) as usize;
+            let pct = j * 100 / per_region.max(1);
             let occ = match pct {
                 0..=59 => occupations[0],
                 60..=74 => occupations[1],

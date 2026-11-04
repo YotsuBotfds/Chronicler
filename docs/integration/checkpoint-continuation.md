@@ -26,7 +26,7 @@ Code: Rust `chronicler-agents/src/persist.rs` (new) and one
 `ffi/politics_sim.rs`; Python `run_checkpoint.py` (new), `main.py`,
 `agent_bridge.py`, `shadow.py`, `sidecar.py`, `artifact_io.py`,
 `batch_manifest.py`. Scripts: `scripts/checkpoint_identity.py`,
-`scripts/checkpoint_cost.py` (new). Tests:
+`scripts/archive/checkpoint_cost.py` (new). Tests:
 `tests/test_run_checkpoint.py`, `tests/test_run_checkpoint_native.py`,
 `chronicler-agents/tests/test_checkpoint_state.rs` (new),
 `tests/test_wave3_combined.py`, `tests/test_wave3_techniques_combined.py`.
@@ -346,7 +346,7 @@ save turns.
 
 ## 7. Cost
 
-`scripts/checkpoint_cost.py --target T --warmup 20 --repeat R`: the
+`scripts/archive/checkpoint_cost.py --target T --warmup 20 --repeat R`: the
 12-region template world scaled as `scripts/turn_speed_identity.py`'s
 `scaled22k` (18,800 starting agents, seed 42) and `scaled52k` (43,700,
 seed 7), hybrid, the checkpoint at the end of turn 20 written R times and
@@ -394,7 +394,7 @@ on both sides: 399 files, 0 differences. Shadow (200 turns, with
 and sidecars (200): 11, 9 and 112 files, 0 differences
 (`scripts/cities_identity.py compare`).
 
-Turn CPU (`scripts/turn_phase_profile.py --no-instrument`, three
+Turn CPU (`scripts/archive/turn_phase_profile.py --no-instrument`, three
 interleaved rounds, the side going first alternating; medians of the
 per-run medians; one rayon, OpenBLAS and OMP thread; load 7-10):
 
@@ -444,9 +444,9 @@ python scripts/turn_speed_identity.py run OUT_MAIN   # venv-main, main's script
 python scripts/turn_speed_identity.py run OUT_BRANCH  # venv-branch
 python scripts/turn_speed_identity.py compare OUT_MAIN OUT_BRANCH
 python scripts/turn_speed_identity.py run OUT --cli-arg=--scholarship   # both sides
-python scripts/turn_phase_profile.py --target 43700 --regions 12 --civs 4 --seed 7 \
+python scripts/archive/turn_phase_profile.py --target 43700 --regions 12 --civs 4 --seed 7 \
     --warmup 20 --turns 8 --no-instrument
-python scripts/checkpoint_cost.py --target 43700 --seed 7 --warmup 20 --repeat 5
+python scripts/archive/checkpoint_cost.py --target 43700 --seed 7 --warmup 20 --repeat 5
 ```
 
 New tests: `tests/test_run_checkpoint.py` (checkpointing changes no

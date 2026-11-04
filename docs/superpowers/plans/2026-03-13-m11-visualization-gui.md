@@ -61,7 +61,7 @@
 
 | File | Responsibility |
 |------|---------------|
-| `scripts/generate_viewer_fixture.py` | Runs chronicler 10 turns, outputs fixture bundle |
+| `scripts/archive/generate_viewer_fixture.py` | Runs chronicler 10 turns, outputs fixture bundle |
 
 ---
 
@@ -832,7 +832,7 @@ git commit -m "test(m11): add bundle size sanity check (500 turns < 5MB)"
 ### Task 6: Fixture Generation Script
 
 **Files:**
-- Create: `scripts/generate_viewer_fixture.py`
+- Create: `scripts/archive/generate_viewer_fixture.py`
 
 - [ ] **Step 1: Create the script**
 
@@ -840,7 +840,7 @@ git commit -m "test(m11): add bundle size sanity check (500 turns < 5MB)"
 #!/usr/bin/env python3
 """Generate a sample chronicle_bundle.json for the viewer test fixtures.
 
-Run: python scripts/generate_viewer_fixture.py
+Run: python scripts/archive/generate_viewer_fixture.py
 Output: viewer/src/__fixtures__/sample_bundle.json
 """
 import argparse
@@ -890,7 +890,7 @@ if __name__ == "__main__":
 
 - [ ] **Step 2: Run the script to generate the fixture**
 
-Run: `python scripts/generate_viewer_fixture.py`
+Run: `python scripts/archive/generate_viewer_fixture.py`
 Expected: `viewer/src/__fixtures__/sample_bundle.json` created
 
 - [ ] **Step 3: Verify the fixture has all required keys**
@@ -901,7 +901,7 @@ Expected: `['world_state', 'history', 'events_timeline', 'named_events', 'chroni
 - [ ] **Step 4: Commit**
 
 ```bash
-git add scripts/generate_viewer_fixture.py viewer/src/__fixtures__/sample_bundle.json
+git add scripts/archive/generate_viewer_fixture.py viewer/src/__fixtures__/sample_bundle.json
 git commit -m "feat(m11): add fixture generation script and sample bundle"
 ```
 

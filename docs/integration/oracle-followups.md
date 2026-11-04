@@ -143,7 +143,7 @@ them is scored as uncensored matched pairs. Results add `comparison:
 "matched_pairs"` and `outcome_censoring: "first_death_in_pair"`, and per seed
 the chosen snapshot's `pairs` and `censored_pairs`.
 `run_cohort_oracle(runs, method_version=2)` re-scores method 2 exactly
-(method 2 results keep their bytes); `scripts/rescore_cohort_oracle.py` now
+(method 2 results keep their bytes); `scripts/archive/rescore_cohort_oracle.py` now
 scores methods 1, 2 and 3.
 
 On real batches the verdicts do not move: every seed of all four gates

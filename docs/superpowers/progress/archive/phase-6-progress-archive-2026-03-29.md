@@ -400,7 +400,7 @@
   - `7a3bddd` — docs(m53a): frozen constant snapshot with substrate + pass changes + M49 flags
   - `96680fb` — docs(m53b): narrow Oracle 5 scope, update progress with partial cleanup status
 - **Tests:** latest focused verification run is `pytest tests/test_sidecar.py tests/test_validate.py tests/test_artifacts.py tests/test_culture.py tests/test_simulation.py -q` -> `229 passed`.
-- **New files:** `scripts/m53_demographics_probe.py` (demographics), `scripts/m53_social_probe.py` (needs/bonds/satisfaction)
+- **New files:** `scripts/archive/m53_demographics_probe.py` (demographics), `scripts/archive/m53_social_probe.py` (needs/bonds/satisfaction)
 - **Key demographic changes (cumulative):**
   - `DemographicDebug` struct in tick.rs — 13 per-tick counters
   - `get_demographic_debug()` + `get_age_histogram()` FFI methods
@@ -617,7 +617,7 @@
 **Next steps:**
 - **M54 status:** M54a, M54b, and M54c are all closed on the clean line (`main` at `7c012d9` in this repo state).
 - **M54 regression policy:** Absolute `regression` floor remains informative, but final M54 signoff uses preserved same-machine control matching (`docs/superpowers/analytics/m54-baseline-adjudication-2026-03-24.md` and `.json`) to avoid false negatives from baseline/provenance shift.
-- **Operational tool:** `scripts/m54_baseline_adjudication.py` is the source-of-truth comparator for candidate vs controls; keep its output artifact with every post-M54 migration closeout.
+- **Operational tool:** `scripts/archive/m54_baseline_adjudication.py` is the source-of-truth comparator for candidate vs controls; keep its output artifact with every post-M54 migration closeout.
 - **M55 status:** M55a and M55b are both implemented and gated on the clean merge line. Final canonical artifact: `output/m55b/gate_food007_farmer030_stab280_p24/full_gate/batch_1/validate_all.json`.
 - **Gate recovery note:** The branch-level regression drift was not caused by M55b alone. Final recovery that restored the canonical gate on the accepted M54 runtime line combined (1) age stream staying at `1400`, (2) spatial streams moving to `2000/2001`, (3) `MEMORY_SATISFACTION_WEIGHT=0.05`, (4) `FOOD_SHORTAGE_WEIGHT=0.07`, (5) `FOOD_SCARCITY_FARMER_BONUS=0.30`, and (6) the satisfaction stability bonus denominator moving from `300` to `280`.
 - **Next implementation target:** Start M58a from the clean `main` line and keep the accepted M54 controls, the final M55 gate artifact, and the tuned M57b gate artifacts immutable for future comparisons.

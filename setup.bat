@@ -79,7 +79,7 @@ python -m pip install "maturin>=1.5,<2" --quiet
 if errorlevel 1 exit /b 1
 cd chronicler-agents
 if errorlevel 1 exit /b 1
-python -m maturin develop --release
+python -m maturin develop --release --locked
 if errorlevel 1 exit /b 1
 cd ..
 if errorlevel 1 exit /b 1

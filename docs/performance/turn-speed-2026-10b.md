@@ -78,7 +78,7 @@ the first set.
   (500 turns), both with validation sidecars; plus a 92,000-start world
   (104,840 alive; 8 warm-up and 6 measured turns) for change 1, above
   the 100,000-agent threshold of the discarded sort.
-* **Tools.** `scripts/turn_phase_profile.py --no-instrument` per run (turn
+* **Tools.** `scripts/archive/turn_phase_profile.py --no-instrument` per run (turn
   CPU and wall from its turn marks; whole-process CPU from `wait4`).
   `perf` 6.8 with the software `cpu-clock` event (the VM exposes no PMU,
   so no hardware counters), sliced to the measured turns. Native tick
@@ -374,5 +374,5 @@ On the merge `7a62d9d` with its extension (`ee58c01e...d8d4`):
     venv-head/bin/python scripts/turn_speed_identity.py compare id/base id/head
     # one timed run per side and world (interleave them)
     RAYON_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 PYTHONHASHSEED=0 \
-        venv-head/bin/python scripts/turn_phase_profile.py --target 43700 --regions 12 --civs 4 \
+        venv-head/bin/python scripts/archive/turn_phase_profile.py --target 43700 --regions 12 --civs 4 \
         --warmup 20 --turns 8 --no-instrument

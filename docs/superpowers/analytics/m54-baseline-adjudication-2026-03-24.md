@@ -72,7 +72,7 @@ Candidate passes all tolerance checks.
 ## Repro command
 
 ```bash
-python scripts/m54_baseline_adjudication.py \
+python scripts/archive/m54_baseline_adjudication.py \
   --candidate-report output/m54c/codex_m53_secession_threshold25_full_500turn_purepolitics_cleanbranch/batch_1/validate_report.json \
   --control-report output/m54b/codex_m53_secession_threshold25_full_500turn_control_recheck_current_machine/batch_1/validate_report.json \
   --control-report output/m54b/codex_m53_secession_threshold25_full_500turn_control_recheck_current_machine_run2/batch_1/validate_report.json \

@@ -98,12 +98,12 @@ Expected: 3 tests PASS
 
 - [ ] **Step 5: Update probe's Oracle 5 output**
 
-In `scripts/m53_oracle_probe.py` line 227, change `destruction_rate` to `loss_destruction_rate`.
+In `scripts/archive/m53_oracle_probe.py` line 227, change `destruction_rate` to `loss_destruction_rate`.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/chronicler/validate.py tests/test_validate.py scripts/m53_oracle_probe.py
+git add src/chronicler/validate.py tests/test_validate.py scripts/archive/m53_oracle_probe.py
 git commit -m "fix(m53b): Oracle 5 counts LOST + DESTROYED artifacts in loss rate"
 ```
 
@@ -112,7 +112,7 @@ git commit -m "fix(m53b): Oracle 5 counts LOST + DESTROYED artifacts in loss rat
 ### Task 2: Fix Oracle 6 — Enforce 40% Dominance Cap
 
 **Files:**
-- Modify: `scripts/m53_oracle_probe.py:231-249`
+- Modify: `scripts/archive/m53_oracle_probe.py:231-249`
 - Test: `tests/test_validate.py`
 
 The probe marks Oracle 6 as PASS if 5/6 arc families exist, but doesn't check the spec requirement: "No single arc dominates >40% of civs." The check applies to ALL arcs including "stable" — the spec makes no exception.
@@ -142,7 +142,7 @@ Expected: PASS (existing function behavior)
 
 - [ ] **Step 3: Add dominance cap to probe's Oracle 6**
 
-In `scripts/m53_oracle_probe.py`, replace the Oracle 6 summary (after line 248) with:
+In `scripts/archive/m53_oracle_probe.py`, replace the Oracle 6 summary (after line 248) with:
 
 ```python
     # Dominance cap: no non-stable arc > 40% of all civs
@@ -163,7 +163,7 @@ In `scripts/m53_oracle_probe.py`, replace the Oracle 6 summary (after line 248) 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add scripts/m53_oracle_probe.py tests/test_validate.py
+git add scripts/archive/m53_oracle_probe.py tests/test_validate.py
 git commit -m "fix(m53b): Oracle 6 enforces 40% arc dominance cap"
 ```
 
@@ -172,9 +172,9 @@ git commit -m "fix(m53b): Oracle 6 enforces 40% arc dominance cap"
 ### Task 3: Wire Event Collection Into Oracle Probe
 
 **Files:**
-- Modify: `scripts/m53_oracle_probe.py:33-46` (delete dead code)
-- Modify: `scripts/m53_oracle_probe.py:49-146` (run_seed)
-- Modify: `scripts/m53_oracle_probe.py:178-214` (Oracle 2 and 4 sections)
+- Modify: `scripts/archive/m53_oracle_probe.py:33-46` (delete dead code)
+- Modify: `scripts/archive/m53_oracle_probe.py:49-146` (run_seed)
+- Modify: `scripts/archive/m53_oracle_probe.py:178-214` (Oracle 2 and 4 sections)
 
 **IMPORTANT:** `collect_agent_events()` (lines 33-46) calls `bridge._sim.get_last_tick_events()` which does NOT exist on the Rust `AgentSimulator`. The actual event flow is: `self._sim.tick()` returns events → `bridge._convert_events()` → stored as `AgentEventRecord` objects in `world.agent_events_raw`. The probe should read from `world.agent_events_raw` after the simulation loop.
 
@@ -182,7 +182,7 @@ git commit -m "fix(m53b): Oracle 6 enforces 40% arc dominance cap"
 
 - [ ] **Step 1: Delete dead `collect_agent_events()` and wire `world.agent_events_raw`**
 
-In `scripts/m53_oracle_probe.py`:
+In `scripts/archive/m53_oracle_probe.py`:
 
 Delete the `collect_agent_events()` function (lines 33-46). Keep the `import pyarrow as pa` — the probe still uses `pa.record_batch()` for relationship, needs, snapshot, and memory reads.
 
@@ -252,13 +252,13 @@ Replace lines 206-214 (Oracle 4 section):
 
 - [ ] **Step 4: Run probe to verify events are collected**
 
-Run: `PYTHONPATH=src python scripts/m53_oracle_probe.py --seeds 2 --turns 50`
+Run: `PYTHONPATH=src python scripts/archive/m53_oracle_probe.py --seeds 2 --turns 50`
 Expected: Output shows non-zero event counts, Oracles 2 and 4 produce rate comparisons (not "deferred" notes)
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add scripts/m53_oracle_probe.py
+git add scripts/archive/m53_oracle_probe.py
 git commit -m "fix(m53b): wire world.agent_events_raw into Oracles 2 and 4"
 ```
 

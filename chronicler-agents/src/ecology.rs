@@ -1300,7 +1300,7 @@ mod tests {
         let mut r = make_plains_region(0);
         r.soil = 0.25;
         r.water = 0.10;
-        r.population = effective_capacity(&r, &config) as u16; // at degraded capacity
+        r.population = effective_capacity(&r, &config); // at degraded capacity
         let before = r.soil;
         tick_soil_controlled(&mut r, &config, 1.0);
         assert!(r.soil > before, "soil should recover: {} -> {}", before, r.soil);

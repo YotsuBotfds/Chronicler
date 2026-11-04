@@ -1,7 +1,9 @@
 # Phase 6+7 Progress — Living Society + Depth Track
 
-Current integration and verification: [active development lead](../../integration/development-lead.md).
-The dated source-scoped records below remain historical evidence.
+Current source, gates and onboarding: [recovery index](../../RECOVERY.md) and
+[continuation ledger](../../CONTINUATION.md) (main after PR #69, 2026-11-04).
+The [2026-11-03 integration handoff](../../integration/development-lead.md) and the
+dated source-scoped records below remain historical evidence.
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
@@ -906,7 +908,7 @@ evidence: [`docs/integration/checkpoint-continuation.md`](../../integration/chec
   150-300-turn runs; 17 cases, 585 points, 0 differences; checkpointing
   itself changes nothing (579 files). Subset again on the last code commit
   (20 points).
-- **Cost** (`scripts/checkpoint_cost.py`): 22k 2.51 MB, write 0.17 s, read
+- **Cost** (`scripts/archive/checkpoint_cost.py`): 22k 2.51 MB, write 0.17 s, read
   0.18 s; 52k 5.40 MB, 0.42 s, 0.45 s (Rust state 13 ms of it); 22k with
   sidecars at turn 29 5.98 MB, 0.61 s. About 1.5 turns of CPU each.
 - **Tests**: cargo 1,051 passed, 2 ignored (debug info off); native not-slow 6,598 passed, 3 skipped;
@@ -981,7 +983,7 @@ evidence: [`docs/integration/production-ledger.md`](../../integration/production
   validator input); reads only (same bundle with and without it). The
   native economy reports `slot_output` and `forage_output`; the ecology
   batch what the tick drew, what the proxy would have drawn, the takes and
-  the mines' soil. `scripts/production_ledger_report.py` summarizes batches.
+  the mines' soil. `scripts/archive/production_ledger_report.py` summarizes batches.
 - **Corrections** (agent modes with an economy tick; proxies kept bit for
   bit otherwise): overextraction take = output / base yield (dormant: peak
   pressure 0.58 of sustainable, no penalty in any run); the penalty
@@ -2451,7 +2453,7 @@ then the gaps a reader of a run meets first:
 - **Two viewer-only snapshot fields**, written only in agent modes:
   `food` (per-region sufficiency mutual aid observed, relief convoys) and
   `migration` (the turn's agent moves by region pair). No simulation change.
-- **Identity** (`scripts/viewer_systems_identity.py`, base `6e6fae6`): the
+- **Identity** (`scripts/archive/viewer_systems_identity.py`, base `6e6fae6`): the
   bundle-size guard world, agents off, 500 turns: 10 files, 0 differences
   (`compare`). Five hybrid runs (guard world 300 turns; procedural 48x10
   and template 10x5, all on, 200 turns; template and procedural defaults,
@@ -3050,7 +3052,7 @@ Details: `docs/integration/viewer-systems.md`.
   `techniques.regions` (practice per region); bundle version stays 4.
   Flags off is byte-identical to `1a6cacb` (4 runs, 37 files); with all five
   systems on, outputs are identical apart from the two fields (2 runs, 22
-  files; `scripts/viewer_systems_identity.py`). `pytest -m "not slow" -n 2`
+  files; `scripts/archive/viewer_systems_identity.py`). `pytest -m "not slow" -n 2`
   5,699 passed, 3 skipped.
 - **Viewer:** 197 tests (base 166), lint clean, build passes. A systems-off
   bundle renders pixel-identically to the base build (9 of 9 headless
@@ -3429,11 +3431,11 @@ remain separate gates; no merge, flag activation or deployment is claimed.
   Full discovered Python validation after the live/viewer, hybrid-shock, civ-faith, and bundle-cleanup fixes now resolves to `2455 passed, 4 skipped` via `.\.venv\Scripts\python.exe -m pytest -q`.
 
 - **2026-04-02 Phase A critical audit fixes are complete in the working tree.**
-  Closed the six Tier 1 items from `docs/superpowers/audit/2026-04-02-full-codebase-audit.md`: holy-war WAR weighting now compares `Disposition` enums instead of dead strings, governing-cost stability drain no longer truncates `0.5` to `0`, Phase 10 hybrid shocks now route through the accumulator watermark when an `acc` is present (secession, capital loss, federation exits/remains, proxy detection, congress collapse, ongoing condition drains, and forced-collapse shocks), temple prestige now accepts `acc` and records civ prestige as a `keep` mutation, analytics now derives civ liveness from `regions` with a legacy `alive` fallback, and Rust `culture_tick` now uses the same packed `(region, turn, offset)` RNG-stream scheme as `conversion_tick`.
+  Closed the six Tier 1 items from `docs/superpowers/audits/2026-04-02-full-codebase-audit.md`: holy-war WAR weighting now compares `Disposition` enums instead of dead strings, governing-cost stability drain no longer truncates `0.5` to `0`, Phase 10 hybrid shocks now route through the accumulator watermark when an `acc` is present (secession, capital loss, federation exits/remains, proxy detection, congress collapse, ongoing condition drains, and forced-collapse shocks), temple prestige now accepts `acc` and records civ prestige as a `keep` mutation, analytics now derives civ liveness from `regions` with a legacy `alive` fallback, and Rust `culture_tick` now uses the same packed `(region, turn, offset)` RNG-stream scheme as `conversion_tick`.
 - **Focused validation for the Phase A pass is green.**
   `.\.venv\Scripts\python.exe -m pytest -q tests/test_action_engine.py tests/test_politics.py tests/test_simulation.py tests/test_infrastructure_legacy_migration.py tests/test_analytics.py` PASS (`226 passed`). `cargo test --quiet stream_packing_is_distinct` PASS in `chronicler-agents/`.
 - **2026-04-02 Phase B correctness fixes and targeted Phase C hardening are complete in the working tree.**
-  Closed the remaining live correctness issues from `docs/superpowers/audit/2026-04-02-full-codebase-audit.md`: stalemate military losses, proxy-detection stability loss, and supervolcano population loss now all honor the M18 severity multiplier; dead civs are excluded from WAR/EMBARGO targeting; accumulator misroutes were corrected for embargo pressure, faction power struggles, and assimilation unrest; `_conquered_this_turn` now survives through the bridge handoff and off-mode runs now clear unused region transients (`schism_convert_*`, `_controller_changed_this_turn`, `_war_won_this_turn`, `_seceded_this_turn`) plus reset `tech_advanced` after Phase 10 use; post-decay prestige now drives treasury parity in both modes; merchant route transport costs now reuse the canonical economy transport calculation; persecution clears regions that no longer have believers; movement adoption is capped at 100%; bridge write-back now clamps stability and same-batch dynasty promotions now see freshly created parents; Great Person cap/orphan retirement now behaves globally instead of civ-locally; and narration prompt assembly now threads the focal civ into agent-context construction so Gini/wealth context is no longer zeroed.
+  Closed the remaining live correctness issues from `docs/superpowers/audits/2026-04-02-full-codebase-audit.md`: stalemate military losses, proxy-detection stability loss, and supervolcano population loss now all honor the M18 severity multiplier; dead civs are excluded from WAR/EMBARGO targeting; accumulator misroutes were corrected for embargo pressure, faction power struggles, and assimilation unrest; `_conquered_this_turn` now survives through the bridge handoff and off-mode runs now clear unused region transients (`schism_convert_*`, `_controller_changed_this_turn`, `_war_won_this_turn`, `_seceded_this_turn`) plus reset `tech_advanced` after Phase 10 use; post-decay prestige now drives treasury parity in both modes; merchant route transport costs now reuse the canonical economy transport calculation; persecution clears regions that no longer have believers; movement adoption is capped at 100%; bridge write-back now clamps stability and same-batch dynasty promotions now see freshly created parents; Great Person cap/orphan retirement now behaves globally instead of civ-locally; and narration prompt assembly now threads the focal civ into agent-context construction so Gini/wealth context is no longer zeroed.
 - **Focused validation for the Phase B/Phase C pass is green.**
   `.\.venv\Scripts\python.exe -m pytest -q tests/test_action_engine.py tests/test_politics.py tests/test_agent_bridge.py tests/test_economy_m43a.py tests/test_narrative.py tests/test_great_persons.py tests/test_simulation.py tests/test_analytics.py` PASS (`391 passed`). `.\.venv\Scripts\python.exe -m pytest -q tests/test_religion.py` PASS (`22 passed`). Rust-side focused checks PASS: `cargo test --quiet --lib shock_effects_apply_outside_social_penalty_cap`, `cargo test --quiet --lib mark_war_survivors_uses_current_partition`, `cargo test --quiet --lib spawn_panics_when_next_id_overflows`, and `cargo test --quiet stream_packing_is_distinct`.
 - **Validation gotcha for future audit passes.**
@@ -3950,7 +3952,7 @@ remain separate gates; no merge, flag activation or deployment is claimed.
   - `7a3bddd` — docs(m53a): frozen constant snapshot with substrate + pass changes + M49 flags
   - `96680fb` — docs(m53b): narrow Oracle 5 scope, update progress with partial cleanup status
 - **Tests:** latest focused verification run is `pytest tests/test_sidecar.py tests/test_validate.py tests/test_artifacts.py tests/test_culture.py tests/test_simulation.py -q` -> `229 passed`.
-- **New files:** `scripts/m53_demographics_probe.py` (demographics), `scripts/m53_social_probe.py` (needs/bonds/satisfaction)
+- **New files:** `scripts/archive/m53_demographics_probe.py` (demographics), `scripts/archive/m53_social_probe.py` (needs/bonds/satisfaction)
 - **Key demographic changes (cumulative):**
   - `DemographicDebug` struct in tick.rs — 13 per-tick counters
   - `get_demographic_debug()` + `get_age_histogram()` FFI methods
@@ -4167,7 +4169,7 @@ remain separate gates; no merge, flag activation or deployment is claimed.
 **Next steps:**
 - **M54 status:** M54a, M54b, and M54c are all closed on the clean line (`main` at `7c012d9` in this repo state).
 - **M54 regression policy:** Absolute `regression` floor remains informative, but final M54 signoff uses preserved same-machine control matching (`docs/superpowers/analytics/m54-baseline-adjudication-2026-03-24.md` and `.json`) to avoid false negatives from baseline/provenance shift.
-- **Operational tool:** `scripts/m54_baseline_adjudication.py` is the source-of-truth comparator for candidate vs controls; keep its output artifact with every post-M54 migration closeout.
+- **Operational tool:** `scripts/archive/m54_baseline_adjudication.py` is the source-of-truth comparator for candidate vs controls; keep its output artifact with every post-M54 migration closeout.
 - **M55 status:** M55a and M55b are both implemented and gated on the clean merge line. Final canonical artifact: `output/m55b/gate_food007_farmer030_stab280_p24/full_gate/batch_1/validate_all.json`.
 - **Gate recovery note:** The branch-level regression drift was not caused by M55b alone. Final recovery that restored the canonical gate on the accepted M54 runtime line combined (1) age stream staying at `1400`, (2) spatial streams moving to `2000/2001`, (3) `MEMORY_SATISFACTION_WEIGHT=0.05`, (4) `FOOD_SHORTAGE_WEIGHT=0.07`, (5) `FOOD_SCARCITY_FARMER_BONUS=0.30`, and (6) the satisfaction stability bonus denominator moving from `300` to `280`.
 - **`M59a` status:** merged on the clean line. Canonical design doc: `docs/superpowers/specs/2026-03-30-m59a-information-packets-design.md`. Canonical implementation plan: `docs/superpowers/plans/2026-03-30-m59a-implementation-plan.md`.

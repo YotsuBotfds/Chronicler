@@ -85,9 +85,9 @@ suppression; no claim about birth rates or demographic stabilization is made.
 ```bash
 uv sync --python 3.13 --group dev
 .venv/bin/python -m pytest -q tests/test_mutual_aid.py
-.venv/bin/python scripts/mutual_aid_example.py --backend python
+.venv/bin/python scripts/archive/mutual_aid_example.py --backend python
 # After building chronicler-agents with maturin:
-.venv/bin/python scripts/mutual_aid_example.py --backend native
+.venv/bin/python scripts/archive/mutual_aid_example.py --backend native
 chronicler --agents hybrid --mutual-aid --simulate-only --seed 42 --turns 5
 ```
 

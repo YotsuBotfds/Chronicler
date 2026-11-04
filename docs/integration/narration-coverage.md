@@ -253,7 +253,7 @@ STANDING STATE after turn 83 (as recorded; describe it, do not change it):
 
 ## 5. Coverage table
 
-`scripts/narration_coverage.py table src/chronicler BEFORE AFTER` over the
+`scripts/archive/narration_coverage.py table src/chronicler BEFORE AFTER` over the
 three runs (before: `main` `aa0f655`; after: this branch). Columns: where
 the type is emitted; occurrences; the prompt line before and after (ok,
 empty, misleading; label, reworded); the curator class after; events listed
@@ -582,7 +582,7 @@ regions or its civs' lands ("Seat of learning: The Academy of Amber Valley
 (renowned academy in Amber Valley under Kethani Empire, kept by its ruler),
 17 scholars, 1 great scholar teaching"). In a 500-turn template run (seed
 42) with the switch on, 17 of 50 prompts carry a seat line. Rows, from
-`scripts/narration_coverage.py` over that run:
+`scripts/archive/narration_coverage.py` over that run:
 
 | type | emitted in | n | line | curator | listed | names | accounts |
 | --- | --- | ---: | --- | --- | ---: | --- | --- |
@@ -597,7 +597,7 @@ regions or its civs' lands ("Seat of learning: The Academy of Amber Valley
 **Public granaries** (`--grain-reserves`, [grain-reserves.md](grain-reserves.md#9-narration)):
 three kinds with readable lines; an opening against dearth or famine and an
 emptied granary weigh by their importance (4, or 5 below the famine line),
-grain bought abroad is routine. Rows, from `scripts/narration_coverage.py`
+grain bought abroad is routine. Rows, from `scripts/archive/narration_coverage.py`
 over a 500-turn template run (seed 42, hybrid, mechanical narrator) with the
 switch on:
 
@@ -737,7 +737,7 @@ the rest observe the run and change no simulation state.
   diversity rule's landmark exemption would leave nothing to move.
 
 Selected moments over the run, the same bundles curated without and with
-the rule (`scripts/curator_spread.py compare`; the in-run narration gives
+the rule (`scripts/archive/curator_spread.py compare`; the in-run narration gives
 the same rows):
 
 | | template 42, 500 turns | procedural 48 x 10, seed 7, 400 | template 1234, 300 |

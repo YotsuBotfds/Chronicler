@@ -8,8 +8,8 @@ or native runtime and uses no LLM. Existing JSON/escaped Markdown exports,
 source-byte hashing and input/output alias protection apply unchanged.
 
 ```sh
-python scripts/audit_system_expansion.py path/to/chronicle_bundle.json --json reports/audit.json
-python scripts/compare_system_expansion.py path/to/science-study --json reports/comparison.json
+python scripts/archive/audit_system_expansion.py path/to/chronicle_bundle.json --json reports/audit.json
+python scripts/archive/compare_system_expansion.py path/to/science-study --json reports/comparison.json
 ```
 
 ## What the receipts support

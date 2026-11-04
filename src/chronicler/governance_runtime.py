@@ -38,7 +38,7 @@ from fractions import Fraction
 import math
 import random
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Iterable, Mapping
+from typing import TYPE_CHECKING, Mapping
 
 import numpy as np
 
@@ -62,7 +62,7 @@ from chronicler.models import ActionType, Disposition, Event, FactionType
 from chronicler.utils import STAT_FLOOR, clamp, stable_hash_int
 
 if TYPE_CHECKING:
-    from chronicler.models import Civilization, WorldState
+    from chronicler.models import WorldState
 
 RUNTIME_POLICY_ID = "chronicler-governance-runtime-v1"
 
@@ -356,10 +356,6 @@ def _store_institutions(gov: CivGovernance, snapshot: g01.InstitutionSnapshot) -
 
 def _demand(snapshot: g01.InstitutionSnapshot) -> float:
     return math.fsum(i.enforcement_cost for i in snapshot.institutions)
-
-
-def _active_types(gov: CivGovernance) -> list[g01.InstitutionType]:
-    return [g01.InstitutionType(i.institution_type) for i in gov.institutions]
 
 
 def _quantize_capital(value: Fraction) -> Fraction:

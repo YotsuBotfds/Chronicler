@@ -23,7 +23,7 @@ Code: Rust `ecology.rs` (`ExtractionLedger`, `overextraction_take`,
 `production_ledger.py` (new), `ecology.py`, `economy.py`,
 `experimental/fisheries.py`, `scenario.py`, `emergence.py`, `sidecar.py`,
 `simulation.py`, `agent_bridge.py`, `tuning.py`;
-`scripts/production_ledger_report.py` (new). Tests:
+`scripts/archive/production_ledger_report.py` (new). Tests:
 `tests/test_production_ledger.py`, `tests/test_production_ledger_native.py`,
 `chronicler-agents/tests/test_production_ledger.rs`.
 
@@ -231,10 +231,10 @@ fish outside the accounts both raise. Covered runs: 40 off-mode turns of
 seeds 42 and 7 (Python lane), 40 hybrid turns of seeds 42 and 7, 30 of a
 16-region procedural world, and 40 with every old rule restored.
 
-## 8. Analytics: `scripts/production_ledger_report.py`
+## 8. Analytics: `scripts/archive/production_ledger_report.py`
 
 ```sh
-python scripts/production_ledger_report.py --batch main=<batch dir> --batch branch=<batch dir> \
+python scripts/archive/production_ledger_report.py --batch main=<batch dir> --batch branch=<batch dir> \
     --json report.json --markdown report.md
 ```
 
@@ -353,12 +353,12 @@ slightly larger population: +2.2% template, +2.3% procedural) was not traced
 to particular need pairings beyond the subsets' material and social pairs. In both full-gate tables `main`'s final population, mineral
 and mine-collapse rows are the `fix/population-entities` measurements of the
 batches behind these reports (`metrics-c0f354d-full-*.json`; those batches
-are deleted); the branch's come from `scripts/production_ledger_report.py`
+are deleted); the branch's come from `scripts/archive/production_ledger_report.py`
 on its own batches.
 
 ### Production analytics
 
-`scripts/production_ledger_report.py` over the branch's full-gate batches
+`scripts/archive/production_ledger_report.py` over the branch's full-gate batches
 (the ledger beside every run: realized and the earlier rule's charge in the
 same worlds) and, for before/after, `main` batches of the full gates' own
 configuration and first seeds (template 42-81 x 500 turns, procedural 42-61 x
