@@ -194,6 +194,32 @@ merchant houses lend finance's revenue term, fading as `0.98 ** turn`
 (section 13 there). The gate runner forwards it to the agent-mode runs;
 `CHRONICLER_CHECK_RESOURCES=1` also checks its books.
 
+## Claude Code cloud sessions
+
+The cloud container already provides Python 3.13, uv, Node 22, npm and a
+stable Rust toolchain. The environment's setup script only needs:
+
+```sh
+bash Chronicler/scripts/cloud_setup.sh
+```
+
+It installs the locked `.venv` (offline/no-Rust lane), `viewer/node_modules`
+and the Cargo downloads, and prepares a separate native venv at
+`~/.venvs/chronicler-native` (dependencies and maturin, no extension) in
+about 10 seconds. It does not build the extension: native work needs a fresh
+build of the branch under test anyway. Build into the native venv with
+`VIRTUAL_ENV` set; without it, `maturin develop` installs into `./.venv` and
+breaks the lanes that require `chronicler_agents` to be absent:
+
+```sh
+VIRTUAL_ENV=$HOME/.venvs/chronicler-native $HOME/.venvs/chronicler-native/bin/python \
+  -m maturin develop --release --locked --manifest-path chronicler-agents/Cargo.toml
+```
+
+Observed on a 4-core cloud container (2026-11-04): bounded offline lane
+about 4 minutes, viewer tests/lint/build about 2 minutes, `cargo test` about
+1.5 minutes, native release build 2-3 minutes.
+
 ## Continuing on another machine
 
 Fetch `main`, create a personal branch from its current remote SHA,
