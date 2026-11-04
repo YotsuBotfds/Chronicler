@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Iterable
 
 from chronicler.campaign_logistics import Region as KernelRegion
-from chronicler.campaign_logistics import Topology, shortest_path, validated_graph
+from chronicler.campaign_logistics import Topology, validated_graph
 from chronicler.utils import STAT_FLOOR, civ_index, clamp, stable_hash_int
 from chronicler.war.params import POLICY
 
@@ -95,12 +95,6 @@ def bernoulli_round(expected_thousandths: int, rng: random.Random) -> int:
 
 
 # --- graph helpers ---------------------------------------------------------------
-
-def path_names(ctx: WarContext, start: str, goal: str) -> list[str]:
-    a, b = ctx.index.get(start), ctx.index.get(goal)
-    if a is None or b is None:
-        return []
-    return [ctx.names[i] for i in shortest_path(ctx.graph, a, b)]
 
 
 def distances_from(ctx: WarContext, start: str) -> dict[str, int]:
@@ -225,11 +219,6 @@ def spend(ctx: WarContext, civ: "Civilization", amount: int) -> int:
     if paid:
         add_stat(ctx, civ, "treasury", -paid, "keep")
     return paid
-
-
-def note_military_loss(ctx: WarContext, civ_name: str, amount: float) -> None:
-    if amount > 0:
-        ctx.military_loss[civ_name] = ctx.military_loss.get(civ_name, 0.0) + amount
 
 
 def flush_military_losses(ctx: WarContext) -> None:

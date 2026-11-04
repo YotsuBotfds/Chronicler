@@ -71,7 +71,7 @@ from chronicler.cities_state import (
 from chronicler.utils import stable_hash_int
 
 if TYPE_CHECKING:  # pragma: no cover
-    from chronicler.models import Civilization, Event, Region, WorldState
+    from chronicler.models import Event, WorldState
 
 
 # ---------------------------------------------------------------------------
@@ -208,7 +208,6 @@ CRAFT_ACCESS_CAP = 0.3
 
 #: Stored floats are rounded to this many decimals.
 QUANTUM_DIGITS = 4
-
 
 
 # ---------------------------------------------------------------------------
@@ -358,11 +357,6 @@ def _owe(t: _Tick, civ_idx: int, amount: float) -> None:
         state.owed.append(0.0)
         state.carry.append(0.0)
     state.owed[civ_idx] = round(state.owed[civ_idx] + amount, 6)
-
-
-def _lord_name(t: _Tick, city: City) -> str | None:
-    civ = t.civ(city.lord)
-    return civ.name if civ is not None else None
 
 
 def _label(city: City) -> str:

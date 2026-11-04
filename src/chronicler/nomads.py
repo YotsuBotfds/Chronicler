@@ -294,10 +294,6 @@ def mode_of(world, civ: "Civilization | None") -> int:
     return world.nomads.mode(world.civ_index_map.get(civ.name))
 
 
-def mode_name(world, civ: "Civilization | None") -> str:
-    return SUBSISTENCE_MODES[mode_of(world, civ)]
-
-
 def capacity(region: "Region") -> float:
     """Herd carrying capacity of a region's pasture (before the season)."""
     from chronicler.ecology import TERRAIN_ECOLOGY_DEFAULTS

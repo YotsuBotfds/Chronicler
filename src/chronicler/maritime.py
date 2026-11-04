@@ -51,7 +51,7 @@ from chronicler.maritime_state import (
 from chronicler.utils import stable_hash_int
 
 if TYPE_CHECKING:  # pragma: no cover
-    from chronicler.models import Civilization, Event, Region, WorldState
+    from chronicler.models import Event, Region, WorldState
 
 
 # ---------------------------------------------------------------------------
@@ -373,10 +373,6 @@ def land_reachable(world, civ_name: str) -> set[int]:
 def lane_zone(world, a: int, b: int) -> int | None:
     """Zone of the sea lane between region indices ``a`` and ``b`` (None: land edge)."""
     return _lookups(world.maritime).lane_zone.get((a, b))
-
-
-def is_blocked(world, a: int, b: int) -> bool:
-    return (a, b) in _lookups(world.maritime).blocked
 
 
 def skim_rate(world, zone: int) -> float:
@@ -1197,12 +1193,6 @@ def _update_pirates(t: _Tick, traffic: list[float]) -> None:
 # ---------------------------------------------------------------------------
 # Trade consumers
 # ---------------------------------------------------------------------------
-
-def edge_blocked(world, a: int, b: int) -> bool:
-    """Blockaded sea lane (``False`` with the switch off)."""
-    if not maritime_enabled(world) or not world.maritime.blocked:
-        return False
-    return (a, b) in _lookups(world.maritime).blocked
 
 
 def blocked_name_pairs(world) -> frozenset:
