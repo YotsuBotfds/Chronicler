@@ -1,5 +1,11 @@
 # Crisis integration review handoff — 2026-11-03
 
+> Historical pre-merge review. PR #69 merged on 2026-11-04 at `cc4f70e2`;
+> [main CI](https://github.com/YotsuBotfds/Chronicler/actions/runs/41783128849)
+> passed all nine jobs. Start from fetched `main` and the
+> [recovery/archive index](../RECOVERY.md). The branch, pending approval and
+> evidence-location statements below retain their original pre-merge context.
+
 Branch: `integration/crisis-recovery-20261103`; target: `main`.
 Exact base: `63581a9a1a1297396ce2227ac2683aeefd5ad8a3`.
 Fresh main: `cb9fe70c81658fb65c6f511b821447f1d7b55b54`.

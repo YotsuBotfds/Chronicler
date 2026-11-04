@@ -18,13 +18,15 @@ The LLM **only narrates** — it never makes simulation decisions. You can run w
 
 ## Current Status
 
-The current development continuation is on **`dev/claude-handoff-20261030`**.
-It contains the October integration history beyond public `main`, portable
-development instructions, and the current checkpoint/viewer work. It is a
-development line; native/GPU and complete milestone qualification remain
-separate gates.
+Start from **`main`**. [PR #69](https://github.com/YotsuBotfds/Chronicler/pull/69)
+merged the consolidated development history and bounded crisis/recovery work on
+2026-11-04 at `cc4f70e29166c6bf083abdcd99b0fb5acc3d6594`.
+Its [main CI run](https://github.com/YotsuBotfds/Chronicler/actions/runs/41783128849)
+passed all nine jobs on attempt 1. This is scoped integration evidence;
+the 200-seed scientific/default-promotion gate remains unfinished.
 
-Start with [continuation status and known locations](docs/CONTINUATION.md),
+Start with the [recovery and archive index](docs/RECOVERY.md),
+[continuation status and historical locations](docs/CONTINUATION.md),
 [Windows/Mac/Linux setup](docs/DEVELOPMENT.md), and [agent instructions](AGENTS.md).
 For milestone history and designs, use:
 
@@ -39,7 +41,7 @@ For milestone history and designs, use:
 # Clone the repo
 git clone https://github.com/YotsuBotfds/Chronicler.git
 cd Chronicler
-git switch dev/claude-handoff-20261030
+git switch main
 
 # Run the setup script
 bash setup.sh            # Linux / Mac / Git Bash

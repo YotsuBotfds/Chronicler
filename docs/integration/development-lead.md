@@ -1,4 +1,10 @@
-# Current integration — 2026-11-03
+# Historical integration handoff — 2026-11-03
+
+> PR #69 merged on 2026-11-04 at `cc4f70e2`. Start new work from fetched
+> `main` and the [recovery/archive index](../RECOVERY.md). Machine paths and
+> runnable-session commands below are historical, not portable setup instructions;
+> use [development setup](../DEVELOPMENT.md) on a fresh machine. Archive manifests
+> determine which evidence is recoverable; a local path alone does not.
 
 Current work uses `integration/crisis-recovery-20261103`, isolated from the
 preserved development branch and original checkout. Start with the

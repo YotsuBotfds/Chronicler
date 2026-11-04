@@ -1,5 +1,11 @@
 # Crisis integration qualification — 2026-11-03
 
+> Post-merge note, 2026-11-04: PR #69 merged at `cc4f70e2` and
+> [main CI](https://github.com/YotsuBotfds/Chronicler/actions/runs/41783128849)
+> passed all nine jobs. The pending-check and local-path statements below retain
+> their original context; use the [recovery/archive index](../RECOVERY.md) for
+> later retained CI evidence, archive access and unavailable-session limits.
+
 This is a bounded release record, not approval to merge, deploy, promote default
 features or claim scientific efficacy. The integration starts at
 `63581a9a1a1297396ce2227ac2683aeefd5ad8a3`; this initial record was prepared from

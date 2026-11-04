@@ -1,4 +1,25 @@
-# Current crisis integration — 2026-11-03
+# Current continuation — after PR #69 merge, 2026-11-04
+
+Start new work from fetched `main`. [PR #69](https://github.com/YotsuBotfds/Chronicler/pull/69)
+merged at `cc4f70e29166c6bf083abdcd99b0fb5acc3d6594`; its tree
+`54904da5dc1a37f2cb67826874dd1e1ab983ab63` matches reviewed integration head
+`16dbcc9600ac3844825c46f9599cdce4f23c262c`.
+[Main CI run 41783128849](https://github.com/YotsuBotfds/Chronicler/actions/runs/41783128849)
+completed successfully on attempt 1, with all nine jobs green.
+
+Use the [recovery and archive index](RECOVERY.md) for private Drive evidence,
+LLM research/setup packets, older archive chains, safe restoration and remaining
+access gaps. The scientific 200-seed gate and default promotion are unfinished.
+Preserve other checkouts and inaccessible prior-thread work. A merge does not
+recover uncommitted files or publish every session-local receipt.
+
+Everything below is a dated historical handoff. Its statements about unchanged
+main, pending CI or merge authorization describe that time, not current branch
+guidance. Read the index before following old paths or restarting old queues.
+
+---
+
+# Historical crisis integration — 2026-11-03
 
 Continue from `integration/crisis-recovery-20261103`, isolated from preserved dev
 `63581a9a1a1297396ce2227ac2683aeefd5ad8a3` and main `cb9fe70c`.

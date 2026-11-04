@@ -1,6 +1,9 @@
 # Chronicler agent guide
 
-Read `docs/CONTINUATION.md` and `docs/DEVELOPMENT.md` before changing code.
+Read [current source and recovery/archive index](docs/RECOVERY.md),
+`docs/CONTINUATION.md` and `docs/DEVELOPMENT.md` before changing code.
+Start new work from fetched `main`; PR #69 merged on 2026-11-04 at `cc4f70e2`.
+Older branch instructions and machine paths are dated historical evidence.
 The current milestone ledger is `docs/superpowers/progress/phase-6-progress.md`;
 dated evidence describes the source and platform it actually tested.
 

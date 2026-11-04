@@ -110,8 +110,8 @@ commands are in `README.md` and `.github/workflows/tests.yml`. Native CI builds
 fresh source. A previously installed extension is not evidence for this branch.
 
 Full population/regression qualification remains the explicit validation-profile
-workflow and 200-seed gate. Do not activate experiments, deploy, or merge this
-draft continuation solely because the bounded gate passes.
+workflow and 200-seed gate. PR #69 is merged; its bounded checks do not complete
+that scientific gate or authorize experimental default promotion or deployment.
 
 The gate runner also has a procedural world profile: `--worldgen procedural`
 runs every seed on a 32-region, 10-civ heightmap/Voronoi world (subset 20
@@ -196,8 +196,9 @@ merchant houses lend finance's revenue term, fading as `0.98 ** turn`
 
 ## Continuing on another machine
 
-Fetch the continuation, create a personal branch from its current remote SHA,
-and inspect the ledger before changing code. Record platform, interpreter,
+Fetch `main`, create a personal branch from its current remote SHA,
+and inspect the [recovery/archive index](RECOVERY.md) and continuation ledger
+before changing code. Record platform, interpreter,
 source identity, commands, passes/skips and unrun gates. Preserve unsupported
 platform failures and fail-closed persistence behavior. Do not publish run data,
 credentials or private evidence packages with source changes.

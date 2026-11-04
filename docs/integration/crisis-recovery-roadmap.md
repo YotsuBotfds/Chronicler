@@ -1,5 +1,10 @@
 # Societies under pressure — development contract
 
+> Post-merge note, 2026-11-04: PR #69 is merged at `cc4f70e2`; use fetched
+> `main` and the [recovery/archive index](../RECOVERY.md). The development states,
+> unchanged-main statements and checkpoint receipts below are dated history.
+> Later bounded results do not imply the 200-seed scientific gate passed.
+
 Starting dev baseline: `6ff45ec33a86ff72b84d0d493fefcc3cd3a89601`.
 Refreshed remote was identical; worktree clean. Main stays untouched. Existing
 closeout remediation remains complete within its corrected limits. This is a
