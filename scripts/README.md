@@ -32,7 +32,7 @@ provenance, scholarship), `checkpoint_identity.py` (exact resume) and
 ## Reports and probes over existing runs
 
 `*_report.py` (diplomacy, great-person agendas, maritime, nomads, techniques,
-world systems, governance), `domestic_credit_probe.py`,
+world systems), `domestic_credit_probe.py`,
 `grain_reserves_probe.py`, `history_forensics.py`,
 `crisis_distribution_summary.py` and `narration_prompts.py`.
 
@@ -51,7 +51,8 @@ builders for the viewer's checked-in fixtures.
 Detached experiment and session CLIs (`admit_experiment.py`,
 `experiment_session.py`, `session_operation.py`, `snapshot_campaign_session.py`,
 `verify_snapshot_session.py`, `compare_experiment_sessions.py`,
-`experiment_receipts.py`), registered experiments (`run_expansion_experiment.py`,
+`experiment_receipts.py`), detached governance drivers (`governance_*_report.py`),
+registered experiments (`run_expansion_experiment.py`,
 `economy_coupling_experiment.py`, `shortfall_priority_evaluation.py`,
 `crisis_held_evaluation.py`, `scientific_*`, `wealth_floor_*`,
 `qualify_third_wave.py`, `third_wave_controls.py`, `a01_*`,
