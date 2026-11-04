@@ -5,6 +5,11 @@ import {
 } from "../../lib/food";
 import { eventsOfTypes, recordedSpan, SYSTEM_EVENT_TYPES, type SystemPanelProps } from "../../lib/systems";
 import { CivLineChart, StatTile, StripLegend, SystemEventList, TurnStrip } from "./SystemParts";
+import { Granaries } from "./Granaries";
+import { HarvestForecasts } from "./HarvestForecasts";
+import { observationEventKnown } from "../../lib/observedSystems";
+import { Transactions } from "./Transactions";
+import { FoodAccounting } from "./FoodAccounting";
 
 const SERIES = ["Short of food", "In dearth", "In famine"];
 const SERIES_COLORS: Record<string, string> = {
@@ -15,7 +20,7 @@ const TABLE_ROWS = 15;
 
 /** Where food is short, how long dearths and famines last, and who sends relief. */
 export function FoodPanel({
-  bundle, snapshot, currentTurn, onSeek, onSelectEvent, onSelectRegion, selectedRegion,
+  bundle, snapshot, currentTurn, onSeek, onSelectEvent, onSelectRegion, onSelectCivilization, selectedRegion,
 }: SystemPanelProps) {
   const history = bundle.history;
   const regionNames = useMemo(() => regionNamesOf(bundle), [bundle]);
@@ -36,7 +41,8 @@ export function FoodPanel({
   for (const flow of aid) {
     aidIn.set(flow.to, (aidIn.get(flow.to) ?? 0) + flow.amount);
   }
-  const events = eventsOfTypes(bundle.events_timeline, SYSTEM_EVENT_TYPES.food, currentTurn);
+  const events = eventsOfTypes(bundle.events_timeline, SYSTEM_EVENT_TYPES.food, currentTurn)
+    .filter((event) => observationEventKnown(event, at - 1));
   const convoys = events.filter((event) => event.turn === at - 1 && event.event_type === "aid_convoy").length;
   const onsets = spansOfKind(spans, "famine").filter((span) => span.start <= at - 1).length;
   const hasDearth = spans.some((span) => span.kind === "dearth");
@@ -51,6 +57,13 @@ export function FoodPanel({
 
   return (
     <div className="systems-panel-body" aria-label="Food">
+      <FoodAccounting bundle={bundle} snapshot={snapshot} currentTurn={currentTurn} onSelectRegion={onSelectRegion} />
+      <Transactions bundle={bundle} snapshot={snapshot} currentTurn={currentTurn} onSeek={onSeek}
+        onSelectEvent={onSelectEvent} onSelectRegion={onSelectRegion} onSelectCivilization={onSelectCivilization} />
+      <HarvestForecasts bundle={bundle} snapshot={snapshot} currentTurn={currentTurn} onSeek={onSeek}
+        onSelectEvent={onSelectEvent} onSelectRegion={onSelectRegion} onSelectCivilization={onSelectCivilization} />
+      <Granaries bundle={bundle} snapshot={snapshot} currentTurn={currentTurn} onSeek={onSeek}
+        onSelectEvent={onSelectEvent} onSelectRegion={onSelectRegion} onSelectCivilization={onSelectCivilization} />
       <div className="systems-tiles">
         <StatTile label="Regions in famine" value={famines.length} detail={`turn ${at}`} />
         {hasDearth && <StatTile label="Regions in dearth" value={dearths.length} detail={`turn ${at}`} />}

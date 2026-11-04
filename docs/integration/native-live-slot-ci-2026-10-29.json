@@ -1,0 +1,157 @@
+{
+  "artifacts": {
+    "12888699273": {
+      "bytes": 722,
+      "expansion_bytes": 5789,
+      "expires_at": "2026-11-12T10:20:39Z",
+      "members": 1,
+      "name": "rust-535b3b6c0f5afb5d89925a4b35e8a0e6227f19ab",
+      "sha256": "01d331eb29f76ef09fd2ad670338a41cd780a726fe2edabf5c7af990adfcc7e2"
+    },
+    "12889363254": {
+      "bytes": 44608,
+      "expansion_bytes": 143476,
+      "expires_at": "2026-11-12T10:22:50Z",
+      "members": 71,
+      "name": "python-offline-535b3b6c0f5afb5d89925a4b35e8a0e6227f19ab",
+      "sha256": "15d299b508ae03f975ed2ca3838d61b3b8bd358ac577385e9f686f74a1bfa873"
+    },
+    "12889406997": {
+      "bytes": 1002,
+      "expansion_bytes": 1186,
+      "expires_at": "2026-11-12T10:19:53Z",
+      "members": 3,
+      "name": "wrapper-contract-native-535b3b6c0f5afb5d89925a4b35e8a0e6227f19ab",
+      "sha256": "03d8187ca9f0628854871bc9cc392a4809eec023c8ef706d81aa43935ec8b025"
+    },
+    "12889806483": {
+      "bytes": 1003,
+      "expansion_bytes": 1186,
+      "expires_at": "2026-11-12T10:19:50Z",
+      "members": 3,
+      "name": "wrapper-contract-no-rust-535b3b6c0f5afb5d89925a4b35e8a0e6227f19ab",
+      "sha256": "3618e7069fe03d17d736696edd2079ba9b02f7b8edbe521580a4305c0e4873a7"
+    },
+    "12889933258": {
+      "bytes": 3851094,
+      "expansion_bytes": 3916524,
+      "expires_at": "2026-11-12T10:33:21Z",
+      "members": 2,
+      "name": "native-wheel-535b3b6c0f5afb5d89925a4b35e8a0e6227f19ab",
+      "sha256": "995541eb42120db917e59f4c13c3dfb9e14cb105d016a151ab3f63cf0e20a1f0"
+    },
+    "12890232345": {
+      "bytes": 145633,
+      "expansion_bytes": 1178806,
+      "expires_at": "2026-11-12T10:27:02Z",
+      "members": 1,
+      "name": "python-no-rust-535b3b6c0f5afb5d89925a4b35e8a0e6227f19ab",
+      "sha256": "97a7033b2d339ba87eb15fda97ebbaca05057fd23ceb0a730e2cc9b7e6f3a217"
+    },
+    "12890820671": {
+      "bytes": 143644,
+      "expansion_bytes": 1102956,
+      "expires_at": "2026-11-12T10:33:19Z",
+      "members": 2,
+      "name": "python-native-535b3b6c0f5afb5d89925a4b35e8a0e6227f19ab",
+      "sha256": "5a76d18800cbe3842c6dfc0e0a6866ce259e2241d31a3db1b61474da3f71970c"
+    }
+  },
+  "attempt": 1,
+  "crate": "6503ceebc4efdcd3c4f51b0058c4e562fd94b5a6",
+  "evidence": {
+    "independent_peer": "08cd1c07d4ea4e29057db695e6aad9d8dd84deb1d31b07806d334936039a3c32",
+    "primary_index": "cb2786c843090a6b038ae9daec7e5a8533083d549edf9846a9c3090190305554",
+    "primary_result": "f9ea9ec1e65e393f60f8b16fb300fe20b9e0332a57e249fb4420e2a657fd97d2",
+    "root": "44c63da4b426d7bf34d0b20dc3a5aacc831dee5821dbba7b9686c42d26cb16e0"
+  },
+  "kind": "curated_projection_not_original_CI_receipt",
+  "live_target_JUnit_seconds": {
+    "priorCBF_native": 5.013,
+    "priorCBF_noRust": 5.013,
+    "source535_native": 0.049,
+    "source535_noRust": 0.051
+  },
+  "native": {
+    "classes": [
+      "AgentSimulator",
+      "EcologySimulator",
+      "PoliticsSimulator"
+    ],
+    "installed": {
+      "bytes": 13694480,
+      "filename": "chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+      "sha256": "d8dc61846c0a680d40a8bf332f377d97bd12c5ee1bd9ad9bd0b36e11c49e9165",
+      "wheel_member_sha256": "d8dc61846c0a680d40a8bf332f377d97bd12c5ee1bd9ad9bd0b36e11c49e9165"
+    },
+    "python": "3.13.17 (main, Oct 22 2026, 02:40:32) [GCC 13.3.0]",
+    "retained_native_bytes_streamed": true,
+    "source_commit": "535b3b6c0f5afb5d89925a4b35e8a0e6227f19ab",
+    "wheel": {
+      "bytes": 3915580,
+      "filename": "chronicler_agents-0.1.0-cp313-cp313-manylinux_2_34_x86_64.whl",
+      "native_member": "chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+      "sha256": "a597e17b230575838bee84c538688c9d9d7e4172295e3892e55141552b9f201d"
+    }
+  },
+  "offline": {
+    "blocked_io_attempts": [],
+    "chunks": 35,
+    "counts": {
+      "failed": 0,
+      "passed": 4244,
+      "skipped": 65
+    },
+    "each_limit_seconds": 110,
+    "factories_replaced_calls": {
+      "ecology": 168,
+      "politics": 168
+    },
+    "native_import_attempts_blocked": {
+      "chronicler_agents": 313
+    },
+    "native_modules_loaded": []
+  },
+  "python": {
+    "native": {
+      "parent_cases": 8357,
+      "passed": 8351,
+      "reported_tests": 8883,
+      "seconds": 628.795,
+      "skipped": 6,
+      "successful_subtests": 526
+    },
+    "no-rust": {
+      "parent_cases": 8343,
+      "passed": 8018,
+      "reported_tests": 8869,
+      "seconds": 426.405,
+      "skipped": 325,
+      "successful_subtests": 526
+    }
+  },
+  "run": 40856653564,
+  "rust": {
+    "failed": 0,
+    "filtered": 0,
+    "ignored": 2,
+    "individual_name_log_witnesses": false,
+    "measured": 0,
+    "new_tests": [
+      "test_shared_alive_slots_match_fresh_phase_collection",
+      "test_shared_alive_skills_use_post_catastrophe_set"
+    ],
+    "new_tests_pass_basis": "Both unconditional unignored source535 unit tests selected by unfiltered cargo harness; entire579-unit target passes with0ignored/filtered.",
+    "passed": 1120,
+    "targets": 37,
+    "unit_passed": 579
+  },
+  "scope": "FullstandardCIonly; source-backed newRusttest inclusion, no individualquietlogwitness. Defaultexports/performance/science/adoption pending.",
+  "source": "535b3b6c0f5afb5d89925a4b35e8a0e6227f19ab",
+  "viewer": {
+    "build": "success",
+    "files": 69,
+    "lint": "success",
+    "passed": 743
+  }
+}

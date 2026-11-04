@@ -1,0 +1,303 @@
+{
+  "projection": {
+    "kind": "curated repository documentation; not original evidence bytes",
+    "target_base": "4318d74032e5e3728a1df123d9b55a929da43325",
+    "target_paths": [
+      "docs/integration/native-module-shards-v2-ci-2026-10-29.md",
+      "docs/integration/native-module-shards-v2-ci-2026-10-29.json"
+    ]
+  },
+  "qualification": {
+    "source": "7dcb240277aa8d61275d6f805cdf0f54976b62b0",
+    "component": "0df04124f0ce501dd855627cd6672f23ba5497a1",
+    "runtime_source": "cbf6e368ebd218c1f54179bee4accffc1ab2a4c0",
+    "run_id": 40863008464,
+    "attempt": 1,
+    "event": "push",
+    "conclusion": "success",
+    "jobs": 9,
+    "branch": "lead/native-two-shard-qualification-v2-20261029",
+    "workflow": ".github/workflows/native-two-shards-v2.yml",
+    "workflow_sha256": "8030ff98e3f7ce88106a1efbec5aed2c19460275b2da487c41d1a23332d7e9fc",
+    "url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40863008464",
+    "pushes": 1,
+    "extra_dispatches": 0,
+    "same_source_retries": 0,
+    "standard_tests_workflow_changed": false
+  },
+  "native": {
+    "passed_parents": 8448,
+    "skipped_parents": 6,
+    "successful_subtests": 526,
+    "collected_parents": 8454,
+    "modules": 300,
+    "module_partition": [
+      160,
+      140
+    ],
+    "historical_parents": 8357,
+    "new_pure_contract_parents": 97,
+    "ordered_full_collection_digest": "bcd0077d798a65979af4b8a1a89d9111c9c382cbf5f0ed2331ee1bfa1f99dbc5",
+    "identical_ordered_collections": true,
+    "disjoint_exact_once_selected_union": true,
+    "parent_phase_reports": 25362,
+    "subtest_reports": 526,
+    "report_order_and_multiplicity_preserved": true,
+    "shards": {
+      "0": {
+        "passed": 4362,
+        "skipped": 4,
+        "successful_subtests": 407,
+        "selected_parents": 4366,
+        "phase_reports": 13098,
+        "pytest_seconds": 205.02,
+        "receipt_sha256": "30b2ee3602d9b9316c3224ad2f5db653841cc6005802244c01b8436c607b4e56",
+        "JUnit_sha256": "745f712183e678a3eca046381a0d82bc6f7c5f1af2caa3d6bcafd10e5cab1dfd"
+      },
+      "1": {
+        "passed": 4086,
+        "skipped": 2,
+        "successful_subtests": 119,
+        "selected_parents": 4088,
+        "phase_reports": 12264,
+        "pytest_seconds": 226.92,
+        "receipt_sha256": "f1248a1e12b2b330459ec8db1fdfa1ceea8eb92ad365db70f723e5b510862521",
+        "JUnit_sha256": "79aacd24ac7abe9909dec8a67b2991121715ec858dfc8e01d89328ad0bb390b0"
+      }
+    },
+    "skip_nodes": [
+      "tests/test_m36_regression.py::TestInvestCultureAcceleration::test_invest_culture_directional",
+      "tests/test_m38b_regression.py::TestFullCascade::test_full_cascade_end_to_end",
+      "tests/test_m38b_regression.py::TestPilgrimageFrequency::test_pilgrimage_frequency_calibration",
+      "tests/test_m51_legacy_integration.py::test_legacy_determinism",
+      "tests/test_mutual_aid_adversarial.py::test_multiturn_disabled_matches_untouched_public_source_with_same_repaired_native",
+      "tests/test_turn_artifact_lifecycle.py::test_str_wrapper_does_not_retain_view_after_return"
+    ]
+  },
+  "diagnostic_context": {
+    "schema": "pytest-saferepr-display-v1",
+    "scope": "bounded display strings only; not lossless test inputs, authority values or identity keys",
+    "limits": {
+      "msg_characters": 256,
+      "kwargs_characters": 1024,
+      "JSON_bytes": 16384
+    },
+    "actual_maxima": {
+      "msg_chars": 4,
+      "kwargs_chars": 809,
+      "JSON_bytes": 994
+    },
+    "repeated_display_labels_retained": 28,
+    "authority_JSON_nonfinite_values_rejected": true,
+    "asdict_deepcopy_raw_context_avoided": true
+  },
+  "other_gates": {
+    "no_rust": {
+      "parents": 8440,
+      "passed": 8115,
+      "skipped": 325,
+      "successful_subtests": 526
+    },
+    "offline": {
+      "guard_reports": {
+        "passed": 4244,
+        "failed": 0,
+        "skipped": 65
+      },
+      "chunks": 35,
+      "seconds": 173.280004247,
+      "source_hashes": 325,
+      "all_exact_qualified_cbf": true,
+      "slowest_chunk": {
+        "name": "systems-2",
+        "seconds": 27.75434667799999
+      },
+      "native_modules_loaded": 0,
+      "blocked_native_availability_imports": 313,
+      "replaced_oracle_factory_calls": {
+        "ecology": 168,
+        "politics": 168
+      },
+      "blocked_IO": 0
+    },
+    "rust": {
+      "passed": 1118,
+      "ignored": 2
+    },
+    "viewer": {
+      "passed": 743,
+      "files": 69,
+      "lint_build": "PASS"
+    },
+    "wrapper_preflights": {
+      "native_passed": 2,
+      "no_rust_passed": 2,
+      "skipped": 0,
+      "native_factory_IO_attempts": 0,
+      "added_to_full_counts": false
+    }
+  },
+  "within_build_cases": {
+    "ordinary_observer_world_cases": {
+      "native_passed": 2,
+      "no_rust_passed": 2
+    },
+    "ordinary_execute_run_world_cases": {
+      "native_passed": 2,
+      "no_rust_passed": 2
+    },
+    "compiled_adapter_cases": {
+      "native_passed": 7,
+      "no_rust_skipped": 7
+    },
+    "scope": "Within each build only; no cross-source or global RNG parity grant"
+  },
+  "native_content": {
+    "native_sha256": "3ee06a53b3c16dcba01bc53c8fe1dd97e530754a61d65fe2c1396b158b48e6d0",
+    "native_bytes": 13695168,
+    "wheel_sha256": "a7ca424333b3f9173539b1650b32892b68fc55e5933ce89ea492207d829abafc",
+    "wheel_bytes": 3915399,
+    "classes": [
+      "AgentSimulator",
+      "EcologySimulator",
+      "PoliticsSimulator"
+    ],
+    "python": "3.13.17 (main, Oct 22 2026, 02:40:32) [GCC 13.3.0]",
+    "pytest": "9.0.2",
+    "source_tree_files": 786,
+    "source_tree_digest": "a83b5febdf4f2af121ad1712a06b1dda15f69a5c88362f678c308a2a11f66655",
+    "current_source_run_attempt_package_identity_shared": true,
+    "post_suite_identity_equality": "asserted by the qualified producer before PASS receipt; not separate external process attestation"
+  },
+  "publication": {
+    "original_ZIPs": 9,
+    "outer_members": 90,
+    "inner_wheel_members": 6,
+    "whole_ZIP_SHA_checks": true,
+    "streamed_member_size_CRC_SHA_checks": true,
+    "native_extraction_import_local_World_builds": false,
+    "artifacts": {
+      "12892672694": {
+        "name": "native-module-shard-0-40863008464-1",
+        "bytes": 399390,
+        "sha256": "7bc609df9f2ad5f49a89ee70632469e06de4c27b2a650e1e56f4f1d28ac8102b",
+        "expires_at": "2026-11-12T11:15:04Z",
+        "members": 4
+      },
+      "12892538225": {
+        "name": "native-module-aggregate-40863008464-1",
+        "bytes": 1280,
+        "sha256": "eba102a48cbf0e615a49529c3151f7be6813e229e0a64e63310e9c4e69fae39b",
+        "expires_at": "2026-11-12T11:15:47Z",
+        "members": 1
+      },
+      "12892402354": {
+        "name": "rust-7dcb240277aa8d61275d6f805cdf0f54976b62b0",
+        "bytes": 723,
+        "sha256": "abcb07fc3e0c807380fa25334d456c8c17a3d88cae051e1b2aa0272b3fcca0cc",
+        "expires_at": "2026-11-12T11:09:11Z",
+        "members": 1
+      },
+      "12892223384": {
+        "name": "native-module-shard-1-40863008464-1",
+        "bytes": 373081,
+        "sha256": "6daff4e037bbae2841d83d3169aa61a799599b2346f6ad4d51c664b4bcb9514f",
+        "expires_at": "2026-11-12T11:15:29Z",
+        "members": 4
+      },
+      "12892022795": {
+        "name": "wrapper-contract-no-rust-7dcb240277aa8d61275d6f805cdf0f54976b62b0",
+        "bytes": 1000,
+        "sha256": "d3ec54a883ec5e9ae4936f5020408a5f3e2c97c925c100c3f8ceb96f495a3836",
+        "expires_at": "2026-11-12T11:08:22Z",
+        "members": 3
+      },
+      "12891954617": {
+        "name": "python-no-rust-7dcb240277aa8d61275d6f805cdf0f54976b62b0",
+        "bytes": 146167,
+        "sha256": "975835b54df776f21ffddf86808ebffe10e2cb24e6f56b3db58e8ed6a345c820",
+        "expires_at": "2026-11-12T11:13:54Z",
+        "members": 1
+      },
+      "12891624288": {
+        "name": "native-shard-build-40863008464-1",
+        "bytes": 3851094,
+        "sha256": "635cc86b45f4e0668d79370f7cef403e338ea77c0bca7c5054e3dfad8dfd993f",
+        "expires_at": "2026-11-12T11:11:16Z",
+        "members": 2
+      },
+      "12891549484": {
+        "name": "python-offline-7dcb240277aa8d61275d6f805cdf0f54976b62b0",
+        "bytes": 44601,
+        "sha256": "198dfd57490c0c9d545bf271a6818e77bbbf5d8d58e120ecb6afeb56db25051e",
+        "expires_at": "2026-11-12T11:11:09Z",
+        "members": 71
+      },
+      "12891444957": {
+        "name": "wrapper-contract-native-7dcb240277aa8d61275d6f805cdf0f54976b62b0",
+        "bytes": 1001,
+        "sha256": "41e8ae77fbf254a901451090637c8aa67ba99c9190f0e5d633c259a8a003b170",
+        "expires_at": "2026-11-12T11:08:20Z",
+        "members": 3
+      }
+    }
+  },
+  "timing_observations": {
+    "created_to_last_job_seconds": 471,
+    "job_wall_seconds": {
+      "Viewer": 114.0,
+      "Python bounded offline": 189.0,
+      "Rust": 68.0,
+      "Build one current-source native wheel": 198.0,
+      "Python no-Rust": 352.0,
+      "Python native module shard 1": 246.0,
+      "Python native module shard 0": 221.0,
+      "Exact-once native shard barrier": 15.0,
+      "Python native": 3.0
+    },
+    "native_pytest_seconds": [
+      205.02,
+      226.92
+    ],
+    "scope": "Uncontrolled current-run wall observations; no matched reference, CPU total, speedup or simulation-performance claim"
+  },
+  "preserved_first_failure": {
+    "source": "847f164c99ea6974e197d6b95ab9ec9cd9f1e1c2",
+    "run_id": 40858749837,
+    "attempt": 1,
+    "conclusion": "failure",
+    "jobs_success": 5,
+    "jobs_failed": 4,
+    "native_passed_parents": 8426,
+    "native_skips": 6,
+    "successful_subtests": 526,
+    "shard_0_error": "TypeError: bytes is not JSON serializable",
+    "shard_1_error": "ValueError: inf is not strict JSON compliant",
+    "both_shard_receipts_absent": true,
+    "aggregate_qualification": false,
+    "negative_pack_manifest_sha256": "55149d511b759161ff297a43a2e293b39357bdaa3e68be94f07e6371bbc1fc60",
+    "negative_final_peer_sha256": "5290e5bc339a01e364040eb2a249b828d72db24cc7676f3bf08255a80afefadc",
+    "scope": "Original first outcomes remain unchanged; exact offending raw context was never published"
+  },
+  "evidence": {
+    "original_pack_path": "/tmp/chronicler-review-evidence/native-two-shard-v2-qualification-20261029",
+    "indexed_files": 39,
+    "indexed_bytes": 5291034,
+    "manifest_sha256": "4203c100bfe5943ea5707e8933b45643870973c47f0452f3141c81a8ccbf9d7b",
+    "reconciled_result_sha256": "2b467a4f82ace05a2b3a0fe534b842819969693655594524f3b022c57a15b4a3",
+    "original_readout_sha256": "564adaec4129c760e68aa83cc1909e4b806f77d81d441498a95e43be06fbd00a",
+    "independent_final_peer_path": "/tmp/chronicler-review-evidence/native-two-shard-v2-final-peer-20261029/receipt-final.json",
+    "independent_final_peer_sha256": "bb8b35082b66f008672e682884ae8cb7c3278fe54bfa5a53872c98887060595f",
+    "root_qualification_path": "/tmp/chronicler-v2-root-qualification-20261029/root-final-qualification.json",
+    "root_qualification_sha256": "ac917da8549b3671a827ce56b4a099363141a1e01598276ebf78ca50e98162dc"
+  },
+  "scope_limits": {
+    "isolated_workflow_qualified_only": true,
+    "standard_workflow_adoption": false,
+    "main_integration": false,
+    "default_promotion": false,
+    "serial_global_RNG_or_cross_revision_parity": false,
+    "scientific_qualification_or_historical_reuse": false,
+    "controlled_performance_claim": false
+  }
+}

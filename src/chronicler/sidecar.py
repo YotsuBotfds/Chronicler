@@ -79,10 +79,15 @@ def _columns_to_rows(runs: tuple) -> list[dict[str, Any]]:
 class SidecarWriter:
     """Writes validation sidecar files for a single simulation run."""
 
-    def __init__(self, base_dir: pathlib.Path) -> None:
+    def __init__(self, base_dir: pathlib.Path, *, artifact_budget=None) -> None:
         self._base_dir = base_dir
         self._dir = base_dir / "validation_summary"
-        self._dir.mkdir(parents=True, exist_ok=True)
+        if artifact_budget is None:
+            self._dir.mkdir(parents=True, exist_ok=True)
+        else:
+            artifact_budget.require_healthy()
+            artifact_budget.ensure_directory(self._dir)
+            self._artifact_budget = artifact_budget
         self._relationship_rows: list[dict[str, Any]] = []
         self._memory_rows: list[dict[str, Any]] = []
         self._needs_rows: list[dict[str, Any]] = []
@@ -100,6 +105,8 @@ class SidecarWriter:
     _ROW_LISTS = ("_relationship_rows", "_memory_rows", "_needs_rows")
 
     def __getstate__(self) -> dict[str, Any]:
+        if "_artifact_budget" in self.__dict__:
+            raise ValueError("Budgeted sidecar checkpoint support is unqualified")
         state = dict(self.__dict__)
         for name in self._ROW_LISTS:
             state[name] = _rows_to_columns(state[name])
@@ -139,7 +146,10 @@ class SidecarWriter:
             },
         }
         path = self._dir / f"graph_turn_{_turn_str(turn)}.json"
-        path.write_text(json.dumps(payload, separators=(",", ":")))
+        if "_artifact_budget" in self.__dict__:
+            self._artifact_budget.write_text(path, json.dumps(payload, separators=(",", ":")))
+        else:
+            path.write_text(json.dumps(payload, separators=(",", ":")))
         for agent_id, target_id, bond_type, sentiment in edges:
             self._relationship_rows.append({
                 "turn": turn,
@@ -176,6 +186,11 @@ class SidecarWriter:
             turn: Simulation turn number.
             needs_batch: Column data as dict or PyArrow RecordBatch.
         """
+        # Preserve old subclasses: this new private name was never a hook.
+        _NEEDS_WRITE_DATA(self, turn, needs_batch)
+
+    def _write_needs_snapshot_data(self, turn: int, needs_batch: Any) -> dict[str, Any]:
+        """Write completely before returning the call-local decoded columns."""
         if hasattr(needs_batch, "to_pydict"):
             # PyArrow RecordBatch or Table
             data = needs_batch.to_pydict()
@@ -191,13 +206,18 @@ class SidecarWriter:
 
         payload = {"turn": turn, "columns": data}
         path = self._dir / f"needs_turn_{_turn_str(turn)}.json"
-        path.write_text(json.dumps(payload, separators=(",", ":")))
+        if "_artifact_budget" in self.__dict__:
+            self._artifact_budget.write_text(path, json.dumps(payload, separators=(",", ":")))
+        else:
+            path.write_text(json.dumps(payload, separators=(",", ":")))
         row_count = len(next(iter(data.values()), []))
         for idx in range(row_count):
             row = {"turn": turn}
             for name, values in data.items():
                 row[name] = values[idx]
             self._needs_rows.append(row)
+
+        return data
 
     # ------------------------------------------------------------------
     # Agent aggregate
@@ -217,7 +237,10 @@ class SidecarWriter:
         """
         payload = {"turn": turn, "aggregates": aggregates}
         path = self._dir / f"aggregate_turn_{_turn_str(turn)}.json"
-        path.write_text(json.dumps(payload, separators=(",", ":")))
+        if "_artifact_budget" in self.__dict__:
+            self._artifact_budget.write_text(path, json.dumps(payload, separators=(",", ":")))
+        else:
+            path.write_text(json.dumps(payload, separators=(",", ":")))
         self._aggregate_by_turn[str(turn)] = aggregates
 
     # ------------------------------------------------------------------
@@ -238,7 +261,10 @@ class SidecarWriter:
         """
         payload = {"turn": turn, "summary": summary}
         path = self._dir / f"community_turn_{_turn_str(turn)}.json"
-        path.write_text(json.dumps(payload, separators=(",", ":")))
+        if "_artifact_budget" in self.__dict__:
+            self._artifact_budget.write_text(path, json.dumps(payload, separators=(",", ":")))
+        else:
+            path.write_text(json.dumps(payload, separators=(",", ":")))
         self._community_by_turn[str(turn)] = summary
 
     # ------------------------------------------------------------------
@@ -249,8 +275,11 @@ class SidecarWriter:
         """Write per-turn economy convergence data for M58b gate."""
         path = self._dir / f"economy_turn_{_turn_str(turn)}.json"
         text = json.dumps(data, indent=2)
-        with open(path, "w") as f:
-            f.write(text)
+        if "_artifact_budget" in self.__dict__:
+            self._artifact_budget.write_text(path, text)
+        else:
+            with open(path, "w") as f:
+                f.write(text)
         self._economy_texts[path.name] = text
 
     def _economy_rows(self) -> list[dict[str, Any]]:
@@ -274,7 +303,11 @@ class SidecarWriter:
         if not HAS_ARROW or self._resource_ledger is None:
             return
         from chronicler.production_ledger import LEDGER_FILENAME, write_ledger
-        write_ledger(self._base_dir / LEDGER_FILENAME, self._resource_ledger)
+        if "_artifact_budget" in self.__dict__:
+            write_ledger(self._base_dir / LEDGER_FILENAME, self._resource_ledger,
+                         artifact_budget=self._artifact_budget)
+        else:
+            write_ledger(self._base_dir / LEDGER_FILENAME, self._resource_ledger)
 
     # Public granaries (--grain-reserves): the granary ledger. The attribute
     # exists only once a row arrives, so a run without granaries pickles and
@@ -285,6 +318,16 @@ class SidecarWriter:
         ledger = getattr(self, "_reserve_ledger", None)
         if ledger is None:
             ledger = self._reserve_ledger = {name: [] for name in rows}
+        prior = len(next(iter(ledger.values()))) if ledger else 0
+        count = len(next(iter(rows.values()))) if rows else 0
+        if set(rows) != set(ledger):
+            # A later opt-in adds aggregate shipment columns; old rows mean zero cargo.
+            for name in rows:
+                if name not in ledger:
+                    ledger[name] = [0.0] * prior
+            for name in ledger:
+                if name not in rows:
+                    ledger[name].extend([0.0] * count)
         for name, values in rows.items():
             ledger[name].extend(values)
 
@@ -293,7 +336,11 @@ class SidecarWriter:
         if not HAS_ARROW or ledger is None:
             return
         from chronicler.grain_reserves import RESERVE_LEDGER_FILENAME, write_reserve_ledger
-        write_reserve_ledger(self._base_dir / RESERVE_LEDGER_FILENAME, ledger)
+        if "_artifact_budget" in self.__dict__:
+            write_reserve_ledger(self._base_dir / RESERVE_LEDGER_FILENAME, ledger,
+                                 artifact_budget=self._artifact_budget)
+        else:
+            write_reserve_ledger(self._base_dir / RESERVE_LEDGER_FILENAME, ledger)
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -302,6 +349,8 @@ class SidecarWriter:
     def close(self) -> None:
         """Flush and finalise.  All writes are synchronous, so this is a no-op
         kept for API symmetry and future buffering support."""
+        if "_artifact_budget" in self.__dict__:
+            self._artifact_budget.require_healthy()
         self._write_canonical_artifacts()
         self._write_economy_summary()
         self._write_resource_ledger()
@@ -339,16 +388,28 @@ class SidecarWriter:
             "turns": sorted(int(turn) for turn in self._aggregate_by_turn.keys()),
             "agent_aggregates_by_turn": self._aggregate_by_turn,
         }
-        (self._base_dir / "validation_summary.json").write_text(
-            json.dumps(validation_summary, separators=(",", ":"))
-        )
+        if "_artifact_budget" in self.__dict__:
+            self._artifact_budget.write_text(
+                self._base_dir / "validation_summary.json",
+                json.dumps(validation_summary, separators=(",", ":")),
+            )
+        else:
+            (self._base_dir / "validation_summary.json").write_text(
+                json.dumps(validation_summary, separators=(",", ":"))
+            )
         validation_community_summary = {
             "turns": sorted(int(turn) for turn in self._community_by_turn.keys()),
             "community_summary_by_turn": self._community_by_turn,
         }
-        (self._base_dir / "validation_community_summary.json").write_text(
-            json.dumps(validation_community_summary, separators=(",", ":"))
-        )
+        if "_artifact_budget" in self.__dict__:
+            self._artifact_budget.write_text(
+                self._base_dir / "validation_community_summary.json",
+                json.dumps(validation_community_summary, separators=(",", ":")),
+            )
+        else:
+            (self._base_dir / "validation_community_summary.json").write_text(
+                json.dumps(validation_community_summary, separators=(",", ":"))
+            )
 
     def _write_arrow_file(
         self,
@@ -374,10 +435,19 @@ class SidecarWriter:
                 names.append(name)
                 arrays.append(pa.array([], type=pa_type))
             batch = pa.record_batch(arrays, names=names)
-        with pa.OSFile(str(path), "wb") as handle:
-            writer = ipc.new_file(handle, batch.schema)
-            writer.write_batch(batch)
-            writer.close()
+        if "_artifact_budget" in self.__dict__:
+            self._artifact_budget.require_healthy()
+            with pa.BufferOutputStream() as handle:
+                writer = ipc.new_file(handle, batch.schema)
+                writer.write_batch(batch)
+                writer.close()
+                content = handle.getvalue().to_pybytes()
+            self._artifact_budget.write_bytes(path, content)
+        else:
+            with pa.OSFile(str(path), "wb") as handle:
+                writer = ipc.new_file(handle, batch.schema)
+                writer.write_batch(batch)
+                writer.close()
 
     def _write_economy_summary(self) -> None:
         """Consolidate economy snapshots into a single JSON summary file."""
@@ -388,9 +458,36 @@ class SidecarWriter:
             "turns": [r.get("turn", 0) for r in rows],
             "economy_snapshots": rows,
         }
-        (self._base_dir / "validation_economy_summary.json").write_text(
-            json.dumps(summary, separators=(",", ":"))
-        )
+        if "_artifact_budget" in self.__dict__:
+            self._artifact_budget.write_text(
+                self._base_dir / "validation_economy_summary.json",
+                json.dumps(summary, separators=(",", ":")),
+            )
+        else:
+            (self._base_dir / "validation_economy_summary.json").write_text(
+                json.dumps(summary, separators=(",", ":"))
+            )
+
+
+# Stock method identities make monkeypatched/subclass writers use compatibility.
+_NEEDS_WRITE = SidecarWriter.write_needs_snapshot
+_NEEDS_WRITE_DATA = SidecarWriter._write_needs_snapshot_data
+
+
+def _write_needs_snapshot_reusing_data(writer, turn: int, needs_batch: Any) -> dict[str, Any] | None:
+    """Write completely, then share columns with a proven owned native producer.
+
+    The bridge establishes fresh immutable native-getter ownership. Foreign
+    Arrow/CData is not made trustworthy by its wrapper type or buffer flags.
+    None means no write occurred and the caller must use its original path.
+    """
+    if (type(writer) is not SidecarWriter
+            or "write_needs_snapshot" in writer.__dict__
+            or "_write_needs_snapshot_data" in writer.__dict__
+            or SidecarWriter.write_needs_snapshot is not _NEEDS_WRITE
+            or SidecarWriter._write_needs_snapshot_data is not _NEEDS_WRITE_DATA):
+        return None
+    return _NEEDS_WRITE_DATA(writer, turn, needs_batch)
 
 
 # ---------------------------------------------------------------------------

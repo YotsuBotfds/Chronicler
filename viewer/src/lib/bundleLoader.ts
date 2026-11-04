@@ -1,3 +1,4 @@
+import { isRecord } from "./bundleValidation";
 import type { Bundle } from "../types";
 import { BundleDecodeError, decodeBundlePayload } from "./bundleCodec";
 import { looksLikeBundleV2Manifest, parseBundleV2Manifest, type BundleV2Manifest } from "./bundleV2";
@@ -17,6 +18,8 @@ export type BundleLoaderDiagnosticCode =
   | "INVALID_ROOT_OBJECT"
   | "MISSING_REQUIRED_KEYS"
   | "INVALID_HISTORY_DELTA"
+  | "INVALID_STRUCTURE"
+  | "STATE_JSON"
   | "MANIFEST_SCHEMA_ERROR"
   | "BUNDLE_V2_NOT_ACTIVE";
 
@@ -52,7 +55,7 @@ function toErrorResult(diagnostic: BundleLoaderDiagnostic): BundleLoaderResult {
 }
 
 export function classifyParsedBundlePayload(parsed: unknown): BundleLoaderResult {
-  if (typeof parsed !== "object" || parsed === null) {
+  if (!isRecord(parsed)) {
     return toErrorResult({
       code: "INVALID_ROOT_OBJECT",
       message: "Invalid JSON: expected an object",
@@ -84,6 +87,22 @@ export function classifyParsedBundlePayload(parsed: unknown): BundleLoaderResult
     };
   }
 
+  // A bare world state is a CLI fork/legacy-resume input, never history.
+  if (!("world_state" in raw) && ["regions", "civilizations", "turn", "seed", "name"].every((key) => key in raw)) {
+    if (typeof raw.name !== "string" || typeof raw.seed !== "number" || !Number.isInteger(raw.turn)
+      || (raw.turn as number) < 0 || !Array.isArray(raw.regions) || !raw.regions.every(isRecord)
+      || !Array.isArray(raw.civilizations) || !raw.civilizations.every(isRecord)) {
+      return toErrorResult({ code: "INVALID_STRUCTURE", message:
+        "Incomplete or malformed world state JSON. Its required name, seed, turn, regions or civilizations are invalid. " +
+        "Open a complete chronicle_bundle.json to view history, or use a complete state.json with the CLI." });
+    }
+    return toErrorResult({ code: "STATE_JSON", message:
+      "World state JSON detected. This is a final state, not a viewable history bundle. " +
+      "Open the run's chronicle_bundle.json to explore recorded history. " +
+      "Use the CLI with --fork /path/to/state.json --seed NEW_SEED to branch, or --resume /path/to/state.json for a legacy, non-exact continuation. " +
+      "A state JSON cannot recover earlier history or provide an exact checkpoint resume." });
+  }
+
   // Bundle version 6 writes the history as deltas (lib/bundleCodec.ts).
   let obj: Record<string, unknown>;
   try {
@@ -111,6 +130,8 @@ export function classifyParsedBundlePayload(parsed: unknown): BundleLoaderResult
     });
   }
 
+  // Classification/codec adapters may use deliberate partial payloads. File
+  // uploads validate the expanded structure and viewability in bundleFile.
   return {
     kind: "legacy",
     bundle: obj as unknown as Bundle,

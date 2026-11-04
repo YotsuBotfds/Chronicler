@@ -49,13 +49,14 @@ describe("seats of learning helpers", () => {
   it("reads a fallen seat's record, its refuge and its moments up to the scrubbed turn", () => {
     const index = seats.findIndex((seat) => seat.fallen_turn != null && seat.refuge >= 0);
     const record = seatRecord(learning, index)!;
-    expect(fallLabel(learning, record)).toContain(`fell at turn ${record.fallen_turn}`);
+    expect(fallLabel(learning, record)).toContain(`fell at source tick ${record.fallen_turn}`);
     expect(fallLabel(learning, record)).toContain(`its scholars fled to ${seats[record.refuge].name}`);
     const moments = seatHistory(learning, index, 10_000);
     expect(moments[moments.length - 1].kind).toBe("founded");
     expect(moments.map((moment) => moment.kind)).toContain("fell");
     expect(moments.every((moment) => moment.event !== null)).toBe(true);
-    const early = seatHistory(learning, index, record.founded_turn);
+    expect(seatHistory(learning, index, record.founded_turn)).toEqual([]);
+    const early = seatHistory(learning, index, record.founded_turn + 1);
     expect(early.map((moment) => moment.kind)).toContain("founded");
     expect(early.every((moment) => moment.turn === record.founded_turn)).toBe(true);
     expect(seatHistory(systems, 0, 500)).toEqual([]);
@@ -74,7 +75,8 @@ describe("seats of learning helpers", () => {
     expect(atFirst.peakScholars).toBe(seatRow(first, index)!.scholars);
     const before = seatRecordAt(learning, index, record.fallen_turn! - 1)!;
     expect(before.fell).toBe(false);
-    const after = seatRecordAt(learning, index, record.fallen_turn!)!;
+    expect(seatRecordAt(learning, index, record.fallen_turn!)!.fell).toBe(false);
+    const after = seatRecordAt(learning, index, record.fallen_turn! + 1)!;
     expect(after.fell).toBe(true);
     expect(after.peakLevel).toBe(Math.max(...standing.map((snapshot) => seatRow(snapshot, index)!.level)));
     expect(seatRecordAt(systems, 0, 500)).toBeNull();

@@ -1,0 +1,446 @@
+{
+  "result": "PASS",
+  "run_id": 40817210999,
+  "run_attempt": 1,
+  "source_commit": "e2b7c940a86911a5ae57a74e0b4df3db6dbd3717",
+  "jobs": [
+    {
+      "id": 123260984801,
+      "name": "Rust",
+      "conclusion": "success",
+      "started_at": "2026-10-29T04:20:41Z",
+      "completed_at": "2026-10-29T04:21:53Z"
+    },
+    {
+      "id": 123260985085,
+      "name": "Python no-Rust",
+      "conclusion": "success",
+      "started_at": "2026-10-29T04:20:42Z",
+      "completed_at": "2026-10-29T04:26:23Z"
+    },
+    {
+      "id": 123260985102,
+      "name": "Python bounded offline",
+      "conclusion": "success",
+      "started_at": "2026-10-29T04:20:42Z",
+      "completed_at": "2026-10-29T04:24:21Z"
+    },
+    {
+      "id": 123260985252,
+      "name": "Python native execution",
+      "conclusion": "success",
+      "started_at": "2026-10-29T04:20:41Z",
+      "completed_at": "2026-10-29T04:34:12Z"
+    },
+    {
+      "id": 123260985260,
+      "name": "Viewer",
+      "conclusion": "success",
+      "started_at": "2026-10-29T04:20:41Z",
+      "completed_at": "2026-10-29T04:22:32Z"
+    },
+    {
+      "id": 123265092037,
+      "name": "Python native",
+      "conclusion": "success",
+      "started_at": "2026-10-29T04:34:14Z",
+      "completed_at": "2026-10-29T04:34:18Z"
+    }
+  ],
+  "rust": {
+    "summaries": 37,
+    "passed": 1092,
+    "failed": 0,
+    "ignored": 2,
+    "measured": 0,
+    "filtered": 0,
+    "new_unignored_tests_selected_by_source": [
+      "pool::tests::reusable_dense_slots_preserve_zero_dead_gaps_and_last_duplicate",
+      "pool::tests::dense_reuse_keeps_the_original_sparse_threshold",
+      "tick::tests::test_reusable_needs_lookup_matches_standalone_phase_state",
+      "tick::tests::test_memory_and_demographics_use_post_migration_census"
+    ]
+  },
+  "python_native": {
+    "passed": 8094,
+    "skipped": 6,
+    "successful_subtests": 526,
+    "parent_testcase_elements": 8100,
+    "junit_tests_attribute": 8626,
+    "failures": 0,
+    "errors": 0,
+    "pytest_seconds": 619.2
+  },
+  "python_no_rust": {
+    "passed": 7780,
+    "skipped": 306,
+    "successful_subtests": 526,
+    "parent_testcase_elements": 8086,
+    "junit_tests_attribute": 8612,
+    "failures": 0,
+    "errors": 0,
+    "pytest_seconds": 320.34
+  },
+  "native_identity_reported_by_workflow": {
+    "source_commit": "e2b7c940a86911a5ae57a74e0b4df3db6dbd3717",
+    "python": "3.13.17 (main, Oct 22 2026, 02:40:32) [GCC 13.3.0]",
+    "executable": "/home/runner/work/Chronicler/Chronicler/.venv/bin/python",
+    "compiled_extension": "/home/runner/work/Chronicler/Chronicler/.venv/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+    "sha256": "2759587e5c67cfd5a1ec5a817b56a31b6b87957509215bed3173ae86ba49ef93",
+    "classes": [
+      "AgentSimulator",
+      "EcologySimulator",
+      "PoliticsSimulator"
+    ]
+  },
+  "offline": {
+    "chunks": 32,
+    "passed": 3996,
+    "failed": 0,
+    "skipped": 65,
+    "chunk_limit_seconds": 110,
+    "seconds": 196.51717239599998,
+    "maximum_chunk_seconds": 32.681619756,
+    "source_hashes_verified_against_git": 316,
+    "all_guard_states": "PASS",
+    "native_modules_loaded": [],
+    "blocked_native_import_names": [
+      "chronicler_agents"
+    ],
+    "python_oracle_factory_calls": {
+      "ecology": 168,
+      "politics": 168
+    },
+    "blocked_io_attempt_count": 0
+  },
+  "viewer": {
+    "test_files_passed": 69,
+    "tests_passed": 743,
+    "lint": "success",
+    "build": "success"
+  },
+  "artifacts": [
+    {
+      "id": 12873551815,
+      "name": "python-native-e2b7c940a86911a5ae57a74e0b4df3db6dbd3717",
+      "file": "native-artifact-12873551815.zip",
+      "bytes": 139349,
+      "sha256": "819d7a3586d69db3339c244324846a632214946c937707a03d9d8ae1ed457683",
+      "official_digest_matches": true,
+      "members": {
+        "native-identity.json": {
+          "bytes": 548,
+          "sha256": "37eafac2c075f911ea13683b0ec091d604d64d70d991ef9ec4bbc0f8d4f963ae"
+        },
+        "native.xml": {
+          "bytes": 1062831,
+          "sha256": "e9630bd3091c0b58e6cb5176a602156cc0707ee7a44560bd119213febc0f7a13"
+        }
+      }
+    },
+    {
+      "id": 12873356421,
+      "name": "python-no-rust-e2b7c940a86911a5ae57a74e0b4df3db6dbd3717",
+      "file": "no-rust-artifact-12873356421.zip",
+      "bytes": 140674,
+      "sha256": "c71e262dd1dcec6e75e2d1d698d8b8d523356c2da29a8dfc46dd9c44454ed452",
+      "official_digest_matches": true,
+      "members": {
+        "no-rust.xml": {
+          "bytes": 1135673,
+          "sha256": "7c53e83683d7740f0cbed405154f1fa84c1f867f277a15eda964b6e01c2e69d1"
+        }
+      }
+    },
+    {
+      "id": 12872997480,
+      "name": "rust-e2b7c940a86911a5ae57a74e0b4df3db6dbd3717",
+      "file": "rust-artifact-12872997480.zip",
+      "bytes": 523,
+      "sha256": "4003c074911a812e0aa1069b554cfef601d14d53a95a925c035313d40e54e624",
+      "official_digest_matches": true,
+      "members": {
+        "rust.txt": {
+          "bytes": 5362,
+          "sha256": "05304fb0906d8d72cd0df297dfeb557c2f76b195ae96de1d79b30850e1e6de62"
+        }
+      }
+    },
+    {
+      "id": 12872584315,
+      "name": "python-offline-e2b7c940a86911a5ae57a74e0b4df3db6dbd3717",
+      "file": "offline-artifact-12872584315.zip",
+      "bytes": 41854,
+      "sha256": "628cbd782ac5901227e98cc1ef9512fc844d0c26b18bc05c647f8deec2fa2741",
+      "official_digest_matches": true,
+      "members": {
+        "guard-arc-event-types.json": {
+          "bytes": 559,
+          "sha256": "34d392fcb04ad6ef349bdb0265f60279798d352d4b3626b779a508d40b770e6f"
+        },
+        "guard-core.json": {
+          "bytes": 591,
+          "sha256": "bc25f4bd9fadacbd2718a2baf0cad8457750e2e702ef289ace5dacb2dcc3a12a"
+        },
+        "guard-checkpoint.json": {
+          "bytes": 1662,
+          "sha256": "df9a96e9396547eedc4bcd715e06cf1f4603d93c556f85f8d52c55862e17cf37"
+        },
+        "guard-diagnostics.json": {
+          "bytes": 587,
+          "sha256": "637cc8d9c7fa314f2625fe744253f2c0309590bc028289b59ab53e9728bceb23"
+        },
+        "guard-domestic-credit.json": {
+          "bytes": 560,
+          "sha256": "8bafaf73c84fceffeabc39205f69375fa0eac5ae1716b95d1eb4f96bd4d23bc7"
+        },
+        "guard-expansion-audit.json": {
+          "bytes": 560,
+          "sha256": "556daacd86f40e4e6ffbd247fe8da9b3ba23dc1de5357819cf117d674c4bfcba"
+        },
+        "guard-expansion-comparison.json": {
+          "bytes": 560,
+          "sha256": "17ed3cffb99bc378cf1e51ce78a182ea7f1418247393a9ce931e8d740599492a"
+        },
+        "guard-expansion-experiments.json": {
+          "bytes": 560,
+          "sha256": "62c76780fae930ffe61249c05e2a065b77e329dbe5f90da05b8554322731b1df"
+        },
+        "guard-expansion-wiring.json": {
+          "bytes": 813,
+          "sha256": "ebe05d37b2726a7261ba2060558672e673ab0b749f8aa6a46d270f507d70cbf9"
+        },
+        "guard-faiths.json": {
+          "bytes": 637,
+          "sha256": "6884f6d2eb4456506f02e3a444c1ee97358a4edcd58a98eb67b8dc9f5fa13398"
+        },
+        "guard-governance.json": {
+          "bytes": 638,
+          "sha256": "575b95d6f47587cd7fe300cc3ace09c196bf5443682e265f51cb9510bafbd074"
+        },
+        "guard-grain-reserves.json": {
+          "bytes": 612,
+          "sha256": "c0c12ea2ced405ddd29562ed606c4cf7f926e968b9e8839318160aac3d3bcc2d"
+        },
+        "guard-history-forensics.json": {
+          "bytes": 560,
+          "sha256": "1d391811056eb443e574d484dc1b248b7d635711995aee82cc395f9d8cc71365"
+        },
+        "guard-interactive-checkpoints.json": {
+          "bytes": 2262,
+          "sha256": "f1c554ef3d09f57ef9d980dd548173add362e468a091f52ccf73078200d159ed"
+        },
+        "guard-learning.json": {
+          "bytes": 612,
+          "sha256": "82ae90b8fa364656329b5740c5d5f7b450d47ca6d4e48a6ee8c28c769be0abae"
+        },
+        "guard-narration.json": {
+          "bytes": 561,
+          "sha256": "81988ec158796967cd3e4504ee66a35d8c626cf2a7c6ff99ed346b95f5afb96f"
+        },
+        "guard-live-checkpoints.json": {
+          "bytes": 2987,
+          "sha256": "84c9555d5769f9f9f7304b31ad4381c8296ef5efb1a1fc9433e272aa4fa3c65b"
+        },
+        "guard-population.json": {
+          "bytes": 662,
+          "sha256": "3bcffc4a384c71c8fa9420dc28095ddc626c6bbd49028f8397a354c28caa18f2"
+        },
+        "guard-production-ledger.json": {
+          "bytes": 787,
+          "sha256": "39d11f14973a310f40c0b00e078542087a0484892e1c6510bb83d8c54230f5c2"
+        },
+        "guard-proof-contracts.json": {
+          "bytes": 587,
+          "sha256": "0be135bab6255dddf2304cb4dc8bf736228087a5f878ecf2a4034d79aaeabfe4"
+        },
+        "guard-qualification-tools.json": {
+          "bytes": 561,
+          "sha256": "0b8cfd68fc76e3887707a961961db75a1e634afc90c3f3ede89d121f0d862816"
+        },
+        "guard-refugee-routing.json": {
+          "bytes": 687,
+          "sha256": "09cfc0ade1a1feda0895be2d61fe5d42cec8c5ffacaff0ab686b2114e1cca672"
+        },
+        "guard-scientific-claims.json": {
+          "bytes": 637,
+          "sha256": "22d6d2de12488a5930afbbb85997eee004f46cbde10b2f467346656b104052a5"
+        },
+        "guard-ritual-gatherings.json": {
+          "bytes": 560,
+          "sha256": "8fca5028d3f3971eda1b6bf3a0e59133984ee37815250badd5c92e537dfe8901"
+        },
+        "guard-scientific-publication.json": {
+          "bytes": 637,
+          "sha256": "1cb092be8fa9cb3fc2e4952184385fd836c569e1ba879c8423cf5ed814b13724"
+        },
+        "guard-scientific-receipts.json": {
+          "bytes": 560,
+          "sha256": "96425cac3a85aeaddefc865717d953bfe3a3b12e18b147730a98f352a5462baa"
+        },
+        "guard-systems-1.json": {
+          "bytes": 991,
+          "sha256": "b55c2565f0817b0cfb0612d2de08590bba1aecd4b54f71fc1ca13d43d9667ba3"
+        },
+        "guard-scientific-research.json": {
+          "bytes": 1138,
+          "sha256": "fbd46085f9ed4bc1c8a99938e45d38c37f1b4392a3a9a0394e8bf16eeb52ca79"
+        },
+        "guard-systems-2.json": {
+          "bytes": 991,
+          "sha256": "4320ba25a92900d3ffc41bc3866fef0b5980e300fe63defc0af3054af51c0671"
+        },
+        "guard-transaction-receipts.json": {
+          "bytes": 560,
+          "sha256": "bb8eab17e66f957be663b74c32b76299e1e4f4b88c5fd5b8ae12a73fe1c268c0"
+        },
+        "guard-turn-speed.json": {
+          "bytes": 560,
+          "sha256": "891f913d6b304ec78a5612e30869e92c3886aa3fba0c6cc25483cb1bb49300e1"
+        },
+        "guard-validation-tooling.json": {
+          "bytes": 563,
+          "sha256": "03ecb191a8d58a2a4e352d8d0c15fca6fe60ac4d718e024d5d30db45aeddce8e"
+        },
+        "pytest-arc-event-types.txt": {
+          "bytes": 98,
+          "sha256": "253b5cef82a41f8f53519eb9c6e6ef1930bc1b66748d4d51bb12aa8bfcf084d2"
+        },
+        "pytest-checkpoint.txt": {
+          "bytes": 110,
+          "sha256": "51a3d95e2eafb722b323438332e8618b3597985039c7afe918315a522b7faca6"
+        },
+        "pytest-core.txt": {
+          "bytes": 1316,
+          "sha256": "40ec035c76cc48365cd940055e2f0049bc844203aea591128c01386665f61b39"
+        },
+        "pytest-diagnostics.txt": {
+          "bytes": 179,
+          "sha256": "b4cb9381e09ae4d8091f5640a49fce54bb5455d27a6e9df28495d6dc7e69daaa"
+        },
+        "pytest-domestic-credit.txt": {
+          "bytes": 99,
+          "sha256": "a8ab34e2783b3f2da5354e67a074051a03ce10ec85ca815d817d8e0bac7e4234"
+        },
+        "pytest-expansion-audit.txt": {
+          "bytes": 99,
+          "sha256": "7d1a1c9ee673d764ca1beab551ee498900d878aa6abdf9bc83609017259cafd1"
+        },
+        "pytest-expansion-comparison.txt": {
+          "bytes": 99,
+          "sha256": "9d7fa1f5c3c8428bae0a972904be80889994ba0afc410edb9fad05382520ce39"
+        },
+        "pytest-expansion-experiments.txt": {
+          "bytes": 99,
+          "sha256": "dd94c0c98e40af5be8f60d94e47f5c57d18120027f7ac9d31f13bca61d9b6038"
+        },
+        "pytest-expansion-wiring.txt": {
+          "bytes": 191,
+          "sha256": "398739c3615885f2f43d9add91c69aa63a2734cc52abf49e5037803353085c2e"
+        },
+        "pytest-faiths.txt": {
+          "bytes": 99,
+          "sha256": "8a11686837374de6d1b097b26d939ff46925c3f4bcb098f39e5885ca6cbc0939"
+        },
+        "pytest-governance.txt": {
+          "bytes": 752,
+          "sha256": "7a2dd1e8f282accaacf98aaae7647c1e163b5bdb2ba4d9479a8f29f130b0e080"
+        },
+        "pytest-grain-reserves.txt": {
+          "bytes": 110,
+          "sha256": "3590b469d1264a0c41d54a3f33a611984ac7b5bdc46e9a9fb4fa02af5ba58e7f"
+        },
+        "pytest-history-forensics.txt": {
+          "bytes": 99,
+          "sha256": "d046878d2d988d9e8f118fc9d70b52fb4cf95b9e8daa0f29dd2128e2b4c2925d"
+        },
+        "pytest-interactive-checkpoints.txt": {
+          "bytes": 110,
+          "sha256": "2d34c18017b795a98efff731da209a8bf440225fd3da70bbb8d96d841e65d4c6"
+        },
+        "pytest-learning.txt": {
+          "bytes": 110,
+          "sha256": "7a32b25426cefea4d6cab790c16793bd48d91fde27111a63626bf6e4bbc1940a"
+        },
+        "pytest-live-checkpoints.txt": {
+          "bytes": 111,
+          "sha256": "773123f0bf97a6cade8cee7a8681ebd098754cf99d4f1df40930a3b2adb1ec83"
+        },
+        "pytest-narration.txt": {
+          "bytes": 260,
+          "sha256": "f2142b1d54fa62c1f74c6cfccd06c552e5fafbbe0e567a66002f3616d2110dc2"
+        },
+        "pytest-population.txt": {
+          "bytes": 110,
+          "sha256": "0fa4da631b5f1fd0533f304205c0ebf7326d4318428be79e36b4de1826e9206e"
+        },
+        "pytest-production-ledger.txt": {
+          "bytes": 110,
+          "sha256": "d58444e50837250cf4e23429204119491931b8d1196bd638f6bbb63e132bc001"
+        },
+        "pytest-proof-contracts.txt": {
+          "bytes": 99,
+          "sha256": "c9daa0319a0ac3395e2bebebdfc9ea58ab483e738ce7030d8341f0bfbf71a4ab"
+        },
+        "pytest-qualification-tools.txt": {
+          "bytes": 180,
+          "sha256": "da17d006bbc043aa06214fca0cb9f49eebff754096892fab9612a0a2914acb3c"
+        },
+        "pytest-refugee-routing.txt": {
+          "bytes": 99,
+          "sha256": "c0b248fd71bbdf479c9d48109f7e42b24dc23b3e3da477dc01b56d73775e3c46"
+        },
+        "pytest-ritual-gatherings.txt": {
+          "bytes": 179,
+          "sha256": "8e59ab96255da19592af058e192366cfbdc9dc2845de99d725eff560b849330d"
+        },
+        "pytest-scientific-claims.txt": {
+          "bytes": 99,
+          "sha256": "7417f063c08afdfb938f5ffe8a20f8fe532b8f6e859637db215b81dd41ce01ae"
+        },
+        "pytest-scientific-publication.txt": {
+          "bytes": 99,
+          "sha256": "bb55df5134ada3c2c8ee6c6747b6f5b6dace3e133d277d895e648780f5cac59e"
+        },
+        "pytest-scientific-receipts.txt": {
+          "bytes": 179,
+          "sha256": "b3bfb53c068f33c2c52b8445afe57e09e2cb4cae4df9149ff034f05aa4d10794"
+        },
+        "pytest-scientific-research.txt": {
+          "bytes": 180,
+          "sha256": "b4ede90593b2c1219daeac29301a10f129dcbb421ee0df3badedbf6c6aac5e34"
+        },
+        "pytest-systems-1.txt": {
+          "bytes": 353,
+          "sha256": "37a9b695f0708cfd32d35b81afca3c441e49fd914931620e01e52c114f8f21cb"
+        },
+        "pytest-systems-2.txt": {
+          "bytes": 433,
+          "sha256": "8f73b66003d1734f44c749dd092095aa090538531ccb739e0ee55b4617221e3c"
+        },
+        "pytest-transaction-receipts.txt": {
+          "bytes": 99,
+          "sha256": "6d54c54aef919bbd1aad55885bf075fc7f2bf2301f5dda2390bf115ff470987a"
+        },
+        "pytest-turn-speed.txt": {
+          "bytes": 99,
+          "sha256": "91ea9d3240107aafa0d3c07ede619efda3d47d41adcceacfd165a832dad288b2"
+        },
+        "pytest-validation-tooling.txt": {
+          "bytes": 420,
+          "sha256": "6a378834222370d7745dfb3c54945a2e4983556eb6e9078271b091beb622072c"
+        },
+        "receipt.json": {
+          "bytes": 103278,
+          "sha256": "c183593d06c171325743803abdf785c3d2c9180f4bd101adbcd37d6dc79f400e"
+        }
+      }
+    }
+  ],
+  "limits": [
+    "No original/candidate whole-world or default-output parity is inferred from CI.",
+    "Scientific before/after gates and runtime adoption remain held.",
+    "No measured CPU, wall-time or peak-RSS improvement is established.",
+    "Dense index lifetime spans intermediate phases; fewer allocations do not imply lower peak RSS. Future controlled larger-world benchmarks must measure peak RSS with CPU and wall time."
+  ]
+}

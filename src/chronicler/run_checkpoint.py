@@ -191,6 +191,8 @@ def _environment_identity() -> dict:
         "affinity_cpu_count": env["affinity_cpu_count"],
         "thread_env": env["thread_env"],
         "packages": env["packages"],
+        # Expansion receipts consume this field; exact resume compares the
+        # same PYTHONHASHSEED value through thread_env above.
         "hash_seed": os.environ.get("PYTHONHASHSEED"),
     }
     return _ENVIRONMENT_IDENTITY
@@ -261,6 +263,7 @@ def feature_flags(world: Any) -> dict[str, bool]:
     from chronicler.community_anchoring import community_anchoring_enabled
     from chronicler.domestic_credit_state import domestic_credit_on
     from chronicler.techniques import techniques_enabled
+    from chronicler.expansion_features import expansion_feature_flags
 
     return {
         "campaigns": bool(world.campaigns_enabled),
@@ -279,9 +282,15 @@ def feature_flags(world: Any) -> dict[str, bool]:
         "agent_movements": bool(agent_movements_enabled(world)),
         "guilds": bool(guilds_enabled(world)),
         "scholarship": bool(scholarship_enabled(world)),
+        **({"academy_services": getattr(world.scholarship.learning_services, "enabled", True)}
+           if getattr(getattr(world, "scholarship", None), "learning_services", None) is not None else {}),
         "grain_reserves": bool(grain_reserves_enabled(world)),
+        **({"grain_storage": True} if getattr(getattr(world, "grain_reserves", None), "storage", None) is not None else {}),
+        **({"household_mobility": True} if getattr(world, "household_mobility_liquid_requirement", None) else {}),
         "community_anchoring": bool(community_anchoring_enabled(world)),
+        "capacity_aware_refugees": getattr(world, "capacity_aware_refugees", False) is True,
         "domestic_credit": bool(domestic_credit_on(world)),
+        **expansion_feature_flags(world),
         # The observational layers are read without importing them (they are
         # imported only by the modules that run or narrate them).
         "historiography": getattr(world, "_historiography", None) is not None,
@@ -428,6 +437,17 @@ def write_checkpoint(path: Path, state: RunState, *, exact: bool = True,
     """Write ``state`` atomically to ``path``. Reads the run only."""
     from chronicler.artifact_io import atomic_write_bytes
 
+    storage = getattr(getattr(state.world, "grain_reserves", None), "storage", None)
+    if storage is not None and getattr(storage, "_active_plan", None) is not None:
+        raise CheckpointError("storage work is pending; write checkpoints at a completed turn boundary")
+    learning = getattr(getattr(state.world, "scholarship", None), "learning_services", None)
+    if learning is not None and getattr(learning, "_active_plan", None) is not None:
+        raise CheckpointError("academy work is pending; write checkpoints at a completed turn boundary")
+    simulator = getattr(state.agent_bridge, "_sim", None)
+    pending_teaching = getattr(type(simulator), "has_pending_teaching_work", None)
+    if callable(pending_teaching) and pending_teaching(simulator):
+        # Native checkpoints deliberately omit transient work reservations.
+        raise CheckpointError("native teaching work is pending; finish or cancel it before checkpointing")
     t0 = time.perf_counter()
     state.markers = _markers(state)
     buf = io.BytesIO()

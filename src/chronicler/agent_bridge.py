@@ -2,6 +2,9 @@
 from __future__ import annotations
 from dataclasses import dataclass
 import logging
+import sys
+from importlib.machinery import ExtensionFileLoader
+from types import BuiltinFunctionType, MethodDescriptorType, ModuleType
 from collections import Counter, deque
 from itertools import repeat, starmap
 import math
@@ -41,6 +44,39 @@ def _load_agent_simulator_class():
     if not isinstance(AgentSimulator, type):
         raise RuntimeError("chronicler_agents AgentSimulator is not a real native extension class")
     return AgentSimulator
+
+
+def _owns_native_needs_getter(sim, getter) -> bool:
+    """Recognize the already-loaded compiled producer's original owned C getter.
+
+    No native import or getter call occurs here. Rust get_all_needs constructs
+    fresh primitive arrays; foreign Arrow/CData alone proves no such ownership.
+    """
+    try:
+        module = sys.modules.get("chronicler_agents.chronicler_agents")
+        if type(module) is not ModuleType:
+            return False
+        namespace = vars(module)
+        spec = namespace.get("__spec__")
+        if (spec is None or type(spec.loader) is not ExtensionFileLoader
+                or namespace.get("__loader__") is not spec.loader
+                or spec.name != "chronicler_agents.chronicler_agents"):
+            return False
+        cls = namespace.get("AgentSimulator")
+        if type(sim) is not cls:
+            return False
+        instance = getattr(sim, "__dict__", None)
+        if isinstance(instance, dict) and "get_all_needs" in instance:
+            return False
+        descriptor = vars(cls).get("get_all_needs")
+        return (type(descriptor) is MethodDescriptorType
+                and descriptor.__objclass__ is cls
+                and type(getter) is BuiltinFunctionType
+                and getter.__self__ is sim
+                and getter.__name__ == "get_all_needs"
+                and getter == descriptor.__get__(sim, cls))
+    except Exception:
+        return False
 
 
 logger = logging.getLogger(__name__)
@@ -1138,11 +1174,23 @@ class AgentBridge:
                  output_dir: Path | None = None,
                  relationship_stats: bool = False,
                  agent_scale_mode: str = "exact",
-                 decision_ablation: tuple[str, int] | None = None):
+                 decision_ablation: tuple[str, int] | None = None, *,
+                 artifact_budget=None):
+        if artifact_budget is not None:
+            if mode != "hybrid":
+                raise ValueError("Budgeted bridge output requires fresh hybrid mode")
+            artifact_budget.require_healthy()
+            self._artifact_budget = artifact_budget
         if agent_scale_mode not in AGENT_SCALE_MODES:
             raise ValueError(
                 f"agent_scale_mode must be one of {AGENT_SCALE_MODES}, got {agent_scale_mode!r}"
             )
+        if getattr(world, "health_care", None) is not None:
+            from chronicler.health_care import validate_fresh_health_pool
+            validate_fresh_health_pool(world, mode=mode)
+        if getattr(world, "transaction_receipts", None) is not None:
+            from chronicler.transaction_receipts import validate_fresh_transaction_receipt_pool
+            validate_fresh_transaction_receipt_pool(world)
         AgentSimulator = _load_agent_simulator_class()
         self._sim = AgentSimulator(num_regions=len(world.regions), seed=world.seed)
         # Exact mode is the native default; only a non-default mode is sent,
@@ -1200,7 +1248,10 @@ class AgentBridge:
         self._sidecar = None
         if validation_sidecar and output_dir is not None:
             from chronicler.sidecar import SidecarWriter
-            self._sidecar = SidecarWriter(output_dir)
+            if artifact_budget is None:
+                self._sidecar = SidecarWriter(output_dir)
+            else:
+                self._sidecar = SidecarWriter(output_dir, artifact_budget=artifact_budget)
         # M53: Relationship stats collection
         self._collect_rel_stats = relationship_stats
         self._relationship_stats_history: list = []
@@ -1415,6 +1466,8 @@ class AgentBridge:
         Assumes sync_regions() was already called this turn.
         Does NOT call set_region_state() again.
         """
+        requirement = self._prepare_household_mobility(world)
+        delivery = self._begin_decision_delivery(world)
         # M58a: Sync merchant route graph before tick
         from chronicler.economy import build_merchant_route_graph
         route_batch = build_merchant_route_graph(world)
@@ -1428,8 +1481,17 @@ class AgentBridge:
         signals = build_signals(world, shocks=shocks, demands=demands, conquered=conquered,
                                 gini_by_civ=self._gini_by_civ, economy_result=self._economy_result)
         _send_movement_table(world, self)
-        agent_events = self._sim.tick(world.turn, signals)
-        return self._process_tick_results(agent_events, world, death_output=death_output)
+        from chronicler.transaction_receipts import (
+            capture_transaction_receipts, prepare_transaction_receipts,
+        )
+        prepare_transaction_receipts(world, self)
+        agent_events, mobility = self._tick_with_household_mobility(world, signals, requirement)
+        capture_transaction_receipts(world, self)
+        result = self._process_tick_results(agent_events, world, death_output=death_output)
+        self._capture_decision_delivery(delivery, agent_events)
+        if mobility is not None:
+            self._household_mobility_observation = mobility
+        return result
 
     def tick(
         self, world: WorldState, shocks=None, demands=None, conquered=None, *,
@@ -1439,6 +1501,8 @@ class AgentBridge:
 
         Use sync_regions() + tick_agents() separately when ecology runs between them.
         """
+        requirement = self._prepare_household_mobility(world)
+        delivery = self._begin_decision_delivery(world)
         self.sync_regions(world)
 
         # M58a: Sync merchant route graph before tick
@@ -1454,8 +1518,71 @@ class AgentBridge:
         signals = build_signals(world, shocks=shocks, demands=demands, conquered=conquered,
                                 gini_by_civ=self._gini_by_civ, economy_result=self._economy_result)
         _send_movement_table(world, self)
-        agent_events = self._sim.tick(world.turn, signals)
-        return self._process_tick_results(agent_events, world, death_output=death_output)
+        from chronicler.transaction_receipts import (
+            capture_transaction_receipts, prepare_transaction_receipts,
+        )
+        prepare_transaction_receipts(world, self)
+        agent_events, mobility = self._tick_with_household_mobility(world, signals, requirement)
+        capture_transaction_receipts(world, self)
+        result = self._process_tick_results(agent_events, world, death_output=death_output)
+        self._capture_decision_delivery(delivery, agent_events)
+        if mobility is not None:
+            self._household_mobility_observation = mobility
+        return result
+
+    def _prepare_household_mobility(self, world):
+        # Turn-scoped output is never reused after a failed or disabled tick.
+        self.__dict__.pop("_household_mobility_observation", None)
+        from chronicler.household_mobility_state import liquid_requirement
+        requirement = liquid_requirement(world)
+        if requirement > 0 and not callable(getattr(self._sim, "get_mobility_gate_frame", None)):
+            raise RuntimeError("household mobility requires a fresh native build with the liquid gate")
+        return requirement
+
+    def _tick_with_household_mobility(self, world, signals, requirement):
+        if requirement == 0:
+            return self._sim.tick(world.turn, signals), None
+        events = self._sim.tick(world.turn, signals, liquid_requirement=requirement)
+        from chronicler.household_mobility_state import capture_mobility_frame
+        observation = capture_mobility_frame(self._sim.get_mobility_gate_frame(),
+            source_turn=world.turn, mode=self._mode, requirement=requirement)
+        return events, observation
+
+    def take_household_mobility_observation(self, source_turn: int):
+        """Consume this tick's detached observation; stale frames are discarded."""
+        observation = self.__dict__.pop("_household_mobility_observation", None)
+        if observation is None or observation.source_turn != source_turn:
+            return None
+        return observation
+
+    def _begin_decision_delivery(self, world):
+        observer = self.__dict__.get("_decision_delivery_observer")
+        if observer is None:
+            return None
+        try:
+            token = observer._begin(world.turn)
+            return (observer, token) if token is not None else None
+        except Exception:
+            # An unusable attachment cannot deliver an older successful frame.
+            self.__dict__.pop("_decision_delivery_observer", None)
+            return None
+
+    def _capture_decision_delivery(self, delivery, agent_events):
+        if delivery is None:
+            return
+        observer, token = delivery
+        try:
+            observer._capture(token, agent_events)
+        except Exception:
+            self.__dict__.pop("_decision_delivery_observer", None)
+
+    def _stop_decision_delivery(self, reason):
+        observer = self.__dict__.get("_decision_delivery_observer")
+        if observer is not None:
+            try:
+                observer._stop(reason)
+            except Exception:
+                self.__dict__.pop("_decision_delivery_observer", None)
 
     def _process_tick_results(
         self, agent_events, world: WorldState, *,
@@ -1471,7 +1598,9 @@ class AgentBridge:
         if self._collect_rel_stats:
             try:
                 stats = self._sim.get_relationship_stats()
-                self._relationship_stats_history.append(stats)
+                # Rust returns a fresh HashMap; its iteration is not export
+                # order, including after native checkpoint restoration.
+                self._relationship_stats_history.append(dict(sorted(stats.items())))
             except Exception:
                 logger.exception("Failed to collect relationship stats from Rust tick")
 
@@ -1674,6 +1803,8 @@ class AgentBridge:
 
     def _write_sidecar_snapshot(self, world: "WorldState") -> None:
         """M53: Write validation sidecar data at sample points (every 10 turns)."""
+        if "_artifact_budget" in self.__dict__:
+            self._artifact_budget.require_healthy()
         turn = world.turn
         agg: dict = {}
         snap = None
@@ -1691,6 +1822,8 @@ class AgentBridge:
                 for i in range(len(agent_ids)):
                     edges.append((agent_ids[i], target_ids[i], bond_types[i], sentiments[i]))
         except Exception:
+            if "_artifact_budget" in self.__dict__:
+                self._artifact_budget.fail("io")
             edges = []
             logger.exception("Sidecar graph snapshot: failed to read relationships")
 
@@ -1709,6 +1842,8 @@ class AgentBridge:
                     valence = -1 if m_intensities[i] < 0 else 1
                     mem_sigs[aid].append((m_event_types[i], m_turns[i], valence))
         except Exception:
+            if "_artifact_budget" in self.__dict__:
+                self._artifact_budget.fail("io")
             mem_sigs = {}
             logger.exception("Sidecar graph snapshot: failed to read memories")
 
@@ -1716,16 +1851,27 @@ class AgentBridge:
 
         # Needs snapshot
         try:
-            needs_batch = self._sim.get_all_needs()
-            self._sidecar.write_needs_snapshot(turn=turn, needs_batch=needs_batch)
-            if hasattr(needs_batch, "to_pydict"):
-                needs_data = needs_batch.to_pydict()
-            elif hasattr(needs_batch, "column_names"):
-                needs_data = {
-                    name: pylist(needs_batch.column(name))
-                    for name in needs_batch.column_names
-                }
+            sim = self._sim
+            needs_getter = sim.get_all_needs
+            needs_batch = needs_getter()
+            if (type(self) is AgentBridge
+                    and "_resolve_polity_civ_ids" not in self.__dict__
+                    and AgentBridge._resolve_polity_civ_ids is _NEEDS_POLITY_RESOLVER
+                    and _owns_native_needs_getter(sim, needs_getter)):
+                from chronicler.sidecar import _write_needs_snapshot_reusing_data
+                needs_data = _write_needs_snapshot_reusing_data(self._sidecar, turn, needs_batch)
+            if needs_data is None:
+                self._sidecar.write_needs_snapshot(turn=turn, needs_batch=needs_batch)
+                if hasattr(needs_batch, "to_pydict"):
+                    needs_data = needs_batch.to_pydict()
+                elif hasattr(needs_batch, "column_names"):
+                    needs_data = {
+                        name: pylist(needs_batch.column(name))
+                        for name in needs_batch.column_names
+                    }
         except Exception:
+            if "_artifact_budget" in self.__dict__:
+                self._artifact_budget.fail("io")
             needs_data = None
             logger.exception("Sidecar needs snapshot: failed to read/write needs")
 
@@ -1823,6 +1969,8 @@ class AgentBridge:
                     }
             self._sidecar.write_agent_aggregate(turn=turn, aggregates=agg)
         except Exception:
+            if "_artifact_budget" in self.__dict__:
+                self._artifact_budget.fail("io")
             logger.exception("Sidecar agent aggregate: failed to build/write aggregate snapshot")
 
         # Condensed community summary for full-gate structural checks
@@ -1879,6 +2027,8 @@ class AgentBridge:
 
                 self._sidecar.write_community_summary(turn=turn, summary=dict(region_summary))
         except Exception:
+            if "_artifact_budget" in self.__dict__:
+                self._artifact_budget.fail("io")
             logger.exception("Sidecar community summary: failed to build/write summary")
 
     def _write_economy_sidecar(self, world, economy_result) -> None:
@@ -1888,6 +2038,8 @@ class AgentBridge:
         if world.turn < 100 or world.turn % 10 != 0:
             return
 
+        if "_artifact_budget" in self.__dict__:
+            self._artifact_budget.require_healthy()
         region_names = [r.name for r in world.regions]
         self._sidecar.write_economy_snapshot(world.turn, {
             "turn": world.turn,
@@ -2946,6 +3098,8 @@ class AgentBridge:
 
     def reset(self) -> None:
         """Clear stateful data for batch mode reuse."""
+        self._stop_decision_delivery("reset")
+        self.__dict__.pop("_household_mobility_observation", None)
         self._event_window.clear()
         self._demand_manager.reset()
         self.named_agents.clear()
@@ -2965,6 +3119,9 @@ class AgentBridge:
         self._knowledge_stats_history.clear()
 
     def close(self) -> None:
+        if "_artifact_budget" in self.__dict__:
+            self._artifact_budget.require_healthy()
+        self._stop_decision_delivery("closed")
         if self._shadow_logger:
             self._shadow_logger.close()
         if self._sidecar:
@@ -2974,9 +3131,11 @@ class AgentBridge:
     # native simulator replaced by the simulator's own state blob. These are
     # derived caches keyed by object identity or by the turn being processed;
     # each is rebuilt on demand from the state that is kept.
-    _CHECKPOINT_DERIVED = ("_window_stats_cache", "_named_actor_memo", "_post_tick_snapshot")
+    _CHECKPOINT_DERIVED = ("_window_stats_cache", "_named_actor_memo", "_post_tick_snapshot", "_decision_delivery_observer", "_household_mobility_observation")
 
     def __getstate__(self) -> dict:
+        if "_artifact_budget" in self.__dict__:
+            raise ValueError("Budgeted bridge checkpoint support is unqualified")
         state = dict(self.__dict__)
         for name in self._CHECKPOINT_DERIVED:
             state.pop(name, None)
@@ -2984,6 +3143,8 @@ class AgentBridge:
 
     def __setstate__(self, state: dict) -> None:
         self.__dict__.update(state)
+        self.__dict__.pop("_decision_delivery_observer", None)
+        self.__dict__.pop("_household_mobility_observation", None)
 
     def get_snapshot(self): return self._sim.get_snapshot()
     def get_aggregates(self): return self._sim.get_aggregates()
@@ -3020,3 +3181,7 @@ class AgentBridge:
             "op_type", "agent_a", "agent_b", "bond_type", "sentiment", "formed_turn"
         ])
         self._sim.apply_relationship_ops(batch)
+
+
+# Reusing boxed columns must not change a custom resolver's alias observations.
+_NEEDS_POLITY_RESOLVER = AgentBridge._resolve_polity_civ_ids

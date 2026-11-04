@@ -866,6 +866,29 @@
   overflow: auto;
 }
 
+.phase75-event-links {
+  display: grid;
+  gap: 8px;
+}
+
+.phase75-inspector-link {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: var(--phase75-cyan-strong);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  overflow-wrap: anywhere;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.phase75-inspector-link:focus-visible {
+  outline: 2px solid var(--phase75-cyan-strong);
+  outline-offset: 3px;
+}
+
 .phase75-inspector-section {
   border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
@@ -962,6 +985,23 @@
 }
 
 /* Thematic map layers (MapLayerMarks.tsx, lib/mapLayers.ts). */
+.phase75-region-navigation { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; padding: 14px; }
+.phase75-region-navigation label { display: grid; gap: 6px; min-width: 0; }
+.phase75-region-navigation p { width: 100%; font-size: 13px; color: var(--phase75-muted-strong); margin: 0; }
+.phase75-region-navigation select, .phase75-region-navigation button, .phase75-back-to-map {
+  min-height: 44px; min-width: 44px; max-width: 100%; padding: 8px; background: #1d2426; color: var(--phase75-ink); border: 1px solid var(--phase75-edge-strong); border-radius: 6px;
+}
+.phase75-shell :focus-visible { outline: 2px solid var(--phase75-cyan); outline-offset: 3px; }
+@media (max-width: 600px) {
+  .region-history select, .region-history input[type="number"], .region-history button,
+  .interesting-periods button, .interesting-periods select, .interesting-periods summary,
+  .phase75-layer-chip, .phase75-ghost-button, .phase75-primary-button { min-height: 44px; }
+  .entity-run-comparison select, .entity-run-comparison button { min-height: 44px; }
+  .region-history-controls .region-history-checkbox { min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .phase75-shell *, .phase75-shell *::before, .phase75-shell *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
 
 /* Rows keep their own height when a long inspector stretches the workspace. */
 .phase75-map-column {
@@ -1090,3 +1130,20 @@
   height: 0;
   border-top: 3px solid;
 }
+
+.saved-world-details {
+  margin: 8px 24px;
+  padding: 10px 14px;
+  border: 1px solid rgba(206, 181, 131, 0.22);
+  border-radius: 8px;
+  color: var(--phase75-muted-strong);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.saved-world-details summary { cursor: pointer; color: var(--phase75-ink); }
+.saved-world-details dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 12px; margin: 16px 0; }
+.saved-world-details dt { font-weight: 600; color: var(--phase75-ink); }
+.saved-world-details dd { margin: 3px 0 0; }
+.saved-world-details p { margin: 8px 0 0; line-height: 1.6; }
+.saved-world-loading { margin: 8px 24px; font-size: 13px; }
+.phase75-error-banner.saved-world-message { margin: 8px 24px; overflow-wrap: anywhere; }

@@ -5,7 +5,7 @@ in Git; machine-specific environments and historical evidence packages are not
 required to edit this branch.
 
 ```sh
-git clone --branch continuation/recovered-20261011 https://github.com/YotsuBotfds/Chronicler.git
+git clone --branch main https://github.com/YotsuBotfds/Chronicler.git
 cd Chronicler
 git status --short --branch
 ```
@@ -56,7 +56,8 @@ the full suite or the scientific milestone gate.
 ## Viewer
 
 Use Node.js compatible with the locked Vite 7 toolchain (20.19+ or 22.12+).
-From `viewer/`:
+The standard CI Viewer job runs tests, lint, and the production build on Node
+20.19.0 so changes are checked at the supported floor. From `viewer/`:
 
 ```sh
 npm ci
@@ -200,3 +201,29 @@ and inspect the ledger before changing code. Record platform, interpreter,
 source identity, commands, passes/skips and unrun gates. Preserve unsupported
 platform failures and fail-closed persistence behavior. Do not publish run data,
 credentials or private evidence packages with source changes.
+
+## Durable Python qualification evidence
+
+`scripts/python_qualification.py` runs a fixed full pytest lane against an
+explicit clean source SHA, interpreter and native binary SHA (or verified
+native absence), with fresh external output, atomic receipts and JUnit/logs.
+Linux detached mode and cooperative before/after-pytest controls retain
+execution evidence when a launching shell exits. Partial or interrupted lanes
+never earn a pass. See
+[the preregistered protocol and usage](integration/python-qualification-supervisor.md).
+`cancel-before-tests --output PATH --reason TEXT` can stop only a verified
+Linux worker acknowledged before pytest, using a pidfd and immutable cancellation
+evidence. It refuses a running pytest process; cancellation is never a test pass.
+The full focused suite requires local Git and real subprocesses; its OS/process
+cases remain outside the bounded offline guard. Registered pure rejection and
+parser cases run in the existing `qualification-tools` chunk.
+
+## Lossless copies of parent extras
+
+`scripts/archive_parent_extras.py` archives one finalized parent's narrowly
+allowlisted state/memory JSON into a fresh external destination, performs an
+actual restore into another fresh directory, and verifies byte hashes. Explicit
+manifest/index hashes, input/output bounds and unchanged protected validation
+inputs are required. See [the storage protocol](integration/parent-extra-archive.md).
+There is no raw deletion API. Wait for the official gate and its forks to finish
+before archiving a cohort; focused synthetic tests do not qualify a live cohort.

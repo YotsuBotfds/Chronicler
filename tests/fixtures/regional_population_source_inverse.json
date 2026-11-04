@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "base": "c04b32adef05e54c46f597d9fece9568e719c7c7",
+  "files": {
+    "src/chronicler/main.py": {
+      "sha256": "736582ed4a3174d97edcea098bb37e2f18c69f56c47c0bad866376a62d2024da",
+      "patches": [
+        {
+          "old": "                    _acc_cache[(_obs.name, _tgt.name)] = compute_accuracy(\n                        _obs, _tgt, world, borders=_borders,\n                    )\n        snapshot = TurnSnapshot(\n            turn=world.turn,\n            civ_stats={\n",
+          "new": "                    _acc_cache[(_obs.name, _tgt.name)] = compute_accuracy(\n                        _obs, _tgt, world, borders=_borders,\n                    )\n        from chronicler.regional_population import snapshot_fields as regional_population_snapshot_fields\n        snapshot = TurnSnapshot(\n            turn=world.turn,\n            civ_stats={\n"
+        },
+        {
+          "old": "            **_grain_reserves_snapshot_fields(world),\n            **expansion_snapshot_fields(world),\n            **_migration_snapshot_fields(world),\n        )\n\n        # M56b: Urban fraction aggregation from agent snapshot\n",
+          "new": "            **_grain_reserves_snapshot_fields(world),\n            **expansion_snapshot_fields(world),\n            **_migration_snapshot_fields(world),\n            **regional_population_snapshot_fields(world, agent_bridge, turn_result.observation),\n        )\n\n        # M56b: Urban fraction aggregation from agent snapshot\n"
+        }
+      ]
+    },
+    "src/chronicler/models.py": {
+      "sha256": "d5314a19282ca481ee43fd4d12e5954f8bf83d24507f9694f8b3e3b1048c1175",
+      "patches": [
+        {
+          "old": "    # [from region index, to region index, agents]; None (and omitted)\n    # without an agent pool that records events (hybrid, shadow).\n    migration: list | None = Field(default=None, exclude_if=_is_none)\n\n\n# --- M20a: Narration Pipeline v2 models ---\n",
+          "new": "    # [from region index, to region index, agents]; None (and omitted)\n    # without an agent pool that records events (hybrid, shadow).\n    migration: list | None = Field(default=None, exclude_if=_is_none)\n    # Versioned, indexed completed model populations, native alive counts and\n    # separately stamped Phase 2 food weights. Historical missing means unknown.\n    regional_population: dict | None = Field(default=None, exclude_if=_is_none)\n\n\n# --- M20a: Narration Pipeline v2 models ---\n"
+        }
+      ]
+    },
+    "src/chronicler/simulation.py": {
+      "sha256": "b129c8923e60e53102f9cd67aed7a408cbf80f9c3e9465c92eee22734003b0f5",
+      "patches": [
+        {
+          "old": "        AgentRows, Phase10Inputs, Stamp, TurnArtifacts, TurnObservation, TurnResult,\n    )\n\n    from chronicler.ffi_constants import check_civ_capacity\n    check_civ_capacity(world)\n    if _grain_reserves_on(world) and getattr(world.grain_reserves, \"shipments\", None) is not None:\n",
+          "new": "        AgentRows, Phase10Inputs, Stamp, TurnArtifacts, TurnObservation, TurnResult,\n    )\n\n    from chronicler.regional_population import capture_food_weights, capture_population_sources\n    from chronicler.ffi_constants import check_civ_capacity\n    check_civ_capacity(world)\n    if _grain_reserves_on(world) and getattr(world.grain_reserves, \"shipments\", None) is not None:\n"
+        },
+        {
+          "old": "        region_map = world.region_map\n        snapshot = agent_bridge.get_snapshot()\n        if snapshot is not None:\n            # Lagged mutual aid moves existing stock (observed at N-1) before\n            # this turn's inventory is packed; it does not read yields.\n            if world.mutual_aid_enabled:\n",
+          "new": "        region_map = world.region_map\n        snapshot = agent_bridge.get_snapshot()\n        if snapshot is not None:\n            artifacts.food_weights = capture_food_weights(world, snapshot)\n            # Lagged mutual aid moves existing stock (observed at N-1) before\n            # this turn's inventory is packed; it does not read yields.\n            if world.mutual_aid_enabled:\n"
+        },
+        {
+          "old": "\n    from chronicler.economy import settle_pending_stockpile_bootstraps\n    settle_pending_stockpile_bootstraps(world.regions)\n\n    # Capture at the original post-bridge/post-bootstrap boundary. The runner\n    # receives these historical rows only through the explicit result handoff.\n",
+          "new": "\n    from chronicler.economy import settle_pending_stockpile_bootstraps\n    settle_pending_stockpile_bootstraps(world.regions)\n\n    population_sources = capture_population_sources(world)\n\n    # Capture at the original post-bridge/post-bootstrap boundary. The runner\n    # receives these historical rows only through the explicit result handoff.\n"
+        },
+        {
+          "old": "            source_turn=artifacts.source_turn,\n            completed_turn=world.turn,\n            phase10_agents=artifacts.phase10.agents,\n        ),\n    )\n\n",
+          "new": "            source_turn=artifacts.source_turn,\n            completed_turn=world.turn,\n            phase10_agents=artifacts.phase10.agents,\n            food_weights=artifacts.food_weights if economy_result is not None else None,\n            population_sources=population_sources,\n        ),\n    )\n\n"
+        }
+      ]
+    },
+    "src/chronicler/turn_artifacts.py": {
+      "sha256": "b9e480cfe54224fc8920ecee3aad489ef11b2b093b3c51ac827a2296f43ed902",
+      "patches": [
+        {
+          "old": "if TYPE_CHECKING:\n    from chronicler.economy import EconomyResult\n    from chronicler.models import AgentEventRecord\n\nStage = Literal[\"phase10_entry\"]\n\n",
+          "new": "if TYPE_CHECKING:\n    from chronicler.economy import EconomyResult\n    from chronicler.models import AgentEventRecord\n    from chronicler.regional_population import FoodWeights\n\nStage = Literal[\"phase10_entry\"]\n\n"
+        },
+        {
+          "old": "    conquered_civ_ids: set[int] = field(default_factory=set)\n    deaths: tuple[AgentEventRecord, ...] = ()\n    phase10: Phase10Inputs | None = None\n\n\n@dataclass(frozen=True, slots=True)\n",
+          "new": "    conquered_civ_ids: set[int] = field(default_factory=set)\n    deaths: tuple[AgentEventRecord, ...] = ()\n    phase10: Phase10Inputs | None = None\n    food_weights: FoodWeights | None = None\n\n\n@dataclass(frozen=True, slots=True)\n"
+        },
+        {
+          "old": "    source_turn: int\n    completed_turn: int\n    phase10_agents: AgentRows | None\n\n    def __post_init__(self) -> None:\n        if self.phase10_agents is not None:\n            _check_agent_rows(self.phase10_agents.batch, self.phase10_agents, source_turn=self.source_turn)\n        if self.completed_turn != self.source_turn + 1:\n            raise ValueError(\"completed_turn must label the completed source_turn as N+1\")\n\n",
+          "new": "    source_turn: int\n    completed_turn: int\n    phase10_agents: AgentRows | None\n    food_weights: FoodWeights | None = None\n    population_sources: tuple[str, ...] | None = None\n\n    def __post_init__(self) -> None:\n        if self.phase10_agents is not None:\n            _check_agent_rows(self.phase10_agents.batch, self.phase10_agents, source_turn=self.source_turn)\n        if self.food_weights is not None and self.food_weights.source_turn != self.source_turn:\n            raise ValueError(\"food_weights source_turn does not match the consumer turn\")\n        if self.completed_turn != self.source_turn + 1:\n            raise ValueError(\"completed_turn must label the completed source_turn as N+1\")\n\n"
+        }
+      ]
+    },
+    "src/chronicler/transport_contract.json": {
+      "sha256": "fbb78a3d84e1921de69894dc8fab9b01c6f9fa63d4bf2178d2c1d68cd74501a2",
+      "patches": [
+        {
+          "old": "    \"ritual_gatherings\",\n    \"scientific_claims\",\n    \"transaction_receipts\",\n    \"migration\"\n  ],\n  \"bundle_systems\": [\n    \"historiography\",\n",
+          "new": "    \"ritual_gatherings\",\n    \"scientific_claims\",\n    \"transaction_receipts\",\n    \"migration\",\n    \"regional_population\"\n  ],\n  \"bundle_systems\": [\n    \"historiography\",\n"
+        }
+      ]
+    }
+  },
+  "new_files": {
+    "src/chronicler/regional_population.py": "4b7fabfe2eed1052b13bce2bc98834f95d0f973a061bf8cf3289c776da1e06d6"
+  }
+}

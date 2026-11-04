@@ -291,9 +291,22 @@ impl HybridDeliveryInput {
 // Output structs
 // ---------------------------------------------------------------------------
 
+/// Region food ledger columns. Values are native goods units per economy tick.
+/// Transport is signed: hybrid imports + returns - departures, abstract
+/// imports - exports. Floating-point rounding prevents exact reconciliation.
+pub const FOOD_LEDGER_NAMES: [&str; 10] = [
+    "food_opening", "food_produced", "food_transport_net", "food_craft_input",
+    "food_clamp_correction", "food_pre_consumption", "food_consumed",
+    "food_storage_loss", "food_cap_overflow", "food_closing",
+];
+
 /// Output row per region.
 pub struct EconomyRegionResult {
     pub region_id: u16,
+    /// Ephemeral Phase 2 food ledger, ordered as FOOD_LEDGER_NAMES.
+    pub food_ledger: [f64; 10],
+    /// Regional farmer-equivalent work-turns reserved from land production.
+    pub granary_work_delivered: f32,
     pub stockpile: [f32; NUM_GOODS],
     pub farmer_income_modifier: f32,
     pub food_sufficiency: f32,
@@ -306,6 +319,8 @@ pub struct EconomyRegionResult {
     /// market prices (`merchant::market_price`).
     pub market_demand: [f32; NUM_CATEGORIES],
     pub market_supply: [f32; NUM_CATEGORIES],
+    /// Actual Phase 2 post-trade prices, before public relief and consumption.
+    pub market_price: [f32; NUM_CATEGORIES],
     /// Output per farmer relative to constant returns (effective over
     /// headcount labour, `effective_farm_labor`); 1.0 without the curve or
     /// without farmers. Scales farmer income in the agent tick.
@@ -976,6 +991,29 @@ pub fn tick_economy_core(
     is_winter: bool,
     hybrid_delivery: Option<&HybridDeliveryInput>,
 ) -> EconomyOutput {
+    tick_economy_core_with_granary_work(region_inputs, agent_counts, routes,
+        civ_merchant_wealth, civ_priest_count, n_civs, region_civ_owner, config,
+        trade_friction, is_winter, hybrid_delivery, &[])
+}
+
+/// The optional request reserves aggregate land-work after city and care
+/// adjustments. This does not select people or imply a worker roster.
+pub fn tick_economy_core_with_granary_work(
+    region_inputs: &[EconomyRegionInput],
+    agent_counts: &[RegionAgentCounts],
+    routes: &[TradeRouteInput],
+    civ_merchant_wealth: &[f32],
+    civ_priest_count: &[u32],
+    n_civs: usize,
+    region_civ_owner: &[u8],
+    config: &EconomyConfig,
+    trade_friction: f32,
+    is_winter: bool,
+    hybrid_delivery: Option<&HybridDeliveryInput>,
+    granary_work_requested: &[f32],
+) -> EconomyOutput {
+    assert!(granary_work_requested.is_empty() || granary_work_requested.len() == region_inputs.len());
+    assert!(granary_work_requested.iter().all(|v| v.is_finite() && *v >= 0.0));
     let n_regions = region_inputs.len();
     assert_eq!(agent_counts.len(), n_regions, "agent_counts length mismatch");
 
@@ -1004,6 +1042,7 @@ pub fn tick_economy_core(
     let mut craft_output: Vec<f32> = Vec::with_capacity(n_regions);
     let mut slot_output: Vec<[f32; 3]> = Vec::with_capacity(n_regions);
     let mut forage_output: Vec<f32> = Vec::with_capacity(n_regions);
+    let mut granary_work_delivered: Vec<f32> = Vec::with_capacity(n_regions);
     for (i, inp) in region_inputs.iter().enumerate() {
         let ac = &agent_counts[i];
         // Split a finite farmer labor budget equally across occupied slots.
@@ -1017,6 +1056,10 @@ pub fn tick_economy_core(
         } else {
             ac.farmer_count as f32
         };
+        let requested = granary_work_requested.get(i).copied().unwrap_or(0.0);
+        let delivered = if requested > 0.0 { requested.min(headcount_labor) } else { 0.0 };
+        let headcount_labor = if requested > 0.0 { headcount_labor - delivered } else { headcount_labor };
+        granary_work_delivered.push(delivered);
         let (labor, productivity) = if inp.slot_curves {
             split_labor_on_slot_curves(inp, headcount_labor, ac.population as f32 * config.per_capita_food)
         } else {
@@ -1540,7 +1583,18 @@ pub fn tick_economy_core(
         // Hybrid: old + production + net_mobility (imports + returns - departures)
         // Abstract: old + production - exports + imports
         let mut stockpile = w.stockpile;
+        let mut food_ledger = [0.0f64; 10];
         for g in 0..NUM_GOODS {
+            if IS_FOOD[g] {
+                food_ledger[0] += stockpile[g] as f64;
+                food_ledger[1] += w.per_good_production[g] as f64;
+                food_ledger[2] += if hybrid_delivery.is_some() {
+                    per_good_net_mobility[ri][g] as f64
+                } else {
+                    per_good_imports[ri][g] as f64 - per_good_exports[ri][g] as f64
+                };
+                food_ledger[3] += w.craft_input[g] as f64;
+            }
             let new_val = if hybrid_delivery.is_some() {
                 stockpile[g] + w.per_good_production[g] + per_good_net_mobility[ri][g] - w.craft_input[g]
             } else {
@@ -1549,6 +1603,7 @@ pub fn tick_economy_core(
             };
             if new_val < 0.0 {
                 conservation.clamp_floor_loss += (-new_val) as f64;
+                if IS_FOOD[g] { food_ledger[4] += (-new_val) as f64; }
                 stockpile[g] = 0.0;
             } else {
                 stockpile[g] = new_val;
@@ -1561,6 +1616,7 @@ pub fn tick_economy_core(
             .filter(|&g| IS_FOOD[g])
             .map(|g| stockpile[g])
             .sum();
+        food_ledger[5] = total_food_stock as f64;
         let food_suff_denom = food_demand.max(SUPPLY_FLOOR);
         let food_sufficiency = (total_food_stock / food_suff_denom).clamp(0.0, 2.0);
 
@@ -1579,6 +1635,7 @@ pub fn tick_economy_core(
                 let consumed = demand_for_good.min(amount);
                 stockpile[g] -= consumed;
                 conservation.consumption += consumed as f64;
+                food_ledger[6] += consumed as f64;
             }
         }
 
@@ -1622,6 +1679,7 @@ pub fn tick_economy_core(
                 let old = stockpile[g];
                 stockpile[g] *= 1.0 - effective_rate;
                 conservation.storage_loss += (old - stockpile[g]) as f64;
+                if IS_FOOD[g] { food_ledger[7] += (old - stockpile[g]) as f64; }
             }
         }
 
@@ -1630,8 +1688,13 @@ pub fn tick_economy_core(
         for g in 0..NUM_GOODS {
             if stockpile[g] > cap {
                 conservation.cap_overflow += (stockpile[g] - cap) as f64;
+                if IS_FOOD[g] { food_ledger[8] += (stockpile[g] - cap) as f64; }
                 stockpile[g] = cap;
             }
+        }
+
+        for g in 0..NUM_GOODS {
+            if IS_FOOD[g] { food_ledger[9] += stockpile[g] as f64; }
         }
 
         // Step 6: Derive signals.
@@ -1746,6 +1809,8 @@ pub fn tick_economy_core(
         }
         region_results.push(EconomyRegionResult {
             region_id: inp.region_id,
+            food_ledger,
+            granary_work_delivered: granary_work_delivered[ri],
             stockpile,
             farmer_income_modifier,
             food_sufficiency,
@@ -1754,6 +1819,7 @@ pub fn tick_economy_core(
             trade_route_count,
             market_demand: w.demand,
             market_supply,
+            market_price: post_trade_prices[ri],
             farm_productivity: farm_productivity[ri],
             craft_output: craft_output[ri],
             craft_sufficiency,
@@ -1877,6 +1943,138 @@ pub fn tick_economy_core(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn food_ledger_run(region: EconomyRegionInput, count: u32,
+                       delivery: Option<&HybridDeliveryInput>) -> EconomyOutput {
+        let counts = [RegionAgentCounts { population: count, farmer_count: 0,
+            soldier_count: 0, merchant_count: 0, wealthy_count: 0 }];
+        tick_economy_core(&[region], &counts, &[], &[0.0], &[0], 1, &[0],
+                          &EconomyConfig::default(), 1.0, false, delivery)
+    }
+
+    fn assert_food_balance(ledger: &[f64; 10]) {
+        let expected = ledger[0] + ledger[1] + ledger[2] - ledger[3] + ledger[4]
+            - ledger[6] - ledger[7] - ledger[8];
+        assert!((expected - ledger[9]).abs() < 1e-5, "ledger: {ledger:?}");
+        let pre = ledger[0] + ledger[1] + ledger[2] - ledger[3] + ledger[4];
+        assert!((pre - ledger[5]).abs() < 1e-5, "ledger: {ledger:?}");
+    }
+
+    #[test]
+    fn food_ledger_abundant_empty_and_next_tick_reset() {
+        let mut region = city_market_region(1.0, 0.0);
+        region.stockpile[SLOT_GRAIN] = 3.0;
+        region.stockpile[SLOT_FISH] = 7.0;
+        let result = food_ledger_run(region, 10, None);
+        let row = &result.region_results[0];
+        assert_eq!(row.food_ledger[0], 10.0);
+        assert_eq!(row.food_ledger[1..5], [0.0; 4]);
+        assert_eq!(row.food_ledger[5], 10.0);
+        assert_eq!(row.food_ledger[6], 5.0);
+        assert_eq!(row.food_sufficiency, 2.0);
+        assert_eq!(row.market_demand[CAT_FOOD], 5.0);
+        assert_eq!(row.stockpile[SLOT_GRAIN], 1.5_f32 * 0.97_f32);
+        assert_eq!(row.stockpile[SLOT_FISH], 3.5_f32 * 0.94_f32);
+        assert_food_balance(&row.food_ledger);
+        let mut empty = city_market_region(1.0, 0.0);
+        empty.resource_types = [255; 3];
+        let empty_result = food_ledger_run(empty, 10, None);
+        let row = &empty_result.region_results[0];
+        assert_eq!(row.food_ledger, [0.0; 10]);
+        assert_eq!(row.food_sufficiency, 0.0);
+        assert_food_balance(&row.food_ledger);
+    }
+
+    #[test]
+    fn food_ledger_hybrid_arrival_and_returns_accounted_once() {
+        let mut region = city_market_region(1.0, 0.0);
+        region.resource_types = [255; 3];
+        let empty = HybridDeliveryInput::from_buffer(&crate::merchant::DeliveryBuffer::new(1), 1);
+        let before = food_ledger_run(region, 10, Some(&empty));
+        assert_eq!(before.region_results[0].food_ledger, [0.0; 10]);
+        let mut buf = crate::merchant::DeliveryBuffer::new(1);
+        buf.arrival_imports.push(crate::merchant::ArrivalRecord {
+            source_region: 0, dest_region: 0, good_slot: SLOT_GRAIN as u8, qty: 4.0,
+        });
+        buf.return_credits[0][SLOT_GRAIN] = 0.2;
+        let delivery = HybridDeliveryInput::from_buffer(&buf, 1);
+        let mut region = city_market_region(1.0, 0.0);
+        region.resource_types = [255; 3];
+        let arriving = food_ledger_run(region, 10, Some(&delivery));
+        let row = &arriving.region_results[0];
+        assert!((row.food_ledger[2] - 4.0).abs() < 1e-6);
+        assert!((row.food_ledger[5] - 4.0).abs() < 1e-6);
+        assert!((row.food_ledger[6] - 4.0).abs() < 1e-6);
+        assert!((row.food_sufficiency - 0.8).abs() < 1e-6);
+        assert_eq!(row.food_ledger[1], 0.0);
+        assert_food_balance(&row.food_ledger);
+        let mut region = city_market_region(1.0, 0.0);
+        region.resource_types = [255; 3];
+        let next = food_ledger_run(region, 10, Some(&empty));
+        assert_eq!(next.region_results[0].food_ledger, [0.0; 10]);
+    }
+
+    #[test]
+    fn food_ledger_production_storage_and_cap() {
+        let mut region = city_market_region(1.0, 0.0);
+        region.storage_population = 1;
+        let counts = [RegionAgentCounts { population: 0, farmer_count: 10,
+            soldier_count: 0, merchant_count: 0, wealthy_count: 0 }];
+        let out = tick_economy_core(&[region], &counts, &[], &[0.0], &[0], 1,
+            &[0], &EconomyConfig::default(), 1.0, false, None);
+        let row = &out.region_results[0];
+        assert_eq!(row.food_ledger[1], 10.0);
+        assert_eq!(row.food_ledger[6], 0.0);
+        assert!(row.food_ledger[7] > 0.0 && row.food_ledger[8] > 0.0);
+        assert_eq!(row.food_ledger[9], 2.5);
+        assert_food_balance(&row.food_ledger);
+    }
+
+    #[test]
+    fn granary_work_reserves_adjusted_budget_and_preserves_default() {
+        let mut region = city_market_region(0.4, 0.0); // 10 * .5 city - 1 care
+        let counts = [RegionAgentCounts { population: 10, farmer_count: 10,
+            soldier_count: 0, merchant_count: 0, wealthy_count: 0 }];
+        let run = |requests: &[f32], r: &EconomyRegionInput| tick_economy_core_with_granary_work(
+            std::slice::from_ref(r), &counts, &[], &[0.0], &[0], 1, &[0],
+            &EconomyConfig::default(), 1.0, false, None, requests);
+        for curves in [false, true] {
+            region.slot_curves = curves;
+            let base = run(&[], &region);
+            let zero = run(&[0.0], &region);
+            let a = &base.region_results[0];
+            let b = &zero.region_results[0];
+            assert_eq!(a.granary_work_delivered.to_bits(), 0.0f32.to_bits());
+            assert_eq!(a.stockpile.map(f32::to_bits), b.stockpile.map(f32::to_bits));
+            assert_eq!(a.food_ledger.map(f64::to_bits), b.food_ledger.map(f64::to_bits));
+            assert_eq!(a.food_sufficiency.to_bits(), b.food_sufficiency.to_bits());
+            assert_eq!(a.farm_productivity.to_bits(), b.farm_productivity.to_bits());
+            assert_eq!(a.slot_output.map(f32::to_bits), b.slot_output.map(f32::to_bits));
+            let requested = run(&[3.0], &region);
+            let row = &requested.region_results[0];
+            assert_eq!(row.granary_work_delivered, 3.0);
+            assert_eq!(a.slot_output[0], 4.0);
+            assert_eq!(row.slot_output[0], 1.0);
+            assert_eq!(a.market_demand, row.market_demand);
+            assert_food_balance(&row.food_ledger);
+            let capped = run(&[8.0], &region);
+            assert_eq!(capped.region_results[0].granary_work_delivered, 4.0);
+            assert_eq!(capped.region_results[0].slot_output[0], 0.0);
+        }
+        region.farm_labor_ref = 4.0;
+        region.farm_labor_half = 4.0;
+        let curved = run(&[3.0], &region);
+        assert!((curved.region_results[0].slot_output[0] - 1.6).abs() < 1e-6);
+        region.resource_types = [255; 3];
+        region.subsistence_yield = 0.5;
+        let forage = run(&[3.0], &region);
+        assert!((forage.region_results[0].forage_output - 0.8).abs() < 1e-6);
+        let no_farmers = [RegionAgentCounts { population: 10, farmer_count: 0,
+            soldier_count: 0, merchant_count: 0, wealthy_count: 0 }];
+        let no = tick_economy_core_with_granary_work(&[region], &no_farmers, &[], &[0.0], &[0],
+            1, &[0], &EconomyConfig::default(), 1.0, false, None, &[3.0]);
+        assert_eq!(no.region_results[0].granary_work_delivered, 0.0);
+    }
 
     #[test]
     fn test_smoke_single_region() {

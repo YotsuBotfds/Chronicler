@@ -55,6 +55,35 @@ def parse_command(raw: str) -> tuple[str, Any]:
             return ("error", 'Usage: set "<civ_name>" <stat> <value>')
         civ_name = tokens[1]
         stat = tokens[2].lower()
+        from chronicler.pause_policy import STAT, validate_policy_command
+        from chronicler.pause_transport import STAT as TRANSPORT_STAT, decode as decode_transport
+        from chronicler.pause_academy import STAT as ACADEMY_STAT, validate_command as validate_academy
+        if stat == ACADEMY_STAT:
+            if len(tokens) != 4:
+                return ("error", "Invalid academy restoration command")
+            try:
+                value = int(tokens[3])
+                validate_academy(civ_name, stat, value)
+            except ValueError as exc:
+                return ("error", str(exc))
+            return ("set", (civ_name, stat, value))
+        if stat == TRANSPORT_STAT:
+            if len(tokens) != 4:
+                return ("error", "Invalid regional transport command")
+            try:
+                value = int(tokens[3])
+                decode_transport(civ_name, stat, value)
+            except ValueError as exc:
+                return ("error", str(exc))
+            return ("set", (civ_name, stat, value))
+        if stat == STAT:
+            if len(tokens) != 4 or tokens[3] not in ("0", "1"):
+                return ("error", "Usage: set @world grain_reserves.shortfall_priority 0|1")
+            try:
+                validate_policy_command(civ_name, stat, int(tokens[3]))
+            except ValueError as exc:
+                return ("error", str(exc))
+            return ("set", (civ_name, stat, int(tokens[3])))
         if stat not in VALID_STATS:
             return ("error", f"Invalid stat '{stat}'. Valid stats: {sorted(VALID_STATS)}")
         try:
@@ -124,6 +153,7 @@ def _print_help() -> None:
     print("  continue                         — Resume simulation until next pause")
     print('  inject <event_type> "<civ>"       — Queue event for next turn')
     print('  set "<civ>" <stat> <value>        — Modify a civ stat')
+    print("  set @world grain_reserves.shortfall_priority 0|1 — Existing hybrid granaries only")
     print("  fork                             — Save current state as fork point")
     print("  quit                             — Compile chronicle and exit")
     print("  help                             — Show this message")
@@ -195,6 +225,42 @@ def interactive_pause(
 
         elif cmd == "set":
             civ_name, stat, value = cmd_args
+            from chronicler.pause_policy import STAT, set_policy_value
+            from chronicler.pause_transport import STAT as TRANSPORT_STAT, apply as apply_transport
+            from chronicler.pause_academy import STAT as ACADEMY_STAT, apply as apply_academy
+            if stat == ACADEMY_STAT:
+                try:
+                    receipt = apply_academy(world, civ_name, stat, value)
+                except ValueError as exc:
+                    print(f"Error: {exc}")
+                    continue
+                if interventions is not None:
+                    interventions.note_intervention(
+                        world, {"command": "set", "civ": civ_name, "stat": stat, "value": value})
+                print(f"Academy seat {receipt.new_seat_id}; fee {receipt.fee}")
+                continue
+            if stat == TRANSPORT_STAT:
+                try:
+                    receipt = apply_transport(world, civ_name, stat, value)
+                except ValueError as exc:
+                    print(f"Error: {exc}")
+                    continue
+                if interventions is not None:
+                    interventions.note_intervention(
+                        world, {"command": "set", "civ": civ_name, "stat": stat, "value": value})
+                print(f"Transport region {receipt.region_id} through turn {receipt.effective_through_turn}")
+                continue
+            if stat == STAT:
+                try:
+                    set_policy_value(world, civ_name, stat, value)
+                except ValueError as exc:
+                    print(f"Error: {exc}")
+                    continue
+                if interventions is not None:
+                    interventions.note_intervention(
+                        world, {"command": "set", "civ": civ_name, "stat": stat, "value": value})
+                print(f"Set world granary shortfall priority = {value}")
+                continue
             civ = next((c for c in world.civilizations if c.name == civ_name), None)
             if civ is None:
                 civ_names = [c.name for c in world.civilizations]

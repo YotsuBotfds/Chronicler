@@ -16,8 +16,10 @@ from __future__ import annotations
 import argparse
 import json
 import queue
+import signal
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -185,14 +187,26 @@ def test_a_single_run_checkpoint_resumes_live_with_a_rebuilt_view(tmp_path):
     assert init["current_turn"] == 6 and init["world_state"]["turn"] == 6
 
 
-def test_an_extended_resume_shows_the_new_length(tmp_path):
+def test_an_extended_resume_shows_and_saves_the_new_length(tmp_path):
     folder, _ = _straight(tmp_path)
     args = _args(tmp_path / "longer", resume=str(_ckpt(folder, 12)), turns=16, seed=42,
                  pause_every=None)
-    _, viewer, _ = session(args, exact_resume=rc.read_checkpoint(_ckpt(folder, 12)))
+    _, viewer, _ = session(
+        args, exact_resume=rc.read_checkpoint(_ckpt(folder, 12)), at_resume=[("checkpoint",)],
+    )
     init = json.loads(viewer.views[12])
     assert init["total_turns"] == init["metadata"]["total_turns"] == 16
     assert json.loads(viewer.final_view)["current_turn"] == 16
+
+    saved = tmp_path / "longer" / LIVE_CHECKPOINT_DIR / "turn_0012.ckpt"
+    loaded = rc.read_checkpoint(saved)
+    assert loaded.state.world.turn == 12
+    assert loaded.state.num_turns == 16
+    from chronicler.main import _adopt_checkpoint_args, _build_parser
+    parser = _build_parser()
+    resumed_args = parser.parse_args(["--live", "--resume", str(saved)])
+    assert _adopt_checkpoint_args(parser, resumed_args, loaded) == []
+    assert resumed_args.turns == 16
 
 
 def test_a_live_run_records_the_clients_world(tmp_path):
@@ -200,6 +214,28 @@ def test_a_live_run_records_the_clients_world(tmp_path):
     simulation = rc.describe(_ckpt(folder, 3))["run_config"]["simulation_args"]
     assert (simulation["civs"], simulation["regions"], simulation["turns"]) == (3, 6, 12)
     assert rc.read_checkpoint(_ckpt(folder, 3)).state.live["pause_every"] == 4
+
+
+def test_ctrl_c_during_live_turn_pacing_saves_the_completed_turn(tmp_path, monkeypatch):
+    previous = signal.signal(signal.SIGINT, signal.default_int_handler)
+
+    def interrupt_pacing(_delay):
+        signal.raise_signal(signal.SIGINT)
+
+    monkeypatch.setattr("chronicler.live.time", SimpleNamespace(sleep=interrupt_pacing))
+    folder = tmp_path / "interrupted"
+    try:
+        with pytest.raises(KeyboardInterrupt):
+            session(_args(folder, checkpoint_every=4,
+                          checkpoint=str(folder / "ckpt" / "turn_{turn:04d}.ckpt")),
+                    start=START)
+        assert signal.getsignal(signal.SIGINT) is signal.default_int_handler
+    finally:
+        signal.signal(signal.SIGINT, previous)
+
+    checkpoint = rc.read_checkpoint(_ckpt(folder, 1))
+    assert checkpoint.state.world.turn == 1
+    assert not (folder / "chronicle.md").exists()
 
 
 # --- the request: authentication, fields, state, paths -------------------------

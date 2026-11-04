@@ -1,5 +1,9 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { useDialogFocus } from "../hooks/useDialogFocus";
 import type { PauseContext, Command, PendingAction, InjectCommand, CheckpointStatus } from "../types";
+
+import { WhatIfPanel } from "./WhatIfPanel";
+import { whatIfActive, type WhatIfControls, type WhatIfPair } from "../lib/whatIf";
 
 interface InterventionPanelProps {
   pauseContext: PauseContext;
@@ -9,6 +13,10 @@ interface InterventionPanelProps {
   /** Ask for an exact checkpoint; shown when the server lists `checkpoint`. */
   onSaveCheckpoint?: () => void;
   checkpointStatus?: CheckpointStatus | null;
+  whatIf?: WhatIfControls;
+  onCompareWhatIf?: (pair: WhatIfPair) => void;
+  onInspectWorld?: () => void;
+  inspectionHidden?: boolean;
 }
 
 let nextId = 0;
@@ -39,7 +47,12 @@ export function InterventionPanel({
   forkedHint,
   onSaveCheckpoint,
   checkpointStatus,
+  whatIf,
+  onCompareWhatIf,
+  onInspectWorld,
+  inspectionHidden = false,
 }: InterventionPanelProps) {
+  const comparisonActive = whatIfActive(whatIf?.status);
   const canCheckpoint = !!onSaveCheckpoint && pauseContext.valid_commands.includes("checkpoint");
   const [injectEvent, setInjectEvent] = useState(pauseContext.injectable_events[0] || "");
   const [injectCiv, setInjectCiv] = useState(pauseContext.civs[0] || "");
@@ -79,14 +92,27 @@ export function InterventionPanel({
   const handleSet = useCallback(() => {
     sendCommand({ type: "set", civ: setCiv, stat: setStat, value: setValue });
   }, [sendCommand, setCiv, setStat, setValue]);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  // Escape never silently resumes a world or cancels a running pair. Those
+  // state-changing actions retain their explicit buttons inside the dialog.
+  useDialogFocus(dialogRef, !inspectionHidden);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="bg-gray-800 rounded-lg shadow-2xl p-6 w-[500px] max-h-[80vh] overflow-y-auto space-y-6">
+    <div hidden={inspectionHidden} inert={inspectionHidden} style={inspectionHidden ? { display: "none" } : undefined} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={`Paused simulation at turn ${pauseContext.turn}`} className="bg-gray-800 rounded-lg shadow-2xl p-4 sm:p-6 w-[600px] max-w-[calc(100vw-24px)] max-h-[90vh] overflow-y-auto space-y-6">
         <h2 className="text-lg font-bold text-gray-100">
           Paused at Turn {pauseContext.turn}
         </h2>
+        {onInspectWorld && <div>
+          <button type="button" disabled={comparisonActive} onClick={onInspectWorld}
+            className="min-h-11 px-4 py-2 bg-gray-700 text-gray-100 rounded">Inspect world while paused</button>
+          <p className="text-sm text-gray-300">Inspect recorded conditions without continuing the simulation. Return to these controls when ready.
+            {comparisonActive && " Cancel or finish this comparison first so its reviewed recipe remains bound."}</p>
+        </div>}
 
+        {whatIf && onCompareWhatIf && pauseContext.valid_commands.includes("what_if_prepare") && <WhatIfPanel context={pauseContext} controls={whatIf} onCompare={onCompareWhatIf} />}
+        {comparisonActive && <p role="status" className="text-sm text-amber-200">The original world is locked while a comparison is prepared or running. Cancel it to change or continue this world.</p>}
+        <fieldset disabled={comparisonActive} className="space-y-6 min-w-0">
         {/* Event Injection */}
         <div className="space-y-2">
           <h3 className="text-sm font-semibold text-gray-300">Stage Event</h3>
@@ -212,10 +238,12 @@ export function InterventionPanel({
         {/* Checkpoint result */}
         {canCheckpoint && checkpointStatus && <CheckpointResult status={checkpointStatus} />}
 
+        </fieldset>
         {/* Action buttons */}
         <div className="flex gap-3 justify-between">
           <div className="flex gap-2">
             <button
+              disabled={comparisonActive}
               onClick={() => sendCommand({ type: "fork" })}
               className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-gray-200 rounded text-sm"
             >
@@ -224,7 +252,7 @@ export function InterventionPanel({
             {canCheckpoint && (
               <button
                 onClick={onSaveCheckpoint}
-                disabled={checkpointStatus?.state === "saving"}
+                disabled={comparisonActive || checkpointStatus?.state === "saving"}
                 className="px-4 py-2 bg-gray-600 hover:bg-gray-500 disabled:opacity-50 text-gray-200 rounded text-sm"
               >
                 Save checkpoint
@@ -238,7 +266,8 @@ export function InterventionPanel({
             </button>
           </div>
           <button
-            onClick={handleContinue}
+            disabled={comparisonActive}
+              onClick={handleContinue}
             className="px-6 py-2 bg-green-600 hover:bg-green-500 text-white rounded text-sm font-semibold"
           >
             Continue

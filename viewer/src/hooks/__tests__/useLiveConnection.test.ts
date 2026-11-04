@@ -65,6 +65,80 @@ const SAMPLE_INIT = {
   speed: 1.0,
 };
 
+it("ends inspection after a sent Quit closes without a completed message and never invents saved output", async () => {
+  const { result } = renderHook(() => useLiveConnection("ws://localhost:8765"));
+  await act(async () => { await vi.advanceTimersByTimeAsync(10); });
+  const ws = MockWebSocket.instances[0];
+  act(() => {
+    ws.simulateMessage(SAMPLE_INIT);
+    ws.simulateMessage({ type: "paused", turn: 16, reason: "interval", valid_commands: ["quit"], civs: [], injectable_events: [], settable_stats: [] });
+  });
+  const bundle = result.current.bundle;
+  act(() => { result.current.sendCommand({ type: "quit" }); result.current.sendCommand({ type: "quit" }); });
+  expect(ws.sent.map((raw) => JSON.parse(raw).type)).toEqual(["quit"]);
+  expect(result.current.paused).toBe(true);
+  act(() => ws.close());
+  expect(result.current.paused).toBe(false);
+  expect(result.current.pauseContext).toBeNull();
+  expect(result.current.serverState).toBe("completed");
+  expect(result.current.bundle).toBe(bundle);
+  expect(result.current.notice).toContain("no completed file was announced");
+  await act(async () => { await vi.advanceTimersByTimeAsync(20000); });
+  expect(MockWebSocket.instances).toHaveLength(1);
+});
+
+it("does not reconnect a normally completed socket", async () => {
+  const { result } = renderHook(() => useLiveConnection("ws://localhost:8765"));
+  await act(async () => { await vi.advanceTimersByTimeAsync(10); });
+  const ws = MockWebSocket.instances[0];
+  act(() => { ws.simulateMessage(SAMPLE_INIT); ws.simulateMessage({ type: "completed" }); ws.close(); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(20000); });
+  expect(MockWebSocket.instances).toHaveLength(1);
+  expect(result.current.serverState).toBe("completed");
+  expect(result.current.notice).toBeNull();
+});
+
+it("keeps an unfinished comparison unconfirmed when the connection ends after Quit", async () => {
+  const { result } = renderHook(() => useLiveConnection("ws://localhost:8765"));
+  await act(async () => { await vi.advanceTimersByTimeAsync(10); });
+  const ws = MockWebSocket.instances[0];
+  act(() => { ws.simulateMessage(SAMPLE_INIT); result.current.whatIf.prepare("A", 50, 2); });
+  expect(result.current.whatIf.status?.state).toBe("preparing");
+  act(() => { result.current.sendCommand({ type: "quit" }); ws.close(); });
+  expect(result.current.whatIf.status?.state).toBe("error");
+  expect(result.current.whatIf.status?.message).toContain("unconfirmed");
+  expect(result.current.whatIf.status?.pair).toBeUndefined();
+  await act(async () => { await vi.advanceTimersByTimeAsync(20000); });
+  expect(MockWebSocket.instances).toHaveLength(1);
+});
+
+it("keeps ordinary reconnect behavior if Quit was not sent on an open socket", async () => {
+  const { result } = renderHook(() => useLiveConnection("ws://localhost:8765"));
+  act(() => result.current.sendCommand({ type: "quit" }));
+  await act(async () => { await vi.advanceTimersByTimeAsync(10); });
+  const ws = MockWebSocket.instances[0];
+  expect(ws.sent).toEqual([]);
+  ws.send = () => { throw new Error("send failed"); };
+  expect(() => result.current.sendCommand({ type: "quit" })).toThrow("send failed");
+  act(() => ws.close());
+  await act(async () => { await vi.advanceTimersByTimeAsync(1500); });
+  expect(MockWebSocket.instances).toHaveLength(2);
+  expect(result.current.notice).toBeNull();
+});
+
+it("does not carry terminal intent into another socket or URL", async () => {
+  const { result, rerender } = renderHook(({ url }) => useLiveConnection(url), { initialProps: { url: "ws://localhost:8765" } });
+  await act(async () => { await vi.advanceTimersByTimeAsync(10); });
+  act(() => { MockWebSocket.instances[0].simulateMessage(SAMPLE_INIT); result.current.sendCommand({ type: "quit" }); MockWebSocket.instances[0].close(); });
+  rerender({ url: "ws://localhost:8766" });
+  await act(async () => { await vi.advanceTimersByTimeAsync(10); });
+  expect(result.current.notice).toBeNull();
+  const ws = MockWebSocket.instances[1];
+  act(() => { ws.simulateMessage(SAMPLE_INIT); ws.close(); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(1500); });
+  expect(MockWebSocket.instances).toHaveLength(3);
+});
+
 describe("useLiveConnection", () => {
   it("does not connect when wsUrl is empty", async () => {
     renderHook(() => useLiveConnection(""));
@@ -590,4 +664,135 @@ describe("lobby state", () => {
     act(() => ws.simulateMessage({ type: "init", state: "starting" }));
     expect(result.current.serverState).toBe("starting");
   });
+});
+
+it("prepares and runs one exact pair despite duplicate clicks, receives results and replays them on reconnect", async () => {
+  const { whatIfManifest, whatIfPair } = await import("../../__fixtures__/whatIf");
+  const { result } = renderHook(() => useLiveConnection("ws://localhost:8765"));
+  await vi.advanceTimersByTimeAsync(10);
+  const ws = MockWebSocket.instances[0];
+  act(() => { result.current.whatIf.prepare("A", 80, 3); result.current.whatIf.prepare("A", 80, 3); });
+  expect(ws.sent).toHaveLength(1);
+  const request = JSON.parse(ws.sent[0]);
+  const manifest = { ...whatIfManifest, request_id: request.request_id };
+  act(() => ws.simulateMessage({ type: "what_if_status", request_id: request.request_id, state: "prepared", manifest }));
+  act(() => { result.current.whatIf.run(); result.current.whatIf.run(); });
+  expect(ws.sent.map((s) => JSON.parse(s).type)).toEqual(["what_if_prepare", "what_if_run"]);
+  act(() => ws.simulateMessage({ type: "what_if_result", request_id: request.request_id, manifest,
+    baseline: whatIfPair.baseline, intervention: whatIfPair.intervention }));
+  expect(result.current.whatIf.status?.state).toBe("completed");
+  expect(result.current.whatIf.status?.pair?.baseline.identity?.name).toBe("baseline.json");
+  act(() => ws.close());
+  expect(result.current.whatIf.connected).toBe(false);
+  expect(result.current.whatIf.status?.pair).toBeDefined();
+  await act(() => vi.advanceTimersByTimeAsync(1010));
+  const second = MockWebSocket.instances[1];
+  act(() => second.simulateMessage({ type: "what_if_status", request_id: request.request_id, state: "complete", manifest }));
+  expect(result.current.whatIf.status?.pair).toBeDefined();
+});
+
+it("surfaces checkpoint refusals and refuses malformed result payloads without replacing the live world", async () => {
+  const { result } = renderHook(() => useLiveConnection("ws://localhost:8765"));
+  await vi.advanceTimersByTimeAsync(10);
+  const ws = MockWebSocket.instances[0];
+  act(() => ws.simulateMessage(SAMPLE_INIT));
+  const original = result.current.bundle;
+  act(() => result.current.whatIf.prepare("A", 80, 3));
+  const request_id = JSON.parse(ws.sent[0]).request_id;
+  act(() => ws.simulateMessage({ type: "what_if_status", request_id, state: "error", message: "Incompatible checkpoint source" }));
+  expect(result.current.whatIf.status?.message).toContain("Incompatible checkpoint");
+  act(() => ws.simulateMessage({ type: "what_if_result", request_id, manifest: {}, baseline: {} }));
+  expect(result.current.whatIf.status?.state).toBe("error");
+  expect(result.current.bundle).toBe(original);
+});
+
+it("prepares the exact global policy request once and retains schema-two results through cancellation and reconnect", async () => {
+  const { comparisonBundle } = await import("../../__fixtures__/completedRunHistory");
+  const { whatIfManifest } = await import("../../__fixtures__/whatIf");
+  const bundle = comparisonBundle();
+  (bundle.world_state as unknown as Record<string, unknown>).agent_mode = "hybrid";
+  (bundle.world_state as unknown as Record<string, unknown>).grain_reserves = { granaries: [] };
+  const { result } = renderHook(() => useLiveConnection("ws://localhost:8765"));
+  await act(async () => vi.advanceTimersByTimeAsync(10));
+  const ws = MockWebSocket.instances[0];
+  act(() => result.current.whatIf.preparePolicy(1, 3));
+  expect(ws.sent).toHaveLength(0);
+  act(() => ws.simulateMessage({ ...SAMPLE_INIT, ...bundle, type: "init" }));
+  expect((result.current.whatIf.bundle?.world_state as unknown as Record<string, unknown>).agent_mode).toBe("hybrid");
+  act(() => {
+    result.current.whatIf.preparePolicy(1, 21);
+    result.current.whatIf.preparePolicy(true as unknown as 1, 3);
+  });
+  expect(ws.sent).toHaveLength(0);
+  act(() => { result.current.whatIf.preparePolicy(1, 3); result.current.whatIf.preparePolicy(0, 3); });
+  const request = JSON.parse(ws.sent[0]);
+  expect(request).toEqual({ type: "what_if_prepare", request_id: expect.any(String),
+    control: "granary_shortfall_priority", value: 1, turns: 3 });
+  const manifest = { ...whatIfManifest, schema_version: 2, request_id: request.request_id,
+    intervention: { command: "set", civ: "@world", stat: "grain_reserves.shortfall_priority", before: 0, value: 1, scope: "world" } };
+  act(() => ws.simulateMessage({ type: "what_if_status", request_id: request.request_id, state: "prepared", manifest }));
+  expect(result.current.whatIf.status?.manifest?.schema_version).toBe(2);
+  act(() => result.current.whatIf.cancel());
+  expect(JSON.parse(ws.sent[1])).toEqual({ type: "what_if_cancel", request_id: request.request_id });
+  act(() => ws.close());
+  await act(() => vi.advanceTimersByTimeAsync(1010));
+  act(() => MockWebSocket.instances[1].simulateMessage({ type: "what_if_status", request_id: request.request_id,
+    state: "prepared", manifest }));
+  expect(result.current.whatIf.status?.manifest?.schema_version).toBe(2);
+});
+
+it("sends one bounded regional disruption request and accepts its schema-three preview", async () => {
+  const { comparisonBundle } = await import("../../__fixtures__/completedRunHistory");
+  const { whatIfManifest } = await import("../../__fixtures__/whatIf");
+  const bundle = comparisonBundle();
+  (bundle.world_state as unknown as Record<string, unknown>).agent_mode = "hybrid";
+  const { result } = renderHook(() => useLiveConnection("ws://localhost:8765"));
+  await act(async () => vi.advanceTimersByTimeAsync(10));
+  const ws = MockWebSocket.instances[0];
+  act(() => result.current.whatIf.prepareTransport(1, 2, 3)); expect(ws.sent).toHaveLength(0);
+  act(() => ws.simulateMessage({ ...SAMPLE_INIT, ...bundle, type: "init" }));
+  act(() => { result.current.whatIf.prepareTransport(-1, 2, 3); result.current.whatIf.prepareTransport(2, 2, 3);
+    result.current.whatIf.prepareTransport(1, 0, 3); result.current.whatIf.prepareTransport(1, 7, 3);
+    result.current.whatIf.prepareTransport(1, 2, 21); });
+  expect(ws.sent).toHaveLength(0);
+  act(() => { result.current.whatIf.prepareTransport(1, 2, 3); result.current.whatIf.prepareTransport(0, 1, 3); });
+  const req = JSON.parse(ws.sent[0]); expect(ws.sent).toHaveLength(1);
+  expect(req).toEqual({ type: "what_if_prepare", request_id: expect.any(String), control: "regional_transport_disruption", region_id: 1, duration: 2, turns: 3 });
+  const manifest = { ...whatIfManifest, schema_version: 3, request_id: req.request_id,
+    intervention: { command: "set", civ: "@transport", stat: "lab.transport_disruption", before: 0, value: 12,
+      scope: "region", region_id: 1, region_name: "B", duration: 2, prior_counter: 0, effective_counter: 3, effective_through_turn: 3 } };
+  act(() => ws.simulateMessage({ type: "what_if_status", request_id: req.request_id, state: "prepared", manifest }));
+  expect(result.current.whatIf.status?.manifest?.schema_version).toBe(3);
+  act(() => result.current.whatIf.cancel());
+  expect(JSON.parse(ws.sent[1])).toEqual({ type: "what_if_cancel", request_id: req.request_id });
+  act(() => ws.simulateMessage({ type: "what_if_status", request_id: req.request_id, state: "cancelled", manifest }));
+  expect(result.current.whatIf.status?.state).toBe("cancelled");
+  act(() => ws.close()); await act(() => vi.advanceTimersByTimeAsync(1010));
+  act(() => MockWebSocket.instances[1].simulateMessage({ type: "what_if_status", request_id: req.request_id, state: "prepared", manifest }));
+  expect(result.current.whatIf.status?.manifest?.schema_version).toBe(3);
+});
+
+it("sends one restoration request only for an eligible fresh paused candidate", async () => {
+  const { result } = renderHook(() => useLiveConnection("ws://localhost:8765"));
+  await act(async () => vi.advanceTimersByTimeAsync(10));
+  const ws = MockWebSocket.instances[0];
+  act(() => result.current.whatIf.prepareRestoration(1, 4, 3));
+  expect(ws.sent).toHaveLength(0);
+  const candidate = { region_id: 1, region_name: "South", fallen_seat_id: 4, fallen_seat_name: "Old Academy", fallen_founder: 0,
+    fallen_founded_turn: 0, fallen_turn: 1, current_lord: 0, current_lord_name: "A", eligible: true, reason: null,
+    fee: 30, treasury_before: 100, treasury_after: 70 };
+  act(() => ws.simulateMessage({ type: "paused", turn: 2, reason: "interval", valid_commands: [], injectable_events: [], settable_stats: [], civs: ["A"],
+    academy_restoration: { schema_version: 1, turn: 2, supported: true, unavailable_reason: null, candidates: [candidate], total_candidates: 1, omitted: 0 } }));
+  const updated = { schema_version: 1, turn: 2, supported: true, unavailable_reason: null,
+    candidates: [{ ...candidate, eligible: false, reason: "Patron cannot pay", fee: null, treasury_before: null, treasury_after: null }], total_candidates: 1, omitted: 0 };
+  act(() => ws.simulateMessage({ type: "ack", command: "set", still_paused: true, academy_restoration: updated }));
+  act(() => result.current.whatIf.prepareRestoration(1, 4, 3));
+  expect(ws.sent).toHaveLength(0);
+  act(() => ws.simulateMessage({ type: "paused", turn: 2, reason: "interval", valid_commands: [], injectable_events: [], settable_stats: [], civs: ["A"],
+    academy_restoration: { ...updated, candidates: [candidate] } }));
+  act(() => { result.current.whatIf.prepareRestoration(0, 4, 3); result.current.whatIf.prepareRestoration(1, 4, 21); });
+  expect(ws.sent).toHaveLength(0);
+  act(() => { result.current.whatIf.prepareRestoration(1, 4, 3); result.current.whatIf.prepareRestoration(1, 4, 3); });
+  expect(ws.sent).toHaveLength(1);
+  expect(JSON.parse(ws.sent[0])).toEqual({ type: "what_if_prepare", request_id: expect.any(String), control: "academy_restoration", region_id: 1, fallen_seat_id: 4, turns: 3 });
 });

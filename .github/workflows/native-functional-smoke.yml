@@ -1,0 +1,137 @@
+name: Trusted hosted native functional smoke
+
+on:
+  push:
+    branches: [lead/native-functional-smoke-20261030]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-functional:
+    if: github.ref == 'refs/heads/lead/native-functional-smoke-20261030'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      PYTHONUNBUFFERED: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+      CARGO_BUILD_JOBS: "2"
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      BLIS_NUM_THREADS: "1"
+      VECLIB_MAXIMUM_THREADS: "1"
+      NUMEXPR_NUM_THREADS: "1"
+      RAYON_NUM_THREADS: "1"
+    steps:
+      - name: Check out the exact reviewed source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Set up the ordinary native CI Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Admit hosted build storage and create fresh output roles
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          available=$(df --output=avail -B1 "$RUNNER_TEMP" | tail -1 | tr -d ' ')
+          test "$available" -ge 8589934592
+          mkdir -m 0700 "$RUNNER_TEMP/native-functional-build"
+          mkdir -m 0700 "$RUNNER_TEMP/native-functional-build/wheelhouse"
+          mkdir -m 0700 "$RUNNER_TEMP/native-functional-target"
+          printf 'initial_available_bytes=%s\n' "$available" > "$RUNNER_TEMP/native-functional-build/storage.txt"
+
+      - name: Install dependencies from the unchanged project lock
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "uv>=0.5,<1"
+          uv lock --check
+          uv sync --frozen --python "$(command -v python)"
+          uv pip install --python .venv/bin/python "maturin>=1.5,<2"
+
+      - name: Build and install one fresh own-source locked wheel
+        env:
+          CARGO_TARGET_DIR: ${{ runner.temp }}/native-functional-target
+        run: |
+          rustc --version --verbose > "$RUNNER_TEMP/native-functional-build/rustc.txt"
+          .venv/bin/python -m maturin build --release --locked \
+            --manifest-path chronicler-agents/Cargo.toml \
+            --interpreter "$PWD/.venv/bin/python" \
+            --out "$RUNNER_TEMP/native-functional-build/wheelhouse"
+          uv pip install --python .venv/bin/python --force-reinstall --no-deps \
+            "$RUNNER_TEMP/native-functional-build/wheelhouse/"*.whl
+          du -sk "$CARGO_TARGET_DIR" .venv >> "$RUNNER_TEMP/native-functional-build/storage.txt"
+          df -B1 "$RUNNER_TEMP" >> "$RUNNER_TEMP/native-functional-build/storage.txt"
+
+      - name: Record the custom job's verified wheel and real compiled classes
+        id: wheel
+        run: |
+          .venv/bin/python -B scripts/hosted_native_functional_smoke.py record-wheel --execute \
+            --wheel-dir "$RUNNER_TEMP/native-functional-build/wheelhouse" \
+            --output "$RUNNER_TEMP/native-functional-build/build.json"
+
+      - name: Run the bounded installed functional and capture-interface checks
+        id: smoke
+        shell: bash
+        run: |
+          set -uo pipefail
+          umask 077
+          evidence="$RUNNER_TEMP/native-functional-smoke"
+          mkdir -m 0700 "$evidence" || exit 2
+          cpu_list=$(awk '/^Cpus_allowed_list:/ {print $2}' /proc/self/status)
+          cpu=${cpu_list%%[-,]*}
+          [[ "$cpu" =~ ^[0-9]+$ ]] || exit 2
+          set -C
+          /usr/bin/taskset --cpu-list "$cpu" \
+            /usr/bin/time -o "$evidence/metrics.txt" \
+              -f 'measurement=GNU_time_functional_command_tree\nuser_seconds=%U\nsystem_seconds=%S\nelapsed_seconds=%e\nexit_code=%x\nmax_rss_kib=%M\nwrapper_and_build_overhead=excluded' \
+              /usr/bin/timeout --signal=TERM --kill-after=1s 108s \
+              /usr/bin/prlimit --as=2147483648:2147483648 --cpu=30:30 --core=0:0 --fsize=2097152:2097152 -- \
+              .venv/bin/python -X cpu_count=1 -B scripts/hosted_native_functional_smoke.py run --execute \
+                --wheel-dir "$RUNNER_TEMP/native-functional-build/wheelhouse" \
+                --build "$RUNNER_TEMP/native-functional-build/build.json" --output "$evidence" \
+                > "$evidence/smoke.log" 2>&1
+          actual_exit=$?
+          /usr/bin/timeout --signal=KILL 5s \
+            .venv/bin/python -B scripts/hosted_native_functional_smoke.py seal --execute \
+              --output "$evidence" --actual-exit "$actual_exit"
+          seal_exit=$?
+          if [ "$seal_exit" -ne 0 ]; then exit "$seal_exit"; fi
+          exit "$actual_exit"
+
+      - name: Retain this job's separate verified builder artifact
+        if: always() && steps.wheel.outputs.build_upload == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: functional-native-build-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/native-functional-build/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Retain bounded smoke evidence including a negative
+        if: always() && steps.smoke.outputs.smoke_upload == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: functional-native-smoke-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/native-functional-smoke/observation.json
+            ${{ runner.temp }}/native-functional-smoke/before.bin
+            ${{ runner.temp }}/native-functional-smoke/after.bin
+            ${{ runner.temp }}/native-functional-smoke/contracts.xml
+            ${{ runner.temp }}/native-functional-smoke/smoke.log
+            ${{ runner.temp }}/native-functional-smoke/metrics.txt
+            ${{ runner.temp }}/native-functional-smoke/failure.json
+            ${{ runner.temp }}/native-functional-smoke/outcome.json
+            ${{ runner.temp }}/native-functional-smoke/manifest.json
+          if-no-files-found: error
+          retention-days: 7

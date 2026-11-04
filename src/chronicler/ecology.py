@@ -359,7 +359,16 @@ def _check_famine_yield(
         region.dearth_cooldown = True if dearth else None
 
         if eligible and actual_drain > 0:
-            for (adj, neighbor), share in zip(eligible, refugee_shares(world, eligible, actual_drain)):
+            from chronicler.refugee_routing import apportion_refugees, capacity_aware_refugees_enabled
+            if capacity_aware_refugees_enabled(world):
+                # The famine's source toll is explicit and unchanged. Redistribute
+                # blocked shares to permitted neighbours with room before losses.
+                neighbors = {adj.name: neighbor for adj, neighbor in eligible}
+                arrivals = [((adj, neighbors[adj.name]), share) for adj, share in
+                            apportion_refugees(world, (r for r, _ in eligible), actual_drain)]
+            else:
+                arrivals = zip(eligible, refugee_shares(world, eligible, actual_drain))
+            for (adj, neighbor), share in arrivals:
                 if share <= 0:
                     continue
                 add_region_pop(adj, share, flow="immigrated")

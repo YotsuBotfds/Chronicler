@@ -12,6 +12,8 @@ from pathlib import Path
 
 import pytest
 
+from test_performance_equivalence import _frozen_snapshot
+
 import chronicler.languages as L
 from chronicler.languages_phonology import (
     STYLES, adapt, choose_change, parse_stem, problem, proto_phonology, roman, rule_by_id,
@@ -764,8 +766,9 @@ def _frozen():
 
 @pytest.mark.parametrize("name", sorted(_frozen()["workloads"]))
 def test_frozen_oracles_hold_with_languages_on(name, tmp_path, monkeypatch):
-    """Every turn's snapshot, events and narration hash and the ordered RNG
-    trace match the frozen corrected oracle with the languages kept."""
+    """Retained snapshot/event/narration hashes and ordered RNG match the frozen
+    oracle with languages kept. Only the independently tested version-1 regional
+    observation is excluded by the shared reviewed snapshot projection."""
     import hashlib
     from scripts.benchmark_headless import rng_trace, run
     from scripts.third_wave_controls import legacy_event_dump
@@ -776,7 +779,7 @@ def test_frozen_oracles_hold_with_languages_on(name, tmp_path, monkeypatch):
     turns = []
 
     def capture(snapshot, text, events, named):
-        data = [snapshot.model_dump(mode="json"), text,
+        data = [_frozen_snapshot(snapshot), text,
                 [legacy_event_dump(event) for event in events],
                 [event.model_dump(mode="json") for event in named]]
         turns.append(hashlib.sha256(json.dumps(

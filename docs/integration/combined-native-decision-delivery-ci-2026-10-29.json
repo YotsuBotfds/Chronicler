@@ -1,0 +1,605 @@
+{
+  "result": "PASS",
+  "run_id": 40821282241,
+  "run_attempt": 1,
+  "source_commit": "95f73a74f809d7e10f09a1241c98014864350ffb",
+  "jobs": [
+    {
+      "id": 123274092692,
+      "name": "Viewer",
+      "conclusion": "success",
+      "started_at": "2026-10-29T05:04:38Z",
+      "completed_at": "2026-10-29T05:06:35Z"
+    },
+    {
+      "id": 123274093016,
+      "name": "Python no-Rust",
+      "conclusion": "success",
+      "started_at": "2026-10-29T05:04:39Z",
+      "completed_at": "2026-10-29T05:12:14Z"
+    },
+    {
+      "id": 123274093062,
+      "name": "Rust",
+      "conclusion": "success",
+      "started_at": "2026-10-29T05:04:39Z",
+      "completed_at": "2026-10-29T05:05:45Z"
+    },
+    {
+      "id": 123274093114,
+      "name": "Python native execution",
+      "conclusion": "success",
+      "started_at": "2026-10-29T05:04:39Z",
+      "completed_at": "2026-10-29T05:15:16Z"
+    },
+    {
+      "id": 123274093164,
+      "name": "Python bounded offline",
+      "conclusion": "success",
+      "started_at": "2026-10-29T05:04:38Z",
+      "completed_at": "2026-10-29T05:08:46Z"
+    },
+    {
+      "id": 123277341763,
+      "name": "Python native",
+      "conclusion": "success",
+      "started_at": "2026-10-29T05:15:19Z",
+      "completed_at": "2026-10-29T05:15:22Z"
+    }
+  ],
+  "rust": {
+    "summaries": 37,
+    "passed": 1118,
+    "failed": 0,
+    "ignored": 2,
+    "measured": 0,
+    "filtered": 0
+  },
+  "python_native": {
+    "passed": 8206,
+    "skipped": 6,
+    "successful_subtests": 526,
+    "failures": 0,
+    "errors": 0,
+    "parent_testcase_elements": 8212,
+    "junit_tests_attribute": 8738,
+    "pytest_seconds": 468.04,
+    "compiled_adapter_cases": [
+      {
+        "name": "test_actual_bridge_observer_preserves_native_future_state_and_normal_writeback[hybrid-tick]",
+        "skipped": false,
+        "failed": false
+      },
+      {
+        "name": "test_actual_bridge_observer_preserves_native_future_state_and_normal_writeback[hybrid-tick_agents]",
+        "skipped": false,
+        "failed": false
+      },
+      {
+        "name": "test_actual_bridge_observer_preserves_native_future_state_and_normal_writeback[shadow-tick]",
+        "skipped": false,
+        "failed": false
+      },
+      {
+        "name": "test_actual_bridge_observer_preserves_native_future_state_and_normal_writeback[shadow-tick_agents]",
+        "skipped": false,
+        "failed": false
+      },
+      {
+        "name": "test_actual_bridge_observer_preserves_native_future_state_and_normal_writeback[demographics-only-tick]",
+        "skipped": false,
+        "failed": false
+      },
+      {
+        "name": "test_actual_bridge_observer_preserves_native_future_state_and_normal_writeback[demographics-only-tick_agents]",
+        "skipped": false,
+        "failed": false
+      },
+      {
+        "name": "test_actual_bridge_pickle_payload_omits_configuration_and_captured_arrow",
+        "skipped": false,
+        "failed": false
+      }
+    ]
+  },
+  "python_no_rust": {
+    "passed": 7873,
+    "skipped": 325,
+    "successful_subtests": 526,
+    "failures": 0,
+    "errors": 0,
+    "parent_testcase_elements": 8198,
+    "junit_tests_attribute": 8724,
+    "pytest_seconds": 429.6,
+    "compiled_adapter_cases": [
+      {
+        "name": "test_actual_bridge_observer_preserves_native_future_state_and_normal_writeback[hybrid-tick]",
+        "skipped": true,
+        "failed": false
+      },
+      {
+        "name": "test_actual_bridge_observer_preserves_native_future_state_and_normal_writeback[hybrid-tick_agents]",
+        "skipped": true,
+        "failed": false
+      },
+      {
+        "name": "test_actual_bridge_observer_preserves_native_future_state_and_normal_writeback[shadow-tick]",
+        "skipped": true,
+        "failed": false
+      },
+      {
+        "name": "test_actual_bridge_observer_preserves_native_future_state_and_normal_writeback[shadow-tick_agents]",
+        "skipped": true,
+        "failed": false
+      },
+      {
+        "name": "test_actual_bridge_observer_preserves_native_future_state_and_normal_writeback[demographics-only-tick]",
+        "skipped": true,
+        "failed": false
+      },
+      {
+        "name": "test_actual_bridge_observer_preserves_native_future_state_and_normal_writeback[demographics-only-tick_agents]",
+        "skipped": true,
+        "failed": false
+      },
+      {
+        "name": "test_actual_bridge_pickle_payload_omits_configuration_and_captured_arrow",
+        "skipped": true,
+        "failed": false
+      }
+    ]
+  },
+  "native_identity_reported_by_workflow": {
+    "source_commit": "95f73a74f809d7e10f09a1241c98014864350ffb",
+    "python": "3.13.17 (main, Oct 22 2026, 02:40:32) [GCC 13.3.0]",
+    "executable": "/home/runner/work/Chronicler/Chronicler/.venv/bin/python",
+    "compiled_extension": "/home/runner/work/Chronicler/Chronicler/.venv/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+    "sha256": "3ee06a53b3c16dcba01bc53c8fe1dd97e530754a61d65fe2c1396b158b48e6d0",
+    "classes": [
+      "AgentSimulator",
+      "EcologySimulator",
+      "PoliticsSimulator"
+    ]
+  },
+  "wheel_manifest": {
+    "schema_version": 1,
+    "source_commit": "95f73a74f809d7e10f09a1241c98014864350ffb",
+    "wheel": {
+      "filename": "chronicler_agents-0.1.0-cp313-cp313-manylinux_2_34_x86_64.whl",
+      "bytes": 3915402,
+      "sha256": "b0896cd9a03ae89f26a93748fd85717c1f6110d2d45e2d623fb3406c3f24d64b",
+      "native_member": "chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so"
+    },
+    "installed_native": {
+      "filename": "chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+      "bytes": 13695168,
+      "sha256": "3ee06a53b3c16dcba01bc53c8fe1dd97e530754a61d65fe2c1396b158b48e6d0",
+      "wheel_member_sha256": "3ee06a53b3c16dcba01bc53c8fe1dd97e530754a61d65fe2c1396b158b48e6d0"
+    },
+    "scope": "Completed CI build identity only; no reproducibility, performance or scientific qualification",
+    "python": "3.13.17 (main, Oct 22 2026, 02:40:32) [GCC 13.3.0]",
+    "classes": [
+      "AgentSimulator",
+      "EcologySimulator",
+      "PoliticsSimulator"
+    ]
+  },
+  "retained_wheel_native_bytes_independently_hashed_without_import": true,
+  "viewer": {
+    "test_files_passed": 69,
+    "tests_passed": 743,
+    "lint": "success",
+    "build": "success"
+  },
+  "offline": {
+    "chunks": 34,
+    "passed": 4103,
+    "failed": 0,
+    "skipped": 65,
+    "all_chunks_passed": true,
+    "seconds": 230.600135532,
+    "maximum_chunk_seconds": 38.178388328999986,
+    "chunk_limit_seconds": 110,
+    "source_hashes_verified_against_git": 320,
+    "chunk_states": {
+      "build-provenance": "PASS",
+      "arc-event-types": "PASS",
+      "diagnostics": "PASS",
+      "core": "PASS",
+      "governance": "PASS",
+      "systems-1": "PASS",
+      "systems-2": "PASS",
+      "narration": "PASS",
+      "history-forensics": "PASS",
+      "expansion-audit": "PASS",
+      "scientific-receipts": "PASS",
+      "expansion-comparison": "PASS",
+      "proof-contracts": "PASS",
+      "qualification-tools": "PASS",
+      "turn-speed": "PASS",
+      "validation-tooling": "PASS",
+      "learning": "PASS",
+      "population": "PASS",
+      "production-ledger": "PASS",
+      "refugee-routing": "PASS",
+      "checkpoint": "PASS",
+      "live-checkpoints": "PASS",
+      "interactive-checkpoints": "PASS",
+      "grain-reserves": "PASS",
+      "expansion-wiring": "PASS",
+      "ritual-gatherings": "PASS",
+      "scientific-claims": "PASS",
+      "scientific-publication": "PASS",
+      "scientific-research": "PASS",
+      "transaction-receipts": "PASS",
+      "expansion-experiments": "PASS",
+      "domestic-credit": "PASS",
+      "faiths": "PASS",
+      "decision-delivery-python": "PASS"
+    },
+    "native_modules_loaded": [],
+    "factory_calls": {
+      "ecology": 168,
+      "politics": 168
+    },
+    "blocked_io_attempt_count": 0
+  },
+  "artifacts": [
+    {
+      "id": 12875201593,
+      "name": "native-wheel-95f73a74f809d7e10f09a1241c98014864350ffb",
+      "file": "native-wheel-artifact-12875201593.zip",
+      "bytes": 3850596,
+      "sha256": "f411d352e1e537607e8eacfa6b3061f05cb45f3dc9149a347a2a60b4c6719c90",
+      "official_digest_matches": true,
+      "members": {
+        "ci-native-wheel/manifest.json": {
+          "bytes": 944,
+          "sha256": "312c66de90b71548d3b653ebff0c8e7ea82c11b0fd61d459027fe52e5517e65b"
+        },
+        "chronicler-agents/target/wheels/chronicler_agents-0.1.0-cp313-cp313-manylinux_2_34_x86_64.whl": {
+          "bytes": 3915402,
+          "sha256": "b0896cd9a03ae89f26a93748fd85717c1f6110d2d45e2d623fb3406c3f24d64b"
+        }
+      }
+    },
+    {
+      "id": 12875015260,
+      "name": "rust-95f73a74f809d7e10f09a1241c98014864350ffb",
+      "file": "rust-artifact-12875015260.zip",
+      "bytes": 722,
+      "sha256": "fff75447d20cead67bc2b9a52b485ecad4ed89a1836da7f5e2bdbc5c62e4ce09",
+      "official_digest_matches": true,
+      "members": {
+        "rust.txt": {
+          "bytes": 5787,
+          "sha256": "eda5289db8c5487878a4bfd0408d8e525688e4b24393081760cccda8e9758936"
+        }
+      }
+    },
+    {
+      "id": 12874801738,
+      "name": "python-offline-95f73a74f809d7e10f09a1241c98014864350ffb",
+      "file": "python-offline-artifact-12874801738.zip",
+      "bytes": 43520,
+      "sha256": "b4c00a403a30870e98f5e2f432fedd0b540bca7eeb7191100e1e89077a6f150f",
+      "official_digest_matches": true,
+      "members": {
+        "guard-build-provenance.json": {
+          "bytes": 560,
+          "sha256": "a8f23f827813aae5fac2902c5e8f37e17177f6dece386f8c929f2ee9956be633"
+        },
+        "guard-arc-event-types.json": {
+          "bytes": 559,
+          "sha256": "7afd8c45443cc5e3076517d95b26ca6b4e329429832298ba4e0f179543a14992"
+        },
+        "guard-checkpoint.json": {
+          "bytes": 1662,
+          "sha256": "8aeb66fdaa8871ac141eeec23958215c4bf1d7b4b408e112beec34a126827dba"
+        },
+        "guard-core.json": {
+          "bytes": 591,
+          "sha256": "ce749529628de1cb77e5ff1514bc6d4a7342346a1a432abd617cd87b7c98c272"
+        },
+        "guard-decision-delivery-python.json": {
+          "bytes": 560,
+          "sha256": "9c5c63fbfce47d26c122e8d6db9744e29449e697f0160cb0552e4eda16bc7a88"
+        },
+        "guard-diagnostics.json": {
+          "bytes": 587,
+          "sha256": "79b39f27eb3762a967c032ea916b428f3674a78564519d2ca245b59960c555ed"
+        },
+        "guard-domestic-credit.json": {
+          "bytes": 560,
+          "sha256": "6178036315c63408d650e9def536bab4a9c148f657fc77dfe09c6d17d33f1349"
+        },
+        "guard-expansion-audit.json": {
+          "bytes": 560,
+          "sha256": "28a846894bc50d0c5433f819da854e6ee18c45b54149e69d4aa7b111ccf80883"
+        },
+        "guard-expansion-comparison.json": {
+          "bytes": 560,
+          "sha256": "48b19738bc55273f0764799b3c89247976e54785ee3784bdbd343677340b9c8a"
+        },
+        "guard-expansion-experiments.json": {
+          "bytes": 560,
+          "sha256": "430f92b1e885a1cf94b7a0dc9c1f60e9ebd85d90b093e9480a663fc5d6f814f0"
+        },
+        "guard-expansion-wiring.json": {
+          "bytes": 813,
+          "sha256": "7e89e60be7a5a357ef40b7392a1f5245df9e0dbc7a2849ca4bd7261df7d895c9"
+        },
+        "guard-faiths.json": {
+          "bytes": 637,
+          "sha256": "9e03d788266c8b7888692ab1676c0cc7b46b549019c76fd4475453253a2c7976"
+        },
+        "guard-governance.json": {
+          "bytes": 638,
+          "sha256": "deb694225309e8248856350523978943df25da041342af430b97a387cb08da78"
+        },
+        "guard-grain-reserves.json": {
+          "bytes": 612,
+          "sha256": "fbc7e5b6f3c4396829ea03cf8707e649850b361bf237fc681c5d698dc982804e"
+        },
+        "guard-history-forensics.json": {
+          "bytes": 560,
+          "sha256": "7b36eafd9e7b72abecb5c8cd2973b2ba749928ec82a94824e3dd3d5cd02368d3"
+        },
+        "guard-interactive-checkpoints.json": {
+          "bytes": 2262,
+          "sha256": "90e3f64a242fb4430e6d35106f604153d98a0fa7706b8e9d5adc8fcde90e90ab"
+        },
+        "guard-live-checkpoints.json": {
+          "bytes": 2987,
+          "sha256": "eb69b229b3a1f1ba4debdc39ef0f710bddac51d51f78e43d5053ecf6ab199282"
+        },
+        "guard-learning.json": {
+          "bytes": 612,
+          "sha256": "b0d7dc5254c61ae260d64a2c9331552045db52cdb7767c164c14ae74c774b640"
+        },
+        "guard-narration.json": {
+          "bytes": 561,
+          "sha256": "35ea0529c8cbf24bcd2b235d3e1446cfe83881c38e7f9de4364b0a5360a9aea1"
+        },
+        "guard-population.json": {
+          "bytes": 662,
+          "sha256": "e9a54e11bf4118a1590c2a7b8f6518212301deaf1682478850a84b1383f490af"
+        },
+        "guard-production-ledger.json": {
+          "bytes": 787,
+          "sha256": "77cbf09271561f5bc27c125d6b6d8cdff375e2dc857eab88aea71f04cc6360f7"
+        },
+        "guard-proof-contracts.json": {
+          "bytes": 587,
+          "sha256": "c952fb5b363f9c058c5938d4e87d85e3159263a4e9675ece781f5b7f26347da1"
+        },
+        "guard-qualification-tools.json": {
+          "bytes": 561,
+          "sha256": "5c86bd6a48a1c5614cdaa06a064eae3686ef66b096c14975d8402aa4fda34ea9"
+        },
+        "guard-refugee-routing.json": {
+          "bytes": 687,
+          "sha256": "773bea2f877bb58fc7b042b7074a17a68d26940a1ad2b7d52a96a21e2246a5af"
+        },
+        "guard-ritual-gatherings.json": {
+          "bytes": 560,
+          "sha256": "3113466cae94e73211f74c0ce65d10c9bd2bff8576e0f50f017efbd80a1031a9"
+        },
+        "guard-scientific-claims.json": {
+          "bytes": 637,
+          "sha256": "4206028028256f4e3fde53ed247f563a46a910c646e9e553b0e29f8a10eb387f"
+        },
+        "guard-scientific-publication.json": {
+          "bytes": 637,
+          "sha256": "6f25d3f4f321176c0511d0c30632c2030b7d076945f82f6c5b7f2a0f7357e125"
+        },
+        "guard-scientific-receipts.json": {
+          "bytes": 560,
+          "sha256": "2bfa33b4d54a22fc0ba06f17cd0c0ac2126261374b282f547988f81aa87d5511"
+        },
+        "guard-scientific-research.json": {
+          "bytes": 1138,
+          "sha256": "2213d56942c11658820c4222efd8c3b7ab174e57e486d631860a4a12fc5a9adc"
+        },
+        "guard-systems-1.json": {
+          "bytes": 991,
+          "sha256": "bec39f277a7a293bc8299fce915ce87873148286ff91ae20f857ed7be4b0d8a0"
+        },
+        "guard-systems-2.json": {
+          "bytes": 991,
+          "sha256": "a61f117a661d97b99c948cedcbbdde20fe5d69d606111fc091416e253c82fc84"
+        },
+        "guard-transaction-receipts.json": {
+          "bytes": 560,
+          "sha256": "08c22540a651769c913ff496a16501b2578f9d2efc383fc930c63634aabcc2ef"
+        },
+        "guard-turn-speed.json": {
+          "bytes": 560,
+          "sha256": "6347aba87353ef530c7e4c061379b7eefa80a8fc5e9ddb48cec7ebbe7e8ee5c7"
+        },
+        "guard-validation-tooling.json": {
+          "bytes": 563,
+          "sha256": "938bed27301755ce08f7415833016b77202e6f4b3af7883959f5fa12ad20794c"
+        },
+        "pytest-arc-event-types.txt": {
+          "bytes": 98,
+          "sha256": "c513a336404899b0e4e59540faac60f730d81e38e236b1b942334605c26575ed"
+        },
+        "pytest-build-provenance.txt": {
+          "bytes": 99,
+          "sha256": "c4fd646741eec3df4615e14cafc10dfd6c7524a8d48bbbbc72af87bc99b48829"
+        },
+        "pytest-checkpoint.txt": {
+          "bytes": 110,
+          "sha256": "3cccb434508d11b4e5e79fcd31acf12d7b7d2886abb86518b91fc6fdcdf4d11b"
+        },
+        "pytest-core.txt": {
+          "bytes": 1316,
+          "sha256": "188812931547890d5929445932e052aefa8afc1df0f2824c418ab3a12dc85a8c"
+        },
+        "pytest-decision-delivery-python.txt": {
+          "bytes": 179,
+          "sha256": "afc94540e1078bfd025339eba99c3395a780614cec60093eb633c0976e9539fa"
+        },
+        "pytest-diagnostics.txt": {
+          "bytes": 179,
+          "sha256": "c9d45843c3eab201fc8e8dd2fb1297330cf29552f7b2027574153d74d89cd90d"
+        },
+        "pytest-domestic-credit.txt": {
+          "bytes": 99,
+          "sha256": "a10335eda07c3a806e03cbd6671c2ced9070a2d26711c6531ee5dfafc9950e68"
+        },
+        "pytest-expansion-audit.txt": {
+          "bytes": 99,
+          "sha256": "763f89437d0dadf43ef0a4510414027d492aa73d56ad38eb32b4c791a4ede8ea"
+        },
+        "pytest-expansion-comparison.txt": {
+          "bytes": 99,
+          "sha256": "c2126a48d39e862835c40d7f110d6620ac5b27d1e4782416a36f2e54ab84968b"
+        },
+        "pytest-expansion-experiments.txt": {
+          "bytes": 99,
+          "sha256": "19c04c466f467f52991a43aeb5575191682169c81d6df5f4069fa4c24ac26408"
+        },
+        "pytest-expansion-wiring.txt": {
+          "bytes": 191,
+          "sha256": "cb9d7cf0cd7c93dfc52c6572ac0ed9a264e874b2ef25c8c43b8ec5502b4ad935"
+        },
+        "pytest-faiths.txt": {
+          "bytes": 99,
+          "sha256": "919cf35c74778931c71782d9db44aa3e44718d4c361b7feaea5a2a249ee49079"
+        },
+        "pytest-governance.txt": {
+          "bytes": 752,
+          "sha256": "cdecaf69d5e36fe6adc0d437c9b8421c8a3b1b654520d57592ce20f3824f0902"
+        },
+        "pytest-grain-reserves.txt": {
+          "bytes": 110,
+          "sha256": "978202c78b950773ad0bde981763f3bf405c34f945b2d1e37e3b62e6c33aeec1"
+        },
+        "pytest-history-forensics.txt": {
+          "bytes": 99,
+          "sha256": "f154a06ef169b600b4b8fb23ef6a3db69ff2e14d43f6f3df931cbab25a07e3cf"
+        },
+        "pytest-interactive-checkpoints.txt": {
+          "bytes": 110,
+          "sha256": "57927d6da02fd1d9dd13e40ce6f18409f8427b4b772f5ea5fd42c1298a99d15a"
+        },
+        "pytest-learning.txt": {
+          "bytes": 110,
+          "sha256": "be3efbb099fea3062d01382baac6081747cbcf855d5ecc386f6493cf34750691"
+        },
+        "pytest-live-checkpoints.txt": {
+          "bytes": 111,
+          "sha256": "4129467e83cd027ee5368ddaca0ad57cd4c6cec2327340358631e035740bf188"
+        },
+        "pytest-narration.txt": {
+          "bytes": 260,
+          "sha256": "b19a58bd4c779e341495d89b99993bd457fb441f06f675ac2eeeeed1df1ed420"
+        },
+        "pytest-population.txt": {
+          "bytes": 110,
+          "sha256": "8f47ef7de8f535a41b7367c4deb06fdd92d2031746bbb1d6c2505dc313f6c92a"
+        },
+        "pytest-production-ledger.txt": {
+          "bytes": 110,
+          "sha256": "79c7542d8b8722f8823d698e307c3d6fdfb69197329ae4b0ef53f39a32ef234b"
+        },
+        "pytest-proof-contracts.txt": {
+          "bytes": 99,
+          "sha256": "a04bbbf97a4a9185cc96e2c75004b024fafbb178f01162eba063d5969524f6c7"
+        },
+        "pytest-qualification-tools.txt": {
+          "bytes": 180,
+          "sha256": "2f150eda110a750e01d9315cf637eb333fb84cb9c4bc96d59e0b0509d56fe3b7"
+        },
+        "pytest-refugee-routing.txt": {
+          "bytes": 99,
+          "sha256": "48534c42016983beea2e394d5aa9d217f8295369a8d3c85ab2471d99e305ddd0"
+        },
+        "pytest-ritual-gatherings.txt": {
+          "bytes": 179,
+          "sha256": "1ae4774985c1644180782de722b2cbe1a15b0abf4a213df594cb3ec1febc591d"
+        },
+        "pytest-scientific-claims.txt": {
+          "bytes": 99,
+          "sha256": "7ebd875a45bd3050e1a835dee75331265af5a6bd53c9d34152a65b59c718975e"
+        },
+        "pytest-scientific-publication.txt": {
+          "bytes": 99,
+          "sha256": "4c1fa8f60ecb3b37683338449284bd6f5af5b8e0ad6343cad08492ed11fc49a8"
+        },
+        "pytest-scientific-receipts.txt": {
+          "bytes": 179,
+          "sha256": "56af6eb6c5583c80fdbc09a75770530bbc416d2728a5672748e27d931a5507d3"
+        },
+        "pytest-scientific-research.txt": {
+          "bytes": 180,
+          "sha256": "ae659800140330f296084ec3779e7173d46f3682d36cd507539230dd6be927aa"
+        },
+        "pytest-systems-1.txt": {
+          "bytes": 353,
+          "sha256": "6db0e0c1876f5206d3180b7701c954f63911d42ddfaa4eab227933064f11e013"
+        },
+        "pytest-systems-2.txt": {
+          "bytes": 433,
+          "sha256": "7e85d31e6794cc387eecb0cac580285aec91978419d7a09d1a4623e680ae50d2"
+        },
+        "pytest-transaction-receipts.txt": {
+          "bytes": 99,
+          "sha256": "8de6c211ba7b58ef37695dd6ee15494ad00a4ff8011c26ad228e7b496da40fac"
+        },
+        "pytest-validation-tooling.txt": {
+          "bytes": 420,
+          "sha256": "f020c735cb55de4c61d5b4a085a889031af03ef12c2f4ba9c59c265d77d21493"
+        },
+        "pytest-turn-speed.txt": {
+          "bytes": 99,
+          "sha256": "bdea51565d9356e22eb3ca38d329eef64b8b15db85f746a6ab6594456f14a415"
+        },
+        "receipt.json": {
+          "bytes": 106648,
+          "sha256": "a1e3da5255d6f082ce0166425fa9813ec72012fa2d5e23925f19e3571a1e607c"
+        }
+      }
+    },
+    {
+      "id": 12874798572,
+      "name": "python-native-95f73a74f809d7e10f09a1241c98014864350ffb",
+      "file": "python-native-artifact-12874798572.zip",
+      "bytes": 140449,
+      "sha256": "eabba760178cb6157d7bfe35bf0f27c663be5ad24bec1f1e46071e6e74e35e8d",
+      "official_digest_matches": true,
+      "members": {
+        "native-identity.json": {
+          "bytes": 548,
+          "sha256": "df89cb434e4a92f3a859328d66caf42484268acbd3820642c980f52ac7763692"
+        },
+        "native.xml": {
+          "bytes": 1080638,
+          "sha256": "4f4043f13c100b932ebf96b3e7927796bdc7d1d4b8512c523127f27fafc36509"
+        }
+      }
+    },
+    {
+      "id": 12874044776,
+      "name": "python-no-rust-95f73a74f809d7e10f09a1241c98014864350ffb",
+      "file": "python-no-rust-artifact-12874044776.zip",
+      "bytes": 143432,
+      "sha256": "79aeabb0f4059bc5acf6dea6a3af6c09d371a0ba1546995a5a8687d4cf804031",
+      "official_digest_matches": true,
+      "members": {
+        "no-rust.xml": {
+          "bytes": 1157037,
+          "sha256": "86676a72c6547e866cf5ebc7ad7c3f1c50e0af6cbd47f6107d474c199ed1a5d1"
+        }
+      }
+    }
+  ],
+  "limits": [
+    "CI qualifies this exact combined source/runtime contract only.",
+    "No old/candidate whole-world parity or scientific before/after gate is inferred.",
+    "No measured CPU, wall-time or peak-RSS improvement is established.",
+    "The retained wheel is not an automatic historical-binary or downstream-study reuse grant."
+  ]
+}

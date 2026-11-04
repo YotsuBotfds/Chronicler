@@ -41,6 +41,13 @@ impl IdSlots {
         Self { table, map: None }
     }
 
+    /// Retain only a dense lookup for reuse between tick phases. A sparse
+    /// lookup is dropped here so later phases still construct their own
+    /// `HashMap`s at the original points (including their `RandomState`s).
+    pub(crate) fn into_dense(self) -> Option<Self> {
+        if self.map.is_none() { Some(self) } else { None }
+    }
+
     #[inline]
     pub fn get(&self, id: u32) -> Option<usize> {
         if let Some(map) = &self.map {
@@ -176,6 +183,15 @@ pub struct AgentPool {
 
     /// Free-list: indices of dead slots available for reuse.
     free_slots: Vec<usize>,
+    /// Derived one-turn manual-work deductions, (expected stable id, loss)
+    /// by slot. Cleared when wealth consumes them; never checkpointed.
+    pub health_work_loss: Vec<(u32, f32)>,
+    /// Prepared/consumed one-turn teaching reservation, never checkpointed.
+    pub teaching_plan: Option<crate::teaching_work::TeachingPlan>,
+    // CAREOBS_SOURCE_BEGIN: pool field
+    /// Opt-in primitive care prefix; transient and absent by default.
+    pub health_care_observation: Option<crate::health_care_observation::CareObservation>,
+    // CAREOBS_SOURCE_END: pool field
 }
 
 impl AgentPool {
@@ -248,6 +264,11 @@ impl AgentPool {
             count: 0,
             next_id: 1,
             free_slots: Vec::new(),
+            health_work_loss: Vec::new(),
+            teaching_plan: None,
+            // CAREOBS_SOURCE_BEGIN: pool default
+            health_care_observation: None,
+            // CAREOBS_SOURCE_END: pool default
         }
     }
 
@@ -999,6 +1020,56 @@ mod tests {
         assert!(pool.build_id_slots().map.is_some());
         check(&pool);
         assert_eq!(pool.build_id_slots().get(3_000_000_000), Some(slot));
+    }
+
+    #[test]
+    fn reusable_dense_slots_preserve_zero_dead_gaps_and_last_duplicate() {
+        let mut pool = AgentPool::new(4);
+        let slots: Vec<_> = (0..4).map(|_| pool.spawn(0, 0, Occupation::Farmer,
+            20, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE)).collect();
+        pool.ids[slots[0]] = 0;
+        pool.ids[slots[2]] = 9;
+        pool.ids[slots[3]] = 9;
+        // Deaths before the needs phase must already be absent. A dead high
+        // id must neither force sparse fallback nor enter the retained table.
+        pool.kill(slots[1]);
+        pool.ids[slots[1]] = u32::MAX;
+        let lookup = pool.build_id_slots().into_dense().expect("dense live ids");
+        let expected = pool.build_id_to_slot();
+        for id in [0, 1, 2, 3, 4, 8, 9, 10, u32::MAX] {
+            assert_eq!(lookup.get(id), expected.get(&id).copied(), "id {id}");
+        }
+        assert_eq!(lookup.get(0), Some(slots[0]));
+        assert_eq!(lookup.get(9), Some(slots[3]));
+        pool.regions[slots[3]] = 1;
+        assert_eq!(pool.regions[lookup.get(9).unwrap()], 1);
+
+        // Demographic death and birth invalidate the retained table even
+        // though a newborn can immediately reuse the same numeric slot.
+        pool.kill(slots[3]);
+        assert_eq!(pool.build_id_slots().get(9), Some(slots[2]));
+        let newborn = pool.spawn(1, 0, Occupation::Farmer, 0, 0.0, 0.0, 0.0,
+            0, 1, 2, crate::agent::BELIEF_NONE);
+        assert_eq!(newborn, slots[3]);
+        let fresh = pool.build_id_slots();
+        assert_eq!(fresh.get(9), Some(slots[2]));
+        assert_eq!(fresh.get(pool.ids[newborn]), Some(newborn));
+        assert_ne!(lookup.get(9), fresh.get(9));
+    }
+
+    #[test]
+    fn dense_reuse_keeps_the_original_sparse_threshold() {
+        let mut pool = AgentPool::new(1);
+        let slot = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0,
+            0, 1, 2, crate::agent::BELIEF_NONE);
+        let limit = (16 * pool.capacity() + (1 << 20)) as u32;
+        pool.ids[slot] = limit;
+        assert!(pool.build_id_slots().into_dense().is_some());
+        pool.ids[slot] = limit + 1;
+        let sparse = pool.build_id_slots();
+        assert_eq!(sparse.get(limit + 1), Some(slot));
+        assert!(sparse.into_dense().is_none());
+        assert!(AgentPool::new(0).build_id_slots().into_dense().is_some());
     }
 
     #[test]
@@ -1761,4 +1832,4 @@ crate::persist_struct!(AgentPool {
     trip_path_len, trip_path_cursor, pkt_type_and_hops, pkt_source_region, pkt_source_turn,
     pkt_intensity, pkt_source_civ, arrived_this_turn, trip_home_region, alive, count, next_id,
     free_slots,
-});
+} transient { health_work_loss /* CAREOBS_TRANSIENT_BEGIN */, health_care_observation /* CAREOBS_TRANSIENT_END */, teaching_plan });

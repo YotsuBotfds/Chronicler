@@ -363,7 +363,7 @@ def finish_turn_ledger(world: "WorldState", ledger: ResourceLedgerTurn | None, a
 # File and summary
 # ----------------------------------------------------------------------
 
-def write_ledger(path, columns: dict[str, list]) -> None:
+def write_ledger(path, columns: dict[str, list], *, artifact_budget=None) -> None:
     """Write the ledger's column lists as an Arrow IPC file (zstd when the
     build has it)."""
     import pyarrow as pa
@@ -371,10 +371,19 @@ def write_ledger(path, columns: dict[str, list]) -> None:
     arrays = [pa.array(columns.get(name, []), type=getattr(pa, kind)()) for name, kind in LEDGER_COLUMNS.items()]
     batch = pa.record_batch(arrays, names=list(LEDGER_COLUMNS))
     options = ipc.IpcWriteOptions(compression="zstd") if pa.Codec.is_available("zstd") else None
-    with pa.OSFile(str(path), "wb") as handle:
-        writer = ipc.new_file(handle, batch.schema, options=options)
-        writer.write_batch(batch)
-        writer.close()
+    if artifact_budget is None:
+        with pa.OSFile(str(path), "wb") as handle:
+            writer = ipc.new_file(handle, batch.schema, options=options)
+            writer.write_batch(batch)
+            writer.close()
+    else:
+        artifact_budget.require_healthy()
+        with pa.BufferOutputStream() as handle:
+            writer = ipc.new_file(handle, batch.schema, options=options)
+            writer.write_batch(batch)
+            writer.close()
+            content = handle.getvalue().to_pybytes()
+        artifact_budget.write_bytes(path, content)
 
 
 def read_ledger(path) -> dict[str, list]:

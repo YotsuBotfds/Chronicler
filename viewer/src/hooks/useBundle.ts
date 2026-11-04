@@ -19,7 +19,10 @@ export function useBundle() {
   const loadSequence = useRef(0);
   const job = useRef<DecodeJob | null>(null);
 
-  useEffect(() => () => job.current?.cancel(), []);
+  useEffect(() => () => {
+    ++loadSequence.current;
+    job.current?.cancel();
+  }, []);
 
   const loadFromFile = useCallback((file: File) => {
     const sequence = ++loadSequence.current;
@@ -32,14 +35,14 @@ export function useBundle() {
     const apply = (reply: DecodeReply) => {
       if (!current()) return;
       if (reply.kind === "decoded") {
-        setBundle(reply.result.bundle);
-        setArtifactIdentity(reply.result.identity);
+        if (reply.result.bundle) {
+          setBundle(reply.result.bundle);
+          setArtifactIdentity(reply.result.identity);
+        }
         setError(reply.result.error);
       } else if (reply.kind === "read-error") {
-        setError("Failed to read file");
+        setError("Failed to read file. Choose the file again, or open another chronicle_bundle.json export.");
       } else {
-        setBundle(null);
-        setArtifactIdentity(null);
         setError(`Could not read bundle: ${reply.message}`);
       }
       setLoading(false);
@@ -53,27 +56,18 @@ export function useBundle() {
           // Preserve readAsText's BOM-aware decoding while retaining original bytes.
           const bytes = e.target?.result as ArrayBuffer;
           const result = await decodeBundleBytes(file.name, bytes);
-          if (!current()) return;
-          setBundle(result.bundle);
-          setArtifactIdentity(result.identity);
-          setError(result.error);
+          apply({ kind: "decoded", result });
         } catch (error) {
-          if (!current()) return;
-          setBundle(null);
-          setArtifactIdentity(null);
-          setError(`Could not read bundle: ${error instanceof Error ? error.message : String(error)}`);
-        } finally {
-          if (current()) {
-            setLoading(false);
-          }
+          apply({ kind: "error", message: error instanceof Error ? error.message : String(error) });
         }
       };
-      reader.onerror = () => {
-        if (!current()) return;
-        setError("Failed to read file");
-        setLoading(false);
-      };
-      reader.readAsArrayBuffer(file);
+      reader.onerror = () => apply({ kind: "read-error" });
+      reader.onabort = () => apply({ kind: "read-error" });
+      try {
+        reader.readAsArrayBuffer(file);
+      } catch (error) {
+        apply({ kind: "error", message: error instanceof Error ? error.message : String(error) });
+      }
     };
 
     const started = decodeInWorker(file);

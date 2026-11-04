@@ -30,8 +30,8 @@ function layer(key: MapLayerKey, snapshot: TurnSnapshot, technique: string | nul
 
 describe("map layers", () => {
   it("offers only the layers a bundle has data for", () => {
-    expect(availableMapLayers(systems)).toEqual(["control", "food", "epidemics", "wars", "migration", "techniques", "sea"]);
-    expect(availableMapLayers(sample)).toEqual(["control"]);
+    expect(availableMapLayers(systems)).toEqual(["control", "territory", "food", "epidemics", "wars", "migration", "techniques", "sea"]);
+    expect(availableMapLayers(sample)).toEqual(["control", "territory"]);
     expect(availableMapLayers(null)).toEqual(["control"]);
     expect(buildMapLayer("control", { bundle: systems, snapshot: at(120), famine, technique: null })).toBeNull();
   });

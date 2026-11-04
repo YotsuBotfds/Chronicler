@@ -1,4 +1,8 @@
-"""Dormant standalone governance preserves the corrected Python off-mode oracle."""
+"""Dormant governance preserves the frozen Python oracle's retained observations.
+
+The independently tested version-1 regional export uses the shared strict
+snapshot/artifact projection; all older fields and RNG assertions remain exact.
+"""
 import hashlib
 import json
 import random
@@ -6,9 +10,11 @@ from pathlib import Path
 
 import pytest
 
+from test_performance_equivalence import _frozen_artifact_bytes, _frozen_snapshot
+
 from chronicler import governance_kernel_harness as harness
 from scripts.benchmark_headless import rng_trace, run
-from scripts.third_wave_controls import legacy_artifact_bytes, legacy_event_dump
+from scripts.third_wave_controls import legacy_event_dump
 
 
 FIXTURES = Path(__file__).parent / "fixtures" / "performance"
@@ -73,7 +79,7 @@ def test_complete_corrected_outputs_with_dormant_governance(
             assert result.receipts == () and result.elite_metrics is None
             assert random.getstate() == before
             assert harness.carry_to_json(opening) == opening_json
-        data = [snapshot.model_dump(mode="json"), text,
+        data = [_frozen_snapshot(snapshot), text,
                 [legacy_event_dump(event) for event in events],
                 [event.model_dump(mode="json") for event in named]]
         turns.append(hashlib.sha256(json.dumps(
@@ -98,7 +104,7 @@ def test_complete_corrected_outputs_with_dormant_governance(
         for path in sorted((tmp_path / "artifacts").iterdir()):
             if not path.is_file():
                 continue
-            data = legacy_artifact_bytes(path, pre_pruning=pre_pruning)
+            data = _frozen_artifact_bytes(path, pre_pruning=pre_pruning)
             if path.name not in ("state.json", "chronicle_bundle.json"):
                 data = data.replace(b"\r\n", b"\n")
             emitted[path.name] = {"sha256": hashlib.sha256(data).hexdigest(),

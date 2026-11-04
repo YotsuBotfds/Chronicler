@@ -42,6 +42,17 @@ use crate::pool::AgentPool;
 use crate::region::{mask_to_ids, normalize_ids, RegionState};
 use crate::politics::PoliticsConfig;
 
+// Match the Python bridge's count limit; region id 65535 remains a sentinel.
+const MAX_NATIVE_REGIONS: usize = u16::MAX as usize;
+
+fn validate_native_region_count(num_regions: usize) -> Result<(), &'static str> {
+    if num_regions > MAX_NATIVE_REGIONS {
+        Err("AgentSimulator supports at most 65535 regions")
+    } else {
+        Ok(())
+    }
+}
+
 /// Geography 2.0: read one sorted region/river id list per row.
 ///
 /// Prefers the `List<UInt16>` column `list_name`; falls back to the legacy
@@ -87,6 +98,20 @@ pub(crate) fn read_region_id_lists(
 // ---------------------------------------------------------------------------
 // AgentSimulator
 // ---------------------------------------------------------------------------
+
+/// One memory entry in a batched agent context, in the scalar getter's order.
+pub type AgentContextMemory = (u8, u8, u16, i8, u8, bool);
+/// Safety, material, social, spiritual, autonomy and purpose, without arithmetic.
+pub type AgentContextNeeds = (f32, f32, f32, f32, f32, f32);
+/// Target id, sentiment, bond type and formation turn, in native store order.
+pub type AgentContextRelationship = (u32, i8, u8, u16);
+/// Requested id and the complete results of the three scalar context getters.
+pub type AgentContextRow = (
+    u32,
+    Vec<AgentContextMemory>,
+    Option<AgentContextNeeds>,
+    Option<Vec<AgentContextRelationship>>,
+);
 
 /// Python-facing AgentSimulator. Manages an `AgentPool` and a list of
 /// `RegionState`s; exchanges data with Python via Arrow PyCapsules.
@@ -162,15 +187,25 @@ pub struct AgentSimulator {
     /// a held batch equals a fresh export. Arrow arrays are shared, so
     /// handing it out again copies nothing.
     snapshot_cache: Option<arrow::record_batch::RecordBatch>,
+    /// Rebuilt from Python episodes before economy; consumed after tick.
+    health_work: Option<crate::health_care::HealthWork>,
+    /// Optional recorder configuration, restored by Python before each tick.
+    transaction_receipts_limit: Option<usize>,
+    /// Detached decision observations; neither configuration nor frame persists.
+    decision_delivery_config: Option<crate::decision_delivery::DeliveryConfig>,
+    decision_delivery_frame: Option<crate::decision_delivery::DeliveryFrame>,
+    mobility_gate_frame: Option<crate::household::MobilityGateFrame>,
+    /// Transient teaching receipt; not an additional persistent work account.
+    teaching_result: Option<crate::teaching_work::TeachingPlan>,
+    last_teaching_turn: Option<u32>,
 }
 
-#[pymethods]
 impl AgentSimulator {
-    /// Create a new simulator.
+    /// Create a new simulator through the existing Rust API.
     ///
     /// `seed` is zero-extended to a 32-byte master seed.
-    #[new]
     pub fn new(num_regions: usize, seed: u64) -> Self {
+        validate_native_region_count(num_regions).expect("invalid native region count");
         let mut master_seed = [0u8; 32];
         master_seed[..8].copy_from_slice(&seed.to_le_bytes());
         Self {
@@ -214,7 +249,162 @@ impl AgentSimulator {
             pending_promotion_memories: Vec::new(),
             tick_options: crate::scale::TickOptions::default(),
             snapshot_cache: None,
+            health_work: None,
+            transaction_receipts_limit: None,
+            decision_delivery_config: None,
+            decision_delivery_frame: None,
+            mobility_gate_frame: None,
+            teaching_result: None,
+            last_teaching_turn: None,
         }
+    }
+}
+
+#[pymethods]
+impl AgentSimulator {
+    /// Create a simulator, preserving zero-region/empty getter support.
+    #[new]
+    fn py_new(num_regions: usize, seed: u64) -> PyResult<Self> {
+        validate_native_region_count(num_regions).map_err(PyValueError::new_err)?;
+        Ok(Self::new(num_regions, seed))
+    }
+
+    // CAREOBS_SOURCE_BEGIN: configure and immutable export
+    /// Configure before the first observed whole turn. Allocation failure means
+    /// unavailable evidence and returns false; physics never allocates buffers.
+    #[pyo3(signature = (start_turn, manifest_sha256, *, turns = 32))]
+    pub fn configure_health_care_observation(&mut self, start_turn: u32,
+        manifest_sha256: &[u8], turns: u32) -> PyResult<bool> {
+        if manifest_sha256.len() != 32 || turns == 0 || turns > 32
+            || start_turn.checked_add(turns - 1).is_none() || self.num_regions > 4096 {
+            return Err(PyValueError::new_err("invalid bounded care observation configuration"));
+        }
+        if self.health_work.is_some() || self.pool.health_care_observation.is_some() {
+            return Err(PyValueError::new_err("care observation must be configured before preparation"));
+        }
+        let mut manifest = [0u8; 32];
+        manifest.copy_from_slice(manifest_sha256);
+        self.pool.health_care_observation = crate::health_care_observation::CareObservation::configure(
+            start_turn, turns, self.num_regions, manifest);
+        Ok(self.pool.health_care_observation.is_some())
+    }
+
+    /// Saved provisional prefix only: no drain, reset, hash, native read or cache.
+    pub fn get_health_care_observation<'py>(&self, py: Python<'py>)
+        -> Option<Bound<'py, pyo3::types::PyBytes>> {
+        self.pool.health_care_observation.as_ref().and_then(|frame| frame.saved_bytes())
+            .and_then(|bytes| pyo3::types::PyBytes::new_with(py, bytes.len(), |output| {
+                output.copy_from_slice(bytes);
+                Ok(())
+            }).ok())
+    }
+    // CAREOBS_SOURCE_END: configure and immutable export
+    #[pyo3(signature = (ids, excluded, urban, impairment, care_fraction, *, care_policy = "spouse"))]
+    pub fn prepare_health_work(&mut self, ids: Vec<u32>, excluded: Vec<u32>, urban: Vec<u16>,
+        impairment: f32, care_fraction: f32, care_policy: &str) -> PyResult<Vec<(u32, u16, u32, f32)>> {
+        if self.pool.teaching_plan.is_some() {
+            return Err(PyValueError::new_err("prepare health work before teaching work"));
+        }
+        let policy = crate::health_care::CarePolicy::from_name(care_policy)
+            .ok_or_else(|| PyValueError::new_err("health care policy must be spouse or retained_kin"))?;
+        if !impairment.is_finite() || !(0.0..=1.0).contains(&impairment)
+            || !care_fraction.is_finite() || !(0.0..=1.0).contains(&care_fraction) {
+            return Err(PyValueError::new_err("health work fractions must be finite in 0..1"));
+        }
+        let work = if policy == crate::health_care::CarePolicy::Spouse {
+            crate::health_care::prepare(&mut self.pool, &ids, &excluded, &urban,
+                self.num_regions, impairment, care_fraction)
+        } else {
+            crate::health_care::prepare_with_policy(&mut self.pool, &ids, &excluded, &urban,
+                self.num_regions, impairment, care_fraction, crate::health_care::CarePolicy::RetainedKin)
+        };
+        // CAREOBS_SOURCE_BEGIN: actual preparation copies
+        if let Some(mut observation) = self.pool.health_care_observation.take() {
+            observation.prepare(&self.pool, &work, &ids, &excluded, &urban,
+                self.num_regions, impairment, care_fraction, policy);
+            self.pool.health_care_observation = Some(observation);
+        }
+        // CAREOBS_SOURCE_END: actual preparation copies
+        let rows = work.rows.clone();
+        self.health_work = Some(work);
+        Ok(rows)
+    }
+
+    pub fn finish_health_work(&mut self, turn: u32, rate: f32)
+        -> PyResult<(Vec<(u32, u16)>, Vec<(u32, u16, u16)>, Vec<(u16, f64, f64, u32)>)> {
+        if self.pool.teaching_plan.is_some() {
+            return Err(PyValueError::new_err("consume or cancel teaching work before finishing health work"));
+        }
+        if !rate.is_finite() || !(0.0..=1.0).contains(&rate) {
+            return Err(PyValueError::new_err("health injury rate must be finite in 0..1"));
+        }
+        self.pool.health_work_loss.clear();
+        // CAREOBS_SOURCE_BEGIN: missing preparation finish
+        if self.health_work.is_none() {
+            if let Some(observation) = &mut self.pool.health_care_observation {
+                observation.missing_finish(turn);
+            }
+        }
+        // CAREOBS_SOURCE_END: missing preparation finish
+        let Some(work) = self.health_work.take() else { return Ok((Vec::new(), Vec::new(), Vec::new())) };
+        // CAREOBS_FINISH_BEGIN
+        let result = crate::health_care::finish(work, &self.pool, self.master_seed, turn, rate);
+        if let Some(mut observation) = self.pool.health_care_observation.take() {
+            observation.finish(&self.pool, turn, rate, &result);
+            self.pool.health_care_observation = Some(observation);
+        }
+        Ok(result)
+        // CAREOBS_FINISH_END
+    }
+
+    /// Prepare a single regional teaching budget before this turn's economy.
+    /// Fractions are Scholar-equivalent work-turns; no pay is created.
+    pub fn prepare_teaching_work(&mut self, source_turn: u32, requests: Vec<f32>, excluded_ids: Vec<u32>)
+        -> PyResult<Option<(u32, Vec<(u16, f64, f64, f64, f64)>, Vec<(u32, u16, f32, f32)>, usize)>> {
+        if requests.len() != self.num_regions {
+            return Err(PyValueError::new_err("teaching requests must match the region count"));
+        }
+        if requests.iter().any(|v| !v.is_finite() || *v < 0.0) {
+            return Err(PyValueError::new_err("teaching work requests must be finite and nonnegative"));
+        }
+        if self.pool.teaching_plan.is_some() {
+            return Err(PyValueError::new_err("teaching work already prepared"));
+        }
+        if requests.iter().all(|v| *v == 0.0) { return Ok(None); }
+        if !self.initialized { return Err(PyValueError::new_err("teaching work requires initialized agents")); }
+        if self.last_teaching_turn.is_some_and(|previous| source_turn <= previous) {
+            return Err(PyValueError::new_err("teaching work already consumed for this turn"));
+        }
+        let plan = crate::teaching_work::prepare(&self.pool, source_turn, &requests, &excluded_ids)
+            .map_err(PyValueError::new_err)?.expect("nonzero request yields a plan");
+        let (receipts, dropped) = plan.receipts();
+        let result = Some((source_turn, plan.regions(), receipts, dropped));
+        self.teaching_result = None;
+        self.pool.teaching_plan = Some(plan);
+        Ok(result)
+    }
+
+    /// Cancel only the unconsumed teaching reservation, never health work.
+    pub fn cancel_teaching_work(&mut self, source_turn: u32) -> PyResult<bool> {
+        let Some(plan) = &self.pool.teaching_plan else { return Ok(false) };
+        if plan.source_turn != source_turn || plan.consumed {
+            return Err(PyValueError::new_err("teaching work is not a pending plan for this turn"));
+        }
+        self.pool.teaching_plan = None;
+        Ok(true)
+    }
+
+    pub fn has_pending_teaching_work(&self) -> bool {
+        self.pool.teaching_plan.as_ref().is_some_and(|p| !p.consumed)
+    }
+
+    /// Read the last consumed teaching receipt without changing native state.
+    pub fn get_teaching_work_result(&self)
+        -> Option<(u32, Vec<(u16, f64, f64, f64, f64)>, Vec<(u32, u16, f32, f32)>, usize)> {
+        self.teaching_result.as_ref().map(|plan| {
+            let (receipts, dropped) = plan.receipts();
+            (plan.source_turn, plan.regions(), receipts, dropped)
+        })
     }
 
     /// Exact checkpoint: every field this simulator carries between ticks,
@@ -462,9 +652,23 @@ impl AgentSimulator {
     /// population column (60% farmer, 15% soldier, 10% merchant, 10%
     /// scholar, ~5% priest). Subsequent calls update ecology fields only.
     pub fn set_region_state(&mut self, batch: PyRecordBatch) -> PyResult<()> {
-        self.snapshot_cache = None; // pool may change: drop the cached snapshot
         let rb: RecordBatch = batch.into_inner();
         let n = rb.num_rows();
+
+        // Refuse shape changes before invalidating caches or changing any state.
+        if !self.initialized {
+            validate_native_region_count(self.num_regions).map_err(PyValueError::new_err)?;
+            if n != self.num_regions {
+                return Err(PyValueError::new_err(format!(
+                    "set_region_state: expected {} initial region rows (at most 65535), got {n}",
+                    self.num_regions,
+                )));
+            }
+        } else if self.regions.len() != n {
+            return Err(PyValueError::new_err(
+                "set_region_state: row count changed between calls",
+            ));
+        }
 
         // Helper macros to extract typed columns.
         macro_rules! col_u16 {
@@ -496,6 +700,11 @@ impl AgentSimulator {
         }
 
         let region_ids = col_u16!("region_id");
+        if !self.initialized && region_ids.iter().enumerate().any(|(i, id)| id != Some(i as u16)) {
+            return Err(PyValueError::new_err(
+                "set_region_state: initial region_id values must be non-null and ordered 0..num_regions",
+            ));
+        }
         let terrains = col_u8!("terrain");
         let capacities = col_u16!("carrying_capacity");
         let populations = col_u16!("population");
@@ -794,6 +1003,8 @@ impl AgentSimulator {
             })
             .collect();
 
+        // All fallible input validation above completes before persistent mutation.
+        self.snapshot_cache = None; // a valid update may change the pool
         // Store contested_regions.
         self.contested_regions = (0..n)
             .map(|i| is_contested_col.map_or(false, |arr| arr.value(i)))
@@ -1017,11 +1228,6 @@ impl AgentSimulator {
             self.initialized = true;
         } else {
             // Subsequent calls: update all fields.
-            if self.regions.len() != n {
-                return Err(PyValueError::new_err(
-                    "set_region_state: row count changed between calls",
-                ));
-            }
             for i in 0..n {
                 let r = &mut self.regions[i];
                 r.terrain = terrains.value(i);
@@ -1174,7 +1380,20 @@ impl AgentSimulator {
     }
 
     /// Advance simulation by one turn. Returns an events RecordBatch.
-    pub fn tick(&mut self, py: Python<'_>, turn: u32, civ_signals: PyRecordBatch) -> PyResult<PyRecordBatch> {
+    #[pyo3(signature = (turn, civ_signals, liquid_requirement=0.0))]
+    pub fn tick(&mut self, py: Python<'_>, turn: u32, civ_signals: PyRecordBatch, liquid_requirement: f32) -> PyResult<PyRecordBatch> {
+        if !liquid_requirement.is_finite() || liquid_requirement < 0.0 {
+            return Err(PyValueError::new_err("liquid_requirement must be finite and nonnegative"));
+        }
+        if let Some(plan) = &self.pool.teaching_plan {
+            if plan.source_turn != turn || plan.consumed {
+                return Err(PyValueError::new_err("teaching work must be prepared for this tick"));
+            }
+        }
+        self.teaching_result = None;
+        self.mobility_gate_frame = None;
+        // A failed tick must never expose a previous turn's observation.
+        self.decision_delivery_frame = None;
         self.snapshot_cache = None; // pool may change: drop the cached snapshot
         if !self.initialized {
             return Err(PyValueError::new_err(
@@ -1203,6 +1422,9 @@ impl AgentSimulator {
 
         // M58a: Build merchant_state from graph + ledger + delivery buffer if all present
         // Use take/put pattern to satisfy borrow checker (need &RouteGraph + &mut ShadowLedger + &mut DeliveryBuffer)
+        if let Some(graph) = &mut self.merchant_graph {
+            graph.receipt_limit = self.transaction_receipts_limit.unwrap_or(0);
+        }
         let merchant_graph_taken = self.merchant_graph.take();
         let mut merchant_ledger_taken = self.merchant_ledger.take();
         let mut merchant_delivery_buf_taken = self.merchant_delivery_buf.take();
@@ -1213,24 +1435,51 @@ impl AgentSimulator {
 
         let targeted_deaths = std::mem::take(&mut self.pending_targeted_deaths);
         let tick_options = self.tick_options;
+        let delivery_config = self.decision_delivery_config.as_ref();
+        let mut delivery_frame = delivery_config.map(|_| {
+            crate::decision_delivery::DeliveryFrame::new(turn, tick_options.ablation.active(turn))
+        });
+        let mut mobility_frame = if liquid_requirement > 0.0 {
+            Some(crate::household::MobilityGateFrame { turn, ..Default::default() })
+        } else { None };
         let (events, kin_failures, formation_stats, demo_debug, household_stats, merchant_stats, knowledge_stats) =
             py.detach(|| {
-                crate::tick::try_tick_agents_with_movements(
-                    &mut self.pool,
-                    &self.regions,
-                    &signals,
-                    self.master_seed,
-                    turn,
-                    &mut self.wealth_percentiles,
-                    &mut self.spatial_grids,
-                    &self.attractors,
-                    &mut spatial_diag,
-                    &self.settlement_grids,  // M56b
-                    merchant_state,
-                    &targeted_deaths,
-                    tick_options,
-                    &mut self.movements,
-                )
+                if let Some(gate_frame) = mobility_frame.as_mut() {
+                    let delivery = match (delivery_config, delivery_frame.as_mut()) {
+                        (Some(config), Some(frame)) => Some((config, frame)), _ => None,
+                    };
+                    crate::tick::try_tick_agents_with_mobility_gate(
+                        &mut self.pool, &self.regions, &signals, self.master_seed, turn,
+                        &mut self.wealth_percentiles, &mut self.spatial_grids, &self.attractors,
+                        &mut spatial_diag, &self.settlement_grids, merchant_state,
+                        &targeted_deaths, tick_options, &mut self.movements, delivery,
+                        liquid_requirement, gate_frame,
+                    )
+                } else if let (Some(config), Some(frame)) = (delivery_config, delivery_frame.as_mut()) {
+                    crate::tick::try_tick_agents_with_delivery(
+                        &mut self.pool, &self.regions, &signals, self.master_seed, turn,
+                        &mut self.wealth_percentiles, &mut self.spatial_grids, &self.attractors,
+                        &mut spatial_diag, &self.settlement_grids, merchant_state,
+                        &targeted_deaths, tick_options, &mut self.movements, config, frame,
+                    )
+                } else {
+                    crate::tick::try_tick_agents_with_movements(
+                        &mut self.pool,
+                        &self.regions,
+                        &signals,
+                        self.master_seed,
+                        turn,
+                        &mut self.wealth_percentiles,
+                        &mut self.spatial_grids,
+                        &self.attractors,
+                        &mut spatial_diag,
+                        &self.settlement_grids,  // M56b
+                        merchant_state,
+                        &targeted_deaths,
+                        tick_options,
+                        &mut self.movements,
+                    )
+                }
             }).map_err(PyRuntimeError::new_err)?;
 
         // Restore graph, ledger, and delivery buffer
@@ -1245,6 +1494,14 @@ impl AgentSimulator {
         self.demographic_debug = demo_debug;
         self.household_stats = household_stats;
         self.merchant_trip_stats = merchant_stats;
+        if let Some(limit) = self.transaction_receipts_limit {
+            // A successful tick without merchant state did not observe mobility.
+            self.merchant_trip_stats.receipts.get_or_insert_with(|| {
+                let mut frame = crate::transaction_receipts::ReceiptFrame::new(turn, limit);
+                frame.mobility_executed = false;
+                frame
+            });
+        }
         self.knowledge_stats = knowledge_stats;
 
         // M53: demographic debug counters
@@ -1254,7 +1511,28 @@ impl AgentSimulator {
         self.last_tick_alive = self.pool.alive.iter().filter(|&&a| a).count() as u32;
 
         let batch = events_to_batch(&events).map_err(arrow_err)?;
+        // Publish only after successful native execution and event packing.
+        self.decision_delivery_frame = delivery_frame;
+        self.mobility_gate_frame = mobility_frame;
+        if let Some(plan) = self.pool.teaching_plan.take() {
+            if plan.consumed {
+                self.last_teaching_turn = Some(plan.source_turn);
+                self.teaching_result = Some(plan);
+            }
+        }
         Ok(PyRecordBatch::new(batch))
+    }
+
+    /// Last successfully published gate frame, if enabled. Counts describe
+    /// gate eligibility, not completed moves. Reasons: 0 sufficient, 1 short,
+    /// 2 no local distress, 3 invalid/unknown route, 4 on trip.
+    pub fn get_mobility_gate_frame(&self) -> Option<((u32, u32, u32, u32, u32, u32, u32, u32), Vec<(u32, u16, u16, u32, Option<f32>, f64, f64, u8)>)> {
+        self.mobility_gate_frame.as_ref().map(|f| (
+            (f.turn, f.proposed_groups, f.proposed_persons, f.passed_groups,
+             f.passed_persons, f.blocked_groups, f.blocked_persons, f.dropped_samples),
+            f.samples.iter().map(|r| (r.group_id, r.from, r.to, r.persons,
+                if r.local_food_sufficiency.is_finite() { Some(r.local_food_sufficiency) } else { None },
+                r.liquid, r.required, r.reason)).collect()))
     }
 
     /// Return an Arrow RecordBatch snapshot of all alive agents.
@@ -1528,6 +1806,69 @@ impl AgentSimulator {
             }
         }
         None
+    }
+
+    /// Read memories, needs and relationships for each requested agent id.
+    ///
+    /// Rows keep input order and duplicates. A missing/dead id returns
+    /// `(id, [], None, None)`; a live id with empty stores has `[]` memories
+    /// and `Some([])` relationships. As in the scalar methods, first live
+    /// duplicate pool ids win, and id zero can supply memories/needs but
+    /// never relationships. The sorted query vector is local to this call:
+    /// no id-sized table, randomized map, Arrow object or lasting cache.
+    /// Existing scalar getters and production Python callers are unchanged.
+    pub fn get_agent_context_batch(&self, agent_ids: Vec<u32>) -> Vec<AgentContextRow> {
+        if agent_ids.is_empty() {
+            return Vec::new();
+        }
+        let mut requested = agent_ids.clone();
+        requested.sort_unstable();
+        requested.dedup();
+        let mut slots = vec![None; requested.len()];
+        let mut remaining = requested.len();
+        let pool = &self.pool;
+        for slot in 0..pool.capacity() {
+            if !pool.alive[slot] {
+                continue;
+            }
+            if let Ok(index) = requested.binary_search(&pool.ids[slot]) {
+                if slots[index].is_none() {
+                    slots[index] = Some(slot);
+                    remaining -= 1;
+                    if remaining == 0 {
+                        break;
+                    }
+                }
+            }
+        }
+        agent_ids.into_iter().map(|agent_id| {
+            let index = requested.binary_search(&agent_id).expect("requested id retained");
+            let Some(slot) = slots[index] else {
+                return (agent_id, Vec::new(), None, None);
+            };
+            let memories = (0..pool.memory_count[slot] as usize).map(|i| (
+                pool.memory_event_types[slot][i],
+                pool.memory_source_civs[slot][i],
+                pool.memory_turns[slot][i],
+                pool.memory_intensities[slot][i],
+                pool.memory_decay_factors[slot][i],
+                (pool.memory_is_legacy[slot] >> i) & 1 == 1,
+            )).collect();
+            let needs = Some((
+                pool.need_safety[slot],
+                pool.need_material[slot],
+                pool.need_social[slot],
+                pool.need_spiritual[slot],
+                pool.need_autonomy[slot],
+                pool.need_purpose[slot],
+            ));
+            let relationships = (agent_id != 0).then(|| {
+                (0..pool.rel_count[slot] as usize)
+                    .map(|i| crate::relationships::read_rel(pool, slot, i))
+                    .collect()
+            });
+            (agent_id, memories, needs, relationships)
+        }).collect()
     }
 
     /// M50a: Apply batched relationship operations from an Arrow RecordBatch.
@@ -2526,11 +2867,11 @@ impl AgentSimulator {
         trade_friction: f32,
     ) -> PyResult<(PyRecordBatch, PyRecordBatch, PyRecordBatch, PyRecordBatch, PyRecordBatch)> {
         use arrow::array::{
-            Float32Array, Float64Array, UInt8Array, UInt16Array, BooleanArray,
+            Array, Float32Array, Float64Array, UInt8Array, UInt16Array, BooleanArray,
             Float32Builder, UInt8Builder, UInt16Builder, BooleanBuilder,
         };
         use crate::economy::{
-            EconomyRegionInput, RegionAgentCounts, TradeRouteInput, tick_economy_core,
+            EconomyRegionInput, RegionAgentCounts, TradeRouteInput, tick_economy_core_with_granary_work,
         };
 
         let _ = season_id; // reserved for future seasonal modifiers
@@ -2573,6 +2914,20 @@ impl AgentSimulator {
                     .as_any().downcast_ref::<BooleanArray>()
                     .ok_or_else(|| PyValueError::new_err(format!("column {} not Boolean", $name)))?
             };
+        }
+
+        // Validate the complete optional request before any simulator mutation
+        // or delivery-buffer consumption. Null is distinct from an absent column.
+        let mut granary_work_requested = vec![0.0f32; n_regions];
+        if let Some(column) = ri_rb.column_by_name("granary_work_requested") {
+            let values = column.as_any().downcast_ref::<Float32Array>()
+                .ok_or_else(|| PyValueError::new_err("granary_work_requested must be Float32"))?;
+            for (i, request) in granary_work_requested.iter_mut().enumerate() {
+                if values.is_null(i) || !values.value(i).is_finite() || values.value(i) < 0.0 {
+                    return Err(PyValueError::new_err("invalid granary_work_requested"));
+                }
+                *request = values.value(i);
+            }
         }
 
         let ri_region_ids = col_u16!(&ri_rb, "region_id");
@@ -2830,6 +3185,34 @@ impl AgentSimulator {
             }
         }
 
+        // Rural impairment/care removes productive work, not people or demand.
+        // City craft allocation is already reflected in farm_labor_factor;
+        // only non-city workers can contribute these additive deductions.
+        // CAREOBS_SOURCE_BEGIN: economy stage
+        if let Some(observation) = &mut self.pool.health_care_observation {
+            observation.economy_begin(region_inputs.len());
+        }
+        // CAREOBS_SOURCE_END: economy stage
+        if let Some(work) = &self.health_work {
+            for (r, inp) in region_inputs.iter_mut().enumerate() {
+                let farmers = agent_counts[r].farmer_count as f32;
+                // CAREOBS_SOURCE_BEGIN: actual economy operands
+                if let Some(observation) = &mut self.pool.health_care_observation {
+                    observation.economy_before(r, agent_counts[r].farmer_count,
+                        inp.farm_labor_factor, work.losses.get(r).copied());
+                }
+                // CAREOBS_SOURCE_END: actual economy operands
+                if farmers > 0.0 && work.losses[r] > 0.0 {
+                    inp.farm_labor_factor = (farmers * inp.farm_labor_factor - work.losses[r]).max(0.0) / farmers;
+                    // CAREOBS_SOURCE_BEGIN: actual adjusted factor
+                    if let Some(observation) = &mut self.pool.health_care_observation {
+                        observation.economy_adjusted(inp.farm_labor_factor);
+                    }
+                    // CAREOBS_SOURCE_END: actual adjusted factor
+                }
+            }
+        }
+
         // --- Unpack trade routes ---
         let mut routes: Vec<TradeRouteInput> = Vec::with_capacity(n_routes);
         if n_routes > 0 {
@@ -2869,7 +3252,7 @@ impl AgentSimulator {
             .collect();
 
         // --- Call the core ---
-        let output = tick_economy_core(
+        let output = tick_economy_core_with_granary_work(
             &region_inputs,
             &agent_counts,
             &routes,
@@ -2881,6 +3264,7 @@ impl AgentSimulator {
             trade_friction,
             is_winter,
             hybrid_delivery.as_ref(),
+            &granary_work_requested,
         );
 
         // M58b: Write transit decay diagnostics back to delivery buffer before clearing.
@@ -2902,6 +3286,11 @@ impl AgentSimulator {
         // --- Pack results into Arrow batches ---
         // 1. Region result batch
         let n_out = output.region_results.len();
+        // CAREOBS_SOURCE_BEGIN: actual output count
+        if let Some(observation) = &mut self.pool.health_care_observation {
+            observation.economy_outputs_begin(n_out);
+        }
+        // CAREOBS_SOURCE_END: actual output count
         let mut rr_region_id = UInt16Builder::with_capacity(n_out);
         let mut rr_fim = Float32Builder::with_capacity(n_out);
         let mut rr_fs = Float32Builder::with_capacity(n_out);
@@ -2918,12 +3307,35 @@ impl AgentSimulator {
         let mut rr_craft_suff = Float32Builder::with_capacity(n_out);
         let mut rr_slot_out: Vec<Float32Builder> = (0..3).map(|_| Float32Builder::with_capacity(n_out)).collect();
         let mut rr_forage = Float32Builder::with_capacity(n_out);
+        let mut rr_granary_work = Float32Builder::with_capacity(n_out);
+        let mut rr_market_price: Vec<Float32Builder> =
+            (0..NC).map(|_| Float32Builder::with_capacity(n_out)).collect();
+        let mut rr_food_ledger: Vec<arrow::array::Float64Builder> =
+            (0..crate::economy::FOOD_LEDGER_NAMES.len())
+                .map(|_| arrow::array::Float64Builder::with_capacity(n_out)).collect();
 
         for rr in &output.region_results {
+            for (builder, value) in rr_food_ledger.iter_mut().zip(rr.food_ledger) {
+                builder.append_value(value);
+            }
+            if let Some(work) = &mut self.health_work {
+                let r = rr.region_id as usize;
+                // Existing injury exposure is a region-level proxy, not an
+                // assignment of particular farmers to granary work.
+                if r < work.worked.len() { work.worked[r] = rr.slot_output.iter().any(|&x| x > 0.0) || rr.forage_output > 0.0 || rr.granary_work_delivered > 0.0; }
+            }
+            // CAREOBS_SOURCE_BEGIN: actual economy work result
+            if let Some(observation) = &mut self.pool.health_care_observation {
+                observation.economy_output(rr.region_id, rr.slot_output, rr.forage_output,
+                    self.health_work.as_ref().and_then(|work| work.worked.get(rr.region_id as usize).copied()));
+            }
+            // CAREOBS_SOURCE_END: actual economy work result
             for (slot, builder) in rr_slot_out.iter_mut().enumerate() {
                 builder.append_value(rr.slot_output[slot]);
             }
             rr_forage.append_value(rr.forage_output);
+            rr_granary_work.append_value(rr.granary_work_delivered);
+            for c in 0..NC { rr_market_price[c].append_value(rr.market_price[c]); }
             for c in 0..NC {
                 rr_market[c].append_value(rr.market_demand[c]);
                 rr_market[NC + c].append_value(rr.market_supply[c]);
@@ -2966,6 +3378,13 @@ impl AgentSimulator {
         }
         rr_columns.push(Arc::new(rr_forage.finish()));
 
+        for builder in rr_food_ledger.iter_mut() {
+            rr_columns.push(Arc::new(builder.finish()));
+        }
+        rr_columns.push(Arc::new(rr_granary_work.finish()));
+        for builder in rr_market_price.iter_mut() {
+            rr_columns.push(Arc::new(builder.finish()));
+        }
         let region_result_batch = RecordBatch::try_new(
             Arc::new(economy_region_result_schema()),
             rr_columns,
@@ -3277,6 +3696,68 @@ impl AgentSimulator {
         Ok(stats)
     }
 
+    /// Enable bounded read-only observations; configuration and frames are transient.
+    #[pyo3(signature = (enabled, max_rows = 4096))]
+    pub fn configure_transaction_receipts(&mut self, enabled: bool, max_rows: usize) -> PyResult<()> {
+        if enabled && !(1..=crate::transaction_receipts::MAX_LIMIT).contains(&max_rows) {
+            return Err(PyValueError::new_err("transaction receipt max_rows must be 1..65536"));
+        }
+        self.transaction_receipts_limit = enabled.then_some(max_rows);
+        if let Some(graph) = &mut self.merchant_graph {
+            graph.receipt_limit = self.transaction_receipts_limit.unwrap_or(0);
+        }
+        if !enabled { self.merchant_trip_stats.receipts = None; }
+        Ok(())
+    }
+
+    /// (source turn, cap, dropped rows, mobility executed, rows); reads never drain.
+    /// None/0/0 means disabled or no successful recorded tick yet. Enabled empty
+    /// frames have an explicit source turn. Active rows are mobility-end only.
+    pub fn get_transaction_receipt_frame(&self) -> PyResult<(Option<u32>, usize, u64, bool, PyRecordBatch)> {
+        let frame = self.merchant_trip_stats.receipts.as_ref();
+        let batch = crate::transaction_receipts::to_batch(frame).map_err(arrow_err)?;
+        Ok((frame.map(|f| f.source_turn), frame.map_or(0, |f| f.limit),
+            frame.map_or(0, |f| f.dropped), frame.is_some_and(|f| f.mobility_executed),
+            PyRecordBatch::new(batch)))
+    }
+
+    /// Enable a bounded pre-household decision observer. Explicit IDs are a
+    /// selection, not a random sample; truncated prefixes never establish rates.
+    #[pyo3(signature = (enabled, max_agent_rows = 4096, max_candidate_rows = 16384, selected_agent_ids = None, *, max_move_rows = 16384))]
+    pub fn configure_decision_delivery(&mut self, enabled: bool, max_agent_rows: usize,
+        max_candidate_rows: usize, selected_agent_ids: Option<Vec<u32>>, max_move_rows: usize) -> PyResult<()> {
+        let config = if enabled {
+            Some(crate::decision_delivery::DeliveryConfig::new(max_agent_rows,
+                max_candidate_rows, selected_agent_ids).and_then(|c| c.with_move_limit(max_move_rows)).map_err(PyValueError::new_err)?)
+        } else { None };
+        self.decision_delivery_config = config;
+        self.decision_delivery_frame = None;
+        Ok(())
+    }
+
+    /// (header, decision rows, candidate rows). Reads never drain or change the
+    /// pool. f32 observations are UInt32 bits; validity columns distinguish
+    /// skipped computation from an observed zero. Stage 1 does not trace final
+    /// household follower/cancellation provenance or counterfactual winners.
+    pub fn get_decision_delivery_frame(&self) -> PyResult<(PyRecordBatch, PyRecordBatch, PyRecordBatch)> {
+        let frame = self.decision_delivery_frame.as_ref();
+        let header = crate::decision_delivery::header_batch(self.decision_delivery_config.as_ref(), frame).map_err(arrow_err)?;
+        let decisions = crate::decision_delivery::decisions_batch(frame).map_err(arrow_err)?;
+        let candidates = crate::decision_delivery::candidates_batch(frame).map_err(arrow_err)?;
+        Ok((PyRecordBatch::new(header), PyRecordBatch::new(decisions), PyRecordBatch::new(candidates)))
+    }
+
+    /// Separate version-2 move header and operation rows. Native event
+    /// ordinals are zero-based positions in tick()'s full unchanged native
+    /// event batch, not world-event IDs. Reads are non-draining. The bounded
+    /// operation prefix is independent of Stage 1 row caps and is not a sample.
+    pub fn get_decision_delivery_move_frame(&self) -> PyResult<(PyRecordBatch, PyRecordBatch)> {
+        let frame = self.decision_delivery_frame.as_ref();
+        let header = crate::decision_delivery::move_header_batch(self.decision_delivery_config.as_ref(), frame).map_err(arrow_err)?;
+        let rows = crate::decision_delivery::moves_batch(frame).map_err(arrow_err)?;
+        Ok((PyRecordBatch::new(header), PyRecordBatch::new(rows)))
+    }
+
     /// Maritime: the last tick's merchant sea-lane crossings, one row per hop
     /// across a sea lane (in slot order), with `raided` set where raiders
     /// seized the cargo (`LossReason::Raid`). Empty unless the merchant route
@@ -3521,11 +4002,475 @@ impl AgentSimulator {
 
 // ---------------------------------------------------------------------------
 #[cfg(test)]
+mod agent_context_tests;
+// CAREOBS_SOURCE_BEGIN: PyO3 contracts
+#[cfg(test)]
+mod health_care_observation_tests;
+// CAREOBS_SOURCE_END: PyO3 contracts
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use arrow::array::{Int8Array, UInt8Array, UInt16Array, UInt32Array};
     use arrow::datatypes::{DataType, Field, Schema};
     use pyo3_arrow::PyRecordBatch;
+
+    fn region_ingress_batch(ids: Vec<Option<u16>>) -> PyRecordBatch {
+        let n = ids.len();
+        let columns: Vec<arrow::array::ArrayRef> = vec![
+            Arc::new(UInt16Array::from(ids)),
+            Arc::new(UInt8Array::from(vec![0; n])),
+            Arc::new(UInt16Array::from(vec![80; n])),
+            Arc::new(UInt16Array::from(vec![2; n])),
+            Arc::new(arrow::array::Float32Array::from(vec![0.8; n])),
+            Arc::new(arrow::array::Float32Array::from(vec![0.6; n])),
+            Arc::new(arrow::array::Float32Array::from(vec![0.3; n])),
+        ];
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("region_id", DataType::UInt16, true),
+            Field::new("terrain", DataType::UInt8, false),
+            Field::new("carrying_capacity", DataType::UInt16, false),
+            Field::new("population", DataType::UInt16, false),
+            Field::new("soil", DataType::Float32, false),
+            Field::new("water", DataType::Float32, false),
+            Field::new("forest_cover", DataType::Float32, false),
+        ]));
+        PyRecordBatch::new(RecordBatch::try_new(schema, columns).unwrap())
+    }
+
+    fn granary_work_input(request: Option<arrow::array::ArrayRef>, yield_value: f32) -> PyRecordBatch {
+        use arrow::array::{Float32Array, ArrayRef};
+        let mut fields: Vec<Field> = economy_region_input_schema().fields().iter()
+            .map(|f| f.as_ref().clone()).collect();
+        let mut cols: Vec<ArrayRef> = vec![
+            Arc::new(UInt16Array::from(vec![0])), Arc::new(UInt8Array::from(vec![0])),
+            Arc::new(UInt16Array::from(vec![80])), Arc::new(UInt8Array::from(vec![0])),
+            Arc::new(UInt8Array::from(vec![255])), Arc::new(UInt8Array::from(vec![255])),
+            Arc::new(Float32Array::from(vec![yield_value])),
+            Arc::new(Float32Array::from(vec![0.0])), Arc::new(Float32Array::from(vec![0.0])),
+        ];
+        for _ in 0..8 { cols.push(Arc::new(Float32Array::from(vec![0.0]))); }
+        fields.push(Field::new("farm_labor_factor", DataType::Float32, false));
+        cols.push(Arc::new(Float32Array::from(vec![0.5])));
+        if let Some(value) = request {
+            fields.push(Field::new("granary_work_requested", value.data_type().clone(), true));
+            cols.push(value);
+        }
+        PyRecordBatch::new(RecordBatch::try_new(Arc::new(Schema::new(fields)), cols).unwrap())
+    }
+
+    fn granary_work_routes() -> PyRecordBatch {
+        PyRecordBatch::new(RecordBatch::new_empty(Arc::new(economy_trade_route_schema())))
+    }
+
+    fn granary_work_sim() -> AgentSimulator {
+        let mut sim = AgentSimulator::new(1, 42);
+        sim.set_region_state(region_ingress_batch(vec![Some(0)])).unwrap();
+        sim.pool = AgentPool::new(10);
+        for _ in 0..10 {
+            sim.pool.spawn(0, 0, Occupation::Farmer, 30, 0.5, 0.5, 0.5, 255, 255, 255, 255);
+        }
+        sim.health_work = Some(crate::health_care::HealthWork {
+            losses: vec![1.0], worked: vec![false], ..Default::default()
+        });
+        sim
+    }
+
+    #[test]
+    fn market_price_ffi_exports_actual_native_post_trade_prices() {
+        use arrow::array::{ArrayRef, Float32Array};
+        let mut sim = granary_work_sim();
+        sim.economy_config.base_price = 2.0;
+        let input = granary_work_input(None, 1.0).into_inner();
+        let mut fields: Vec<Field> = input.schema().fields().iter().map(|f| f.as_ref().clone()).collect();
+        let mut columns: Vec<ArrayRef> = input.columns().to_vec();
+        fields.push(Field::new("craft_demand", DataType::Float32, false));
+        columns.push(Arc::new(Float32Array::from(vec![1.0])));
+        fields.push(Field::new("stockpile_crafts", DataType::Float32, false));
+        columns.push(Arc::new(Float32Array::from(vec![2.0])));
+        let batch = PyRecordBatch::new(RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).unwrap());
+        let output = sim.tick_economy(batch, granary_work_routes(), 0, false, 1.0).unwrap().0.into_inner();
+        let val = |name| output.column_by_name(name).unwrap().as_any().downcast_ref::<Float32Array>().unwrap().value(0);
+        assert_eq!(val("market_demand_craft"), 1.0);
+        assert_eq!(val("market_supply_craft"), 2.0);
+        assert_eq!(val("market_price_craft"), 1.0);
+        assert_eq!(val("market_price_food"), 2.5);
+        assert_eq!(val("market_price_luxury"), 0.0);
+        assert_eq!(val("stockpile_crafts"), 0.99); // lifecycle after price
+        let names = output.schema().fields().iter().map(|f| f.name().clone()).collect::<Vec<_>>();
+        assert_eq!(&names[names.len()-4..], &["market_price_food", "market_price_raw_material", "market_price_luxury", "market_price_craft"]);
+    }
+
+    #[test]
+    fn granary_work_ffi_after_health_and_city_and_work_injury_proxy() {
+        use arrow::array::Float32Array;
+        let mut sim = granary_work_sim();
+        let batch = sim.tick_economy(granary_work_input(Some(Arc::new(Float32Array::from(vec![3.0]))), 1.0),
+            granary_work_routes(), 0, false, 1.0).unwrap().0.into_inner();
+        let val = |name| batch.column_by_name(name).unwrap().as_any().downcast_ref::<Float32Array>().unwrap().value(0);
+        assert_eq!(val("granary_work_delivered"), 3.0);
+        assert_eq!(val("slot_output_0"), 1.0);
+        assert_eq!(val("market_demand_food"), 5.0);
+        assert!(sim.health_work.as_ref().unwrap().worked[0]);
+        let barren = sim.tick_economy(granary_work_input(Some(Arc::new(Float32Array::from(vec![8.0]))), 0.0),
+            granary_work_routes(), 0, false, 1.0).unwrap().0.into_inner();
+        let delivered = barren.column_by_name("granary_work_delivered").unwrap().as_any()
+            .downcast_ref::<Float32Array>().unwrap().value(0);
+        assert_eq!(delivered, 4.0);
+        assert!(sim.health_work.as_ref().unwrap().worked[0]);
+        let zero = sim.tick_economy(granary_work_input(None, 0.0), granary_work_routes(), 0, false, 1.0).unwrap();
+        assert!(!sim.health_work.as_ref().unwrap().worked[0]);
+        assert_eq!(zero.0.into_inner().column_by_name("granary_work_delivered").unwrap().as_any()
+            .downcast_ref::<Float32Array>().unwrap().value(0), 0.0);
+    }
+
+    #[test]
+    fn granary_work_ffi_absent_and_zero_keep_existing_outputs_and_state() {
+        use arrow::array::Float32Array;
+        let mut absent = granary_work_sim();
+        let mut zero = granary_work_sim();
+        let a = absent.tick_economy(granary_work_input(None, 1.0), granary_work_routes(), 0, false, 1.0).unwrap();
+        let b = zero.tick_economy(granary_work_input(Some(Arc::new(Float32Array::from(vec![0.0]))), 1.0),
+            granary_work_routes(), 0, false, 1.0).unwrap();
+        let a = [a.0, a.1, a.2, a.3, a.4];
+        let b = [b.0, b.1, b.2, b.3, b.4];
+        for (left, right) in a.into_iter().zip(b) {
+            assert_eq!(left.into_inner(), right.into_inner());
+        }
+        assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &absent),
+                   crate::persist::encode(crate::persist::KIND_AGENT, &zero));
+        assert_eq!(absent.health_work.as_ref().unwrap().worked, zero.health_work.as_ref().unwrap().worked);
+    }
+
+    #[test]
+    fn granary_work_ffi_invalid_inputs_preserve_delivery_and_checkpoint() {
+        use arrow::array::{ArrayRef, Float32Array, Float64Array};
+        let inputs: Vec<ArrayRef> = vec![Arc::new(Float32Array::from(vec![-1.0])),
+            Arc::new(Float32Array::from(vec![f32::NAN])), Arc::new(Float32Array::from(vec![f32::INFINITY])),
+            Arc::new(Float32Array::from(vec![None::<f32>])), Arc::new(Float64Array::from(vec![1.0]))];
+        for input in inputs {
+            let mut sim = granary_work_sim();
+            sim.set_hybrid_economy_mode(true);
+            let mut buffer = crate::merchant::DeliveryBuffer::new(1);
+            buffer.record_arrival(0, 0, 0, 1.0);
+            sim.merchant_delivery_buf = Some(buffer);
+            let before = crate::persist::encode(crate::persist::KIND_AGENT, &sim);
+            assert!(sim.tick_economy(granary_work_input(Some(input), 1.0), granary_work_routes(),
+                                     0, false, 1.0).is_err());
+            assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &sim), before);
+            assert_eq!(sim.merchant_delivery_buf.as_ref().unwrap().arrival_imports.len(), 1);
+            assert_eq!(sim.health_work.as_ref().unwrap().losses, vec![1.0]);
+            assert!(!sim.health_work.as_ref().unwrap().worked[0]);
+        }
+    }
+
+    fn mobility_gate_signals() -> PyRecordBatch {
+        let schema = Schema::new(vec![
+            Field::new("civ_id", DataType::UInt8, false), Field::new("stability", DataType::UInt8, false),
+            Field::new("is_at_war", DataType::Boolean, false), Field::new("dominant_faction", DataType::UInt8, false),
+            Field::new("faction_military", DataType::Float32, false), Field::new("faction_merchant", DataType::Float32, false),
+            Field::new("faction_cultural", DataType::Float32, false),
+        ]);
+        PyRecordBatch::new(RecordBatch::new_empty(Arc::new(schema)))
+    }
+
+    #[test]
+    fn mobility_gate_ffi_zero_and_invalid_are_nonmutating_or_old_path() {
+        Python::initialize();
+        Python::attach(|py| {
+            let mut a = AgentSimulator::new(1, 42);
+            let mut b = AgentSimulator::new(1, 42);
+            a.set_region_state(region_ingress_batch(vec![Some(0)])).unwrap();
+            b.set_region_state(region_ingress_batch(vec![Some(0)])).unwrap();
+            let before = crate::persist::encode(crate::persist::KIND_AGENT, &a);
+            for invalid in [-1.0, f32::NAN, f32::INFINITY] {
+                assert!(a.tick(py, 0, mobility_gate_signals(), invalid).is_err());
+                assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &a), before);
+            }
+            for turn in 0..3 {
+                let ea = a.tick(py, turn, mobility_gate_signals(), 0.0).unwrap().into_inner();
+                let eb = b.tick(py, turn, mobility_gate_signals(), 0.0).unwrap().into_inner();
+                assert_eq!(ea, eb);
+                assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &a),
+                           crate::persist::encode(crate::persist::KIND_AGENT, &b));
+                assert!(a.mobility_gate_frame.is_none());
+            }
+            a.tick(py, 3, mobility_gate_signals(), 1.0).unwrap();
+            let before_read = crate::persist::encode(crate::persist::KIND_AGENT, &a);
+            let first = a.get_mobility_gate_frame().unwrap();
+            assert_eq!(first.0.0, 3);
+            assert_eq!(a.get_mobility_gate_frame().unwrap(), first);
+            assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &a), before_read);
+            assert!(!crate::persist::schema_of::<AgentSimulator>().contains("mobility_gate_frame"));
+            a.tick(py, 4, mobility_gate_signals(), 0.0).unwrap();
+            assert!(a.get_mobility_gate_frame().is_none());
+        });
+    }
+
+    fn teaching_work_sim() -> (AgentSimulator, usize) {
+        let mut sim = AgentSimulator::new(1, 42);
+        sim.set_region_state(region_ingress_batch(vec![Some(0)])).unwrap();
+        sim.pool = AgentPool::new(4);
+        let scholar = sim.pool.spawn(0, 0, Occupation::Scholar, 30,
+            0.5, 0.5, 0.5, 255, 255, 255, 255);
+        (sim, scholar)
+    }
+
+    #[test]
+    fn teaching_work_ffi_cancel_validation_and_noop_preserve_existing_state() {
+        let (mut sim, slot) = teaching_work_sim();
+        let id = sim.pool.ids[slot];
+        sim.pool.health_work_loss = vec![(id, 0.25)];
+        let saved = crate::persist::encode(crate::persist::KIND_AGENT, &sim);
+        assert!(sim.prepare_teaching_work(0, vec![0.0], vec![]).unwrap().is_none());
+        assert!(!sim.has_pending_teaching_work());
+        for bad in [vec![], vec![-1.0], vec![f32::NAN], vec![f32::INFINITY]] {
+            assert!(sim.prepare_teaching_work(0, bad, vec![]).is_err());
+            assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &sim), saved);
+            assert_eq!(sim.pool.health_work_loss, vec![(id, 0.25)]);
+        }
+        let before = sim.prepare_teaching_work(0, vec![0.5], vec![]).unwrap().unwrap();
+        assert_eq!(before.1[0], (0, 0.75, 0.5, 0.5, 0.0));
+        assert_eq!(before.2, vec![(id, 0, 0.5, 0.0)]);
+        assert!(sim.has_pending_teaching_work());
+        assert!(sim.prepare_teaching_work(0, vec![0.5], vec![]).is_err());
+        assert!(sim.cancel_teaching_work(1).is_err());
+        assert!(sim.cancel_teaching_work(0).unwrap());
+        assert!(!sim.cancel_teaching_work(0).unwrap());
+        assert_eq!(sim.pool.health_work_loss, vec![(id, 0.25)]);
+        assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &sim), saved);
+        assert!(!crate::persist::schema_of::<AgentSimulator>().contains("teaching_result"));
+        assert!(!crate::persist::schema_of::<AgentSimulator>().contains("teaching_plan"));
+    }
+
+    #[test]
+    fn teaching_work_ffi_charges_actual_income_once_and_receipt_is_read_only() {
+        Python::initialize();
+        Python::attach(|py| {
+            let (mut sim, slot) = teaching_work_sim();
+            let id = sim.pool.ids[slot];
+            sim.pool.health_work_loss = vec![(id, 0.25)];
+            sim.prepare_teaching_work(0, vec![0.5], vec![]).unwrap();
+            let saved = crate::persist::encode(crate::persist::KIND_AGENT, &sim);
+            assert!(sim.tick(py, 1, mobility_gate_signals(), 0.0).is_err());
+            assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &sim), saved);
+            assert!(sim.has_pending_teaching_work());
+            sim.tick(py, 0, mobility_gate_signals(), 0.0).unwrap();
+            assert!(!sim.has_pending_teaching_work());
+            let result = sim.get_teaching_work_result().unwrap();
+            assert_eq!(result.0, 0);
+            assert_eq!(result.1[0], (0, 0.75, 0.5, 0.5, 0.5));
+            assert_eq!(result.2, vec![(id, 0, 0.5, 0.5)]);
+            let expected = (crate::agent::STARTING_WEALTH + crate::agent::SCHOLAR_INCOME * 0.25)
+                * (1.0 - crate::agent::WEALTH_DECAY);
+            assert!((sim.pool.wealth[slot] - expected).abs() < 1e-6);
+            let after = crate::persist::encode(crate::persist::KIND_AGENT, &sim);
+            assert_eq!(sim.get_teaching_work_result().unwrap(), result);
+            assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &sim), after);
+            assert!(sim.prepare_teaching_work(0, vec![0.1], vec![]).is_err());
+            sim.tick(py, 1, mobility_gate_signals(), 0.0).unwrap();
+            assert!(sim.get_teaching_work_result().is_none());
+        });
+    }
+
+    #[test]
+    fn teaching_work_ffi_does_not_double_charge_actual_farmer_care() {
+        Python::initialize();
+        Python::attach(|py| {
+            let build = || {
+                let (mut sim, scholar) = teaching_work_sim();
+                let farmer = sim.pool.spawn(0, 0, Occupation::Farmer, 30,
+                    0.5, 0.5, 0.5, 255, 255, 255, 255);
+                sim.pool.health_work_loss = vec![(0, 0.0), (sim.pool.ids[farmer], 0.5)];
+                (sim, scholar, farmer)
+            };
+            let (mut a, _, farmer_a) = build(); let (mut b, _, farmer_b) = build();
+            b.prepare_teaching_work(0, vec![0.5], vec![]).unwrap();
+            a.tick(py, 0, mobility_gate_signals(), 0.0).unwrap();
+            b.tick(py, 0, mobility_gate_signals(), 0.0).unwrap();
+            assert_eq!(a.pool.wealth[farmer_a].to_bits(), b.pool.wealth[farmer_b].to_bits());
+            assert_eq!(b.get_teaching_work_result().unwrap().1[0].4, 0.5);
+        });
+    }
+
+    #[test]
+    fn teaching_work_ffi_reused_slot_cannot_receive_or_deliver_other_id_work() {
+        Python::initialize();
+        Python::attach(|py| {
+            let (mut sim, slot) = teaching_work_sim();
+            let original = sim.pool.ids[slot];
+            sim.prepare_teaching_work(0, vec![1.0], vec![]).unwrap();
+            sim.pool.kill(slot);
+            let fresh = sim.pool.spawn(0, 0, Occupation::Scholar, 30,
+                0.5, 0.5, 0.5, 255, 255, 255, 255);
+            assert_eq!(fresh, slot); assert_ne!(sim.pool.ids[fresh], original);
+            sim.tick(py, 0, mobility_gate_signals(), 0.0).unwrap();
+            let result = sim.get_teaching_work_result().unwrap();
+            assert_eq!(result.2, vec![(original, 0, 1.0, 0.0)]);
+            let expected = (crate::agent::STARTING_WEALTH + crate::agent::SCHOLAR_INCOME)
+                * (1.0 - crate::agent::WEALTH_DECAY);
+            assert!((sim.pool.wealth[fresh] - expected).abs() < 1e-6);
+        });
+    }
+
+    #[test]
+    fn teaching_work_ffi_death_before_wealth_does_not_deliver() {
+        Python::initialize();
+        Python::attach(|py| {
+            let (mut sim, slot) = teaching_work_sim();
+            let id = sim.pool.ids[slot];
+            sim.prepare_teaching_work(0, vec![1.0], vec![]).unwrap();
+            sim.queue_targeted_deaths(vec![id]);
+            sim.tick(py, 0, mobility_gate_signals(), 0.0).unwrap();
+            let result = sim.get_teaching_work_result().unwrap();
+            assert_eq!(result.1[0], (0, 1.0, 1.0, 1.0, 0.0));
+            assert_eq!(result.2, vec![(id, 0, 1.0, 0.0)]);
+        });
+    }
+
+    #[test]
+    fn teaching_work_ffi_zero_is_bitwise_old_path() {
+        Python::initialize();
+        Python::attach(|py| {
+            let (mut a, _) = teaching_work_sim(); let (mut b, _) = teaching_work_sim();
+            assert!(b.prepare_teaching_work(0, vec![0.0], vec![]).unwrap().is_none());
+            let ea = a.tick(py, 0, mobility_gate_signals(), 0.0).unwrap().into_inner();
+            let eb = b.tick(py, 0, mobility_gate_signals(), 0.0).unwrap().into_inner();
+            assert_eq!(ea, eb);
+            assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &a),
+                       crate::persist::encode(crate::persist::KIND_AGENT, &b));
+            assert!(a.get_teaching_work_result().is_none() && b.get_teaching_work_result().is_none());
+        });
+    }
+
+    #[test]
+    fn native_region_count_admission_keeps_empty_and_exact_upper_boundary() {
+        // The maximum is admitted without allocating millions of reserve slots.
+        for n in [0, 1, 33, 65535] {
+            assert!(validate_native_region_count(n).is_ok());
+        }
+        for n in [65536, usize::MAX] {
+            assert!(validate_native_region_count(n).is_err());
+            assert!(AgentSimulator::py_new(n, 42).is_err());
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "invalid native region count")]
+    fn rust_region_constructor_refuses_before_reserve_size_multiplication() {
+        let _ = AgentSimulator::new(usize::MAX, 42);
+    }
+
+    #[test]
+    fn native_zero_region_constructor_and_empty_initialization_stay_valid() {
+        let mut sim = AgentSimulator::py_new(0, 42).unwrap();
+        assert_eq!(sim.get_snapshot().unwrap().into_inner().num_rows(), 0);
+        assert!(sim.snapshot_is_cached());
+        sim.set_region_state(region_ingress_batch(vec![])).unwrap();
+        assert!(sim.initialized);
+        assert!(sim.regions.is_empty());
+        assert_eq!(sim.get_region_populations().unwrap().into_inner().num_rows(), 0);
+        let before = crate::persist::encode(crate::persist::KIND_AGENT, &sim);
+        sim.set_region_state(region_ingress_batch(vec![])).unwrap();
+        assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &sim), before);
+    }
+
+    #[test]
+    fn native_first_region_refusals_preserve_checkpoint_and_held_snapshot() {
+        let invalid = [
+            vec![Some(0)],
+            vec![Some(0), Some(1), Some(2)],
+            vec![Some(0), Some(2)],
+            vec![Some(1), Some(0)],
+            vec![Some(0), Some(0)],
+            vec![Some(0), None],
+        ];
+        for ids in invalid {
+            let mut sim = AgentSimulator::new(2, 42);
+            sim.get_snapshot().unwrap();
+            let held = sim.snapshot_cache.as_ref().unwrap().clone();
+            let before = crate::persist::encode(crate::persist::KIND_AGENT, &sim);
+            assert!(sim.set_region_state(region_ingress_batch(ids)).is_err());
+            assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &sim), before);
+            assert!(sim.snapshot_is_cached());
+            assert!(Arc::ptr_eq(held.column(0), sim.snapshot_cache.as_ref().unwrap().column(0)));
+            assert!(!sim.initialized);
+            // Rejection draws nothing and does not poison later valid initialization.
+            sim.set_region_state(region_ingress_batch(vec![Some(0), Some(1)])).unwrap();
+            let mut fresh = AgentSimulator::new(2, 42);
+            fresh.set_region_state(region_ingress_batch(vec![Some(0), Some(1)])).unwrap();
+            assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &sim),
+                crate::persist::encode(crate::persist::KIND_AGENT, &fresh));
+        }
+    }
+
+    #[test]
+    fn native_later_region_shape_refusal_precedes_state_and_cache_changes() {
+        let mut sim = AgentSimulator::new(2, 42);
+        sim.set_region_state(region_ingress_batch(vec![Some(0), Some(1)])).unwrap();
+        sim.get_snapshot().unwrap();
+        let before = crate::persist::encode(crate::persist::KIND_AGENT, &sim);
+        let held = sim.snapshot_cache.as_ref().unwrap().clone();
+        assert!(sim.set_region_state(region_ingress_batch(vec![Some(0)])).is_err());
+        assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &sim), before);
+        assert!(Arc::ptr_eq(held.column(0), sim.snapshot_cache.as_ref().unwrap().column(0)));
+        let counts = sim.get_region_populations().unwrap().into_inner();
+        let alive = counts.column_by_name("alive_count").unwrap().as_any()
+            .downcast_ref::<UInt32Array>().unwrap();
+        assert_eq!(alive.values().as_ref(), &[2, 2]);
+    }
+
+    #[test]
+    fn native_missing_column_refusal_keeps_existing_state_and_snapshot() {
+        let mut sim = AgentSimulator::new(2, 42);
+        sim.get_snapshot().unwrap();
+        let before = crate::persist::encode(crate::persist::KIND_AGENT, &sim);
+        let mut batch = region_ingress_batch(vec![Some(0), Some(1)]).into_inner();
+        batch.remove_column(4); // soil
+        assert!(sim.set_region_state(PyRecordBatch::new(batch)).is_err());
+        assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &sim), before);
+        assert!(sim.snapshot_is_cached());
+    }
+
+    #[test]
+    fn decision_delivery_configuration_and_frame_are_checkpoint_transient() {
+        let mut sim = AgentSimulator::new(2, 42);
+        let before = crate::persist::encode(crate::persist::KIND_AGENT, &sim);
+        let schema = AgentSimulator::checkpoint_schema();
+        assert_eq!(schema.1, "dcf0c34097c88451", "a470/06db persisted schema must remain unchanged");
+        assert!(!schema.2.contains("decision_delivery"));
+        sim.configure_decision_delivery(true, 8, 16, Some(vec![0, 1]), 16).unwrap();
+        sim.decision_delivery_frame = Some(crate::decision_delivery::DeliveryFrame::new(101, 1));
+        assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &sim), before);
+        assert_eq!(AgentSimulator::checkpoint_schema(), schema);
+        let restored: AgentSimulator = crate::persist::decode(crate::persist::KIND_AGENT, &before).unwrap();
+        assert!(restored.decision_delivery_config.is_none());
+        assert!(restored.decision_delivery_frame.is_none());
+        assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &restored), before);
+    }
+
+    #[test]
+    fn decision_delivery_reads_are_non_draining_and_disabling_clears_the_frame() {
+        let mut sim = AgentSimulator::new(1, 42);
+        sim.configure_decision_delivery(true, 8, 16, None, 16).unwrap();
+        sim.decision_delivery_frame = Some(crate::decision_delivery::DeliveryFrame::new(17, 0));
+        let before = crate::persist::encode(crate::persist::KIND_AGENT, &sim);
+        let (h1, d1, c1) = sim.get_decision_delivery_frame().unwrap();
+        let (h2, d2, c2) = sim.get_decision_delivery_frame().unwrap();
+        assert_eq!(h1.into_inner(), h2.into_inner());
+        assert_eq!(d1.into_inner(), d2.into_inner());
+        assert_eq!(c1.into_inner(), c2.into_inner());
+        assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &sim), before);
+        sim.configure_decision_delivery(false, 0, 0, None, 0).unwrap();
+        assert!(sim.decision_delivery_config.is_none());
+        assert!(sim.decision_delivery_frame.is_none());
+        let (header, decisions, candidates) = sim.get_decision_delivery_frame().unwrap();
+        let header = header.into_inner();
+        let enabled = header.column_by_name("enabled").unwrap().as_any().downcast_ref::<arrow::array::BooleanArray>().unwrap();
+        assert!(!enabled.value(0));
+        assert_eq!(decisions.into_inner().num_rows(), 0);
+        assert_eq!(candidates.into_inner().num_rows(), 0);
+    }
 
     #[test]
     fn test_postpass_recompute_refreshes_yields_without_second_mineral_extraction() {
@@ -4015,4 +4960,39 @@ crate::persist_struct!(AgentSimulator {
     merchant_graph, merchant_cargo, merchant_ledger, merchant_delivery_buf,
     merchant_trip_stats, knowledge_stats, hybrid_economy_mode, pending_targeted_deaths,
     movements, pending_movement_leaders, pending_promotion_memories, tick_options,
-} skip { snapshot_cache });
+} skip { snapshot_cache } transient {
+    health_work, transaction_receipts_limit, decision_delivery_config, decision_delivery_frame, mobility_gate_frame,
+    teaching_result, last_teaching_turn
+});
+
+#[cfg(test)]
+mod health_care_policy_tests {
+    use super::*;
+
+    #[test]
+    fn health_policy_ffi_validates_before_mutation_and_preserves_native_payload() {
+        let mut sim = AgentSimulator::new(1, 42);
+        let patient = sim.pool.spawn(0, 0, crate::Occupation::Farmer, 30,
+            0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+        let donor = sim.pool.spawn(0, 0, crate::Occupation::Farmer, 30,
+            0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+        for (a, b) in [(patient, donor), (donor, patient)] {
+            sim.pool.rel_count[a] = 1;
+            sim.pool.rel_target_ids[a][0] = sim.pool.ids[b];
+            sim.pool.rel_bond_types[a][0] = crate::relationships::BondType::Kin as u8;
+        }
+        let id = sim.pool.ids[patient];
+        let before = crate::persist::encode(crate::persist::KIND_AGENT, &sim);
+        assert_eq!(sim.prepare_health_work(vec![id], vec![], vec![], 0.5, 0.2, "spouse").unwrap(),
+            vec![(id, 0, 0, 0.0)]);
+        let rows = sim.health_work.as_ref().unwrap().rows.clone();
+        let losses = sim.pool.health_work_loss.clone();
+        assert!(sim.prepare_health_work(vec![id], vec![], vec![], 0.5, 0.2, "kin").is_err());
+        assert_eq!(sim.health_work.as_ref().unwrap().rows, rows);
+        assert_eq!(sim.pool.health_work_loss, losses);
+        assert_eq!(sim.prepare_health_work(vec![id], vec![], vec![], 0.5, 0.2, "retained_kin").unwrap(),
+            vec![(id, 0, sim.pool.ids[donor], 0.2)]);
+        assert_eq!(before, crate::persist::encode(crate::persist::KIND_AGENT, &sim));
+        assert!(!crate::persist::schema_of::<AgentSimulator>().contains("health_work"));
+    }
+}

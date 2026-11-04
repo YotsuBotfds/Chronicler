@@ -53,8 +53,12 @@ class MemoryStream:
         recent = self.get_recent(recent_count)
         return list(self.reflections) + recent
 
-    def save(self, path: Path) -> None:
+    def save(self, path: Path, *, artifact_budget=None) -> None:
         """Persist memory stream to a JSON file."""
+        if artifact_budget is not None:
+            artifact_budget.ensure_directory(path.parent)
+            artifact_budget.write_text(path, self.json_text())
+            return
         parent = path.parent
         try:
             parent_is_dir = parent.is_dir()

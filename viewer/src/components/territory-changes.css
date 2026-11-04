@@ -1,0 +1,12 @@
+.territory-changes { min-width: 0; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid #444336; }
+.territory-changes h2 { margin: .8rem 0; }
+.territory-changes p { margin: .6rem 0; overflow-wrap: anywhere; }
+.territory-controls, .territory-actions { display: flex; flex-wrap: wrap; gap: .8rem; align-items: end; }
+.territory-controls label { display: flex; flex-direction: column; gap: .3rem; min-width: 0; }
+.territory-changes select, .territory-changes button { max-width: 100%; min-width: 0; border: 1px solid #5e5b46; border-radius: .4rem; background: #242726; color: #ebe7d5; padding: .45rem .6rem; }
+.territory-table { max-width: 100%; overflow-x: auto; }
+.territory-table table { width: 100%; min-width: 600px; border-collapse: collapse; }
+.territory-table td, .territory-table th { border-bottom: 1px solid #393d3a; padding: .6rem; text-align: left; overflow-wrap: anywhere; }
+.territory-table small { display: block; max-width: 24rem; color: #b7b09d; font-weight: normal; }
+.territory-table tr[aria-current="true"] { background: #35433d; }
+@media (max-width: 520px) { .territory-controls label { flex: 1 1 100%; } }

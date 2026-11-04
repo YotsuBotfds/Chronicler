@@ -4,9 +4,11 @@ import {
   SYSTEM_EVENT_TYPES, type SystemPanelProps,
 } from "../../lib/systems";
 import { StatTile, StripLegend, SystemEventList, TurnStrip } from "./SystemParts";
+import { HealthCare } from "./HealthCare";
+import { observationEventKnown } from "../../lib/observedSystems";
 
 export function EpidemicsPanel({
-  bundle, snapshot, currentTurn, onSeek, onSelectEvent, onSelectRegion, selectedRegion,
+  bundle, snapshot, currentTurn, onSeek, onSelectEvent, onSelectRegion, onSelectCivilization, selectedRegion,
 }: SystemPanelProps) {
   const history = bundle.history;
   const regions = bundle.world_state.regions;
@@ -14,11 +16,14 @@ export function EpidemicsPanel({
   const pathogens = useMemo(() => recordedPathogens(history), [history]);
   const { first, end } = recordedSpan(history);
   const epidemics = snapshot?.epidemics;
-  const events = eventsOfTypes(bundle.events_timeline, SYSTEM_EVENT_TYPES.epidemics, currentTurn);
   const at = snapshot?.turn ?? currentTurn;
+  const events = eventsOfTypes(bundle.events_timeline, SYSTEM_EVENT_TYPES.epidemics, currentTurn)
+    .filter((event) => observationEventKnown(event, at - 1));
 
   return (
     <div className="systems-panel-body" aria-label="Epidemics">
+      <HealthCare bundle={bundle} snapshot={snapshot} currentTurn={currentTurn} onSeek={onSeek}
+        onSelectEvent={onSelectEvent} onSelectRegion={onSelectRegion} onSelectCivilization={onSelectCivilization} />
       {epidemics ? (
         <div className="systems-tiles">
           <StatTile label="Active outbreaks" value={epidemics.active.length} detail={`turn ${at}`} />

@@ -1,14 +1,39 @@
 import { useState, useCallback, useMemo } from "react";
-import type { BatchReport, PercentileData } from "../types";
+import type { BatchReport, Bundle, PercentileData } from "../types";
+import type { ArtifactIdentity } from "../lib/artifactIdentity";
 import { BatchAnalytics } from "./BatchAnalytics";
+import { CompletedRunCompare } from "./CompletedRunCompare";
+
+import type { WhatIfPair } from "../lib/whatIf";
 
 interface BatchCompareProps {
+  initialPair?: WhatIfPair | null;
   initialRight?: BatchReport | null;
+  initialBundle?: Bundle | null;
+  initialIdentity?: ArtifactIdentity | null;
+  initialMode?: "runs" | "batch";
 }
 
-export function BatchCompare({ initialRight }: BatchCompareProps) {
+export function BatchCompare({ initialRight, initialBundle, initialIdentity, initialMode, initialPair }: BatchCompareProps) {
+  const [mode, setMode] = useState(initialMode ?? (initialRight && !initialBundle ? "batch" : "runs"));
+  return <div className="flex flex-col h-full min-h-0">
+    <nav className="run-compare-modes" aria-label="Comparison type">
+      <button type="button" aria-pressed={mode === "runs"} onClick={() => setMode("runs")}>Completed runs</button>
+      <button type="button" aria-pressed={mode === "batch"} onClick={() => setMode("batch")}>Batch reports</button>
+    </nav>
+    <div hidden={mode !== "runs"} className="flex-1 min-h-0">
+      <CompletedRunCompare initialBundle={initialBundle} initialIdentity={initialIdentity} initialPair={initialPair} />
+    </div>
+    <div hidden={mode !== "batch"} className="flex-1 min-h-0">
+      <BatchReportComparison initialRight={initialRight} />
+    </div>
+  </div>;
+}
+
+function BatchReportComparison({ initialRight }: Pick<BatchCompareProps, "initialRight">) {
   const [leftReport, setLeftReport] = useState<BatchReport | null>(null);
   const [rightReport, setRightReport] = useState<BatchReport | null>(initialRight ?? null);
+  const [error, setError] = useState<string | null>(null);
 
   const loadFromFile = useCallback((setter: (r: BatchReport) => void) => {
     const input = document.createElement("input");
@@ -20,11 +45,13 @@ export function BatchCompare({ initialRight }: BatchCompareProps) {
       const reader = new FileReader();
       reader.onload = () => {
         try {
-          setter(JSON.parse(reader.result as string));
+          setter(readBatchReport(reader.result as string));
+          setError(null);
         } catch {
-          // ignore parse errors
+          setError("Could not load this batch report. For a chronicle bundle, choose Completed runs. Loaded reports are kept.");
         }
       };
+      reader.onerror = () => setError("Could not read this file. Loaded reports are kept.");
       reader.readAsText(file);
     };
     input.click();
@@ -37,16 +64,20 @@ export function BatchCompare({ initialRight }: BatchCompareProps) {
     const reader = new FileReader();
     reader.onload = () => {
       try {
-        setter(JSON.parse(reader.result as string));
+        setter(readBatchReport(reader.result as string));
+        setError(null);
       } catch {
-        // ignore
+        setError("Could not load this batch report. For a chronicle bundle, choose Completed runs. Loaded reports are kept.");
       }
     };
+    reader.onerror = () => setError("Could not read this file. Loaded reports are kept.");
     reader.readAsText(file);
   }, []);
 
   return (
-    <div className="flex gap-4 h-full">
+    <div className="flex flex-col h-full min-h-0">
+      {error && <p role="alert" className="text-red-300 mb-3">{error}</p>}
+    <div className="flex gap-4 flex-1 min-h-0">
       {/* Left column */}
       <div className="flex-1 overflow-y-auto">
         <div className="flex items-center justify-between mb-3">
@@ -104,7 +135,26 @@ export function BatchCompare({ initialRight }: BatchCompareProps) {
         )}
       </div>
     </div>
+    </div>
   );
+}
+
+/** Validate the fields consumed by the existing report panels before replacing either report. */
+function readBatchReport(text: string): BatchReport {
+  const raw: unknown = JSON.parse(text);
+  const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
+  const number = (value: unknown) => typeof value === "number" && Number.isFinite(value);
+  if (!object(raw) || !object(raw.metadata) || !object(raw.stability) || !object(raw.stability.percentiles_by_turn)
+    || !object(raw.event_firing_rates) || !Array.isArray(raw.anomalies)) throw new Error("Not a batch report");
+  const metadata = raw.metadata;
+  if (!number(metadata.runs) || !number(metadata.turns_per_run) || typeof metadata.timestamp !== "string"
+    || !Array.isArray(metadata.seed_range) || metadata.seed_range.length !== 2 || !metadata.seed_range.every(number)
+    || !Object.values(raw.event_firing_rates).every(number)
+    || !Object.values(raw.stability.percentiles_by_turn).every((row) => object(row)
+      && ["min", "p10", "p25", "median", "p75", "p90", "max"].every((key) => number(row[key])))
+    || !raw.anomalies.every((row) => object(row) && typeof row.name === "string" && typeof row.detail === "string"
+      && ["CRITICAL", "WARNING", "INFO"].includes(String(row.severity)))) throw new Error("Malformed batch report");
+  return raw as unknown as BatchReport;
 }
 
 function DiffSummary({ left, right }: { left: BatchReport; right: BatchReport }) {

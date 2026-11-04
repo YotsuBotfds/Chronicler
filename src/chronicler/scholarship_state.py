@@ -13,6 +13,13 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
+from chronicler.scientific_research_state import LazyResearchModel, ResearchHostIdentity
+from chronicler.learning_services_state import LearningServicesState
+
+
+def _is_none(value):
+    return value is None
+
 #: ``Seat.kind`` names, each with its patron: an academy is kept by the
 #: ruler of its region (treasury), a temple school by its temple (the
 #: offerings: temple prestige), a library by its city (the civic purse).
@@ -72,7 +79,7 @@ class Seat(BaseModel):
     history: list[tuple[int, str, str]] = Field(default_factory=list)
 
 
-class ScholarshipState(BaseModel):
+class ScholarshipState(LazyResearchModel):
     """World-level switch and bookkeeping (``WorldState.scholarship``).
 
     ``carries`` are knowledge moves from fallen seats, consumed by the next
@@ -83,6 +90,20 @@ class ScholarshipState(BaseModel):
     carries: list[tuple[int, int, int, int]] = Field(default_factory=list)
     counters: dict[str, float] = Field(default_factory=lambda: {k: 0 for k in COUNTER_KEYS})
     last_tick_turn: int | None = None
+    learning_services: LearningServicesState | None = Field(default=None, exclude_if=_is_none)
+
+    def __setstate__(self, state):
+        super().__setstate__(state)
+        self.__dict__.setdefault("learning_services", None)
+
+    lazy_name = "scientific_research_identity"
+    lazy_backing = "_scientific_research_identity"
+    lazy_payload = ResearchHostIdentity
+
+    @property
+    def scientific_research_identity(self):
+        """Absent for legacy registries; a reset never inherits this binding."""
+        return self._research_value()
 
 
 def scholarship_on(world) -> bool:

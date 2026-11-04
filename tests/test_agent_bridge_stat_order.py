@@ -22,6 +22,10 @@ class StatsSimulator:
         self.calls.append("tick")
         return []
 
+    def get_relationship_stats(self):
+        self.calls.append("relationship")
+        return self.records[self.index]["relationship"].copy()
+
     def get_household_stats(self):
         self.calls.append("household")
         return self.records[self.index]["household"].copy()
@@ -50,7 +54,7 @@ def assert_same_values(actual, expected):
 
 
 @pytest.mark.parametrize("entrypoint", ["tick", "tick_agents"])
-@pytest.mark.parametrize("family", ["household", "merchant", "knowledge"])
+@pytest.mark.parametrize("family", ["household", "merchant", "knowledge", "relationship"])
 def test_completed_stat_history_sorts_only_outer_keys(monkeypatch, entrypoint, family):
     household = {"z_future": -0.0, "births_unmarried_parent": 7.0,
                  "inheritance_wealth_lost": 0.0, "a_future": 1.25}
@@ -60,13 +64,16 @@ def test_completed_stat_history_sorts_only_outer_keys(monkeypatch, entrypoint, f
                  "created_religious": 3.0, "created_trade": 2.0, "created_threat": 1.0,
                  "transmitted_religious": 6.0, "transmitted_trade": 5.0,
                  "transmitted_threat": 4.0, "a_future": 1.25}
-    first = dict(household=household, merchant=merchant, knowledge=knowledge)
+    relationship = {"z_future": -0.0, "bonds_formed": 3.0, "a_future": 1.25}
+    first = dict(household=household, merchant=merchant, knowledge=knowledge, relationship=relationship)
     second = {name: dict(reversed(list(record.items()))) for name, record in first.items()}
     second["household"]["births_unmarried_parent"] = 8.0
     second["merchant"]["active_trips"] = 4.0
     second["knowledge"]["packets_created"] = 6.0
+    second["relationship"]["bonds_formed"] = 4.0
     simulator = StatsSimulator([first, second])
     bridge = _bare_agent_bridge(sim=simulator)
+    bridge._collect_rel_stats = family == "relationship"
     world = SimpleNamespace(turn=0)
     monkeypatch.setattr(economy_module, "build_merchant_route_graph", lambda world: None)
     monkeypatch.setattr(bridge_module, "build_signals", lambda *args, **kwargs: None)
@@ -77,13 +84,16 @@ def test_completed_stat_history_sorts_only_outer_keys(monkeypatch, entrypoint, f
     for turn in range(2):
         world.turn = turn
         assert getattr(bridge, entrypoint)(world) == []
-    per_tick = (["sync"] if entrypoint == "tick" else []) + [
-        "route", "tick", "household", "merchant", "knowledge",
-    ]
+    per_tick = (["sync"] if entrypoint == "tick" else []) + ["route", "tick"]
+    per_tick += (["relationship"] if family == "relationship" else [])
+    per_tick += ["household", "merchant", "knowledge"]
     assert simulator.calls == per_tick * 2
     histories = {"household": bridge.household_stats,
                  "merchant": bridge.merchant_trip_stats,
-                 "knowledge": bridge.knowledge_stats}
+                 "knowledge": bridge.knowledge_stats,
+                 "relationship": bridge.relationship_stats}
+    if family != "relationship":
+        assert bridge.relationship_stats == []  # Disabled collection makes no getter call.
     history = histories[family]
     assert len(history) == 2
     for index, record in enumerate(history):

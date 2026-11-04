@@ -129,7 +129,7 @@ def test_the_manifest_records_the_cohort_and_identity(batch_42):
     assert (manifest["kind"], manifest["schema_version"], manifest["status"]) == ("chronicler-batch", 1, "complete")
     assert manifest["seeds"] == [42, 43, 44] and manifest["turns"] == 3
     simulation = manifest["simulation"]
-    assert set(simulation) == set(SIMULATION_ARG_KEYS) | {"tuning_overrides"}
+    assert set(simulation) == (set(SIMULATION_ARG_KEYS) - {"scientific_research_agendas", "public_grain_shipments", "grain_storage", "grain_storage_policy", "grain_storage_work_budget", "household_mobility_liquid_requirement", "academy_services", "harvest_report_delay"}) | {"tuning_overrides"}
     assert (simulation["civs"], simulation["regions"], simulation["agents"], simulation["cities"]) == (2, 4, "off", None)
     assert manifest["outputs"]["simulate_only"] is True
     environment = manifest["environment"]
@@ -161,6 +161,159 @@ def test_every_cli_argument_is_classified():
     groups = [set(SIMULATION_ARG_KEYS), set(OUTPUT_ARG_KEYS), set(NON_SIMULATION_ARG_KEYS)]
     assert sum(len(group) for group in groups) == len(set().union(*groups)), "an argument is in two groups"
     assert destinations == set().union(*groups), "classify new arguments in chronicler.batch_manifest"
+
+
+def test_a_failed_batch_preserves_completed_evidence_and_reraises(tmp_path, monkeypatch):
+    from chronicler import main as cli
+
+    real_execute = cli.execute_run
+
+    def fail_second_seed(args, **kwargs):
+        if args.seed == 10:
+            raise RuntimeError("injected batch failure")
+        return real_execute(args, **kwargs)
+
+    monkeypatch.setattr(cli, "execute_run", fail_second_seed)
+
+    with pytest.raises(RuntimeError, match="injected batch failure"):
+        run_batch(_args(tmp_path, 9, 3))
+
+    batch_dir = tmp_path / "batch_9"
+    manifest = load_batch_manifest(batch_dir)
+    assert manifest["status"] == "failed"
+    assert [run["files"] is not None for run in manifest["runs"]] == [True, False, False]
+    assert manifest["runs"][0]["total_turns"] == 3
+    summary = (batch_dir / "summary.md").read_text(encoding="utf-8")
+    assert "| 1 | 9 |" in summary
+    assert "| 10 |" not in summary and "| 11 |" not in summary
+    with pytest.raises(ValidationRequestError, match="'failed'"):
+        check_batch_manifest(batch_dir)
+
+
+def test_a_failed_parallel_batch_finalizes_collected_worker_results(tmp_path, monkeypatch):
+    import chronicler.batch as batch_module
+    from chronicler.types import RunResult
+
+    class _AsyncResult:
+        def __init__(self, args):
+            self.args = args
+
+        def get(self):
+            child_args = self.args[0]
+            if child_args.seed == 10:
+                raise RuntimeError("injected parallel failure")
+            return RunResult(
+                seed=child_args.seed, output_dir=tmp_path, war_count=0,
+                collapse_count=0, named_event_count=0, distinct_action_count=0,
+                reflection_count=0, tech_advancement_count=0, max_stat_swing=0.0,
+                action_distribution={}, dominant_faction="-", total_turns=3,
+            )
+
+    class _Pool:
+        def __init__(self, workers, initializer=None):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def apply_async(self, fn, args):
+            return _AsyncResult(args)
+
+        def terminate(self):
+            pass
+
+    monkeypatch.setattr(batch_module.multiprocessing, "Pool", _Pool)
+
+    with pytest.raises(RuntimeError, match="injected parallel failure"):
+        run_batch(_args(tmp_path, 9, 3, parallel=2))
+
+    batch_dir = tmp_path / "batch_9"
+    manifest = load_batch_manifest(batch_dir)
+    assert manifest["status"] == "failed"
+    assert [run["files"] is not None for run in manifest["runs"]] == [True, False, False]
+    assert "| 1 | 9 |" in (batch_dir / "summary.md").read_text(encoding="utf-8")
+
+
+def test_an_interrupted_batch_preserves_completed_evidence_and_reraises(tmp_path, monkeypatch):
+    from chronicler import main as cli
+
+    real_execute = cli.execute_run
+
+    def interrupt_second_seed(args, **kwargs):
+        if args.seed == 10:
+            raise KeyboardInterrupt("injected batch interruption")
+        return real_execute(args, **kwargs)
+
+    monkeypatch.setattr(cli, "execute_run", interrupt_second_seed)
+
+    with pytest.raises(KeyboardInterrupt, match="injected batch interruption"):
+        run_batch(_args(tmp_path, 9, 3))
+
+    batch_dir = tmp_path / "batch_9"
+    manifest = load_batch_manifest(batch_dir)
+    assert manifest["status"] == "failed"
+    assert [run["files"] is not None for run in manifest["runs"]] == [True, False, False]
+    assert (batch_dir / "seed_9" / "chronicle_bundle.json").is_file()
+    assert "| 1 | 9 |" in (batch_dir / "summary.md").read_text(encoding="utf-8")
+    with pytest.raises(ValidationRequestError, match="'failed'"):
+        check_batch_manifest(batch_dir)
+
+
+def test_a_serialization_failure_preserves_completed_evidence(tmp_path, monkeypatch):
+    from chronicler import main as cli
+    from chronicler.artifact_io import ArtifactIOError
+
+    real_write_bundle = cli.write_bundle
+
+    def fail_second_bundle(bundle, path, **kwargs):
+        if Path(path).parent.name == "seed_10":
+            raise ArtifactIOError("injected bundle serialization failure")
+        return real_write_bundle(bundle, path, **kwargs)
+
+    monkeypatch.setattr(cli, "write_bundle", fail_second_bundle)
+
+    with pytest.raises(ArtifactIOError, match="injected bundle serialization failure"):
+        run_batch(_args(tmp_path, 9, 3))
+
+    batch_dir = tmp_path / "batch_9"
+    manifest = load_batch_manifest(batch_dir)
+    assert manifest["status"] == "failed"
+    assert [run["files"] is not None for run in manifest["runs"]] == [True, False, False]
+    assert (batch_dir / "seed_9" / "chronicle_bundle.json").is_file()
+    assert "| 1 | 9 |" in (batch_dir / "summary.md").read_text(encoding="utf-8")
+
+
+def test_a_manifest_write_failure_does_not_mask_the_run_failure_or_complete_the_batch(
+        tmp_path, monkeypatch):
+    import chronicler.batch as batch_module
+    from chronicler import main as cli
+
+    real_execute = cli.execute_run
+
+    def fail_second_seed(args, **kwargs):
+        if args.seed == 10:
+            raise RuntimeError("injected batch failure")
+        return real_execute(args, **kwargs)
+
+    def fail_terminal_manifest(*args, **kwargs):
+        raise OSError("injected terminal manifest write failure")
+
+    monkeypatch.setattr(cli, "execute_run", fail_second_seed)
+    monkeypatch.setattr(batch_module, "finish_batch_manifest", fail_terminal_manifest)
+
+    with pytest.raises(RuntimeError, match="injected batch failure") as exc_info:
+        run_batch(_args(tmp_path, 9, 3))
+
+    assert any("Batch finalization also failed" in note and "terminal manifest" in note
+               for note in exc_info.value.__notes__)
+    batch_dir = tmp_path / "batch_9"
+    assert load_batch_manifest(batch_dir)["status"] == "running"
+    assert (batch_dir / "seed_9" / "chronicle_bundle.json").is_file()
+    with pytest.raises(ValidationRequestError, match="'running'"):
+        check_batch_manifest(batch_dir)
 
 
 def test_a_cancelled_batch_is_marked_cancelled(tmp_path):
@@ -215,6 +368,23 @@ def test_a_changed_validation_input_is_refused(batch_42, tmp_path):
     batch_dir = _copy(batch_42, tmp_path / "pruned")
     (batch_dir / "seed_42" / "state.json").unlink()
     assert check_batch_manifest(batch_dir)["status"] == "verified"
+
+
+def test_an_added_oracle_sidecar_is_refused_before_loading(batch_42, tmp_path, monkeypatch):
+    from chronicler import validation_io
+    from chronicler.validate import run_oracles
+
+    batch_dir = _copy(batch_42, tmp_path)
+    path = batch_dir / "seed_42" / "validation_relationships.arrow"
+    assert not path.exists()
+    path.write_bytes(b"an unrecorded sidecar must never reach Arrow decoding")
+
+    def unexpected_decode(*args, **kwargs):
+        pytest.fail("unrecorded sidecar reached the oracle input reader")
+
+    monkeypatch.setattr(validation_io, "_read_arrow_columns", unexpected_decode)
+    with pytest.raises(ValidationRequestError, match=r"seed_42/validation_relationships.arrow \(not hashed\)"):
+        run_oracles(batch_dir, ["needs"])
 
 
 def test_a_run_shorter_than_requested_is_refused(batch_42, tmp_path):

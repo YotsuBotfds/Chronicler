@@ -12,6 +12,8 @@
 import type { Bundle } from "../types";
 import { identifyArtifact, type ArtifactIdentity } from "./artifactIdentity";
 import { formatBundleLoaderDiagnostics, parseBundleJsonPayload } from "./bundleLoader";
+import { checkpointNotice } from "./checkpointFile";
+import { validateBundleStructure, validateViewableBundle } from "./bundleValidation";
 
 export interface DecodedBundleFile {
   bundle: Bundle | null;
@@ -19,6 +21,8 @@ export interface DecodedBundleFile {
   identity: ArtifactIdentity | null;
 }
 
+/** Historical JSON decoding contract. File uploads additionally check whether
+ * the decoded world has the required display fields in parseBundleBytes. */
 export function parseBundle(jsonString: string): {
   bundle: Bundle | null;
   error: string | null;
@@ -30,6 +34,8 @@ export function parseBundle(jsonString: string): {
     return { bundle: null, error: `Could not read bundle: ${error instanceof Error ? error.message : String(error)}` };
   }
   if (result.kind === "legacy") {
+    const invalid = validateBundleStructure(result.bundle as unknown as Record<string, unknown>);
+    if (invalid) return { bundle: null, error: `Invalid bundle: ${invalid}. Open a complete chronicle_bundle.json export.` };
     return { bundle: result.bundle, error: null };
   }
 
@@ -49,7 +55,19 @@ export function decodeBundleText(bytes: ArrayBuffer): string {
 
 /** The bundle in a file's bytes, the loader's error, and (for a bundle) the bytes' identity. */
 export async function decodeBundleBytes(name: string, bytes: ArrayBuffer): Promise<DecodedBundleFile> {
-  const result = parseBundle(decodeBundleText(bytes));
+  const result = parseBundleBytes(bytes);
   const identity = result.bundle ? await identifyArtifact(name, bytes) : null;
   return { bundle: result.bundle, error: result.error, identity };
+}
+
+/** Recognize the binary envelope before any text or JSON decoding. */
+export function parseBundleBytes(bytes: ArrayBuffer): ReturnType<typeof parseBundle> {
+  const notice = checkpointNotice(bytes);
+  if (notice) return { bundle: null, error: notice };
+  const parsed = parseBundle(decodeBundleText(bytes));
+  if (parsed.bundle) {
+    const invalid = validateViewableBundle(parsed.bundle as unknown as Record<string, unknown>);
+    if (invalid) return { bundle: null, error: `Incomplete or invalid viewer bundle: ${invalid}. Open a complete chronicle_bundle.json export.` };
+  }
+  return parsed;
 }

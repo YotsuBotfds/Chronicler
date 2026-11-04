@@ -1,0 +1,158 @@
+{
+  "schema_version": 1,
+  "kind": "models-only-forkserver-timing-readiness",
+  "status": "registered_timing_acceptance_and_independent_reinspection_passed",
+  "document_branch_base": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1",
+  "experimental_source_commit": "811f5153524080229c071e4f300a8dfca2b32525",
+  "tested_runtime_source_sha": "d051d7c06b1a490841d148b8906bde22f2f5d0f0",
+  "native_sha256": "fb20dbc81828420fedc9a0b25fb8791a694a158d2c502ec915b8132a52875317",
+  "checkpoint_sha256": "6d85be5c158b2bca4c8635bd8748c992ca0860c695e8a200f7dd40dd8bc3034d",
+  "scope": {
+    "regions": 8,
+    "civilization_records": 4,
+    "initial_native_agents_at_turn30": 239,
+    "final_native_agents_at_turn52": {
+      "needs": 206,
+      "kin_roots": 209
+    },
+    "active_native_sections": [
+      "native.agent.0"
+    ],
+    "worker_count": 1,
+    "cpu_affinity": [
+      0
+    ],
+    "worlds": 84,
+    "prerequisite_worlds": 4,
+    "timed_worlds": 80,
+    "physics_ticks": 1848,
+    "strict_boundaries": 252,
+    "production_file_instances": 2772,
+    "witness_blobs": 1764,
+    "checkpoint52_envelopes": 84,
+    "metadata_forks": 2,
+    "world_server_forks": 42
+  },
+  "registered_criteria": {
+    "wholebatch_paired_S_over_F_median_cpu_max": 0.95,
+    "wholebatch_paired_S_over_F_median_wall_max": 0.95,
+    "arm_allocated_median_max": 1.03,
+    "shared_startup_cleanup_fraction_per_arm": 0.5,
+    "cpu_budget_seconds": 600,
+    "active_wall_budget_seconds": 900
+  },
+  "pairs": [
+    {
+      "index": 0,
+      "order": [
+        "fresh",
+        "forkserver"
+      ],
+      "cpu_S_over_F": 0.8409658653947331,
+      "wall_S_over_F": 0.8426255339949534
+    },
+    {
+      "index": 1,
+      "order": [
+        "forkserver",
+        "fresh"
+      ],
+      "cpu_S_over_F": 0.7998067479443304,
+      "wall_S_over_F": 0.8017722735653973
+    },
+    {
+      "index": 2,
+      "order": [
+        "fresh",
+        "forkserver"
+      ],
+      "cpu_S_over_F": 0.882025382182926,
+      "wall_S_over_F": 0.8849125147494952
+    },
+    {
+      "index": 3,
+      "order": [
+        "forkserver",
+        "fresh"
+      ],
+      "cpu_S_over_F": 0.9071074611139648,
+      "wall_S_over_F": 0.9112032330143072
+    },
+    {
+      "index": 4,
+      "order": [
+        "fresh",
+        "forkserver"
+      ],
+      "cpu_S_over_F": 0.9658563669361506,
+      "wall_S_over_F": 0.9711701845243776
+    }
+  ],
+  "medians_S_over_F": {
+    "cpu": 0.882025382182926,
+    "wall": 0.8849125147494952
+  },
+  "ranges_S_over_F": {
+    "cpu": [
+      0.7998067479443304,
+      0.9658563669361506
+    ],
+    "wall": [
+      0.8017722735653973,
+      0.9711701845243776
+    ]
+  },
+  "median_paired_cost_reduction_percent": {
+    "cpu": 11.797461781707398,
+    "wall": 11.508748525050482
+  },
+  "arm_medians_S_over_F": {
+    "A": {
+      "cpu": 0.8666750188773362,
+      "wall": 0.8629489109183996
+    },
+    "B": {
+      "cpu": 0.8827526860489419,
+      "wall": 0.8846706177972248
+    }
+  },
+  "total_cpu_seconds": 274.03383439699996,
+  "total_active_wall_seconds": 275.7003908389961,
+  "independent_reinspection": {
+    "qualified": true,
+    "files": 5265,
+    "retained_bytes": 1685438440,
+    "verification_sha256": "4b260c09f59df9064be8f0cdaa936770ae6822a68e9a227c1291c7f43db2620a",
+    "seal_sha256": "1059b1efcdefabe91ecf8635640019c3989fac0dbcd602d86a86ba9423b8c232",
+    "typed_metadata_audit_sha256": "20226408aad8cba9c9c3160b7e55c5677ee791a8ff4ac4f3527065c3d6f88705",
+    "no_worlds_native_loading_or_unpickling": true
+  },
+  "evidence_pins": {
+    "producer_result_sha256": "550737afd8f6eace69c9a661eea16a0ea289d331265fc4bf1a90739b2fa8190b",
+    "study_ledger_sha256": "0ad8c7296b2490226314d0156585f110f7316f4b37dbd0ac6364033520d90c77",
+    "qualified_reference_sha256": "f6ccb50429da372dcd42ad52598826cc025208e2f27b30d2656f4b329524dc79",
+    "protocol_sha256": "e7eed8bde1c4fdbbe170af0adf6b23ee9839922769a4505e3c5be2d02664af33",
+    "source_only_bundle_sha256": "a8cdf2d55381605e86ecf6898f47bc70f1da97007af7945b1da6f745361ff151",
+    "timing_execution_bundle_sha256": "79ef90d65d5ed819a6832c22835015fbb559863f047a15f74d598f12a9d4b3c9"
+  },
+  "normalization": {
+    "carried_state": "sole exact world._war_roster_sim object-ID binding, validated against actual restored agent_bridge._sim, represented by the predeclared persistent token; raw Python/checkpoint bytes also retained",
+    "external_singleton_rng": "initial Python/NumPy singleton entropy recorded and not compared across processes; no seeding/reset and byte stability required within each job; no carried checkpoint field removed",
+    "other_carried_or_production_output_normalization": "none"
+  },
+  "production_readiness": {
+    "promoted": false,
+    "runtime_code_implemented": false,
+    "fresh_default_unchanged": true,
+    "new_source_runtime_qualification_required": true,
+    "initial_proposed_worker_count": 1,
+    "proposed_server_job_cap": 8,
+    "worker_reuse": false
+  },
+  "limitations": [
+    "Small frozen-source/checkpoint guarded workflow, not c76 runtime qualification or production-gate throughput.",
+    "No large-agent, multiple-active-native-pool, concurrency or memory-savings claim.",
+    "Individual paired benefits vary; the fifth wall ratio 0.9711701845243776 remains in the result.",
+    "Independent audit hashes retained bytes and reconstructs accounting without unpickling/native loads; live binding identity remains supported by the pinned producer observer."
+  ]
+}

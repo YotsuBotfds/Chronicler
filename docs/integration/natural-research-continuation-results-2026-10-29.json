@@ -1,0 +1,690 @@
+{
+  "schema_version": 1,
+  "kind": "curated-natural-research-continuation-results",
+  "verification_status": "producer_mechanics_passed_independent_archive_review_cleared",
+  "run_id": 40809314373,
+  "job_id": 123235600553,
+  "control_sha": "3caa9a9c2eb07a20bcb83491ca81bca956bf0725",
+  "producer_sha": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1",
+  "runtime_policy": "cloud-fullgate-06db",
+  "native_sha256": "06db5e19bdda13d7a536b236d677348f5ea7cb5adad2929962f0485192f9b4d6",
+  "crate_tree": "a4703ef4e9a21b5dbb194d318536a46e6ca8b71c",
+  "python": "3.13.17",
+  "cohort": {
+    "seed_ids": [
+      2000,
+      2001,
+      2002,
+      2003,
+      2004,
+      2005,
+      2006,
+      2007
+    ],
+    "initial_regions": 8,
+    "initial_civilizations": 4,
+    "worldgen": "template",
+    "agents": "hybrid",
+    "parent_end_world_turn": 180,
+    "checkpoint_world_turn": 60,
+    "fork_source_turns": [
+      60,
+      179
+    ],
+    "fork_final_world_turn": 180,
+    "executions": 24,
+    "actual_ticks": 3360
+  },
+  "verdict": {
+    "execution_complete": true,
+    "mechanics_verified": true,
+    "efficacy_qualified": false,
+    "default_promotion": false,
+    "paired_seeds": 8,
+    "readout_errors": []
+  },
+  "seed_rows": [
+    {
+      "seed": 2000,
+      "paired": true,
+      "living_academies_at_world60": 1,
+      "enrolled_academy_records_at_world60": 2,
+      "active": {
+        "new_agendas": 0,
+        "new_trials": 0,
+        "new_trial_cost": 0,
+        "outcome_receipts_received": 0,
+        "outcome_receipts_from_new_trials": 0,
+        "paid_adoption_cost": 0
+      },
+      "pause_new_trials": {
+        "new_agendas": 0,
+        "new_trials": 0,
+        "new_trial_cost": 0,
+        "outcome_receipts_received": 0,
+        "outcome_receipts_from_new_trials": 0,
+        "paid_adoption_cost": 0
+      },
+      "active_matches_uninterrupted_parent": true,
+      "pause_archive_preserved": true,
+      "pause_no_new_trial_funding": true,
+      "retained_block_observation_at_boundary": {
+        "reason": "no_eligible_academy",
+        "source_turn": 0,
+        "scope": "Stored observation retained at World60; not an instantaneous or lifetime eligibility certificate."
+      },
+      "fallen_academy_records_at_world60": 1,
+      "final_retained_academy_records_active": 2,
+      "final_living_academies_active": 1,
+      "later_topic_payment_occurrences_active": 0,
+      "later_topic_payment_occurrences_pause": 0
+    },
+    {
+      "seed": 2001,
+      "paired": true,
+      "living_academies_at_world60": 3,
+      "enrolled_academy_records_at_world60": 3,
+      "active": {
+        "new_agendas": 4,
+        "new_trials": 8,
+        "new_trial_cost": 16,
+        "outcome_receipts_received": 22,
+        "outcome_receipts_from_new_trials": 22,
+        "paid_adoption_cost": 7
+      },
+      "pause_new_trials": {
+        "new_agendas": 0,
+        "new_trials": 0,
+        "new_trial_cost": 0,
+        "outcome_receipts_received": 0,
+        "outcome_receipts_from_new_trials": 0,
+        "paid_adoption_cost": 5
+      },
+      "active_matches_uninterrupted_parent": true,
+      "pause_archive_preserved": true,
+      "pause_no_new_trial_funding": true,
+      "retained_block_observation_at_boundary": {
+        "reason": "",
+        "source_turn": null,
+        "scope": "Stored observation retained at World60; not an instantaneous or lifetime eligibility certificate."
+      },
+      "fallen_academy_records_at_world60": 0,
+      "final_retained_academy_records_active": 3,
+      "final_living_academies_active": 1,
+      "later_topic_payment_occurrences_active": 2,
+      "later_topic_payment_occurrences_pause": 0
+    },
+    {
+      "seed": 2002,
+      "paired": true,
+      "living_academies_at_world60": 0,
+      "enrolled_academy_records_at_world60": 0,
+      "active": {
+        "new_agendas": 0,
+        "new_trials": 0,
+        "new_trial_cost": 0,
+        "outcome_receipts_received": 0,
+        "outcome_receipts_from_new_trials": 0,
+        "paid_adoption_cost": 0
+      },
+      "pause_new_trials": {
+        "new_agendas": 0,
+        "new_trials": 0,
+        "new_trial_cost": 0,
+        "outcome_receipts_received": 0,
+        "outcome_receipts_from_new_trials": 0,
+        "paid_adoption_cost": 0
+      },
+      "active_matches_uninterrupted_parent": true,
+      "pause_archive_preserved": true,
+      "pause_no_new_trial_funding": true,
+      "retained_block_observation_at_boundary": {
+        "reason": "no_eligible_academy",
+        "source_turn": 0,
+        "scope": "Stored observation retained at World60; not an instantaneous or lifetime eligibility certificate."
+      },
+      "fallen_academy_records_at_world60": 0,
+      "final_retained_academy_records_active": 2,
+      "final_living_academies_active": 2,
+      "later_topic_payment_occurrences_active": 0,
+      "later_topic_payment_occurrences_pause": 0
+    },
+    {
+      "seed": 2003,
+      "paired": true,
+      "living_academies_at_world60": 1,
+      "enrolled_academy_records_at_world60": 1,
+      "active": {
+        "new_agendas": 0,
+        "new_trials": 0,
+        "new_trial_cost": 0,
+        "outcome_receipts_received": 0,
+        "outcome_receipts_from_new_trials": 0,
+        "paid_adoption_cost": 0
+      },
+      "pause_new_trials": {
+        "new_agendas": 0,
+        "new_trials": 0,
+        "new_trial_cost": 0,
+        "outcome_receipts_received": 0,
+        "outcome_receipts_from_new_trials": 0,
+        "paid_adoption_cost": 0
+      },
+      "active_matches_uninterrupted_parent": true,
+      "pause_archive_preserved": true,
+      "pause_no_new_trial_funding": true,
+      "retained_block_observation_at_boundary": {
+        "reason": "no_eligible_academy",
+        "source_turn": 0,
+        "scope": "Stored observation retained at World60; not an instantaneous or lifetime eligibility certificate."
+      },
+      "fallen_academy_records_at_world60": 0,
+      "final_retained_academy_records_active": 1,
+      "final_living_academies_active": 0,
+      "later_topic_payment_occurrences_active": 0,
+      "later_topic_payment_occurrences_pause": 0
+    },
+    {
+      "seed": 2004,
+      "paired": true,
+      "living_academies_at_world60": 0,
+      "enrolled_academy_records_at_world60": 0,
+      "active": {
+        "new_agendas": 3,
+        "new_trials": 6,
+        "new_trial_cost": 12,
+        "outcome_receipts_received": 8,
+        "outcome_receipts_from_new_trials": 8,
+        "paid_adoption_cost": 2
+      },
+      "pause_new_trials": {
+        "new_agendas": 0,
+        "new_trials": 0,
+        "new_trial_cost": 0,
+        "outcome_receipts_received": 0,
+        "outcome_receipts_from_new_trials": 0,
+        "paid_adoption_cost": 0
+      },
+      "active_matches_uninterrupted_parent": true,
+      "pause_archive_preserved": true,
+      "pause_no_new_trial_funding": true,
+      "retained_block_observation_at_boundary": {
+        "reason": "no_eligible_academy",
+        "source_turn": 0,
+        "scope": "Stored observation retained at World60; not an instantaneous or lifetime eligibility certificate."
+      },
+      "fallen_academy_records_at_world60": 0,
+      "final_retained_academy_records_active": 4,
+      "final_living_academies_active": 3,
+      "later_topic_payment_occurrences_active": 2,
+      "later_topic_payment_occurrences_pause": 0
+    },
+    {
+      "seed": 2005,
+      "paired": true,
+      "living_academies_at_world60": 0,
+      "enrolled_academy_records_at_world60": 0,
+      "active": {
+        "new_agendas": 3,
+        "new_trials": 6,
+        "new_trial_cost": 12,
+        "outcome_receipts_received": 6,
+        "outcome_receipts_from_new_trials": 6,
+        "paid_adoption_cost": 0
+      },
+      "pause_new_trials": {
+        "new_agendas": 0,
+        "new_trials": 0,
+        "new_trial_cost": 0,
+        "outcome_receipts_received": 0,
+        "outcome_receipts_from_new_trials": 0,
+        "paid_adoption_cost": 0
+      },
+      "active_matches_uninterrupted_parent": true,
+      "pause_archive_preserved": true,
+      "pause_no_new_trial_funding": true,
+      "retained_block_observation_at_boundary": {
+        "reason": "no_eligible_academy",
+        "source_turn": 0,
+        "scope": "Stored observation retained at World60; not an instantaneous or lifetime eligibility certificate."
+      },
+      "fallen_academy_records_at_world60": 0,
+      "final_retained_academy_records_active": 2,
+      "final_living_academies_active": 2,
+      "later_topic_payment_occurrences_active": 0,
+      "later_topic_payment_occurrences_pause": 0
+    },
+    {
+      "seed": 2006,
+      "paired": true,
+      "living_academies_at_world60": 0,
+      "enrolled_academy_records_at_world60": 1,
+      "active": {
+        "new_agendas": 0,
+        "new_trials": 0,
+        "new_trial_cost": 0,
+        "outcome_receipts_received": 0,
+        "outcome_receipts_from_new_trials": 0,
+        "paid_adoption_cost": 0
+      },
+      "pause_new_trials": {
+        "new_agendas": 0,
+        "new_trials": 0,
+        "new_trial_cost": 0,
+        "outcome_receipts_received": 0,
+        "outcome_receipts_from_new_trials": 0,
+        "paid_adoption_cost": 0
+      },
+      "active_matches_uninterrupted_parent": true,
+      "pause_archive_preserved": true,
+      "pause_no_new_trial_funding": true,
+      "retained_block_observation_at_boundary": {
+        "reason": "no_eligible_academy",
+        "source_turn": 0,
+        "scope": "Stored observation retained at World60; not an instantaneous or lifetime eligibility certificate."
+      },
+      "fallen_academy_records_at_world60": 1,
+      "final_retained_academy_records_active": 1,
+      "final_living_academies_active": 0,
+      "later_topic_payment_occurrences_active": 0,
+      "later_topic_payment_occurrences_pause": 0
+    },
+    {
+      "seed": 2007,
+      "paired": true,
+      "living_academies_at_world60": 0,
+      "enrolled_academy_records_at_world60": 0,
+      "active": {
+        "new_agendas": 0,
+        "new_trials": 0,
+        "new_trial_cost": 0,
+        "outcome_receipts_received": 0,
+        "outcome_receipts_from_new_trials": 0,
+        "paid_adoption_cost": 0
+      },
+      "pause_new_trials": {
+        "new_agendas": 0,
+        "new_trials": 0,
+        "new_trial_cost": 0,
+        "outcome_receipts_received": 0,
+        "outcome_receipts_from_new_trials": 0,
+        "paid_adoption_cost": 0
+      },
+      "active_matches_uninterrupted_parent": true,
+      "pause_archive_preserved": true,
+      "pause_no_new_trial_funding": true,
+      "retained_block_observation_at_boundary": {
+        "reason": "no_eligible_academy",
+        "source_turn": 0,
+        "scope": "Stored observation retained at World60; not an instantaneous or lifetime eligibility certificate."
+      },
+      "fallen_academy_records_at_world60": 0,
+      "final_retained_academy_records_active": 2,
+      "final_living_academies_active": 2,
+      "later_topic_payment_occurrences_active": 0,
+      "later_topic_payment_occurrences_pause": 0
+    }
+  ],
+  "stage_totals": {
+    "parent": {
+      "new_agendas": 10,
+      "new_trials": 20,
+      "new_trial_cost": 40,
+      "outcome_receipts_received": 36,
+      "outcome_receipts_from_new_trials": 36,
+      "paid_adoption_cost": 9
+    },
+    "active": {
+      "new_agendas": 10,
+      "new_trials": 20,
+      "new_trial_cost": 40,
+      "outcome_receipts_received": 36,
+      "outcome_receipts_from_new_trials": 36,
+      "paid_adoption_cost": 9
+    },
+    "pause_new_trials": {
+      "new_agendas": 0,
+      "new_trials": 0,
+      "new_trial_cost": 0,
+      "outcome_receipts_received": 0,
+      "outcome_receipts_from_new_trials": 0,
+      "paid_adoption_cost": 5
+    }
+  },
+  "totals_coverage": {
+    "parent": {
+      "observed_seeds": [
+        2000,
+        2001,
+        2002,
+        2003,
+        2004,
+        2005,
+        2006,
+        2007
+      ],
+      "all_eight_observed": true
+    },
+    "active": {
+      "observed_seeds": [
+        2000,
+        2001,
+        2002,
+        2003,
+        2004,
+        2005,
+        2006,
+        2007
+      ],
+      "all_eight_observed": true
+    },
+    "pause_new_trials": {
+      "observed_seeds": [
+        2000,
+        2001,
+        2002,
+        2003,
+        2004,
+        2005,
+        2006,
+        2007
+      ],
+      "all_eight_observed": true
+    }
+  },
+  "budget_accounting": {
+    "controller_charged_upper_bound_cpu_seconds": 222.600345,
+    "controller_measured_to_seal_cpu_seconds": 221.600345,
+    "controller_finalization_cpu_reserve_seconds": 1.0,
+    "aggregate_wall_seconds": 225.158410987,
+    "within_registered_limits": true,
+    "reader_cpu_seconds": 26.649638000000003,
+    "controller_charge_plus_reader_measured_cpu_upper_bound_seconds": 249.24998300000001,
+    "total_cpu_accounting_scope": "conservative controller charge plus measured reader CPU; not measured total CPU",
+    "controller_to_readout_wall_seconds": 251.91264196600002,
+    "authority": "Final completion.json budget observation; includes later publication work beyond readout.json and receipt.json snapshots.",
+    "aggregate_cpu_limit_seconds": 900,
+    "aggregate_wall_limit_seconds": 1800
+  },
+  "worker_limits_observed": {
+    "max_tree_cpu_seconds": 7.646659,
+    "max_recorded_wall_seconds": 10.719369856000014,
+    "registered_cpu_seconds": 90,
+    "registered_wall_seconds": 900
+  },
+  "later_topic_evidence": {
+    "status": "independently_linked_raw_json_and_source_formula",
+    "verified_seeds": [
+      2001,
+      2004
+    ],
+    "positive_later_topic_debit_cost_active": 4,
+    "old_payment_rows_exactly_match_pause": true,
+    "old_payment_cost": 5,
+    "seed_2001": {
+      "cycle_opening_source": 74,
+      "claim_ids": [
+        4,
+        5
+      ],
+      "trials_funded_source": 74,
+      "trials_resolved_source": 75,
+      "outcome_receipt_sources_by_seat": {
+        "1": 75,
+        "2": 76,
+        "0": 77
+      },
+      "allocation_source": 144,
+      "allocation_seats": [
+        0,
+        1
+      ],
+      "irrigation_confidence_and_share": 0.6666666666666666,
+      "masonry_confidence_and_share": 0.3333333333333333,
+      "debit_per_seat": 1,
+      "old_debit_sources": [
+        84,
+        96,
+        120
+      ]
+    },
+    "seed_2004": {
+      "seat": 6,
+      "region": 4,
+      "academy_name": "the Academy of Crystalfen Marsh",
+      "founded_source": 140,
+      "founder": 0,
+      "observed_owner": "Thornwall Confederacy",
+      "first_living_snapshot_source": 140,
+      "enrolled_by_origin_cycle_source": 140,
+      "owner_observation_sources": [
+        140,
+        165,
+        166,
+        167,
+        179
+      ],
+      "later_cycle_opening_source": 165,
+      "claim_ids": [
+        4,
+        5
+      ],
+      "trials_funded_source": 165,
+      "trials_resolved_source": 166,
+      "seat6_receives_both_outcomes_source": 166,
+      "allocation_sources": [
+        167,
+        179
+      ],
+      "irrigation": {
+        "confidence": 0.3333333333333333,
+        "share": 0.3333333333333333,
+        "bookkeeping_debit_per_allocation": 1,
+        "source_formula_grant_allowance": 0.003333333333333333
+      },
+      "masonry": {
+        "confidence": 0.6666666666666666,
+        "share": 0.6666666666666666,
+        "bookkeeping_debit_per_allocation": 0,
+        "source_formula_grant_allowance": 0.006666666666666666
+      },
+      "practice_observation_scope": "Both rounded practice values are 0.98 before and after these allocations; two-decimal snapshots cannot isolate exact growth.",
+      "source179_allocation_rows_have_empty_event_id": true
+    },
+    "interpretation": "Dated evidence-to-allocation exposure and positive source-formula grant allowances; no isolated marginal practice, growth, production or welfare effect. A zero bookkeeping debit on the companion row does not establish zero grant.",
+    "positive_later_topic_payment_occurrences_active": 4,
+    "positive_later_topic_payment_occurrences_pause": 0,
+    "event_scope": "Four positive paid uses have three nonempty allocation event IDs. Source 179 remains visible in raw state/history allocation rows despite its empty event_id; unchanged repeat payments need not emit a new allocation-change event.",
+    "nonempty_later_topic_allocation_event_id_count": 3
+  },
+  "key_hashes": {
+    "natural-research-freeze.json": "2bb4e2e8be9b16d2e6ca452c3e835dbd1f01a295b37e2c62d23a446d73340a86",
+    "natural-research-evidence/execution.json": "e3f0ac0ae325e650c967542f63a52b99cc1bae1d223bb99c186ed9125e63487e",
+    "natural-research-evidence/execution-receipt.json": "2808523539da2e4385d5d97320ea9488ef2969a41446aaf1d44edfe98188a463",
+    "natural-research-readout/readout.json": "2e69e51825e252a0785884be63503085cda7a32f5fdd796c9b2ed89dd822004f",
+    "natural-research-readout/receipt.json": "5e641642f3fc5f9a04ca1e4df98e479c55358d309db1348091e2900a98b6593e",
+    "natural-research-readout/completion.json": "d7a7e364d68e86e664aa9c7705b9ba07a5578076a7d9069773375250d21fdc69",
+    "index.json": "e02b4b190d92fd714d1dada7a3c2cbbc9dd4373957da61fe08b2bd3fac0c2bd0",
+    "natural-research-wheel/verification.json": "41a9bcd948027d12f408d28be53530dfa4e7db2965899e7192936768a96609cb",
+    "natural-research-wheel/build-manifest.json": "013a57c5e59993587acd65eb33c6ff1d16984796de11dbec81df686eb33210d3",
+    "natural-research-contracts/junit.xml": "7d4137006ad0ce1002f06578eb3f9db16665953f9c8e3779675dfa7f3f9ef5b1"
+  },
+  "prior_proofs": {
+    "local_source_validation_sha256": "32a42b009ea72d4e3209e5f269a1de9c6399c6cb7c1deeffe77428db481c6383",
+    "root_review_sha256": "40195412f42b5d3dfcdbb4b0db975ad331486c8a92f33980a39854352e53b837",
+    "prior_fb20_controlled_composition_report_sha256": "83d7357c5f0066d91724a0637f071eb5d8f47ff38623f860f475ba5059226ab4",
+    "scope": "Prior controlled composition proof used fb20; the current fixed natural cohort uses 06db. The saved-default-output study is separate."
+  },
+  "artifacts": [
+    {
+      "id": 12869289391,
+      "name": "light",
+      "bytes": 281082,
+      "sha256": "70f0b3aaf6d6371151d1c6ea35d7d22555893a02450b06b1d947173a285559ef",
+      "expanded_bytes": 1639094,
+      "files": 11,
+      "expires_at": "2026-11-28T03:01:14Z",
+      "url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40809314373/artifacts/12869289391"
+    },
+    {
+      "id": 12869732282,
+      "name": "raw",
+      "bytes": 111643059,
+      "sha256": "75af012fcc3790e9d2683314020969a37818e6f0236f44af5cc67e97f5dd015e",
+      "expires_at": "2026-11-28T03:01:16Z",
+      "url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40809314373/artifacts/12869732282",
+      "files": 2382,
+      "expanded_bytes": 486796257,
+      "local_retained_copies": 1,
+      "locally_extracted": false
+    }
+  ],
+  "independent_review": {
+    "status": "cleared",
+    "review_sha256": "50c20f39875aaaf9fca7d051eeda41133b73f949c4c18d4dc3d100fff70f7b86",
+    "witness_supplement_sha256": "077a9c10a0fb785080e425805bdea38f034302a0285ae48eef4337e698de23d4",
+    "review_path": "/workspace/chronicler-recovered-evidence/research-natural-peer-review-20261029/review.json",
+    "witness_supplement_path": "/workspace/chronicler-recovered-evidence/research-natural-peer-review-20261029/witness-supplement.json",
+    "scope": "Stdlib-only hashes/strict JSON/index/source/accounting/publication and raw state/history row reconciliation. No source imports, bundle codec/comparator rerun, Arrow/native decoding, unpickle, pools or worlds.",
+    "raw_files": 2382,
+    "raw_expansion_bytes": 486796257,
+    "strict_json_files": 2164,
+    "execution_payload_files": 2370,
+    "producer_file_inventory_sha256": "57e4a30e149c2d2c369b6bbd9179f6b1c8cd74cf8f8d3409f77c19ccb84a3e9c",
+    "control_file_inventory_sha256": "0aaba0f08f401030b98f746a9754c64eba0b70b6af4bdb6e5def269aa6ba5795",
+    "comparator_scope": "All raw bytes/inventory and ordinary output equality checked. Frozen reader bundle-codec/normalized comparator verdict is linked to exact source+payloads but not rerun; no output fields were removed or normalized here."
+  },
+  "limits": [
+    "Natural generation under explicitly enabled research/scholarship/technique/science switches; not an unflagged default-run result.",
+    "Five zero-new-trial trajectories retained; academy existence is not funding eligibility, and no academy at World60 does not mean no later academy.",
+    "Seeds, trials, topics and received copies are not certified independent samples.",
+    "Hypothetical plot output is not inventory production. Recorded allocation and source-formula grant allowances do not isolate marginal practice, growth, production or welfare benefit.",
+    "Use stored payment-time confidence and receipts strictly earlier than payment; same-source Phase10 receipt cannot explain earlier Phase4 payment.",
+    "Six-turn payment cadence samples two of four seasons; absent paid use in unsampled contexts is missing exposure, not an efficacy null.",
+    "Global Python/NumPy RNG is restored through an explicit external boundary sidecar, not a RunState checkpoint field.",
+    "Controller CPU is a conservative charged bound plus measured reader CPU; no simulation speedup or whole-job measured-CPU claim.",
+    "Independent inspection links raw JSON and opaque checkpoint/native bytes to exact source. It does not decode checkpoint objects or rerun the frozen comparator; actual restore binding remains the frozen worker attestation.",
+    "Only the agent native section is active; three compiled class schemas available does not mean three active pools."
+  ],
+  "external_evidence_root": "/workspace/chronicler-natural-remote-evidence/study-attempt3-3caa9a9c-001",
+  "frozen_control_file_sha256": {
+    "scripts/research_natural_contract.py": "862d8c767842db37f562866bbfff37402320d1674a709e7c7f3e4516c5167737",
+    "scripts/run_research_natural_continuation.py": "a2f5de0e140e7045e736c2252d372983b9cac004f9a9332ef99a56a51c3a0f26",
+    "scripts/read_research_natural_continuation.py": "a07ad154ac5605363f3e71a27917ee96595dd251d5b54840022ad3a1554b6e8b",
+    "scripts/research_natural_runtime_policy.py": "7cb66fb792ed4eeb40ccbdfdc4f817816db2143077ca8483609a40ffc9247b3f",
+    "docs/experiments/scientific-research-natural-continuation-2026-10-29.md": "f60eb23d9d8ef9b6e8afda9eb87f974690686e2a5835c794a6ac3975cfb09a57",
+    "docs/experiments/scientific-research-natural-remote-execution-2026-10-29.md": "f9a6a1e6bdf963426c63a46ba2c74e7fe310098b58875067d921c4bcd14cc89b",
+    "scripts/fetch_research_natural_wheel.py": "fb12717b1f5d3b3a7b32249ce141c6d1ba6b5d0d6aa0c2d19e501727400ac035",
+    ".github/workflows/research-natural-continuation.yml": "571d8d734c9ba1298f36a3fe1665dfba6872e6344bc490bfeb8076848e004f82"
+  },
+  "native_runtime_policy": {
+    "name": "cloud-fullgate-06db",
+    "producer_sha": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1",
+    "package_digest": "cdfc449158d36611c751a0f7b4f6c29d594fb95ec6e341d9a7693f219abd5b5c",
+    "crate_tree": "a4703ef4e9a21b5dbb194d318536a46e6ca8b71c",
+    "native_sha256": "06db5e19bdda13d7a536b236d677348f5ea7cb5adad2929962f0485192f9b4d6",
+    "native_bytes": 13443872,
+    "python": "3.13.17",
+    "packages": {
+      "numpy": "2.5.4",
+      "scipy": "1.18.1",
+      "pyarrow": "26.0.0",
+      "pydantic": "2.12.5",
+      "arro3-core": "0.9.1",
+      "chronicler-agents": "0.1.0"
+    },
+    "schemas": {
+      "AgentSimulator": {
+        "version": 1,
+        "fingerprint": "dcf0c34097c88451",
+        "schema_sha256": "0b792f3ec33ac68605caf7b6d66fa7462c919b52e6f489f0e3dd7fa42f9fba3b"
+      },
+      "EcologySimulator": {
+        "version": 1,
+        "fingerprint": "4ab7f8c199b5e5f8",
+        "schema_sha256": "bf7daf59c53773518770b90f5a5dee5b71e63d2a62d2af6c756922a07a503aff"
+      },
+      "PoliticsSimulator": {
+        "version": 1,
+        "fingerprint": "b1a710f3450f5015",
+        "schema_sha256": "48e27b42f817e0057ad5f15bf2c2e8d8cca072314a9ca666753f2c9341c47395"
+      }
+    },
+    "artifact": {
+      "repository": "YotsuBotfds/Chronicler",
+      "id": 12861488234,
+      "run_id": 40791402289,
+      "control_sha": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+      "name": "full-gates-wheel-40791402289-1",
+      "bytes": 3767198,
+      "sha256": "7483e15561648466bd9b64139b70c67cde7c6d7deaf8697f4f5355d3d3de4faf",
+      "manifest_bytes": 3049,
+      "manifest_sha256": "013a57c5e59993587acd65eb33c6ff1d16984796de11dbec81df686eb33210d3",
+      "wheel_path": "wheels/chronicler_agents-0.1.0-cp313-cp313-manylinux_2_34_x86_64.whl",
+      "wheel_bytes": 3831429,
+      "wheel_sha256": "049f91bbd03582240491e0c487d560deebb31a2ab9754d2c5bac2a7804206f64",
+      "native_member": "chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+      "native_bytes": 13443872,
+      "native_sha256": "06db5e19bdda13d7a536b236d677348f5ea7cb5adad2929962f0485192f9b4d6",
+      "crate_tree": "a4703ef4e9a21b5dbb194d318536a46e6ca8b71c",
+      "pyproject_sha256": "d14f5588112927a0d8d889c30f04af90e81bc2cf4096b9ed91d8a51d83a2ac32",
+      "lock_sha256": "986547c01fd1dcd9bf598404124fde4ddc1e3d67db9a1d595a5304f18dacee10",
+      "python_version": "3.13.17"
+    },
+    "execution_registration": "docs/experiments/scientific-research-natural-remote-execution-2026-10-29.md"
+  },
+  "source_and_environment_scope": {
+    "compiled_classes_available": [
+      "AgentSimulator",
+      "EcologySimulator",
+      "PoliticsSimulator"
+    ],
+    "active_native_sections": [
+      "native.agent.0"
+    ],
+    "actual_affinity_cpus": 1,
+    "runtime_thread_caps": 1,
+    "pythonhashseed": 0,
+    "source_mechanics_unchanged_from_preparation": "7dad47540f24c842633cc2762fa6fd7a9c493556",
+    "original_workflow_invariant_sha256": "5457d30bd36b88adc2766ebedc85a360f72bb8efa17fda7387de3a20aa3b25cf",
+    "local_guarded_source_tests_passed": 182,
+    "actual_workflow_guarded_preflight_tests_passed": 132,
+    "actionlint_version": "1.7.12"
+  },
+  "prior_attempts": [
+    {
+      "source_sha": "7b5f89b2c72d4e8a34a8b6589a8278106773bdef",
+      "run_id": 40803627381,
+      "stage": "guarded preflight",
+      "outcome": "104 passed / 1 failed; obsolete inactive-only assertion rejected authorized activation",
+      "worlds": 0,
+      "native_installs": 0,
+      "failure_receipt_sha256": "9028fa811cb61f2efbfbc0297b0b44cd42136400f2636e6505a710d38ca3e8ca"
+    },
+    {
+      "source_sha": "c699d9600ae16f955d523af1a3c303604b331743",
+      "run_id": 40804360782,
+      "stage": "wheel fetch",
+      "outcome": "119 preflight passed; HTTPError with original status/substage unrecorded",
+      "worlds": 0,
+      "native_installs": 0,
+      "failure_receipt_sha256": "517f395d98c7c314274243a640bcb7f4c3367833a3da6cd312b2e5432d42019f"
+    },
+    {
+      "source_sha": "ba9bebff71ccc8070fb6b21998f1de0e12ad5754",
+      "run_id": 40806131240,
+      "stage": "separate read-only transport diagnostic",
+      "outcome": "metadata 200 / GitHub redirect 302 / Azure 400",
+      "worlds": 0,
+      "native_installs": 0
+    },
+    {
+      "source_sha": "939d739b379f6a03a9d5e77ea68e5ff11c03d887",
+      "run_id": 40807004766,
+      "stage": "corrected-source read-only transport diagnostic",
+      "outcome": "metadata 200 / GitHub redirect 302 / Azure 200; exact official bytes verified",
+      "worlds": 0,
+      "native_installs": 0
+    }
+  ]
+}

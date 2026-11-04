@@ -3,6 +3,7 @@ import { factionColor } from "../../lib/colors";
 import {
   civSeries, debtToRevenue, eventsOfTypes, formatShare, orderedCivNames, SYSTEM_EVENT_TYPES, type SystemPanelProps,
 } from "../../lib/systems";
+import { DebtHolders } from "./DebtHolders";
 import { CivLegend, CivLineChart, StatTile, SystemEventList } from "./SystemParts";
 
 const FILTERS: Array<{ key: string; label: string; types: string[] }> = [
@@ -12,9 +13,8 @@ const FILTERS: Array<{ key: string; label: string; types: string[] }> = [
   { key: "debasements", label: "Debasements", types: ["debasement"] },
 ];
 
-export function FinancePanel({
-  bundle, snapshot, currentTurn, onSelectEvent, onSelectCivilization, selectedCivilization,
-}: SystemPanelProps) {
+export function FinancePanel(props: SystemPanelProps) {
+  const { bundle, snapshot, currentTurn, onSelectEvent, onSelectCivilization, selectedCivilization } = props;
   const [filter, setFilter] = useState("all");
   const history = bundle.history;
   const worldCivs = bundle.world_state.civilizations;
@@ -36,7 +36,9 @@ export function FinancePanel({
   const finance = snapshot?.finance;
   const at = snapshot?.turn ?? currentTurn;
   const active = FILTERS.find((entry) => entry.key === filter) ?? FILTERS[0];
-  const events = eventsOfTypes(bundle.events_timeline, active.types, currentTurn);
+  // Fiscal events are stamped during tick T; its finance snapshot is T+1.
+  const completedTick = currentTurn - 1;
+  const events = eventsOfTypes(bundle.events_timeline, active.types, completedTick);
   const totals = finance?.totals ?? {};
 
   return (
@@ -77,6 +79,8 @@ export function FinancePanel({
         </div>
         <p className="systems-note">Gaps are turns a civilization did not exist or held no land; nothing is interpolated.</p>
       </section>
+
+      <DebtHolders {...props} civs={civs} />
 
       <div className="systems-columns">
         {finance && (
@@ -122,6 +126,7 @@ export function FinancePanel({
 
         <section className="systems-section">
           <h3>Loans, defaults and debasements</h3>
+          <p className="systems-note">Event labels show source ticks. At selected turn {currentTurn}, events are shown through completed tick {completedTick}.</p>
           <div className="systems-filter" role="group" aria-label="Finance event filter">
             {FILTERS.map((entry) => (
               <button
@@ -138,7 +143,7 @@ export function FinancePanel({
           <SystemEventList
             events={events}
             label="Finance events"
-            emptyText={`No ${active.key === "all" ? "loan, default or debasement" : active.label.toLowerCase()} by turn ${currentTurn}.`}
+            emptyText={`No ${active.key === "all" ? "loan, default or debasement" : active.label.toLowerCase()} through completed tick ${completedTick} (selected turn ${currentTurn}).`}
             onSelectEvent={onSelectEvent}
           />
         </section>

@@ -1,26 +1,21 @@
-"""M54b: Rust vs Python economy parity tests.
+"""Python economy oracle conservation, determinism, and input-schema checks.
 
-Compares Rust tick_economy() outputs against Python compute_economy()
-on identical inputs. Temporary migration safety net — remove after M54b
-acceptance.
+These tests never invoke the native extension. Genuine Rust/Python economy
+parity coverage lives in ``test_economy_coupling.py`` and skips when the optional
+extension is unavailable.
 """
 
 from unittest.mock import MagicMock
 
 import numpy as np
 import pyarrow as pa
-import pytest
 
 from chronicler.economy import (
     ALL_GOODS,
-    CATEGORIES,
-    CATEGORY_GOODS,
     FIXED_GOODS,
-    EconomyResult,
     build_economy_region_input_batch,
     build_economy_trade_route_batch,
     compute_economy,
-    reconstruct_economy_result,
 )
 from chronicler.models import Region, RegionStockpile
 
@@ -29,13 +24,9 @@ from chronicler.models import Region, RegionStockpile
 # Helpers
 # ---------------------------------------------------------------------------
 
-SIGNAL_TOLERANCE = 0.02  # cross-language float tolerance for signals
-STOCKPILE_TOLERANCE = 0.05  # slightly wider for accumulated stockpiles
-
-
-def _make_parity_world(n_farmers_r1=20, n_merchants_r1=5, n_soldiers_r1=0,
+def _make_economy_world(n_farmers_r1=20, n_merchants_r1=5, n_soldiers_r1=0,
                        n_farmers_r2=10, n_merchants_r2=0, n_soldiers_r2=5,
-                       trade_routes=None, rivers=None):
+                       rivers=None):
     """Create a two-region world with controlled agent distribution."""
     r1 = Region(
         name="Breadbasket", terrain="plains", carrying_capacity=50,
@@ -95,7 +86,7 @@ def _make_snapshot(world, agent_dist):
 
 
 def _run_python_oracle(world, snapshot, active_routes):
-    """Run Python compute_economy and return result + post-stockpiles."""
+    """Run Python compute_economy, which mutates the world's stockpiles."""
     region_map = {r.name: r for r in world.regions}
     return compute_economy(
         world, snapshot, region_map, agent_mode=True,
@@ -104,19 +95,18 @@ def _run_python_oracle(world, snapshot, active_routes):
 
 
 # ---------------------------------------------------------------------------
-# Test 1: Single-region parity (no trade)
+# Test 1: Conservation without trade
 # ---------------------------------------------------------------------------
 
-def test_parity_single_region_no_trade():
-    """Single region, no trade — Rust and Python should match exactly."""
-    world = _make_parity_world(
+def test_conservation_without_trade():
+    """Conservation holds for two isolated regions without trade."""
+    world = _make_economy_world(
         n_farmers_r1=10, n_merchants_r1=0, n_soldiers_r1=0,
         n_farmers_r2=5, n_merchants_r2=0, n_soldiers_r2=0,
     )
-
-    # Save initial stockpiles for Python oracle
-    r1_stock = dict(world.regions[0].stockpile.goods)
-    r2_stock = dict(world.regions[1].stockpile.goods)
+    old_total = sum(
+        amt for region in world.regions for amt in region.stockpile.goods.values()
+    )
 
     agents = []
     for _ in range(10):
@@ -125,37 +115,13 @@ def test_parity_single_region_no_trade():
         agents.append((1, 0, 0.0, 1))  # region 1, farmer, no wealth, civ 1
 
     snapshot = _make_snapshot(world, agents)
+    result = _run_python_oracle(world, snapshot, active_routes=[])
+    new_total = sum(
+        amt for region in world.regions for amt in region.stockpile.goods.values()
+    )
 
-    # Python oracle
-    py_result = _run_python_oracle(world, snapshot, active_routes=[])
-
-    # Reset stockpiles for Rust path
-    world.regions[0].stockpile.goods = dict(r1_stock)
-    world.regions[1].stockpile.goods = dict(r2_stock)
-
-    # Rust path would need AgentSimulator — since we can't instantiate it
-    # without the full pool, we verify the Python oracle conservation instead
-    c = py_result.conservation
+    c = result.conservation
     assert "clamp_floor_loss" in c
-    old_total = sum(r1_stock.values()) + sum(r2_stock.values())
-    new_total = sum(
-        world.regions[0].stockpile.goods.get(g, 0.0) for g in ALL_GOODS
-    ) + sum(
-        world.regions[1].stockpile.goods.get(g, 0.0) for g in ALL_GOODS
-    )
-
-    # Note: Python oracle mutates stockpiles in-place, so after _run_python_oracle
-    # the region stockpiles are already updated. Reset happened above, so
-    # re-run to get the correct new stockpiles.
-    world.regions[0].stockpile.goods = dict(r1_stock)
-    world.regions[1].stockpile.goods = dict(r2_stock)
-    py_result = _run_python_oracle(world, snapshot, active_routes=[])
-    new_total = sum(
-        world.regions[0].stockpile.goods.get(g, 0.0) for g in ALL_GOODS
-    ) + sum(
-        world.regions[1].stockpile.goods.get(g, 0.0) for g in ALL_GOODS
-    )
-
     inputs = old_total + c["production"]
     outputs = (new_total + c["consumption"] + c["transit_loss"]
                + c["storage_loss"] + c["cap_overflow"] + c["clamp_floor_loss"])
@@ -168,7 +134,7 @@ def test_parity_single_region_no_trade():
 
 def test_conservation_with_clamp_floor_loss():
     """Conservation law: old + production = new + all sinks including clamp_floor_loss."""
-    world = _make_parity_world(
+    world = _make_economy_world(
         n_farmers_r1=20, n_merchants_r1=5, n_soldiers_r1=0,
         n_farmers_r2=10, n_merchants_r2=0, n_soldiers_r2=5,
     )
@@ -203,12 +169,12 @@ def test_conservation_with_clamp_floor_loss():
 
 
 # ---------------------------------------------------------------------------
-# Test 3: Python oracle conservation has all 6 fields
+# Test 3: Python oracle conservation has the complete schema
 # ---------------------------------------------------------------------------
 
 def test_oracle_conservation_complete():
     """compute_economy() conservation dict matches the full runtime schema."""
-    world = _make_parity_world()
+    world = _make_economy_world()
     agents = [(0, 0, 0.0, 0)] * 25 + [(1, 0, 0.0, 1)] * 15
     snapshot = _make_snapshot(world, agents)
     result = _run_python_oracle(world, snapshot, active_routes=[])
@@ -225,7 +191,7 @@ def test_oracle_conservation_complete():
 
 def test_multi_turn_conservation():
     """Conservation law holds across 5 sequential turns."""
-    world = _make_parity_world(
+    world = _make_economy_world(
         n_farmers_r1=15, n_merchants_r1=3, n_soldiers_r1=2,
         n_farmers_r2=8, n_merchants_r2=2, n_soldiers_r2=0,
     )
@@ -255,12 +221,12 @@ def test_multi_turn_conservation():
 
 
 # ---------------------------------------------------------------------------
-# Test 5: Rust determinism (same inputs → bit-identical outputs)
+# Test 5: Python determinism (same inputs → identical outputs)
 # ---------------------------------------------------------------------------
 
-def test_rust_determinism_via_python_oracle():
+def test_python_oracle_determinism():
     """Two identical Python oracle runs produce identical results."""
-    world = _make_parity_world(
+    world = _make_economy_world(
         n_farmers_r1=15, n_merchants_r1=5, n_soldiers_r1=0,
         n_farmers_r2=8, n_merchants_r2=0, n_soldiers_r2=3,
     )
@@ -308,7 +274,7 @@ def test_rust_determinism_via_python_oracle():
 
 def test_region_input_batch_dtypes():
     """Region input batch column types match the spec."""
-    world = _make_parity_world()
+    world = _make_economy_world()
     batch = build_economy_region_input_batch(world)
     assert batch.schema.field("region_id").type == pa.uint16()
     assert batch.schema.field("terrain").type == pa.uint8()
@@ -321,7 +287,7 @@ def test_region_input_batch_dtypes():
 
 def test_trade_route_batch_dtypes():
     """Trade route batch column types match the spec."""
-    world = _make_parity_world()
+    world = _make_economy_world()
     batch = build_economy_trade_route_batch(world, active_trade_routes=[("Alpha", "Beta")])
     assert batch.schema.field("origin_region_id").type == pa.uint16()
     assert batch.schema.field("dest_region_id").type == pa.uint16()
@@ -334,7 +300,7 @@ def test_trade_route_batch_dtypes():
 
 def test_economy_result_overwrites_each_turn():
     """world._economy_result is overwritten each turn, not accumulated."""
-    world = _make_parity_world()
+    world = _make_economy_world()
     agents = [(0, 0, 0.0, 0)] * 25 + [(1, 0, 0.0, 1)] * 15
     snapshot = _make_snapshot(world, agents)
 

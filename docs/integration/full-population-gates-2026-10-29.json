@@ -1,0 +1,2386 @@
+{
+  "causal_diagnostics": {
+    "procedural": {
+      "member_migration_rr": 0.9956,
+      "nonmember_migration_rr": 0.9929,
+      "one_sided_95_upper": 1.0035,
+      "two_sided_95_interval": [
+        0.9862,
+        1.0051
+      ]
+    },
+    "scope": "Saved-report descriptive values only; no new member/nonmember contrast test or rescoring.",
+    "target": "RR at most0.85 and one-sided upper below1",
+    "template": {
+      "member_migration_rr": 0.9877,
+      "nonmember_migration_rr": 0.9874,
+      "one_sided_95_upper": 0.9981,
+      "two_sided_95_interval": [
+        0.9754,
+        1.0001
+      ]
+    }
+  },
+  "clocks": {
+    "builder_helper_seconds": 263.400959899,
+    "contract_tests": {
+      "passed_parent_cases": 107,
+      "pytest_seconds": 22.18,
+      "step_seconds": 24,
+      "successful_subtests": 36
+    },
+    "official_completed_jobs": [
+      {
+        "completed_at": "2026-10-29T00:07:45Z",
+        "conclusion": "success",
+        "elapsed_seconds": 312,
+        "id": 123177237985,
+        "name": "Frozen shared native build",
+        "started_at": "2026-10-29T00:02:33Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completed_at": "2026-10-29T00:02:35Z",
+            "conclusion": "success",
+            "elapsed_seconds": 1,
+            "name": "Set up job",
+            "started_at": "2026-10-29T00:02:34Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:02:35Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Set external task paths",
+            "started_at": "2026-10-29T00:02:35Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:02:38Z",
+            "conclusion": "success",
+            "elapsed_seconds": 3,
+            "name": "Check out qualification controls",
+            "started_at": "2026-10-29T00:02:35Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:02:40Z",
+            "conclusion": "success",
+            "elapsed_seconds": 2,
+            "name": "Check out frozen baseline",
+            "started_at": "2026-10-29T00:02:38Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:02:43Z",
+            "conclusion": "success",
+            "elapsed_seconds": 3,
+            "name": "Check out frozen candidate",
+            "started_at": "2026-10-29T00:02:40Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:02:43Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Set up Python",
+            "started_at": "2026-10-29T00:02:43Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:02:45Z",
+            "conclusion": "success",
+            "elapsed_seconds": 2,
+            "name": "Set up Rust",
+            "started_at": "2026-10-29T00:02:43Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:02:48Z",
+            "conclusion": "success",
+            "elapsed_seconds": 3,
+            "name": "Create fresh locked build and test environment",
+            "started_at": "2026-10-29T00:02:45Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:03:12Z",
+            "conclusion": "success",
+            "elapsed_seconds": 24,
+            "name": "Run pure worker, comparison, and supervisor contract checks",
+            "started_at": "2026-10-29T00:02:48Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:03:13Z",
+            "conclusion": "success",
+            "elapsed_seconds": 1,
+            "name": "Preserve pure contract results before any build",
+            "started_at": "2026-10-29T00:03:12Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:07:36Z",
+            "conclusion": "success",
+            "elapsed_seconds": 263,
+            "name": "Build and verify one fresh shared wheel",
+            "started_at": "2026-10-29T00:03:13Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:07:36Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Bind downstream jobs to the verified build",
+            "started_at": "2026-10-29T00:07:36Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:07:38Z",
+            "conclusion": "success",
+            "elapsed_seconds": 2,
+            "name": "Preserve bounded builder records first",
+            "started_at": "2026-10-29T00:07:36Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:07:40Z",
+            "conclusion": "success",
+            "elapsed_seconds": 2,
+            "name": "Publish verified shared wheel and manifest",
+            "started_at": "2026-10-29T00:07:38Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:07:42Z",
+            "conclusion": "success",
+            "elapsed_seconds": 2,
+            "name": "Preserve complete build evidence",
+            "started_at": "2026-10-29T00:07:40Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:07:42Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Post Set up Python",
+            "started_at": "2026-10-29T00:07:42Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:07:42Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Post Check out frozen candidate",
+            "started_at": "2026-10-29T00:07:42Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:07:42Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Post Check out frozen baseline",
+            "started_at": "2026-10-29T00:07:42Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:07:42Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Post Check out qualification controls",
+            "started_at": "2026-10-29T00:07:42Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:07:42Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Complete job",
+            "started_at": "2026-10-29T00:07:42Z"
+          }
+        ]
+      },
+      {
+        "completed_at": "2026-10-29T00:08:36Z",
+        "conclusion": "success",
+        "elapsed_seconds": 49,
+        "id": 123179195405,
+        "name": "Schema smoke procedural candidate",
+        "started_at": "2026-10-29T00:07:47Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completed_at": "2026-10-29T00:07:49Z",
+            "conclusion": "success",
+            "elapsed_seconds": 1,
+            "name": "Set up job",
+            "started_at": "2026-10-29T00:07:48Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:07:49Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Set external task paths",
+            "started_at": "2026-10-29T00:07:49Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:07:51Z",
+            "conclusion": "success",
+            "elapsed_seconds": 2,
+            "name": "Check out qualification controls",
+            "started_at": "2026-10-29T00:07:49Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:07:53Z",
+            "conclusion": "success",
+            "elapsed_seconds": 2,
+            "name": "Check out the frozen cohort source",
+            "started_at": "2026-10-29T00:07:51Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:07:54Z",
+            "conclusion": "success",
+            "elapsed_seconds": 1,
+            "name": "Set up the builder's exact Python patch",
+            "started_at": "2026-10-29T00:07:53Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:07:55Z",
+            "conclusion": "success",
+            "elapsed_seconds": 1,
+            "name": "Download the one verified shared wheel",
+            "started_at": "2026-10-29T00:07:54Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:01Z",
+            "conclusion": "success",
+            "elapsed_seconds": 6,
+            "name": "Create a fresh locked cohort environment",
+            "started_at": "2026-10-29T00:07:55Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:30Z",
+            "conclusion": "success",
+            "elapsed_seconds": 29,
+            "name": "Run the fixed subset schema smoke and preserve its original verdict",
+            "started_at": "2026-10-29T00:08:01Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:31Z",
+            "conclusion": "success",
+            "elapsed_seconds": 1,
+            "name": "Preserve bounded smoke reports and provenance first",
+            "started_at": "2026-10-29T00:08:30Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:33Z",
+            "conclusion": "success",
+            "elapsed_seconds": 2,
+            "name": "Preserve complete raw smoke evidence",
+            "started_at": "2026-10-29T00:08:31Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:33Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Post Set up the builder's exact Python patch",
+            "started_at": "2026-10-29T00:08:33Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:34Z",
+            "conclusion": "success",
+            "elapsed_seconds": 1,
+            "name": "Post Check out the frozen cohort source",
+            "started_at": "2026-10-29T00:08:33Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:34Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Post Check out qualification controls",
+            "started_at": "2026-10-29T00:08:34Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:34Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Complete job",
+            "started_at": "2026-10-29T00:08:34Z"
+          }
+        ]
+      },
+      {
+        "completed_at": "2026-10-29T00:08:26Z",
+        "conclusion": "success",
+        "elapsed_seconds": 39,
+        "id": 123179195414,
+        "name": "Schema smoke template candidate",
+        "started_at": "2026-10-29T00:07:47Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completed_at": "2026-10-29T00:07:50Z",
+            "conclusion": "success",
+            "elapsed_seconds": 2,
+            "name": "Set up job",
+            "started_at": "2026-10-29T00:07:48Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:07:50Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Set external task paths",
+            "started_at": "2026-10-29T00:07:50Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:07:53Z",
+            "conclusion": "success",
+            "elapsed_seconds": 3,
+            "name": "Check out qualification controls",
+            "started_at": "2026-10-29T00:07:50Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:07:55Z",
+            "conclusion": "success",
+            "elapsed_seconds": 2,
+            "name": "Check out the frozen cohort source",
+            "started_at": "2026-10-29T00:07:53Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:07:55Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Set up the builder's exact Python patch",
+            "started_at": "2026-10-29T00:07:55Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:07:57Z",
+            "conclusion": "success",
+            "elapsed_seconds": 2,
+            "name": "Download the one verified shared wheel",
+            "started_at": "2026-10-29T00:07:55Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:07:59Z",
+            "conclusion": "success",
+            "elapsed_seconds": 2,
+            "name": "Create a fresh locked cohort environment",
+            "started_at": "2026-10-29T00:07:57Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:20Z",
+            "conclusion": "success",
+            "elapsed_seconds": 21,
+            "name": "Run the fixed subset schema smoke and preserve its original verdict",
+            "started_at": "2026-10-29T00:07:59Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:21Z",
+            "conclusion": "success",
+            "elapsed_seconds": 1,
+            "name": "Preserve bounded smoke reports and provenance first",
+            "started_at": "2026-10-29T00:08:20Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:23Z",
+            "conclusion": "success",
+            "elapsed_seconds": 2,
+            "name": "Preserve complete raw smoke evidence",
+            "started_at": "2026-10-29T00:08:21Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:23Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Post Set up the builder's exact Python patch",
+            "started_at": "2026-10-29T00:08:23Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:24Z",
+            "conclusion": "success",
+            "elapsed_seconds": 1,
+            "name": "Post Check out the frozen cohort source",
+            "started_at": "2026-10-29T00:08:23Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:24Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Post Check out qualification controls",
+            "started_at": "2026-10-29T00:08:24Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:24Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Complete job",
+            "started_at": "2026-10-29T00:08:24Z"
+          }
+        ]
+      },
+      {
+        "completed_at": "2026-10-29T00:08:30Z",
+        "conclusion": "success",
+        "elapsed_seconds": 43,
+        "id": 123179195449,
+        "name": "Schema smoke procedural baseline",
+        "started_at": "2026-10-29T00:07:47Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completed_at": "2026-10-29T00:07:49Z",
+            "conclusion": "success",
+            "elapsed_seconds": 1,
+            "name": "Set up job",
+            "started_at": "2026-10-29T00:07:48Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:07:49Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Set external task paths",
+            "started_at": "2026-10-29T00:07:49Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:07:51Z",
+            "conclusion": "success",
+            "elapsed_seconds": 2,
+            "name": "Check out qualification controls",
+            "started_at": "2026-10-29T00:07:49Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:07:53Z",
+            "conclusion": "success",
+            "elapsed_seconds": 2,
+            "name": "Check out the frozen cohort source",
+            "started_at": "2026-10-29T00:07:51Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:07:53Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Set up the builder's exact Python patch",
+            "started_at": "2026-10-29T00:07:53Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:07:54Z",
+            "conclusion": "success",
+            "elapsed_seconds": 1,
+            "name": "Download the one verified shared wheel",
+            "started_at": "2026-10-29T00:07:53Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:07:57Z",
+            "conclusion": "success",
+            "elapsed_seconds": 3,
+            "name": "Create a fresh locked cohort environment",
+            "started_at": "2026-10-29T00:07:54Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:25Z",
+            "conclusion": "success",
+            "elapsed_seconds": 28,
+            "name": "Run the fixed subset schema smoke and preserve its original verdict",
+            "started_at": "2026-10-29T00:07:57Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:26Z",
+            "conclusion": "success",
+            "elapsed_seconds": 1,
+            "name": "Preserve bounded smoke reports and provenance first",
+            "started_at": "2026-10-29T00:08:25Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:28Z",
+            "conclusion": "success",
+            "elapsed_seconds": 2,
+            "name": "Preserve complete raw smoke evidence",
+            "started_at": "2026-10-29T00:08:26Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:28Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Post Set up the builder's exact Python patch",
+            "started_at": "2026-10-29T00:08:28Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:28Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Post Check out the frozen cohort source",
+            "started_at": "2026-10-29T00:08:28Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:28Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Post Check out qualification controls",
+            "started_at": "2026-10-29T00:08:28Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:28Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Complete job",
+            "started_at": "2026-10-29T00:08:28Z"
+          }
+        ]
+      },
+      {
+        "completed_at": "2026-10-29T00:08:33Z",
+        "conclusion": "success",
+        "elapsed_seconds": 45,
+        "id": 123179195489,
+        "name": "Schema smoke template baseline",
+        "started_at": "2026-10-29T00:07:48Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completed_at": "2026-10-29T00:07:49Z",
+            "conclusion": "success",
+            "elapsed_seconds": 1,
+            "name": "Set up job",
+            "started_at": "2026-10-29T00:07:48Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:07:50Z",
+            "conclusion": "success",
+            "elapsed_seconds": 1,
+            "name": "Set external task paths",
+            "started_at": "2026-10-29T00:07:49Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:07:52Z",
+            "conclusion": "success",
+            "elapsed_seconds": 2,
+            "name": "Check out qualification controls",
+            "started_at": "2026-10-29T00:07:50Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:07:54Z",
+            "conclusion": "success",
+            "elapsed_seconds": 2,
+            "name": "Check out the frozen cohort source",
+            "started_at": "2026-10-29T00:07:52Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:07:54Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Set up the builder's exact Python patch",
+            "started_at": "2026-10-29T00:07:54Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:07:55Z",
+            "conclusion": "success",
+            "elapsed_seconds": 1,
+            "name": "Download the one verified shared wheel",
+            "started_at": "2026-10-29T00:07:54Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:01Z",
+            "conclusion": "success",
+            "elapsed_seconds": 6,
+            "name": "Create a fresh locked cohort environment",
+            "started_at": "2026-10-29T00:07:55Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:27Z",
+            "conclusion": "success",
+            "elapsed_seconds": 26,
+            "name": "Run the fixed subset schema smoke and preserve its original verdict",
+            "started_at": "2026-10-29T00:08:01Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:28Z",
+            "conclusion": "success",
+            "elapsed_seconds": 1,
+            "name": "Preserve bounded smoke reports and provenance first",
+            "started_at": "2026-10-29T00:08:27Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:30Z",
+            "conclusion": "success",
+            "elapsed_seconds": 2,
+            "name": "Preserve complete raw smoke evidence",
+            "started_at": "2026-10-29T00:08:28Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:30Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Post Set up the builder's exact Python patch",
+            "started_at": "2026-10-29T00:08:30Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:30Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Post Check out the frozen cohort source",
+            "started_at": "2026-10-29T00:08:30Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:30Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Post Check out qualification controls",
+            "started_at": "2026-10-29T00:08:30Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:30Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Complete job",
+            "started_at": "2026-10-29T00:08:30Z"
+          }
+        ]
+      },
+      {
+        "completed_at": "2026-10-29T01:16:56Z",
+        "conclusion": "success",
+        "elapsed_seconds": 4098,
+        "id": 123179512938,
+        "name": "Full template candidate",
+        "started_at": "2026-10-29T00:08:38Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completed_at": "2026-10-29T00:08:40Z",
+            "conclusion": "success",
+            "elapsed_seconds": 1,
+            "name": "Set up job",
+            "started_at": "2026-10-29T00:08:39Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:40Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Set external task paths",
+            "started_at": "2026-10-29T00:08:40Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:42Z",
+            "conclusion": "success",
+            "elapsed_seconds": 2,
+            "name": "Check out qualification controls",
+            "started_at": "2026-10-29T00:08:40Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:44Z",
+            "conclusion": "success",
+            "elapsed_seconds": 2,
+            "name": "Check out the frozen cohort source",
+            "started_at": "2026-10-29T00:08:42Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:44Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Set up the builder's exact Python patch",
+            "started_at": "2026-10-29T00:08:44Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:45Z",
+            "conclusion": "success",
+            "elapsed_seconds": 1,
+            "name": "Download the one verified shared wheel",
+            "started_at": "2026-10-29T00:08:44Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:48Z",
+            "conclusion": "success",
+            "elapsed_seconds": 3,
+            "name": "Create a fresh locked cohort environment",
+            "started_at": "2026-10-29T00:08:45Z"
+          },
+          {
+            "completed_at": "2026-10-29T01:15:20Z",
+            "conclusion": "success",
+            "elapsed_seconds": 3992,
+            "name": "Run the frozen full cohort with original strict gate policy",
+            "started_at": "2026-10-29T00:08:48Z"
+          },
+          {
+            "completed_at": "2026-10-29T01:15:21Z",
+            "conclusion": "success",
+            "elapsed_seconds": 1,
+            "name": "Preserve bounded cohort reports and provenance first",
+            "started_at": "2026-10-29T01:15:20Z"
+          },
+          {
+            "completed_at": "2026-10-29T01:16:50Z",
+            "conclusion": "success",
+            "elapsed_seconds": 89,
+            "name": "Preserve complete raw cohort evidence",
+            "started_at": "2026-10-29T01:15:21Z"
+          },
+          {
+            "completed_at": "2026-10-29T01:16:50Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Post Set up the builder's exact Python patch",
+            "started_at": "2026-10-29T01:16:50Z"
+          },
+          {
+            "completed_at": "2026-10-29T01:16:51Z",
+            "conclusion": "success",
+            "elapsed_seconds": 1,
+            "name": "Post Check out the frozen cohort source",
+            "started_at": "2026-10-29T01:16:50Z"
+          },
+          {
+            "completed_at": "2026-10-29T01:16:51Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Post Check out qualification controls",
+            "started_at": "2026-10-29T01:16:51Z"
+          },
+          {
+            "completed_at": "2026-10-29T01:16:51Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Complete job",
+            "started_at": "2026-10-29T01:16:51Z"
+          }
+        ]
+      },
+      {
+        "completed_at": "2026-10-29T02:40:36Z",
+        "conclusion": "success",
+        "elapsed_seconds": 9118,
+        "id": 123179512973,
+        "name": "Full procedural baseline",
+        "started_at": "2026-10-29T00:08:38Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completed_at": "2026-10-29T00:08:40Z",
+            "conclusion": "success",
+            "elapsed_seconds": 1,
+            "name": "Set up job",
+            "started_at": "2026-10-29T00:08:39Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:40Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Set external task paths",
+            "started_at": "2026-10-29T00:08:40Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:43Z",
+            "conclusion": "success",
+            "elapsed_seconds": 3,
+            "name": "Check out qualification controls",
+            "started_at": "2026-10-29T00:08:40Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:45Z",
+            "conclusion": "success",
+            "elapsed_seconds": 2,
+            "name": "Check out the frozen cohort source",
+            "started_at": "2026-10-29T00:08:43Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:45Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Set up the builder's exact Python patch",
+            "started_at": "2026-10-29T00:08:45Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:46Z",
+            "conclusion": "success",
+            "elapsed_seconds": 1,
+            "name": "Download the one verified shared wheel",
+            "started_at": "2026-10-29T00:08:45Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:49Z",
+            "conclusion": "success",
+            "elapsed_seconds": 3,
+            "name": "Create a fresh locked cohort environment",
+            "started_at": "2026-10-29T00:08:46Z"
+          },
+          {
+            "completed_at": "2026-10-29T02:38:19Z",
+            "conclusion": "success",
+            "elapsed_seconds": 8970,
+            "name": "Run the frozen full cohort with original strict gate policy",
+            "started_at": "2026-10-29T00:08:49Z"
+          },
+          {
+            "completed_at": "2026-10-29T02:38:20Z",
+            "conclusion": "success",
+            "elapsed_seconds": 1,
+            "name": "Preserve bounded cohort reports and provenance first",
+            "started_at": "2026-10-29T02:38:19Z"
+          },
+          {
+            "completed_at": "2026-10-29T02:40:32Z",
+            "conclusion": "success",
+            "elapsed_seconds": 132,
+            "name": "Preserve complete raw cohort evidence",
+            "started_at": "2026-10-29T02:38:20Z"
+          },
+          {
+            "completed_at": "2026-10-29T02:40:32Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Post Set up the builder's exact Python patch",
+            "started_at": "2026-10-29T02:40:32Z"
+          },
+          {
+            "completed_at": "2026-10-29T02:40:32Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Post Check out the frozen cohort source",
+            "started_at": "2026-10-29T02:40:32Z"
+          },
+          {
+            "completed_at": "2026-10-29T02:40:33Z",
+            "conclusion": "success",
+            "elapsed_seconds": 1,
+            "name": "Post Check out qualification controls",
+            "started_at": "2026-10-29T02:40:32Z"
+          },
+          {
+            "completed_at": "2026-10-29T02:40:33Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Complete job",
+            "started_at": "2026-10-29T02:40:33Z"
+          }
+        ]
+      },
+      {
+        "completed_at": "2026-10-29T01:35:08Z",
+        "conclusion": "success",
+        "elapsed_seconds": 5189,
+        "id": 123179513015,
+        "name": "Full template baseline",
+        "started_at": "2026-10-29T00:08:39Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completed_at": "2026-10-29T00:08:40Z",
+            "conclusion": "success",
+            "elapsed_seconds": 1,
+            "name": "Set up job",
+            "started_at": "2026-10-29T00:08:39Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:40Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Set external task paths",
+            "started_at": "2026-10-29T00:08:40Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:42Z",
+            "conclusion": "success",
+            "elapsed_seconds": 2,
+            "name": "Check out qualification controls",
+            "started_at": "2026-10-29T00:08:40Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:44Z",
+            "conclusion": "success",
+            "elapsed_seconds": 2,
+            "name": "Check out the frozen cohort source",
+            "started_at": "2026-10-29T00:08:42Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:44Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Set up the builder's exact Python patch",
+            "started_at": "2026-10-29T00:08:44Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:45Z",
+            "conclusion": "success",
+            "elapsed_seconds": 1,
+            "name": "Download the one verified shared wheel",
+            "started_at": "2026-10-29T00:08:44Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:48Z",
+            "conclusion": "success",
+            "elapsed_seconds": 3,
+            "name": "Create a fresh locked cohort environment",
+            "started_at": "2026-10-29T00:08:45Z"
+          },
+          {
+            "completed_at": "2026-10-29T01:32:59Z",
+            "conclusion": "success",
+            "elapsed_seconds": 5051,
+            "name": "Run the frozen full cohort with original strict gate policy",
+            "started_at": "2026-10-29T00:08:48Z"
+          },
+          {
+            "completed_at": "2026-10-29T01:33:00Z",
+            "conclusion": "success",
+            "elapsed_seconds": 1,
+            "name": "Preserve bounded cohort reports and provenance first",
+            "started_at": "2026-10-29T01:32:59Z"
+          },
+          {
+            "completed_at": "2026-10-29T01:35:00Z",
+            "conclusion": "success",
+            "elapsed_seconds": 120,
+            "name": "Preserve complete raw cohort evidence",
+            "started_at": "2026-10-29T01:33:00Z"
+          },
+          {
+            "completed_at": "2026-10-29T01:35:00Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Post Set up the builder's exact Python patch",
+            "started_at": "2026-10-29T01:35:00Z"
+          },
+          {
+            "completed_at": "2026-10-29T01:35:00Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Post Check out the frozen cohort source",
+            "started_at": "2026-10-29T01:35:00Z"
+          },
+          {
+            "completed_at": "2026-10-29T01:35:00Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Post Check out qualification controls",
+            "started_at": "2026-10-29T01:35:00Z"
+          },
+          {
+            "completed_at": "2026-10-29T01:35:00Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Complete job",
+            "started_at": "2026-10-29T01:35:00Z"
+          }
+        ]
+      },
+      {
+        "completed_at": "2026-10-29T02:15:32Z",
+        "conclusion": "success",
+        "elapsed_seconds": 7613,
+        "id": 123179513201,
+        "name": "Full procedural candidate",
+        "started_at": "2026-10-29T00:08:39Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completed_at": "2026-10-29T00:08:41Z",
+            "conclusion": "success",
+            "elapsed_seconds": 1,
+            "name": "Set up job",
+            "started_at": "2026-10-29T00:08:40Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:41Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Set external task paths",
+            "started_at": "2026-10-29T00:08:41Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:43Z",
+            "conclusion": "success",
+            "elapsed_seconds": 2,
+            "name": "Check out qualification controls",
+            "started_at": "2026-10-29T00:08:41Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:45Z",
+            "conclusion": "success",
+            "elapsed_seconds": 2,
+            "name": "Check out the frozen cohort source",
+            "started_at": "2026-10-29T00:08:43Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:45Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Set up the builder's exact Python patch",
+            "started_at": "2026-10-29T00:08:45Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:47Z",
+            "conclusion": "success",
+            "elapsed_seconds": 2,
+            "name": "Download the one verified shared wheel",
+            "started_at": "2026-10-29T00:08:45Z"
+          },
+          {
+            "completed_at": "2026-10-29T00:08:50Z",
+            "conclusion": "success",
+            "elapsed_seconds": 3,
+            "name": "Create a fresh locked cohort environment",
+            "started_at": "2026-10-29T00:08:47Z"
+          },
+          {
+            "completed_at": "2026-10-29T02:13:31Z",
+            "conclusion": "success",
+            "elapsed_seconds": 7481,
+            "name": "Run the frozen full cohort with original strict gate policy",
+            "started_at": "2026-10-29T00:08:50Z"
+          },
+          {
+            "completed_at": "2026-10-29T02:13:33Z",
+            "conclusion": "success",
+            "elapsed_seconds": 2,
+            "name": "Preserve bounded cohort reports and provenance first",
+            "started_at": "2026-10-29T02:13:31Z"
+          },
+          {
+            "completed_at": "2026-10-29T02:15:26Z",
+            "conclusion": "success",
+            "elapsed_seconds": 113,
+            "name": "Preserve complete raw cohort evidence",
+            "started_at": "2026-10-29T02:13:33Z"
+          },
+          {
+            "completed_at": "2026-10-29T02:15:26Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Post Set up the builder's exact Python patch",
+            "started_at": "2026-10-29T02:15:26Z"
+          },
+          {
+            "completed_at": "2026-10-29T02:15:27Z",
+            "conclusion": "success",
+            "elapsed_seconds": 1,
+            "name": "Post Check out the frozen cohort source",
+            "started_at": "2026-10-29T02:15:26Z"
+          },
+          {
+            "completed_at": "2026-10-29T02:15:27Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Post Check out qualification controls",
+            "started_at": "2026-10-29T02:15:27Z"
+          },
+          {
+            "completed_at": "2026-10-29T02:15:27Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Complete job",
+            "started_at": "2026-10-29T02:15:27Z"
+          }
+        ]
+      },
+      {
+        "completed_at": "2026-10-29T02:40:59Z",
+        "conclusion": "success",
+        "elapsed_seconds": 21,
+        "id": 123230666743,
+        "name": "Strict original-policy comparison and separate causal adjudication",
+        "started_at": "2026-10-29T02:40:38Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completed_at": "2026-10-29T02:40:40Z",
+            "conclusion": "success",
+            "elapsed_seconds": 1,
+            "name": "Set up job",
+            "started_at": "2026-10-29T02:40:39Z"
+          },
+          {
+            "completed_at": "2026-10-29T02:40:40Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Set external task paths",
+            "started_at": "2026-10-29T02:40:40Z"
+          },
+          {
+            "completed_at": "2026-10-29T02:40:42Z",
+            "conclusion": "success",
+            "elapsed_seconds": 2,
+            "name": "Check out qualification controls",
+            "started_at": "2026-10-29T02:40:40Z"
+          },
+          {
+            "completed_at": "2026-10-29T02:40:44Z",
+            "conclusion": "success",
+            "elapsed_seconds": 2,
+            "name": "Check out the exact frozen comparator",
+            "started_at": "2026-10-29T02:40:42Z"
+          },
+          {
+            "completed_at": "2026-10-29T02:40:44Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Set up the builder's exact Python patch",
+            "started_at": "2026-10-29T02:40:44Z"
+          },
+          {
+            "completed_at": "2026-10-29T02:40:46Z",
+            "conclusion": "success",
+            "elapsed_seconds": 2,
+            "name": "Download available cohort light artifacts from this run",
+            "started_at": "2026-10-29T02:40:44Z"
+          },
+          {
+            "completed_at": "2026-10-29T02:40:50Z",
+            "conclusion": "success",
+            "elapsed_seconds": 4,
+            "name": "Install the frozen comparator's locked dependencies",
+            "started_at": "2026-10-29T02:40:46Z"
+          },
+          {
+            "completed_at": "2026-10-29T02:40:51Z",
+            "conclusion": "success",
+            "elapsed_seconds": 1,
+            "name": "Observe bounded current-run raw artifact publication",
+            "started_at": "2026-10-29T02:40:50Z"
+          },
+          {
+            "completed_at": "2026-10-29T02:40:54Z",
+            "conclusion": "success",
+            "elapsed_seconds": 3,
+            "name": "Compare untouched reports and adjudicate causal requirements separately",
+            "started_at": "2026-10-29T02:40:51Z"
+          },
+          {
+            "completed_at": "2026-10-29T02:40:56Z",
+            "conclusion": "success",
+            "elapsed_seconds": 2,
+            "name": "Preserve comparisons and separate causal adjudications",
+            "started_at": "2026-10-29T02:40:54Z"
+          },
+          {
+            "completed_at": "2026-10-29T02:40:56Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Post Set up the builder's exact Python patch",
+            "started_at": "2026-10-29T02:40:56Z"
+          },
+          {
+            "completed_at": "2026-10-29T02:40:56Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Post Check out the exact frozen comparator",
+            "started_at": "2026-10-29T02:40:56Z"
+          },
+          {
+            "completed_at": "2026-10-29T02:40:56Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Post Check out qualification controls",
+            "started_at": "2026-10-29T02:40:56Z"
+          },
+          {
+            "completed_at": "2026-10-29T02:40:56Z",
+            "conclusion": "success",
+            "elapsed_seconds": 0,
+            "name": "Complete job",
+            "started_at": "2026-10-29T02:40:56Z"
+          }
+        ]
+      }
+    ],
+    "scope": "GitHub job/step, controller and pytest clocks have different scopes. Separate hosts and concurrent arms are not a speed benchmark."
+  },
+  "cohorts": {
+    "procedural-baseline": {
+      "causal_required": "FAIL",
+      "causal_required_exit_code": 2,
+      "causal_required_failures": [
+        {
+          "oracle": "cohort",
+          "reason": "members' migration rate ratio 0.9956 (upper bound 1.0035); needs at most 0.85 and a bound below 1",
+          "status": "FAIL"
+        }
+      ],
+      "cohort_step_completed_at": "2026-10-29T02:38:19Z",
+      "cohort_step_seconds": 8970,
+      "cohort_step_started_at": "2026-10-29T00:08:49Z",
+      "community_specification": "FAIL informational",
+      "determinism": "SKIP no_duplicate_seed_pairs",
+      "expected": {
+        "arms": [
+          "needs",
+          "kin_roots"
+        ],
+        "causal_oracles_required": false,
+        "checkpoint_turns": [
+          101,
+          121,
+          141,
+          161,
+          181,
+          201,
+          221,
+          241,
+          261
+        ],
+        "civs": 10,
+        "cpus": 2,
+        "fork_count": 1800,
+        "fork_turns": [
+          100,
+          120,
+          140,
+          160,
+          180,
+          200,
+          220,
+          240,
+          260
+        ],
+        "parallel": 2,
+        "profile": "full",
+        "regions": 32,
+        "require_strict_regression": true,
+        "seed_count": 100,
+        "seed_start": 42,
+        "threads": 1,
+        "turns": 300,
+        "window_turns": 20,
+        "worldgen": "procedural"
+      },
+      "helper_seconds": 8969.883470186,
+      "historical_arm": "baseline",
+      "job_completed_at": "2026-10-29T02:40:36Z",
+      "job_id": 123179512973,
+      "job_seconds": 9118,
+      "job_started_at": "2026-10-29T00:08:38Z",
+      "joint_needs_causal": "PASS",
+      "kin_roots_causal": "FAIL",
+      "light_index_sha256": "cb85d7b52581222f656f816689bf22fa2772b3b6f6c6cbf6de735dbd77401319",
+      "original_strict": "PASS",
+      "raw_inventory_sha256": "078486457f01a2c341aae60105f9302197159bfc5dadfd70418e21cc7f6ddf34",
+      "raw_publication_step_seconds": 132,
+      "required_failures": [],
+      "required_oracles": [
+        "community",
+        "needs",
+        "era",
+        "cohort",
+        "artifacts",
+        "arcs",
+        "regression"
+      ],
+      "source_sha": "2f9d618b70f3304c02dcaeef12996b4a99e074c0",
+      "worldgen": "procedural"
+    },
+    "procedural-candidate": {
+      "causal_required": "FAIL",
+      "causal_required_exit_code": 2,
+      "causal_required_failures": [
+        {
+          "oracle": "cohort",
+          "reason": "members' migration rate ratio 0.9956 (upper bound 1.0035); needs at most 0.85 and a bound below 1",
+          "status": "FAIL"
+        }
+      ],
+      "cohort_step_completed_at": "2026-10-29T02:13:31Z",
+      "cohort_step_seconds": 7481,
+      "cohort_step_started_at": "2026-10-29T00:08:50Z",
+      "community_specification": "FAIL informational",
+      "determinism": "SKIP no_duplicate_seed_pairs",
+      "expected": {
+        "arms": [
+          "needs",
+          "kin_roots"
+        ],
+        "causal_oracles_required": false,
+        "checkpoint_turns": [
+          101,
+          121,
+          141,
+          161,
+          181,
+          201,
+          221,
+          241,
+          261
+        ],
+        "civs": 10,
+        "cpus": 2,
+        "fork_count": 1800,
+        "fork_turns": [
+          100,
+          120,
+          140,
+          160,
+          180,
+          200,
+          220,
+          240,
+          260
+        ],
+        "parallel": 2,
+        "profile": "full",
+        "regions": 32,
+        "require_strict_regression": true,
+        "seed_count": 100,
+        "seed_start": 42,
+        "threads": 1,
+        "turns": 300,
+        "window_turns": 20,
+        "worldgen": "procedural"
+      },
+      "helper_seconds": 7481.647853617999,
+      "historical_arm": "candidate",
+      "job_completed_at": "2026-10-29T02:15:32Z",
+      "job_id": 123179513201,
+      "job_seconds": 7613,
+      "job_started_at": "2026-10-29T00:08:39Z",
+      "joint_needs_causal": "PASS",
+      "kin_roots_causal": "FAIL",
+      "light_index_sha256": "00c998633c8074cf8f58b49d21d5f5f97c2cf909e78ed9eee9ef0561dd09a030",
+      "original_strict": "PASS",
+      "raw_inventory_sha256": "0ac61ff8c76b78eacc868a65699efde3cf7cff1134cbf35d9ef3b510904e7bc1",
+      "raw_publication_step_seconds": 113,
+      "required_failures": [],
+      "required_oracles": [
+        "community",
+        "needs",
+        "era",
+        "cohort",
+        "artifacts",
+        "arcs",
+        "regression"
+      ],
+      "source_sha": "d0281e5f57c508f27cea1676f36e0e6ed1225c9d",
+      "worldgen": "procedural"
+    },
+    "template-baseline": {
+      "causal_required": "FAIL",
+      "causal_required_exit_code": 2,
+      "causal_required_failures": [
+        {
+          "oracle": "cohort",
+          "reason": "members' migration rate ratio 0.9877 (upper bound 0.9981); needs at most 0.85 and a bound below 1",
+          "status": "FAIL"
+        }
+      ],
+      "cohort_step_completed_at": "2026-10-29T01:32:59Z",
+      "cohort_step_seconds": 5051,
+      "cohort_step_started_at": "2026-10-29T00:08:48Z",
+      "community_specification": "FAIL informational",
+      "determinism": "SKIP no_duplicate_seed_pairs",
+      "expected": {
+        "arms": [
+          "needs",
+          "kin_roots"
+        ],
+        "causal_oracles_required": false,
+        "checkpoint_turns": [
+          101,
+          201,
+          301,
+          401
+        ],
+        "civs": 4,
+        "cpus": 2,
+        "fork_count": 1600,
+        "fork_turns": [
+          100,
+          200,
+          300,
+          400
+        ],
+        "parallel": 2,
+        "profile": "full",
+        "regions": 8,
+        "require_strict_regression": true,
+        "seed_count": 200,
+        "seed_start": 42,
+        "threads": 1,
+        "turns": 500,
+        "window_turns": 20,
+        "worldgen": "template"
+      },
+      "helper_seconds": 5050.32336493,
+      "historical_arm": "baseline",
+      "job_completed_at": "2026-10-29T01:35:08Z",
+      "job_id": 123179513015,
+      "job_seconds": 5189,
+      "job_started_at": "2026-10-29T00:08:39Z",
+      "joint_needs_causal": "PASS",
+      "kin_roots_causal": "FAIL",
+      "light_index_sha256": "8cee295d52bc7dd26f7ee9d9ceee9a184ae492d131715c6f1940bae55a02753a",
+      "original_strict": "PASS",
+      "raw_inventory_sha256": "bc686553b14d3494f8cc59f8689c7c05641654ff529379964e5d41d65f1f3318",
+      "raw_publication_step_seconds": 120,
+      "required_failures": [],
+      "required_oracles": [
+        "community",
+        "needs",
+        "era",
+        "cohort",
+        "artifacts",
+        "arcs",
+        "regression"
+      ],
+      "source_sha": "2f9d618b70f3304c02dcaeef12996b4a99e074c0",
+      "worldgen": "template"
+    },
+    "template-candidate": {
+      "causal_required": "FAIL",
+      "causal_required_exit_code": 2,
+      "causal_required_failures": [
+        {
+          "oracle": "cohort",
+          "reason": "members' migration rate ratio 0.9877 (upper bound 0.9981); needs at most 0.85 and a bound below 1",
+          "status": "FAIL"
+        }
+      ],
+      "cohort_step_completed_at": "2026-10-29T01:15:20Z",
+      "cohort_step_seconds": 3992,
+      "cohort_step_started_at": "2026-10-29T00:08:48Z",
+      "community_specification": "FAIL informational",
+      "determinism": "SKIP no_duplicate_seed_pairs",
+      "expected": {
+        "arms": [
+          "needs",
+          "kin_roots"
+        ],
+        "causal_oracles_required": false,
+        "checkpoint_turns": [
+          101,
+          201,
+          301,
+          401
+        ],
+        "civs": 4,
+        "cpus": 2,
+        "fork_count": 1600,
+        "fork_turns": [
+          100,
+          200,
+          300,
+          400
+        ],
+        "parallel": 2,
+        "profile": "full",
+        "regions": 8,
+        "require_strict_regression": true,
+        "seed_count": 200,
+        "seed_start": 42,
+        "threads": 1,
+        "turns": 500,
+        "window_turns": 20,
+        "worldgen": "template"
+      },
+      "helper_seconds": 3992.253646411,
+      "historical_arm": "candidate",
+      "job_completed_at": "2026-10-29T01:16:56Z",
+      "job_id": 123179512938,
+      "job_seconds": 4098,
+      "job_started_at": "2026-10-29T00:08:38Z",
+      "joint_needs_causal": "PASS",
+      "kin_roots_causal": "FAIL",
+      "light_index_sha256": "d74761755bdbdba080ecae2eb67372ea4de6eb7d662efde98c84fb97982f12b1",
+      "original_strict": "PASS",
+      "raw_inventory_sha256": "8e15b5c5813d46aa3adffa9e8f834cff8f2df22501eb7a582a0c70e46a84134d",
+      "raw_publication_step_seconds": 89,
+      "required_failures": [],
+      "required_oracles": [
+        "community",
+        "needs",
+        "era",
+        "cohort",
+        "artifacts",
+        "arcs",
+        "regression"
+      ],
+      "source_sha": "d0281e5f57c508f27cea1676f36e0e6ed1225c9d",
+      "worldgen": "template"
+    }
+  },
+  "date": "2026-10-29",
+  "independent_verification": {
+    "comparison_json_sha256": "6343e81b4332786353c4bf83ed0c50e30db84ca10c8a428112efa5da7ba61889",
+    "comparison_receipt_sha256": "0049c72dac673bc4a0f8b7827bb5c1ebdb0ef7bde1714cdcf35d18277cdccaf1",
+    "final_receipt_payload_files_checked": 10,
+    "four_light_zip_hashes_checked": true,
+    "indexed_light_files_checked": 36,
+    "last_baseline_light_checked_in_memory_not_stored": true,
+    "local_receipt": "/workspace/chronicler-full-gates-monitor-evidence/full-gate-final-verification-001.json",
+    "original_gate_payloads_preserved": true,
+    "receipt_sha256": "77ba85fec25c88325c283d31042d5645282c093669131bce9c6ef8613d73165e",
+    "retention_index_sha256": "4b4da8459a3ef2dffdbbc78235d9f3b94ca94964d236aff5167df7529acee0c5"
+  },
+  "kind": "full-population-gates-final-readout",
+  "limits": [
+    "Qualification is exact2f9/d028/native06db; it does not qualify c76/49b/arc249a/wealth503 outcomes.",
+    "No kin-roots efficacy, Arrow-decoded values, exact native resume/RNG, all-feature or speed qualification.",
+    "No new worlds/pools/builds/tests/scoring, threshold/sample/method changes or producer-ref/source mutation in this readout.",
+    "Inherited effective flags and linker facts remain unknown; exact versions do not prove whole toolchain identity or authorize native reuse."
+  ],
+  "original_failures_preserved": {
+    "historical_causal_study": {
+      "baseline_source": "cb9fe70c81658fb65c6f511b821447f1d7b55b54",
+      "candidate_source": "5b5252eded6d45957347af744f01847d2f735ef3",
+      "original_strict": "PASS both",
+      "scope": "Separate historical evidence remains unchanged; no cross-study causal attribution.",
+      "separate_causal_required": "FAIL both",
+      "shared_native_sha256": "43243cb026c6a6a141d15a5df743c96f8aca05c6bdc7c5ce1adbda8e31a6afd5"
+    },
+    "initial_activation": {
+      "changed_paths": [
+        ".github/workflows/cloud-full-gates.yml",
+        "docs/experiments/cloud-full-gates-2026-10-28.md",
+        "docs/experiments/cloud-full-gates-workflow.yml",
+        "docs/integration/cloud-full-gate-comparison-2026-10-28.md",
+        "tests/test_cloud_full_gate_comparison.py"
+      ],
+      "control_sha": "d2331dd172bedf0b639ee401a13aaee14c0509c6",
+      "failed_job_id": 123174862291,
+      "failed_parent_cases": 13,
+      "native_build_started": false,
+      "passed_parent_cases": 92,
+      "pytest_seconds": 23.6,
+      "repair": "Saved-JSON wire-order adjudication in synthetic fixtures plus contract artifact retention; production reader/gate/oracle scripts unchanged.",
+      "run_id": 40790686772,
+      "simulation_worlds": 0,
+      "successful_subtests": 36
+    },
+    "schema_smokes": [
+      {
+        "arm": "candidate",
+        "causal_oracles_required": false,
+        "checkpoint_turns": [
+          101
+        ],
+        "executions": 6,
+        "fork_turns": [
+          100
+        ],
+        "forks": 4,
+        "helper_seconds": 28.541957772999993,
+        "job_id": 123179195405,
+        "original_gate_exit_code": 2,
+        "original_subset_scientific": "FAIL",
+        "parent_turns": 125,
+        "parents": 2,
+        "physics_ticks": 334,
+        "qualified": false,
+        "schema_execution": "PASS",
+        "strict_regression_required": false,
+        "worldgen": "procedural"
+      },
+      {
+        "arm": "candidate",
+        "causal_oracles_required": false,
+        "checkpoint_turns": [
+          101
+        ],
+        "executions": 6,
+        "fork_turns": [
+          100
+        ],
+        "forks": 4,
+        "helper_seconds": 20.646483083,
+        "job_id": 123179195414,
+        "original_gate_exit_code": 2,
+        "original_subset_scientific": "FAIL",
+        "parent_turns": 125,
+        "parents": 2,
+        "physics_ticks": 334,
+        "qualified": false,
+        "schema_execution": "PASS",
+        "strict_regression_required": false,
+        "worldgen": "template"
+      },
+      {
+        "arm": "baseline",
+        "causal_oracles_required": false,
+        "checkpoint_turns": [
+          101
+        ],
+        "executions": 6,
+        "fork_turns": [
+          100
+        ],
+        "forks": 4,
+        "helper_seconds": 27.546017976,
+        "job_id": 123179195449,
+        "original_gate_exit_code": 2,
+        "original_subset_scientific": "FAIL",
+        "parent_turns": 125,
+        "parents": 2,
+        "physics_ticks": 334,
+        "qualified": false,
+        "schema_execution": "PASS",
+        "strict_regression_required": false,
+        "worldgen": "procedural"
+      },
+      {
+        "arm": "baseline",
+        "causal_oracles_required": false,
+        "checkpoint_turns": [
+          101
+        ],
+        "executions": 6,
+        "fork_turns": [
+          100
+        ],
+        "forks": 4,
+        "helper_seconds": 25.990641436999994,
+        "job_id": 123179195489,
+        "original_gate_exit_code": 2,
+        "original_subset_scientific": "FAIL",
+        "parent_turns": 125,
+        "parents": 2,
+        "physics_ticks": 334,
+        "qualified": false,
+        "schema_execution": "PASS",
+        "strict_regression_required": false,
+        "worldgen": "template"
+      }
+    ]
+  },
+  "original_native_build_provenance": {
+    "builder_job_id": 123177237985,
+    "byte_exact_rebuild_proven": false,
+    "controller_source": {
+      "build_command_lines": [
+        446,
+        448
+      ],
+      "commit": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+      "git_blob_sha": "e9116548cae1a820a31794b896c2565670696fa2",
+      "path": "scripts/cloud_full_gate_qualification.py",
+      "version_commands_lines": [
+        440,
+        443
+      ]
+    },
+    "exact_versions": {
+      "cargo": {
+        "commit_date": "2026-08-27",
+        "commit_prefix": "5f94df478",
+        "version": "1.99.1"
+      },
+      "maturin": {
+        "version": "1.15.0"
+      },
+      "rustc": {
+        "commit_date": "2026-10-13",
+        "commit_hash": "58cf8f9c35b355199727627d07ae34a4e2846d67",
+        "host": "x86_64-unknown-linux-gnu",
+        "llvm": "23.1.1",
+        "version": "1.99.1"
+      },
+      "uv": {
+        "reported_platform": "x86_64-unknown-linux-gnu",
+        "version": "0.13.6"
+      }
+    },
+    "explicit_argv_template": [
+      "<qualified-python>",
+      "-m",
+      "maturin",
+      "build",
+      "--release",
+      "--locked",
+      "--manifest-path",
+      "<candidate>/chronicler-agents/Cargo.toml",
+      "--out",
+      "<evidence>/wheels"
+    ],
+    "in_memory_archive_inspection": {
+      "archive_bytes": 5188363,
+      "declared_expansion_bytes": 8752628,
+      "ram_admission": {
+        "observed_cgroup_headroom_bytes": 916819968,
+        "observed_memavailable_bytes": 17400291328,
+        "required_available_headroom_bytes": 268435456
+      },
+      "zip_stored_to_disk": false
+    },
+    "observed_environment": {
+      "CARGO_BUILD_JOBS": "1",
+      "CARGO_INCREMENTAL": "0"
+    },
+    "observed_python": "3.13.17",
+    "official_builder_raw_artifact": {
+      "created_at": "2026-10-29T00:07:41Z",
+      "digest": "sha256:bb81630553ae81754fca8802aad88cba3bf907b618fa4d8c687cf6c00c3204eb",
+      "expired": false,
+      "expires_at": "2026-11-28T00:07:40Z",
+      "id": 12861268992,
+      "independent_verification": "Builder ZIP hash in RAM and selected version/build logs linked to its inventory; not a full payload audit.",
+      "name": "full-gates-build-raw-40791402289-1",
+      "size_in_bytes": 5188363,
+      "updated_at": "2026-10-29T00:07:41Z",
+      "workflow_run": {
+        "head_branch": "lead/cloud-full-gates-20261028",
+        "head_repository_id": 1187468861,
+        "head_sha": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+        "id": 40791402289,
+        "repository_id": 1187468861
+      }
+    },
+    "raw_inventory_sha256": "166eb033c542511d217f9e1c92cb9b9115b5fcdfd0658d7dded1d6fbdf169c01",
+    "scope": "Exact versions, explicit command and frozen source declarations are facts. Inherited overrides are not recorded, so declared options are not proof of all effective flags. No build/world/native import was performed.",
+    "source_declarations": {
+      "cargo_default_features": [],
+      "cargo_file": "chronicler-agents/Cargo.toml",
+      "maturin_features": [
+        "pyo3/extension-module"
+      ],
+      "maturin_file": "chronicler-agents/pyproject.toml",
+      "release_profile": {
+        "codegen-units": 1,
+        "lto": true,
+        "opt-level": 3
+      },
+      "source_sha": "d0281e5f57c508f27cea1676f36e0e6ed1225c9d"
+    },
+    "unresolved_effective_settings": [
+      "RUSTFLAGS",
+      "CARGO_ENCODED_RUSTFLAGS",
+      "RUSTDOCFLAGS",
+      "CARGO_BUILD_TARGET / target overrides",
+      "CARGO_PROFILE_RELEASE_* overrides",
+      "CC/CXX and CFLAGS/CXXFLAGS/LDFLAGS",
+      "linker executable/version",
+      "full verbose compiler/linker argv"
+    ],
+    "version_matches_authorize_reuse": false,
+    "version_member_provenance": {
+      "logs/build.log": {
+        "bytes": 10939,
+        "sha256": "3be0238a8a39ec1531597b2373cea3e849ce8cb6e17d43ffd12c9d2275cbe802"
+      },
+      "logs/cargo-version.log": {
+        "bytes": 36,
+        "sha256": "c35608815f43d0b8788a9b826fad2bb17384f49fb328dc4fe64da9db5f5ef4d6"
+      },
+      "logs/maturin-version.log": {
+        "bytes": 15,
+        "sha256": "971f1005e6ea40cc978deb0baba53e0a2b4a1e5f9af63ae5b2276cd93de51d00"
+      },
+      "logs/rustc-version.log": {
+        "bytes": 196,
+        "sha256": "f22d5e4e9ced367e774ce5bc140d9e6b1235c1882fec80d011044851f3ae6369"
+      },
+      "logs/uv-version.log": {
+        "bytes": 37,
+        "sha256": "fbbcd171845c2ca434c5dfa54c317d4c40d67b2eba473797107b39cf91c5e561"
+      }
+    },
+    "whole_effective_toolchain_identity_established": false
+  },
+  "registered_scope": {
+    "fork_clock": "T label loads T+1 checkpoint; 21 actual physics ticks through T+22; 20 measured turns.",
+    "full": {
+      "executions": 7400,
+      "forks": 6800,
+      "parents": 600,
+      "physics_ticks": 402800
+    },
+    "independence": "Executions/ticks, repeated cohort/community observations and seed clusters are distinct units; no pooled independence claim.",
+    "procedural_per_arm": {
+      "checkpoint_turns": [
+        101,
+        121,
+        141,
+        161,
+        181,
+        201,
+        221,
+        241,
+        261
+      ],
+      "civs": 10,
+      "executions": 1900,
+      "fork_turns": [
+        100,
+        120,
+        140,
+        160,
+        180,
+        200,
+        220,
+        240,
+        260
+      ],
+      "forks": 1800,
+      "parent_turns": 300,
+      "parents": 100,
+      "physics_ticks": 67800,
+      "regions": 32
+    },
+    "separate_schema_smokes": {
+      "executions": 24,
+      "forks": 16,
+      "parents": 8,
+      "physics_ticks": 1336
+    },
+    "template_per_arm": {
+      "checkpoint_turns": [
+        101,
+        201,
+        301,
+        401
+      ],
+      "civs": 4,
+      "executions": 1800,
+      "fork_turns": [
+        100,
+        200,
+        300,
+        400
+      ],
+      "forks": 1600,
+      "parent_turns": 500,
+      "parents": 200,
+      "physics_ticks": 133600,
+      "regions": 8
+    }
+  },
+  "retention": {
+    "cohort_raw_contents_independently_rehashed": false,
+    "current_api_recheck_completed_by": "2026-10-29T02:49:55Z",
+    "current_artifact_count": 21,
+    "frozen_observer": {
+      "artifacts": {
+        "full-gates-raw-baseline-procedural-40791402289-1": {
+          "created_at": "2026-10-29T02:40:32Z",
+          "digest": "sha256:0bf5b9309be1cd0b72324a1bb8f27b9036fd9b1a2a8f74a143f63112ddbfa78d",
+          "expired": false,
+          "expires_at": "2026-11-28T02:38:22Z",
+          "id": 12868314984,
+          "name": "full-gates-raw-baseline-procedural-40791402289-1",
+          "size_in_bytes": 1235683012,
+          "workflow_run": {
+            "head_branch": "lead/cloud-full-gates-20261028",
+            "head_repository_id": 1187468861,
+            "head_sha": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+            "id": 40791402289,
+            "repository_id": 1187468861
+          }
+        },
+        "full-gates-raw-baseline-template-40791402289-1": {
+          "created_at": "2026-10-29T01:35:00Z",
+          "digest": "sha256:1f9a2f89a0d6dbb036812a7b0867fb21da761d654c772004fb8f53a13529553f",
+          "expired": false,
+          "expires_at": "2026-11-28T01:33:05Z",
+          "id": 12865419980,
+          "name": "full-gates-raw-baseline-template-40791402289-1",
+          "size_in_bytes": 891261255,
+          "workflow_run": {
+            "head_branch": "lead/cloud-full-gates-20261028",
+            "head_repository_id": 1187468861,
+            "head_sha": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+            "id": 40791402289,
+            "repository_id": 1187468861
+          }
+        },
+        "full-gates-raw-candidate-procedural-40791402289-1": {
+          "created_at": "2026-10-29T02:15:26Z",
+          "digest": "sha256:1ebd660a76acf26106d9205729f56aadeb59e8c5633a044faa5a5b1c32e928a8",
+          "expired": false,
+          "expires_at": "2026-11-28T02:13:35Z",
+          "id": 12867956553,
+          "name": "full-gates-raw-candidate-procedural-40791402289-1",
+          "size_in_bytes": 1235585452,
+          "workflow_run": {
+            "head_branch": "lead/cloud-full-gates-20261028",
+            "head_repository_id": 1187468861,
+            "head_sha": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+            "id": 40791402289,
+            "repository_id": 1187468861
+          }
+        },
+        "full-gates-raw-candidate-template-40791402289-1": {
+          "created_at": "2026-10-29T01:16:50Z",
+          "digest": "sha256:ac1132176349bee3a82bcfffef9ee29abccf424920711ca635d07d616598e1ae",
+          "expired": false,
+          "expires_at": "2026-11-28T01:15:25Z",
+          "id": 12865287568,
+          "name": "full-gates-raw-candidate-template-40791402289-1",
+          "size_in_bytes": 891194242,
+          "workflow_run": {
+            "head_branch": "lead/cloud-full-gates-20261028",
+            "head_repository_id": 1187468861,
+            "head_sha": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+            "id": 40791402289,
+            "repository_id": 1187468861
+          }
+        }
+      },
+      "cohort_job_result": "success",
+      "index": {
+        "bytes": 32286,
+        "path": "/home/runner/work/_temp/full-gates-retention/index.json",
+        "sha256": "4b4da8459a3ef2dffdbbc78235d9f3b94ca94964d236aff5167df7529acee0c5"
+      },
+      "missing": [],
+      "observed_at": "2026-10-29T02:40:50.883052+00:00",
+      "pipeline_requirements_met": true,
+      "raw_publication_verified": true,
+      "scope": "Current-run API archive metadata and producer aggregate conclusion; raw contents are not downloaded.",
+      "status": "verified"
+    },
+    "official_artifacts": [
+      {
+        "created_at": "2026-10-29T02:40:56Z",
+        "digest": "sha256:08a96322a503f33a4b068ead2e0832af6eb4f972e7de32bced87c01462fb5646",
+        "expired": false,
+        "expires_at": "2026-11-28T02:40:55Z",
+        "id": 12868832709,
+        "independent_verification": "Final ZIP hash, ten receipt payload hashes and retention-index linkage verified.",
+        "name": "full-gates-comparison-40791402289-1",
+        "size_in_bytes": 24835,
+        "updated_at": "2026-10-29T02:40:56Z",
+        "workflow_run": {
+          "head_branch": "lead/cloud-full-gates-20261028",
+          "head_repository_id": 1187468861,
+          "head_sha": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+          "id": 40791402289,
+          "repository_id": 1187468861
+        }
+      },
+      {
+        "created_at": "2026-10-29T02:38:20Z",
+        "digest": "sha256:cda1ac31b8a7a8dc57c512089f1bb5e1b738c17da598d056ce313ab6b17629b7",
+        "expired": false,
+        "expires_at": "2026-11-28T02:38:19Z",
+        "id": 12868368429,
+        "independent_verification": "Light ZIP hash, complete index and linked receipts verified; last baseline inspected in memory only.",
+        "name": "full-gates-light-baseline-procedural-40791402289-1",
+        "size_in_bytes": 1768638,
+        "updated_at": "2026-10-29T02:38:20Z",
+        "workflow_run": {
+          "head_branch": "lead/cloud-full-gates-20261028",
+          "head_repository_id": 1187468861,
+          "head_sha": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+          "id": 40791402289,
+          "repository_id": 1187468861
+        }
+      },
+      {
+        "created_at": "2026-10-29T02:40:32Z",
+        "digest": "sha256:0bf5b9309be1cd0b72324a1bb8f27b9036fd9b1a2a8f74a143f63112ddbfa78d",
+        "expired": false,
+        "expires_at": "2026-11-28T02:38:22Z",
+        "id": 12868314984,
+        "independent_verification": "Official current-run publication metadata only; ZIP not independently rehashed here.",
+        "name": "full-gates-raw-baseline-procedural-40791402289-1",
+        "size_in_bytes": 1235683012,
+        "updated_at": "2026-10-29T02:40:32Z",
+        "workflow_run": {
+          "head_branch": "lead/cloud-full-gates-20261028",
+          "head_repository_id": 1187468861,
+          "head_sha": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+          "id": 40791402289,
+          "repository_id": 1187468861
+        }
+      },
+      {
+        "created_at": "2026-10-29T02:13:33Z",
+        "digest": "sha256:9c6117236e0ab51671c2ded18c1536ca27d129f8976c30dd96f21a34f5f500aa",
+        "expired": false,
+        "expires_at": "2026-11-28T02:13:31Z",
+        "id": 12868305362,
+        "independent_verification": "Light ZIP hash, complete index and linked receipts verified; last baseline inspected in memory only.",
+        "name": "full-gates-light-candidate-procedural-40791402289-1",
+        "size_in_bytes": 1768422,
+        "updated_at": "2026-10-29T02:13:33Z",
+        "workflow_run": {
+          "head_branch": "lead/cloud-full-gates-20261028",
+          "head_repository_id": 1187468861,
+          "head_sha": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+          "id": 40791402289,
+          "repository_id": 1187468861
+        }
+      },
+      {
+        "created_at": "2026-10-29T02:15:26Z",
+        "digest": "sha256:1ebd660a76acf26106d9205729f56aadeb59e8c5633a044faa5a5b1c32e928a8",
+        "expired": false,
+        "expires_at": "2026-11-28T02:13:35Z",
+        "id": 12867956553,
+        "independent_verification": "Official current-run publication metadata only; ZIP not independently rehashed here.",
+        "name": "full-gates-raw-candidate-procedural-40791402289-1",
+        "size_in_bytes": 1235585452,
+        "updated_at": "2026-10-29T02:15:26Z",
+        "workflow_run": {
+          "head_branch": "lead/cloud-full-gates-20261028",
+          "head_repository_id": 1187468861,
+          "head_sha": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+          "id": 40791402289,
+          "repository_id": 1187468861
+        }
+      },
+      {
+        "created_at": "2026-10-29T01:33:00Z",
+        "digest": "sha256:e9d24d62030ba9e734eb1c606381136af816d2ba8cca3d7068d2a6ca43effa52",
+        "expired": false,
+        "expires_at": "2026-11-28T01:32:59Z",
+        "id": 12866350645,
+        "independent_verification": "Light ZIP hash, complete index and linked receipts verified; last baseline inspected in memory only.",
+        "name": "full-gates-light-baseline-template-40791402289-1",
+        "size_in_bytes": 4860400,
+        "updated_at": "2026-10-29T01:33:00Z",
+        "workflow_run": {
+          "head_branch": "lead/cloud-full-gates-20261028",
+          "head_repository_id": 1187468861,
+          "head_sha": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+          "id": 40791402289,
+          "repository_id": 1187468861
+        }
+      },
+      {
+        "created_at": "2026-10-29T01:35:00Z",
+        "digest": "sha256:1f9a2f89a0d6dbb036812a7b0867fb21da761d654c772004fb8f53a13529553f",
+        "expired": false,
+        "expires_at": "2026-11-28T01:33:05Z",
+        "id": 12865419980,
+        "independent_verification": "Official current-run publication metadata only; ZIP not independently rehashed here.",
+        "name": "full-gates-raw-baseline-template-40791402289-1",
+        "size_in_bytes": 891261255,
+        "updated_at": "2026-10-29T01:35:00Z",
+        "workflow_run": {
+          "head_branch": "lead/cloud-full-gates-20261028",
+          "head_repository_id": 1187468861,
+          "head_sha": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+          "id": 40791402289,
+          "repository_id": 1187468861
+        }
+      },
+      {
+        "created_at": "2026-10-29T01:16:50Z",
+        "digest": "sha256:ac1132176349bee3a82bcfffef9ee29abccf424920711ca635d07d616598e1ae",
+        "expired": false,
+        "expires_at": "2026-11-28T01:15:25Z",
+        "id": 12865287568,
+        "independent_verification": "Official current-run publication metadata only; ZIP not independently rehashed here.",
+        "name": "full-gates-raw-candidate-template-40791402289-1",
+        "size_in_bytes": 891194242,
+        "updated_at": "2026-10-29T01:16:50Z",
+        "workflow_run": {
+          "head_branch": "lead/cloud-full-gates-20261028",
+          "head_repository_id": 1187468861,
+          "head_sha": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+          "id": 40791402289,
+          "repository_id": 1187468861
+        }
+      },
+      {
+        "created_at": "2026-10-29T01:15:21Z",
+        "digest": "sha256:745443ffe29595cc96a7f1d6b58b13d5f974a2abb43954299e8227b80d95c786",
+        "expired": false,
+        "expires_at": "2026-11-28T01:15:20Z",
+        "id": 12864154643,
+        "independent_verification": "Light ZIP hash, complete index and linked receipts verified; last baseline inspected in memory only.",
+        "name": "full-gates-light-candidate-template-40791402289-1",
+        "size_in_bytes": 4860197,
+        "updated_at": "2026-10-29T01:15:21Z",
+        "workflow_run": {
+          "head_branch": "lead/cloud-full-gates-20261028",
+          "head_repository_id": 1187468861,
+          "head_sha": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+          "id": 40791402289,
+          "repository_id": 1187468861
+        }
+      },
+      {
+        "created_at": "2026-10-29T00:08:31Z",
+        "digest": "sha256:28c0155bebbcd393e96a7d3928f4fad02d90e21bd1a8e8cd265054df6adf688e",
+        "expired": false,
+        "expires_at": "2026-11-28T00:08:30Z",
+        "id": 12862590054,
+        "independent_verification": "Official current-run publication metadata only; ZIP not independently rehashed here.",
+        "name": "full-gates-smoke-light-candidate-procedural-40791402289-1",
+        "size_in_bytes": 34089,
+        "updated_at": "2026-10-29T00:08:31Z",
+        "workflow_run": {
+          "head_branch": "lead/cloud-full-gates-20261028",
+          "head_repository_id": 1187468861,
+          "head_sha": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+          "id": 40791402289,
+          "repository_id": 1187468861
+        }
+      },
+      {
+        "created_at": "2026-10-29T00:08:26Z",
+        "digest": "sha256:1909d551a474b57aca3ce76a7edfbfd4183b2176b58e1287570c3c42c13f19a9",
+        "expired": false,
+        "expires_at": "2026-11-28T00:08:25Z",
+        "id": 12862406085,
+        "independent_verification": "Official current-run publication metadata only; ZIP not independently rehashed here.",
+        "name": "full-gates-smoke-light-baseline-procedural-40791402289-1",
+        "size_in_bytes": 34094,
+        "updated_at": "2026-10-29T00:08:26Z",
+        "workflow_run": {
+          "head_branch": "lead/cloud-full-gates-20261028",
+          "head_repository_id": 1187468861,
+          "head_sha": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+          "id": 40791402289,
+          "repository_id": 1187468861
+        }
+      },
+      {
+        "created_at": "2026-10-29T00:08:29Z",
+        "digest": "sha256:43aa5a610f9217f3d5149facb33a0f5e6445eec778dd41690b3c1fc89a1a8afc",
+        "expired": false,
+        "expires_at": "2026-11-28T00:08:28Z",
+        "id": 12862391287,
+        "independent_verification": "Official current-run publication metadata only; ZIP not independently rehashed here.",
+        "name": "full-gates-smoke-raw-baseline-template-40791402289-1",
+        "size_in_bytes": 2866993,
+        "updated_at": "2026-10-29T00:08:29Z",
+        "workflow_run": {
+          "head_branch": "lead/cloud-full-gates-20261028",
+          "head_repository_id": 1187468861,
+          "head_sha": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+          "id": 40791402289,
+          "repository_id": 1187468861
+        }
+      },
+      {
+        "created_at": "2026-10-29T00:08:28Z",
+        "digest": "sha256:f365b1ccbd57950af8b7a9972799c5c11b5db16f13cbe85a08a61cf7ff93742f",
+        "expired": false,
+        "expires_at": "2026-11-28T00:08:27Z",
+        "id": 12862331389,
+        "independent_verification": "Official current-run publication metadata only; ZIP not independently rehashed here.",
+        "name": "full-gates-smoke-light-baseline-template-40791402289-1",
+        "size_in_bytes": 32691,
+        "updated_at": "2026-10-29T00:08:28Z",
+        "workflow_run": {
+          "head_branch": "lead/cloud-full-gates-20261028",
+          "head_repository_id": 1187468861,
+          "head_sha": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+          "id": 40791402289,
+          "repository_id": 1187468861
+        }
+      },
+      {
+        "created_at": "2026-10-29T00:08:21Z",
+        "digest": "sha256:e4a94a53f76895db1d27ecb71adf283112d0147cadd6ad24bc0c6d37d8202cd5",
+        "expired": false,
+        "expires_at": "2026-11-28T00:08:20Z",
+        "id": 12861977534,
+        "independent_verification": "Official current-run publication metadata only; ZIP not independently rehashed here.",
+        "name": "full-gates-smoke-light-candidate-template-40791402289-1",
+        "size_in_bytes": 32685,
+        "updated_at": "2026-10-29T00:08:21Z",
+        "workflow_run": {
+          "head_branch": "lead/cloud-full-gates-20261028",
+          "head_repository_id": 1187468861,
+          "head_sha": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+          "id": 40791402289,
+          "repository_id": 1187468861
+        }
+      },
+      {
+        "created_at": "2026-10-29T00:08:28Z",
+        "digest": "sha256:8294b569bccce8578a0cd4b530269283ce2ec9d969f7f6d3078a2c9feb95d00a",
+        "expired": false,
+        "expires_at": "2026-11-28T00:08:26Z",
+        "id": 12861543463,
+        "independent_verification": "Official current-run publication metadata only; ZIP not independently rehashed here.",
+        "name": "full-gates-smoke-raw-baseline-procedural-40791402289-1",
+        "size_in_bytes": 8055211,
+        "updated_at": "2026-10-29T00:08:28Z",
+        "workflow_run": {
+          "head_branch": "lead/cloud-full-gates-20261028",
+          "head_repository_id": 1187468861,
+          "head_sha": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+          "id": 40791402289,
+          "repository_id": 1187468861
+        }
+      },
+      {
+        "created_at": "2026-10-29T00:03:12Z",
+        "digest": "sha256:b2994194755111b2ab4f8b2c4a5d2023c91aaa7502ebc47382950ec81ac285e3",
+        "expired": false,
+        "expires_at": "2026-11-28T00:03:12Z",
+        "id": 12861522497,
+        "independent_verification": "Official current-run publication metadata only; ZIP not independently rehashed here.",
+        "name": "full-gates-contracts-40791402289-1",
+        "size_in_bytes": 2804,
+        "updated_at": "2026-10-29T00:03:12Z",
+        "workflow_run": {
+          "head_branch": "lead/cloud-full-gates-20261028",
+          "head_repository_id": 1187468861,
+          "head_sha": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+          "id": 40791402289,
+          "repository_id": 1187468861
+        }
+      },
+      {
+        "created_at": "2026-10-29T00:07:39Z",
+        "digest": "sha256:7483e15561648466bd9b64139b70c67cde7c6d7deaf8697f4f5355d3d3de4faf",
+        "expired": false,
+        "expires_at": "2026-11-28T00:07:38Z",
+        "id": 12861488234,
+        "independent_verification": "Official current-run publication metadata only; ZIP not independently rehashed here.",
+        "name": "full-gates-wheel-40791402289-1",
+        "size_in_bytes": 3767198,
+        "updated_at": "2026-10-29T00:07:39Z",
+        "workflow_run": {
+          "head_branch": "lead/cloud-full-gates-20261028",
+          "head_repository_id": 1187468861,
+          "head_sha": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+          "id": 40791402289,
+          "repository_id": 1187468861
+        }
+      },
+      {
+        "created_at": "2026-10-29T00:08:23Z",
+        "digest": "sha256:fff2dbd1eb3dd1fe6902c4777cab12da792c6f466399e1ad9790084f883d40b1",
+        "expired": false,
+        "expires_at": "2026-11-28T00:08:22Z",
+        "id": 12861349364,
+        "independent_verification": "Official current-run publication metadata only; ZIP not independently rehashed here.",
+        "name": "full-gates-smoke-raw-candidate-template-40791402289-1",
+        "size_in_bytes": 2867221,
+        "updated_at": "2026-10-29T00:08:23Z",
+        "workflow_run": {
+          "head_branch": "lead/cloud-full-gates-20261028",
+          "head_repository_id": 1187468861,
+          "head_sha": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+          "id": 40791402289,
+          "repository_id": 1187468861
+        }
+      },
+      {
+        "created_at": "2026-10-29T00:07:41Z",
+        "digest": "sha256:bb81630553ae81754fca8802aad88cba3bf907b618fa4d8c687cf6c00c3204eb",
+        "expired": false,
+        "expires_at": "2026-11-28T00:07:40Z",
+        "id": 12861268992,
+        "independent_verification": "Builder ZIP hash in RAM and selected version/build logs linked to its inventory; not a full payload audit.",
+        "name": "full-gates-build-raw-40791402289-1",
+        "size_in_bytes": 5188363,
+        "updated_at": "2026-10-29T00:07:41Z",
+        "workflow_run": {
+          "head_branch": "lead/cloud-full-gates-20261028",
+          "head_repository_id": 1187468861,
+          "head_sha": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+          "id": 40791402289,
+          "repository_id": 1187468861
+        }
+      },
+      {
+        "created_at": "2026-10-29T00:07:37Z",
+        "digest": "sha256:d0f8a6a8fe6efa35e81f538e5cf543b79da69d358d75737415432168f1b7a68a",
+        "expired": false,
+        "expires_at": "2026-11-28T00:07:36Z",
+        "id": 12861064549,
+        "independent_verification": "Official current-run publication metadata only; ZIP not independently rehashed here.",
+        "name": "full-gates-build-light-40791402289-1",
+        "size_in_bytes": 700354,
+        "updated_at": "2026-10-29T00:07:37Z",
+        "workflow_run": {
+          "head_branch": "lead/cloud-full-gates-20261028",
+          "head_repository_id": 1187468861,
+          "head_sha": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+          "id": 40791402289,
+          "repository_id": 1187468861
+        }
+      },
+      {
+        "created_at": "2026-10-29T00:08:33Z",
+        "digest": "sha256:0b94822960a39d83faaf120e164732950a03dfb099767f14bbd97de22d2d49de",
+        "expired": false,
+        "expires_at": "2026-11-28T00:08:31Z",
+        "id": 12860974824,
+        "independent_verification": "Official current-run publication metadata only; ZIP not independently rehashed here.",
+        "name": "full-gates-smoke-raw-candidate-procedural-40791402289-1",
+        "size_in_bytes": 8055953,
+        "updated_at": "2026-10-29T00:08:33Z",
+        "workflow_run": {
+          "head_branch": "lead/cloud-full-gates-20261028",
+          "head_repository_id": 1187468861,
+          "head_sha": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+          "id": 40791402289,
+          "repository_id": 1187468861
+        }
+      }
+    ],
+    "scope": "Four full cohort raw archives are officially published, nonexpired and bound to this source/control/run. Raw contents were not downloaded or independently rehashed; copied inventory attestations are distinct from an independent raw-content audit."
+  },
+  "run": {
+    "attempt": 1,
+    "completed_status_updated_at": "2026-10-29T02:41:00Z",
+    "conclusion": "success",
+    "control_sha": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+    "created_at": "2026-10-29T00:02:31Z",
+    "creation_to_terminal_update_seconds": 9509,
+    "id": 40791402289,
+    "status": "completed"
+  },
+  "saved_report_comparison": "Each profile pair differs only in four provenance leaves: batch manifest hash, source Git SHA, source package digest, ablation manifest hash. All saved result values match; no universal output-identity claim.",
+  "schema_version": 1,
+  "source_scope": {
+    "baseline": "2f9d618b70f3304c02dcaeef12996b4a99e074c0",
+    "build_manifest_sha256": "013a57c5e59993587acd65eb33c6ff1d16984796de11dbec81df686eb33210d3",
+    "candidate": "d0281e5f57c508f27cea1676f36e0e6ed1225c9d",
+    "crate_tree": "a4703ef4e9a21b5dbb194d318536a46e6ca8b71c",
+    "lock_sha256": "986547c01fd1dcd9bf598404124fde4ddc1e3d67db9a1d595a5304f18dacee10",
+    "native_schemas": {
+      "AgentSimulator": {
+        "fingerprint": "dcf0c34097c88451",
+        "schema_sha256": "0b792f3ec33ac68605caf7b6d66fa7462c919b52e6f489f0e3dd7fa42f9fba3b",
+        "version": 1
+      },
+      "EcologySimulator": {
+        "fingerprint": "4ab7f8c199b5e5f8",
+        "schema_sha256": "bf7daf59c53773518770b90f5a5dee5b71e63d2a62d2af6c756922a07a503aff",
+        "version": 1
+      },
+      "PoliticsSimulator": {
+        "fingerprint": "b1a710f3450f5015",
+        "schema_sha256": "48e27b42f817e0057ad5f15bf2c2e8d8cca072314a9ca666753f2c9341c47395",
+        "version": 1
+      }
+    },
+    "native_sha256": "06db5e19bdda13d7a536b236d677348f5ea7cb5adad2929962f0485192f9b4d6",
+    "pyproject_sha256": "d14f5588112927a0d8d889c30f04af90e81bc2cf4096b9ed91d8a51d83a2ac32",
+    "runtime": {
+      "affinity_cpu_count": 2,
+      "cpu_count": 2,
+      "executable": "/home/runner/work/_temp/full-gates-env/bin/python",
+      "implementation": "CPython",
+      "machine": "x86_64",
+      "packages": {
+        "arro3-core": "0.9.1",
+        "chronicler-agents": "0.1.0",
+        "numpy": "2.5.4",
+        "pyarrow": "26.0.0",
+        "pydantic": "2.12.5",
+        "scipy": "1.18.1"
+      },
+      "platform": "Linux-7.0.0-1017-azure-x86_64-with-glibc2.39",
+      "process_cpu_count": 2,
+      "python": "3.13.17",
+      "thread_env": {
+        "BLIS_NUM_THREADS": "1",
+        "GOTO_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "NUMEXPR_NUM_THREADS": "1",
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "OPENBLAS_THREAD_TIMEOUT": "16",
+        "PYTHONHASHSEED": "0",
+        "PYTHON_CPU_COUNT": "2",
+        "RAYON_NUM_THREADS": "1",
+        "VECLIB_MAXIMUM_THREADS": "1"
+      }
+    },
+    "wheel_file_bytes": 3831429,
+    "wheel_file_sha256": "049f91bbd03582240491e0c487d560deebb31a2ab9754d2c5bac2a7804206f64"
+  },
+  "verdicts": {
+    "comparisons": {
+      "procedural": {
+        "comparable": true,
+        "exit_code": 0,
+        "mismatches": [],
+        "oracle_method_changes": [],
+        "rebaseline_required": false,
+        "status": "NO_REGRESSION",
+        "unverified": []
+      },
+      "template": {
+        "comparable": true,
+        "exit_code": 0,
+        "mismatches": [],
+        "oracle_method_changes": [],
+        "rebaseline_required": false,
+        "status": "NO_REGRESSION",
+        "unverified": []
+      }
+    },
+    "original_strict_gates": "PASS all four; seven required oracles each",
+    "pipeline_qualified": true,
+    "scientific_comparison_pass": true,
+    "separate_causal_required_all_pass": false,
+    "separate_causal_required_reason": "Kin roots fails in all four; joint needs passes in all four."
+  }
+}

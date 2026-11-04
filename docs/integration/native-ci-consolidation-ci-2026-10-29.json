@@ -1,0 +1,274 @@
+{
+  "artifact_originals": {
+    "ZIPs": 9,
+    "artifacts": {
+      "native-module-aggregate": {
+        "bytes": 1277,
+        "expires_at": "2026-11-12T13:25:12Z",
+        "id": 12900287847,
+        "outer_members": 1,
+        "sha256": "13424d82a3acd63038e318c4aa46a33c1a25428b0d7caa61f0a0daf301cadce8"
+      },
+      "native-module-shard-0": {
+        "bytes": 400320,
+        "expires_at": "2026-11-12T13:24:52Z",
+        "id": 12899814498,
+        "outer_members": 4,
+        "sha256": "b3dc6856b704ab01d789523802b48a60bb523ee3bdf73c368456e916ed359188"
+      },
+      "native-module-shard-1": {
+        "bytes": 373929,
+        "expires_at": "2026-11-12T13:24:30Z",
+        "id": 12900342460,
+        "outer_members": 4,
+        "sha256": "693fb55c71490d342246e9c656e4abb1c862ab92a7918dfb0da7cd7902ae0436"
+      },
+      "native-shard-build": {
+        "bytes": 3851041,
+        "expires_at": "2026-11-12T13:18:48Z",
+        "id": 12899519758,
+        "outer_members": 2,
+        "sha256": "bc26092c67ac2dae0b76bfd67e80ad5af322b5cb133f8bc2ffb4093802573b36"
+      },
+      "python-no-rust": {
+        "bytes": 146887,
+        "expires_at": "2026-11-12T13:23:32Z",
+        "id": 12901150507,
+        "outer_members": 1,
+        "sha256": "7b550e1b0d845ef53cd108c3806e8f2d22550f1802a35f4c0d188b7d2b741d50"
+      },
+      "python-offline": {
+        "bytes": 44629,
+        "expires_at": "2026-11-12T13:20:33Z",
+        "id": 12899539134,
+        "outer_members": 71,
+        "sha256": "97e536c1b434ac22a54fc7b0549635184e35ae2f5ea69111c2ff17d9d81d246c"
+      },
+      "rust": {
+        "bytes": 724,
+        "expires_at": "2026-11-12T13:17:36Z",
+        "id": 12899354124,
+        "outer_members": 1,
+        "sha256": "401e7997618901d75f707a6606de9a38f3f7f5bb7ed6960ee4b2311a6c7368e8"
+      },
+      "wrapper-contract-native": {
+        "bytes": 1002,
+        "expires_at": "2026-11-12T13:16:37Z",
+        "id": 12900610535,
+        "outer_members": 3,
+        "sha256": "d46fa2e491879dfd9022620d7e3e0244e7b821cae14cd0ebc49c7d78ce2ec691"
+      },
+      "wrapper-contract-no-rust": {
+        "bytes": 1003,
+        "expires_at": "2026-11-12T13:16:39Z",
+        "id": 12900925477,
+        "outer_members": 3,
+        "sha256": "345935cee1965688b06690863651fcdf46c13265075f435d57395671ee3e3ba3"
+      }
+    },
+    "compressed_bytes": 4820812,
+    "expanded_outer_bytes": 12515722,
+    "inner_wheel_members": 6,
+    "outer_members": 90,
+    "whole_ZIP_size_SHA_and_each_member_EOF_CRC_SHA_verified": true
+  },
+  "attempt": 1,
+  "branch": "lead/native-ci-consolidation-20261029",
+  "collection": {
+    "disjoint_exact_once_selected_union": true,
+    "full_collection_digest": "da615b0b9cb21c736ef886749c0acb4b44b954e3b8fcb2df98c03bd3c4c37c0a",
+    "identical_complete_ordered_collection": true,
+    "module_assignments": [
+      160,
+      140
+    ],
+    "modules": 300,
+    "parents": 8458
+  },
+  "counts": {
+    "Rust": {
+      "ignored": 2,
+      "passed": 1121,
+      "targets": 37
+    },
+    "Viewer": {
+      "files": 69,
+      "lint_build": "PASS",
+      "passed": 743
+    },
+    "native": {
+      "passed": 8452,
+      "skipped": 6,
+      "successful_subtests": 526
+    },
+    "noRust": {
+      "passed": 8119,
+      "skipped": 325,
+      "successful_subtests": 526
+    },
+    "offline": {
+      "chunks": 35,
+      "passed": 4248,
+      "skipped": 65,
+      "unchanged_chunk_cap_seconds": 110
+    },
+    "separate_wrapper_preflights": [
+      2,
+      2
+    ]
+  },
+  "event": "workflow_dispatch",
+  "genuine_contract_scope": {
+    "seven_compiled_adapter_cases": "PASS native / SKIP absent-native",
+    "two_practice_World_cases_and_two_complete_runner_World_cases": "PASS in each full lane; producer CI cases, no new World study"
+  },
+  "independent_nonprimary_peer": {
+    "bytes": 12325,
+    "path": "/tmp/chronicler-c5-independent-final-peer-nf9m5y71/receipt.json",
+    "sha256": "6d49495a03d0aa0ac1cb51beac05c0615ee27ae0435325965d97f24c30648d19"
+  },
+  "installed_native": {
+    "bytes": 13693904,
+    "filename": "chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+    "sha256": "14a67f283cf57dc738e05d43d7b86aeca9039821e453e70274dfc1bb42e70e8c",
+    "wheel_member_sha256": "14a67f283cf57dc738e05d43d7b86aeca9039821e453e70274dfc1bb42e70e8c"
+  },
+  "kind": "CURATED_PROJECTION_OF_QUALIFIED_C5_ORIGINAL_CI",
+  "native_matches_original090_bytes": true,
+  "native_shards": {
+    "0": {
+      "JUnit_sha256": "6e20b779aa1d3422b889600702a66105d5d47ebc7be0cf72d4831b8a2747fe03",
+      "parent_phase_reports": 13098,
+      "parent_stream_sha256": "91851f27ef5dbdd91ecf95b5666ba14fdef62368c1670f9f042c82474826ca33",
+      "parents": 4366,
+      "passed": 4362,
+      "selected_digest": "7f775da3605b02380cd3220cc7348c8a69887603ffe221c561249016343b3644",
+      "skipped": 4,
+      "subtest_stream_sha256": "7f31b7eb13591815ee239792eecaf65a88ccd3652d95afb2eba1d6e506850581",
+      "successful_subtests": 407
+    },
+    "1": {
+      "JUnit_sha256": "051f1f638f71dd70b1db381c73f3332f8ef457768800ccf84724650d5f2b4983",
+      "parent_phase_reports": 12276,
+      "parent_stream_sha256": "1ba138df3ac96ad68943347f48fbd8070b9d47d34f2c72f76b5c3e763f7e41af",
+      "parents": 4092,
+      "passed": 4090,
+      "selected_digest": "67423930fd8b74a6720b20786d66537a962fc08835f6d9f538e53992919b3830",
+      "skipped": 2,
+      "subtest_stream_sha256": "b3100cbdb6a41c7dc436a0f773540e5ee4ff766109edba26b37b4842f8ea8a69",
+      "successful_subtests": 119
+    }
+  },
+  "observed_timings": {
+    "controlled_speedup_evidence": false,
+    "created_to_last_job_seconds": 537,
+    "job_wall_seconds": {
+      "Build one current-source native wheel": 153.0,
+      "Python bounded offline": 253.0,
+      "Python native": 2.0,
+      "Python native execution": 16.0,
+      "Python native module shard 0": 356.0,
+      "Python native module shard 1": 332.0,
+      "Python no-Rust": 431.0,
+      "Rust": 75.0,
+      "Viewer": 111.0
+    },
+    "wrapper_check_seconds": {
+      "native": 1,
+      "no_Rust": 2
+    },
+    "wrapper_upload_seconds": {
+      "native": 1,
+      "no_Rust": 2
+    }
+  },
+  "offline": {
+    "all_exact_current_source": true,
+    "changed_from_qualified_cbf": [
+      "tests/test_native_build_lanes.py",
+      "tests/test_native_wheel_receipt.py"
+    ],
+    "chunks": 35,
+    "guard_reports": {
+      "failed": 0,
+      "passed": 4248,
+      "skipped": 65
+    },
+    "seconds": 233.98582446700001,
+    "slowest_chunk": {
+      "name": "systems-2",
+      "seconds": 37.72510582800001
+    },
+    "source_hashes": 325
+  },
+  "original090_whole_wheel_sha256": "928db20c6cfbb6a79e2ad01469392d72093ebc1448c1b90d8c34f44f245b6532",
+  "original_readout_is_not_this_projection": true,
+  "preflight_counts_separate": {
+    "wrapper-contract-native": {
+      "parents": 2,
+      "passed": 2,
+      "skipped": 0,
+      "successful_subtests": 0
+    },
+    "wrapper-contract-no-rust": {
+      "parents": 2,
+      "passed": 2,
+      "skipped": 0,
+      "successful_subtests": 0
+    }
+  },
+  "preserved_prior_failures": [
+    "847 first hosted receipt publication failed on bytes/nonfinite diagnostic contexts",
+    "standard workflow first local contract127PASS/1FAIL; unchanged manual-dispatch expectation corrected",
+    "one oversized local log-save command refused before process launch; same buffered logs saved individually, no second fetch"
+  ],
+  "primary": {
+    "READOUT_sha256": "580e675bd31f1c825240f1f3115071d74fde562df992903570a9218a042f1476",
+    "indexed_bytes": 5569489,
+    "indexed_files": 51,
+    "manifest_sha256": "07d05f767ba66f5680703d1a81ca66a9d117dd2c6210761b16c979c9bc13b54e",
+    "path": "/tmp/chronicler-review-evidence/native-ci-consolidation-c5-CI-20261029",
+    "result_sha256": "bc4f49a53051d99b1a2cbe8067f01352ba9f1960a567c7542b7524d51d6af41c",
+    "total_bytes_including_manifest": 5577674,
+    "total_files_including_manifest": 52
+  },
+  "projection_at_utc": "2026-10-29T13:42:30.220094+00:00",
+  "report_stream": {
+    "modules": 300,
+    "parent_phases": 25374,
+    "parents": 8458,
+    "repeated_display_labels_preserved": 28,
+    "successful_subtest_reports": 526
+  },
+  "result": "ROOT_QUALIFIED_ALL_NINE_SUCCESS",
+  "root_qualification": {
+    "bytes": 3020,
+    "path": "/tmp/chronicler-native-ci-c5-root-qualification-20261029/root-final-qualification.json",
+    "sha256": "2e3fc2153bc365ad019376f26f386f012fe17c7f3950cab7eea473058cf3b5a8"
+  },
+  "run_id": 40880410392,
+  "scope_limits": [
+    "Bounded context strings are lossy display; all report order/multiplicity retained, not raw scientific inputs.",
+    "Before/after native identity is a producer assertion plus independently verified bytes, not external postprocess address-space attestation or reproducible-build proof.",
+    "No local project/native imports, tests, World, build or new study was used by this projection.",
+    "No main merge/default promotion, full scientific result, efficacy, old/new output/checkpoint/global-RNG parity, performance or historical reuse grant.",
+    "Original c772 CBF-to090 default-output archive audit remains pending; same native bytes do not extend that study to c5."
+  ],
+  "source": "c5c6b6d9f4a52cf7a6f1a3560882943af8eadc2f",
+  "source_composition": {
+    "EC_mode_blob_paths": 10,
+    "Python_package_dependencies_exactCBF": true,
+    "all_other_non_doc_entries_exactCBF": true,
+    "native090_mode_blob_paths": 4,
+    "native_crate_exact090": "803c79c8d5c024cbb8d67c58af7ffa731d79c129",
+    "source_file_hashes_rehashed": 788,
+    "source_tree_digest": "d09af5d07f78a3242f0775d9131770ca56558e469c11db611f46d3b6855aebb2"
+  },
+  "whole_current_wheel": {
+    "bytes": 3915587,
+    "filename": "chronicler_agents-0.1.0-cp313-cp313-manylinux_2_34_x86_64.whl",
+    "native_member": "chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+    "sha256": "507c5b968c18c2b2fc4b4dec6952292e56cc4f3abab941d9d3e71d1439564628"
+  },
+  "whole_current_wheel_differs_from_original090": true
+}

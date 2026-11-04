@@ -1,0 +1,11 @@
+.entity-run-comparison { min-width: 0; margin-top: 1.2rem; padding-top: .8rem; border-top: 1px solid #444336; }
+.entity-run-comparison p, .entity-run-comparison li { overflow-wrap: anywhere; }
+.entity-run-controls { display: flex; flex-wrap: wrap; gap: .8rem; align-items: end; }
+.entity-run-controls label { min-width: 0; display: flex; flex-direction: column; gap: .3rem; }
+.entity-run-comparison select, .entity-run-comparison button { max-width: 100%; min-width: 0; border: 1px solid #5e5b46; border-radius: .4rem; background: #242726; color: #ebe7d5; padding: .45rem .6rem; }
+.entity-run-warnings { padding-left: 1.3rem; color: #d8c9a5; }
+.entity-run-table { max-width: 100%; overflow-x: auto; }
+.entity-run-table table { width: 100%; min-width: 700px; border-collapse: collapse; }
+.entity-run-table th, .entity-run-table td { padding: .6rem; border-bottom: 1px solid #393d3a; text-align: left; overflow-wrap: anywhere; vertical-align: top; }
+.entity-run-table small { display: block; max-width: 24rem; color: #b7b09d; font-weight: normal; margin-top: .2rem; }
+@media (max-width: 520px) { .entity-run-controls label { flex: 1 1 100%; } }

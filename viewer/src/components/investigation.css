@@ -1,0 +1,13 @@
+.region-investigation,.interesting-periods { padding: 10px; border: 1px solid #48636b; border-radius: 8px; color: #d5e0df; font-size: 13px; overflow-wrap: anywhere; min-width: 0; }
+.interesting-periods { margin: 8px 18px; }
+.region-investigation h3,.interesting-periods h3 { font-size: 14px; font-weight: 600; margin: 8px 0; }
+.region-investigation p,.interesting-periods p { margin: 6px 0; }
+.region-investigation dl { display: grid; gap: 5px; }
+.region-investigation dl>div { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; }
+.region-investigation dd { color: #f0eee5; }
+.region-investigation button,.interesting-periods button { border: 1px solid #748787; padding: 5px 8px; margin: 4px 4px 4px 0; border-radius: 4px; color: #d8f1ef; background: #203336; }
+.region-investigation code,.interesting-periods code { display: block; color: #95b8bb; font-size: 11px; }
+.region-investigation li,.interesting-periods li { padding: 7px 0; border-top: 1px solid #34494c; }
+.interesting-periods section { padding: 6px 0; border-top: 1px solid #34494c; }
+.region-investigation summary,.interesting-periods summary { cursor: pointer; }
+@media(max-width:600px) { .interesting-periods { margin: 6px 10px; } }

@@ -1,0 +1,1897 @@
+{
+  "schema_version": 1,
+  "status": "COMPLETE",
+  "date": "2026-10-29",
+  "source": "feb98c0d1907ffb2c79397add853b191ebfe48a9",
+  "branch": "lead/decision-delivery-applied-moves-20261029",
+  "qualified_stage1_parent": "e99c0fd52f3839ba89dc0c65bf217542e42acbc4",
+  "unchanged_workflow_git_blob": "26afaa1f92c7f7a5f4fcf87571bfd8b022255c56",
+  "schema_fingerprint_asserted": "dcf0c34097c88451",
+  "completed_run": {
+    "capture_clock_after_api_reads": "2026-10-29 04:33:06 UTC",
+    "run": {
+      "id": 40817155088,
+      "head_sha": "feb98c0d1907ffb2c79397add853b191ebfe48a9",
+      "head_branch": "lead/decision-delivery-applied-moves-20261029",
+      "event": "workflow_dispatch",
+      "run_attempt": 1,
+      "path": ".github/workflows/tests.yml",
+      "workflow_id": 273982781,
+      "run_number": 161,
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-29T04:20:05Z",
+      "run_started_at": "2026-10-29T04:20:05Z",
+      "updated_at": "2026-10-29T04:32:40Z",
+      "html_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40817155088",
+      "creation_to_final_job_seconds": 755.0
+    },
+    "jobs": [
+      {
+        "id": 123260813354,
+        "name": "Python bounded offline",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "feb98c0d1907ffb2c79397add853b191ebfe48a9",
+        "started_at": "2026-10-29T04:20:08Z",
+        "completed_at": "2026-10-29T04:22:33Z",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-29T04:20:08Z",
+            "completed_at": "2026-10-29T04:20:09Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Check out repository",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-29T04:20:09Z",
+            "completed_at": "2026-10-29T04:20:11Z",
+            "wall_seconds": 2.0
+          },
+          {
+            "name": "Set up Python",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-29T04:20:11Z",
+            "completed_at": "2026-10-29T04:20:11Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Restore uv artifacts",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-29T04:20:11Z",
+            "completed_at": "2026-10-29T04:20:12Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Install Python dependencies from the lockfile",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-29T04:20:12Z",
+            "completed_at": "2026-10-29T04:20:16Z",
+            "wall_seconds": 4.0
+          },
+          {
+            "name": "Assert native extension is absent",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-10-29T04:20:16Z",
+            "completed_at": "2026-10-29T04:20:16Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Run guarded offline chunks",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 7,
+            "started_at": "2026-10-29T04:20:16Z",
+            "completed_at": "2026-10-29T04:22:25Z",
+            "wall_seconds": 129.0
+          },
+          {
+            "name": "Retain bounded offline receipts and logs",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 8,
+            "started_at": "2026-10-29T04:22:25Z",
+            "completed_at": "2026-10-29T04:22:26Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Post Restore uv artifacts",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 14,
+            "started_at": "2026-10-29T04:22:26Z",
+            "completed_at": "2026-10-29T04:22:30Z",
+            "wall_seconds": 4.0
+          },
+          {
+            "name": "Post Set up Python",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 15,
+            "started_at": "2026-10-29T04:22:30Z",
+            "completed_at": "2026-10-29T04:22:30Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Post Check out repository",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 16,
+            "started_at": "2026-10-29T04:22:30Z",
+            "completed_at": "2026-10-29T04:22:30Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 17,
+            "started_at": "2026-10-29T04:22:30Z",
+            "completed_at": "2026-10-29T04:22:30Z",
+            "wall_seconds": 0.0
+          }
+        ],
+        "job_wall_seconds": 145.0,
+        "external_log_record": "/workspace/chronicler-decision-delivery-applied-evidence/run-40817155088/job-123260813354.json",
+        "external_log_record_sha256": "8db1ff19acd5e84a8a4fe8267598b4d8d32add8a3a4d16a4869a2dca3d47c393",
+        "decoded_log_sha256": "62dc2d0802a2a84dc65047d002fc4d08c0ee451e45e16714ed8c431cff216842",
+        "chunks": [
+          {
+            "name": "arc-event-types",
+            "printed_wall_seconds": 1.1,
+            "passed": 8,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "diagnostics",
+            "printed_wall_seconds": 1.3,
+            "passed": 74,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "core",
+            "printed_wall_seconds": 14.9,
+            "passed": 1131,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "governance",
+            "printed_wall_seconds": 9.2,
+            "passed": 575,
+            "skipped": 3,
+            "failed": 0
+          },
+          {
+            "name": "systems-1",
+            "printed_wall_seconds": 12.4,
+            "passed": 255,
+            "skipped": 17,
+            "failed": 0
+          },
+          {
+            "name": "systems-2",
+            "printed_wall_seconds": 20.6,
+            "passed": 313,
+            "skipped": 17,
+            "failed": 0
+          },
+          {
+            "name": "narration",
+            "printed_wall_seconds": 5.1,
+            "passed": 171,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "history-forensics",
+            "printed_wall_seconds": 1.1,
+            "passed": 34,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "expansion-audit",
+            "printed_wall_seconds": 1.2,
+            "passed": 69,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "scientific-receipts",
+            "printed_wall_seconds": 1.3,
+            "passed": 93,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "expansion-comparison",
+            "printed_wall_seconds": 1.5,
+            "passed": 52,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "proof-contracts",
+            "printed_wall_seconds": 1.3,
+            "passed": 28,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "qualification-tools",
+            "printed_wall_seconds": 2.9,
+            "passed": 112,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "turn-speed",
+            "printed_wall_seconds": 1.1,
+            "passed": 21,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "validation-tooling",
+            "printed_wall_seconds": 5.4,
+            "passed": 292,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "learning",
+            "printed_wall_seconds": 2.9,
+            "passed": 64,
+            "skipped": 2,
+            "failed": 0
+          },
+          {
+            "name": "population",
+            "printed_wall_seconds": 1.3,
+            "passed": 27,
+            "skipped": 4,
+            "failed": 0
+          },
+          {
+            "name": "production-ledger",
+            "printed_wall_seconds": 1.5,
+            "passed": 17,
+            "skipped": 9,
+            "failed": 0
+          },
+          {
+            "name": "refugee-routing",
+            "printed_wall_seconds": 1.9,
+            "passed": 23,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "checkpoint",
+            "printed_wall_seconds": 3.1,
+            "passed": 20,
+            "skipped": 6,
+            "failed": 0
+          },
+          {
+            "name": "live-checkpoints",
+            "printed_wall_seconds": 16.1,
+            "passed": 13,
+            "skipped": 2,
+            "failed": 0
+          },
+          {
+            "name": "interactive-checkpoints",
+            "printed_wall_seconds": 3.6,
+            "passed": 28,
+            "skipped": 2,
+            "failed": 0
+          },
+          {
+            "name": "grain-reserves",
+            "printed_wall_seconds": 1.6,
+            "passed": 23,
+            "skipped": 2,
+            "failed": 0
+          },
+          {
+            "name": "expansion-wiring",
+            "printed_wall_seconds": 1.9,
+            "passed": 118,
+            "skipped": 1,
+            "failed": 0
+          },
+          {
+            "name": "ritual-gatherings",
+            "printed_wall_seconds": 1.3,
+            "passed": 78,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "scientific-claims",
+            "printed_wall_seconds": 3.6,
+            "passed": 65,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "scientific-publication",
+            "printed_wall_seconds": 1.5,
+            "passed": 31,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "scientific-research",
+            "printed_wall_seconds": 2.6,
+            "passed": 126,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "transaction-receipts",
+            "printed_wall_seconds": 1.2,
+            "passed": 53,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "expansion-experiments",
+            "printed_wall_seconds": 1.5,
+            "passed": 30,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "domestic-credit",
+            "printed_wall_seconds": 1.5,
+            "passed": 34,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "faiths",
+            "printed_wall_seconds": 1.6,
+            "passed": 18,
+            "skipped": 0,
+            "failed": 0
+          }
+        ],
+        "counts": {
+          "passed": 3996,
+          "skipped": 65,
+          "failed": 0
+        },
+        "printed_chunk_wall_seconds_sum": 129.1,
+        "max_printed_chunk_seconds": 20.6
+      },
+      {
+        "id": 123260813580,
+        "name": "Python native execution",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "feb98c0d1907ffb2c79397add853b191ebfe48a9",
+        "started_at": "2026-10-29T04:20:08Z",
+        "completed_at": "2026-10-29T04:32:34Z",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-29T04:20:08Z",
+            "completed_at": "2026-10-29T04:20:10Z",
+            "wall_seconds": 2.0
+          },
+          {
+            "name": "Check out repository",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-29T04:20:10Z",
+            "completed_at": "2026-10-29T04:20:13Z",
+            "wall_seconds": 3.0
+          },
+          {
+            "name": "Set up Python",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-29T04:20:13Z",
+            "completed_at": "2026-10-29T04:20:13Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Restore uv artifacts",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-29T04:20:13Z",
+            "completed_at": "2026-10-29T04:20:14Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-29T04:20:14Z",
+            "completed_at": "2026-10-29T04:20:15Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Identify Rust compiler",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-10-29T04:20:15Z",
+            "completed_at": "2026-10-29T04:20:15Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Restore Cargo downloads",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 7,
+            "started_at": "2026-10-29T04:20:15Z",
+            "completed_at": "2026-10-29T04:20:15Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Restore release build cache",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 8,
+            "started_at": "2026-10-29T04:20:15Z",
+            "completed_at": "2026-10-29T04:20:15Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Install Python dependencies from the lockfile",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 9,
+            "started_at": "2026-10-29T04:20:15Z",
+            "completed_at": "2026-10-29T04:20:27Z",
+            "wall_seconds": 12.0
+          },
+          {
+            "name": "Build Rust extension wheel",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 10,
+            "started_at": "2026-10-29T04:20:27Z",
+            "completed_at": "2026-10-29T04:23:07Z",
+            "wall_seconds": 160.0
+          },
+          {
+            "name": "Run Python tests with real native extension preloaded",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 11,
+            "started_at": "2026-10-29T04:23:07Z",
+            "completed_at": "2026-10-29T04:32:25Z",
+            "wall_seconds": 558.0
+          },
+          {
+            "name": "Retain native Python test results",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 12,
+            "started_at": "2026-10-29T04:32:25Z",
+            "completed_at": "2026-10-29T04:32:27Z",
+            "wall_seconds": 2.0
+          },
+          {
+            "name": "Post Restore release build cache",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 20,
+            "started_at": "2026-10-29T04:32:27Z",
+            "completed_at": "2026-10-29T04:32:30Z",
+            "wall_seconds": 3.0
+          },
+          {
+            "name": "Post Restore Cargo downloads",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 21,
+            "started_at": "2026-10-29T04:32:30Z",
+            "completed_at": "2026-10-29T04:32:31Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Post Restore uv artifacts",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 22,
+            "started_at": "2026-10-29T04:32:31Z",
+            "completed_at": "2026-10-29T04:32:32Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Post Set up Python",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 23,
+            "started_at": "2026-10-29T04:32:32Z",
+            "completed_at": "2026-10-29T04:32:32Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Post Check out repository",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 24,
+            "started_at": "2026-10-29T04:32:32Z",
+            "completed_at": "2026-10-29T04:32:32Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 25,
+            "started_at": "2026-10-29T04:32:32Z",
+            "completed_at": "2026-10-29T04:32:32Z",
+            "wall_seconds": 0.0
+          }
+        ],
+        "job_wall_seconds": 746.0,
+        "external_log_record": "/workspace/chronicler-decision-delivery-applied-evidence/run-40817155088/job-123260813580.json",
+        "external_log_record_sha256": "d4c0a30a7d90617ccc157e0c7364e809ab9adeca60b65e9fb68260bd3bc0a25e",
+        "decoded_log_sha256": "3f7a640065e52e886c61c9696fe9f6292cbcf92f1d7a44bfb8fb16a074265828",
+        "counts": {
+          "parent_passed": 8106,
+          "skipped": 6,
+          "successful_subtests": 526
+        },
+        "reported_pytest_seconds": 552.1
+      },
+      {
+        "id": 123260813648,
+        "name": "Viewer",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "feb98c0d1907ffb2c79397add853b191ebfe48a9",
+        "started_at": "2026-10-29T04:20:08Z",
+        "completed_at": "2026-10-29T04:22:02Z",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-29T04:20:08Z",
+            "completed_at": "2026-10-29T04:20:09Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Check out repository",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-29T04:20:09Z",
+            "completed_at": "2026-10-29T04:20:11Z",
+            "wall_seconds": 2.0
+          },
+          {
+            "name": "Set up Node.js",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-29T04:20:11Z",
+            "completed_at": "2026-10-29T04:20:13Z",
+            "wall_seconds": 2.0
+          },
+          {
+            "name": "Install viewer dependencies from the lockfile",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-29T04:20:13Z",
+            "completed_at": "2026-10-29T04:20:18Z",
+            "wall_seconds": 5.0
+          },
+          {
+            "name": "Run viewer tests",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-29T04:20:18Z",
+            "completed_at": "2026-10-29T04:21:30Z",
+            "wall_seconds": 72.0
+          },
+          {
+            "name": "Lint viewer",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-10-29T04:21:30Z",
+            "completed_at": "2026-10-29T04:21:44Z",
+            "wall_seconds": 14.0
+          },
+          {
+            "name": "Build viewer for production",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 7,
+            "started_at": "2026-10-29T04:21:44Z",
+            "completed_at": "2026-10-29T04:22:00Z",
+            "wall_seconds": 16.0
+          },
+          {
+            "name": "Post Set up Node.js",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 13,
+            "started_at": "2026-10-29T04:22:00Z",
+            "completed_at": "2026-10-29T04:22:00Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Post Check out repository",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 14,
+            "started_at": "2026-10-29T04:22:00Z",
+            "completed_at": "2026-10-29T04:22:00Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 15,
+            "started_at": "2026-10-29T04:22:00Z",
+            "completed_at": "2026-10-29T04:22:00Z",
+            "wall_seconds": 0.0
+          }
+        ],
+        "job_wall_seconds": 114.0,
+        "external_log_record": "/workspace/chronicler-decision-delivery-applied-evidence/run-40817155088/job-123260813648.json",
+        "external_log_record_sha256": "ab6865d42829a13f0b385fd62e80610bdbb522c6cc12f755d8efc66f6acec2f6",
+        "decoded_log_sha256": "1f24fae3c11d94e59508aef7bdcba458d1163aec8978ce15cce4f5d26180214b",
+        "counts": {
+          "passed": 743,
+          "files": 69
+        },
+        "reported_vitest_seconds": 71.28
+      },
+      {
+        "id": 123260813710,
+        "name": "Python no-Rust",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "feb98c0d1907ffb2c79397add853b191ebfe48a9",
+        "started_at": "2026-10-29T04:20:08Z",
+        "completed_at": "2026-10-29T04:27:09Z",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-29T04:20:08Z",
+            "completed_at": "2026-10-29T04:20:09Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Check out repository",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-29T04:20:09Z",
+            "completed_at": "2026-10-29T04:20:12Z",
+            "wall_seconds": 3.0
+          },
+          {
+            "name": "Set up Python",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-29T04:20:12Z",
+            "completed_at": "2026-10-29T04:20:12Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Restore uv artifacts",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-29T04:20:12Z",
+            "completed_at": "2026-10-29T04:20:12Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Install Python dependencies from the lockfile",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-29T04:20:12Z",
+            "completed_at": "2026-10-29T04:20:16Z",
+            "wall_seconds": 4.0
+          },
+          {
+            "name": "Assert native extension is absent",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-10-29T04:20:16Z",
+            "completed_at": "2026-10-29T04:20:16Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Run Python tests without Rust extension",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 7,
+            "started_at": "2026-10-29T04:20:16Z",
+            "completed_at": "2026-10-29T04:27:05Z",
+            "wall_seconds": 409.0
+          },
+          {
+            "name": "Retain no-Rust test results",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 8,
+            "started_at": "2026-10-29T04:27:05Z",
+            "completed_at": "2026-10-29T04:27:06Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Post Restore uv artifacts",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 14,
+            "started_at": "2026-10-29T04:27:06Z",
+            "completed_at": "2026-10-29T04:27:07Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Post Set up Python",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 15,
+            "started_at": "2026-10-29T04:27:07Z",
+            "completed_at": "2026-10-29T04:27:07Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Post Check out repository",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 16,
+            "started_at": "2026-10-29T04:27:07Z",
+            "completed_at": "2026-10-29T04:27:08Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 17,
+            "started_at": "2026-10-29T04:27:08Z",
+            "completed_at": "2026-10-29T04:27:08Z",
+            "wall_seconds": 0.0
+          }
+        ],
+        "job_wall_seconds": 421.0,
+        "external_log_record": "/workspace/chronicler-decision-delivery-applied-evidence/run-40817155088/job-123260813710.json",
+        "external_log_record_sha256": "e130be71ba603270c7221b75ef99d2f9bb0a022b25055f19c262c2d5cba299ef",
+        "decoded_log_sha256": "1cace1e21859e19c281115bf957e1c88a2076e7097b1cd30add89cc5956185db",
+        "counts": {
+          "parent_passed": 7780,
+          "skipped": 318,
+          "successful_subtests": 526
+        },
+        "reported_pytest_seconds": 405.2
+      },
+      {
+        "id": 123260813753,
+        "name": "Rust",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "feb98c0d1907ffb2c79397add853b191ebfe48a9",
+        "started_at": "2026-10-29T04:20:08Z",
+        "completed_at": "2026-10-29T04:21:18Z",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-29T04:20:08Z",
+            "completed_at": "2026-10-29T04:20:10Z",
+            "wall_seconds": 2.0
+          },
+          {
+            "name": "Check out repository",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-29T04:20:10Z",
+            "completed_at": "2026-10-29T04:20:12Z",
+            "wall_seconds": 2.0
+          },
+          {
+            "name": "Set up Python for PyO3 test linkage",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-29T04:20:12Z",
+            "completed_at": "2026-10-29T04:20:12Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-29T04:20:12Z",
+            "completed_at": "2026-10-29T04:20:13Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Restore Cargo downloads",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-29T04:20:13Z",
+            "completed_at": "2026-10-29T04:20:13Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Run Rust tests",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-10-29T04:20:13Z",
+            "completed_at": "2026-10-29T04:21:14Z",
+            "wall_seconds": 61.0
+          },
+          {
+            "name": "Retain Rust test results",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 7,
+            "started_at": "2026-10-29T04:21:14Z",
+            "completed_at": "2026-10-29T04:21:15Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Post Restore Cargo downloads",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 12,
+            "started_at": "2026-10-29T04:21:15Z",
+            "completed_at": "2026-10-29T04:21:16Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Post Set up Python for PyO3 test linkage",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 13,
+            "started_at": "2026-10-29T04:21:16Z",
+            "completed_at": "2026-10-29T04:21:16Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Post Check out repository",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 14,
+            "started_at": "2026-10-29T04:21:16Z",
+            "completed_at": "2026-10-29T04:21:17Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 15,
+            "started_at": "2026-10-29T04:21:17Z",
+            "completed_at": "2026-10-29T04:21:17Z",
+            "wall_seconds": 0.0
+          }
+        ],
+        "job_wall_seconds": 70.0,
+        "external_log_record": "/workspace/chronicler-decision-delivery-applied-evidence/run-40817155088/job-123260813753.json",
+        "external_log_record_sha256": "5381003165bfb6d43352a08292f835c4cb9ce82e366c324c260a27074a92f5bf",
+        "decoded_log_sha256": "b4d4be79f33bb153380bb49658dfd63b65f351006f78794342235f0189ba8243",
+        "harness_summaries": [
+          {
+            "status": "ok",
+            "passed": 573,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 2.21
+          },
+          {
+            "status": "ok",
+            "passed": 5,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.45
+          },
+          {
+            "status": "ok",
+            "passed": 2,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 0,
+            "failed": 0,
+            "ignored": 2,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 3,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 3,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.04
+          },
+          {
+            "status": "ok",
+            "passed": 8,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 3.26
+          },
+          {
+            "status": "ok",
+            "passed": 5,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.01
+          },
+          {
+            "status": "ok",
+            "passed": 4,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.11
+          },
+          {
+            "status": "ok",
+            "passed": 7,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.13
+          },
+          {
+            "status": "ok",
+            "passed": 7,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.65
+          },
+          {
+            "status": "ok",
+            "passed": 57,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.01
+          },
+          {
+            "status": "ok",
+            "passed": 33,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 4,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.07
+          },
+          {
+            "status": "ok",
+            "passed": 48,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 4,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.05
+          },
+          {
+            "status": "ok",
+            "passed": 14,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 4,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 7,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 14,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 2,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 23,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 22,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 6,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 50,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 46,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 21,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 56,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.02
+          },
+          {
+            "status": "ok",
+            "passed": 7,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.02
+          },
+          {
+            "status": "ok",
+            "passed": 12,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 10,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 31,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.01
+          },
+          {
+            "status": "ok",
+            "passed": 3,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 7,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 12,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 3,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.04
+          },
+          {
+            "status": "ok",
+            "passed": 0,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          }
+        ],
+        "counts": {
+          "passed": 1113,
+          "failed": 0,
+          "ignored": 2,
+          "measured": 0,
+          "filtered_out": 0
+        },
+        "reported_harness_seconds_sum": 7.08
+      },
+      {
+        "id": 123264595175,
+        "name": "Python native",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "feb98c0d1907ffb2c79397add853b191ebfe48a9",
+        "started_at": "2026-10-29T04:32:36Z",
+        "completed_at": "2026-10-29T04:32:40Z",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-29T04:32:37Z",
+            "completed_at": "2026-10-29T04:32:37Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Require complete native Python and Rust success",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-29T04:32:37Z",
+            "completed_at": "2026-10-29T04:32:37Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-29T04:32:37Z",
+            "completed_at": "2026-10-29T04:32:37Z",
+            "wall_seconds": 0.0
+          }
+        ],
+        "job_wall_seconds": 4.0,
+        "external_log_record": "/workspace/chronicler-decision-delivery-applied-evidence/run-40817155088/job-123264595175.json",
+        "external_log_record_sha256": "23dd112b7c08caf5206702a2d032ccb946ea7a9893e6144274ae86e8f066ae69",
+        "decoded_log_sha256": "85223288fe78c9dec4b8249e3944569d3b04d4e4d0666071937d862429ea00cd",
+        "upstream_native_python": "success",
+        "upstream_rust": "success"
+      }
+    ],
+    "artifacts": [
+      {
+        "id": 12873432202,
+        "name": "python-native-feb98c0d1907ffb2c79397add853b191ebfe48a9",
+        "size_in_bytes": 139488,
+        "digest": "sha256:08b4392835f8a1ff203ac7ef52e77e52de46826a107f23a3359f537b1089c6ce",
+        "created_at": "2026-10-29T04:32:26Z",
+        "updated_at": "2026-10-29T04:32:26Z",
+        "expires_at": "2026-11-12T04:32:26Z",
+        "expired": false,
+        "verification": "Official ZIP bytes independently rehashed in RAM; selected JUnit/identity members retained and parsed without runtime imports.",
+        "receipt_path": "/workspace/chronicler-decision-delivery-applied-evidence/run-40817155088/artifact-12873432202/receipt.json",
+        "receipt_sha256": "4f7d547b8be6efcb5a8527534e2ca8946f4db78fc6a3bba97db34bbf5c8d1417",
+        "target_cases": [
+          {
+            "name": "test_move_delivery_api_keeps_old_positional_and_three_batch_schema_contract",
+            "classname": "tests.test_decision_delivery_moves_native",
+            "seconds": 0.002,
+            "status": "PASS",
+            "skip_reason": null
+          },
+          {
+            "name": "test_move_delivery_api_links_actual_full_event_ordinals_and_preserves_future_state",
+            "classname": "tests.test_decision_delivery_moves_native",
+            "seconds": 0.004,
+            "status": "PASS",
+            "skip_reason": null
+          },
+          {
+            "name": "test_move_delivery_api_independent_caps_never_claim_a_truncated_prefix_complete",
+            "classname": "tests.test_decision_delivery_moves_native",
+            "seconds": 0.002,
+            "status": "PASS",
+            "skip_reason": null
+          },
+          {
+            "name": "test_move_delivery_api_positive_selection_is_independent_of_stage1_rows",
+            "classname": "tests.test_decision_delivery_moves_native",
+            "seconds": 0.002,
+            "status": "PASS",
+            "skip_reason": null
+          },
+          {
+            "name": "test_move_delivery_api_empty_or_absent_id_selection_is_an_explicit_empty_frame[selection0]",
+            "classname": "tests.test_decision_delivery_moves_native",
+            "seconds": 0.001,
+            "status": "PASS",
+            "skip_reason": null
+          },
+          {
+            "name": "test_move_delivery_api_empty_or_absent_id_selection_is_an_explicit_empty_frame[selection1]",
+            "classname": "tests.test_decision_delivery_moves_native",
+            "seconds": 0.001,
+            "status": "PASS",
+            "skip_reason": null
+          },
+          {
+            "name": "test_move_delivery_api_restore_failed_tick_and_reset_cannot_reuse_a_stale_frame",
+            "classname": "tests.test_decision_delivery_moves_native",
+            "seconds": 0.004,
+            "status": "PASS",
+            "skip_reason": null
+          },
+          {
+            "name": "test_decision_delivery_api_configuration_is_transient_and_keeps_recorded_schema",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.001,
+            "status": "PASS",
+            "skip_reason": null
+          },
+          {
+            "name": "test_decision_delivery_api_preserves_events_payload_and_actual_tick_mask",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.003,
+            "status": "PASS",
+            "skip_reason": null
+          },
+          {
+            "name": "test_decision_delivery_api_truncation_selection_disable_and_empty_turn",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.002,
+            "status": "PASS",
+            "skip_reason": null
+          },
+          {
+            "name": "test_decision_delivery_api_restore_disables_observer_then_rebinds_fresh_frame",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.002,
+            "status": "PASS",
+            "skip_reason": null
+          },
+          {
+            "name": "test_decision_delivery_api_failed_tick_cannot_publish_an_old_frame",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.002,
+            "status": "PASS",
+            "skip_reason": null
+          }
+        ],
+        "new_stage2_cases": [
+          {
+            "name": "test_move_delivery_api_keeps_old_positional_and_three_batch_schema_contract",
+            "classname": "tests.test_decision_delivery_moves_native",
+            "seconds": 0.002,
+            "status": "PASS",
+            "skip_reason": null
+          },
+          {
+            "name": "test_move_delivery_api_links_actual_full_event_ordinals_and_preserves_future_state",
+            "classname": "tests.test_decision_delivery_moves_native",
+            "seconds": 0.004,
+            "status": "PASS",
+            "skip_reason": null
+          },
+          {
+            "name": "test_move_delivery_api_independent_caps_never_claim_a_truncated_prefix_complete",
+            "classname": "tests.test_decision_delivery_moves_native",
+            "seconds": 0.002,
+            "status": "PASS",
+            "skip_reason": null
+          },
+          {
+            "name": "test_move_delivery_api_positive_selection_is_independent_of_stage1_rows",
+            "classname": "tests.test_decision_delivery_moves_native",
+            "seconds": 0.002,
+            "status": "PASS",
+            "skip_reason": null
+          },
+          {
+            "name": "test_move_delivery_api_empty_or_absent_id_selection_is_an_explicit_empty_frame[selection0]",
+            "classname": "tests.test_decision_delivery_moves_native",
+            "seconds": 0.001,
+            "status": "PASS",
+            "skip_reason": null
+          },
+          {
+            "name": "test_move_delivery_api_empty_or_absent_id_selection_is_an_explicit_empty_frame[selection1]",
+            "classname": "tests.test_decision_delivery_moves_native",
+            "seconds": 0.001,
+            "status": "PASS",
+            "skip_reason": null
+          },
+          {
+            "name": "test_move_delivery_api_restore_failed_tick_and_reset_cannot_reuse_a_stale_frame",
+            "classname": "tests.test_decision_delivery_moves_native",
+            "seconds": 0.004,
+            "status": "PASS",
+            "skip_reason": null
+          }
+        ],
+        "preserved_stage1_cases": [
+          {
+            "name": "test_decision_delivery_api_configuration_is_transient_and_keeps_recorded_schema",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.001,
+            "status": "PASS",
+            "skip_reason": null
+          },
+          {
+            "name": "test_decision_delivery_api_preserves_events_payload_and_actual_tick_mask",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.003,
+            "status": "PASS",
+            "skip_reason": null
+          },
+          {
+            "name": "test_decision_delivery_api_truncation_selection_disable_and_empty_turn",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.002,
+            "status": "PASS",
+            "skip_reason": null
+          },
+          {
+            "name": "test_decision_delivery_api_restore_disables_observer_then_rebinds_fresh_frame",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.002,
+            "status": "PASS",
+            "skip_reason": null
+          },
+          {
+            "name": "test_decision_delivery_api_failed_tick_cannot_publish_an_old_frame",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.002,
+            "status": "PASS",
+            "skip_reason": null
+          }
+        ],
+        "selected_members": [
+          {
+            "name": "native-identity.json",
+            "bytes": 548,
+            "sha256": "a2762df9b489948cd5662c2348c0abff3e44e3a7247023fdeaeebbf149152163"
+          },
+          {
+            "name": "native.xml",
+            "bytes": 1064775,
+            "sha256": "a2d3b697d8b73bb92fed0c50912c0304293f1b3e5da1ab6c94bc6976f38b4b2c"
+          }
+        ],
+        "junit_suites": [
+          {
+            "name": "pytest",
+            "errors": "0",
+            "failures": "0",
+            "skipped": "6",
+            "tests": "8638",
+            "time": "552.021",
+            "timestamp": "2026-10-29T04:23:10.467682+00:00",
+            "hostname": "runnervm48cm3"
+          }
+        ],
+        "producer_reported_native_identity": {
+          "source_commit": "feb98c0d1907ffb2c79397add853b191ebfe48a9",
+          "python": "3.13.17 (main, Oct 22 2026, 02:40:32) [GCC 13.3.0]",
+          "compiled_extension_name": "chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+          "sha256": "b4bb74716af4fe9c898a1cf5719f4f7bc6f8342726cfa3cb36147108b15afe97",
+          "classes": [
+            "AgentSimulator",
+            "EcologySimulator",
+            "PoliticsSimulator"
+          ]
+        }
+      },
+      {
+        "id": 12872717350,
+        "name": "rust-feb98c0d1907ffb2c79397add853b191ebfe48a9",
+        "size_in_bytes": 714,
+        "digest": "sha256:4312e3d5b6b0e3461da2ca8aafae72fcfbfc60116a3694b3f98d5b2c9ec72075",
+        "created_at": "2026-10-29T04:21:15Z",
+        "updated_at": "2026-10-29T04:21:15Z",
+        "expires_at": "2026-11-12T04:21:14Z",
+        "expired": false,
+        "verification": "Official current API publication metadata only; archive not downloaded/rehashed by this audit."
+      },
+      {
+        "id": 12872688150,
+        "name": "python-no-rust-feb98c0d1907ffb2c79397add853b191ebfe48a9",
+        "size_in_bytes": 141804,
+        "digest": "sha256:423d11dfc9939daab4b0bd21712a6193b7da021a3eef410938abd7f9e36a42ea",
+        "created_at": "2026-10-29T04:27:06Z",
+        "updated_at": "2026-10-29T04:27:06Z",
+        "expires_at": "2026-11-12T04:27:05Z",
+        "expired": false,
+        "verification": "Official ZIP bytes independently rehashed in RAM; selected JUnit/identity members retained and parsed without runtime imports.",
+        "receipt_path": "/workspace/chronicler-decision-delivery-applied-evidence/run-40817155088/artifact-12872688150/receipt.json",
+        "receipt_sha256": "2c3f9bb9f2182d5c11a83244c8cdcb2ecde46902c41d1f13d1b1e3bceab38263",
+        "target_cases": [
+          {
+            "name": "test_move_delivery_api_keeps_old_positional_and_three_batch_schema_contract",
+            "classname": "tests.test_decision_delivery_moves_native",
+            "seconds": 0.001,
+            "status": "SKIP",
+            "skip_reason": "native extension absent"
+          },
+          {
+            "name": "test_move_delivery_api_links_actual_full_event_ordinals_and_preserves_future_state",
+            "classname": "tests.test_decision_delivery_moves_native",
+            "seconds": 0.001,
+            "status": "SKIP",
+            "skip_reason": "native extension absent"
+          },
+          {
+            "name": "test_move_delivery_api_independent_caps_never_claim_a_truncated_prefix_complete",
+            "classname": "tests.test_decision_delivery_moves_native",
+            "seconds": 0.001,
+            "status": "SKIP",
+            "skip_reason": "native extension absent"
+          },
+          {
+            "name": "test_move_delivery_api_positive_selection_is_independent_of_stage1_rows",
+            "classname": "tests.test_decision_delivery_moves_native",
+            "seconds": 0.001,
+            "status": "SKIP",
+            "skip_reason": "native extension absent"
+          },
+          {
+            "name": "test_move_delivery_api_empty_or_absent_id_selection_is_an_explicit_empty_frame[selection0]",
+            "classname": "tests.test_decision_delivery_moves_native",
+            "seconds": 0.001,
+            "status": "SKIP",
+            "skip_reason": "native extension absent"
+          },
+          {
+            "name": "test_move_delivery_api_empty_or_absent_id_selection_is_an_explicit_empty_frame[selection1]",
+            "classname": "tests.test_decision_delivery_moves_native",
+            "seconds": 0.001,
+            "status": "SKIP",
+            "skip_reason": "native extension absent"
+          },
+          {
+            "name": "test_move_delivery_api_restore_failed_tick_and_reset_cannot_reuse_a_stale_frame",
+            "classname": "tests.test_decision_delivery_moves_native",
+            "seconds": 0.001,
+            "status": "SKIP",
+            "skip_reason": "native extension absent"
+          },
+          {
+            "name": "test_decision_delivery_api_configuration_is_transient_and_keeps_recorded_schema",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.001,
+            "status": "SKIP",
+            "skip_reason": "native extension absent"
+          },
+          {
+            "name": "test_decision_delivery_api_preserves_events_payload_and_actual_tick_mask",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.001,
+            "status": "SKIP",
+            "skip_reason": "native extension absent"
+          },
+          {
+            "name": "test_decision_delivery_api_truncation_selection_disable_and_empty_turn",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.001,
+            "status": "SKIP",
+            "skip_reason": "native extension absent"
+          },
+          {
+            "name": "test_decision_delivery_api_restore_disables_observer_then_rebinds_fresh_frame",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.001,
+            "status": "SKIP",
+            "skip_reason": "native extension absent"
+          },
+          {
+            "name": "test_decision_delivery_api_failed_tick_cannot_publish_an_old_frame",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.001,
+            "status": "SKIP",
+            "skip_reason": "native extension absent"
+          }
+        ],
+        "new_stage2_cases": [
+          {
+            "name": "test_move_delivery_api_keeps_old_positional_and_three_batch_schema_contract",
+            "classname": "tests.test_decision_delivery_moves_native",
+            "seconds": 0.001,
+            "status": "SKIP",
+            "skip_reason": "native extension absent"
+          },
+          {
+            "name": "test_move_delivery_api_links_actual_full_event_ordinals_and_preserves_future_state",
+            "classname": "tests.test_decision_delivery_moves_native",
+            "seconds": 0.001,
+            "status": "SKIP",
+            "skip_reason": "native extension absent"
+          },
+          {
+            "name": "test_move_delivery_api_independent_caps_never_claim_a_truncated_prefix_complete",
+            "classname": "tests.test_decision_delivery_moves_native",
+            "seconds": 0.001,
+            "status": "SKIP",
+            "skip_reason": "native extension absent"
+          },
+          {
+            "name": "test_move_delivery_api_positive_selection_is_independent_of_stage1_rows",
+            "classname": "tests.test_decision_delivery_moves_native",
+            "seconds": 0.001,
+            "status": "SKIP",
+            "skip_reason": "native extension absent"
+          },
+          {
+            "name": "test_move_delivery_api_empty_or_absent_id_selection_is_an_explicit_empty_frame[selection0]",
+            "classname": "tests.test_decision_delivery_moves_native",
+            "seconds": 0.001,
+            "status": "SKIP",
+            "skip_reason": "native extension absent"
+          },
+          {
+            "name": "test_move_delivery_api_empty_or_absent_id_selection_is_an_explicit_empty_frame[selection1]",
+            "classname": "tests.test_decision_delivery_moves_native",
+            "seconds": 0.001,
+            "status": "SKIP",
+            "skip_reason": "native extension absent"
+          },
+          {
+            "name": "test_move_delivery_api_restore_failed_tick_and_reset_cannot_reuse_a_stale_frame",
+            "classname": "tests.test_decision_delivery_moves_native",
+            "seconds": 0.001,
+            "status": "SKIP",
+            "skip_reason": "native extension absent"
+          }
+        ],
+        "preserved_stage1_cases": [
+          {
+            "name": "test_decision_delivery_api_configuration_is_transient_and_keeps_recorded_schema",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.001,
+            "status": "SKIP",
+            "skip_reason": "native extension absent"
+          },
+          {
+            "name": "test_decision_delivery_api_preserves_events_payload_and_actual_tick_mask",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.001,
+            "status": "SKIP",
+            "skip_reason": "native extension absent"
+          },
+          {
+            "name": "test_decision_delivery_api_truncation_selection_disable_and_empty_turn",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.001,
+            "status": "SKIP",
+            "skip_reason": "native extension absent"
+          },
+          {
+            "name": "test_decision_delivery_api_restore_disables_observer_then_rebinds_fresh_frame",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.001,
+            "status": "SKIP",
+            "skip_reason": "native extension absent"
+          },
+          {
+            "name": "test_decision_delivery_api_failed_tick_cannot_publish_an_old_frame",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.001,
+            "status": "SKIP",
+            "skip_reason": "native extension absent"
+          }
+        ],
+        "selected_members": [
+          {
+            "name": "no-rust.xml",
+            "bytes": 1139863,
+            "sha256": "836dd9693b70faef2b659f5a2a8fa1c8ee7532454abb042f3553dc409b1b1476"
+          }
+        ],
+        "junit_suites": [
+          {
+            "name": "pytest",
+            "errors": "0",
+            "failures": "0",
+            "skipped": "318",
+            "tests": "8624",
+            "time": "405.119",
+            "timestamp": "2026-10-29T04:20:18.238053+00:00",
+            "hostname": "runnervm48cm3"
+          }
+        ]
+      },
+      {
+        "id": 12872637910,
+        "name": "python-offline-feb98c0d1907ffb2c79397add853b191ebfe48a9",
+        "size_in_bytes": 41850,
+        "digest": "sha256:523021674b0f523c552e6f87b7899b156d41abd6ee34109aa8bfdf50d3da9200",
+        "created_at": "2026-10-29T04:22:26Z",
+        "updated_at": "2026-10-29T04:22:26Z",
+        "expires_at": "2026-11-12T04:22:25Z",
+        "expired": false,
+        "verification": "Official current API publication metadata only; archive not downloaded/rehashed by this audit."
+      }
+    ]
+  },
+  "new_case_catalog": {
+    "source": "feb98c0d1907ffb2c79397add853b191ebfe48a9",
+    "baseline": "e99c0fd52f3839ba89dc0c65bf217542e42acbc4",
+    "run": 40817155088,
+    "rust_cases": [
+      {
+        "path": "chronicler-agents/src/decision_delivery.rs",
+        "name": "decision_delivery_move_tracking_and_rows_are_bounded_independently",
+        "line": 700
+      },
+      {
+        "path": "chronicler-agents/src/decision_delivery.rs",
+        "name": "decision_delivery_move_missing_origin_never_invents_an_own_proposal",
+        "line": 719
+      },
+      {
+        "path": "chronicler-agents/src/decision_delivery.rs",
+        "name": "decision_delivery_move_empty_selection_and_dedup_keep_last_writer",
+        "line": 734
+      },
+      {
+        "path": "chronicler-agents/src/household.rs",
+        "name": "household_delivery_lead_uses_reused_lower_slot_and_same_target_is_replaced",
+        "line": 693
+      },
+      {
+        "path": "chronicler-agents/src/household.rs",
+        "name": "household_delivery_records_every_replaced_proposal_and_last_target",
+        "line": 719
+      },
+      {
+        "path": "chronicler-agents/src/household.rs",
+        "name": "household_delivery_rebellion_precedes_catastrophe_and_distinguishes_blocked_followers",
+        "line": 739
+      },
+      {
+        "path": "chronicler-agents/src/household.rs",
+        "name": "household_delivery_catastrophe_cancels_actual_proposals_without_inventing_child_proposals",
+        "line": 776
+      },
+      {
+        "path": "chronicler-agents/src/household.rs",
+        "name": "household_delivery_shared_dependent_records_successive_household_last_writes",
+        "line": 805
+      },
+      {
+        "path": "chronicler-agents/src/household.rs",
+        "name": "household_delivery_dedup_reports_only_discarded_earlier_tuple",
+        "line": 841
+      },
+      {
+        "path": "chronicler-agents/src/tick.rs",
+        "name": "decision_delivery_applied_ordinal_uses_the_full_native_event_batch",
+        "line": 2071
+      },
+      {
+        "path": "chronicler-agents/src/tick.rs",
+        "name": "decision_delivery_same_target_household_origin_reaches_actual_application",
+        "line": 2110
+      }
+    ],
+    "rust_case_count": 11,
+    "python_api_functions": [
+      {
+        "path": "tests/test_decision_delivery_moves_native.py",
+        "name": "test_move_delivery_api_keeps_old_positional_and_three_batch_schema_contract",
+        "line": 41
+      },
+      {
+        "path": "tests/test_decision_delivery_moves_native.py",
+        "name": "test_move_delivery_api_links_actual_full_event_ordinals_and_preserves_future_state",
+        "line": 67
+      },
+      {
+        "path": "tests/test_decision_delivery_moves_native.py",
+        "name": "test_move_delivery_api_independent_caps_never_claim_a_truncated_prefix_complete",
+        "line": 106
+      },
+      {
+        "path": "tests/test_decision_delivery_moves_native.py",
+        "name": "test_move_delivery_api_positive_selection_is_independent_of_stage1_rows",
+        "line": 123
+      },
+      {
+        "path": "tests/test_decision_delivery_moves_native.py",
+        "name": "test_move_delivery_api_empty_or_absent_id_selection_is_an_explicit_empty_frame",
+        "line": 144
+      },
+      {
+        "path": "tests/test_decision_delivery_moves_native.py",
+        "name": "test_move_delivery_api_restore_failed_tick_and_reset_cannot_reuse_a_stale_frame",
+        "line": 155
+      }
+    ],
+    "python_api_function_count": 6,
+    "python_api_case_count_expected": 7,
+    "scope": "Source declarations only; status must be linked to exact-source completed Cargo and JUnit receipts."
+  },
+  "source_reviews": {
+    "independent_receipt": "/workspace/chronicler-recovered-evidence/decision-delivery-applied-moves-source-review-20261029/receipt.json",
+    "independent_receipt_sha256": "0542efac164d270fc99b2c73548dcf23d53aad5970ae3e4dc26eac34504f391f",
+    "sink_api_child_path": "/workspace/chronicler-recovered-evidence/decision-delivery-applied-moves-source-review-20261029/child-review.json",
+    "sink_api_child_sha256": "fb5955c130198505670554841ff10289b077ec39ecbdaf1c50742f33e778cfc0",
+    "stage1_builder_boundary": "/workspace/chronicler-decision-delivery-applied-evidence/stage1-source-boundary-001.json",
+    "stage1_builder_boundary_sha256": "47ed57a0baf0426e5675a48397c9b5ed03c839f962295404ea5ad46cff8e5883"
+  },
+  "prior_failure_preserved": {
+    "stage1_original_source": "dec950334e9d7fceb77e51b482b60931357ffbc5",
+    "run_id": 40813417246,
+    "conclusion": "failure",
+    "reason": "Original direct-core test missed per-turn scratch resizing after births; preserved separately from qualified Stage1 e99 and this Stage2 source."
+  },
+  "same_source_rerun": false,
+  "source_correction_needed_in_this_run": false,
+  "scope": [
+    "Native-only Stage2 mechanics and standard exact-source CI. Observer remains opt-in; no default promotion.",
+    "Eleven new Rust cases are source-linked to complete unfiltered 573-case library success. Quiet output lacks individual passing-name receipts; no separate targeted invocation was launched.",
+    "Seven new compiled API cases and five preserved Stage1 cases pass; all twelve explicitly skip without native.",
+    "Tiny direct two-region fixtures with 40 initial agents; positive-ID selection follows an actual reference fixture event, not a scientific sampling change.",
+    "Actual native event ordinals index the full unchanged native event batch, never world-event IDs. Positive-term migration_driver remains separate from household provenance.",
+    "Move row/tracking caps are independent of Stage1 capture; truncation/missing origin prevents completeness. Deterministic prefixes establish no population rate.",
+    "Recorded old schema and within-new-build checkpoint/events/state contracts pass. No historical checkpoint was rebound into a new binary.",
+    "Native binary SHA is producer-reported in independently verified identity ZIP bytes; the .so and wheel were not separately downloaded/rehashed by this audit.",
+    "No old/new default-output, broad enabled-observer parity, large-agent, controlled speed or scientific outcome qualification. Original 2f9/d028/06db gate standing remains unchanged.",
+    "No Python writer, CLI, harness or tick-index-reuse composition implemented. Main and frozen producer refs remain unchanged.",
+    "All builds/tests ran remotely; local source/log/JSON/XML reads used stdlib only, without project/native imports, pools, worlds or replay."
+  ],
+  "evidence_reader": {
+    "path": "/workspace/chronicler-decision-delivery-applied-evidence/read_ci_artifact.py",
+    "sha256": "de263b57ecce340915f60f38088fd3a66e28a047d068e2dd279fcf10eb634850",
+    "zip_ram_only": true,
+    "per_read_ram_admission_bytes": 134217728,
+    "retained_disk_floor_bytes": 3221225472
+  }
+}

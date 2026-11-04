@@ -1,73 +1,146 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect } from "react";
 
 interface TimelineOptions {
   liveMode?: boolean;
 }
 
+interface TimelineSessionOptions {
+  initialTurn?: number;
+  followLive?: boolean;
+}
+
+interface TimelineState {
+  turn: number;
+  playing: boolean;
+  liveSession: boolean;
+  inspectionBaseline: number | null;
+}
+
 export function useTimeline(maxTurn: number, options?: TimelineOptions) {
   const liveMode = options?.liveMode ?? false;
-  const [storedTurn, setStoredTurn] = useState(liveMode ? maxTurn : 1);
-  const [playing, setPlaying] = useState(false);
+  const latestTurn = Math.max(1, maxTurn);
+  const [state, setState] = useState<TimelineState>({
+    turn: liveMode ? latestTurn : 1,
+    playing: false,
+    liveSession: liveMode,
+    inspectionBaseline: null,
+  });
   const [speed, setSpeed] = useState(1);
-  const [followMode, setFollowMode] = useState(liveMode);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const effectiveFollowMode = liveMode && (followMode || storedTurn >= maxTurn);
-  const currentTurn = effectiveFollowMode
-    ? maxTurn
-    : Math.max(1, Math.min(storedTurn, maxTurn));
+  // Remember live intent across a disconnected socket. Clamp a removed turn
+  // permanently, so a later expanding window cannot move an inspected cursor.
+  if ((liveMode && !state.liveSession) || state.turn > latestTurn) {
+    setState({
+      ...state,
+      liveSession: state.liveSession || liveMode,
+      turn: Math.min(state.turn, latestTurn),
+    });
+  }
+
+  const inspectionLocked = state.inspectionBaseline !== null;
+  const following = (liveMode || state.liveSession) && !inspectionLocked;
+  const currentTurn = following ? latestTurn : Math.min(state.turn, latestTurn);
 
   const seek = useCallback(
     (turn: number) => {
-      const clamped = Math.max(1, Math.min(turn, maxTurn));
-      setStoredTurn(clamped);
-      if (liveMode) {
-        setFollowMode(clamped >= maxTurn);
-      }
+      setState((previous) => ({
+        ...previous,
+        turn: Math.max(1, Math.min(turn, latestTurn)),
+        // Seeking even to the live edge is inspection, not consent to follow.
+        inspectionBaseline: previous.inspectionBaseline
+          ?? (liveMode || previous.liveSession ? latestTurn : null),
+      }));
     },
-    [maxTurn, liveMode],
+    [latestTurn, liveMode],
   );
 
-  const play = useCallback(() => setPlaying(true), []);
-  const pause = useCallback(() => setPlaying(false), []);
+  const lockInspection = useCallback(() => {
+    setState((previous) => ({
+      ...previous,
+      turn: previous.inspectionBaseline === null
+        && (liveMode || previous.liveSession) ? latestTurn : previous.turn,
+      inspectionBaseline: previous.inspectionBaseline ?? latestTurn,
+    }));
+  }, [latestTurn, liveMode]);
+
+  const returnToLive = useCallback(() => {
+    setState({
+      turn: latestTurn,
+      playing: false,
+      liveSession: true,
+      inspectionBaseline: null,
+    });
+  }, [latestTurn]);
+
+  // Stable across arrivals and reconnects. The caller invokes this only when
+  // loading a different world, never for a replacement bundle of the same run.
+  const resetSession = useCallback((session: TimelineSessionOptions = {}) => {
+    setState({
+      turn: Math.max(1, session.initialTurn ?? 1),
+      playing: false,
+      liveSession: session.followLive ?? false,
+      inspectionBaseline: null,
+    });
+  }, []);
+
+  const play = useCallback(() => {
+    setState((previous) => ({
+      ...previous,
+      playing: true,
+      turn: previous.inspectionBaseline === null
+        && (liveMode || previous.liveSession) ? latestTurn : previous.turn,
+      inspectionBaseline: previous.inspectionBaseline
+        ?? (liveMode || previous.liveSession ? latestTurn : null),
+    }));
+  }, [latestTurn, liveMode]);
+  const pause = useCallback(() => {
+    setState((previous) => ({ ...previous, playing: false }));
+  }, []);
+
+  // Keep the old explicit setter usable, including its functional form.
+  const setFollowMode = useCallback((value: boolean | ((previous: boolean) => boolean)) => {
+    setState((previous) => {
+      const wasFollowing = liveMode && previous.inspectionBaseline === null;
+      const follow = typeof value === "function" ? value(wasFollowing) : value;
+      return {
+        ...previous,
+        turn: follow || (previous.inspectionBaseline === null
+          && (liveMode || previous.liveSession)) ? latestTurn : previous.turn,
+        playing: follow ? false : previous.playing,
+        liveSession: previous.liveSession || liveMode,
+        inspectionBaseline: follow ? null : previous.inspectionBaseline ?? latestTurn,
+      };
+    });
+  }, [latestTurn, liveMode]);
 
   useEffect(() => {
-    if (!playing) {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-      return;
-    }
+    if (!state.playing) return;
 
-    intervalRef.current = setInterval(() => {
-      setStoredTurn((prev) => {
-        const next = prev + 1;
-        if (next > maxTurn) {
-          setPlaying(false);
-          return maxTurn;
-        }
-        return next;
+    const interval = setInterval(() => {
+      setState((previous) => {
+        const next = Math.min(previous.turn + 1, latestTurn);
+        return { ...previous, turn: next, playing: next < latestTurn };
       });
     }, 1000 / speed);
 
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    };
-  }, [playing, speed, maxTurn]);
+    return () => clearInterval(interval);
+  }, [state.playing, speed, latestTurn]);
 
   return {
     currentTurn,
-    playing,
+    playing: state.playing,
     speed,
     seek,
     play,
     pause,
     setSpeed,
-    followMode: effectiveFollowMode,
+    followMode: liveMode && !inspectionLocked,
     setFollowMode,
+    inspectionLocked,
+    newTurns: state.inspectionBaseline === null
+      ? 0 : Math.max(0, latestTurn - state.inspectionBaseline),
+    returnToLive,
+    lockInspection,
+    resetSession,
   };
 }

@@ -50,30 +50,54 @@ def _make_args(tmp_path, seed=42, turns=10, agents="off"):
 
 
 def test_thread_count_determinism(tmp_path):
+    """Fresh native processes request one/four Rayon workers without env leaks."""
     _require_chronicler_agents()
-    """Same seed with different thread counts produces identical merchant stats."""
+    import hashlib
+    import importlib.machinery
     import os
-    from chronicler.main import execute_run
+    from pathlib import Path
+    import subprocess
+    import sys
 
-    os.environ["RAYON_NUM_THREADS"] = "1"
-    d1 = tmp_path / "run1"
-    d1.mkdir()
-    args1 = _make_args(d1, seed=42, turns=20, agents="hybrid")
-    execute_run(args1)
+    import chronicler_agents.chronicler_agents as compiled
+    from chronicler.bundle_codec import load_bundle
+    from chronicler.run_checkpoint import read_header
 
-    os.environ["RAYON_NUM_THREADS"] = "4"
-    d2 = tmp_path / "run2"
-    d2.mkdir()
-    args2 = _make_args(d2, seed=42, turns=20, agents="hybrid")
-    execute_run(args2)
-
-    os.environ.pop("RAYON_NUM_THREADS", None)
-
-    b1 = json.loads((d1 / "chronicle_bundle.json").read_text())
-    b2 = json.loads((d2 / "chronicle_bundle.json").read_text())
-    s1 = b1.get("metadata", {}).get("merchant_trip_stats", [])
-    s2 = b2.get("metadata", {}).get("merchant_trip_stats", [])
-    assert s1 == s2, f"Merchant stats diverge between thread counts"
+    assert isinstance(compiled.__spec__.loader, importlib.machinery.ExtensionFileLoader)
+    native_sha = hashlib.sha256(Path(compiled.__file__).read_bytes()).hexdigest()
+    source = Path(__file__).resolve().parents[1]
+    parent_environment = dict(os.environ)
+    runs = []
+    for workers in (1, 4):
+        directory = tmp_path / f"workers-{workers}"
+        directory.mkdir()
+        # Rayon creates its global pool once. A changed environment in an
+        # already initialized parent would not establish another pool size.
+        env = dict(parent_environment, RAYON_NUM_THREADS=str(workers), PYTHONHASHSEED="0",
+                   PYTHONPATH=os.pathsep.join((str(source / "src"), str(source))))
+        result = subprocess.run([
+            sys.executable, "-m", "chronicler.main", "--seed", "42", "--turns", "20",
+            "--regions", "5", "--civs", "2", "--agents", "hybrid", "--simulate-only",
+            "--output", str(directory / "chronicle.md"), "--state", str(directory / "state.json"),
+            "--checkpoint-every", "20", "--checkpoint", str(directory / "final.ckpt"),
+        ], cwd=source, env=env, capture_output=True, text=True, timeout=60)
+        assert result.returncode == 0, result.stdout + "\n" + result.stderr
+        header, _ = read_header(directory / "final.ckpt")
+        assert header["exact"] and header["turn"] == 20
+        assert header["identity"]["environment"]["thread_env"]["RAYON_NUM_THREADS"] == str(workers)
+        assert header["identity"]["native"]["sha256"] == native_sha
+        native_sections = {section["name"]: section["sha256"] for section in header["sections"]
+                           if section["name"].startswith("native.")}
+        assert native_sections, "compare actual native final states, not absent observations"
+        bundle = load_bundle(directory / "chronicle_bundle.json")
+        stats = bundle["metadata"]["merchant_trip_stats"]
+        assert len(stats) == 20
+        assert all({"active_trips", "completed_trips", "route_utilization"} <= row.keys() for row in stats)
+        assert [row["turn"] for row in bundle["history"]] == list(range(1, 21))
+        runs.append((bundle["history"], bundle["world_state"], bundle["events_timeline"], stats, native_sections))
+    parent_unchanged = dict(os.environ) == parent_environment
+    assert parent_unchanged, "merchant children changed their parent environment"
+    assert runs[0] == runs[1], "native simulation or recorded merchant outcomes diverge between thread counts"
 
 
 def test_agents_off_unaffected(tmp_path):

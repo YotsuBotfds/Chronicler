@@ -324,7 +324,12 @@ async function sample(browser, url, bundle, options, total) {
   await page.waitForTimeout(1500);
   const longTasksBefore = await page.evaluate(() => window.__perf.longTasks.length);
 
-  await page.locator('input[type="file"][accept=".json"]').first().setInputFiles(bundle.path);
+  // Historical builds predate the named loader; current builds also have a
+  // separate resume-state input accepting .json, which must not receive bundles.
+  const namedLoader = page.getByLabel("Open saved world file");
+  const loader = await namedLoader.count() ? namedLoader
+    : page.locator('input[type="file"][accept=".json"]').first();
+  await loader.setInputFiles(bundle.path);
   await waitForMark(page, "overviewFrame");
   await waitForMark(page, "systemsFrame");
   await lazyIdle(page);

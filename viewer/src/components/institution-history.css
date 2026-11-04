@@ -1,0 +1,18 @@
+.institution-history { min-width: 0; padding: .8rem 0; border-top: 1px solid #454945; color: #d6d3ce; }
+.institution-history h3, .institution-history h4 { margin: .75rem 0 .5rem; overflow-wrap: anywhere; }
+.institution-history h3 { font-size: 1rem; }
+.institution-history h4 { font-size: .95rem; }
+.institution-history p, .institution-history li, .institution-history details { font-size: .85rem; line-height: 1.5; overflow-wrap: anywhere; }
+.institution-history p { color: #b8b9b4; }
+.institution-history-values { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr)); gap: .6rem; font-size: .85rem; }
+.institution-history-values > div { min-width: 0; padding: .5rem; background: #172324; border-radius: .25rem; }
+.institution-history dt { color: #a8b8b5; }
+.institution-history dd { margin: .3rem 0 0; overflow-wrap: anywhere; }
+.institution-history-list { list-style: none; margin: .5rem 0; padding: 0; display: grid; gap: .7rem; }
+.institution-history-list > li { padding: .7rem; border: 1px solid #454945; border-radius: .3rem; min-width: 0; }
+.institution-history-list ul { padding-left: 1.1rem; }
+.institution-history-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.institution-history button { min-height: 44px; max-width: 100%; padding: .45rem .65rem; border-radius: .25rem; border: 1px solid #648580; background: #293c3c; color: #d7eeed; cursor: pointer; overflow-wrap: anywhere; }
+.institution-history summary { min-height: 44px; align-content: center; cursor: pointer; }
+.institution-history :is(button, summary):focus-visible { outline: 2px solid #e0b14c; outline-offset: 3px; }
+.institution-history code { display: block; max-width: 100%; overflow-wrap: anywhere; color: #b4c6c1; margin: .3rem 0; }

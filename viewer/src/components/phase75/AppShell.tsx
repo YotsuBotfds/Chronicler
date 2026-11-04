@@ -16,6 +16,7 @@ import type {
   WorldState,
 } from "../../types";
 import { isLegacyBundle } from "../../types";
+import { eventSnapshotTurn, isObservationEventType, observationEventKnown } from "../../lib/observedSystems";
 import type { BatchConfig } from "../../types";
 import type { BatchState } from "../../hooks/useBatchConnection";
 import { ERA_LABELS } from "../../lib/format";
@@ -26,6 +27,7 @@ import { snapshotPositionAt } from "../../lib/civRows";
 import { DISPOSITION_COLORS, factionColor, UNCONTROLLED_COLOR } from "../../lib/colors";
 import { RegionSystemsDetail } from "../systems/RegionSystemsDetail";
 import type { ArtifactIdentity } from "../../lib/artifactIdentity";
+import { SavedWorldDetails } from "./SavedWorldDetails";
 import { accountsForEvent, decodeAccounts, type EventAccounts } from "../../lib/historiography";
 import { InWorldAccounts } from "./InWorldAccounts";
 import {
@@ -50,6 +52,27 @@ import { MapLayerLegend, MapLayerMarks } from "./MapLayerMarks";
 import "../region-history.css";
 import "../systems/systems.css";
 import "./app-shell.css";
+
+import { WhereToLook } from "../WhereToLook";
+import type { WhatIfControls, WhatIfPair } from "../../lib/whatIf";
+
+import { LiveInspectionControls } from "../LiveInspectionControls";
+import { RegionInvestigation } from "../RegionInvestigation";
+import { InterestingPeriods } from "../InterestingPeriods";
+import { TerritoryChanges } from "../TerritoryChanges";
+import { HistoricalSearch } from "../HistoricalSearch";
+import type { HistoricalSearchResult } from "../../lib/historicalSearch";
+import { exactSnapshot, type HistoryEntity } from "../../lib/historyComparison";
+import { CivilizationHistory } from "../CivilizationHistory";
+import { InstitutionHistory } from "../InstitutionHistory";
+import { MigrationEvidence } from "../MigrationEvidence";
+import { DebtEvidence } from "../DebtEvidence";
+import { InvestigationBookmarks } from "../InvestigationBookmarks";
+import { InvestigationPacket } from "../InvestigationPacket";
+import { useDialogFocus } from "../../hooks/useDialogFocus";
+import { resolveInvestigationTarget, type InvestigationTarget } from "../../lib/investigationPacket";
+
+type LiveTimelineControls = Parameters<typeof LiveInspectionControls>[0];
 
 export type AppSurface =
   | "setup"
@@ -77,6 +100,7 @@ interface AppShellProps {
   artifactIdentity?: ArtifactIdentity | null;
   bundleLoading: boolean;
   error: string | null;
+  liveNotice?: string | null;
   isLive: boolean;
   connected: boolean;
   serverState: "connecting" | "lobby" | "starting" | "running" | "completed";
@@ -99,6 +123,8 @@ interface AppShellProps {
   onBatchReset?: () => void;
   onOpenBatchResult?: (path: string) => void;
   onOpenBundleFile: (file: File) => void;
+  liveTimeline?: LiveTimelineControls;
+  liveWhatIf?: WhatIfControls;
   livePaused?: boolean;
   livePauseContext?: PauseContext | null;
   liveSendCommand?: (cmd: Command) => void;
@@ -120,7 +146,7 @@ interface RegionLike {
 
 interface MapNode {
   region: RegionLike;
-  controller: string | null;
+  controller: string | null | undefined;
   x: number;
   y: number;
 }
@@ -344,7 +370,7 @@ function computeAtlasLayout(
   if (hasPins) {
     return regions.map((region) => ({
       region,
-      controller: controllers[region.name] ?? null,
+      controller: controllers[region.name],
       ...atlasPoint(region.x ?? frame.x0 + frame.sx / 2, region.y ?? frame.y0 + frame.sy / 2, frame),
     }));
   }
@@ -376,7 +402,7 @@ function computeAtlasLayout(
       const localAngle = (Math.PI * 2 * regionIndex) / Math.max(groupRegions.length, 1) - Math.PI / 2;
       nodes.push({
         region,
-        controller: controllers[region.name] ?? null,
+        controller: controllers[region.name],
         x: groupCenterX + Math.cos(localAngle) * localRadius,
         y: groupCenterY + Math.sin(localAngle) * localRadius,
       });
@@ -465,16 +491,17 @@ function selectionDescription(
   selection: SelectedEntity | null,
   summary: BatchRunSummary | null,
   currentTurn: number,
+  eventRecorded = true,
 ): string {
   if (surface === "batch") {
     return buildRunSignalSummary(summary);
   }
   if (!selection) {
-    return "Map selection drives inspector context across Overview, Character, Trade, and Campaign.";
+    return "Choose a region, civilization, or event to view its recorded details.";
   }
   if (selection.kind === "event") {
     // An event pinned at a later turn is not described before it happens.
-    if (selection.turn !== undefined && selection.turn > currentTurn) {
+    if (!eventRecorded || (selection.turn !== undefined && selection.turn > currentTurn)) {
       return `Pinned event not yet recorded at turn ${currentTurn}.`;
     }
     return `Pinned to ${selection.label} at turn ${selection.turn ?? "?"}.`;
@@ -560,6 +587,7 @@ export function AppShell({
   artifactIdentity,
   bundleLoading,
   error,
+  liveNotice,
   isLive,
   connected,
   serverState,
@@ -582,6 +610,8 @@ export function AppShell({
   onBatchReset,
   onOpenBatchResult,
   onOpenBundleFile,
+  liveTimeline,
+  liveWhatIf,
   livePaused,
   livePauseContext,
   liveSendCommand,
@@ -613,7 +643,26 @@ export function AppShell({
     batch: true,
   });
   const [showCompareOverlay, setShowCompareOverlay] = useState(false);
+  const compareDialogRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(compareDialogRef, showCompareOverlay, () => setShowCompareOverlay(false));
+  const [compareMode, setCompareMode] = useState<"runs" | "batch">("runs");
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyRequest, setHistoryRequest] = useState(0);
+  const worldKey = bundle ? isLive ? `live:${bundle.metadata.seed}:${bundle.world_state.name}`
+    : artifactIdentity?.sha256 ?? `${bundle.metadata.seed}:${bundle.metadata.generated_at}:${bundle.world_state.name}` : "";
+  const [historyChoice, setHistoryChoice] = useState<{ world: string; entity: HistoryEntity } | null>(null);
+  const historyFocus = historyChoice?.world === worldKey ? historyChoice.entity : null;
+  const [territoryChoice, setTerritoryChoice] = useState<{ world: string; turn: number; from: number | null; civ: number | null } | null>(null);
+  const [searchChoice, setSearchResult] = useState<{ world: string; result: HistoricalSearchResult } | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [bookmarkOpen, setBookmarkOpen] = useState(false);
+  const [inspectedPause, setInspectedPause] = useState<string | null>(null);
+  const pauseKey = `${worldKey}:${livePauseContext?.turn ?? "none"}`;
+  const inspectingPausedWorld = !!livePaused && inspectedPause === pauseKey;
+  const searchResult = searchChoice?.world === worldKey ? searchChoice.result : null;
+  const searchEvidenceKnown = !!searchResult && (searchResult.turn === null || searchResult.turn <= currentTurn)
+    && (searchResult.lastRecordedTurn === null || searchResult.lastRecordedTurn <= currentTurn);
+  const [whatIfPair, setWhatIfPair] = useState<WhatIfPair | null>(null);
   const [batchSelectionPath, setBatchSelectionPath] = useState<string | null>(null);
 
   const [scenario, setScenario] = useState("");
@@ -692,7 +741,8 @@ export function AppShell({
   // live session before its first turn); before the first snapshot of a
   // recorded history no controller is known.
   const worldIsPresent = !!bundle && bundle.history.length === 0;
-  const regionControllers = currentSnapshot?.region_control
+  const mapSnapshot = bundle ? exactSnapshot(bundle, currentTurn) : null;
+  const regionControllers = mapSnapshot?.region_control
     ?? (bundle
       ? (worldIsPresent
         ? Object.fromEntries(bundle.world_state.regions.map((region) => [region.name, region.controller]))
@@ -721,7 +771,11 @@ export function AppShell({
     ? techniqueSelection
     : (mapLayer === "techniques" ? defaultTechnique(currentSnapshot, techniqueOptions) : null);
   const mapLayerView = bundle
-    ? buildMapLayer(mapLayer, { bundle, snapshot: currentSnapshot, famine, technique })
+    ? buildMapLayer(mapLayer, { bundle, snapshot: exactSnapshot(bundle, currentTurn), famine, technique,
+      territoryFromTurn: territoryChoice?.world === worldKey && territoryChoice.turn === currentTurn ? territoryChoice.from ?? undefined : undefined,
+      territoryCivilizationIndex: territoryChoice?.world === worldKey && territoryChoice.turn === currentTurn ? territoryChoice.civ
+        : selectedEntity?.kind === "civilization" ? bundle.world_state.civilizations.findIndex((row) => row.name === selectedEntity.id) : null,
+    })
     : null;
   const atlasConnections = buildRegionConnections(atlasNodes);
   const controllerCentroids = computeControllerCentroids(atlasNodes);
@@ -739,10 +793,12 @@ export function AppShell({
     snapshotRelationships,
     civilizations.map((civilization) => civilization.name),
   );
+  const observationSourceTurn = (currentSnapshot?.turn ?? currentTurn) - 1;
   const eventFeed = buildEventFeed(
     bundle?.events_timeline ?? NO_EVENTS,
     currentTurn,
     selectedEntity?.kind === "civilization" ? selectedEntity.id : null,
+    observationSourceTurn,
   );
   const batchSummaries = batchReport?.run_summaries ?? [];
   const leftRailTab = surface === "setup"
@@ -925,7 +981,17 @@ export function AppShell({
       label: event.description,
       turn: event.turn,
     });
-    onSeek(event.turn);
+  };
+  const selectHistoryEntity = (entity: HistoryEntity) => {
+    setSelectedEntity({ kind: entity.kind, id: entity.name, label: entity.name });
+    setHistoryChoice({ world: worldKey, entity });
+  };
+  const selectRegion = (name: string) => selectHistoryEntity({ kind: "region", name });
+  const selectCivilization = (name: string) => selectHistoryEntity({ kind: "civilization", name });
+  const inspectHistory = (entity: HistoryEntity) => { selectHistoryEntity(entity); setHistoryOpen(true); };
+  const inspectSearch = (result: HistoricalSearchResult) => {
+    setSearchResult({ world: worldKey, result });
+    if (result.mapEntity) inspectHistory(result.mapEntity);
   };
 
   const selectedRegion = selectedEntity?.kind === "region"
@@ -937,18 +1003,29 @@ export function AppShell({
   const selectedEvent = selectedEntity?.kind === "event"
     ? (bundle ? eventByKey(bundle.events_timeline, selectedEntity.id) : null)
     : null;
+  const investigationTarget: InvestigationTarget | null = (() => {
+    const focus = selectedEntity && (selectedEntity.kind === "region" || selectedEntity.kind === "civilization")
+      ? { kind: selectedEntity.kind, name: selectedEntity.id } : historyFocus;
+    if (!bundle || !focus) return null;
+    const kind = focus.kind;
+    const rows = kind === "region" ? bundle.world_state.regions : bundle.world_state.civilizations;
+    const indices = rows.flatMap((row, index) => row.name === focus.name ? [index] : []);
+    return indices.length === 1 ? { kind, index: indices[0], name: focus.name } : null;
+  })();
   // An event pinned at a later turn stays selected while scrubbing back, but
   // is not shown before its turn; its consequences and accounts are those
   // recorded by the scrubbed turn (the event log's convention).
-  const selectedEventRecorded = !!selectedEvent && selectedEvent.turn <= currentTurn;
-  const selectedEventProvenance = eventProvenance(bundle?.events_timeline ?? NO_EVENTS, selectedEvent, currentTurn);
+  const selectedEventRecorded = !!selectedEvent && selectedEvent.turn <= currentTurn
+    && observationEventKnown(selectedEvent, observationSourceTurn);
+  const selectedEventProvenance = eventProvenance(bundle?.events_timeline ?? NO_EVENTS, selectedEvent, currentTurn, observationSourceTurn);
   const historiography = bundle?.historiography;
   const accountRows = useMemo(
     () => (historiography ? decodeAccounts(historiography) : []),
     [historiography],
   );
   const selectedEventAccounts = selectedEventRecorded
-    ? accountsForEvent(historiography, selectedEvent?.event_id, accountRows, currentTurn)
+    ? accountsForEvent(historiography, selectedEvent?.event_id, accountRows,
+      isObservationEventType(selectedEvent?.event_type) ? observationSourceTurn : currentTurn)
     : null;
   // The region's terrain at the scrubbed turn (terrain transitions are dated events).
   const selectedRegionTerrain = selectedRegion
@@ -988,13 +1065,15 @@ export function AppShell({
       <input
         ref={openBundleRef}
         type="file"
-        accept=".json"
+        aria-label="Open saved world file"
+        accept=".json,.ckpt,.checkpoint"
         className="phase75-hidden-input"
         onChange={(event) => {
           const file = event.target.files?.[0];
           if (file) {
             onOpenBundleFile(file);
           }
+          event.target.value = "";
         }}
       />
 
@@ -1011,7 +1090,36 @@ export function AppShell({
         serverState={serverState}
         viewerReady={viewerReady}
         onOpenBundle={() => openBundleRef.current?.click()}
+        onCompare={() => { setWhatIfPair(null); setCompareMode("runs"); setShowCompareOverlay(true); }}
       />
+
+      {error && <div className="phase75-error-banner saved-world-message" role="alert">
+        {error}{bundle && <p>The loaded world is still available. Choose another file with Open Existing.</p>}
+      </div>}
+      {bundle && <SavedWorldDetails bundle={bundle} identity={artifactIdentity} />}
+      {bundleLoading && <div className="saved-world-loading" role="status">Reading saved world…</div>}
+      {liveNotice && <div className="saved-world-loading" role="status">{liveNotice}</div>}
+      {inspectingPausedWorld && <div className="interesting-periods" role="status">
+        <p>Simulation paused at turn {livePauseContext?.turn}. Inspecting history does not advance the original world.</p>
+        <button type="button" onClick={() => setInspectedPause(null)}>Return to run controls</button>
+      </div>}
+      <details className="interesting-periods" open={bookmarkOpen} onToggle={(event) => setBookmarkOpen(event.currentTarget.open)}>
+        <summary>Bookmarks and investigation export</summary>
+        {bookmarkOpen && <>
+          <InvestigationBookmarks artifactIdentity={artifactIdentity ?? null} currentTurn={currentTurn}
+            target={investigationTarget} panel={historyOpen ? "history" : "conditions"} onRestore={(bookmark) => {
+              if (!bundle || artifactIdentity?.sha256 !== bookmark.world.sha256) return "Open the matching source file first. Your current world is kept.";
+              const error = resolveInvestigationTarget(bundle, bookmark.target, bookmark.turn);
+              if (error) return error;
+              onSeek(bookmark.turn);
+              selectHistoryEntity({ kind: bookmark.target.kind, name: bookmark.target.name });
+              setHistoryOpen(bookmark.panel === "history");
+              onSurfaceChange("overview");
+            }} />
+          {bundle && <InvestigationPacket bundle={bundle} identity={artifactIdentity ?? null}
+            target={investigationTarget} turn={currentTurn} />}
+        </>}
+      </details>
 
       <ModeTabs
         current={surface}
@@ -1039,8 +1147,26 @@ export function AppShell({
         onPlay={onPlay}
         onPause={onPause}
         onSetSpeed={onSetSpeed}
+        liveTimeline={liveTimeline}
+        onSeek={onSeek}
       />
 
+      {bundle && surface !== "setup" && surface !== "progress" && surface !== "batch" && <>
+        <details className="interesting-periods" open={searchOpen} onToggle={(event) => setSearchOpen(event.currentTarget.open)}>
+          <summary>Search recorded entities</summary>
+          {searchOpen && <HistoricalSearch bundle={bundle} currentTurn={currentTurn} onInspect={inspectSearch}
+            onViewRecordedTurn={(result) => { inspectSearch(result); if (result.turn !== null) onSeek(result.turn); }} />}
+        </details>
+        {searchResult && <details className="interesting-periods" open>
+          <summary>Selected search evidence{searchEvidenceKnown ? `: ${searchResult.name}` : ""}</summary>
+          {searchEvidenceKnown ? <><p>{searchResult.status} · {searchResult.sourceRef}</p>
+            {searchResult.ambiguity && <p>{searchResult.ambiguity}</p>}
+            <InstitutionHistory bundle={bundle} currentTurn={currentTurn} selection={searchResult}
+              onSelectEvent={selectEvent} onInspectRelated={inspectHistory} onViewRecordedTurn={onSeek} /></> : <p>The selected search record lies beyond this turn. Search again to inspect the observations available here.</p>}
+          <button type="button" onClick={() => setSearchResult(null)}>Close search evidence</button>
+        </details>}
+        <InterestingPeriods bundle={bundle} currentTurn={currentTurn} onSeek={onSeek} onEvent={selectEvent} />
+      </>}
       <ValidationRibbon
         visible={surface === "campaign"}
         bundle={bundle}
@@ -1049,22 +1175,34 @@ export function AppShell({
         civilizations={civilizations}
       />
 
-      {bundle && !isLive && surface !== "setup" && surface !== "progress" && surface !== "batch" && (
-        <details className="region-history-disclosure" onToggle={(event) => setHistoryOpen(event.currentTarget.open)}>
-          <summary>Inspect region history</summary>
+      {bundle && surface !== "setup" && surface !== "progress" && surface !== "batch" && <WhereToLook
+        bundle={bundle} currentTurn={currentTurn} onInspectEntity={(entity) => {
+          inspectHistory(entity);
+          setHistoryRequest((value) => value + 1);
+        }} />}
+      {bundle && surface !== "setup" && surface !== "progress" && surface !== "batch" && (
+        <details open={historyOpen} className="region-history-disclosure" onToggle={(event) => setHistoryOpen(event.currentTarget.open)}>
+          <summary>Compare turns and inspect history</summary>
           {historyOpen && <Suspense fallback={<PanelLoading label="the region history inspector" />}>
             <RegionHistoryInspector
-              key={`${artifactIdentity?.sha256 ?? artifactIdentity?.name ?? "live"}:${bundle.metadata.seed}:${bundle.metadata.generated_at}:${bundle.world_state.name}`}
+              key={`${worldKey}:${historyRequest}`}
               bundle={bundle}
               artifactIdentity={artifactIdentity}
-              selectedRegion={selectedRegion?.name}
+              selectedRegion={historyFocus?.kind === "region" ? historyFocus.name : selectedRegion?.name}
+              selectedCivilization={historyFocus?.kind === "civilization" ? historyFocus.name : selectedCivilization?.name}
               currentTurn={currentTurn}
               onSeek={onSeek}
+              onSelectEvent={selectEvent}
+              onSelectEntity={selectHistoryEntity}
             />
           </Suspense>}
         </details>
       )}
 
+      {bundle && mapLayer === "territory" && <TerritoryChanges bundle={bundle} currentTurn={currentTurn}
+        selectedRegion={selectedRegion?.name} selectedCivilization={selectedCivilization?.name}
+        onInspectEntity={inspectHistory} onSeek={onSeek}
+        onComparisonChange={(from, civ) => setTerritoryChoice({ world: worldKey, turn: currentTurn, from, civ })} />}
       <div className="phase75-workspace">
         <LeftRail
           surface={surface}
@@ -1143,7 +1281,10 @@ export function AppShell({
           tradeLinks={tradeLinks}
           campaignLinks={campaignLinks}
           selectedEntity={selectedEntity}
-          onSelectEntity={setSelectedEntity}
+          onSelectEntity={(entity) => {
+            if (entity && (entity.kind === "region" || entity.kind === "civilization")) selectHistoryEntity({ kind: entity.kind, name: entity.id });
+            else setSelectedEntity(entity);
+          }}
           namedEvents={bundle?.named_events ?? []}
           selectedScenario={selectedScenario?.name ?? null}
           resumeState={resumeState}
@@ -1165,6 +1306,11 @@ export function AppShell({
           selectedEventRecorded={selectedEventRecorded}
           selectedEventProvenance={selectedEventProvenance}
           selectedEventAccounts={selectedEventAccounts}
+          onSelectEvent={selectEvent}
+          onSeek={onSeek}
+          onSelectRegion={selectRegion}
+          onSelectCivilization={selectCivilization}
+          civilizationNames={civilizationEntries.map((civilization) => civilization.name)}
           selectedRegionTerrain={selectedRegionTerrain}
           languages={bundle?.languages}
           languagesBundle={bundle}
@@ -1175,14 +1321,15 @@ export function AppShell({
           previewCivilizations={previewCivilizations}
           selectedScenario={selectedScenario}
           resumeState={resumeState}
-          description={selectionDescription(surface, selectedEntity, selectedBatchSummary, currentTurn)}
+          description={selectionDescription(surface, selectedEntity, selectedBatchSummary, currentTurn,
+            !isObservationEventType(selectedEvent?.event_type) || selectedEventRecorded)}
           inspectorSections={inspectorSections}
           onToggleSection={toggleInspectorSection}
           batchReport={batchReport}
           batchState={batchState}
           batchProgress={batchProgress}
           onOpenBatchResult={onOpenBatchResult}
-          onShowCompare={() => setShowCompareOverlay(true)}
+          onShowCompare={() => { setWhatIfPair(null); setCompareMode("batch"); setShowCompareOverlay(true); }}
           viewerReady={viewerReady}
           liveState={{
             isLive,
@@ -1190,6 +1337,8 @@ export function AppShell({
             serverState,
             livePaused: livePaused ?? false,
           }}
+          investigationBundle={bundle}
+          onOpenHistory={inspectHistory}
           currentSnapshot={currentSnapshot}
           famine={famine}
           regionNames={regionNames}
@@ -1206,16 +1355,12 @@ export function AppShell({
             currentTurn={currentTurn}
             onSeek={onSeek}
             onSelectEvent={selectEvent}
-            onSelectRegion={(name) => setSelectedEntity({ kind: "region", id: name, label: name })}
-            onSelectCivilization={(name) => setSelectedEntity({ kind: "civilization", id: name, label: name })}
+            onSelectRegion={selectRegion}
+            onSelectCivilization={selectCivilization}
             selectedRegion={selectedRegion?.name ?? null}
             selectedCivilization={selectedCivilization?.name ?? null}
           />
         </Suspense>
-      )}
-
-      {error && surface !== "setup" && surface !== "batch" && (
-        <div className="phase75-error-banner">{error}</div>
       )}
 
       <input
@@ -1233,26 +1378,28 @@ export function AppShell({
 
       {showCompareOverlay && (
         <div className="phase75-modal-backdrop" onClick={() => setShowCompareOverlay(false)}>
-          <div className="phase75-modal-card" onClick={(event) => event.stopPropagation()}>
+          <div ref={compareDialogRef} tabIndex={-1} className="phase75-modal-card" role="dialog" aria-modal="true" aria-label="Compare saved runs and reports" onClick={(event) => event.stopPropagation()}>
             <div className="phase75-modal-header">
               <div>
-                <div className="phase75-overline">Batch Compare</div>
-                <h2>Ranked report comparison workspace</h2>
+                <div className="phase75-overline">Compare saved outputs</div>
+                <h2>Compare runs or batch reports</h2>
               </div>
               <button className="phase75-ghost-button" onClick={() => setShowCompareOverlay(false)}>
                 Close
               </button>
             </div>
             <div className="phase75-modal-content">
-              <Suspense fallback={<PanelLoading label="the comparison workspace" />}>
-                <BatchCompare initialRight={batchReport} />
+              <Suspense fallback={<PanelLoading label="the report comparison" />}>
+                <BatchCompare initialPair={whatIfPair} initialRight={batchReport} initialMode={compareMode}
+                  initialBundle={!isLive || serverState === "completed" ? bundle : null}
+                  initialIdentity={!isLive ? artifactIdentity : null} />
               </Suspense>
             </div>
           </div>
         </div>
       )}
 
-      {livePaused && livePauseContext && liveSendCommand && (
+      {!showCompareOverlay && livePaused && livePauseContext && liveSendCommand && (
         <Suspense fallback={<PanelLoading label="the intervention panel" className="phase75-panel" />}>
           <InterventionPanel
             pauseContext={livePauseContext}
@@ -1261,6 +1408,13 @@ export function AppShell({
             forkedHint={liveForkedHint}
             onSaveCheckpoint={liveSaveCheckpoint}
             checkpointStatus={liveCheckpointStatus}
+            whatIf={liveWhatIf}
+            onCompareWhatIf={(pair) => { setWhatIfPair(pair); setCompareMode("runs"); setShowCompareOverlay(true); }}
+            onInspectWorld={() => {
+              setInspectedPause(pauseKey);
+              window.requestAnimationFrame(() => document.getElementById("world-investigation-map")?.focus());
+            }}
+            inspectionHidden={inspectingPausedWorld}
           />
         </Suspense>
       )}
@@ -1281,6 +1435,7 @@ function TopHeader({
   serverState,
   viewerReady,
   onOpenBundle,
+  onCompare,
 }: {
   surface: AppSurface;
   worldName: string;
@@ -1294,6 +1449,7 @@ function TopHeader({
   serverState: "connecting" | "lobby" | "starting" | "running" | "completed";
   viewerReady: boolean;
   onOpenBundle: () => void;
+  onCompare: () => void;
 }) {
   const statusLabel = liveReconnecting
     ? "Reconnecting"
@@ -1308,23 +1464,23 @@ function TopHeader({
       <div className="phase75-brand-block">
         <div className="phase75-brand-mark">C</div>
         <div>
-          <div className="phase75-overline">Chronicler Phase 7.5 Shell</div>
+          <div className="phase75-overline">Chronicler</div>
           <div className="phase75-brand-title">{worldName}</div>
           <div className="phase75-brand-subtitle">
-            {scenarioName ?? "Procedural workspace"}
+            {scenarioName ?? "World history"}
           </div>
         </div>
       </div>
 
       <div className="phase75-header-meta">
         <div className="phase75-meta-cluster">
-          <span className="phase75-meta-label">State</span>
+          <span className="phase75-meta-label">View</span>
           <span className="phase75-meta-value">{surface}</span>
         </div>
         <div className="phase75-meta-cluster">
           <span className="phase75-meta-label">Turn</span>
           <span className="phase75-meta-value">
-            {viewerReady && currentTurn !== null && totalTurns !== null ? `${currentTurn} / ${totalTurns}` : "Front door"}
+            {viewerReady && currentTurn !== null && totalTurns !== null ? `${currentTurn} / ${totalTurns}` : "No run loaded"}
           </span>
         </div>
         <div className="phase75-meta-cluster">
@@ -1338,6 +1494,7 @@ function TopHeader({
           </span>
         </div>
         <div className="phase75-status-badge">{statusLabel}</div>
+        <button type="button" className="phase75-ghost-button" onClick={onCompare}>Compare saved runs</button>
         <button className="phase75-primary-button phase75-open-bundle" onClick={onOpenBundle}>
           Open Existing
         </button>
@@ -1388,7 +1545,11 @@ function TimelineRail({
   onPlay,
   onPause,
   onSetSpeed,
+  liveTimeline,
+  onSeek,
 }: {
+  onSeek: (turn: number) => void;
+  liveTimeline?: LiveTimelineControls;
   surface: AppSurface;
   flowSteps: { surface: AppSurface; label: string; index: string }[];
   currentTurn: number;
@@ -1421,11 +1582,12 @@ function TimelineRail({
       </div>
 
       <div className="phase75-track-shell">
+        {liveTimeline && <LiveInspectionControls {...liveTimeline} />}
         <div className="phase75-track-header">
           <div>
-            <div className="phase75-overline">Timeline Rail</div>
+            <div className="phase75-overline">Timeline</div>
             <h2>
-              {bundle ? "Archive timeline, event markers, and narrated spans" : "Product flow, launch state, and handoff context"}
+              {bundle ? "Choose a turn to explore its recorded history" : "Open a saved run or start a new world"}
             </h2>
           </div>
 
@@ -1435,6 +1597,7 @@ function TimelineRail({
             </button>
             <select
               className="phase75-speed-select"
+              aria-label="Playback speed"
               value={speed}
               onChange={(event) => onSetSpeed(Number(event.target.value))}
               disabled={!bundle}
@@ -1452,6 +1615,16 @@ function TimelineRail({
           ref={trackRef}
           className={`phase75-turn-track${bundle ? " interactive" : ""}`}
           onClick={onTrackSeek}
+          role="slider" tabIndex={bundle ? 0 : -1} aria-label="Historical turn"
+          aria-valuemin={1} aria-valuemax={liveTimeline?.latestTurn ?? totalTurns} aria-valuenow={currentTurn}
+          onKeyDown={(event) => {
+            if (!bundle) return;
+            const latest = liveTimeline?.latestTurn ?? totalTurns;
+            const next = event.key === "Home" ? 1 : event.key === "End" ? latest
+              : event.key === "ArrowLeft" ? currentTurn - 1 : event.key === "ArrowRight" ? currentTurn + 1
+                : event.key === "PageUp" ? currentTurn + 10 : event.key === "PageDown" ? currentTurn - 10 : null;
+            if (next !== null) { event.preventDefault(); onSeek(Math.max(1, Math.min(latest, next))); }
+          }}
         >
           <TrackMarks eraBands={eraBands} narratedSpans={narratedSpans} markers={visibleMarkers} totalTurns={totalTurns} />
 
@@ -1462,7 +1635,7 @@ function TimelineRail({
             </div>
           ) : (
             <div className="phase75-frontdoor-callout">
-              One shell now carries setup, run handoff, overview, diagnostics, and batch review.
+              Your timeline appears when a run is loaded.
             </div>
           )}
         </div>
@@ -1672,9 +1845,9 @@ function LeftRail({
         <div>
           <div className="phase75-overline">
             {surface === "setup"
-              ? "Launch Surface"
+              ? "New run"
               : surface === "progress"
-                ? "Progress Handoff"
+                ? "Starting run"
                 : surface === "batch"
                   ? "Batch Lab"
                   : leftRailTab === "events"
@@ -1683,14 +1856,14 @@ function LeftRail({
           </div>
           <h3>
             {surface === "batch"
-              ? "Interestingness-ranked runs and compare affordances"
+              ? "Explore and compare recorded runs"
               : surface === "setup"
-                ? "Single-run configuration wired into the shell"
+                ? "Choose how your world begins"
                 : surface === "progress"
-                  ? "Run state, launch confirmation, and handoff"
+                  ? "Preparing your world"
                   : leftRailTab === "events"
-                    ? "Event identity stays anchored on the left rail"
-                    : "Chronicle identity stays anchored on the left rail"}
+                    ? "Select an event to inspect its recorded details"
+                    : "Read the chronicle through the selected turn"}
           </h3>
         </div>
       </div>
@@ -1735,7 +1908,7 @@ function LeftRail({
               <strong>{setupState.narrativeModel || "Default"}</strong>
             </div>
             <div className="phase75-progress-note">
-              The shell stays intact through world generation so the handoff into Overview feels like the same product, not a route jump.
+              The map and history become available as the run progresses.
             </div>
           </div>
         )}
@@ -1749,14 +1922,14 @@ function LeftRail({
                   {batchReport.metadata.runs} runs · seeds {batchReport.metadata.seed_range[0]}-{batchReport.metadata.seed_range[1]}
                 </h4>
                 <p>
-                  Ranked results now feed directly into the viewer shell. Open any run below to land in Overview without leaving the app family.
+                  Select a run to preview its results, then open it to explore its history.
                 </p>
               </div>
 
               <div className="phase75-run-list">
                 {batchSummaries.length === 0 && (
                   <div className="phase75-empty-state">
-                    This report predates ranked run summaries. Generate a new batch to unlock direct-open viewer flow.
+                    This report has no ranked run summaries. Generate a new batch to open individual runs here.
                   </div>
                 )}
 
@@ -1809,7 +1982,7 @@ function LeftRail({
             </Suspense>
           ) : (
             <div className="phase75-empty-state">
-              Batch execution needs the live viewer bridge. You can still open existing bundles from the header and use compare mode once a report is available.
+              Start a live session to run a batch. You can open saved runs from the header and compare results when a report is available.
             </div>
           )
         )}
@@ -1859,10 +2032,7 @@ function LeftRail({
                 key={`${event.turn}-${event.event_type}-${event.description}`}
                 type="button"
                 className="phase75-event-row"
-                onClick={() => {
-                  onJumpToTurn(event.turn);
-                  onSelectEvent(event);
-                }}
+                onClick={() => onSelectEvent(event)}
               >
                 <div className="phase75-event-turn">T{event.turn}</div>
                 <div className="phase75-event-copy">
@@ -2058,11 +2228,9 @@ function SetupRail({
 
       {!state.lobbyReady && (
         <div className="phase75-empty-state">
-          Setup controls activate when the viewer is launched with a live WebSocket bridge. Until then, this shell still supports opening existing bundles from the header.
+          Start the viewer from a live session to create a run, or choose Open Existing to explore a saved run.
         </div>
       )}
-
-      {state.error && <div className="phase75-inline-error">{state.error}</div>}
 
       <button
         type="button"
@@ -2143,9 +2311,9 @@ function MapViewport({
     ? atlasNodes.map((node) => ({ name: node.region.name, x: node.x, y: node.y, r: nodeRadius(node) }))
     : [];
   const layerFill = (node: MapNode): { fill: string; opacity: number } => {
-    const control = node.controller ? factionColor(node.controller) : UNCONTROLLED_COLOR;
+    const control = node.controller === undefined ? NO_DATA_FILL : node.controller === null ? UNCONTROLLED_COLOR : factionColor(node.controller);
     if (!mapLayerView) {
-      return { fill: control, opacity: 1 };
+      return { fill: control, opacity: node.controller === undefined ? NO_DATA_OPACITY : 1 };
     }
     const fill = mapLayerView.fills.get(node.region.name);
     if (fill) {
@@ -2162,26 +2330,36 @@ function MapViewport({
   );
 
   return (
-    <section className="phase75-map-column">
+    <section className="phase75-map-column" id="world-investigation-map" tabIndex={-1} aria-label="World map investigation">
+      {viewerReady && <div className="phase75-region-navigation phase75-panel">
+        <label>Inspect a region<select aria-label="Inspect a region" value={selectedEntity?.kind === "region" ? selectedEntity.id : ""}
+          onChange={(event) => onSelectEntity({ kind: "region", id: event.target.value, label: event.target.value })}>
+          <option value="" disabled>Choose a region</option>
+          {atlasNodes.map((node, index) => <option key={index} value={node.region.name}>{node.region.name}</option>)}
+        </select></label>
+        <button type="button" onClick={() => { const details = document.getElementById("selected-world-details"); details?.focus(); details?.scrollIntoView({ block: "start" }); }}>View selection details</button>
+        <p>Use the list to select small map markers. Selection and historical turn are kept when moving between map and details.</p>
+        {mapLayer === "control" && <p>Ownership at this exact turn: dim gray is unknown; solid gray is explicitly uncontrolled. Named owners use their civilization colors.</p>}
+      </div>}
       <div className="phase75-viewport-toolbar phase75-panel">
         <div>
           <div className="phase75-overline">
             {surface === "setup"
-              ? "Setup Surface"
+              ? "World preview"
               : surface === "progress"
-                ? "Progress Surface"
+                ? "Starting run"
                 : surface === "batch"
-                  ? "Batch Surface"
-                  : "Map Workspace"}
+                  ? "Run preview"
+                  : "World map"}
           </div>
           <h2>
             {surface === "setup"
-              ? "Map-first launch workflow inside the same shell"
+              ? "Choose a scenario or generate a world"
               : surface === "progress"
-                ? "Run handoff stays inside the map-first frame"
+                ? "Preparing your world"
                 : surface === "batch"
-                  ? "Ranked runs feed back into the viewer without a separate page"
-                  : "Overview remains the anchor shell for all analysis modes"}
+                  ? "Select a run to preview"
+                  : "Explore the world at the selected turn"}
           </h2>
         </div>
 
@@ -2246,18 +2424,18 @@ function MapViewport({
           </h3>
           <p>
             {surface === "progress"
-              ? "The center canvas stays visually dominant even during world generation and handoff."
+              ? "Waiting for the first recorded turn."
               : surface === "batch"
                 ? (batchSummary
                   ? `${batchSummary.major_event_count} major events · ${batchSummary.signal_flags.join(" · ") || "steady signal profile"}`
-                  : "Run a batch to populate ranked previews and direct-open results.")
-                : "Map selection, overlays, and inspector behavior stay consistent across shell modes."}
+                  : "Run a batch to compare worlds and inspect individual results.")
+                : "Select a region or civilization to inspect it at this turn."}
           </p>
         </div>
 
         <div className="phase75-map-surface">
           <div className="phase75-map-texture" />
-          <svg className="phase75-atlas" viewBox="0 0 1000 640" aria-label="Chronicler atlas workspace">
+          <svg className="phase75-atlas" viewBox="0 0 1000 640" aria-label="World map">
             <g className="phase75-contours">
               <path d="M 30 122 C 210 48 418 84 642 112 S 926 142 972 116" />
               <path d="M 36 202 C 200 142 398 150 624 188 S 902 234 968 198" />
@@ -2331,13 +2509,16 @@ function MapViewport({
                     r={radius}
                     fill={fill}
                     fillOpacity={opacity === 1 ? undefined : opacity}
+                    role="button" tabIndex={0} aria-label={`Inspect region ${node.region.name}`}
+                    onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onSelectEntity({ kind: "region", id: node.region.name, label: node.region.name }); } }}
                     onClick={() => onSelectEntity({
                       kind: "region",
                       id: node.region.name,
                       label: node.region.name,
                     })}
                   >
-                    {mapLayerView && <title>{mapLayerView.titles.get(node.region.name) ?? node.region.name}</title>}
+                    <title>{mapLayerView ? mapLayerView.titles.get(node.region.name) ?? node.region.name
+                      : `${node.region.name} · ${node.controller === undefined ? "Ownership unknown" : node.controller === null ? "Uncontrolled" : `Owner: ${node.controller}`} at T${currentTurn}`}</title>
                   </circle>
                   {activeOverlays.includes("settlements") && (
                     <text className="phase75-region-label" x={node.x} y={node.y + radius + 14}>
@@ -2403,14 +2584,35 @@ function MapViewport({
           {!viewerReady && (
             <div className="phase75-map-note">
               {surface === "setup"
-                ? "Setup and Batch Lab now live inside the same shell family as the archive viewer."
-                : "Open an existing bundle or launch a live run to populate the map with archive data."}
+                ? "Choose run settings, then select Run World to begin."
+                : "Choose Open Existing to explore a saved run, or start a live session."}
             </div>
           )}
         </div>
       </div>
     </section>
   );
+}
+
+/** Only already-resolved provenance enters this list; selecting a link never seeks. */
+function RecordedEventLinks({ events, kind, onSelectEvent }: {
+  events: Event[];
+  kind: "causes" | "consequences";
+  onSelectEvent: (event: Event) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const limit = kind === "consequences" && !expanded ? 3 : events.length;
+  return <div className="phase75-event-links" aria-label={`Recorded ${kind}`}>
+    <span>{kind === "causes" ? "Because" : "Led to"} · {events.length} {events.length === 1 ? "event" : "events"}</span>
+    {events.slice(0, limit).map((event) => <button key={eventKey(event)} type="button"
+      className="phase75-inspector-link" onClick={() => onSelectEvent(event)}>
+      T{event.turn} {event.description || event.event_type.replace(/_/g, " ")}
+    </button>)}
+    {kind === "consequences" && events.length > 3 && <button type="button" className="phase75-ghost-button"
+      aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>
+      {expanded ? "Show fewer consequences" : `Show all ${events.length} recorded consequences`}
+    </button>}
+  </div>;
 }
 
 function RightInspector({
@@ -2422,6 +2624,11 @@ function RightInspector({
   selectedEventRecorded = true,
   selectedEventProvenance,
   selectedEventAccounts = null,
+  onSelectEvent,
+  onSeek,
+  onSelectRegion,
+  onSelectCivilization,
+  civilizationNames,
   selectedRegionTerrain,
   languages,
   languagesBundle = null,
@@ -2445,6 +2652,8 @@ function RightInspector({
   currentSnapshot = null,
   famine = [],
   regionNames = [],
+  investigationBundle = null,
+  onOpenHistory,
 }: {
   surface: AppSurface;
   selection: SelectedEntity | null;
@@ -2455,6 +2664,11 @@ function RightInspector({
   selectedEventRecorded?: boolean;
   selectedEventProvenance?: { causes: Event[]; effects: Event[] };
   selectedEventAccounts?: EventAccounts | null;
+  onSelectEvent: (event: Event) => void;
+  onSeek: (turn: number) => void;
+  onSelectRegion: (name: string) => void;
+  onSelectCivilization: (name: string) => void;
+  civilizationNames: string[];
   /** The selected region's terrain at the scrubbed turn (null: unreadable record). */
   selectedRegionTerrain?: string | null;
   languages?: LanguagesField;
@@ -2485,11 +2699,14 @@ function RightInspector({
   currentSnapshot?: TurnSnapshot | null;
   famine?: FamineSpan[];
   regionNames?: string[];
+  investigationBundle?: Bundle | null;
+  onOpenHistory?: (entity: HistoryEntity) => void;
 }) {
   return (
-    <aside className="phase75-right-rail phase75-panel">
+    <aside className="phase75-right-rail phase75-panel" id="selected-world-details" tabIndex={-1} aria-label="Selection details">
+      {viewerReady && <button type="button" className="phase75-back-to-map" onClick={() => { const map = document.getElementById("world-investigation-map"); map?.focus(); map?.scrollIntoView({ block: "start" }); }}>Back to map</button>}
       <div className="phase75-inspector-header">
-        <div className="phase75-overline">Right Inspector</div>
+        <div className="phase75-overline">Details</div>
         <h3>
           {surface === "setup"
             ? "Launch details"
@@ -2497,7 +2714,7 @@ function RightInspector({
               ? "Batch diagnostics"
               : viewerReady
                 ? "Selection details"
-                : "Awaiting viewer data"}
+                : "Open a run to view details"}
         </h3>
         <p>{description}</p>
       </div>
@@ -2578,6 +2795,15 @@ function RightInspector({
                   <span>Resources</span>
                   <strong>{selectedRegion.resources ?? "Unknown"}</strong>
                 </div>
+                {investigationBundle && <>
+                  <RegionInvestigation bundle={investigationBundle}
+                    regionIndex={investigationBundle.world_state.regions.findIndex((row) => row.name === selectedRegion.name)}
+                    currentTurn={currentTurn} onHistory={() => onOpenHistory?.({ kind: "region", name: selectedRegion.name })}
+                    onCivilization={(name) => onOpenHistory?.({ kind: "civilization", name })} onEvent={onSelectEvent} />
+                  <MigrationEvidence bundle={investigationBundle} currentTurn={currentTurn}
+                    selectedRegionIndex={investigationBundle.world_state.regions.findIndex((row) => row.name === selectedRegion.name)}
+                    onInspectRegion={(_, name) => onSelectRegion(name)} />
+                </>}
                 <RegionSystemsDetail
                   snapshot={currentSnapshot}
                   region={selectedRegion.name}
@@ -2589,6 +2815,12 @@ function RightInspector({
 
             {selectedCivilization && (
               <>
+                {investigationBundle && <CivilizationHistory bundle={investigationBundle} currentTurn={currentTurn}
+                  civilizationIndex={investigationBundle.world_state.civilizations.findIndex((row) => row.name === selectedCivilization.name)}
+                  onSeek={onSeek} onInspectEvent={onSelectEvent} onInspectRegion={(_, name) => onSelectRegion(name)} />}
+                {investigationBundle && <DebtEvidence bundle={investigationBundle} currentTurn={currentTurn}
+                  civilizationIndex={investigationBundle.world_state.civilizations.findIndex((row) => row.name === selectedCivilization.name)}
+                  onInspectEvent={onSelectEvent} onViewRecordedTurn={onSeek} />}
                 <div className="phase75-stat-row">
                   <span>Civilization</span>
                   <strong>{selectedCivilization.name}</strong>
@@ -2630,28 +2862,30 @@ function RightInspector({
                   <strong>{selectedEvent.event_type}</strong>
                 </div>
                 <p className="phase75-detail-copy">{selectedEvent.description}</p>
+                <button type="button" className="phase75-ghost-button"
+                  onClick={() => onSeek(eventSnapshotTurn(selectedEvent))}>Go to recorded turn</button>
+                {selectedEvent.actors.length > 0 && <div className="phase75-event-links" aria-label="Recorded actors">
+                  <span>Actors</span>
+                  {selectedEvent.actors.map((actor, index) => civilizationNames.includes(actor)
+                    ? <button key={`${index}:${actor}`} type="button" className="phase75-inspector-link"
+                      onClick={() => onSelectCivilization(actor)}>{actor}</button>
+                    : regionNames.includes(actor)
+                      ? <button key={`${index}:${actor}`} type="button" className="phase75-inspector-link"
+                        onClick={() => onSelectRegion(actor)}>{actor}</button>
+                      : <span key={`${index}:${actor}`}>{actor}</span>)}
+                </div>}
+                {selectedEvent.region && regionNames.includes(selectedEvent.region) && <div className="phase75-event-links">
+                  <span>Recorded region</span>
+                  <button type="button" className="phase75-inspector-link"
+                    onClick={() => onSelectRegion(selectedEvent.region!)}>{selectedEvent.region}</button>
+                </div>}
                 {selectedEventProvenance && selectedEventProvenance.causes.length > 0 && (
-                  <div className="phase75-stat-row" aria-label="Recorded causes">
-                    <span>Because</span>
-                    <strong>
-                      {selectedEventProvenance.causes
-                        .map((cause) => `T${cause.turn} ${cause.description || cause.event_type}`)
-                        .join("; ")}
-                    </strong>
-                  </div>
+                  <RecordedEventLinks key={`causes:${eventKey(selectedEvent)}`} kind="causes"
+                    events={selectedEventProvenance.causes} onSelectEvent={onSelectEvent} />
                 )}
                 {selectedEventProvenance && selectedEventProvenance.effects.length > 0 && (
-                  <div className="phase75-stat-row" aria-label="Recorded consequences">
-                    <span>Led to</span>
-                    <strong>
-                      {selectedEventProvenance.effects.length}
-                      {selectedEventProvenance.effects.length !== 1 ? " events: " : " event: "}
-                      {selectedEventProvenance.effects
-                        .slice(0, 3)
-                        .map((effect) => `T${effect.turn} ${effect.event_type.replace(/_/g, " ")}`)
-                        .join("; ")}
-                    </strong>
-                  </div>
+                  <RecordedEventLinks key={`consequences:${eventKey(selectedEvent)}`} kind="consequences"
+                    events={selectedEventProvenance.effects} onSelectEvent={onSelectEvent} />
                 )}
                 <InWorldAccounts accounts={selectedEventAccounts} />
               </>
@@ -2751,31 +2985,31 @@ function RightInspector({
 
         {surface !== "trade" && surface !== "campaign" && (
           <div className="phase75-empty-state">
-            Trade and campaign diagnostics plug into the same inspector shell without spawning a bespoke layout.
+            Choose Trade or Campaign to view civilization summaries for this turn.
           </div>
         )}
       </InspectorSection>
 
       <InspectorSection
-        title="Shell Signals"
+        title="Session status"
         open={inspectorSections.signals}
         onToggle={() => onToggleSection("signals")}
       >
         <div className="phase75-stat-row">
-          <span>Viewer state</span>
+          <span>Run status</span>
           <strong>{liveState.serverState}</strong>
         </div>
         <div className="phase75-stat-row">
-          <span>Connected</span>
+          <span>Live connection</span>
           <strong>{liveState.connected ? "Yes" : "No"}</strong>
         </div>
         <div className="phase75-stat-row">
-          <span>Paused</span>
+          <span>Run paused</span>
           <strong>{liveState.livePaused ? "Yes" : "No"}</strong>
         </div>
         <div className="phase75-stat-row">
-          <span>Mode cohesion</span>
-          <strong>{viewerReady ? "Unified shell" : "Front door active"}</strong>
+          <span>History</span>
+          <strong>{viewerReady ? "Loaded" : "No run loaded"}</strong>
         </div>
       </InspectorSection>
     </aside>

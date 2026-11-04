@@ -29,6 +29,10 @@ Early credit is restored and the ceiling treadmill is gone; still default
 off (13.7). Sections 1-12 below are PR #63's; what the second pass
 supersedes is marked there.
 
+**Viewer (2026-10-28, [section 14](#14-viewer-who-holds-the-debt-2026-10-28-featviewer-debt-holders)):**
+the Finance panel shows who holds each realm's debt, from a `holders` key
+the switch adds to the finance snapshot (default bundles unchanged).
+
 ## Result
 
 | | |
@@ -238,7 +242,7 @@ fallen lender and cites its fall.
 | Gate runner | `scripts/m53b_run_validation.py --domestic-credit` forwards the flag to every agent-mode run (not the aggregate determinism pair) and records it in `run_manifest.json` |
 | Batch manifest | `domestic_credit` in `SIMULATION_ARG_KEYS` |
 | Checkpoints | `feature_flags()["domestic_credit"]`; a resume adopts the saved value and refuses a different one |
-| Snapshot | `TurnSnapshot.finance["domestic_credit"]` (claims by kind of lender, by borrower, merchants' grievance by region, the due); absent without the switch, so the transport contract is unchanged |
+| Snapshot | `TurnSnapshot.finance["domestic_credit"]` (claims by kind of lender, by borrower, merchants' grievance by region, the due; since section 14 also `holders`, who holds each borrower's debt); absent without the switch, so the transport contract is unchanged |
 | Analytics | `analytics.generate_report` adds a `domestic_credit` section when bundles carry it |
 
 Lines lent before the switch was turned on (a resumed world) belong to the
@@ -1351,7 +1355,7 @@ before/after full gate, as `defaults-wave8.md` and
   agent rates, against the pre-registered ranges of the change that is
   promoted;
 * the viewer showing who holds a realm's debt (11.2 (5)), or a decision
-  that it is not needed for the default.
+  that it is not needed for the default. *(Built: section 14.)*
 
 ### 13.8 Tests and lanes
 
@@ -1371,3 +1375,122 @@ loans name real lenders and that the houses lend early.
 | `python scripts/run_python_oracle_checks.py` (no-Rust interpreter) | PASS, 14 chunks: 2,786 passed, 59 skipped (chunk `domestic-credit` 32 tests, 1.2 s); merged head: PASS, 16 chunks, 2,827 passed, 63 skipped |
 | `pytest -m "not slow"` (release extension) | 6,813 passed, 3 skipped, 15 deselected before the merge; merged head 6,840 passed, 3 skipped, 15 deselected (an earlier run on the frozen tree failed one native test that filtered out loans naming the houses, fixed in the test) |
 | `cargo test --locked` (`CARGO_PROFILE_TEST_DEBUG=0`) | 1,076 passed, 0 failed, 2 ignored |
+
+## 14. Viewer: who holds the debt (2026-10-28, `feat/viewer-debt-holders`)
+
+Branch `feat/viewer-debt-holders` from `main` `cb9fe70` (PR #67). Code:
+`domestic_credit.holders_summary` (the snapshot key below),
+`viewer/src/lib/debtHolders.ts`, `viewer/src/components/systems/DebtHolders.tsx`
+(in `FinancePanel.tsx`), `StackedAreaChart` in `SystemParts.tsx`. Fixture:
+`viewer/src/__fixtures__/debt_holders_bundle.json`, written by
+`scripts/build_debt_holders_fixture.py`. It answers 11.2 (5) and the
+viewer item of the promotion evidence (13.7).
+
+### 14.1 The view
+
+In the **Finance** tab, below the debt and price charts:
+
+* **Who holds the debt at turn N**: one bar per indebted civilization, all
+  on one scale, split by holder: merchants, cities, guilds, the cold-start
+  merchant houses, legacy lines and foreign lenders (fixed colours, a
+  legend, and each bar's split in its accessible label and hover text).
+  A bar's name shows that civilization below.
+* **Creditors of a civilization** (a Borrower select; it follows the
+  civilization selected in the shell, else the largest peak debt):
+  * tiles: debt (and in turns of smoothed revenue), domestic and foreign
+    debt, interest paid in the turn's fiscal tick, interest due per turn at
+    the lines' rates, turns in arrears, defaults, debt written off so far;
+  * its debt by holder over time (stacked) and its foreign debt by lender
+    over time;
+  * the holders at the scrubbed turn with their share, rate and interest
+    due: merchants by the region they live in, cities and guilds by name,
+    foreign lenders by name (regions and lenders open in the inspector);
+  * arrears, defaults and write-offs over time (a turn strip), and each
+    default or write-off with the events that record it (selecting one
+    pins it in the inspector);
+  * its credit events as borrower or lender.
+
+Interest due is principal times the line's rate at the turn boundary,
+what the next fiscal tick charges; the domestic line's interest is shared
+among its holders pro rata to their claims, as the tick pays it. A snapshot
+records the fiscal tick of the turn before it, so a default of turn 54
+shows in the record from turn 55; the write-off list names the turn of the
+events.
+
+### 14.2 What it needs from the bundle
+
+| bundle | what the view names |
+| --- | --- |
+| `--domestic-credit`, written with `holders` | everything above |
+| `--domestic-credit`, written before `holders` (PR #63, PR #67) | domestic claims by kind of lender; foreign debt as one total; no rates, interest due or write-offs |
+| finance only (the default) | the abstract domestic creditor class and foreign debt as totals; arrears and defaults |
+
+The panel says which applies. Foreign debt by lender, the lines' rates,
+merchants' claims by region and the debt written off per civilization are
+not in the per-turn record otherwise: events name only material loans,
+repayments are silent, and the final world state shows only the last turn.
+So the switch adds one key, `history[n].finance.domestic_credit.holders`,
+per living borrower by name:
+
+| key | contents |
+| --- | --- |
+| `foreign` | lender civilization -> `[principal, rate per turn]` |
+| `rate` | the domestic line's rate per turn |
+| `merchants` | region -> the merchants' claim |
+| `cities`, `guilds` | name -> claim |
+| `written_off` | debt written off on the civilization so far (finance's `written_off_total`) |
+
+Empty parts are left out, a civilization with neither debt nor write-offs
+is left out, and the key is left out when no civilization qualifies. It is
+read from the persisted books after the tick: nothing is added to the
+state, the checkpoints or the native pool, and the cold-start houses and
+legacy lines stay in the summary's `civs` by kind. It is nested in
+`finance`, so the transport contract (`transport_contract.json`, top-level
+snapshot fields and systems) is unchanged.
+
+### 14.3 Identity and size
+
+Linux, Python 3.13.17, `PYTHONHASHSEED=0`, one virtualenv outside the
+checkout with a release extension built fresh (`maturin develop --release
+--locked`, SHA-256 `3da1ee1f...dad0b`, the same as section 13's; no Rust
+change; the compiled module and its three simulator classes checked).
+
+| | |
+| --- | --- |
+| default flags against `main` `cb9fe70` (`scripts/turn_speed_identity.py`, 9-case matrix, main and the branch at `e772e72` from exported trees) | 9 cases, 399 files, 0 differences |
+| `--domestic-credit`, template seed 42 and procedural 32 x 10 seed 42, hybrid, 120 turns | every file identical but the bundle; the bundles are equal once `holders` is removed (119 and 118 snapshots carry it) |
+| bundle size with the switch | +0.7%: 1,668,219 -> 1,679,362 bytes (template), 6,270,625 -> 6,311,755 (procedural) |
+
+### 14.4 Fixture and tests
+
+The fixture is trimmed from a real run, procedural 32 x 10 seed 42, 120
+hybrid turns, `--domestic-credit`, on this branch: every 6th snapshot, the
+last, and the snapshots around each default and write-off (34 of 120),
+each with its `finance` field as exported; the finance events and the
+events they cite; 283 KB. Nothing in it is invented or rewritten; the
+older bundle kinds are tested by removing `holders` or `domestic_credit`
+from it, and the finance-only kind on the systems fixture.
+
+`tests/test_domestic_credit.py` adds `holders` (foreign lines, rates,
+merchants by region, cities and guilds by name, write-offs, adding up to
+finance's debt; omitted when nobody owes anything) and a check that the
+fixture keeps the shape a fiscal tick writes. Viewer:
+`lib/__tests__/debtHolders.test.ts` (the three kinds of bundle, holders
+adding up to the debt, interest due, series with gaps, defaults and
+write-offs with their events) and the Finance panel in
+`SystemsPanel.test.tsx`.
+
+**Browser.** The production build in headless Chromium (Playwright) with
+generated bundles: procedural 32 x 10 and template seed 42 with the switch
+(Khidutain Clans at turn 54 owing 231, 180 of it to Sylenen Kingdom and
+Thalassocracy of Nithys; Lisolenen League at turn 20 owing 39 at home
+only; Ashkari Nomads after its turn-77 default), the template run without
+the switch and a switch-on bundle written before `holders`; also at 390 px
+width (no horizontal page scroll). No console error or warning.
+Screenshots stay outside the repository.
+
+| Lane | Result |
+| --- | --- |
+| `python scripts/run_python_oracle_checks.py` (no-Rust interpreter) | PASS, 16 chunks: 2,829 passed, 63 skipped (chunk `domestic-credit` 34 tests) |
+| `pytest -m "not slow" -n 2` (release extension) | 6,842 passed, 3 skipped |
+| viewer `vitest run`, `eslint .`, `tsc -b && vite build` | 57 files, 456 tests passed; lint and build pass |

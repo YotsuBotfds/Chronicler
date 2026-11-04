@@ -57,6 +57,12 @@ function hasOwn(object: JsonObject, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(object, key);
 }
 
+function setOwn(object: JsonObject, key: string, value: unknown): void {
+  Object.defineProperty(object, key, {
+    value, writable: true, enumerable: true, configurable: true,
+  });
+}
+
 function applyPatch(previous: unknown, patch: unknown): unknown {
   if (isObject(patch)) {
     if (hasOwn(patch, REPLACE)) {
@@ -116,7 +122,7 @@ function applyObjectPatchFast(previous: JsonObject, patch: JsonObject): JsonObje
   const out: JsonObject = { ...previous };
   try {
     for (const key of keys) {
-      out[key] = hasOwn(previous, key) ? applyPatch(previous[key], patch[key]) : patch[key];
+      setOwn(out, key, hasOwn(previous, key) ? applyPatch(previous[key], patch[key]) : patch[key]);
     }
   } catch (error) {
     if (error instanceof BundleDecodeError) {
@@ -143,11 +149,11 @@ function applyObjectPatchReference(previous: JsonObject, patch: JsonObject): Jso
     if (removed?.has(key)) {
       continue;
     }
-    out[key] = hasOwn(patch, key) ? applyPatch(value, patch[key]) : value;
+    setOwn(out, key, hasOwn(patch, key) ? applyPatch(value, patch[key]) : value);
   }
   for (const [key, value] of Object.entries(patch)) {
     if (!RESERVED.has(key) && !hasOwn(previous, key)) {
-      out[key] = value;
+      setOwn(out, key, value);
     }
   }
   const order = patch[ORDER];
@@ -160,7 +166,7 @@ function applyObjectPatchReference(previous: JsonObject, patch: JsonObject): Jso
     }
     const ordered: JsonObject = {};
     for (const key of order as string[]) {
-      ordered[key] = out[key];
+      setOwn(ordered, key, out[key]);
     }
     return ordered;
   }

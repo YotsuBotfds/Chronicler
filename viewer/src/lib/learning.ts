@@ -120,13 +120,15 @@ export interface SeatRecordAt {
 
 /**
  * The seat's founding, its peak so far and its fall if it fell by `upToTurn`;
- * null before its founding. The final `world_state` record holds the whole run
+ * null before its first observed row and completion of its founding tick.
+ * The final `world_state` record holds the whole run
  * (peak, fall, refuge), so only what it dates at or before the turn is used,
  * and the peak comes from the history rows (lib/civilizationViews convention).
  */
 export function seatRecordAt(bundle: Bundle, id: number, upToTurn: number): SeatRecordAt | null {
   const record = seatRecord(bundle, id);
-  if (!record || record.founded_turn > upToTurn) {
+  if (!record || record.founded_turn + 1 > upToTurn
+    || !bundle.history.some((snapshot) => snapshot.turn <= upToTurn && seatRow(snapshot, id))) {
     return null;
   }
   let peakLevel = 0;
@@ -141,17 +143,18 @@ export function seatRecordAt(bundle: Bundle, id: number, upToTurn: number): Seat
       peakScholars = Math.max(peakScholars, row.scholars);
     }
   }
-  const fell = record.fallen_turn != null && record.fallen_turn <= upToTurn;
+  const fell = record.fallen_turn != null && record.fallen_turn + 1 <= upToTurn;
   return { record, peakLevel, peakScholars, fell };
 }
 
-/** "fell at turn 212 (sacked); its scholars fled to the Academy of X", or "". */
-export function fallLabel(bundle: Bundle, record: SeatRecord): string {
-  if (record.fallen_turn == null) {
+/** A completed fall and an already observed refuge name, or "". */
+export function fallLabel(bundle: Bundle, record: SeatRecord, upToTurn = Infinity): string {
+  if (record.fallen_turn == null || record.fallen_turn + 1 > upToTurn) {
     return "";
   }
-  let text = `fell at turn ${record.fallen_turn} (${FALL_LABELS[record.fall_cause] ?? "fallen"})`;
-  const refuge = record.refuge >= 0 ? seatRecord(bundle, record.refuge) : null;
+  let text = `fell at source tick ${record.fallen_turn} (${FALL_LABELS[record.fall_cause] ?? "fallen"})`;
+  const refuge = record.refuge >= 0
+    ? seatKeys(bundle.history.filter((snapshot) => snapshot.turn <= upToTurn)).find((seat) => seat.id === record.refuge) : null;
   if (refuge) {
     text += `; its scholars fled to ${refuge.name}`;
   }
@@ -172,13 +175,13 @@ export function seatHistory(bundle: Bundle, id: number, upToTurn: number): SeatM
   }
   const byId = new Map<string, Event>();
   for (const event of bundle.events_timeline) {
-    if (event.event_id) {
+    if (event.event_id && event.turn + 1 <= upToTurn) {
       byId.set(event.event_id, event);
     }
   }
   return record.history
-    .filter(([turn]) => turn <= upToTurn)
-    .map(([turn, kind, eventId]) => ({ turn, kind, event: byId.get(eventId) ?? null }))
+    .filter(([turn]) => turn + 1 <= upToTurn)
+    .map(([turn, kind, eventId]) => ({ turn, kind, event: byId.get(eventId)?.turn === turn ? byId.get(eventId)! : null }))
     .reverse();
 }
 

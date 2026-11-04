@@ -130,7 +130,8 @@ def test_fork_ablation_switches_the_restored_simulator():
         _fork_ablation(_ns(decision_ablation="needs", ablation_start_turn=50), fresh, bridge, 101)
 
 
-def test_ablation_arms_fork_every_seed_and_record_the_manifest(tmp_path, monkeypatch):
+@pytest.mark.parametrize("lean_output", [False, True])
+def test_ablation_arms_fork_every_seed_and_record_the_manifest(tmp_path, monkeypatch, lean_output):
     pytest.importorskip("pyarrow")
     import json
     import subprocess
@@ -159,15 +160,22 @@ def test_ablation_arms_fork_every_seed_and_record_the_manifest(tmp_path, monkeyp
             writer.write_table(table)
         start = int(cmd[cmd.index("--ablation-start-turn") + 1])
         arm = cmd[cmd.index("--decision-ablation") + 1]
-        (out / "chronicle_bundle.json").write_text(json.dumps({"metadata": {
-            "seed": 0, "total_turns": int(cmd[cmd.index("--turns") + 1]),
-            "decision_ablation": {"name": arm, "start_turn": start, "forked_at": start}}}), encoding="utf-8")
+        info = {
+            "seed": int(Path(cmd[cmd.index("--resume") + 1]).parent.name.split("_")[-1]),
+            "total_turns": int(cmd[cmd.index("--turns") + 1]), "resume": None,
+            "decision_ablation": {"name": arm, "start_turn": start, "forked_at": start},
+        }
+        if "--ablation-output" in cmd:
+            from chronicler.artifact_io import atomic_write_json
+            atomic_write_json(out / "fork.json", info)
+        else:
+            (out / "chronicle_bundle.json").write_text(json.dumps({"metadata": info}), encoding="utf-8")
         (out / "memories_x.json").write_text("{}", encoding="utf-8")
         return subprocess.CompletedProcess(cmd, 0, "", "")
 
     monkeypatch.setattr(ablation_arms.subprocess, "run", fake_run)
     manifest = ablation_arms.run_ablation_arms(batch, tmp_path / "ablation_42", arms=["needs", "kin_roots"],
-                                              total_turns=300, parallel=2, env={}, log=lambda *_: None)
+                                              total_turns=300, parallel=2, env={}, lean_output=lean_output, log=lambda *_: None)
     assert manifest["status"] == "complete" and manifest["fork_count"] == 8
     assert manifest["fork_turns"] == [100, 200]
     first = sorted(cmd for cmd, _env in commands)[0]

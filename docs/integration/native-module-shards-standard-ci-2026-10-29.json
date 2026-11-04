@@ -1,0 +1,352 @@
+{
+  "kind": "curated source-scoped standard Tests integration qualification",
+  "projection": {
+    "publication_base": "54e37d97ef4a86dd03912a359a71c5352774d080",
+    "intended_paths": [
+      "docs/integration/native-module-shards-standard-ci-2026-10-29.md",
+      "docs/integration/native-module-shards-standard-ci-2026-10-29.json"
+    ],
+    "not_original_readout": true
+  },
+  "standing": "ROOT_QUALIFIED_SOURCE_SCOPED_STANDARD_TESTS_NATIVE_SHARD_INTEGRATION",
+  "source": "ec09134b3e5a9e6e637c08b2c50099f3a1cd7522",
+  "parent": "7dcb240277aa8d61275d6f805cdf0f54976b62b0",
+  "runtime_source_equal_to": "cbf6e368ebd218c1f54179bee4accffc1ab2a4c0",
+  "run": {
+    "id": 40869065907,
+    "attempt": 1,
+    "event": "workflow_dispatch",
+    "branch": "lead/native-two-shard-standard-integration-20261029",
+    "workflow": ".github/workflows/tests.yml",
+    "all_jobs_success": 9,
+    "url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40869065907"
+  },
+  "graph": {
+    "actual_jobs": 9,
+    "original_visible_gates": [
+      "Python bounded offline",
+      "Python no-Rust",
+      "Python native execution",
+      "Rust",
+      "Python native",
+      "Viewer"
+    ],
+    "native_gate": "one source-bound builder -> two complete-collection module consumers -> exact-once aggregate; aggregate and Rust must succeed before Python native summary",
+    "four_independent_bodies_and_standard_header_byte_unchanged": true,
+    "closed_historical_qualification_triggers_remain_disjoint": true
+  },
+  "native": {
+    "counts": {
+      "passed": 8452,
+      "skipped": 6,
+      "successful_subtests": 526
+    },
+    "collection": {
+      "parents": 8458,
+      "modules": 300,
+      "identical_ordered_collections": true,
+      "full_collection_digest": "da615b0b9cb21c736ef886749c0acb4b44b954e3b8fcb2df98c03bd3c4c37c0a",
+      "disjoint_exact_once_selected_union": true,
+      "historical_parent_count": 8357,
+      "added_shard_contract_parents": 97,
+      "added_standard_workflow_contract_parents": 4
+    },
+    "report_stream": {
+      "parent_phase_reports": 25374,
+      "successful_subtest_reports": 526,
+      "original_order_and_multiplicity_preserved": true,
+      "identical_display_label_repeats_retained": 28,
+      "display_maxima": {
+        "msg_chars": 4,
+        "kwargs_chars": 809,
+        "JSON_bytes": 994
+      },
+      "representation": "bounded display only; never lossless test inputs/authority values"
+    },
+    "shards": {
+      "0": {
+        "counts": {
+          "passed": 4362,
+          "skipped": 4,
+          "successful_subtests": 407
+        },
+        "parents": 4366,
+        "parent_phase_reports": 13098,
+        "pytest_seconds": 324.51,
+        "selected_digest": "7f775da3605b02380cd3220cc7348c8a69887603ffe221c561249016343b3644",
+        "receipt_sha256": "3cb4777c56f9c5e20bbc1040deb34f0af4000fa87b9fb11fad2b1c31e1abff47",
+        "JUnit_sha256": "2cab5ef43bcde40ea2d2b315809ad4f3f4a87134246a65055b85f086b511297c"
+      },
+      "1": {
+        "counts": {
+          "passed": 4090,
+          "skipped": 2,
+          "successful_subtests": 119
+        },
+        "parents": 4092,
+        "parent_phase_reports": 12276,
+        "pytest_seconds": 327.69,
+        "selected_digest": "67423930fd8b74a6720b20786d66537a962fc08835f6d9f538e53992919b3830",
+        "receipt_sha256": "e6b632cebd065fab176058155bb646925e49ab632a30828b11c4bf6c8c5e0298",
+        "JUnit_sha256": "2e6ecf3ea86f41ca7b99f24ef7c739a478f09952d16454a22b66d794e65dfae7"
+      }
+    }
+  },
+  "no_rust": {
+    "parents": 8444,
+    "passed": 8119,
+    "skipped": 325,
+    "successful_subtests": 526
+  },
+  "offline": {
+    "guard_reports": {
+      "passed": 4248,
+      "failed": 0,
+      "skipped": 65
+    },
+    "chunks": 35,
+    "seconds": 189.58327730399998,
+    "source_hashes": 325,
+    "all_exact_current_source": true,
+    "changed_from_qualified_cbf": [
+      "tests/test_native_build_lanes.py",
+      "tests/test_native_wheel_receipt.py"
+    ],
+    "slowest_chunk": {
+      "name": "systems-2",
+      "seconds": 30.19863497
+    },
+    "each_chunk_limit_seconds": 110,
+    "blocked_native_availability_imports": 313,
+    "substituted_None_factories_each": 168,
+    "native_modules_loaded": 0,
+    "blocked_IO": 0
+  },
+  "rust": {
+    "passed": 1118,
+    "ignored": 2
+  },
+  "viewer": {
+    "passed": 743,
+    "files": 69,
+    "lint_build": "PASS"
+  },
+  "separate_preflights": {
+    "native": 2,
+    "no_rust": 2,
+    "skipped": 0,
+    "forbidden_native_import_factory_IO_calls": 0,
+    "not_added_to_full_suite": true
+  },
+  "actual_cases": {
+    "ordinary_practice": 2,
+    "ordinary_execute_run": 2,
+    "ordinary_cases_pass_in_each_full_environment": true,
+    "compiled_adapter_native_pass": 7,
+    "compiled_adapter_no_rust_skip": 7
+  },
+  "fresh_wheel": {
+    "wheel": {
+      "bytes": 3915401,
+      "filename": "chronicler_agents-0.1.0-cp313-cp313-manylinux_2_34_x86_64.whl",
+      "native_member": "chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+      "sha256": "45aea506a74db23e3ee955bb991067726120946c190917c88634daa9eda8d6c9"
+    },
+    "installed_native": {
+      "bytes": 13695168,
+      "filename": "chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+      "sha256": "3ee06a53b3c16dcba01bc53c8fe1dd97e530754a61d65fe2c1396b158b48e6d0",
+      "wheel_member_sha256": "3ee06a53b3c16dcba01bc53c8fe1dd97e530754a61d65fe2c1396b158b48e6d0"
+    },
+    "identity_equal_across_builder_transfers_receipts_aggregate": true,
+    "python": "3.13.17 (main, Oct 22 2026, 02:40:32) [GCC 13.3.0]",
+    "package_scope": "all installed distributions except the explicit builder-only maturin tool",
+    "independently_verified_source_files": 788,
+    "source_tree_digest": "fa439a3b601894bcae6a97dbbf8c18b80a73e7d0ce1330bd6ee54686de95ce9f",
+    "post_suite_identity_scope": "source-enforced producer assertion; not independent external process attestation"
+  },
+  "publication": {
+    "original_ZIPs": 9,
+    "outer_members": 90,
+    "additional_inner_wheel_members": 6,
+    "originals_acquired_once": true,
+    "whole_ZIP_and_member_size_CRC_SHA_verified": true,
+    "artifact_member_index": {
+      "container": "reconciled-result.json",
+      "container_sha256": "3dee1b86a7ba89dc6b0bc838ba59e5ef5d8fb2a67a7cd3bb1128630247033ea0",
+      "location": "artifacts[].members"
+    },
+    "artifacts": [
+      {
+        "id": 12896190153,
+        "name": "native-module-shard-0-40869065907-1",
+        "bytes": 400196,
+        "sha256": "da2a9e170d72e59ed69d5ad2eb6ee3b076ce81b1035d63a7a06515bb0098186c",
+        "created_at": "2026-10-29T12:03:10Z",
+        "expires_at": "2026-11-12T12:03:09Z",
+        "member_count": 4
+      },
+      {
+        "id": 12896045616,
+        "name": "native-module-aggregate-40869065907-1",
+        "bytes": 1277,
+        "sha256": "cb7051b485266b5ec58794636dfdec64d6c9946eac264c63394f71e592ec5502",
+        "created_at": "2026-10-29T12:03:32Z",
+        "expires_at": "2026-11-12T12:03:31Z",
+        "member_count": 1
+      },
+      {
+        "id": 12895910489,
+        "name": "python-offline-ec09134b3e5a9e6e637c08b2c50099f3a1cd7522",
+        "bytes": 44624,
+        "sha256": "c77c6d991e004bfea38b10286f63f229b9fb1a6ef26d5484f42041b0ef1f782c",
+        "created_at": "2026-10-29T11:58:25Z",
+        "expires_at": "2026-11-12T11:58:24Z",
+        "member_count": 71
+      },
+      {
+        "id": 12895746804,
+        "name": "native-module-shard-1-40869065907-1",
+        "bytes": 373949,
+        "sha256": "ead1e85f2ae953c0603b35bd5b273f76d94974ccaec8657fcee0544a231e6292",
+        "created_at": "2026-10-29T12:03:15Z",
+        "expires_at": "2026-11-12T12:03:14Z",
+        "member_count": 4
+      },
+      {
+        "id": 12895546005,
+        "name": "native-shard-build-40869065907-1",
+        "bytes": 3851096,
+        "sha256": "4f9c907ad37f16e4336864741755b163dbf943335ee803ad2de3e80b3c0fb811",
+        "created_at": "2026-10-29T11:57:18Z",
+        "expires_at": "2026-11-12T11:57:17Z",
+        "member_count": 2
+      },
+      {
+        "id": 12895472129,
+        "name": "python-no-rust-ec09134b3e5a9e6e637c08b2c50099f3a1cd7522",
+        "bytes": 146910,
+        "sha256": "769a15c02e56bb285cc5cfe58d5aee06d84b2eaa5d8bd402b57e407bb9f10ead",
+        "created_at": "2026-10-29T12:02:33Z",
+        "expires_at": "2026-11-12T12:02:32Z",
+        "member_count": 1
+      },
+      {
+        "id": 12894952212,
+        "name": "rust-ec09134b3e5a9e6e637c08b2c50099f3a1cd7522",
+        "bytes": 724,
+        "sha256": "bb84887a6bb93b19b72bdb46bd80108c72873f91318a8b8c0602b42eb26e189e",
+        "created_at": "2026-10-29T11:56:25Z",
+        "expires_at": "2026-11-12T11:56:24Z",
+        "member_count": 1
+      },
+      {
+        "id": 12894383812,
+        "name": "wrapper-contract-no-rust-ec09134b3e5a9e6e637c08b2c50099f3a1cd7522",
+        "bytes": 1003,
+        "sha256": "c075116bdef65c5d2ce614a37016a268243f2f8a7ccf23d75e94e6d1d390dad8",
+        "created_at": "2026-10-29T11:55:20Z",
+        "expires_at": "2026-11-12T11:55:19Z",
+        "member_count": 3
+      },
+      {
+        "id": 12894049987,
+        "name": "wrapper-contract-native-ec09134b3e5a9e6e637c08b2c50099f3a1cd7522",
+        "bytes": 1003,
+        "sha256": "d390f45a73c901413d861882d9118c571f7edc0497cdf9a7f6abe1ca32486843",
+        "created_at": "2026-10-29T11:55:17Z",
+        "expires_at": "2026-11-12T11:55:16Z",
+        "member_count": 3
+      }
+    ]
+  },
+  "qualification": {
+    "manifest": {
+      "path": "/tmp/chronicler-review-evidence/native-two-shard-standard-ec-CI-20261029/evidence-manifest.json",
+      "bytes": 6697,
+      "sha256": "103404b94fe2b5e820f6eaac99df2c023cf8e1411ddd57c7065b0126e384e39a"
+    },
+    "result": {
+      "path": "/tmp/chronicler-review-evidence/native-two-shard-standard-ec-CI-20261029/reconciled-result.json",
+      "bytes": 47627,
+      "sha256": "3dee1b86a7ba89dc6b0bc838ba59e5ef5d8fb2a67a7cd3bb1128630247033ea0"
+    },
+    "original_readout": {
+      "path": "/tmp/chronicler-review-evidence/native-two-shard-standard-ec-CI-20261029/READOUT.md",
+      "bytes": 4392,
+      "sha256": "d39c434c7ee547c9491c7291d1616f5c7add1cea5d338897a63041ddab36178c"
+    },
+    "builder_bytes": {
+      "path": "/tmp/chronicler-review-evidence/native-two-shard-standard-ec-CI-20261029/builder-byte-verification.json",
+      "bytes": 95527,
+      "sha256": "bea5e5f5f3e94fe2b158bb7bea88023c3a31ca0ba3fe23db542cd2e8b8e6fcf4"
+    },
+    "non_author_peer": {
+      "path": "/tmp/chronicler-review-evidence/native-two-shard-standard-ec-final-peer-20261029/receipt.json",
+      "bytes": 19028,
+      "sha256": "5b47280877e0b9ce1aa2d60a75b52ed32b4459c2eacc11858226fa53879c8784"
+    },
+    "root_final": {
+      "path": "/tmp/chronicler-standard-ec-root-qualification-20261029/root-final-qualification.json",
+      "bytes": 3017,
+      "sha256": "56c1355b70ac86baa5b579f1683a5175e6ae6637c083f03d4e3f6fc24234bd67"
+    }
+  },
+  "source_qualification": {
+    "guarded_passed": 128,
+    "guarded_skipped": 0,
+    "guarded_forbidden_calls": 0,
+    "unfiltered_lint_workflows_templates": 6,
+    "source_peer_sha256": "063aaef3b85a94d3e31aa1caf3618593ce38ca8f92b35a27a042216ccc7ffb2b",
+    "root_dispatch_approval_sha256": "ca7fe63162bf337d5cab292278f8d22c4f9958c7a7fa2437d5ee18be7cfac32c"
+  },
+  "preserved_failures": {
+    "source_contract": {
+      "passed": 127,
+      "failed": 1,
+      "cause": "New contract omitted the existing closed manual workflow_dispatch entry; only expected metadata corrected.",
+      "receipt_sha256": "ade5dcd23947707a49c3e5770c48281460ad681c68a8e3ac228033f523637b5c",
+      "corrected_128_pass_receipt_sha256": "82b9e8e04d5e20a64d8946f384adeffafc740e6238a99621ba20f8a47cf2e685"
+    },
+    "prototype": {
+      "source": "847f164c99ea6974e197d6b95ab9ec9cd9f1e1c2",
+      "run_id": 40858749837,
+      "standing": "FAILED publication, not aggregate-qualified",
+      "causes": [
+        "shard0 diagnostic bytes not JSON serializable",
+        "shard1 nonfinite diagnostic context refused by strict authority JSON"
+      ],
+      "manifest_sha256": "55149d511b759161ff297a43a2e293b39357bdaa3e68be94f07e6371bbc1fc60"
+    },
+    "isolated_V2": {
+      "source": "7dcb240277aa8d61275d6f805cdf0f54976b62b0",
+      "run_id": 40863008464,
+      "root_qualification_sha256": "ac917da8549b3671a827ce56b4a099363141a1e01598276ebf78ca50e98162dc"
+    }
+  },
+  "observations": {
+    "created_to_last_job_seconds": 515,
+    "job_wall_seconds": {
+      "Viewer": 96.0,
+      "Python bounded offline": 203.0,
+      "Rust": 83.0,
+      "Python no-Rust": 451.0,
+      "Build one current-source native wheel": 141.0,
+      "Python native module shard 0": 344.0,
+      "Python native module shard 1": 348.0,
+      "Python native execution": 15.0,
+      "Python native": 2.0
+    },
+    "scope": "Single uncontrolled producer observations, not speedup/CPU saving or simulation capacity proof"
+  },
+  "maintenance": [
+    "Module manifest is source-scoped; new/removed modules need explicit reviewed assignment; missing/duplicate/unknown files refuse.",
+    "Intentional skip identities or subtest multiplicity require reviewed registration; repeated display labels remain separate reports.",
+    "Nine-artifact layout replaces the single native lane result/wheel pair. Neither shard alone qualifies native CI."
+  ],
+  "limits": [
+    "Qualification applies to exact ec source and this branch, not later documentation heads/main adoption or native090 integration.",
+    "Diagnostic context text is bounded lossy display, never lossless test inputs/scientific authority. Parent/ordinal/outcome/order/multiplicity remain strict.",
+    "No old/new World, raw/global-RNG/checkpoint identity, simulation speed, scientific outcome, historical reuse or default feature promotion."
+  ]
+}

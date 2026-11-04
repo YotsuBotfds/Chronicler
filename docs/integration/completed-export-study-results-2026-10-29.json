@@ -1,0 +1,241 @@
+{
+  "kind": "completed-export-studies-readout",
+  "local_evidence_index": {
+    "bytes": 125044032,
+    "excludes": [
+      "evidence-index.json"
+    ],
+    "files": 568,
+    "sha256": "0e6eaf700b946f925ab94efb709e37d12072b326f9622326118f1e63ea2dfbe8"
+  },
+  "local_evidence_root": "/workspace/evidence/completed-export-studies-20261029",
+  "peer_review": {
+    "final_receipts": "cleared",
+    "receipt_path": "/workspace/chronicler-completed-export-review-evidence/final-review-001.json",
+    "receipt_sha256": "1e979851c885e6fbd474a5a6d917ff08ad418f39587eda2466e5a52b04103d74",
+    "scope": "Frozen code/source/artifact pins;88 retained summary/input links;all case/count equations;terminal budgets;full disk admission. No ZIP reopen, payload scan, comparator/test repeat, native/Arrow import or worlds.",
+    "source": "cleared before artifact inspection"
+  },
+  "postflight_summary_sha256": "b97e02e69f6caf1fa2489a59f2782c4a9012539f0c119515f751e5d9b711dfd4",
+  "pure_contracts": {
+    "blocked_io_attempts": [],
+    "guard_sha256": "b9514fdc7da11dac2d6b73a0f5e33baf2cea1fd266de0c4b82ccd5f31ef3b6f6",
+    "guard_state": "PASS",
+    "guard_test_reports": {
+      "failed": 0,
+      "passed": 62,
+      "skipped": 0
+    },
+    "native_import_attempts_blocked": [],
+    "native_modules_loaded": [],
+    "parent_cases": 18,
+    "python_oracle_factory_calls": {
+      "ecology": 0,
+      "politics": 0
+    },
+    "successful_subtests": 44
+  },
+  "reader_source": "2b7a443e29e09051525d26f4e1c5b7e4cb75e7f1",
+  "scaled_case_labels": {
+    "scaled22k_s42": {
+      "observed_agent_count_claimed": false,
+      "registered_target": 18800
+    },
+    "scaled52k_s7": {
+      "observed_agent_count_claimed": false,
+      "registered_target": 43700
+    }
+  },
+  "schema_version": 1,
+  "scope": "Existing audit receipts reconciled; no repeated comparator, extraction, native imports, tests or worlds.",
+  "studies": {
+    "arc": {
+      "artifact_expired_at_metadata_observation": false,
+      "artifact_expires_at": "2026-11-28T00:32:11Z",
+      "artifact_id": 12863585862,
+      "artifact_name": "arc-output-identity-40793636869-1",
+      "baseline": "d0281e5f57c508f27cea1676f36e0e6ed1225c9d",
+      "candidate": "249a4e1879cf5fbbb070de11f478f19825f51419",
+      "case_file_counts": {
+        "hybrid_s1234": 10,
+        "hybrid_s42": 111,
+        "hybrid_s7": 111,
+        "off_s42": 9,
+        "off_s7": 9,
+        "proc48_hybrid_s42": 92,
+        "proc48_off_s7": 15,
+        "scaled22k_s42": 32,
+        "scaled52k_s7": 10
+      },
+      "compared_files_per_arm": 399,
+      "control": "9e800f812dc884d70e16f49103e1542f6aface91",
+      "differences": 0,
+      "job_id": 123184654671,
+      "limits": {
+        "disk_floor": 3221225472,
+        "git_command_seconds": 60,
+        "max_entries": 2048,
+        "max_json": 33554432,
+        "max_member": 33554432,
+        "max_total": 536870912,
+        "per_compare_seconds": 180,
+        "qualification_seconds": 600,
+        "reserve": 16777216
+      },
+      "metadata_sha256": "05782cc82d89e5ebdb34e066309dbcf6b627f263be508f1d75c0eee422b4b7bf",
+      "minimum_case_admission_margin_bytes": 305780018,
+      "native_links": {
+        "native_copy": "native/chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+        "native_sha256": "06db5e19bdda13d7a536b236d677348f5ea7cb5adad2929962f0485192f9b4d6",
+        "wheel": "wheels/chronicler_agents-0.1.0-cp313-cp313-manylinux_2_34_x86_64.whl",
+        "wheel_sha256": "54616417b94036ec91a40b69b94ad2b608d3b66666c93dd2b20e05af176cc58f"
+      },
+      "new_worlds": 0,
+      "original_archive": {
+        "bytes": 54791602,
+        "path": "arc-original-40793636869.zip",
+        "sha256": "bfaa8fc0b7ae44fd9074c6ebad446706c8d0d95e62afdb09a1c8fb5654542d4c"
+      },
+      "original_producer_ticks": 3200,
+      "original_producer_worlds": 18,
+      "outer_elapsed_seconds": 35.54730253100206,
+      "payload_expansion_bytes": 278356162,
+      "payload_files": 976,
+      "qualified": true,
+      "reader_elapsed_seconds": 35.38319488900015,
+      "reader_exit": {
+        "bytes": 901,
+        "path": "arc-audit-001-exit.json",
+        "sha256": "3bcff286aeaf0ef4c48caae911138d682972141d444cc4a9f03e348bcec083d9"
+      },
+      "reader_native_package_present": false,
+      "reader_result": {
+        "bytes": 14727,
+        "path": "arc-audit-001/reader-result.json",
+        "sha256": "6a80ea16f8933ff0a76193a41aac723169d0dda9fb4458fa8aefb257724cb365"
+      },
+      "run_attempt": 1,
+      "run_id": 40793636869,
+      "scratch_retired": true,
+      "source_snapshots": {
+        "baseline": {
+          "crate_tree": "a4703ef4e9a21b5dbb194d318536a46e6ca8b71c",
+          "files": 1479,
+          "sha": "d0281e5f57c508f27cea1676f36e0e6ed1225c9d"
+        },
+        "candidate": {
+          "crate_tree": "a4703ef4e9a21b5dbb194d318536a46e6ca8b71c",
+          "files": 1489,
+          "sha": "249a4e1879cf5fbbb070de11f478f19825f51419"
+        },
+        "control": {
+          "crate_tree": "a4703ef4e9a21b5dbb194d318536a46e6ca8b71c",
+          "files": 1494,
+          "sha": "9e800f812dc884d70e16f49103e1542f6aface91"
+        }
+      },
+      "source_view_directory_mode": "0555",
+      "source_view_file_mode": "0444",
+      "source_view_files": 178,
+      "verified_payload": {
+        "bytes": 166084,
+        "path": "arc-audit-001/verified-payload.json",
+        "sha256": "3b6ac6774d76a423618b7852408e374da1afc50437f40c1dcc8ef1f27d00b0c2"
+      }
+    },
+    "recovered": {
+      "artifact_expired_at_metadata_observation": false,
+      "artifact_expires_at": "2026-11-28T01:00:37Z",
+      "artifact_id": 12864342689,
+      "artifact_name": "recovered-output-identity-40796958774-1",
+      "baseline": "2f9d618b70f3304c02dcaeef12996b4a99e074c0",
+      "candidate": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1",
+      "case_file_counts": {
+        "hybrid_s1234": 10,
+        "hybrid_s42": 111,
+        "hybrid_s7": 111,
+        "off_s42": 9,
+        "off_s7": 9,
+        "proc48_hybrid_s42": 92,
+        "proc48_off_s7": 15,
+        "scaled22k_s42": 32,
+        "scaled52k_s7": 10
+      },
+      "compared_files_per_arm": 399,
+      "control": "8bbc8f00864c771ec3ad167bf7baf6510c6b0f79",
+      "differences": 0,
+      "job_id": 123195635121,
+      "limits": {
+        "disk_floor": 3221225472,
+        "git_command_seconds": 60,
+        "max_entries": 2048,
+        "max_json": 33554432,
+        "max_member": 33554432,
+        "max_total": 536870912,
+        "per_compare_seconds": 180,
+        "qualification_seconds": 600,
+        "reserve": 16777216
+      },
+      "metadata_sha256": "7566bab8832a7340cdb72c3f9ff53beed0cce79adb35d188043c71e50dca49c8",
+      "minimum_case_admission_margin_bytes": 187409714,
+      "native_links": {
+        "native_copy": "native/chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+        "native_sha256": "06db5e19bdda13d7a536b236d677348f5ea7cb5adad2929962f0485192f9b4d6",
+        "wheel": "wheels/chronicler_agents-0.1.0-cp313-cp313-manylinux_2_34_x86_64.whl",
+        "wheel_sha256": "bc17bb2561a4d014202c1f70846b31ace97ae00a98be2247dcfc3c4965b463ca"
+      },
+      "new_worlds": 0,
+      "original_archive": {
+        "bytes": 54786758,
+        "path": "recovered-original-40796958774.zip",
+        "sha256": "36b26c277b961480f94389f36af7d3c668ad44367937922e55d399f06fa931e1"
+      },
+      "original_producer_ticks": 3200,
+      "original_producer_worlds": 18,
+      "outer_elapsed_seconds": 31.91977580100138,
+      "payload_expansion_bytes": 278201185,
+      "payload_files": 976,
+      "qualified": true,
+      "reader_elapsed_seconds": 31.76794207900093,
+      "reader_exit": {
+        "bytes": 931,
+        "path": "recovered-audit-001-exit.json",
+        "sha256": "3ca00da5ab6d858c366fadab9cc86365b63423b7127c574d98d29a60c7862760"
+      },
+      "reader_native_package_present": false,
+      "reader_result": {
+        "bytes": 14901,
+        "path": "recovered-audit-001/reader-result.json",
+        "sha256": "0ad84e3e4130446b284423fff59032af6cb01d22b9b26b5f519fb644d240b21d"
+      },
+      "run_attempt": 1,
+      "run_id": 40796958774,
+      "scratch_retired": true,
+      "source_snapshots": {
+        "baseline": {
+          "crate_tree": "a4703ef4e9a21b5dbb194d318536a46e6ca8b71c",
+          "files": 1474,
+          "sha": "2f9d618b70f3304c02dcaeef12996b4a99e074c0"
+        },
+        "candidate": {
+          "crate_tree": "a4703ef4e9a21b5dbb194d318536a46e6ca8b71c",
+          "files": 1510,
+          "sha": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        },
+        "control": {
+          "crate_tree": "a4703ef4e9a21b5dbb194d318536a46e6ca8b71c",
+          "files": 1496,
+          "sha": "8bbc8f00864c771ec3ad167bf7baf6510c6b0f79"
+        }
+      },
+      "source_view_directory_mode": "0555",
+      "source_view_file_mode": "0444",
+      "source_view_files": 181,
+      "verified_payload": {
+        "bytes": 166084,
+        "path": "recovered-audit-001/verified-payload.json",
+        "sha256": "326967b8d2ee2ae1376efcfe15cc7d3a267c615435a27c31c7ca8935e74b4844"
+      }
+    }
+  }
+}

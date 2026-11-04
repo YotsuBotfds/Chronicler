@@ -124,21 +124,22 @@ function App() {
 
   useEffect(() => {
     const bundleKey = bundle
-      ? `${bundle.metadata.seed}:${bundle.metadata.total_turns}:${bundle.metadata.generated_at ?? ""}:${bundle.world_state.name}`
+      ? isLive ? `live:${wsUrl}:${bundle.metadata.seed}:${bundle.world_state.name}`
+        : artifactIdentity?.sha256 ?? `${bundle.metadata.seed}:${bundle.metadata.total_turns}:${bundle.metadata.generated_at ?? ""}:${bundle.world_state.name}`
       : null;
 
       if (bundleKey && bundleKey !== prevBundleKey.current) {
-        timeline.pause();
-        timeline.seek(isLive && liveConn.serverState === "running"
-        ? bundle?.history[bundle.history.length - 1]?.turn ?? 1
-        : 1);
+        timeline.resetSession({
+          initialTurn: isLive ? bundle?.history[bundle.history.length - 1]?.turn ?? 1 : 1,
+          followLive: isLive,
+        });
       if (surface === "setup" || surface === "progress" || surface === "batch") {
         showOverviewSurface();
       }
     }
 
     prevBundleKey.current = bundleKey;
-  }, [bundle, isLive, liveConn.serverState, surface, timeline]);
+  }, [bundle, artifactIdentity, isLive, liveConn.serverState, surface, timeline, wsUrl]);
 
   const handleSurfaceChange = (nextSurface: AppSurface) => {
     if (
@@ -164,16 +165,17 @@ function App() {
       artifactIdentity={isLive ? null : artifactIdentity}
       bundleLoading={loading}
       error={error}
+      liveNotice={isLive ? liveConn.notice : null}
       isLive={isLive}
       connected={liveConn.connected}
       serverState={liveConn.serverState}
       currentTurn={timeline.currentTurn}
       playing={timeline.playing}
-      speed={timeline.speed}
+      speed={isLive && liveConn.connected && !timeline.inspectionLocked ? liveConn.speed : timeline.speed}
       onSeek={timeline.seek}
       onPlay={timeline.play}
       onPause={timeline.pause}
-      onSetSpeed={liveConn.connected ? liveConn.setSpeed : timeline.setSpeed}
+      onSetSpeed={isLive && liveConn.connected && !timeline.inspectionLocked ? liveConn.setSpeed : timeline.setSpeed}
       lobbyInit={liveConn.lobbyInit}
       starting={liveConn.serverState === "starting"}
       onLaunch={liveConn.sendStart}
@@ -189,11 +191,17 @@ function App() {
         setSurface("overview");
       }}
       onOpenBundleFile={loadFromFile}
+      liveTimeline={isLive ? {
+        followMode: timeline.followMode, inspectionLocked: timeline.inspectionLocked,
+        newTurns: timeline.newTurns, latestTurn: bundle?.history.at(-1)?.turn ?? 1,
+        onReturnToLive: timeline.returnToLive, onLock: timeline.lockInspection,
+      } : undefined}
       livePaused={liveConn.paused}
       livePauseContext={liveConn.pauseContext}
       liveSendCommand={liveConn.sendCommand}
       liveForkedPath={liveConn.lastForked?.save_path}
       liveForkedHint={liveConn.lastForked?.cli_hint}
+      liveWhatIf={liveConn.whatIf}
       liveCheckpointStatus={liveConn.checkpointStatus}
       liveSaveCheckpoint={liveConn.saveCheckpoint}
       liveReconnecting={!liveConn.connected && !!wsUrl}

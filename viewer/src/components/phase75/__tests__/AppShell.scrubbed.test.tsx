@@ -18,12 +18,12 @@ afterEach(cleanup);
 
 const base = systemsFixture as unknown as Bundle;
 
-function shell(bundle: Bundle, currentTurn: number, surface: AppSurface = "overview") {
+function shell(bundle: Bundle, currentTurn: number, surface: AppSurface = "overview", onSeek = vi.fn()) {
   return (
     <AppShell
       surface={surface} onSurfaceChange={vi.fn()} bundle={bundle} bundleLoading={false} error={null}
       isLive={false} connected={false} serverState="completed" currentTurn={currentTurn} playing={false}
-      speed={1} onSeek={vi.fn()} onPlay={vi.fn()} onPause={vi.fn()} onSetSpeed={vi.fn()} lobbyInit={null}
+      speed={1} onSeek={onSeek} onPlay={vi.fn()} onPause={vi.fn()} onSetSpeed={vi.fn()} lobbyInit={null}
       starting={false} onOpenBundleFile={vi.fn()}
     />
   );
@@ -105,6 +105,24 @@ describe("a turn before the first snapshot", () => {
 describe("dated records on the map and in the inspector", () => {
   const region = base.world_state.regions[0];
 
+  it.each(["harvest_preparedness", "scientific_research_agenda_opened", "scientific_research_agenda_closed", "scientific_research_capacity_blocked"])("pins %s without seeking, explicitly seeks its containing snapshot and hides it when scrubbing back", (kind) => {
+    const receipt: Event = { turn: 10, event_type: kind, event_id: "receipt", actors: [],
+      importance: 3, description: "Actual purchases recorded after tick ten.", consequences: [] };
+    const bundle = { ...base, events_timeline: [receipt] };
+    const onSeek = vi.fn();
+    const view = render(shell(bundle, 11, "overview", onSeek));
+    pinEvent(receipt);
+    expect(onSeek).not.toHaveBeenCalled();
+    fireEvent.click(within(inspector()).getByRole("button", { name: "Go to recorded turn" }));
+    expect(onSeek).toHaveBeenLastCalledWith(11);
+    expect(statRow("Event")).toBe(receipt.event_type);
+    view.rerender(shell(bundle, 10, "overview", onSeek));
+    expect(statRow("Event")).toBe("Unavailable");
+    expect(inspector().textContent).not.toContain(receipt.description);
+    expect(within(inspector()).queryByRole("button", { name: "Go to recorded turn" })).not.toBeInTheDocument();
+    expect(document.querySelector(".phase75-left-rail")?.textContent).not.toContain(receipt.description);
+  });
+
   it("marks a named event's region only from its turn", () => {
     const bundle: Bundle = {
       ...base,
@@ -177,6 +195,93 @@ describe("dated records on the map and in the inspector", () => {
     const later = within(inspector()).getByLabelText("In-world accounts");
     expect(later).toHaveTextContent(`lost: their archive was sacked (turn ${lostAt})`);
     expect(later).toHaveTextContent("contested (lost, magnitude, ruler, silence)");
+  });
+});
+
+describe("event exploration at the selected turn", () => {
+  const event = (id: string, turn: number, extra: Partial<Event> = {}): Event => ({
+    event_id: id, turn, event_type: "war", actors: [], importance: 3,
+    description: `Recorded ${id}.`, consequences: [], ...extra,
+  });
+
+  it("follows only recorded causes and consequences, expands the list and never seeks on selection", () => {
+    const cause = event("cause", 2);
+    const target = event("target", 4, { causes: [cause.event_id!, "missing-id"], consequences: ["Unlinked claim"] });
+    const effects = [6, 7, 8, 9].map((turn) => event(`effect-${turn}`, turn, { causes: [target.event_id!] }));
+    const future = event("future-effect", 12, { causes: [target.event_id!] });
+    const bundle = { ...base, events_timeline: [cause, target, ...effects, future] };
+    const onSeek = vi.fn();
+    render(shell(bundle, 10, "overview", onSeek));
+    pinEvent(target);
+    expect(onSeek).not.toHaveBeenCalled();
+    expect(within(inspector()).queryByText(/Unlinked claim|missing-id|future-effect/)).not.toBeInTheDocument();
+    const consequences = () => within(inspector()).getByLabelText("Recorded consequences");
+    expect(consequences()).toHaveTextContent("4 events");
+    expect(within(consequences()).queryByRole("button", { name: "T9 Recorded effect-9." })).not.toBeInTheDocument();
+    fireEvent.click(within(consequences()).getByRole("button", { name: "Show all 4 recorded consequences" }));
+    expect(within(consequences()).getByRole("button", { name: "Show fewer consequences" })).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(within(inspector()).getByRole("button", { name: "T2 Recorded cause." }));
+    expect(within(inspector()).getByText(cause.description)).toBeInTheDocument();
+    fireEvent.click(within(inspector()).getByRole("button", { name: "T4 Recorded target." }));
+    expect(within(inspector()).getByText(target.description)).toBeInTheDocument();
+    // A new event selection starts with the concise list again.
+    expect(within(consequences()).getByRole("button", { name: "Show all 4 recorded consequences" })).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(within(consequences()).getByRole("button", { name: "Show all 4 recorded consequences" }));
+    fireEvent.click(within(consequences()).getByRole("button", { name: "T9 Recorded effect-9." }));
+    expect(within(inspector()).getByText(effects[3].description)).toBeInTheDocument();
+    expect(onSeek).not.toHaveBeenCalled();
+    fireEvent.click(within(inspector()).getByRole("button", { name: "Go to recorded turn" }));
+    expect(onSeek).toHaveBeenCalledExactlyOnceWith(9);
+  });
+
+  it("links known actors and an explicit recorded region without inventing identities or changing turn", () => {
+    const civilization = base.world_state.civilizations[0].name;
+    const region = base.world_state.regions[0].name;
+    const target = event("actors", 4, { actors: [civilization, region, "Unidentified envoy"], region });
+    const bundle = { ...base, events_timeline: [target] };
+    const onSeek = vi.fn();
+    const view = render(shell(bundle, 10, "overview", onSeek));
+    pinEvent(target);
+    const actors = within(inspector()).getByLabelText("Recorded actors");
+    expect(within(actors).getByText("Unidentified envoy")).toBeInTheDocument();
+    expect(within(actors).queryByRole("button", { name: "Unidentified envoy" })).not.toBeInTheDocument();
+    fireEvent.click(within(actors).getByRole("button", { name: civilization }));
+    expect(statRow("Civilization")).toBe(civilization);
+    pinEvent(target);
+    fireEvent.click(within(within(inspector()).getByLabelText("Recorded actors")).getByRole("button", { name: region }));
+    expect(statRow("Region")).toBe(region);
+    pinEvent(target);
+    const recordedRegion = within(inspector()).getByText("Recorded region").parentElement!;
+    fireEvent.click(within(recordedRegion).getByRole("button", { name: region }));
+    expect(statRow("Region")).toBe(region);
+    expect(onSeek).not.toHaveBeenCalled();
+    pinEvent(target);
+    view.rerender(shell(bundle, 3, "overview", onSeek));
+    expect(statRow("Event")).toBe("Unavailable");
+    expect(within(inspector()).queryByLabelText("Recorded actors")).not.toBeInTheDocument();
+    expect(within(inspector()).queryByText("Unidentified envoy")).not.toBeInTheDocument();
+  });
+
+  it("withholds source-turn receipts in both causal directions until their containing snapshot", () => {
+    const target = event("source-target", 9, { causes: ["receipt-cause"] });
+    const receiptCause = event("receipt-cause", 10, { event_type: "harvest_preparedness" });
+    const receiptEffect = event("receipt-effect", 10, { event_type: "scientific_research_agenda_opened", causes: [target.event_id!] });
+    const bundle = { ...base, events_timeline: [target, receiptCause, receiptEffect] };
+    const onSeek = vi.fn();
+    const view = render(shell(bundle, 10, "overview", onSeek));
+    pinEvent(target);
+    expect(within(inspector()).queryByLabelText("Recorded causes")).not.toBeInTheDocument();
+    expect(within(inspector()).queryByLabelText("Recorded consequences")).not.toBeInTheDocument();
+    view.rerender(shell(bundle, 11, "overview", onSeek));
+    expect(within(inspector()).getByLabelText("Recorded causes")).toHaveTextContent(receiptCause.description);
+    fireEvent.click(within(inspector()).getByRole("button", { name: "T10 Recorded receipt-effect." }));
+    expect(within(inspector()).getByText(receiptEffect.description)).toBeInTheDocument();
+    expect(onSeek).not.toHaveBeenCalled();
+    fireEvent.click(within(inspector()).getByRole("button", { name: "Go to recorded turn" }));
+    expect(onSeek).toHaveBeenCalledExactlyOnceWith(11);
+    view.rerender(shell(bundle, 10, "overview", onSeek));
+    expect(statRow("Event")).toBe("Unavailable");
+    expect(within(inspector()).queryByLabelText("Recorded causes")).not.toBeInTheDocument();
   });
 });
 

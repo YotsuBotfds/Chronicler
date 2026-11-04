@@ -10,6 +10,8 @@ import argparse
 import importlib.util
 import json
 import math
+import random
+import warnings
 from pathlib import Path
 
 import pyarrow as pa
@@ -329,8 +331,10 @@ def test_buys_real_surplus_in_its_own_market_first_at_market_price():
     assert sum(f.sent for f in _flows(world, BOUGHT)) <= 1.0 + 1e-9
 
 
-def test_realm_shipments_lose_transit_and_follow_the_route_graph():
+@pytest.mark.parametrize("priority", [0, 1])
+def test_realm_shipments_lose_transit_and_follow_the_route_graph(priority):
     world = _world()
+    world.tuning_overrides["grain_reserves.shortfall_priority"] = priority
     world.regions[VERDANT].stockpile.goods = {"grain": 80.0}
     res = _economy(world, pop={VERDANT: 20, THORNWOOD: 10})
     granary = _target(world, THORNWOOD, 10.0)
@@ -346,8 +350,10 @@ def test_realm_shipments_lose_transit_and_follow_the_route_graph():
     assert not _flows(world, BOUGHT)
 
 
-def test_foreign_purchases_pay_the_seller_and_stop_at_war_and_embargo():
+@pytest.mark.parametrize("priority", [0, 1])
+def test_foreign_purchases_pay_the_seller_and_stop_at_war_and_embargo(priority):
     world = _world()
+    world.tuning_overrides["grain_reserves.shortfall_priority"] = priority
     selurian, thornwall, kethani = (world.civilizations[i] for i in (SELURIAN, THORNWALL, KETHANI))
     thornwall.treasury = kethani.treasury = 0                  # they buy nothing at home
     world.regions[VERDANT].stockpile.goods = {"grain": 80.0}
@@ -376,8 +382,10 @@ def test_foreign_purchases_pay_the_seller_and_stop_at_war_and_embargo():
         assert {b.source for b in _flows(world, BOUGHT)} == sources
 
 
-def test_merchant_commitments_are_not_for_sale():
+@pytest.mark.parametrize("priority", [0, 1])
+def test_merchant_commitments_are_not_for_sale(priority):
     world = _world("hybrid")
+    world.tuning_overrides["grain_reserves.shortfall_priority"] = priority
     world.regions[VERDANT].stockpile.goods = {"grain": 80.0}
     res = _economy(world, pop={VERDANT: 20})
     _target(world, VERDANT, 100.0)
@@ -404,8 +412,10 @@ def test_merchant_commitments_are_not_for_sale():
     assert sold <= 80.0 - 25.0 - 4 * 10.0 + 1e-9 and sold == pytest.approx(math.floor(15 * price) / price)
 
 
-def test_budget_share_and_treasury_floor():
+@pytest.mark.parametrize("priority", [0, 1])
+def test_budget_share_and_treasury_floor(priority):
     world = _world()
+    world.tuning_overrides["grain_reserves.shortfall_priority"] = priority
     thornwall = world.civilizations[THORNWALL]
     world.regions[VERDANT].stockpile.goods = {"grain": 500.0}
     res = _economy(world, pop={VERDANT: 20})
@@ -418,6 +428,211 @@ def test_budget_share_and_treasury_floor():
     thornwall.treasury = G.TREASURY_FLOOR
     _tick(world, res)
     assert not _flows(world, BOUGHT)
+
+
+def _scarce_shortfall_world(priority=None, *, fed=VERDANT, hungry=THORNWOOD):
+    """Two reachable granaries share one treasury coin; real harvest targets update."""
+    from chronicler.tuning import K_GRAIN_RESERVES_SHORTFALL_PRIORITY
+
+    world = _world()
+    if priority is not None:
+        world.tuning_overrides[K_GRAIN_RESERVES_SHORTFALL_PRIORITY] = priority
+    for civ in world.civilizations:
+        civ.treasury = 0
+    world.civilizations[THORNWALL].treasury = 30  # one coin above the budget floor
+    world.regions[fed].stockpile.goods = {"grain": 80.0}
+    res = _economy(world, suff={fed: 1.0, hungry: 0.6}, pop={fed: 20, hungry: 20})
+    for rid, stock in ((fed, 0.0), (hungry, 2.0)):
+        granary = _granary(world, rid)
+        granary.grain = stock
+        granary.observed, granary.harvest_mean, granary.harvest_sq = 12, 0.5, 0.5
+    return world, res
+
+
+def test_shortfall_priority_is_a_known_persisted_tuning_option(tmp_path):
+    from chronicler.tuning import K_GRAIN_RESERVES_SHORTFALL_PRIORITY, load_tuning
+
+    path = tmp_path / "tuning.yaml"
+    path.write_text("grain_reserves:\n  shortfall_priority: 1\n", encoding="utf-8")
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        overrides = load_tuning(path)
+    assert caught == []
+    assert overrides == {K_GRAIN_RESERVES_SHORTFALL_PRIORITY: 1.0}
+    world, res = _scarce_shortfall_world()
+    world.tuning_overrides = overrides
+    restored = WorldState.model_validate_json(world.model_dump_json())
+    assert restored.tuning_overrides == overrides
+    G.tick_grain_reserves(restored, economy_result=res)
+    assert _flows(restored, BOUGHT)[0].region == THORNWOOD
+
+
+@pytest.mark.parametrize("fed,hungry", [(VERDANT, THORNWOOD), (THORNWOOD, VERDANT)])
+@pytest.mark.parametrize("priority", [0, 1])
+@pytest.mark.parametrize("accumulated", [False, True])
+def test_shortfall_priority_allocates_scarce_treasury_and_next_turn_food(
+        monkeypatch, fed, hungry, priority, accumulated):
+    from chronicler.accumulator import StatAccumulator
+
+    monkeypatch.setenv("CHRONICLER_CHECK_RESOURCES", "1")
+    world, res = _scarce_shortfall_world(priority, fed=fed, hungry=hungry)
+    before_food = dict(res.food_sufficiency)
+    before_rng = random.getstate()
+    acc = StatAccumulator() if accumulated else None
+    # Observe the Phase 10 purchase independently of a Phase 2 spoilage step.
+    G.ReserveLedger.begin(world, world.grain_reserves)
+    G.tick_grain_reserves(world, acc, res)
+    assert res.food_sufficiency == before_food  # procurement does not feed this turn
+    assert random.getstate() == before_rng
+    buy, = _flows(world, BOUGHT)
+    assert buy.region == (hungry if priority else fed)
+    assert buy.source == fed and buy.buyer == buy.seller == THORNWALL
+    assert buy.cost == 1 and buy.sent == pytest.approx(8.0)
+    assert buy.amount == pytest.approx(7.6 if priority else 8.0)
+    state = world.grain_reserves
+    assert state.granaries[fed].target == state.granaries[hungry].target == 40.0
+    assert state.granaries[fed].grain == pytest.approx(0.0 if priority else 8.0)
+    assert state.granaries[hungry].grain == pytest.approx(9.6 if priority else 2.0)
+    assert state.counters["transit_loss"] == pytest.approx(0.4 if priority else 0.0)
+    assert world.regions[fed].stockpile.goods["grain"] == pytest.approx(72.0)
+    assert world.regions[fed].stockpile.goods["grain"] >= G.KEEP_TURNS * 10.0
+    if acc is not None:
+        assert world.civilizations[THORNWALL].treasury == 30
+        assert [(c.civ_id, c.stat, c.delta, c.category) for c in acc._changes] == [
+            (THORNWALL, "treasury", -1, "keep")]
+        acc.apply_keep(world)
+    assert world.civilizations[THORNWALL].treasury == 29
+
+    world.turn += 1
+    next_res = _economy(world, suff={fed: 1.0, hungry: 0.0}, pop={fed: 20, hungry: 20})
+    G.open_granaries(world, next_res)
+    released, = _flows(world, RELEASED)
+    assert released.region == hungry
+    assert released.amount == pytest.approx(6.0 if priority else 2.0)
+    assert next_res.food_sufficiency[world.regions[hungry].name] == pytest.approx(
+        0.6 if priority else 0.2)
+    G.tick_grain_reserves(world, economy_result=None)  # finish the release/storage ledger
+    assert random.getstate() == before_rng
+
+
+def test_shortfall_priority_missing_and_zero_keep_identical_outputs_and_rng():
+    plain, plain_res = _scarce_shortfall_world()
+    zero, zero_res = _scarce_shortfall_world(0)
+    rng = random.getstate()
+    expected = G.tick_grain_reserves(plain, economy_result=plain_res)
+    assert random.getstate() == rng
+    actual = G.tick_grain_reserves(zero, economy_result=zero_res)
+    assert random.getstate() == rng
+    assert expected == actual and plain_res == zero_res
+    assert plain.model_dump_json(exclude={"tuning_overrides"}) == zero.model_dump_json(
+        exclude={"tuning_overrides"})
+
+
+@pytest.mark.parametrize("off", [False, True])
+def test_shortfall_priority_is_inert_without_an_active_granary(off):
+    world, res = _scarce_shortfall_world(1)
+    if off:
+        G.set_grain_reserves_enabled(world, False)
+    else:
+        world.agent_mode = "off"
+    before, rng, food = world.model_dump_json(), random.getstate(), dict(res.food_sufficiency)
+    assert G.open_granaries(world, res) == G.tick_grain_reserves(world, economy_result=res) == []
+    assert world.model_dump_json() == before
+    assert res.food_sufficiency == food and random.getstate() == rng
+
+
+@pytest.mark.parametrize("sufficiency", [None, math.nan, math.inf, -math.inf, "unknown", True])
+def test_shortfall_priority_does_not_promote_unknown_or_nonfinite_food(sufficiency):
+    world, res = _scarce_shortfall_world(1)
+    name = world.regions[VERDANT].name
+    if sufficiency is None:
+        del res.food_sufficiency[name]
+    else:
+        res.food_sufficiency[name] = sufficiency
+    G.tick_grain_reserves(world, economy_result=res)
+    buy, = _flows(world, BOUGHT)
+    assert buy.region == THORNWOOD  # the only observed finite shortfall
+    if sufficiency is None:
+        assert name not in res.food_sufficiency
+    else:
+        assert res.food_sufficiency[name] is sufficiency
+
+
+@pytest.mark.parametrize("sufficiency,priority", [(1.0 - 1e-6, False), (1.0 - 2e-6, True)])
+def test_shortfall_priority_uses_the_existing_food_tolerance(sufficiency, priority):
+    world, res = _scarce_shortfall_world(1)
+    res.food_sufficiency[world.regions[THORNWOOD].name] = sufficiency
+    G.tick_grain_reserves(world, economy_result=res)
+    buy, = _flows(world, BOUGHT)
+    assert buy.region == (THORNWOOD if priority else VERDANT)
+
+
+@pytest.mark.parametrize("equal_stock", [False, True])
+def test_shortfall_priority_retains_fill_ratio_and_region_identity_ties(equal_stock):
+    world, res = _scarce_shortfall_world(1)
+    res.food_sufficiency[world.regions[VERDANT].name] = 0.6
+    if not equal_stock:
+        world.grain_reserves.granaries[VERDANT].grain = 4.0
+    else:
+        world.grain_reserves.granaries[VERDANT].grain = 2.0
+    G.tick_grain_reserves(world, economy_result=res)
+    buy, = _flows(world, BOUGHT)
+    assert buy.region == (VERDANT if equal_stock else THORNWOOD)
+
+
+def test_shortfall_priority_orders_known_shortfalls_by_severity_before_reserve_fill():
+    world, res = _scarce_shortfall_world(1)
+    res.food_sufficiency[world.regions[VERDANT].name] = 0.8
+    res.food_sufficiency[world.regions[THORNWOOD].name] = 0.4
+    G.tick_grain_reserves(world, economy_result=res)
+    assert _flows(world, BOUGHT)[0].region == THORNWOOD
+
+
+def test_shortfall_priority_keeps_the_domestic_pass_before_foreign_purchases(monkeypatch):
+    world, res = _scarce_shortfall_world(1)
+    # The underfed destination has only a foreign source; the fed destination
+    # can still buy at home before any foreign procurement pass starts.
+    world.regions[ASHARA].stockpile.goods = {"grain": 80.0}
+    res = _economy(world, suff={VERDANT: 1.0, THORNWOOD: 0.6},
+                   pop={VERDANT: 20, THORNWOOD: 20, ASHARA: 20})
+    monkeypatch.setattr(G, "_route_graph", lambda _: {THORNWOOD: [ASHARA]})
+    G.tick_grain_reserves(world, economy_result=res)
+    buy, = _flows(world, BOUGHT)
+    assert buy.region == buy.source == VERDANT and buy.cost == 1
+    assert world.grain_reserves.granaries[THORNWOOD].grain == 2.0
+    assert world.regions[ASHARA].stockpile.goods["grain"] == 80.0
+
+
+@pytest.mark.parametrize("priority", [0, 1])
+@pytest.mark.parametrize("accumulated", [False, True])
+def test_shortfall_priority_preserves_receipt_capture_economics_and_rng(priority, accumulated):
+    from chronicler.accumulator import StatAccumulator
+    from chronicler.transaction_receipts import set_transaction_receipts_enabled
+
+    plain, plain_res = _scarce_shortfall_world(priority)
+    recorded, recorded_res = _scarce_shortfall_world(priority)
+    set_transaction_receipts_enabled(recorded, True)
+    plain_acc, recorded_acc = (StatAccumulator(), StatAccumulator()) if accumulated else (None, None)
+    before = random.getstate()
+    expected = G.tick_grain_reserves(plain, plain_acc, plain_res)
+    actual = G.tick_grain_reserves(recorded, recorded_acc, recorded_res)
+    assert random.getstate() == before
+    assert actual == expected and plain_res == recorded_res
+    if accumulated:
+        assert plain_acc._changes == recorded_acc._changes
+        plain_acc.apply_keep(plain)
+        recorded_acc.apply_keep(recorded)
+    assert plain.model_dump_json(exclude={"transaction_receipts"}) == recorded.model_dump_json(
+        exclude={"transaction_receipts"})
+    frame = recorded.transaction_receipts.public_purchases
+    assert frame.available and frame.complete and frame.observed_purchases == 1
+    row, = frame.rows
+    assert row.dest_region == (THORNWOOD if priority else VERDANT)
+    assert row.buyer_paid == row.domestic_producer_sink == 1
+    assert row.foreign_ruler_credited == 0
+    assert row.sent == pytest.approx(8.0)
+    assert row.received == pytest.approx(7.6 if priority else 8.0)
+    assert row.transit_loss == pytest.approx(0.4 if priority else 0.0)
 
 
 # --- owners, conquest, occupation ----------------------------------------------------
@@ -504,6 +719,87 @@ def test_resource_check_catches_grain_and_money_from_nowhere(monkeypatch):
 
 # --- snapshot, metrics, narration ----------------------------------------------------
 
+def test_history_summary_is_read_only_and_keeps_completed_turn_values():
+    from chronicler.grain_reserves_state import ReserveFlow
+    from chronicler.main import _grain_reserves_snapshot_fields
+    world = _world()
+    granary = _granary(world, VERDANT)
+    granary.grain, granary.target, granary.observed = 11.125, 20.25, 3
+    state = world.grain_reserves
+    state.flows_turn = world.turn
+    state.flows = [ReserveFlow(kind=BOUGHT, region=VERDANT, amount=2.25, source=ASHARA,
+                              buyer=THORNWALL, seller=SELURIAN, sent=2.5, cost=4),
+                   ReserveFlow(kind=RELEASED, region=VERDANT, amount=1.5, buyer=THORNWALL,
+                               before=0.5, after=0.65)]
+    world.turn += 1  # run_chronicle captures the snapshot after turn completion
+    before = world.model_dump_json()
+    summary = _grain_reserves_snapshot_fields(world)["grain_reserves"]
+    row = summary["granaries"][VERDANT]
+    assert summary["source_turn"] == 30
+    assert (row["grain"], row["target"], row["owner"], row["owner_name"]) == (
+        11.125, 20.25, THORNWALL, world.civilizations[THORNWALL].name)
+    assert summary["flows"][0]["kind"] == "bought"
+    assert summary["flows"][0]["sent"] == 2.5
+    assert summary["flows"][1]["after"] == 0.65
+    assert world.model_dump_json() == before
+    # No aliased dictionaries/lists leak future mutations into the saved record.
+    state.counters["spoiled"] = 20
+    granary.grain = 1
+    state.flows[0].amount = 0
+    assert row["grain"] == 11.125 and summary["flows"][0]["amount"] == 2.25
+    assert summary["counters"]["spoiled"] == 0
+    world.turn += 1
+    assert G.snapshot_summary(world)["flows"] == []  # stale flows must not repeat
+
+
+def test_history_summary_does_not_initialise_granaries_or_infer_new_owner():
+    world = _world()
+    before = world.model_dump_json()
+    assert G.snapshot_summary(world)["granaries"] == []
+    assert world.model_dump_json() == before
+    granary = _granary(world, VERDANT)
+    world.regions[VERDANT].controller = world.civilizations[SELURIAN].name
+    row = G.snapshot_summary(world)["granaries"][VERDANT]
+    assert row["owner"] == THORNWALL
+    assert row["controller"] == world.civilizations[SELURIAN].name
+    assert granary.owner == THORNWALL
+
+
+def test_history_summary_absent_when_off_or_dormant():
+    from chronicler.main import _grain_reserves_snapshot_fields
+    from chronicler.models import TurnSnapshot
+    world = generate_world(seed=42)
+    base = TurnSnapshot(turn=1, civ_stats={}, region_control={}, relationships={})
+    before = base.model_dump_json()
+    assert _grain_reserves_snapshot_fields(world) == {}
+    G.set_grain_reserves_enabled(world, True)
+    world.agent_mode = "off"
+    assert _grain_reserves_snapshot_fields(world) == {} and G.snapshot_summary(world) == {}
+    assert base.model_copy(update=_grain_reserves_snapshot_fields(world)).model_dump_json() == before
+    assert "grain_reserves" not in json.loads(before)
+
+
+def test_history_summary_survives_bundle_batch_live_and_reconnect_adapters():
+    from chronicler.bundle_codec import decode_bundle, encode_bundle
+    from chronicler.live import _build_init_data_from_bundle, _validate_legacy_live_bundle
+    from chronicler.models import TurnSnapshot
+    from chronicler.transport import snapshot_from_turn_message
+    world = _world()
+    _granary(world, VERDANT).grain = 17.125
+    world.turn += 1
+    summary = G.snapshot_summary(world)
+    snapshot = TurnSnapshot(turn=world.turn, civ_stats={}, region_control={}, relationships={},
+                            grain_reserves=summary).model_dump(mode="json")
+    bundle = {"world_state": world.model_dump(mode="json"), "history": [snapshot],
+              "events_timeline": [], "named_events": [], "chronicle_entries": [],
+              "era_reflections": {}, "metadata": {"total_turns": world.turn}}
+    static = decode_bundle(encode_bundle(bundle))
+    loaded = _validate_legacy_live_bundle(static)
+    reconnect = _build_init_data_from_bundle(loaded)
+    for payload in (static, loaded, reconnect):
+        assert payload["history"][0]["grain_reserves"] == summary
+    assert snapshot_from_turn_message(dict(snapshot, type="turn"))["grain_reserves"] == summary
+
 def test_metrics_and_event_classes():
     from chronicler.curator import event_label
     from chronicler.historiography import ROUTINE
@@ -519,6 +815,51 @@ def test_metrics_and_event_classes():
     assert metrics["counters_mean"]["released"] == pytest.approx(5.0)
     assert "grain_bought" in ROUTINE_TYPES and "grain_bought" in ROUTINE
     assert not is_routine(events[0]) and event_label(events[0]) == events[0].description
+
+
+# --- fixed paired evaluation ---------------------------------------------------------
+
+def _shortfall_evaluator():
+    spec = importlib.util.spec_from_file_location(
+        "shortfall_priority_evaluation", ROOT / "scripts/shortfall_priority_evaluation.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.mark.parametrize("case", ["scarce_budget", "multiple_hungry", "future_shortage",
+                                  "disconnected", "ownership_change", "no_supply"])
+def test_declared_shortfall_evaluation_pairs_balance_and_expose_tradeoffs(case, monkeypatch):
+    monkeypatch.setenv("CHRONICLER_CHECK_RESOURCES", "1")
+    evaluator = _shortfall_evaluator()
+    absent, off, on = [evaluator.constructed_arm(case, p) for p in (None, 0, 1)]
+    assert absent == off
+    assert evaluator.constructed_arm(case, 1) == on
+    assert off["input_sha256_without_priority"] == on["input_sha256_without_priority"]
+    if case == "no_supply":
+        assert off == on and not on["purchases"]
+    elif case == "disconnected":
+        assert off == on and on["purchases"][0]["region"] == 1
+    else:
+        assert [p["region"] for p in off["purchases"]] == [1]
+        assert [p["region"] for p in on["purchases"]] == [2]
+        if case in ("scarce_budget", "multiple_hungry", "ownership_change"):
+            assert on["next_food"][1] > off["next_food"][1]
+        if case in ("multiple_hungry", "future_shortage"):
+            assert on["next_food"][0] < off["next_food"][0]
+        if case == "ownership_change":
+            assert on["next_owner"][1] == 1
+            assert on["counters"]["captured"] > off["counters"]["captured"]
+
+
+def test_shortfall_evaluation_writes_the_fixed_six_case_matrix(tmp_path, monkeypatch):
+    monkeypatch.setenv("CHRONICLER_CHECK_RESOURCES", "1")
+    evaluator = _shortfall_evaluator()
+    report = evaluator.constructed(tmp_path)
+    assert set(report) == set(evaluator.CASES)
+    assert json.loads((tmp_path / "constructed.json").read_text()) == report
+    assert report["scarce_budget"]["food_delta"][1] > 0
+    assert report["future_shortage"]["food_delta"][0] < 0
 
 
 # --- native hybrid -------------------------------------------------------------------
@@ -548,7 +889,10 @@ def test_native_hybrid_run_procures_releases_and_balances(tmp_path, monkeypatch)
     assert len(ledger["turn"]) > 0 and math.fsum(ledger["released"]) == pytest.approx(counters["released"])
     bundle = load_bundle(out / "chronicle_bundle.json")
     assert bundle["world_state"]["grain_reserves"]["counters"]["released"] == pytest.approx(counters["released"])
-    assert "grain_reserves" not in bundle["history"][-1]
+    summary = bundle["history"][-1]["grain_reserves"]
+    assert summary["source_turn"] == bundle["history"][-1]["turn"] - 1
+    assert sum(row["grain"] for row in summary["granaries"]) == pytest.approx(
+        sum(g.grain for g in world.grain_reserves.granaries))
     types = {e["event_type"] for e in bundle["events_timeline"]}
     assert "granary_opened" in types
 

@@ -7,13 +7,18 @@ import {
   type RegionHistoryEvent, type RegionHistoryRow,
 } from "../lib/regionHistory";
 import "./region-history.css";
+import { TurnChanges } from "./TurnChanges";
+import type { Event } from "../types";
 
 interface Props {
   bundle: Bundle;
   artifactIdentity?: ArtifactIdentity | null;
   selectedRegion?: string | null;
+  selectedCivilization?: string | null;
   currentTurn: number;
   onSeek: (turn: number) => void;
+  onSelectEvent?: (event: Event) => void;
+  onSelectEntity?: (entity: import("../lib/historyComparison").HistoryEntity) => void;
 }
 
 const PAGE_SIZE = 50;
@@ -36,7 +41,7 @@ function Results({ rows, events, currentTurn, onSeek, maxTurn }: {
     </div>
   );
   return <>
-    <div className="region-history-table">
+    <div className="region-history-table" role="region" aria-label="Scrollable region metric observations" tabIndex={0}>
       <table aria-label="Region metric observations">
         <thead><tr><th>Turn</th><th>Controller</th><th>Value / availability</th><th>Source (JSON pointer)</th></tr></thead>
         <tbody>{rows.slice(rowPage * PAGE_SIZE, (rowPage + 1) * PAGE_SIZE).map((row, index) => (
@@ -52,7 +57,7 @@ function Results({ rows, events, currentTurn, onSeek, maxTurn }: {
     {pages(rows.length, rowPage, setRowPage, "observations")}
     <h3>Events in this window</h3>
     <p>Recorded-region events use the explicit named-event region. Optional controller context matches actors to the controller recorded at that exact turn; it does not establish where an event happened or what caused a metric change. Agent-event sidecars are not loaded here.</p>
-    <div className="region-history-table">
+    <div className="region-history-table" role="region" aria-label="Scrollable region history events" tabIndex={0}>
       <table aria-label="Region history events">
         <thead><tr><th>Turn</th><th>Type / scope</th><th>Description</th><th>Source (JSON pointer)</th></tr></thead>
         <tbody>{events.slice(eventPage * PAGE_SIZE, (eventPage + 1) * PAGE_SIZE).map((event) => (
@@ -66,11 +71,12 @@ function Results({ rows, events, currentTurn, onSeek, maxTurn }: {
   </>;
 }
 
-export function RegionHistoryInspector({ bundle, artifactIdentity, selectedRegion, currentTurn, onSeek }: Props) {
+export function RegionHistoryInspector({ bundle, artifactIdentity, selectedRegion, selectedCivilization, currentTurn, onSeek, onSelectEvent, onSelectEntity }: Props) {
   const names = useMemo(() => regionNames(bundle), [bundle]);
   const metrics = useMemo(() => regionMetrics(bundle), [bundle]);
   const [first, last] = useMemo(() => recordedTurnBounds(bundle), [bundle]);
-  const [region, setRegion] = useState(selectedRegion ?? names[0] ?? "");
+  const [localRegion, setRegion] = useState(selectedRegion ?? names[0] ?? "");
+  const region = onSelectEntity && selectedRegion && names.includes(selectedRegion) ? selectedRegion : localRegion;
   const [metricId, setMetricId] = useState("ecology:soil");
   const [startText, setStart] = useState(String(first));
   const [endText, setEnd] = useState(String(last));
@@ -90,8 +96,10 @@ export function RegionHistoryInspector({ bundle, artifactIdentity, selectedRegio
   const observed = inspection.rows.filter((row) => row.value !== null).length;
 
   return <section className="region-history" aria-label="Region history inspector">
+    <TurnChanges bundle={bundle} currentTurn={currentTurn} selectedRegion={selectedRegion}
+      selectedCivilization={selectedCivilization} onSeek={onSeek} onSelectEvent={onSelectEvent} onSelectEntity={onSelectEntity} />
     <h2>Region history</h2>
-    <p>Inspect exported observations without interpolation. Ecology values are raw fractions; stockpiles show each named good in its exported units. No food aggregate is computed.</p>
+    <p>Inspect exported observations without interpolation. Ecology values are raw fractions; stockpiles show each named good in its exported units. Regional model population is the completed model count; native agents alive is a separate observation and can differ. Older, malformed or unsupported population records stay unknown. Food weights use Phase 2 agents and ownership, not these completed counts.</p>
     <div className="region-history-provenance">
       <span>Run: {bundle.world_state.name} · seed {bundle.metadata.seed} · bundle version {bundle.metadata.bundle_version ?? "unrecorded"} · generated {bundle.metadata.generated_at || "unrecorded"}</span>
       {artifactIdentity ? <>
@@ -100,7 +108,7 @@ export function RegionHistoryInspector({ bundle, artifactIdentity, selectedRegio
       </> : <span>Raw artifact identity unavailable for in-memory data. Run metadata is not a content identity.</span>}
     </div>
     <div className="region-history-controls">
-      <label>Region<select aria-label="Region" value={region} onChange={(event) => setRegion(event.target.value)}>
+      <label>Region<select aria-label="Region" value={region} onChange={(event) => { setRegion(event.target.value); onSelectEntity?.({ kind: "region", name: event.target.value }); }}>
         {names.map((name) => <option key={name}>{name}</option>)}
       </select></label>
       {selectedRegion && names.includes(selectedRegion) && selectedRegion !== region &&
@@ -116,9 +124,9 @@ export function RegionHistoryInspector({ bundle, artifactIdentity, selectedRegio
       <label className="region-history-checkbox"><input type="checkbox" checked={context} onChange={(event) => setContext(event.target.checked)} />Include controller event context</label>
     </div>
     {!validRange ? <p role="alert">Choose whole turns from {first} through {last}, with the start at or before the end.</p> : <>
-      <p role="status">{observed} recorded values · {inspection.rows.length - observed} missing values · {inspection.unrecordedTurns} turns without observations in this inclusive window. Missing values are not zero.</p>
+      <p role="status" aria-label="Region observation coverage">{observed} recorded values · {inspection.rows.length - observed} missing values · {inspection.unrecordedTurns} turns without observations in this inclusive window. Missing values are not zero.</p>
       {metric.kind === "stockpile" && <p>Historical stockpiles are not exported. The final-state observation at turn {bundle.world_state.turn} is shown separately, even when a history snapshot has the same turn. Salt remains a separate good.</p>}
-      {metric.kind === "ecology" && observed > 0 && <div className="region-history-chart" aria-label={`${metric.label} by recorded turn`}>
+      {metric.kind !== "stockpile" && observed > 0 && <div className="region-history-chart" aria-label={`${metric.label} by recorded turn`}>
         <ResponsiveContainer width="100%" height={220}>
           <LineChart data={inspection.rows}>
             <CartesianGrid stroke="#374151" strokeDasharray="3 3" />

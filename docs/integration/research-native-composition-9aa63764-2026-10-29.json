@@ -1,0 +1,89 @@
+{
+  "comparisons": [
+    {
+      "global_final_rng_digests_equal": true,
+      "native_sections_equal": true,
+      "nonbundle_pairs_byte_equal": 19,
+      "pause": {
+        "archive_prefix_preserved": true,
+        "effort_pause_semantics": "pause gates new trials; paid adoption has its existing cadence",
+        "effort_spent_delta": 0,
+        "final_trial_count": 4,
+        "no_new_trial_funding": true,
+        "parent_trial_count": 4,
+        "trial_spent_delta": 0
+      },
+      "retained_difference_paths": [
+        "$.metadata.relationship_stats[25].<key-order>",
+        "$.metadata.relationship_stats[26].<key-order>"
+      ],
+      "seed": 42,
+      "shared_parent_equal": true,
+      "strict_bundle_equal": false
+    },
+    {
+      "global_final_rng_digests_equal": true,
+      "native_sections_equal": true,
+      "nonbundle_pairs_byte_equal": 19,
+      "pause": {
+        "archive_prefix_preserved": true,
+        "effort_pause_semantics": "pause gates new trials; paid adoption has its existing cadence",
+        "effort_spent_delta": 0,
+        "final_trial_count": 4,
+        "no_new_trial_funding": true,
+        "parent_trial_count": 4,
+        "trial_spent_delta": 0
+      },
+      "retained_difference_paths": [
+        "$.metadata.relationship_stats[25].<key-order>",
+        "$.metadata.relationship_stats[26].<key-order>"
+      ],
+      "seed": 7,
+      "shared_parent_equal": true,
+      "strict_bundle_equal": false
+    }
+  ],
+  "crate_tree": "a4703ef4e9a21b5dbb194d318536a46e6ca8b71c",
+  "evidence": {
+    "freeze": {
+      "path": "/workspace/chronicler-evidence/research-native-composition-20261029-001-freeze.json",
+      "sha256": "14db4c61fe8aec04d17a4c53326b946ce0560e684523c38a03a7e423f969fa80"
+    },
+    "independent_verification": {
+      "path": "/workspace/chronicler-evidence/research-native-composition-20261029-001-verification.json",
+      "sha256": "7308984cbb6f7b1e01e32bfe7ac7b0abee1efbf9a53f342253a0522c916a9f75"
+    },
+    "report": {
+      "path": "/workspace/chronicler-evidence/research-native-composition-20261029-001/report.json",
+      "sha256": "d996a44997a5c22f5a505b1c0a007d67b71987e49f3fcccc5f4f07238ed6be88"
+    }
+  },
+  "global_rng_scope": "Python/NumPy module globals externally initialized to 314159 per worker, not checkpoint-restored",
+  "native_execution_scope": "controlled supplied World plus forced DEVELOP via parsed CLI/shared execute_run; no unmodified python-m or natural exposure claim",
+  "native_sha256": "fb20dbc81828420fedc9a0b25fb8791a694a158d2c502ec915b8132a52875317",
+  "proof": {
+    "actual_active_native_sections": [
+      "native.agent.0"
+    ],
+    "actual_physics_ticks": 62,
+    "aggregate_child_cpu_seconds": 13.980699999999999,
+    "available_classes": [
+      "AgentSimulator",
+      "EcologySimulator",
+      "PoliticsSimulator"
+    ],
+    "execution_complete": true,
+    "identities_stable": true,
+    "observed_seeds": [
+      42,
+      7
+    ],
+    "qualified": false,
+    "workers": 6
+  },
+  "python": "3.13.5",
+  "schema_version": 1,
+  "source_package_digest": "432cd957a2237920e76b851ef19d58db9b540d44cd70f4a5a1dfa341c9a85e15",
+  "source_sha": "9aa637649ec36fa58fbae2b49bcbc7afcdb928d4",
+  "standing": "execution_complete_qualification_failed_no_waiver"
+}

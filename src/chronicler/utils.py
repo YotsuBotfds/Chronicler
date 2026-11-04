@@ -154,21 +154,32 @@ def _record_flow(flow: str, amount: int) -> None:
 
 
 def distribute_pop_loss(regions, total_loss: int) -> list[int]:
-    """Distribute population loss proportionally across regions and return per-region drains."""
+    """Remove the feasible loss by proportional largest-remainder apportionment.
+
+    Exact integer quotas avoid banker-rounding under-allocation. Equal
+    fractional remainders are resolved in region order, so no RNG or dictionary
+    ordering affects the result. For nonnegative inputs, the drains sum to
+    ``min(total_loss, total_population)`` and never exceed a region's population.
+    """
     total_pop = sum(r.population for r in regions)
-    if total_pop <= 0:
+    if total_pop <= 0 or total_loss <= 0:
         return [0 for _ in regions]
-    remaining = total_loss
+
+    feasible_loss = min(total_loss, total_pop)
     actual_drains: list[int] = []
-    for i, r in enumerate(regions):
-        if i == len(regions) - 1:
-            drain = remaining
-        else:
-            drain = round(total_loss * r.population / total_pop)
-        actual = min(drain, r.population)
-        r.population = max(r.population - actual, 0)
-        remaining -= actual
-        actual_drains.append(actual)
+    remainders: list[tuple[int, int]] = []
+    for index, region in enumerate(regions):
+        drain, remainder = divmod(feasible_loss * region.population, total_pop)
+        actual_drains.append(drain)
+        remainders.append((remainder, index))
+
+    remaining = feasible_loss - sum(actual_drains)
+    remainder_order = sorted(remainders, key=lambda item: (-item[0], item[1]))
+    for _, index in remainder_order[:remaining]:
+        actual_drains[index] += 1
+
+    for region, actual in zip(regions, actual_drains):
+        region.population -= actual
         _record_flow("removed", actual)
     return actual_drains
 

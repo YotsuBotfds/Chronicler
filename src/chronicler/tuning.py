@@ -131,6 +131,12 @@ K_OVEREXTRACTION_REALIZED = "ecology.overextraction_realized"
 K_MINE_SOIL_REALIZED = "ecology.mine_soil_realized"
 K_FISHERY_CHARGES_LANDED_CATCH = "ecology.fishery_charges_landed_catch"
 K_YIELD_PENALTY_REACHES_GOODS = "ecology.yield_penalty_reaches_goods"
+# Optional public-granary allocation policy (0: reserve fill first; 1: food
+# shortfall first within each existing domestic/foreign procurement pass).
+K_GRAIN_RESERVES_SHORTFALL_PRIORITY = "grain_reserves.shortfall_priority"
+# Optional local release policy: 0 retains low-stock famine-line rationing;
+# 1 aims for a full meal from existing local grain, with no shared reserve.
+K_GRAIN_RESERVES_FULL_MEAL_RELEASE = "grain_reserves.full_meal_release"
 # Bulk trade (2026-10): loads one merchant carries per trip overland, by river
 # and by sea, and whether trips are planned in bulk, filled against the tick's
 # committed deliveries (0: one-load planning, loading the capacity or the
@@ -319,6 +325,7 @@ KNOWN_OVERRIDES: set[str] = {
     K_CLIMATE_TREND_SHARE,
     K_OVEREXTRACTION_REALIZED, K_MINE_SOIL_REALIZED, K_FISHERY_CHARGES_LANDED_CATCH,
     K_YIELD_PENALTY_REACHES_GOODS,
+    K_GRAIN_RESERVES_SHORTFALL_PRIORITY, K_GRAIN_RESERVES_FULL_MEAL_RELEASE,
     K_LAND_CARGO_CAP, K_RIVER_CARGO_CAP, K_SEA_CARGO_CAP, K_CARGO_FILL,
     K_GUILD_NEWS,
     K_COMMUNITY_FULL_ANCHOR,

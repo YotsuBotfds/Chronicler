@@ -1,5 +1,11 @@
 # Chronicler Master Audit — April 1, 2026
 
+> **Historical snapshot — not current project status.** The findings and severity
+> counts below describe the April 1 source, not the current development branch.
+> Later remediation is recorded in `docs/superpowers/progress/phase-6-progress.md`
+> and `docs/integration/deferred-backlog-2026-10.md`. Retain this document as
+> audit evidence; do not use “Fix Immediately” or the counts as a current task list.
+
 Two independent audits cross-referenced and verified against live code. Every finding below was confirmed by reading the actual source at the cited locations. False findings from either audit are listed at the bottom.
 
 **Sources:**

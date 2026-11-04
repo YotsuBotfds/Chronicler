@@ -1,0 +1,2797 @@
+{
+  "fixture": "Actual paid controlled mechanical simulation; no scientific world qualification",
+  "source_commit": "35c58455",
+  "history": [
+    {
+      "turn": 1,
+      "scientific_claims": {
+        "source_turn": 0,
+        "active": true,
+        "seats": 5,
+        "claims": 2,
+        "trials": 2,
+        "completed": 0,
+        "cancelled": 0,
+        "failed": 0,
+        "trial_spent": 4,
+        "effort_spent": 0,
+        "evidence_receipts": 0,
+        "pending_messages": 2,
+        "expired_messages": 0,
+        "withheld_results": 0,
+        "controls": {
+          "withhold_information": false,
+          "transmission_enabled": true,
+          "uninformative_tests": false
+        },
+        "propositions": [
+          {
+            "id": 0,
+            "recipe": "irrigation",
+            "origin_seat": 0,
+            "context": {
+              "crop": "grain",
+              "soil_band": 3,
+              "water_band": 2,
+              "season": 0,
+              "climate_phase": "temperate",
+              "crew": 4,
+              "protocol": "fixed-crew-grain-v1"
+            },
+            "threshold": 0.02
+          },
+          {
+            "id": 1,
+            "recipe": "masonry",
+            "origin_seat": 0,
+            "context": {
+              "crop": "grain",
+              "soil_band": 3,
+              "water_band": 2,
+              "season": 0,
+              "climate_phase": "temperate",
+              "crew": 4,
+              "protocol": "fixed-crew-grain-v1"
+            },
+            "threshold": 0.02
+          }
+        ],
+        "beliefs": [
+          {
+            "seat": 0,
+            "seat_name": "Academy 0",
+            "region": 0,
+            "region_name": "Avalon",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 0,
+            "seat_name": "Academy 0",
+            "region": 0,
+            "region_name": "Avalon",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          }
+        ],
+        "trials_resolved": [],
+        "allocations": []
+      }
+    },
+    {
+      "turn": 2,
+      "scientific_claims": {
+        "source_turn": 1,
+        "active": true,
+        "seats": 5,
+        "claims": 2,
+        "trials": 2,
+        "completed": 2,
+        "cancelled": 0,
+        "failed": 0,
+        "trial_spent": 4,
+        "effort_spent": 0,
+        "evidence_receipts": 2,
+        "pending_messages": 6,
+        "expired_messages": 0,
+        "withheld_results": 0,
+        "controls": {
+          "withhold_information": false,
+          "transmission_enabled": true,
+          "uninformative_tests": false
+        },
+        "propositions": [
+          {
+            "id": 0,
+            "recipe": "irrigation",
+            "origin_seat": 0,
+            "context": {
+              "crop": "grain",
+              "soil_band": 3,
+              "water_band": 2,
+              "season": 0,
+              "climate_phase": "temperate",
+              "crew": 4,
+              "protocol": "fixed-crew-grain-v1"
+            },
+            "threshold": 0.02
+          },
+          {
+            "id": 1,
+            "recipe": "masonry",
+            "origin_seat": 0,
+            "context": {
+              "crop": "grain",
+              "soil_band": 3,
+              "water_band": 2,
+              "season": 0,
+              "climate_phase": "temperate",
+              "crew": 4,
+              "protocol": "fixed-crew-grain-v1"
+            },
+            "threshold": 0.02
+          }
+        ],
+        "beliefs": [
+          {
+            "seat": 0,
+            "seat_name": "Academy 0",
+            "region": 0,
+            "region_name": "Avalon",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 0,
+            "confidence": 0.3333333333333333,
+            "independent_groups": 1,
+            "last_evidence_turn": 1
+          },
+          {
+            "seat": 0,
+            "seat_name": "Academy 0",
+            "region": 0,
+            "region_name": "Avalon",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 1,
+            "confidence": 0.3333333333333333,
+            "independent_groups": 1,
+            "last_evidence_turn": 1
+          },
+          {
+            "seat": 1,
+            "seat_name": "Academy 1",
+            "region": 1,
+            "region_name": "Brook",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 1,
+            "seat_name": "Academy 1",
+            "region": 1,
+            "region_name": "Brook",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          }
+        ],
+        "trials_resolved": [
+          {
+            "id": 0,
+            "claim": 0,
+            "seat": 0,
+            "payer": 0,
+            "funded_turn": 0,
+            "completion_turn": 1,
+            "resolved_turn": 1,
+            "cost": 2,
+            "parent": -1,
+            "method": "fixed-crew-grain-v1",
+            "source_data": "source-7345f9a7f7582881",
+            "environment_block": "7:Avalon:0",
+            "dependence_group": "0:fixed-crew-grain-v1:7:Avalon:0",
+            "inputs": {
+              "region": 0,
+              "name": "Avalon",
+              "turn": 0,
+              "context": {
+                "crop": "grain",
+                "soil_band": 3,
+                "water_band": 2,
+                "season": 0,
+                "climate_phase": "temperate",
+                "crew": 4,
+                "protocol": "fixed-crew-grain-v1"
+              },
+              "season": 0,
+              "phase": "temperate",
+              "ecology": {
+                "soil": 0.847,
+                "water": 0.7,
+                "forest_cover": 0.3094
+              },
+              "types": [
+                0,
+                5,
+                255
+              ],
+              "base": [
+                1.0,
+                1.0,
+                0.0
+              ],
+              "effective": [
+                1.0,
+                1.0,
+                0.0
+              ],
+              "reserves": [
+                1.0,
+                0.49961702127659574,
+                0.0
+              ],
+              "suspended": {},
+              "practice": [
+                [
+                  0,
+                  0,
+                  0.535868,
+                  -1,
+                  6,
+                  0
+                ],
+                [
+                  0,
+                  2,
+                  0.535868,
+                  -1,
+                  6,
+                  0
+                ]
+              ],
+              "climate": {
+                "period": 75,
+                "severity": 1.0,
+                "start_phase": "temperate",
+                "phase_offset": 0
+              },
+              "tuning": {
+                "climate.trend_share": 1.0
+              },
+              "yield_penalties": true,
+              "environment": "7:Avalon:0"
+            },
+            "control_output": 4.5102458042124285,
+            "treatment_output": 4.73575809442305,
+            "observed_control": 4.57608082928235,
+            "observed_treatment": 4.6444961197068055,
+            "informative": true,
+            "supports": false,
+            "status": "completed",
+            "reason": "",
+            "event_id": ""
+          },
+          {
+            "id": 1,
+            "claim": 1,
+            "seat": 0,
+            "payer": 0,
+            "funded_turn": 0,
+            "completion_turn": 1,
+            "resolved_turn": 1,
+            "cost": 2,
+            "parent": -1,
+            "method": "fixed-crew-grain-v1",
+            "source_data": "source-2a95a8f50524e054",
+            "environment_block": "7:Avalon:0",
+            "dependence_group": "1:fixed-crew-grain-v1:7:Avalon:0",
+            "inputs": {
+              "region": 0,
+              "name": "Avalon",
+              "turn": 0,
+              "context": {
+                "crop": "grain",
+                "soil_band": 3,
+                "water_band": 2,
+                "season": 0,
+                "climate_phase": "temperate",
+                "crew": 4,
+                "protocol": "fixed-crew-grain-v1"
+              },
+              "season": 0,
+              "phase": "temperate",
+              "ecology": {
+                "soil": 0.847,
+                "water": 0.7,
+                "forest_cover": 0.3094
+              },
+              "types": [
+                0,
+                5,
+                255
+              ],
+              "base": [
+                1.0,
+                1.0,
+                0.0
+              ],
+              "effective": [
+                1.0,
+                1.0,
+                0.0
+              ],
+              "reserves": [
+                1.0,
+                0.49961702127659574,
+                0.0
+              ],
+              "suspended": {},
+              "practice": [
+                [
+                  0,
+                  0,
+                  0.535868,
+                  -1,
+                  6,
+                  0
+                ],
+                [
+                  0,
+                  2,
+                  0.535868,
+                  -1,
+                  6,
+                  0
+                ]
+              ],
+              "climate": {
+                "period": 75,
+                "severity": 1.0,
+                "start_phase": "temperate",
+                "phase_offset": 0
+              },
+              "tuning": {
+                "climate.trend_share": 1.0
+              },
+              "yield_penalties": true,
+              "environment": "7:Avalon:0"
+            },
+            "control_output": 4.631090624143014,
+            "treatment_output": 4.631090624143014,
+            "observed_control": 4.882805335430675,
+            "observed_treatment": 4.584521805278883,
+            "informative": true,
+            "supports": false,
+            "status": "completed",
+            "reason": "",
+            "event_id": ""
+          }
+        ],
+        "allocations": []
+      }
+    },
+    {
+      "turn": 3,
+      "scientific_claims": {
+        "source_turn": 2,
+        "active": true,
+        "seats": 5,
+        "claims": 2,
+        "trials": 2,
+        "completed": 2,
+        "cancelled": 0,
+        "failed": 0,
+        "trial_spent": 4,
+        "effort_spent": 0,
+        "evidence_receipts": 4,
+        "pending_messages": 6,
+        "expired_messages": 0,
+        "withheld_results": 0,
+        "controls": {
+          "withhold_information": false,
+          "transmission_enabled": true,
+          "uninformative_tests": false
+        },
+        "propositions": [
+          {
+            "id": 0,
+            "recipe": "irrigation",
+            "origin_seat": 0,
+            "context": {
+              "crop": "grain",
+              "soil_band": 3,
+              "water_band": 2,
+              "season": 0,
+              "climate_phase": "temperate",
+              "crew": 4,
+              "protocol": "fixed-crew-grain-v1"
+            },
+            "threshold": 0.02
+          },
+          {
+            "id": 1,
+            "recipe": "masonry",
+            "origin_seat": 0,
+            "context": {
+              "crop": "grain",
+              "soil_band": 3,
+              "water_band": 2,
+              "season": 0,
+              "climate_phase": "temperate",
+              "crew": 4,
+              "protocol": "fixed-crew-grain-v1"
+            },
+            "threshold": 0.02
+          }
+        ],
+        "beliefs": [
+          {
+            "seat": 0,
+            "seat_name": "Academy 0",
+            "region": 0,
+            "region_name": "Avalon",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 0,
+            "confidence": 0.3333333333333333,
+            "independent_groups": 1,
+            "last_evidence_turn": 1
+          },
+          {
+            "seat": 0,
+            "seat_name": "Academy 0",
+            "region": 0,
+            "region_name": "Avalon",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 1,
+            "confidence": 0.3333333333333333,
+            "independent_groups": 1,
+            "last_evidence_turn": 1
+          },
+          {
+            "seat": 1,
+            "seat_name": "Academy 1",
+            "region": 1,
+            "region_name": "Brook",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 0,
+            "confidence": 0.3333333333333333,
+            "independent_groups": 1,
+            "last_evidence_turn": 2
+          },
+          {
+            "seat": 1,
+            "seat_name": "Academy 1",
+            "region": 1,
+            "region_name": "Brook",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 1,
+            "confidence": 0.3333333333333333,
+            "independent_groups": 1,
+            "last_evidence_turn": 2
+          },
+          {
+            "seat": 2,
+            "seat_name": "Academy 2",
+            "region": 2,
+            "region_name": "Crag",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 2,
+            "seat_name": "Academy 2",
+            "region": 2,
+            "region_name": "Crag",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 4,
+            "seat_name": "Academy 4",
+            "region": 4,
+            "region_name": "Edge",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 4,
+            "seat_name": "Academy 4",
+            "region": 4,
+            "region_name": "Edge",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          }
+        ],
+        "trials_resolved": [],
+        "allocations": []
+      }
+    },
+    {
+      "turn": 4,
+      "scientific_claims": {
+        "source_turn": 3,
+        "active": true,
+        "seats": 5,
+        "claims": 2,
+        "trials": 2,
+        "completed": 2,
+        "cancelled": 0,
+        "failed": 0,
+        "trial_spent": 4,
+        "effort_spent": 0,
+        "evidence_receipts": 8,
+        "pending_messages": 2,
+        "expired_messages": 0,
+        "withheld_results": 0,
+        "controls": {
+          "withhold_information": false,
+          "transmission_enabled": true,
+          "uninformative_tests": false
+        },
+        "propositions": [
+          {
+            "id": 0,
+            "recipe": "irrigation",
+            "origin_seat": 0,
+            "context": {
+              "crop": "grain",
+              "soil_band": 3,
+              "water_band": 2,
+              "season": 0,
+              "climate_phase": "temperate",
+              "crew": 4,
+              "protocol": "fixed-crew-grain-v1"
+            },
+            "threshold": 0.02
+          },
+          {
+            "id": 1,
+            "recipe": "masonry",
+            "origin_seat": 0,
+            "context": {
+              "crop": "grain",
+              "soil_band": 3,
+              "water_band": 2,
+              "season": 0,
+              "climate_phase": "temperate",
+              "crew": 4,
+              "protocol": "fixed-crew-grain-v1"
+            },
+            "threshold": 0.02
+          }
+        ],
+        "beliefs": [
+          {
+            "seat": 0,
+            "seat_name": "Academy 0",
+            "region": 0,
+            "region_name": "Avalon",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 0,
+            "seat_name": "Academy 0",
+            "region": 0,
+            "region_name": "Avalon",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 1,
+            "seat_name": "Academy 1",
+            "region": 1,
+            "region_name": "Brook",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 1,
+            "seat_name": "Academy 1",
+            "region": 1,
+            "region_name": "Brook",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 2,
+            "seat_name": "Academy 2",
+            "region": 2,
+            "region_name": "Crag",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 2,
+            "seat_name": "Academy 2",
+            "region": 2,
+            "region_name": "Crag",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 3,
+            "seat_name": "Academy 3",
+            "region": 3,
+            "region_name": "Dun",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 3,
+            "seat_name": "Academy 3",
+            "region": 3,
+            "region_name": "Dun",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 4,
+            "seat_name": "Academy 4",
+            "region": 4,
+            "region_name": "Edge",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 4,
+            "seat_name": "Academy 4",
+            "region": 4,
+            "region_name": "Edge",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          }
+        ],
+        "trials_resolved": [],
+        "allocations": []
+      }
+    },
+    {
+      "turn": 5,
+      "scientific_claims": {
+        "source_turn": 4,
+        "active": true,
+        "seats": 5,
+        "claims": 2,
+        "trials": 2,
+        "completed": 2,
+        "cancelled": 0,
+        "failed": 0,
+        "trial_spent": 4,
+        "effort_spent": 0,
+        "evidence_receipts": 10,
+        "pending_messages": 0,
+        "expired_messages": 0,
+        "withheld_results": 0,
+        "controls": {
+          "withhold_information": false,
+          "transmission_enabled": true,
+          "uninformative_tests": false
+        },
+        "propositions": [
+          {
+            "id": 0,
+            "recipe": "irrigation",
+            "origin_seat": 0,
+            "context": {
+              "crop": "grain",
+              "soil_band": 3,
+              "water_band": 2,
+              "season": 0,
+              "climate_phase": "temperate",
+              "crew": 4,
+              "protocol": "fixed-crew-grain-v1"
+            },
+            "threshold": 0.02
+          },
+          {
+            "id": 1,
+            "recipe": "masonry",
+            "origin_seat": 0,
+            "context": {
+              "crop": "grain",
+              "soil_band": 3,
+              "water_band": 2,
+              "season": 0,
+              "climate_phase": "temperate",
+              "crew": 4,
+              "protocol": "fixed-crew-grain-v1"
+            },
+            "threshold": 0.02
+          }
+        ],
+        "beliefs": [
+          {
+            "seat": 0,
+            "seat_name": "Academy 0",
+            "region": 0,
+            "region_name": "Avalon",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 0,
+            "seat_name": "Academy 0",
+            "region": 0,
+            "region_name": "Avalon",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 1,
+            "seat_name": "Academy 1",
+            "region": 1,
+            "region_name": "Brook",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 1,
+            "seat_name": "Academy 1",
+            "region": 1,
+            "region_name": "Brook",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 2,
+            "seat_name": "Academy 2",
+            "region": 2,
+            "region_name": "Crag",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 2,
+            "seat_name": "Academy 2",
+            "region": 2,
+            "region_name": "Crag",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 3,
+            "seat_name": "Academy 3",
+            "region": 3,
+            "region_name": "Dun",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 3,
+            "seat_name": "Academy 3",
+            "region": 3,
+            "region_name": "Dun",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 4,
+            "seat_name": "Academy 4",
+            "region": 4,
+            "region_name": "Edge",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 4,
+            "seat_name": "Academy 4",
+            "region": 4,
+            "region_name": "Edge",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          }
+        ],
+        "trials_resolved": [],
+        "allocations": []
+      }
+    },
+    {
+      "turn": 6,
+      "scientific_claims": {
+        "source_turn": 5,
+        "active": true,
+        "seats": 5,
+        "claims": 2,
+        "trials": 2,
+        "completed": 2,
+        "cancelled": 0,
+        "failed": 0,
+        "trial_spent": 4,
+        "effort_spent": 0,
+        "evidence_receipts": 10,
+        "pending_messages": 0,
+        "expired_messages": 0,
+        "withheld_results": 0,
+        "controls": {
+          "withhold_information": false,
+          "transmission_enabled": true,
+          "uninformative_tests": false
+        },
+        "propositions": [
+          {
+            "id": 0,
+            "recipe": "irrigation",
+            "origin_seat": 0,
+            "context": {
+              "crop": "grain",
+              "soil_band": 3,
+              "water_band": 2,
+              "season": 0,
+              "climate_phase": "temperate",
+              "crew": 4,
+              "protocol": "fixed-crew-grain-v1"
+            },
+            "threshold": 0.02
+          },
+          {
+            "id": 1,
+            "recipe": "masonry",
+            "origin_seat": 0,
+            "context": {
+              "crop": "grain",
+              "soil_band": 3,
+              "water_band": 2,
+              "season": 0,
+              "climate_phase": "temperate",
+              "crew": 4,
+              "protocol": "fixed-crew-grain-v1"
+            },
+            "threshold": 0.02
+          }
+        ],
+        "beliefs": [
+          {
+            "seat": 0,
+            "seat_name": "Academy 0",
+            "region": 0,
+            "region_name": "Avalon",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 0,
+            "seat_name": "Academy 0",
+            "region": 0,
+            "region_name": "Avalon",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 1,
+            "seat_name": "Academy 1",
+            "region": 1,
+            "region_name": "Brook",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 1,
+            "seat_name": "Academy 1",
+            "region": 1,
+            "region_name": "Brook",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 2,
+            "seat_name": "Academy 2",
+            "region": 2,
+            "region_name": "Crag",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 2,
+            "seat_name": "Academy 2",
+            "region": 2,
+            "region_name": "Crag",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 3,
+            "seat_name": "Academy 3",
+            "region": 3,
+            "region_name": "Dun",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 3,
+            "seat_name": "Academy 3",
+            "region": 3,
+            "region_name": "Dun",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 4,
+            "seat_name": "Academy 4",
+            "region": 4,
+            "region_name": "Edge",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 4,
+            "seat_name": "Academy 4",
+            "region": 4,
+            "region_name": "Edge",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          }
+        ],
+        "trials_resolved": [],
+        "allocations": []
+      }
+    },
+    {
+      "turn": 7,
+      "scientific_claims": {
+        "source_turn": 6,
+        "active": true,
+        "seats": 5,
+        "claims": 2,
+        "trials": 2,
+        "completed": 2,
+        "cancelled": 0,
+        "failed": 0,
+        "trial_spent": 4,
+        "effort_spent": 0,
+        "evidence_receipts": 10,
+        "pending_messages": 0,
+        "expired_messages": 0,
+        "withheld_results": 0,
+        "controls": {
+          "withhold_information": false,
+          "transmission_enabled": true,
+          "uninformative_tests": false
+        },
+        "propositions": [
+          {
+            "id": 0,
+            "recipe": "irrigation",
+            "origin_seat": 0,
+            "context": {
+              "crop": "grain",
+              "soil_band": 3,
+              "water_band": 2,
+              "season": 0,
+              "climate_phase": "temperate",
+              "crew": 4,
+              "protocol": "fixed-crew-grain-v1"
+            },
+            "threshold": 0.02
+          },
+          {
+            "id": 1,
+            "recipe": "masonry",
+            "origin_seat": 0,
+            "context": {
+              "crop": "grain",
+              "soil_band": 3,
+              "water_band": 2,
+              "season": 0,
+              "climate_phase": "temperate",
+              "crew": 4,
+              "protocol": "fixed-crew-grain-v1"
+            },
+            "threshold": 0.02
+          }
+        ],
+        "beliefs": [
+          {
+            "seat": 0,
+            "seat_name": "Academy 0",
+            "region": 0,
+            "region_name": "Avalon",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 0,
+            "seat_name": "Academy 0",
+            "region": 0,
+            "region_name": "Avalon",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 1,
+            "seat_name": "Academy 1",
+            "region": 1,
+            "region_name": "Brook",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 1,
+            "seat_name": "Academy 1",
+            "region": 1,
+            "region_name": "Brook",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 2,
+            "seat_name": "Academy 2",
+            "region": 2,
+            "region_name": "Crag",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 2,
+            "seat_name": "Academy 2",
+            "region": 2,
+            "region_name": "Crag",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 3,
+            "seat_name": "Academy 3",
+            "region": 3,
+            "region_name": "Dun",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 3,
+            "seat_name": "Academy 3",
+            "region": 3,
+            "region_name": "Dun",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 4,
+            "seat_name": "Academy 4",
+            "region": 4,
+            "region_name": "Edge",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 4,
+            "seat_name": "Academy 4",
+            "region": 4,
+            "region_name": "Edge",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          }
+        ],
+        "trials_resolved": [],
+        "allocations": []
+      }
+    },
+    {
+      "turn": 8,
+      "scientific_claims": {
+        "source_turn": 7,
+        "active": true,
+        "seats": 5,
+        "claims": 2,
+        "trials": 2,
+        "completed": 2,
+        "cancelled": 0,
+        "failed": 0,
+        "trial_spent": 4,
+        "effort_spent": 0,
+        "evidence_receipts": 10,
+        "pending_messages": 0,
+        "expired_messages": 0,
+        "withheld_results": 0,
+        "controls": {
+          "withhold_information": false,
+          "transmission_enabled": true,
+          "uninformative_tests": false
+        },
+        "propositions": [
+          {
+            "id": 0,
+            "recipe": "irrigation",
+            "origin_seat": 0,
+            "context": {
+              "crop": "grain",
+              "soil_band": 3,
+              "water_band": 2,
+              "season": 0,
+              "climate_phase": "temperate",
+              "crew": 4,
+              "protocol": "fixed-crew-grain-v1"
+            },
+            "threshold": 0.02
+          },
+          {
+            "id": 1,
+            "recipe": "masonry",
+            "origin_seat": 0,
+            "context": {
+              "crop": "grain",
+              "soil_band": 3,
+              "water_band": 2,
+              "season": 0,
+              "climate_phase": "temperate",
+              "crew": 4,
+              "protocol": "fixed-crew-grain-v1"
+            },
+            "threshold": 0.02
+          }
+        ],
+        "beliefs": [
+          {
+            "seat": 0,
+            "seat_name": "Academy 0",
+            "region": 0,
+            "region_name": "Avalon",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 0,
+            "seat_name": "Academy 0",
+            "region": 0,
+            "region_name": "Avalon",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 1,
+            "seat_name": "Academy 1",
+            "region": 1,
+            "region_name": "Brook",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 1,
+            "seat_name": "Academy 1",
+            "region": 1,
+            "region_name": "Brook",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 2,
+            "seat_name": "Academy 2",
+            "region": 2,
+            "region_name": "Crag",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 2,
+            "seat_name": "Academy 2",
+            "region": 2,
+            "region_name": "Crag",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 3,
+            "seat_name": "Academy 3",
+            "region": 3,
+            "region_name": "Dun",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 3,
+            "seat_name": "Academy 3",
+            "region": 3,
+            "region_name": "Dun",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 4,
+            "seat_name": "Academy 4",
+            "region": 4,
+            "region_name": "Edge",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 4,
+            "seat_name": "Academy 4",
+            "region": 4,
+            "region_name": "Edge",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          }
+        ],
+        "trials_resolved": [],
+        "allocations": []
+      }
+    },
+    {
+      "turn": 9,
+      "scientific_claims": {
+        "source_turn": 8,
+        "active": true,
+        "seats": 5,
+        "claims": 2,
+        "trials": 2,
+        "completed": 2,
+        "cancelled": 0,
+        "failed": 0,
+        "trial_spent": 4,
+        "effort_spent": 0,
+        "evidence_receipts": 10,
+        "pending_messages": 0,
+        "expired_messages": 0,
+        "withheld_results": 0,
+        "controls": {
+          "withhold_information": false,
+          "transmission_enabled": true,
+          "uninformative_tests": false
+        },
+        "propositions": [
+          {
+            "id": 0,
+            "recipe": "irrigation",
+            "origin_seat": 0,
+            "context": {
+              "crop": "grain",
+              "soil_band": 3,
+              "water_band": 2,
+              "season": 0,
+              "climate_phase": "temperate",
+              "crew": 4,
+              "protocol": "fixed-crew-grain-v1"
+            },
+            "threshold": 0.02
+          },
+          {
+            "id": 1,
+            "recipe": "masonry",
+            "origin_seat": 0,
+            "context": {
+              "crop": "grain",
+              "soil_band": 3,
+              "water_band": 2,
+              "season": 0,
+              "climate_phase": "temperate",
+              "crew": 4,
+              "protocol": "fixed-crew-grain-v1"
+            },
+            "threshold": 0.02
+          }
+        ],
+        "beliefs": [
+          {
+            "seat": 0,
+            "seat_name": "Academy 0",
+            "region": 0,
+            "region_name": "Avalon",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 0,
+            "seat_name": "Academy 0",
+            "region": 0,
+            "region_name": "Avalon",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 1,
+            "seat_name": "Academy 1",
+            "region": 1,
+            "region_name": "Brook",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 1,
+            "seat_name": "Academy 1",
+            "region": 1,
+            "region_name": "Brook",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 2,
+            "seat_name": "Academy 2",
+            "region": 2,
+            "region_name": "Crag",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 2,
+            "seat_name": "Academy 2",
+            "region": 2,
+            "region_name": "Crag",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 3,
+            "seat_name": "Academy 3",
+            "region": 3,
+            "region_name": "Dun",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 3,
+            "seat_name": "Academy 3",
+            "region": 3,
+            "region_name": "Dun",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 4,
+            "seat_name": "Academy 4",
+            "region": 4,
+            "region_name": "Edge",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 4,
+            "seat_name": "Academy 4",
+            "region": 4,
+            "region_name": "Edge",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          }
+        ],
+        "trials_resolved": [],
+        "allocations": []
+      }
+    },
+    {
+      "turn": 10,
+      "scientific_claims": {
+        "source_turn": 9,
+        "active": true,
+        "seats": 5,
+        "claims": 2,
+        "trials": 2,
+        "completed": 2,
+        "cancelled": 0,
+        "failed": 0,
+        "trial_spent": 4,
+        "effort_spent": 0,
+        "evidence_receipts": 10,
+        "pending_messages": 0,
+        "expired_messages": 0,
+        "withheld_results": 0,
+        "controls": {
+          "withhold_information": false,
+          "transmission_enabled": true,
+          "uninformative_tests": false
+        },
+        "propositions": [
+          {
+            "id": 0,
+            "recipe": "irrigation",
+            "origin_seat": 0,
+            "context": {
+              "crop": "grain",
+              "soil_band": 3,
+              "water_band": 2,
+              "season": 0,
+              "climate_phase": "temperate",
+              "crew": 4,
+              "protocol": "fixed-crew-grain-v1"
+            },
+            "threshold": 0.02
+          },
+          {
+            "id": 1,
+            "recipe": "masonry",
+            "origin_seat": 0,
+            "context": {
+              "crop": "grain",
+              "soil_band": 3,
+              "water_band": 2,
+              "season": 0,
+              "climate_phase": "temperate",
+              "crew": 4,
+              "protocol": "fixed-crew-grain-v1"
+            },
+            "threshold": 0.02
+          }
+        ],
+        "beliefs": [
+          {
+            "seat": 0,
+            "seat_name": "Academy 0",
+            "region": 0,
+            "region_name": "Avalon",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 0,
+            "seat_name": "Academy 0",
+            "region": 0,
+            "region_name": "Avalon",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 1,
+            "seat_name": "Academy 1",
+            "region": 1,
+            "region_name": "Brook",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 1,
+            "seat_name": "Academy 1",
+            "region": 1,
+            "region_name": "Brook",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 2,
+            "seat_name": "Academy 2",
+            "region": 2,
+            "region_name": "Crag",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 2,
+            "seat_name": "Academy 2",
+            "region": 2,
+            "region_name": "Crag",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 3,
+            "seat_name": "Academy 3",
+            "region": 3,
+            "region_name": "Dun",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 3,
+            "seat_name": "Academy 3",
+            "region": 3,
+            "region_name": "Dun",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 4,
+            "seat_name": "Academy 4",
+            "region": 4,
+            "region_name": "Edge",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 4,
+            "seat_name": "Academy 4",
+            "region": 4,
+            "region_name": "Edge",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          }
+        ],
+        "trials_resolved": [],
+        "allocations": []
+      }
+    },
+    {
+      "turn": 11,
+      "scientific_claims": {
+        "source_turn": 10,
+        "active": true,
+        "seats": 5,
+        "claims": 2,
+        "trials": 2,
+        "completed": 2,
+        "cancelled": 0,
+        "failed": 0,
+        "trial_spent": 4,
+        "effort_spent": 0,
+        "evidence_receipts": 10,
+        "pending_messages": 0,
+        "expired_messages": 0,
+        "withheld_results": 0,
+        "controls": {
+          "withhold_information": false,
+          "transmission_enabled": true,
+          "uninformative_tests": false
+        },
+        "propositions": [
+          {
+            "id": 0,
+            "recipe": "irrigation",
+            "origin_seat": 0,
+            "context": {
+              "crop": "grain",
+              "soil_band": 3,
+              "water_band": 2,
+              "season": 0,
+              "climate_phase": "temperate",
+              "crew": 4,
+              "protocol": "fixed-crew-grain-v1"
+            },
+            "threshold": 0.02
+          },
+          {
+            "id": 1,
+            "recipe": "masonry",
+            "origin_seat": 0,
+            "context": {
+              "crop": "grain",
+              "soil_band": 3,
+              "water_band": 2,
+              "season": 0,
+              "climate_phase": "temperate",
+              "crew": 4,
+              "protocol": "fixed-crew-grain-v1"
+            },
+            "threshold": 0.02
+          }
+        ],
+        "beliefs": [
+          {
+            "seat": 0,
+            "seat_name": "Academy 0",
+            "region": 0,
+            "region_name": "Avalon",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 0,
+            "seat_name": "Academy 0",
+            "region": 0,
+            "region_name": "Avalon",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 1,
+            "seat_name": "Academy 1",
+            "region": 1,
+            "region_name": "Brook",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 1,
+            "seat_name": "Academy 1",
+            "region": 1,
+            "region_name": "Brook",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 2,
+            "seat_name": "Academy 2",
+            "region": 2,
+            "region_name": "Crag",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 2,
+            "seat_name": "Academy 2",
+            "region": 2,
+            "region_name": "Crag",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 3,
+            "seat_name": "Academy 3",
+            "region": 3,
+            "region_name": "Dun",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 3,
+            "seat_name": "Academy 3",
+            "region": 3,
+            "region_name": "Dun",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 4,
+            "seat_name": "Academy 4",
+            "region": 4,
+            "region_name": "Edge",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 4,
+            "seat_name": "Academy 4",
+            "region": 4,
+            "region_name": "Edge",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          }
+        ],
+        "trials_resolved": [],
+        "allocations": []
+      }
+    },
+    {
+      "turn": 12,
+      "scientific_claims": {
+        "source_turn": 11,
+        "active": true,
+        "seats": 5,
+        "claims": 2,
+        "trials": 2,
+        "completed": 2,
+        "cancelled": 0,
+        "failed": 0,
+        "trial_spent": 4,
+        "effort_spent": 0,
+        "evidence_receipts": 10,
+        "pending_messages": 0,
+        "expired_messages": 0,
+        "withheld_results": 0,
+        "controls": {
+          "withhold_information": false,
+          "transmission_enabled": true,
+          "uninformative_tests": false
+        },
+        "propositions": [
+          {
+            "id": 0,
+            "recipe": "irrigation",
+            "origin_seat": 0,
+            "context": {
+              "crop": "grain",
+              "soil_band": 3,
+              "water_band": 2,
+              "season": 0,
+              "climate_phase": "temperate",
+              "crew": 4,
+              "protocol": "fixed-crew-grain-v1"
+            },
+            "threshold": 0.02
+          },
+          {
+            "id": 1,
+            "recipe": "masonry",
+            "origin_seat": 0,
+            "context": {
+              "crop": "grain",
+              "soil_band": 3,
+              "water_band": 2,
+              "season": 0,
+              "climate_phase": "temperate",
+              "crew": 4,
+              "protocol": "fixed-crew-grain-v1"
+            },
+            "threshold": 0.02
+          }
+        ],
+        "beliefs": [
+          {
+            "seat": 0,
+            "seat_name": "Academy 0",
+            "region": 0,
+            "region_name": "Avalon",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 0,
+            "seat_name": "Academy 0",
+            "region": 0,
+            "region_name": "Avalon",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 1,
+            "seat_name": "Academy 1",
+            "region": 1,
+            "region_name": "Brook",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 1,
+            "seat_name": "Academy 1",
+            "region": 1,
+            "region_name": "Brook",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 2,
+            "seat_name": "Academy 2",
+            "region": 2,
+            "region_name": "Crag",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 2,
+            "seat_name": "Academy 2",
+            "region": 2,
+            "region_name": "Crag",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 3,
+            "seat_name": "Academy 3",
+            "region": 3,
+            "region_name": "Dun",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 3,
+            "seat_name": "Academy 3",
+            "region": 3,
+            "region_name": "Dun",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 4,
+            "seat_name": "Academy 4",
+            "region": 4,
+            "region_name": "Edge",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          },
+          {
+            "seat": 4,
+            "seat_name": "Academy 4",
+            "region": 4,
+            "region_name": "Edge",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null
+          }
+        ],
+        "trials_resolved": [],
+        "allocations": []
+      }
+    },
+    {
+      "turn": 13,
+      "scientific_claims": {
+        "source_turn": 12,
+        "active": true,
+        "seats": 5,
+        "claims": 2,
+        "trials": 4,
+        "completed": 2,
+        "cancelled": 0,
+        "failed": 0,
+        "trial_spent": 8,
+        "effort_spent": 5,
+        "evidence_receipts": 10,
+        "pending_messages": 0,
+        "expired_messages": 0,
+        "withheld_results": 0,
+        "controls": {
+          "withhold_information": false,
+          "transmission_enabled": true,
+          "uninformative_tests": false
+        },
+        "propositions": [
+          {
+            "id": 0,
+            "recipe": "irrigation",
+            "origin_seat": 0,
+            "context": {
+              "crop": "grain",
+              "soil_band": 3,
+              "water_band": 2,
+              "season": 0,
+              "climate_phase": "temperate",
+              "crew": 4,
+              "protocol": "fixed-crew-grain-v1"
+            },
+            "threshold": 0.02
+          },
+          {
+            "id": 1,
+            "recipe": "masonry",
+            "origin_seat": 0,
+            "context": {
+              "crop": "grain",
+              "soil_band": 3,
+              "water_band": 2,
+              "season": 0,
+              "climate_phase": "temperate",
+              "crew": 4,
+              "protocol": "fixed-crew-grain-v1"
+            },
+            "threshold": 0.02
+          }
+        ],
+        "beliefs": [
+          {
+            "seat": 0,
+            "seat_name": "Academy 0",
+            "region": 0,
+            "region_name": "Avalon",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 0,
+            "confidence": 0.3333333333333333,
+            "independent_groups": 1,
+            "last_evidence_turn": 1
+          },
+          {
+            "seat": 0,
+            "seat_name": "Academy 0",
+            "region": 0,
+            "region_name": "Avalon",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 1,
+            "confidence": 0.3333333333333333,
+            "independent_groups": 1,
+            "last_evidence_turn": 1
+          },
+          {
+            "seat": 1,
+            "seat_name": "Academy 1",
+            "region": 1,
+            "region_name": "Brook",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 0,
+            "confidence": 0.3333333333333333,
+            "independent_groups": 1,
+            "last_evidence_turn": 2
+          },
+          {
+            "seat": 1,
+            "seat_name": "Academy 1",
+            "region": 1,
+            "region_name": "Brook",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 1,
+            "confidence": 0.3333333333333333,
+            "independent_groups": 1,
+            "last_evidence_turn": 2
+          },
+          {
+            "seat": 2,
+            "seat_name": "Academy 2",
+            "region": 2,
+            "region_name": "Crag",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 0,
+            "confidence": 0.3333333333333333,
+            "independent_groups": 1,
+            "last_evidence_turn": 3
+          },
+          {
+            "seat": 2,
+            "seat_name": "Academy 2",
+            "region": 2,
+            "region_name": "Crag",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 1,
+            "confidence": 0.3333333333333333,
+            "independent_groups": 1,
+            "last_evidence_turn": 3
+          },
+          {
+            "seat": 3,
+            "seat_name": "Academy 3",
+            "region": 3,
+            "region_name": "Dun",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 0,
+            "confidence": 0.3333333333333333,
+            "independent_groups": 1,
+            "last_evidence_turn": 4
+          },
+          {
+            "seat": 3,
+            "seat_name": "Academy 3",
+            "region": 3,
+            "region_name": "Dun",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 1,
+            "confidence": 0.3333333333333333,
+            "independent_groups": 1,
+            "last_evidence_turn": 4
+          },
+          {
+            "seat": 4,
+            "seat_name": "Academy 4",
+            "region": 4,
+            "region_name": "Edge",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 0,
+            "confidence": 0.3333333333333333,
+            "independent_groups": 1,
+            "last_evidence_turn": 3
+          },
+          {
+            "seat": 4,
+            "seat_name": "Academy 4",
+            "region": 4,
+            "region_name": "Edge",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 1,
+            "confidence": 0.3333333333333333,
+            "independent_groups": 1,
+            "last_evidence_turn": 3
+          }
+        ],
+        "trials_resolved": [],
+        "allocations": [
+          {
+            "seat": 0,
+            "region": 0,
+            "recipe": "irrigation",
+            "share": 0.5,
+            "confidence": 0.3333333333333333,
+            "paid": 1
+          },
+          {
+            "seat": 0,
+            "region": 0,
+            "recipe": "masonry",
+            "share": 0.5,
+            "confidence": 0.3333333333333333,
+            "paid": 0
+          },
+          {
+            "seat": 1,
+            "region": 1,
+            "recipe": "irrigation",
+            "share": 0.5,
+            "confidence": 0.3333333333333333,
+            "paid": 1
+          },
+          {
+            "seat": 1,
+            "region": 1,
+            "recipe": "masonry",
+            "share": 0.5,
+            "confidence": 0.3333333333333333,
+            "paid": 0
+          },
+          {
+            "seat": 2,
+            "region": 2,
+            "recipe": "irrigation",
+            "share": 0.5,
+            "confidence": 0.3333333333333333,
+            "paid": 1
+          },
+          {
+            "seat": 2,
+            "region": 2,
+            "recipe": "masonry",
+            "share": 0.5,
+            "confidence": 0.3333333333333333,
+            "paid": 0
+          },
+          {
+            "seat": 3,
+            "region": 3,
+            "recipe": "irrigation",
+            "share": 0.5,
+            "confidence": 0.3333333333333333,
+            "paid": 1
+          },
+          {
+            "seat": 3,
+            "region": 3,
+            "recipe": "masonry",
+            "share": 0.5,
+            "confidence": 0.3333333333333333,
+            "paid": 0
+          },
+          {
+            "seat": 4,
+            "region": 4,
+            "recipe": "irrigation",
+            "share": 0.5,
+            "confidence": 0.3333333333333333,
+            "paid": 1
+          },
+          {
+            "seat": 4,
+            "region": 4,
+            "recipe": "masonry",
+            "share": 0.5,
+            "confidence": 0.3333333333333333,
+            "paid": 0
+          }
+        ]
+      }
+    },
+    {
+      "turn": 14,
+      "scientific_claims": {
+        "source_turn": 13,
+        "active": true,
+        "seats": 5,
+        "claims": 2,
+        "trials": 4,
+        "completed": 4,
+        "cancelled": 0,
+        "failed": 0,
+        "trial_spent": 8,
+        "effort_spent": 5,
+        "evidence_receipts": 12,
+        "pending_messages": 6,
+        "expired_messages": 0,
+        "withheld_results": 0,
+        "controls": {
+          "withhold_information": false,
+          "transmission_enabled": true,
+          "uninformative_tests": false
+        },
+        "propositions": [
+          {
+            "id": 0,
+            "recipe": "irrigation",
+            "origin_seat": 0,
+            "context": {
+              "crop": "grain",
+              "soil_band": 3,
+              "water_band": 2,
+              "season": 0,
+              "climate_phase": "temperate",
+              "crew": 4,
+              "protocol": "fixed-crew-grain-v1"
+            },
+            "threshold": 0.02
+          },
+          {
+            "id": 1,
+            "recipe": "masonry",
+            "origin_seat": 0,
+            "context": {
+              "crop": "grain",
+              "soil_band": 3,
+              "water_band": 2,
+              "season": 0,
+              "climate_phase": "temperate",
+              "crew": 4,
+              "protocol": "fixed-crew-grain-v1"
+            },
+            "threshold": 0.02
+          }
+        ],
+        "beliefs": [
+          {
+            "seat": 0,
+            "seat_name": "Academy 0",
+            "region": 0,
+            "region_name": "Avalon",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 0,
+            "confidence": 0.3333333333333333,
+            "independent_groups": 1,
+            "last_evidence_turn": 1
+          },
+          {
+            "seat": 0,
+            "seat_name": "Academy 0",
+            "region": 0,
+            "region_name": "Avalon",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 1,
+            "confidence": 0.3333333333333333,
+            "independent_groups": 1,
+            "last_evidence_turn": 1
+          },
+          {
+            "seat": 1,
+            "seat_name": "Academy 1",
+            "region": 1,
+            "region_name": "Brook",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 2,
+            "last_evidence_turn": 13
+          },
+          {
+            "seat": 1,
+            "seat_name": "Academy 1",
+            "region": 1,
+            "region_name": "Brook",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 1,
+            "confidence": 0.25,
+            "independent_groups": 2,
+            "last_evidence_turn": 13
+          },
+          {
+            "seat": 2,
+            "seat_name": "Academy 2",
+            "region": 2,
+            "region_name": "Crag",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 0,
+            "confidence": 0.3333333333333333,
+            "independent_groups": 1,
+            "last_evidence_turn": 3
+          },
+          {
+            "seat": 2,
+            "seat_name": "Academy 2",
+            "region": 2,
+            "region_name": "Crag",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 1,
+            "confidence": 0.3333333333333333,
+            "independent_groups": 1,
+            "last_evidence_turn": 3
+          },
+          {
+            "seat": 3,
+            "seat_name": "Academy 3",
+            "region": 3,
+            "region_name": "Dun",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 0,
+            "confidence": 0.3333333333333333,
+            "independent_groups": 1,
+            "last_evidence_turn": 4
+          },
+          {
+            "seat": 3,
+            "seat_name": "Academy 3",
+            "region": 3,
+            "region_name": "Dun",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 1,
+            "confidence": 0.3333333333333333,
+            "independent_groups": 1,
+            "last_evidence_turn": 4
+          },
+          {
+            "seat": 4,
+            "seat_name": "Academy 4",
+            "region": 4,
+            "region_name": "Edge",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 0,
+            "confidence": 0.3333333333333333,
+            "independent_groups": 1,
+            "last_evidence_turn": 3
+          },
+          {
+            "seat": 4,
+            "seat_name": "Academy 4",
+            "region": 4,
+            "region_name": "Edge",
+            "owner": 1,
+            "owner_name": "B",
+            "claim": 1,
+            "confidence": 0.3333333333333333,
+            "independent_groups": 1,
+            "last_evidence_turn": 3
+          }
+        ],
+        "trials_resolved": [
+          {
+            "id": 2,
+            "claim": 0,
+            "seat": 1,
+            "payer": 0,
+            "funded_turn": 12,
+            "completion_turn": 13,
+            "resolved_turn": 13,
+            "cost": 2,
+            "parent": 0,
+            "method": "fixed-crew-grain-v1",
+            "source_data": "source-16957d78cbed72d9",
+            "environment_block": "7:Avalon:1",
+            "dependence_group": "0:fixed-crew-grain-v1:7:Avalon:1",
+            "inputs": {
+              "region": 1,
+              "name": "Brook",
+              "turn": 12,
+              "context": {
+                "crop": "grain",
+                "soil_band": 3,
+                "water_band": 2,
+                "season": 0,
+                "climate_phase": "temperate",
+                "crew": 4,
+                "protocol": "fixed-crew-grain-v1"
+              },
+              "season": 0,
+              "phase": "temperate",
+              "ecology": {
+                "soil": 0.95,
+                "water": 0.7,
+                "forest_cover": 0.4
+              },
+              "types": [
+                0,
+                5,
+                255
+              ],
+              "base": [
+                1.0,
+                1.0,
+                0.0
+              ],
+              "effective": [
+                1.0,
+                1.0,
+                0.0
+              ],
+              "reserves": [
+                1.0,
+                0.4932667285037588,
+                0.0
+              ],
+              "suspended": {},
+              "practice": [
+                [
+                  1,
+                  0,
+                  0.87717,
+                  -1,
+                  6,
+                  0
+                ],
+                [
+                  1,
+                  2,
+                  0.87717,
+                  -1,
+                  6,
+                  0
+                ]
+              ],
+              "climate": {
+                "period": 75,
+                "severity": 1.0,
+                "start_phase": "temperate",
+                "phase_offset": 0
+              },
+              "tuning": {
+                "climate.trend_share": 1.0
+              },
+              "yield_penalties": true,
+              "environment": "7:Avalon:1"
+            },
+            "control_output": 5.0587172538392045,
+            "treatment_output": 5.311653116531166,
+            "observed_control": 4.929701260237079,
+            "observed_treatment": 5.206350604886847,
+            "informative": true,
+            "supports": true,
+            "status": "completed",
+            "reason": "",
+            "event_id": ""
+          },
+          {
+            "id": 3,
+            "claim": 1,
+            "seat": 1,
+            "payer": 0,
+            "funded_turn": 12,
+            "completion_turn": 13,
+            "resolved_turn": 13,
+            "cost": 2,
+            "parent": 1,
+            "method": "fixed-crew-grain-v1",
+            "source_data": "source-6f6be03fc39d36e8",
+            "environment_block": "7:Avalon:1",
+            "dependence_group": "1:fixed-crew-grain-v1:7:Avalon:1",
+            "inputs": {
+              "region": 1,
+              "name": "Brook",
+              "turn": 12,
+              "context": {
+                "crop": "grain",
+                "soil_band": 3,
+                "water_band": 2,
+                "season": 0,
+                "climate_phase": "temperate",
+                "crew": 4,
+                "protocol": "fixed-crew-grain-v1"
+              },
+              "season": 0,
+              "phase": "temperate",
+              "ecology": {
+                "soil": 0.95,
+                "water": 0.7,
+                "forest_cover": 0.4
+              },
+              "types": [
+                0,
+                5,
+                255
+              ],
+              "base": [
+                1.0,
+                1.0,
+                0.0
+              ],
+              "effective": [
+                1.0,
+                1.0,
+                0.0
+              ],
+              "reserves": [
+                1.0,
+                0.4932667285037588,
+                0.0
+              ],
+              "suspended": {},
+              "practice": [
+                [
+                  1,
+                  0,
+                  0.87717,
+                  -1,
+                  6,
+                  0
+                ],
+                [
+                  1,
+                  2,
+                  0.87717,
+                  -1,
+                  6,
+                  0
+                ]
+              ],
+              "climate": {
+                "period": 75,
+                "severity": 1.0,
+                "start_phase": "temperate",
+                "phase_offset": 0
+              },
+              "tuning": {
+                "climate.trend_share": 1.0
+              },
+              "yield_penalties": true,
+              "environment": "7:Avalon:1"
+            },
+            "control_output": 5.280585004516712,
+            "treatment_output": 5.280585004516712,
+            "observed_control": 5.423663898061932,
+            "observed_treatment": 5.3501164081230295,
+            "informative": true,
+            "supports": false,
+            "status": "completed",
+            "reason": "",
+            "event_id": ""
+          }
+        ],
+        "allocations": []
+      }
+    }
+  ]
+}

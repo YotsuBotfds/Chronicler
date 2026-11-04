@@ -4,6 +4,7 @@ import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import fixture from "../../__fixtures__/region_inspection_bundle.json";
 import * as identity from "../../lib/artifactIdentity";
+import * as bundleFile from "../../lib/bundleFile";
 import { useBundle } from "../useBundle";
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
@@ -59,4 +60,73 @@ it("clears bundle identity on a rejected JSON file", async () => {
   expect(result.current.error).toContain("Invalid JSON");
   expect(result.current.bundle).toBeNull();
   expect(result.current.artifactIdentity).toBeNull();
+});
+
+it("retains the loaded world and original identity after failure, then accepts repeated and corrected loads", async () => {
+  vi.stubGlobal("crypto", webcrypto);
+  const { result } = renderHook(() => useBundle());
+  const file = new File([JSON.stringify(fixture)], "world.json");
+  act(() => result.current.loadFromFile(file));
+  await waitFor(() => expect(result.current.bundle).not.toBeNull());
+  const loaded = result.current.bundle;
+  const original = result.current.artifactIdentity;
+  for (const bad of ["not JSON", JSON.stringify({ ...fixture, metadata: null }), JSON.stringify(fixture.world_state)]) {
+    act(() => result.current.loadFromFile(new File([bad], "bad.json")));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.error).not.toBeNull();
+    expect(result.current.bundle).toBe(loaded);
+    expect(result.current.artifactIdentity).toBe(original);
+  }
+  act(() => result.current.loadFromFile(file));
+  await waitFor(() => expect(result.current.loading).toBe(false));
+  expect(result.current.error).toBeNull();
+  expect(result.current.artifactIdentity).toEqual(original);
+  const corrected = structuredClone(fixture);
+  corrected.metadata.seed = 1703;
+  act(() => result.current.loadFromFile(new File([JSON.stringify(corrected)], "corrected.json")));
+  await waitFor(() => expect(result.current.bundle?.metadata.seed).toBe(1703));
+  expect(result.current.artifactIdentity?.name).toBe("corrected.json");
+});
+
+it("ignores an older reader failure while a newer successful world is loaded", async () => {
+  const readers: FileReader[] = [];
+  const NativeReader = FileReader;
+  vi.stubGlobal("FileReader", class extends NativeReader {
+    constructor() { super(); readers.push(this); }
+    readAsArrayBuffer() { /* Tests deliver read results explicitly. */ }
+  });
+  const { result } = renderHook(() => useBundle());
+  act(() => result.current.loadFromFile(new File(["bad"], "old.json")));
+  act(() => result.current.loadFromFile(new File(["valid"], "new.json")));
+  await act(async () => readers[1].onload?.({ target: { result: new TextEncoder().encode(JSON.stringify(fixture)).buffer } } as ProgressEvent<FileReader>));
+  expect(result.current.artifactIdentity?.name).toBe("new.json");
+  act(() => readers[0].onerror?.({} as ProgressEvent<FileReader>));
+  expect(result.current.error).toBeNull();
+  expect(result.current.loading).toBe(false);
+  expect(result.current.bundle?.metadata.seed).toBe(1701);
+});
+
+it("retains the world after an unexpected decoder exception or file read failure", async () => {
+  const { result } = renderHook(() => useBundle());
+  const file = new File([JSON.stringify(fixture)], "world.json");
+  act(() => result.current.loadFromFile(file));
+  await waitFor(() => expect(result.current.loading).toBe(false));
+  const loaded = result.current.bundle;
+  const original = result.current.artifactIdentity;
+  vi.spyOn(bundleFile, "decodeBundleBytes").mockRejectedValueOnce(new Error("decode interrupted"));
+  act(() => result.current.loadFromFile(file));
+  await waitFor(() => expect(result.current.loading).toBe(false));
+  expect(result.current.error).toContain("decode interrupted");
+  expect(result.current.bundle).toBe(loaded);
+  expect(result.current.artifactIdentity).toBe(original);
+  const read = vi.spyOn(FileReader.prototype, "readAsArrayBuffer").mockImplementationOnce(() => { throw new Error("file unavailable"); });
+  act(() => result.current.loadFromFile(file));
+  expect(result.current.loading).toBe(false);
+  expect(result.current.error).toContain("file unavailable");
+  expect(result.current.bundle).toBe(loaded);
+  expect(result.current.artifactIdentity).toBe(original);
+  read.mockRestore();
+  act(() => result.current.loadFromFile(file));
+  await waitFor(() => expect(result.current.loading).toBe(false));
+  expect(result.current.error).toBeNull();
 });

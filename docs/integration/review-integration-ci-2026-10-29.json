@@ -1,0 +1,389 @@
+{
+  "kind": "curated_projection_of_immutable_integrated_CI_evidence",
+  "original_evidence_modified": false,
+  "source": {
+    "qualified_commit": "1205b6e48215c3e5c44d2bcb6376ca65827a7aab",
+    "qualification_is_for_exact_CI_source_not_later_documentation_head": true,
+    "branch": "lead/review-integration-20261029",
+    "runtime_qualified_parent": "9d5cb7e40e6975ba778291aa84cf7b4c7af2366f",
+    "runtime_qualified_parent_run": 40831049842,
+    "runtime_trees_identical_to_parent": {
+      "src": "b7fbcf15390a9330ca0b24c36e8dcd7f8e5fd2b9",
+      "tests": "f56380636891e3875b8cf2b978266168dc91974c",
+      "scripts": "bf529f1daf42ba6b3e2c4dcfbfebb5f13a9d869f",
+      "viewer": "54c38b6e75c5bcd436c4b17b8d2455d130640d2a",
+      "chronicler-agents": "912a1a2489f8f8c548df19302bb2c0a4365fc32e"
+    },
+    "reviewed_CI_component": "77e83c43b2861323afc142513e97589444be7971",
+    "non_docs_Git_mode_object_path_entries_exact_component": 1049,
+    "non_docs_inventory_SHA256": "c33cd9214fd549def82855ecbf40d3a46659b079d2389e04531d5ed722882fc2",
+    "workflow_SHA256": "2dc117396d676801153d4458a12d9fdd0021b80268099b85e35f00b7b6b423b1"
+  },
+  "run": {
+    "id": 40835337456,
+    "attempt": 1,
+    "url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40835337456",
+    "event": "workflow_dispatch",
+    "created_at": "2026-10-29T07:25:31Z",
+    "updated_at": "2026-10-29T07:38:05Z",
+    "all_six_jobs": "SUCCESS",
+    "one_dispatch_no_same_source_retry": true,
+    "jobs": [
+      {
+        "id": 123318680074,
+        "name": "Python bounded offline",
+        "conclusion": "success",
+        "started_at": "2026-10-29T07:25:34Z",
+        "completed_at": "2026-10-29T07:29:49Z"
+      },
+      {
+        "id": 123318680249,
+        "name": "Python no-Rust",
+        "conclusion": "success",
+        "started_at": "2026-10-29T07:25:34Z",
+        "completed_at": "2026-10-29T07:31:41Z"
+      },
+      {
+        "id": 123318680281,
+        "name": "Viewer",
+        "conclusion": "success",
+        "started_at": "2026-10-29T07:25:34Z",
+        "completed_at": "2026-10-29T07:26:48Z"
+      },
+      {
+        "id": 123318680378,
+        "name": "Python native execution",
+        "conclusion": "success",
+        "started_at": "2026-10-29T07:25:35Z",
+        "completed_at": "2026-10-29T07:37:59Z"
+      },
+      {
+        "id": 123318680410,
+        "name": "Rust",
+        "conclusion": "success",
+        "started_at": "2026-10-29T07:25:34Z",
+        "completed_at": "2026-10-29T07:26:28Z"
+      },
+      {
+        "id": 123322969654,
+        "name": "Python native",
+        "conclusion": "success",
+        "started_at": "2026-10-29T07:38:01Z",
+        "completed_at": "2026-10-29T07:38:04Z"
+      }
+    ]
+  },
+  "full_python": {
+    "native": {
+      "passed": 8323,
+      "skipped": 6,
+      "successful_subtests": 526,
+      "failures": 0,
+      "errors": 0,
+      "parent_testcase_elements": 8329,
+      "junit_tests_attribute": 8855,
+      "pytest_seconds": 550.31
+    },
+    "no_rust": {
+      "passed": 7990,
+      "skipped": 325,
+      "successful_subtests": 526,
+      "failures": 0,
+      "errors": 0,
+      "parent_testcase_elements": 8315,
+      "junit_tests_attribute": 8841,
+      "pytest_seconds": 345.83
+    }
+  },
+  "rust": {
+    "summaries": 37,
+    "passed": 1118,
+    "failed": 0,
+    "ignored": 2,
+    "measured": 0,
+    "filtered": 0
+  },
+  "offline": {
+    "chunks": 35,
+    "passed": 4218,
+    "failed": 0,
+    "skipped": 65,
+    "all_chunks_passed": true,
+    "seconds": 236.969119998,
+    "maximum_chunk_seconds": 38.99371842800001,
+    "chunk_limit_seconds": 110,
+    "source_hashes_verified_against_git": 324,
+    "native_modules_loaded": [],
+    "factory_calls": {
+      "ecology": 168,
+      "politics": 168
+    },
+    "blocked_io_attempt_count": 0
+  },
+  "viewer": {
+    "test_files_passed": 69,
+    "tests_passed": 743,
+    "lint": "success",
+    "build": "success"
+  },
+  "wrapper_preflights": {
+    "wrapper-contract-native": {
+      "added_to_full_suite_counts": false,
+      "blocked_IO": 0,
+      "evidence_upload_wall_seconds": 1.0,
+      "factory_calls": {
+        "ecology": 0,
+        "politics": 0
+      },
+      "failed": 0,
+      "guard": "PASS",
+      "job_id": 123318680378,
+      "later_step": "Build Rust extension wheel",
+      "later_step_started_at": "2026-10-29T07:25:47Z",
+      "native_imports": 0,
+      "nodes": [
+        [
+          "tests.test_practice_growth_observer",
+          "test_turn_wrappers_share_signature_and_forward_only_explicit_trace"
+        ],
+        [
+          "tests.test_turn_artifact_lifecycle",
+          "test_result_wrapper_preserves_signature_and_arguments"
+        ]
+      ],
+      "passed": 2,
+      "pytest_seconds": 0.2,
+      "skipped": 0,
+      "step_completed_at": "2026-10-29T07:25:46Z",
+      "step_started_at": "2026-10-29T07:25:44Z",
+      "step_wall_seconds": 2.0
+    },
+    "wrapper-contract-no-rust": {
+      "added_to_full_suite_counts": false,
+      "blocked_IO": 0,
+      "evidence_upload_wall_seconds": 1.0,
+      "factory_calls": {
+        "ecology": 0,
+        "politics": 0
+      },
+      "failed": 0,
+      "guard": "PASS",
+      "job_id": 123318680249,
+      "later_step": "Run Python tests without Rust extension",
+      "later_step_started_at": "2026-10-29T07:25:46Z",
+      "native_imports": 0,
+      "nodes": [
+        [
+          "tests.test_practice_growth_observer",
+          "test_turn_wrappers_share_signature_and_forward_only_explicit_trace"
+        ],
+        [
+          "tests.test_turn_artifact_lifecycle",
+          "test_result_wrapper_preserves_signature_and_arguments"
+        ]
+      ],
+      "passed": 2,
+      "pytest_seconds": 0.19,
+      "skipped": 0,
+      "step_completed_at": "2026-10-29T07:25:45Z",
+      "step_started_at": "2026-10-29T07:25:43Z",
+      "step_wall_seconds": 2.0
+    }
+  },
+  "artifact_contract": {
+    "original_five_member_layouts_unchanged": true,
+    "original_kinds": [
+      "python-native",
+      "python-no-rust",
+      "python-offline",
+      "native-wheel",
+      "rust"
+    ],
+    "added_kinds": [
+      "wrapper-contract-native",
+      "wrapper-contract-no-rust"
+    ],
+    "added_payloads_each": [
+      "guard.json",
+      "pytest.log",
+      "junit.xml"
+    ],
+    "official_ZIPs": 7,
+    "original_ZIP_bytes": 4185124,
+    "outer_members_verified": 83,
+    "originals_retained_once": true,
+    "four_preflight_passes_added_to_full_counts": false,
+    "preflight_cases_are_existing_contract_executions_not_independent_samples": true
+  },
+  "actual_native": {
+    "producer_job_id": 123318680378,
+    "installed_identity": {
+      "source_commit": "1205b6e48215c3e5c44d2bcb6376ca65827a7aab",
+      "python": "3.13.17 (main, Oct 22 2026, 02:40:32) [GCC 13.3.0]",
+      "executable": "/home/runner/work/Chronicler/Chronicler/.venv/bin/python",
+      "compiled_extension": "/home/runner/work/Chronicler/Chronicler/.venv/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+      "sha256": "3ee06a53b3c16dcba01bc53c8fe1dd97e530754a61d65fe2c1396b158b48e6d0",
+      "classes": [
+        "AgentSimulator",
+        "EcologySimulator",
+        "PoliticsSimulator"
+      ]
+    },
+    "wheel_manifest": {
+      "schema_version": 1,
+      "source_commit": "1205b6e48215c3e5c44d2bcb6376ca65827a7aab",
+      "wheel": {
+        "filename": "chronicler_agents-0.1.0-cp313-cp313-manylinux_2_34_x86_64.whl",
+        "bytes": 3915399,
+        "sha256": "f827e8d4474bceb9bf176f07bfcd1481a0d9a1dc7543b0d3bef91985dc50c89e",
+        "native_member": "chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so"
+      },
+      "installed_native": {
+        "filename": "chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+        "bytes": 13695168,
+        "sha256": "3ee06a53b3c16dcba01bc53c8fe1dd97e530754a61d65fe2c1396b158b48e6d0",
+        "wheel_member_sha256": "3ee06a53b3c16dcba01bc53c8fe1dd97e530754a61d65fe2c1396b158b48e6d0"
+      },
+      "scope": "Completed CI build identity only; no reproducibility, performance or scientific qualification",
+      "python": "3.13.17 (main, Oct 22 2026, 02:40:32) [GCC 13.3.0]",
+      "classes": [
+        "AgentSimulator",
+        "EcologySimulator",
+        "PoliticsSimulator"
+      ]
+    },
+    "opaque_nested_member": {
+      "bytes": 13695168,
+      "sha256": "3ee06a53b3c16dcba01bc53c8fe1dd97e530754a61d65fe2c1396b158b48e6d0"
+    },
+    "same_producer_manifest_installed_and_nested_SHA_match": true,
+    "binary_extracted_or_imported_for_detached_review": false,
+    "natural_study_single_actual_CPU_or_thread_context_qualified": false
+  },
+  "official_artifacts": [
+    {
+      "kind": "wrapper-contract-no-rust",
+      "id": 12880710984,
+      "name": "wrapper-contract-no-rust-1205b6e48215c3e5c44d2bcb6376ca65827a7aab",
+      "ZIP_bytes": 1004,
+      "ZIP_SHA256": "960fded10984cc10a116df404a4c21a34b6ebd94614f695aac3bb98e3f8637fb",
+      "expires_at": "2026-11-12T07:25:46Z",
+      "expired_at_capture": false
+    },
+    {
+      "kind": "rust",
+      "id": 12880278523,
+      "name": "rust-1205b6e48215c3e5c44d2bcb6376ca65827a7aab",
+      "ZIP_bytes": 715,
+      "ZIP_SHA256": "87747a679abefb32d808055c2bb1a5e894632f37eaaa4c96fd6560aec0dd9033",
+      "expires_at": "2026-11-12T07:26:23Z",
+      "expired_at_capture": false
+    },
+    {
+      "kind": "python-no-rust",
+      "id": 12880184354,
+      "name": "python-no-rust-1205b6e48215c3e5c44d2bcb6376ca65827a7aab",
+      "ZIP_bytes": 144584,
+      "ZIP_SHA256": "b7193507bc6e092f821e229a6c0e0d7cc8c9583c6364efced6c504ce725c508c",
+      "expires_at": "2026-11-12T07:31:37Z",
+      "expired_at_capture": false
+    },
+    {
+      "kind": "native-wheel",
+      "id": 12880044713,
+      "name": "native-wheel-1205b6e48215c3e5c44d2bcb6376ca65827a7aab",
+      "ZIP_bytes": 3850588,
+      "ZIP_SHA256": "3033dd722beb0d0c98350f5d41ef1088e511054cc8f3015baf927ecc7b2a5234",
+      "expires_at": "2026-11-12T07:37:50Z",
+      "expired_at_capture": false
+    },
+    {
+      "kind": "python-offline",
+      "id": 12879974673,
+      "name": "python-offline-1205b6e48215c3e5c44d2bcb6376ca65827a7aab",
+      "ZIP_bytes": 44513,
+      "ZIP_SHA256": "cfcf8044a32dac4cc8906b62c2f07d638f7f6e4ef9854a416be3528797a279f0",
+      "expires_at": "2026-11-12T07:29:41Z",
+      "expired_at_capture": false
+    },
+    {
+      "kind": "python-native",
+      "id": 12879889981,
+      "name": "python-native-1205b6e48215c3e5c44d2bcb6376ca65827a7aab",
+      "ZIP_bytes": 142718,
+      "ZIP_SHA256": "7d95dae9dea7f36740b221d378a932546b0173fdd34fc81b7d96f90d0e09610f",
+      "expires_at": "2026-11-12T07:37:48Z",
+      "expired_at_capture": false
+    },
+    {
+      "kind": "wrapper-contract-native",
+      "id": 12879674969,
+      "name": "wrapper-contract-native-1205b6e48215c3e5c44d2bcb6376ca65827a7aab",
+      "ZIP_bytes": 1002,
+      "ZIP_SHA256": "240a6a506dfc09b5352b3f9af27dda4a6c7d9ef486ce57cb153aa66043d80660",
+      "expires_at": "2026-11-12T07:25:46Z",
+      "expired_at_capture": false
+    }
+  ],
+  "scope": {
+    "genuine_practice_cases_PASS_each_full_lane": 2,
+    "genuine_scopes": [
+      "one technique-owner phase with accumulator application",
+      "fourteen full turns"
+    ],
+    "compiled_decision_cases_PASS_native_SKIP_absent": 7,
+    "equality_is_within_build_fixtures": true,
+    "observed_preflight_step_seconds_each": 2,
+    "observed_preflight_upload_seconds_each": 1,
+    "controlled_speedup_measurement": false
+  },
+  "preserved_prior_runs": {
+    "failed_b35": {
+      "source": "b35ccd7d3ddf4c19b3bc0b05dd69bde70b7d1ef0",
+      "run_id": 40828479409,
+      "result": "FAIL",
+      "sole_same_failure_each_full_lane": "tests.test_turn_artifact_lifecycle::test_result_wrapper_preserves_signature_and_arguments",
+      "manifest_SHA256": "e424263c74091efbb07f8b9d0d8f517b5b88bb9513e7246051558338ae786b99",
+      "unchanged": true
+    },
+    "qualified_9d": {
+      "source": "9d5cb7e40e6975ba778291aa84cf7b4c7af2366f",
+      "run_id": 40831049842,
+      "result": "PASS",
+      "manifest_SHA256": "7b5910f0d9d3ef48a37196fdcc1b7fce2bb2a0c958e6e0f155820c398ed79aee",
+      "unchanged": true
+    }
+  },
+  "separate_C76_to_95_parity": {
+    "status_as_reported_by_lead": "producer_PASS_independent_audit_PENDING",
+    "included_in_this_CI_qualification": false,
+    "new_parity_verification_for_projection": false
+  },
+  "evidence": {
+    "original_pack_external_path": "/workspace/chronicler-recovered-evidence/review-integration-ci-20261029",
+    "original_files": 37,
+    "original_payload_bytes": 4676182,
+    "original_manifest_SHA256": "15d2c3ee24b70200a03c7880a1878e0bd03a07324273d263e047ea5232b9cccb",
+    "original_result_SHA256": "f59f1c5bc0ff8061c225375124454a21cb37e19a1d8d93598971e4a8733a22e3",
+    "original_readout_SHA256": "bdc43e7eb0f03a91392ea5b20db3ef4237f46afb959bec9498901250c8cfc426",
+    "source_pins_SHA256": "4b8835dfdba8e9c917ee4629bdcc974ea156437592ea5a21b613558c6af8f280",
+    "independent_peer_path": "/workspace/chronicler-recovered-evidence/review-integration-ci-20261029-peer/receipt.json",
+    "independent_peer_SHA256": "ef1a5e5ab07324b169988b3f4e665e8022855b214836ba3bc513af6f083e1678",
+    "independent_peer_reader_SHA256": "933b56317e1aff40403df017aa76bc1f1397f7e579ea31d2c2c7ae34d769ba37",
+    "independent_peer_verdict": "CLEAR",
+    "complete_ZIP_member_size_CRC_SHA_EOF_and_stability_checks": true,
+    "offline_Git_source_hashes_verified": 324,
+    "new_transfers_tests_project_native_imports_Worlds_or_source_changes_for_projection": 0
+  },
+  "limits": [
+    "Projection only, not the complete result or original producer evidence.",
+    "Qualification belongs to exact1205 CI source, not later documentation heads.",
+    "Full parent passes/skips/subtests remain separate; four early passes are not added.",
+    "No default promotion, main merge, full scientific qualification or causal growth/welfare result.",
+    "Within-build fixtures do not establish old/new whole-world, 9d-versus-candidate exports or raw/global RNG parity.",
+    "No controlled CPU, wall-clock, peak-RSS or simulation speed improvement is established.",
+    "Source/native identity does not grant historical-binary or downstream study reuse.",
+    "Separate C76-to95 parity producer passed per lead report; its independent audit is pending and excluded here.",
+    "Frozen C76 and its natural-study source, seeds, budgets and results are unchanged."
+  ]
+}

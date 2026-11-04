@@ -1,3 +1,14 @@
+import type { LearningServicesSnapshot } from "./learningServicesTypes";
+import type { HarvestForecastSnapshot, HealthCareSnapshot, RitualGatheringsSnapshot, ScientificClaimsSnapshot, TransactionReceiptsSnapshot } from "./expansionTypes";
+export type {
+  HarvestForecastReport, HarvestForecastSnapshot, HarvestPreparedness, HealthCareRegion, HealthCareSnapshot,
+  RitualGatheringOutcome, RitualGatheringSchedule, RitualGatheringsSnapshot,
+  ScientificAllocation, ScientificBelief, ScientificClaimsSnapshot, ScientificContext, ScientificProposition, ScientificTrial,
+  ScientificResearchAgendas, ScientificResearchCycle, ResearchCapacityKey,
+  TransactionReceiptsSnapshot,
+} from "./expansionTypes";
+export type { NativeTransactionObservation, PublicPurchaseFrame, PublicPurchaseObservation } from "./transactionTypes";
+
 // --- Enums (matching Python str enums) ---
 
 export type TechEra =
@@ -237,6 +248,38 @@ export interface RelationshipSnapshot {
   disposition: string;
 }
 
+export interface FoodAccountingNative {
+  opening: number; produced: number; transport_net: number; craft_input: number;
+  clamp_correction: number; pre_consumption: number; consumed: number; storage_loss: number;
+  cap_overflow: number; closing: number; demand: number; sufficiency: number;
+  balance_residual: number; balance_tolerance: number;
+}
+export interface FoodAccountingPublic {
+  owner_id: number; opening: number | null; released: number; spoiled: number; abandoned: number;
+  captured: number; after_open: number; balance_residual: number | null;
+}
+export interface FoodAccountingSnapshot {
+  schema_version: 1; mode: string; source_turn: number; completed_turn: number;
+  timing: "phase2"; units: "model_food_goods";
+  transport: "physical_delivery" | "abstract_allocation" | "none";
+  regions: Array<{ region_id: number; native_count: number | null; model_population: number;
+    native: FoodAccountingNative | null; sufficiency_after_relief: number | null; public: FoodAccountingPublic | null }>;
+  procurement: Array<{ civilization_id: number; budget_initial: number; budget_remaining: number; spent: number }>;
+}
+
+export interface HouseholdMobilitySample {
+  group_id: number; origin_region_id: number; destination_region_id: number; native_persons: number;
+  local_food_sufficiency: number | null; native_adult_liquid_wealth: number; required_liquid: number;
+  reason: "sufficient" | "insufficient" | "no_local_distress" | "unknown_destination" | "on_trip";
+}
+export interface HouseholdMobilitySnapshot {
+  schema_version: 1; source_turn: number; completed_turn: number; timing: "agent_decision_post_consolidation";
+  mode: string; wealth_units: "native_agent_wealth"; person_units: "native_agents";
+  passed_means: "gate_passed_not_observed_move"; requirement_per_native_person: number;
+  proposed_groups: number; proposed_native_persons: number; passed_groups: number; passed_native_persons: number;
+  blocked_groups: number; blocked_native_persons: number; dropped_samples: number; samples: HouseholdMobilitySample[];
+}
+
 export interface TurnSnapshot {
   turn: number;
   civ_stats: Record<string, CivSnapshot>;
@@ -302,12 +345,30 @@ export interface TurnSnapshot {
    * written after the viewer map layers).
    */
   food?: FoodSnapshot;
+  /** Completed Phase 2 food accounting, when recorded. */
+  food_accounting?: FoodAccountingSnapshot;
+  /** Versioned regional model/native counts and Phase 2 food weights; absent in older bundles. */
+  regional_population?: RegionalPopulationSnapshot;
+  /** Public granaries at this snapshot, only with active --grain-reserves. */
+  grain_reserves?: GrainReservesSnapshot;
+  /** Actual hybrid injury and household-care observations; absent when off. */
+  health_care?: HealthCareSnapshot;
+  /** Delayed harvest reports and actual preparedness purchases; absent when off. */
+  harvest_forecasts?: HarvestForecastSnapshot;
+  /** Actual local gatherings, payments and immutable schedules; absent when off. */
+  ritual_gatherings?: RitualGatheringsSnapshot;
+  /** Contextual institutional claims and paid trials, recorded only when enabled. */
+  scientific_claims?: ScientificClaimsSnapshot;
+  /** Optional source-dated merchant observations, carried unchanged by transport. */
+  transaction_receipts?: TransactionReceiptsSnapshot;
   /**
    * Agent migrations of the completed turn as [from region index, to region
    * index, agents]; present only in hybrid and shadow runs written after the
    * viewer map layers.
    */
   migration?: MigrationFlow[];
+  /** Optional native household mobility gate observation for the completed turn. */
+  household_mobility?: HouseholdMobilitySnapshot;
 }
 
 export interface ContactTradePair {
@@ -446,6 +507,8 @@ export interface SeatSnapshotRow {
 }
 
 export interface ScholarshipSnapshot {
+  /** Optional source-dated academy materials and modeled service records. */
+  learning_services?: LearningServicesSnapshot;
   seats: SeatSnapshotRow[];
   fallen: number;
   /** Running totals (founded, rises, declines, fallen, refuges, carried, upkeep, ...). */
@@ -620,6 +683,29 @@ export interface CityRecord {
   history: Array<[number, string, string]>;
 }
 
+export type RegionalPopulationSource = "python_region_state" | "hybrid_region_state" | "demographics_clamped_region_state" | "uncontrolled_region_state";
+export interface RegionalPopulationSnapshot {
+  schema_version: 1;
+  mode: "off" | "hybrid" | "shadow" | "demographics-only";
+  source_turn: number;
+  completed_turn: number;
+  timing: "completed_turn";
+  /** Indexed exactly by world.regions; completed MODEL Region.population. */
+  counts: number[];
+  sources: RegionalPopulationSource[];
+  /** Actual completed native pool counts, separately measured from the model. */
+  agent_counts: number[] | null;
+  agent_source: "native_region_alive_count" | null;
+  food_weights: {
+    source: "phase2_agent_pool";
+    source_turn: number;
+    timing: "phase2_entry";
+    counts: number[];
+    /** Stable world.civilizations indices at Phase 2 entry, not completed owners. */
+    controller_ids: (number | null)[];
+  } | null;
+}
+
 export interface FoodSnapshot {
   /** Per region index: food on hand over need (0-2), null where not observed. */
   sufficiency: Array<number | null>;
@@ -688,6 +774,43 @@ export interface FinanceSnapshot {
   /** Number of open credit lines. */
   loans: number;
   totals: Record<string, number>;
+  /** Who funds domestic loans; present only with --domestic-credit. */
+  domestic_credit?: DomesticCreditSnapshot;
+}
+
+/**
+ * Who holds one borrower's debt at the turn boundary
+ * (`finance.domestic_credit.holders`, bundles written with --domestic-credit
+ * since the holders view). Empty parts are omitted.
+ */
+export interface DebtHoldersRecord {
+  /** Foreign lender civilization -> [principal, rate per turn]. */
+  foreign?: Record<string, [number, number]>;
+  /** Rate per turn of the domestic line. */
+  rate?: number;
+  /** Merchants' claims by region name. */
+  merchants?: Record<string, number>;
+  /** Cities' claims by city name. */
+  cities?: Record<string, number>;
+  /** Guilds' claims by guild name. */
+  guilds?: Record<string, number>;
+  /** Debt written off on this civilization so far (cumulative). */
+  written_off?: number;
+}
+
+export interface DomesticCreditSnapshot {
+  /** Outstanding domestic claims of all borrowers by kind of lender (merchants, guild, city, legacy, houses). */
+  claims: Record<string, number>;
+  /** Per living borrower: its domestic claims by kind of lender, non-zero only. */
+  civs: Record<string, Record<string, number>>;
+  /** Number of funder claims on open lines. */
+  lenders: number;
+  /** Merchant credits (or debits) not yet applied to the agents' wealth. */
+  merchant_due: number;
+  /** Merchants' grievance toward a defaulting lord, by region (0.01 and above). */
+  grievance: Record<string, number>;
+  /** Per borrower, who holds its debt; absent in older bundles and when nobody owes anything. */
+  holders?: Record<string, DebtHoldersRecord>;
 }
 
 export interface DiplomacyTreaty {
@@ -895,6 +1018,90 @@ export interface BundleMetadata {
   narrator_mode?: NarratorMode | string;
 }
 
+export interface GranarySnapshotRow {
+  region: number;
+  region_name: string;
+  /** Recorded keeper, a civ index; -1 means no public keeper. */
+  owner: number;
+  owner_name: string | null;
+  /** Territorial controller can differ until the next Phase 2 owner settlement. */
+  controller: string | null;
+  grain: number;
+  target: number;
+  observed: number;
+}
+
+export interface GranaryFlow {
+  kind: "bought" | "released" | "spoiled" | "seized" | "abandoned" | "captured" | "dispatched" | "arrived" | "storage_returned";
+  region: number;
+  amount: number;
+  source: number;
+  seller: number;
+  buyer: number;
+  buyer_name: string | null;
+  seller_name: string | null;
+  sent: number;
+  cost: number;
+  before: number;
+  after: number;
+}
+
+export interface PublicGrainTransition {
+  id: string;
+  operation: "dispatched" | "arrived";
+  turn: number;
+  dispatch_turn: number;
+  due_turn: number;
+  source: number;
+  source_name: string;
+  dest: number;
+  dest_name: string;
+  buyer: number;
+  buyer_name: string;
+  seller: number;
+  seller_name: string;
+  keeper: number;
+  sent: number;
+  net: number;
+  loss: number;
+  /** Original payment, including on arrival rows; no second payment. */
+  paid: number;
+}
+
+export interface PublicGrainShipmentSnapshot {
+  schema_version: 1;
+  accept_orders: boolean;
+  source_turn: number;
+  pending_count: number;
+  /** Paid cargo in transit, excluded from granary stocks and edible supply. */
+  pending_net: number;
+  transitions: PublicGrainTransition[];
+}
+
+export interface GrainStorageSnapshot {
+  schema_version: 1;
+  assets: Array<{ capacity: number; condition: number; repair_progress: number; expansion_progress: number; owner: number } | null>;
+  policies: Array<{ policy: "neglect" | "maintain" | "expand"; work_budget: number }>;
+  receipt_turn: number | null;
+  receipts: Array<{ turn: number; region: number; owner: number; policy: "neglect" | "maintain" | "expand";
+    requested: number; delivered: number; timber_reserved: number; timber_used: number; timber_returned: number;
+    treasury_paid: number; condition_before: number; condition_after: number; capacity_before: number; capacity_after: number;
+    repair_progress: number; expansion_progress: number; target_requested: number | null; target_feasible: number | null;
+    capacity_returned: number }>;
+}
+
+export interface GrainReservesSnapshot {
+  /** Completed simulation turn: history turn T records source_turn T-1. */
+  source_turn: number;
+  granaries: GranarySnapshotRow[];
+  flows: GranaryFlow[];
+  counters: Record<string, number>;
+  /** Absent in older or never-enabled records; absence does not mean zero cargo. */
+  shipments?: PublicGrainShipmentSnapshot;
+  /** Optional versioned storage assets and completed work. */
+  storage?: GrainStorageSnapshot;
+}
+
 export interface Bundle {
   world_state: WorldState;
   /**
@@ -924,6 +1131,8 @@ export interface Bundle {
 // --- Live mode types ---
 
 export interface PauseContext {
+  /** Fresh server-provided paused-boundary restoration candidates, never historical state. */
+  academy_restoration?: unknown;
   turn: number;
   reason: string;
   valid_commands: string[];

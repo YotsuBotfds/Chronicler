@@ -12,6 +12,13 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field, PrivateAttr
 
+from chronicler.public_grain_shipments_state import PublicGrainShipmentState
+from chronicler.grain_storage_state import GrainStorageState
+
+
+def _is_none(value):
+    return value is None
+
 #: ``ReserveFlow.kind`` names: what moved grain into or out of a granary
 #: this turn. ``bought`` comes from a market (``source`` region, its
 #: ``seller`` civ: the owner itself or a foreign one); ``released`` is eaten
@@ -19,8 +26,8 @@ from pydantic import BaseModel, Field, PrivateAttr
 #: share a conquest or an occupying army took; ``abandoned`` is grain left to
 #: the region's market when its granary has no owner; ``captured`` records a
 #: new owner taking the granary (no grain moves).
-FLOW_KINDS: tuple[str, ...] = ("bought", "released", "spoiled", "seized", "abandoned", "captured")
-BOUGHT, RELEASED, SPOILED, SEIZED, ABANDONED, CAPTURED = range(len(FLOW_KINDS))
+FLOW_KINDS: tuple[str, ...] = ("bought", "released", "spoiled", "seized", "abandoned", "captured", "dispatched", "arrived", "storage_returned")
+BOUGHT, RELEASED, SPOILED, SEIZED, ABANDONED, CAPTURED, DISPATCHED, ARRIVED, STORAGE_RETURNED = range(len(FLOW_KINDS))
 
 #: Cumulative counters kept on ``GrainReserveState.counters`` (insertion order).
 COUNTER_KEYS: tuple[str, ...] = (
@@ -57,6 +64,11 @@ class ReserveFlow(BaseModel):
     cost: int = 0                    # bought: treasury paid
     before: float = 0.0              # released: food sufficiency before the release
     after: float = 0.0               # released: food sufficiency after it
+    shipment_order: int | None = Field(default=None, exclude_if=_is_none)
+
+    def __setstate__(self, state):
+        super().__setstate__(state)
+        self.__dict__.setdefault("shipment_order", None)
 
 
 class GrainReserveState(BaseModel):
@@ -70,9 +82,29 @@ class GrainReserveState(BaseModel):
     flows: list[ReserveFlow] = Field(default_factory=list)
     flows_turn: int | None = None
     counters: dict[str, float] = Field(default_factory=lambda: {k: 0.0 for k in COUNTER_KEYS})
+    # None stays omitted for never-enabled old JSON. Paid cargo survives disabling.
+    shipments: PublicGrainShipmentState | None = Field(default=None, exclude_if=_is_none)
+    storage: GrainStorageState | None = Field(default=None, exclude_if=_is_none)
     # The turn's resource ledger (``grain_reserves.ReserveLedger``) from the
     # Phase 2 tick to the end of the Phase 10 tick; None between turns.
     _ledger: object | None = PrivateAttr(default=None)
+
+    def __getstate__(self):
+        state = super().__getstate__()
+        if self.storage is None:
+            # Pydantic returns the live __dict__; filtering the serialized
+            # shape must never delete a field from the running world.
+            state["__dict__"] = state["__dict__"].copy()
+            state["__dict__"].pop("storage", None)
+            if "storage" in state["__pydantic_fields_set__"]:
+                state["__pydantic_fields_set__"] = state["__pydantic_fields_set__"] - {"storage"}
+        return state
+
+    def __setstate__(self, state):
+        super().__setstate__(state)
+        # Exact pickle restoration bypasses Pydantic defaults.
+        self.__dict__.setdefault("shipments", None)
+        self.__dict__.setdefault("storage", None)
 
 
 def grain_reserves_on(world) -> bool:

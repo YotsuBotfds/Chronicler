@@ -16,6 +16,7 @@ use crate::agent::{
     W_MIGRATE_OPP, W_MIGRATE_SAT, W_REBEL, W_SWITCH,
 };
 use crate::migration_drivers::*;
+use crate::decision_delivery::{DecisionObserver, NoDelivery, RegionDelivery};
 use crate::pool::AgentPool;
 use crate::region::RegionState;
 use crate::satisfaction::target_occupation_ratio;
@@ -230,6 +231,18 @@ fn best_migration_target_for_agent(
     slot: usize,
     mobility: Option<&Mobility>,
 ) -> MigrationChoice {
+    best_migration_target_observed(pool, regions, stats, region_id, slot, mobility, &mut NoDelivery)
+}
+
+fn best_migration_target_observed<O: DecisionObserver>(
+    pool: &AgentPool,
+    regions: &[RegionState],
+    stats: &RegionStats,
+    region_id: usize,
+    slot: usize,
+    mobility: Option<&Mobility>,
+    observer: &mut O,
+) -> MigrationChoice {
     let civ = pool.civ_affinity(slot);
     let belief = pool.beliefs[slot];
     let own_pop = region_population_count(stats, region_id);
@@ -277,6 +290,7 @@ fn best_migration_target_for_agent(
         {
             continue;
         }
+        if O::ENABLED { observer.begin_candidate(adj as u16, own_score, own_pop_ratio, adj_pop_ratio); }
 
         // Healthy-world drivers: frontier, wage gap, chain, net of roots.
         let voluntary = match mobility {
@@ -296,11 +310,14 @@ fn best_migration_target_for_agent(
                 gate_open[2] |= gross.chain > 0.0;
                 gate_open[3] |= gross.urban > 0.0;
                 gate_open[4] |= gross.learning > 0.0;
-                gross.net_of_roots(m.roots)
+                let net = gross.net_of_roots(m.roots);
+                if O::ENABLED { observer.candidate_pull(&gross, m.roots, &net); }
+                net
             }
             None => VoluntaryPull::default(),
         };
         let pull = voluntary.total();
+        if O::ENABLED { observer.candidate_before_hysteresis(pull); }
 
         // A region nobody lives in has no satisfaction or stores to judge it
         // by (both read 0). An agent pulled there (frontier settlers) judges
@@ -321,7 +338,9 @@ fn best_migration_target_for_agent(
         // leave again at once: seen from there, home must score less than
         // the hysteresis better (the river bonus counts from both sides).
         // Otherwise the opportunity term would carry the mover back.
-        let (voluntary, pull) = if own_score + river - (adj_score - river) < MIGRATE_HYSTERESIS {
+        let hysteresis_kept = own_score + river - (adj_score - river) < MIGRATE_HYSTERESIS;
+        if O::ENABLED { observer.candidate_hysteresis(hysteresis_kept); }
+        let (voluntary, pull) = if hysteresis_kept {
             (voluntary, pull)
         } else {
             (VoluntaryPull::default(), 0.0)
@@ -363,7 +382,8 @@ fn best_migration_target_for_agent(
             }
         }
 
-        if with_pull(adj_score, pull) > best_adj_score {
+        let became_best = with_pull(adj_score, pull) > best_adj_score;
+        if became_best {
             best_adj_score = with_pull(adj_score, pull);
             best_base_score = adj_score;
             best_adj_id = adj as u16;
@@ -371,6 +391,7 @@ fn best_migration_target_for_agent(
             best_news = adj_score - pre_news_score;
             best_voluntary = voluntary;
         }
+        if O::ENABLED { observer.end_candidate(pull, adj_score, river, pre_news_score, became_best); }
     }
 
     MigrationChoice {
@@ -890,6 +911,28 @@ pub fn evaluate_region_decisions_with<L: crate::pool::SlotLookup>(
     id_to_slot: &L,  // M57b
     options: DecisionOptions,
 ) -> (PendingDecisions, u32) {
+    evaluate_region_decisions_observer(pool, slots, regions, region_state, stats, region_id,
+        rng, id_to_slot, options, &mut NoDelivery)
+}
+
+/// The opt-in observer has its own monomorphized path; ordinary decisions
+/// instantiate the zero-sized no-op sink above.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn evaluate_region_decisions_with_delivery<L: crate::pool::SlotLookup>(
+    pool: &AgentPool, slots: &[usize], regions: &[RegionState], region_state: &RegionState,
+    stats: &RegionStats, region_id: usize, rng: &mut ChaCha8Rng, id_to_slot: &L,
+    options: DecisionOptions, observer: &mut RegionDelivery<'_>,
+) -> (PendingDecisions, u32) {
+    evaluate_region_decisions_observer(pool, slots, regions, region_state, stats, region_id,
+        rng, id_to_slot, options, observer)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn evaluate_region_decisions_observer<L: crate::pool::SlotLookup, O: DecisionObserver>(
+    pool: &AgentPool, slots: &[usize], regions: &[RegionState], region_state: &RegionState,
+    stats: &RegionStats, region_id: usize, rng: &mut ChaCha8Rng, id_to_slot: &L,
+    options: DecisionOptions, observer: &mut O,
+) -> (PendingDecisions, u32) {
     let ablation = options.ablation;
     let ablate_needs = ablation & crate::scale::ABLATE_NEEDS != 0;
     let ablate_kin_roots = ablation & crate::scale::ABLATE_KIN_ROOTS != 0;
@@ -903,9 +946,11 @@ pub fn evaluate_region_decisions_with<L: crate::pool::SlotLookup>(
         if !pool.is_alive(slot) {
             continue;
         }
+        if O::ENABLED { observer.begin_agent(pool, slot, region_id); }
 
         // M58a: Skip non-idle merchants from decisions (on trip)
         if pool.is_on_trip(slot) {
+            if O::ENABLED { observer.trip(); }
             continue;
         }
 
@@ -918,6 +963,7 @@ pub fn evaluate_region_decisions_with<L: crate::pool::SlotLookup>(
         let ambi = pool.ambition(slot);
         let ltrait = pool.loyalty_trait(slot);
         let is_displaced = pool.displacement_turns(slot) > 0;
+        if O::ENABLED { observer.evaluated(is_displaced); }
         let choice = if is_displaced {
             MigrationChoice::stay(region_id)
         } else {
@@ -931,7 +977,8 @@ pub fn evaluate_region_decisions_with<L: crate::pool::SlotLookup>(
                     m.drop_relationship_roots(pool.ages[slot]);
                 }
             }
-            best_migration_target_for_agent(pool, regions, stats, region_id, slot, mobility.as_ref())
+            if O::ENABLED { observer.mobility(mobility.as_ref()); }
+            best_migration_target_observed(pool, regions, stats, region_id, slot, mobility.as_ref(), observer)
         };
         pending.migration_drivers.count_open_pulls(&choice.voluntary, &choice.gate_open);
         let best_migration_target = choice.target;
@@ -956,6 +1003,7 @@ pub fn evaluate_region_decisions_with<L: crate::pool::SlotLookup>(
             migrate_utility(sat, migration_opportunity)
                 * personality_modifier(bold, BOLD_MIGRATE_WEIGHT)
         };
+        if O::ENABLED { observer.stage(0, migrate_util); }
 
         // M38b: Persecution boosts for agents outside the persecuting ruler's faith
         let mut persecution_push = 0.0f32;
@@ -973,10 +1021,15 @@ pub fn evaluate_region_decisions_with<L: crate::pool::SlotLookup>(
         if !is_displaced {
             migrate_util += mem_mods.migrate;
         }
+        if O::ENABLED { observer.stage(1, migrate_util); }
 
         // M49: Need-driven utility modifiers — additive, applied after memory, before gate
         let need_mods = if ablate_needs {
             crate::needs::NeedUtilityModifiers::default()
+        } else if O::ENABLED {
+            let (mods, trace) = crate::needs::compute_need_utility_modifiers_with_trace(pool, slot);
+            observer.need(&trace, !is_displaced);
+            mods
         } else {
             crate::needs::compute_need_utility_modifiers(pool, slot)
         };
@@ -991,6 +1044,7 @@ pub fn evaluate_region_decisions_with<L: crate::pool::SlotLookup>(
         if !is_displaced {
             migrate_util += need_mods.migrate;
         }
+        if O::ENABLED { observer.stage(2, migrate_util); }
 
         // Healthy-world drivers: the voluntary pull toward the chosen target,
         // net of roots (zero for displaced or ineligible agents).
@@ -998,6 +1052,7 @@ pub fn evaluate_region_decisions_with<L: crate::pool::SlotLookup>(
         if voluntary_pull > 0.0 {
             migrate_util += voluntary_pull;
         }
+        if O::ENABLED { observer.stage(3, migrate_util); }
 
         // M57b: Household-effective wealth modulates migration threshold for married agents.
         // Wealthier households are less likely to migrate (higher opportunity cost).
@@ -1005,13 +1060,18 @@ pub fn evaluate_region_decisions_with<L: crate::pool::SlotLookup>(
             let eff_wealth = crate::household::household_effective_wealth(pool, slot, id_to_slot);
             let personal_wealth = pool.wealth[slot];
             if eff_wealth > personal_wealth {
-                // Married with pooled wealth: dampen migration utility slightly
-                // Ratio > 1.0 means spouse has wealth; damp migration by inverse power.
-                let ratio = eff_wealth / personal_wealth.max(0.01);
-                migrate_util *= HOUSEHOLD_MIGRATION_MARRIED_FACTOR
+                // The denominator floor can exceed a poor household's pooled wealth.
+                // Keep that numerical guard from turning damping into amplification.
+                let ratio = (eff_wealth / personal_wealth.max(0.01)).max(1.0);
+                let wealth_factor = HOUSEHOLD_MIGRATION_MARRIED_FACTOR
                     * (1.0 / ratio.powf(HOUSEHOLD_MIGRATION_WEALTH_DAMP_EXPONENT));
+                migrate_util *= wealth_factor;
+                if O::ENABLED { observer.wealth(personal_wealth, eff_wealth, wealth_factor, true); }
+            } else if O::ENABLED {
+                observer.wealth(personal_wealth, eff_wealth, 1.0, false);
             }
         }
+        if O::ENABLED { observer.stage(4, migrate_util); }
 
         let u_rebel = if rebel_util > 0.0 { rebel_util } else { f32::NEG_INFINITY };
         // Gate: if no better destination exists (best target is own region), force
@@ -1026,6 +1086,7 @@ pub fn evaluate_region_decisions_with<L: crate::pool::SlotLookup>(
                 let ties = crate::community::community_ties(pool, slot, region_id, id_to_slot);
                 pending.migration_drivers.record_community_ties(ties.counted());
                 let anchor = ties.anchor_with(full_anchor);
+                if O::ENABLED { observer.anchor(anchor); }
                 if anchor > 0.0 { migrate_util - anchor } else { migrate_util }
             } else {
                 migrate_util
@@ -1033,6 +1094,7 @@ pub fn evaluate_region_decisions_with<L: crate::pool::SlotLookup>(
         } else {
             f32::NEG_INFINITY
         };
+        if O::ENABLED { observer.stage(5, u_migrate); }
 
         let (u_switch_base, switch_target) = switch_utility(
             occ,
@@ -1057,6 +1119,10 @@ pub fn evaluate_region_decisions_with<L: crate::pool::SlotLookup>(
             rng,
             DECISION_TEMPERATURE,
         );
+        if O::ENABLED {
+            observer.final_decision(best_migration_target, migration_opportunity, voluntary_pull,
+                [u_rebel, u_migrate, u_switch, u_stay], chosen as u8);
+        }
 
         match chosen {
             0 => {
@@ -1133,6 +1199,7 @@ pub fn evaluate_region_decisions_with<L: crate::pool::SlotLookup>(
                     effective_drift *= 1.0 - LOYALTY_RALLY_DRIFT_DAMPING * rally;
                     pending.loyalty_drifts_damped_by_rally += 1;
                 }
+                if O::ENABLED { observer.autonomy(autonomy_deficit, autonomy_factor, effective_drift); }
                 if loy - effective_drift < LOYALTY_FLIP_THRESHOLD {
                     // Would drop below flip threshold — flip civ
                     pending.loyalty_flips.push((slot, other_civ));
@@ -2337,6 +2404,27 @@ mod tests {
     }
 
     #[test]
+    fn decision_delivery_observes_gross_roots_and_net_pull_before_target_selection() {
+        use rand::SeedableRng;
+        for age in [25, rooted_age()] {
+            let (pool, regions, movers) = frontier_world(age, false);
+            let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
+            let config = crate::decision_delivery::DeliveryConfig::new(64, 128, None).unwrap();
+            let mut observer = crate::decision_delivery::RegionDelivery::new(&config, 0, 1);
+            let mut rng = rand_chacha::ChaCha8Rng::from_seed([7u8; 32]);
+            evaluate_region_decisions_with_delivery(&pool, &movers, &regions, &regions[0], &stats,
+                0, &mut rng, &pool.build_id_slots(), DecisionOptions::default(), &mut observer);
+            assert_eq!(observer.candidates.len(), movers.len());
+            assert!(observer.candidates.iter().all(|r| r.gross[0] > 0.0));
+            if age == 25 {
+                assert!(observer.candidates.iter().all(|r| r.net[0] > 0.0 && r.roots == 0.0));
+            } else {
+                assert!(observer.candidates.iter().all(|r| r.net[0] == 0.0 && r.roots > 0.0));
+            }
+        }
+    }
+
+    #[test]
     fn test_frontier_settlers_leave_a_full_region_for_an_emptier_one_of_the_realm() {
         let pending = frontier_decisions(25, false);
         assert!(pending.migrations.len() >= 2, "got {}", pending.migrations.len());
@@ -2746,6 +2834,52 @@ mod ablation_tests {
     }
 
     #[test]
+    fn decision_delivery_preserves_decisions_rng_and_read_only_pool_bytes() {
+        let (pool, regions, slots) = world(60);
+        let stats = compute_region_stats(&pool, &regions, &signals());
+        let ids = pool.build_id_slots();
+        let before = crate::persist::encode(crate::persist::KIND_AGENT, &pool);
+        for ablation in [0, crate::scale::ABLATE_NEEDS, crate::scale::ABLATE_KIN_ROOTS] {
+            let options = DecisionOptions { ablation, ..Default::default() };
+            let mut plain_rng = rand_chacha::ChaCha8Rng::from_seed([7u8; 32]);
+            let mut observed_rng = plain_rng.clone();
+            let (plain, count) = evaluate_region_decisions_with(&pool, &slots, &regions,
+                &regions[0], &stats, 0, &mut plain_rng, &ids, options);
+            let config = crate::decision_delivery::DeliveryConfig::new(128, 128, None).unwrap();
+            let mut observer = crate::decision_delivery::RegionDelivery::new(&config, 0, 1);
+            let (observed, observed_count) = evaluate_region_decisions_with_delivery(&pool,
+                &slots, &regions, &regions[0], &stats, 0, &mut observed_rng, &ids, options, &mut observer);
+            assert!(same(&plain, &observed));
+            assert_eq!(count, observed_count);
+            assert_eq!(plain.migration_followers, observed.migration_followers);
+            assert_eq!(plain.migration_drivers.share.map(f64::to_bits), observed.migration_drivers.share.map(f64::to_bits));
+            for _ in 0..16 { assert_eq!(plain_rng.next_u64(), observed_rng.next_u64()); }
+            assert_eq!(observer.decisions.len(), slots.len());
+            assert!(observer.decisions.iter().all(|r| r.final_utilities_valid));
+            assert!(observer.decisions.iter().all(|r| r.needs_computed == (ablation & crate::scale::ABLATE_NEEDS == 0)));
+        }
+        assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &pool), before);
+    }
+
+    #[test]
+    fn decision_delivery_displacement_records_computed_but_unapplied_needs() {
+        let (mut pool, regions, slots) = world(1);
+        pool.displacement_turns[slots[0]] = 3;
+        let stats = compute_region_stats(&pool, &regions, &signals());
+        let config = crate::decision_delivery::DeliveryConfig::new(16, 16, None).unwrap();
+        let mut observer = crate::decision_delivery::RegionDelivery::new(&config, 0, 1);
+        let mut rng = rand_chacha::ChaCha8Rng::from_seed([7u8; 32]);
+        evaluate_region_decisions_with_delivery(&pool, &slots, &regions, &regions[0], &stats,
+            0, &mut rng, &pool.build_id_slots(), DecisionOptions::default(), &mut observer);
+        let row = &observer.decisions[0];
+        assert!(row.needs_computed);
+        assert!(!row.needs_migration_applied);
+        assert_eq!(row.utilities[1].to_bits(), f32::NEG_INFINITY.to_bits());
+        assert!(observer.candidates.is_empty());
+        assert_eq!(row.chosen_action == 1, false);
+    }
+
+    #[test]
     fn needs_ablation_removes_need_driven_actions_and_draws_the_same_numbers() {
         let (pool, regions, slots) = world(400);
         let (plain, plain_next) = decide(&pool, &regions, &slots, None);
@@ -2916,6 +3050,186 @@ mod ablation_tests {
         let (plain, _) = decide_with(&pool, &regions, &slots, DecisionOptions::default());
         assert_eq!(none, plain.migrations.len());
         assert!(calibrated < none && strong <= calibrated);
+    }
+}
+
+/// Regression coverage for the actual pooled-wealth decision stage, not a
+/// second implementation of the multiplier. These fixtures never tick a World.
+#[cfg(test)]
+mod household_wealth_damping_tests {
+    use super::*;
+    use crate::agent::{Occupation, MAX_WEALTH};
+    use crate::relationships::{self, BondType};
+    use rand::SeedableRng;
+
+    #[derive(Default)]
+    struct WealthProbe {
+        wealth: Option<(f32, f32, f32, bool)>,
+        stages: [f32; 6],
+    }
+
+    impl DecisionObserver for WealthProbe {
+        const ENABLED: bool = true;
+
+        fn wealth(&mut self, personal: f32, effective: f32, factor: f32, applied: bool) {
+            assert!(self.wealth.is_none(), "one subject must have one wealth observation");
+            self.wealth = Some((personal, effective, factor, applied));
+        }
+
+        fn stage(&mut self, stage: usize, value: f32) {
+            self.stages[stage] = value;
+        }
+    }
+
+    fn fixture(personal: f32, spouse: Option<f32>)
+        -> (AgentPool, Vec<RegionState>, usize, Option<usize>)
+    {
+        let mut regions = vec![RegionState::new(0), RegionState::new(1)];
+        for region in &mut regions {
+            region.controller_civ = 0;
+            region.carrying_capacity = 100;
+            region.food_sufficiency = 1.0;
+        }
+        regions[0].adjacency = vec![1];
+        regions[1].adjacency = vec![0];
+        let mut pool = AgentPool::new(4);
+        let subject = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0,
+            0, 1, 2, crate::agent::BELIEF_NONE);
+        pool.wealth[subject] = personal;
+        pool.set_satisfaction(subject, 0.1);
+        pool.set_loyalty(subject, 0.9);
+        pool.need_safety[subject] = 1.0;
+        pool.need_material[subject] = 1.0;
+        pool.need_social[subject] = 1.0;
+        pool.need_spiritual[subject] = 1.0;
+        pool.need_autonomy[subject] = 1.0;
+        pool.need_purpose[subject] = 1.0;
+        let spouse_slot = spouse.map(|wealth| {
+            let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0,
+                0, 1, 2, crate::agent::BELIEF_NONE);
+            pool.wealth[slot] = wealth;
+            assert!(relationships::upsert_symmetric(&mut pool, subject, slot,
+                BondType::Marriage as u8, 100, 0));
+            slot
+        });
+        // A fed, satisfied neighbour gives the subject an actual destination.
+        let resident = pool.spawn(1, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0,
+            0, 1, 2, crate::agent::BELIEF_NONE);
+        pool.set_satisfaction(resident, 0.95);
+        (pool, regions, subject, spouse_slot)
+    }
+
+    fn observe(pool: &AgentPool, regions: &[RegionState], subject: usize) -> WealthProbe {
+        let signals = TickSignals { civs: vec![], contested_regions: vec![false; 2] };
+        let stats = compute_region_stats(pool, regions, &signals);
+        let mut rng = rand_chacha::ChaCha8Rng::from_seed([7u8; 32]);
+        let mut probe = WealthProbe::default();
+        evaluate_region_decisions_observer(pool, &[subject], regions, &regions[0],
+            &stats, 0, &mut rng, &pool.build_id_slots(), DecisionOptions::default(), &mut probe);
+        probe
+    }
+
+    fn assert_stage_product(probe: &WealthProbe, factor: f32) {
+        assert!(probe.stages[3].is_finite() && probe.stages[3] > 0.0);
+        assert_eq!(probe.stages[4].to_bits(), (probe.stages[3] * factor).to_bits());
+        assert!(probe.stages[4].is_finite() && probe.stages[4] <= probe.stages[3]);
+    }
+
+    #[test]
+    fn below_floor_pooled_wealth_never_amplifies_migration() {
+        for (personal, spouse) in [
+            (0.0, 0.005), (0.001, 0.001), (0.006, 0.003),
+            (0.0, f32::MIN_POSITIVE), (0.0, f32::from_bits(1)),
+        ] {
+            let (pool, regions, subject, _) = fixture(personal, Some(spouse));
+            let probe = observe(&pool, &regions, subject);
+            let (observed_personal, effective, factor, applied) = probe.wealth.unwrap();
+            assert_eq!(observed_personal.to_bits(), personal.to_bits());
+            assert_eq!(effective.to_bits(), (personal + spouse).to_bits());
+            assert!(applied && effective > personal && effective < 0.01);
+            assert_eq!(factor.to_bits(), 0.88_f32.to_bits());
+            assert_stage_product(&probe, factor);
+        }
+    }
+
+    #[test]
+    fn ratios_at_or_above_one_preserve_the_old_multiplier_bits() {
+        for (personal, spouse) in [
+            (0.0, 0.01), (0.0, f32::from_bits(0.01_f32.to_bits() + 1)),
+            (0.005, 0.005), (0.005, 0.006), (0.01, 0.001), (0.01, 0.01),
+            (0.5, 0.5), (50.0, MAX_WEALTH), (MAX_WEALTH, MAX_WEALTH),
+            (0.0, MAX_WEALTH), (f32::from_bits(1), MAX_WEALTH),
+        ] {
+            let (pool, regions, subject, _) = fixture(personal, Some(spouse));
+            let probe = observe(&pool, &regions, subject);
+            let (_, effective, factor, applied) = probe.wealth.unwrap();
+            let old_ratio = effective / personal.max(0.01);
+            assert!(applied && old_ratio >= 1.0);
+            // Deliberately retain the previous coefficients and operation order.
+            let old_factor = 0.88_f32 * (1.0 / old_ratio.powf(1.20));
+            assert_eq!(factor.to_bits(), old_factor.to_bits());
+            assert_stage_product(&probe, factor);
+        }
+    }
+
+    #[test]
+    fn zero_added_wealth_and_unmarried_agents_keep_the_identity_factor() {
+        for (personal, spouse) in [
+            (0.0, Some(0.0)), (0.5, Some(0.0)), (0.0, None),
+            (0.005, None), (0.01, None), (MAX_WEALTH, None),
+        ] {
+            let (pool, regions, subject, _) = fixture(personal, spouse);
+            let probe = observe(&pool, &regions, subject);
+            let (_, effective, factor, applied) = probe.wealth.unwrap();
+            assert!(!applied);
+            assert_eq!(effective.to_bits(), personal.to_bits());
+            assert_eq!(factor.to_bits(), 1.0_f32.to_bits());
+            assert_stage_product(&probe, factor);
+        }
+    }
+
+    #[test]
+    fn dead_spouses_and_displacement_keep_the_existing_wealth_guards() {
+        let (mut pool, regions, subject, spouse) = fixture(0.0, Some(0.005));
+        pool.kill(spouse.unwrap());
+        let probe = observe(&pool, &regions, subject);
+        let (_, effective, factor, applied) = probe.wealth.unwrap();
+        assert!(!applied && effective == 0.0 && factor == 1.0);
+        assert_stage_product(&probe, factor);
+
+        let (mut pool, regions, subject, _) = fixture(0.0, Some(0.005));
+        pool.displacement_turns[subject] = 1;
+        let probe = observe(&pool, &regions, subject);
+        assert!(probe.wealth.is_none());
+        assert_eq!(probe.stages[4].to_bits(), probe.stages[3].to_bits());
+    }
+
+    #[test]
+    fn finite_wealth_extremes_produce_finite_nonnegative_damping() {
+        for (personal, spouse) in [
+            (0.0, f32::from_bits(1)), (f32::from_bits(1), f32::from_bits(1)),
+            (f32::MIN_POSITIVE, f32::MIN_POSITIVE), (0.0, MAX_WEALTH),
+            (f32::from_bits(1), MAX_WEALTH), (MAX_WEALTH, MAX_WEALTH),
+        ] {
+            let (pool, regions, subject, _) = fixture(personal, Some(spouse));
+            let probe = observe(&pool, &regions, subject);
+            let (_, effective, factor, applied) = probe.wealth.unwrap();
+            assert!(applied && effective.is_finite());
+            assert!(factor.is_finite() && (0.0..=0.88).contains(&factor));
+            assert_stage_product(&probe, factor);
+        }
+    }
+
+    #[test]
+    fn increasing_pooled_wealth_never_increases_the_multiplier() {
+        let mut previous = 0.88_f32;
+        for spouse in [0.001, 0.003, 0.008, 0.009, 0.01, 0.1, 1.0, MAX_WEALTH] {
+            let (pool, regions, subject, _) = fixture(0.001, Some(spouse));
+            let probe = observe(&pool, &regions, subject);
+            let (_, _, factor, applied) = probe.wealth.unwrap();
+            assert!(applied && factor.is_finite() && factor <= previous);
+            previous = factor;
+        }
     }
 }
 

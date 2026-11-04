@@ -1,5 +1,6 @@
 import type { TurnSnapshot } from "../../types";
 import { crisesAtSnapshot, sufficiencyByRegion, type FamineSpan } from "../../lib/food";
+import { observationAt } from "../../lib/observedSystems";
 import {
   formatShare, pathogenColor, pathogenLabel, regionOutbreaks, regionPractice, techniqueLabel,
 } from "../../lib/systems";
@@ -27,11 +28,14 @@ export function RegionSystemsDetail({
   const epidemics = snapshot?.epidemics;
   const techniques = snapshot?.techniques;
   const campaign = snapshot?.campaign;
+  const health = observationAt(snapshot, "health_care");
+  const forecasts = observationAt(snapshot, "harvest_forecasts");
+  const gatherings = observationAt(snapshot, "ritual_gatherings");
   const turn = snapshot?.turn ?? 0;
   const span = crisesAtSnapshot(famine.filter((entry) => entry.region === region), turn)[0] ?? null;
   const sufficiency = snapshot?.food ? sufficiencyByRegion(snapshot, regionNames).get(region) : undefined;
   const showFood = !!snapshot?.food || famine.length > 0;
-  if (!epidemics && !techniques && !campaign && !showFood) {
+  if (!epidemics && !techniques && !campaign && !showFood && !health && !forecasts && !gatherings) {
     return null;
   }
   const controller = snapshot?.region_control?.[region] ?? null;
@@ -39,9 +43,45 @@ export function RegionSystemsDetail({
   const practice = regionPractice(snapshot, region);
   const armies = campaign?.armies.filter((army) => army.region === region) ?? [];
   const occupation = campaign?.occupations.find((entry) => entry.region === region) ?? null;
+  const injury = health?.regions.find((entry) => entry.region_name === region);
+  const assessments = forecasts?.reports.filter((entry) => entry.recipient_region_name === region) ?? [];
+  const preparation = forecasts?.preparedness.find((entry) => entry.region_name === region);
+  const gathering = gatherings?.outcomes.find((entry) => entry.region_name === region && entry.turn === gatherings.source_turn);
+  const schedule = gatherings?.schedules.find((entry) => entry.region_name === region);
 
   return (
     <div className="systems-region-detail" aria-label={`Systems in ${region}`}>
+      {health && <div className="systems-region-block" aria-label={`Injury and care in ${region}`}>
+        <div className="phase75-overline">Injury and household care · simulation turn {health.source_turn}</div>
+        {injury ? <>
+          <div className="phase75-stat-row"><span>Active injuries</span><strong>{injury.episodes}</strong></div>
+          <div className="phase75-stat-row"><span>Farmer work lost</span><strong>{injury.impaired_work.toFixed(2)} worker-turns</strong></div>
+          <div className="phase75-stat-row"><span>Care work</span><strong>{injury.care_work.toFixed(2)} worker-turns</strong></div>
+          <div className="phase75-stat-row"><span>Care recipients</span><strong>{injury.care_recipients}</strong></div>
+        </> : <div className="systems-note">No injury observation for this region.</div>}
+      </div>}
+      {forecasts && <div className="systems-region-block" aria-label={`Harvest forecasts in ${region}`}>
+        <div className="phase75-overline">Harvest reports · simulation turn {forecasts.source_turn}</div>
+        {assessments.length ? assessments.map((row) => <div key={row.id} className="phase75-mini-card">
+          <strong>{row.status} · {(100 * row.probability).toFixed(0)}% production shortfall risk</strong>
+          <span>Winter {row.target_start}–{row.target_end}; expires {row.expires_turn};
+            delivery {row.delivered_turn == null ? "not recorded" : `at ${row.delivered_turn}`}; confidence {(100 * row.confidence).toFixed(0)}%.</span>
+        </div>) : <div className="systems-note">No active harvest report recorded for this region.</div>}
+        {preparation && <>
+          <div className="phase75-stat-row"><span>Extra stock target</span><strong>{preparation.extra_target.toFixed(2)} grain</strong></div>
+          <div className="phase75-stat-row"><span>Bought while warned</span><strong>{preparation.bought_during_warning.toFixed(2)} grain</strong></div>
+          <div className="phase75-stat-row"><span>Actual treasury paid</span><strong>{preparation.paid_during_warning}</strong></div>
+        </>}
+      </div>}
+      {gatherings && <div className="systems-region-block" aria-label={`Harvest gatherings in ${region}`}>
+        <div className="phase75-overline">Harvest gathering · simulation turn {gatherings.source_turn}</div>
+        {gathering ? <>
+          <div className="phase75-stat-row"><span>Status</span><strong>{gathering.status}{gathering.reason ? `: ${gathering.reason}` : ""}</strong></div>
+          <div className="phase75-stat-row"><span>Recorded attendees</span><strong>{gathering.attendee_ids.length}</strong></div>
+          <div className="phase75-stat-row"><span>Food / treasury spent</span><strong>{gathering.food.toFixed(2)} grain / {gathering.funds}</strong></div>
+        </> : <div className="systems-note">No gathering occurrence recorded in this completed turn.</div>}
+        {schedule && <div className="phase75-stat-row"><span>Next scheduled turn</span><strong>{schedule.next_turn} (a plan)</strong></div>}
+      </div>}
       {showFood && (
         <div className="systems-region-block" aria-label={`Food in ${region}`}>
           <div className="phase75-overline">Food · turn {turn}</div>

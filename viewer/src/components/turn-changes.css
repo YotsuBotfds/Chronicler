@@ -1,0 +1,16 @@
+.turn-changes { min-width: 0; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid #444336; }
+.turn-changes h2, .turn-changes h3 { margin: .8rem 0; }
+.turn-changes p { margin: .6rem 0; overflow-wrap: anywhere; }
+.turn-changes-controls { display: flex; flex-wrap: wrap; gap: .8rem; align-items: end; }
+.turn-changes-controls label { display: flex; flex-direction: column; gap: .3rem; min-width: 0; }
+.turn-changes-controls label:first-child { flex: 1 1 220px; }
+.turn-changes select, .turn-changes button { max-width: 100%; min-width: 0; border: 1px solid #5e5b46; border-radius: .4rem; background: #242726; color: #ebe7d5; padding: .45rem .6rem; }
+.turn-changes-table { max-width: 100%; overflow-x: auto; }
+.turn-changes table { width: 100%; min-width: 530px; border-collapse: collapse; }
+.turn-changes td, .turn-changes th { border-bottom: 1px solid #393d3a; padding: .6rem; text-align: left; }
+.turn-changes th small { display: block; max-width: 30rem; color: #b7b09d; font-weight: normal; }
+.turn-changes-events { list-style: none; padding: 0; }
+.turn-changes-events li { display: flex; justify-content: space-between; gap: .8rem; flex-wrap: wrap; padding: .6rem 0; border-bottom: 1px solid #393d3a; overflow-wrap: anywhere; }
+.turn-changes-events li > span { flex: 1 1 240px; }
+.turn-changes-events li > div { display: flex; flex-wrap: wrap; gap: .4rem; }
+@media (max-width: 520px) { .turn-changes-controls label { flex: 1 1 100%; } }

@@ -303,6 +303,169 @@ def test_a_rich_city_founds_a_library_from_its_purse(monkeypatch):
     assert small.wealth == 50.0
 
 
+def _recovery_site(kind):
+    """One otherwise eligible patron, so founding draws always passing
+    expose a missing recovery condition without unrelated institutions."""
+    world = _world(turn=183)
+    for civ in world.civilizations:
+        civ.treasury = 0
+    region = world.regions[VERDANT]
+    if kind == ACADEMY:
+        world.civilizations[THORNWALL].treasury = 200
+    elif kind == TEMPLE_SCHOOL:
+        _temple(region, world.civilizations[THORNWALL].civ_majority_faith, prestige=200)
+    else:
+        C.set_cities_enabled(world, True)
+        world.cities.cities.append(City(
+            settlement_id=3, region=VERDANT, name="Verdant", founded_turn=1,
+            founder=THORNWALL, lord=THORNWALL, rank=2, residents=30, size=30.0, wealth=200.0))
+    return world
+
+
+def _food_report(world, event_type="famine"):
+    region = world.regions[VERDANT]
+    report = Event(turn=world.turn, event_type=event_type, region=region.name,
+                   actors=[region.controller], description=f"{event_type.title()} in {region.name}")
+    kept = prov.observe(world, [report])
+    world.events_timeline.extend(kept)
+    return kept
+
+
+@pytest.mark.parametrize("kind", [ACADEMY, TEMPLE_SCHOOL, LIBRARY])
+def test_fallen_seats_wait_for_famine_end_and_resume_identically(kind, monkeypatch, tmp_path):
+    """Review regression: fall at 183, formerly refounded at 185, while
+    the same famine episode continued until the end of 193."""
+    _no_draw(monkeypatch)
+    world = _recovery_site(kind)
+    faith = world.civilizations[THORNWALL].civ_majority_faith if kind == TEMPLE_SCHOOL else 255
+    _si, old = _seat(world, VERDANT, kind=kind, faith=faith, city=3 if kind == LIBRARY else 0)
+    out = _tick(world, _food_report(world))
+    fell = next(ev for ev in out if ev.event_type == "seat_fell")
+    assert old.fallen_turn == 183 and old.fall_cause == FAMINE
+    assert not S.living_seats(world), "a fall cannot be followed by a same-turn founding"
+    world.events_timeline.extend(prov.end_turn(world))
+    resumed = None
+    for turn in range(184, 195):
+        for current in (world,) if resumed is None else (world, resumed):
+            current.turn = turn
+            reports = _food_report(current) if turn == 188 else []
+            events = _tick(current, reports)
+            if turn <= 193:
+                assert not S.living_seats(current), f"recovery founded during famine at {turn}"
+                assert "seat_founded" not in _types(events)
+            else:
+                [(new_index, new)] = S.living_seats(current)
+                assert new_index == 1 and new.founded_turn == 194
+                founded = next(ev for ev in events if ev.event_type == "seat_founded")
+                assert fell.event_id in founded.causes
+                assert "learning returns after the fall" in founded.description
+                assert new.history == [(194, "founded", founded.event_id)]
+            current.events_timeline.extend(prov.end_turn(current))
+        if turn == 185:
+            path = tmp_path / "during_famine.json"
+            world.save(path)
+            resumed = WorldState.load(path)
+        if resumed is not None:
+            assert world.model_dump_json() == resumed.model_dump_json()
+    assert any(ev.event_type == "famine_ended" and ev.turn == 193 for ev in world.events_timeline)
+
+
+@pytest.mark.parametrize("kind", [ACADEMY, TEMPLE_SCHOOL, LIBRARY])
+@pytest.mark.parametrize("evidence", ["report", "episode", "severity", "cooldown"])
+def test_no_new_institution_during_actual_famine(kind, evidence, monkeypatch):
+    _no_draw(monkeypatch)
+    world = _recovery_site(kind)
+    region = world.regions[VERDANT]
+    reports = []
+    if evidence in ("report", "episode"):
+        reports = _food_report(world)
+        if evidence == "report":
+            world.provenance.episodes.clear()  # direct caller not yet observed by the turn loop
+        else:
+            world.turn += 2
+            reports = []                      # no report this turn; episode is still running
+    elif evidence == "severity":
+        region.food_shortfall, region.food_severe_turns = 0.7, 3
+        region.famine_cooldown, region.dearth_cooldown = 2, True
+    else:
+        region.famine_cooldown = 3             # aggregate/old-save fallback
+    before = world.scholarship.counters["fees"]
+    assert _tick(world, reports) == []
+    assert not world.scholarship.seats and world.scholarship.counters["fees"] == before
+
+
+@pytest.mark.parametrize("kind", [ACADEMY, TEMPLE_SCHOOL, LIBRARY])
+def test_dearth_alone_does_not_prevent_founding(kind, monkeypatch):
+    _no_draw(monkeypatch)
+    world = _recovery_site(kind)
+    region = world.regions[VERDANT]
+    region.famine_cooldown, region.dearth_cooldown = 3, True
+    region.food_shortfall, region.food_severe_turns = 0.3, None
+    events = _tick(world, _food_report(world, "dearth"))
+    assert len(S.living_seats(world)) == 1
+    assert "seat_founded" in _types(events)
+
+
+@pytest.mark.parametrize("kind", [ACADEMY, TEMPLE_SCHOOL, LIBRARY])
+def test_regional_recovery_uses_latest_fall_regardless_of_patron_or_kind(kind, monkeypatch):
+    _no_draw(monkeypatch)
+    world = _recovery_site(kind)
+    # The new patron cannot evade the interval by changing institution kind.
+    _si, old = _seat(world, VERDANT, kind=(kind + 1) % 3, founded=100)
+    old.level, old.fallen_turn, old.fall_cause = 0, 170, SACK
+    old.history = [(170, "fell", "170:seat_fell:0")]
+    _sj, latest = _seat(world, VERDANT, kind=(kind + 2) % 3, founded=171)
+    latest.level, latest.fallen_turn, latest.fall_cause = 0, 183, PATRONAGE
+    latest.history = [(183, "fell", "183:seat_fell:0")]
+    for turn in range(183, 183 + S.RECOVERY_TURNS):
+        world.turn = turn
+        _tick(world)
+        assert not S.living_seats(world)
+    world.turn += 1
+    events = _tick(world)
+    [(index, new)] = S.living_seats(world)
+    assert index == 2 and new.kind == kind and new.founded_turn == 193
+    founded = next(ev for ev in events if ev.event_type == "seat_founded")
+    assert founded.causes == ["183:seat_fell:0"]
+
+
+def test_neglect_cannot_replace_an_academy_with_a_temple_school_in_the_same_turn(monkeypatch):
+    _no_draw(monkeypatch)
+    world = _recovery_site(TEMPLE_SCHOOL)
+    _si, academy = _seat(world, VERDANT, kind=ACADEMY)
+    academy.unpaid, academy.owed = S.NEGLECT_PAYMENTS - 1, 1.0
+    events = _tick(world)
+    assert academy.fallen_turn == 183 and academy.fall_cause == PATRONAGE
+    assert "seat_fell" in _types(events)
+    assert "seat_founded" not in _types(events) and len(world.scholarship.seats) == 1
+    # Plenty of temple prestige and passing founding draws do not shorten recovery.
+    for turn in range(184, 183 + S.RECOVERY_TURNS):
+        world.turn = turn
+        _tick(world)
+        assert not S.living_seats(world)
+    world.turn = 183 + S.RECOVERY_TURNS
+    _tick(world)
+    assert S.living_seats(world)[0][1].kind == TEMPLE_SCHOOL
+
+
+def test_a_sacked_city_cannot_found_a_library_without_a_provenance_record(monkeypatch):
+    _no_draw(monkeypatch)
+    world = _recovery_site(LIBRARY)
+    world.cities.cities[0].last_sack = world.turn
+    assert _tick(world) == []
+    assert not world.scholarship.seats and world.cities.cities[0].wealth == 200.0
+
+
+def test_recovery_elsewhere_does_not_hold_back_a_healthy_site(monkeypatch):
+    _no_draw(monkeypatch)
+    world = _recovery_site(ACADEMY)
+    _si, elsewhere = _seat(world, THORNWOOD)
+    elsewhere.level, elsewhere.fallen_turn, elsewhere.fall_cause = 0, world.turn, SACK
+    _tick(world)
+    [(index, new)] = S.living_seats(world)
+    assert index == 1 and new.region == VERDANT
+
+
 # --- upkeep, scholars and rises ---------------------------------------------------------
 
 def test_upkeep_is_paid_as_keep_treasury_with_the_fraction_carried(monkeypatch):

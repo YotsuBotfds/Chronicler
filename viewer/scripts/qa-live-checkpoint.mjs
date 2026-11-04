@@ -4,11 +4,13 @@
  * (docs/integration/checkpoint-continuation.md, section 11). Opt-in, not CI.
  *
  *   PYTHONPATH=../src node scripts/qa-live-checkpoint.mjs \
- *     [--python python3] [--viewer http://localhost:5173] [--out DIR] [--agents off]
+ *     [--python python3] [--viewer http://localhost:5173] [--out DIR] [--agents off] \
+ *     [--chromium /path/to/chromium]
  *
  * Needs a running viewer (`npm run dev`, or `npm run build` and
  * `npm run preview -- --port 4173`), headless Chromium through Playwright
  * (`require("playwright")`) and a Python that imports `chronicler`. It
+ * uses Playwright's managed browser unless `--chromium` names an executable. It
  * starts its own live sessions (`--live --live-port 0 --simulate-only`,
  * stopped by their own PIDs) and, in headless Chromium:
  *
@@ -49,7 +51,7 @@ function parseArgs(argv) {
   // The default output path has no hyphen or space: the panel must wrap a
   // path that has none.
   const options = { python: "python3", viewer: "http://localhost:5173",
-    out: path.join(os.tmpdir(), "chronicler_live_checkpoint_qa"), agents: "off" };
+    out: path.join(os.tmpdir(), "chronicler_live_checkpoint_qa"), agents: "off", chromium: null };
   for (let index = 0; index < argv.length; index += 2) {
     const key = argv[index].replace(/^--/, "");
     if (!(key in options) || argv[index + 1] === undefined) throw new Error(`unknown or empty option ${argv[index]}`);
@@ -150,7 +152,7 @@ async function pausedAt(page, turn) {
 async function main() {
   rmSync(options.out, { recursive: true, force: true });
   mkdirSync(options.out, { recursive: true });
-  const browser = await chromium.launch();
+  const browser = await chromium.launch(options.chromium ? { executablePath: options.chromium } : undefined);
   const errors = [];
   try {
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });

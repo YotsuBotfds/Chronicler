@@ -1,6 +1,7 @@
 import {
   actorEventsUpTo, eventKey, eventsOfType, eventsUpTo, provenanceOf, type IndexedEvent,
 } from "../../lib/bundleIndex";
+import { observationEventKnown } from "../../lib/observedSystems";
 
 /**
  * The header's setup line for a loaded bundle without a scenario: what kind of
@@ -158,11 +159,17 @@ export function eventProvenance<E extends ProvenanceEventLike>(
   events: E[],
   selected: E | null,
   upToTurn?: number,
+  sourceTurn = upToTurn === undefined ? undefined : upToTurn - 1,
 ): { causes: E[]; effects: E[] } {
   if (!selected?.event_id) {
     return { causes: [], effects: [] };
   }
-  return provenanceOf(events, selected, upToTurn);
+  if (sourceTurn !== undefined && !observationEventKnown(selected, sourceTurn)) return { causes: [], effects: [] };
+  const result = provenanceOf(events, selected, upToTurn);
+  return sourceTurn === undefined ? result : {
+    causes: result.causes.filter((event) => observationEventKnown(event, sourceTurn)),
+    effects: result.effects.filter((event) => observationEventKnown(event, sourceTurn)),
+  };
 }
 
 /** Events the Event Log lists. */
@@ -180,11 +187,22 @@ export function buildEventFeed<E extends IndexedEvent>(
   events: E[],
   currentTurn: number,
   focusCivilization: string | null,
+  sourceTurn = currentTurn - 1,
 ): E[] {
+  // Walk only enough indexed results to fill the feed; no per-scrub scan of
+  // the entire source timeline is introduced for default-off worlds.
+  const takeKnown = (rows: E[]) => {
+    const out: E[] = [];
+    for (const event of rows) {
+      if (observationEventKnown(event, sourceTurn)) out.push(event);
+      if (out.length >= EVENT_FEED_LIMIT) break;
+    }
+    return out;
+  };
   if (focusCivilization === null) {
-    return eventsUpTo(events, currentTurn).slice(0, EVENT_FEED_LIMIT);
+    return takeKnown(eventsUpTo(events, currentTurn));
   }
-  const focused = actorEventsUpTo(events, focusCivilization, currentTurn);
+  const focused = takeKnown(actorEventsUpTo(events, focusCivilization, currentTurn));
   if (focused.length >= EVENT_FEED_FOCUS_MIN) {
     return focused.slice(0, EVENT_FEED_LIMIT);
   }
@@ -193,7 +211,7 @@ export function buildEventFeed<E extends IndexedEvent>(
     if (merged.length >= EVENT_FEED_LIMIT) {
       break;
     }
-    if (!merged.includes(event)) {
+    if (observationEventKnown(event, sourceTurn) && !merged.includes(event)) {
       merged.push(event);
     }
   }

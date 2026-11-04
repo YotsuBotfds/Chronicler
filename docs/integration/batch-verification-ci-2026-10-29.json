@@ -1,0 +1,655 @@
+{
+  "schema_version": 1,
+  "kind": "chronicler-batch-verification-ci-readout",
+  "repository": "YotsuBotfds/Chronicler",
+  "recorded_at_utc": "2026-10-29 02:05:50 UTC",
+  "documentation_base_sha": "ec85795e3d22f1419fe11f8cc40ff71c0541d3a5",
+  "ci_runs": [
+    {
+      "key": "e984",
+      "source_sha": "e984be2adc2e6fdf27b4442b852a9e6789b6617b",
+      "workflow_control_sha": "e984be2adc2e6fdf27b4442b852a9e6789b6617b",
+      "scope": "Reject validation inputs added after their manifest was recorded",
+      "branch": "lead/batch-validation-input-set-20261029",
+      "package_git_tree": "994849274df9bbab92ab7f10e5901f92d8f6d93a",
+      "rust_git_tree": "a4703ef4e9a21b5dbb194d318536a46e6ca8b71c",
+      "run": {
+        "id": 40801509650,
+        "run_attempt": 1,
+        "html_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40801509650",
+        "path": ".github/workflows/tests.yml",
+        "event": "push",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-10-29T01:37:15Z",
+        "run_started_at": "2026-10-29T01:37:15Z",
+        "updated_at": "2026-10-29T01:50:11Z"
+      },
+      "created_to_first_job_start_seconds": 2,
+      "created_to_last_job_complete_seconds": 776,
+      "counts": {
+        "native_python": {
+          "parent_passed": 8039,
+          "skipped": 6,
+          "successful_subtests": 526,
+          "pytest_reported_seconds": 580.94
+        },
+        "no_rust_python": {
+          "parent_passed": 7725,
+          "skipped": 306,
+          "successful_subtests": 526,
+          "pytest_reported_seconds": 439.85
+        },
+        "bounded_offline": {
+          "chunks": 32,
+          "passed": 3941,
+          "skipped": 65,
+          "per_chunk_limit_seconds": 110,
+          "sum_of_rounded_chunk_seconds": 236.3,
+          "slowest_printed_chunk": {
+            "name": "systems-2",
+            "printed_seconds": 40.2,
+            "limit_seconds": 110,
+            "passed": 313,
+            "skipped": 17,
+            "failed": 0
+          },
+          "validation_tooling_chunk": {
+            "name": "validation-tooling",
+            "printed_seconds": 10.3,
+            "limit_seconds": 110,
+            "passed": 237,
+            "skipped": 0,
+            "failed": 0
+          }
+        },
+        "rust": {
+          "passed": 1088,
+          "failed": 0,
+          "ignored": 2,
+          "measured": 0,
+          "filtered_out": 0,
+          "suite_summaries": 37
+        },
+        "viewer": {
+          "passed": 743,
+          "files_passed": 69,
+          "lint": "success",
+          "production_build": "success"
+        }
+      },
+      "jobs": [
+        {
+          "id": 123210450932,
+          "name": "Python native execution",
+          "status": "completed",
+          "conclusion": "success",
+          "created_at": "2026-10-29T01:37:15Z",
+          "started_at": "2026-10-29T01:37:18Z",
+          "completed_at": "2026-10-29T01:50:06Z",
+          "html_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40801509650/job/123210450932",
+          "wall_seconds": 768,
+          "selected_steps": [
+            {
+              "number": 10,
+              "name": "Build Rust extension wheel",
+              "conclusion": "success",
+              "started_at": "2026-10-29T01:37:33Z",
+              "completed_at": "2026-10-29T01:40:09Z",
+              "wall_seconds": 156
+            },
+            {
+              "number": 11,
+              "name": "Run Python tests with real native extension preloaded",
+              "conclusion": "success",
+              "started_at": "2026-10-29T01:40:09Z",
+              "completed_at": "2026-10-29T01:49:54Z",
+              "wall_seconds": 585
+            }
+          ],
+          "retained_decoded_log_sha256": "4d71ffbe39ec9ad2a088e88ec86eef34f84c8a4aea2f83c125e982bd8fc57950",
+          "retained_decoded_log_bytes": 87735
+        },
+        {
+          "id": 123210451157,
+          "name": "Viewer",
+          "status": "completed",
+          "conclusion": "success",
+          "created_at": "2026-10-29T01:37:15Z",
+          "started_at": "2026-10-29T01:37:17Z",
+          "completed_at": "2026-10-29T01:39:04Z",
+          "html_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40801509650/job/123210451157",
+          "wall_seconds": 107,
+          "selected_steps": [
+            {
+              "number": 5,
+              "name": "Run viewer tests",
+              "conclusion": "success",
+              "started_at": "2026-10-29T01:37:27Z",
+              "completed_at": "2026-10-29T01:38:34Z",
+              "wall_seconds": 67
+            },
+            {
+              "number": 6,
+              "name": "Lint viewer",
+              "conclusion": "success",
+              "started_at": "2026-10-29T01:38:34Z",
+              "completed_at": "2026-10-29T01:38:47Z",
+              "wall_seconds": 13
+            },
+            {
+              "number": 7,
+              "name": "Build viewer for production",
+              "conclusion": "success",
+              "started_at": "2026-10-29T01:38:47Z",
+              "completed_at": "2026-10-29T01:39:02Z",
+              "wall_seconds": 15
+            }
+          ],
+          "retained_decoded_log_sha256": "1ec720ad4c85186f5785bd6bc80ac59010f1dc8a1063f9c0b597cce15e799044",
+          "retained_decoded_log_bytes": 89601
+        },
+        {
+          "id": 123210451222,
+          "name": "Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "created_at": "2026-10-29T01:37:16Z",
+          "started_at": "2026-10-29T01:37:17Z",
+          "completed_at": "2026-10-29T01:38:22Z",
+          "html_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40801509650/job/123210451222",
+          "wall_seconds": 65,
+          "selected_steps": [
+            {
+              "number": 6,
+              "name": "Run Rust tests",
+              "conclusion": "success",
+              "started_at": "2026-10-29T01:37:22Z",
+              "completed_at": "2026-10-29T01:38:17Z",
+              "wall_seconds": 55
+            }
+          ],
+          "retained_decoded_log_sha256": "b419e71edc0454899b017c84e10e2dba8658419bbf4b96438e51fb3bb9057d36",
+          "retained_decoded_log_bytes": 52204
+        },
+        {
+          "id": 123210451305,
+          "name": "Python bounded offline",
+          "status": "completed",
+          "conclusion": "success",
+          "created_at": "2026-10-29T01:37:16Z",
+          "started_at": "2026-10-29T01:37:17Z",
+          "completed_at": "2026-10-29T01:41:32Z",
+          "html_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40801509650/job/123210451305",
+          "wall_seconds": 255,
+          "selected_steps": [
+            {
+              "number": 7,
+              "name": "Run guarded offline chunks",
+              "conclusion": "success",
+              "started_at": "2026-10-29T01:37:29Z",
+              "completed_at": "2026-10-29T01:41:25Z",
+              "wall_seconds": 236
+            }
+          ],
+          "retained_decoded_log_sha256": "bd683b97a29ad1c2eb2cdb51596b39ce3a18e275403aac84247b81e6226d999c",
+          "retained_decoded_log_bytes": 40341
+        },
+        {
+          "id": 123210451453,
+          "name": "Python no-Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "created_at": "2026-10-29T01:37:16Z",
+          "started_at": "2026-10-29T01:37:18Z",
+          "completed_at": "2026-10-29T01:44:59Z",
+          "html_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40801509650/job/123210451453",
+          "wall_seconds": 461,
+          "selected_steps": [
+            {
+              "number": 7,
+              "name": "Run Python tests without Rust extension",
+              "conclusion": "success",
+              "started_at": "2026-10-29T01:37:28Z",
+              "completed_at": "2026-10-29T01:44:53Z",
+              "wall_seconds": 445
+            }
+          ],
+          "retained_decoded_log_sha256": "31eee8be3303265da200e8fa1a6ec128bf8a994b304fb03d1df2cf608fd17215",
+          "retained_decoded_log_bytes": 36141
+        },
+        {
+          "id": 123214543651,
+          "name": "Python native",
+          "status": "completed",
+          "conclusion": "success",
+          "created_at": "2026-10-29T01:50:07Z",
+          "started_at": "2026-10-29T01:50:08Z",
+          "completed_at": "2026-10-29T01:50:11Z",
+          "html_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40801509650/job/123214543651",
+          "wall_seconds": 3,
+          "selected_steps": [
+            {
+              "number": 2,
+              "name": "Require complete native Python and Rust success",
+              "conclusion": "success",
+              "started_at": "2026-10-29T01:50:09Z",
+              "completed_at": "2026-10-29T01:50:09Z",
+              "wall_seconds": 0
+            }
+          ],
+          "retained_decoded_log_sha256": "0ba7099b4c06c7a8399b00d1cbcbf52e5ae976dfdb3f4e348c1cbb2bcde3b6c2",
+          "retained_decoded_log_bytes": 2263
+        }
+      ],
+      "published_artifacts": [
+        {
+          "id": 12866607201,
+          "name": "python-no-rust-e984be2adc2e6fdf27b4442b852a9e6789b6617b",
+          "size_in_bytes": 140763,
+          "digest": "sha256:1611df1d8ecd0dd0b270643809ad2778b683883d51e90545f2ea1db0d4a4b3c6",
+          "expired": false,
+          "created_at": "2026-10-29T01:44:54Z",
+          "expires_at": "2026-11-12T01:44:53Z",
+          "updated_at": "2026-10-29T01:44:54Z",
+          "workflow_run": {
+            "id": 40801509650,
+            "repository_id": 1187468861,
+            "head_repository_id": 1187468861,
+            "head_branch": "lead/batch-validation-input-set-20261029",
+            "head_sha": "e984be2adc2e6fdf27b4442b852a9e6789b6617b"
+          }
+        },
+        {
+          "id": 12866078272,
+          "name": "python-offline-e984be2adc2e6fdf27b4442b852a9e6789b6617b",
+          "size_in_bytes": 41781,
+          "digest": "sha256:a925ea219a53b09805c260ac36e0c1e9bcd79e60a889629d159420872557571d",
+          "expired": false,
+          "created_at": "2026-10-29T01:41:26Z",
+          "expires_at": "2026-11-12T01:41:26Z",
+          "updated_at": "2026-10-29T01:41:26Z",
+          "workflow_run": {
+            "id": 40801509650,
+            "repository_id": 1187468861,
+            "head_repository_id": 1187468861,
+            "head_branch": "lead/batch-validation-input-set-20261029",
+            "head_sha": "e984be2adc2e6fdf27b4442b852a9e6789b6617b"
+          }
+        },
+        {
+          "id": 12865968729,
+          "name": "python-native-e984be2adc2e6fdf27b4442b852a9e6789b6617b",
+          "size_in_bytes": 138469,
+          "digest": "sha256:fea541fe40e72560e2fdf887abf27e6370449b6c109db71fd19e7b6b2e569479",
+          "expired": false,
+          "created_at": "2026-10-29T01:49:55Z",
+          "expires_at": "2026-11-12T01:49:54Z",
+          "updated_at": "2026-10-29T01:49:55Z",
+          "workflow_run": {
+            "id": 40801509650,
+            "repository_id": 1187468861,
+            "head_repository_id": 1187468861,
+            "head_branch": "lead/batch-validation-input-set-20261029",
+            "head_sha": "e984be2adc2e6fdf27b4442b852a9e6789b6617b"
+          }
+        },
+        {
+          "id": 12865748667,
+          "name": "rust-e984be2adc2e6fdf27b4442b852a9e6789b6617b",
+          "size_in_bytes": 521,
+          "digest": "sha256:fc8675673b4fefd36353c3759ba5e795832fac0ab38f9117d40f45780147036e",
+          "expired": false,
+          "created_at": "2026-10-29T01:38:18Z",
+          "expires_at": "2026-11-12T01:38:18Z",
+          "updated_at": "2026-10-29T01:38:18Z",
+          "workflow_run": {
+            "id": 40801509650,
+            "repository_id": 1187468861,
+            "head_repository_id": 1187468861,
+            "head_branch": "lead/batch-validation-input-set-20261029",
+            "head_sha": "e984be2adc2e6fdf27b4442b852a9e6789b6617b"
+          }
+        }
+      ]
+    },
+    {
+      "key": "ec857",
+      "source_sha": "ec85795e3d22f1419fe11f8cc40ff71c0541d3a5",
+      "workflow_control_sha": "ec85795e3d22f1419fe11f8cc40ff71c0541d3a5",
+      "scope": "Reconcile declared cohort facts with actual bundle identity; preserve repeated-seed determinism",
+      "branch": "lead/batch-manifest-reconciliation-20261029",
+      "package_git_tree": "5349b37f9be1e0708c1aa6cf53ea25fe967fc643",
+      "rust_git_tree": "a4703ef4e9a21b5dbb194d318536a46e6ca8b71c",
+      "run": {
+        "id": 40802848510,
+        "run_attempt": 1,
+        "html_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40802848510",
+        "path": ".github/workflows/tests.yml",
+        "event": "push",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-10-29T01:50:45Z",
+        "run_started_at": "2026-10-29T01:50:45Z",
+        "updated_at": "2026-10-29T02:05:10Z"
+      },
+      "created_to_first_job_start_seconds": 3,
+      "created_to_last_job_complete_seconds": 864,
+      "counts": {
+        "native_python": {
+          "parent_passed": 8094,
+          "skipped": 6,
+          "successful_subtests": 526,
+          "pytest_reported_seconds": 630.89
+        },
+        "no_rust_python": {
+          "parent_passed": 7780,
+          "skipped": 306,
+          "successful_subtests": 526,
+          "pytest_reported_seconds": 249.99
+        },
+        "bounded_offline": {
+          "chunks": 32,
+          "passed": 3996,
+          "skipped": 65,
+          "per_chunk_limit_seconds": 110,
+          "sum_of_rounded_chunk_seconds": 195.8,
+          "slowest_printed_chunk": {
+            "name": "systems-2",
+            "printed_seconds": 33.3,
+            "limit_seconds": 110,
+            "passed": 313,
+            "skipped": 17,
+            "failed": 0
+          },
+          "validation_tooling_chunk": {
+            "name": "validation-tooling",
+            "printed_seconds": 8.4,
+            "limit_seconds": 110,
+            "passed": 292,
+            "skipped": 0,
+            "failed": 0
+          }
+        },
+        "rust": {
+          "passed": 1088,
+          "failed": 0,
+          "ignored": 2,
+          "measured": 0,
+          "filtered_out": 0,
+          "suite_summaries": 37
+        },
+        "viewer": {
+          "passed": 743,
+          "files_passed": 69,
+          "lint": "success",
+          "production_build": "success"
+        }
+      },
+      "jobs": [
+        {
+          "id": 123214754478,
+          "name": "Python no-Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "created_at": "2026-10-29T01:50:46Z",
+          "started_at": "2026-10-29T01:50:48Z",
+          "completed_at": "2026-10-29T01:55:12Z",
+          "html_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40802848510/job/123214754478",
+          "wall_seconds": 264,
+          "selected_steps": [
+            {
+              "number": 7,
+              "name": "Run Python tests without Rust extension",
+              "conclusion": "success",
+              "started_at": "2026-10-29T01:50:55Z",
+              "completed_at": "2026-10-29T01:55:08Z",
+              "wall_seconds": 253
+            }
+          ],
+          "retained_decoded_log_sha256": "f0d7406390210612eca89750f0527a3d40a3e7c387bca5b09d11b531045c315d",
+          "retained_decoded_log_bytes": 36239
+        },
+        {
+          "id": 123214754731,
+          "name": "Python native execution",
+          "status": "completed",
+          "conclusion": "success",
+          "created_at": "2026-10-29T01:50:46Z",
+          "started_at": "2026-10-29T01:50:48Z",
+          "completed_at": "2026-10-29T02:05:03Z",
+          "html_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40802848510/job/123214754731",
+          "wall_seconds": 855,
+          "selected_steps": [
+            {
+              "number": 10,
+              "name": "Build Rust extension wheel",
+              "conclusion": "success",
+              "started_at": "2026-10-29T01:51:30Z",
+              "completed_at": "2026-10-29T01:54:19Z",
+              "wall_seconds": 169
+            },
+            {
+              "number": 11,
+              "name": "Run Python tests with real native extension preloaded",
+              "conclusion": "success",
+              "started_at": "2026-10-29T01:54:19Z",
+              "completed_at": "2026-10-29T02:04:54Z",
+              "wall_seconds": 635
+            }
+          ],
+          "retained_decoded_log_sha256": "0c8a00263fb9a29bbc595399522535a8962041b381d2cae47d0b2ee22be6ac3b",
+          "retained_decoded_log_bytes": 87785
+        },
+        {
+          "id": 123214754750,
+          "name": "Viewer",
+          "status": "completed",
+          "conclusion": "success",
+          "created_at": "2026-10-29T01:50:46Z",
+          "started_at": "2026-10-29T01:50:48Z",
+          "completed_at": "2026-10-29T01:52:46Z",
+          "html_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40802848510/job/123214754750",
+          "wall_seconds": 118,
+          "selected_steps": [
+            {
+              "number": 5,
+              "name": "Run viewer tests",
+              "conclusion": "success",
+              "started_at": "2026-10-29T01:51:01Z",
+              "completed_at": "2026-10-29T01:52:13Z",
+              "wall_seconds": 72
+            },
+            {
+              "number": 6,
+              "name": "Lint viewer",
+              "conclusion": "success",
+              "started_at": "2026-10-29T01:52:13Z",
+              "completed_at": "2026-10-29T01:52:27Z",
+              "wall_seconds": 14
+            },
+            {
+              "number": 7,
+              "name": "Build viewer for production",
+              "conclusion": "success",
+              "started_at": "2026-10-29T01:52:27Z",
+              "completed_at": "2026-10-29T01:52:43Z",
+              "wall_seconds": 16
+            }
+          ],
+          "retained_decoded_log_sha256": "b09dd2bf92afa3fa40bcd42e35b02b152de7c959ef2ee2908c6cb22748feea7c",
+          "retained_decoded_log_bytes": 90858
+        },
+        {
+          "id": 123214754802,
+          "name": "Python bounded offline",
+          "status": "completed",
+          "conclusion": "success",
+          "created_at": "2026-10-29T01:50:46Z",
+          "started_at": "2026-10-29T01:50:48Z",
+          "completed_at": "2026-10-29T01:54:20Z",
+          "html_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40802848510/job/123214754802",
+          "wall_seconds": 212,
+          "selected_steps": [
+            {
+              "number": 7,
+              "name": "Run guarded offline chunks",
+              "conclusion": "success",
+              "started_at": "2026-10-29T01:50:57Z",
+              "completed_at": "2026-10-29T01:54:13Z",
+              "wall_seconds": 196
+            }
+          ],
+          "retained_decoded_log_sha256": "6e808243d8e26f74e2df21bd98c33c39f1cb1271b4e3d7b22d3cd5f9ded06f40",
+          "retained_decoded_log_bytes": 40476
+        },
+        {
+          "id": 123214754842,
+          "name": "Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "created_at": "2026-10-29T01:50:46Z",
+          "started_at": "2026-10-29T01:50:48Z",
+          "completed_at": "2026-10-29T01:52:16Z",
+          "html_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40802848510/job/123214754842",
+          "wall_seconds": 88,
+          "selected_steps": [
+            {
+              "number": 6,
+              "name": "Run Rust tests",
+              "conclusion": "success",
+              "started_at": "2026-10-29T01:50:55Z",
+              "completed_at": "2026-10-29T01:52:08Z",
+              "wall_seconds": 73
+            }
+          ],
+          "retained_decoded_log_sha256": "70cfa3bbfdecd4c68a27d1893e479a67ceda479fe5ec2df82a123c4815965d89",
+          "retained_decoded_log_bytes": 52228
+        },
+        {
+          "id": 123219234956,
+          "name": "Python native",
+          "status": "completed",
+          "conclusion": "success",
+          "created_at": "2026-10-29T02:05:04Z",
+          "started_at": "2026-10-29T02:05:06Z",
+          "completed_at": "2026-10-29T02:05:09Z",
+          "html_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40802848510/job/123219234956",
+          "wall_seconds": 3,
+          "selected_steps": [
+            {
+              "number": 2,
+              "name": "Require complete native Python and Rust success",
+              "conclusion": "success",
+              "started_at": "2026-10-29T02:05:07Z",
+              "completed_at": "2026-10-29T02:05:07Z",
+              "wall_seconds": 0
+            }
+          ],
+          "retained_decoded_log_sha256": "085a4543cb92c457fee54d4244c1c1332db2eb0671e8ba2d0efcf41380b9c775",
+          "retained_decoded_log_bytes": 2261
+        }
+      ],
+      "published_artifacts": [
+        {
+          "id": 12867860561,
+          "name": "python-native-ec85795e3d22f1419fe11f8cc40ff71c0541d3a5",
+          "size_in_bytes": 139580,
+          "digest": "sha256:1bd996c7b78bffe2fcfd99e494eb29781fa6b534ec2c25f32af31391fff59839",
+          "expired": false,
+          "created_at": "2026-10-29T02:04:55Z",
+          "expires_at": "2026-11-12T02:04:54Z",
+          "updated_at": "2026-10-29T02:04:55Z",
+          "workflow_run": {
+            "id": 40802848510,
+            "repository_id": 1187468861,
+            "head_repository_id": 1187468861,
+            "head_branch": "lead/batch-manifest-reconciliation-20261029",
+            "head_sha": "ec85795e3d22f1419fe11f8cc40ff71c0541d3a5"
+          }
+        },
+        {
+          "id": 12867231226,
+          "name": "python-no-rust-ec85795e3d22f1419fe11f8cc40ff71c0541d3a5",
+          "size_in_bytes": 139979,
+          "digest": "sha256:e95a115738f68caea29be69e6c54c87a43b8ddc5390a716fae7e8089df868119",
+          "expired": false,
+          "created_at": "2026-10-29T01:55:09Z",
+          "expires_at": "2026-11-12T01:55:08Z",
+          "updated_at": "2026-10-29T01:55:09Z",
+          "workflow_run": {
+            "id": 40802848510,
+            "repository_id": 1187468861,
+            "head_repository_id": 1187468861,
+            "head_branch": "lead/batch-manifest-reconciliation-20261029",
+            "head_sha": "ec85795e3d22f1419fe11f8cc40ff71c0541d3a5"
+          }
+        },
+        {
+          "id": 12866976647,
+          "name": "rust-ec85795e3d22f1419fe11f8cc40ff71c0541d3a5",
+          "size_in_bytes": 520,
+          "digest": "sha256:495c280112b7cf0caa79a314e17174f0ca6338ac8f3bb1066530cb0fcef86f07",
+          "expired": false,
+          "created_at": "2026-10-29T01:52:09Z",
+          "expires_at": "2026-11-12T01:52:08Z",
+          "updated_at": "2026-10-29T01:52:09Z",
+          "workflow_run": {
+            "id": 40802848510,
+            "repository_id": 1187468861,
+            "head_repository_id": 1187468861,
+            "head_branch": "lead/batch-manifest-reconciliation-20261029",
+            "head_sha": "ec85795e3d22f1419fe11f8cc40ff71c0541d3a5"
+          }
+        },
+        {
+          "id": 12866324684,
+          "name": "python-offline-ec85795e3d22f1419fe11f8cc40ff71c0541d3a5",
+          "size_in_bytes": 41860,
+          "digest": "sha256:0215c930a507a613e5ad579eacd3a41d1ebc44c82f248118aaf3d64eaa664f72",
+          "expired": false,
+          "created_at": "2026-10-29T01:54:14Z",
+          "expires_at": "2026-11-12T01:54:13Z",
+          "updated_at": "2026-10-29T01:54:14Z",
+          "workflow_run": {
+            "id": 40802848510,
+            "repository_id": 1187468861,
+            "head_repository_id": 1187468861,
+            "head_branch": "lead/batch-manifest-reconciliation-20261029",
+            "head_sha": "ec85795e3d22f1419fe11f8cc40ff71c0541d3a5"
+          }
+        }
+      ]
+    }
+  ],
+  "evidence_basis": {
+    "metadata": "Official GitHub Actions run/jobs/artifacts metadata via the connector",
+    "counts": "Completed decoded job-log summaries; parent passes, skips and successful subtests separate",
+    "archive_digest_scope": "GitHub-reported ZIP digest; archives not downloaded or independently rehashed for this pack",
+    "clocks": "One hosted run per source; timestamps and rounded printed chunk clocks; no speed or CPU claim",
+    "logs": "Externally retained decoded connector logs; four e984 logs copied unchanged from the lead retained set"
+  },
+  "source_boundaries": {
+    "e984_parent": "ad3727abfe882c89ee2cd87b49ca5edf5dd12648",
+    "prior_review_code_source": "1c5728b74c9a050d817269152a8c92eeda7630dc",
+    "prior_review_ci_run_id": 40799038789,
+    "ec857_runtime_source": "4a1d3f0883e0b24b6793eb2b98513068c284a8d5",
+    "ec857_activation_changes": [
+      ".github/workflows/tests.yml"
+    ],
+    "e984_added_parent_tests": 12,
+    "ec857_added_parent_tests": 55,
+    "production_changes": "Validation admission only; no simulation physics, bundle-export writer or Rust source edited. Manifests continue recording actual source identity.",
+    "fixture_change": "Existing input-inventory fixture adds valid seed/horizon metadata; original input-set predicates remain",
+    "prior_failure": "eace086a full modified chunk: 288 passed/1 failed diagnostic compatibility test; retained; 4a1d3f08 fixes it without changing the original assertion",
+    "pre_ci_qualification": "4a1d3f08: 55 focused checks and 292 complete modified-chunk checks passed; ec857 changes workflow allowlist only",
+    "science": "No method, threshold, default activation, native behavior or scientific independence-policy change"
+  },
+  "qualification_limits": [
+    "No cross-lane/source unique-test total.",
+    "CI qualifies these exact validation sources; later documentation commits add no runtime qualification.",
+    "No browser-session QA, scientific full-gate result or natural optional-system efficacy is established.",
+    "The distinct full-gate, default-output, native-composition and forkserver studies retain their own sources.",
+    "Main and frozen producer/source branches remain unchanged by this documentation."
+  ]
+}

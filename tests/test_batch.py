@@ -115,14 +115,14 @@ class TestParallelWorkers:
         import chronicler.batch as batch_module
         _InlinePool.sizes = []
         monkeypatch.setattr(batch_module.multiprocessing, "Pool", _InlinePool)
-        monkeypatch.setattr(batch_module.multiprocessing, "cpu_count", lambda: 8)
+        monkeypatch.setattr(batch_module, "automatic_workers", lambda: 7)
         return _InlinePool
 
     @pytest.mark.parametrize("parallel, workers", [
         (1, 1),       # an explicit 1 is one worker (main dae4ba5: cpu_count - 1)
         (2, 2),
         (12, 12),
-        (-1, 7),      # bare --parallel (argparse const): cpu_count - 1
+        (-1, 7),      # bare --parallel (argparse const): automatic budget
         (True, 7),    # Batch Lab without a worker count
     ])
     def test_worker_count(self, batch_args, pool, parallel, workers):
@@ -167,3 +167,93 @@ class TestParallelWorkers:
             return out
 
         assert bundles(1, "one") == bundles(None, "sequential")
+
+
+class TestAutomaticCpuBudget:
+    @pytest.fixture
+    def cpu(self, monkeypatch, tmp_path):
+        import chronicler.cpu_budget as budget
+        root = tmp_path / "cgroup"
+        root.mkdir()
+        process = tmp_path / "process-cgroup"
+        process.write_text("0::/\n")
+        monkeypatch.setattr(budget, "_CGROUP_ROOT", root)
+        monkeypatch.setattr(budget, "_PROCESS_CGROUP", process)
+        monkeypatch.setattr(budget.os, "cpu_count", lambda: 16)
+        monkeypatch.setattr(budget.os, "process_cpu_count", lambda: 16, raising=False)
+        monkeypatch.setattr(budget.os, "sched_getaffinity", lambda pid: set(range(16)), raising=False)
+        return budget, root, process
+
+    @pytest.mark.parametrize("quota,affinity,expected", [
+        ("400000 100000", 16, 3),   # host visibility exceeds a four-CPU container
+        ("800000 100000", 3, 2),    # affinity is the tighter limit
+        ("250000 100000", 16, 1),   # fractional quota rounds down before reserving
+        ("50000 100000", 16, 1),    # one worker remains possible below one CPU
+        ("max 100000", 4, 3),       # unlimited quota still respects affinity
+    ])
+    def test_quota_and_affinity_limit_automatic_workers(self, cpu, monkeypatch, quota, affinity, expected):
+        budget, root, _process = cpu
+        (root / "cpu.max").write_text(quota)
+        monkeypatch.setattr(budget.os, "sched_getaffinity", lambda pid: set(range(affinity)))
+        assert budget.automatic_workers() == expected
+
+    def test_parent_quota_applies_when_the_process_quota_is_unlimited(self, cpu):
+        budget, root, process = cpu
+        (root / "cpu.max").write_text("300000 100000")
+        nested = root / "parent" / "child"
+        nested.mkdir(parents=True)
+        (nested.parent / "cpu.max").write_text("200000 100000")
+        (nested / "cpu.max").write_text("max 100000")
+        process.write_text("0::/parent/child\n")
+        assert budget.automatic_workers() == 1
+
+    def test_v1_cpu_controller_quota(self, cpu):
+        budget, root, process = cpu
+        mount = root / "cpu,cpuacct"
+        nested = mount / "job"
+        nested.mkdir(parents=True)
+        (mount / "cpu.cfs_quota_us").write_text("-1")
+        (mount / "cpu.cfs_period_us").write_text("100000")
+        (nested / "cpu.cfs_quota_us").write_text("300000")
+        (nested / "cpu.cfs_period_us").write_text("100000")
+        process.write_text("2:cpu,cpuacct:/job\n")
+        assert budget.automatic_workers() == 2
+
+    @pytest.mark.parametrize("malformed", ["", "nonsense", "1 2 3", "400000 0", "-2 100000"])
+    def test_malformed_or_missing_quota_falls_back_to_visible_cpus(self, cpu, malformed):
+        budget, root, process = cpu
+        (root / "cpu.max").write_text(malformed)
+        process.write_text("malformed\n0::/../../outside\n")
+        assert budget.automatic_workers() == 15
+
+    def test_unreadable_cgroup_and_unsupported_affinity_use_portable_fallback(self, cpu, monkeypatch):
+        budget, _root, _process = cpu
+
+        def unreadable(*args, **kwargs):
+            raise PermissionError("not available")
+
+        def unsupported(*args):
+            raise NotImplementedError
+
+        monkeypatch.setattr(budget.os, "sched_getaffinity", unsupported)
+        monkeypatch.setattr(budget.os, "process_cpu_count", lambda: None)
+        monkeypatch.setattr(budget.os, "cpu_count", lambda: 4)
+        with monkeypatch.context() as scope:
+            scope.setattr(Path, "read_text", unreadable)
+            workers = budget.automatic_workers()
+        assert workers == 3
+        monkeypatch.setattr(budget.os, "cpu_count", lambda: None)
+        with monkeypatch.context() as scope:
+            scope.setattr(Path, "read_text", unreadable)
+            workers = budget.automatic_workers()
+        assert workers == 1
+
+    def test_explicit_worker_counts_do_not_consult_automatic_budget(self, monkeypatch):
+        import chronicler.batch as batch
+
+        def unused():
+            raise AssertionError("an explicit count needs no automatic budget")
+
+        monkeypatch.setattr(batch, "automatic_workers", unused)
+        assert batch.parallel_workers(1) == 1
+        assert batch.parallel_workers(12) == 12

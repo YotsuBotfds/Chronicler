@@ -1,0 +1,411 @@
+{
+  "actual_physics_ticks": 668,
+  "artifacts": [
+    {
+      "digest": "sha256:013b894ed405b9b5295eba8e22c72804735a191feccd008a64ff87a4befcba47",
+      "expires_at": "2026-11-28T09:08:05Z",
+      "id": 12885925076,
+      "name": "wealth-outcome-smoke-procedural-contracts-40847120432-1",
+      "size_in_bytes": 8179
+    },
+    {
+      "digest": "sha256:e8903cbe949e646137a30083a2301771005360637e3b86f821231cf96a21fa2a",
+      "expires_at": "2026-11-28T09:08:01Z",
+      "id": 12885572061,
+      "name": "wealth-outcome-smoke-procedural-light-40847120432-1",
+      "size_in_bytes": 526025
+    },
+    {
+      "digest": "sha256:77a9318c5cd36abf13cd93a068581a5c146147e60fe4cea5c41fe191c1277c6e",
+      "expires_at": "2026-11-28T09:07:58Z",
+      "id": 12885098197,
+      "name": "wealth-outcome-smoke-template-light-40847120432-1",
+      "size_in_bytes": 524578
+    },
+    {
+      "digest": "sha256:b809f89277dfb57ae1031cba52c7420ec63fe77cecc6048c314fbcf36098fbc6",
+      "expires_at": "2026-11-28T09:08:03Z",
+      "id": 12885048365,
+      "name": "wealth-outcome-smoke-procedural-raw-40847120432-1",
+      "size_in_bytes": 8572809
+    },
+    {
+      "digest": "sha256:f5618ea0327961d87e5ef5626accf7d3ebd667d0387cbdb26861c79bd886aec4",
+      "expires_at": "2026-11-28T09:08:00Z",
+      "id": 12884719653,
+      "name": "wealth-outcome-smoke-template-raw-40847120432-1",
+      "size_in_bytes": 3384526
+    },
+    {
+      "digest": "sha256:d3189bf434e1e6859763d9018ef26d0cfe99b6a46fdefa1ca9e11d5af0f2797f",
+      "expires_at": "2026-11-28T09:08:02Z",
+      "id": 12884584245,
+      "name": "wealth-outcome-smoke-template-contracts-40847120432-1",
+      "size_in_bytes": 8254
+    }
+  ],
+  "attempt": 1,
+  "candidate_native_sha256": "b56c43f16722be2c8fc6fbe5c021ec292f9a6856783d946af56d97e91575e619",
+  "candidate_source": "503070175e3e78d9014add158ead8f16ce940843",
+  "captured_checkpoint_headers": 4,
+  "executions": 12,
+  "fork_receipts": 8,
+  "full_study_admitted": false,
+  "kind": "curated_projection_not_original_producer_receipt",
+  "limits": [
+    "Checkpoint wholefile/header captured and producer rechecked before retirement; bodies absent now.",
+    "Fork CP consumed path/SHA source-derived through503, not observed per-fork.",
+    "No sampled PID assignment/live overlap or checkpoint/global RNG-state identity claim.",
+    "No simulation performance/efficacy/default/reuse/main merge grant."
+  ],
+  "receipt_pins": {
+    "after_origin": "7cef5ec9fa6f8b4ad2cc6f9ad0d63c0ef71f29187269f431891ad599e36bad94",
+    "independent_peer": "b12edb52d6277359d5ac9527ef1736b3f3e45f200ae34703bddc6bb2a47839c0",
+    "primary": "9d74506281318cc3372d702470c8d9dc1dee76869dff91e8723b525320e0c236",
+    "root_consumer": "5f3c14a82a4ac534238e81d6fdff45579b3fd5bc6d430ff188b6297c04509715",
+    "terminal": "fa4dbf82eeb6febb3917dbb3a45eb14f2ba99e733807221fde9b659d3632b3d3"
+  },
+  "run_id": 40847120432,
+  "scientific_gate_pass": false,
+  "source": "9674d1d012929e2088cf69cf42cc99e461e4f878",
+  "worlds": {
+    "procedural": {
+      "checkpoint_evidence": {
+        "captured_headers": 2,
+        "fork_links": [
+          {
+            "arm": "kin_roots",
+            "fork_receipt": "raw/oracle_subset/ablation_42/kin_roots/seed_42/fork_100/fork.json",
+            "fork_receipt_sha256": "117a8d8def254f90aff8c8ef978347c5063515ccae55d2f1d39ce0c52a2057b9",
+            "fork_turn": 100,
+            "producer_captured_checkpoint_sha256": "5862b6cffdec0010818d11ce96084d3366358c14c9364e1e0ce10cad40000cc0",
+            "scope": "Receipt observes seed/arm/turn. CP path is interpreted through unchanged source503; no observed per-fork consumed path or SHA. Captured wholefile identity was rechecked before retirement.",
+            "seed": 42,
+            "source_derived_checkpoint_path": "raw/oracle_subset/batch_42/seed_42/checkpoint_turn_101.ckpt"
+          },
+          {
+            "arm": "kin_roots",
+            "fork_receipt": "raw/oracle_subset/ablation_42/kin_roots/seed_43/fork_100/fork.json",
+            "fork_receipt_sha256": "90ba99ff5558fa23bbd44acdf5fc37edd875bb68dcfaa13434d08577eb47983e",
+            "fork_turn": 100,
+            "producer_captured_checkpoint_sha256": "02226a0d689c0cf6c0a0e36bbb1e0f3ba958bde017d0e0d6f320e2d82f93834d",
+            "scope": "Receipt observes seed/arm/turn. CP path is interpreted through unchanged source503; no observed per-fork consumed path or SHA. Captured wholefile identity was rechecked before retirement.",
+            "seed": 43,
+            "source_derived_checkpoint_path": "raw/oracle_subset/batch_42/seed_43/checkpoint_turn_101.ckpt"
+          },
+          {
+            "arm": "needs",
+            "fork_receipt": "raw/oracle_subset/ablation_42/needs/seed_42/fork_100/fork.json",
+            "fork_receipt_sha256": "09cda6b72071a7aaf949a6b99cc30542d97b60fd7619d56805c87568a16944a0",
+            "fork_turn": 100,
+            "producer_captured_checkpoint_sha256": "5862b6cffdec0010818d11ce96084d3366358c14c9364e1e0ce10cad40000cc0",
+            "scope": "Receipt observes seed/arm/turn. CP path is interpreted through unchanged source503; no observed per-fork consumed path or SHA. Captured wholefile identity was rechecked before retirement.",
+            "seed": 42,
+            "source_derived_checkpoint_path": "raw/oracle_subset/batch_42/seed_42/checkpoint_turn_101.ckpt"
+          },
+          {
+            "arm": "needs",
+            "fork_receipt": "raw/oracle_subset/ablation_42/needs/seed_43/fork_100/fork.json",
+            "fork_receipt_sha256": "c72024c53a3e707d1fe7d9f9372a581c24e27ca79607c61ca0cf6c67b34d6ca8",
+            "fork_turn": 100,
+            "producer_captured_checkpoint_sha256": "02226a0d689c0cf6c0a0e36bbb1e0f3ba958bde017d0e0d6f320e2d82f93834d",
+            "scope": "Receipt observes seed/arm/turn. CP path is interpreted through unchanged source503; no observed per-fork consumed path or SHA. Captured wholefile identity was rechecked before retirement.",
+            "seed": 43,
+            "source_derived_checkpoint_path": "raw/oracle_subset/batch_42/seed_43/checkpoint_turn_101.ckpt"
+          }
+        ],
+        "retirement": {
+          "all_files_rechecked": true,
+          "checkpoint_index_sha256": "211da2c8580e3d19391f9b3394715066563776d15a63a9ac5f793d3931beb64a",
+          "expected_count": 2,
+          "incomplete_retired_list_may_be_nonexhaustive": false,
+          "kind": "wealth-floor-checkpoint-retirement",
+          "retired": [
+            "raw/oracle_subset/batch_42/seed_42/checkpoint_turn_101.ckpt",
+            "raw/oracle_subset/batch_42/seed_43/checkpoint_turn_101.ckpt"
+          ],
+          "retirement_complete": true,
+          "schema_version": 1
+        },
+        "scope": "Sealed actual producer headers/wholefile identities; retired CP bodies are absent, so this reader does not independently rehash their former contents."
+      },
+      "elapsed_wall_seconds": 27.822438860999995,
+      "executions": 6,
+      "full_study_or_historical_reuse_granted": false,
+      "hosted_guarded_tests": 530,
+      "informational_non_pass": [
+        {
+          "adjudication": "fail",
+          "oracle": "artifacts",
+          "status": "PARTIAL"
+        },
+        {
+          "oracle": "cohort_ablation",
+          "reason": "causal evidence (not yet required): kin-roots ablation FAIL (members' migration rate ratio 0.9925 (upper bound 1.3594); needs at most 0.85 and a bound below 1)",
+          "status": "FAIL"
+        },
+        {
+          "oracle": "community_spec",
+          "reason": "reported, not deciding: M53 oracle 1 as specified (method 2) FAIL (failed region_share (seeds with communities 2 of 2, mean count 9.375, median size 5, 75 of 75 communities above 5% of their region))",
+          "status": "FAIL"
+        },
+        {
+          "oracle": "determinism",
+          "reason": "no_duplicate_seed_pairs",
+          "status": "SKIP"
+        },
+        {
+          "oracle": "needs_binding",
+          "reason": "binding lower bound -0.5156; informational in subset, required in full",
+          "status": "FAIL"
+        },
+        {
+          "oracle": "needs_ablation",
+          "reason": "causal evidence (not yet required): ablation component FAIL (pairings autonomy, purpose, material, safety)",
+          "status": "FAIL"
+        }
+      ],
+      "job_id": 123357232260,
+      "journal": {
+        "commands": 7,
+        "events": 62,
+        "order": "Ordered segment then row positions, including tied monotonic values; no rows sampled or omitted.",
+        "resource_rows": 41
+      },
+      "measured": {
+        "controller_cpu_seconds": 0.972869921,
+        "scope": "After owned cleanup and raw hashing, before light/receipt publication; no aggregate live-tree CPU or closed end-to-end upload total.",
+        "waited_children_cpu_seconds": 44.460187000000005,
+        "wall_seconds": 27.776787176
+      },
+      "mechanical_smoke_pass": true,
+      "needs_status": "FAIL",
+      "original_oracle_statuses": {
+        "arcs": {
+          "status": "PASS"
+        },
+        "artifacts": {
+          "adjudication": "fail",
+          "status": "PARTIAL"
+        },
+        "cohort": {
+          "reason": "method 3 on community method 2's communities (observational), non-discriminating: passes synthetic null and reversed worlds",
+          "status": "PASS"
+        },
+        "community": {
+          "reason": "method 1 decides; spec component (M53 oracle 1 as specified) FAIL, reported",
+          "status": "PASS"
+        },
+        "determinism": {
+          "reason": "no_duplicate_seed_pairs",
+          "status": "SKIP"
+        },
+        "era": {
+          "status": "PASS"
+        },
+        "needs": {
+          "status": "FAIL"
+        },
+        "regression": {
+          "adjudication": "strict",
+          "status": "PASS"
+        }
+      },
+      "physics_ticks": 334,
+      "runtime": {
+        "affinity": [
+          0,
+          1
+        ],
+        "caps": {
+          "BLIS_NUM_THREADS": "1",
+          "CARGO_BUILD_JOBS": "1",
+          "GOTO_NUM_THREADS": "1",
+          "MKL_NUM_THREADS": "1",
+          "NUMEXPR_NUM_THREADS": "1",
+          "OMP_NUM_THREADS": "1",
+          "OPENBLAS_NUM_THREADS": "1",
+          "RAYON_NUM_THREADS": "1",
+          "VECLIB_MAXIMUM_THREADS": "1"
+        },
+        "logical_cpu_count": 2,
+        "python": "3.13.17"
+      },
+      "scientific_exit_code": 2,
+      "scientific_gate_pass": false,
+      "worker_observation_scope": "source_launched_pool2_and_real_worker_written_checkpoint_contexts_no_pid_or_overlap_sampling",
+      "worldgen": "procedural"
+    },
+    "template": {
+      "checkpoint_evidence": {
+        "captured_headers": 2,
+        "fork_links": [
+          {
+            "arm": "kin_roots",
+            "fork_receipt": "raw/oracle_subset/ablation_42/kin_roots/seed_42/fork_100/fork.json",
+            "fork_receipt_sha256": "117a8d8def254f90aff8c8ef978347c5063515ccae55d2f1d39ce0c52a2057b9",
+            "fork_turn": 100,
+            "producer_captured_checkpoint_sha256": "9a8cff96ffec8a385be0eda31dd4e43eda563e1b14c910592bb427f81b931309",
+            "scope": "Receipt observes seed/arm/turn. CP path is interpreted through unchanged source503; no observed per-fork consumed path or SHA. Captured wholefile identity was rechecked before retirement.",
+            "seed": 42,
+            "source_derived_checkpoint_path": "raw/oracle_subset/batch_42/seed_42/checkpoint_turn_101.ckpt"
+          },
+          {
+            "arm": "kin_roots",
+            "fork_receipt": "raw/oracle_subset/ablation_42/kin_roots/seed_43/fork_100/fork.json",
+            "fork_receipt_sha256": "90ba99ff5558fa23bbd44acdf5fc37edd875bb68dcfaa13434d08577eb47983e",
+            "fork_turn": 100,
+            "producer_captured_checkpoint_sha256": "42d7ef1d40ced4ddc94c21fdae21540e3cffea81b234feb01e513f8c208b991c",
+            "scope": "Receipt observes seed/arm/turn. CP path is interpreted through unchanged source503; no observed per-fork consumed path or SHA. Captured wholefile identity was rechecked before retirement.",
+            "seed": 43,
+            "source_derived_checkpoint_path": "raw/oracle_subset/batch_42/seed_43/checkpoint_turn_101.ckpt"
+          },
+          {
+            "arm": "needs",
+            "fork_receipt": "raw/oracle_subset/ablation_42/needs/seed_42/fork_100/fork.json",
+            "fork_receipt_sha256": "09cda6b72071a7aaf949a6b99cc30542d97b60fd7619d56805c87568a16944a0",
+            "fork_turn": 100,
+            "producer_captured_checkpoint_sha256": "9a8cff96ffec8a385be0eda31dd4e43eda563e1b14c910592bb427f81b931309",
+            "scope": "Receipt observes seed/arm/turn. CP path is interpreted through unchanged source503; no observed per-fork consumed path or SHA. Captured wholefile identity was rechecked before retirement.",
+            "seed": 42,
+            "source_derived_checkpoint_path": "raw/oracle_subset/batch_42/seed_42/checkpoint_turn_101.ckpt"
+          },
+          {
+            "arm": "needs",
+            "fork_receipt": "raw/oracle_subset/ablation_42/needs/seed_43/fork_100/fork.json",
+            "fork_receipt_sha256": "c72024c53a3e707d1fe7d9f9372a581c24e27ca79607c61ca0cf6c67b34d6ca8",
+            "fork_turn": 100,
+            "producer_captured_checkpoint_sha256": "42d7ef1d40ced4ddc94c21fdae21540e3cffea81b234feb01e513f8c208b991c",
+            "scope": "Receipt observes seed/arm/turn. CP path is interpreted through unchanged source503; no observed per-fork consumed path or SHA. Captured wholefile identity was rechecked before retirement.",
+            "seed": 43,
+            "source_derived_checkpoint_path": "raw/oracle_subset/batch_42/seed_43/checkpoint_turn_101.ckpt"
+          }
+        ],
+        "retirement": {
+          "all_files_rechecked": true,
+          "checkpoint_index_sha256": "ec857d257cd3f675f9fee7ba2fccd11a1f24151853c9f38603576f284cafab85",
+          "expected_count": 2,
+          "incomplete_retired_list_may_be_nonexhaustive": false,
+          "kind": "wealth-floor-checkpoint-retirement",
+          "retired": [
+            "raw/oracle_subset/batch_42/seed_42/checkpoint_turn_101.ckpt",
+            "raw/oracle_subset/batch_42/seed_43/checkpoint_turn_101.ckpt"
+          ],
+          "retirement_complete": true,
+          "schema_version": 1
+        },
+        "scope": "Sealed actual producer headers/wholefile identities; retired CP bodies are absent, so this reader does not independently rehash their former contents."
+      },
+      "elapsed_wall_seconds": 24.263653336000004,
+      "executions": 6,
+      "full_study_or_historical_reuse_granted": false,
+      "hosted_guarded_tests": 530,
+      "informational_non_pass": [
+        {
+          "oracle": "arcs",
+          "status": "FAIL"
+        },
+        {
+          "adjudication": "fail",
+          "oracle": "artifacts",
+          "status": "FAIL"
+        },
+        {
+          "oracle": "cohort_ablation",
+          "reason": "causal evidence (not yet required): kin-roots ablation FAIL (members' migration rate ratio 0.9655 (upper bound 3.3379); needs at most 0.85 and a bound below 1)",
+          "status": "FAIL"
+        },
+        {
+          "oracle": "community_spec",
+          "reason": "reported, not deciding: M53 oracle 1 as specified (method 2) FAIL (failed community_count, region_share (seeds with communities 2 of 2, mean count 2.125, median size 5, 17 of 17 communities above 5% of their region))",
+          "status": "FAIL"
+        },
+        {
+          "oracle": "determinism",
+          "reason": "no_duplicate_seed_pairs",
+          "status": "SKIP"
+        },
+        {
+          "oracle": "needs_binding",
+          "reason": "binding lower bound None; informational in subset, required in full",
+          "status": "FAIL"
+        },
+        {
+          "oracle": "needs_ablation",
+          "reason": "causal evidence (not yet required): ablation component FAIL (pairings autonomy, social, material, safety)",
+          "status": "FAIL"
+        }
+      ],
+      "job_id": 123357232574,
+      "journal": {
+        "commands": 7,
+        "events": 57,
+        "order": "Ordered segment then row positions, including tied monotonic values; no rows sampled or omitted.",
+        "resource_rows": 36
+      },
+      "measured": {
+        "controller_cpu_seconds": 1.666047099,
+        "scope": "After owned cleanup and raw hashing, before light/receipt publication; no aggregate live-tree CPU or closed end-to-end upload total.",
+        "waited_children_cpu_seconds": 36.711371,
+        "wall_seconds": 24.166117424999996
+      },
+      "mechanical_smoke_pass": true,
+      "needs_status": "FAIL",
+      "original_oracle_statuses": {
+        "arcs": {
+          "status": "FAIL"
+        },
+        "artifacts": {
+          "adjudication": "fail",
+          "status": "FAIL"
+        },
+        "cohort": {
+          "reason": "method 3 on community method 2's communities (observational), non-discriminating: passes synthetic null and reversed worlds",
+          "status": "PASS"
+        },
+        "community": {
+          "reason": "method 1 decides; spec component (M53 oracle 1 as specified) FAIL, reported",
+          "status": "PASS"
+        },
+        "determinism": {
+          "reason": "no_duplicate_seed_pairs",
+          "status": "SKIP"
+        },
+        "era": {
+          "status": "PASS"
+        },
+        "needs": {
+          "status": "FAIL"
+        },
+        "regression": {
+          "adjudication": "strict",
+          "status": "PASS"
+        }
+      },
+      "physics_ticks": 334,
+      "runtime": {
+        "affinity": [
+          0,
+          1
+        ],
+        "caps": {
+          "BLIS_NUM_THREADS": "1",
+          "CARGO_BUILD_JOBS": "1",
+          "GOTO_NUM_THREADS": "1",
+          "MKL_NUM_THREADS": "1",
+          "NUMEXPR_NUM_THREADS": "1",
+          "OMP_NUM_THREADS": "1",
+          "OPENBLAS_NUM_THREADS": "1",
+          "RAYON_NUM_THREADS": "1",
+          "VECLIB_MAXIMUM_THREADS": "1"
+        },
+        "logical_cpu_count": 2,
+        "python": "3.13.17"
+      },
+      "scientific_exit_code": 2,
+      "scientific_gate_pass": false,
+      "worker_observation_scope": "source_launched_pool2_and_real_worker_written_checkpoint_contexts_no_pid_or_overlap_sampling",
+      "worldgen": "template"
+    }
+  }
+}

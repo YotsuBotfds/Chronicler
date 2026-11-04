@@ -1,0 +1,146 @@
+name: Trusted current Kin decision capture
+
+on:
+  push:
+    branches: [lead/kin-decision-capture-20261030]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  kin-capture:
+    if: github.ref == 'refs/heads/lead/kin-decision-capture-20261030'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      PYTHONUNBUFFERED: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONHASHSEED: "0"
+      CARGO_BUILD_JOBS: "2"
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      BLIS_NUM_THREADS: "1"
+      VECLIB_MAXIMUM_THREADS: "1"
+      NUMEXPR_NUM_THREADS: "1"
+      RAYON_NUM_THREADS: "1"
+    steps:
+      - name: Check out the exact reviewed capture source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Set up ordinary native CI Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Admit build storage and create fresh separate roles
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          available=$(df --output=avail -B1 "$RUNNER_TEMP" | tail -1 | tr -d ' ')
+          test "$available" -ge 8589934592
+          mkdir -m 0700 "$RUNNER_TEMP/kin-build"
+          mkdir -m 0700 "$RUNNER_TEMP/kin-build/wheelhouse"
+          mkdir -m 0700 "$RUNNER_TEMP/kin-cargo-target"
+          printf 'initial_available_bytes=%s\n' "$available" > "$RUNNER_TEMP/kin-build/storage.txt"
+
+      - name: Install the unchanged project lock
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "uv>=0.5,<1"
+          uv lock --check
+          uv sync --frozen --python "$(command -v python)"
+          uv pip install --python .venv/bin/python "maturin>=1.5,<2"
+
+      - name: Build and install one fresh own-source locked wheel
+        env:
+          CARGO_TARGET_DIR: ${{ runner.temp }}/kin-cargo-target
+        run: |
+          rustc --version --verbose > "$RUNNER_TEMP/kin-build/rustc.txt"
+          .venv/bin/python -m maturin build --release --locked \
+            --manifest-path chronicler-agents/Cargo.toml \
+            --interpreter "$PWD/.venv/bin/python" --out "$RUNNER_TEMP/kin-build/wheelhouse"
+          uv pip install --python .venv/bin/python --force-reinstall --no-deps \
+            "$RUNNER_TEMP/kin-build/wheelhouse/"*.whl
+          du -sk "$CARGO_TARGET_DIR" .venv >> "$RUNNER_TEMP/kin-build/storage.txt"
+          df -B1 "$RUNNER_TEMP" >> "$RUNNER_TEMP/kin-build/storage.txt"
+
+      - name: Record actual wheel, compiled classes and all three raw schemas
+        id: build
+        run: |
+          .venv/bin/python -B scripts/hosted_kin_capture.py record-wheel --execute \
+            --wheel-dir "$RUNNER_TEMP/kin-build/wheelhouse" \
+            --output "$RUNNER_TEMP/kin-build/build.json"
+
+      - name: Create the two ordinary output capacity mounts
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          base="$RUNNER_TEMP/trusted-kin"
+          mkdir -m 0700 "$base"
+          mkdir -m 0700 "$base/data" "$base/control"
+          owner_uid=$(id -u)
+          owner_gid=$(id -g)
+          sudo mount -t tmpfs \
+            -o "size=520093696,nr_inodes=4096,nodev,nosuid,noexec,uid=$owner_uid,gid=$owner_gid,mode=0700" \
+            tmpfs "$base/data"
+          sudo mount -t tmpfs \
+            -o "size=16777216,nr_inodes=128,nodev,nosuid,noexec,uid=$owner_uid,gid=$owner_gid,mode=0700" \
+            tmpfs "$base/control"
+
+      - name: Generate the strict checkpoint then acquire one current decision
+        id: capture
+        run: |
+          PYTHONPATH=src:. .venv/bin/python -X cpu_count=1 -B scripts/hosted_kin_capture.py run --execute \
+            --wheel-dir "$RUNNER_TEMP/kin-build/wheelhouse" \
+            --build "$RUNNER_TEMP/kin-build/build.json" --output "$RUNNER_TEMP/trusted-kin"
+
+      - name: Retain the separate verified builder
+        if: always() && steps.build.outputs.build_upload == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: kin-build-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/kin-build/
+          if-no-files-found: error
+          compression-level: 1
+          retention-days: 7
+
+      - name: Retain original large generation and capture files remotely
+        if: always() && steps.capture.outputs.originals_upload == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: kin-data-originals-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/trusted-kin/data/
+          include-hidden-files: true
+          if-no-files-found: warn
+          compression-level: 1
+          retention-days: 7
+
+      - name: Retain actual phase logs, inventories and failure records remotely
+        if: always() && steps.capture.outputs.originals_upload == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: kin-control-originals-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/trusted-kin/control/
+          include-hidden-files: true
+          if-no-files-found: error
+          compression-level: 1
+          retention-days: 7
+
+      - name: Offer only the bounded selected bodies for later local acquisition
+        if: always() && steps.capture.outputs.selected_upload == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: kin-selected-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/trusted-kin/control/selected/
+          if-no-files-found: error
+          compression-level: 1
+          retention-days: 7

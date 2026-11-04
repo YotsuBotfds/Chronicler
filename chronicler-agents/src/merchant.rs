@@ -10,6 +10,7 @@ use crate::economy::{
 };
 use crate::pool::AgentPool;
 use crate::region::RegionState;
+use crate::transaction_receipts as receipts;
 
 /// Shadow cargo ledger — tracks reservations and in-transit goods
 /// without mutating macro stockpiles. Persistent across turns.
@@ -240,6 +241,8 @@ pub struct MerchantTripStats {
     // Maritime: this tick's sea-lane crossings (empty unless the graph has sea lanes).
     pub sea_log: Vec<SeaCrossing>,
     pub raided_trips: u32,
+    /// Optional observations, excluded from native persistence and schema.
+    pub receipts: Option<receipts::ReceiptFrame>,
 }
 
 // ---------------------------------------------------------------------------
@@ -292,6 +295,8 @@ pub struct RouteGraph {
     /// carries one load per trip (`CargoConfig::LEGACY`); the simulator
     /// applies its configuration (`with_cargo`, bulk by default).
     pub cargo: CargoConfig,
+    /// Rebuilt from simulator configuration after graph replacement/resume.
+    pub receipt_limit: usize,
 }
 
 impl RouteGraph {
@@ -319,6 +324,7 @@ impl RouteGraph {
             edge_count: from_regions.len(),
             sea_lanes: std::collections::HashMap::new(),
             cargo: CargoConfig::LEGACY,
+            receipt_limit: 0,
         }
     }
 
@@ -1323,6 +1329,7 @@ pub fn conquest_unwind(
     conquered_regions: &[u16],
     stats: &mut MerchantTripStats,
     mut delivery_buf: Option<&mut DeliveryBuffer>,
+    receipt_regions: Option<&[RegionState]>,
 ) {
     let conquered_set: std::collections::HashSet<u16> = conquered_regions.iter().copied().collect();
     if conquered_set.is_empty() {
@@ -1351,6 +1358,12 @@ pub fn conquest_unwind(
                 ledger.cancel_reservation(origin_idx, good, qty);
             }
             TRIP_PHASE_TRANSIT => {
+                if let Some(regions) = receipt_regions {
+                    let physical = delivery_buf.as_deref().is_some_and(|buf| buf.physical_stock);
+                    receipts::record(&mut stats.receipts, pool, regions, slot,
+                        receipts::RETURNED_CONTROLLER_CHANGE, current, origin, physical,
+                        receipts::NO_LOSS);
+                }
                 ledger.unwind(origin_idx, good, qty, delivery_buf.as_deref_mut());
                 stats.unwind_count += 1;
             }
@@ -1410,6 +1423,10 @@ pub fn merchant_mobility_phase_at(
     mut delivery_buf: Option<&mut DeliveryBuffer>,
 ) -> MerchantTripStats {
     let mut stats = MerchantTripStats::default();
+    if graph.receipt_limit > 0 {
+        stats.receipts = Some(receipts::ReceiptFrame::new(turn, graph.receipt_limit));
+    }
+    let physical_stock = delivery_buf.as_deref().is_some_and(|buf| buf.physical_stock);
     let cap = pool.capacity();
     // Arrival flags and pending returns belong to this turn's arrivals only
     // (the tick consumes both after the knowledge phase; direct callers of
@@ -1435,10 +1452,14 @@ pub fn merchant_mobility_phase_at(
                 pool.trip_path_len[slot] = new_len;
                 pool.trip_path_cursor[slot] = 0;
                 stats.disruption_replans += 1;
+                receipts::record(&mut stats.receipts, pool, regions, slot, receipts::REPLANNED,
+                                 current, dest, physical_stock, receipts::NO_LOSS);
             } else {
                 let origin = pool.trip_origin_region[slot] as usize;
                 let good = pool.trip_good_slot[slot] as usize;
                 ledger.unwind(origin, good, pool.trip_cargo_qty[slot], delivery_buf.as_deref_mut());
+                receipts::record(&mut stats.receipts, pool, regions, slot, receipts::RETURNED,
+                                 current, origin as u16, physical_stock, receipts::NO_LOSS);
                 stats.stalled_trip_count += 1;
                 stats.unwind_count += 1;
                 reset_trip_fields(pool, slot);
@@ -1450,7 +1471,17 @@ pub fn merchant_mobility_phase_at(
     for slot in 0..cap {
         if !pool.is_alive(slot) || pool.trip_phase[slot] != TRIP_PHASE_LOADING { continue; }
         // Physical (hybrid) cargo is revalidated inside depart_merchant.
-        depart_merchant(pool, slot, graph, regions, ledger, delivery_buf.as_deref_mut());
+        // Cancellation resets fields; retain the reservation only when recording.
+        let before = stats.receipts.as_ref().map(|_| receipts::observe(
+            pool, regions, slot, receipts::CANCELLED, pool.regions[slot],
+            pool.trip_dest_region[slot], physical_stock, receipts::NO_LOSS));
+        if depart_merchant(pool, slot, graph, regions, ledger, delivery_buf.as_deref_mut()) {
+            receipts::record(&mut stats.receipts, pool, regions, slot, receipts::DEPARTED,
+                             pool.regions[slot], pool.trip_dest_region[slot], physical_stock,
+                             receipts::NO_LOSS);
+        } else if let (Some(frame), Some(before)) = (&mut stats.receipts, before) {
+            frame.push(before);
+        }
     }
 
     // Phase d-e: Advance Transit merchants + process arrivals
@@ -1478,6 +1509,9 @@ pub fn merchant_mobility_phase_at(
                         qty,
                         loss: if raided { Some(LossReason::Raid) } else { None },
                     });
+                    receipts::record(&mut stats.receipts, pool, regions, slot, receipts::SEA_CROSSING,
+                                     from, to, physical_stock,
+                                     if raided { LossReason::Raid as u8 } else { receipts::NO_LOSS });
                     if raided {
                         ledger.seize(origin as usize, good as usize, qty);
                         stats.raided_trips += 1;
@@ -1500,6 +1534,8 @@ pub fn merchant_mobility_phase_at(
         let good = pool.trip_good_slot[slot] as usize;
         let qty = pool.trip_cargo_qty[slot];
         ledger.arrive(origin, dest, good, qty, delivery_buf.as_deref_mut());
+        receipts::record(&mut stats.receipts, pool, regions, slot, receipts::ARRIVED,
+                         pool.regions[slot], dest as u16, physical_stock, receipts::NO_LOSS);
         let duration = pool.trip_turns_elapsed[slot];
         stats.completed_trips += 1;
         stats.avg_trip_duration += duration as f32;
@@ -1543,6 +1579,8 @@ pub fn merchant_mobility_phase_at(
         let Some(intent) = intent else { continue };
         if apply_trip_intent(&intent, pool, ledger, regions, &mut stats, delivery_buf.as_deref()) {
             tally.commit(intent.origin_region, intent.dest_region, intent.good_slot, pool.trip_cargo_qty[slot]);
+            receipts::record(&mut stats.receipts, pool, regions, slot, receipts::RESERVED,
+                             intent.origin_region, intent.dest_region, physical_stock, receipts::NO_LOSS);
             if had_packets {
                 stats.plans_packet_driven += 1;
             } else {
@@ -1551,9 +1589,15 @@ pub fn merchant_mobility_phase_at(
         }
     }
 
-    // Phase h: Collect final diagnostics
+    // Phase h: Collect final diagnostics (also loading reservations in optional frame).
     for slot in 0..cap {
-        if !pool.is_alive(slot) || pool.trip_phase[slot] != TRIP_PHASE_TRANSIT { continue; }
+        if !pool.is_alive(slot) { continue; }
+        if pool.trip_phase[slot] == TRIP_PHASE_LOADING || pool.trip_phase[slot] == TRIP_PHASE_TRANSIT {
+            receipts::record(&mut stats.receipts, pool, regions, slot, receipts::ACTIVE,
+                             pool.regions[slot], pool.trip_dest_region[slot], physical_stock,
+                             receipts::NO_LOSS);
+        }
+        if pool.trip_phase[slot] != TRIP_PHASE_TRANSIT { continue; }
         stats.active_trips += 1;
         stats.total_in_transit_qty += pool.trip_cargo_qty[slot];
     }
@@ -2298,14 +2342,14 @@ mod tests {
         let mut stats = MerchantTripStats::default();
 
         // Conquer region 0 — should unwind s0 (Loading, cancel reservation)
-        conquest_unwind(&mut pool, &mut ledger, &[0], &mut stats, None);
+        conquest_unwind(&mut pool, &mut ledger, &[0], &mut stats, None, None);
         assert_eq!(pool.trip_phase[s0], TRIP_PHASE_IDLE);
         assert_eq!(ledger.reserved[0][0], 0.0);
         // s1 should be unaffected
         assert_eq!(pool.trip_phase[s1], TRIP_PHASE_TRANSIT);
 
         // Conquer region 3 (s1's destination) — should unwind s1
-        conquest_unwind(&mut pool, &mut ledger, &[3], &mut stats, None);
+        conquest_unwind(&mut pool, &mut ledger, &[3], &mut stats, None, None);
         assert_eq!(pool.trip_phase[s1], TRIP_PHASE_IDLE);
         assert_eq!(stats.unwind_count, 1); // only transit counts toward unwind_count
     }
@@ -2317,7 +2361,7 @@ mod tests {
 
 crate::persist_struct!(RouteGraph {
     adj, num_regions, edge_count, sea_lanes, cargo,
-});
+} transient { receipt_limit });
 crate::persist_struct!(CargoConfig {
     land, river, sea, fill,
 });
@@ -2337,7 +2381,7 @@ crate::persist_struct!(MerchantTripStats {
     active_trips, completed_trips, avg_trip_duration, total_in_transit_qty, route_utilization,
     disruption_replans, unwind_count, stalled_trip_count, overcommit_count,
     plans_packet_driven, plans_bootstrap, no_usable_packets, sea_log, raided_trips,
-});
+} transient { receipts });
 crate::persist_struct!(SeaCrossing {
     from_region, to_region, origin_region, dest_region, good_slot, qty, loss,
 });

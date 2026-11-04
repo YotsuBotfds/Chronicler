@@ -123,13 +123,20 @@ export function presentSystems(history: TurnSnapshot[], events: Event[] = [], fa
       // The caller reads the faith table (lib/faiths `hasFaithRecord`, kept
       // out of the entry chunk): permanent faith ids, or an older bundle
       // whose record holds a schism.
-      return faiths;
+      return faiths || history.some((snapshot) => snapshot.ritual_gatherings != null);
     }
     if (key === "governance") {
       return history.some((snapshot) => Object.values(snapshot.civ_stats).some((row) => row.governance != null));
     }
     const field = SNAPSHOT_FIELDS[key];
     if (field && history.some((snapshot) => snapshot[field] != null)) {
+      return true;
+    }
+    if (key === "epidemics" && history.some((snapshot) => snapshot.health_care != null)) {
+      return true;
+    }
+    if (key === "learning" && history.some((snapshot) => snapshot.scientific_claims != null)) return true;
+    if (key === "food" && history.some((snapshot) => snapshot.grain_reserves != null || snapshot.harvest_forecasts != null || snapshot.transaction_receipts != null)) {
       return true;
     }
     return key === "food" && events.some((event) => (event.event_type === "famine" || event.event_type === "dearth")
@@ -141,6 +148,7 @@ export function presentSystems(history: TurnSnapshot[], events: Event[] = [], fa
 export const SYSTEM_EVENT_TYPES: Record<SystemKey, readonly string[]> = {
   epidemics: [
     "epidemic_arrival", "epidemic", "epidemic_ended", "pathogen_mutation", "quarantine", "quarantine_ended",
+    "occupational_injury",
   ],
   finance: ["loan_taken", "state_default", "debasement", "debt_written_off"],
   diplomacy: [
@@ -155,6 +163,8 @@ export const SYSTEM_EVENT_TYPES: Record<SystemKey, readonly string[]> = {
   food: [
     "famine", "famine_ended", "dearth", "dearth_ended", "aid_convoy", "mutual_aid", "locust_swarm",
     "fishery_collapse", "fishery_recovery",
+    "granary_opened", "granary_exhausted", "grain_bought",
+    "harvest_forecast_issued", "harvest_forecast_delivered", "harvest_forecast_resolved", "harvest_preparedness",
   ],
   wars: [
     "war_declared", "peace_treaty", "war_ended", "army_raised", "army_destroyed", "siege_begun", "occupation",
@@ -187,7 +197,7 @@ export const SYSTEM_EVENT_TYPES: Record<SystemKey, readonly string[]> = {
   learning: [
     "seat_founded", "seat_rose", "seat_declined", "seat_patron", "seat_master", "seat_fell", "scholars_fled",
   ],
-  faiths: ["Schism", "Reformation", "temple_destroyed", "Persecution"],
+  faiths: ["Schism", "Reformation", "temple_destroyed", "Persecution", "harvest_gathering_held", "harvest_gathering_cancelled"],
 };
 
 /**

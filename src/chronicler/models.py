@@ -15,6 +15,7 @@ from typing import Annotated, Optional
 
 from pydantic import BaseModel, Field, PrivateAttr, field_validator, model_validator
 
+from chronicler.artifact_io import atomic_write_text
 from chronicler.experimental.fisheries import FisheryConfig
 from chronicler.governance_state import CivGovernance, GovernanceSettings
 from chronicler.contact_ledger import ContactLedgerState
@@ -30,6 +31,11 @@ from chronicler.agent_movements_state import MovementState
 from chronicler.guilds_state import GuildState
 from chronicler.scholarship_state import ScholarshipState
 from chronicler.grain_reserves_state import GrainReserveState
+from chronicler.health_care_state import HealthCareState
+from chronicler.harvest_forecasts_state import HarvestForecastState
+from chronicler.ritual_gatherings_state import RitualGatheringState
+from chronicler.scientific_claims_state import ScientificClaimsState
+from chronicler.transaction_receipts_state import TransactionReceiptState
 from chronicler.domestic_credit_state import DomesticCreditState
 
 StockFraction = Annotated[float, Field(ge=0.0, le=1.0, allow_inf_nan=False)]
@@ -853,7 +859,7 @@ class ProxyWar(BaseModel):
     detected: bool = False
 
 
-# --- M60: Campaigns, battles and occupation (default off; see docs/war/) ---
+# --- M60: Campaigns (model default off; new CLI worlds on; see docs/war/) ---
 
 class Army(BaseModel):
     """A field army raised for one war. Persisted; identity is ``army_id``."""
@@ -1154,7 +1160,7 @@ class WorldState(BaseModel):
     mutual_aid_state: dict[str, MutualAidState] = Field(default_factory=dict)
     mutual_aid_last_dispatch_turn: int | None = None
     mutual_aid_last_transfers: list[MutualAidTransfer] = Field(default_factory=list)
-    # M60: campaigns, battles and occupation (default off).
+    # Model/legacy default off; CLI, batch and live entry points default new worlds on.
     campaigns_enabled: bool = False
     war_state: WarState = Field(default_factory=WarState)
     # Phase 8 governance runtime switch (None = disabled; omitted from output).
@@ -1201,9 +1207,21 @@ class WorldState(BaseModel):
     # Public granaries: stock-target grain procurement and reserves
     # (chronicler.grain_reserves; None = disabled; omitted from output).
     grain_reserves: GrainReserveState | None = Field(default=None, exclude_if=_is_none)
+    # Bounded opt-in systems; optional authoritative state survives dormant modes.
+    health_care: HealthCareState | None = Field(default=None, exclude_if=_is_none)
+    harvest_forecasts: HarvestForecastState | None = Field(default=None, exclude_if=_is_none)
+    ritual_gatherings: RitualGatheringState | None = Field(default=None, exclude_if=_is_none)
+    scientific_claims: ScientificClaimsState | None = Field(default=None, exclude_if=_is_none)
+    transaction_receipts: TransactionReceiptState | None = Field(default=None, exclude_if=_is_none)
     # Community anchoring: community ties hold agents back from moving
     # (chronicler.community_anchoring; True = on, None = off and omitted).
     community_anchoring: bool | None = Field(default=None, exclude_if=_is_none)
+    # Default-off liquidity eligibility proxy for existing household migration.
+    # Native wealth is a constraint here, never a travel payment or new debt.
+    household_mobility_liquid_requirement: float | None = Field(
+        default=None, ge=0, le=1000, strict=True, exclude_if=_is_none)
+    # Capacity-aware aggregate/shadow refugees (default off and omitted).
+    capacity_aware_refugees: bool = Field(default=False, exclude_if=operator.not_)
     # Domestic credit through real lenders: merchants, guilds and cities fund
     # the state's domestic loans (chronicler.domestic_credit; None = off and
     # omitted).
@@ -1302,21 +1320,24 @@ class WorldState(BaseModel):
         self._active_trade_route_pairs_cache = None
         self._self_trade_civs_cache = None
 
-    def save(self, path: Path) -> None:
-        """Persist world state to a JSON file."""
-        parent = path.parent
-        try:
-            parent_is_dir = parent.is_dir()
-        except OSError:
-            parent_is_dir = False
-        if not parent_is_dir:
-            parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(self.model_dump_json(indent=2), encoding="utf-8")
+    def save(self, path: Path, *, artifact_budget=None) -> None:
+        """Persist world state to a JSON file by atomically replacing it."""
+        if artifact_budget is not None:
+            artifact_budget.ensure_directory(path.parent)
+        else:
+            parent = path.parent
+            try:
+                parent_is_dir = parent.is_dir()
+            except OSError:
+                parent_is_dir = False
+            if not parent_is_dir:
+                parent.mkdir(parents=True, exist_ok=True)
+        atomic_write_text(path, self.model_dump_json(indent=2), artifact_budget=artifact_budget)
         # The chronicles and the languages travel beside the state (removed while off).
         from chronicler.historiography import save_sidecar
-        save_sidecar(self, path)
+        save_sidecar(self, path, atomic=True, artifact_budget=artifact_budget)
         from chronicler.languages import save_sidecar as save_languages
-        save_languages(self, path)
+        save_languages(self, path, atomic=True, artifact_budget=artifact_budget)
 
     @classmethod
     def load(cls, path: Path) -> WorldState:
@@ -1454,10 +1475,26 @@ class TurnSnapshot(BaseModel):
     # convoys (``mutual_aid.snapshot_summary``); None (and omitted) unless
     # mutual aid runs on an agent-backed economy.
     food: dict | None = Field(default=None, exclude_if=_is_none)
+    # Read-only stocks/targets and completed-turn flows; absent while public
+    # granaries are disabled or dormant (--agents off).
+    grain_reserves: dict | None = Field(default=None, exclude_if=_is_none)
+    # Completed-turn observations only; absent when the corresponding system is dormant.
+    health_care: dict | None = Field(default=None, exclude_if=_is_none)
+    harvest_forecasts: dict | None = Field(default=None, exclude_if=_is_none)
+    ritual_gatherings: dict | None = Field(default=None, exclude_if=_is_none)
+    scientific_claims: dict | None = Field(default=None, exclude_if=_is_none)
+    transaction_receipts: dict | None = Field(default=None, exclude_if=_is_none)
     # Viewer only: the completed turn's agent migrations as
     # [from region index, to region index, agents]; None (and omitted)
     # without an agent pool that records events (hybrid, shadow).
     migration: list | None = Field(default=None, exclude_if=_is_none)
+    # Versioned, indexed completed model populations, native alive counts and
+    # separately stamped Phase 2 food weights. Historical missing means unknown.
+    regional_population: dict | None = Field(default=None, exclude_if=_is_none)
+    # Version1 detached native food drawdown/public relief observations.
+    food_accounting: dict | None = Field(default=None, exclude_if=_is_none)
+    # Dated, bounded native eligibility observations; absent in old bundles.
+    household_mobility: dict | None = Field(default=None, exclude_if=_is_none)
 
 
 # --- M20a: Narration Pipeline v2 models ---

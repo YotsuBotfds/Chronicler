@@ -1,0 +1,1098 @@
+{
+  "schema_version": 1,
+  "kind": "chronicler-consolidated-review-ci-qualification",
+  "repository": "YotsuBotfds/Chronicler",
+  "recorded_at_utc": "2026-10-29 01:33:13 UTC",
+  "source_sha": "1c5728b74c9a050d817269152a8c92eeda7630dc",
+  "workflow_control_sha": "1c5728b74c9a050d817269152a8c92eeda7630dc",
+  "branch": "lead/recovered-review-20261029",
+  "production_source_equivalent_to": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1",
+  "package_git_tree": "47381a4e5181515babc978227792deb2b55618d2",
+  "rust_git_tree": "a4703ef4e9a21b5dbb194d318536a46e6ca8b71c",
+  "run": {
+    "id": 40799038789,
+    "run_attempt": 1,
+    "html_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40799038789",
+    "path": ".github/workflows/tests.yml",
+    "event": "push",
+    "status": "completed",
+    "conclusion": "success",
+    "created_at": "2026-10-29T01:12:57Z",
+    "run_started_at": "2026-10-29T01:12:57Z",
+    "updated_at": "2026-10-29T01:25:30Z"
+  },
+  "created_to_first_job_start_seconds": 2,
+  "created_to_last_job_complete_seconds": 752,
+  "counts": {
+    "native_python": {
+      "parent_passed": 8027,
+      "skipped": 6,
+      "successful_subtests": 526,
+      "pytest_reported_seconds": 552.02
+    },
+    "no_rust_python": {
+      "parent_passed": 7713,
+      "skipped": 306,
+      "successful_subtests": 526,
+      "pytest_reported_seconds": 266.11
+    },
+    "bounded_offline": {
+      "chunks": 32,
+      "passed": 3929,
+      "skipped": 65,
+      "per_chunk_limit_seconds": 110,
+      "sum_of_rounded_chunk_seconds": 173.4,
+      "slowest_printed_chunk": {
+        "name": "systems-2",
+        "printed_seconds": 29.2,
+        "limit_seconds": 110,
+        "passed": 313,
+        "skipped": 17,
+        "failed": 0
+      },
+      "chunk_summaries": [
+        {
+          "name": "arc-event-types",
+          "printed_seconds": 1.5,
+          "limit_seconds": 110,
+          "passed": 8,
+          "skipped": 0,
+          "failed": 0
+        },
+        {
+          "name": "diagnostics",
+          "printed_seconds": 1.9,
+          "limit_seconds": 110,
+          "passed": 74,
+          "skipped": 0,
+          "failed": 0
+        },
+        {
+          "name": "core",
+          "printed_seconds": 21.0,
+          "limit_seconds": 110,
+          "passed": 1131,
+          "skipped": 0,
+          "failed": 0
+        },
+        {
+          "name": "governance",
+          "printed_seconds": 12.5,
+          "limit_seconds": 110,
+          "passed": 575,
+          "skipped": 3,
+          "failed": 0
+        },
+        {
+          "name": "systems-1",
+          "printed_seconds": 15.3,
+          "limit_seconds": 110,
+          "passed": 255,
+          "skipped": 17,
+          "failed": 0
+        },
+        {
+          "name": "systems-2",
+          "printed_seconds": 29.2,
+          "limit_seconds": 110,
+          "passed": 313,
+          "skipped": 17,
+          "failed": 0
+        },
+        {
+          "name": "narration",
+          "printed_seconds": 7.1,
+          "limit_seconds": 110,
+          "passed": 171,
+          "skipped": 0,
+          "failed": 0
+        },
+        {
+          "name": "history-forensics",
+          "printed_seconds": 1.5,
+          "limit_seconds": 110,
+          "passed": 34,
+          "skipped": 0,
+          "failed": 0
+        },
+        {
+          "name": "expansion-audit",
+          "printed_seconds": 1.6,
+          "limit_seconds": 110,
+          "passed": 69,
+          "skipped": 0,
+          "failed": 0
+        },
+        {
+          "name": "scientific-receipts",
+          "printed_seconds": 1.8,
+          "limit_seconds": 110,
+          "passed": 93,
+          "skipped": 0,
+          "failed": 0
+        },
+        {
+          "name": "expansion-comparison",
+          "printed_seconds": 2.0,
+          "limit_seconds": 110,
+          "passed": 52,
+          "skipped": 0,
+          "failed": 0
+        },
+        {
+          "name": "proof-contracts",
+          "printed_seconds": 1.8,
+          "limit_seconds": 110,
+          "passed": 28,
+          "skipped": 0,
+          "failed": 0
+        },
+        {
+          "name": "qualification-tools",
+          "printed_seconds": 4.1,
+          "limit_seconds": 110,
+          "passed": 112,
+          "skipped": 0,
+          "failed": 0
+        },
+        {
+          "name": "turn-speed",
+          "printed_seconds": 1.6,
+          "limit_seconds": 110,
+          "passed": 21,
+          "skipped": 0,
+          "failed": 0
+        },
+        {
+          "name": "validation-tooling",
+          "printed_seconds": 7.6,
+          "limit_seconds": 110,
+          "passed": 225,
+          "skipped": 0,
+          "failed": 0
+        },
+        {
+          "name": "learning",
+          "printed_seconds": 4.0,
+          "limit_seconds": 110,
+          "passed": 64,
+          "skipped": 2,
+          "failed": 0
+        },
+        {
+          "name": "population",
+          "printed_seconds": 1.8,
+          "limit_seconds": 110,
+          "passed": 27,
+          "skipped": 4,
+          "failed": 0
+        },
+        {
+          "name": "production-ledger",
+          "printed_seconds": 2.1,
+          "limit_seconds": 110,
+          "passed": 17,
+          "skipped": 9,
+          "failed": 0
+        },
+        {
+          "name": "refugee-routing",
+          "printed_seconds": 2.5,
+          "limit_seconds": 110,
+          "passed": 23,
+          "skipped": 0,
+          "failed": 0
+        },
+        {
+          "name": "checkpoint",
+          "printed_seconds": 4.3,
+          "limit_seconds": 110,
+          "passed": 20,
+          "skipped": 6,
+          "failed": 0
+        },
+        {
+          "name": "live-checkpoints",
+          "printed_seconds": 17.7,
+          "limit_seconds": 110,
+          "passed": 13,
+          "skipped": 2,
+          "failed": 0
+        },
+        {
+          "name": "interactive-checkpoints",
+          "printed_seconds": 5.1,
+          "limit_seconds": 110,
+          "passed": 28,
+          "skipped": 2,
+          "failed": 0
+        },
+        {
+          "name": "grain-reserves",
+          "printed_seconds": 2.2,
+          "limit_seconds": 110,
+          "passed": 23,
+          "skipped": 2,
+          "failed": 0
+        },
+        {
+          "name": "expansion-wiring",
+          "printed_seconds": 2.7,
+          "limit_seconds": 110,
+          "passed": 118,
+          "skipped": 1,
+          "failed": 0
+        },
+        {
+          "name": "ritual-gatherings",
+          "printed_seconds": 1.8,
+          "limit_seconds": 110,
+          "passed": 78,
+          "skipped": 0,
+          "failed": 0
+        },
+        {
+          "name": "scientific-claims",
+          "printed_seconds": 5.0,
+          "limit_seconds": 110,
+          "passed": 65,
+          "skipped": 0,
+          "failed": 0
+        },
+        {
+          "name": "scientific-publication",
+          "printed_seconds": 2.0,
+          "limit_seconds": 110,
+          "passed": 31,
+          "skipped": 0,
+          "failed": 0
+        },
+        {
+          "name": "scientific-research",
+          "printed_seconds": 3.6,
+          "limit_seconds": 110,
+          "passed": 126,
+          "skipped": 0,
+          "failed": 0
+        },
+        {
+          "name": "transaction-receipts",
+          "printed_seconds": 1.7,
+          "limit_seconds": 110,
+          "passed": 53,
+          "skipped": 0,
+          "failed": 0
+        },
+        {
+          "name": "expansion-experiments",
+          "printed_seconds": 2.0,
+          "limit_seconds": 110,
+          "passed": 30,
+          "skipped": 0,
+          "failed": 0
+        },
+        {
+          "name": "domestic-credit",
+          "printed_seconds": 2.1,
+          "limit_seconds": 110,
+          "passed": 34,
+          "skipped": 0,
+          "failed": 0
+        },
+        {
+          "name": "faiths",
+          "printed_seconds": 2.3,
+          "limit_seconds": 110,
+          "passed": 18,
+          "skipped": 0,
+          "failed": 0
+        }
+      ]
+    },
+    "rust": {
+      "passed": 1088,
+      "failed": 0,
+      "ignored": 2,
+      "measured": 0,
+      "filtered_out": 0,
+      "suite_summaries": 37
+    },
+    "viewer": {
+      "passed": 743,
+      "files_passed": 69,
+      "lint": "success",
+      "production_build": "success"
+    }
+  },
+  "jobs": [
+    {
+      "id": 123202433017,
+      "name": "Viewer",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-29T01:12:58Z",
+      "started_at": "2026-10-29T01:12:59Z",
+      "completed_at": "2026-10-29T01:14:43Z",
+      "html_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40799038789/job/123202433017",
+      "wall_seconds": 104,
+      "steps": [
+        {
+          "number": 1,
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:13:00Z",
+          "completed_at": "2026-10-29T01:13:01Z",
+          "wall_seconds": 1
+        },
+        {
+          "number": 2,
+          "name": "Check out repository",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:13:01Z",
+          "completed_at": "2026-10-29T01:13:03Z",
+          "wall_seconds": 2
+        },
+        {
+          "number": 3,
+          "name": "Set up Node.js",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:13:03Z",
+          "completed_at": "2026-10-29T01:13:04Z",
+          "wall_seconds": 1
+        },
+        {
+          "number": 4,
+          "name": "Install viewer dependencies from the lockfile",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:13:04Z",
+          "completed_at": "2026-10-29T01:13:09Z",
+          "wall_seconds": 5
+        },
+        {
+          "number": 5,
+          "name": "Run viewer tests",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:13:09Z",
+          "completed_at": "2026-10-29T01:14:14Z",
+          "wall_seconds": 65
+        },
+        {
+          "number": 6,
+          "name": "Lint viewer",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:14:14Z",
+          "completed_at": "2026-10-29T01:14:27Z",
+          "wall_seconds": 13
+        },
+        {
+          "number": 7,
+          "name": "Build viewer for production",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:14:27Z",
+          "completed_at": "2026-10-29T01:14:41Z",
+          "wall_seconds": 14
+        },
+        {
+          "number": 13,
+          "name": "Post Set up Node.js",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:14:41Z",
+          "completed_at": "2026-10-29T01:14:41Z",
+          "wall_seconds": 0
+        },
+        {
+          "number": 14,
+          "name": "Post Check out repository",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:14:41Z",
+          "completed_at": "2026-10-29T01:14:41Z",
+          "wall_seconds": 0
+        },
+        {
+          "number": 15,
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:14:41Z",
+          "completed_at": "2026-10-29T01:14:41Z",
+          "wall_seconds": 0
+        }
+      ],
+      "retained_decoded_log_sha256": "6dabe89a2c7be15fb0ab455f1e478d0bbdc21062d01fb8c32aaf28499139cf47",
+      "retained_decoded_log_bytes": 89700
+    },
+    {
+      "id": 123202433300,
+      "name": "Python bounded offline",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-29T01:12:58Z",
+      "started_at": "2026-10-29T01:12:59Z",
+      "completed_at": "2026-10-29T01:16:41Z",
+      "html_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40799038789/job/123202433300",
+      "wall_seconds": 222,
+      "steps": [
+        {
+          "number": 1,
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:13:00Z",
+          "completed_at": "2026-10-29T01:13:01Z",
+          "wall_seconds": 1
+        },
+        {
+          "number": 2,
+          "name": "Check out repository",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:13:01Z",
+          "completed_at": "2026-10-29T01:13:03Z",
+          "wall_seconds": 2
+        },
+        {
+          "number": 3,
+          "name": "Set up Python",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:13:03Z",
+          "completed_at": "2026-10-29T01:13:03Z",
+          "wall_seconds": 0
+        },
+        {
+          "number": 4,
+          "name": "Restore uv artifacts",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:13:03Z",
+          "completed_at": "2026-10-29T01:13:03Z",
+          "wall_seconds": 0
+        },
+        {
+          "number": 5,
+          "name": "Install Python dependencies from the lockfile",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:13:03Z",
+          "completed_at": "2026-10-29T01:13:40Z",
+          "wall_seconds": 37
+        },
+        {
+          "number": 6,
+          "name": "Assert native extension is absent",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:13:40Z",
+          "completed_at": "2026-10-29T01:13:40Z",
+          "wall_seconds": 0
+        },
+        {
+          "number": 7,
+          "name": "Run guarded offline chunks",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:13:40Z",
+          "completed_at": "2026-10-29T01:16:34Z",
+          "wall_seconds": 174
+        },
+        {
+          "number": 8,
+          "name": "Retain bounded offline receipts and logs",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:16:34Z",
+          "completed_at": "2026-10-29T01:16:35Z",
+          "wall_seconds": 1
+        },
+        {
+          "number": 14,
+          "name": "Post Restore uv artifacts",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:16:35Z",
+          "completed_at": "2026-10-29T01:16:38Z",
+          "wall_seconds": 3
+        },
+        {
+          "number": 15,
+          "name": "Post Set up Python",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:16:38Z",
+          "completed_at": "2026-10-29T01:16:38Z",
+          "wall_seconds": 0
+        },
+        {
+          "number": 16,
+          "name": "Post Check out repository",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:16:38Z",
+          "completed_at": "2026-10-29T01:16:39Z",
+          "wall_seconds": 1
+        },
+        {
+          "number": 17,
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:16:39Z",
+          "completed_at": "2026-10-29T01:16:39Z",
+          "wall_seconds": 0
+        }
+      ],
+      "retained_decoded_log_sha256": "3a321316b700227151dcc31561018923af5e46d699f6acc03812977aa0ce3264",
+      "retained_decoded_log_bytes": 40351
+    },
+    {
+      "id": 123202433321,
+      "name": "Rust",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-29T01:12:58Z",
+      "started_at": "2026-10-29T01:13:00Z",
+      "completed_at": "2026-10-29T01:14:12Z",
+      "html_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40799038789/job/123202433321",
+      "wall_seconds": 72,
+      "steps": [
+        {
+          "number": 1,
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:13:01Z",
+          "completed_at": "2026-10-29T01:13:02Z",
+          "wall_seconds": 1
+        },
+        {
+          "number": 2,
+          "name": "Check out repository",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:13:02Z",
+          "completed_at": "2026-10-29T01:13:05Z",
+          "wall_seconds": 3
+        },
+        {
+          "number": 3,
+          "name": "Set up Python for PyO3 test linkage",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:13:05Z",
+          "completed_at": "2026-10-29T01:13:05Z",
+          "wall_seconds": 0
+        },
+        {
+          "number": 4,
+          "name": "Set up Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:13:05Z",
+          "completed_at": "2026-10-29T01:13:05Z",
+          "wall_seconds": 0
+        },
+        {
+          "number": 5,
+          "name": "Restore Cargo downloads",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:13:05Z",
+          "completed_at": "2026-10-29T01:13:06Z",
+          "wall_seconds": 1
+        },
+        {
+          "number": 6,
+          "name": "Run Rust tests",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:13:06Z",
+          "completed_at": "2026-10-29T01:14:06Z",
+          "wall_seconds": 60
+        },
+        {
+          "number": 7,
+          "name": "Retain Rust test results",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:14:06Z",
+          "completed_at": "2026-10-29T01:14:08Z",
+          "wall_seconds": 2
+        },
+        {
+          "number": 12,
+          "name": "Post Restore Cargo downloads",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:14:08Z",
+          "completed_at": "2026-10-29T01:14:09Z",
+          "wall_seconds": 1
+        },
+        {
+          "number": 13,
+          "name": "Post Set up Python for PyO3 test linkage",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:14:09Z",
+          "completed_at": "2026-10-29T01:14:10Z",
+          "wall_seconds": 1
+        },
+        {
+          "number": 14,
+          "name": "Post Check out repository",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:14:10Z",
+          "completed_at": "2026-10-29T01:14:10Z",
+          "wall_seconds": 0
+        },
+        {
+          "number": 15,
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:14:10Z",
+          "completed_at": "2026-10-29T01:14:10Z",
+          "wall_seconds": 0
+        }
+      ],
+      "retained_decoded_log_sha256": "26347fbbb8ca5a9f1cab8ca8ef7b760bb7c38e83227d412088e681a26da94668",
+      "retained_decoded_log_bytes": 52142
+    },
+    {
+      "id": 123202433344,
+      "name": "Python native execution",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-29T01:12:58Z",
+      "started_at": "2026-10-29T01:12:59Z",
+      "completed_at": "2026-10-29T01:25:23Z",
+      "html_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40799038789/job/123202433344",
+      "wall_seconds": 744,
+      "steps": [
+        {
+          "number": 1,
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:13:00Z",
+          "completed_at": "2026-10-29T01:13:02Z",
+          "wall_seconds": 2
+        },
+        {
+          "number": 2,
+          "name": "Check out repository",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:13:02Z",
+          "completed_at": "2026-10-29T01:13:04Z",
+          "wall_seconds": 2
+        },
+        {
+          "number": 3,
+          "name": "Set up Python",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:13:04Z",
+          "completed_at": "2026-10-29T01:13:04Z",
+          "wall_seconds": 0
+        },
+        {
+          "number": 4,
+          "name": "Restore uv artifacts",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:13:04Z",
+          "completed_at": "2026-10-29T01:13:05Z",
+          "wall_seconds": 1
+        },
+        {
+          "number": 5,
+          "name": "Set up Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:13:05Z",
+          "completed_at": "2026-10-29T01:13:06Z",
+          "wall_seconds": 1
+        },
+        {
+          "number": 6,
+          "name": "Identify Rust compiler",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:13:06Z",
+          "completed_at": "2026-10-29T01:13:06Z",
+          "wall_seconds": 0
+        },
+        {
+          "number": 7,
+          "name": "Restore Cargo downloads",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:13:06Z",
+          "completed_at": "2026-10-29T01:13:06Z",
+          "wall_seconds": 0
+        },
+        {
+          "number": 8,
+          "name": "Restore release build cache",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:13:06Z",
+          "completed_at": "2026-10-29T01:13:06Z",
+          "wall_seconds": 0
+        },
+        {
+          "number": 9,
+          "name": "Install Python dependencies from the lockfile",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:13:06Z",
+          "completed_at": "2026-10-29T01:13:11Z",
+          "wall_seconds": 5
+        },
+        {
+          "number": 10,
+          "name": "Build Rust extension wheel",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:13:11Z",
+          "completed_at": "2026-10-29T01:15:58Z",
+          "wall_seconds": 167
+        },
+        {
+          "number": 11,
+          "name": "Run Python tests with real native extension preloaded",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:15:58Z",
+          "completed_at": "2026-10-29T01:25:14Z",
+          "wall_seconds": 556
+        },
+        {
+          "number": 12,
+          "name": "Retain native Python test results",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:25:14Z",
+          "completed_at": "2026-10-29T01:25:15Z",
+          "wall_seconds": 1
+        },
+        {
+          "number": 20,
+          "name": "Post Restore release build cache",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:25:15Z",
+          "completed_at": "2026-10-29T01:25:19Z",
+          "wall_seconds": 4
+        },
+        {
+          "number": 21,
+          "name": "Post Restore Cargo downloads",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:25:19Z",
+          "completed_at": "2026-10-29T01:25:20Z",
+          "wall_seconds": 1
+        },
+        {
+          "number": 22,
+          "name": "Post Restore uv artifacts",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:25:20Z",
+          "completed_at": "2026-10-29T01:25:21Z",
+          "wall_seconds": 1
+        },
+        {
+          "number": 23,
+          "name": "Post Set up Python",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:25:21Z",
+          "completed_at": "2026-10-29T01:25:21Z",
+          "wall_seconds": 0
+        },
+        {
+          "number": 24,
+          "name": "Post Check out repository",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:25:21Z",
+          "completed_at": "2026-10-29T01:25:21Z",
+          "wall_seconds": 0
+        },
+        {
+          "number": 25,
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:25:21Z",
+          "completed_at": "2026-10-29T01:25:22Z",
+          "wall_seconds": 1
+        }
+      ],
+      "retained_decoded_log_sha256": "eb12003b651219610d0d127ad9a36078a02be4907a4bddcfd0176d1ef666d290",
+      "retained_decoded_log_bytes": 87546
+    },
+    {
+      "id": 123202433352,
+      "name": "Python no-Rust",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-29T01:12:58Z",
+      "started_at": "2026-10-29T01:12:59Z",
+      "completed_at": "2026-10-29T01:17:40Z",
+      "html_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40799038789/job/123202433352",
+      "wall_seconds": 281,
+      "steps": [
+        {
+          "number": 1,
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:13:00Z",
+          "completed_at": "2026-10-29T01:13:01Z",
+          "wall_seconds": 1
+        },
+        {
+          "number": 2,
+          "name": "Check out repository",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:13:01Z",
+          "completed_at": "2026-10-29T01:13:03Z",
+          "wall_seconds": 2
+        },
+        {
+          "number": 3,
+          "name": "Set up Python",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:13:03Z",
+          "completed_at": "2026-10-29T01:13:03Z",
+          "wall_seconds": 0
+        },
+        {
+          "number": 4,
+          "name": "Restore uv artifacts",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:13:03Z",
+          "completed_at": "2026-10-29T01:13:03Z",
+          "wall_seconds": 0
+        },
+        {
+          "number": 5,
+          "name": "Install Python dependencies from the lockfile",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:13:03Z",
+          "completed_at": "2026-10-29T01:13:07Z",
+          "wall_seconds": 4
+        },
+        {
+          "number": 6,
+          "name": "Assert native extension is absent",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:13:07Z",
+          "completed_at": "2026-10-29T01:13:07Z",
+          "wall_seconds": 0
+        },
+        {
+          "number": 7,
+          "name": "Run Python tests without Rust extension",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:13:07Z",
+          "completed_at": "2026-10-29T01:17:36Z",
+          "wall_seconds": 269
+        },
+        {
+          "number": 8,
+          "name": "Retain no-Rust test results",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:17:36Z",
+          "completed_at": "2026-10-29T01:17:37Z",
+          "wall_seconds": 1
+        },
+        {
+          "number": 14,
+          "name": "Post Restore uv artifacts",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:17:37Z",
+          "completed_at": "2026-10-29T01:17:38Z",
+          "wall_seconds": 1
+        },
+        {
+          "number": 15,
+          "name": "Post Set up Python",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:17:38Z",
+          "completed_at": "2026-10-29T01:17:38Z",
+          "wall_seconds": 0
+        },
+        {
+          "number": 16,
+          "name": "Post Check out repository",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:17:38Z",
+          "completed_at": "2026-10-29T01:17:38Z",
+          "wall_seconds": 0
+        },
+        {
+          "number": 17,
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:17:38Z",
+          "completed_at": "2026-10-29T01:17:38Z",
+          "wall_seconds": 0
+        }
+      ],
+      "retained_decoded_log_sha256": "0458d1d71b3f9a3a8ef53e1f859cc75410dbbb16b94d6533ba6102c9f674496d",
+      "retained_decoded_log_bytes": 36222
+    },
+    {
+      "id": 123206616887,
+      "name": "Python native",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-29T01:25:23Z",
+      "started_at": "2026-10-29T01:25:26Z",
+      "completed_at": "2026-10-29T01:25:29Z",
+      "html_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40799038789/job/123206616887",
+      "wall_seconds": 3,
+      "steps": [
+        {
+          "number": 1,
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:25:26Z",
+          "completed_at": "2026-10-29T01:25:27Z",
+          "wall_seconds": 1
+        },
+        {
+          "number": 2,
+          "name": "Require complete native Python and Rust success",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:25:27Z",
+          "completed_at": "2026-10-29T01:25:27Z",
+          "wall_seconds": 0
+        },
+        {
+          "number": 3,
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T01:25:27Z",
+          "completed_at": "2026-10-29T01:25:27Z",
+          "wall_seconds": 0
+        }
+      ],
+      "retained_decoded_log_sha256": "82e7f6e5095466f0f6923be1e573afc7f29b38488bc621124948fd1227dccb41",
+      "retained_decoded_log_bytes": 2261
+    }
+  ],
+  "published_artifacts": [
+    {
+      "id": 12865735546,
+      "name": "python-no-rust-1c5728b74c9a050d817269152a8c92eeda7630dc",
+      "size_in_bytes": 139164,
+      "digest": "sha256:ea1844c00394f631f1dca96930e1e08b6f6094471fa2f12f57db8cd1e1b329b3",
+      "expired": false,
+      "created_at": "2026-10-29T01:17:37Z",
+      "expires_at": "2026-11-12T01:17:36Z",
+      "updated_at": "2026-10-29T01:17:37Z",
+      "workflow_run": {
+        "id": 40799038789,
+        "repository_id": 1187468861,
+        "head_repository_id": 1187468861,
+        "head_branch": "lead/recovered-review-20261029",
+        "head_sha": "1c5728b74c9a050d817269152a8c92eeda7630dc"
+      }
+    },
+    {
+      "id": 12864858196,
+      "name": "rust-1c5728b74c9a050d817269152a8c92eeda7630dc",
+      "size_in_bytes": 521,
+      "digest": "sha256:0ec4c14b6bcdda3a6372ea185b7c5eda3b08c6a4f775487fb1ada808a76e6440",
+      "expired": false,
+      "created_at": "2026-10-29T01:14:07Z",
+      "expires_at": "2026-11-12T01:14:07Z",
+      "updated_at": "2026-10-29T01:14:07Z",
+      "workflow_run": {
+        "id": 40799038789,
+        "repository_id": 1187468861,
+        "head_repository_id": 1187468861,
+        "head_branch": "lead/recovered-review-20261029",
+        "head_sha": "1c5728b74c9a050d817269152a8c92eeda7630dc"
+      }
+    },
+    {
+      "id": 12864854064,
+      "name": "python-native-1c5728b74c9a050d817269152a8c92eeda7630dc",
+      "size_in_bytes": 138139,
+      "digest": "sha256:5de364070461860e7d3e90313d2694ee91ac5c19fec4ad0bd7d68d36ba62cba4",
+      "expired": false,
+      "created_at": "2026-10-29T01:25:15Z",
+      "expires_at": "2026-11-12T01:25:14Z",
+      "updated_at": "2026-10-29T01:25:15Z",
+      "workflow_run": {
+        "id": 40799038789,
+        "repository_id": 1187468861,
+        "head_repository_id": 1187468861,
+        "head_branch": "lead/recovered-review-20261029",
+        "head_sha": "1c5728b74c9a050d817269152a8c92eeda7630dc"
+      }
+    },
+    {
+      "id": 12864788954,
+      "name": "python-offline-1c5728b74c9a050d817269152a8c92eeda7630dc",
+      "size_in_bytes": 41709,
+      "digest": "sha256:e98059dfd883e69ea8f8c06d3e173d2310097d515cc627e5063ef435b066a570",
+      "expired": false,
+      "created_at": "2026-10-29T01:16:34Z",
+      "expires_at": "2026-11-12T01:16:34Z",
+      "updated_at": "2026-10-29T01:16:34Z",
+      "workflow_run": {
+        "id": 40799038789,
+        "repository_id": 1187468861,
+        "head_repository_id": 1187468861,
+        "head_branch": "lead/recovered-review-20261029",
+        "head_sha": "1c5728b74c9a050d817269152a8c92eeda7630dc"
+      }
+    }
+  ],
+  "evidence_basis": {
+    "metadata": "GitHub connector; official Actions REST run/jobs and run-artifact metadata",
+    "counts": "completed job-log summaries; parent passes, successful subtests, skips and ignored cases kept separate",
+    "logs": "decoded connector logs retained externally; SHA-256 values refer to retained decoded log files",
+    "artifact_digests": "GitHub-reported ZIP digests; archives not downloaded or independently rehashed for this record",
+    "timing": "single hosted run; whole-second API timestamps and rounded printed chunk clocks; no speed or CPU claim",
+    "runtime": "fresh extension wheel built in CI under CPython 3.13.17; actual binary identity retained by producer in native artifact, not separately inspected here"
+  },
+  "qualification_limits": [
+    "Overlapping lanes are not summed as unique tests.",
+    "This record qualifies the exact consolidated test/workflow source and unchanged C76 production package in the standard CI matrix.",
+    "No browser session QA, full scientific population gate, natural optional-system efficacy or default activation is established.",
+    "Separate output-identity, native-composition, full-gate and forkserver studies retain their own exact sources and evidence.",
+    "Later documentation-only commits do not create new runtime qualification."
+  ]
+}

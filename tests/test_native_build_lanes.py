@@ -1,7 +1,11 @@
 """Regression tests for documented no-Rust/native build and test lanes."""
 
 from pathlib import Path
+import ast
+import re
 import tomllib
+
+import yaml
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -15,6 +19,14 @@ def test_rust_extension_msrv_is_explicit_and_matches_arrow_dependency():
     cargo = tomllib.loads(_read("chronicler-agents/Cargo.toml"))
 
     assert cargo["package"]["rust-version"] == "1.85"
+
+
+def test_native_and_python_packages_share_the_supported_python_floor():
+    python_package = tomllib.loads(_read("pyproject.toml"))
+    native_package = tomllib.loads(_read("chronicler-agents/pyproject.toml"))
+
+    assert python_package["project"]["requires-python"] == ">=3.13"
+    assert native_package["project"]["requires-python"] == python_package["project"]["requires-python"]
 
 
 def test_pyo3_extension_module_feature_is_maturin_only_so_cargo_tests_link():
@@ -102,6 +114,7 @@ def test_github_tests_workflow_has_a_viewer_job():
 
     assert "working-directory: viewer" in viewer
     assert "cache-dependency-path: viewer/package-lock.json" in viewer
+    assert 'node-version: "20.19.0"' in viewer
     steps = ["npm ci", "npm test -- --maxWorkers=2", "npm run lint", "npm run build"]
     assert all(step in viewer for step in steps)
     assert [viewer.index(step) for step in steps] == sorted(viewer.index(step) for step in steps)
@@ -149,15 +162,173 @@ def test_validation_gate_workflow_exposes_strict_regression_ratchet():
 
 def test_github_tests_workflow_has_no_rust_and_native_jobs():
     workflow = _read(".github/workflows/tests.yml")
+    jobs = yaml.load(workflow, Loader=yaml.BaseLoader)["jobs"]
 
     assert "python-no-rust" in workflow
     assert "permissions:\n  contents: read" in workflow
     assert "python-native" in workflow
     assert "Assert native extension is absent" in workflow
-    assert "Run Python tests with real native extension preloaded" in workflow
-    assert "python -m maturin build --release --locked" in workflow
+    assert workflow.count("python -m maturin build --release --locked") == 1
     assert "uv pip install --python ../.venv/bin/python target/wheels/*.whl" in workflow
-    assert "EXTENSION_SUFFIXES" in workflow
-    assert "find_spec(\"chronicler_agents.chronicler_agents\")" in workflow
-    assert workflow.index("import chronicler_agents as ca") < workflow.index("import pytest")
     assert "python -m maturin develop --release" not in workflow
+    steps = jobs["python-native-tests"]["steps"]
+    names = [step["name"] for step in steps]
+    assert names.index("Verify source producer and whole wheel before install") < names.index("Install the same verified current-source wheel") < names.index("Full default collection then owned module execution")
+    command = next(s["run"] for s in steps if s["name"] == "Full default collection then owned module execution")
+    assert 'scripts/native_ci_shards.py run --execute --shard "${{ matrix.shard }}"' in command
+    controller = _read("scripts/native_ci_shards.py")
+    functions = {node.name: node for node in ast.parse(controller).body if isinstance(node, ast.FunctionDef)}
+    identity = ast.unparse(functions["current_identity"])
+    assert "find_spec('chronicler_agents.chronicler_agents')" in identity
+    assert "EXTENSION_SUFFIXES" in identity
+    main = ast.unparse(functions["main"])
+    assert main.index("current_identity(") < main.index("import pytest") < main.index("pytest.main(")
+
+
+def _workflow_jobs(path):
+    return yaml.load(_read(path), Loader=yaml.BaseLoader)["jobs"]
+
+
+def test_standard_workflow_preserves_independent_bodies_and_public_gate_names():
+    current = _read(".github/workflows/tests.yml")
+    historical = _read("tests/fixtures/ci/standard-tests-cbf6e368.yml")
+    historical_header = historical.split("jobs:\n", 1)[0]
+    old_push = '    branches: [main, lead/cloud-continuation-20261028, lead/recovered-integration-20261029, lead/recovered-review-20261029, lead/batch-validation-input-set-20261029, lead/batch-manifest-reconciliation-20261029]\n'
+    new_push = '    branches: [main, lead/cloud-continuation-20261028, lead/recovered-integration-20261029, lead/recovered-review-20261029, lead/batch-validation-input-set-20261029, lead/batch-manifest-reconciliation-20261029, lead/simulation-staging004-tests-20261030, lead/simulation-staging005-tests-20261030]\n'
+    assert historical_header.count(old_push) == 1
+    expected_header = historical_header.replace(old_push, new_push, 1)
+    assert current.split("jobs:\n", 1)[0] == expected_header
+    def blocks(text):
+        return dict(re.findall(r"(?ms)^  ([\w-]+):\n(.*?)(?=^  [\w-]+:\n|\Z)", text.split("jobs:\n", 1)[1]))
+    old_blocks, current_blocks = blocks(historical), blocks(current)
+    for job in ("python-offline", "python-no-rust", "rust"):
+        assert current_blocks[job] == old_blocks[job], job
+    expected_viewer = old_blocks["viewer"].replace('node-version: "22"', 'node-version: "20.19.0"', 1)
+    assert current_blocks["viewer"] == expected_viewer
+    names = [body["name"] for body in _workflow_jobs(".github/workflows/tests.yml").values()]
+    for name in ("Python bounded offline", "Python no-Rust", "Python native execution", "Rust", "Python native", "Viewer"):
+        assert names.count(name) == 1, name
+
+
+def test_standard_native_producer_consumers_share_one_exact_python_patch():
+    # A floating 3.13 resolved to 3.13.18 on the builder and 3.13.17 on
+    # a shard during one real run; the exact producer-identity guard refused it.
+    jobs = _workflow_jobs(".github/workflows/tests.yml")
+    for name in ("python-native-build", "python-native-tests", "python-native-shard-aggregate"):
+        setup = [step for step in jobs[name]["steps"]
+                 if step.get("uses", "").startswith("actions/setup-python@")]
+        assert len(setup) == 1, name
+        assert setup[0]["with"] == {"python-version": "3.13.17"}, name
+
+
+def test_standard_native_graph_requires_both_shards_and_rust_without_failure_allowance():
+    jobs = _workflow_jobs(".github/workflows/tests.yml")
+    assert set(jobs) == {"python-offline", "python-no-rust", "python-native-build", "python-native-tests", "python-native-shard-aggregate", "rust", "python-native", "viewer"}
+    shards = jobs["python-native-tests"]
+    assert shards["needs"] == ["python-native-build"]
+    assert shards["strategy"] == {"fail-fast": "false", "matrix": {"shard": ["0", "1"]}}
+    aggregate = jobs["python-native-shard-aggregate"]
+    assert aggregate["if"] == "always()"
+    assert aggregate["needs"] == ["python-native-build", "python-native-tests"]
+    barrier = aggregate["steps"][0]
+    assert barrier["env"] == {"BUILD_RESULT": "${{ needs.python-native-build.result }}", "SHARD_RESULT": "${{ needs.python-native-tests.result }}"}
+    assert barrier["run"].splitlines() == ['test "$BUILD_RESULT" = success', 'test "$SHARD_RESULT" = success']
+    summary = jobs["python-native"]
+    assert summary["if"] == "always()"
+    assert summary["needs"] == ["python-native-shard-aggregate", "rust"]
+    assert summary["steps"][0]["env"] == {"PYTHON_RESULT": "${{ needs.python-native-shard-aggregate.result }}", "RUST_RESULT": "${{ needs.rust.result }}"}
+    assert summary["steps"][0]["run"].splitlines() == ['test "$PYTHON_RESULT" = success', 'test "$RUST_RESULT" = success']
+    for name, body in jobs.items():
+        assert "continue-on-error" not in body, name
+        for step in body["steps"]:
+            assert "continue-on-error" not in step, (name, step["name"])
+
+
+def _project_only_reviewed_disabled_native_cache(text):
+    """Remove only four exact reviewed flag0 additions inside the builder job."""
+    from hashlib import sha256
+
+    assert text.count("  python-native-build:\n") == 1
+    prefix, tail = text.split("  python-native-build:\n", 1)
+    following = re.search(r"(?m)^  [\w-]+:\n", tail)
+    assert following is not None
+    builder, suffix = tail[:following.start()], tail[following.start():]
+    assert "NATIVE_RELEASE_CACHE_" not in prefix + suffix
+    assert builder.count('CHRONICLER_NATIVE_RELEASE_CACHE: "0"') == 1
+    reviewed = {'DEFAULT': '2500c4489fea62d1116a5cb520d35d87ec178212a1451662e68e38a4dfbf5286', 'OLD_RESTORE': '78a91fb4e9b26fd61ec1c305dbb4e89d4ab9d1528133f27e3e432179ce354751', 'PREPARE': 'dbae689b85d8ac5b04f57cd75679e9daafe696e005f13b0e218276ef32dc356c', 'SEAL': '742f236f6e54dc43c6c9b46604467ec2e31b61ca17724a42cd50ac63f56db810'}
+    lines = builder.splitlines(keepends=True)
+    for marker, expected in reviewed.items():
+        begin = "# NATIVE_RELEASE_CACHE_" + marker + "_BEGIN"
+        end = "# NATIVE_RELEASE_CACHE_" + marker + "_END"
+        starts = [i for i, line in enumerate(lines) if line.strip() == begin]
+        ends = [i for i, line in enumerate(lines) if line.strip() == end]
+        assert len(starts) == len(ends) == 1 and starts[0] < ends[0]
+        stop = ends[0] + 1
+        if marker in ("PREPARE", "SEAL"):
+            assert lines[stop] == "\n"
+            stop += 1
+        block = "".join(lines[starts[0]:stop])
+        assert sha256(block.encode("utf-8")).hexdigest() == expected
+        del lines[starts[0]:stop]
+    projected = "".join(lines)
+    assert "CHRONICLER_NATIVE_RELEASE_CACHE" not in projected
+    return prefix + "  python-native-build:\n" + projected + suffix
+
+
+def test_standard_native_delegation_keeps_the_qualified_v2_bodies():
+    from copy import deepcopy
+
+    current = _read(".github/workflows/tests.yml")
+    projected = _project_only_reviewed_disabled_native_cache(current)
+    jobs = yaml.load(projected, Loader=yaml.BaseLoader)["jobs"]
+    qualified = _workflow_jobs("docs/workflows/native-two-shards-v2.yml.in")
+    for name in ("python-native-build", "python-native-tests", "python-native-shard-aggregate", "python-native"):
+        expected = deepcopy(qualified[name])
+        if name in ("python-native-build", "python-native-tests", "python-native-shard-aggregate"):
+            # Explicitly admit only the reviewed runtime pin. The frozen
+            # qualified workflow stays unchanged; all other fields still compare.
+            setup = [step for step in expected["steps"]
+                     if step.get("uses", "").startswith("actions/setup-python@")]
+            assert len(setup) == 1 and setup[0]["with"] == {"python-version": "3.13"}
+            setup[0]["with"]["python-version"] = "3.13.17"
+        branch_guard = expected.pop("if")
+        assert "refs/heads/lead/native-two-shard-qualification-v2-20261029" in branch_guard
+        if name in ("python-native-shard-aggregate", "python-native"):
+            expected["if"] = "always()"
+        if name == "python-native-shard-aggregate":
+            expected["name"] = "Python native execution"
+        assert jobs[name] == expected, name
+    builder_names = [s["name"] for s in jobs["python-native-build"]["steps"]]
+    assert builder_names.index("Check turn-wrapper contracts before the full suite") < builder_names.index("Build Rust extension wheel") < builder_names.index("Record the verified current-producer native wheel")
+
+    # Unrelated legacy mutations remain visible after the exact projection.
+    mutated = current.replace("Build Rust extension wheel", "Unrelated mutated build step", 1)
+    assert mutated != current
+    changed_jobs = yaml.load(_project_only_reviewed_disabled_native_cache(mutated), Loader=yaml.BaseLoader)["jobs"]
+    assert changed_jobs["python-native-build"] != jobs["python-native-build"]
+    for changed in (
+        current.replace('CHRONICLER_NATIVE_RELEASE_CACHE: "0"', 'CHRONICLER_NATIVE_RELEASE_CACHE: "1"', 1),
+        current.replace("Prepare dormant exact native cache context", "Unreviewed dormant cache context", 1),
+    ):
+        assert changed != current
+        try:
+            _project_only_reviewed_disabled_native_cache(changed)
+        except AssertionError:
+            pass
+        else:
+            raise AssertionError("unreviewed cache shape was projected away")
+
+
+def test_standard_push_does_not_duplicate_closed_qualification_workflows():
+    current = yaml.load(_read(".github/workflows/tests.yml"), Loader=yaml.BaseLoader)
+    assert current["on"]["pull_request"] == ""
+    assert current["on"]["workflow_dispatch"] == ""
+    ordinary = current["on"]["push"]["branches"]
+    assert "main" in ordinary
+    assert all(not any(char in branch for char in "*?![") for branch in ordinary)
+    for suffix, branch in (("", "lead/native-two-shard-qualification-20261029"), ("-v2", "lead/native-two-shard-qualification-v2-20261029")):
+        path = f".github/workflows/native-two-shards{suffix}.yml"
+        closed = yaml.load(_read(path), Loader=yaml.BaseLoader)
+        assert closed["on"] == {"push": {"branches": [branch], "paths": [path]}, "workflow_dispatch": ""}
+        assert branch not in ordinary
+        assert all(f"github.ref == 'refs/heads/{branch}'" in job["if"] for job in closed["jobs"].values())

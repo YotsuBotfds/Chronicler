@@ -208,6 +208,164 @@ def test_economy_input_batch_gains_the_city_columns_only_when_on():
     assert C.with_economy_columns(world, base, rows) is base
 
 
+def _craft_cap_inputs():
+    """Mechanical city-column fixture, not an authoritative work assignment."""
+    from chronicler.economy import build_economy_region_input_batch
+    world = _city_world()
+    _add_city(world, 3, VERDANT, CITY)
+    _add_city(world, 4, VERDANT, TOWN)
+    _add_city(world, 5, AMBER, GREAT_CITY)
+    rows = _rows((10, VERDANT, 0, 0), (6, VERDANT, 0, 3), (4, VERDANT, 0, 4),
+                 (5, VERDANT, 2, 3), (3, VERDANT, 1, 3),
+                 (8, AMBER, 0, 5), (2, AMBER, 3, 5))
+    return world, build_economy_region_input_batch(world), rows
+
+
+def _batch_bytes(batch):
+    sink = pa.BufferOutputStream()
+    with pa.ipc.new_stream(sink, batch.schema) as writer:
+        writer.write_batch(batch)
+    return sink.getvalue().to_pybytes()
+
+
+def test_craft_work_caps_default_preserves_legacy_columns_bytes_state_and_rng():
+    import random
+    world, base, rows = _craft_cap_inputs()
+    factor, craft, wares = [1.0] * len(world.regions), [0.0] * len(world.regions), [0.0] * len(world.regions)
+    factor[VERDANT] = 1.0 - (1.0 - C.URBAN_FARM_LABOR[CITY]) * 6 / 20 - (1.0 - C.URBAN_FARM_LABOR[TOWN]) * 4 / 20
+    factor[AMBER] = C.URBAN_FARM_LABOR[GREAT_CITY]
+    craft[VERDANT], craft[AMBER] = 15 * C.CRAFT_RAW_PER_RESIDENT, 10 * C.CRAFT_RAW_PER_RESIDENT
+    wares[VERDANT], wares[AMBER] = 28 * C.CRAFT_DEMAND_PER_CAPITA, 10 * C.CRAFT_DEMAND_PER_CAPITA
+    expected = {"farm_labor_factor": factor, "craft_raw_demand": craft, "craft_demand": wares}
+    legacy = pa.record_batch({**{name: base.column(name) for name in base.schema.names},
+                              **{name: pa.array(values, type=pa.float32()) for name, values in expected.items()}})
+    before_world, before_rows, before_rng = world.model_dump_json(), _batch_bytes(rows), random.getstate()
+    for caps in (None, {}):
+        assert C.economy_columns(world, rows, craft_work_caps=caps) == expected
+        assert _batch_bytes(C.with_economy_columns(world, base, rows, craft_work_caps=caps)) == _batch_bytes(legacy)
+    assert (world.model_dump_json(), _batch_bytes(rows), random.getstate()) == (before_world, before_rows, before_rng)
+
+
+def test_craft_work_caps_are_regional_clamps_without_second_farming_charge():
+    world, base, rows = _craft_cap_inputs()
+    baseline = C.with_economy_columns(world, base, rows)
+    caps = {VERDANT: 0.25, AMBER: 500.0}
+    limited = C.with_economy_columns(world, base, rows, craft_work_caps=caps)
+    # Two Verdant cities share one ceiling, not 0.25 each.
+    assert limited.column("craft_raw_demand").to_pylist()[VERDANT] == 0.25
+    for name in baseline.schema.names:
+        if name != "craft_raw_demand":
+            assert limited.column(name).equals(baseline.column(name))
+    assert limited.column("craft_raw_demand").to_pylist()[AMBER] == baseline.column("craft_raw_demand").to_pylist()[AMBER]
+    assert caps == {VERDANT: 0.25, AMBER: 500.0}
+    equal = C.economy_columns(world, rows)["craft_raw_demand"][VERDANT]
+    assert C.economy_columns(world, rows, craft_work_caps={VERDANT: equal})["craft_raw_demand"][VERDANT] <= equal
+
+
+@pytest.mark.parametrize("cap", [0.1, 0.100000001, 1e-46, 0.0])
+def test_craft_work_caps_survive_float32_boundary_without_exceeding_limit(cap):
+    world, base, rows = _craft_cap_inputs()
+    batch = C.with_economy_columns(world, base, rows, craft_work_caps={VERDANT: cap})
+    assert 0.0 <= batch.column("craft_raw_demand").to_pylist()[VERDANT] <= cap
+
+
+def test_craft_work_cap_between_python_ceiling_and_float32_rounding_stays_bounded():
+    world, base, _rows_unused = _craft_cap_inputs()
+    world.cities.cities[:] = [city for city in world.cities.cities if city.settlement_id == 3]
+    rows = _rows((3, VERDANT, 0, 3))
+    python_ceiling = C.economy_columns(world, rows)["craft_raw_demand"][VERDANT]
+    native_ceiling = C.with_economy_columns(world, base, rows).column("craft_raw_demand").to_pylist()[VERDANT]
+    limit = (python_ceiling + native_ceiling) / 2
+    assert python_ceiling < limit < native_ceiling
+    limited = C.with_economy_columns(world, base, rows, craft_work_caps={VERDANT: limit})
+    assert limited.column("craft_raw_demand").to_pylist()[VERDANT] <= limit
+
+
+@pytest.mark.parametrize("caps", [
+    {-1: 1.0}, {999999: 1.0}, {True: 1.0}, {2.0: 1.0}, {"2": 1.0},
+    {VERDANT: -0.1}, {VERDANT: float("nan")}, {VERDANT: float("inf")},
+    {VERDANT: float("-inf")}, {VERDANT: True}, {VERDANT: "0.1"},
+    {VERDANT: 10 ** 1000},
+])
+def test_craft_work_caps_reject_invalid_limits_when_columns_are_available(caps):
+    world, base, rows = _craft_cap_inputs()
+    with pytest.raises(ValueError, match="craft_work_caps"):
+        C.with_economy_columns(world, base, rows, craft_work_caps=caps)
+
+
+def test_craft_work_caps_reject_non_mapping():
+    world, _base, rows = _craft_cap_inputs()
+    with pytest.raises(TypeError, match="craft_work_caps"):
+        C.economy_columns(world, rows, craft_work_caps=[])
+
+
+def test_craft_work_caps_do_not_survive_call_or_world_resume():
+    import pickle
+    from chronicler.models import WorldState
+    world, base, rows = _craft_cap_inputs()
+    baseline = _batch_bytes(C.with_economy_columns(world, base, rows))
+    for cap in (0.0, 0.5):
+        assert C.economy_columns(world, rows, craft_work_caps={VERDANT: cap})["craft_raw_demand"][VERDANT] == cap
+        assert _batch_bytes(C.with_economy_columns(world, base, rows)) == baseline
+    for restored in (pickle.loads(pickle.dumps(world)), WorldState.model_validate_json(world.model_dump_json())):
+        assert _batch_bytes(C.with_economy_columns(restored, base, rows)) == baseline
+
+
+def test_craft_work_caps_cannot_create_capacity_or_columns_without_city_rows():
+    world, base, rows = _craft_cap_inputs()
+    world.cities.cities.clear()
+    assert not any(C.economy_columns(world, rows, craft_work_caps={VERDANT: 100})["craft_raw_demand"])
+    _add_city(world, 3, VERDANT, CITY)
+    assert not any(C.economy_columns(world, _rows(), craft_work_caps={VERDANT: 100})["craft_raw_demand"])
+    assert C.with_economy_columns(world, base, None, craft_work_caps={VERDANT: 100}) is base
+    C.set_cities_enabled(world, False)
+    assert C.with_economy_columns(world, base, rows, craft_work_caps={VERDANT: 100}) is base
+
+
+@pytest.mark.native
+def test_native_craft_work_cap_consumes_existing_ceiling_and_resets_without_double_farm_charge(make_world):
+    """Actual native conversion, with synthetic city rows only to set capacity.
+    This mechanical fixture does not establish real worker availability.
+    """
+    _require_native()
+    from chronicler.agent_bridge import AgentBridge
+    from chronicler.economy import build_economy_region_input_batch, build_economy_trade_route_batch
+    world = make_world(num_civs=1)
+    world.agent_mode = "hybrid"
+    world.regions[0].population = 40
+    C.set_cities_enabled(world, True)
+    _add_city(world, 3, 0, CITY)
+    bridge = AgentBridge(world, mode="hybrid")
+    rows = _rows((8, 0, 0, 3), (8, 0, 0, 0))
+    routes = build_economy_trade_route_batch(world, active_trade_routes=[])
+    world.regions[0].stockpile.goods["timber"] = 1.0
+    base = build_economy_region_input_batch(world)
+    # No newly extracted raw materials; foraging supplies the same food work
+    # at every cap. The raw-input bound is consequently observed, not inferred.
+    data = {name: base.column(name) for name in base.schema.names}
+    for slot in range(3):
+        data[f"resource_type_{slot}"] = pa.array([255], type=pa.uint8())
+        data[f"resource_yield_{slot}"] = pa.array([0.0], type=pa.float32())
+    data["subsistence_yield"] = pa.array([1.0], type=pa.float32())
+    base = pa.record_batch(data)
+    native_before = bytes(bridge._sim.checkpoint_state())
+    batches = [C.with_economy_columns(world, base, rows, craft_work_caps=caps)
+               for caps in ({0: 0.0}, {0: 0.25}, None, None)]
+    assert bytes(bridge._sim.checkpoint_state()) == native_before
+    results = [bridge._sim.tick_economy(batch, routes, 0, False, 1.0)[0] for batch in batches]
+    made = [rr.column("craft_output").to_pylist()[0] for rr in results]
+    assert made == [0.0, 0.25, pytest.approx(0.8), pytest.approx(0.8)]
+    for name in ("forage_output", "slot_output_0", "slot_output_1", "slot_output_2"):
+        assert all(rr.column(name).to_pylist() == results[0].column(name).to_pylist() for rr in results)
+    assert results[0].column("forage_output").to_pylist()[0] > 0.0
+    for timber in (0.125, 0.0):
+        low_data = {name: base.column(name) for name in base.schema.names}
+        low_data["stockpile_timber"] = pa.array([timber], type=pa.float32())
+        limited = C.with_economy_columns(world, pa.record_batch(low_data), rows)
+        rr = bridge._sim.tick_economy(limited, routes, 0, False, 1.0)[0]
+        assert rr.column("craft_output").to_pylist()[0] == timber
+
+
 def _edges(pairs):
     return pa.record_batch({
         "from_region": pa.array([a for a, _ in pairs], type=pa.uint16()),

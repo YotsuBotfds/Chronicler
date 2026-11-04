@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from chronicler.artifact_io import atomic_write_bytes, atomic_write_text
 from chronicler.models import ChronicleEntry, GapSummary, TurnSnapshot, WorldState
 from chronicler.bundle_codec import BUNDLE_VERSION, dumps_bundle
 from chronicler.snapshot_pruning import PRUNED_CIV_STATS_KEY, prune_history
@@ -110,23 +111,27 @@ def assemble_bundle(
 
 
 def write_bundle(bundle: dict[str, Any], path: Path,
-                  world: WorldState | None = None) -> None:
+                  world: WorldState | None = None, *, artifact_budget=None) -> None:
     """Write an assembled bundle to a JSON file, in the version-6 layout.
 
     Read it back with ``chronicler.bundle_codec.load_bundle``. If *world* is
     provided and contains agent_events_raw, an Arrow IPC sidecar file
     ``agent_events.arrow`` is written next to the JSON bundle.
     """
-    path.parent.mkdir(parents=True, exist_ok=True)
+    if artifact_budget is not None:
+        artifact_budget.ensure_directory(path.parent)
     # Bundles are machine-consumed and timeline-heavy; compact encoding and
     # the snapshot deltas keep the single-file artifact within its size budget.
-    path.write_text(dumps_bundle(bundle), encoding="utf-8")
+    # The completed body replaces any previous bundle atomically, so readers
+    # never observe a truncated artifact.
+    atomic_write_text(path, dumps_bundle(bundle), artifact_budget=artifact_budget)
 
     if world is not None:
-        write_agent_events_arrow(world, path.parent)
+        write_agent_events_arrow(world, path.parent, artifact_budget=artifact_budget)
 
 
-def write_agent_events_arrow(world: WorldState, bundle_dir: Path) -> Path | None:
+def write_agent_events_arrow(world: WorldState, bundle_dir: Path, *,
+                             artifact_budget=None) -> Path | None:
     """Serialize ``world.agent_events_raw`` as Arrow IPC.
 
     Returns the path written, or *None* when skipped (no events or no pyarrow).
@@ -154,10 +159,12 @@ def write_agent_events_arrow(world: WorldState, bundle_dir: Path) -> Path | None
         "migration_driver": pa.array([e.migration_driver for e in events], type=pa.uint8()),
     })
 
-    out_path = bundle_dir / "agent_events.arrow"
-    with pa.OSFile(str(out_path), "wb") as f:
+    with pa.BufferOutputStream() as f:
         writer = ipc.new_file(f, batch.schema)
         writer.write_batch(batch)
         writer.close()
+        content = f.getvalue().to_pybytes()
 
+    out_path = bundle_dir / "agent_events.arrow"
+    atomic_write_bytes(out_path, content, artifact_budget=artifact_budget)
     return out_path

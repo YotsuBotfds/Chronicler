@@ -277,3 +277,30 @@ def test_cohort_method_6_observational_takes_method_2_members_and_reports_matchi
     assert (matching["snapshots"], matching["members"], matching["matched_members"]) == (3, 30, 30)
     assert matching["match_rate"] == 1.0 and matching["chosen_snapshots"]["match_rate"] == 1.0
     assert [record["members"] for record in result["per_seed"]] == [10, 10, 10]
+
+
+@pytest.mark.parametrize("population,size,forced,eligible_failures", [
+    (99, 5, 6, 0),
+    (100, 5, 0, 0),
+    (100, 6, 0, 6),
+])
+def test_capacity_diagnostic_matches_actual_method_2_counters(
+    population, size, forced, eligible_failures,
+):
+    from chronicler.community_admissibility import diagnose_report
+
+    spec = vc.spec_component([
+        _run(42, communities=3, size=size, region_population=population),
+    ])
+    report = {
+        "results": {
+            "community": vc.community_method_2_result({"status": "PASS"}, spec),
+        },
+    }
+    original_status = spec["status"]
+    result = diagnose_report(report)
+    assert result["observations"] == 6
+    assert result["structurally_forced_region_share_failures"] == forced
+    assert result["region_share_failures_among_capacity_eligible_observations"] == eligible_failures
+    assert result["observations_within_region_share_bound"] == 6 - forced - eligible_failures
+    assert report["results"]["community"]["spec"]["status"] == original_status

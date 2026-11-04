@@ -1,0 +1,223 @@
+{
+  "actual_runtime": {
+    "affinity": [
+      0
+    ],
+    "cpu_count": 1,
+    "dont_write_bytecode": true,
+    "hash_randomization": 0,
+    "no_user_site": 1,
+    "process_cpu_count": 1,
+    "python": "3.13.17",
+    "safe_path": true,
+    "thread_env": {
+      "BLIS_NUM_THREADS": "1",
+      "CARGO_BUILD_JOBS": "1",
+      "GOTO_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "RAYON_NUM_THREADS": "1",
+      "VECLIB_MAXIMUM_THREADS": "1"
+    }
+  },
+  "actual_schemas": {
+    "AgentSimulator": {
+      "fingerprint": "dcf0c34097c88451",
+      "schema_sha256": "0b792f3ec33ac68605caf7b6d66fa7462c919b52e6f489f0e3dd7fa42f9fba3b",
+      "version": 1
+    },
+    "EcologySimulator": {
+      "fingerprint": "4ab7f8c199b5e5f8",
+      "schema_sha256": "bf7daf59c53773518770b90f5a5dee5b71e63d2a62d2af6c756922a07a503aff",
+      "version": 1
+    },
+    "PoliticsSimulator": {
+      "fingerprint": "b1a710f3450f5015",
+      "schema_sha256": "48e27b42f817e0057ad5f15bf2c2e8d8cca072314a9ca666753f2c9341c47395",
+      "version": 1
+    }
+  },
+  "artifact": {
+    "bytes": 267233,
+    "expanded_bytes": 748139,
+    "expires_at": "2026-11-28T17:02:04Z",
+    "id": 12916437458,
+    "members": 15,
+    "sha256": "e32d2befaf8696e06ec489fd25f56d8f2a4c81f3dd15eeb1d1543b459bc233ea"
+  },
+  "closure": {
+    "complete_logs": 5,
+    "completion_sha256": "919c91287475c00b2944f0c168b9c603f2606a5406ec12e0be384d28d293028e",
+    "journal_rows": 29,
+    "omissions": 0,
+    "original_ZIP_members": 15,
+    "original_expanded_bytes": 748139,
+    "owned_command_starts": 5,
+    "primary_payload_bytes": 1508066,
+    "primary_payload_files": 43,
+    "probe_sha256": "e3c697deeffe5d43deb8b90df78b1ff1366bd5a172583f8f277c7f5addf90079",
+    "resource_rows": 14,
+    "result_sha256": "2a1f947e2d9faf467457967433345aec3b8e92df5f83668a73db560034600272",
+    "sealed_payload_links": 13,
+    "source_Git_rows": 1637,
+    "source_file_bytes": 34949318,
+    "source_unique_blobs": 1617,
+    "successful_cleanup_rows": 5,
+    "zero_exit_rows": 5
+  },
+  "curated_readout": true,
+  "curation_activity": {
+    "Worlds": 0,
+    "builds": 0,
+    "controller_product_native_imports": 0,
+    "new_network": 0,
+    "producer_reruns": 0,
+    "retained_metadata_and_Git_only": true,
+    "source_runtime_policy_changes": 0,
+    "tests": 0
+  },
+  "date": "2026-10-29",
+  "full_verification": false,
+  "historical_schema_reference": {
+    "artifact": 12904625572,
+    "artifact_sha256": "9030d854bb8fc4f678f6ba821c6f8e8c087903e35f1fa185fb1b6011ebb6cec0",
+    "comparison": "Measured version/fingerprint/UTF8 descriptor SHA; the reference does not retain raw descriptor text.",
+    "member": "derived-metadata/probes/candidate-hybrid_s42-before.json",
+    "reader_source": "191dee2b79d7da7fac327a1e5c8fa96d78a893bf",
+    "root_sha256": "530e1f31f61f7c59b3b96f5663c5a4d691d8aaabccdd4c858f630fe419f014d7"
+  },
+  "kind": "CURATED_QUALIFIED_EMPTY_CARE_NATIVE_API_RESULT",
+  "late_checks_scope": "Exact registered source and completed0 job attest post-seal source/resource/expiry/deadline checks. Separate final samples and per-PID ownership identities were not retained; source-before/after and every original journal row were independently checked.",
+  "limits": [
+    "Only one empty AgentSimulator; no nonempty donor/care cost/World/checkpoint restore/globalRNG/science/performance/adoption qualification.",
+    "Whole native/wheel bodies remained on producer/proof runners; local verification consumed only this original small metadata ZIP and immutable Git source.",
+    "Historical schema reference contains measured descriptor SHA/version/fingerprint, not raw descriptor text.",
+    "D2 namespace equality remains null/unverified; R44 covers visible ancestors and mutable counters, not hidden provider limits or a memory reservation.",
+    "Controller clocks precede completion serialization and upload; waited-child CPU is not exact live-tree CPU.",
+    "Reader PASS additionally requires actual wrapper exit0, matching printed verification digest and no reader-failure.json."
+  ],
+  "named_clocks": {
+    "controller_before_seal": {
+      "clock_scope": "self and waited children only; sampled before completion serialization; postcommit deadline/source/expiry checks mandatory",
+      "controller_self_cpu_seconds": 0.550236367,
+      "controller_wall_seconds": 9.501475760999998,
+      "waited_children_cpu_seconds": 3.5773139999999994
+    },
+    "performance_benefit_claimed": false,
+    "probe_self_cpu_before_output_seconds": 0.042172449,
+    "probe_wall_before_output_seconds": 0.04269022700000136
+  },
+  "observed_scope": {
+    "Worlds": 0,
+    "agents": 0,
+    "care_policy_retained_kin_keyword": true,
+    "constructor": "AgentSimulator(num_regions=1,seed=42)",
+    "empty_prepared_marker_retained": true,
+    "finish_zero_cost_region_row": [
+      0,
+      0.0,
+      0.0,
+      0
+    ],
+    "invalid_policy_rejected_while_prepared": true,
+    "legacy_five_positional_call": true,
+    "native_persistent_comparison_rows": [
+      {
+        "bytes": 1959,
+        "equals_baseline": true,
+        "label": "legacy_prepared",
+        "sha256": "614860e40d4c4640ee77810bd4e945e9ae501b2aa9ddd85151a31a972a39ea1e"
+      },
+      {
+        "bytes": 1959,
+        "equals_baseline": true,
+        "label": "invalid_policy_rejected",
+        "sha256": "614860e40d4c4640ee77810bd4e945e9ae501b2aa9ddd85151a31a972a39ea1e"
+      },
+      {
+        "bytes": 1959,
+        "equals_baseline": true,
+        "label": "legacy_finished",
+        "sha256": "614860e40d4c4640ee77810bd4e945e9ae501b2aa9ddd85151a31a972a39ea1e"
+      },
+      {
+        "bytes": 1959,
+        "equals_baseline": true,
+        "label": "retained_prepared",
+        "sha256": "614860e40d4c4640ee77810bd4e945e9ae501b2aa9ddd85151a31a972a39ea1e"
+      },
+      {
+        "bytes": 1959,
+        "equals_baseline": true,
+        "label": "retained_finished",
+        "sha256": "614860e40d4c4640ee77810bd4e945e9ae501b2aa9ddd85151a31a972a39ea1e"
+      },
+      {
+        "bytes": 1959,
+        "equals_baseline": true,
+        "label": "retained_finished_again",
+        "sha256": "614860e40d4c4640ee77810bd4e945e9ae501b2aa9ddd85151a31a972a39ea1e"
+      }
+    ],
+    "native_simulator_instances": 1,
+    "nonempty_care_qualified": false,
+    "physics_ticks": 0,
+    "registered_invalid_policy": "kin",
+    "repeated_finish_empty": true,
+    "restores": 0,
+    "source_package_imports": 0
+  },
+  "producer": {
+    "artifact": {
+      "bytes": 3863158,
+      "expires_at": "2026-11-12T16:11:27Z",
+      "id": 12913615333,
+      "sha256": "c9ee12a1521555d3a5cf0213ae43e45db5c2f288aa4bf4b474960a475b8b81e8"
+    },
+    "attempt": 1,
+    "builder_job": 123569924790,
+    "distinction": "This source produced the wheel; it is not the later proof controller source.",
+    "native_sha256": "4028687923e9996fe4c52540ca7d2421fa1a175bd7167be19f2b005b12c9f54f",
+    "root_qualification_sha256": "d22bc652060dba7f5b29e511ce813f1948f2880c4f02ad1917f69eab997b86fa",
+    "run": 40908555947,
+    "source": "23d4d24659cfda848d5bda034760ab9d1e8b57fe",
+    "wheel_sha256": "823cf2c55eefd2d7142b3e6985b39b8fc40e06c50a3dedb46d7d75594a20c96c"
+  },
+  "proof_control": {
+    "active_source": "55817a50afa89183d7fac62fa4e3dddb0fba8552",
+    "actual_operation_approval_sha256": "861564a8a0322b887ad80c01c7850052393e8cde66b150bbe6710d61488bd1f1",
+    "attempt": 1,
+    "branch": "lead/cloud-retained-kin-care-native-api-proof-20261029",
+    "conclusion": "success",
+    "event": "push",
+    "first_attempt": true,
+    "job": 123600960790,
+    "registered_source": "498a78b987581a605f5cb2d1645b11e43bca5fe6",
+    "reviewed_source": "755984ea424bd56ce721013097c745458af08b9a",
+    "run": 40917339306,
+    "source_qualification_sha256": "fe738734721a536a1beacd3d50d509c7a6cc1d7b2836e3fb2ff5b9096c7af052",
+    "workflow": ".github/workflows/retained-kin-care-native-api-proof.yml"
+  },
+  "retention": {
+    "earliest_saved_input_or_output_cutoff": "2026-11-12T16:11:27Z",
+    "input_wheel_artifact_expires_at": "2026-11-12T16:11:27Z",
+    "meaning": "Immutable expiry was checked in the producer and fresh official origins were checked by primary/root reviewers; these saved observations do not promise future availability or extend input retention.",
+    "proof_metadata_artifact_expires_at": "2026-11-28T17:02:04Z"
+  },
+  "separation_from_CI": "Per-class schemas and actual Python keyword execution were unobserved in source23d standard CI. This later source558 empty proof adds those specific observations without changing the earlier CI JSON or claiming enabled-World integration.",
+  "terminal_qualification": {
+    "actual_reader_exit": 0,
+    "independent_peer_sha256": "53e0887da68bec07088b63c2517c789c430bf31f177bd1fa66b1df2866d55f6f",
+    "matching_printed_verification_digest": true,
+    "primary_after_reader_origin_sha256": "10f1af19079252c452fa93ab35a17548edf1ff176e22a2aed8bf5b442875ac5a",
+    "primary_index_sha256": "1502451912961bf52510c4a0a3339e53da3fcd90c5d221ee86aaf303b57c1e3b",
+    "primary_verification_sha256": "add7ea7e7bfe44922eb9b21568bdcee9e8d7f47345d5df7022abd421f3b63de5",
+    "reader_failure_absent": true,
+    "reader_terminal_sha256": "fa7a908313d0083ed80332b07c9a152916b92e1788d0da0a5157ff43b1ef5827",
+    "root_fresh_official_metadata_sha256": "b3ad4baba00dbdf2bbc0408f1bde5128725f77cfcc74ad854ec5c646cff71c7f",
+    "root_sha256": "e217a1f0dcf2c871149a759f65a923be84aaa5692cfb7ff41f8ca919d18660ce"
+  },
+  "verdict": "QUALIFIED_EMPTY_PUBLIC_API_AND_SCHEMA_SUMMARIES"
+}

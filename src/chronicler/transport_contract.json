@@ -50,7 +50,16 @@
     "guilds",
     "scholarship",
     "food",
-    "migration"
+    "grain_reserves",
+    "health_care",
+    "harvest_forecasts",
+    "ritual_gatherings",
+    "scientific_claims",
+    "transaction_receipts",
+    "migration",
+    "regional_population",
+    "food_accounting",
+    "household_mobility"
   ],
   "bundle_systems": [
     "historiography",

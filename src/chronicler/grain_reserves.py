@@ -79,7 +79,7 @@ import math
 from typing import TYPE_CHECKING
 
 from chronicler.grain_reserves_state import (
-    ABANDONED, BOUGHT, CAPTURED, COUNTER_KEYS, RELEASED, SEIZED, SPOILED, GrainReserveState, Granary,
+    ABANDONED, ARRIVED, BOUGHT, CAPTURED, COUNTER_KEYS, DISPATCHED, FLOW_KINDS, RELEASED, SEIZED, SPOILED, STORAGE_RETURNED, GrainReserveState, Granary,
     ReserveFlow, grain_reserves_on,
 )
 
@@ -131,12 +131,60 @@ def set_grain_reserves_enabled(world: "WorldState", enabled: bool) -> None:
         if not grain_reserves_on(world):
             world.grain_reserves = GrainReserveState()
     else:
+        state = getattr(world, "grain_reserves", None)
+        shipments = getattr(state, "shipments", None)
+        if shipments is not None and shipments.pending:
+            raise ValueError("cannot disable grain reserves with paid public grain pending")
+        storage = getattr(state, "storage", None)
+        if storage is not None and (getattr(storage, "_active_plan", None) is not None
+                                    or any(asset is not None for asset in storage.assets)):
+            raise ValueError("cannot discard existing storage assets; use neglect with zero work to pause investment")
         world.grain_reserves = None
 
 
 def grain_reserves_active(world) -> bool:
     """Switched on and running on an agent-backed goods economy."""
     return grain_reserves_on(world) and world.agent_mode not in (None, "off")
+
+
+def snapshot_summary(world: "WorldState") -> dict:
+    """Read the completed turn's stocks and flows without changing simulation state.
+
+    A snapshot at T is taken after simulation turn T-1. Never repeat an old
+    flow list when a turn made no movements, and never initialise missing
+    granaries or infer their owner from the current territorial controller.
+    Ownership is the granary's recorded keeper (settled in Phase 2).
+    """
+    if not grain_reserves_active(world):
+        return {}
+    state = world.grain_reserves
+    source_turn = world.turn - 1
+
+    def owner_name(index: int) -> str | None:
+        return world.civilizations[index].name if 0 <= index < len(world.civilizations) else None
+
+    summary = {
+        "source_turn": source_turn,
+        "granaries": [
+            {"region": rid, "region_name": region.name, "owner": granary.owner,
+             "owner_name": owner_name(granary.owner), "controller": region.controller,
+             "grain": granary.grain, "target": granary.target, "observed": granary.observed}
+            for rid, (region, granary) in enumerate(zip(world.regions, state.granaries))
+        ],
+        "flows": [
+            {**flow.model_dump(), "kind": FLOW_KINDS[flow.kind],
+             "buyer_name": owner_name(flow.buyer), "seller_name": owner_name(flow.seller)}
+            for flow in state.flows if state.flows_turn == source_turn
+        ],
+        "counters": dict(state.counters),
+    }
+    if getattr(state, "shipments", None) is not None:
+        from chronicler.public_grain_shipments import snapshot_summary as shipment_summary
+        summary["shipments"] = shipment_summary(world)
+    if getattr(state, "storage", None) is not None:
+        from chronicler.grain_storage import storage_snapshot
+        summary["storage"] = storage_snapshot(world).as_dict()
+    return summary
 
 
 def _spoilage() -> float:
@@ -200,6 +248,14 @@ def open_granaries(world: "WorldState", economy_result: "EconomyResult | None",
     sufficiency and post-trade food supply), then spoil. Returns events."""
     if not grain_reserves_active(world):
         return []
+    from chronicler.tuning import K_GRAIN_RESERVES_FULL_MEAL_RELEASE, get_override
+    full_meal_release = get_override(world, K_GRAIN_RESERVES_FULL_MEAL_RELEASE, 0.0)
+    if type(full_meal_release) not in (int, float) or full_meal_release not in (0.0, 1.0):
+        raise ValueError("grain_reserves.full_meal_release must be 0 or 1")
+    from chronicler.harvest_forecasts_state import harvest_forecasts_on
+    if harvest_forecasts_on(world):
+        from chronicler.harvest_forecasts import clear_stale_preparedness
+        clear_stale_preparedness(world)
     from chronicler.ecology import FAMINE_SEVERE_SUFFICIENCY, FAMINE_SEVERE_TURNS
     from chronicler.models import Event
     from chronicler import provenance as prov
@@ -248,7 +304,9 @@ def open_granaries(world: "WorldState", economy_result: "EconomyResult | None",
             # Well stocked, it covers the whole shortfall; low, it keeps the
             # people above the famine line and saves the rest for worse.
             full = granary.target <= EPS or granary.grain >= RESERVE_FOR_FAMINE * granary.target
-            level = RELEASE_TO if full else FAMINE_SEVERE_SUFFICIENCY
+            # The opt-in alternative spends only this region's existing stock
+            # for present relief; it may leave less for a later severe shortage.
+            level = RELEASE_TO if full or full_meal_release else FAMINE_SEVERE_SUFFICIENCY
             if sufficiency >= level - 1e-6:
                 granary.releasing = granary.announced = granary.emptied = False
                 continue
@@ -299,10 +357,15 @@ def open_granaries(world: "WorldState", economy_result: "EconomyResult | None",
     # Storage: grain spoils in the granary as it does in the market.
     rate = _spoilage()
     for rid, granary in enumerate(state.granaries):
+        if getattr(state, "storage", None) is not None:
+            from chronicler.grain_storage import storage_spoilage
+            region_rate = storage_spoilage(world, rid, rate)
+        else:
+            region_rate = rate
         if granary.grain <= 0:
             granary.grain = 0.0
             continue
-        loss = granary.grain * rate
+        loss = granary.grain * region_rate
         if granary.grain - loss < DUST:
             loss = granary.grain  # the last crumbs spoil
         granary.grain -= loss
@@ -419,6 +482,16 @@ def _realm_hops(world, graph, target: int, owner_name: str) -> dict[int, int]:
     return hops
 
 
+def _shortfall_order(granary, sufficiency, rid):
+    """Known food shortfalls first; missing/nonfinite observations get no priority."""
+    if (not isinstance(sufficiency, (int, float)) or isinstance(sufficiency, bool)
+            or not math.isfinite(sufficiency)):
+        sufficiency = 1.0  # neutral ordering only; never written into the economy
+    shortfall = sufficiency < 1.0 - 1e-6
+    return (not shortfall, sufficiency if shortfall else 0.0,
+            granary.grain / granary.target, sufficiency, rid)
+
+
 def tick_grain_reserves(world: "WorldState", acc=None, economy_result: "EconomyResult | None" = None,
                         agent_bridge=None) -> list["Event"]:
     """Phase 10: observe harvests, set targets, buy toward them. Returns events."""
@@ -432,11 +505,40 @@ def tick_grain_reserves(world: "WorldState", acc=None, economy_result: "EconomyR
     ledger = ReserveLedger.current(world, state)
     events: list[Event] = []
     if economy_result is None:
+        from chronicler.harvest_forecasts_state import harvest_forecasts_on
+        if harvest_forecasts_on(world):
+            from chronicler.harvest_forecasts import tick_harvest_forecasts
+            events.extend(tick_harvest_forecasts(world, None))
+            world.harvest_forecasts.procurement_decisions = None
         if ledger is not None:
             ledger.finish(world, state, agent_bridge)
+        from chronicler.transaction_receipts_state import transaction_receipts_on
+        if transaction_receipts_on(world):
+            from chronicler.public_purchase_receipts import capture_public_purchases
+            capture_public_purchases(world, economy_result=None)
         return events
     _observe(world, state, economy_result)
+    # Default-off public assessments see only the production already measured
+    # this turn. Rebuild their temporary target from the normal target above.
+    from chronicler.harvest_forecasts_state import harvest_forecasts_on
+    _forecast_target_before = _forecast_requested_targets = None
+    if harvest_forecasts_on(world):
+        from chronicler.harvest_forecasts import apply_preparedness, tick_harvest_forecasts
+        events.extend(tick_harvest_forecasts(world, economy_result))
+        _forecast_target_before = tuple(g.target for g in state.granaries)
+        apply_preparedness(world, economy_result)
+        _forecast_requested_targets = tuple(g.target for g in state.granaries)
 
+    shipments = getattr(state, "shipments", None)
+    inbound = None
+    if shipments is not None:
+        from chronicler.public_grain_shipments import inbound_by_destination, settle_arrivals
+        events.extend(settle_arrivals(world))
+        inbound = inbound_by_destination(world)
+
+    if getattr(state, "storage", None) is not None:
+        from chronicler.grain_storage import settle_storage_capacity
+        settle_storage_capacity(world)
     civs = world.civilizations
     index = _civ_index(world)
     regions = world.regions
@@ -460,10 +562,25 @@ def tick_grain_reserves(world: "WorldState", acc=None, economy_result: "EconomyR
     projected = _projections(world, acc)
     budget = [int(BUDGET_SHARE * max(0, projected[i] - TREASURY_FLOOR)) if civs[i].regions else 0
               for i in range(len(civs))]
+    opening_budget = tuple(budget)
     loss = _transit_loss()
     flows = _flows(world, state)
+    purchase_flow_start = len(flows)
+    _forecast_decisions = None
+    if harvest_forecasts_on(world):
+        from chronicler.harvest_forecasts import begin_forecast_decisions
+        storage = getattr(state, "storage", None)
+        _forecast_decisions = begin_forecast_decisions(
+            world, economy_result, opening_budget,
+            inbound if inbound is not None else [0.0] * len(regions),
+            target_before=_forecast_target_before,
+            requested_targets=_forecast_requested_targets,
+            capacity_records=storage.receipts if storage is not None and storage.receipt_turn == world.turn else None,
+        )
     graph = _route_graph(world)
     foreign_bought: dict[int, list] = {}
+    from chronicler.tuning import K_GRAIN_RESERVES_SHORTFALL_PRIORITY, get_override
+    shortfall_priority = bool(get_override(world, K_GRAIN_RESERVES_SHORTFALL_PRIORITY, 0.0))
 
     for foreign in (False, True):
         for ci, civ in enumerate(civs):
@@ -471,9 +588,14 @@ def tick_grain_reserves(world: "WorldState", acc=None, economy_result: "EconomyR
                 continue
             targets = [rid for rid, (r, g) in enumerate(zip(regions, state.granaries))
                        if g.owner == ci and r.controller == civ.name and demand[rid] > 0
-                       and g.target - g.grain > EPS]
-            targets.sort(key=lambda rid: (state.granaries[rid].grain / state.granaries[rid].target,
-                                          economy_result.food_sufficiency.get(regions[rid].name, 0.0), rid))
+                       and (g.target - g.grain if inbound is None else
+                            g.target - g.grain - inbound[rid]) > EPS]
+            if shortfall_priority:
+                targets.sort(key=lambda rid: _shortfall_order(
+                    state.granaries[rid], economy_result.food_sufficiency.get(regions[rid].name), rid))
+            else:
+                targets.sort(key=lambda rid: (state.granaries[rid].grain / state.granaries[rid].target,
+                                              economy_result.food_sufficiency.get(regions[rid].name, 0.0), rid))
             for rid in targets:
                 granary = state.granaries[rid]
                 hops = _realm_hops(world, graph, rid, civ.name)
@@ -493,19 +615,33 @@ def tick_grain_reserves(world: "WorldState", acc=None, economy_result: "EconomyR
                                 steps[src] = h + 1
                     sources = sorted(steps, key=lambda s: (price[s], steps[s], s))
                 for src in sources:
-                    if budget[ci] <= 0 or granary.target - granary.grain <= EPS:
+                    deficit = (granary.target - granary.grain if inbound is None else
+                               granary.target - granary.grain - inbound[rid])
+                    if budget[ci] <= 0 or deficit <= EPS:
                         break
+                    if foreign and shipments is not None and shipments.accept_orders and steps[src] != 1:
+                        continue
                     p = price[src]
                     if surplus[src] <= EPS or p <= 0:
                         continue
                     keep = 1.0 if steps[src] == 0 else 1.0 - loss
-                    want = (granary.target - granary.grain) / keep
+                    want = deficit / keep
                     cost = min(budget[ci], int(math.floor(min(surplus[src], want) * p + EPS)))
                     if cost < 1:
                         continue
                     sent = min(surplus[src], cost / p)
                     received = sent * keep
                     seller = index[regions[src].controller]
+                    if foreign and shipments is not None and shipments.accept_orders:
+                        from chronicler.public_grain_shipments import dispatch_order
+                        event = dispatch_order(world, buyer=ci, seller=seller, source=src, dest=rid,
+                                               sent=sent, net=received, cost=cost, graph=graph,
+                                               surplus=surplus, budget=budget, inbound=inbound,
+                                               flows=flows, acc=acc)
+                        if event is None:
+                            break
+                        events.append(event)
+                        continue
                     if seller == ci:
                         if acc is not None:
                             acc.add(ci, civ, "treasury", -cost, "keep")
@@ -544,9 +680,28 @@ def tick_grain_reserves(world: "WorldState", acc=None, economy_result: "EconomyR
             description=(f"{civs[ci].name} buys {grain:.1f} grain for its granaries in the markets "
                          f"of {', '.join(names)} ({cost} treasury)."),
         ))
+    economy_result.food_procurement_budget = {
+        ci: (initial, budget[ci]) for ci, initial in enumerate(opening_budget)
+    }
     if ledger is not None:
         ledger.after_buy(world, acc, state)
         ledger.finish(world, state, agent_bridge)
+    if harvest_forecasts_on(world):
+        from chronicler.harvest_forecasts import finish_forecast_decisions, record_preparedness_purchases
+        from dataclasses import asdict
+        receipts = finish_forecast_decisions(world, _forecast_decisions)
+        world.harvest_forecasts.procurement_decisions = {
+            "schema_version": 1, "source_turn": world.turn, "available_turn": world.turn + 1,
+            "mode": world.agent_mode, "goods_units": "model_food_goods",
+            "currency_units": "model_treasury_coins", "rows": [asdict(row) for row in receipts],
+        } if _forecast_decisions is not None else None
+        events.extend(record_preparedness_purchases(world))
+    from chronicler.transaction_receipts_state import transaction_receipts_on
+    if transaction_receipts_on(world):
+        from chronicler.public_purchase_receipts import capture_public_purchases
+        capture_public_purchases(world, economy_result=economy_result,
+                                 opening_treasuries=projected, demand=demand, price=price,
+                                 flow_start=purchase_flow_start)
     return events
 
 
@@ -569,16 +724,28 @@ def extract_grain_reserve_metrics(bundles: list[dict]) -> dict:
             "counters": state.get("counters", {}),
             "grain_final": sum(g.get("grain", 0.0) for g in granaries),
             "target_final": sum(g.get("target", 0.0) for g in granaries),
+            "shipments": state.get("shipments"),
         })
     if not runs:
         return {"runs": 0}
     keys = sorted({k for r in runs for k in r["counters"]})
-    return {
+    result = {
         "runs": len(runs),
         "grain_final_mean": sum(r["grain_final"] for r in runs) / len(runs),
         "target_final_mean": sum(r["target_final"] for r in runs) / len(runs),
         "counters_mean": {k: sum(r["counters"].get(k, 0.0) for r in runs) / len(runs) for k in keys},
     }
+    configured = [r["shipments"] for r in runs if r["shipments"] is not None]
+    if configured:
+        shipment_keys = sorted({k for state in configured for k in state.get("counters", {})})
+        result["shipments"] = {
+            "runs": len(configured),
+            "pending_net_final_mean": sum(sum(row.get("net", 0.0) for row in state.get("pending", []))
+                                          for state in configured) / len(configured),
+            "counters_mean": {key: sum(state.get("counters", {}).get(key, 0.0)
+                                       for state in configured) / len(configured) for key in shipment_keys},
+        }
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -605,6 +772,13 @@ RESERVE_LEDGER_COLUMNS: dict[str, str] = {
     "paid": "int32",
     "sufficiency_before": "float32",
     "sufficiency_after": "float32",
+}
+
+STORAGE_LEDGER_COLUMNS: dict[str, str] = {"storage_returned": "float64"}
+
+SHIPMENT_LEDGER_COLUMNS: dict[str, str] = {
+    "dispatched_net": "float64", "arrived": "float64",
+    "pending_before": "float64", "pending_after": "float64",
 }
 
 _TOL = 1e-9
@@ -636,6 +810,10 @@ class ReserveLedger:
         self.check = check
         self.record = record
         self.start = [g.grain for g in state.granaries]
+        self.pending_before = None
+        if getattr(state, "shipments", None) is not None:
+            from chronicler.public_grain_shipments import inbound_by_destination
+            self.pending_before = inbound_by_destination(world)
         self.market: dict[int, float] = {}
         self.market_after: dict[int, float] = {}
         self.problems: list[str] = []
@@ -712,7 +890,7 @@ class ReserveLedger:
         paid: dict[int, int] = {}
         got: dict[int, int] = {}
         for f in state.flows:
-            if f.kind != BOUGHT:
+            if f.kind not in (BOUGHT, DISPATCHED):
                 continue
             sold[f.source] = sold.get(f.source, 0.0) + f.sent
             paid[f.buyer] = paid.get(f.buyer, 0) + f.cost
@@ -746,17 +924,23 @@ class ReserveLedger:
         sums: dict[int, dict[str, float]] = {}
         for f in state.flows if state.flows_turn == self.turn else []:
             row = sums.setdefault(f.region, {"bought": 0.0, "released": 0.0, "spoiled": 0.0, "seized": 0.0,
-                                             "abandoned": 0.0, "sent": 0.0, "paid": 0.0})
-            if f.kind == BOUGHT:
-                row["bought"] += f.amount
+                                             "abandoned": 0.0, "sent": 0.0, "paid": 0.0, "dispatched": 0.0, "arrived": 0.0})
+            if f.kind in (BOUGHT, DISPATCHED):
+                key = "bought" if f.kind == BOUGHT else "dispatched"
+                row[key] = row.get(key, 0.0) + f.amount
                 row["paid"] += f.cost
                 src = sums.setdefault(f.source, {"bought": 0.0, "released": 0.0, "spoiled": 0.0, "seized": 0.0,
                                                  "abandoned": 0.0, "sent": 0.0, "paid": 0.0})
                 src["sent"] += f.sent
+            elif f.kind == ARRIVED:
+                row["arrived"] = row.get("arrived", 0.0) + f.amount
             elif f.kind == RELEASED:
                 row["released"] += f.amount
             elif f.kind == SPOILED:
                 row["spoiled"] += f.amount
+                if getattr(state, "storage", None) is not None:
+                    from chronicler.grain_storage import storage_spoilage
+                    rate = storage_spoilage(world, f.region, _spoilage())
                 if (abs(f.before * rate - f.amount) > _TOL * max(1.0, f.before)
                         and not (f.amount == f.before and f.before * (1.0 - rate) < DUST)):
                     self.problems.append(f"granary {f.region}: spoiled {f.amount} of {f.before}")
@@ -764,23 +948,43 @@ class ReserveLedger:
                 row["seized"] += f.amount
             elif f.kind == ABANDONED:
                 row["abandoned"] += f.amount
-        columns: dict[str, list] = {name: [] for name in RESERVE_LEDGER_COLUMNS}
+            elif f.kind == STORAGE_RETURNED:
+                row["storage_returned"] = row.get("storage_returned", 0.0) + f.amount
+        schema = dict(RESERVE_LEDGER_COLUMNS)
+        pending_after = None
+        if getattr(state, "shipments", None) is not None:
+            from chronicler.public_grain_shipments import inbound_by_destination
+            pending_after = inbound_by_destination(world)
+            schema.update(SHIPMENT_LEDGER_COLUMNS)
+        if getattr(state, "storage", None) is not None:
+            schema.update(STORAGE_LEDGER_COLUMNS)
+        columns: dict[str, list] = {name: [] for name in schema}
         for rid, granary in enumerate(state.granaries):
             before = self.start[rid] if rid < len(self.start) else 0.0
             row = sums.get(rid, {"bought": 0.0, "released": 0.0, "spoiled": 0.0, "seized": 0.0,
                                  "abandoned": 0.0, "sent": 0.0, "paid": 0.0})
-            expect = before + row["bought"] - row["released"] - row["spoiled"] - row["seized"] - row["abandoned"]
+            arrived = row.get("arrived", 0.0)
+            dispatched = row.get("dispatched", 0.0)
+            expect = before + row["bought"] + arrived - row["released"] - row["spoiled"] - row["seized"] - row["abandoned"] - row.get("storage_returned", 0.0)
+            pending0 = (self.pending_before[rid] if self.pending_before is not None else 0.0)
+            pending1 = pending_after[rid] if pending_after is not None else 0.0
+            if abs(pending1 - pending0 - dispatched + arrived) > _TOL * max(1.0, pending0 + dispatched):
+                self.problems.append(f"granary {rid}: pending cargo does not balance")
             if abs(granary.grain - expect) > _TOL * max(1.0, before + row["bought"]):
                 self.problems.append(f"granary {rid}: grain {before} -> {granary.grain}, flows give {expect}")
             if granary.grain < 0:
                 self.problems.append(f"granary {rid}: grain {granary.grain}")
-            if before <= 0 and granary.grain <= 0 and not any(row.values()):
+            if before <= 0 and granary.grain <= 0 and pending0 <= 0 and pending1 <= 0 and not any(row.values()):
                 continue
             s0, s1, _ = self.sufficiency.get(rid, (float("nan"), float("nan"), 0.0))
             values = (self.turn, rid, granary.owner, before, row["bought"], row["released"], row["spoiled"],
                       row["seized"], row["abandoned"], granary.grain, granary.target, row["sent"],
                       int(row["paid"]), s0, s1)
-            for name, value in zip(RESERVE_LEDGER_COLUMNS, values):
+            if pending_after is not None:
+                values += (dispatched, arrived, pending0, pending1)
+            if getattr(state, "storage", None) is not None:
+                values += (row.get("storage_returned", 0.0),)
+            for name, value in zip(schema, values):
                 columns[name].append(value)
         state._ledger = None
         if self.record:
@@ -795,18 +999,39 @@ class ReserveLedger:
             )
 
 
-def write_reserve_ledger(path, columns: dict[str, list]) -> None:
+def write_reserve_ledger(path, columns: dict[str, list], *, artifact_budget=None) -> None:
     """Write the granary ledger's column lists as an Arrow IPC file."""
     import pyarrow as pa
     import pyarrow.ipc as ipc
+    schema = dict(RESERVE_LEDGER_COLUMNS)
+    if any(name in columns for name in SHIPMENT_LEDGER_COLUMNS):
+        schema.update(SHIPMENT_LEDGER_COLUMNS)
+    if any(name in columns for name in STORAGE_LEDGER_COLUMNS):
+        schema.update(STORAGE_LEDGER_COLUMNS)
     arrays = [pa.array(columns.get(name, []), type=getattr(pa, kind)())
-              for name, kind in RESERVE_LEDGER_COLUMNS.items()]
-    batch = pa.record_batch(arrays, names=list(RESERVE_LEDGER_COLUMNS))
+              for name, kind in schema.items()]
+    batch = pa.record_batch(arrays, names=list(schema))
+    metadata = {}
+    if any(name in columns for name in SHIPMENT_LEDGER_COLUMNS):
+        metadata[b"public_grain_shipments"] = b"1"
+    if any(name in columns for name in STORAGE_LEDGER_COLUMNS):
+        metadata[b"grain_storage"] = b"1"
+    if metadata:
+        batch = batch.replace_schema_metadata(metadata)
     options = ipc.IpcWriteOptions(compression="zstd") if pa.Codec.is_available("zstd") else None
-    with pa.OSFile(str(path), "wb") as handle:
-        writer = ipc.new_file(handle, batch.schema, options=options)
-        writer.write_batch(batch)
-        writer.close()
+    if artifact_budget is None:
+        with pa.OSFile(str(path), "wb") as handle:
+            writer = ipc.new_file(handle, batch.schema, options=options)
+            writer.write_batch(batch)
+            writer.close()
+    else:
+        artifact_budget.require_healthy()
+        with pa.BufferOutputStream() as handle:
+            writer = ipc.new_file(handle, batch.schema, options=options)
+            writer.write_batch(batch)
+            writer.close()
+            content = handle.getvalue().to_pybytes()
+        artifact_budget.write_bytes(path, content)
 
 
 def read_reserve_ledger(path) -> dict[str, list]:

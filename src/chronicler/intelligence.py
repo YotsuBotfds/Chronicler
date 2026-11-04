@@ -64,6 +64,12 @@ def has_active_trade_route(observer: Civilization, target: Civilization,
                            world: WorldState) -> bool:
     """True if an active trade route exists between observer and target."""
     pair = tuple(sorted([observer.name, target.name]))
+    # A membership read need not copy the current turn's private, plain set.
+    # Leave the public defensive-copy getter and every fallback unchanged.
+    cached_turn = getattr(world, "_trade_route_cache_turn", None)
+    cached_pairs = getattr(world, "_active_trade_route_pairs_cache", None)
+    if cached_turn == world.turn and type(cached_pairs) is set:
+        return pair in cached_pairs
     return pair in get_active_trade_route_pairs(world)
 
 

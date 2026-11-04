@@ -235,7 +235,9 @@ class TestTransportContract:
         bundle = load_bundle(FIXTURE)
         assert bundle["metadata"]["bundle_version"] == 6
         for snap in bundle["history"]:
-            assert set(SNAPSHOT_SYSTEMS) <= set(snap)
+            assert "food_accounting" not in snap  # fixture predates these exports
+            assert "household_mobility" not in snap
+            assert set(SNAPSHOT_SYSTEMS) - {"food_accounting", "household_mobility"} <= set(snap)
         assert set(BUNDLE_SYSTEMS + BUNDLE_CARRIERS) <= set(bundle)
 
     def test_batch_lab_and_reconnect_keep_every_system(self):
@@ -251,7 +253,9 @@ class TestTransportContract:
                 assert payload[key] == static[key], key
             for got, want in zip(payload["history"], static["history"], strict=True):
                 for key in SNAPSHOT_SYSTEMS:
-                    assert got[key] == want[key], key
+                    assert (key in got) == (key in want), key
+                    if key in want:
+                        assert got[key] == want[key], key
 
     def test_streaming_turns_and_completion_rebuild_the_bundle_for_reconnect(self):
         """Turn messages (as run_live sends them) then the completed message."""
@@ -271,7 +275,40 @@ class TestTransportContract:
         assert not any(k in row for row in init["history"] for k in TURN_MESSAGE_KEYS)
         for key in BUNDLE_SYSTEMS:
             assert init[key] == static[key]
-        assert all(set(SNAPSHOT_SYSTEMS) <= set(row) for row in init["history"])
+        assert all(set(SNAPSHOT_SYSTEMS) - {"food_accounting", "household_mobility"} <= set(row) for row in init["history"])
+
+    def test_food_accounting_survives_batch_reconnect_and_streaming(self):
+        from chronicler.bundle_codec import encode_bundle, load_bundle
+        from chronicler.live import _build_init_data_from_bundle, _validate_legacy_live_bundle, apply_turn_message
+        static = load_bundle(FIXTURE)
+        food = {"schema_version": 1, "source_turn": 0, "completed_turn": 1,
+                "mode": "off", "timing": "phase2", "units": "model_food_goods",
+                "transport": "none", "regions": [], "procurement": []}
+        static["history"][0]["food_accounting"] = food
+        loaded = _validate_legacy_live_bundle(encode_bundle(static))
+        init = _build_init_data_from_bundle(loaded)
+        assert loaded["history"][0]["food_accounting"] == food
+        assert init["history"][0]["food_accounting"] == food
+        streamed = {"history": [], "chronicle_entries": {}, "events_timeline": [], "named_events": []}
+        apply_turn_message(streamed, dict(static["history"][0], type="turn", chronicle_text="", events=[], named_events=[]))
+        assert streamed["history"][0]["food_accounting"] == food
+
+    def test_household_mobility_survives_batch_reconnect_and_streaming(self):
+        from chronicler.bundle_codec import encode_bundle, load_bundle
+        from chronicler.household_mobility_state import capture_mobility_frame
+        from chronicler.live import _build_init_data_from_bundle, _validate_legacy_live_bundle, apply_turn_message
+        static = load_bundle(FIXTURE)
+        turn = static["history"][0]["turn"]
+        mobility = capture_mobility_frame(((turn - 1, 0, 0, 0, 0, 0, 0, 0), ()),
+                                          source_turn=turn - 1, mode="hybrid", requirement=1.0).as_dict(turn)
+        static["history"][0]["household_mobility"] = mobility
+        loaded = _validate_legacy_live_bundle(encode_bundle(static))
+        init = _build_init_data_from_bundle(loaded)
+        assert loaded["history"][0]["household_mobility"] == mobility
+        assert init["history"][0]["household_mobility"] == mobility
+        streamed = {"history": [], "chronicle_entries": {}, "events_timeline": [], "named_events": []}
+        apply_turn_message(streamed, dict(static["history"][0], type="turn", chronicle_text="", events=[], named_events=[]))
+        assert streamed["history"][0]["household_mobility"] == mobility
 
     def test_completed_systems_read_the_written_bundle(self, tmp_path):
         from chronicler.live import completed_systems

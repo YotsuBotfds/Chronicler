@@ -97,6 +97,7 @@ OFF_SCHOLAR_SHARE = 0.10      # --agents off: scholars as a share of the region'
 
 # Strikes and falls.
 STRIKE_COOLDOWN = 10          # turns between strikes on one seat
+RECOVERY_TURNS = 10           # minimum regional recovery after any seat falls
 SACK_FALL = 0.5               # a sack destroys the seat with this chance (else a level)
 FAMINE_STRIKE = 0.3           # a famine report in its region costs a level with this chance
 PERSECUTION_TURNS = 5         # turns of persecution of its faith that close the seat
@@ -145,6 +146,11 @@ def set_scholarship_enabled(world: "WorldState", enabled: bool) -> None:
         if world.scholarship is None:
             world.scholarship = ScholarshipState()
         return
+    if getattr(getattr(world, "scholarship", None), "learning_services", None) is not None:
+        from chronicler.learning_services import learning_inventory_totals
+        totals = learning_inventory_totals(world)
+        if totals["held"] is None or totals["held"] > 0:
+            raise ValueError("cannot discard paid or unknown academy supplies; pause academy services instead")
     world.scholarship = None
 
 
@@ -257,10 +263,11 @@ _POLITY_WORDS = frozenset({
 # ---------------------------------------------------------------------------
 
 class _Tick:
-    def __init__(self, world, acc, phase10, events) -> None:
+    def __init__(self, world, acc, phase10, events, service_upkeep=None) -> None:
         from chronicler.cities import scale
         self.world = world
         self.acc = acc
+        self.service_upkeep = service_upkeep
         self.state: ScholarshipState = world.scholarship
         self.events: list = []
         self.turn_events = list(events)
@@ -269,6 +276,14 @@ class _Tick:
         cities = getattr(world, "cities", None)
         self.cities = {c.settlement_id: c for c in cities.cities} if cities is not None else {}
         self.scholars = _observe(phase10, len(world.regions))
+        # Fallen records persist across save/resume. Recovery belongs to the
+        # region, so a different patron or kind cannot bypass a recent fall.
+        self.falls: dict[int, Seat] = {}
+        for seat in self.state.seats:
+            if seat.fallen_turn is not None:
+                previous = self.falls.get(seat.region)
+                if previous is None or seat.fallen_turn >= previous.fallen_turn:
+                    self.falls[seat.region] = seat
 
     def civ(self, idx: int):
         civs = self.world.civilizations
@@ -315,19 +330,26 @@ def _emit(t: _Tick, event_type: str, actors: Iterable[str], description: str, *,
 
 
 def tick_scholarship(world: "WorldState", events: Iterable["Event"] = (), acc=None, *,
-                     phase10=None, agent_bridge=None) -> list["Event"]:
+                     phase10=None, agent_bridge=None, service_upkeep=None) -> list["Event"]:
     """Phase 10, after cities and guilds: per living seat its ruler and
     patron, strikes (sack, famine, persecution), upkeep, scholars and
-    masters, rise, pull; then foundings. Returns the turn's seat events."""
+    masters, rise, pull; then foundings. Returns the turn's seat events.
+    An optional service_upkeep dict receives actual academy upkeep evidence
+    for a separate, opt-in service settlement; it is cleared on each call."""
     if not scholarship_on(world):
         return []
-    t = _Tick(world, acc, phase10, events)
+    if service_upkeep is not None:
+        service_upkeep.clear()
+    t = _Tick(world, acc, phase10, events, service_upkeep)
     for si, seat in living_seats(world):
         _update(t, si, seat)
     _found_academies(t)
     _found_schools(t)
     _found_libraries(t)
     t.state.last_tick_turn = world.turn
+    if getattr(world, "scientific_claims", None) is not None:
+        from chronicler.scientific_claims import tick_scientific_claims
+        t.events.extend(tick_scientific_claims(world, acc))
     return t.events
 
 
@@ -518,19 +540,32 @@ def _charge(t: _Tick, seat: Seat, region, amount: float) -> None:
         city.wealth = round(city.wealth - amount, 4)
 
 
+def _record_service_upkeep(t: _Tick, si: int, seat: Seat, due: int, paid: int, satisfied: bool) -> None:
+    """Transient evidence from this upkeep operation, never reconstructed from treasury."""
+    if t.service_upkeep is not None and seat.kind == ACADEMY:
+        from chronicler.learning_services import AcademyUpkeepObservation
+        t.service_upkeep[si] = AcademyUpkeepObservation(
+            seat_id=si, region=seat.region, founder=seat.founder, founded_turn=seat.founded_turn,
+            seat_name=seat.name, lord=seat.lord, source_turn=t.world.turn, due=due, paid=paid,
+            satisfied=satisfied)
+
+
 def _upkeep(t: _Tick, si: int, seat: Seat, region) -> bool:
     """The turn's upkeep, the whole units owed paid by the patron. Returns
     False when the seat fell of neglect."""
     seat.owed = _q(seat.owed + UPKEEP[seat.level])
     due = int(seat.owed)
     if due <= 0:
+        _record_service_upkeep(t, si, seat, due, 0, True)
         return True
     if _patron_funds(t, seat, region) >= due:
         _charge(t, seat, region, due)
         seat.owed = _q(seat.owed - due)
         seat.unpaid = 0
         _bump(t.state, "upkeep", due)
+        _record_service_upkeep(t, si, seat, due, due, True)
         return True
+    _record_service_upkeep(t, si, seat, due, 0, False)
     seat.unpaid += 1
     _bump(t.state, "unpaid")
     if seat.unpaid < NEGLECT_PAYMENTS:
@@ -643,6 +678,7 @@ def _fall(t: _Tick, si: int, seat: Seat, region, cause: int, what: str, causes, 
     seat.fallen_turn = world.turn
     seat.fall_cause = cause
     seat.pull = 0.0
+    t.falls[seat.region] = seat
     _bump(t.state, "fallen")
     _bump(t.state, f"fall_{FALL_CAUSES[cause]}")
     refuge = _refuge(t, si, seat)
@@ -700,6 +736,54 @@ def _seat_regions(world) -> set[int]:
     return {s.region for _i, s in living_seats(world)}
 
 
+def _in_famine(t: _Tick, region) -> bool:
+    """An actual famine, including the gaps between its reports; dearth
+    alone does not close founding. Episodes persist in saves and close at
+    the end of the turn, so a seat may open from the following turn."""
+    from chronicler import provenance as prov
+    from chronicler.ecology import FAMINE_SEVERE_TURNS
+
+    if any(ev.turn == t.world.turn and ev.region == region.name
+           and ev.event_type == "famine" and ev.episode != "end"
+           for ev in t.turn_events):
+        return True
+    episode = t.world.provenance.episodes.get(prov.episode_key("famine", region.name))
+    if episode is not None and episode.event_type == "famine":
+        return True
+    # The current measured run can deepen a dearth before its next report.
+    if (region.food_severe_turns or 0) >= FAMINE_SEVERE_TURNS:
+        return True
+    # Aggregate mode and older saves may have only the food-crisis cooldown.
+    return region.famine_cooldown > 0 and not region.dearth_cooldown
+
+
+def _founding_ready(t: _Tick, region_i: int) -> bool:
+    """Common site conditions for every patron, before its founding draw."""
+    region = t.world.regions[region_i]
+    previous = t.falls.get(region_i)
+    return (bool(region.controller) and not _occupied(region)
+            and not _in_famine(t, region)
+            and not any(city.region == region_i and city.last_sack == t.world.turn
+                        for city in t.cities.values())
+            and _sack_cause(t, region) is None
+            and (previous is None
+                 or t.world.turn - previous.fallen_turn >= RECOVERY_TURNS))
+
+
+def _record_founding(t: _Tick, seat: Seat, actors: Iterable[str], description: str,
+                     importance: int) -> None:
+    """Keep a reestablishment attached to the fall it follows, even when
+    another kind of institution or a new ruler restores learning there."""
+    previous = t.falls.get(seat.region)
+    cause = None
+    if previous is not None:
+        cause = next((eid for _turn, kind, eid in reversed(previous.history) if kind == "fell"), None)
+        description += f"; learning returns after the fall of {previous.name}"
+    ev = _emit(t, "seat_founded", actors, description, importance=importance,
+               region=t.world.regions[seat.region].name, causes=(cause,))
+    _note(seat, t.world.turn, "founded", ev.event_id)
+
+
 def _new_seat(t: _Tick, region_i: int, kind: int, name: str, lord: int, faith: int,
               city: int = 0) -> Seat:
     world = t.world
@@ -725,12 +809,12 @@ def _found_academies(t: _Tick) -> None:
         if not civ.regions or ci in has or not civ.capital_region:
             continue
         ri = names.get(civ.capital_region)
-        if ri is None or ri in taken or world.regions[ri].controller != civ.name:
+        if (ri is None or ri in taken or world.regions[ri].controller != civ.name
+                or not _founding_ready(t, ri)):
             continue
         if (civ.culture < ACADEMY_CULTURE or civ.stability < ACADEMY_STABILITY
                 or projected_treasury(t, civ) < ACADEMY_TREASURY
-                or any(civ.name in pair for pair in world.active_wars)
-                or world.regions[ri].famine_cooldown > 0):
+                or any(civ.name in pair for pair in world.active_wars)):
             continue
         chance = ACADEMY_CHANCE * (LEARNED_FACTOR if _learned(civ) else 1.0)
         if _rng(world, "academy", ci).random() >= chance:
@@ -742,10 +826,8 @@ def _found_academies(t: _Tick) -> None:
         seat = _new_seat(t, ri, ACADEMY, f"the Academy of {region.name}", ci,
                          faiths.uid_or_slot(world, civ.civ_majority_faith))
         ruler = f"{civ.leader.name} of {civ.name}" if civ.leader is not None else civ.name
-        ev = _emit(t, "seat_founded", [civ.name],
-                   f"{ruler} founds {seat.name} at the court in {region.name}", importance=5,
-                   region=region.name)
-        _note(seat, world.turn, "founded", ev.event_id)
+        _record_founding(t, seat, [civ.name],
+                         f"{ruler} founds {seat.name} at the court in {region.name}", 5)
         taken.add(ri)
 
 
@@ -753,7 +835,7 @@ def _found_schools(t: _Tick) -> None:
     world = t.world
     taken = _seat_regions(world)
     for ri, region in enumerate(world.regions):
-        if ri in taken or not region.controller or _occupied(region):
+        if ri in taken or not _founding_ready(t, ri):
             continue
         temple = _any_temple(region)
         if temple is None or temple.temple_prestige < SCHOOL_PRESTIGE + SCHOOL_COST:
@@ -774,10 +856,8 @@ def _found_schools(t: _Tick) -> None:
         seat = _new_seat(t, ri, TEMPLE_SCHOOL, f"the Temple School of {region.name}",
                          t.lord_of(region), temple_faith)
         priests = f"The priests of {faith}" if faith else f"The temple priests of {region.name}"
-        ev = _emit(t, "seat_founded", [region.controller],
-                   f"{priests} open {seat.name} at their temple", importance=4,
-                   region=region.name)
-        _note(seat, world.turn, "founded", ev.event_id)
+        _record_founding(t, seat, [region.controller],
+                         f"{priests} open {seat.name} at their temple", 4)
         taken.add(ri)
 
 
@@ -791,7 +871,7 @@ def _found_libraries(t: _Tick) -> None:
         if city.region in taken or city.rank < LIBRARY_RANK or city.wealth < LIBRARY_FEE:
             continue
         region = world.regions[city.region]
-        if _occupied(region):
+        if not _founding_ready(t, city.region):
             continue
         if _rng(world, "library", sid).random() >= LIBRARY_CHANCE:
             continue
@@ -799,10 +879,8 @@ def _found_libraries(t: _Tick) -> None:
         _bump(t.state, "fees", LIBRARY_FEE)
         seat = _new_seat(t, city.region, LIBRARY, f"the Library of {city.name}", t.lord_of(region),
                          faiths.uid_or_slot(world, region.majority_belief), city=sid)
-        ev = _emit(t, "seat_founded", [region.controller or ""],
-                   f"The burghers of {city.name} found {seat.name}", importance=4,
-                   region=region.name)
-        _note(seat, world.turn, "founded", ev.event_id)
+        _record_founding(t, seat, [region.controller or ""],
+                         f"The burghers of {city.name} found {seat.name}", 4)
         taken.add(city.region)
 
 
@@ -823,16 +901,22 @@ def research_factor(world, civ) -> float:
 
 def learning_factors(world) -> tuple[dict[int, float], dict[int, float]] | None:
     """(adoption hazard factor, forgetting factor) by region index near
-    living seats; None with the switch off."""
+    living seats; None with the switch off. An opted-in academy scales only
+    its local adoption increment by prior-turn modeled service delivery.
+    Research, neighboring diffusion and forgetting retain their existing rules."""
     if not scholarship_on(world):
         return None
     hazard: dict[int, float] = {}
     forget: dict[int, float] = {}
     names = {r.name: i for i, r in enumerate(world.regions)}
-    for _i, s in living_seats(world):
+    for seat_id, s in living_seats(world):
         if s.region >= len(world.regions) or s.level <= 0:
             continue
-        hazard[s.region] = max(hazard.get(s.region, 1.0), 1.0 + LEARN_HAZARD * s.level)
+        local_level = s.level
+        if s.kind == ACADEMY and getattr(world.scholarship, "learning_services", None) is not None:
+            from chronicler.learning_services import academy_service_fraction
+            local_level *= academy_service_fraction(world, seat_id, turn=world.turn)
+        hazard[s.region] = max(hazard.get(s.region, 1.0), 1.0 + LEARN_HAZARD * local_level)
         forget[s.region] = min(forget.get(s.region, 1.0), 1.0 - LEARN_KEEP * s.level)
         for adj in world.regions[s.region].adjacencies:
             j = names.get(adj)
@@ -941,11 +1025,15 @@ def snapshot_summary(world: "WorldState") -> dict:
         if s.unpaid:
             row["unpaid"] = s.unpaid
         seats.append(row)
-    return {
+    result = {
         "seats": seats,
         "fallen": sum(1 for s in state.seats if s.fallen_turn is not None),
         "counters": {k: state.counters.get(k, 0) for k in COUNTER_KEYS},
     }
+    if getattr(state, "learning_services", None) is not None:
+        from chronicler.learning_services import learning_services_snapshot
+        result["learning_services"] = learning_services_snapshot(world)
+    return result
 
 
 def seat_history(world: "WorldState", index: int) -> list[str]:

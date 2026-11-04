@@ -64,6 +64,10 @@ from chronicler.batch_manifest import (
     write_batch_manifest,
 )
 from chronicler.ablation_arms import COMMUNITY_ARM, GATE_ARMS, checkpoint_turns, fork_every, run_ablation_arms
+from chronicler.cpu_budget import automatic_workers
+from chronicler.expansion_features import (
+    EXPANSION_FEATURES, add_expansion_arguments, expansion_arguments,
+)
 from chronicler.validation_compare import compare_validation_reports, format_comparison_markdown
 from chronicler.validation_gate import (
     CAUSAL_ORACLES_FLAG,
@@ -345,6 +349,14 @@ def _community_anchoring_args(args: argparse.Namespace) -> list[str]:
     return ["--community-anchoring" if anchoring else "--no-community-anchoring"]
 
 
+def _capacity_aware_refugees_args(args: argparse.Namespace) -> list[str]:
+    """Forward explicit macro refugee routing in every population mode."""
+    enabled = getattr(args, "capacity_aware_refugees", None)
+    if enabled is None:
+        return []
+    return ["--capacity-aware-refugees" if enabled else "--no-capacity-aware-refugees"]
+
+
 def _domestic_credit_args(args: argparse.Namespace) -> list[str]:
     """Forward an explicit domestic-credit switch; omitted keeps the CLI default."""
     credit = getattr(args, "domestic_credit", None)
@@ -420,6 +432,8 @@ def run_subset(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path
         *_guilds_args(args),
         *_scholarship_args(args),
         *_grain_reserves_args(args),
+        *_capacity_aware_refugees_args(args),
+        *expansion_arguments(args),
         *_community_anchoring_args(args),
         *_domestic_credit_args(args),
         *_historiography_args(args),
@@ -465,6 +479,8 @@ def run_full(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path:
         *_guilds_args(args),
         *_scholarship_args(args),
         *_grain_reserves_args(args),
+        *_capacity_aware_refugees_args(args),
+        *expansion_arguments(args),
         *_community_anchoring_args(args),
         *_domestic_credit_args(args),
         *_historiography_args(args),
@@ -557,6 +573,8 @@ def run_determinism(args: argparse.Namespace, cwd: Path, env: dict[str, str], ag
         cmd.extend(_guilds_args(args))
         cmd.extend(_scholarship_args(args))
         cmd.extend(_grain_reserves_args(args))
+        cmd.extend(_capacity_aware_refugees_args(args))
+        cmd.extend(expansion_arguments(args))
         if agents != "off":
             cmd.extend(_community_anchoring_args(args))
             cmd.extend(_domestic_credit_args(args))
@@ -839,8 +857,9 @@ def main() -> None:
     parser.add_argument("--seed-start", type=int, default=42)
     parser.add_argument("--seeds", type=int, default=None)
     parser.add_argument("--turns", type=int, default=None)
-    parser.add_argument("--parallel", type=int, default=12,
-                        help="batch worker processes (passed as --parallel N; 1 is one worker, 0 sequential)")
+    parser.add_argument("--parallel", type=int, default=None,
+                        help="batch worker processes (default: affinity/cgroup-aware CPU budget, "
+                             "reserving one CPU when possible; 1 is one worker, 0 sequential)")
     parser.add_argument(
         "--worldgen",
         choices=WORLDGEN_CHOICES,
@@ -964,6 +983,13 @@ def main() -> None:
              "(default: CLI default; docs/integration/community-anchoring.md).",
     )
     parser.add_argument(
+        "--capacity-aware-refugees",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Forward --capacity-aware-refugees/--no-capacity-aware-refugees to every run "
+             "(default off; acts in aggregate/shadow only).",
+    )
+    parser.add_argument(
         "--domestic-credit",
         action=argparse.BooleanOptionalAction,
         default=None,
@@ -1025,7 +1051,10 @@ def main() -> None:
         help="When --baseline-report is set, compare even if the baseline measured a different cohort "
              "(seeds, turns, world, simulation configuration); the comparison is labelled exploratory.",
     )
+    add_expansion_arguments(parser, forwarding=True)
     parsed = parser.parse_args()
+    if parsed.parallel is None:
+        parsed.parallel = automatic_workers()
     if parsed.worldgen != "procedural" and (parsed.regions is not None or parsed.civs is not None):
         parser.error("--regions and --civs require --worldgen procedural")
     args = apply_profile_defaults(parsed)
@@ -1037,6 +1066,11 @@ def main() -> None:
         parser.error(f"--ablation-oracles applies to the {' and '.join(ABLATION_PROFILES)} profiles")
     if args.profile in ABLATION_PROFILES and require_causal(args) and not ablation_enabled(args):
         parser.error(f"{CAUSAL_ORACLES_FLAG} needs the ablation arms (--ablation-oracles)")
+    if args.baseline_report is not None:
+        try:
+            load_validation_report(args.baseline_report)
+        except ValidationGateInputError as exc:
+            parser.error(f"--baseline-report: {exc}")
     try:
         check_batch_destination(_profile_batch_dir(args))
         if ablation_enabled(args):
@@ -1132,6 +1166,10 @@ def main() -> None:
         "scholarship": args.scholarship,
         "grain_reserves": args.grain_reserves,
         "community_anchoring": args.community_anchoring,
+        "capacity_aware_refugees": args.capacity_aware_refugees,
+        **{name: getattr(args, name, None) for name in EXPANSION_FEATURES},
+        **({"scientific_research_agendas": args.scientific_research_agendas}
+           if getattr(args, "scientific_research_agendas", None) is not None else {}),
         "domestic_credit": args.domestic_credit,
         "historiography": args.historiography,
         "languages": args.languages,

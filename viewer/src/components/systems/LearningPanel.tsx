@@ -5,6 +5,8 @@ import {
 } from "../../lib/learning";
 import { eventsOfTypes, recordedSpan, SYSTEM_EVENT_TYPES, type SystemPanelProps } from "../../lib/systems";
 import { CivLineChart, StatTile, StripLegend, SystemEventList, TurnStrip } from "./SystemParts";
+import { ScientificClaims } from "./ScientificClaims";
+import { AcademyServices } from "./AcademyServices";
 
 const SCHOLARS = "Scholars";
 
@@ -12,28 +14,30 @@ const SCHOLARS = "Scholars";
 export function LearningPanel({
   bundle, snapshot, currentTurn, onSeek, onSelectEvent, onSelectRegion, onSelectCivilization,
 }: SystemPanelProps) {
-  const history = bundle.history;
+  const history = useMemo(() => bundle.history.filter((row) => row.turn <= currentTurn), [bundle.history, currentTurn]);
   const keys = useMemo(() => seatKeys(history), [history]);
   const rows = useMemo(() => seatLevelRows(history, keys), [history, keys]);
   const { first, end } = recordedSpan(history);
-  const state = snapshot?.scholarship;
-  const at = snapshot?.turn ?? currentTurn;
-  const living = seatsAt(snapshot);
-  // Seats recorded by the scrubbed turn (a later seat is not the default focus).
-  const known = useMemo(
-    () => seatKeys(history.filter((row) => row.turn <= currentTurn)), [history, currentTurn]);
+  // A previous sparse snapshot is not a measurement of this selected turn.
+  const currentSnapshot = snapshot?.turn === currentTurn ? snapshot : null;
+  const state = currentSnapshot?.scholarship;
+  const at = currentTurn;
+  const living = seatsAt(currentSnapshot);
   const [chosen, setChosen] = useState<number | null>(null);
-  const selected = chosen ?? living[0]?.id ?? known[known.length - 1]?.id ?? null;
+  const selected = chosen !== null && keys.some((key) => key.id === chosen)
+    ? chosen : living[0]?.id ?? keys[keys.length - 1]?.id ?? null;
   const selectedName = keys.find((key) => key.id === selected)?.name ?? null;
   const scholars = selected == null ? [] : seatScholarSeries(history, selected, SCHOLARS);
   const record = selected == null ? null : seatRecordAt(bundle, selected, currentTurn);
   const moments = selected == null ? [] : seatHistory(bundle, selected, currentTurn);
-  const events = eventsOfTypes(bundle.events_timeline, SYSTEM_EVENT_TYPES.learning, currentTurn);
+  const events = eventsOfTypes(bundle.events_timeline, SYSTEM_EVENT_TYPES.learning, currentTurn - 1);
   const regions = bundle.world_state.regions;
   const civs = bundle.world_state.civilizations;
 
   return (
     <div className="systems-panel-body" aria-label="Seats of learning">
+      <ScientificClaims bundle={bundle} snapshot={currentSnapshot} currentTurn={currentTurn} onSeek={onSeek}
+        onSelectEvent={onSelectEvent} onSelectRegion={onSelectRegion} onSelectCivilization={onSelectCivilization} />
       {state ? (
         <div className="systems-tiles">
           <StatTile label="Seats of learning" value={living.length} detail={`turn ${at}`} />
@@ -52,6 +56,7 @@ export function LearningPanel({
 
       <section className="systems-section">
         <h3>Seats over time</h3>
+        <p className="systems-note">Recorded snapshots through {currentTurn} only. Event labels T refer to source ticks; tick T is visible at snapshot T+1.</p>
         <p className="systems-note">
           Academies kept by rulers, temple schools by their temples and libraries by their cities, by level from
           founding to fall; select one to follow it below.
@@ -63,7 +68,7 @@ export function LearningPanel({
           endTurn={end}
           currentTurn={currentTurn}
           label="Level of each seat of learning over time"
-          emptyText="No seat of learning was founded in this run."
+          emptyText="No seat timeline is recorded in the available snapshots."
           onSeek={onSeek}
           onSelectRow={(row) => setChosen(Number(row.id))}
           isRowSelected={(row) => Number(row.id) === selected}
@@ -126,15 +131,17 @@ export function LearningPanel({
           <h3>{selectedName}</h3>
           {record && (
             <p className="systems-note">
-              {regions[record.record.region]?.name ?? `Region ${record.record.region}`}; founded turn{" "}
+              {regions[record.record.region]?.name ?? `Region ${record.record.region}`}; founded source tick{" "}
               {record.record.founded_turn}
               {record.record.founder >= 0 && civs[record.record.founder] ? ` under ${civs[record.record.founder].name}` : ""}
               {record.peakLevel > 0
                 ? `; peak by turn ${currentTurn} ${levelLabel(record.peakLevel)} (${record.peakScholars.toFixed(1)} scholars)`
                 : ""}
-              {record.fell ? `; ${fallLabel(bundle, record.record)}` : ""}.
+              {record.fell ? `; ${fallLabel(bundle, record.record, currentTurn)}` : ""}.
             </p>
           )}
+          <AcademyServices bundle={bundle} snapshot={currentSnapshot} seatId={selected} seat={record?.record ?? null}
+            currentTurn={currentTurn} onSeek={onSeek} onSelectRegion={onSelectRegion} onSelectCivilization={onSelectCivilization} />
           <CivLineChart
             data={scholars}
             civs={[SCHOLARS]}

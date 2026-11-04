@@ -9,7 +9,7 @@ from collections import Counter
 from typing import TYPE_CHECKING
 
 from chronicler.columnar import batch_arrays, ordered_counts, pylist
-from chronicler.turn_artifacts import AgentRows, _check_agent_rows
+from chronicler.turn_artifacts import AgentRows, _check_agent_rows, _immutable_record_batch
 from chronicler.models import (
     Belief,
     DOCTRINE_THEOLOGY,
@@ -160,6 +160,9 @@ def _faith_counts_by(snapshot, agent_rows: AgentRows | None, key_column: str) ->
 
     None when the columns have nulls (callers then run their row loop).
     """
+    if (key_column == "region" and type(agent_rows) is AgentRows
+            and _immutable_record_batch(snapshot)):
+        return agent_rows._region_faith_counts()
     arrays = _snapshot_arrays(snapshot, agent_rows, key_column, "belief")
     if arrays is None:
         return None

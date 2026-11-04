@@ -395,10 +395,17 @@ def sidecar_text(world: "WorldState") -> str | None:
     return head[:-1] + ',"state":' + st.model_dump_json() + "}"
 
 
-def save_sidecar(world: "WorldState", state_path: Path, *, atomic: bool = False) -> None:
+def save_sidecar(world: "WorldState", state_path: Path, *, atomic: bool = False,
+                 artifact_budget=None) -> None:
     """Write the languages next to the state file; remove a stale one while off."""
     path = sidecar_path(state_path)
     text = sidecar_text(world)
+    if artifact_budget is not None:
+        if text is None:
+            artifact_budget.unlink(path)
+        else:
+            artifact_budget.write_text(path, text, encoding="utf-8", atomic=atomic)
+        return
     if text is None:
         try:
             path.unlink()

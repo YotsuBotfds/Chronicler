@@ -583,6 +583,14 @@ class EconomyResult:
     trade_dependent: dict[str, bool] = field(default_factory=dict)
     # M58b: Oracle shadow imports (from observability batch oracle columns)
     oracle_imports: dict[str, dict[str, float]] = field(default_factory=dict)
+    # Observational only: native Phase-2 food ledger by stable region index.
+    # Tuples are FOOD_LEDGER_FIELDS followed by demand and pre-relief sufficiency.
+    # Empty when an older extension does not export the entire versioned ledger.
+    food_ledger: dict[int, tuple[float, ...]] = field(default_factory=dict)
+    # Exact late-Phase-10 procurement budgets, not household purchasing access.
+    food_procurement_budget: dict[int, tuple[int, int]] = field(default_factory=dict)
+    # Native aggregate farmer-equivalent work, only for the opt-in asset caller.
+    granary_work_delivered: dict[int, float] = field(default_factory=dict)
     # Merchant routing (2026-10): demand and post-trade supply per category
     # (``CATEGORIES`` order), the merchant planner's market prices. Filled by
     # the native economy; empty for the Python oracle.
@@ -603,6 +611,9 @@ class EconomyResult:
     # economy tick, or from a native extension built before 2026-10.
     slot_output: dict[str, tuple[float, float, float]] = field(default_factory=dict)
     forage_output: dict[str, float] = field(default_factory=dict)
+    # Exact already-computed native post-trade Float32 prices. Missing complete
+    # columns in older extensions remain unknown, never reconstructed in f64.
+    market_prices: dict[str, dict[str, float]] = field(default_factory=dict)
 
 
 def compute_production(
@@ -1547,6 +1558,19 @@ def reconstruct_economy_result(
         for i, rid in enumerate(rr_ids):
             target[region_names[rid]] = vals[i]
 
+    from chronicler.food_accounting import FOOD_LEDGER_FIELDS
+    food_cols = [f"food_{key}" for key in FOOD_LEDGER_FIELDS]
+    if all(c in rr_names for c in (*food_cols, "market_demand_food")):
+        # Capture before public granaries mutate food_sufficiency in Python.
+        columns = [pylist(region_result_batch.column(c)) for c in
+                   (*food_cols, "market_demand_food", "food_sufficiency")]
+        for i, rid in enumerate(rr_ids):
+            result.food_ledger[rid] = tuple(float(col[i]) for col in columns)
+
+    if "granary_work_delivered" in rr_names:
+        delivered = pylist(region_result_batch.column("granary_work_delivered"))
+        result.granary_work_delivered = {rid: float(delivered[i]) for i, rid in enumerate(rr_ids)}
+
     trc_vals = pylist(region_result_batch.column("trade_route_count"))
     for i, rid in enumerate(rr_ids):
         result.trade_route_counts[region_names[rid]] = trc_vals[i]
@@ -1563,6 +1587,14 @@ def reconstruct_economy_result(
                 for c in cols]
         for i, rid in enumerate(rr_ids):
             target[region_names[rid]] = tuple(v[i] for v in vals)
+
+    price_cols = [f"market_price_{category}" for category in CATEGORIES]
+    if all(column in rr_names for column in price_cols):
+        prices = [pylist(region_result_batch.column(column)) for column in price_cols]
+        for i, rid in enumerate(rr_ids):
+            result.market_prices[region_names[rid]] = {
+                category: float(values[i]) for category, values in zip(CATEGORIES, prices, strict=True)
+            }
 
     # Crafts: wares made and wares on hand over demand (absent before 2026-10).
     for name, target in (("craft_output", result.craft_output),

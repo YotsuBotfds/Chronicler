@@ -1,0 +1,17 @@
+.what-if-panel { border: 1px solid #526477; border-radius: 8px; padding: 12px; display: grid; gap: 10px; color: #d7e1eb; font-size: 13px; overflow-wrap: anywhere; }
+.what-if-panel h3 { font-size: 16px; font-weight: 600; }
+.what-if-panel fieldset { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; min-width: 0; }
+.what-if-panel legend { padding-bottom: 8px; }
+.what-if-panel label { display: grid; gap: 4px; min-width: 0; }
+.what-if-panel input,.what-if-panel select { width: 100%; min-width: 0; min-height: 44px; background: #27374a; border: 1px solid #59718a; border-radius: 4px; padding: 6px; }
+.what-if-panel button { border: 1px solid #73899f; border-radius: 4px; padding: 8px; min-height: 44px; background: #274c66; color: #fff; }
+.what-if-panel button:disabled { opacity: .5; }
+.what-if-panel fieldset:disabled { opacity: .65; }
+.what-if-manifest { background: #1a2b38; padding: 10px; display: grid; gap: 7px; }
+.what-if-panel pre { white-space: pre-wrap; font-size: 11px; }
+.what-if-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.what-if-recipes { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; border-top: 1px solid #526477; padding-top: 10px; min-width: 0; }
+.what-if-recipes p,.what-if-recipes details { flex-basis: 100%; min-width: 0; }
+.what-if-panel pre { overflow-wrap: anywhere; max-width: 100%; }
+.what-if-panel button:focus-visible,.what-if-panel input:focus-visible,.what-if-panel select:focus-visible,.what-if-panel summary:focus-visible { outline: 2px solid #efc775; outline-offset: 2px; }
+@media(max-width: 480px) { .what-if-panel fieldset { grid-template-columns: minmax(0,1fr); } }

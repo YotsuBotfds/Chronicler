@@ -368,10 +368,139 @@ pub fn try_tick_agents_with_movements(
     attractors: &[crate::spatial::RegionAttractors],
     spatial_diag: &mut crate::spatial::SpatialDiagnostics,
     settlement_grids: &[[u16; 100]],  // M56b
+    merchant_state: Option<(&crate::merchant::RouteGraph, &mut crate::merchant::ShadowLedger, &mut crate::merchant::DeliveryBuffer)>,  // M58a/M58b
+    targeted_deaths: &[u32],
+    options: crate::scale::TickOptions,
+    movements: &mut crate::movements::MovementRuntime,
+) -> Result<(Vec<AgentEvent>, u32, crate::formation::FormationStats, DemographicDebug, crate::household::HouseholdStats, crate::merchant::MerchantTripStats, crate::knowledge::KnowledgeStats), &'static str> {
+    try_tick_agents_with_movements_observer(
+        pool, regions, signals, master_seed, turn, wealth_percentiles,
+        spatial_grids, attractors, spatial_diag, settlement_grids, merchant_state,
+        targeted_deaths, options, movements, None, &mut crate::decision_delivery::NoDelivery, None,
+    )
+}
+
+pub(crate) fn try_tick_agents_with_delivery(
+    pool: &mut AgentPool,
+    regions: &[RegionState],
+    signals: &TickSignals,
+    master_seed: [u8; 32],
+    turn: u32,
+    wealth_percentiles: &mut [f32],
+    spatial_grids: &mut Vec<crate::spatial::SpatialGrid>,
+    attractors: &[crate::spatial::RegionAttractors],
+    spatial_diag: &mut crate::spatial::SpatialDiagnostics,
+    settlement_grids: &[[u16; 100]],  // M56b
+    merchant_state: Option<(&crate::merchant::RouteGraph, &mut crate::merchant::ShadowLedger, &mut crate::merchant::DeliveryBuffer)>,  // M58a/M58b
+    targeted_deaths: &[u32],
+    options: crate::scale::TickOptions,
+    movements: &mut crate::movements::MovementRuntime,
+    config: &crate::decision_delivery::DeliveryConfig,
+    frame: &mut crate::decision_delivery::DeliveryFrame,
+) -> Result<(Vec<AgentEvent>, u32, crate::formation::FormationStats, DemographicDebug, crate::household::HouseholdStats, crate::merchant::MerchantTripStats, crate::knowledge::KnowledgeStats), &'static str> {
+    *frame = crate::decision_delivery::DeliveryFrame::new(turn, options.ablation.active(turn));
+    let mut move_observer = crate::decision_delivery::MoveDelivery::new(config);
+    let result = try_tick_agents_with_movements_observer(
+        pool, regions, signals, master_seed, turn, wealth_percentiles,
+        spatial_grids, attractors, spatial_diag, settlement_grids, merchant_state,
+        targeted_deaths, options, movements, Some((config, &mut *frame)), &mut move_observer, None,
+    );
+    if result.is_ok() { frame.moves = move_observer.finish(); }
+    result
+}
+
+/// Tick with a per-call, nonpersistent household mobility gate.
+pub(crate) fn try_tick_agents_with_mobility_gate(
+    pool: &mut AgentPool, regions: &[RegionState], signals: &TickSignals,
+    master_seed: [u8; 32], turn: u32, wealth_percentiles: &mut [f32],
+    spatial_grids: &mut Vec<crate::spatial::SpatialGrid>, attractors: &[crate::spatial::RegionAttractors],
+    spatial_diag: &mut crate::spatial::SpatialDiagnostics, settlement_grids: &[[u16; 100]],
+    merchant_state: Option<(&crate::merchant::RouteGraph, &mut crate::merchant::ShadowLedger, &mut crate::merchant::DeliveryBuffer)>,
+    targeted_deaths: &[u32], options: crate::scale::TickOptions,
+    movements: &mut crate::movements::MovementRuntime,
+    delivery: Option<(&crate::decision_delivery::DeliveryConfig, &mut crate::decision_delivery::DeliveryFrame)>,
+    requirement: f32, gate_frame: &mut crate::household::MobilityGateFrame,
+) -> Result<(Vec<AgentEvent>, u32, crate::formation::FormationStats, DemographicDebug, crate::household::HouseholdStats, crate::merchant::MerchantTripStats, crate::knowledge::KnowledgeStats), &'static str> {
+    if let Some((config, frame)) = delivery {
+        *frame = crate::decision_delivery::DeliveryFrame::new(turn, options.ablation.active(turn));
+        let mut observer = crate::decision_delivery::MoveDelivery::new(config);
+        let result = try_tick_agents_with_movements_observer(pool, regions, signals, master_seed, turn,
+            wealth_percentiles, spatial_grids, attractors, spatial_diag, settlement_grids, merchant_state,
+            targeted_deaths, options, movements, Some((config, &mut *frame)), &mut observer, Some((requirement, gate_frame)));
+        if result.is_ok() { frame.moves = observer.finish(); }
+        result
+    } else {
+        try_tick_agents_with_movements_observer(pool, regions, signals, master_seed, turn,
+            wealth_percentiles, spatial_grids, attractors, spatial_diag, settlement_grids, merchant_state,
+            targeted_deaths, options, movements, None, &mut crate::decision_delivery::NoDelivery, Some((requirement, gate_frame)))
+    }
+}
+
+fn restore_blocked_primary_actions(
+    pending: &mut [crate::behavior::PendingDecisions], blocked: &[Vec<usize>],
+    original: &[(Vec<(usize, u16)>, Vec<(usize, u8)>)],
+) {
+    for (i, slots) in blocked.iter().enumerate() {
+        for &(slot, region) in &original[i].0 {
+            if slots.contains(&slot) && !pending[i].rebellions.iter().any(|v| v.0 == slot) {
+                pending[i].rebellions.push((slot, region));
+            }
+        }
+        for &(slot, occupation) in &original[i].1 {
+            if slots.contains(&slot) && !pending[i].occupation_switches.iter().any(|v| v.0 == slot) {
+                pending[i].occupation_switches.push((slot, occupation));
+            }
+        }
+    }
+}
+
+/// The unchanged physical migration application, with an opt-in hook only
+/// after the event is actually appended to the full native event batch.
+#[inline]
+pub(crate) fn apply_migrations_observed<M: crate::decision_delivery::MoveObserver>(
+    pool: &mut AgentPool, pending: &crate::behavior::PendingDecisions,
+    turn: u32, bucket: usize, events: &mut Vec<AgentEvent>, observer: &mut M,
+) {
+    for &(slot, from, to) in &pending.migrations {
+        let driver = pending.migration_driver_of(slot);
+        pool.set_region(slot, to);
+        pool.set_displacement_turns(slot, 5);
+        pool.life_events[slot] |= LIFE_EVENT_MIGRATION;
+        events.push(AgentEvent {
+            agent_id: pool.id(slot),
+            event_type: 2,
+            region: from,
+            target_region: to,
+            civ_affinity: pool.civ_affinity(slot),
+            occupation: pool.occupation(slot),
+            belief: pool.beliefs[slot],
+            turn,
+            target_agent_id: 0,
+            formed_turn: 0,
+            migration_driver: driver,
+        });
+        if M::ENABLED { observer.applied(pool, bucket, (slot, from, to), events.len() - 1, driver); }
+    }
+}
+
+fn try_tick_agents_with_movements_observer<M: crate::decision_delivery::MoveObserver>(
+    pool: &mut AgentPool,
+    regions: &[RegionState],
+    signals: &TickSignals,
+    master_seed: [u8; 32],
+    turn: u32,
+    wealth_percentiles: &mut [f32],
+    spatial_grids: &mut Vec<crate::spatial::SpatialGrid>,
+    attractors: &[crate::spatial::RegionAttractors],
+    spatial_diag: &mut crate::spatial::SpatialDiagnostics,
+    settlement_grids: &[[u16; 100]],  // M56b
     mut merchant_state: Option<(&crate::merchant::RouteGraph, &mut crate::merchant::ShadowLedger, &mut crate::merchant::DeliveryBuffer)>,  // M58a/M58b
     targeted_deaths: &[u32],
     options: crate::scale::TickOptions,
     movements: &mut crate::movements::MovementRuntime,
+    mut delivery: Option<(&crate::decision_delivery::DeliveryConfig, &mut crate::decision_delivery::DeliveryFrame)>,
+    move_observer: &mut M,
+    gate: Option<(f32, &mut crate::household::MobilityGateFrame)>,
 ) -> Result<(Vec<AgentEvent>, u32, crate::formation::FormationStats, DemographicDebug, crate::household::HouseholdStats, crate::merchant::MerchantTripStats, crate::knowledge::KnowledgeStats), &'static str> {
     let scale_mode = options.scale_mode;
     let num_regions = regions.len();
@@ -408,24 +537,24 @@ pub fn try_tick_agents_with_movements(
     // M48: Collect alive slots and decay memories as FIRST operation
     // -----------------------------------------------------------------------
     let alive_slots: Vec<usize> = (0..pool.capacity()).filter(|&s| pool.is_alive(s)).collect();
+    // This all-live ascending set stays valid through knowledge: the intervening
+    // phases change neither IDs nor liveness. Consumers still read current fields.
     crate::memory::decay_memories(pool, &alive_slots);
     memory_intents.reserve(alive_slots.len());
 
     // -----------------------------------------------------------------------
     // 0. Skill growth — iterate all alive agents
     // -----------------------------------------------------------------------
-    for slot in 0..pool.capacity() {
-        if pool.is_alive(slot) {
-            pool.grow_skill(slot);
-            // Update promotion progress for named character promotion
-            let occ = pool.occupations[slot] as usize;
-            let skill = pool.skills[slot * 5 + occ];
-            if skill > crate::agent::PROMOTION_SKILL_THRESHOLD {
-                pool.promotion_progress[slot] =
-                    pool.promotion_progress[slot].saturating_add(1);
-            } else {
-                pool.promotion_progress[slot] = 0;
-            }
+    for &slot in &alive_slots {
+        pool.grow_skill(slot);
+        // Update promotion progress for named character promotion
+        let occ = pool.occupations[slot] as usize;
+        let skill = pool.skills[slot * 5 + occ];
+        if skill > crate::agent::PROMOTION_SKILL_THRESHOLD {
+            pool.promotion_progress[slot] =
+                pool.promotion_progress[slot].saturating_add(1);
+        } else {
+            pool.promotion_progress[slot] = 0;
         }
     }
 
@@ -442,28 +571,33 @@ pub fn try_tick_agents_with_movements(
     // -----------------------------------------------------------------------
     // 0.75 Needs decay + restoration (M49)
     // -----------------------------------------------------------------------
-    crate::needs::update_needs(pool, regions, signals, wealth_percentiles);
+    let reusable_id_slots = crate::needs::update_needs_with_reusable_id_slots(
+        pool, regions, signals, wealth_percentiles, &alive_slots,
+    );
 
     // -----------------------------------------------------------------------
     // 0.8 Relationship sentiment drift (M50a)
     // -----------------------------------------------------------------------
-    crate::relationships::drift_relationships(pool, turn);
+    crate::relationships::drift_relationships_with_lookup(pool, turn, reusable_id_slots.as_ref());
 
     // -----------------------------------------------------------------------
     // 0.9 Merchant mobility (M58a)
     // -----------------------------------------------------------------------
     // M58a: Conquest unwind before mobility — cancel trips impacted by controller change
-    let mut conquest_unwind_count: u32 = 0;
-    if let Some((_, ref mut ledger, ref mut buf)) = merchant_state {
+    let mut conquest_stats = crate::merchant::MerchantTripStats::default();
+    if let Some((graph, ref mut ledger, ref mut buf)) = merchant_state {
         let conquered: Vec<u16> = regions
             .iter()
             .filter(|r| r.controller_changed_this_turn)
             .map(|r| r.region_id)
             .collect();
         if !conquered.is_empty() {
-            let mut conquest_stats = crate::merchant::MerchantTripStats::default();
-            crate::merchant::conquest_unwind(pool, ledger, &conquered, &mut conquest_stats, Some(buf));
-            conquest_unwind_count = conquest_stats.unwind_count;
+            if graph.receipt_limit > 0 {
+                conquest_stats.receipts = Some(crate::transaction_receipts::ReceiptFrame::new(
+                    turn, graph.receipt_limit));
+            }
+            crate::merchant::conquest_unwind(pool, ledger, &conquered, &mut conquest_stats,
+                Some(buf), Some(regions));
         }
     }
     let mut merchant_stats = if let Some((graph, ref mut ledger, ref mut buf)) = merchant_state {
@@ -471,12 +605,22 @@ pub fn try_tick_agents_with_movements(
     } else {
         crate::merchant::MerchantTripStats::default()
     };
-    merchant_stats.unwind_count += conquest_unwind_count;
+    merchant_stats.unwind_count += conquest_stats.unwind_count;
+    // Both phases share the same bounded observation budget. Conquest runs
+    // first, so retain its rows first and count every dropped later row.
+    if let Some(mut before) = conquest_stats.receipts {
+        if let Some(after) = merchant_stats.receipts.take() {
+            before = crate::transaction_receipts::prepend(before, after);
+        }
+        merchant_stats.receipts = Some(before);
+    }
 
     // -----------------------------------------------------------------------
     // 0.95 Knowledge phase — packet decay, observation, propagation (M59a)
     // -----------------------------------------------------------------------
-    let mut knowledge_stats = crate::knowledge::knowledge_phase(pool, regions, &master_seed, turn);
+    let mut knowledge_stats = crate::knowledge::knowledge_phase_for_slots(
+        pool, regions, &master_seed, turn, reusable_id_slots.as_ref(), &alive_slots,
+    );
     // Agent movements: membership and spread, while merchants that delivered
     // are still in the market they reached (no-op unless a table was set).
     let movement_effects = crate::movements::movement_pass(pool, regions, movements, master_seed, turn);
@@ -488,7 +632,7 @@ pub fn try_tick_agents_with_movements(
     // 1. Update satisfaction
     // -----------------------------------------------------------------------
     let sat_inputs = compute_satisfaction_region_inputs(pool, regions, signals);
-    update_satisfaction(pool, regions, signals, wealth_percentiles, &sat_inputs, &movement_effects.relief);
+    let region_groups = update_satisfaction(pool, regions, signals, wealth_percentiles, &sat_inputs, &movement_effects.relief);
 
     // -----------------------------------------------------------------------
     // M48: Famine + Prosperity intents (post-satisfaction, post-wealth)
@@ -532,14 +676,19 @@ pub fn try_tick_agents_with_movements(
 
     // -----------------------------------------------------------------------
     // M57b: Pre-decision id_to_slot map for household_effective_wealth and consolidation.
-    // Distinct from demographics-phase map (tick.rs ~line 455) — this one uses pre-decision alive set.
+    // Distinct from the fresh demographics-phase map below.
     // -----------------------------------------------------------------------
-    let pre_decision_id_to_slot = pool.build_id_slots();
+    // Needs, relationship drift, merchant/movement passes and knowledge change
+    // no ids or liveness. Reuse only the dense lookup from needs; the sparse
+    // path keeps this original constructor and the original lexical drop scope.
+    // The lookup's last use is household consolidation, before demographics.
+    let pre_decision_id_to_slot = reusable_id_slots.unwrap_or_else(|| pool.build_id_slots());
 
     // -----------------------------------------------------------------------
     // 3. Decisions — per-region parallel via rayon
     // -----------------------------------------------------------------------
-    let region_groups = pool.partition_by_region(num_regions as u16);
+    // The satisfaction partition still has the current regions and live slots:
+    // only read-only pool access occurs between that update and these decisions.
 
     // Decision ablations (validation experiments, `scale::DecisionAblation`):
     // 0 unless an ablation was requested and its start turn reached. The
@@ -554,27 +703,51 @@ pub fn try_tick_agents_with_movements(
         let pool_ref = &*pool;
         let stats_ref = &stats;
         let id_to_slot_ref = &pre_decision_id_to_slot;  // M57b
-        region_groups
-            .par_iter()
-            .enumerate()
-            .map(|(region_id, slots)| {
+        if let Some((config, frame)) = delivery.as_mut() {
+            let config = *config;
+            let observed: Vec<_> = region_groups.par_iter().enumerate().map(|(region_id, slots)| {
                 let mut rng = ChaCha8Rng::from_seed(master_seed);
                 rng.set_stream(
                     ((region_id as u64) << 48) | ((turn as u64) << 16) | (decision_stream_offset as u64),
                 );
-                evaluate_region_decisions_with(
-                    pool_ref,
-                    slots,
-                    regions,
-                    &regions[region_id],
-                    stats_ref,
-                    region_id,
-                    &mut rng,
-                    id_to_slot_ref,  // M57b
+                let mut observer = crate::decision_delivery::RegionDelivery::new(config, region_id, num_regions);
+                let (pending, changed) = crate::behavior::evaluate_region_decisions_with_delivery(
+                    pool_ref, slots, regions, &regions[region_id], stats_ref, region_id,
+                    &mut rng, id_to_slot_ref,
                     DecisionOptions { ablation, community_anchoring: options.community_anchoring },
-                )
-            })
-            .collect()
+                    &mut observer,
+                );
+                (pending, changed, observer)
+            }).collect();
+            let mut pending = Vec::with_capacity(observed.len());
+            for (decisions, changed, observer) in observed {
+                frame.merge_region(observer);
+                pending.push((decisions, changed));
+            }
+            pending
+        } else {
+            region_groups
+                .par_iter()
+                .enumerate()
+                .map(|(region_id, slots)| {
+                    let mut rng = ChaCha8Rng::from_seed(master_seed);
+                    rng.set_stream(
+                        ((region_id as u64) << 48) | ((turn as u64) << 16) | (decision_stream_offset as u64),
+                    );
+                    evaluate_region_decisions_with(
+                        pool_ref,
+                        slots,
+                        regions,
+                        &regions[region_id],
+                        stats_ref,
+                        region_id,
+                        &mut rng,
+                        id_to_slot_ref,  // M57b
+                        DecisionOptions { ablation, community_anchoring: options.community_anchoring },
+                    )
+                })
+                .collect()
+        }
     };
     let migration_threat_changed: u32 = pending_decisions_with_threat.iter().map(|(_, c)| c).sum();
     let pending_decisions: Vec<_> = pending_decisions_with_threat
@@ -592,19 +765,35 @@ pub fn try_tick_agents_with_movements(
     // M57b: Household migration consolidation (post-decision, pre-apply)
     // -----------------------------------------------------------------------
     let mut pending_decisions = pending_decisions; // make mutable for consolidation
-    crate::household::consolidate_household_migrations(
+    // Consolidation may replace followers' rebellion/switch decisions. Retain
+    // those primary actions if the later household gate cancels their move.
+    let original_actions = gate.as_ref().map(|_| pending_decisions.iter()
+        .map(|pd| (pd.rebellions.clone(), pd.occupation_switches.clone())).collect::<Vec<_>>());
+    let mut gate_groups = gate.as_ref().map(|_| (0..pending_decisions.len())
+        .map(|_| std::collections::BTreeMap::new()).collect::<Vec<_>>());
+    if M::ENABLED { move_observer.begin(pool, &pending_decisions); }
+    crate::household::consolidate_household_migrations_with_groups(
         pool,
         &mut pending_decisions,
         regions,
         &signals.contested_regions,
         &pre_decision_id_to_slot,
         &mut household_stats,
+        move_observer,
+        gate_groups.as_deref_mut(),
     );
+
+    if let Some((requirement, frame)) = gate {
+        let blocked = crate::household::gate_household_mobility(pool, &mut pending_decisions, regions, requirement, frame, gate_groups.as_deref().unwrap());
+        if let Some(original) = original_actions {
+            restore_blocked_primary_actions(&mut pending_decisions, &blocked, &original);
+        }
+    }
 
     // -----------------------------------------------------------------------
     // 4. Apply decisions sequentially
     // -----------------------------------------------------------------------
-    for pd in &pending_decisions {
+    for (bucket_idx, pd) in pending_decisions.iter().enumerate() {
         // Rebellions
         for &(slot, region) in &pd.rebellions {
             // Rebellion should create a temporary state change, not just an
@@ -628,25 +817,7 @@ pub fn try_tick_agents_with_movements(
         }
 
         // Migrations
-        for &(slot, from, to) in &pd.migrations {
-            let driver = pd.migration_driver_of(slot);
-            pool.set_region(slot, to);
-            pool.set_displacement_turns(slot, 5);
-            pool.life_events[slot] |= LIFE_EVENT_MIGRATION;
-            events.push(AgentEvent {
-                agent_id: pool.id(slot),
-                event_type: 2,
-                region: from,
-                target_region: to,
-                civ_affinity: pool.civ_affinity(slot),
-                occupation: pool.occupation(slot),
-                belief: pool.beliefs[slot],
-                turn,
-                target_agent_id: 0,
-                formed_turn: 0,
-                migration_driver: driver,
-            });
-        }
+        apply_migrations_observed(pool, pd, turn, bucket_idx, &mut events, move_observer);
 
         // Occupation switches
         for &(slot, new_occ) in &pd.occupation_switches {
@@ -747,13 +918,13 @@ pub fn try_tick_agents_with_movements(
 
     // -----------------------------------------------------------------------
     // M48: Battle + Victory + Conquest + Secession intents
-    // H-30: Single partition reused for all pre-demographics memory intents.
+    // Share the post-migration partition with demographics: memory-intent
+    // collection below only reads the pool, including region and liveness.
     // -----------------------------------------------------------------------
+    let post_migration_partition = pool.partition_by_region(num_regions as u16);
     {
-        let region_groups_intents = pool.partition_by_region(num_regions as u16);
-
         // Battle + Victory intents (soldiers in contested regions)
-        for (region_id, slots) in region_groups_intents.iter().enumerate() {
+        for (region_id, slots) in post_migration_partition.iter().enumerate() {
             let is_contested = region_id < signals.contested_regions.len()
                 && signals.contested_regions[region_id];
             if !is_contested {
@@ -801,7 +972,7 @@ pub fn try_tick_agents_with_movements(
         }
 
         // Conquest + Secession intents (region-wide signals)
-        for (region_id, slots) in region_groups_intents.iter().enumerate() {
+        for (region_id, slots) in post_migration_partition.iter().enumerate() {
             if region_id >= regions.len() {
                 continue;
             }
@@ -843,16 +1014,13 @@ pub fn try_tick_agents_with_movements(
     // -----------------------------------------------------------------------
     // 5. Demographics — per-region parallel
     // -----------------------------------------------------------------------
-    // Re-partition after migrations may have moved agents.
-    let region_groups = pool.partition_by_region(num_regions as u16);
-
     // H-29: Build O(1) civ lookup for demographics phase
     let demo_civ_idx = signals.build_index();
     let demo_results: Vec<(DemographicsPending, RegionDemoDebug)> = {
         let pool_ref = &*pool;
         let civ_idx_ref = &demo_civ_idx;
         let wealth_ref: &[f32] = &*wealth_percentiles;
-        region_groups
+        post_migration_partition
             .par_iter()
             .enumerate()
             .map(|(region_id, slots)| {
@@ -1304,9 +1472,29 @@ pub fn wealth_tick(
     signals: &TickSignals,
     wealth_percentiles: &mut [f32],
 ) {
+    // The Python-authoritative health builder supplies exactly one turn.
+    // Stable-id guards prevent deductions reaching a reused slot.
+    let health_loss = std::mem::take(&mut pool.health_work_loss);
+    let mut teaching_plan = pool.teaching_plan.take().filter(|plan| !plan.consumed);
+    let teaching_by_slot = teaching_plan.as_ref().map(|plan| {
+        let mut index = vec![None; pool.capacity()];
+        for (i, row) in plan.rows.iter().enumerate() {
+            if row.slot < index.len() { index[row.slot] = Some(i); }
+        }
+        index
+    });
+    // CAREOBS_SOURCE_BEGIN: actual consumed loss vector
+    let mut health_care_observation = pool.health_care_observation.take();
+    if let Some(observation) = &mut health_care_observation {
+        observation.wealth_begin(pool, regions, &health_loss);
+    }
+    // CAREOBS_SOURCE_END: actual consumed loss vector
     // --- Step 1: Accumulation + Decay ---
     let civ_idx = signals.build_index();  // H-29: O(1) civ lookup
     for slot in 0..pool.capacity() {
+        // CAREOBS_SOURCE_BEGIN: actual loop coverage
+        if let Some(observation) = &mut health_care_observation { observation.wealth_visit(slot); }
+        // CAREOBS_SOURCE_END: actual loop coverage
         if !pool.is_alive(slot) { continue; }
 
         let region_id = pool.regions[slot] as usize;
@@ -1348,12 +1536,57 @@ pub fn wealth_tick(
             }
         };
 
+        // Teaching reserves the Scholar's existing ordinary income work.
+        // The care observer's pre-health operand is the remaining ordinary
+        // income; teaching has its own separately labelled receipt.
+        let income = if let (Some(plan), Some(index)) = (&mut teaching_plan, &teaching_by_slot) {
+            if let Some(i) = index[slot] {
+                let row = &mut plan.rows[i];
+                if occ == crate::agent::Occupation::Scholar as u8 && row.agent_id == pool.ids[slot]
+                    && row.region == pool.regions[slot] {
+                    let other_loss = health_loss.get(slot).filter(|&&(id, _)| id == row.agent_id)
+                        .map_or(0.0, |&(_, value)| value.clamp(0.0, 1.0));
+                    row.delivered = row.fraction.min((1.0 - other_loss).max(0.0));
+                    income * (1.0 - other_loss - row.delivered).max(0.0)
+                } else { income }
+            } else { income }
+        } else { income };
+        // CAREOBS_SOURCE_BEGIN: actual pre-health base income
+        if let Some(observation) = &mut health_care_observation { observation.wealth_value(slot, 1, income); }
+        // CAREOBS_SOURCE_END: actual pre-health base income
+        let income = if occ == 0 {
+            match health_loss.get(slot) {
+                Some(&(id, loss)) if id == pool.ids[slot] && loss != 0.0 => income * (1.0 - loss),
+                _ => income,
+            }
+        } else { income };
+        // CAREOBS_SOURCE_BEGIN: actual charged income
+        if let Some(observation) = &mut health_care_observation { observation.wealth_value(slot, 2, income); }
+        // CAREOBS_SOURCE_END: actual charged income
         pool.wealth[slot] += income;
+        // CAREOBS_SOURCE_BEGIN: actual wealth after addition
+        if let Some(observation) = &mut health_care_observation { observation.wealth_value(slot, 3, pool.wealth[slot]); }
+        // CAREOBS_SOURCE_END: actual wealth after addition
         // Multiplicative decay
         pool.wealth[slot] *= 1.0 - crate::agent::WEALTH_DECAY;
+        // CAREOBS_SOURCE_BEGIN: actual wealth after decay
+        if let Some(observation) = &mut health_care_observation { observation.wealth_value(slot, 4, pool.wealth[slot]); }
+        // CAREOBS_SOURCE_END: actual wealth after decay
         pool.wealth[slot] = pool.wealth[slot].clamp(0.0, crate::agent::MAX_WEALTH);
+        // CAREOBS_SOURCE_BEGIN: actual wealth after clamp
+        if let Some(observation) = &mut health_care_observation { observation.wealth_value(slot, 5, pool.wealth[slot]); }
+        // CAREOBS_SOURCE_END: actual wealth after clamp
     }
 
+    if let Some(mut plan) = teaching_plan {
+        plan.consumed = true;
+        pool.teaching_plan = Some(plan);
+    }
+
+    // CAREOBS_SOURCE_BEGIN: finish wealth copies
+    if let Some(observation) = &mut health_care_observation { observation.wealth_end(); }
+    pool.health_care_observation = health_care_observation;
+    // CAREOBS_SOURCE_END: finish wealth copies
     // --- Step 2: Per-civ percentile ranking ---
     // BTreeMap ensures deterministic iteration order by civ_id (H-31 audit).
     let mut civ_groups: std::collections::BTreeMap<u8, Vec<(usize, f32)>> =
@@ -1464,7 +1697,7 @@ fn update_satisfaction(
     wealth_percentiles: &[f32],
     sat_inputs: &SatisfactionRegionInputs,
     movement_relief: &[f32],
-) {
+) -> Vec<Vec<usize>> {
 
     // Partition agents by region
     let num_regions = regions.len();
@@ -1613,6 +1846,7 @@ fn update_satisfaction(
             }
         }
     }
+    region_groups
 }
 
 // ---------------------------------------------------------------------------
@@ -1888,6 +2122,176 @@ mod tests {
     use crate::agent::Occupation;
     use crate::signals::CivSignals;
 
+    fn decision_delivery_fixture() -> (AgentPool, Vec<RegionState>) {
+        let mut regions: Vec<_> = (0..2).map(RegionState::new).collect();
+        for (i, r) in regions.iter_mut().enumerate() {
+            r.controller_civ = 0; r.carrying_capacity = 40; r.population = 8;
+            r.food_sufficiency = 1.0; r.soil = 1.0; r.water = 1.0;
+            r.adjacency = vec![(1 - i) as u16];
+        }
+        let mut pool = AgentPool::new(32);
+        for region in 0..2 { for _ in 0..8 {
+            let slot = pool.spawn(region, 0, Occupation::Farmer, 25,
+                0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+            pool.set_satisfaction(slot, 0.6); pool.set_loyalty(slot, 0.8);
+        } }
+        (pool, regions)
+    }
+
+    fn decision_delivery_event_values(events: &[AgentEvent]) -> Vec<(u32, u8, u16, u16, u8, u8, u8, u32, u32, u32, u8)> {
+        events.iter().map(|e| (e.agent_id, e.event_type, e.region, e.target_region,
+            e.civ_affinity, e.occupation, e.belief, e.turn, e.target_agent_id,
+            e.formed_turn, e.migration_driver)).collect()
+    }
+
+    #[test]
+    fn decision_delivery_enabled_tick_preserves_events_pool_and_legacy_stats() {
+        let (mut plain, regions) = decision_delivery_fixture();
+        let original = crate::persist::encode(crate::persist::KIND_AGENT, &plain);
+        let mut observed: AgentPool = crate::persist::decode(crate::persist::KIND_AGENT, &original).unwrap();
+        let signals = make_default_signals(1, 2);
+        let mut plain_pct = vec![0.0; plain.capacity()];
+        let mut observed_pct = plain_pct.clone();
+        let config = crate::decision_delivery::DeliveryConfig::new(64, 128, None).unwrap();
+        let mut frame = crate::decision_delivery::DeliveryFrame::new(999, 255);
+        let mut plain_grids = Vec::new(); let mut observed_grids = Vec::new();
+        let mut plain_movements = crate::movements::MovementRuntime::default();
+        let mut observed_movements = crate::movements::MovementRuntime::default();
+        for turn in 0..2 {
+            // Core callers refresh scratch after births, as the FFI does.
+            if plain_pct.len() < plain.capacity() { plain_pct.resize(plain.capacity(), 0.0); }
+            if observed_pct.len() < observed.capacity() { observed_pct.resize(observed.capacity(), 0.0); }
+            let a = try_tick_agents_with_movements(&mut plain, &regions, &signals, [7u8; 32], turn,
+                &mut plain_pct, &mut plain_grids, &[], &mut crate::spatial::SpatialDiagnostics::default(),
+                &[], None, &[], crate::scale::TickOptions::default(), &mut plain_movements).unwrap();
+            let b = try_tick_agents_with_delivery(&mut observed, &regions, &signals, [7u8; 32], turn,
+                &mut observed_pct, &mut observed_grids, &[], &mut crate::spatial::SpatialDiagnostics::default(),
+                &[], None, &[], crate::scale::TickOptions::default(), &mut observed_movements, &config, &mut frame).unwrap();
+            assert_eq!(decision_delivery_event_values(&a.0), decision_delivery_event_values(&b.0));
+            assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &plain), crate::persist::encode(crate::persist::KIND_AGENT, &observed));
+            assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &a.4), crate::persist::encode(crate::persist::KIND_AGENT, &b.4));
+            assert_eq!(plain_pct.iter().map(|x| x.to_bits()).collect::<Vec<_>>(), observed_pct.iter().map(|x| x.to_bits()).collect::<Vec<_>>());
+            assert_eq!(frame.source_turn, turn); assert_eq!(frame.ablation, 0);
+            assert!(frame.stage_complete());
+        }
+    }
+
+    #[test]
+    fn decision_delivery_capped_frames_are_identical_with_one_or_two_workers() {
+        let (pool, regions) = decision_delivery_fixture();
+        let original = crate::persist::encode(crate::persist::KIND_AGENT, &pool);
+        let signals = make_default_signals(1, 2);
+        let config = crate::decision_delivery::DeliveryConfig::new(3, 2, None).unwrap();
+        let run = |workers| {
+            let mut pool: AgentPool = crate::persist::decode(crate::persist::KIND_AGENT, &original).unwrap();
+            let mut pct = vec![0.0; pool.capacity()];
+            let mut frame = crate::decision_delivery::DeliveryFrame::new(99, 0);
+            let events = rayon::ThreadPoolBuilder::new().num_threads(workers).build().unwrap().install(|| {
+                try_tick_agents_with_delivery(&mut pool, &regions, &signals, [7u8; 32], 0,
+                    &mut pct, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(),
+                    &[], None, &[], crate::scale::TickOptions::default(),
+                    &mut crate::movements::MovementRuntime::default(), &config, &mut frame).unwrap().0
+            });
+            assert!(frame.decisions.len() <= 3 && frame.candidates.len() <= 2);
+            assert!(frame.counts.dropped_agents > 0 && !frame.stage_complete());
+            (crate::persist::encode(crate::persist::KIND_AGENT, &pool), decision_delivery_event_values(&events),
+                crate::decision_delivery::header_batch(Some(&config), Some(&frame)).unwrap(),
+                crate::decision_delivery::decisions_batch(Some(&frame)).unwrap(),
+                crate::decision_delivery::candidates_batch(Some(&frame)).unwrap())
+        };
+        assert_eq!(run(1), run(2));
+    }
+
+    #[test]
+    fn decision_delivery_applied_ordinal_uses_the_full_native_event_batch() {
+        use crate::decision_delivery::{MoveObserver, MoveDelivery, DeliveryConfig,
+            DeliveryFrame, MOVE_APPLIED, MOVE_ROLE_OWN, NoDelivery};
+        let (mut observed, _) = decision_delivery_fixture();
+        let original = crate::persist::encode(crate::persist::KIND_AGENT, &observed);
+        let mut plain: AgentPool = crate::persist::decode(crate::persist::KIND_AGENT, &original).unwrap();
+        let mut pending = crate::behavior::PendingDecisions::new();
+        pending.migrations.push((0, 0, 1));
+        pending.migration_dominant.push((0, 2));
+        let config = DeliveryConfig::new(1, 1, None).unwrap().with_move_limit(16).unwrap();
+        let mut observer = MoveDelivery::new(&config);
+        observer.begin(&observed, std::slice::from_ref(&pending));
+        let previous_event = || AgentEvent { agent_id: 999, event_type: 1,
+            region: 0, target_region: 0, civ_affinity: 0, occupation: 0,
+            belief: 0, turn: 17, target_agent_id: 0, formed_turn: 0,
+            migration_driver: NO_MIGRATION_DRIVER };
+        let mut observed_events = vec![previous_event()];
+        let mut plain_events = vec![previous_event()];
+        apply_migrations_observed(&mut plain, &pending, 17, 0, &mut plain_events, &mut NoDelivery);
+        apply_migrations_observed(&mut observed, &pending, 17, 0, &mut observed_events, &mut observer);
+        assert_eq!(decision_delivery_event_values(&plain_events), decision_delivery_event_values(&observed_events));
+        assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &plain), crate::persist::encode(crate::persist::KIND_AGENT, &observed));
+        let mut frame = DeliveryFrame::new(17, 0);
+        frame.counts.dropped_agents = 10; // Stage 1 caps do not define this ledger.
+        frame.moves = observer.finish();
+        assert!(!frame.stage_complete() && frame.moves.complete());
+        let row = frame.moves.rows.iter().find(|r| r.operation == MOVE_APPLIED).unwrap();
+        assert_eq!(row.native_event_ordinal, Some(1));
+        let event = &observed_events[row.native_event_ordinal.unwrap() as usize];
+        assert_eq!((row.agent_id, row.from, row.to), (event.agent_id, event.region, event.target_region));
+        assert_eq!(event.event_type, 2);
+        assert_eq!(event.turn, 17);
+        assert_eq!(row.migration_driver, Some(event.migration_driver));
+        assert_eq!(row.role, MOVE_ROLE_OWN);
+        assert!(row.origin_valid);
+        assert_eq!(row.origin_operation_ordinal, Some(0));
+    }
+
+    #[test]
+    fn decision_delivery_same_target_household_origin_reaches_actual_application() {
+        use crate::decision_delivery::{MoveObserver, MoveDelivery, DeliveryConfig,
+            MOVE_APPLIED, MOVE_FOLLOWER_WRITTEN, MOVE_ROLE_SPOUSE, NoDelivery};
+        let mut observed = AgentPool::new(3);
+        let old = observed.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+        let high = observed.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+        observed.kill(old);
+        let low = observed.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+        assert_eq!(low, old);
+        assert!(low < high && observed.ids[low] > observed.ids[high]);
+        assert!(crate::relationships::upsert_symmetric(&mut observed, low, high,
+            crate::relationships::BondType::Marriage as u8, 50, 1));
+        let original = crate::persist::encode(crate::persist::KIND_AGENT, &observed);
+        let mut plain: AgentPool = crate::persist::decode(crate::persist::KIND_AGENT, &original).unwrap();
+        let make_pending = || {
+            let mut pending = crate::behavior::PendingDecisions::new();
+            pending.migrations = vec![(high, 0, 1), (low, 0, 1)];
+            pending.migration_dominant = vec![(low, 1), (high, 2)];
+            [pending]
+        };
+        let mut plain_pending = make_pending(); let mut observed_pending = make_pending();
+        let regions = vec![RegionState::new(0), RegionState::new(1)];
+        let config = DeliveryConfig::new(1, 1, None).unwrap().with_move_limit(32).unwrap();
+        let mut observer = MoveDelivery::new(&config);
+        observer.begin(&observed, &observed_pending);
+        let mut plain_stats = crate::household::HouseholdStats::default();
+        let mut observed_stats = crate::household::HouseholdStats::default();
+        crate::household::consolidate_household_migrations(&plain, &mut plain_pending,
+            &regions, &[false; 2], &plain.build_id_slots(), &mut plain_stats);
+        crate::household::consolidate_household_migrations_observed(&observed,
+            &mut observed_pending, &regions, &[false; 2], &observed.build_id_slots(), &mut observed_stats, &mut observer);
+        assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &observed), original);
+        let mut plain_events = Vec::new(); let mut observed_events = Vec::new();
+        apply_migrations_observed(&mut plain, &plain_pending[0], 11, 0, &mut plain_events, &mut NoDelivery);
+        apply_migrations_observed(&mut observed, &observed_pending[0], 11, 0, &mut observed_events, &mut observer);
+        assert_eq!(decision_delivery_event_values(&plain_events), decision_delivery_event_values(&observed_events));
+        assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &plain), crate::persist::encode(crate::persist::KIND_AGENT, &observed));
+        assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &plain_stats), crate::persist::encode(crate::persist::KIND_AGENT, &observed_stats));
+        let frame = observer.finish();
+        assert!(frame.complete());
+        let applied = frame.rows.iter().find(|r| r.operation == MOVE_APPLIED && r.agent_id == observed.ids[high]).unwrap();
+        assert_eq!(applied.role, MOVE_ROLE_SPOUSE);
+        assert_eq!(applied.lead_id, Some(observed.ids[low]));
+        assert_eq!(applied.native_event_ordinal, Some(1));
+        let replacement = frame.rows.iter().find(|r| Some(r.operation_ordinal) == applied.origin_operation_ordinal).unwrap();
+        assert_eq!(replacement.operation, MOVE_FOLLOWER_WRITTEN);
+        assert!(replacement.prior_count_valid);
+        assert_eq!((replacement.prior_count, replacement.prior_from, replacement.prior_to), (1, Some(0), Some(1)));
+    }
+
     fn make_healthy_region(id: u16) -> RegionState {
         let mut r = RegionState::new(id);
         r.population = 60;
@@ -1926,6 +2330,226 @@ mod tests {
                 })
                 .collect(),
             contested_regions: vec![false; num_regions],
+        }
+    }
+
+    /// Compare complete persisted phase state against the standalone APIs,
+    /// with both the retained dense table and the untouched sparse fallback.
+    #[test]
+    fn test_reusable_needs_lookup_matches_standalone_phase_state() {
+        use crate::persist::{Persist, Writer};
+        fn bytes<T: Persist>(value: &T) -> Vec<u8> {
+            let mut writer = Writer::new();
+            value.put(&mut writer);
+            writer.buf
+        }
+        for sparse in [false, true] {
+            let setup = || {
+                let mut pool = AgentPool::new(4);
+                let slots: Vec<_> = (0..4).map(|_| pool.spawn(0, 0, Occupation::Farmer,
+                    30, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE)).collect();
+                pool.ids[slots[0]] = 0;
+                pool.kill(slots[1]); // The post-catastrophe identity set.
+                if sparse { pool.ids[slots[3]] = 3_000_000_000; }
+                // The first bond becomes positive only during drift. The
+                // reverse bond targets a live id zero through the same lookup.
+                for (source, target, sentiment) in [(slots[0], slots[2], 0), (slots[2], slots[0], 127)] {
+                    pool.rel_count[source] = 1;
+                    pool.rel_target_ids[source][0] = pool.ids[target];
+                    pool.rel_bond_types[source][0] = crate::relationships::BondType::Friend as u8;
+                    pool.rel_sentiments[source][0] = sentiment;
+                }
+                (pool, slots[0], slots[2])
+            };
+            let (mut reference, lead, target) = setup();
+            let (mut reused, _, _) = setup();
+            let mut regions = vec![make_healthy_region(0), make_healthy_region(1)];
+            regions[0].controller_changed_this_turn = true;
+            let signals = make_default_signals(1, 2);
+            let percentiles = vec![0.5; reference.capacity()];
+            let alive_slots: Vec<_> = (0..reused.capacity())
+                .filter(|&slot| reused.is_alive(slot)).collect();
+
+            crate::needs::update_needs(&mut reference, &regions, &signals, &percentiles);
+            let reusable = crate::needs::update_needs_with_reusable_id_slots(
+                &mut reused, &regions, &signals, &percentiles, &alive_slots,
+            );
+            assert_eq!(reusable.is_some(), !sparse);
+            assert_eq!(bytes(&reference), bytes(&reused));
+            assert_eq!(crate::needs::co_resident_counts(&reused, &[lead])[lead], 0);
+
+            crate::relationships::drift_relationships(&mut reference, 3);
+            crate::relationships::drift_relationships_with_lookup(&mut reused, 3, reusable.as_ref());
+            assert_eq!(bytes(&reference), bytes(&reused));
+            assert_eq!(crate::needs::co_resident_counts(&reused, &[lead])[lead], 1);
+            // Merchant mobility can change location before knowledge without
+            // changing the lookup. Bond counts must read the new location.
+            for pool in [&mut reference, &mut reused] {
+                pool.regions[target] = 1;
+                pool.arrived_this_turn[target] = true;
+            }
+            assert_eq!(crate::needs::co_resident_counts(&reused, &[lead])[lead], 0);
+            let reference_stats = crate::knowledge::knowledge_phase(&mut reference, &regions, &[17; 32], 3);
+            let reused_stats = crate::knowledge::knowledge_phase_with_lookup(
+                &mut reused, &regions, &[17; 32], 3, reusable.as_ref(),
+            );
+            assert!(reference_stats.packets_created > 0);
+            assert_eq!(bytes(&reference_stats), bytes(&reused_stats));
+            assert_eq!(bytes(&reference), bytes(&reused));
+            assert!(!reused.arrived_this_turn[target]);
+            let pre_decision = reusable.unwrap_or_else(|| reused.build_id_slots());
+            assert_eq!(pre_decision.get(0), Some(lead));
+            assert_eq!(pre_decision.get(reused.ids[target]), Some(target));
+            assert_eq!(reused.regions[pre_decision.get(reused.ids[target]).unwrap()], 1);
+        }
+    }
+
+    /// The tick-owned live set equals fresh standalone collection through
+    /// needs/drift/knowledge, including holes, empty pools and a later reused
+    /// slot. Locations and arrival flags must still be read at knowledge time.
+    #[test]
+    fn test_shared_alive_slots_match_fresh_phase_collection() {
+        use crate::persist::{Persist, Reader, Writer};
+        fn bytes<T: Persist>(value: &T) -> Vec<u8> {
+            let mut writer = Writer::new();
+            value.put(&mut writer);
+            writer.buf
+        }
+        for layout in 0..4 {
+            let mut initial = AgentPool::new(8);
+            if layout != 3 {
+                for _ in 0..8 {
+                    initial.spawn(0, 0, Occupation::Farmer, 30,
+                        0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+                }
+                initial.ids[0] = 0;
+                for slot in [1, 4] { initial.kill(slot); }
+                if layout == 1 { initial.ids[7] = 3_000_000_000; }
+                if layout == 2 {
+                    for slot in 0..initial.capacity() { initial.kill(slot); }
+                } else {
+                    for (source, target, sentiment) in [(0, 7, 0), (7, 0, 127)] {
+                        initial.rel_count[source] = 1;
+                        initial.rel_target_ids[source][0] = initial.ids[target];
+                        initial.rel_bond_types[source][0] = crate::relationships::BondType::Friend as u8;
+                        initial.rel_sentiments[source][0] = sentiment;
+                    }
+                }
+            }
+            let original = bytes(&initial);
+            let mut reference = AgentPool::get(&mut Reader::new(&original)).unwrap();
+            let mut reused = AgentPool::get(&mut Reader::new(&original)).unwrap();
+            assert_eq!(bytes(&reference), original);
+            assert_eq!(bytes(&reused), original);
+            let mut regions = vec![make_healthy_region(0), make_healthy_region(1)];
+            regions[0].controller_changed_this_turn = true;
+            let signals = make_default_signals(1, 2);
+
+            for turn in 3..5 {
+                // A fresh tick boundary follows any death/birth/slot reuse.
+                let alive_slots: Vec<_> = (0..reused.capacity())
+                    .filter(|&slot| reused.is_alive(slot)).collect();
+                let reference_slots: Vec<_> = (0..reference.capacity())
+                    .filter(|&slot| reference.is_alive(slot)).collect();
+                assert_eq!(alive_slots, reference_slots);
+                let percentiles = vec![0.5; reference.capacity()];
+                crate::needs::update_needs(&mut reference, &regions, &signals, &percentiles);
+                let lookup = crate::needs::update_needs_with_reusable_id_slots(
+                    &mut reused, &regions, &signals, &percentiles, &alive_slots,
+                );
+                assert_eq!(lookup.is_some(), layout != 1);
+                assert_eq!(bytes(&reference), bytes(&reused));
+                crate::relationships::drift_relationships(&mut reference, turn);
+                crate::relationships::drift_relationships_with_lookup(&mut reused, turn, lookup.as_ref());
+                assert_eq!(bytes(&reference), bytes(&reused));
+
+                if let Some(&target) = alive_slots.last() {
+                    for pool in [&mut reference, &mut reused] {
+                        pool.regions[target] = 1;
+                        pool.arrived_this_turn[target] = true;
+                    }
+                }
+                let expected = crate::knowledge::knowledge_phase(&mut reference, &regions, &[17; 32], turn);
+                let actual = crate::knowledge::knowledge_phase_for_slots(
+                    &mut reused, &regions, &[17; 32], turn, lookup.as_ref(), &alive_slots,
+                );
+                assert_eq!(bytes(&expected), bytes(&actual));
+                assert_eq!(bytes(&reference), bytes(&reused));
+                if let Some(&target) = alive_slots.last() {
+                    assert!(!reused.arrived_this_turn[target]);
+                }
+                drop(lookup);
+                if turn == 3 {
+                    if let Some(&slot) = alive_slots.first() {
+                        // Recycle only at the next tick boundary, then collect
+                        // a new slice rather than reusing a stale identity set.
+                        for pool in [&mut reference, &mut reused] {
+                            pool.kill(slot);
+                            let replacement = pool.spawn(1, 0, Occupation::Scholar,
+                                0, 0.1, 0.2, 0.3, 2, 1, 0, crate::agent::BELIEF_NONE);
+                            assert_eq!(replacement, slot);
+                            let born = pool.spawn(0, 0, Occupation::Farmer,
+                                0, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+                            assert_eq!(born, 4); // Reuse an older free hole too.
+                            pool.kill(alive_slots[1]);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Exercise the production skill loop after targeted catastrophe removal:
+    /// every original skill bit changes only for its old live occupation.
+    #[test]
+    fn test_shared_alive_skills_use_post_catastrophe_set() {
+        let mut pool = AgentPool::new(12);
+        let occupations = [Occupation::Farmer, Occupation::Soldier, Occupation::Merchant,
+            Occupation::Scholar, Occupation::Priest];
+        for slot in 0..12 {
+            pool.spawn(0, 0, occupations[slot % occupations.len()], 13,
+                0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+            // Above the switch reset floor, so later decisions cannot alter
+            // another skill. Include threshold crossing and max clamping.
+            for occ in 0..OCCUPATION_COUNT {
+                pool.skills[slot * OCCUPATION_COUNT + occ] = 0.6 + occ as f32 * 0.01;
+            }
+            pool.skills[slot * OCCUPATION_COUNT + pool.occupations[slot] as usize] =
+                if slot % 2 == 0 { 0.89 } else { 0.99 };
+            pool.promotion_progress[slot] = if slot % 3 == 0 { 255 } else { 7 };
+        }
+        pool.kill(2); // A pre-existing hole.
+        let victim = pool.ids[5];
+        let old_occupations = pool.occupations.clone();
+        let mut expected_progress = pool.promotion_progress.clone();
+        let mut expected = pool.skills.clone();
+        for slot in 0..pool.capacity() {
+            if pool.is_alive(slot) && slot != 5 {
+                let index = slot * OCCUPATION_COUNT + old_occupations[slot] as usize;
+                expected[index] = (expected[index] + crate::agent::SKILL_GROWTH_PER_TURN)
+                    .min(crate::agent::SKILL_MAX);
+                expected_progress[slot] = if expected[index] > crate::agent::PROMOTION_SKILL_THRESHOLD {
+                    expected_progress[slot].saturating_add(1)
+                } else { 0 };
+            }
+        }
+        let regions = vec![make_healthy_region(0)];
+        let signals = make_default_signals(1, 1);
+        let mut percentiles = vec![0.0; pool.capacity()];
+        let (events, _, _, _, _, _, _) = try_tick_agents_with_targeted_deaths(
+            &mut pool, &regions, &signals, [12; 32], 0, &mut percentiles,
+            &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(),
+            &[], None, &[victim],
+        ).unwrap();
+        assert!(events.iter().any(|event| event.event_type == 0 && event.agent_id == victim));
+        assert!(!events.iter().any(|event| event.event_type == 5)); // Age13 cannot reproduce.
+        assert!(!pool.is_alive(2) && !pool.is_alive(5));
+        assert_eq!(pool.skills.iter().map(|v| v.to_bits()).collect::<Vec<_>>(),
+            expected.iter().map(|v| v.to_bits()).collect::<Vec<_>>());
+        for slot in 0..pool.capacity() {
+            let switched = events.iter().any(|event| event.event_type == 3 && event.agent_id == pool.ids[slot]);
+            let progress = if !pool.is_alive(slot) || switched { 0 } else { expected_progress[slot] };
+            assert_eq!(pool.promotion_progress[slot], progress);
         }
     }
 
@@ -2149,6 +2773,77 @@ mod tests {
         assert_eq!(a, run(), "tick must stay deterministic");
     }
 
+    /// Memory intents and demographics must both see the post-migration
+    /// census, including migrants that die later in the same tick. Reconstruct
+    /// that census from emitted migration events rather than another partition.
+    #[test]
+    fn test_memory_and_demographics_use_post_migration_census() {
+        let mut regions = vec![make_healthy_region(0), make_healthy_region(1)];
+        regions[0].adjacency = vec![1];
+        regions[0].carrying_capacity = 5;
+        regions[0].soil = 0.05;
+        regions[0].water = 0.1;
+        regions[0].population = 300;
+        regions[1].adjacency = vec![0];
+        regions[1].carrying_capacity = 1000;
+        regions[1].controller_civ = 0;
+        regions[1].controller_changed_this_turn = true;
+        let signals = make_default_signals(1, 2);
+        let mut pool = AgentPool::new(0);
+        for _ in 0..300 {
+            // No births or slot reuse can obscure the pre-demographic census.
+            pool.spawn(0, 0, Occupation::Farmer, 90, 0.0, 0.0, 0.0,
+                0, 1, 2, crate::agent::BELIEF_NONE);
+        }
+        pool.kill(7); // A dead slot must not enter either consumer's census.
+        let seed = [91u8; 32];
+        let mut percentiles = vec![0.0; pool.capacity()];
+        let mut migrations = 0;
+        for turn in 0..12 {
+            let alive: Vec<usize> = (0..pool.capacity()).filter(|&s| pool.is_alive(s)).collect();
+            let ages = pool.ages.clone();
+            let mut locations = pool.regions.clone();
+            let (events, _, _, debug, _, _, _) = tick_agents(
+                &mut pool, &regions, &signals, seed, turn, &mut percentiles,
+                &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(), &[], None,
+            );
+            assert!(!events.iter().any(|event| event.event_type == 5));
+            for event in events.iter().filter(|event| event.event_type == 2) {
+                let slot = pool.ids.iter().position(|&id| id == event.agent_id).unwrap();
+                assert_eq!(locations[slot], event.region);
+                locations[slot] = event.target_region;
+                migrations += 1;
+            }
+
+            let mut expected_deaths = 0.0f32;
+            for (region_id, region) in regions.iter().enumerate() {
+                let slots: Vec<usize> = alive.iter().copied()
+                    .filter(|&slot| locations[slot] as usize == region_id).collect();
+                let pressure = demographics::population_pressure_for(region, slots.len());
+                let stress = demographics::ecological_stress_with_pressure(region, pressure);
+                let mut regional_deaths = 0.0f32;
+                for slot in slots {
+                    regional_deaths += demographics::mortality_rate(
+                        ages[slot], stress, false, region.endemic_severity,
+                    );
+                }
+                expected_deaths += regional_deaths;
+            }
+            assert_eq!(debug.expected_deaths.to_bits(), expected_deaths.to_bits());
+            for &slot in &alive {
+                if pool.is_alive(slot) {
+                    assert_eq!(pool.regions[slot], locations[slot]);
+                    let conquest_this_turn = (0..pool.memory_count[slot] as usize).any(|i| {
+                        pool.memory_event_types[slot][i] == crate::memory::MemoryEventType::Conquest as u8
+                            && pool.memory_turns[slot][i] == turn as u16
+                    });
+                    assert_eq!(conquest_this_turn, locations[slot] == 1);
+                }
+            }
+        }
+        assert!(migrations > 0, "the regression must exercise migration");
+    }
+
     #[test]
     fn test_full_tick_produces_death_events() {
         // 500 post-fertility elders -> tick produces death events (event_type=0)
@@ -2256,6 +2951,16 @@ mod tests {
     }
 
     #[test]
+    fn mobility_gate_restores_preexisting_follower_actions_only_when_blocked() {
+        let mut pending = vec![crate::behavior::PendingDecisions::new()];
+        pending[0].rebellions.push((9, 0));
+        let original = vec![(vec![(1, 0), (9, 0)], vec![(2, 3), (7, 4)])];
+        restore_blocked_primary_actions(&mut pending, &[vec![1, 2]], &original);
+        assert_eq!(pending[0].rebellions, vec![(9, 0), (1, 0)]);
+        assert_eq!(pending[0].occupation_switches, vec![(2, 3)]);
+    }
+
+    #[test]
     fn test_empty_targeted_deaths_match_plain_tick() {
         let build = || {
             let mut pool = AgentPool::new(0);
@@ -2339,6 +3044,78 @@ mod tests {
             }
         }
         assert!(any_changed, "satisfaction should be updated from default 0.5");
+    }
+
+    /// The satisfaction-owned partition reaches the real decision consumer
+    /// after read-only stats/lookup work, including trip and recycled slots.
+    #[test]
+    fn test_satisfaction_partition_reaches_decisions_at_current_regions() {
+        use crate::decision_delivery::{DeliveryConfig, DeliveryFrame, RegionDelivery};
+        for populated in [false, true] {
+            let mut regions: Vec<_> = (0..4).map(make_healthy_region).collect();
+            for region in &mut regions {
+                region.controller_civ = 0;
+                region.adjacency = vec![];
+            }
+            let signals = make_default_signals(1, regions.len());
+            let mut pool = AgentPool::new(8);
+            if populated {
+                for _ in 0..6 {
+                    pool.spawn(0, 0, Occupation::Farmer, 30,
+                        0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+                }
+                pool.kill(1); // Leave a dead hole with its old region value.
+                pool.kill(4);
+                let merchant = pool.spawn(0, 0, Occupation::Merchant, 30,
+                    0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+                assert_eq!(merchant, 4); // New ID in a recycled slot.
+                // Membership is captured after mobility, never from an older
+                // home-region partition. Regions 1 and 3 remain empty.
+                for slot in [0, 3, merchant] { pool.regions[slot] = 2; }
+                pool.trip_origin_region[merchant] = 0;
+                pool.trip_phase[merchant] = crate::agent::TRIP_PHASE_TRANSIT;
+                for slot in 0..pool.capacity() { pool.set_satisfaction(slot, 0.125); }
+                pool.set_satisfaction(merchant, 0.3125);
+            }
+            let percentiles = vec![0.5; pool.capacity()];
+            let inputs = compute_satisfaction_region_inputs(&pool, &regions, &signals);
+            let relief = vec![1.0; pool.capacity()];
+            let groups = update_satisfaction(
+                &mut pool, &regions, &signals, &percentiles, &inputs, &relief,
+            );
+            let stats = compute_region_stats(&pool, &regions, &signals);
+            let lookup = pool.build_id_slots();
+            let before = crate::persist::encode(crate::persist::KIND_AGENT, &pool);
+            let config = DeliveryConfig::new(64, 128, None).unwrap();
+            let mut frame = DeliveryFrame::new(7, 0);
+            for (region, slots) in groups.iter().enumerate() {
+                let mut rng = ChaCha8Rng::from_seed([19; 32]);
+                rng.set_stream(((region as u64) << 48) | (7 << 16) | DECISION_STREAM_OFFSET as u64);
+                let mut observer = RegionDelivery::new(&config, region, regions.len());
+                crate::behavior::evaluate_region_decisions_with_delivery(
+                    &pool, slots, &regions, &regions[region], &stats, region,
+                    &mut rng, &lookup, DecisionOptions::default(), &mut observer,
+                );
+                frame.merge_region(observer);
+            }
+            assert!(frame.stage_complete());
+            let expected = if populated {
+                vec![(pool.ids[2], 0), (pool.ids[5], 0),
+                    (pool.ids[0], 2), (pool.ids[3], 2), (pool.ids[4], 2)]
+            } else { vec![] };
+            assert_eq!(frame.decisions.iter().map(|r| (r.agent_id, r.region))
+                .collect::<Vec<_>>(), expected);
+            assert_eq!(groups.len(), regions.len());
+            assert!(groups[1].is_empty() && groups[3].is_empty());
+            assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &pool), before);
+            if populated {
+                assert_eq!(pool.satisfaction(4).to_bits(), 0.3125f32.to_bits());
+                let trip = frame.decisions.iter().find(|r| r.agent_id == pool.ids[4]).unwrap();
+                assert!(!trip.final_utilities_valid); // Captured, then skipped as on-trip.
+                assert!(frame.decisions.iter().filter(|r| r.agent_id != pool.ids[4])
+                    .all(|r| r.final_utilities_valid));
+            }
+        }
     }
 
     #[test]

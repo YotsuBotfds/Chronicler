@@ -1,9 +1,10 @@
 import type { Bundle } from "../types";
+import { readRegionalPopulation } from "./regionalPopulation";
 
 export interface RegionMetric {
   id: string;
   label: string;
-  kind: "ecology" | "stockpile";
+  kind: "ecology" | "stockpile" | "population" | "nativePopulation" | "food";
   key: string;
 }
 
@@ -41,6 +42,9 @@ export function regionMetrics(bundle: Bundle): RegionMetric[] {
     (region) => Object.keys(region.stockpile?.goods ?? {}),
   ))].sort();
   return [
+    { id: "population", label: "Regional model population", kind: "population", key: "counts" },
+    { id: "nativePopulation", label: "Native agents alive (separate from model)", kind: "nativePopulation", key: "agent_counts" },
+    { id: "food", label: "Food / need", kind: "food", key: "sufficiency" },
     { id: "ecology:soil", label: "Soil", kind: "ecology", key: "soil" },
     { id: "ecology:water", label: "Water", kind: "ecology", key: "water" },
     { id: "ecology:forest_cover", label: "Forest cover", kind: "ecology", key: "forest_cover" },
@@ -64,15 +68,23 @@ export function inspectRegionHistory(
   const regionKey = pointer(regionName);
   const rows: RegionHistoryRow[] = bundle.history.flatMap((snapshot, index) => {
     if (snapshot.turn < start || snapshot.turn > end) return [];
-    const source = `/history/${index}/ecology/${regionKey}/${pointer(metric.key)}`;
-    const value = metric.kind === "ecology" ? snapshot.ecology?.[regionName]?.[metric.key] : undefined;
+    const regionIndex = bundle.world_state.regions.findIndex((region) => region.name === regionName);
+    const population = readRegionalPopulation(bundle, snapshot);
+    const populationMetric = metric.kind === "population" || metric.kind === "nativePopulation";
+    const source = populationMetric ? `/history/${index}/regional_population/${metric.key}/${regionIndex}`
+      : metric.kind === "food" ? `/history/${index}/food/sufficiency/${regionIndex}`
+      : `/history/${index}/ecology/${regionKey}/${pointer(metric.key)}`;
+    const value = metric.kind === "ecology" ? snapshot.ecology?.[regionName]?.[metric.key]
+      : metric.kind === "food" ? snapshot.food?.sufficiency?.[regionIndex]
+      : metric.kind === "population" ? population?.counts[regionIndex]
+      : metric.kind === "nativePopulation" ? population?.agent_counts?.[regionIndex] : undefined;
     return [{
       turn: snapshot.turn,
       controller: snapshot.region_control[regionName],
       value: finite(value) ? value : null,
       missing: metric.kind === "stockpile" ? "Historical stockpile not exported"
         : value === undefined || value === null ? "Metric not recorded" : finite(value) ? null : "Invalid numeric value",
-      source: metric.kind === "ecology" ? source : `/history/${index}`,
+      source: metric.kind !== "stockpile" ? source : `/history/${index}`,
     }];
   });
   // The final world state is a separate observation, never a history fallback.

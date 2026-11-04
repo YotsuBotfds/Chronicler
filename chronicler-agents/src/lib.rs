@@ -22,6 +22,11 @@ pub mod needs;
 pub mod relationships;
 pub mod formation;
 pub mod household;
+pub mod health_care;
+pub mod teaching_work;
+// CAREOBS_SOURCE_BEGIN: module
+mod health_care_observation;
+// CAREOBS_SOURCE_END: module
 pub mod migration_drivers;
 pub mod community;
 pub mod credit;
@@ -31,6 +36,8 @@ pub mod sort;
 pub mod economy;
 pub mod politics;
 pub mod merchant;
+pub mod transaction_receipts;
+pub mod decision_delivery;
 pub mod knowledge;
 pub mod movements;
 pub mod scale;

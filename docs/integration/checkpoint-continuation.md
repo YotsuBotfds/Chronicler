@@ -233,6 +233,12 @@ the thread environment (OpenBLAS, OMP, MKL, Rayon and the rest the batch
 manifest records) and, when no OpenBLAS/OMP thread count is set, the CPU
 affinity count. An exact resume requires all of them to match: any
 difference is refused, with one line per difference and the override named.
+`PYTHONHASHSEED` is compared as part of the thread environment; the separate
+`hash_seed` entry is retained for expansion-receipt comparisons. Keep the
+variable explicitly set (normally `0`) for a deterministic cross-process
+resume. If it is unset in both processes, the recorded values compare equal
+even though each process chose its own random hash seed. Unset and `0` are
+therefore different identities and are never normalized together.
 
 `--resume-allow-mismatch` loads anyway. Native state still needs the same
 layout (a blob of another layout is refused by Rust: it cannot be decoded),

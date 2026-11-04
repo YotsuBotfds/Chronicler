@@ -6,6 +6,7 @@ import type { Bundle } from "../../../types";
 import { crisesAtSnapshot, famineSpans, FAMINE_COLOR } from "../../../lib/food";
 import { AppShell, type AppSurface } from "../AppShell";
 import { preloadPanels } from "../lazyPanels";
+import { NO_DATA_OPACITY } from "../../../lib/mapLayers";
 
 // Lazy panels render without a fallback once their chunks are loaded (lazyPanels.tsx).
 beforeAll(() => preloadPanels());
@@ -52,9 +53,22 @@ function node(name: string): SVGCircleElement {
 }
 
 describe("AppShell map layers", () => {
-  it("offers no layer bar for a bundle without system data", () => {
+  it("does not carry prior ownership across a missing turn or confuse unknown with uncontrolled", () => {
+    const bundle = structuredClone(sample);
+    const region = bundle.world_state.regions[0].name;
+    bundle.history = bundle.history.filter((row) => row.turn !== 2);
+    const mounted = renderShell(bundle, 2);
+    expect(node(region)).toHaveAttribute("fill-opacity", String(NO_DATA_OPACITY));
+    expect(node(region).querySelector("title")).toHaveTextContent("Ownership unknown at T2");
+    mounted.unmount();
+    bundle.history[0].region_control[region] = null;
+    renderShell(bundle, bundle.history[0].turn);
+    expect(node(region)).not.toHaveAttribute("fill-opacity");
+    expect(node(region).querySelector("title")).toHaveTextContent("Uncontrolled");
+  });
+  it("offers territory history for legacy bundles with recorded ownership", () => {
     renderShell(sample, sample.history[sample.history.length - 1].turn);
-    expect(screen.queryByRole("radiogroup", { name: "Map layer" })).not.toBeInTheDocument();
+    expect(within(screen.getByRole("radiogroup", { name: "Map layer" })).getAllByRole("radio").map((row) => row.textContent)).toEqual(["Control", "Territory changes"]);
     expect(screen.queryByLabelText("Map layer legend")).not.toBeInTheDocument();
   });
 
@@ -65,7 +79,7 @@ describe("AppShell map layers", () => {
     renderShell(systems, snapshot.turn);
     const layers = screen.getByRole("radiogroup", { name: "Map layer" });
     expect(within(layers).getAllByRole("radio").map((radio) => radio.textContent)).toEqual([
-      "Control", "Food", "Epidemics", "Wars", "Migration", "Techniques", "Sea",
+      "Control", "Territory changes", "Food", "Epidemics", "Wars", "Migration", "Techniques", "Sea",
     ]);
     expect(within(layers).getByRole("radio", { name: "Control" })).toHaveAttribute("aria-checked", "true");
     fireEvent.click(within(layers).getByRole("radio", { name: "Food" }));

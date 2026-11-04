@@ -12,16 +12,21 @@ import json
 import statistics
 import sys
 from collections import Counter, defaultdict
+from dataclasses import dataclass
 from math import ceil, comb
 from pathlib import Path
+from types import MappingProxyType
+from typing import Mapping
 
-from .artifact_io import ArtifactIOError, strict_json_dumps
+from .artifact_io import ArtifactIOError, strict_json_dumps, strict_json_loads
 from .batch_manifest import (
     MANIFEST_FILENAME,
     BatchManifestError,
     batch_cohort,
     file_sha256,
     load_batch_manifest,
+    _run_fact_problems,
+    _verify_batch_manifest_inputs,
     verify_batch_manifest,
 )
 from .validation_gate import (
@@ -429,7 +434,7 @@ def _bundle_paths(batch_dir: Path) -> list[Path]:
     return sorted(batch_dir.rglob(BUNDLE_FILENAME))
 
 
-def _load_bundle(bundle_path: Path) -> dict:
+def _load_bundle(bundle_path: Path, *, _strict: bool = False) -> dict:
     """Load a bundle with every civ row in its history.
 
     Version-6 files are decoded (``bundle_codec``). Version-5 bundles leave
@@ -438,19 +443,29 @@ def _load_bundle(bundle_path: Path) -> dict:
     restored exactly (``snapshot_pruning.restore_bundle`` does both).
     """
     try:
-        return restore_bundle(json.loads(bundle_path.read_text(encoding="utf-8")))
+        text = bundle_path.read_text(encoding="utf-8")
+        return restore_bundle(strict_json_loads(text) if _strict else json.loads(text))
     except Exception as exc:
         raise RuntimeError(f"Failed to load bundle: {bundle_path}") from exc
 
 
-def iter_bundles(batch_dir: Path):
+def iter_bundles(batch_dir: Path, *, _admission=None):
     """Yield ``(path, bundle)`` one at a time, in ``load_bundles`` order.
 
     A full-profile batch (200 living 500-turn worlds, ~18 MB of JSON each)
     does not fit in memory when every bundle is parsed at once.
     """
-    for bundle_path in _bundle_paths(batch_dir):
-        yield bundle_path, _load_bundle(bundle_path)
+    paths = _admission.paths if _admission is not None else _bundle_paths(batch_dir)
+    for bundle_path in paths:
+        try:
+            bundle = _load_bundle(bundle_path, _strict=_admission is not None and _admission.has_manifest)
+        except RuntimeError as exc:
+            if _admission is not None and _admission.has_manifest:
+                raise ValidationRequestError(str(exc)) from exc
+            raise
+        if _admission is not None:
+            _admission.observe(bundle_path, bundle)
+        yield bundle_path, bundle
 
 
 def load_bundles(batch_dir: Path) -> list[tuple[Path, dict]]:
@@ -459,6 +474,71 @@ def load_bundles(batch_dir: Path) -> list[tuple[Path, dict]]:
 
 
 LEGACY_BATCH_FLAG = "--legacy-batch"
+
+
+class _BatchAdmission:
+    """Frozen expectations plus observations; preflight alone verifies nothing."""
+
+    def __init__(self, batch_dir: Path, paths: list[Path], manifest: dict | None):
+        self.batch_dir = batch_dir
+        self.paths = tuple(paths)
+        self._manifest = manifest
+        self._manifest_sha256 = file_sha256(batch_dir / MANIFEST_FILENAME) if manifest is not None else None
+        self._expected = MappingProxyType({
+            run["bundle"]: MappingProxyType({key: run[key] for key in ("seed", "dir", "total_turns")})
+            for run in manifest["runs"]
+        } if manifest is not None else {})
+        self._observed: set[str] = set()
+
+    @property
+    def has_manifest(self) -> bool:
+        return self._manifest is not None
+
+    def observe(self, path: Path, bundle: dict) -> None:
+        if self._manifest is None:
+            return
+        relative = path.relative_to(self.batch_dir).as_posix()
+        expected = self._expected.get(relative)
+        if expected is None:
+            raise ValidationRequestError(f"bundle is not in the manifest: {relative}")
+        problems = _run_fact_problems(expected, bundle)
+        if problems:
+            raise ValidationRequestError("batch bundle does not match its manifest: " + "; ".join(problems))
+        self._observed.add(relative)
+
+    def finish(self) -> dict:
+        if self._manifest is None:
+            return {"status": "unchecked", "reason": f"no {MANIFEST_FILENAME} ({LEGACY_BATCH_FLAG})"}
+        if self._expected.keys() - self._observed:
+            # Empty selections or a substituted oracle runner still cannot
+            # publish verified facts without observing every payload.
+            for _path, _bundle in iter_bundles(self.batch_dir, _admission=self):
+                pass
+        return batch_cohort(self._manifest, self._manifest_sha256)
+
+
+def _prepare_batch_admission(batch_dir: Path, *, legacy_batch: bool = False) -> _BatchAdmission:
+    """Check inventory/hashes before readers; defer facts to their decode."""
+    batch_dir = Path(batch_dir)
+    if not batch_dir.exists():
+        raise ValidationRequestError(f"batch path does not exist: {batch_dir}")
+    try:
+        manifest = load_batch_manifest(batch_dir) if batch_dir.is_dir() else None
+    except BatchManifestError as exc:
+        raise ValidationRequestError(str(exc)) from exc
+    if manifest is None:
+        if legacy_batch:
+            return _BatchAdmission(batch_dir, _bundle_paths(batch_dir), None)
+        raise ValidationRequestError(
+            f"no {MANIFEST_FILENAME} in {batch_dir}: a batch written by chronicler.batch records its "
+            f"expected runs there. To validate a directory written before manifests (or a single bundle) "
+            f"without checking which runs it holds, pass {LEGACY_BATCH_FLAG}."
+        )
+    paths = _bundle_paths(batch_dir)
+    problems = _verify_batch_manifest_inputs(batch_dir, manifest, paths)
+    if problems:
+        raise ValidationRequestError(f"batch directory {batch_dir} does not match its manifest: " + "; ".join(problems))
+    return _BatchAdmission(batch_dir, paths, manifest)
 
 
 def check_batch_manifest(batch_dir: Path, *, legacy_batch: bool = False) -> dict:
@@ -473,25 +553,7 @@ def check_batch_manifest(batch_dir: Path, *, legacy_batch: bool = False) -> dict
     ``legacy_batch``; its entry is then ``unchecked``. A manifest that is
     present is always checked.
     """
-    batch_dir = Path(batch_dir)
-    if not batch_dir.exists():
-        raise ValidationRequestError(f"batch path does not exist: {batch_dir}")
-    try:
-        manifest = load_batch_manifest(batch_dir) if batch_dir.is_dir() else None
-    except BatchManifestError as exc:
-        raise ValidationRequestError(str(exc)) from exc
-    if manifest is None:
-        if legacy_batch:
-            return {"status": "unchecked", "reason": f"no {MANIFEST_FILENAME} ({LEGACY_BATCH_FLAG})"}
-        raise ValidationRequestError(
-            f"no {MANIFEST_FILENAME} in {batch_dir}: a batch written by chronicler.batch records its "
-            f"expected runs there. To validate a directory written before manifests (or a single bundle) "
-            f"without checking which runs it holds, pass {LEGACY_BATCH_FLAG}."
-        )
-    problems = verify_batch_manifest(batch_dir, manifest, _bundle_paths(batch_dir))
-    if problems:
-        raise ValidationRequestError(f"batch directory {batch_dir} does not match its manifest: " + "; ".join(problems))
-    return batch_cohort(manifest, file_sha256(batch_dir / MANIFEST_FILENAME))
+    return _prepare_batch_admission(Path(batch_dir), legacy_batch=legacy_batch).finish()
 
 
 # Bundle fields the seed-run oracles read: metadata, these per-snapshot
@@ -587,6 +649,79 @@ def _load_needs_snapshot(sidecar_dir: Path, turn: int | None) -> dict | None:
     return _read_json(path)
 
 
+@dataclass(frozen=True, slots=True)
+class _TurnRows:
+    """Immutable row selection for one loaded table, separate from its schema.
+
+    Normal sidecars have monotonic turns: each turn is one range, so index
+    space scales with sampled turns. Legacy shuffled rows retain their source
+    order in compact, read-only uint64 index buffers. Nothing is keyed by a
+    file path or object id outside the lifetime of the loaded columns.
+    """
+
+    rows: Mapping
+    turns: tuple[int, ...]
+
+
+def _build_turn_rows(columns: dict) -> _TurnRows:
+    values = columns.get("turn")
+    if not values:
+        return _TurnRows(MappingProxyType({}), ())
+    spans = {}
+    previous = None
+    start = 0
+    monotonic = True
+    for row, value in enumerate(values):
+        turn = int(value)
+        if previous is not None and turn != previous:
+            spans[previous] = range(start, row)
+            start = row
+            if turn < previous:
+                monotonic = False
+        previous = turn
+    spans[previous] = range(start, len(values))
+    if monotonic:
+        return _TurnRows(MappingProxyType(spans), tuple(spans))
+    # A turn can occur in several disjoint runs. Never sort the source table:
+    # graph edge order, duplicate rows and first-occurrence ties are observable.
+    indexes = defaultdict(lambda: array("Q"))
+    for row, value in enumerate(values):
+        indexes[int(value)].append(row)
+    frozen = {turn: memoryview(rows).toreadonly() for turn, rows in indexes.items()}
+    return _TurnRows(MappingProxyType(frozen), tuple(sorted(frozen)))
+
+
+class _IndexedColumns(dict):
+    """Reader-owned columns plus their private immutable row index.
+
+    Loaded columns are read-only inputs throughout validation. The index is
+    metadata, never a synthetic column. Plain caller-owned dictionaries are
+    not wrapped or cached by the selection helpers, so later edits to those
+    dictionaries are always observed. Every file read creates a fresh owner.
+    """
+
+    __slots__ = ("_turn_rows",)
+
+    def __init__(self, columns: dict):
+        super().__init__(columns)
+        self._turn_rows = _build_turn_rows(self)
+
+    def __reduce__(self):
+        # Copy/pickle the data, not mappingproxy/memoryview metadata. A restored
+        # owner indexes its own arrays rather than retaining another's index.
+        return type(self), (dict(self),)
+
+
+def _rows_for_turn(columns: dict | None, turn: int):
+    if not columns or not columns.get("turn"):
+        return ()
+    if isinstance(columns, _IndexedColumns):
+        return columns._turn_rows.rows.get(turn, ())
+    # Caller dictionaries may be edited between calls. Keep the old one-shot
+    # predicate selection, without caching or building an unused full index.
+    return [row for row, value in enumerate(columns["turn"]) if int(value) == turn]
+
+
 def _read_arrow_columns(path: Path) -> dict | None:
     if not path.exists():
         return None
@@ -594,7 +729,7 @@ def _read_arrow_columns(path: Path) -> dict | None:
         return None
     import pyarrow.ipc as ipc
     table = ipc.open_file(path).read_all()
-    return {name: _compact_column(table.column(name)) for name in table.column_names}
+    return _IndexedColumns({name: _compact_column(table.column(name)) for name in table.column_names})
 
 
 def _compact_column(column):
@@ -626,67 +761,32 @@ def _load_canonical_graph_snapshot(seed_dir: Path, target_turn: int) -> dict | N
 
     available_turns: set[int] = set()
     if rel_cols and rel_cols.get("turn"):
-        available_turns.update(int(turn) for turn in rel_cols["turn"])
+        available_turns.update(_available_turns_from_columns(rel_cols))
     if mem_cols and mem_cols.get("turn"):
-        available_turns.update(int(turn) for turn in mem_cols["turn"])
+        available_turns.update(_available_turns_from_columns(mem_cols))
     chosen_turn = _choose_snapshot_turn(sorted(available_turns), target_turn)
     if chosen_turn is None:
         return None
 
-    edges: list[tuple[int, int, int, int]] = []
-    if rel_cols:
-        for idx, turn in enumerate(rel_cols.get("turn", [])):
-            if int(turn) != chosen_turn:
-                continue
-            edges.append((
-                int(rel_cols["agent_id"][idx]),
-                int(rel_cols["target_id"][idx]),
-                int(rel_cols["bond_type"][idx]),
-                int(rel_cols["sentiment"][idx]),
-            ))
-
-    mem_sigs: dict[int, list[tuple[int, int, int]]] = {}
-    if mem_cols:
-        for idx, turn in enumerate(mem_cols.get("turn", [])):
-            if int(turn) != chosen_turn:
-                continue
-            agent_id = int(mem_cols["agent_id"][idx])
-            mem_sigs.setdefault(agent_id, []).append((
-                int(mem_cols["event_type"][idx]),
-                int(mem_cols["memory_turn"][idx]),
-                int(mem_cols["valence_sign"][idx]),
-            ))
-
-    return {
-        "turn": chosen_turn,
-        "edges": edges,
-        "memory_signatures": mem_sigs,
-    }
+    return _graph_snapshot_from_columns(rel_cols, mem_cols, chosen_turn)
 
 
 def _load_canonical_needs_snapshot(seed_dir: Path, target_turn: int) -> dict | None:
     cols = _read_arrow_columns(seed_dir / "validation_needs.arrow")
     if not cols or not cols.get("turn"):
         return None
-    chosen_turn = _choose_snapshot_turn(sorted({int(turn) for turn in cols["turn"]}), target_turn)
+    chosen_turn = _choose_snapshot_turn(_available_turns_from_columns(cols), target_turn)
     if chosen_turn is None:
         return None
 
-    filtered: dict[str, list] = {}
-    for name, values in cols.items():
-        if name == "turn":
-            continue
-        filtered[name] = [
-            values[idx]
-            for idx, turn in enumerate(cols["turn"])
-            if int(turn) == chosen_turn
-        ]
-    return {"turn": chosen_turn, "columns": filtered}
+    return _needs_snapshot_from_columns(cols, chosen_turn)
 
 
 def _available_turns_from_columns(columns: dict | None) -> list[int]:
     if not columns or not columns.get("turn"):
         return []
+    if isinstance(columns, _IndexedColumns):
+        return list(columns._turn_rows.turns)
     return sorted({int(turn) for turn in columns["turn"]})
 
 
@@ -698,11 +798,7 @@ def _sample_turns(turns: list[int], min_turn: int = 100) -> list[int]:
 def _columns_for_turn(columns: dict | None, turn: int) -> dict | None:
     if not columns or not columns.get("turn"):
         return None
-    indexes = [
-        idx
-        for idx, row_turn in enumerate(columns["turn"])
-        if int(row_turn) == turn
-    ]
+    indexes = _rows_for_turn(columns, turn)
     if not indexes:
         return None
     return {
@@ -719,9 +815,7 @@ def _graph_snapshot_from_columns(
 ) -> dict | None:
     edges: list[tuple[int, int, int, int]] = []
     if relationship_columns and relationship_columns.get("turn"):
-        for idx, row_turn in enumerate(relationship_columns["turn"]):
-            if int(row_turn) != turn:
-                continue
+        for idx in _rows_for_turn(relationship_columns, turn):
             edges.append((
                 int(relationship_columns["agent_id"][idx]),
                 int(relationship_columns["target_id"][idx]),
@@ -731,9 +825,7 @@ def _graph_snapshot_from_columns(
 
     memory_signatures: dict[int, list[tuple[int, int, int]]] = {}
     if memory_columns and memory_columns.get("turn"):
-        for idx, row_turn in enumerate(memory_columns["turn"]):
-            if int(row_turn) != turn:
-                continue
+        for idx in _rows_for_turn(memory_columns, turn):
             agent_id = int(memory_columns["agent_id"][idx])
             memory_signatures.setdefault(agent_id, []).append((
                 int(memory_columns["event_type"][idx]),
@@ -782,6 +874,10 @@ def _load_agent_deaths(seed_dir: Path) -> dict[int, int]:
     import pyarrow.ipc as ipc
 
     table = ipc.open_file(path).read_all()
+    return _agent_deaths_from_table(table, pc)
+
+
+def _agent_deaths_from_table(table, pc) -> dict[int, int]:
     if "event_type" not in table.column_names:
         return {}
     dead = table.filter(pc.equal(table.column("event_type"), "death"))
@@ -802,6 +898,10 @@ def _load_agent_events(seed_dir: Path) -> list[dict]:
     import pyarrow.ipc as ipc
 
     table = ipc.open_file(path).read_all()
+    return _agent_events_from_table(table)
+
+
+def _agent_events_from_table(table) -> list[dict]:
     data = table.to_pydict()
     events: list[dict] = []
     first_uncounted: dict | None = None
@@ -829,6 +929,20 @@ def _load_agent_events(seed_dir: Path) -> list[dict]:
     if not events and first_uncounted is not None:
         events.append(first_uncounted)
     return events
+
+
+def _load_agent_events_and_deaths(seed_dir: Path) -> tuple[list[dict], dict[int, int]]:
+    """Derive both views from one seed-local table; retain no shared cache."""
+    path = seed_dir / "agent_events.arrow"
+    if not path.exists() or not _has_pyarrow():
+        return [], {}
+    import pyarrow.ipc as ipc
+
+    table = ipc.open_file(path).read_all()
+    events = _agent_events_from_table(table)
+    import pyarrow.compute as pc
+
+    return events, _agent_deaths_from_table(table, pc)
 
 
 def _world_population_series(bundle: dict) -> list[int]:
@@ -932,7 +1046,7 @@ def summarize_world_shapes(seed_runs: list[dict]) -> list[dict] | None:
     ]
 
 
-def load_seed_runs(batch_dir: Path, selected_oracles: set[str] | None = None) -> list[dict]:
+def load_seed_runs(batch_dir: Path, selected_oracles: set[str] | None = None, *, _admission=None) -> list[dict]:
     """Load exported bundle + sidecar data for each seed in a batch."""
     if not batch_dir.exists():
         raise ValidationRequestError(f"batch path does not exist: {batch_dir}")
@@ -940,7 +1054,7 @@ def load_seed_runs(batch_dir: Path, selected_oracles: set[str] | None = None) ->
     if dependency_reason is not None:
         raise ValidationDependencyError(dependency_reason)
     runs: list[dict] = []
-    for bundle_path, bundle in iter_bundles(batch_dir):
+    for bundle_path, bundle in iter_bundles(batch_dir, _admission=_admission):
         seed_dir = bundle_path.parent
         sidecar_dir = seed_dir / "validation_summary"
         total_turns = int(bundle.get("metadata", {}).get("total_turns", 0) or 0)
@@ -975,14 +1089,17 @@ def load_seed_runs(batch_dir: Path, selected_oracles: set[str] | None = None) ->
         if needs_snapshot is None and sidecar_dir.exists():
             needs_turn = _choose_snapshot_turn(_snapshot_turns(sidecar_dir, "needs"), target_turn)
             needs_snapshot = _load_needs_snapshot(sidecar_dir, needs_turn)
-        runs.append({
+        run = {
             "bundle_path": bundle_path,
             "seed_dir": seed_dir,
             "seed": bundle.get("metadata", {}).get("seed"),
             "world": _world_shape(bundle),
             "bundle": _oracle_bundle_view(bundle),
-            "events": _load_agent_events(seed_dir),
-            "deaths": _load_agent_deaths(seed_dir),
+        }
+        events, deaths = _load_agent_events_and_deaths(seed_dir)
+        run.update({
+            "events": events,
+            "deaths": deaths,
             "relationship_columns": relationship_columns,
             "memory_columns": memory_columns,
             "needs_columns": needs_columns,
@@ -994,6 +1111,7 @@ def load_seed_runs(batch_dir: Path, selected_oracles: set[str] | None = None) ->
             "civ_trajectories": _civ_trajectories(bundle),
             "civ_crisis_event_turns": _civ_crisis_event_turns(bundle),
         })
+        runs.append(run)
     return runs
 
 
@@ -2275,12 +2393,12 @@ def classify_civ_arc(trajectory: dict) -> str:
     return "stable"
 
 
-def run_determinism_gate(batch_dir: Path) -> dict:
+def run_determinism_gate(batch_dir: Path, *, _admission=None) -> dict:
     """Run determinism smoke gate: 2 identical seeds must produce scrubbed-equal output."""
     # Index seeds one bundle at a time, then re-read only duplicate groups, so
     # a large batch never holds every parsed bundle at once.
     paths_by_seed: dict[int, list[Path]] = defaultdict(list)
-    for bundle_path, bundle in iter_bundles(batch_dir):
+    for bundle_path, bundle in iter_bundles(batch_dir, _admission=_admission):
         seed = bundle.get("metadata", {}).get("seed")
         if seed is None:
             continue
@@ -4368,7 +4486,7 @@ def run_oracles(
     recorded as ``causal_oracles_required``)."""
     require_causal = causal_oracles_required(None, require_causal)
     selected = _normalize_requested_oracles(oracles)
-    batch_manifest = check_batch_manifest(batch_dir, legacy_batch=legacy_batch)
+    admission = _prepare_batch_admission(batch_dir, legacy_batch=legacy_batch)
     arms, ablation_summary = _load_arms(ablation_dir, batch_dir)
     results: dict[str, dict] = {}
     seed_runs: list[dict] | None = None
@@ -4376,13 +4494,13 @@ def run_oracles(
     def ensure_seed_runs() -> list[dict]:
         nonlocal seed_runs
         if seed_runs is None:
-            seed_runs = load_seed_runs(batch_dir, selected_oracles=selected & SEED_RUN_ORACLE_NAMES)
+            seed_runs = load_seed_runs(batch_dir, selected_oracles=selected & SEED_RUN_ORACLE_NAMES, _admission=admission)
         return seed_runs
 
     for oracle_name in sorted(selected):
         try:
             if oracle_name == "determinism":
-                results[oracle_name] = run_determinism_gate(batch_dir)
+                results[oracle_name] = run_determinism_gate(batch_dir, _admission=admission)
             elif oracle_name == "community":
                 results[oracle_name] = run_community_oracle(ensure_seed_runs())
             elif oracle_name == "needs":
@@ -4420,7 +4538,7 @@ def run_oracles(
     worlds = summarize_world_shapes(seed_runs) if seed_runs is not None else None
     if worlds is not None:
         report["worlds"] = worlds
-    report["batch_manifest"] = batch_manifest
+    report["batch_manifest"] = admission.finish()
     if ablation_summary is not None:
         report["ablation_arms"] = ablation_summary
     if profile is not None:

@@ -136,6 +136,8 @@ def build_politics_civ_input_batch(
     step 9 (twilight absorption) to consider this pass; ``None`` keeps the
     historical behaviour (every civ eligible).
     """
+    from chronicler.ffi_constants import check_civ_capacity
+    check_civ_capacity(world)
     from chronicler.factions import get_dominant_faction, total_effective_capacity
 
     region_name_to_idx = {r.name: i for i, r in enumerate(world.regions)}
@@ -532,6 +534,146 @@ def reconstruct_politics_ops(
     return ops
 
 
+def _preflight_civ_creations(world: WorldState, ops: list[tuple], new_civ_map: dict) -> None:
+    """Admit the complete identity/allocation graph before any apply effects.
+
+    This is a capacity/reference check, not a transaction or a replacement for
+    each operation's own field semantics. Existing refs address original
+    lifetime records; New refs must follow a unique materializing creator.
+    """
+    from chronicler.ffi_constants import MAX_CIV_RECORDS, CIV_CAPACITY_REFUSAL, check_civ_capacity
+    check_civ_capacity(world)
+    original_count = len(world.civilizations)
+    if type(new_civ_map) is not dict:
+        raise ValueError("New civilization mapping must be a dictionary")
+    known = dict(new_civ_map)
+    if any(type(k) is not int or not 0 <= k < CIV_NONE
+           or type(v) is not int or not 0 <= v < original_count
+           for k, v in known.items()) or len(set(known.values())) != len(known):
+        raise ValueError("invalid existing New civilization mapping")
+    reserved = 0
+    # Only identity/region membership is needed to mirror exile append/remove.
+    # A breakaway's not-yet-materialized unique name is an opaque local token;
+    # New restorations already have the historical name carried by their exile.
+    identity_names = {i: civ.name for i, civ in enumerate(world.civilizations)}
+    exiles = [(e.original_civ_name, e.absorber_civ, tuple(e.conquered_regions))
+              for e in world.exile_modifiers]
+    restored_originals = set()
+    refs_by_family = {
+        "civ_op": ("source", "target"),
+        "region_op": ("controller",),
+        "relationship_op": ("civ_a", "civ_b"),
+        "federation_op": ("civ", "member_0", "member_1"),
+        "vassal_op": ("vassal", "overlord"),
+        "exile_op": ("original_civ", "absorber_civ"),
+        "proxy_war_op": ("sponsor", "target_civ"),
+        "civ_effect": ("civ",),
+        "bookkeeping": ("civ",),
+        "artifact_intent": ("losing_civ", "gaining_civ"),
+        "bridge_transition": ("source", "target"),
+        "event_trigger": ("actor_0", "actor_1"),
+    }
+
+    def resolve(kind: int, ref_id: int) -> int | None:
+        if type(kind) is not int or type(ref_id) is not int:
+            raise ValueError("civilization refs require integer kind and id")
+        if kind == REF_EXISTING:
+            if ref_id == CIV_NONE:
+                return None
+            if not 0 <= ref_id < original_count:
+                raise ValueError("Existing civilization ref is outside lifetime records")
+            return ref_id
+        if kind != REF_NEW or ref_id not in known:
+            raise ValueError("New civilization ref has no preceding unique creator")
+        return known[ref_id]
+
+    for op in ops:
+        if not isinstance(op, tuple) or len(op) != 4:
+            raise ValueError("politics ops require (step, seq, family, payload)")
+        _step, _seq, family, payload = op
+        if type(family) is not str or family not in refs_by_family or type(payload) is not dict:
+            raise ValueError("invalid politics op family or payload")
+        creator = family == "civ_op" and payload.get("op_type") in (
+            CIV_OP_CREATE_BREAKAWAY, CIV_OP_RESTORE,
+        )
+        target_kind = payload.get("target_ref_kind", REF_EXISTING)
+        if creator and (type(payload.get("op_type")) is not int
+                        or type(target_kind) is not int or target_kind not in (REF_EXISTING, REF_NEW)):
+            raise ValueError("civilization creators require integer op and reference kinds")
+        creates_new = creator and target_kind == REF_NEW
+        if creator and payload.get("op_type") == CIV_OP_CREATE_BREAKAWAY and not creates_new:
+            raise ValueError("breakaway creation requires a New target")
+        for prefix in refs_by_family[family]:
+            if creates_new and prefix == "target":
+                continue
+            if prefix + "_ref_kind" in payload or prefix + "_ref_id" in payload:
+                resolve(payload.get(prefix + "_ref_kind", REF_EXISTING),
+                        payload.get(prefix + "_ref_id", CIV_NONE))
+        if family == "exile_op":
+            original_idx = resolve(payload.get("original_civ_ref_kind", REF_EXISTING),
+                                   payload.get("original_civ_ref_id", 0))
+            if original_idx is not None and type(identity_names[original_idx]) is not str:
+                raise ValueError("pending breakaway names are unsupported in exile identity ops")
+            if payload.get("op_type") == EXILE_OP_REMOVE and original_idx is not None:
+                original_name = identity_names[original_idx]
+                exiles = [e for e in exiles if e[0] != original_name]
+            elif payload.get("op_type") == EXILE_OP_APPEND:
+                absorber_idx = resolve(payload.get("absorber_civ_ref_kind", REF_EXISTING),
+                                       payload.get("absorber_civ_ref_id", 0))
+                if absorber_idx is not None and type(identity_names[absorber_idx]) is not str:
+                    raise ValueError("pending breakaway names are unsupported in exile identity ops")
+                if original_idx is not None and absorber_idx is not None:
+                    indices = payload.get("region_indices", [])
+                    if (type(indices) is not list or any(type(ri) is not int
+                            or not 0 <= ri < len(world.regions) for ri in indices)):
+                        raise ValueError("exile identity view requires valid region indices")
+                    exiles.append((identity_names[original_idx], identity_names[absorber_idx],
+                                   tuple(world.regions[ri].name for ri in indices)))
+        if not creator:
+            continue
+        source_idx = resolve(payload.get("source_ref_kind", REF_EXISTING),
+                             payload.get("source_ref_id", 0))
+        regions = payload.get("region_indices", [])
+        if (source_idx is None or type(regions) is not list or not regions
+                or any(type(ri) is not int or not 0 <= ri < len(world.regions) for ri in regions)
+                or len(set(regions)) != len(regions)):
+            raise ValueError("civilization creation requires a source and valid unique regions")
+        restored_name = None
+        if not creates_new:
+            # Restoration of a known identity does not allocate or refund a slot.
+            target_idx = resolve(target_kind, payload.get("target_ref_id", 0))
+            if target_idx is None:
+                raise ValueError("restoration requires an existing or New target")
+            restored_name = identity_names[target_idx]
+            if restored_name in restored_originals:
+                raise ValueError("duplicate restoration identity in one politics pass")
+            restored_originals.add(restored_name)
+            continue
+        local_id = payload.get("target_ref_id", 0)
+        if type(local_id) is not int or not 0 <= local_id < CIV_NONE or local_id in known:
+            raise ValueError("New civilization creator id must be unique")
+        if payload.get("op_type") == CIV_OP_RESTORE:
+            # Current native restoration sources are original input records.
+            # Refuse an unmaterializable declaration rather than reserve a ghost
+            # identity whose following New references could alias another civ.
+            matching = next((e for e in exiles
+                             if e[1] == identity_names[source_idx]
+                             and world.regions[regions[0]].name in e[2]), None)
+            if source_idx >= original_count or matching is None:
+                raise ValueError("New restoration has no matching exile at its operation position")
+            restored_name = matching[0]
+            if restored_name in restored_originals:
+                raise ValueError("duplicate restoration identity in one politics pass")
+            restored_originals.add(restored_name)
+        if original_count + reserved >= MAX_CIV_RECORDS:
+            raise ValueError(CIV_CAPACITY_REFUSAL)
+        known[local_id] = original_count + reserved
+        identity_names[original_count + reserved] = (
+            restored_name if restored_name is not None else ("New", original_count + reserved)
+        )
+        reserved += 1
+
+
 def apply_politics_ops(
     world: WorldState,
     ops: list[tuple],
@@ -554,6 +696,7 @@ def apply_politics_ops(
     """
     if new_civ_map is None:
         new_civ_map = {}
+    _preflight_civ_creations(world, ops, new_civ_map)
     if new_fed_map is None:
         new_fed_map = {}
     existing_fed_map = {idx: idx for idx in range(len(world.federations))}
@@ -637,7 +780,9 @@ def _resolve_civ_ref(world: WorldState, ref_kind: int, ref_id: int,
     """Resolve a CivRef to a concrete civ index."""
     if ref_kind == REF_EXISTING:
         return ref_id
-    return new_civ_map.get(ref_id, ref_id)
+    if ref_kind != REF_NEW or ref_id not in new_civ_map:
+        raise ValueError("New civilization ref has no materialized creator")
+    return new_civ_map[ref_id]
 
 
 def _normalize_politics_asabiya(value: float | None, default: float) -> float:
@@ -706,13 +851,14 @@ def _build_breakaway_civ(
     adj_map = {r.name: set(r.adjacencies) for r in world.regions}
 
     def _min_dist_to_parent(region_name: str) -> int:
-        return min(
-            (
+        distances = [
+            distance for distance in (
                 graph_distance(adj_map, region_name, parent_region)
                 for parent_region in remaining_regions
-            ),
-            default=0,
-        )
+            )
+            if distance >= 0
+        ]
+        return min(distances, default=len(world.regions) + 1)
 
     breakaway_capital = min(breakaway_regions, key=_min_dist_to_parent)
     founded_turn = payload.get("founded_turn", world.turn)
@@ -768,6 +914,8 @@ def _materialize_breakaway_civ(world: WorldState, payload: dict, new_civ_map: di
     ]
     if not breakaway_regions:
         return
+    from chronicler.ffi_constants import require_new_civ_capacity
+    require_new_civ_capacity(world)
     remaining_regions = [rn for rn in source_civ.regions if rn not in breakaway_regions]
     breakaway_civ = _build_breakaway_civ(
         world,
@@ -819,11 +967,17 @@ def _materialize_restored_civ(world: WorldState, payload: dict, new_civ_map: dic
         if restored_name is None:
             return
 
+    if restored_civ is None:
+        from chronicler.ffi_constants import require_new_civ_capacity
+        require_new_civ_capacity(world)
+
     era_order = list(TechEra)
     absorber_era_idx = era_order.index(absorber.tech_era)
     restored_era = era_order[max(0, absorber_era_idx - 1)]
 
-    rng_trait = random.Random(world.seed + world.turn)
+    rng_trait = random.Random(
+        stable_hash_int("restoration_trait", world.seed, world.turn, restored_name)
+    )
     new_trait = rng_trait.choice(_TRAIT_POOL)
     restored_population = max(payload.get("stat_population", 30), 1)
     if world.agent_mode != "hybrid":
@@ -864,11 +1018,11 @@ def _materialize_restored_civ(world: WorldState, payload: dict, new_civ_map: dic
         restored_civ.founded_turn = payload.get("founded_turn", world.turn)
         restored_civ.decline_turns = 0
         restored_civ.stats_sum_history = []
-        target_region_obj = next((r for r in world.regions if r.name == target_region), None)
-        if target_region_obj is not None:
-            target_region_obj.asabiya_state.asabiya = _normalize_politics_asabiya(
-                payload.get("stat_asabiya"), 0.8,
-            )
+    target_region_obj = next((r for r in world.regions if r.name == target_region), None)
+    if target_region_obj is not None:
+        target_region_obj.asabiya_state.asabiya = _normalize_politics_asabiya(
+            payload.get("stat_asabiya"), 0.8,
+        )
 
     regnal_rng = random.Random(
         stable_hash_int("restoration_regnal", world.seed, world.turn, restored_civ.name)
@@ -1303,6 +1457,9 @@ def _apply_event_trigger(world: WorldState, payload: dict,
             actors.append(world.civilizations[idx].name)
     importance = payload.get("importance", 5)
     description = payload.get("description", "")
+    if event_type == "polity_capacity_refused":
+        from chronicler.ffi_constants import CIV_CAPACITY_REFUSAL
+        description = CIV_CAPACITY_REFUSAL
     events.append(Event(
         turn=world.turn,
         event_type=event_type,

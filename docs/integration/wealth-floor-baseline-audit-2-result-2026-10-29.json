@@ -1,0 +1,329 @@
+{
+  "activated_source": "7185f69c3d596aea96596e89a7dd5d0034f9a309",
+  "all_downloaded_compressed_bytes": 2133433148,
+  "all_original_light_hashes_match_completed_comparison": true,
+  "artifact": {
+    "archive_download_url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/artifacts/12873990570/zip",
+    "created_at": "2026-10-29T04:36:29Z",
+    "digest": "sha256:4306cdb8b4ad9e3d4771245e7ce732671fac2bef2b1a0c4fbec3dafddda50077",
+    "expired": false,
+    "expires_at": "2026-11-28T04:36:27Z",
+    "id": 12873990570,
+    "name": "wealth-floor-baseline-byte-audit-40818582726-1",
+    "size_in_bytes": 6644197,
+    "updated_at": "2026-10-29T04:36:29Z",
+    "url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/artifacts/12873990570",
+    "workflow_run": {
+      "head_branch": "lead/wealth-floor-baseline-audit-activation-2-20261029",
+      "head_repository_id": 1187468861,
+      "head_sha": "7185f69c3d596aea96596e89a7dd5d0034f9a309",
+      "id": 40818582726,
+      "repository_id": 1187468861
+    }
+  },
+  "artifact_publication_verified": true,
+  "audit_final_measurement": {
+    "cpu_seconds": 40.863026026,
+    "wall_seconds": 40.867792193000014
+  },
+  "authority_files": 29,
+  "authority_members_crc_size_eof_verified": true,
+  "authority_payload_bytes": 26331380,
+  "authority_zip_independently_rehashed": true,
+  "baseline_reuse_qualified": false,
+  "candidate_world_proof_pins": {
+    "baseline_audit": null,
+    "build_context": null,
+    "checkpoint": null,
+    "determinism": null,
+    "native": null,
+    "wheel": null
+  },
+  "cohorts": {
+    "procedural": {
+      "actual_ticks_per_fork": 21,
+      "causal_oracles_required": false,
+      "checkpoint_offset": 1,
+      "civs": 10,
+      "crate": "a4703ef4e9a21b5dbb194d318536a46e6ca8b71c",
+      "derived_receipt_and_light_copies": 14,
+      "fork_design": 2,
+      "fork_turns": [
+        100,
+        120,
+        140,
+        160,
+        180,
+        200,
+        220,
+        240,
+        260
+      ],
+      "forks": 1800,
+      "historical_actual_ticks": 67800,
+      "historical_executions": 1900,
+      "kin_roots_causal": "FAIL",
+      "measured_turns_per_fork": 20,
+      "methods": {
+        "cohort": 6,
+        "community": 2,
+        "needs": 8
+      },
+      "native": "06db5e19bdda13d7a536b236d677348f5ea7cb5adad2929962f0485192f9b4d6",
+      "needs_causal": "PASS",
+      "original_python": "3.13.17",
+      "original_report_sha256": "56836617a6a4c18193874cbf3b21960bcb6c430da1fdeec6e1e11152f8b69ffc",
+      "original_required_gate": "PASS",
+      "parent_turns": 300,
+      "parents": 100,
+      "raw_inventory_files": 20318,
+      "raw_inventory_sha256": "0ac61ff8c76b78eacc868a65699efde3cf7cff1134cbf35d9ef3b510904e7bc1",
+      "regions": 32,
+      "remote_audited_files": 20332,
+      "remote_audited_payload_bytes": 4896245631,
+      "seed_end": 141,
+      "seed_start": 42,
+      "source": "d0281e5f57c508f27cea1676f36e0e6ed1225c9d",
+      "wheel": "049f91bbd03582240491e0c487d560deebb31a2ab9754d2c5bac2a7804206f64"
+    },
+    "template": {
+      "actual_ticks_per_fork": 21,
+      "causal_oracles_required": false,
+      "checkpoint_offset": 1,
+      "civs": 4,
+      "crate": "a4703ef4e9a21b5dbb194d318536a46e6ca8b71c",
+      "derived_receipt_and_light_copies": 14,
+      "fork_design": 2,
+      "fork_turns": [
+        100,
+        200,
+        300,
+        400
+      ],
+      "forks": 1600,
+      "historical_actual_ticks": 133600,
+      "historical_executions": 1800,
+      "kin_roots_causal": "FAIL",
+      "measured_turns_per_fork": 20,
+      "methods": {
+        "cohort": 6,
+        "community": 2,
+        "needs": 8
+      },
+      "native": "06db5e19bdda13d7a536b236d677348f5ea7cb5adad2929962f0485192f9b4d6",
+      "needs_causal": "PASS",
+      "original_python": "3.13.17",
+      "original_report_sha256": "99a53deeb5b5228de24450bfd3c296af96a036180f612090dc7d9ca529df6b59",
+      "original_required_gate": "PASS",
+      "parent_turns": 500,
+      "parents": 200,
+      "raw_inventory_files": 55418,
+      "raw_inventory_sha256": "8e15b5c5813d46aa3adffa9e8f834cff8f2df22501eb7a582a0c70e46a84134d",
+      "regions": 8,
+      "remote_audited_files": 55432,
+      "remote_audited_payload_bytes": 4256211501,
+      "seed_end": 241,
+      "seed_start": 42,
+      "source": "d0281e5f57c508f27cea1676f36e0e6ed1225c9d",
+      "wheel": "049f91bbd03582240491e0c487d560deebb31a2ab9754d2c5bac2a7804206f64"
+    }
+  },
+  "completed_producer_attestation_passed": true,
+  "controller_clocks": {
+    "audit_process_cpu_limit": 900,
+    "audit_wall_limit": 1800,
+    "github_job_timeout_minutes": 60,
+    "overall_wall_limit": 3300,
+    "transport_process_cpu_limit": 300,
+    "transport_wall_limit": 1200
+  },
+  "deployment_scope": {
+    "evidence_scope": "VM-context evidence with PID1 cgroup namespace unreadable: EACCES13 twice; namespace equality unverified",
+    "github_actions": "true",
+    "namespace_equal": null,
+    "namespace_equality_status": "unverified_permission_denied",
+    "namespace_equality_verified": false,
+    "pid1_comm": "systemd",
+    "pid1_namespace_errno_observations": [
+      13,
+      13
+    ],
+    "precondition_version": 2,
+    "runner_environment": "github-hosted",
+    "scope": "VM-context evidence; not proof against namespace-invisible provider ancestors"
+  },
+  "external_verification_receipt_sha256": "8aef28bfd40a95165518e4572ba7045878d8f0abf18b22b31f2ac24c891a2a29",
+  "final_stdout": {
+    "candidate_worlds_enabled": false,
+    "final_observation": {
+      "audit": {
+        "cpu_seconds": 40.863026026,
+        "wall_seconds": 40.867792193000014
+      },
+      "overall_wall_seconds": 65.61185606200002,
+      "scope": "After final publication rehash and source recheck; before stdout serialization and job publication/completion.",
+      "source_snapshot_sha256": "3467995d3b209054cac07914bfa51e2df5b77af1712f1602f5ad165fddc622e8",
+      "source_snapshots_match": true
+    },
+    "receipt_sha256": "0520cfae02607dcf3153ab721b274e16a5e8d7fd94a5d0da09c3ffd3610791ca",
+    "status": "audit_complete_pending_job"
+  },
+  "first_optional_metadata_inspection_error_retained": true,
+  "historical_actual_ticks": 201400,
+  "historical_executions": 3700,
+  "historical_worlds_reexecuted": false,
+  "interpreter": {
+    "implementation": "cpython",
+    "platform": "linux",
+    "version": "3.13.17 (main, Oct 22 2026, 02:40:32) [GCC 13.3.0]"
+  },
+  "job_completed_at": "2026-10-29T04:36:31Z",
+  "job_elapsed_seconds": 74.0,
+  "job_id": 123265417521,
+  "job_started_at": "2026-10-29T04:35:17Z",
+  "local_real_resource_or_deployment_probe": false,
+  "measurements_scope": "Named controller snapshots; final observation before stdout/jobpublication; no closed end-to-end CPU total or workload speedup claim",
+  "native_build_outcome_assumed": false,
+  "new_publication_does_not_extend_original_retention": true,
+  "old_9aae_failure_predicate": "UNKNOWN; preserved separately",
+  "original_expiry_unchanged": true,
+  "original_publication": {
+    "comparison": {
+      "digest": "sha256:08a96322a503f33a4b068ead2e0832af6eb4f972e7de32bced87c01462fb5646",
+      "expired": false,
+      "expires_at": "2026-11-28T02:40:55Z",
+      "id": 12868832709,
+      "name": "full-gates-comparison-40791402289-1",
+      "size_in_bytes": 24835,
+      "workflow_run": {
+        "head_repository_id": 1187468861,
+        "head_sha": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+        "id": 40791402289,
+        "repository_id": 1187468861
+      }
+    },
+    "procedural-light": {
+      "digest": "sha256:9c6117236e0ab51671c2ded18c1536ca27d129f8976c30dd96f21a34f5f500aa",
+      "expired": false,
+      "expires_at": "2026-11-28T02:13:31Z",
+      "id": 12868305362,
+      "name": "full-gates-light-candidate-procedural-40791402289-1",
+      "size_in_bytes": 1768422,
+      "workflow_run": {
+        "head_repository_id": 1187468861,
+        "head_sha": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+        "id": 40791402289,
+        "repository_id": 1187468861
+      }
+    },
+    "procedural-raw": {
+      "digest": "sha256:1ebd660a76acf26106d9205729f56aadeb59e8c5633a044faa5a5b1c32e928a8",
+      "expired": false,
+      "expires_at": "2026-11-28T02:13:35Z",
+      "id": 12867956553,
+      "name": "full-gates-raw-candidate-procedural-40791402289-1",
+      "size_in_bytes": 1235585452,
+      "workflow_run": {
+        "head_repository_id": 1187468861,
+        "head_sha": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+        "id": 40791402289,
+        "repository_id": 1187468861
+      }
+    },
+    "template-light": {
+      "digest": "sha256:745443ffe29595cc96a7f1d6b58b13d5f974a2abb43954299e8227b80d95c786",
+      "expired": false,
+      "expires_at": "2026-11-28T01:15:20Z",
+      "id": 12864154643,
+      "name": "full-gates-light-candidate-template-40791402289-1",
+      "size_in_bytes": 4860197,
+      "workflow_run": {
+        "head_repository_id": 1187468861,
+        "head_sha": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+        "id": 40791402289,
+        "repository_id": 1187468861
+      }
+    },
+    "template-raw": {
+      "digest": "sha256:ac1132176349bee3a82bcfffef9ee29abccf424920711ca635d07d616598e1ae",
+      "expired": false,
+      "expires_at": "2026-11-28T01:15:25Z",
+      "id": 12865287568,
+      "name": "full-gates-raw-candidate-template-40791402289-1",
+      "size_in_bytes": 891194242,
+      "workflow_run": {
+        "head_repository_id": 1187468861,
+        "head_sha": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+        "id": 40791402289,
+        "repository_id": 1187468861
+      }
+    }
+  },
+  "original_raw_payloads_rehashed_locally": false,
+  "original_raw_zips_downloaded_locally": false,
+  "original_receipt_status_preserved": "audit_complete_pending_job",
+  "overall_final_wall_seconds": 65.61185606200002,
+  "prepared_source": "6d3d5164eded61300b063f5623aeced379c6d9cc",
+  "raw_original_compressed_bytes": 2126779694,
+  "raw_payload_verification_scope": "Every raw payload hash/CRC verified by reviewed remote producer; local review used only small source/light authority pack and exact completed attestation",
+  "remote_audited_files": 75764,
+  "remote_audited_payload_bytes": 9152457132,
+  "resource_limits": {
+    "admission_disk_free_bytes": 12884901888,
+    "admission_ram_available_bytes": 2147483648,
+    "running_disk_floor_bytes": 3221225472,
+    "running_ram_floor_bytes": 1073741824
+  },
+  "run_attempt": 1,
+  "run_id": 40818582726,
+  "same_source_rerun_launched": false,
+  "schema_version": 1,
+  "scientific_history": "Original candidate roles/reports/strict gates and kin-root causal FAIL unchanged",
+  "sealed_audit_receipt_sha256": "0520cfae02607dcf3153ab721b274e16a5e8d7fd94a5d0da09c3ffd3610791ca",
+  "source_snapshots": {
+    "after": {
+      "scripts/wealth_floor_baseline_admission.py": {
+        "bytes": 31936,
+        "sha256": "9deced451f5edb3920c786a52c4d2a927cf9ae11af0ffb4e7450ff1d74fd0bed"
+      },
+      "scripts/wealth_floor_baseline_audit_job.py": {
+        "bytes": 38925,
+        "sha256": "ee62d91dd3ba76e0751be50f75a69a8f300df2c3c4df240b5c1b385a13bd7326"
+      },
+      "scripts/wealth_floor_build_resources.py": {
+        "bytes": 7688,
+        "sha256": "44f1e1d23598283f0fa7b0580477e026bd3d13d515ec84202dab108cfb2db5b2"
+      },
+      "scripts/wealth_floor_hosted_deployment.py": {
+        "bytes": 4528,
+        "sha256": "d52b3c2b9269eb67ef154006fe06429645f79052d3dbcd4b28e6b1479f39bfb8"
+      }
+    },
+    "before": {
+      "scripts/wealth_floor_baseline_admission.py": {
+        "bytes": 31936,
+        "sha256": "9deced451f5edb3920c786a52c4d2a927cf9ae11af0ffb4e7450ff1d74fd0bed"
+      },
+      "scripts/wealth_floor_baseline_audit_job.py": {
+        "bytes": 38925,
+        "sha256": "ee62d91dd3ba76e0751be50f75a69a8f300df2c3c4df240b5c1b385a13bd7326"
+      },
+      "scripts/wealth_floor_build_resources.py": {
+        "bytes": 7688,
+        "sha256": "44f1e1d23598283f0fa7b0580477e026bd3d13d515ec84202dab108cfb2db5b2"
+      },
+      "scripts/wealth_floor_hosted_deployment.py": {
+        "bytes": 4528,
+        "sha256": "d52b3c2b9269eb67ef154006fe06429645f79052d3dbcd4b28e6b1479f39bfb8"
+      }
+    },
+    "identical": true,
+    "scope": "Disk snapshots before any transfer and after both raw audits; not an in-memory code attestation."
+  },
+  "status": "BYTE_AUDIT_AND_PUBLICATION_VERIFIED",
+  "transport_measurement": {
+    "cpu_seconds": 8.653651934,
+    "wall_seconds": 24.74399307600001
+  },
+  "world_or_Arrow_decoding": false
+}

@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 from pathlib import Path
 import shutil
@@ -239,33 +240,70 @@ def _social_summary(rows: list[dict]) -> dict:
     }
 
 
+def _positive_int(value: str) -> int:
+    result = int(value)
+    if result <= 0:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    return result
+
+
+def _nonnegative_int(value: str) -> int:
+    result = int(value)
+    if result < 0:
+        raise argparse.ArgumentTypeError("must be a nonnegative integer")
+    return result
+
+
+def _positive_finite(value: str) -> float:
+    result = float(value)
+    if not math.isfinite(result) or result <= 0:
+        raise argparse.ArgumentTypeError("must be finite and positive")
+    return result
+
+
+def _integer_list(value: str, *, targets: bool = False) -> list[int]:
+    try:
+        parts = value.split(",")
+        if any(not part.strip() for part in parts):
+            raise ValueError
+        result = [int(part) for part in parts]
+    except ValueError:
+        raise argparse.ArgumentTypeError("must be a nonempty comma-separated integer list") from None
+    if len(result) != len(set(result)):
+        raise argparse.ArgumentTypeError("duplicate values require --repeats instead")
+    if targets and any(item < 0 for item in result):
+        raise argparse.ArgumentTypeError("target populations must be nonnegative")
+    return result
+
+
 def _parse(argv=None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--targets", default="1000,5000,20000,50000,100000",
+                   type=lambda value: _integer_list(value, targets=True),
                    help="comma-separated starting agent counts")
-    p.add_argument("--target", type=int, default=0, help=argparse.SUPPRESS)
-    p.add_argument("--capacity-mult", type=float, default=1.0,
+    p.add_argument("--target", type=_nonnegative_int, default=0, help=argparse.SUPPRESS)
+    p.add_argument("--capacity-mult", type=_positive_finite, default=1.0,
                    help="fixed multiplier when no target is given")
     p.add_argument("--seed", type=int, default=42)
-    p.add_argument("--regions", type=int, default=12)
-    p.add_argument("--civs", type=int, default=4)
+    p.add_argument("--regions", type=_positive_int, default=12)
+    p.add_argument("--civs", type=_positive_int, default=4)
     p.add_argument("--worldgen", default=None, choices=["auto", "template", "procedural"],
                    help="forwarded to the CLI (worlds above 12 regions are procedural)")
     p.add_argument("--agents", default="hybrid",
                    choices=["demographics-only", "shadow", "hybrid"])
     p.add_argument("--agent-scale-mode", default=None, choices=["exact", "fast"])
-    p.add_argument("--warmup", type=int, default=3)
-    p.add_argument("--turns", type=int, default=8)
-    p.add_argument("--repeats", type=int, default=1)
-    p.add_argument("--jobs", type=int, default=1, help="concurrent child processes")
-    p.add_argument("--timeout", type=float, default=3600.0, help="per child, seconds")
+    p.add_argument("--warmup", type=_nonnegative_int, default=3)
+    p.add_argument("--turns", type=_positive_int, default=8)
+    p.add_argument("--repeats", type=_positive_int, default=1)
+    p.add_argument("--jobs", type=_positive_int, default=1, help="concurrent child processes")
+    p.add_argument("--timeout", type=_positive_finite, default=3600.0, help="per child, seconds")
     p.add_argument("--source-root", type=Path, default=None,
                    help="checkout whose src/ is used by the child")
     p.add_argument("--native-root", type=Path, default=None,
                    help="directory containing a chronicler_agents package to use")
     p.add_argument("--run-root", type=Path, default=Path(tempfile.gettempdir()))
     p.add_argument("--keep-runs", action="store_true")
-    p.add_argument("--seeds", default=None,
+    p.add_argument("--seeds", default=None, type=_integer_list,
                    help="comma-separated seeds (overrides --seed; one child per seed)")
     p.add_argument("--social", action="store_true",
                    help="also record per-tick relationship/marriage and spatial stats")
@@ -280,7 +318,7 @@ def _parse(argv=None) -> argparse.Namespace:
     return p.parse_args(argv)
 
 
-def _child_cmd(opts: argparse.Namespace, target: int, seed: int) -> list[str]:
+def _child_cmd(opts: argparse.Namespace, target: int, seed: int, repeat: int = 0) -> list[str]:
     cmd = [sys.executable, str(Path(__file__).resolve()), "--child",
            "--target", str(target), "--seed", str(seed),
            "--regions", str(opts.regions), "--civs", str(opts.civs),
@@ -297,7 +335,7 @@ def _child_cmd(opts: argparse.Namespace, target: int, seed: int) -> list[str]:
         cmd.append("--social")
     cmd += [f"--cli-arg={arg}" for arg in opts.cli_arg]
     if opts.profile_dir:
-        name = f"t{target}_s{seed}_{opts.agent_scale_mode or 'default'}.prof"
+        name = f"t{target}_s{seed}_r{repeat}_{opts.agent_scale_mode or 'default'}.prof"
         cmd += ["--profile-out", str((opts.profile_dir / name).resolve())]
     return cmd
 
@@ -320,8 +358,8 @@ def main(argv=None) -> int:
         print(json.dumps(_child(opts)))
         return 0
     opts.run_root.mkdir(parents=True, exist_ok=True)
-    targets = [int(t) for t in opts.targets.split(",") if t.strip()]
-    seeds = [int(x) for x in opts.seeds.split(",")] if opts.seeds else [opts.seed]
+    targets = opts.targets
+    seeds = opts.seeds if opts.seeds is not None else [opts.seed]
     jobs = [(t, sd, r) for t in targets for sd in seeds for r in range(opts.repeats)]
     env = _child_env(opts)
     results = []
@@ -329,11 +367,11 @@ def main(argv=None) -> int:
     pending = list(jobs)
     log_dir = Path(tempfile.mkdtemp(prefix="agent-scale-logs-", dir=opts.run_root))
     while pending or running:
-        while pending and len(running) < max(1, opts.jobs):
+        while pending and len(running) < opts.jobs:
             t, sd, r = pending.pop(0)
             log = log_dir / f"t{t}_s{sd}_r{r}"
             with open(log.with_suffix(".out"), "w") as out, open(log.with_suffix(".err"), "w") as err:
-                proc = subprocess.Popen(_child_cmd(opts, t, sd), env=env, stdout=out, stderr=err)
+                proc = subprocess.Popen(_child_cmd(opts, t, sd, r), env=env, stdout=out, stderr=err)
             running.append((t, sd, r, proc, time.monotonic(), log))
         for item in list(running):
             t, sd, r, proc, started, log = item

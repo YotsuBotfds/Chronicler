@@ -1476,6 +1476,8 @@ def _secede(t: _Tick, i: int, m: Movement, civ, rising) -> None:
     from chronicler.models import Civilization, Leader
     from chronicler.politics import transfer_regions_to_new_civ
     world = t.world
+    from chronicler.ffi_constants import require_new_civ_capacity
+    require_new_civ_capacity(world)
     home = world.regions[m.rising_region]
     leaving = _secession_regions(t, m, civ)
     existing = {c.name for c in world.civilizations}

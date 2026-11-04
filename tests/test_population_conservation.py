@@ -15,7 +15,7 @@ from chronicler.models import (
     EMPTY_SLOT, Civilization, ClimatePhase, Leader, Region, RegionEcology, ResourceType, WorldState,
 )
 from chronicler.tuning import K_FAMINE_POP_LOSS
-from chronicler.utils import add_region_pop
+from chronicler.utils import add_region_pop, distribute_pop_loss
 
 
 def _region(name: str, pop: int, cap: int = 100, controller: str | None = None,
@@ -54,6 +54,62 @@ def test_arrivals_fill_the_headroom_and_report_what_was_accepted():
     explicit = _region("Explicit", 10, cap=100)
     assert add_region_pop(explicit, 5, cap=12) == 2
     assert explicit.population == 12
+
+
+def test_population_loss_never_grows_a_region_after_rounding_overdraw():
+    regions = [_region(f"R{index}", 100) for index in range(39)]
+    regions.append(_region("Last", 1))
+    before = [region.population for region in regions]
+
+    drains = distribute_pop_loss(regions, 20)
+
+    assert sum(drains) == 20
+    assert all(drain >= 0 for drain in drains)
+    assert [region.population for region in regions] == [
+        population - drain for population, drain in zip(before, drains)
+    ]
+    assert all(region.population <= population for region, population in zip(regions, before))
+
+
+@pytest.mark.parametrize("populations, requested, expected", [
+    ([100, 100, 0], 1, [1, 0, 0]),       # equal remainders use region order
+    ([5, 5], 3, [2, 1]),                 # a tie cannot discard the odd person
+    ([1, 2, 3], 4, [1, 1, 2]),
+    ([1, 1, 100], 50, [1, 0, 49]),       # remainders are not dumped on the last region
+    ([0, 4, 0], 2, [0, 2, 0]),
+    ([2, 0, 2], 9, [2, 0, 2]),           # over-loss removes only the feasible population
+    ([0, 0, 0], 3, [0, 0, 0]),
+    ([2, 3], 0, [0, 0]),
+    ([], 3, []),
+])
+def test_population_loss_uses_deterministic_largest_remainder_apportionment(
+        populations, requested, expected):
+    regions = [_region(f"R{index}", population) for index, population in enumerate(populations)]
+
+    drains = distribute_pop_loss(regions, requested)
+
+    assert drains == expected
+    assert [region.population for region in regions] == [
+        population - drain for population, drain in zip(populations, expected)
+    ]
+
+
+def test_population_loss_conserves_the_feasible_request_for_small_cases():
+    for first in range(5):
+        for second in range(5):
+            for third in range(5):
+                populations = [first, second, third]
+                for requested in range(13):
+                    regions = [_region(f"R{index}", population)
+                               for index, population in enumerate(populations)]
+                    drains = distribute_pop_loss(regions, requested)
+                    assert sum(drains) == min(requested, sum(populations))
+                    assert all(0 <= drain <= population
+                               for drain, population in zip(drains, populations))
+                    assert [region.population for region in regions] == [
+                        population - drain
+                        for population, drain in zip(populations, drains)
+                    ]
 
 
 @pytest.mark.parametrize("pop, amount, accepted", [

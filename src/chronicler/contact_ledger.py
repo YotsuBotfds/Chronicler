@@ -245,6 +245,31 @@ def record_trade_action(world, civ_a: str, civ_b: str) -> None:
     _pending(world).append((src, dst, TRADE, TRADE_ACTION_VALUE))
 
 
+def record_gathering_arrivals(world, host_region: int, arrivals: list[tuple[int, int]], *,
+                              max_units: int = 8) -> float:
+    """Queue capped additional gathering exposure from actual arrival receipts.
+
+    Rows are ``(stable agent ID, this turn's source region)``; the gathering
+    caller has established current attendance and the dated migration. This
+    helper validates region bounds, deduplicates IDs and never invents the
+    reverse journey. Without a ledger it records no exposure or pending input.
+    """
+    n = len(world.regions)
+    if not ledger_enabled(world) or not 0 <= host_region < n or max_units <= 0:
+        return 0.0
+    seen = set()
+    total = 0
+    for aid, source in sorted(arrivals):
+        if aid in seen or not 0 <= source < n or source == host_region:
+            continue
+        seen.add(aid)
+        _pending(world).append((source, host_region, PILGRIMS, 1.0))
+        total += 1
+        if total >= max_units:
+            break
+    return float(total)
+
+
 def observe_phase2(world, routes: list[tuple[str, str]], agent_bridge=None) -> None:
     """Phase 2 goods inputs, read before the economy tick consumes them.
 

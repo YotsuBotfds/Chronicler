@@ -37,6 +37,73 @@ passes (20 seeds). With `CHRONICLER_CHECK_RESOURCES=1` the production
 ledger's mines' soil check stops some procedural worlds, `main`'s as well:
 a native ordering of PR #52, not a granary balance (section 4).
 
+## Optional food-shortfall procurement priority (2026-11-01)
+
+The default destination order fills the emptiest reserve relative to its target
+first, using food sufficiency and region index as ties. Under a scarce shared
+treasury this can refill an empty granary in a fed region before a nearby
+underfed region with a small residual reserve.
+
+To opt into prioritizing observed food shortfalls, use the existing tuning YAML
+with an agent economy and `--grain-reserves --tuning PATH`:
+
+```yaml
+grain_reserves:
+  shortfall_priority: 1
+```
+
+The registered key `grain_reserves.shortfall_priority` defaults to `0`; an
+omitted or zero value retains the original order. A nonzero value places known
+finite food sufficiency below `1 - 1e-6` first, lowest sufficiency first, then
+reserve fill ratio and region identity ties. Other destinations retain fill-ratio
+ordering and finite sufficiency ties. Missing, boolean, nonnumeric or nonfinite
+observations receive no shortfall priority and use a neutral ordering value;
+the economy's observations are never rewritten. Saved worlds and exact
+checkpoints retain the key through existing tuning overrides.
+
+This order applies within each existing domestic/foreign pass. Domestic-first
+sourcing, route permissions, merchant commitments, the four-demand-turn market
+retention floor, integer treasury budget, payments, transit losses and release
+rules still apply. Procurement changes stocks at Phase 10; it does not raise
+that turn's food sufficiency. Existing granary snapshots, purchase receipts and
+later release flows show the effects without a new export or event type.
+
+The small acceptance fixture gives one ruler one spendable coin, two targets of
+40 grain, a fed region holding no reserves and an underfed region holding 2.
+The default buys 8 into the fed region; the option sends 8 to the underfed
+region, receives 7.6 after transit loss, and leaves 9.6 in its granary. Both
+spend one coin and leave the source market at 72. On a subsequent zero-food
+turn with demand 10, the recipient releases 6 and reaches sufficiency 0.6,
+versus a default release of 2 and sufficiency 0.2. This fixture demonstrates
+allocation and bookkeeping only. Scientific efficacy, world-scale balance and
+full economic qualification of this option remain unrun; the historical results
+below do not qualify it. Granaries remain default off.
+
+Focused qualification on CPython 3.13.5: the existing offline guard ran
+`tests/test_grain_reserves.py`, `tests/test_public_purchase_receipts.py` and
+`tests/test_tuning.py` with `-m 'not native'`: **101 passed, 2 deselected**.
+The guard retained no native imports or blocked network/child-process attempts.
+Coverage includes both region identities, accumulator payments and resource
+ledgers, later releases, missing/zero parity and RNG, dormant/off worlds,
+unknown/nonfinite observations, ordering ties, route/commitment/budget rules,
+domestic-first passes and receipt-capture invariance. No native or scientific
+qualification is inferred from these focused checks.
+
+After integration at `62866079`, the selected source passed **105 focused tests**
+across the same modules plus `tests/test_public_purchase_receipts_native.py`,
+using the real compiled native extension without skips. A separate guarded
+no-native run repeated **101 passed, 2 deselected**. The unchanged Rust tree and
+native bytes were verified against their `32ac5879` build; Python project imports
+pointed to the integration checkout.
+
+The existing `hybrid_s42` checkpoint case ran 60 turns with this tuning YAML,
+`--grain-reserves`, `--transaction-receipts` and `CHRONICLER_CHECK_RESOURCES=1`:
+45 plain/checkpoint-writing comparisons and 33 turn-30 continuation comparisons
+passed with zero differences. The exact checkpoint and all final states retained
+the enabled key. This native smoke verifies economy wiring, accounting and
+continuation; it does not establish that this world encountered a scarce-budget
+ordering difference. The controlled fixture above supplies that witness.
+
 ## 1. Audit: how food moves today
 
 ### Who holds food, and why
@@ -698,3 +765,33 @@ the Rust is `main`'s) **1,051 passed, 2 ignored** in 36 test binaries.
   overpopulation degradation, its ledger before; with the switch on the
   resource checks stop on it in some procedural worlds (section 4). A
   correction of its own, outside this branch.
+
+## Optional local release tradeoff
+
+An explicit tuning YAML may select:
+
+```yaml
+grain_reserves:
+  full_meal_release: 1
+```
+
+Missing/0 preserves current low-stock famine-line rationing.1 uses the existing
+full-meal release target even with low local reserves. Stock and this region's
+food gap still bound release; no realm-wide grain pool, shared release capacity,
+new transfer, native state or automatic enablement is introduced. It requires
+active hybrid granaries. Invalid active nonbinary values refuse before effects;
+disabled systems remain inert.
+
+The declared two-region finite-stock case shows the tradeoff: immediate food/need
+1.0 instead of0.7, followed by a severe-shortage outcome0.485 instead of0.6.
+The other region's grain is not teleported. This constructed kernel evidence is
+not a general policy recommendation. Purchasing `shortfall_priority` is separate
+and remains off by default; its declared six natural matched pairs were neutral,
+while earlier constructed benefits and harms remain preserved.
+
+Four real parent/current default pairs (granaries off/on × missing/explicit0)
+matched114 emitted artifacts, world/native and Python/NumPy RNG evidence; only
+bundle generation time was normalized and source/argv manifests were explicitly
+excluded. Two actual native mid-transit same-horizon checkpoint cases passed
+for release0/1. Those quiet native cases qualify continuation, not efficacy.
+Evidence: `/workspace/shared/chronicler-multiwave-evidence/granary-release-policy`.

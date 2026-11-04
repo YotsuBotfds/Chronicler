@@ -131,6 +131,141 @@ class TestDistributionHelpers:
         assert p["median"] == 49.5 or p["median"] == 50
 
 
+class TestActionAnalytics:
+    @staticmethod
+    def _bundle(rows: list[dict]) -> dict:
+        history = []
+        for turn, civ_rows in enumerate(rows):
+            history.append({"turn": turn, "civ_stats": civ_rows})
+        return {"history": history, "events_timeline": [], "named_events": []}
+
+    @staticmethod
+    def _civ(action: str, era: str = "iron", **extra) -> dict:
+        return {
+            "alive": True,
+            "tech_era": era,
+            "last_action": action,
+            "action_counts": {},
+            **extra,
+        }
+
+    @staticmethod
+    def _report(**sections) -> dict:
+        return {
+            "metadata": {
+                "runs": 1,
+                "turns_per_run": 1,
+                "seed_range": [1, 1],
+                "checkpoints": [],
+            },
+            **sections,
+        }
+
+    def test_entropy_uses_resolved_actions_after_a_leader_reset(self):
+        from chronicler.analytics import extract_action_entropy
+
+        # action_counts restart on succession; diffing them sees only the final
+        # leader's trade action, while each turn's resolved action is 2/1/1.
+        bundle = self._bundle([
+            {"A": self._civ("develop", action_counts={"develop": 1})},
+            {"A": self._civ("develop", action_counts={"develop": 2})},
+            {"A": self._civ("war", action_counts={"war": 1})},
+            {"A": self._civ("trade", action_counts={"trade": 1})},
+        ])
+
+        result = extract_action_entropy([bundle])
+
+        assert result["overall_median"] == pytest.approx(1.5)
+        assert result["entropy_by_era"]["iron"]["median"] == pytest.approx(1.5)
+
+    def test_entropy_segments_eras_and_includes_late_founded_civs(self):
+        from chronicler.analytics import extract_action_entropy
+
+        bundle = self._bundle([
+            {"A": self._civ("develop", era="iron")},
+            {"A": self._civ("develop", era="iron")},
+            {"A": self._civ("war", era="classical"), "B": self._civ("war", era="classical")},
+            {"A": self._civ("trade", era="classical"), "B": self._civ("trade", era="classical")},
+        ])
+
+        result = extract_action_entropy([bundle])
+
+        assert result["entropy_by_era"]["iron"]["median"] == 0
+        assert result["entropy_by_era"]["classical"]["median"] == pytest.approx(1.0)
+
+    def test_persistence_uses_resolved_actions_after_a_leader_reset(self):
+        from chronicler.analytics import extract_action_persistence
+
+        bundle = self._bundle([
+            {"A": self._civ("develop", action_counts={"develop": 1})},
+            {"A": self._civ("war", action_counts={"war": 1})},
+        ])
+
+        result = extract_action_persistence([bundle])
+
+        assert result["max_persistence_by_window"]["median"] == pytest.approx(0.5)
+        assert result["civs_above_80pct"] == 0
+
+    def test_entropy_distinguishes_no_observations_from_a_genuine_zero(self):
+        from chronicler.analytics import extract_action_entropy, format_text_report
+
+        no_observations = extract_action_entropy([
+            self._bundle([{"A": self._civ(None)}]),
+        ])
+        one_action = extract_action_entropy([
+            self._bundle([{"A": self._civ("develop")}]),
+        ])
+
+        assert no_observations["overall_median"] == 0
+        assert no_observations["observed_civ_era_blocks"] == 0
+        assert no_observations["civ_era_blocks_by_era"] == {}
+        empty_text = format_text_report(self._report(action_entropy=no_observations))
+        assert "No resolved-action observations" in empty_text
+        assert "Overall median" not in empty_text
+
+        assert one_action["overall_median"] == 0
+        assert one_action["observed_civ_era_blocks"] == 1
+        assert one_action["civ_era_blocks_by_era"] == {"iron": 1}
+        zero_text = format_text_report(self._report(action_entropy=one_action))
+        assert "Overall median: 0.00 bits" in zero_text
+        assert "Observed civ-era blocks: 1" in zero_text
+        assert "No resolved-action observations" not in zero_text
+
+        legacy = dict(one_action)
+        legacy.pop("observed_civ_era_blocks")
+        legacy.pop("civ_era_blocks_by_era")
+        legacy_text = format_text_report(self._report(action_entropy=legacy))
+        assert "Overall median: 0.00 bits" in legacy_text
+        assert "Observed civ-era blocks" not in legacy_text
+
+    def test_persistence_reports_when_no_civ_windows_were_observed(self):
+        from chronicler.analytics import extract_action_persistence, format_text_report
+
+        no_observations = extract_action_persistence([
+            self._bundle([{"A": self._civ(None)}]),
+        ])
+        one_window = extract_action_persistence([
+            self._bundle([{"A": self._civ("develop")}]),
+        ])
+
+        assert no_observations["observed_civ_windows"] == 0
+        empty_text = format_text_report(self._report(action_persistence=no_observations))
+        assert "No resolved-action observations" in empty_text
+        assert "Window persistence" not in empty_text
+
+        assert one_window["observed_civ_windows"] == 1
+        assert one_window["max_persistence_by_window"]["median"] == 1.0
+        observed_text = format_text_report(self._report(action_persistence=one_window))
+        assert "Observed civ-windows: 1" in observed_text
+        assert "Window persistence: median=100%" in observed_text
+
+        legacy = dict(one_window)
+        legacy.pop("observed_civ_windows")
+        legacy_text = format_text_report(self._report(action_persistence=legacy))
+        assert "Window persistence: median=100%" in legacy_text
+        assert "Observed civ-windows" not in legacy_text
+
+
 class TestPrecapWeightExtractor:
     def test_cap_fire_uses_base_scaled_default_threshold(self):
         from chronicler.analytics import extract_precap_weights

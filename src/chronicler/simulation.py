@@ -1186,6 +1186,8 @@ def phase_consequences(
     world: WorldState, acc=None, politics_runtime=None, *, phase10: Phase10Inputs | None = None,
 ) -> list[Event]:
     """Resolve cascading effects and tick condition durations. Returns collapse events."""
+    from chronicler.ffi_constants import check_civ_capacity
+    check_civ_capacity(world)
     if phase10 is not None:
         if phase10.source_turn != world.turn:
             raise ValueError("Phase 10 inputs belong to a different source turn")
@@ -1871,8 +1873,15 @@ def run_turn(
     politics_runtime: object | None = None,
     force_settlement_detection: bool = False,
     pending_injections: list | None = None,
+    *, _practice_trace=None,
 ) -> str:
     """Execute one complete turn of the simulation. Returns chronicle text."""
+    if _practice_trace is not None:
+        return run_turn_result(
+            world, action_selector, narrator, seed, agent_bridge, economy_tracker,
+            ecology_runtime, politics_runtime, force_settlement_detection, pending_injections,
+            _practice_trace=_practice_trace,
+        ).chronicle_text
     return run_turn_result(
         world, action_selector, narrator, seed, agent_bridge, economy_tracker,
         ecology_runtime, politics_runtime, force_settlement_detection, pending_injections,
@@ -1890,6 +1899,7 @@ def run_turn_result(
     politics_runtime: object | None = None,
     force_settlement_detection: bool = False,
     pending_injections: list | None = None,
+    *, _practice_trace=None,
 ) -> TurnResult:
     """Execute a turn and hand historical Phase 10 rows to the synchronous runner.
 
@@ -1900,7 +1910,17 @@ def run_turn_result(
         AgentRows, Phase10Inputs, Stamp, TurnArtifacts, TurnObservation, TurnResult,
     )
 
+    from chronicler.regional_population import capture_food_weights, capture_population_sources
+    from chronicler.ffi_constants import check_civ_capacity
+    check_civ_capacity(world)
+    if _grain_reserves_on(world) and getattr(world.grain_reserves, "shipments", None) is not None:
+        from chronicler.public_grain_shipments import validate_shipments
+        validate_shipments(world)
     artifacts = TurnArtifacts(source_turn=world.turn)
+    _learning_inventory_opening = None
+    if getattr(getattr(world, "scholarship", None), "learning_services", None) is not None:
+        from chronicler.learning_services import learning_inventory_totals, learning_inventory_turn_balance
+        _learning_inventory_opening = learning_inventory_totals(world)
     # Permanent faith ids (chronicler.faiths): a world built or loaded without
     # its table gets one; in a recorded run this changes nothing.
     from chronicler.faiths import ensure as _ensure_faiths
@@ -2003,10 +2023,16 @@ def run_turn_result(
 
     economy_result = None
     snapshot = None
+    _learning_counts = None
     if agent_bridge is not None:
         region_map = world.region_map
         snapshot = agent_bridge.get_snapshot()
         if snapshot is not None:
+            artifacts.food_weights = capture_food_weights(world, snapshot)
+            _services = getattr(getattr(world, "scholarship", None), "learning_services", None)
+            if _services is not None and getattr(_services, "enabled", True) and world.agent_mode == "hybrid":
+                from chronicler.learning_services import learning_counts_from_snapshot
+                _learning_counts = learning_counts_from_snapshot(snapshot, world.turn, len(world.regions))
             # Lagged mutual aid moves existing stock (observed at N-1) before
             # this turn's inventory is packed; it does not read yields.
             if world.mutual_aid_enabled:
@@ -2032,42 +2058,83 @@ def run_turn_result(
             )
             from chronicler.tuning import get_multiplier, K_TRADE_FRICTION
             economic_routes = filter_goods_trade_routes(world, phase2_trade_routes)
-            region_input = build_economy_region_input_batch(world)
-            if _cities_on(world):
-                # Cities: city farmers' labour on the land and the crafts'
-                # raw-material demand (optional economy columns).
-                from chronicler.cities import with_economy_columns
-                region_input = with_economy_columns(world, region_input, snapshot)
-            trade_route_input = build_economy_trade_route_batch(
-                world, active_trade_routes=economic_routes,
-            )
-            if _maritime_on(world):
-                # Maritime: blockaded sea lanes carry no goods.
-                from chronicler.maritime import filter_boundary_batch
-                trade_route_input = filter_boundary_batch(
-                    world, trade_route_input, "origin_region_id", "dest_region_id",
+            _storage_plan = None
+            if getattr(getattr(world, "grain_reserves", None), "storage", None) is not None:
+                from chronicler.grain_storage import (
+                    prepare_storage_work, finish_storage_work, rollback_storage_work,
                 )
-            season_id = get_season_id(world.turn)
-            is_winter = season_id == 3
-            trade_friction = get_multiplier(world, K_TRADE_FRICTION)
-            if _contact_ledger_on(world):
-                # Contact ledger: read (never drain) the merchant deliveries
-                # this economy tick is about to consume.
-                from chronicler.contact_ledger import observe_phase2
-                observe_phase2(world, phase2_trade_routes, agent_bridge)
-            rust_return = agent_bridge._sim.tick_economy(
-                region_input, trade_route_input,
-                season_id, is_winter, trade_friction,
-            )
-            economy_result = reconstruct_economy_result(
-                *rust_return, world,
-                require_oracle_shadow=(world.agent_mode == "hybrid"),
-            )
+                from chronicler.economy import PER_CAPITA_FOOD
+                from chronicler.tuning import get_override
+                # Same configured per-alive-agent demand used by the native
+                # economy. This sizes only inherited existing storage, not meals.
+                from numpy import float32
+                demand_per_agent = float32(get_override(world, "economy.per_capita_food", PER_CAPITA_FOOD))
+                if artifacts.food_weights is None:
+                    raise RuntimeError("Storage requires authoritative Phase 2 native counts")
+                _storage_plan = prepare_storage_work(
+                    world, [float(float32(count) * demand_per_agent) for count in artifacts.food_weights.counts],
+                    acc=acc, simulator=agent_bridge._sim,
+                )
+            try:
+                region_input = build_economy_region_input_batch(world)
+                if _storage_plan is not None:
+                    import pyarrow as pa
+                    region_input = region_input.append_column(
+                        "granary_work_requested", pa.array(_storage_plan.requests, type=pa.float32()),
+                    )
+                if _cities_on(world):
+                    # Cities: city farmers' labour on the land and the crafts'
+                    # raw-material demand (optional economy columns).
+                    from chronicler.cities import with_economy_columns
+                    region_input = with_economy_columns(world, region_input, snapshot)
+                trade_route_input = build_economy_trade_route_batch(
+                    world, active_trade_routes=economic_routes,
+                )
+                if _maritime_on(world):
+                    # Maritime: blockaded sea lanes carry no goods.
+                    from chronicler.maritime import filter_boundary_batch
+                    trade_route_input = filter_boundary_batch(
+                        world, trade_route_input, "origin_region_id", "dest_region_id",
+                    )
+                season_id = get_season_id(world.turn)
+                is_winter = season_id == 3
+                trade_friction = get_multiplier(world, K_TRADE_FRICTION)
+                if _contact_ledger_on(world):
+                    # Contact ledger: read (never drain) the merchant deliveries
+                    # this economy tick is about to consume.
+                    from chronicler.contact_ledger import observe_phase2
+                    observe_phase2(world, phase2_trade_routes, agent_bridge)
+                if getattr(world, "health_care", None) is not None:
+                    from chronicler.health_care import prepare_health_care
+                    prepare_health_care(world, agent_bridge)
+                rust_return = agent_bridge._sim.tick_economy(
+                    region_input, trade_route_input,
+                    season_id, is_winter, trade_friction,
+                )
+                economy_result = reconstruct_economy_result(
+                    *rust_return, world,
+                    require_oracle_shadow=(world.agent_mode == "hybrid"),
+                )
+                if _storage_plan is not None:
+                    delivered = economy_result.granary_work_delivered
+                    if set(delivered) != set(range(len(world.regions))):
+                        raise RuntimeError("Storage work requires a matching native extension with delivered-work observations")
+                    finish_storage_work(world, _storage_plan,
+                                        [delivered[rid] for rid in range(len(world.regions))], acc=acc)
+            except BaseException:
+                if _storage_plan is not None and _storage_plan.status == "pending":
+                    rollback_storage_work(world, _storage_plan)
+                raise
+            from chronicler.food_accounting import public_opening, capture_food_accounting
+            _public_food_opening = public_opening(world)
             if _grain_reserves_on(world):
                 # Public granaries (--grain-reserves): cover the shortfall of
                 # food on hand before anything reads this turn's sufficiency.
                 from chronicler.grain_reserves import open_granaries
                 _emit(open_granaries(world, economy_result, agent_bridge))
+            artifacts.food_accounting = capture_food_accounting(
+                world, economy_result, artifacts.food_weights, _public_food_opening,
+            )
             artifacts.economy = economy_result
             agent_bridge.set_economy_result(economy_result)
 
@@ -2095,6 +2162,9 @@ def run_turn_result(
     if world.mutual_aid_enabled:
         from chronicler.mutual_aid import observe_mutual_aid
         observe_mutual_aid(world, economy_result, snapshot)
+    if artifacts.food_accounting is None:
+        from chronicler.food_accounting import capture_food_accounting
+        artifacts.food_accounting = capture_food_accounting(world, None, None, None)
     # Pre-economy rows have no Phase 10 view and no post-observation lifetime.
     del snapshot
 
@@ -2121,7 +2191,10 @@ def run_turn_result(
     # along the contact ledger, inventions and the era derived from them.
     if _techniques_on(world):
         from chronicler.techniques import tick_techniques
-        _emit(tick_techniques(world, acc=acc))
+        if _practice_trace is None:
+            _emit(tick_techniques(world, acc=acc))
+        else:
+            _emit(tick_techniques(world, acc=acc, _practice_trace=_practice_trace))
     else:
         _emit(phase_technology(world, acc=acc))
 
@@ -2195,6 +2268,46 @@ def run_turn_result(
     conquered_dict = {i: True for i in artifacts.conquered_civ_ids}
     death_output = []
 
+    # The academy candidate reserves Scholar work immediately before its real
+    # native wealth phase. Counts captured at Phase 2 are request upper bounds;
+    # current native eligibility and stable identities determine actual work.
+    tick_agents = agent_bridge.tick_agents if agent_bridge is not None else None
+    _learning_state = getattr(getattr(world, "scholarship", None), "learning_services", None)
+    if (_learning_state is not None and getattr(_learning_state, "enabled", True)
+            and world.agent_mode == "hybrid" and agent_bridge is not None):
+        from chronicler.learning_services import (
+            prepare_learning_work,
+            finish_learning_work, cancel_learning_work, learning_work_pending,
+        )
+        sim = agent_bridge._sim
+        if not all(callable(getattr(sim, name, None)) for name in (
+                "prepare_teaching_work", "has_pending_teaching_work",
+                "cancel_teaching_work", "get_teaching_work_result")):
+            raise RuntimeError("academy services require a fresh native build with teaching work")
+        _ordinary_agent_tick = tick_agents
+
+        def tick_agents(*args, **kwargs):
+            requests, plan = prepare_learning_work(world, _learning_counts)
+            native_prepared = False
+            try:
+                if any(requests):
+                    armies = getattr(getattr(world, "war_state", None), "armies", [])
+                    enlisted = sorted({int(aid) for army in armies for aid, _ in army.roster})
+                    sim.prepare_teaching_work(world.turn, list(requests), enlisted)
+                    native_prepared = True
+                events = _ordinary_agent_tick(*args, **kwargs)
+                native_result = sim.get_teaching_work_result() if native_prepared else None
+                finish_learning_work(world, plan, native_result)
+                return events
+            except BaseException:
+                # A failed kernel is not rolled back. Release only a reservation
+                # that remains pending; the prior completed checkpoint is safe.
+                if sim.has_pending_teaching_work():
+                    sim.cancel_teaching_work(world.turn)
+                if learning_work_pending(world):
+                    cancel_learning_work(world, plan)
+                raise
+
     # Apply accumulated stat mutations and route agent signals
     if world.agent_mode == "hybrid" and agent_bridge is not None:
         acc.apply_keep(world)  # Apply treasury, prestige (asabiya now regional, M55b)
@@ -2209,7 +2322,7 @@ def run_turn_result(
         for ds in demands:
             agent_bridge._demand_manager.add(ds)
         # Run agent tick via split bridge (no second set_region_state)
-        _emit(agent_bridge.tick_agents(
+        _emit(tick_agents(
             world, shocks=shocks, demands=demand_shifts, conquered=conquered_dict,
             death_output=death_output,
         ))
@@ -2218,12 +2331,21 @@ def run_turn_result(
         # match hybrid mode's stat application, making comparison fair.
         # "guard" mutations are intentionally skipped — agents produce them.
         acc.apply_keep(world)
-        _emit(agent_bridge.tick_agents(
+        _emit(tick_agents(
             world, conquered=conquered_dict, death_output=death_output,
         ))
     else:
         # --agents=off: apply ALL categories (no agents to produce guard stats)
         acc.apply(world)
+
+    if agent_bridge is not None and getattr(world, "household_mobility_liquid_requirement", None):
+        take_mobility = getattr(agent_bridge, "take_household_mobility_observation", None)
+        if callable(take_mobility):
+            artifacts.household_mobility = take_mobility(artifacts.source_turn)
+
+    if getattr(world, "health_care", None) is not None and agent_bridge is not None:
+        from chronicler.health_care import finish_health_care
+        _emit(finish_health_care(world, agent_bridge))
 
     if agent_bridge is None:
         for region in world.regions:
@@ -2237,6 +2359,8 @@ def run_turn_result(
 
     from chronicler.economy import settle_pending_stockpile_bootstraps
     settle_pending_stockpile_bootstraps(world.regions)
+
+    population_sources = capture_population_sources(world)
 
     # Capture at the original post-bridge/post-bootstrap boundary. The runner
     # receives these historical rows only through the explicit result handoff.
@@ -2351,10 +2475,21 @@ def run_turn_result(
     # after cities and guilds of this turn, before the Phase 10 flush below.
     if _scholarship_on(world):
         from chronicler.scholarship import tick_scholarship
+        _learning_state = getattr(world.scholarship, "learning_services", None)
+        service_upkeep = {} if _learning_state is not None else None
+        _service_kwargs = {"service_upkeep": service_upkeep} if service_upkeep is not None else {}
         _emit(tick_scholarship(
             world, world.events_timeline[_hazard_timeline_start:] + turn_events[_pre_phase10_count:],
             acc=phase10_acc, phase10=artifacts.phase10, agent_bridge=agent_bridge,
+            **_service_kwargs,
         ))
+        if _learning_state is not None:
+            from chronicler.learning_services import reconcile_learning_assets, procure_learning_supplies
+            reconcile_learning_assets(world)
+            if getattr(_learning_state, "enabled", True) and world.agent_mode == "hybrid" and agent_bridge is not None:
+                from chronicler.mutual_aid import read_stockpile_commitments
+                procure_learning_supplies(world, artifacts.phase10, service_upkeep,
+                    commitments=read_stockpile_commitments(world, agent_bridge._sim), acc=phase10_acc)
 
     # Public granaries (--grain-reserves): this turn's harvests and targets,
     # purchases toward them from real surplus; after the merchants planned
@@ -2363,6 +2498,17 @@ def run_turn_result(
         from chronicler.grain_reserves import tick_grain_reserves
         _emit(tick_grain_reserves(
             world, acc=phase10_acc, economy_result=artifacts.economy, agent_bridge=agent_bridge,
+        ))
+
+    # Recurring local harvest gatherings: real surplus grain and projected
+    # treasury, after the granary resource ledger closes, before keep flush.
+    # Current native attendance; recorded arrivals alone can add contact.
+    from chronicler.ritual_gatherings_state import ritual_gatherings_on
+    if ritual_gatherings_on(world):
+        from chronicler.ritual_gatherings import tick_ritual_gatherings
+        _emit(tick_ritual_gatherings(
+            world, acc=phase10_acc, phase10=artifacts.phase10,
+            economy_result=artifacts.economy, agent_bridge=agent_bridge,
         ))
 
     # C-1 fix: Second flush for Phase 10 keep mutations (stability drains,
@@ -2559,6 +2705,18 @@ def run_turn_result(
     clear_active_trade_routes_snapshot(world)
     if _population_ledger is not None:
         _finish_population_check(world, *_population_ledger)
+    _learning_state = getattr(getattr(world, "scholarship", None), "learning_services", None)
+    if _learning_state is not None:
+        balance = learning_inventory_turn_balance(
+            _learning_inventory_opening, learning_inventory_totals(world))
+        if balance is not None:
+            known = balance["opening"] is not None
+            residual = (balance["opening"] + balance["purchased"] - balance["used"]
+                        - balance["lost"] - balance["closing"]) if known else None
+            _learning_state.material_balance = {"schema_version": 1,
+                "source_turn": artifacts.source_turn, "available_turn": artifacts.source_turn + 1,
+                "units": "model_crafts_goods", **balance, "residual": residual,
+                "absolute_tolerance": 1e-6}
     world.turn += 1
 
     return TurnResult(
@@ -2567,6 +2725,12 @@ def run_turn_result(
             source_turn=artifacts.source_turn,
             completed_turn=world.turn,
             phase10_agents=artifacts.phase10.agents,
+            food_weights=artifacts.food_weights if economy_result is not None else None,
+            population_sources=population_sources,
+            food_accounting=artifacts.food_accounting,
+            food_procurement=tuple((ci, initial, remaining) for ci, (initial, remaining)
+                                   in sorted(getattr(economy_result, "food_procurement_budget", {}).items())) if economy_result is not None else (),
+            household_mobility=artifacts.household_mobility,
         ),
     )
 

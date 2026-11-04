@@ -45,6 +45,7 @@ interface EventIndex {
   length: number;
   latest: LatestFirst | null;
   byKey: Map<string, number> | null;
+  keyCounts: Map<string, number> | null;
   byId: Map<string, number[]> | null;
   citedBy: Map<string, number[]> | null;
   byType: Map<string, number[]> | null;
@@ -60,7 +61,7 @@ function eventIndex(events: readonly IndexedEvent[]): EventIndex {
     return cached;
   }
   const index: EventIndex = {
-    length: events.length, latest: null, byKey: null, byId: null, citedBy: null, byType: null, byActor: null,
+    length: events.length, latest: null, byKey: null, keyCounts: null, byId: null, citedBy: null, byType: null, byActor: null,
     byTypes: new Map(),
   };
   eventIndexes.set(events, index);
@@ -170,6 +171,19 @@ export function eventByKey<E extends IndexedEvent>(events: readonly E[], key: st
   }
   const position = index.byKey.get(key);
   return position === undefined ? null : events[position];
+}
+
+/** Number of records with a selection key; duplicates cannot safely pin an event. */
+export function eventKeyCount(events: readonly IndexedEvent[], key: string): number {
+  const index = eventIndex(events);
+  if (!index.keyCounts) {
+    index.keyCounts = new Map();
+    for (const event of events) {
+      const identity = eventKey(event);
+      index.keyCounts.set(identity, (index.keyCounts.get(identity) ?? 0) + 1);
+    }
+  }
+  return index.keyCounts.get(key) ?? 0;
 }
 
 /** Events of one type, in timeline order (`events.filter((e) => e.event_type === type)`). */
