@@ -9,6 +9,10 @@ and a world state with the regions' and civilizations' names and the final
 ``scholarship`` seats. Read with ``bundle_codec.load_bundle`` (bundle version
 6 writes the history as changes between snapshots). As
 ``scripts/build_movements_fixture.py``.
+
+The checked-in fixture is ``--every 5`` of the seed 42, 500-turn
+``--agents hybrid --scholarship`` run of docs/integration/scholarship.md;
+producing that bundle needs the native extension.
 """
 from __future__ import annotations
 
@@ -67,6 +71,9 @@ def build(bundle: dict, every: int = 1) -> dict:
 
 
 def main(argv: list[str]) -> int:
+    if "-h" in argv or "--help" in argv:
+        print(__doc__)
+        return 0
     every = 1
     if "--every" in argv:
         k = argv.index("--every")

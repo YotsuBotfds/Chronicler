@@ -75,5 +75,9 @@ Opt-in tools in `scripts/`; none run in CI.
 | `qa-live-checkpoint.mjs` | Live checkpoint browser QA (above). |
 | `qa_region_history.py`, `qa_settlement_inspector.py`, `qa_event_ledger.py`, `qa_combined_inspection.py`, `qa_combined_accessibility.py` | Browser QA for the inspectors and demo pages; see the guides in [`docs/viewer/`](../docs/viewer/). |
 | `perf-viewer.mjs`, `viewer-equivalence.mjs` | Performance measurements and rendered-DOM equivalence of two builds ([viewer performance](../docs/performance/viewer-2026-10.md)). |
-| `build-harvest-observations.mjs` | Copy dated forecast observations from a decoded run ([expansion inspectors](../docs/integration/expansion-inspectors.md)). |
-| `build-transaction-observations.py` | Copy transaction summaries with source labels and hashes ([transactions view](../docs/integration/transactions-view.md)). |
+| `build-harvest-observations.mjs` | Copy dated forecast observations from a decoded run into `src/__fixtures__/harvest_forecast_observations.json` unless given OUTPUT ([expansion inspectors](../docs/integration/expansion-inspectors.md)). |
+| `build-transaction-observations.py` | Copy transaction summaries with source labels and hashes into `src/__fixtures__/transaction_observations.json` unless given `--output` ([transactions view](../docs/integration/transactions-view.md)). |
+
+[scripts/README.md](../scripts/README.md#bundles-and-viewer-fixtures) lists
+the generator of each JSON fixture in `src/__fixtures__/`, and the fixtures
+without one. Regenerate a fixture only deliberately and review its diff.

@@ -45,8 +45,29 @@ world systems), `domestic_credit_probe.py`,
 
 ## Bundles and viewer fixtures
 
-`bundle_v6.py`, `prune_dead_civ_snapshots.py` and the `build_*_fixture.py`
-builders for the viewer's checked-in fixtures.
+`bundle_v6.py` converts, decodes and compares bundles;
+`prune_dead_civ_snapshots.py` prunes them. These generators write the
+checked-in fixtures in `viewer/src/__fixtures__/` that current viewer and
+Python tests read. Regenerate one only deliberately and review the diff:
+
+| Generator | Fixture | Source |
+| --- | --- | --- |
+| `build_transport_fixture.py [OUT]` | `transport_bundle.json` (the default OUT) | its own 10-turn `--agents off` run |
+| `generate_viewer_fixture.py --write` (or `--out PATH`) | `sample_bundle.json` | its own 10-turn run |
+| `build_viewer_systems_fixture.py BUNDLE OUT` | `systems_bundle.json` | an all-systems agent-mode run |
+| `build_debt_holders_fixture.py BUNDLE OUT` | `debt_holders_bundle.json` | a `--domestic-credit` agent-mode run |
+| `build_movements_fixture.py BUNDLE OUT [--faiths]` | `movements_bundle.json`, `faiths_bundle.json` | an `--agent-movements` run |
+| `build_learning_fixture.py BUNDLE OUT --every 5` | `learning_bundle.json` | the seed 42, 500-turn hybrid `--scholarship` run |
+| `viewer/scripts/build-harvest-observations.mjs`, `viewer/scripts/build-transaction-observations.py` | `harvest_forecast_observations.json`, `transaction_observations.json` (their default outputs) | decoded runs ([viewer README](../viewer/README.md#scripts)) |
+
+`build_transport_fixture.py` with no argument rewrites its fixture; the
+others need explicit arguments. The checked-in `sample_bundle.json` predates
+the current writer and does not reproduce (see the script's docstring).
+`cities_bundle_v6.json` is `cities_bundle.json` as `write_bundle` writes it
+(`tests/test_bundle_codec.py`). `cities_bundle.json`,
+`faiths_legacy_bundle.json`, `region_inspection_bundle.json`,
+`scientific_claims_observations.json`, `bundle_v2/` and the `.ts` fixtures
+have no generator in this repository.
 
 ## Examples and demonstrations
 

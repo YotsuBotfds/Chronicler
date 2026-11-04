@@ -153,7 +153,7 @@ size.
 | live mode (`_validate_legacy_live_bundle`) | decodes before validating; the viewer receives the decoded bundle |
 | `scripts/third_wave_controls.legacy_artifact_bytes` | a version-6 file decodes and projects as version 5, so the live artifact oracle (`corrected_artifacts_farmland_2026_10.json`) is unchanged |
 | scripts reading `history` (`agent_movements_identity`, `cities_identity`, `viewer_systems_identity`, `provenance_identity`, `diplomacy_report`, `techniques_report`, `finance_census`, `nomads_report`, `m53_baseline`, `build_viewer_systems_fixture`, `prune_dead_civ_snapshots check`) | `load_bundle` |
-| `scripts/archive/generate_viewer_fixture.py` | writes the fixture decoded, as the viewer's tests import it |
+| `scripts/generate_viewer_fixture.py` | writes the fixture decoded, as the viewer's tests import it |
 | byte-identity scripts (`diplomacy_identity` and the like) | unchanged: they compare canonical JSON, which works between two version-6 runs; across the format change the bundle differs and `scripts/bundle_v6.py compare` checks it |
 | viewer (`viewer/src/lib/bundleCodec.ts`) | `classifyParsedBundlePayload` decodes before its key check, for files and live `bundle_loaded` messages |
 
