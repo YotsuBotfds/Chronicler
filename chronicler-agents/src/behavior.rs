@@ -223,6 +223,9 @@ fn with_pull(score: f32, pull: f32) -> f32 {
     if pull > 0.0 { score + pull } else { score }
 }
 
+/// Single-agent reference for the migration choice; production decisions go
+/// through `evaluate_region_decisions`, and only tests call this directly.
+#[cfg(test)]
 fn best_migration_target_for_agent(
     pool: &AgentPool,
     regions: &[RegionState],

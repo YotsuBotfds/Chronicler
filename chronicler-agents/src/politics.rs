@@ -1,11 +1,8 @@
 //! Pure Rust Phase 10 politics core — 11-step ordered consequence pass.
-//! No PyO3 — FFI wrappers live in ffi.rs.
+//! No PyO3 — FFI wrappers live in ffi/politics_sim.rs.
 //!
 //! Mirrors the Python oracle in `src/chronicler/politics.py` and the inline
 //! forced collapse in `src/chronicler/simulation.py:1020-1041`.
-
-// Suppress warnings for fields/functions that Task 3 (FFI) will wire up.
-#![allow(unused_variables, dead_code, unused_imports)]
 
 use std::collections::{HashMap, HashSet, VecDeque};
 
@@ -1007,7 +1004,7 @@ impl DetRng {
 fn compute_accuracy_vassal_overlord(
     observer_idx: u16,
     target_idx: u16,
-    live_regions: &[LiveRegion],
+    _live_regions: &[LiveRegion],
     regions: &[RegionInput],
     live_civs: &[LiveCiv],
     civs: &[CivInput],
@@ -1015,7 +1012,7 @@ fn compute_accuracy_vassal_overlord(
     live_feds: &LiveFederations,
     wars: &[WarEntry],
     proxy_wars: &LiveProxyWars,
-    live_rels: &LiveRelationships,
+    _live_rels: &LiveRelationships,
     embargoes: &[EmbargoEntry],
 ) -> f32 {
     if observer_idx == target_idx {
@@ -1024,11 +1021,6 @@ fn compute_accuracy_vassal_overlord(
     let mut accuracy: f32 = 0.0;
 
     // Adjacent region check
-    let obs_regions: HashSet<u16> = if (observer_idx as usize) < live_civs.len() {
-        live_civs[observer_idx as usize].regions.iter().copied().collect()
-    } else {
-        HashSet::new()
-    };
     let tgt_regions: HashSet<u16> = if (target_idx as usize) < live_civs.len() {
         live_civs[target_idx as usize].regions.iter().copied().collect()
     } else {
@@ -1194,7 +1186,7 @@ fn step_capital_loss(
     civs: &[CivInput],
     regions: &[RegionInput],
     live_civs: &mut [LiveCiv],
-    live_regions: &[LiveRegion],
+    _live_regions: &[LiveRegion],
     config: &PoliticsConfig,
     hybrid_mode: bool,
     result: &mut PoliticsResult,
@@ -1307,7 +1299,7 @@ fn step_secession(
     regions: &[RegionInput],
     live_civs: &mut Vec<LiveCiv>,
     live_regions: &mut [LiveRegion],
-    live_rels: &mut LiveRelationships,
+    _live_rels: &mut LiveRelationships,
     live_proxy_wars: &LiveProxyWars,
     config: &PoliticsConfig,
     seed: u64,
@@ -1503,12 +1495,6 @@ fn step_secession(
         }
 
         // Parent stat effects
-        let routing = if hybrid_mode {
-            EffectRouting::HybridShock
-        } else {
-            EffectRouting::DirectOnly
-        };
-
         if hybrid_mode {
             result.civ_effects.push(CivEffectOp {
                 step,
@@ -2272,7 +2258,7 @@ fn step_proxy_detection(
     live_civs: &mut [LiveCiv],
     live_proxy_wars: &mut LiveProxyWars,
     live_rels: &mut LiveRelationships,
-    config: &PoliticsConfig,
+    _config: &PoliticsConfig,
     seed: u64,
     turn: u32,
     hybrid_mode: bool,
@@ -2368,7 +2354,7 @@ fn step_restoration(
     live_civs: &mut [LiveCiv],
     live_regions: &mut [LiveRegion],
     live_exiles: &mut LiveExiles,
-    live_rels: &mut LiveRelationships,
+    _live_rels: &mut LiveRelationships,
     config: &PoliticsConfig,
     seed: u64,
     turn: u32,
@@ -2507,7 +2493,7 @@ fn step_restoration(
         });
 
         // Relationship initialization for restored civ
-        for (oi, other) in civs.iter().enumerate() {
+        for other in civs.iter() {
             if other.civ_idx == exile.original_civ {
                 continue;
             }
@@ -2619,7 +2605,7 @@ fn step_twilight_absorption(
     regions: &[RegionInput],
     live_civs: &mut [LiveCiv],
     live_regions: &mut [LiveRegion],
-    live_exiles: &mut LiveExiles,
+    _live_exiles: &mut LiveExiles,
     config: &PoliticsConfig,
     turn: u32,
     hybrid_mode: bool,
