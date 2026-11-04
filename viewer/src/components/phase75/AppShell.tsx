@@ -1,4 +1,4 @@
-import { memo, Suspense, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import type {
   BatchReport,
   BatchRunSummary,
@@ -6,9 +6,7 @@ import type {
   CheckpointStatus,
   Command,
   Event,
-  LanguagesField,
   LobbyInit,
-  NamedEvent,
   NewChronicleEntry,
   PauseContext,
   StartCommand,
@@ -16,7 +14,7 @@ import type {
   WorldState,
 } from "../../types";
 import { isLegacyBundle } from "../../types";
-import { eventSnapshotTurn, isObservationEventType, observationEventKnown } from "../../lib/observedSystems";
+import { isObservationEventType, observationEventKnown } from "../../lib/observedSystems";
 import type { BatchConfig } from "../../types";
 import type { BatchState } from "../../hooks/useBatchConnection";
 import { ERA_LABELS } from "../../lib/format";
@@ -24,29 +22,35 @@ import {
   buildCivilizationViews, isFounded, type CivilizationEntry, type CivilizationView,
 } from "../../lib/civilizationViews";
 import { snapshotPositionAt } from "../../lib/civRows";
-import { DISPOSITION_COLORS, factionColor, UNCONTROLLED_COLOR } from "../../lib/colors";
-import { RegionSystemsDetail } from "../systems/RegionSystemsDetail";
 import type { ArtifactIdentity } from "../../lib/artifactIdentity";
 import { SavedWorldDetails } from "./SavedWorldDetails";
-import { accountsForEvent, decodeAccounts, type EventAccounts } from "../../lib/historiography";
-import { InWorldAccounts } from "./InWorldAccounts";
+import { accountsForEvent, decodeAccounts } from "../../lib/historiography";
 import {
-  BatchCompare, BatchPanel, ChronicleSources, InterventionPanel, LanguagesPanel, preloadPanels, RegionHistoryInspector,
+  BatchCompare, BatchPanel, ChronicleSources, InterventionPanel, preloadPanels, RegionHistoryInspector,
   SystemsPanel,
 } from "./lazyPanels";
+import { SetupRail, type SetupState } from "./SetupRail";
 import { PanelLoading } from "./PanelLoading";
-import { foodCrisisSpans, type FamineSpan } from "../../lib/food";
+import { foodCrisisSpans } from "../../lib/food";
 import {
-  availableMapLayers, buildMapLayer, defaultTechnique, MAP_LAYER_LABELS, NO_DATA_FILL, NO_DATA_OPACITY,
-  practisedTechniquesBy, type MapLayerKey, type MapLayerView,
+  availableMapLayers, buildMapLayer, defaultTechnique, practisedTechniquesBy, type MapLayerKey,
 } from "../../lib/mapLayers";
-import { techniqueLabel } from "../../lib/systems";
 import { eventByKey } from "../../lib/bundleIndex";
 import {
-  atlasPoint, buildEventFeed, buildTradeLinks, bundleWorldKind, eventKey, eventProvenance, percentToTurn, pinFrame,
-  regionNodeRadius, terrainAt, turnToPercent, type PinFrame,
+  atlasPoint,
+  buildEventFeed,
+  buildTradeLinks,
+  bundleWorldKind,
+  eventKey,
+  eventProvenance,
+  percentToTurn,
+  pinFrame,
+  terrainAt,
+  UNAVAILABLE,
+  type PinFrame,
 } from "./appShellHelpers";
-import { MapLayerLegend, MapLayerMarks } from "./MapLayerMarks";
+import type { AppSurface, LiveTimelineControls, MapNode, OverlayKey, RegionLike, SelectedEntity } from "./appShellTypes";
+import { MapViewport } from "./MapViewport";
 // The lazy panels' styles stay in the entry stylesheet, in the cascade order
 // they had when the panels were static imports (before the shell's own).
 import "../region-history.css";
@@ -56,42 +60,26 @@ import "./app-shell.css";
 import { WhereToLook } from "../WhereToLook";
 import type { WhatIfControls, WhatIfPair } from "../../lib/whatIf";
 
-import { LiveInspectionControls } from "../LiveInspectionControls";
-import { RegionInvestigation } from "../RegionInvestigation";
+import { TimelineRail } from "./TimelineRail";
 import { InterestingPeriods } from "../InterestingPeriods";
 import { TerritoryChanges } from "../TerritoryChanges";
 import { HistoricalSearch } from "../HistoricalSearch";
 import type { HistoricalSearchResult } from "../../lib/historicalSearch";
 import { exactSnapshot, type HistoryEntity } from "../../lib/historyComparison";
-import { CivilizationHistory } from "../CivilizationHistory";
+// The inspector's civilization history styles keep their place in the entry
+// stylesheet (before InstitutionHistory's), as when this file imported it.
+import "../civilization-history.css";
 import { InstitutionHistory } from "../InstitutionHistory";
-import { MigrationEvidence } from "../MigrationEvidence";
-import { DebtEvidence } from "../DebtEvidence";
+import { RightInspector } from "./RightInspector";
 import { InvestigationBookmarks } from "../InvestigationBookmarks";
 import { InvestigationPacket } from "../InvestigationPacket";
 import { useDialogFocus } from "../../hooks/useDialogFocus";
 import { resolveInvestigationTarget, type InvestigationTarget } from "../../lib/investigationPacket";
 
-type LiveTimelineControls = Parameters<typeof LiveInspectionControls>[0];
-
-export type AppSurface =
-  | "setup"
-  | "progress"
-  | "overview"
-  | "character"
-  | "trade"
-  | "campaign"
-  | "batch";
+// App.tsx and the shell's tests name the surfaces from here.
+export type { AppSurface } from "./appShellTypes";
 
 type LeftRailTab = "launch" | "status" | "chronicle" | "events" | "runs";
-type OverlayKey = "borders" | "settlements" | "chronicle" | "trade" | "campaign" | "fog" | "asabiya";
-
-interface SelectedEntity {
-  kind: "civilization" | "region" | "event" | "run";
-  id: string;
-  label: string;
-  turn?: number;
-}
 
 interface AppShellProps {
   surface: AppSurface;
@@ -135,22 +123,6 @@ interface AppShellProps {
   liveReconnecting?: boolean;
 }
 
-interface RegionLike {
-  name: string;
-  terrain: string;
-  x: number | null;
-  y: number | null;
-  resources?: string;
-  carrying_capacity?: number;
-}
-
-interface MapNode {
-  region: RegionLike;
-  controller: string | null | undefined;
-  x: number;
-  y: number;
-}
-
 interface ChronicleFeedItem {
   id: string;
   turn: number;
@@ -172,11 +144,8 @@ const FLOW_STEPS: { surface: AppSurface; label: string; index: string }[] = [
   { surface: "batch", label: "Batch Lab", index: "07" },
 ];
 
-const SPEED_OPTIONS = [1, 2, 5, 10];
 /** The timeline of a shell without a bundle (one array, so its index is built once). */
 const NO_EVENTS: Event[] = [];
-/** Inspector text for a value the history does not hold yet at the snapshot. */
-const UNAVAILABLE = "Unavailable";
 
 /**
  * The snapshot shown at `currentTurn`: the latest at or before it. Null
@@ -532,27 +501,7 @@ type LeftRailProps = {
   /** The bundle a passage's sources resolve against, and the scrubbed turn. */
   sourceBundle: Bundle | null;
   currentTurn: number;
-  setupState: {
-    scenario: string;
-    scenarios: LobbyInit["scenarios"];
-    seed: string;
-    turns: number;
-    civs: number;
-    regions: number;
-    simModel: string;
-    narrativeModel: string;
-    models: string[];
-    customSimModel: string;
-    customNarrativeModel: string;
-    starting: boolean;
-    error: string | null;
-    resumeState: WorldState | null;
-    resumeTurn: number | null;
-    resumeError: string | null;
-    civsDisabled: boolean;
-    regionsDisabled: boolean;
-    lobbyReady: boolean;
-  };
+  setupState: SetupState;
   onScenarioChange: (value: string) => void;
   onSeedChange: (value: string) => void;
   onTurnsChange: (value: number) => void;
@@ -1503,259 +1452,6 @@ function TopHeader({
   );
 }
 
-function ModeTabs({
-  current,
-  onSelect,
-  canActivateSurface,
-}: {
-  current: AppSurface;
-  onSelect: (surface: AppSurface) => void;
-  canActivateSurface: (surface: AppSurface) => boolean;
-}) {
-  return (
-    <nav className="phase75-mode-tabs">
-      {FLOW_STEPS.map((step) => (
-        <button
-          key={step.surface}
-          type="button"
-          className={`phase75-mode-tab${current === step.surface ? " active" : ""}`}
-          disabled={!canActivateSurface(step.surface)}
-          onClick={() => onSelect(step.surface)}
-        >
-          {step.label}
-        </button>
-      ))}
-    </nav>
-  );
-}
-
-function TimelineRail({
-  surface,
-  flowSteps,
-  currentTurn,
-  totalTurns,
-  bundle,
-  eraBands,
-  narratedSpans,
-  namedEvents,
-  trackRef,
-  onTrackSeek,
-  playing,
-  speed,
-  onPlay,
-  onPause,
-  onSetSpeed,
-  liveTimeline,
-  onSeek,
-}: {
-  onSeek: (turn: number) => void;
-  liveTimeline?: LiveTimelineControls;
-  surface: AppSurface;
-  flowSteps: { surface: AppSurface; label: string; index: string }[];
-  currentTurn: number;
-  totalTurns: number;
-  bundle: Bundle | null;
-  eraBands: { label: string; start: number; end: number }[];
-  narratedSpans: { start: number; end: number }[];
-  namedEvents: NamedEvent[];
-  trackRef: React.RefObject<HTMLDivElement | null>;
-  onTrackSeek: (event: React.MouseEvent<HTMLDivElement>) => void;
-  playing: boolean;
-  speed: number;
-  onPlay: () => void;
-  onPause: () => void;
-  onSetSpeed: (speed: number) => void;
-}) {
-  const visibleMarkers = useMemo(() => [...namedEvents]
-    .sort((left, right) => right.importance - left.importance)
-    .slice(0, 8), [namedEvents]);
-
-  return (
-    <section className="phase75-timeline-rail">
-      <div className="phase75-flow-ladder">
-        {flowSteps.map((step) => (
-          <div key={step.surface} className={`phase75-flow-step${surface === step.surface ? " active" : ""}`}>
-            <span className="phase75-flow-index">{step.index}</span>
-            <span className="phase75-flow-name">{step.label}</span>
-          </div>
-        ))}
-      </div>
-
-      <div className="phase75-track-shell">
-        {liveTimeline && <LiveInspectionControls {...liveTimeline} />}
-        <div className="phase75-track-header">
-          <div>
-            <div className="phase75-overline">Timeline</div>
-            <h2>
-              {bundle ? "Choose a turn to explore its recorded history" : "Open a saved run or start a new world"}
-            </h2>
-          </div>
-
-          <div className="phase75-track-actions">
-            <button className="phase75-ghost-button" onClick={playing ? onPause : onPlay} disabled={!bundle}>
-              {playing ? "Pause" : "Play"}
-            </button>
-            <select
-              className="phase75-speed-select"
-              aria-label="Playback speed"
-              value={speed}
-              onChange={(event) => onSetSpeed(Number(event.target.value))}
-              disabled={!bundle}
-            >
-              {SPEED_OPTIONS.map((option) => (
-                <option key={option} value={option}>
-                  {option}x
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div
-          ref={trackRef}
-          className={`phase75-turn-track${bundle ? " interactive" : ""}`}
-          onClick={onTrackSeek}
-          role="slider" tabIndex={bundle ? 0 : -1} aria-label="Historical turn"
-          aria-valuemin={1} aria-valuemax={liveTimeline?.latestTurn ?? totalTurns} aria-valuenow={currentTurn}
-          onKeyDown={(event) => {
-            if (!bundle) return;
-            const latest = liveTimeline?.latestTurn ?? totalTurns;
-            const next = event.key === "Home" ? 1 : event.key === "End" ? latest
-              : event.key === "ArrowLeft" ? currentTurn - 1 : event.key === "ArrowRight" ? currentTurn + 1
-                : event.key === "PageUp" ? currentTurn + 10 : event.key === "PageDown" ? currentTurn - 10 : null;
-            if (next !== null) { event.preventDefault(); onSeek(Math.max(1, Math.min(latest, next))); }
-          }}
-        >
-          <TrackMarks eraBands={eraBands} narratedSpans={narratedSpans} markers={visibleMarkers} totalTurns={totalTurns} />
-
-          {bundle ? (
-            <div className="phase75-playhead" style={{ left: `${turnToPercent(currentTurn, totalTurns)}%` }}>
-              <div className="phase75-playhead-line" />
-              <div className="phase75-playhead-label">T{currentTurn}</div>
-            </div>
-          ) : (
-            <div className="phase75-frontdoor-callout">
-              Your timeline appears when a run is loaded.
-            </div>
-          )}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/**
- * The track's whole-run marks: era bands, narrated spans and the leading
- * named events. They do not depend on the scrubbed turn, so scrubbing does
- * not render them again (the playhead follows them in the track).
- */
-const TrackMarks = memo(function TrackMarks({
-  eraBands,
-  narratedSpans,
-  markers,
-  totalTurns,
-}: {
-  eraBands: { label: string; start: number; end: number }[];
-  narratedSpans: { start: number; end: number }[];
-  markers: NamedEvent[];
-  totalTurns: number;
-}) {
-  return (
-    <>
-      {eraBands.map((band) => (
-        <div
-          key={`${band.label}-${band.start}`}
-          className="phase75-era-band"
-          style={{
-            left: `${turnToPercent(band.start, totalTurns)}%`,
-            width: `${Math.max(2, turnToPercent(band.end, totalTurns) - turnToPercent(band.start, totalTurns))}%`,
-          }}
-        >
-          <span>{band.label}</span>
-        </div>
-      ))}
-
-      {narratedSpans.map((span, index) => (
-        <div
-          key={`span-${index}`}
-          className="phase75-narrated-span"
-          style={{
-            left: `${turnToPercent(span.start, totalTurns)}%`,
-            width: `${Math.max(1.6, turnToPercent(span.end, totalTurns) - turnToPercent(span.start, totalTurns) + 1.5)}%`,
-          }}
-        />
-      ))}
-
-      {markers.map((marker) => (
-        <button
-          key={`${marker.turn}-${marker.name}`}
-          type="button"
-          className="phase75-track-marker"
-          style={{ left: `${turnToPercent(marker.turn, totalTurns)}%` }}
-          title={marker.name}
-        />
-      ))}
-    </>
-  );
-});
-
-function ValidationRibbon({
-  visible,
-  bundle,
-  batchReport,
-  selectedCivilization,
-  civilizations,
-}: {
-  visible: boolean;
-  bundle: Bundle | null;
-  batchReport: BatchReport | null;
-  selectedCivilization: CivilizationEntry | null;
-  civilizations: CivilizationView[];
-}) {
-  if (!visible) {
-    return null;
-  }
-  const focus = selectedCivilization && isFounded(selectedCivilization) ? selectedCivilization : null;
-
-  const anomalies = batchReport?.anomalies.length ?? 0;
-  const lateEraCount = civilizations.filter((civilization) => civilization.techEra === "industrial" || civilization.techEra === "information").length;
-  const focusValue = focus ? focus.stability.toFixed(1) : selectedCivilization ? UNAVAILABLE : "none";
-
-  const checks = [
-    {
-      label: "Interestingness",
-      status: bundle?.metadata.interestingness_score && bundle.metadata.interestingness_score >= 20 ? "pass" : "warn",
-      value: bundle?.metadata.interestingness_score?.toFixed(1) ?? "pending",
-    },
-    {
-      label: "Anomalies",
-      status: anomalies === 0 ? "pass" : "warn",
-      value: String(anomalies),
-    },
-    {
-      label: "Late Era",
-      status: lateEraCount > 0 ? "pass" : "warn",
-      value: String(lateEraCount),
-    },
-    {
-      label: "Focus Stability",
-      status: focus && focus.stability <= 1 ? "warn" : "pass",
-      value: focusValue,
-    },
-  ];
-
-  return (
-    <div className="phase75-validation-ribbon">
-      {checks.map((check) => (
-        <div key={check.label} className={`phase75-validation-pill ${check.status}`}>
-          <span>{check.label}</span>
-          <strong>{check.value}</strong>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function LeftRail({
   surface,
   leftRailTab,
@@ -2049,1006 +1745,85 @@ function LeftRail({
   );
 }
 
-function SetupRail({
-  state,
-  onScenarioChange,
-  onSeedChange,
-  onTurnsChange,
-  onCivsChange,
-  onRegionsChange,
-  onSimModelChange,
-  onNarrativeModelChange,
-  onCustomSimModelChange,
-  onCustomNarrativeModelChange,
-  onRandomSeed,
-  onResumeBrowse,
-  onResumeDrop,
-  onClearResume,
-  onLaunch,
+function ModeTabs({
+  current,
+  onSelect,
+  canActivateSurface,
 }: {
-  state: LeftRailProps["setupState"];
-  onScenarioChange: (value: string) => void;
-  onSeedChange: (value: string) => void;
-  onTurnsChange: (value: number) => void;
-  onCivsChange: (value: number) => void;
-  onRegionsChange: (value: number) => void;
-  onSimModelChange: (value: string) => void;
-  onNarrativeModelChange: (value: string) => void;
-  onCustomSimModelChange: (value: string) => void;
-  onCustomNarrativeModelChange: (value: string) => void;
-  onRandomSeed: () => void;
-  onResumeBrowse: () => void;
-  onResumeDrop: (file: File) => void;
-  onClearResume: () => void;
-  onLaunch: () => void;
+  current: AppSurface;
+  onSelect: (surface: AppSurface) => void;
+  canActivateSurface: (surface: AppSurface) => boolean;
 }) {
   return (
-    <div className="phase75-form-stack">
-      <label className="phase75-field">
-        <span>Scenario</span>
-        <select
-          value={state.scenario}
-          onChange={(event) => onScenarioChange(event.target.value)}
-          disabled={!state.lobbyReady || !!state.resumeState}
+    <nav className="phase75-mode-tabs">
+      {FLOW_STEPS.map((step) => (
+        <button
+          key={step.surface}
+          type="button"
+          className={`phase75-mode-tab${current === step.surface ? " active" : ""}`}
+          disabled={!canActivateSurface(step.surface)}
+          onClick={() => onSelect(step.surface)}
         >
-          <option value="">Procedural</option>
-          {state.scenarios.map((scenario) => (
-            <option key={scenario.file} value={scenario.file}>
-              {scenario.name}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <div className="phase75-field">
-        <span>Seed</span>
-        <div className="phase75-inline-field">
-          <input
-            type="number"
-            aria-label="Seed"
-            value={state.seed}
-            placeholder="Random"
-            onChange={(event) => onSeedChange(event.target.value)}
-            disabled={!state.lobbyReady}
-          />
-          <button type="button" className="phase75-ghost-button" onClick={onRandomSeed} disabled={!state.lobbyReady}>
-            Randomize
-          </button>
-        </div>
-      </div>
-
-      <div className="phase75-two-up">
-        <label className="phase75-field">
-          <span>Turns</span>
-          <input
-            type="number"
-            min={1}
-            value={state.turns}
-            onChange={(event) => onTurnsChange(Number(event.target.value) || 1)}
-            disabled={!state.lobbyReady}
-          />
-        </label>
-        <label className="phase75-field">
-          <span>Civilizations</span>
-          <input
-            type="number"
-            min={1}
-            value={state.civs}
-            onChange={(event) => onCivsChange(Number(event.target.value) || 1)}
-            disabled={!state.lobbyReady || state.civsDisabled}
-          />
-        </label>
-      </div>
-
-      <div className="phase75-two-up">
-        <label className="phase75-field">
-          <span>Regions</span>
-          <input
-            type="number"
-            min={1}
-            value={state.regions}
-            onChange={(event) => onRegionsChange(Number(event.target.value) || 1)}
-            disabled={!state.lobbyReady || state.regionsDisabled}
-          />
-        </label>
-        <label className="phase75-field">
-          <span>Sim Model</span>
-          <select value={state.simModel} onChange={(event) => onSimModelChange(event.target.value)} disabled={!state.lobbyReady}>
-            {state.models.map((model) => (
-              <option key={model} value={model}>
-                {model || "(Default)"}
-              </option>
-            ))}
-            <option value="__custom__">Custom...</option>
-          </select>
-        </label>
-      </div>
-
-      {state.simModel === "__custom__" && (
-        <label className="phase75-field">
-          <span>Custom Sim Endpoint</span>
-          <input
-            type="text"
-            value={state.customSimModel}
-            onChange={(event) => onCustomSimModelChange(event.target.value)}
-          />
-        </label>
-      )}
-
-      <label className="phase75-field">
-        <span>Narrative Model</span>
-        <select value={state.narrativeModel} onChange={(event) => onNarrativeModelChange(event.target.value)} disabled={!state.lobbyReady}>
-          {state.models.map((model) => (
-            <option key={model} value={model}>
-              {model || "(Default)"}
-            </option>
-          ))}
-          <option value="__custom__">Custom...</option>
-        </select>
-      </label>
-
-      {state.narrativeModel === "__custom__" && (
-        <label className="phase75-field">
-          <span>Custom Narrative Endpoint</span>
-          <input
-            type="text"
-            value={state.customNarrativeModel}
-            onChange={(event) => onCustomNarrativeModelChange(event.target.value)}
-          />
-        </label>
-      )}
-
-      <div className="phase75-field">
-        <span>Resume / Fork</span>
-        {state.resumeState ? (
-          <div className="phase75-resume-pill">
-            <span>Resuming from turn {state.resumeTurn}</span>
-            <button type="button" className="phase75-ghost-button" onClick={onClearResume}>
-              Clear
-            </button>
-          </div>
-        ) : (
-          <div
-            className="phase75-dropzone"
-            onClick={onResumeBrowse}
-            onDragOver={(event) => event.preventDefault()}
-            onDrop={(event) => {
-              event.preventDefault();
-              const file = event.dataTransfer.files[0];
-              if (file) {
-                onResumeDrop(file);
-              }
-            }}
-          >
-            Drop `state.json` or click to browse
-          </div>
-        )}
-        {state.resumeError && <div className="phase75-inline-error">{state.resumeError}</div>}
-      </div>
-
-      {!state.lobbyReady && (
-        <div className="phase75-empty-state">
-          Start the viewer from a live session to create a run, or choose Open Existing to explore a saved run.
-        </div>
-      )}
-
-      <button
-        type="button"
-        className="phase75-primary-button"
-        onClick={onLaunch}
-        disabled={!state.lobbyReady || state.starting || state.turns <= 0}
-      >
-        {state.starting ? "Preparing World..." : "Run World"}
-      </button>
-    </div>
+          {step.label}
+        </button>
+      ))}
+    </nav>
   );
 }
 
-function MapViewport({
-  surface,
-  atlasNodes,
-  atlasConnections,
-  controllerCentroids,
-  activeOverlays,
-  onToggleOverlay,
-  mapLayers = ["control"],
-  mapLayer = "control",
-  onMapLayerChange,
-  mapLayerView = null,
-  toAtlas,
-  techniqueOptions = [],
-  technique = null,
-  onTechniqueChange,
-  civilizations,
-  tradeLinks,
-  campaignLinks,
-  selectedEntity,
-  onSelectEntity,
-  namedEvents,
-  selectedScenario,
-  resumeState,
-  batchSummary,
-  currentTurn,
-  totalTurns,
-  bundleLoading,
-  viewerReady,
-  batchState,
-  batchProgress,
-}: {
-  surface: AppSurface;
-  atlasNodes: MapNode[];
-  atlasConnections: Array<{ source: MapNode; target: MapNode }>;
-  controllerCentroids: Record<string, { x: number; y: number }>;
-  activeOverlays: OverlayKey[];
-  onToggleOverlay: (overlay: OverlayKey) => void;
-  mapLayers?: MapLayerKey[];
-  mapLayer?: MapLayerKey;
-  onMapLayerChange?: (layer: MapLayerKey) => void;
-  mapLayerView?: MapLayerView | null;
-  toAtlas?: (x: number, y: number) => { x: number; y: number };
-  techniqueOptions?: string[];
-  technique?: string | null;
-  onTechniqueChange?: (technique: string) => void;
-  civilizations: CivilizationView[];
-  tradeLinks: Array<{ key: string; source: { x: number; y: number }; target: { x: number; y: number }; strength: number }>;
-  campaignLinks: Array<{ key: string; source: { x: number; y: number }; target: { x: number; y: number }; disposition: string }>;
-  selectedEntity: SelectedEntity | null;
-  onSelectEntity: (selection: SelectedEntity | null) => void;
-  namedEvents: NamedEvent[];
-  selectedScenario: string | null;
-  resumeState: WorldState | null;
-  batchSummary: BatchRunSummary | null;
-  currentTurn: number;
-  totalTurns: number;
-  bundleLoading: boolean;
-  viewerReady: boolean;
-  batchState: BatchState;
-  batchProgress: { completed: number; total: number; currentSeed: number } | null;
-}) {
-  const maxCapacity = Math.max(0, ...atlasNodes.map((node) => node.region.carrying_capacity ?? 0));
-  const nodeRadius = (node: MapNode) => regionNodeRadius(node.region.carrying_capacity, maxCapacity, atlasNodes.length);
-  const placedNodes = mapLayerView
-    ? atlasNodes.map((node) => ({ name: node.region.name, x: node.x, y: node.y, r: nodeRadius(node) }))
-    : [];
-  const layerFill = (node: MapNode): { fill: string; opacity: number } => {
-    const control = node.controller === undefined ? NO_DATA_FILL : node.controller === null ? UNCONTROLLED_COLOR : factionColor(node.controller);
-    if (!mapLayerView) {
-      return { fill: control, opacity: node.controller === undefined ? NO_DATA_OPACITY : 1 };
-    }
-    const fill = mapLayerView.fills.get(node.region.name);
-    if (fill) {
-      return { fill, opacity: mapLayerView.opacity.get(node.region.name) ?? 1 };
-    }
-    return mapLayerView.dimControl ? { fill: control, opacity: 0.32 } : { fill: NO_DATA_FILL, opacity: NO_DATA_OPACITY };
-  };
-  // Named events recorded by the scrubbed turn (a later landmark is not marked).
-  const highlightedEventRegions = new Set(
-    namedEvents
-      .filter((event) => event.region && event.turn <= currentTurn)
-      .slice(0, 8)
-      .map((event) => event.region as string),
-  );
-
-  return (
-    <section className="phase75-map-column" id="world-investigation-map" tabIndex={-1} aria-label="World map investigation">
-      {viewerReady && <div className="phase75-region-navigation phase75-panel">
-        <label>Inspect a region<select aria-label="Inspect a region" value={selectedEntity?.kind === "region" ? selectedEntity.id : ""}
-          onChange={(event) => onSelectEntity({ kind: "region", id: event.target.value, label: event.target.value })}>
-          <option value="" disabled>Choose a region</option>
-          {atlasNodes.map((node, index) => <option key={index} value={node.region.name}>{node.region.name}</option>)}
-        </select></label>
-        <button type="button" onClick={() => { const details = document.getElementById("selected-world-details"); details?.focus(); details?.scrollIntoView({ block: "start" }); }}>View selection details</button>
-        <p>Use the list to select small map markers. Selection and historical turn are kept when moving between map and details.</p>
-        {mapLayer === "control" && <p>Ownership at this exact turn: dim gray is unknown; solid gray is explicitly uncontrolled. Named owners use their civilization colors.</p>}
-      </div>}
-      <div className="phase75-viewport-toolbar phase75-panel">
-        <div>
-          <div className="phase75-overline">
-            {surface === "setup"
-              ? "World preview"
-              : surface === "progress"
-                ? "Starting run"
-                : surface === "batch"
-                  ? "Run preview"
-                  : "World map"}
-          </div>
-          <h2>
-            {surface === "setup"
-              ? "Choose a scenario or generate a world"
-              : surface === "progress"
-                ? "Preparing your world"
-                : surface === "batch"
-                  ? "Select a run to preview"
-                  : "Explore the world at the selected turn"}
-          </h2>
-        </div>
-
-        <div className="phase75-overlay-chips">
-          {(["borders", "settlements", "chronicle", "trade", "campaign", "fog", "asabiya"] as OverlayKey[]).map((overlay) => (
-            <button
-              key={overlay}
-              type="button"
-              className={`phase75-layer-chip${activeOverlays.includes(overlay) ? " active" : ""}`}
-              onClick={() => onToggleOverlay(overlay)}
-              disabled={surface === "setup" && (overlay === "trade" || overlay === "campaign" || overlay === "fog")}
-            >
-              {overlay}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {viewerReady && mapLayers.length > 1 && onMapLayerChange && (
-        <div className="phase75-layer-bar phase75-panel">
-          <span className="phase75-overline">Map layer</span>
-          <div className="phase75-overlay-chips" role="radiogroup" aria-label="Map layer">
-            {mapLayers.map((key) => (
-              <button
-                key={key}
-                type="button"
-                role="radio"
-                aria-checked={mapLayer === key}
-                className={`phase75-layer-chip${mapLayer === key ? " active" : ""}`}
-                onClick={() => onMapLayerChange(key)}
-              >
-                {MAP_LAYER_LABELS[key]}
-              </button>
-            ))}
-          </div>
-          {mapLayer === "techniques" && techniqueOptions.length > 0 && onTechniqueChange && (
-            <label className="phase75-layer-select">
-              <span>Technique</span>
-              <select value={technique ?? ""} onChange={(event) => onTechniqueChange(event.target.value)}>
-                {techniqueOptions.map((key) => (
-                  <option key={key} value={key}>{techniqueLabel(key)}</option>
-                ))}
-              </select>
-            </label>
-          )}
-        </div>
-      )}
-
-      <div className="phase75-map-stage phase75-panel">
-        <div className="phase75-map-overlay-copy">
-          <div className="phase75-overline">
-            {surface === "batch" && batchSummary ? `Rank #${batchSummary.rank} preview` : surface}
-          </div>
-          <h3>
-            {surface === "setup"
-              ? selectedScenario ?? (resumeState ? "Resumed world preview" : "Procedural world preview")
-              : surface === "batch"
-                ? (batchSummary?.dominant_faction || "Batch preview")
-                : viewerReady
-                  ? `Turn ${currentTurn} of ${totalTurns}`
-                  : "Awaiting archive data"}
-          </h3>
-          <p>
-            {surface === "progress"
-              ? "Waiting for the first recorded turn."
-              : surface === "batch"
-                ? (batchSummary
-                  ? `${batchSummary.major_event_count} major events · ${batchSummary.signal_flags.join(" · ") || "steady signal profile"}`
-                  : "Run a batch to compare worlds and inspect individual results.")
-                : "Select a region or civilization to inspect it at this turn."}
-          </p>
-        </div>
-
-        <div className="phase75-map-surface">
-          <div className="phase75-map-texture" />
-          <svg className="phase75-atlas" viewBox="0 0 1000 640" aria-label="World map">
-            <g className="phase75-contours">
-              <path d="M 30 122 C 210 48 418 84 642 112 S 926 142 972 116" />
-              <path d="M 36 202 C 200 142 398 150 624 188 S 902 234 968 198" />
-              <path d="M 42 294 C 220 238 426 244 618 286 S 866 336 962 310" />
-              <path d="M 46 392 C 212 346 404 354 612 396 S 858 448 952 426" />
-              <path d="M 64 502 C 236 466 418 472 602 514 S 844 566 936 538" />
-            </g>
-
-            {activeOverlays.includes("trade") && tradeLinks.map((link) => (
-              <line
-                key={link.key}
-                className="phase75-trade-link"
-                x1={link.source.x}
-                y1={link.source.y}
-                x2={link.target.x}
-                y2={link.target.y}
-                strokeWidth={2 + Math.min(link.strength, 1.4) * 2}
-              />
-            ))}
-
-            {activeOverlays.includes("campaign") && campaignLinks.map((link) => (
-              <line
-                key={link.key}
-                className="phase75-campaign-link"
-                x1={link.source.x}
-                y1={link.source.y}
-                x2={link.target.x}
-                y2={link.target.y}
-                stroke={DISPOSITION_COLORS[link.disposition] ?? "#a34c4c"}
-              />
-            ))}
-
-            {activeOverlays.includes("asabiya") && civilizations.map((civilization) => {
-              const centroid = controllerCentroids[civilization.name];
-              if (!centroid) {
-                return null;
-              }
-              return (
-                <circle
-                  key={`asabiya-${civilization.name}`}
-                  className="phase75-asabiya-ring"
-                  cx={centroid.x}
-                  cy={centroid.y}
-                  r={46 + civilization.asabiya * 48}
-                  stroke={factionColor(civilization.name)}
-                />
-              );
-            })}
-
-            {activeOverlays.includes("borders") && atlasConnections.map((connection) => (
-              <line
-                key={`${connection.source.region.name}-${connection.target.region.name}`}
-                className="phase75-region-connection"
-                x1={connection.source.x}
-                y1={connection.source.y}
-                x2={connection.target.x}
-                y2={connection.target.y}
-              />
-            ))}
-
-            {atlasNodes.map((node) => {
-              const isSelected = selectedEntity?.kind === "region" && selectedEntity.id === node.region.name;
-              const { fill, opacity } = layerFill(node);
-              const radius = nodeRadius(node);
-              return (
-                <g key={node.region.name}>
-                  <circle
-                    className={`phase75-region-node${isSelected ? " selected" : ""}`}
-                    cx={node.x}
-                    cy={node.y}
-                    r={radius}
-                    fill={fill}
-                    fillOpacity={opacity === 1 ? undefined : opacity}
-                    role="button" tabIndex={0} aria-label={`Inspect region ${node.region.name}`}
-                    onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onSelectEntity({ kind: "region", id: node.region.name, label: node.region.name }); } }}
-                    onClick={() => onSelectEntity({
-                      kind: "region",
-                      id: node.region.name,
-                      label: node.region.name,
-                    })}
-                  >
-                    <title>{mapLayerView ? mapLayerView.titles.get(node.region.name) ?? node.region.name
-                      : `${node.region.name} · ${node.controller === undefined ? "Ownership unknown" : node.controller === null ? "Uncontrolled" : `Owner: ${node.controller}`} at T${currentTurn}`}</title>
-                  </circle>
-                  {activeOverlays.includes("settlements") && (
-                    <text className="phase75-region-label" x={node.x} y={node.y + radius + 14}>
-                      {node.region.name}
-                    </text>
-                  )}
-                  {/* Named-event markers would read as a data layer's marks, so a layer hides them. */}
-                  {activeOverlays.includes("chronicle") && !mapLayerView && highlightedEventRegions.has(node.region.name) && (
-                    <circle className="phase75-event-marker" cx={node.x + radius - 2} cy={node.y - radius + 2} r={7} />
-                  )}
-                </g>
-              );
-            })}
-
-            {mapLayerView && toAtlas && <MapLayerMarks view={mapLayerView} nodes={placedNodes} toAtlas={toAtlas} />}
-
-            {/* The fog mask is decorative; it never covers a data layer. */}
-            {activeOverlays.includes("fog") && !mapLayerView && (
-              <path className="phase75-fog-mask" d="M 664 112 L 962 164 L 962 612 L 612 612 L 566 288 Z" />
-            )}
-          </svg>
-
-          {mapLayerView && <MapLayerLegend items={mapLayerView.legend} note={mapLayerView.note} />}
-
-          {bundleLoading && (
-            <div className="phase75-map-loading">Loading bundle...</div>
-          )}
-
-          {surface === "batch" && batchState === "running" && batchProgress && (
-            <div className="phase75-map-progress-card">
-              <div className="phase75-overline">Batch in flight</div>
-              <strong>Seed {batchProgress.currentSeed}</strong>
-              <span>{batchProgress.completed} / {batchProgress.total} complete</span>
-              <div className="phase75-progress-bar">
-                <div
-                  className="phase75-progress-fill"
-                  style={{ width: `${(batchProgress.completed / Math.max(batchProgress.total, 1)) * 100}%` }}
-                />
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="phase75-map-footer">
-          <div className="phase75-civ-chip-row">
-            {civilizations.map((civilization) => (
-              <button
-                key={civilization.name}
-                type="button"
-                className={`phase75-civ-chip${selectedEntity?.kind === "civilization" && selectedEntity.id === civilization.name ? " active" : ""}`}
-                onClick={() => onSelectEntity({
-                  kind: "civilization",
-                  id: civilization.name,
-                  label: civilization.name,
-                })}
-              >
-                <span className="phase75-civ-swatch" style={{ backgroundColor: factionColor(civilization.name) }} />
-                {civilization.name}
-              </button>
-            ))}
-          </div>
-
-          {!viewerReady && (
-            <div className="phase75-map-note">
-              {surface === "setup"
-                ? "Choose run settings, then select Run World to begin."
-                : "Choose Open Existing to explore a saved run, or start a live session."}
-            </div>
-          )}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/** Only already-resolved provenance enters this list; selecting a link never seeks. */
-function RecordedEventLinks({ events, kind, onSelectEvent }: {
-  events: Event[];
-  kind: "causes" | "consequences";
-  onSelectEvent: (event: Event) => void;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const limit = kind === "consequences" && !expanded ? 3 : events.length;
-  return <div className="phase75-event-links" aria-label={`Recorded ${kind}`}>
-    <span>{kind === "causes" ? "Because" : "Led to"} · {events.length} {events.length === 1 ? "event" : "events"}</span>
-    {events.slice(0, limit).map((event) => <button key={eventKey(event)} type="button"
-      className="phase75-inspector-link" onClick={() => onSelectEvent(event)}>
-      T{event.turn} {event.description || event.event_type.replace(/_/g, " ")}
-    </button>)}
-    {kind === "consequences" && events.length > 3 && <button type="button" className="phase75-ghost-button"
-      aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>
-      {expanded ? "Show fewer consequences" : `Show all ${events.length} recorded consequences`}
-    </button>}
-  </div>;
-}
-
-function RightInspector({
-  surface,
-  selection,
-  selectedRegion,
-  selectedCivilization,
-  selectedEvent,
-  selectedEventRecorded = true,
-  selectedEventProvenance,
-  selectedEventAccounts = null,
-  onSelectEvent,
-  onSeek,
-  onSelectRegion,
-  onSelectCivilization,
-  civilizationNames,
-  selectedRegionTerrain,
-  languages,
-  languagesBundle = null,
-  languageSelection = null,
-  currentTurn = 0,
-  selectedBatchSummary,
-  civilizations,
-  previewCivilizations,
-  selectedScenario,
-  resumeState,
-  description,
-  inspectorSections,
-  onToggleSection,
+function ValidationRibbon({
+  visible,
+  bundle,
   batchReport,
-  batchState,
-  batchProgress,
-  onOpenBatchResult,
-  onShowCompare,
-  viewerReady,
-  liveState,
-  currentSnapshot = null,
-  famine = [],
-  regionNames = [],
-  investigationBundle = null,
-  onOpenHistory,
+  selectedCivilization,
+  civilizations,
 }: {
-  surface: AppSurface;
-  selection: SelectedEntity | null;
-  selectedRegion: RegionLike | null;
-  selectedCivilization: CivilizationEntry | null;
-  selectedEvent: Event | null;
-  /** False when the pinned event is dated after the scrubbed turn. */
-  selectedEventRecorded?: boolean;
-  selectedEventProvenance?: { causes: Event[]; effects: Event[] };
-  selectedEventAccounts?: EventAccounts | null;
-  onSelectEvent: (event: Event) => void;
-  onSeek: (turn: number) => void;
-  onSelectRegion: (name: string) => void;
-  onSelectCivilization: (name: string) => void;
-  civilizationNames: string[];
-  /** The selected region's terrain at the scrubbed turn (null: unreadable record). */
-  selectedRegionTerrain?: string | null;
-  languages?: LanguagesField;
-  /** The bundle whose faith table names the languages' faith words (lib/faiths). */
-  languagesBundle?: Bundle | null;
-  languageSelection?: { kind: "region" | "civ"; ref: number } | null;
-  currentTurn?: number;
-  selectedBatchSummary: BatchRunSummary | null;
-  civilizations: CivilizationView[];
-  previewCivilizations: Array<{ name: string; values: string[] }>;
-  selectedScenario: LobbyInit["scenarios"][number] | null;
-  resumeState: WorldState | null;
-  description: string;
-  inspectorSections: Record<string, boolean>;
-  onToggleSection: (section: string) => void;
+  visible: boolean;
+  bundle: Bundle | null;
   batchReport: BatchReport | null;
-  batchState: BatchState;
-  batchProgress: { completed: number; total: number; currentSeed: number } | null;
-  onOpenBatchResult?: (path: string) => void;
-  onShowCompare: () => void;
-  viewerReady: boolean;
-  liveState: {
-    isLive: boolean;
-    connected: boolean;
-    serverState: "connecting" | "lobby" | "starting" | "running" | "completed";
-    livePaused: boolean;
-  };
-  currentSnapshot?: TurnSnapshot | null;
-  famine?: FamineSpan[];
-  regionNames?: string[];
-  investigationBundle?: Bundle | null;
-  onOpenHistory?: (entity: HistoryEntity) => void;
+  selectedCivilization: CivilizationEntry | null;
+  civilizations: CivilizationView[];
 }) {
+  if (!visible) {
+    return null;
+  }
+  const focus = selectedCivilization && isFounded(selectedCivilization) ? selectedCivilization : null;
+
+  const anomalies = batchReport?.anomalies.length ?? 0;
+  const lateEraCount = civilizations.filter((civilization) => civilization.techEra === "industrial" || civilization.techEra === "information").length;
+  const focusValue = focus ? focus.stability.toFixed(1) : selectedCivilization ? UNAVAILABLE : "none";
+
+  const checks = [
+    {
+      label: "Interestingness",
+      status: bundle?.metadata.interestingness_score && bundle.metadata.interestingness_score >= 20 ? "pass" : "warn",
+      value: bundle?.metadata.interestingness_score?.toFixed(1) ?? "pending",
+    },
+    {
+      label: "Anomalies",
+      status: anomalies === 0 ? "pass" : "warn",
+      value: String(anomalies),
+    },
+    {
+      label: "Late Era",
+      status: lateEraCount > 0 ? "pass" : "warn",
+      value: String(lateEraCount),
+    },
+    {
+      label: "Focus Stability",
+      status: focus && focus.stability <= 1 ? "warn" : "pass",
+      value: focusValue,
+    },
+  ];
+
   return (
-    <aside className="phase75-right-rail phase75-panel" id="selected-world-details" tabIndex={-1} aria-label="Selection details">
-      {viewerReady && <button type="button" className="phase75-back-to-map" onClick={() => { const map = document.getElementById("world-investigation-map"); map?.focus(); map?.scrollIntoView({ block: "start" }); }}>Back to map</button>}
-      <div className="phase75-inspector-header">
-        <div className="phase75-overline">Details</div>
-        <h3>
-          {surface === "setup"
-            ? "Launch details"
-            : surface === "batch"
-              ? "Batch diagnostics"
-              : viewerReady
-                ? "Selection details"
-                : "Open a run to view details"}
-        </h3>
-        <p>{description}</p>
-      </div>
-
-      <InspectorSection
-        title={surface === "batch" ? "Selected Run" : "Selection"}
-        open={inspectorSections.selection}
-        onToggle={() => onToggleSection("selection")}
-      >
-        {surface === "setup" && (
-          <>
-            <div className="phase75-stat-row">
-              <span>Scenario</span>
-              <strong>{selectedScenario?.name ?? (resumeState ? "Resumed state" : "Procedural world")}</strong>
-            </div>
-            <div className="phase75-stat-row">
-              <span>World</span>
-              <strong>{selectedScenario?.world_name ?? resumeState?.name ?? "Generated at launch"}</strong>
-            </div>
-            <div className="phase75-stat-row">
-              <span>Civilizations</span>
-              <strong>{previewCivilizations.length || resumeState?.civilizations.length || "Variable"}</strong>
-            </div>
-          </>
-        )}
-
-        {surface === "batch" && (
-          selectedBatchSummary ? (
-            <>
-              <div className="phase75-stat-row">
-                <span>Seed</span>
-                <strong>{selectedBatchSummary.seed ?? "?"}</strong>
-              </div>
-              <div className="phase75-stat-row">
-                <span>Interestingness</span>
-                <strong>{selectedBatchSummary.interestingness_score?.toFixed(1) ?? "Pending"}</strong>
-              </div>
-              <div className="phase75-stat-row">
-                <span>Dominant faction</span>
-                <strong>{selectedBatchSummary.dominant_faction || "Unsettled"}</strong>
-              </div>
-              <div className="phase75-stat-row">
-                <span>Signals</span>
-                <strong>{selectedBatchSummary.signal_flags.join(" · ") || "steady"}</strong>
-              </div>
-              {onOpenBatchResult && (
-                <button
-                  type="button"
-                  className="phase75-primary-button"
-                  onClick={() => onOpenBatchResult(selectedBatchSummary.bundle_path)}
-                >
-                  Open In Viewer
-                </button>
-              )}
-            </>
-          ) : (
-            <div className="phase75-empty-state">
-              {batchState === "running"
-                ? `Batch running${batchProgress ? `: ${batchProgress.completed}/${batchProgress.total}` : ""}.`
-                : "Batch results will populate here once ranked summaries are available."}
-            </div>
-          )
-        )}
-
-        {surface !== "setup" && surface !== "batch" && (
-          <>
-            {selectedRegion && (
-              <>
-                <div className="phase75-stat-row">
-                  <span>Region</span>
-                  <strong>{selectedRegion.name}</strong>
-                </div>
-                <div className="phase75-stat-row">
-                  <span>Terrain</span>
-                  <strong>{selectedRegionTerrain === undefined ? selectedRegion.terrain : (selectedRegionTerrain ?? UNAVAILABLE)}</strong>
-                </div>
-                <div className="phase75-stat-row">
-                  <span>Resources</span>
-                  <strong>{selectedRegion.resources ?? "Unknown"}</strong>
-                </div>
-                {investigationBundle && <>
-                  <RegionInvestigation bundle={investigationBundle}
-                    regionIndex={investigationBundle.world_state.regions.findIndex((row) => row.name === selectedRegion.name)}
-                    currentTurn={currentTurn} onHistory={() => onOpenHistory?.({ kind: "region", name: selectedRegion.name })}
-                    onCivilization={(name) => onOpenHistory?.({ kind: "civilization", name })} onEvent={onSelectEvent} />
-                  <MigrationEvidence bundle={investigationBundle} currentTurn={currentTurn}
-                    selectedRegionIndex={investigationBundle.world_state.regions.findIndex((row) => row.name === selectedRegion.name)}
-                    onInspectRegion={(_, name) => onSelectRegion(name)} />
-                </>}
-                <RegionSystemsDetail
-                  snapshot={currentSnapshot}
-                  region={selectedRegion.name}
-                  famine={famine}
-                  regionNames={regionNames}
-                />
-              </>
-            )}
-
-            {selectedCivilization && (
-              <>
-                {investigationBundle && <CivilizationHistory bundle={investigationBundle} currentTurn={currentTurn}
-                  civilizationIndex={investigationBundle.world_state.civilizations.findIndex((row) => row.name === selectedCivilization.name)}
-                  onSeek={onSeek} onInspectEvent={onSelectEvent} onInspectRegion={(_, name) => onSelectRegion(name)} />}
-                {investigationBundle && <DebtEvidence bundle={investigationBundle} currentTurn={currentTurn}
-                  civilizationIndex={investigationBundle.world_state.civilizations.findIndex((row) => row.name === selectedCivilization.name)}
-                  onInspectEvent={onSelectEvent} onViewRecordedTurn={onSeek} />}
-                <div className="phase75-stat-row">
-                  <span>Civilization</span>
-                  <strong>{selectedCivilization.name}</strong>
-                </div>
-                <div className="phase75-stat-row">
-                  <span>Status</span>
-                  <strong>{selectedCivilization.status}</strong>
-                </div>
-                <div className="phase75-stat-row">
-                  <span>Leader</span>
-                  <strong>{isFounded(selectedCivilization) ? selectedCivilization.leaderName : UNAVAILABLE}</strong>
-                </div>
-                <div className="phase75-stat-row">
-                  <span>Era</span>
-                  <strong>{isFounded(selectedCivilization) ? selectedCivilization.techEra : UNAVAILABLE}</strong>
-                </div>
-                <div className="phase75-stat-row">
-                  <span>Values</span>
-                  <strong>{selectedCivilization.values.join(", ") || "None recorded"}</strong>
-                </div>
-              </>
-            )}
-
-            {selectedEvent && !selectedEventRecorded && (
-              // Pinned at a later turn: not recorded yet at the scrubbed turn.
-              <>
-                <div className="phase75-stat-row">
-                  <span>Event</span>
-                  <strong>{UNAVAILABLE}</strong>
-                </div>
-                <p className="phase75-detail-copy">Not yet recorded at turn {currentTurn}.</p>
-              </>
-            )}
-
-            {selectedEvent && selectedEventRecorded && (
-              <>
-                <div className="phase75-stat-row">
-                  <span>Event</span>
-                  <strong>{selectedEvent.event_type}</strong>
-                </div>
-                <p className="phase75-detail-copy">{selectedEvent.description}</p>
-                <button type="button" className="phase75-ghost-button"
-                  onClick={() => onSeek(eventSnapshotTurn(selectedEvent))}>Go to recorded turn</button>
-                {selectedEvent.actors.length > 0 && <div className="phase75-event-links" aria-label="Recorded actors">
-                  <span>Actors</span>
-                  {selectedEvent.actors.map((actor, index) => civilizationNames.includes(actor)
-                    ? <button key={`${index}:${actor}`} type="button" className="phase75-inspector-link"
-                      onClick={() => onSelectCivilization(actor)}>{actor}</button>
-                    : regionNames.includes(actor)
-                      ? <button key={`${index}:${actor}`} type="button" className="phase75-inspector-link"
-                        onClick={() => onSelectRegion(actor)}>{actor}</button>
-                      : <span key={`${index}:${actor}`}>{actor}</span>)}
-                </div>}
-                {selectedEvent.region && regionNames.includes(selectedEvent.region) && <div className="phase75-event-links">
-                  <span>Recorded region</span>
-                  <button type="button" className="phase75-inspector-link"
-                    onClick={() => onSelectRegion(selectedEvent.region!)}>{selectedEvent.region}</button>
-                </div>}
-                {selectedEventProvenance && selectedEventProvenance.causes.length > 0 && (
-                  <RecordedEventLinks key={`causes:${eventKey(selectedEvent)}`} kind="causes"
-                    events={selectedEventProvenance.causes} onSelectEvent={onSelectEvent} />
-                )}
-                {selectedEventProvenance && selectedEventProvenance.effects.length > 0 && (
-                  <RecordedEventLinks key={`consequences:${eventKey(selectedEvent)}`} kind="consequences"
-                    events={selectedEventProvenance.effects} onSelectEvent={onSelectEvent} />
-                )}
-                <InWorldAccounts accounts={selectedEventAccounts} />
-              </>
-            )}
-
-            {!selectedRegion && !selectedCivilization && !selectedEvent && (
-              <div className="phase75-empty-state">
-                {selection ? selection.label : "Select a region, civ, or event to pin details here."}
-              </div>
-            )}
-          </>
-        )}
-      </InspectorSection>
-
-      {languages && surface !== "setup" && surface !== "batch" && (
-        <InspectorSection
-          title="Languages"
-          open={inspectorSections.languages}
-          onToggle={() => onToggleSection("languages")}
-        >
-          <Suspense fallback={<PanelLoading label="the languages" />}>
-            <LanguagesPanel field={languages} turn={currentTurn} selected={languageSelection} bundle={languagesBundle} />
-          </Suspense>
-        </InspectorSection>
-      )}
-
-      <InspectorSection
-        title={surface === "batch" ? "Report Health" : "Metrics"}
-        open={inspectorSections.metrics}
-        onToggle={() => onToggleSection("metrics")}
-      >
-        {surface === "batch" ? (
-          <>
-            <div className="phase75-stat-row">
-              <span>Runs</span>
-              <strong>{batchReport?.metadata.runs ?? 0}</strong>
-            </div>
-            <div className="phase75-stat-row">
-              <span>Anomalies</span>
-              <strong>{batchReport?.anomalies.length ?? 0}</strong>
-            </div>
-            <div className="phase75-stat-row">
-              <span>Compare</span>
-              <button type="button" className="phase75-ghost-button" onClick={onShowCompare}>
-                Open Overlay
-              </button>
-            </div>
-          </>
-        ) : selectedCivilization && !isFounded(selectedCivilization) ? (
-          // No history row yet: no values to show (not the end-of-run ones).
-          <>
-            {["Economy", "Culture", "Military", "Stability", "Treasury"].map((label) => (
-              <div key={label} className="phase75-stat-row">
-                <span>{label}</span>
-                <strong>{UNAVAILABLE}</strong>
-              </div>
-            ))}
-          </>
-        ) : selectedCivilization ? (
-          <>
-            <MetricBar label="Economy" value={selectedCivilization.economy} scale={12} />
-            <MetricBar label="Culture" value={selectedCivilization.culture} scale={12} />
-            <MetricBar label="Military" value={selectedCivilization.military} scale={12} />
-            <MetricBar label="Stability" value={selectedCivilization.stability} scale={12} />
-            <MetricBar label="Treasury" value={selectedCivilization.treasury} scale={24} />
-          </>
-        ) : (
-          civilizations.slice(0, 4).map((civilization) => (
-            <div key={civilization.name} className="phase75-mini-card">
-              <strong>{civilization.name}</strong>
-              <span>
-                Econ {civilization.economy} · Mil {civilization.military} · Era {civilization.techEra}
-              </span>
-            </div>
-          ))
-        )}
-      </InspectorSection>
-
-      <InspectorSection
-        title={surface === "campaign" ? "Campaign Signals" : surface === "trade" ? "Trade Signals" : "Network"}
-        open={inspectorSections.network}
-        onToggle={() => onToggleSection("network")}
-      >
-        {surface === "trade" && civilizations.slice(0, 4).map((civilization) => (
-          <div key={civilization.name} className="phase75-mini-card">
-            <strong>{civilization.name}</strong>
-            <span>Treasury {civilization.treasury} · Asabiya {(civilization.asabiya * 100).toFixed(0)}%</span>
-          </div>
-        ))}
-
-        {surface === "campaign" && civilizations.slice(0, 4).map((civilization) => (
-          <div key={civilization.name} className="phase75-mini-card">
-            <strong>{civilization.name}</strong>
-            <span>Military {civilization.military} · Stability {civilization.stability}</span>
-          </div>
-        ))}
-
-        {surface !== "trade" && surface !== "campaign" && (
-          <div className="phase75-empty-state">
-            Choose Trade or Campaign to view civilization summaries for this turn.
-          </div>
-        )}
-      </InspectorSection>
-
-      <InspectorSection
-        title="Session status"
-        open={inspectorSections.signals}
-        onToggle={() => onToggleSection("signals")}
-      >
-        <div className="phase75-stat-row">
-          <span>Run status</span>
-          <strong>{liveState.serverState}</strong>
+    <div className="phase75-validation-ribbon">
+      {checks.map((check) => (
+        <div key={check.label} className={`phase75-validation-pill ${check.status}`}>
+          <span>{check.label}</span>
+          <strong>{check.value}</strong>
         </div>
-        <div className="phase75-stat-row">
-          <span>Live connection</span>
-          <strong>{liveState.connected ? "Yes" : "No"}</strong>
-        </div>
-        <div className="phase75-stat-row">
-          <span>Run paused</span>
-          <strong>{liveState.livePaused ? "Yes" : "No"}</strong>
-        </div>
-        <div className="phase75-stat-row">
-          <span>History</span>
-          <strong>{viewerReady ? "Loaded" : "No run loaded"}</strong>
-        </div>
-      </InspectorSection>
-    </aside>
-  );
-}
-
-function InspectorSection({
-  title,
-  open,
-  onToggle,
-  children,
-}: {
-  title: string;
-  open: boolean;
-  onToggle: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="phase75-inspector-section">
-      <button type="button" className="phase75-section-toggle" onClick={onToggle}>
-        <span>{title}</span>
-        <span>{open ? "−" : "+"}</span>
-      </button>
-      {open && <div className="phase75-section-body">{children}</div>}
-    </section>
-  );
-}
-
-function MetricBar({ label, value, scale }: { label: string; value: number; scale: number }) {
-  const width = Math.max(8, Math.min(100, (value / Math.max(scale, 1)) * 100));
-  return (
-    <div className="phase75-metric-bar">
-      <div className="phase75-stat-row">
-        <span>{label}</span>
-        <strong>{value}</strong>
-      </div>
-      <div className="phase75-metric-track">
-        <div className="phase75-metric-fill" style={{ width: `${width}%` }} />
-      </div>
+      ))}
     </div>
   );
 }

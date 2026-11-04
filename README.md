@@ -13,6 +13,7 @@ The LLM **only narrates** — it never makes simulation decisions. You can run w
 ## Requirements
 
 - **Python 3.13+**
+- **[uv](https://docs.astral.sh/uv/)** (recommended: installs the exact versions in `uv.lock`)
 - **Rust 1.85+ toolchain** (for the `chronicler-agents` crate — optional, needed for agent mode)
 - **LM Studio** or an API key for narration (optional — simulation runs without it)
 
@@ -45,7 +46,7 @@ bash setup.sh            # Linux / Mac / Git Bash
 setup.bat                # Windows Command Prompt
 ```
 
-The setup script creates a virtual environment, installs Python dependencies, and builds the Rust agent crate if Rust is installed. Optional flags:
+The setup script installs the Python dependencies into `.venv`: exactly from `uv.lock` when [uv](https://docs.astral.sh/uv/) is installed (recommended, as CI does), otherwise with an unlocked `pip install -e .` and a warning. It first removes any `chronicler_agents` already in `.venv`; if Rust is installed it then builds a fresh agent crate into `.venv`, so agent mode (`--agents`) works there, and it finishes by checking the result with `scripts/check_python_env.py`. `--no-rust` leaves `.venv` verified extension-free. Developers who run the no-Rust test lanes pass `--native-venv` to build into a separate native venv (`~/.venvs/chronicler-native`; `CHRONICLER_NATIVE_VENV` moves it) and keep `.venv` extension-free. See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md#python-environments). Optional flags:
 
 | Flag | Effect |
 |------|--------|
@@ -55,31 +56,33 @@ The setup script creates a virtual environment, installs Python dependencies, an
 
 ### Manual Installation
 
-If you prefer to install manually:
+If you prefer to install manually (Linux/Mac paths; on Windows use `.venv\Scripts\python.exe`):
 
 ```bash
+# Locked install from uv.lock (add --extra api / --extra gemini for API narration)
+uv sync --frozen
+.venv/bin/python scripts/check_python_env.py --expect no-native
+
+# Without uv: unlocked, versions are whatever the package index serves today
 python -m venv .venv
-source .venv/bin/activate  # Linux/Mac
-# .venv\Scripts\activate   # Windows
+.venv/bin/python -m pip install -e .
+.venv/bin/python -m pip install -e ".[api]"      # (Optional) Claude API
+.venv/bin/python -m pip install -e ".[gemini]"   # (Optional) Gemini API
 
-python -m pip install -e .
-
-# (Optional) API narration support
-python -m pip install -e ".[api]"      # Claude API
-python -m pip install -e ".[gemini]"   # Gemini API
-
-# (Optional) Rust agent crate / native extension
-python -m pip install "maturin>=1.5,<2"
+# (Optional) Rust agent crate / native extension, in its own venv
+NATIVE=~/.venvs/chronicler-native
+UV_PROJECT_ENVIRONMENT=$NATIVE uv sync --frozen
+uv pip install --python $NATIVE/bin/python "maturin>=1.5,<2"
+source $NATIVE/bin/activate
 cd chronicler-agents
-python -m maturin develop --release
+python -m maturin develop --release --locked
 cd ..
 
-# Verify the installed extension
-python -c "import chronicler_agents; print('chronicler_agents import OK')"
-
+# Verify the compiled extension and its classes
+python scripts/check_python_env.py --expect native
 ```
 
-When rebuilding the Rust extension, use the virtual environment's Python (`.venv\Scripts\python.exe` on Windows) or Python may load a stale `chronicler_agents` build. Without an activated environment, run `../.venv/bin/python -m maturin develop --release` from `chronicler-agents/` on Unix or `..\.venv\Scripts\python.exe -m maturin develop --release` on Windows.
+Rebuild the Rust extension with the native venv active (or `VIRTUAL_ENV` set to it). `maturin develop` installs into `VIRTUAL_ENV`, or into `./.venv` when none is set, which would break the no-native lane. `uv sync --frozen` removes a stray extension from `.venv`, and `scripts/check_python_env.py --expect no-native` confirms it is gone.
 
 ## Quick Start
 
@@ -93,7 +96,7 @@ chronicler --seed 42 --turns 50 --civs 4 --regions 8 --output output/chronicle.m
 # Simulation only (no LLM needed)
 chronicler --seed 42 --turns 100 --simulate-only
 
-# Hybrid agent path with validation sidecars (requires Rust crate)
+# Hybrid agent path with validation sidecars (requires the Rust crate; with --native-venv, run from the native venv)
 chronicler --seed 42 --turns 100 --agents hybrid --simulate-only --validation-sidecar
 
 # Use a scenario
@@ -163,14 +166,17 @@ Available presets: `pangaea`, `archipelago`, `golden-age`, `dark-age`, `ice-age`
 ## Testing and Validation
 
 ```bash
-# No-Rust Python lane: run from an environment where chronicler_agents is absent.
+# No-Rust Python lane: run from an environment where chronicler_agents is absent
+# (.venv after `setup.sh --no-rust` or `--native-venv`;
+# `python scripts/check_python_env.py --expect no-native` confirms it).
 # Pure-Python tests should pass; native-only tests should skip.
 python -m pytest -q
 
-# Native Python lane: build chronicler_agents into the same Python environment.
-python -m pip install "maturin>=1.5,<2"
+# Native Python lane: activate the native venv (`setup.sh --native-venv` sets
+# it up and installs maturin there) and build a fresh chronicler_agents into it.
+source ~/.venvs/chronicler-native/bin/activate
 cd chronicler-agents
-python -m maturin develop --release
+python -m maturin develop --release --locked
 cd ..
 
 # Preload/verify the real extension, then run Python tests.

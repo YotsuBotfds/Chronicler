@@ -1,8 +1,14 @@
-"""Validation IO helpers and oracle implementations restored from the M53b monolith.
+"""Batch admission, bundle and sidecar loading, and the oracles bound to them.
 
-This module intentionally contains the recovered implementation so the
-``chronicler.validate`` facade can import again while the split modules remain
-small and auditable.
+Besides the loaders, this module holds the needs, cohort, community and
+determinism oracles, which call helpers that tests patch here (for example
+``chronicler.validation_io._read_arrow_columns``) or re-enter themselves
+through their module-level names, and ``_run_oracles`` and ``_cli_main``, the
+one orchestration and CLI of ``validation_io`` and ``chronicler.validate``.
+The era and arc, artifact and regression oracles live in
+``validation_trajectories``, ``validation_artifacts`` and
+``validation_regression``, shared helpers in ``validation_common``; every
+name is re-exported here (docs/integration/validation-split.md).
 """
 from __future__ import annotations
 import argparse
@@ -13,7 +19,7 @@ import statistics
 import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass
-from math import ceil, comb
+from math import ceil, comb  # noqa: F401  (ceil: every name bound here before the split stays bound)
 from pathlib import Path
 from types import MappingProxyType
 from typing import Mapping
@@ -33,60 +39,39 @@ from .validation_gate import (
     CAUSAL_ORACLES_FLAG, NEEDS_BINDING_REQUIRED_PROFILES, PROFILE_CHOICES, causal_oracles_required,
 )
 from .snapshot_pruning import restore_bundle
+from .validation_common import (  # noqa: F401  (split out; every name stays importable here)
+    EVENT_NAME_TO_CODE, required_seed_count, _mean,
+)
+from .validation_artifacts import (  # noqa: F401  (split out; every name stays importable here)
+    ARTIFACT_CREATION_RATE_MIN, ARTIFACT_CREATION_RATE_TOLERANCE_MIN, ARTIFACT_CREATION_RATE_MAX,
+    ARTIFACT_TEMPLATE_STARTING_CIVS, ARTIFACT_LOSS_RATE_MIN, ARTIFACT_LOSS_RATE_MAX, check_artifact_lifecycle,
+    run_artifact_oracle,
+)
+from .validation_trajectories import (  # noqa: F401  (split out; every name stays importable here)
+    ERA_INFLECTION_SEED_FRACTION_MIN, ERA_SILENT_COLLAPSE_SEED_FRACTION_MAX, ERA_COLLAPSE_DROP_FRACTION,
+    ERA_COLLAPSE_SMOOTHING_WINDOW, ERA_SIGNAL_SLACK_TURNS, _collapse_nearby_points, _trajectory_metric_series,
+    _trajectory_composite_series, _smoothed_series, _significant_slope_pattern, detect_inflection_points,
+    _legacy_classify_civ_arc, _classify_series_by_thirds, _has_material_rags_growth,
+    _classify_material_arc_when_prestige_masks_growth, _classify_rags_candidate, classify_civ_arc,
+    detect_collapse_episodes, run_era_oracle, run_arc_oracle,
+)
+from .validation_regression import (  # noqa: F401  (split out; every name stays importable here)
+    REGRESSION_SATISFACTION_MEAN_MIN, REGRESSION_SATISFACTION_MEAN_CALIBRATED_MIN, REGRESSION_SATISFACTION_MEAN_MAX,
+    REGRESSION_LATEST_SATISFACTION_WINDOW_TURNS, REGRESSION_MIGRATION_RATE_MIN,
+    REGRESSION_MIGRATION_RATE_CALIBRATED_MIN, REGRESSION_MIGRATION_RATE_MAX, REGRESSION_REBELLION_RATE_MIN,
+    REGRESSION_REBELLION_RATE_MAX, REGRESSION_OCCUPATION_SHARE_MAX, REGRESSION_OCCUPATION_VIOLATION_FRACTION_MAX,
+    REGRESSION_LATEST_OCCUPATION_VIOLATION_AGENT_FRACTION_MAX, REGRESSION_OCCUPATION_EVIDENCE_RUN_MIN,
+    _rounded_delta, _floor_diagnostic, _agent_count_by_turn, _final_ginis_from_validation_summary,
+    _population_count, _aggregate_turn_key, _aggregate_turns_descending, _final_living_population,
+    _late_satisfaction_window, run_regression_summary,
+)
 
 SCRUB_KEYS = {"generated_at"}
 BUNDLE_FILENAME = "chronicle_bundle.json"
-EVENT_NAME_TO_CODE = {
-    "death": 0,
-    "migration": 1,
-    "rebellion": 2,
-    "occupation_switch": 3,
-    "loyalty_flip": 4,
-    "birth": 5,
-    "dissolution": 6,
-}
 # Agent event codes any oracle counts (needs, cohort, regression).
 _ORACLE_COUNTED_EVENT_CODES = frozenset(
     EVENT_NAME_TO_CODE[name] for name in ("migration", "rebellion", "occupation_switch")
 )
-
-# Full-gate balance uses strict historical thresholds plus explicitly reported
-# calibrated tolerances for stochastic 500-turn batches.  The tolerance path is
-# meant to distinguish near-threshold control-compatible drift from oracle errors
-# without hiding the raw metric or whether the strict floor was missed.
-ARTIFACT_CREATION_RATE_MIN = 1.00
-ARTIFACT_CREATION_RATE_TOLERANCE_MIN = 0.90
-ARTIFACT_CREATION_RATE_MAX = 3.00
-# Recalibrated 2026-10 for living worlds (docs/integration/extinction-fix-2026-10.md):
-# the old 10% floor was met only through extinction-era turnover (civs dying
-# without an absorber mark every artifact LOST). Living 500-turn worlds lose
-# 2-3%; a broken lifecycle loses ~0%, which the floor plus loss_channels_ok
-# (both LOST and DESTROYED present) still rejects. The 30% ceiling is unchanged.
-# Starting civs of the template world, the artifact creation band's
-# denominator when a seed run records no world shape.
-ARTIFACT_TEMPLATE_STARTING_CIVS = 4
-ARTIFACT_LOSS_RATE_MIN = 0.02
-ARTIFACT_LOSS_RATE_MAX = 0.30
-REGRESSION_SATISFACTION_MEAN_MIN = 0.45
-REGRESSION_SATISFACTION_MEAN_CALIBRATED_MIN = 0.40
-REGRESSION_SATISFACTION_MEAN_MAX = 0.65
-# Late-run satisfaction (``latest_satisfaction_mean``) pools the sampled turns
-# of the last 60 turns before a run's last living sample, not that one sample.
-# Seasons (a 12-turn year) and the climate cycle are functions of the turn, so
-# every world's final sample falls on the same calendar point (autumn of a
-# drought for both standard profiles); with the 10-turn sidecar cadence, 60
-# turns visit every even turn of the year once, the run mean's seasonal mix.
-# See docs/integration/wave3-defaults.md.
-REGRESSION_LATEST_SATISFACTION_WINDOW_TURNS = 60
-REGRESSION_MIGRATION_RATE_MIN = 0.05
-REGRESSION_MIGRATION_RATE_CALIBRATED_MIN = 0.045
-REGRESSION_MIGRATION_RATE_MAX = 0.15
-REGRESSION_REBELLION_RATE_MIN = 0.02
-REGRESSION_REBELLION_RATE_MAX = 0.08
-REGRESSION_OCCUPATION_SHARE_MAX = 0.70
-REGRESSION_OCCUPATION_VIOLATION_FRACTION_MAX = 0.01
-REGRESSION_LATEST_OCCUPATION_VIOLATION_AGENT_FRACTION_MAX = 0.05
-REGRESSION_OCCUPATION_EVIDENCE_RUN_MIN = 0.80
 
 # Needs oracle (M53 oracle 2). A rebellion raises the rebel's autonomy by 0.10
 # (chronicler-agents/src/tick.rs, rebellion apply step), so a high autonomy
@@ -313,16 +298,6 @@ def _check_arm_designs(oracle: str, method_version: int, designs: dict[int, int]
                 f"score them with method " + str(max(v for v, d in designs.items() if d == got)))
 COHORT_OUTCOME_WINDOW_TURNS = 20
 
-# Era oracle (M53 oracle 3). Recalibrated 2026-10 for living worlds
-# (docs/integration/wave3-defaults.md). A silent collapse is a population
-# collapse of one civ that neither its own era signals nor its recorded crises
-# mark. Seed fractions and the 30% drop are the M53 spec's; the smoothing
-# window is the inflection detector's own, and the 5-turn slack is unchanged.
-ERA_INFLECTION_SEED_FRACTION_MIN = 0.80
-ERA_SILENT_COLLAPSE_SEED_FRACTION_MAX = 0.10
-ERA_COLLAPSE_DROP_FRACTION = 0.30
-ERA_COLLAPSE_SMOOTHING_WINDOW = 5
-ERA_SIGNAL_SLACK_TURNS = 5
 # Recorded crises that mark a collapse in a civ's history: what takes its
 # people (hunger, disease, war, flight, disaster) or records its breakdown
 # (unrest, the fall of the state). Fiscal, cultural and routine events do not.
@@ -343,32 +318,6 @@ ERA_CRISIS_EVENT_GROUPS = {
 ERA_CRISIS_EVENT_TYPES = frozenset(
     event_type for group in ERA_CRISIS_EVENT_GROUPS.values() for event_type in group
 )
-
-
-def _rounded_delta(value: float | None, target: float) -> float | None:
-    return round(value - target, 6) if value is not None else None
-
-
-def _floor_diagnostic(
-    value: float | None,
-    *,
-    strict_min: float,
-    calibrated_min: float,
-    max_value: float,
-    strict_ok: bool,
-    calibrated_ok: bool,
-) -> dict:
-    return {
-        "value": round(value, 6) if value is not None else None,
-        "strict_min": strict_min,
-        "calibrated_min": calibrated_min,
-        "max": max_value,
-        "strict_ok": strict_ok,
-        "calibrated_ok": calibrated_ok,
-        "strict_min_delta": _rounded_delta(value, strict_min),
-        "calibrated_min_delta": _rounded_delta(value, calibrated_min),
-        "max_delta": round(max_value - value, 6) if value is not None else None,
-    }
 
 
 class ValidationRequestError(ValueError):
@@ -594,13 +543,6 @@ def _oracle_bundle_view(bundle: dict) -> dict:
             if isinstance(world, dict) else world
         )
     return view
-
-
-def required_seed_count(total_seeds: int, fraction: float) -> int:
-    """Return the minimum passing seed count for a fractional threshold."""
-    if total_seeds <= 0:
-        return 0
-    return max(1, ceil(total_seeds * fraction))
 
 
 def _read_json(path: Path) -> dict:
@@ -1187,10 +1129,6 @@ def _filter_events_window(events: list[dict], start_turn: int, window: int = 20)
     ]
 
 
-def _mean(values: list[float]) -> float:
-    return sum(values) / len(values) if values else 0.0
-
-
 def _cohen_d(sample_a: list[float], sample_b: list[float]) -> float:
     if not sample_a or not sample_b:
         return 0.0
@@ -1207,160 +1145,6 @@ def _cohen_d(sample_a: list[float], sample_b: list[float]) -> float:
     if pooled_std == 0.0:
         return mean_a - mean_b
     return (mean_a - mean_b) / pooled_std
-
-
-def _collapse_nearby_points(points: list[int], radius: int = 5) -> list[int]:
-    if not points:
-        return []
-    points = sorted(points)
-    collapsed = [points[0]]
-    for point in points[1:]:
-        if point - collapsed[-1] > radius:
-            collapsed.append(point)
-    return collapsed
-
-
-def _trajectory_metric_series(trajectory: dict) -> dict[str, list[float]]:
-    return {
-        "population": [float(v) for v in trajectory.get("population", [])],
-        "treasury": [float(v) for v in trajectory.get("treasury", [])],
-        "stability": [float(v) for v in trajectory.get("stability", [])],
-        "territory": [float(v) for v in trajectory.get("territory", [])],
-        "prestige": [float(v) for v in trajectory.get("prestige", [])],
-    }
-
-
-def _trajectory_composite_series(
-    trajectory: dict,
-    metrics: tuple[str, ...] | None = None,
-) -> list[float]:
-    series_map = _trajectory_metric_series(trajectory)
-    available: list[list[float]] = []
-    selected_metrics = metrics or tuple(series_map.keys())
-    for metric_name in selected_metrics:
-        values = series_map.get(metric_name, [])
-        if not values:
-            continue
-        baseline = abs(values[0]) if values[0] != 0 else max(abs(v) for v in values) or 1.0
-        available.append([value / baseline for value in values])
-    if not available:
-        return trajectory.get("population", [])
-    length = min(len(series) for series in available)
-    return [
-        sum(series[idx] for series in available) / len(available)
-        for idx in range(length)
-    ]
-
-
-def _smoothed_series(series: list[float], window: int) -> list[float]:
-    smoothed: list[float] = []
-    for i in range(len(series)):
-        start = max(0, i - window + 1)
-        chunk = series[start : i + 1]
-        smoothed.append(sum(chunk) / len(chunk))
-    return smoothed
-
-
-def _significant_slope_pattern(
-    smoothed: list[float],
-    *,
-    epsilon_scale: float = 0.8,
-    min_run_fraction: float = 0.02,
-    min_delta_fraction: float = 0.03,
-) -> tuple[int, ...]:
-    if len(smoothed) < 2:
-        return ()
-
-    deriv = [smoothed[i + 1] - smoothed[i] for i in range(len(smoothed) - 1)]
-    avg_abs_slope = _mean([abs(delta) for delta in deriv])
-    series_range = max(smoothed) - min(smoothed)
-    epsilon = max(avg_abs_slope * epsilon_scale, series_range * 0.001, 1e-6)
-
-    raw_segments: list[tuple[int, int, int, float]] = []
-    current_sign = 0
-    segment_start = 0
-    for idx, delta in enumerate(deriv):
-        sign = 1 if delta > epsilon else -1 if delta < -epsilon else 0
-        if sign == 0:
-            continue
-        if current_sign == 0:
-            current_sign = sign
-            segment_start = idx
-            continue
-        if sign != current_sign:
-            raw_segments.append(
-                (
-                    current_sign,
-                    segment_start,
-                    idx,
-                    smoothed[idx] - smoothed[segment_start],
-                )
-            )
-            current_sign = sign
-            segment_start = idx
-
-    if current_sign != 0:
-        raw_segments.append(
-            (
-                current_sign,
-                segment_start,
-                len(smoothed) - 1,
-                smoothed[-1] - smoothed[segment_start],
-            )
-        )
-
-    min_run = max(3, int(len(smoothed) * min_run_fraction))
-    min_delta = max(series_range * min_delta_fraction, epsilon * min_run)
-    pattern: list[int] = []
-    for sign, start, end, delta in raw_segments:
-        duration = max(1, end - start)
-        if duration < min_run or abs(delta) < min_delta:
-            continue
-        if not pattern or pattern[-1] != sign:
-            pattern.append(sign)
-    return tuple(pattern)
-
-
-def _agent_count_by_turn(validation_summary: dict | None) -> dict[int, int]:
-    if not isinstance(validation_summary, dict):
-        return {}
-    counts: dict[int, int] = {}
-    aggregates = validation_summary.get("agent_aggregates_by_turn", {})
-    if not isinstance(aggregates, dict):
-        return counts
-    for turn_str, civ_aggs in aggregates.items():
-        turn = _aggregate_turn_key(turn_str)
-        if turn is None:
-            continue
-        if not isinstance(civ_aggs, dict) or any(
-            not isinstance(civ_data, dict) or _population_count(civ_data.get("agent_count")) is None
-            for civ_data in civ_aggs.values()
-        ):
-            continue
-        counts[turn] = sum(civ_data["agent_count"] for civ_data in civ_aggs.values())
-    return counts
-
-
-def _final_ginis_from_validation_summary(validation_summary: dict | None) -> list[float]:
-    if not isinstance(validation_summary, dict):
-        return []
-    agent_aggregates = validation_summary.get("agent_aggregates_by_turn", {})
-    if not isinstance(agent_aggregates, dict):
-        return []
-    for turn in _aggregate_turns_descending(agent_aggregates):
-        turn_aggregates = agent_aggregates.get(str(turn), {})
-        if not isinstance(turn_aggregates, dict):
-            continue
-        ginis = [
-            float(civ_data["gini"])
-            for civ_data in turn_aggregates.values()
-            if isinstance(civ_data, dict)
-            and (_population_count(civ_data.get("agent_count")) or 0) > 0
-            and civ_data.get("gini") is not None
-        ]
-        if ginis:
-            return ginis
-    return []
 
 def detect_communities(
     edges: list[tuple[int, int, int, int]],
@@ -1694,101 +1478,6 @@ def _needs_candidate_priority(result: dict, snapshot_turn: int) -> tuple:
     )
 
 
-def detect_inflection_points(
-    series: list[float],
-    smoothing_window: int = 5,
-) -> list[int]:
-    """Oracle 3: Detect era inflection points in a time series.
-
-    Uses smoothed-derivative magnitude detection with auto-calibrated
-    threshold based on the derivative's own standard deviation. An inflection
-    point is a turn where the local slope of the smoothed series exceeds
-    3.0 × std of the derivative, indicating a structural shift
-    (collapse, rapid growth, recovery) rather than noise.
-
-    Nearby candidate points within ``smoothing_window`` turns are collapsed
-    to the single highest-magnitude point to avoid duplicate reporting of
-    the same transition.
-
-    Parameters
-    ----------
-    series:
-        List of numeric values (e.g. population per turn).
-    smoothing_window:
-        Rolling mean window size for smoothing (default 5).
-
-    Returns
-    -------
-    List of turn indices where inflection points occur (large-magnitude
-    slope changes in the smoothed series). Returns an empty list for
-    series that are noisy but structurally stable.
-    """
-    n = len(series)
-    if n < smoothing_window + 1:
-        return []
-
-    # Step 1: Rolling mean smoothing
-    smoothed: list[float] = []
-    for i in range(n):
-        start = max(0, i - smoothing_window + 1)
-        window = series[start : i + 1]
-        smoothed.append(sum(window) / len(window))
-
-    # Step 2: First derivative (diff of smoothed values)
-    deriv: list[float] = [smoothed[i + 1] - smoothed[i] for i in range(n - 1)]
-
-    # Step 3: Auto-calibrated threshold — 3.0 × std of first derivative.
-    # Using derivative std (not series std) keeps the threshold proportional
-    # to typical turn-to-turn slope variation, making detection sensitive to
-    # structural shifts but blind to slow drift or noise.
-    mean_d = sum(deriv) / len(deriv)
-    var_d = sum((d - mean_d) ** 2 for d in deriv) / len(deriv)
-    std_d = var_d ** 0.5
-    threshold = 3.0 * std_d
-
-    if threshold == 0.0:
-        # Flat series — no inflection points possible
-        return []
-
-    # Step 4: Find points where |derivative| exceeds threshold.
-    # Skip the first (smoothing_window - 1) steps to avoid warm-up artifacts
-    # from the rolling mean operating on an incomplete window at series start.
-    # These represent large structural shifts in the series.
-    candidates: list[tuple[int, float]] = []  # (turn_index, abs_magnitude)
-    warmup = smoothing_window - 1
-    for i, d in enumerate(deriv):
-        if i < warmup:
-            continue
-        if abs(d) > threshold:
-            # Turn index in original series: derivative at i spans [i, i+1]
-            candidates.append((i + 1, abs(d)))
-
-    if not candidates:
-        return []
-
-    # Step 5: Collapse nearby candidates within smoothing_window into single peak
-    # Sort by index (already in order), merge clusters.
-    inflection_points: list[int] = []
-    cluster_start = candidates[0][0]
-    cluster_best_idx = candidates[0][0]
-    cluster_best_mag = candidates[0][1]
-
-    for turn_idx, mag in candidates[1:]:
-        if turn_idx - cluster_start <= smoothing_window:
-            # Same cluster — keep best magnitude
-            if mag > cluster_best_mag:
-                cluster_best_mag = mag
-                cluster_best_idx = turn_idx
-        else:
-            inflection_points.append(cluster_best_idx)
-            cluster_start = turn_idx
-            cluster_best_idx = turn_idx
-            cluster_best_mag = mag
-
-    inflection_points.append(cluster_best_idx)
-    return inflection_points
-
-
 def compute_cohort_distinctiveness(
     communities: list[set[int]],
     events_data: list[dict],
@@ -1981,416 +1670,6 @@ def _cohort_candidate_priority(
         strongest_effect,
         -snapshot_turn,
     )
-
-
-def check_artifact_lifecycle(
-    bundles: list[dict],
-    num_civs: int = 4,
-    starting_civs: list[int] | None = None,
-) -> dict:
-    """Oracle 5: Validate artifact lifecycle rates and diversity.
-
-    Sub-check A (bundle-only):
-    - Creation rate per civ per 100 turns should strictly be in 1-3 range;
-      rates in 0.90-1.00 are accepted through an explicit stochastic-tolerance
-      adjudication so duplicate-suppressed long-horizon batches do not fail on
-      near-threshold noise while still reporting the strict miss.
-    - No single artifact_type should exceed 50% of total.
-    - Loss/destruction rate ((lost + destroyed) / total) should be 2-30%,
-      with both channels alive: at least one LOST and one DESTROYED
-      artifact in the batch (``loss_channels_ok``). The old 10% floor was
-      only ever met through extinction-era turnover; see
-      docs/integration/extinction-fix-2026-10.md.
-
-    Parameters
-    ----------
-    bundles:
-        List of bundle dicts, each containing world_state.artifacts and
-        metadata.total_turns.
-    num_civs:
-        Number of civilizations (used as denominator for creation rate).
-    starting_civs:
-        Optional starting civilizations per bundle (aligned with ``bundles``),
-        used instead of ``num_civs``: the rate is artifacts per starting civ
-        per 100 turns whatever the world size. The band was calibrated on the
-        4-civ template world, where both give the same denominator.
-
-    Returns
-    -------
-    dict with keys:
-        creation_rate_per_civ_per_100  – float
-        creation_rate_ok               – bool (strict [1, 3] or calibrated [0.90, 3])
-        type_diversity_ok              – bool (no single type > 50%)
-        loss_destruction_count         – int
-        loss_destruction_rate          – float
-        loss_destruction_rate_ok       – bool (rate in [0.02, 0.30])
-        lost_count / destroyed_count   – int
-        loss_channels_ok               – bool (both counts > 0)
-        mule_artifact_count            – int
-        total_artifacts                – int
-    """
-    total_artifacts = 0
-    loss_destruction_count = 0
-    lost_count = 0
-    destroyed_count = 0
-    mule_artifact_count = 0
-    total_turns_sum = 0
-    type_counts: dict[str, int] = {}
-
-    if starting_civs is not None and len(starting_civs) != len(bundles):
-        raise ValueError("starting_civs must have one entry per bundle")
-    civ_turns_sum = 0
-    for index, bundle in enumerate(bundles):
-        artifacts = bundle.get("world_state", {}).get("artifacts", [])
-        total_turns = bundle.get("metadata", {}).get("total_turns", 0)
-        total_turns_sum += total_turns
-        civ_turns_sum += (starting_civs[index] if starting_civs is not None else num_civs) * total_turns
-
-        for art in artifacts:
-            total_artifacts += 1
-            artifact_type = art.get("artifact_type", "unknown")
-            type_counts[artifact_type] = type_counts.get(artifact_type, 0) + 1
-
-            status = art.get("status", "active")
-            if status in ("destroyed", "lost"):
-                loss_destruction_count += 1
-                if status == "lost":
-                    lost_count += 1
-                else:
-                    destroyed_count += 1
-
-            if art.get("mule_origin", False):
-                mule_artifact_count += 1
-
-    # Creation rate: artifacts per civ per 100 turns
-    if civ_turns_sum > 0 and total_turns_sum > 0:
-        creation_rate = total_artifacts / (civ_turns_sum / 100.0)
-    else:
-        creation_rate = 0.0
-
-    creation_rate_strict_ok = ARTIFACT_CREATION_RATE_MIN <= creation_rate <= ARTIFACT_CREATION_RATE_MAX
-    creation_rate_tolerance_ok = (
-        ARTIFACT_CREATION_RATE_TOLERANCE_MIN
-        <= creation_rate
-        <= ARTIFACT_CREATION_RATE_MAX
-    )
-    creation_rate_ok = creation_rate_strict_ok or creation_rate_tolerance_ok
-    creation_rate_adjudication = (
-        "strict"
-        if creation_rate_strict_ok else "stochastic_tolerance"
-        if creation_rate_tolerance_ok else "fail"
-    )
-
-    # Type diversity: no single type > 50% of total
-    if total_artifacts > 0:
-        max_type_fraction = max(type_counts.values()) / total_artifacts
-        type_diversity_ok = max_type_fraction <= 0.5
-    else:
-        type_diversity_ok = True
-
-    # Loss/destruction rate: (lost + destroyed) / total
-    if total_artifacts > 0:
-        loss_destruction_rate = loss_destruction_count / total_artifacts
-    else:
-        loss_destruction_rate = 0.0
-
-    loss_destruction_rate_ok = (
-        ARTIFACT_LOSS_RATE_MIN <= loss_destruction_rate <= ARTIFACT_LOSS_RATE_MAX
-    )
-    loss_channels_ok = lost_count > 0 and destroyed_count > 0
-
-    return {
-        "creation_rate_per_civ_per_100": creation_rate,
-        "creation_rate_ok": creation_rate_ok,
-        "creation_rate_strict_ok": creation_rate_strict_ok,
-        "creation_rate_adjudication": creation_rate_adjudication,
-        "type_diversity_ok": type_diversity_ok,
-        "loss_destruction_count": loss_destruction_count,
-        "loss_destruction_rate": loss_destruction_rate,
-        "loss_destruction_rate_ok": loss_destruction_rate_ok,
-        "lost_count": lost_count,
-        "destroyed_count": destroyed_count,
-        "loss_channels_ok": loss_channels_ok,
-        "mule_artifact_count": mule_artifact_count,
-        "total_artifacts": total_artifacts,
-    }
-
-
-def _legacy_classify_civ_arc(trajectory: dict) -> str:
-    """Oracle 6: Classify a civilization's trajectory into one of six emotional arc families.
-
-    Based on Kurt Vonnegut's story shapes. Uses a thirds-based analysis of a
-    smoothed population series to determine the dominant arc pattern.
-
-    Parameters
-    ----------
-    trajectory:
-        Dict with at least a "population" key containing a list of numeric values.
-
-    Returns
-    -------
-    One of: "rags_to_riches", "riches_to_rags", "icarus", "oedipus",
-    "cinderella", "man_in_a_hole", "stable".
-    """
-    pop = _trajectory_composite_series(trajectory)
-    n = len(pop)
-    if n == 0:
-        return "stable"
-
-    # Step 1: Smooth the population series with rolling mean
-    window = max(10, n // 10)
-    smoothed: list[float] = []
-    for i in range(n):
-        start = max(0, i - window + 1)
-        chunk = pop[start: i + 1]
-        smoothed.append(sum(chunk) / len(chunk))
-
-    # Step 2: Split into thirds and compute mean for each third
-    third = max(1, n // 3)
-    first_mean = sum(smoothed[:third]) / third
-    # Middle third: avoid overlap at boundaries for small series
-    mid_start = third
-    mid_end = 2 * third
-    mid_chunk = smoothed[mid_start:mid_end] if mid_end > mid_start else [smoothed[mid_start]]
-    middle_mean = sum(mid_chunk) / len(mid_chunk)
-    last_chunk = smoothed[2 * third:] if smoothed[2 * third:] else [smoothed[-1]]
-    last_mean = sum(last_chunk) / len(last_chunk)
-
-    # Step 3: Stable check — all thirds within 20% of each other
-    overall_mean = (first_mean + middle_mean + last_mean) / 3.0
-    if overall_mean != 0.0:
-        max_dev = max(
-            abs(first_mean - overall_mean),
-            abs(middle_mean - overall_mean),
-            abs(last_mean - overall_mean),
-        )
-        if max_dev / abs(overall_mean) <= 0.20:
-            return "stable"
-    else:
-        # All values are zero — treat as stable
-        return "stable"
-
-    # Step 4: Classify by pattern of thirds
-    # rags_to_riches: monotone up
-    if first_mean < middle_mean < last_mean:
-        return "rags_to_riches"
-
-    # riches_to_rags: monotone down
-    if first_mean > middle_mean > last_mean:
-        return "riches_to_rags"
-
-    # icarus: up then down (middle is the peak)
-    if middle_mean > first_mean and middle_mean > last_mean:
-        return "icarus"
-
-    # For the down-then-up family, distinguish by final level vs start
-    if first_mean > middle_mean and last_mean > middle_mean:
-        # cinderella: recovers to at least starting level
-        if last_mean >= first_mean:
-            return "cinderella"
-        # man_in_a_hole: partial recovery but doesn't reach start
-        # oedipus: down-up-down — requires last < first, use oedipus when
-        # last < first (same condition as man_in_a_hole without further info)
-        # Per spec: oedipus = middle < first AND middle < last AND last < first
-        # man_in_a_hole = first > middle AND last > middle AND last < first
-        # Both conditions are identical from thirds analysis — use oedipus as
-        # the canonical name here for partial recovery with final < start.
-        # Spec says oedipus: last < first; man_in_a_hole: last < first too.
-        # Differentiate: oedipus ends lower (last < middle average baseline),
-        # man_in_a_hole ends in middle recovery range.
-        # Simple heuristic: if last is closer to first or above midpoint,
-        # it's man_in_a_hole; if last is near the trough, it's oedipus.
-        # Use midpoint of (first, middle) as divider:
-        midpoint = (first_mean + middle_mean) / 2.0
-        if last_mean >= midpoint:
-            return "man_in_a_hole"
-        else:
-            return "oedipus"
-
-    # Fallback
-    return "stable"
-
-
-def _classify_series_by_thirds(series: list[float]) -> str:
-    """Classify a smoothed series by coarse first/middle/last thirds.
-
-    This is intentionally blunt. It exists as a fallback when the fine-grained
-    derivative pattern overreacts to a short early surge even though the
-    trajectory spends most of its lifespan in sustained decline.
-    """
-    n = len(series)
-    if n == 0:
-        return "stable"
-
-    smoothed = _smoothed_series(series, max(10, n // 10))
-    third = max(1, n // 3)
-    first_mean = sum(smoothed[:third]) / third
-    mid_start = third
-    mid_end = 2 * third
-    mid_chunk = smoothed[mid_start:mid_end] if mid_end > mid_start else [smoothed[mid_start]]
-    middle_mean = sum(mid_chunk) / len(mid_chunk)
-    last_chunk = smoothed[2 * third:] if smoothed[2 * third:] else [smoothed[-1]]
-    last_mean = sum(last_chunk) / len(last_chunk)
-
-    overall_mean = (first_mean + middle_mean + last_mean) / 3.0
-    if overall_mean == 0.0:
-        return "stable"
-    max_dev = max(
-        abs(first_mean - overall_mean),
-        abs(middle_mean - overall_mean),
-        abs(last_mean - overall_mean),
-    )
-    if max_dev / abs(overall_mean) <= 0.20:
-        return "stable"
-
-    if first_mean < middle_mean < last_mean:
-        return "rags_to_riches"
-    if first_mean > middle_mean > last_mean:
-        return "riches_to_rags"
-    if middle_mean > first_mean and middle_mean > last_mean:
-        return "icarus"
-    if first_mean > middle_mean and last_mean > middle_mean:
-        if last_mean >= first_mean:
-            return "cinderella"
-        midpoint = (first_mean + middle_mean) / 2.0
-        if last_mean >= midpoint:
-            return "man_in_a_hole"
-        return "oedipus"
-    return "stable"
-
-
-def _has_material_rags_growth(trajectory: dict) -> bool:
-    """Return true when a rags arc reflects durable population/territory growth.
-
-    Composite prestige can rise for one-person or extinct successor civs; those
-    should not dominate the rags-to-riches family without material growth.
-    """
-    population = [float(x or 0.0) for x in trajectory.get("population", [])]
-    territory = [float(x or 0.0) for x in trajectory.get("territory", [])]
-    if population:
-        start_pop = max(population[0], 0.0)
-        final_pop = max(population[-1], 0.0)
-        peak_pop = max(population)
-        if final_pop >= max(5.0, start_pop * 1.25) and final_pop >= peak_pop * 0.75:
-            return True
-    if territory:
-        start_territory = max(territory[0], 0.0)
-        final_territory = max(territory[-1], 0.0)
-        peak_territory = max(territory)
-        if final_territory >= start_territory + 1.0 and final_territory >= peak_territory * 0.75:
-            return True
-    return False
-
-
-def _classify_material_arc_when_prestige_masks_growth(trajectory: dict) -> str:
-    """Classify population/territory shape when prestige masks material decline.
-
-    A monotone prestige score can make a collapsed successor look like a
-    rags-to-riches arc.  Rather than dumping those non-flat material histories
-    into ``stable``, classify the material-only series and use any non-stable
-    shape it exposes.
-    """
-    material_series = _trajectory_composite_series(
-        trajectory,
-        metrics=("population", "territory"),
-    )
-    if not material_series:
-        return "stable"
-
-    n = len(material_series)
-    smoothed = _smoothed_series(material_series, max(10, n // 10))
-    mean_value = _mean(smoothed)
-    series_range = max(smoothed) - min(smoothed)
-    if mean_value == 0.0:
-        return "stable" if series_range == 0.0 else _classify_series_by_thirds(smoothed)
-    if series_range / abs(mean_value) <= 0.20:
-        return "stable"
-
-    pattern = _significant_slope_pattern(smoothed)
-    if pattern == (1,):
-        return "rags_to_riches" if _has_material_rags_growth(trajectory) else "stable"
-    if pattern == (-1,):
-        return "riches_to_rags"
-    if pattern and pattern[0] == 1 and pattern[-1] == -1:
-        return "icarus"
-    if pattern and pattern[0] == -1 and pattern[-1] == 1:
-        return "man_in_a_hole"
-    if pattern and pattern[0] == 1 and pattern[-1] == 1 and len(pattern) >= 3:
-        return "cinderella"
-    if pattern and pattern[0] == -1 and pattern[-1] == -1 and len(pattern) >= 3:
-        return "oedipus"
-    material_thirds = _classify_series_by_thirds(smoothed)
-    return material_thirds if material_thirds != "rags_to_riches" or _has_material_rags_growth(trajectory) else "stable"
-
-
-def _classify_rags_candidate(trajectory: dict) -> str:
-    material_arc = _classify_material_arc_when_prestige_masks_growth(trajectory)
-    if material_arc not in ("stable", "rags_to_riches"):
-        return material_arc
-    if _has_material_rags_growth(trajectory):
-        return "rags_to_riches"
-    return "stable"
-
-
-def classify_civ_arc(trajectory: dict) -> str:
-    """Oracle 6: Classify a civ trajectory into one of six emotional arc families."""
-    series = _trajectory_composite_series(
-        trajectory,
-        metrics=("population", "territory", "prestige"),
-    )
-    n = len(series)
-    if n == 0:
-        return "stable"
-
-    window = max(10, n // 10)
-    smoothed = _smoothed_series(series, window)
-    mean_value = _mean(smoothed)
-    series_range = max(smoothed) - min(smoothed)
-    if mean_value == 0.0:
-        if series_range == 0.0:
-            return "stable"
-    elif series_range / abs(mean_value) <= 0.20:
-        return "stable"
-
-    pattern = _significant_slope_pattern(smoothed)
-    if pattern == (1,):
-        return _classify_rags_candidate(trajectory)
-    if pattern == (-1,):
-        return "riches_to_rags"
-    if pattern and pattern[0] == 1 and pattern[-1] == 1 and len(pattern) >= 3:
-        return "cinderella"
-    if pattern and pattern[0] == -1 and pattern[-1] == -1 and len(pattern) >= 3:
-        return "oedipus"
-    if pattern and pattern[0] == 1 and pattern[-1] == -1:
-        # A short early surge can produce a local up-then-down derivative even
-        # when the civ spends most of its life in terminal decline. For extinct
-        # civs, let the broader thirds summary win when it clearly reads as a
-        # riches-to-rags trajectory instead of a simple Icarus arc.
-        final_population = float(trajectory.get("population", [0])[-1] or 0.0)
-        if final_population <= 0.0 and _classify_series_by_thirds(series) == "riches_to_rags":
-            return "riches_to_rags"
-        # On long-horizon runs, a civ can peak modestly, die out, and then sit
-        # extinct for hundreds of turns. The derivative pattern still reads
-        # up-then-down, but this behaves more like a terminal decline than an
-        # archetypal Icarus boom-and-bust.
-        if final_population <= 0.0 and n >= 400:
-            pop_series = [float(x or 0.0) for x in trajectory.get("population", [])]
-            if pop_series:
-                start_population = max(pop_series[0], 1.0)
-                peak_population = max(pop_series)
-                if (peak_population / start_population) < 2.5:
-                    return "riches_to_rags"
-        return "icarus"
-    if pattern and pattern[0] == -1 and pattern[-1] == 1:
-        return "man_in_a_hole"
-
-    start_value = smoothed[0]
-    end_value = smoothed[-1]
-    if end_value > start_value * 1.10:
-        return _classify_rags_candidate(trajectory)
-    if end_value < start_value * 0.90:
-        return "riches_to_rags"
-    return "stable"
 
 
 def run_determinism_gate(batch_dir: Path, *, _admission=None) -> dict:
@@ -3200,165 +2479,6 @@ def run_needs_oracle_best_of(
     }
 
 
-def detect_collapse_episodes(
-    series: list[float],
-    *,
-    drop_fraction: float = ERA_COLLAPSE_DROP_FRACTION,
-    smoothing_window: int = ERA_COLLAPSE_SMOOTHING_WINDOW,
-) -> list[tuple[int, int, float, float]]:
-    """Population collapses: falls of ``drop_fraction`` or more from a peak.
-
-    The series is smoothed with the inflection detector's trailing rolling
-    mean, so one-turn swings of small populations are not collapses. A running
-    peak is tracked; a collapse opens when the smoothed value falls to
-    ``(1 - drop_fraction) x peak`` and follows the trough until the series
-    regains the peak or rebounds from the trough by the same ratio (to
-    ``trough / (1 - drop_fraction)``). The next peak is tracked from there, so
-    every collapse of a run is found, not only the one below the global peak.
-
-    Returns ``(peak_index, trough_index, peak_value, trough_value)`` per
-    collapse, in smoothed units.
-    """
-    if len(series) < 2:
-        return []
-    keep = 1.0 - drop_fraction
-    smoothed = _smoothed_series([float(value) for value in series], max(1, smoothing_window))
-    episodes: list[tuple[int, int, float, float]] = []
-    peak_value, peak_index = smoothed[0], 0
-    trough_value = trough_index = None
-    for index in range(1, len(smoothed)):
-        value = smoothed[index]
-        if trough_index is None:
-            if value >= peak_value:  # the last turn at the peak: where the fall begins
-                peak_value, peak_index = value, index
-            elif peak_value > 0 and value <= keep * peak_value:
-                trough_value, trough_index = value, index
-            continue
-        if value < trough_value:
-            trough_value, trough_index = value, index
-        elif value >= peak_value or (value > trough_value and value * keep >= trough_value):
-            episodes.append((peak_index, trough_index, peak_value, trough_value))
-            trough_value = trough_index = None
-            peak_value, peak_index = value, index
-    if trough_index is not None:
-        episodes.append((peak_index, trough_index, peak_value, trough_value))
-    return episodes
-
-
-def run_era_oracle(seed_runs: list[dict]) -> dict:
-    """Oracle 3: era inflections, and no silent collapses.
-
-    A seed needs at least two (collapsed) inflection points across its civs'
-    era signals. A *silent collapse* is a population collapse of one civ
-    (``detect_collapse_episodes``) that nothing marks between five turns
-    before its peak and five after its trough: no inflection point in that
-    civ's own era signals (population, treasury, stability, territory,
-    prestige) and no recorded crisis naming it (``ERA_CRISIS_EVENT_TYPES``).
-    The oracle passes when at least 80% of seeds have inflections and at most
-    10% of seeds have a silent collapse.
-
-    Recalibrated 2026-10 (docs/integration/wave3-defaults.md). The old check
-    took each civ's global peak and the lowest point after it and accepted an
-    inflection of *any* civ's signal anywhere in that window, which could span
-    centuries; three quarters of those inflections were treasury jumps. It
-    therefore depended on other civs' finances, missed every collapse but one
-    per civ, and could not tell a collapse that the chronicle records from
-    one it does not.
-    """
-    if not seed_runs:
-        return {"status": "SKIP", "reason": "no_bundles"}
-
-    analyzed_seeds = 0
-    seeds_with_inflections = 0
-    silent_collapse_seeds = 0
-    collapse_episode_count = 0
-    era_signal_marked = 0
-    crisis_only_marked = 0
-    per_seed: list[dict] = []
-    silent_episodes: list[dict] = []
-
-    for run in seed_runs:
-        trajectories = run.get("civ_trajectories", [])
-        if not trajectories:
-            continue
-        analyzed_seeds += 1
-        crisis_turns = run.get("civ_crisis_event_turns") or {}
-        inflection_turns: list[int] = []
-        signal_hits: Counter[str] = Counter()
-        seed_collapses = 0
-        seed_silent: list[dict] = []
-        for trajectory in trajectories:
-            series_map = _trajectory_metric_series(trajectory)
-            length = max((len(values) for values in series_map.values()), default=0)
-            turns = list(trajectory.get("turn") or range(length))
-            own_turns: set[int] = set()
-            for signal_name, series in series_map.items():
-                if len(series) < 10:
-                    continue
-                points = detect_inflection_points(series)
-                signal_hits[signal_name] += len(points)
-                own_turns.update(turns[point] for point in points if point < len(turns))
-            inflection_turns.extend(own_turns)
-            pop_series = series_map["population"]
-            if len(pop_series) < 10:
-                continue
-            civ_name = trajectory.get("civ_name")
-            civ_crises = crisis_turns.get(civ_name, []) if isinstance(civ_name, str) else []
-            for peak, trough, peak_value, trough_value in detect_collapse_episodes(pop_series):
-                if trough >= len(turns):
-                    continue
-                low = turns[peak] - ERA_SIGNAL_SLACK_TURNS
-                high = turns[trough] + ERA_SIGNAL_SLACK_TURNS
-                seed_collapses += 1
-                if any(low <= turn <= high for turn in own_turns):
-                    era_signal_marked += 1
-                elif any(low <= turn <= high for turn in civ_crises):
-                    crisis_only_marked += 1
-                else:
-                    seed_silent.append({
-                        "seed": run.get("seed"),
-                        "civ": civ_name,
-                        "peak_turn": turns[peak],
-                        "trough_turn": turns[trough],
-                        "peak_population": round(peak_value, 1),
-                        "trough_population": round(trough_value, 1),
-                    })
-        collapsed = _collapse_nearby_points(inflection_turns, radius=5)
-        collapse_episode_count += seed_collapses
-        if len(collapsed) >= 2:
-            seeds_with_inflections += 1
-        if seed_silent:
-            silent_collapse_seeds += 1
-            silent_episodes.extend(seed_silent)
-        per_seed.append({
-            "seed": run.get("seed"),
-            "inflection_count": len(collapsed),
-            "inflection_turns": collapsed,
-            "silent_collapse": bool(seed_silent),
-            "collapse_count": seed_collapses,
-            "silent_collapse_count": len(seed_silent),
-            "signal_hits": dict(signal_hits),
-        })
-
-    if analyzed_seeds == 0:
-        return {"status": "SKIP", "reason": "no_history_series"}
-
-    required = required_seed_count(analyzed_seeds, ERA_INFLECTION_SEED_FRACTION_MIN)
-    max_silent = analyzed_seeds * ERA_SILENT_COLLAPSE_SEED_FRACTION_MAX
-    return {
-        "status": "PASS" if seeds_with_inflections >= required and silent_collapse_seeds <= max_silent else "FAIL",
-        "analyzed_seeds": analyzed_seeds,
-        "required_seed_count": required,
-        "seeds_with_inflections": seeds_with_inflections,
-        "silent_collapse_seeds": silent_collapse_seeds,
-        "collapse_episode_count": collapse_episode_count,
-        "collapses_marked_by_era_signal": era_signal_marked,
-        "collapses_marked_by_crisis_only": crisis_only_marked,
-        "silent_collapse_episodes": silent_episodes,
-        "per_seed": per_seed,
-    }
-
-
 def cohort_method_4_result(observational: dict, component: dict, *, placebo: dict | None = None,
                            require_causal: bool | None = None) -> dict:
     """Cohort method 4 from method 3's ``observational`` result and the
@@ -3677,770 +2797,6 @@ def _cohort_observational(seed_runs: list[dict], method_version: int, *, spec_co
     return result
 
 
-def run_artifact_oracle(seed_runs: list[dict]) -> dict:
-    bundles = [run["bundle"] for run in seed_runs]
-    if not bundles:
-        return {"status": "SKIP", "reason": "no_bundles"}
-    # Per starting civ: procedural worlds start with more than the template
-    # world's 4 civs (docs/integration/procedural-gates.md).
-    starting_civs = [
-        int((run.get("world") or {}).get("civs") or ARTIFACT_TEMPLATE_STARTING_CIVS)
-        for run in seed_runs
-    ]
-    result = check_artifact_lifecycle(bundles, starting_civs=starting_civs)
-    all_pass = (
-        result["creation_rate_ok"]
-        and result["type_diversity_ok"]
-        and result["loss_destruction_rate_ok"]
-        and result["loss_channels_ok"]
-    )
-    any_pass = (
-        result["creation_rate_ok"]
-        or result["type_diversity_ok"]
-        or result["loss_destruction_rate_ok"]
-    )
-    return {
-        "status": "PASS" if all_pass else ("PARTIAL" if any_pass else "FAIL"),
-        **result,
-    }
-
-
-def run_arc_oracle(seed_runs: list[dict]) -> dict:
-    if not seed_runs:
-        return {"status": "SKIP", "reason": "no_bundles"}
-
-    arc_counts: dict[str, int] = {}
-    arc_families: set[str] = set()
-    per_seed: list[dict] = []
-    seeds_with_three_types = 0
-
-    for run in seed_runs:
-        seed_arcs: list[str] = []
-        for trajectory in run.get("civ_trajectories", []):
-            population = trajectory.get("population", [])
-            if len(population) < 10:
-                continue
-            arc = classify_civ_arc(trajectory)
-            seed_arcs.append(arc)
-            arc_counts[arc] = arc_counts.get(arc, 0) + 1
-            if arc != "stable":
-                arc_families.add(arc)
-        distinct_types = len(set(seed_arcs))
-        if distinct_types >= 3:
-            seeds_with_three_types += 1
-        per_seed.append({
-            "seed": run.get("seed"),
-            "arc_types": seed_arcs,
-            "distinct_type_count": distinct_types,
-        })
-
-    total_civs = sum(arc_counts.values())
-    if total_civs == 0:
-        return {"status": "SKIP", "reason": "no_civ_trajectories"}
-
-    dominance_violations = {
-        arc: count / total_civs
-        for arc, count in arc_counts.items()
-        if count / total_civs > 0.40
-    }
-    families_ok = len(arc_families) >= 5
-    dominance_ok = not dominance_violations
-    diversity_ok = seeds_with_three_types >= required_seed_count(len(per_seed), 0.50)
-
-    return {
-        "status": "PASS" if families_ok and dominance_ok and diversity_ok else "FAIL",
-        "families_found": sorted(arc_families),
-        "family_count": len(arc_families),
-        "arc_counts": dict(sorted(arc_counts.items())),
-        "dominance_violations": dominance_violations,
-        "seeds_with_three_types": seeds_with_three_types,
-        "per_seed": per_seed,
-    }
-
-
-def _population_count(value: object) -> int | None:
-    """Accept explicit, nonnegative integer counts, never floors or coercions."""
-    return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
-
-
-def _aggregate_turn_key(value: object) -> int | None:
-    """Accept only canonical nonnegative JSON turn keys, without coercion."""
-    if not isinstance(value, str):
-        return None
-    try:
-        turn = int(value)
-    except ValueError:
-        return None
-    return turn if turn >= 0 and str(turn) == value else None
-
-
-def _aggregate_turns_descending(aggregates: dict) -> list[int]:
-    turns = (_aggregate_turn_key(key) for key in aggregates)
-    return sorted((turn for turn in turns if turn is not None), reverse=True)
-
-
-def _final_living_population(run: dict) -> dict:
-    """Read terminal population without mistaking territory or old samples for life.
-
-    Hybrid region populations require an explicit matching world-state turn
-    before they can establish terminal native-pool population. Other
-    modes (including shadow and demographics-only) do not have that contract,
-    so they require an explicit terminal native aggregate. An empty terminal
-    aggregate is evidence of zero agents, not permission to rewind the sample.
-    """
-    bundle = run.get("bundle") or {}
-    world = bundle.get("world_state", {})
-    metadata = bundle.get("metadata")
-    metadata = metadata if isinstance(metadata, dict) else {}
-    terminal_turn = _population_count(metadata.get("total_turns"))
-    evidence = {
-        "seed": run.get("seed", metadata.get("seed")),
-        "population": None,
-        "source": None,
-        "turn": terminal_turn,
-        "agent_mode": world.get("agent_mode") if isinstance(world, dict) else None,
-        "reason": None,
-    }
-    if terminal_turn is None:
-        evidence["reason"] = "missing_or_invalid_terminal_turn"
-        return evidence
-    if not isinstance(world, dict):
-        evidence["reason"] = "invalid_world_state"
-        return evidence
-    if "turn" in world and _population_count(world["turn"]) != terminal_turn:
-        evidence["reason"] = "world_state_turn_does_not_match_terminal_turn"
-        return evidence
-
-    if (
-        world.get("agent_mode") == "hybrid"
-        and _population_count(world.get("turn")) == terminal_turn
-        and "regions" in world
-    ):
-        regions = world["regions"]
-        if not isinstance(regions, list) or any(
-            not isinstance(region, dict) or _population_count(region.get("population")) is None
-            for region in regions
-        ):
-            evidence["reason"] = "invalid_final_region_population"
-            return evidence
-        evidence["population"] = sum(region["population"] for region in regions)
-        evidence["source"] = "world_state.regions"
-        return evidence
-
-    summary = run.get("validation_summary")
-    if summary is not None and not isinstance(summary, dict):
-        evidence["reason"] = "invalid_validation_summary"
-        return evidence
-    aggregates = (summary or {}).get("agent_aggregates_by_turn", {})
-    if not isinstance(aggregates, dict):
-        evidence["reason"] = "invalid_terminal_agent_aggregate"
-        return evidence
-    if str(terminal_turn) not in aggregates:
-        evidence["reason"] = "missing_terminal_agent_aggregate"
-        return evidence
-    terminal = aggregates[str(terminal_turn)]
-    if not isinstance(terminal, dict):
-        evidence["reason"] = "invalid_terminal_agent_aggregate"
-        return evidence
-    if any(
-        not isinstance(civ_data, dict) or _population_count(civ_data.get("agent_count")) is None
-        for civ_data in terminal.values()
-    ):
-        evidence["reason"] = "invalid_terminal_agent_count"
-        return evidence
-    evidence["population"] = sum(civ_data["agent_count"] for civ_data in terminal.values())
-    evidence["source"] = "terminal_agent_aggregate"
-    return evidence
-
-
-def _late_satisfaction_window(agent_aggregates: dict, last_turn: int) -> tuple[float, float, int]:
-    """Agent-weighted satisfaction sums over the late-run window ending at ``last_turn``.
-
-    Returns ``(sum of mean x count, sum of (std^2 + mean^2) x count, count)``
-    over every sampled turn in ``(last_turn - REGRESSION_LATEST_SATISFACTION_WINDOW_TURNS,
-    last_turn]`` and every civ with living agents.
-    """
-    weighted = second_moment = 0.0
-    weight = 0
-    first = last_turn - REGRESSION_LATEST_SATISFACTION_WINDOW_TURNS
-    for turn in _aggregate_turns_descending(agent_aggregates):
-        if turn > last_turn:
-            continue
-        if turn <= first:
-            break
-        aggregates = agent_aggregates.get(str(turn), {})
-        if not isinstance(aggregates, dict):
-            continue
-        for civ_data in aggregates.values():
-            count = _population_count(civ_data.get("agent_count")) if isinstance(civ_data, dict) else None
-            if count is None or count <= 0:
-                continue
-            mean = float(civ_data.get("satisfaction_mean", 0.0))
-            std = float(civ_data.get("satisfaction_std", 0.0))
-            weighted += mean * count
-            second_moment += (std ** 2 + mean ** 2) * count
-            weight += count
-    return weighted, second_moment, weight
-
-
-def run_regression_summary(seed_runs: list[dict]) -> dict:
-    if not seed_runs:
-        return {"status": "SKIP", "reason": "no_bundles"}
-    has_agent_event_inputs = any(run.get("events") for run in seed_runs)
-    has_aggregate_inputs = any(
-        isinstance(run.get("validation_summary"), dict)
-        and run["validation_summary"].get("agent_aggregates_by_turn")
-        for run in seed_runs
-    )
-    if not has_agent_event_inputs and not has_aggregate_inputs:
-        return {"status": "SKIP", "reason": "incomplete_agent_event_inputs"}
-
-    satisfaction_weighted_sum = 0.0
-    satisfaction_second_moment_sum = 0.0
-    satisfaction_weight_total = 0
-    latest_satisfaction_weighted_sum = 0.0
-    latest_satisfaction_second_moment_sum = 0.0
-    latest_satisfaction_weight_total = 0
-    final_sample_satisfaction_weighted_sum = 0.0
-    final_sample_satisfaction_weight_total = 0
-    controlled_occupation_shares: list[float] = []
-    fallback_occupation_shares: list[float] = []
-    latest_controlled_occupation_shares: list[float] = []
-    latest_fallback_occupation_shares: list[float] = []
-    latest_occupation_violation_agent_count = 0.0
-    latest_occupation_agent_total = 0.0
-    current_occupation_schema_runs = 0
-    controlled_occupation_evidence_runs = 0
-    latest_current_occupation_schema_runs = 0
-    latest_controlled_occupation_evidence_runs = 0
-    latest_incomplete_controlled_occupation_runs = 0
-    final_ginis: list[float] = []
-    final_civ_survivals: list[int] = []
-    living_population_evidence = [_final_living_population(run) for run in seed_runs]
-    full_initial_survival_flags: list[bool] = []
-    negative_treasury_runs = 0
-    total_agent_turns = 0.0
-    migration_events = 0
-    rebellion_events = 0
-
-    for run in seed_runs:
-        validation_summary = run.get("validation_summary")
-        validation_summary = validation_summary if isinstance(validation_summary, dict) else {}
-        agent_aggregates = validation_summary.get("agent_aggregates_by_turn", {})
-        if not isinstance(agent_aggregates, dict):
-            agent_aggregates = {}
-        run_final_ginis = _final_ginis_from_validation_summary(validation_summary)
-        run_has_current_occupation_schema = False
-        run_has_controlled_occupation_evidence = False
-        run_latest_has_current_occupation_schema = False
-        run_latest_has_controlled_occupation_evidence = False
-        run_latest_has_incomplete_controlled_occupation = False
-        if agent_aggregates:
-            for turn_key, turn_aggregates in agent_aggregates.items():
-                if _aggregate_turn_key(turn_key) is None or not isinstance(turn_aggregates, dict):
-                    continue
-                for civ_data in turn_aggregates.values():
-                    count = _population_count(civ_data.get("agent_count")) if isinstance(civ_data, dict) else None
-                    if count is None or count <= 0:
-                        continue
-                    satisfaction_mean = float(civ_data.get("satisfaction_mean", 0.0))
-                    satisfaction_std = float(civ_data.get("satisfaction_std", 0.0))
-                    satisfaction_weighted_sum += satisfaction_mean * count
-                    satisfaction_second_moment_sum += (
-                        satisfaction_std ** 2 + satisfaction_mean ** 2
-                    ) * count
-                    satisfaction_weight_total += count
-                    controlled_count = int(civ_data.get("controlled_agent_count", 0))
-                    controlled_counts = civ_data.get("controlled_occupation_counts", {})
-                    all_occupation_counts = civ_data.get("occupation_counts", {})
-                    has_controlled_schema = (
-                        "controlled_agent_count" in civ_data
-                        or "controlled_occupation_counts" in civ_data
-                    )
-                    if has_controlled_schema:
-                        run_has_current_occupation_schema = True
-                    if controlled_count >= 5 and controlled_counts:
-                        counted_controlled = sum(int(occ_count) for occ_count in controlled_counts.values())
-                    else:
-                        counted_controlled = 0
-                    if (
-                        controlled_count >= 5
-                        and controlled_counts
-                        and counted_controlled == controlled_count
-                    ):
-                        run_has_controlled_occupation_evidence = True
-                        for occ_count in controlled_counts.values():
-                            controlled_occupation_shares.append(float(occ_count) / controlled_count)
-                    elif not has_controlled_schema and count >= 5 and all_occupation_counts:
-                        # Legacy summaries did not distinguish controlled from
-                        # displaced agents.  Use all-agent occupation evidence only
-                        # for that schema, not for current sidecars that explicitly
-                        # report zero controlled population.
-                        for occ_count in all_occupation_counts.values():
-                            fallback_occupation_shares.append(float(occ_count) / count)
-
-            for turn in _aggregate_turns_descending(agent_aggregates):
-                latest_aggregates = agent_aggregates.get(str(turn), {})
-                if not isinstance(latest_aggregates, dict) or not latest_aggregates:
-                    continue
-                turn_satisfaction_weighted_sum = 0.0
-                turn_satisfaction_second_moment_sum = 0.0
-                turn_satisfaction_weight_total = 0
-                turn_latest_controlled_occupation_shares: list[float] = []
-                turn_latest_fallback_occupation_shares: list[float] = []
-                turn_latest_occupation_violation_agent_count = 0.0
-                turn_latest_occupation_agent_total = 0.0
-                turn_latest_has_current_occupation_schema = False
-                turn_latest_has_controlled_occupation_evidence = False
-                turn_latest_has_incomplete_controlled_occupation = False
-                for civ_data in latest_aggregates.values():
-                    count = _population_count(civ_data.get("agent_count")) if isinstance(civ_data, dict) else None
-                    if count is None or count <= 0:
-                        continue
-                    satisfaction_mean = float(civ_data.get("satisfaction_mean", 0.0))
-                    satisfaction_std = float(civ_data.get("satisfaction_std", 0.0))
-                    turn_satisfaction_weighted_sum += satisfaction_mean * count
-                    turn_satisfaction_second_moment_sum += (
-                        satisfaction_std ** 2 + satisfaction_mean ** 2
-                    ) * count
-                    turn_satisfaction_weight_total += count
-
-                    controlled_count = int(civ_data.get("controlled_agent_count", 0))
-                    controlled_counts = civ_data.get("controlled_occupation_counts", {})
-                    all_occupation_counts = civ_data.get("occupation_counts", {})
-                    has_controlled_schema = (
-                        "controlled_agent_count" in civ_data
-                        or "controlled_occupation_counts" in civ_data
-                    )
-                    if has_controlled_schema:
-                        turn_latest_has_current_occupation_schema = True
-                    if controlled_count >= 5 and controlled_counts:
-                        counted_controlled = sum(int(occ_count) for occ_count in controlled_counts.values())
-                    else:
-                        counted_controlled = 0
-                    if has_controlled_schema and controlled_count >= 5:
-                        if controlled_counts and counted_controlled == controlled_count:
-                            turn_latest_has_controlled_occupation_evidence = True
-                            turn_latest_occupation_agent_total += controlled_count
-                            for occ_count in controlled_counts.values():
-                                occ_count = int(occ_count)
-                                share = float(occ_count) / controlled_count
-                                turn_latest_controlled_occupation_shares.append(share)
-                                if share <= 0.0 or share > REGRESSION_OCCUPATION_SHARE_MAX:
-                                    turn_latest_occupation_violation_agent_count += occ_count
-                        else:
-                            turn_latest_has_incomplete_controlled_occupation = True
-                    elif not has_controlled_schema and count >= 5 and all_occupation_counts:
-                        turn_latest_occupation_agent_total += count
-                        for occ_count in all_occupation_counts.values():
-                            occ_count = int(occ_count)
-                            share = float(occ_count) / count
-                            turn_latest_fallback_occupation_shares.append(share)
-                            if share <= 0.0 or share > REGRESSION_OCCUPATION_SHARE_MAX:
-                                turn_latest_occupation_violation_agent_count += occ_count
-                if turn_satisfaction_weight_total:
-                    final_sample_satisfaction_weighted_sum += turn_satisfaction_weighted_sum
-                    final_sample_satisfaction_weight_total += turn_satisfaction_weight_total
-                    window_sums = _late_satisfaction_window(agent_aggregates, turn)
-                    latest_satisfaction_weighted_sum += window_sums[0]
-                    latest_satisfaction_second_moment_sum += window_sums[1]
-                    latest_satisfaction_weight_total += window_sums[2]
-                    if turn_latest_has_current_occupation_schema:
-                        run_latest_has_current_occupation_schema = True
-                    if turn_latest_has_controlled_occupation_evidence:
-                        run_latest_has_controlled_occupation_evidence = True
-                    if turn_latest_has_incomplete_controlled_occupation:
-                        run_latest_has_incomplete_controlled_occupation = True
-                    latest_controlled_occupation_shares.extend(turn_latest_controlled_occupation_shares)
-                    latest_fallback_occupation_shares.extend(turn_latest_fallback_occupation_shares)
-                    latest_occupation_violation_agent_count += turn_latest_occupation_violation_agent_count
-                    latest_occupation_agent_total += turn_latest_occupation_agent_total
-                    break
-
-            sampled_counts = _agent_count_by_turn(validation_summary)
-            if run_has_current_occupation_schema:
-                current_occupation_schema_runs += 1
-            if run_has_controlled_occupation_evidence:
-                controlled_occupation_evidence_runs += 1
-            if run_latest_has_current_occupation_schema:
-                latest_current_occupation_schema_runs += 1
-            if run_latest_has_controlled_occupation_evidence:
-                latest_controlled_occupation_evidence_runs += 1
-            if run_latest_has_incomplete_controlled_occupation:
-                latest_incomplete_controlled_occupation_runs += 1
-            if sampled_counts:
-                avg_agents = _mean(list(sampled_counts.values()))
-                metadata = run["bundle"].get("metadata")
-                total_turns = (
-                    _population_count(metadata.get("total_turns"))
-                    if isinstance(metadata, dict) else None
-                ) or 0
-                total_agent_turns += avg_agents * total_turns
-
-        history = run["bundle"].get("history", [])
-        final_snapshot = history[-1] if history else {}
-        first_snapshot = history[0] if history else {}
-        civ_stats = final_snapshot.get("civ_stats", {})
-        initial_civ_stats = first_snapshot.get("civ_stats", {})
-        alive_civs = 0
-        final_survivors: set[str] = set()
-        initial_survivors: set[str] = {
-            civ_name for civ_name, civ_data in initial_civ_stats.items()
-            if civ_data.get("regions")
-        }
-        for civ_data in civ_stats.values():
-            if civ_data.get("regions"):
-                alive_civs += 1
-        for civ_name, civ_data in civ_stats.items():
-            if civ_data.get("regions"):
-                final_survivors.add(civ_name)
-        final_civ_survivals.append(alive_civs)
-        if initial_survivors:
-            full_initial_survival_flags.append(initial_survivors.issubset(final_survivors))
-        if validation_summary and "agent_aggregates_by_turn" in validation_summary:
-            final_ginis.extend(run_final_ginis)
-        else:
-            for civ_data in civ_stats.values():
-                if civ_data.get("regions"):
-                    final_ginis.append(float(civ_data.get("gini", 0.0)))
-
-        treasury_streaks: dict[str, int] = defaultdict(int)
-        max_treasury_streaks: dict[str, int] = defaultdict(int)
-        for snapshot in run["bundle"].get("history", []):
-            for civ_name, civ_data in snapshot.get("civ_stats", {}).items():
-                if float(civ_data.get("treasury", 0.0)) < 0 and civ_data.get("regions"):
-                    treasury_streaks[civ_name] += 1
-                    max_treasury_streaks[civ_name] = max(
-                        max_treasury_streaks[civ_name],
-                        treasury_streaks[civ_name],
-                    )
-                else:
-                    treasury_streaks[civ_name] = 0
-        bad_survivors = sum(
-            1
-            for civ_name, streak in max_treasury_streaks.items()
-            if civ_name in final_survivors and streak > 50
-        )
-        if final_survivors and (bad_survivors / len(final_survivors)) > 0.30:
-            negative_treasury_runs += 1
-
-        migration_events += sum(1 for event in run["events"] if event["event_type"] == EVENT_NAME_TO_CODE["migration"])
-        rebellion_events += sum(1 for event in run["events"] if event["event_type"] == EVENT_NAME_TO_CODE["rebellion"])
-
-    migration_rate = migration_events / total_agent_turns if total_agent_turns else 0.0
-    rebellion_rate = rebellion_events / total_agent_turns if total_agent_turns else 0.0
-    satisfaction_mean = (
-        satisfaction_weighted_sum / satisfaction_weight_total
-        if satisfaction_weight_total else None
-    )
-    satisfaction_std = None
-    if satisfaction_weight_total and satisfaction_mean is not None:
-        variance = satisfaction_second_moment_sum / satisfaction_weight_total - satisfaction_mean ** 2
-        satisfaction_std = max(variance, 0.0) ** 0.5
-    latest_satisfaction_mean = (
-        latest_satisfaction_weighted_sum / latest_satisfaction_weight_total
-        if latest_satisfaction_weight_total else None
-    )
-    final_sample_satisfaction_mean = (
-        final_sample_satisfaction_weighted_sum / final_sample_satisfaction_weight_total
-        if final_sample_satisfaction_weight_total else None
-    )
-    latest_satisfaction_std = None
-    if latest_satisfaction_weight_total and latest_satisfaction_mean is not None:
-        latest_variance = (
-            latest_satisfaction_second_moment_sum / latest_satisfaction_weight_total
-            - latest_satisfaction_mean ** 2
-        )
-        latest_satisfaction_std = max(latest_variance, 0.0) ** 0.5
-    occupation_shares = controlled_occupation_shares or fallback_occupation_shares
-    occupation_source = (
-        "controlled" if controlled_occupation_shares
-        else "legacy_fallback" if fallback_occupation_shares
-        else "none"
-    )
-    occupation_violation_fraction = (
-        sum(
-            1
-            for share in occupation_shares
-            if share <= 0.0 or share > REGRESSION_OCCUPATION_SHARE_MAX
-        ) / len(occupation_shares)
-        if occupation_shares else 1.0
-    )
-    latest_occupation_shares = (
-        latest_controlled_occupation_shares or latest_fallback_occupation_shares
-    )
-    latest_occupation_source = (
-        "controlled" if latest_controlled_occupation_shares
-        else "legacy_fallback" if latest_fallback_occupation_shares
-        else "none"
-    )
-    latest_occupation_violation_fraction = (
-        latest_occupation_violation_agent_count / latest_occupation_agent_total
-        if latest_occupation_agent_total else 1.0
-    )
-    occupation_evidence_run_fraction = (
-        controlled_occupation_evidence_runs / current_occupation_schema_runs
-        if current_occupation_schema_runs else None
-    )
-    latest_occupation_evidence_run_fraction = (
-        latest_controlled_occupation_evidence_runs / latest_current_occupation_schema_runs
-        if latest_current_occupation_schema_runs else None
-    )
-    latest_occupation_incomplete_run_fraction = (
-        latest_incomplete_controlled_occupation_runs / latest_current_occupation_schema_runs
-        if latest_current_occupation_schema_runs else None
-    )
-    occupation_evidence_ok = (
-        occupation_evidence_run_fraction is None
-        or occupation_evidence_run_fraction >= REGRESSION_OCCUPATION_EVIDENCE_RUN_MIN
-    )
-    latest_occupation_evidence_ok = (
-        latest_occupation_evidence_run_fraction is None
-        or latest_occupation_evidence_run_fraction >= REGRESSION_OCCUPATION_EVIDENCE_RUN_MIN
-    )
-    latest_occupation_complete_ok = (
-        latest_occupation_incomplete_run_fraction is None
-        or latest_occupation_incomplete_run_fraction == 0.0
-    )
-    latest_occupation_ok = (
-        bool(latest_occupation_shares)
-        and latest_occupation_violation_fraction
-        <= REGRESSION_LATEST_OCCUPATION_VIOLATION_AGENT_FRACTION_MAX
-        and latest_occupation_evidence_ok
-        and latest_occupation_complete_ok
-    )
-    occupation_ok = (
-        bool(occupation_shares)
-        and occupation_violation_fraction <= REGRESSION_OCCUPATION_VIOLATION_FRACTION_MAX
-        and occupation_evidence_ok
-        and latest_occupation_ok
-    )
-    satisfaction_mean_ok = (
-        REGRESSION_SATISFACTION_MEAN_MIN
-        <= satisfaction_mean
-        <= REGRESSION_SATISFACTION_MEAN_MAX
-        if satisfaction_mean is not None else False
-    )
-    latest_satisfaction_mean_ok = (
-        REGRESSION_SATISFACTION_MEAN_MIN
-        <= latest_satisfaction_mean
-        <= REGRESSION_SATISFACTION_MEAN_MAX
-        if latest_satisfaction_mean is not None else False
-    )
-    satisfaction_mean_calibrated_ok = (
-        REGRESSION_SATISFACTION_MEAN_CALIBRATED_MIN
-        <= satisfaction_mean
-        <= REGRESSION_SATISFACTION_MEAN_MAX
-        if satisfaction_mean is not None else False
-    )
-    latest_satisfaction_mean_calibrated_ok = (
-        REGRESSION_SATISFACTION_MEAN_CALIBRATED_MIN
-        <= latest_satisfaction_mean
-        <= REGRESSION_SATISFACTION_MEAN_MAX
-        if latest_satisfaction_mean is not None else False
-    )
-    satisfaction_std_ok = 0.10 <= satisfaction_std <= 0.25 if satisfaction_std is not None else False
-    gini_ok = (
-        sum(1 for g in final_ginis if 0.30 <= g <= 0.70) / len(final_ginis) >= 0.20
-        if final_ginis else False
-    )
-    zero_survival_fraction = (
-        sum(1 for count in final_civ_survivals if count == 0) / len(final_civ_survivals)
-        if final_civ_survivals else 1.0
-    )
-    exact_four_region_fraction = (
-        sum(1 for count in final_civ_survivals if count == 4) / len(final_civ_survivals)
-        if final_civ_survivals else 1.0
-    )
-    full_survival_fraction = (
-        sum(1 for survived in full_initial_survival_flags if survived) / len(full_initial_survival_flags)
-        if full_initial_survival_flags else exact_four_region_fraction
-    )
-    civ_survival_ok = zero_survival_fraction == 0.0 and full_survival_fraction <= 0.20
-    treasury_ok = negative_treasury_runs <= max(1, int(len(seed_runs) * 0.30))
-    measured_populations = [
-        evidence["population"] for evidence in living_population_evidence
-        if evidence["population"] is not None
-    ]
-    extinct_world_count = sum(population == 0 for population in measured_populations)
-    population_unknown_count = len(seed_runs) - len(measured_populations)
-    # Preserve the existing no-total-extinction intent without a new tunable
-    # survival-size floor. Unknown terminal evidence must not earn a pass.
-    living_population_ok = extinct_world_count == 0 and population_unknown_count == 0
-
-    rebellion_rate_ok = (
-        REGRESSION_REBELLION_RATE_MIN <= rebellion_rate <= REGRESSION_REBELLION_RATE_MAX
-        if total_agent_turns else False
-    )
-    migration_rate_ok = (
-        REGRESSION_MIGRATION_RATE_MIN <= migration_rate <= REGRESSION_MIGRATION_RATE_MAX
-        if total_agent_turns else False
-    )
-    migration_rate_calibrated_ok = (
-        REGRESSION_MIGRATION_RATE_CALIBRATED_MIN <= migration_rate <= REGRESSION_MIGRATION_RATE_MAX
-        if total_agent_turns else False
-    )
-    strict_overall_ok = (
-        satisfaction_mean_ok
-        and latest_satisfaction_mean_ok
-        and satisfaction_std_ok
-        and rebellion_rate_ok
-        and migration_rate_ok
-        and gini_ok
-        and occupation_ok
-        and civ_survival_ok
-        and living_population_ok
-        and treasury_ok
-    )
-    calibrated_floor_ok = (
-        satisfaction_mean_calibrated_ok
-        and latest_satisfaction_mean_calibrated_ok
-        and satisfaction_std_ok
-        and rebellion_rate_ok
-        and migration_rate_calibrated_ok
-        and gini_ok
-        and occupation_ok
-        and civ_survival_ok
-        and living_population_ok
-        and treasury_ok
-    )
-    strict_checks = [
-        ("satisfaction_mean", satisfaction_mean_ok),
-        ("latest_satisfaction_mean", latest_satisfaction_mean_ok),
-        ("satisfaction_std", satisfaction_std_ok),
-        ("rebellion_rate_per_agent_turn", rebellion_rate_ok),
-        ("migration_rate_per_agent_turn", migration_rate_ok),
-        ("gini_in_range_fraction", gini_ok),
-        ("occupation", occupation_ok),
-        ("civ_survival", civ_survival_ok),
-        ("living_population", living_population_ok),
-        ("treasury", treasury_ok),
-    ]
-    calibrated_checks = [
-        ("satisfaction_mean", satisfaction_mean_calibrated_ok),
-        ("latest_satisfaction_mean", latest_satisfaction_mean_calibrated_ok),
-        ("satisfaction_std", satisfaction_std_ok),
-        ("rebellion_rate_per_agent_turn", rebellion_rate_ok),
-        ("migration_rate_per_agent_turn", migration_rate_calibrated_ok),
-        ("gini_in_range_fraction", gini_ok),
-        ("occupation", occupation_ok),
-        ("civ_survival", civ_survival_ok),
-        ("living_population", living_population_ok),
-        ("treasury", treasury_ok),
-    ]
-    strict_regression_failed_checks = [name for name, ok in strict_checks if not ok]
-    calibrated_floor_failed_checks = [name for name, ok in calibrated_checks if not ok]
-    regression_floor_diagnostics = {
-        "satisfaction_mean": _floor_diagnostic(
-            satisfaction_mean,
-            strict_min=REGRESSION_SATISFACTION_MEAN_MIN,
-            calibrated_min=REGRESSION_SATISFACTION_MEAN_CALIBRATED_MIN,
-            max_value=REGRESSION_SATISFACTION_MEAN_MAX,
-            strict_ok=satisfaction_mean_ok,
-            calibrated_ok=satisfaction_mean_calibrated_ok,
-        ),
-        "latest_satisfaction_mean": _floor_diagnostic(
-            latest_satisfaction_mean,
-            strict_min=REGRESSION_SATISFACTION_MEAN_MIN,
-            calibrated_min=REGRESSION_SATISFACTION_MEAN_CALIBRATED_MIN,
-            max_value=REGRESSION_SATISFACTION_MEAN_MAX,
-            strict_ok=latest_satisfaction_mean_ok,
-            calibrated_ok=latest_satisfaction_mean_calibrated_ok,
-        ),
-        "migration_rate_per_agent_turn": _floor_diagnostic(
-            migration_rate,
-            strict_min=REGRESSION_MIGRATION_RATE_MIN,
-            calibrated_min=REGRESSION_MIGRATION_RATE_CALIBRATED_MIN,
-            max_value=REGRESSION_MIGRATION_RATE_MAX,
-            strict_ok=migration_rate_ok,
-            calibrated_ok=migration_rate_calibrated_ok,
-        ),
-    }
-    calibrated_floor_relaxed_checks = [
-        name
-        for name, diagnostic in regression_floor_diagnostics.items()
-        if not diagnostic["strict_ok"] and diagnostic["calibrated_ok"]
-    ]
-    overall_ok = strict_overall_ok or calibrated_floor_ok
-    regression_adjudication = (
-        "strict"
-        if strict_overall_ok else "calibrated_floor"
-        if calibrated_floor_ok else "fail"
-    )
-
-    return {
-        "status": "PASS" if overall_ok else "FAIL",
-        "regression_adjudication": regression_adjudication,
-        "strict_regression_ok": strict_overall_ok,
-        "calibrated_floor_ok": calibrated_floor_ok,
-        "strict_regression_failed_checks": strict_regression_failed_checks,
-        "calibrated_floor_failed_checks": calibrated_floor_failed_checks,
-        "calibrated_floor_relaxed_checks": calibrated_floor_relaxed_checks,
-        "regression_floor_diagnostics": regression_floor_diagnostics,
-        "satisfaction_mean": round(satisfaction_mean, 4) if satisfaction_mean is not None else None,
-        "satisfaction_std": round(satisfaction_std, 4) if satisfaction_std is not None else None,
-        "latest_satisfaction_mean": (
-            round(latest_satisfaction_mean, 4)
-            if latest_satisfaction_mean is not None else None
-        ),
-        "latest_satisfaction_std": (
-            round(latest_satisfaction_std, 4)
-            if latest_satisfaction_std is not None else None
-        ),
-        "latest_satisfaction_window_turns": REGRESSION_LATEST_SATISFACTION_WINDOW_TURNS,
-        "final_sample_satisfaction_mean": (
-            round(final_sample_satisfaction_mean, 4)
-            if final_sample_satisfaction_mean is not None else None
-        ),
-        "latest_satisfaction_mean_ok": latest_satisfaction_mean_ok,
-        "latest_satisfaction_mean_calibrated_ok": latest_satisfaction_mean_calibrated_ok,
-        "satisfaction_mean_ok": satisfaction_mean_ok,
-        "satisfaction_mean_calibrated_ok": satisfaction_mean_calibrated_ok,
-        "migration_rate_per_agent_turn": round(migration_rate, 6),
-        "migration_rate_ok": migration_rate_ok,
-        "migration_rate_calibrated_ok": migration_rate_calibrated_ok,
-        "rebellion_rate_per_agent_turn": round(rebellion_rate, 6),
-        "gini_in_range_fraction": round(sum(1 for g in final_ginis if 0.30 <= g <= 0.70) / len(final_ginis), 4) if final_ginis else None,
-        "occupation_ok": occupation_ok,
-        "occupation_source": occupation_source,
-        "occupation_violation_fraction": round(occupation_violation_fraction, 4),
-        "occupation_evidence_run_fraction": (
-            round(occupation_evidence_run_fraction, 4)
-            if occupation_evidence_run_fraction is not None else None
-        ),
-        "latest_occupation_source": latest_occupation_source,
-        "latest_occupation_violation_fraction": round(latest_occupation_violation_fraction, 4),
-        "latest_occupation_evidence_run_fraction": (
-            round(latest_occupation_evidence_run_fraction, 4)
-            if latest_occupation_evidence_run_fraction is not None else None
-        ),
-        "latest_occupation_incomplete_run_fraction": (
-            round(latest_occupation_incomplete_run_fraction, 4)
-            if latest_occupation_incomplete_run_fraction is not None else None
-        ),
-        "latest_occupation_ok": latest_occupation_ok,
-        "reason": (
-            "terminal_population_extinction" if extinct_world_count else
-            "missing_or_invalid_terminal_population_evidence" if population_unknown_count else None
-        ),
-        "living_population_ok": living_population_ok,
-        "final_living_population_by_seed": living_population_evidence,
-        "final_living_population_counts": [evidence["population"] for evidence in living_population_evidence],
-        "extinct_world_count": extinct_world_count,
-        "extinct_world_fraction": (
-            round(extinct_world_count / len(measured_populations), 4)
-            if measured_populations else None
-        ),
-        "population_unknown_run_count": population_unknown_count,
-        "population_evidence_run_fraction": round(len(measured_populations) / len(seed_runs), 4),
-        "civ_survival_counts": final_civ_survivals,
-        "civ_zero_survival_fraction": round(zero_survival_fraction, 4) if final_civ_survivals else None,
-        "civ_full_survival_fraction": round(full_survival_fraction, 4) if full_initial_survival_flags or final_civ_survivals else None,
-        "civ_exact_four_region_fraction": round(exact_four_region_fraction, 4) if final_civ_survivals else None,
-        "treasury_bad_seed_count": negative_treasury_runs,
-    }
-
-
 ORACLE_RUNNER_NAMES = {
     "determinism",
     "community",
@@ -4452,19 +2808,139 @@ ORACLE_RUNNER_NAMES = {
     "regression",
 }
 SEED_RUN_ORACLE_NAMES = ORACLE_RUNNER_NAMES - {"determinism"}
+# The module-level function that runs each oracle of ``run_oracles``.
+_ORACLE_FUNCTION_NAMES = MappingProxyType({
+    "determinism": "run_determinism_gate",
+    "community": "run_community_oracle",
+    "needs": "run_needs_oracle",
+    "era": "run_era_oracle",
+    "cohort": "run_cohort_oracle",
+    "artifacts": "run_artifact_oracle",
+    "arcs": "run_arc_oracle",
+    "regression": "run_regression_summary",
+})
 
 
-def _normalize_requested_oracles(oracles: list[str]) -> set[str]:
+class _ModuleRunners:
+    """A module's oracle functions as the registry of ``_run_oracles``: each
+    is read from the module when its oracle runs, so a patch of
+    ``validation_io.run_needs_oracle`` reaches ``validation_io.run_oracles``.
+    (``validate.run_oracles`` dispatches through ``validate.ORACLE_RUNNERS``.)"""
+
+    __slots__ = ("module",)
+
+    def __init__(self, module):
+        self.module = module
+
+    def __getitem__(self, oracle_name: str):
+        return getattr(self.module, _ORACLE_FUNCTION_NAMES[oracle_name])
+
+
+def _normalize_oracle_selection(oracles: list[str], names) -> set[str]:
+    """The oracles ``oracles`` selects among ``names`` (``all``: every one)."""
     selected = set(oracles)
-    allowed = ORACLE_RUNNER_NAMES | {"all"}
+    allowed = set(names) | {"all"}
     unknown = sorted(selected - allowed)
     if unknown:
         raise ValidationRequestError(f"unknown_oracles: {', '.join(unknown)}")
     if "all" in selected:
         if len(selected) > 1:
             raise ValidationRequestError("all cannot be combined with explicit oracles")
-        return set(ORACLE_RUNNER_NAMES)
+        return set(names)
     return selected
+
+
+def _normalize_requested_oracles(oracles: list[str]) -> set[str]:
+    return _normalize_oracle_selection(oracles, ORACLE_RUNNER_NAMES)
+
+
+def _run_oracles(
+    surface,
+    runners,
+    seed_run_oracles: set[str],
+    batch_dir: Path,
+    oracles: list[str],
+    profile: str | None,
+    *,
+    legacy_batch: bool,
+    ablation_dir: Path | None,
+    require_causal: bool | None,
+) -> dict:
+    """The orchestration of both ``validate.run_oracles`` and
+    ``validation_io.run_oracles`` (docs/integration/validation-split.md).
+
+    ``surface`` is the calling module. Its ``causal_oracles_required``,
+    ``_normalize_requested_oracles``, ``_prepare_batch_admission``,
+    ``_load_arms``, ``load_seed_runs``, ``ablation_methods``,
+    ``summarize_world_shapes`` and ``run_determinism_gate`` are read from it
+    when they are used, so a patch of one module's attribute reaches only
+    that module's ``run_oracles``. ``runners`` maps each selected oracle to
+    its runner (``validate.ORACLE_RUNNERS``, or ``_ModuleRunners``);
+    ``seed_run_oracles`` are the oracles that read seed runs. A determinism
+    runner other than ``surface.run_determinism_gate`` keeps the standalone
+    ``runner(batch_dir)`` signature, after the admission has observed every
+    bundle.
+    """
+    require_causal = surface.causal_oracles_required(None, require_causal)
+    selected = surface._normalize_requested_oracles(oracles)
+    admission = surface._prepare_batch_admission(batch_dir, legacy_batch=legacy_batch)
+    arms, ablation_summary = surface._load_arms(ablation_dir, batch_dir)
+    results: dict[str, dict] = {}
+    seed_runs: list[dict] | None = None
+
+    def ensure_seed_runs() -> list[dict]:
+        nonlocal seed_runs
+        if seed_runs is None:
+            seed_runs = surface.load_seed_runs(
+                batch_dir, selected_oracles=selected & seed_run_oracles, _admission=admission)
+        return seed_runs
+
+    for oracle_name in sorted(selected):
+        runner = runners[oracle_name]
+        try:
+            if oracle_name == "determinism":
+                if runner is surface.run_determinism_gate:
+                    results[oracle_name] = runner(batch_dir, _admission=admission)
+                else:
+                    # Preserve the registry's standalone runner signature.
+                    admission.finish()
+                    results[oracle_name] = runner(batch_dir)
+            elif oracle_name == "needs":
+                results[oracle_name] = runner(
+                    ensure_seed_runs(), profile=profile, ablation=arms.get("needs"), placebo=arms.get("placebo"),
+                    require_causal=require_causal, method_version=surface.ablation_methods(ablation_summary)[0])
+            elif oracle_name == "cohort":
+                results[oracle_name] = runner(
+                    ensure_seed_runs(), ablation=arms.get("kin_roots"), placebo=arms.get("placebo"),
+                    community=arms.get("community_anchor"), require_causal=require_causal,
+                    method_version=surface.ablation_methods(ablation_summary)[1])
+            else:
+                results[oracle_name] = runner(ensure_seed_runs())
+        except (ValidationRequestError, ValidationDependencyError):
+            raise
+        except Exception as exc:
+            results[oracle_name] = {
+                "status": "ERROR",
+                "reason": f"{type(exc).__name__}: {exc}",
+            }
+
+    report = {
+        "batch_dir": str(batch_dir),
+        "oracles": sorted(selected),
+        "results": results,
+    }
+    # Non-template worlds are named in the report so that a comparison
+    # cannot mix them with template reports (template reports keep their bytes).
+    worlds = surface.summarize_world_shapes(seed_runs) if seed_runs is not None else None
+    if worlds is not None:
+        report["worlds"] = worlds
+    report["batch_manifest"] = admission.finish()
+    if ablation_summary is not None:
+        report["ablation_arms"] = ablation_summary
+    if profile is not None:
+        report["profile"] = profile
+    report["causal_oracles_required"] = require_causal
+    return report
 
 
 def run_oracles(
@@ -4484,68 +2960,9 @@ def run_oracles(
     (``validation_ablation.load_ablation_arms``). ``require_causal``: whether
     the ablation components decide (default ``CAUSAL_ORACLES_REQUIRED``;
     recorded as ``causal_oracles_required``)."""
-    require_causal = causal_oracles_required(None, require_causal)
-    selected = _normalize_requested_oracles(oracles)
-    admission = _prepare_batch_admission(batch_dir, legacy_batch=legacy_batch)
-    arms, ablation_summary = _load_arms(ablation_dir, batch_dir)
-    results: dict[str, dict] = {}
-    seed_runs: list[dict] | None = None
-
-    def ensure_seed_runs() -> list[dict]:
-        nonlocal seed_runs
-        if seed_runs is None:
-            seed_runs = load_seed_runs(batch_dir, selected_oracles=selected & SEED_RUN_ORACLE_NAMES, _admission=admission)
-        return seed_runs
-
-    for oracle_name in sorted(selected):
-        try:
-            if oracle_name == "determinism":
-                results[oracle_name] = run_determinism_gate(batch_dir, _admission=admission)
-            elif oracle_name == "community":
-                results[oracle_name] = run_community_oracle(ensure_seed_runs())
-            elif oracle_name == "needs":
-                results[oracle_name] = run_needs_oracle(
-                    ensure_seed_runs(), profile=profile, ablation=arms.get("needs"), placebo=arms.get("placebo"),
-                    require_causal=require_causal, method_version=ablation_methods(ablation_summary)[0])
-            elif oracle_name == "era":
-                results[oracle_name] = run_era_oracle(ensure_seed_runs())
-            elif oracle_name == "cohort":
-                results[oracle_name] = run_cohort_oracle(
-                    ensure_seed_runs(), ablation=arms.get("kin_roots"), placebo=arms.get("placebo"),
-                    community=arms.get("community_anchor"), require_causal=require_causal,
-                    method_version=ablation_methods(ablation_summary)[1])
-            elif oracle_name == "artifacts":
-                results[oracle_name] = run_artifact_oracle(ensure_seed_runs())
-            elif oracle_name == "arcs":
-                results[oracle_name] = run_arc_oracle(ensure_seed_runs())
-            elif oracle_name == "regression":
-                results[oracle_name] = run_regression_summary(ensure_seed_runs())
-        except (ValidationRequestError, ValidationDependencyError):
-            raise
-        except Exception as exc:
-            results[oracle_name] = {
-                "status": "ERROR",
-                "reason": f"{type(exc).__name__}: {exc}",
-            }
-
-    report = {
-        "batch_dir": str(batch_dir),
-        "oracles": sorted(selected),
-        "results": results,
-    }
-    # Non-template worlds are named in the report so that a comparison
-    # cannot mix them with template reports (template reports keep their bytes).
-    worlds = summarize_world_shapes(seed_runs) if seed_runs is not None else None
-    if worlds is not None:
-        report["worlds"] = worlds
-    report["batch_manifest"] = admission.finish()
-    if ablation_summary is not None:
-        report["ablation_arms"] = ablation_summary
-    if profile is not None:
-        report["profile"] = profile
-    report["causal_oracles_required"] = require_causal
-    return report
-
+    module = sys.modules[__name__]
+    return _run_oracles(module, _ModuleRunners(module), SEED_RUN_ORACLE_NAMES, batch_dir, oracles, profile,
+                        legacy_batch=legacy_batch, ablation_dir=ablation_dir, require_causal=require_causal)
 
 ABLATION_DIR_FLAG = "--ablation-dir"
 
@@ -4591,7 +3008,13 @@ def _serialization_error_report(batch_dir: Path, oracles: list[str], exc: Artifa
     return _error_report(batch_dir, oracles, f"could not serialize validation report: {exc}")
 
 
-def main(argv: list[str] | None = None) -> int:
+def _cli_main(surface, argv: list[str] | None, *, causal_help: str) -> int:
+    """The CLI of both ``python -m chronicler.validate`` and ``python -m
+    chronicler.validation_io``. ``surface`` is the calling module: its
+    ``run_oracles``, ``_dump_report``, ``_error_report`` and
+    ``_serialization_error_report`` are read from it when used.
+    ``causal_help`` is that CLI's ``--require-causal-oracles`` help (the
+    two differ; docs/integration/validation-split.md)."""
     parser = argparse.ArgumentParser(description="M53b validation oracle runner")
     parser.add_argument("--batch-dir", required=True, type=Path)
     parser.add_argument("--oracles", nargs="+", default=["all"])
@@ -4604,25 +3027,34 @@ def main(argv: list[str] | None = None) -> int:
                         help="the batch's ablation arms (chronicler.ablation_arms): the needs oracle's "
                              "ablation component and the cohort oracle read them")
     parser.add_argument(CAUSAL_ORACLES_FLAG, action=argparse.BooleanOptionalAction, default=None,
-                        help="let the ablation components (needs method 7, cohort method 4) decide "
-                             "(default: validation_gate.CAUSAL_ORACLES_REQUIRED, off: they are reported as "
-                             "causal evidence, not yet required)")
+                        help=causal_help)
     args = parser.parse_args(argv)
     try:
-        report = run_oracles(args.batch_dir, args.oracles, profile=args.profile, legacy_batch=args.legacy_batch,
-                             ablation_dir=args.ablation_dir, require_causal=args.require_causal_oracles)
+        report = surface.run_oracles(args.batch_dir, args.oracles, profile=args.profile,
+                                     legacy_batch=args.legacy_batch, ablation_dir=args.ablation_dir,
+                                     require_causal=args.require_causal_oracles)
     except (ValidationRequestError, ValidationDependencyError) as exc:
-        _dump_report(_error_report(args.batch_dir, args.oracles, str(exc)))
+        surface._dump_report(surface._error_report(args.batch_dir, args.oracles, str(exc)))
         return 1
     try:
-        _dump_report(report)
+        surface._dump_report(report)
     except ArtifactIOError as exc:
-        _dump_report(_serialization_error_report(args.batch_dir, args.oracles, exc))
+        surface._dump_report(surface._serialization_error_report(args.batch_dir, args.oracles, exc))
         return 1
     if any(result.get("status") == "ERROR" for result in report["results"].values()):
         return 1
     return 0
 
+
+# This CLI's --require-causal-oracles help names the design-1 methods;
+# validate's names needs method 8 and cohort method 5. Each keeps its text.
+_CAUSAL_ORACLES_HELP = ("let the ablation components (needs method 7, cohort method 4) decide "
+                        "(default: validation_gate.CAUSAL_ORACLES_REQUIRED, off: they are reported as "
+                        "causal evidence, not yet required)")
+
+
+def main(argv: list[str] | None = None) -> int:
+    return _cli_main(sys.modules[__name__], argv, causal_help=_CAUSAL_ORACLES_HELP)
 
 if __name__ == "__main__":
     raise SystemExit(main())

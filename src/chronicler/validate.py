@@ -1,17 +1,20 @@
 """Validation CLI facade with backwards-compatible re-exports."""
 from __future__ import annotations
 
-import argparse
 import sys
 from pathlib import Path
 
-from .artifact_io import ArtifactIOError, strict_json_dumps
-from .validation_gate import CAUSAL_ORACLES_FLAG, PROFILE_CHOICES, causal_oracles_required
+# Re-exported, and the collaborators run_oracles and main read from this module.
+from .artifact_io import ArtifactIOError, strict_json_dumps  # noqa: F401
+from .validation_gate import CAUSAL_ORACLES_FLAG, PROFILE_CHOICES, causal_oracles_required  # noqa: F401
 from .validation_io import *  # noqa: F401,F403
 from .validation_io import __all__ as _validation_io_all
-from .validation_io import (
+from .validation_io import (  # noqa: F401
     ABLATION_DIR_FLAG, LEGACY_BATCH_FLAG, MANIFEST_FILENAME, _load_arms, ablation_methods, check_batch_manifest,
     summarize_world_shapes, _prepare_batch_admission,
+)
+from .validation_io import (  # noqa: F401
+    _cli_main, _dump_report, _error_report, _normalize_oracle_selection, _run_oracles, _serialization_error_report,
 )
 from .validation_oracles import *  # noqa: F401,F403
 from .validation_oracles import __all__ as _validation_oracle_all
@@ -31,16 +34,7 @@ SEED_RUN_ORACLES = set(ORACLE_RUNNERS) - {"determinism"}
 
 
 def _normalize_requested_oracles(oracles: list[str]) -> set[str]:
-    selected = set(oracles)
-    allowed = set(ORACLE_RUNNERS) | {"all"}
-    unknown = sorted(selected - allowed)
-    if unknown:
-        raise ValidationRequestError(f"unknown_oracles: {', '.join(unknown)}")
-    if "all" in selected:
-        if len(selected) > 1:
-            raise ValidationRequestError("all cannot be combined with explicit oracles")
-        return set(ORACLE_RUNNERS)
-    return selected
+    return _normalize_oracle_selection(oracles, ORACLE_RUNNERS)
 
 
 def run_oracles(
@@ -59,117 +53,21 @@ def run_oracles(
     ablation arms of ``ablation_dir`` against theirs and the batch.
     ``require_causal``: whether the ablation components decide (default
     ``CAUSAL_ORACLES_REQUIRED``; recorded as ``causal_oracles_required``)."""
-    require_causal = causal_oracles_required(None, require_causal)
-    selected = _normalize_requested_oracles(oracles)
-    admission = _prepare_batch_admission(batch_dir, legacy_batch=legacy_batch)
-    arms, ablation_summary = _load_arms(ablation_dir, batch_dir)
-    results: dict[str, dict] = {}
-    seed_runs: list[dict] | None = None
-
-    def ensure_seed_runs() -> list[dict]:
-        nonlocal seed_runs
-        if seed_runs is None:
-            seed_runs = load_seed_runs(batch_dir, selected_oracles=selected & SEED_RUN_ORACLES, _admission=admission)
-        return seed_runs
-
-    for oracle_name in sorted(selected):
-        runner = ORACLE_RUNNERS[oracle_name]
-        try:
-            if oracle_name == "determinism":
-                if runner is run_determinism_gate:
-                    results[oracle_name] = runner(batch_dir, _admission=admission)
-                else:
-                    # Preserve the registry's standalone runner signature.
-                    admission.finish()
-                    results[oracle_name] = runner(batch_dir)
-            elif oracle_name == "needs":
-                results[oracle_name] = runner(
-                    ensure_seed_runs(), profile=profile, ablation=arms.get("needs"), placebo=arms.get("placebo"),
-                    require_causal=require_causal, method_version=ablation_methods(ablation_summary)[0])
-            elif oracle_name == "cohort":
-                results[oracle_name] = runner(
-                    ensure_seed_runs(), ablation=arms.get("kin_roots"), placebo=arms.get("placebo"),
-                    community=arms.get("community_anchor"), require_causal=require_causal,
-                    method_version=ablation_methods(ablation_summary)[1])
-            else:
-                results[oracle_name] = runner(ensure_seed_runs())
-        except (ValidationRequestError, ValidationDependencyError):
-            raise
-        except Exception as exc:
-            results[oracle_name] = {
-                "status": "ERROR",
-                "reason": f"{type(exc).__name__}: {exc}",
-            }
-
-    report = {
-        "batch_dir": str(batch_dir),
-        "oracles": sorted(selected),
-        "results": results,
-    }
-    # Non-template worlds are named in the report so that a comparison
-    # cannot mix them with template reports (template reports keep their bytes).
-    worlds = summarize_world_shapes(seed_runs) if seed_runs is not None else None
-    if worlds is not None:
-        report["worlds"] = worlds
-    report["batch_manifest"] = admission.finish()
-    if ablation_summary is not None:
-        report["ablation_arms"] = ablation_summary
-    if profile is not None:
-        report["profile"] = profile
-    report["causal_oracles_required"] = require_causal
-    return report
+    # validation_io._run_oracles, dispatching through ORACLE_RUNNERS and
+    # reading its other collaborators from this module.
+    return _run_oracles(sys.modules[__name__], ORACLE_RUNNERS, SEED_RUN_ORACLES, batch_dir, oracles, profile,
+                        legacy_batch=legacy_batch, ablation_dir=ablation_dir, require_causal=require_causal)
 
 
-def _error_report(batch_dir: Path, oracles: list[str], reason: str) -> dict:
-    return {
-        "batch_dir": str(batch_dir),
-        "oracles": list(oracles),
-        "results": {},
-        "status": "ERROR",
-        "reason": reason,
-    }
-
-
-def _dump_report(report: dict) -> None:
-    sys.stdout.write(strict_json_dumps(report))
-
-
-def _serialization_error_report(batch_dir: Path, oracles: list[str], exc: ArtifactIOError) -> dict:
-    return _error_report(batch_dir, oracles, f"could not serialize validation report: {exc}")
+# This CLI's --require-causal-oracles help names needs method 8 and cohort
+# method 5; validation_io's names the design-1 methods. Each keeps its text.
+_CAUSAL_ORACLES_HELP = ("let the ablation components (needs method 8, cohort method 5) decide "
+                        "(default: validation_gate.CAUSAL_ORACLES_REQUIRED, off: they are reported as "
+                        "causal evidence, not yet required)")
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="M53b validation oracle runner")
-    parser.add_argument("--batch-dir", required=True, type=Path)
-    parser.add_argument("--oracles", nargs="+", default=["all"])
-    parser.add_argument("--profile", choices=PROFILE_CHOICES, default=None,
-                        help="gate profile the needs oracle scores for (default: binding required)")
-    parser.add_argument(LEGACY_BATCH_FLAG, action="store_true",
-                        help=f"validate a directory without {MANIFEST_FILENAME} (written before manifests, "
-                             "or a single bundle); its runs are not checked")
-    parser.add_argument(ABLATION_DIR_FLAG, type=Path, default=None,
-                        help="the batch's ablation arms (chronicler.ablation_arms): the needs oracle's "
-                             "ablation component and the cohort oracle read them")
-    parser.add_argument(CAUSAL_ORACLES_FLAG, action=argparse.BooleanOptionalAction, default=None,
-                        help="let the ablation components (needs method 8, cohort method 5) decide "
-                             "(default: validation_gate.CAUSAL_ORACLES_REQUIRED, off: they are reported as "
-                             "causal evidence, not yet required)")
-    args = parser.parse_args(argv)
-    try:
-        report = run_oracles(args.batch_dir, args.oracles, profile=args.profile, legacy_batch=args.legacy_batch,
-                             ablation_dir=args.ablation_dir, require_causal=args.require_causal_oracles)
-    except (ValidationRequestError, ValidationDependencyError) as exc:
-        _dump_report(_error_report(args.batch_dir, args.oracles, str(exc)))
-        return 1
-
-    try:
-        _dump_report(report)
-    except ArtifactIOError as exc:
-        _dump_report(_serialization_error_report(args.batch_dir, args.oracles, exc))
-        return 1
-    if any(result.get("status") == "ERROR" for result in report["results"].values()):
-        return 1
-    return 0
+    return _cli_main(sys.modules[__name__], argv, causal_help=_CAUSAL_ORACLES_HELP)
 
 
 __all__ = list(_validation_io_all) + list(_validation_oracle_all) + [

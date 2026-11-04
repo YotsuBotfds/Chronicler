@@ -54,6 +54,7 @@ link to these by path, so keep their names stable.
 ## Validation and qualification
 
 [Validation integrity](integration/validation-integrity.md),
+[the validation module split](integration/validation-split.md),
 [ablation oracles](integration/ablation-oracles.md),
 [community anchoring](integration/community-anchoring.md),
 [spec communities](integration/spec-communities.md), the `needs-*` and
@@ -123,4 +124,6 @@ Main commit `bd1693f` still holds them; recover any file with
 - `docs/plans/2026-03-12-civilization-chronicle-generator.md`: a byte-identical
   copy of the file in `superpowers/plans/`.
 
-The same cleanup moved docs-only scripts to [`scripts/archive/`](../scripts/archive/README.md).
+The same cleanup moved docs-only scripts to [`scripts/archive/`](../scripts/archive/README.md);
+`build_learning_fixture.py` and `generate_viewer_fixture.py`, which generate
+checked-in viewer fixtures, are back in `scripts/`.

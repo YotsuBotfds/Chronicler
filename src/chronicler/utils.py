@@ -249,6 +249,11 @@ def get_civ(world, name: str):
     return getattr(world, "civ_map", {}).get(name)
 
 
+def at_war(world, a: str, b: str) -> bool:
+    """True when the civilizations named ``a`` and ``b`` are at war, in either order."""
+    return (a, b) in world.active_wars or (b, a) in world.active_wars
+
+
 def get_region_map(world) -> dict[str, object]:
     """Return a region-name lookup, falling back for mock/test worlds.
 

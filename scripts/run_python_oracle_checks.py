@@ -69,9 +69,13 @@ CHUNKS = {
     "build-provenance": [
         "tests/test_native_build_lanes.py",
         "tests/test_native_wheel_receipt.py",
+        "tests/test_check_python_env.py",
     ],
     "arc-event-types": [
         "tests/test_arc_event_types.py",
+    ],
+    "refactor-preflight": [
+        "tests/test_refactor_preflight.py",
     ],
     "diagnostics": [
         "tests/test_community_admissibility.py::test_decomposes_saved_counters_without_changing_report_or_verdict",
@@ -279,6 +283,7 @@ CHUNKS = {
         "tests/test_batch_manifest_inputs.py",
         "tests/test_batch_manifest_reconciliation.py",
         "tests/test_validation_turn_index.py",
+        "tests/test_validation_parity.py",
         "tests/test_batch.py",
         "tests/test_validation_gate.py",
         "tests/test_validation_compare.py",
@@ -372,6 +377,7 @@ CHUNKS = {
     ],
     "native-ci-metadata-contracts": [
         "tests/test_native_ci_shards.py",
+        "tests/test_script_smoke_manifest.py",
     ],
     "ci-artifact-intake-pure-contracts": [
         "tests/ci_artifact_intake_contracts.py",

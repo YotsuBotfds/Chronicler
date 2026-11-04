@@ -321,14 +321,14 @@
 **Goal:** `sample_bundle.json` stays aligned with the current viewer-consumed bundle contract.
 
 **Primary files:**
-- `scripts/archive/generate_viewer_fixture.py`
+- `scripts/generate_viewer_fixture.py`
 - `viewer/src/__fixtures__/sample_bundle.json`
 - `tests/test_bundle.py`
 - `viewer/src/lib/__tests__/bundleLoader.test.ts` if a viewer-side assertion needs to be tightened
 
 ### Task 6.1: Regenerate the committed fixture from the current bundle writer
 
-- [ ] Run `scripts/archive/generate_viewer_fixture.py` after the bundle contract work in Workstream 4 is complete.
+- [ ] Run `scripts/generate_viewer_fixture.py` after the bundle contract work in Workstream 4 is complete.
 - [ ] If the script's args namespace has drifted from `execute_run()` expectations, update the script minimally so it remains the canonical regeneration tool.
 - [ ] Commit the refreshed `viewer/src/__fixtures__/sample_bundle.json`.
 

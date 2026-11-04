@@ -69,6 +69,7 @@ from chronicler.cities_state import (
     RANK_NAMES, SELF_GOVERNMENT, TOWN, City, CityState, cities_on,
 )
 from chronicler.utils import stable_hash_int
+from chronicler.utils import at_war as _at_war
 
 if TYPE_CHECKING:  # pragma: no cover
     from chronicler.models import Event, WorldState
@@ -260,10 +261,6 @@ def rank_for(residents: float, k: float) -> int:
         if residents >= RANK_POP[r] * k:
             rank = r
     return rank
-
-
-def _at_war(world, a: str, b: str) -> bool:
-    return (a, b) in world.active_wars or (b, a) in world.active_wars
 
 
 def _civ_at_war(world, name: str) -> bool:

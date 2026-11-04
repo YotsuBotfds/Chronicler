@@ -10,17 +10,72 @@ cd Chronicler
 git status --short --branch
 ```
 
+## Python environments
+
+Development uses two virtual environments. `.venv` is the no-native lane: it
+must not contain `chronicler_agents` while you run the no-Rust or offline
+lanes. Build the Rust extension into a separate native venv,
+`CHRONICLER_NATIVE_VENV` (default `~/.venvs/chronicler-native`;
+`%USERPROFILE%\.venvs\chronicler-native` on Windows). `maturin develop`
+installs into `VIRTUAL_ENV`, or into `./.venv` when none is set, so always
+build with the native venv active.
+
+`bash setup.sh --native-venv` (Mac, Linux, Git Bash) and
+`setup.bat --native-venv` (Windows Command Prompt) set both up. Without
+`--native-venv` the scripts keep the end-user layout: one `.venv` with the
+extension built into it, so `chronicler --agents hybrid` runs there; that
+`.venv` is not a no-native lane until `uv sync --frozen` (or
+`setup --no-rust`) removes the extension again. With [uv](https://docs.astral.sh/uv/) on PATH they run
+`uv lock --check` and install `.venv` exactly from `uv.lock` with
+`uv sync --frozen` (the `dev` group, plus `--extra api`/`--extra gemini` for
+`--api`/`--gemini`), as CI does. An exact sync also uninstalls packages the lock
+does not list, including a `chronicler_agents` left in `.venv` by an older
+setup. Without uv they warn and fall back to an unlocked
+`pip install -e . pytest pytest-asyncio`, with whatever versions the index
+serves that day, and uninstall `chronicler-agents` from `.venv` explicitly.
+Install uv for a reproducible environment. Unless `--no-rust` is given or
+`cargo` is missing, setup then installs maturin and builds a fresh release
+extension into `.venv`, or with `--native-venv` syncs the native venv the same
+way (removing the previous build) and builds into it. It finishes with
+`scripts/check_python_env.py --expect native` on the venv it built into and
+`--expect no-native` on `.venv` whenever `.venv` should be extension-free, and
+fails if a check fails. `CHRONICLER_PYTHON` picks the interpreter (default: the first
+3.13+ of `python3.13`, `python3` and `python`; `setup.bat` uses `python`), and
+`UV_PROJECT_ENVIRONMENT` moves `.venv`. The native venv's editable install
+points at the last checkout that synced it, so give each checkout its own
+`CHRONICLER_NATIVE_VENV`.
+
+`scripts/check_python_env.py` reports the interpreter and venv, whether
+`chronicler` resolves to this checkout's `src/` and has its console script, and
+whether `chronicler_agents` is importable, from where, and the SHA-256 of its
+compiled file. `--expect no-native` never imports it; `--expect native` imports
+it and requires the compiled `chronicler_agents.chronicler_agents` submodule and
+real `AgentSimulator`, `EcologySimulator` and `PoliticsSimulator` classes. It
+exits 1 on any mismatch; run it with the interpreter you are checking (from a
+worktree whose venv belongs to another checkout, with `PYTHONPATH=src`).
+
+| Path | Interpreter | `.venv` dependencies | Native extension | Viewer |
+| --- | --- | --- | --- | --- |
+| `setup.sh` / `setup.bat`, uv present | see above | `uv lock --check`, `uv sync --frozen` | fresh `maturin develop --release --locked` into `.venv`, or the native venv with `--native-venv`; none with `--no-rust` | not installed |
+| `setup.sh` / `setup.bat`, no uv | see above | unlocked `pip install -e .` | the same, with pip-built venvs | not installed |
+| `scripts/cloud_setup.sh` | `python3.13` | `uv lock --check`, `uv sync --frozen` | native venv synced with maturin, nothing built | `npm ci` |
+| CI (`tests.yml`) | setup-python 3.13 / 3.13.17 | `uv lock --check`, `uv sync --frozen` | `maturin build` wheel installed into the job's own fresh `.venv` | `npm ci`, Node 20.19.0 |
+
 ## Python on Windows
 
-Use Python 3.13 or newer. In PowerShell:
+Use Python 3.13 or newer. `setup.bat --no-rust` is the scripted form. By hand,
+in PowerShell:
 
 ```powershell
-py -3.13 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e . pytest pytest-asyncio
+uv sync --frozen --python 3.13
+.\.venv\Scripts\python.exe scripts/check_python_env.py --expect no-native
 .\.venv\Scripts\python.exe scripts/run_python_oracle_checks.py
 .\.venv\Scripts\python.exe -m chronicler.main --seed 42 --turns 20 --agents off --simulate-only --output output/smoke/chronicle.md
 ```
 
+Without uv, replace the first line with the unlocked
+`py -3.13 -m venv .venv` and
+`.\.venv\Scripts\python.exe -m pip install -e . pytest pytest-asyncio`.
 Substitute an installed newer Python version if necessary. Do not reuse an
 unrelated virtual environment for native qualification. The simulation-only
 smoke command needs no narration credential. `--agents off` alone does not
@@ -29,12 +84,18 @@ The guarded test command explicitly enforces the Python oracle lane.
 
 ## Python on Mac or Linux
 
+`bash setup.sh --no-rust` is the scripted form. By hand:
+
 ```sh
-python3.13 -m venv .venv
-.venv/bin/python -m pip install -e . pytest pytest-asyncio
+uv sync --frozen --python 3.13
+.venv/bin/python scripts/check_python_env.py --expect no-native
 .venv/bin/python scripts/run_python_oracle_checks.py
 .venv/bin/python -m chronicler.main --seed 42 --turns 20 --agents off --simulate-only --output output/smoke/chronicle.md
 ```
+
+Without uv, replace the first line with the unlocked
+`python3.13 -m venv .venv` and
+`.venv/bin/python -m pip install -e . pytest pytest-asyncio`.
 
 Use `.venv/bin/python -m pytest -q` for the full no-Rust lane in a clean environment
 where `chronicler_agents` is absent. The detached durable session tools require
@@ -95,18 +156,24 @@ pause panel's Save checkpoint and `--live --resume`.
 
 ## Native and full qualification
 
-Build into the active virtual environment, with an appropriate Rust toolchain:
+For native development, build into the native venv rather than `.venv`, with
+an appropriate Rust toolchain (`bash setup.sh --native-venv` does the first
+four steps):
 
 ```sh
-python -m pip install "maturin>=1.5,<2"
-python -m maturin develop --release --locked --manifest-path chronicler-agents/Cargo.toml
+NATIVE=${CHRONICLER_NATIVE_VENV:-$HOME/.venvs/chronicler-native}
+UV_PROJECT_ENVIRONMENT=$NATIVE uv sync --frozen --python 3.13
+uv pip install --python "$NATIVE/bin/python" "maturin>=1.5,<2"
+VIRTUAL_ENV=$NATIVE "$NATIVE/bin/python" -m maturin develop --release --locked --manifest-path chronicler-agents/Cargo.toml
+"$NATIVE/bin/python" scripts/check_python_env.py --expect native
 cargo test --locked --manifest-path chronicler-agents/Cargo.toml
 ```
 
 Before native Python tests, verify `chronicler_agents.chronicler_agents` resolves
 to a compiled extension and `AgentSimulator`, `EcologySimulator`, and
-`PoliticsSimulator` are real classes. The exact verification and full-suite
-commands are in `README.md` and `.github/workflows/tests.yml`. Native CI builds
+`PoliticsSimulator` are real classes (`check_python_env.py --expect native`
+does this and prints the extension's SHA-256). The in-process verification and
+full-suite commands are in `README.md` and `.github/workflows/tests.yml`. Native CI builds
 fresh source. A previously installed extension is not evidence for this branch.
 
 Full population/regression qualification remains the explicit validation-profile
@@ -197,28 +264,62 @@ merchant houses lend finance's revenue term, fading as `0.98 ** turn`
 ## Before refactoring, moving or deleting files
 
 Several tests pin repository content, so a change that looks mechanical can
-fail far from the file you touched:
+fail far from the file you touched. Run the read-only preflight first:
 
-- **Source witnesses.** `scripts/testing/*_witness.py` with
-  `tests/fixtures/*_source_inverse.json` (and related fixtures) pin the exact
-  bytes of 83 tracked files, and test data records the current SHA-256 of 25
-  more, including `main.py`, `simulation.py`, `agent_bridge.py`, `models.py`,
-  twelve Rust files and 26 viewer files. Hashes in
-  `tests/fixtures/performance/` and the reference-baseline manifests describe
-  older source and pin nothing current. Before editing a file, search
-  `tests/fixtures` and `scripts/testing` for its path and current SHA-256; a
-  pinned file needs a reviewed witness update, not a silent edit.
-- **Workflows.** `tests/test_native_ci_shards.py` and
-  `tests/test_native_build_lanes.py` read `.github/workflows/*.yml`,
-  `docs/workflows/*.yml.in` (byte-identical copies) and parts of `README.md`.
-  The benchmark scripts hash their workflow files into receipts.
-- **Native shard manifest.** `scripts/testing/native_shards_manifest.json`
-  assigns every test module to a shard and lists expected skipped node IDs and
-  the subtest count, so adding, renaming or deleting a test module or a skipped
-  test needs a manifest update.
+```sh
+.venv/bin/python scripts/refactor_preflight.py src/chronicler/utils.py tests/test_foo.py
+.venv/bin/python scripts/refactor_preflight.py --move scripts/a.py:scripts/tools/a.py
+.venv/bin/python scripts/refactor_preflight.py --git-diff origin/main   # every changed path
+```
+
+It reports four levels per path (`--json` for tooling, `--fail-on-enforced`
+to exit 1 on a pin):
+
+- **enforced:** a known check fails when the bytes change or the path moves.
+- **digest:** the file's current SHA-256 or Git blob id appears in test data;
+  treat it as pinned until you have read the test.
+- **reference:** tests, witnesses, workflows, importers or docs name the path
+  or module; read each hit.
+- **historical:** an older recorded hash (performance and reference-baseline
+  provenance). The current file already differs, so it is not a pin; never
+  rewrite it to match.
+
+It always prints what it cannot see (runtime-built paths, `inspect.getsource`,
+whole-tree digests, behavioral goldens, TypeScript and Rust module graphs). "No
+known pins" is not a safety proof; run the lanes above. On 2026-11-04 it found
+83 tracked source, script, viewer and workflow files with enforced pins and 25
+more with a recorded current digest, including `main.py`, `simulation.py`,
+`models.py`, `agent_bridge.py`, twelve Rust files and 26 viewer files. `utils.py`,
+the `validation_*` modules and `AppShell.tsx` have none. An earlier version of
+this section listed `utils.py` among about 150 pinned files; that list counted
+historical provenance hashes as pins.
+
+The mechanisms it checks:
+
+- **Source witnesses.** `scripts/testing/*_witness.py` project current source
+  back through each reviewed candidate's patches
+  (`tests/fixtures/*_source_inverse.json`; `grain_release_witness.py` embeds its
+  own layers) and compare hashes at every step. Editing a pinned file breaks the
+  chain. Do not rewrite a fixture's hashes to match new source: either leave the
+  file alone or add a reviewed exact-inverse layer, as
+  `scripts/testing/reviewed_main_witness.py` does for `main.py`, and review it
+  like source.
+- **Workflows.** `docs/workflows/native-two-shards*.yml.in` must stay
+  byte-identical to `.github/workflows/`, and `tests/test_native_ci_shards.py`
+  records the workflow's SHA-256. `tests/test_native_build_lanes.py` reads
+  `tests.yml` and parts of `README.md`. The benchmark scripts hash their workflow
+  files into receipts.
+- **Test-module ownership.** Every test module must be in exactly one shard of
+  `scripts/testing/native_shards_manifest.json`, which also lists expected
+  skipped node IDs and the successful-subtest count (623). A new module also
+  goes into the `additions` map and module count in
+  `tests/test_native_ci_shards.py`, and, if it is offline-safe, into a chunk of
+  `scripts/run_python_oracle_checks.py` with headroom.
 - **Import compatibility.** `tests/test_import_compatibility.py` and the
   re-export blocks (for example in `politics.py` and `validate.py`) keep
   historical import paths working; an unused-looking import may be one of them.
+  Tests also monkeypatch module attributes by string target, so moving a helper
+  can silently disconnect a patch.
 - **Script paths.** Tests import scripts as `scripts.<name>` or load them by
   path, and workflows call them by path (see [scripts/README.md](../scripts/README.md)).
 
@@ -245,7 +346,12 @@ breaks the lanes that require `chronicler_agents` to be absent:
 ```sh
 VIRTUAL_ENV=$HOME/.venvs/chronicler-native $HOME/.venvs/chronicler-native/bin/python \
   -m maturin develop --release --locked --manifest-path chronicler-agents/Cargo.toml
+$HOME/.venvs/chronicler-native/bin/python scripts/check_python_env.py --expect native
 ```
+
+The script ends by running `scripts/check_python_env.py --expect no-native` on
+`.venv` and a report-only check on the native venv; like its other steps, a
+failed check prints `!!` and setup continues.
 
 Observed on a 4-core cloud container (2026-11-04): bounded offline lane
 about 4 minutes, viewer tests/lint/build about 2 minutes, `cargo test` about

@@ -1,0 +1,6431 @@
+{
+ "run_oracles": {
+  "broken_error_result": {
+   "batch_dir": "<WS>/broken",
+   "oracles": [
+    "artifacts",
+    "needs"
+   ],
+   "results": {
+    "artifacts": {
+     "status": "PASS",
+     "creation_rate_per_civ_per_100": 2.5,
+     "creation_rate_ok": true,
+     "creation_rate_strict_ok": true,
+     "creation_rate_adjudication": "strict",
+     "type_diversity_ok": true,
+     "loss_destruction_count": 3,
+     "loss_destruction_rate": 0.25,
+     "loss_destruction_rate_ok": true,
+     "lost_count": 2,
+     "destroyed_count": 1,
+     "loss_channels_ok": true,
+     "mule_artifact_count": 3,
+     "total_artifacts": 12
+    },
+    "needs": {
+     "status": "ERROR",
+     "reason": "KeyError: 'boldness'"
+    }
+   },
+   "batch_manifest": {
+    "status": "verified",
+    "manifest_sha256": "<sha256:broken/batch_manifest.json>",
+    "seeds": [
+     11
+    ],
+    "turns": 160,
+    "simulation": {
+     "agents": "hybrid",
+     "turns": 160
+    },
+    "source": {
+     "git_sha": null,
+     "package_digest": null
+    },
+    "native_sha256": null,
+    "python": null,
+    "platform": null,
+    "thread_env": null
+   },
+   "causal_oracles_required": false
+  },
+  "determinism_all": {
+   "batch_dir": "<WS>/determinism",
+   "oracles": [
+    "arcs",
+    "artifacts",
+    "cohort",
+    "community",
+    "determinism",
+    "era",
+    "needs",
+    "regression"
+   ],
+   "results": {
+    "arcs": {
+     "status": "FAIL",
+     "families_found": [
+      "cinderella",
+      "man_in_a_hole"
+     ],
+     "family_count": 2,
+     "arc_counts": {
+      "cinderella": 2,
+      "man_in_a_hole": 2,
+      "stable": 8
+     },
+     "dominance_violations": {
+      "stable": 0.6666666666666666
+     },
+     "seeds_with_three_types": 2,
+     "per_seed": [
+      {
+       "seed": 7,
+       "arc_types": [
+        "stable",
+        "man_in_a_hole",
+        "cinderella"
+       ],
+       "distinct_type_count": 3
+      },
+      {
+       "seed": 7,
+       "arc_types": [
+        "stable",
+        "man_in_a_hole",
+        "cinderella"
+       ],
+       "distinct_type_count": 3
+      },
+      {
+       "seed": 8,
+       "arc_types": [
+        "stable",
+        "stable",
+        "stable"
+       ],
+       "distinct_type_count": 1
+      },
+      {
+       "seed": 8,
+       "arc_types": [
+        "stable",
+        "stable",
+        "stable"
+       ],
+       "distinct_type_count": 1
+      }
+     ]
+    },
+    "artifacts": {
+     "status": "PARTIAL",
+     "creation_rate_per_civ_per_100": 20.0,
+     "creation_rate_ok": false,
+     "creation_rate_strict_ok": false,
+     "creation_rate_adjudication": "fail",
+     "type_diversity_ok": true,
+     "loss_destruction_count": 12,
+     "loss_destruction_rate": 0.25,
+     "loss_destruction_rate_ok": true,
+     "lost_count": 8,
+     "destroyed_count": 4,
+     "loss_channels_ok": true,
+     "mule_artifact_count": 12,
+     "total_artifacts": 48
+    },
+    "cohort": {
+     "status": "SKIP",
+     "method": "observational_and_ablation",
+     "method_version": 6,
+     "causal_oracles_required": false,
+     "required_components": [
+      "observational"
+     ],
+     "component_statuses": {
+      "observational": "SKIP",
+      "ablation": "NOT_RUN"
+     },
+     "observational_status": "SKIP",
+     "observational_method": null,
+     "observational_method_version": null,
+     "observational_note": "non-discriminating: passes synthetic null and reversed worlds",
+     "observational_reason": "no_community_seed_pairs",
+     "reason": "no_community_seed_pairs",
+     "ablation": {
+      "status": "NOT_RUN",
+      "reason": "no kin_roots ablation arm",
+      "arm": "kin_roots",
+      "label": "causal evidence (not yet required)",
+      "fork_design": 2
+     },
+     "community_ablation": {
+      "status": "NOT_RUN",
+      "reason": "no community_anchor ablation arm",
+      "arm": "community_anchor",
+      "fork_design": 2,
+      "label": "causal evidence (reported; the community anchor of --community-anchoring)"
+     }
+    },
+    "community": {
+     "status": "SKIP",
+     "method": "legacy_and_spec",
+     "method_version": 2,
+     "spec_required": false,
+     "required_components": [
+      "legacy"
+     ],
+     "component_statuses": {
+      "legacy": "SKIP",
+      "spec": "SKIP"
+     },
+     "legacy_status": "SKIP",
+     "legacy_note": "method 1: label propagation over every edge, unweighted and across regions; kin-only exclusion against code 0 (the native mentor); a seed passes with any community of 5+",
+     "legacy_reason": "no_community_inputs",
+     "reason": "no_community_inputs",
+     "spec": {
+      "status": "SKIP",
+      "reason": "no graph and needs sidecars at a common turn (the community summary is method 1's)"
+     }
+    },
+    "determinism": {
+     "status": "FAIL",
+     "reason": "scrubbed_bundle_mismatch",
+     "pairs_checked": 2,
+     "duplicate_seeds": [
+      7,
+      8
+     ],
+     "mismatches": [
+      {
+       "seed": 8,
+       "reference": "<WS>/determinism/run_2/chronicle_bundle.json",
+       "candidate": "<WS>/determinism/run_3/chronicle_bundle.json"
+      }
+     ]
+    },
+    "era": {
+     "status": "FAIL",
+     "analyzed_seeds": 4,
+     "required_seed_count": 4,
+     "seeds_with_inflections": 2,
+     "silent_collapse_seeds": 0,
+     "collapse_episode_count": 0,
+     "collapses_marked_by_era_signal": 0,
+     "collapses_marked_by_crisis_only": 0,
+     "silent_collapse_episodes": [],
+     "per_seed": [
+      {
+       "seed": 7,
+       "inflection_count": 1,
+       "inflection_turns": [
+        16
+       ],
+       "silent_collapse": false,
+       "collapse_count": 0,
+       "silent_collapse_count": 0,
+       "signal_hits": {
+        "population": 1,
+        "treasury": 0,
+        "stability": 0,
+        "territory": 0,
+        "prestige": 0
+       }
+      },
+      {
+       "seed": 7,
+       "inflection_count": 1,
+       "inflection_turns": [
+        16
+       ],
+       "silent_collapse": false,
+       "collapse_count": 0,
+       "silent_collapse_count": 0,
+       "signal_hits": {
+        "population": 1,
+        "treasury": 0,
+        "stability": 0,
+        "territory": 0,
+        "prestige": 0
+       }
+      },
+      {
+       "seed": 8,
+       "inflection_count": 2,
+       "inflection_turns": [
+        6,
+        13
+       ],
+       "silent_collapse": false,
+       "collapse_count": 0,
+       "silent_collapse_count": 0,
+       "signal_hits": {
+        "population": 1,
+        "treasury": 1,
+        "stability": 0,
+        "territory": 0,
+        "prestige": 0
+       }
+      },
+      {
+       "seed": 8,
+       "inflection_count": 2,
+       "inflection_turns": [
+        6,
+        13
+       ],
+       "silent_collapse": false,
+       "collapse_count": 0,
+       "silent_collapse_count": 0,
+       "signal_hits": {
+        "population": 1,
+        "treasury": 1,
+        "stability": 0,
+        "territory": 0,
+        "prestige": 0
+       }
+      }
+     ]
+    },
+    "needs": {
+     "status": "SKIP",
+     "reason": "no_needs_sidecars"
+    },
+    "regression": {
+     "status": "SKIP",
+     "reason": "incomplete_agent_event_inputs"
+    }
+   },
+   "batch_manifest": {
+    "status": "verified",
+    "manifest_sha256": "<sha256:determinism/batch_manifest.json>",
+    "seeds": [
+     7,
+     7,
+     8,
+     8
+    ],
+    "turns": 20,
+    "simulation": {
+     "agents": "hybrid",
+     "turns": 20
+    },
+    "source": {
+     "git_sha": null,
+     "package_digest": null
+    },
+    "native_sha256": null,
+    "python": null,
+    "platform": null,
+    "thread_env": null
+   },
+   "causal_oracles_required": false
+  },
+  "determinism_only": {
+   "batch_dir": "<WS>/determinism",
+   "oracles": [
+    "determinism"
+   ],
+   "results": {
+    "determinism": {
+     "status": "FAIL",
+     "reason": "scrubbed_bundle_mismatch",
+     "pairs_checked": 2,
+     "duplicate_seeds": [
+      7,
+      8
+     ],
+     "mismatches": [
+      {
+       "seed": 8,
+       "reference": "<WS>/determinism/run_2/chronicle_bundle.json",
+       "candidate": "<WS>/determinism/run_3/chronicle_bundle.json"
+      }
+     ]
+    }
+   },
+   "batch_manifest": {
+    "status": "verified",
+    "manifest_sha256": "<sha256:determinism/batch_manifest.json>",
+    "seeds": [
+     7,
+     7,
+     8,
+     8
+    ],
+    "turns": 20,
+    "simulation": {
+     "agents": "hybrid",
+     "turns": 20
+    },
+    "source": {
+     "git_sha": null,
+     "package_digest": null
+    },
+    "native_sha256": null,
+    "python": null,
+    "platform": null,
+    "thread_env": null
+   },
+   "profile": "determinism-off",
+   "causal_oracles_required": false
+  },
+  "legacy_all": {
+   "batch_dir": "<WS>/legacy",
+   "oracles": [
+    "arcs",
+    "artifacts",
+    "cohort",
+    "community",
+    "determinism",
+    "era",
+    "needs",
+    "regression"
+   ],
+   "results": {
+    "arcs": {
+     "status": "FAIL",
+     "families_found": [
+      "cinderella",
+      "man_in_a_hole",
+      "rags_to_riches"
+     ],
+     "family_count": 3,
+     "arc_counts": {
+      "cinderella": 1,
+      "man_in_a_hole": 1,
+      "rags_to_riches": 1
+     },
+     "dominance_violations": {},
+     "seeds_with_three_types": 1,
+     "per_seed": [
+      {
+       "seed": 5,
+       "arc_types": [
+        "man_in_a_hole",
+        "rags_to_riches",
+        "cinderella"
+       ],
+       "distinct_type_count": 3
+      },
+      {
+       "seed": 6,
+       "arc_types": [],
+       "distinct_type_count": 0
+      }
+     ]
+    },
+    "artifacts": {
+     "status": "PARTIAL",
+     "creation_rate_per_civ_per_100": 3.75,
+     "creation_rate_ok": false,
+     "creation_rate_strict_ok": false,
+     "creation_rate_adjudication": "fail",
+     "type_diversity_ok": true,
+     "loss_destruction_count": 6,
+     "loss_destruction_rate": 0.25,
+     "loss_destruction_rate_ok": true,
+     "lost_count": 4,
+     "destroyed_count": 2,
+     "loss_channels_ok": true,
+     "mule_artifact_count": 6,
+     "total_artifacts": 24
+    },
+    "cohort": {
+     "status": "SKIP",
+     "method": "observational_and_ablation",
+     "method_version": 6,
+     "causal_oracles_required": false,
+     "required_components": [
+      "observational"
+     ],
+     "component_statuses": {
+      "observational": "SKIP",
+      "ablation": "NOT_RUN"
+     },
+     "observational_status": "SKIP",
+     "observational_method": null,
+     "observational_method_version": null,
+     "observational_note": "non-discriminating: passes synthetic null and reversed worlds",
+     "observational_reason": "no_community_seed_pairs",
+     "reason": "no_community_seed_pairs",
+     "ablation": {
+      "status": "NOT_RUN",
+      "reason": "no kin_roots ablation arm",
+      "arm": "kin_roots",
+      "label": "causal evidence (not yet required)",
+      "fork_design": 2
+     },
+     "community_ablation": {
+      "status": "NOT_RUN",
+      "reason": "no community_anchor ablation arm",
+      "arm": "community_anchor",
+      "fork_design": 2,
+      "label": "causal evidence (reported; the community anchor of --community-anchoring)"
+     }
+    },
+    "community": {
+     "status": "SKIP",
+     "method": "legacy_and_spec",
+     "method_version": 2,
+     "spec_required": false,
+     "required_components": [
+      "legacy"
+     ],
+     "component_statuses": {
+      "legacy": "SKIP",
+      "spec": "SKIP"
+     },
+     "legacy_status": "SKIP",
+     "legacy_note": "method 1: label propagation over every edge, unweighted and across regions; kin-only exclusion against code 0 (the native mentor); a seed passes with any community of 5+",
+     "legacy_reason": "no_community_inputs",
+     "reason": "no_community_inputs",
+     "spec": {
+      "status": "SKIP",
+      "reason": "no graph and needs sidecars at a common turn (the community summary is method 1's)"
+     }
+    },
+    "determinism": {
+     "status": "SKIP",
+     "reason": "no_duplicate_seed_pairs",
+     "pairs_checked": 0,
+     "duplicate_seeds": [],
+     "mismatches": []
+    },
+    "era": {
+     "status": "PASS",
+     "analyzed_seeds": 1,
+     "required_seed_count": 1,
+     "seeds_with_inflections": 1,
+     "silent_collapse_seeds": 0,
+     "collapse_episode_count": 1,
+     "collapses_marked_by_era_signal": 1,
+     "collapses_marked_by_crisis_only": 0,
+     "silent_collapse_episodes": [],
+     "per_seed": [
+      {
+       "seed": 5,
+       "inflection_count": 3,
+       "inflection_turns": [
+        80,
+        92,
+        156
+       ],
+       "silent_collapse": false,
+       "collapse_count": 1,
+       "silent_collapse_count": 0,
+       "signal_hits": {
+        "population": 3,
+        "treasury": 1,
+        "stability": 0,
+        "territory": 1,
+        "prestige": 0
+       }
+      }
+     ]
+    },
+    "needs": {
+     "status": "SKIP",
+     "reason": "no_needs_sidecars"
+    },
+    "regression": {
+     "status": "FAIL",
+     "regression_adjudication": "fail",
+     "strict_regression_ok": false,
+     "calibrated_floor_ok": false,
+     "strict_regression_failed_checks": [
+      "satisfaction_mean",
+      "latest_satisfaction_mean",
+      "satisfaction_std",
+      "rebellion_rate_per_agent_turn",
+      "migration_rate_per_agent_turn",
+      "occupation",
+      "civ_survival"
+     ],
+     "calibrated_floor_failed_checks": [
+      "satisfaction_mean",
+      "latest_satisfaction_mean",
+      "satisfaction_std",
+      "rebellion_rate_per_agent_turn",
+      "migration_rate_per_agent_turn",
+      "occupation",
+      "civ_survival"
+     ],
+     "calibrated_floor_relaxed_checks": [],
+     "regression_floor_diagnostics": {
+      "satisfaction_mean": {
+       "value": null,
+       "strict_min": 0.45,
+       "calibrated_min": 0.4,
+       "max": 0.65,
+       "strict_ok": false,
+       "calibrated_ok": false,
+       "strict_min_delta": null,
+       "calibrated_min_delta": null,
+       "max_delta": null
+      },
+      "latest_satisfaction_mean": {
+       "value": null,
+       "strict_min": 0.45,
+       "calibrated_min": 0.4,
+       "max": 0.65,
+       "strict_ok": false,
+       "calibrated_ok": false,
+       "strict_min_delta": null,
+       "calibrated_min_delta": null,
+       "max_delta": null
+      },
+      "migration_rate_per_agent_turn": {
+       "value": 0.0,
+       "strict_min": 0.05,
+       "calibrated_min": 0.045,
+       "max": 0.15,
+       "strict_ok": false,
+       "calibrated_ok": false,
+       "strict_min_delta": -0.05,
+       "calibrated_min_delta": -0.045,
+       "max_delta": 0.15
+      }
+     },
+     "satisfaction_mean": null,
+     "satisfaction_std": null,
+     "latest_satisfaction_mean": null,
+     "latest_satisfaction_std": null,
+     "latest_satisfaction_window_turns": 60,
+     "final_sample_satisfaction_mean": null,
+     "latest_satisfaction_mean_ok": false,
+     "latest_satisfaction_mean_calibrated_ok": false,
+     "satisfaction_mean_ok": false,
+     "satisfaction_mean_calibrated_ok": false,
+     "migration_rate_per_agent_turn": 0.0,
+     "migration_rate_ok": false,
+     "migration_rate_calibrated_ok": false,
+     "rebellion_rate_per_agent_turn": 0.0,
+     "gini_in_range_fraction": 1.0,
+     "occupation_ok": false,
+     "occupation_source": "none",
+     "occupation_violation_fraction": 1.0,
+     "occupation_evidence_run_fraction": null,
+     "latest_occupation_source": "none",
+     "latest_occupation_violation_fraction": 1.0,
+     "latest_occupation_evidence_run_fraction": null,
+     "latest_occupation_incomplete_run_fraction": null,
+     "latest_occupation_ok": false,
+     "reason": null,
+     "living_population_ok": true,
+     "final_living_population_by_seed": [
+      {
+       "seed": 5,
+       "population": 98,
+       "source": "world_state.regions",
+       "turn": 160,
+       "agent_mode": "hybrid",
+       "reason": null
+      },
+      {
+       "seed": 6,
+       "population": 98,
+       "source": "world_state.regions",
+       "turn": 40,
+       "agent_mode": "hybrid",
+       "reason": null
+      }
+     ],
+     "final_living_population_counts": [
+      98,
+      98
+     ],
+     "extinct_world_count": 0,
+     "extinct_world_fraction": 0.0,
+     "population_unknown_run_count": 0,
+     "population_evidence_run_fraction": 1.0,
+     "civ_survival_counts": [
+      3,
+      0
+     ],
+     "civ_zero_survival_fraction": 0.5,
+     "civ_full_survival_fraction": 1.0,
+     "civ_exact_four_region_fraction": 0.0,
+     "treasury_bad_seed_count": 0
+    }
+   },
+   "worlds": [
+    {
+     "generator": "procedural",
+     "regions": 4,
+     "civs": 3,
+     "seeds": 1
+    },
+    {
+     "generator": "template",
+     "regions": 4,
+     "civs": null,
+     "seeds": 1
+    }
+   ],
+   "batch_manifest": {
+    "status": "unchecked",
+    "reason": "no batch_manifest.json (--legacy-batch)"
+   },
+   "profile": "subset",
+   "causal_oracles_required": false
+  },
+  "rich_all": {
+   "batch_dir": "<WS>/rich",
+   "oracles": [
+    "arcs",
+    "artifacts",
+    "cohort",
+    "community",
+    "determinism",
+    "era",
+    "needs",
+    "regression"
+   ],
+   "results": {
+    "arcs": {
+     "status": "FAIL",
+     "families_found": [
+      "cinderella",
+      "man_in_a_hole",
+      "rags_to_riches"
+     ],
+     "family_count": 3,
+     "arc_counts": {
+      "cinderella": 2,
+      "man_in_a_hole": 2,
+      "rags_to_riches": 5
+     },
+     "dominance_violations": {
+      "rags_to_riches": 0.5555555555555556
+     },
+     "seeds_with_three_types": 1,
+     "per_seed": [
+      {
+       "seed": 42,
+       "arc_types": [
+        "man_in_a_hole",
+        "rags_to_riches",
+        "cinderella"
+       ],
+       "distinct_type_count": 3
+      },
+      {
+       "seed": 43,
+       "arc_types": [
+        "rags_to_riches",
+        "rags_to_riches",
+        "man_in_a_hole"
+       ],
+       "distinct_type_count": 2
+      },
+      {
+       "seed": 44,
+       "arc_types": [
+        "rags_to_riches",
+        "rags_to_riches",
+        "cinderella"
+       ],
+       "distinct_type_count": 2
+      }
+     ]
+    },
+    "artifacts": {
+     "status": "PASS",
+     "creation_rate_per_civ_per_100": 2.5,
+     "creation_rate_ok": true,
+     "creation_rate_strict_ok": true,
+     "creation_rate_adjudication": "strict",
+     "type_diversity_ok": true,
+     "loss_destruction_count": 9,
+     "loss_destruction_rate": 0.25,
+     "loss_destruction_rate_ok": true,
+     "lost_count": 6,
+     "destroyed_count": 3,
+     "loss_channels_ok": true,
+     "mule_artifact_count": 9,
+     "total_artifacts": 36
+    },
+    "cohort": {
+     "status": "FAIL",
+     "method": "observational_and_ablation",
+     "method_version": 6,
+     "causal_oracles_required": false,
+     "required_components": [
+      "observational"
+     ],
+     "component_statuses": {
+      "observational": "FAIL",
+      "ablation": "NOT_RUN"
+     },
+     "observational_status": "FAIL",
+     "observational_method": null,
+     "observational_method_version": 3,
+     "observational_note": "non-discriminating: passes synthetic null and reversed worlds",
+     "outcome_window_start_offset": 1,
+     "outcome_window_turns": 20,
+     "comparison": "matched_pairs",
+     "outcome_censoring": "first_death_in_pair",
+     "community_method_version": 2,
+     "analyzed_seeds": 3,
+     "required_seed_count": 2,
+     "seeds_with_expected_direction": 0,
+     "median_effect_size": 0.0,
+     "matching": {
+      "rule": "each member with a non-member of the same civ affinity, region and occupation, satisfaction within 0.10 (method 3)",
+      "snapshots": 12,
+      "members": 191,
+      "matched_members": 0,
+      "match_rate": 0.0,
+      "mean_satisfaction_gap": null,
+      "chosen_snapshots": {
+       "members": 58,
+       "matched_members": 0,
+       "match_rate": 0.0
+      }
+     },
+     "ablation": {
+      "status": "NOT_RUN",
+      "reason": "no kin_roots ablation arm",
+      "arm": "kin_roots",
+      "label": "causal evidence (not yet required)",
+      "fork_design": 2
+     },
+     "community_ablation": {
+      "status": "NOT_RUN",
+      "reason": "no community_anchor ablation arm",
+      "arm": "community_anchor",
+      "fork_design": 2,
+      "label": "causal evidence (reported; the community anchor of --community-anchoring)"
+     },
+     "per_seed": [
+      {
+       "seed": 42,
+       "snapshot_turn": 100,
+       "communities_analyzed": 2,
+       "migration_effect_direction": "equal",
+       "migration_effect_size": 0.0,
+       "rebellion_effect_direction": "equal",
+       "rebellion_effect_size": 0.0,
+       "pairs": 0,
+       "censored_pairs": 0,
+       "members": 12
+      },
+      {
+       "seed": 43,
+       "snapshot_turn": 100,
+       "communities_analyzed": 4,
+       "migration_effect_direction": "equal",
+       "migration_effect_size": 0.0,
+       "rebellion_effect_direction": "equal",
+       "rebellion_effect_size": 0.0,
+       "pairs": 0,
+       "censored_pairs": 0,
+       "members": 24
+      },
+      {
+       "seed": 44,
+       "snapshot_turn": 100,
+       "communities_analyzed": 3,
+       "migration_effect_direction": "equal",
+       "migration_effect_size": 0.0,
+       "rebellion_effect_direction": "equal",
+       "rebellion_effect_size": 0.0,
+       "pairs": 0,
+       "censored_pairs": 0,
+       "members": 22
+      }
+     ]
+    },
+    "community": {
+     "status": "PASS",
+     "method": "legacy_and_spec",
+     "method_version": 2,
+     "spec_required": false,
+     "required_components": [
+      "legacy"
+     ],
+     "component_statuses": {
+      "legacy": "PASS",
+      "spec": "FAIL"
+     },
+     "legacy_status": "PASS",
+     "legacy_note": "method 1: label propagation over every edge, unweighted and across regions; kin-only exclusion against code 0 (the native mentor); a seed passes with any community of 5+",
+     "analyzed_seeds": 3,
+     "required_seed_count": 3,
+     "qualifying_seed_count": 3,
+     "spec": {
+      "status": "FAIL",
+      "label": "M53 oracle 1 as specified (method 2)",
+      "failed_criteria": [
+       "community_count",
+       "region_share"
+      ],
+      "criteria": {
+       "seed_fraction": "communities in at least 75% of seeds",
+       "community_count": "mean communities a seed per steady-state snapshot within 3-15",
+       "median_size": "median community size within 5-12",
+       "region_share": "no community above 5% of its region's living agents at the snapshot"
+      },
+      "steady_state_first_turn": 100,
+      "analyzed_seeds": 3,
+      "required_seed_count": 3,
+      "seeds_with_communities": 3,
+      "snapshots": 12,
+      "communities": 30,
+      "mean_community_count": 2.5,
+      "median_seed_mean_count": 2.5,
+      "seeds_in_count_band": 0,
+      "median_size": 7.0,
+      "size_p90": 8,
+      "max_size": 8,
+      "region_share": {
+       "measure": "community size over the living agents of its region at the snapshot",
+       "max": 1.0,
+       "median": 0.875,
+       "communities_above": 30,
+       "fraction_above": 1.0,
+       "median_region_population": 8,
+       "communities_in_regions_of_at_least": {
+        "population": 100,
+        "communities": 0
+       }
+      },
+      "members_share_of_living_agents": {
+       "median": 0.4688,
+       "mean": 0.4974
+      },
+      "per_seed": [
+       {
+        "seed": 42,
+        "snapshots": 4,
+        "communities": 9,
+        "mean_count": 2.25,
+        "median_size": 7,
+        "max_region_share": 1.0,
+        "communities_above_region_share": 9
+       },
+       {
+        "seed": 43,
+        "snapshots": 4,
+        "communities": 11,
+        "mean_count": 2.75,
+        "median_size": 7,
+        "max_region_share": 1.0,
+        "communities_above_region_share": 11
+       },
+       {
+        "seed": 44,
+        "snapshots": 4,
+        "communities": 10,
+        "mean_count": 2.5,
+        "median_size": 7.0,
+        "max_region_share": 1.0,
+        "communities_above_region_share": 10
+       }
+      ],
+      "reason": "failed community_count, region_share (seeds with communities 3 of 3, mean count 2.5, median size 7.0, 30 of 30 communities above 5% of their region)"
+     },
+     "per_seed": [
+      {
+       "seed": 42,
+       "snapshot_turn": 110,
+       "qualifying_communities": 4,
+       "sampled_turn_count": 4,
+       "source": "raw"
+      },
+      {
+       "seed": 43,
+       "snapshot_turn": 120,
+       "qualifying_communities": 4,
+       "sampled_turn_count": 4,
+       "source": "raw"
+      },
+      {
+       "seed": 44,
+       "snapshot_turn": 110,
+       "qualifying_communities": 3,
+       "sampled_turn_count": 4,
+       "source": "raw"
+      }
+     ]
+    },
+    "determinism": {
+     "status": "SKIP",
+     "reason": "no_duplicate_seed_pairs",
+     "pairs_checked": 0,
+     "duplicate_seeds": [],
+     "mismatches": []
+    },
+    "era": {
+     "status": "PASS",
+     "analyzed_seeds": 3,
+     "required_seed_count": 3,
+     "seeds_with_inflections": 3,
+     "silent_collapse_seeds": 0,
+     "collapse_episode_count": 3,
+     "collapses_marked_by_era_signal": 3,
+     "collapses_marked_by_crisis_only": 0,
+     "silent_collapse_episodes": [],
+     "per_seed": [
+      {
+       "seed": 42,
+       "inflection_count": 6,
+       "inflection_turns": [
+        37,
+        56,
+        83,
+        92,
+        112,
+        126
+       ],
+       "silent_collapse": false,
+       "collapse_count": 1,
+       "silent_collapse_count": 0,
+       "signal_hits": {
+        "population": 4,
+        "treasury": 3,
+        "stability": 0,
+        "territory": 1,
+        "prestige": 0
+       }
+      },
+      {
+       "seed": 43,
+       "inflection_count": 4,
+       "inflection_turns": [
+        58,
+        80,
+        92,
+        140
+       ],
+       "silent_collapse": false,
+       "collapse_count": 1,
+       "silent_collapse_count": 0,
+       "signal_hits": {
+        "population": 3,
+        "treasury": 1,
+        "stability": 0,
+        "territory": 1,
+        "prestige": 0
+       }
+      },
+      {
+       "seed": 44,
+       "inflection_count": 5,
+       "inflection_turns": [
+        18,
+        83,
+        92,
+        134,
+        148
+       ],
+       "silent_collapse": false,
+       "collapse_count": 1,
+       "silent_collapse_count": 0,
+       "signal_hits": {
+        "population": 4,
+        "treasury": 0,
+        "stability": 0,
+        "territory": 1,
+        "prestige": 0
+       }
+      }
+     ]
+    },
+    "needs": {
+     "status": "FAIL",
+     "method": "observational_and_ablation",
+     "method_version": 8,
+     "causal_oracles_required": false,
+     "required_components": [
+      "observational"
+     ],
+     "component_statuses": {
+      "observational": "FAIL",
+      "ablation": "NOT_RUN"
+     },
+     "observational_status": "FAIL",
+     "observational_method": "pooled_matched_pairs",
+     "observational_criterion": "one-sided 95% lower bound of pooled net concordance > 0 and >= 60% of analyzed seeds with net concordance > 0; binding pairs (lower-need agent below its threshold, partner at or above it): one-sided 95% lower bound of pooled net concordance > 0",
+     "failed_criteria": [
+      "net_concordance_lower_bound",
+      "seed_fraction",
+      "binding_lower_bound"
+     ],
+     "analyzed_seeds": 3,
+     "seeds_with_informative_pairs": 0,
+     "required_seed_count": 2,
+     "seeds_with_expected_sign": 0,
+     "seeds_with_reversed_sign": 0,
+     "total_pairs": 0,
+     "informative_pairs": 0,
+     "concordant_pairs": 0,
+     "discordant_pairs": 0,
+     "net_concordance": null,
+     "net_concordance_se": null,
+     "net_concordance_lower_bound": null,
+     "confidence": 0.95,
+     "need_divergence": 0.1,
+     "personality_tolerance": 0.1,
+     "outcome_window_turns": 20,
+     "autonomy_excludes_prior_rebels": true,
+     "by_pairing": {
+      "autonomy": {
+       "event_type": 2,
+       "pairs": 0,
+       "concordant": 0,
+       "discordant": 0,
+       "low_need_events": 0,
+       "high_need_events": 0,
+       "net_concordance": null,
+       "net_concordance_lower_bound": null
+      },
+      "social": {
+       "event_type": 1,
+       "pairs": 0,
+       "concordant": 0,
+       "discordant": 0,
+       "low_need_events": 0,
+       "high_need_events": 0,
+       "net_concordance": null,
+       "net_concordance_lower_bound": null
+      },
+      "purpose": {
+       "event_type": 3,
+       "pairs": 0,
+       "concordant": 0,
+       "discordant": 0,
+       "low_need_events": 0,
+       "high_need_events": 0,
+       "net_concordance": null,
+       "net_concordance_lower_bound": null
+      },
+      "material": {
+       "event_type": 1,
+       "pairs": 0,
+       "concordant": 0,
+       "discordant": 0,
+       "low_need_events": 0,
+       "high_need_events": 0,
+       "net_concordance": null,
+       "net_concordance_lower_bound": null
+      },
+      "safety": {
+       "event_type": 1,
+       "pairs": 0,
+       "concordant": 0,
+       "discordant": 0,
+       "low_need_events": 0,
+       "high_need_events": 0,
+       "net_concordance": null,
+       "net_concordance_lower_bound": null
+      }
+     },
+     "outcome_window_start_offset": 1,
+     "outcome_censoring": "first_death_in_pair",
+     "censored_pairs": 0,
+     "informational_pairings": {
+      "spiritual": {
+       "event_type": 1,
+       "required": false,
+       "pairs": {
+        "pairs": 0,
+        "concordant": 0,
+        "discordant": 0,
+        "low_need_events": 0,
+        "high_need_events": 0,
+        "informative_pairs": 0,
+        "seeds_with_informative_pairs": 0,
+        "net_concordance": null,
+        "net_concordance_se": null,
+        "net_concordance_lower_bound": null
+       },
+       "binding": {
+        "pairs": 0,
+        "concordant": 0,
+        "discordant": 0,
+        "low_need_events": 0,
+        "high_need_events": 0,
+        "informative_pairs": 0,
+        "seeds_with_informative_pairs": 0,
+        "net_concordance": null,
+        "net_concordance_se": null,
+        "net_concordance_lower_bound": null,
+        "threshold": 0.3
+       }
+      }
+     },
+     "profile": null,
+     "binding_required": true,
+     "binding_required_profiles": [
+      "full"
+     ],
+     "pooled_status": "FAIL",
+     "informational_failed_criteria": [],
+     "binding": {
+      "status": "FAIL",
+      "required": true,
+      "thresholds": {
+       "autonomy": 0.35,
+       "social": 0.35,
+       "purpose": 0.35,
+       "material": 0.3,
+       "safety": 0.3
+      },
+      "need_divergence": 0.05,
+      "total_pairs": 0,
+      "informative_pairs": 0,
+      "concordant_pairs": 0,
+      "discordant_pairs": 0,
+      "seeds_with_informative_pairs": 0,
+      "seeds_with_expected_sign": 0,
+      "seeds_with_reversed_sign": 0,
+      "net_concordance": null,
+      "net_concordance_se": null,
+      "net_concordance_lower_bound": null,
+      "by_pairing": {
+       "autonomy": {
+        "event_type": 2,
+        "pairs": 0,
+        "concordant": 0,
+        "discordant": 0,
+        "low_need_events": 0,
+        "high_need_events": 0,
+        "net_concordance": null,
+        "net_concordance_lower_bound": null
+       },
+       "social": {
+        "event_type": 1,
+        "pairs": 0,
+        "concordant": 0,
+        "discordant": 0,
+        "low_need_events": 0,
+        "high_need_events": 0,
+        "net_concordance": null,
+        "net_concordance_lower_bound": null
+       },
+       "purpose": {
+        "event_type": 3,
+        "pairs": 0,
+        "concordant": 0,
+        "discordant": 0,
+        "low_need_events": 0,
+        "high_need_events": 0,
+        "net_concordance": null,
+        "net_concordance_lower_bound": null
+       },
+       "material": {
+        "event_type": 1,
+        "pairs": 0,
+        "concordant": 0,
+        "discordant": 0,
+        "low_need_events": 0,
+        "high_need_events": 0,
+        "net_concordance": null,
+        "net_concordance_lower_bound": null
+       },
+       "safety": {
+        "event_type": 1,
+        "pairs": 0,
+        "concordant": 0,
+        "discordant": 0,
+        "low_need_events": 0,
+        "high_need_events": 0,
+        "net_concordance": null,
+        "net_concordance_lower_bound": null
+       }
+      },
+      "censored_pairs": 0
+     },
+     "ablation": {
+      "status": "NOT_RUN",
+      "reason": "no needs ablation arm",
+      "arm": "needs",
+      "label": "causal evidence (not yet required)",
+      "fork_design": 2
+     },
+     "per_seed": [
+      {
+       "seed": 42,
+       "snapshots": 4,
+       "pairs_found": 0,
+       "informative_pairs": 0,
+       "concordant": 0,
+       "discordant": 0,
+       "net_concordance": null,
+       "sign_test_p": 1.0,
+       "by_pairing": {},
+       "binding": [
+        0,
+        0,
+        0
+       ],
+       "binding_by_pairing": {},
+       "informational": {
+        "spiritual": {
+         "pairs": [
+          0,
+          0,
+          0
+         ],
+         "binding": [
+          0,
+          0,
+          0
+         ]
+        }
+       }
+      },
+      {
+       "seed": 43,
+       "snapshots": 4,
+       "pairs_found": 0,
+       "informative_pairs": 0,
+       "concordant": 0,
+       "discordant": 0,
+       "net_concordance": null,
+       "sign_test_p": 1.0,
+       "by_pairing": {},
+       "binding": [
+        0,
+        0,
+        0
+       ],
+       "binding_by_pairing": {},
+       "informational": {
+        "spiritual": {
+         "pairs": [
+          0,
+          0,
+          0
+         ],
+         "binding": [
+          0,
+          0,
+          0
+         ]
+        }
+       }
+      },
+      {
+       "seed": 44,
+       "snapshots": 4,
+       "pairs_found": 0,
+       "informative_pairs": 0,
+       "concordant": 0,
+       "discordant": 0,
+       "net_concordance": null,
+       "sign_test_p": 1.0,
+       "by_pairing": {},
+       "binding": [
+        0,
+        0,
+        0
+       ],
+       "binding_by_pairing": {},
+       "informational": {
+        "spiritual": {
+         "pairs": [
+          0,
+          0,
+          0
+         ],
+         "binding": [
+          0,
+          0,
+          0
+         ]
+        }
+       }
+      }
+     ]
+    },
+    "regression": {
+     "status": "FAIL",
+     "regression_adjudication": "fail",
+     "strict_regression_ok": false,
+     "calibrated_floor_ok": false,
+     "strict_regression_failed_checks": [
+      "rebellion_rate_per_agent_turn",
+      "civ_survival"
+     ],
+     "calibrated_floor_failed_checks": [
+      "rebellion_rate_per_agent_turn",
+      "civ_survival"
+     ],
+     "calibrated_floor_relaxed_checks": [],
+     "regression_floor_diagnostics": {
+      "satisfaction_mean": {
+       "value": 0.521678,
+       "strict_min": 0.45,
+       "calibrated_min": 0.4,
+       "max": 0.65,
+       "strict_ok": true,
+       "calibrated_ok": true,
+       "strict_min_delta": 0.071678,
+       "calibrated_min_delta": 0.121678,
+       "max_delta": 0.128322
+      },
+      "latest_satisfaction_mean": {
+       "value": 0.521483,
+       "strict_min": 0.45,
+       "calibrated_min": 0.4,
+       "max": 0.65,
+       "strict_ok": true,
+       "calibrated_ok": true,
+       "strict_min_delta": 0.071483,
+       "calibrated_min_delta": 0.121483,
+       "max_delta": 0.128517
+      },
+      "migration_rate_per_agent_turn": {
+       "value": 0.054036,
+       "strict_min": 0.05,
+       "calibrated_min": 0.045,
+       "max": 0.15,
+       "strict_ok": true,
+       "calibrated_ok": true,
+       "strict_min_delta": 0.004036,
+       "calibrated_min_delta": 0.009036,
+       "max_delta": 0.095964
+      }
+     },
+     "satisfaction_mean": 0.5217,
+     "satisfaction_std": 0.1668,
+     "latest_satisfaction_mean": 0.5215,
+     "latest_satisfaction_std": 0.1675,
+     "latest_satisfaction_window_turns": 60,
+     "final_sample_satisfaction_mean": 0.5226,
+     "latest_satisfaction_mean_ok": true,
+     "latest_satisfaction_mean_calibrated_ok": true,
+     "satisfaction_mean_ok": true,
+     "satisfaction_mean_calibrated_ok": true,
+     "migration_rate_per_agent_turn": 0.054036,
+     "migration_rate_ok": true,
+     "migration_rate_calibrated_ok": true,
+     "rebellion_rate_per_agent_turn": 0.017472,
+     "gini_in_range_fraction": 1.0,
+     "occupation_ok": true,
+     "occupation_source": "legacy_fallback",
+     "occupation_violation_fraction": 0.0,
+     "occupation_evidence_run_fraction": null,
+     "latest_occupation_source": "legacy_fallback",
+     "latest_occupation_violation_fraction": 0.0,
+     "latest_occupation_evidence_run_fraction": null,
+     "latest_occupation_incomplete_run_fraction": null,
+     "latest_occupation_ok": true,
+     "reason": null,
+     "living_population_ok": true,
+     "final_living_population_by_seed": [
+      {
+       "seed": 42,
+       "population": 98,
+       "source": "world_state.regions",
+       "turn": 160,
+       "agent_mode": "hybrid",
+       "reason": null
+      },
+      {
+       "seed": 43,
+       "population": 98,
+       "source": "world_state.regions",
+       "turn": 160,
+       "agent_mode": "hybrid",
+       "reason": null
+      },
+      {
+       "seed": 44,
+       "population": 98,
+       "source": "world_state.regions",
+       "turn": 160,
+       "agent_mode": "hybrid",
+       "reason": null
+      }
+     ],
+     "final_living_population_counts": [
+      98,
+      98,
+      98
+     ],
+     "extinct_world_count": 0,
+     "extinct_world_fraction": 0.0,
+     "population_unknown_run_count": 0,
+     "population_evidence_run_fraction": 1.0,
+     "civ_survival_counts": [
+      3,
+      3,
+      3
+     ],
+     "civ_zero_survival_fraction": 0.0,
+     "civ_full_survival_fraction": 1.0,
+     "civ_exact_four_region_fraction": 0.0,
+     "treasury_bad_seed_count": 0
+    }
+   },
+   "batch_manifest": {
+    "status": "verified",
+    "manifest_sha256": "<sha256:rich/batch_manifest.json>",
+    "seeds": [
+     42,
+     43,
+     44
+    ],
+    "turns": 160,
+    "simulation": {
+     "agents": "hybrid",
+     "turns": 160
+    },
+    "source": {
+     "git_sha": null,
+     "package_digest": null
+    },
+    "native_sha256": null,
+    "python": null,
+    "platform": null,
+    "thread_env": null
+   },
+   "causal_oracles_required": false
+  },
+  "rich_all_full_design2_causal": {
+   "batch_dir": "<WS>/rich",
+   "oracles": [
+    "arcs",
+    "artifacts",
+    "cohort",
+    "community",
+    "determinism",
+    "era",
+    "needs",
+    "regression"
+   ],
+   "results": {
+    "arcs": {
+     "status": "FAIL",
+     "families_found": [
+      "cinderella",
+      "man_in_a_hole",
+      "rags_to_riches"
+     ],
+     "family_count": 3,
+     "arc_counts": {
+      "cinderella": 2,
+      "man_in_a_hole": 2,
+      "rags_to_riches": 5
+     },
+     "dominance_violations": {
+      "rags_to_riches": 0.5555555555555556
+     },
+     "seeds_with_three_types": 1,
+     "per_seed": [
+      {
+       "seed": 42,
+       "arc_types": [
+        "man_in_a_hole",
+        "rags_to_riches",
+        "cinderella"
+       ],
+       "distinct_type_count": 3
+      },
+      {
+       "seed": 43,
+       "arc_types": [
+        "rags_to_riches",
+        "rags_to_riches",
+        "man_in_a_hole"
+       ],
+       "distinct_type_count": 2
+      },
+      {
+       "seed": 44,
+       "arc_types": [
+        "rags_to_riches",
+        "rags_to_riches",
+        "cinderella"
+       ],
+       "distinct_type_count": 2
+      }
+     ]
+    },
+    "artifacts": {
+     "status": "PASS",
+     "creation_rate_per_civ_per_100": 2.5,
+     "creation_rate_ok": true,
+     "creation_rate_strict_ok": true,
+     "creation_rate_adjudication": "strict",
+     "type_diversity_ok": true,
+     "loss_destruction_count": 9,
+     "loss_destruction_rate": 0.25,
+     "loss_destruction_rate_ok": true,
+     "lost_count": 6,
+     "destroyed_count": 3,
+     "loss_channels_ok": true,
+     "mule_artifact_count": 9,
+     "total_artifacts": 36
+    },
+    "cohort": {
+     "status": "FAIL",
+     "method": "observational_and_ablation",
+     "method_version": 6,
+     "causal_oracles_required": true,
+     "required_components": [
+      "ablation"
+     ],
+     "component_statuses": {
+      "observational": "FAIL",
+      "ablation": "FAIL"
+     },
+     "observational_status": "FAIL",
+     "observational_method": null,
+     "observational_method_version": 3,
+     "observational_note": "non-discriminating: passes synthetic null and reversed worlds",
+     "outcome_window_start_offset": 1,
+     "outcome_window_turns": 20,
+     "comparison": "matched_pairs",
+     "outcome_censoring": "first_death_in_pair",
+     "community_method_version": 2,
+     "analyzed_seeds": 3,
+     "required_seed_count": 2,
+     "seeds_with_expected_direction": 0,
+     "median_effect_size": 0.0,
+     "matching": {
+      "rule": "each member with a non-member of the same civ affinity, region and occupation, satisfaction within 0.10 (method 3)",
+      "snapshots": 12,
+      "members": 191,
+      "matched_members": 0,
+      "match_rate": 0.0,
+      "mean_satisfaction_gap": null,
+      "chosen_snapshots": {
+       "members": 58,
+       "matched_members": 0,
+       "match_rate": 0.0
+      }
+     },
+     "reason": "members' migration rate ratio 2.0 (upper bound 3.8124); needs at most 0.85 and a bound below 1",
+     "ablation": {
+      "status": "FAIL",
+      "reason": "members' migration rate ratio 2.0 (upper bound 3.8124); needs at most 0.85 and a bound below 1",
+      "community_method_version": 2,
+      "arm": "kin_roots",
+      "comparison": "plain_vs_ablated_fork",
+      "criterion": "community members at the fork migrate less over the 20 turns after it with the kin roots than without: one-sided 95% seed-clustered upper bound of the rate ratio below 1 and the ratio at most 0.85",
+      "minimum_effect": 0.15,
+      "confidence": 0.95,
+      "window_turns": 20,
+      "failed_criteria": [
+       "upper_bound",
+       "minimum_effect"
+      ],
+      "seeds": 3,
+      "forks": 3,
+      "members_migration": {
+       "direction": "fewer with the term",
+       "cohort": 58,
+       "seeds_with_cohort": 3,
+       "informative_seeds": 3,
+       "plain_events": 58,
+       "ablated_events": 29,
+       "plain_rate": 1.0,
+       "ablated_rate": 0.5,
+       "seeds_more_with_term": 2,
+       "seeds_fewer_with_term": 1,
+       "rate_ratio": 2.0,
+       "effect": 1.0,
+       "standard_error": 0.6207,
+       "lower_bound": 0.1876,
+       "upper_bound": 3.8124,
+       "interval": [
+        -0.6706,
+        4.6706
+       ],
+       "plain_by_window_turn": [
+        6,
+        4,
+        1,
+        3,
+        3,
+        5,
+        2,
+        3,
+        2,
+        3,
+        3,
+        1,
+        5,
+        2,
+        3,
+        4,
+        0,
+        3,
+        4,
+        1
+       ],
+       "ablated_by_window_turn": [
+        1,
+        3,
+        1,
+        2,
+        0,
+        2,
+        1,
+        1,
+        1,
+        3,
+        1,
+        3,
+        2,
+        2,
+        2,
+        1,
+        0,
+        1,
+        1,
+        1
+       ]
+      },
+      "informational": {
+       "members_rebellion": {
+        "cohort": 58,
+        "seeds_with_cohort": 3,
+        "informative_seeds": 3,
+        "plain_events": 19,
+        "ablated_events": 25,
+        "plain_rate": 0.3276,
+        "ablated_rate": 0.431,
+        "seeds_more_with_term": 1,
+        "seeds_fewer_with_term": 2,
+        "rate_ratio": 0.76,
+        "effect": -0.24,
+        "standard_error": 0.2358,
+        "lower_bound": 0.0715,
+        "upper_bound": 1.4485,
+        "interval": [
+         -0.2545,
+         1.7745
+        ]
+       },
+       "non_members_migration": {
+        "cohort": 38,
+        "seeds_with_cohort": 3,
+        "informative_seeds": 3,
+        "plain_events": 27,
+        "ablated_events": 16,
+        "plain_rate": 0.7105,
+        "ablated_rate": 0.4211,
+        "seeds_more_with_term": 3,
+        "seeds_fewer_with_term": 0,
+        "rate_ratio": 1.6875,
+        "effect": 0.6875,
+        "standard_error": 0.1708,
+        "lower_bound": 1.1889,
+        "upper_bound": 2.1861,
+        "interval": [
+         0.9528,
+         2.4222
+        ]
+       },
+       "non_members_rebellion": {
+        "cohort": 38,
+        "seeds_with_cohort": 3,
+        "informative_seeds": 3,
+        "plain_events": 13,
+        "ablated_events": 14,
+        "plain_rate": 0.3421,
+        "ablated_rate": 0.3684,
+        "seeds_more_with_term": 1,
+        "seeds_fewer_with_term": 2,
+        "rate_ratio": 0.9286,
+        "effect": -0.0714,
+        "standard_error": 0.3963,
+        "lower_bound": -0.2286,
+        "upper_bound": 2.0857,
+        "interval": [
+         -0.7765,
+         2.6337
+        ]
+       }
+      },
+      "per_seed": [
+       {
+        "seed": 42,
+        "forks": [
+         100
+        ],
+        "communities": 2,
+        "members_migration": [
+         12,
+         8,
+         10
+        ]
+       },
+       {
+        "seed": 43,
+        "forks": [
+         100
+        ],
+        "communities": 4,
+        "members_migration": [
+         24,
+         28,
+         11
+        ]
+       },
+       {
+        "seed": 44,
+        "forks": [
+         100
+        ],
+        "communities": 3,
+        "members_migration": [
+         22,
+         22,
+         8
+        ]
+       }
+      ],
+      "label": "causal evidence (required)",
+      "fork_design": 2
+     },
+     "placebo": {
+      "status": "FAIL",
+      "reason": "members' migration rate ratio 2.9 (upper bound 4.6522); needs at most 0.85 and a bound below 1",
+      "community_method_version": 2,
+      "arm": "placebo",
+      "comparison": "plain_vs_ablated_fork",
+      "criterion": "community members at the fork migrate less over the 20 turns after it with the kin roots than without: one-sided 95% seed-clustered upper bound of the rate ratio below 1 and the ratio at most 0.85",
+      "minimum_effect": 0.15,
+      "confidence": 0.95,
+      "window_turns": 20,
+      "failed_criteria": [
+       "upper_bound",
+       "minimum_effect"
+      ],
+      "seeds": 3,
+      "forks": 3,
+      "members_migration": {
+       "direction": "fewer with the term",
+       "cohort": 58,
+       "seeds_with_cohort": 3,
+       "informative_seeds": 3,
+       "plain_events": 58,
+       "ablated_events": 20,
+       "plain_rate": 1.0,
+       "ablated_rate": 0.3448,
+       "seeds_more_with_term": 3,
+       "seeds_fewer_with_term": 0,
+       "rate_ratio": 2.9,
+       "effect": 1.9,
+       "standard_error": 0.6001,
+       "lower_bound": 1.1478,
+       "upper_bound": 4.6522,
+       "interval": [
+        0.3181,
+        5.4819
+       ],
+       "plain_by_window_turn": [
+        6,
+        4,
+        1,
+        3,
+        3,
+        5,
+        2,
+        3,
+        2,
+        3,
+        3,
+        1,
+        5,
+        2,
+        3,
+        4,
+        0,
+        3,
+        4,
+        1
+       ],
+       "ablated_by_window_turn": [
+        1,
+        1,
+        2,
+        1,
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        1,
+        0,
+        1,
+        1,
+        2,
+        1,
+        2,
+        1,
+        2,
+        1
+       ]
+      },
+      "informational": {
+       "members_rebellion": {
+        "cohort": 58,
+        "seeds_with_cohort": 3,
+        "informative_seeds": 3,
+        "plain_events": 19,
+        "ablated_events": 32,
+        "plain_rate": 0.3276,
+        "ablated_rate": 0.5517,
+        "seeds_more_with_term": 0,
+        "seeds_fewer_with_term": 3,
+        "rate_ratio": 0.5938,
+        "effect": -0.4062,
+        "standard_error": 0.1788,
+        "lower_bound": 0.0717,
+        "upper_bound": 1.1158,
+        "interval": [
+         -0.1755,
+         1.363
+        ]
+       },
+       "non_members_migration": {
+        "cohort": 38,
+        "seeds_with_cohort": 3,
+        "informative_seeds": 3,
+        "plain_events": 27,
+        "ablated_events": 17,
+        "plain_rate": 0.7105,
+        "ablated_rate": 0.4474,
+        "seeds_more_with_term": 3,
+        "seeds_fewer_with_term": 0,
+        "rate_ratio": 1.5882,
+        "effect": 0.5882,
+        "standard_error": 0.1477,
+        "lower_bound": 1.1571,
+        "upper_bound": 2.0194,
+        "interval": [
+         0.9529,
+         2.2236
+        ]
+       },
+       "non_members_rebellion": {
+        "cohort": 38,
+        "seeds_with_cohort": 3,
+        "informative_seeds": 3,
+        "plain_events": 13,
+        "ablated_events": 9,
+        "plain_rate": 0.3421,
+        "ablated_rate": 0.2368,
+        "seeds_more_with_term": 1,
+        "seeds_fewer_with_term": 2,
+        "rate_ratio": 1.4444,
+        "effect": 0.4444,
+        "standard_error": 1.1921,
+        "lower_bound": -2.0365,
+        "upper_bound": 4.9254,
+        "interval": [
+         -3.6848,
+         6.5737
+        ]
+       }
+      },
+      "per_seed": [
+       {
+        "seed": 42,
+        "forks": [
+         100
+        ],
+        "communities": 2,
+        "members_migration": [
+         12,
+         8,
+         0
+        ]
+       },
+       {
+        "seed": 43,
+        "forks": [
+         100
+        ],
+        "communities": 4,
+        "members_migration": [
+         24,
+         28,
+         11
+        ]
+       },
+       {
+        "seed": 44,
+        "forks": [
+         100
+        ],
+        "communities": 3,
+        "members_migration": [
+         22,
+         22,
+         9
+        ]
+       }
+      ],
+      "fork_design": 2
+     },
+     "community_ablation": {
+      "status": "NOT_RUN",
+      "reason": "no community_anchor ablation arm",
+      "arm": "community_anchor",
+      "fork_design": 2,
+      "label": "causal evidence (reported; the community anchor of --community-anchoring)"
+     },
+     "per_seed": [
+      {
+       "seed": 42,
+       "snapshot_turn": 100,
+       "communities_analyzed": 2,
+       "migration_effect_direction": "equal",
+       "migration_effect_size": 0.0,
+       "rebellion_effect_direction": "equal",
+       "rebellion_effect_size": 0.0,
+       "pairs": 0,
+       "censored_pairs": 0,
+       "members": 12
+      },
+      {
+       "seed": 43,
+       "snapshot_turn": 100,
+       "communities_analyzed": 4,
+       "migration_effect_direction": "equal",
+       "migration_effect_size": 0.0,
+       "rebellion_effect_direction": "equal",
+       "rebellion_effect_size": 0.0,
+       "pairs": 0,
+       "censored_pairs": 0,
+       "members": 24
+      },
+      {
+       "seed": 44,
+       "snapshot_turn": 100,
+       "communities_analyzed": 3,
+       "migration_effect_direction": "equal",
+       "migration_effect_size": 0.0,
+       "rebellion_effect_direction": "equal",
+       "rebellion_effect_size": 0.0,
+       "pairs": 0,
+       "censored_pairs": 0,
+       "members": 22
+      }
+     ]
+    },
+    "community": {
+     "status": "PASS",
+     "method": "legacy_and_spec",
+     "method_version": 2,
+     "spec_required": false,
+     "required_components": [
+      "legacy"
+     ],
+     "component_statuses": {
+      "legacy": "PASS",
+      "spec": "FAIL"
+     },
+     "legacy_status": "PASS",
+     "legacy_note": "method 1: label propagation over every edge, unweighted and across regions; kin-only exclusion against code 0 (the native mentor); a seed passes with any community of 5+",
+     "analyzed_seeds": 3,
+     "required_seed_count": 3,
+     "qualifying_seed_count": 3,
+     "spec": {
+      "status": "FAIL",
+      "label": "M53 oracle 1 as specified (method 2)",
+      "failed_criteria": [
+       "community_count",
+       "region_share"
+      ],
+      "criteria": {
+       "seed_fraction": "communities in at least 75% of seeds",
+       "community_count": "mean communities a seed per steady-state snapshot within 3-15",
+       "median_size": "median community size within 5-12",
+       "region_share": "no community above 5% of its region's living agents at the snapshot"
+      },
+      "steady_state_first_turn": 100,
+      "analyzed_seeds": 3,
+      "required_seed_count": 3,
+      "seeds_with_communities": 3,
+      "snapshots": 12,
+      "communities": 30,
+      "mean_community_count": 2.5,
+      "median_seed_mean_count": 2.5,
+      "seeds_in_count_band": 0,
+      "median_size": 7.0,
+      "size_p90": 8,
+      "max_size": 8,
+      "region_share": {
+       "measure": "community size over the living agents of its region at the snapshot",
+       "max": 1.0,
+       "median": 0.875,
+       "communities_above": 30,
+       "fraction_above": 1.0,
+       "median_region_population": 8,
+       "communities_in_regions_of_at_least": {
+        "population": 100,
+        "communities": 0
+       }
+      },
+      "members_share_of_living_agents": {
+       "median": 0.4688,
+       "mean": 0.4974
+      },
+      "per_seed": [
+       {
+        "seed": 42,
+        "snapshots": 4,
+        "communities": 9,
+        "mean_count": 2.25,
+        "median_size": 7,
+        "max_region_share": 1.0,
+        "communities_above_region_share": 9
+       },
+       {
+        "seed": 43,
+        "snapshots": 4,
+        "communities": 11,
+        "mean_count": 2.75,
+        "median_size": 7,
+        "max_region_share": 1.0,
+        "communities_above_region_share": 11
+       },
+       {
+        "seed": 44,
+        "snapshots": 4,
+        "communities": 10,
+        "mean_count": 2.5,
+        "median_size": 7.0,
+        "max_region_share": 1.0,
+        "communities_above_region_share": 10
+       }
+      ],
+      "reason": "failed community_count, region_share (seeds with communities 3 of 3, mean count 2.5, median size 7.0, 30 of 30 communities above 5% of their region)"
+     },
+     "per_seed": [
+      {
+       "seed": 42,
+       "snapshot_turn": 110,
+       "qualifying_communities": 4,
+       "sampled_turn_count": 4,
+       "source": "raw"
+      },
+      {
+       "seed": 43,
+       "snapshot_turn": 120,
+       "qualifying_communities": 4,
+       "sampled_turn_count": 4,
+       "source": "raw"
+      },
+      {
+       "seed": 44,
+       "snapshot_turn": 110,
+       "qualifying_communities": 3,
+       "sampled_turn_count": 4,
+       "source": "raw"
+      }
+     ]
+    },
+    "determinism": {
+     "status": "SKIP",
+     "reason": "no_duplicate_seed_pairs",
+     "pairs_checked": 0,
+     "duplicate_seeds": [],
+     "mismatches": []
+    },
+    "era": {
+     "status": "PASS",
+     "analyzed_seeds": 3,
+     "required_seed_count": 3,
+     "seeds_with_inflections": 3,
+     "silent_collapse_seeds": 0,
+     "collapse_episode_count": 3,
+     "collapses_marked_by_era_signal": 3,
+     "collapses_marked_by_crisis_only": 0,
+     "silent_collapse_episodes": [],
+     "per_seed": [
+      {
+       "seed": 42,
+       "inflection_count": 6,
+       "inflection_turns": [
+        37,
+        56,
+        83,
+        92,
+        112,
+        126
+       ],
+       "silent_collapse": false,
+       "collapse_count": 1,
+       "silent_collapse_count": 0,
+       "signal_hits": {
+        "population": 4,
+        "treasury": 3,
+        "stability": 0,
+        "territory": 1,
+        "prestige": 0
+       }
+      },
+      {
+       "seed": 43,
+       "inflection_count": 4,
+       "inflection_turns": [
+        58,
+        80,
+        92,
+        140
+       ],
+       "silent_collapse": false,
+       "collapse_count": 1,
+       "silent_collapse_count": 0,
+       "signal_hits": {
+        "population": 3,
+        "treasury": 1,
+        "stability": 0,
+        "territory": 1,
+        "prestige": 0
+       }
+      },
+      {
+       "seed": 44,
+       "inflection_count": 5,
+       "inflection_turns": [
+        18,
+        83,
+        92,
+        134,
+        148
+       ],
+       "silent_collapse": false,
+       "collapse_count": 1,
+       "silent_collapse_count": 0,
+       "signal_hits": {
+        "population": 4,
+        "treasury": 0,
+        "stability": 0,
+        "territory": 1,
+        "prestige": 0
+       }
+      }
+     ]
+    },
+    "needs": {
+     "status": "FAIL",
+     "method": "observational_and_ablation",
+     "method_version": 8,
+     "causal_oracles_required": true,
+     "required_components": [
+      "ablation"
+     ],
+     "component_statuses": {
+      "observational": "FAIL",
+      "ablation": "FAIL"
+     },
+     "observational_status": "FAIL",
+     "observational_method": "pooled_matched_pairs",
+     "observational_criterion": "one-sided 95% lower bound of pooled net concordance > 0 and >= 60% of analyzed seeds with net concordance > 0; binding pairs (lower-need agent below its threshold, partner at or above it): one-sided 95% lower bound of pooled net concordance > 0",
+     "failed_criteria": [
+      "net_concordance_lower_bound",
+      "seed_fraction",
+      "binding_lower_bound"
+     ],
+     "analyzed_seeds": 3,
+     "seeds_with_informative_pairs": 0,
+     "required_seed_count": 2,
+     "seeds_with_expected_sign": 0,
+     "seeds_with_reversed_sign": 0,
+     "total_pairs": 0,
+     "informative_pairs": 0,
+     "concordant_pairs": 0,
+     "discordant_pairs": 0,
+     "net_concordance": null,
+     "net_concordance_se": null,
+     "net_concordance_lower_bound": null,
+     "confidence": 0.95,
+     "need_divergence": 0.1,
+     "personality_tolerance": 0.1,
+     "outcome_window_turns": 20,
+     "autonomy_excludes_prior_rebels": true,
+     "by_pairing": {
+      "autonomy": {
+       "event_type": 2,
+       "pairs": 0,
+       "concordant": 0,
+       "discordant": 0,
+       "low_need_events": 0,
+       "high_need_events": 0,
+       "net_concordance": null,
+       "net_concordance_lower_bound": null
+      },
+      "social": {
+       "event_type": 1,
+       "pairs": 0,
+       "concordant": 0,
+       "discordant": 0,
+       "low_need_events": 0,
+       "high_need_events": 0,
+       "net_concordance": null,
+       "net_concordance_lower_bound": null
+      },
+      "purpose": {
+       "event_type": 3,
+       "pairs": 0,
+       "concordant": 0,
+       "discordant": 0,
+       "low_need_events": 0,
+       "high_need_events": 0,
+       "net_concordance": null,
+       "net_concordance_lower_bound": null
+      },
+      "material": {
+       "event_type": 1,
+       "pairs": 0,
+       "concordant": 0,
+       "discordant": 0,
+       "low_need_events": 0,
+       "high_need_events": 0,
+       "net_concordance": null,
+       "net_concordance_lower_bound": null
+      },
+      "safety": {
+       "event_type": 1,
+       "pairs": 0,
+       "concordant": 0,
+       "discordant": 0,
+       "low_need_events": 0,
+       "high_need_events": 0,
+       "net_concordance": null,
+       "net_concordance_lower_bound": null
+      }
+     },
+     "outcome_window_start_offset": 1,
+     "outcome_censoring": "first_death_in_pair",
+     "censored_pairs": 0,
+     "informational_pairings": {
+      "spiritual": {
+       "event_type": 1,
+       "required": false,
+       "pairs": {
+        "pairs": 0,
+        "concordant": 0,
+        "discordant": 0,
+        "low_need_events": 0,
+        "high_need_events": 0,
+        "informative_pairs": 0,
+        "seeds_with_informative_pairs": 0,
+        "net_concordance": null,
+        "net_concordance_se": null,
+        "net_concordance_lower_bound": null
+       },
+       "binding": {
+        "pairs": 0,
+        "concordant": 0,
+        "discordant": 0,
+        "low_need_events": 0,
+        "high_need_events": 0,
+        "informative_pairs": 0,
+        "seeds_with_informative_pairs": 0,
+        "net_concordance": null,
+        "net_concordance_se": null,
+        "net_concordance_lower_bound": null,
+        "threshold": 0.3
+       }
+      }
+     },
+     "profile": "full",
+     "binding_required": true,
+     "binding_required_profiles": [
+      "full"
+     ],
+     "pooled_status": "FAIL",
+     "informational_failed_criteria": [],
+     "binding": {
+      "status": "FAIL",
+      "required": true,
+      "thresholds": {
+       "autonomy": 0.35,
+       "social": 0.35,
+       "purpose": 0.35,
+       "material": 0.3,
+       "safety": 0.3
+      },
+      "need_divergence": 0.05,
+      "total_pairs": 0,
+      "informative_pairs": 0,
+      "concordant_pairs": 0,
+      "discordant_pairs": 0,
+      "seeds_with_informative_pairs": 0,
+      "seeds_with_expected_sign": 0,
+      "seeds_with_reversed_sign": 0,
+      "net_concordance": null,
+      "net_concordance_se": null,
+      "net_concordance_lower_bound": null,
+      "by_pairing": {
+       "autonomy": {
+        "event_type": 2,
+        "pairs": 0,
+        "concordant": 0,
+        "discordant": 0,
+        "low_need_events": 0,
+        "high_need_events": 0,
+        "net_concordance": null,
+        "net_concordance_lower_bound": null
+       },
+       "social": {
+        "event_type": 1,
+        "pairs": 0,
+        "concordant": 0,
+        "discordant": 0,
+        "low_need_events": 0,
+        "high_need_events": 0,
+        "net_concordance": null,
+        "net_concordance_lower_bound": null
+       },
+       "purpose": {
+        "event_type": 3,
+        "pairs": 0,
+        "concordant": 0,
+        "discordant": 0,
+        "low_need_events": 0,
+        "high_need_events": 0,
+        "net_concordance": null,
+        "net_concordance_lower_bound": null
+       },
+       "material": {
+        "event_type": 1,
+        "pairs": 0,
+        "concordant": 0,
+        "discordant": 0,
+        "low_need_events": 0,
+        "high_need_events": 0,
+        "net_concordance": null,
+        "net_concordance_lower_bound": null
+       },
+       "safety": {
+        "event_type": 1,
+        "pairs": 0,
+        "concordant": 0,
+        "discordant": 0,
+        "low_need_events": 0,
+        "high_need_events": 0,
+        "net_concordance": null,
+        "net_concordance_lower_bound": null
+       }
+      },
+      "censored_pairs": 0
+     },
+     "ablation": {
+      "status": "FAIL",
+      "arm": "needs",
+      "comparison": "plain_vs_ablated_fork",
+      "criterion": "each required pairing: agents below the need's threshold at the fork have more of its event over the 20 turns after it with the need terms than without: one-sided 95% seed-clustered lower bound of the rate ratio above 1 and the ratio at least 1.10",
+      "minimum_effect": 0.1,
+      "confidence": 0.95,
+      "window_turns": 20,
+      "failed_pairings": [
+       "autonomy",
+       "social",
+       "purpose",
+       "material",
+       "safety"
+      ],
+      "seeds": 3,
+      "forks": 3,
+      "by_pairing": {
+       "autonomy": {
+        "event_type": "rebellion",
+        "threshold": 0.35,
+        "required": true,
+        "direction": "more with the term",
+        "status": "FAIL",
+        "failed_criteria": [
+         "lower_bound"
+        ],
+        "cohort": 33,
+        "seeds_with_cohort": 3,
+        "informative_seeds": 3,
+        "plain_events": 17,
+        "ablated_events": 5,
+        "plain_rate": 0.5152,
+        "ablated_rate": 0.1515,
+        "seeds_more_with_term": 2,
+        "seeds_fewer_with_term": 0,
+        "rate_ratio": 3.4,
+        "effect": 2.4,
+        "standard_error": 1.4664,
+        "lower_bound": -0.8819,
+        "upper_bound": 7.6819,
+        "interval": [
+         -2.9095,
+         9.7095
+        ],
+        "plain_by_window_turn": [
+         1,
+         1,
+         0,
+         1,
+         0,
+         2,
+         1,
+         2,
+         2,
+         0,
+         1,
+         0,
+         0,
+         0,
+         3,
+         0,
+         1,
+         1,
+         0,
+         1
+        ],
+        "ablated_by_window_turn": [
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         1,
+         0,
+         1,
+         1,
+         0,
+         0,
+         1,
+         0,
+         0,
+         0,
+         1
+        ]
+       },
+       "social": {
+        "event_type": "migration",
+        "threshold": 0.35,
+        "required": true,
+        "direction": "more with the term",
+        "status": "FAIL",
+        "failed_criteria": [
+         "lower_bound"
+        ],
+        "cohort": 31,
+        "seeds_with_cohort": 3,
+        "informative_seeds": 3,
+        "plain_events": 28,
+        "ablated_events": 1,
+        "plain_rate": 0.9032,
+        "ablated_rate": 0.0323,
+        "seeds_more_with_term": 3,
+        "seeds_fewer_with_term": 0,
+        "rate_ratio": 28.0,
+        "effect": 27.0,
+        "standard_error": 27.2213,
+        "lower_bound": -51.4858,
+        "upper_bound": 107.4858,
+        "interval": [
+         -89.1239,
+         145.1239
+        ],
+        "plain_by_window_turn": [
+         4,
+         2,
+         1,
+         1,
+         2,
+         2,
+         1,
+         0,
+         2,
+         0,
+         2,
+         0,
+         2,
+         0,
+         2,
+         1,
+         1,
+         1,
+         3,
+         1
+        ],
+        "ablated_by_window_turn": [
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         1,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0
+        ]
+       },
+       "purpose": {
+        "event_type": "occupation_switch",
+        "threshold": 0.35,
+        "required": true,
+        "direction": "more with the term",
+        "status": "FAIL",
+        "failed_criteria": [
+         "lower_bound"
+        ],
+        "cohort": 36,
+        "seeds_with_cohort": 3,
+        "informative_seeds": 3,
+        "plain_events": 16,
+        "ablated_events": 9,
+        "plain_rate": 0.4444,
+        "ablated_rate": 0.25,
+        "seeds_more_with_term": 2,
+        "seeds_fewer_with_term": 0,
+        "rate_ratio": 1.7778,
+        "effect": 0.7778,
+        "standard_error": 0.6553,
+        "lower_bound": -0.1355,
+        "upper_bound": 3.6911,
+        "interval": [
+         -1.0415,
+         4.5971
+        ],
+        "plain_by_window_turn": [
+         1,
+         0,
+         0,
+         0,
+         2,
+         1,
+         1,
+         0,
+         1,
+         1,
+         2,
+         0,
+         0,
+         0,
+         1,
+         2,
+         1,
+         1,
+         1,
+         1
+        ],
+        "ablated_by_window_turn": [
+         0,
+         0,
+         0,
+         0,
+         2,
+         1,
+         0,
+         0,
+         1,
+         2,
+         0,
+         1,
+         1,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         1
+        ]
+       },
+       "material": {
+        "event_type": "migration",
+        "threshold": 0.3,
+        "required": true,
+        "direction": "more with the term",
+        "status": "FAIL",
+        "failed_criteria": [
+         "lower_bound"
+        ],
+        "cohort": 30,
+        "seeds_with_cohort": 3,
+        "informative_seeds": 3,
+        "plain_events": 24,
+        "ablated_events": 4,
+        "plain_rate": 0.8,
+        "ablated_rate": 0.1333,
+        "seeds_more_with_term": 3,
+        "seeds_fewer_with_term": 0,
+        "rate_ratio": 6.0,
+        "effect": 5.0,
+        "standard_error": 2.7042,
+        "lower_bound": -1.8961,
+        "upper_bound": 13.8961,
+        "interval": [
+         -5.6351,
+         17.6351
+        ],
+        "plain_by_window_turn": [
+         0,
+         1,
+         0,
+         3,
+         1,
+         4,
+         0,
+         2,
+         1,
+         0,
+         1,
+         0,
+         2,
+         0,
+         0,
+         1,
+         1,
+         3,
+         3,
+         1
+        ],
+        "ablated_by_window_turn": [
+         1,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         1,
+         1,
+         0,
+         0,
+         0,
+         1,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0
+        ]
+       },
+       "safety": {
+        "event_type": "migration",
+        "threshold": 0.3,
+        "required": true,
+        "direction": "more with the term",
+        "status": "FAIL",
+        "failed_criteria": [
+         "lower_bound"
+        ],
+        "cohort": 31,
+        "seeds_with_cohort": 3,
+        "informative_seeds": 3,
+        "plain_events": 28,
+        "ablated_events": 2,
+        "plain_rate": 0.9032,
+        "ablated_rate": 0.0645,
+        "seeds_more_with_term": 3,
+        "seeds_fewer_with_term": 0,
+        "rate_ratio": 14.0,
+        "effect": 13.0,
+        "standard_error": 7.6974,
+        "lower_bound": -8.4763,
+        "upper_bound": 36.4763,
+        "interval": [
+         -19.1192,
+         47.1192
+        ],
+        "plain_by_window_turn": [
+         4,
+         2,
+         1,
+         0,
+         1,
+         2,
+         1,
+         1,
+         2,
+         2,
+         3,
+         0,
+         0,
+         1,
+         2,
+         1,
+         1,
+         1,
+         3,
+         0
+        ],
+        "ablated_by_window_turn": [
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         1,
+         0,
+         0,
+         0,
+         0,
+         1,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0
+        ]
+       },
+       "spiritual": {
+        "event_type": "migration",
+        "threshold": 0.3,
+        "required": false,
+        "direction": "more with the term",
+        "status": "FAIL",
+        "failed_criteria": [
+         "lower_bound"
+        ],
+        "cohort": 32,
+        "seeds_with_cohort": 3,
+        "informative_seeds": 3,
+        "plain_events": 19,
+        "ablated_events": 5,
+        "plain_rate": 0.5938,
+        "ablated_rate": 0.1562,
+        "seeds_more_with_term": 3,
+        "seeds_fewer_with_term": 0,
+        "rate_ratio": 3.8,
+        "effect": 2.8,
+        "standard_error": 2.6572,
+        "lower_bound": -3.959,
+        "upper_bound": 11.559,
+        "interval": [
+         -7.6331,
+         15.2331
+        ],
+        "plain_by_window_turn": [
+         0,
+         0,
+         0,
+         2,
+         0,
+         5,
+         1,
+         1,
+         0,
+         2,
+         0,
+         1,
+         2,
+         0,
+         1,
+         1,
+         0,
+         1,
+         1,
+         1
+        ],
+        "ablated_by_window_turn": [
+         1,
+         0,
+         0,
+         0,
+         0,
+         0,
+         1,
+         1,
+         0,
+         0,
+         0,
+         0,
+         0,
+         1,
+         0,
+         0,
+         1,
+         0,
+         0,
+         0
+        ]
+       }
+      },
+      "unexposed": {
+       "migration": {
+        "event_type": "migration",
+        "cohort": 6,
+        "seeds_with_cohort": 3,
+        "informative_seeds": 3,
+        "plain_events": 7,
+        "ablated_events": 1,
+        "plain_rate": 1.1667,
+        "ablated_rate": 0.1667,
+        "seeds_more_with_term": 2,
+        "seeds_fewer_with_term": 1,
+        "rate_ratio": 7.0,
+        "effect": 6.0,
+        "standard_error": 10.8167,
+        "lower_bound": -24.5845,
+        "upper_bound": 38.5845,
+        "interval": [
+         -39.5403,
+         53.5403
+        ]
+       },
+       "rebellion": {
+        "event_type": "rebellion",
+        "cohort": 6,
+        "seeds_with_cohort": 3,
+        "informative_seeds": 2,
+        "plain_events": 1,
+        "ablated_events": 1,
+        "plain_rate": 0.1667,
+        "ablated_rate": 0.1667,
+        "seeds_more_with_term": 1,
+        "seeds_fewer_with_term": 1,
+        "rate_ratio": 1.0,
+        "effect": 0.0,
+        "standard_error": 2.0,
+        "lower_bound": -11.6275,
+        "upper_bound": 13.6275,
+        "interval": [
+         -24.4124,
+         26.4124
+        ]
+       },
+       "occupation_switch": {
+        "event_type": "occupation_switch",
+        "cohort": 6,
+        "seeds_with_cohort": 3,
+        "informative_seeds": 2,
+        "plain_events": 4,
+        "ablated_events": 0,
+        "plain_rate": 0.6667,
+        "ablated_rate": 0.0,
+        "seeds_more_with_term": 2,
+        "seeds_fewer_with_term": 0,
+        "rate_ratio": null,
+        "effect": null,
+        "standard_error": null,
+        "lower_bound": null,
+        "upper_bound": null,
+        "interval": null
+       }
+      },
+      "per_seed": [
+       {
+        "seed": 42,
+        "forks": [
+         100
+        ],
+        "by_pairing": {
+         "autonomy": [
+          13,
+          10,
+          2
+         ],
+         "social": [
+          7,
+          3,
+          0
+         ],
+         "purpose": [
+          9,
+          5,
+          2
+         ],
+         "material": [
+          10,
+          11,
+          3
+         ],
+         "safety": [
+          8,
+          7,
+          1
+         ],
+         "spiritual": [
+          10,
+          5,
+          1
+         ]
+        }
+       },
+       {
+        "seed": 43,
+        "forks": [
+         100
+        ],
+        "by_pairing": {
+         "autonomy": [
+          9,
+          2,
+          2
+         ],
+         "social": [
+          13,
+          14,
+          0
+         ],
+         "purpose": [
+          14,
+          5,
+          5
+         ],
+         "material": [
+          12,
+          5,
+          0
+         ],
+         "safety": [
+          11,
+          10,
+          0
+         ],
+         "spiritual": [
+          10,
+          7,
+          0
+         ]
+        }
+       },
+       {
+        "seed": 44,
+        "forks": [
+         100
+        ],
+        "by_pairing": {
+         "autonomy": [
+          11,
+          5,
+          1
+         ],
+         "social": [
+          11,
+          11,
+          1
+         ],
+         "purpose": [
+          13,
+          6,
+          2
+         ],
+         "material": [
+          8,
+          8,
+          1
+         ],
+         "safety": [
+          12,
+          11,
+          1
+         ],
+         "spiritual": [
+          12,
+          7,
+          4
+         ]
+        }
+       }
+      ],
+      "label": "causal evidence (required)",
+      "fork_design": 2
+     },
+     "placebo": {
+      "status": "FAIL",
+      "arm": "placebo",
+      "comparison": "plain_vs_ablated_fork",
+      "criterion": "each required pairing: agents below the need's threshold at the fork have more of its event over the 20 turns after it with the need terms than without: one-sided 95% seed-clustered lower bound of the rate ratio above 1 and the ratio at least 1.10",
+      "minimum_effect": 0.1,
+      "confidence": 0.95,
+      "window_turns": 20,
+      "failed_pairings": [
+       "autonomy",
+       "purpose",
+       "material",
+       "safety"
+      ],
+      "seeds": 3,
+      "forks": 3,
+      "by_pairing": {
+       "autonomy": {
+        "event_type": "rebellion",
+        "threshold": 0.35,
+        "required": true,
+        "direction": "more with the term",
+        "status": "FAIL",
+        "failed_criteria": [
+         "lower_bound"
+        ],
+        "cohort": 33,
+        "seeds_with_cohort": 3,
+        "informative_seeds": 3,
+        "plain_events": 17,
+        "ablated_events": 12,
+        "plain_rate": 0.5152,
+        "ablated_rate": 0.3636,
+        "seeds_more_with_term": 1,
+        "seeds_fewer_with_term": 2,
+        "rate_ratio": 1.4167,
+        "effect": 0.4167,
+        "standard_error": 1.2647,
+        "lower_bound": -2.2763,
+        "upper_bound": 5.1097,
+        "interval": [
+         -4.025,
+         6.8584
+        ],
+        "plain_by_window_turn": [
+         1,
+         1,
+         0,
+         1,
+         0,
+         2,
+         1,
+         2,
+         2,
+         0,
+         1,
+         0,
+         0,
+         0,
+         3,
+         0,
+         1,
+         1,
+         0,
+         1
+        ],
+        "ablated_by_window_turn": [
+         0,
+         0,
+         1,
+         0,
+         0,
+         0,
+         1,
+         1,
+         0,
+         0,
+         0,
+         0,
+         1,
+         2,
+         1,
+         1,
+         2,
+         1,
+         0,
+         1
+        ]
+       },
+       "social": {
+        "event_type": "migration",
+        "threshold": 0.35,
+        "required": true,
+        "direction": "more with the term",
+        "status": "PASS",
+        "failed_criteria": [],
+        "cohort": 31,
+        "seeds_with_cohort": 3,
+        "informative_seeds": 3,
+        "plain_events": 28,
+        "ablated_events": 8,
+        "plain_rate": 0.9032,
+        "ablated_rate": 0.2581,
+        "seeds_more_with_term": 3,
+        "seeds_fewer_with_term": 0,
+        "rate_ratio": 3.5,
+        "effect": 2.5,
+        "standard_error": 0.7099,
+        "lower_bound": 1.4272,
+        "upper_bound": 5.5728,
+        "interval": [
+         0.4457,
+         6.5543
+        ],
+        "plain_by_window_turn": [
+         4,
+         2,
+         1,
+         1,
+         2,
+         2,
+         1,
+         0,
+         2,
+         0,
+         2,
+         0,
+         2,
+         0,
+         2,
+         1,
+         1,
+         1,
+         3,
+         1
+        ],
+        "ablated_by_window_turn": [
+         1,
+         0,
+         0,
+         1,
+         0,
+         1,
+         0,
+         0,
+         0,
+         1,
+         2,
+         0,
+         0,
+         0,
+         1,
+         0,
+         1,
+         0,
+         0,
+         0
+        ]
+       },
+       "purpose": {
+        "event_type": "occupation_switch",
+        "threshold": 0.35,
+        "required": true,
+        "direction": "more with the term",
+        "status": "FAIL",
+        "failed_criteria": [
+         "lower_bound",
+         "minimum_effect"
+        ],
+        "cohort": 36,
+        "seeds_with_cohort": 3,
+        "informative_seeds": 3,
+        "plain_events": 16,
+        "ablated_events": 19,
+        "plain_rate": 0.4444,
+        "ablated_rate": 0.5278,
+        "seeds_more_with_term": 0,
+        "seeds_fewer_with_term": 1,
+        "rate_ratio": 0.8421,
+        "effect": -0.1579,
+        "standard_error": 0.1373,
+        "lower_bound": 0.4412,
+        "upper_bound": 1.243,
+        "interval": [
+         0.2513,
+         1.4329
+        ],
+        "plain_by_window_turn": [
+         1,
+         0,
+         0,
+         0,
+         2,
+         1,
+         1,
+         0,
+         1,
+         1,
+         2,
+         0,
+         0,
+         0,
+         1,
+         2,
+         1,
+         1,
+         1,
+         1
+        ],
+        "ablated_by_window_turn": [
+         2,
+         1,
+         1,
+         2,
+         0,
+         0,
+         1,
+         5,
+         0,
+         0,
+         0,
+         2,
+         1,
+         1,
+         0,
+         0,
+         0,
+         2,
+         1,
+         0
+        ]
+       },
+       "material": {
+        "event_type": "migration",
+        "threshold": 0.3,
+        "required": true,
+        "direction": "more with the term",
+        "status": "FAIL",
+        "failed_criteria": [
+         "lower_bound"
+        ],
+        "cohort": 30,
+        "seeds_with_cohort": 3,
+        "informative_seeds": 3,
+        "plain_events": 24,
+        "ablated_events": 6,
+        "plain_rate": 0.8,
+        "ablated_rate": 0.2,
+        "seeds_more_with_term": 3,
+        "seeds_fewer_with_term": 0,
+        "rate_ratio": 4.0,
+        "effect": 3.0,
+        "standard_error": 1.0408,
+        "lower_bound": 0.9608,
+        "upper_bound": 7.0392,
+        "interval": [
+         -0.4783,
+         8.4783
+        ],
+        "plain_by_window_turn": [
+         0,
+         1,
+         0,
+         3,
+         1,
+         4,
+         0,
+         2,
+         1,
+         0,
+         1,
+         0,
+         2,
+         0,
+         0,
+         1,
+         1,
+         3,
+         3,
+         1
+        ],
+        "ablated_by_window_turn": [
+         0,
+         1,
+         0,
+         1,
+         0,
+         0,
+         1,
+         0,
+         0,
+         0,
+         1,
+         0,
+         1,
+         0,
+         0,
+         0,
+         0,
+         0,
+         1,
+         0
+        ]
+       },
+       "safety": {
+        "event_type": "migration",
+        "threshold": 0.3,
+        "required": true,
+        "direction": "more with the term",
+        "status": "FAIL",
+        "failed_criteria": [
+         "lower_bound"
+        ],
+        "cohort": 31,
+        "seeds_with_cohort": 3,
+        "informative_seeds": 3,
+        "plain_events": 28,
+        "ablated_events": 15,
+        "plain_rate": 0.9032,
+        "ablated_rate": 0.4839,
+        "seeds_more_with_term": 2,
+        "seeds_fewer_with_term": 1,
+        "rate_ratio": 1.8667,
+        "effect": 0.8667,
+        "standard_error": 0.8104,
+        "lower_bound": -0.4997,
+        "upper_bound": 4.2331,
+        "interval": [
+         -1.6203,
+         5.3536
+        ],
+        "plain_by_window_turn": [
+         4,
+         2,
+         1,
+         0,
+         1,
+         2,
+         1,
+         1,
+         2,
+         2,
+         3,
+         0,
+         0,
+         1,
+         2,
+         1,
+         1,
+         1,
+         3,
+         0
+        ],
+        "ablated_by_window_turn": [
+         0,
+         0,
+         4,
+         0,
+         0,
+         0,
+         1,
+         0,
+         1,
+         1,
+         2,
+         0,
+         1,
+         1,
+         1,
+         1,
+         0,
+         0,
+         1,
+         1
+        ]
+       },
+       "spiritual": {
+        "event_type": "migration",
+        "threshold": 0.3,
+        "required": false,
+        "direction": "more with the term",
+        "status": "FAIL",
+        "failed_criteria": [
+         "lower_bound"
+        ],
+        "cohort": 32,
+        "seeds_with_cohort": 3,
+        "informative_seeds": 3,
+        "plain_events": 19,
+        "ablated_events": 12,
+        "plain_rate": 0.5938,
+        "ablated_rate": 0.375,
+        "seeds_more_with_term": 2,
+        "seeds_fewer_with_term": 1,
+        "rate_ratio": 1.5833,
+        "effect": 0.5833,
+        "standard_error": 0.7743,
+        "lower_bound": -0.6776,
+        "upper_bound": 3.8443,
+        "interval": [
+         -1.7482,
+         4.9149
+        ],
+        "plain_by_window_turn": [
+         0,
+         0,
+         0,
+         2,
+         0,
+         5,
+         1,
+         1,
+         0,
+         2,
+         0,
+         1,
+         2,
+         0,
+         1,
+         1,
+         0,
+         1,
+         1,
+         1
+        ],
+        "ablated_by_window_turn": [
+         1,
+         1,
+         3,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         1,
+         0,
+         0,
+         1,
+         1,
+         0,
+         1,
+         0,
+         0,
+         2,
+         1
+        ]
+       }
+      },
+      "unexposed": {
+       "migration": {
+        "event_type": "migration",
+        "cohort": 6,
+        "seeds_with_cohort": 3,
+        "informative_seeds": 2,
+        "plain_events": 7,
+        "ablated_events": 2,
+        "plain_rate": 1.1667,
+        "ablated_rate": 0.3333,
+        "seeds_more_with_term": 2,
+        "seeds_fewer_with_term": 0,
+        "rate_ratio": 3.5,
+        "effect": 2.5,
+        "standard_error": 2.0,
+        "lower_bound": -9.1275,
+        "upper_bound": 16.1275,
+        "interval": [
+         -21.9124,
+         28.9124
+        ]
+       },
+       "rebellion": {
+        "event_type": "rebellion",
+        "cohort": 6,
+        "seeds_with_cohort": 3,
+        "informative_seeds": 2,
+        "plain_events": 1,
+        "ablated_events": 1,
+        "plain_rate": 0.1667,
+        "ablated_rate": 0.1667,
+        "seeds_more_with_term": 1,
+        "seeds_fewer_with_term": 1,
+        "rate_ratio": 1.0,
+        "effect": 0.0,
+        "standard_error": 2.0,
+        "lower_bound": -11.6275,
+        "upper_bound": 13.6275,
+        "interval": [
+         -24.4124,
+         26.4124
+        ]
+       },
+       "occupation_switch": {
+        "event_type": "occupation_switch",
+        "cohort": 6,
+        "seeds_with_cohort": 3,
+        "informative_seeds": 2,
+        "plain_events": 4,
+        "ablated_events": 2,
+        "plain_rate": 0.6667,
+        "ablated_rate": 0.3333,
+        "seeds_more_with_term": 1,
+        "seeds_fewer_with_term": 0,
+        "rate_ratio": 2.0,
+        "effect": 1.0,
+        "standard_error": 2.0,
+        "lower_bound": -10.6275,
+        "upper_bound": 14.6275,
+        "interval": [
+         -23.4124,
+         27.4124
+        ]
+       }
+      },
+      "per_seed": [
+       {
+        "seed": 42,
+        "forks": [
+         100
+        ],
+        "by_pairing": {
+         "autonomy": [
+          13,
+          10,
+          0
+         ],
+         "social": [
+          7,
+          3,
+          1
+         ],
+         "purpose": [
+          9,
+          5,
+          8
+         ],
+         "material": [
+          10,
+          11,
+          2
+         ],
+         "safety": [
+          8,
+          7,
+          8
+         ],
+         "spiritual": [
+          10,
+          5,
+          0
+         ]
+        }
+       },
+       {
+        "seed": 43,
+        "forks": [
+         100
+        ],
+        "by_pairing": {
+         "autonomy": [
+          9,
+          2,
+          4
+         ],
+         "social": [
+          13,
+          14,
+          3
+         ],
+         "purpose": [
+          14,
+          5,
+          5
+         ],
+         "material": [
+          12,
+          5,
+          1
+         ],
+         "safety": [
+          11,
+          10,
+          4
+         ],
+         "spiritual": [
+          10,
+          7,
+          8
+         ]
+        }
+       },
+       {
+        "seed": 44,
+        "forks": [
+         100
+        ],
+        "by_pairing": {
+         "autonomy": [
+          11,
+          5,
+          8
+         ],
+         "social": [
+          11,
+          11,
+          4
+         ],
+         "purpose": [
+          13,
+          6,
+          6
+         ],
+         "material": [
+          8,
+          8,
+          3
+         ],
+         "safety": [
+          12,
+          11,
+          3
+         ],
+         "spiritual": [
+          12,
+          7,
+          4
+         ]
+        }
+       }
+      ],
+      "fork_design": 2
+     },
+     "per_seed": [
+      {
+       "seed": 42,
+       "snapshots": 4,
+       "pairs_found": 0,
+       "informative_pairs": 0,
+       "concordant": 0,
+       "discordant": 0,
+       "net_concordance": null,
+       "sign_test_p": 1.0,
+       "by_pairing": {},
+       "binding": [
+        0,
+        0,
+        0
+       ],
+       "binding_by_pairing": {},
+       "informational": {
+        "spiritual": {
+         "pairs": [
+          0,
+          0,
+          0
+         ],
+         "binding": [
+          0,
+          0,
+          0
+         ]
+        }
+       }
+      },
+      {
+       "seed": 43,
+       "snapshots": 4,
+       "pairs_found": 0,
+       "informative_pairs": 0,
+       "concordant": 0,
+       "discordant": 0,
+       "net_concordance": null,
+       "sign_test_p": 1.0,
+       "by_pairing": {},
+       "binding": [
+        0,
+        0,
+        0
+       ],
+       "binding_by_pairing": {},
+       "informational": {
+        "spiritual": {
+         "pairs": [
+          0,
+          0,
+          0
+         ],
+         "binding": [
+          0,
+          0,
+          0
+         ]
+        }
+       }
+      },
+      {
+       "seed": 44,
+       "snapshots": 4,
+       "pairs_found": 0,
+       "informative_pairs": 0,
+       "concordant": 0,
+       "discordant": 0,
+       "net_concordance": null,
+       "sign_test_p": 1.0,
+       "by_pairing": {},
+       "binding": [
+        0,
+        0,
+        0
+       ],
+       "binding_by_pairing": {},
+       "informational": {
+        "spiritual": {
+         "pairs": [
+          0,
+          0,
+          0
+         ],
+         "binding": [
+          0,
+          0,
+          0
+         ]
+        }
+       }
+      }
+     ]
+    },
+    "regression": {
+     "status": "FAIL",
+     "regression_adjudication": "fail",
+     "strict_regression_ok": false,
+     "calibrated_floor_ok": false,
+     "strict_regression_failed_checks": [
+      "rebellion_rate_per_agent_turn",
+      "civ_survival"
+     ],
+     "calibrated_floor_failed_checks": [
+      "rebellion_rate_per_agent_turn",
+      "civ_survival"
+     ],
+     "calibrated_floor_relaxed_checks": [],
+     "regression_floor_diagnostics": {
+      "satisfaction_mean": {
+       "value": 0.521678,
+       "strict_min": 0.45,
+       "calibrated_min": 0.4,
+       "max": 0.65,
+       "strict_ok": true,
+       "calibrated_ok": true,
+       "strict_min_delta": 0.071678,
+       "calibrated_min_delta": 0.121678,
+       "max_delta": 0.128322
+      },
+      "latest_satisfaction_mean": {
+       "value": 0.521483,
+       "strict_min": 0.45,
+       "calibrated_min": 0.4,
+       "max": 0.65,
+       "strict_ok": true,
+       "calibrated_ok": true,
+       "strict_min_delta": 0.071483,
+       "calibrated_min_delta": 0.121483,
+       "max_delta": 0.128517
+      },
+      "migration_rate_per_agent_turn": {
+       "value": 0.054036,
+       "strict_min": 0.05,
+       "calibrated_min": 0.045,
+       "max": 0.15,
+       "strict_ok": true,
+       "calibrated_ok": true,
+       "strict_min_delta": 0.004036,
+       "calibrated_min_delta": 0.009036,
+       "max_delta": 0.095964
+      }
+     },
+     "satisfaction_mean": 0.5217,
+     "satisfaction_std": 0.1668,
+     "latest_satisfaction_mean": 0.5215,
+     "latest_satisfaction_std": 0.1675,
+     "latest_satisfaction_window_turns": 60,
+     "final_sample_satisfaction_mean": 0.5226,
+     "latest_satisfaction_mean_ok": true,
+     "latest_satisfaction_mean_calibrated_ok": true,
+     "satisfaction_mean_ok": true,
+     "satisfaction_mean_calibrated_ok": true,
+     "migration_rate_per_agent_turn": 0.054036,
+     "migration_rate_ok": true,
+     "migration_rate_calibrated_ok": true,
+     "rebellion_rate_per_agent_turn": 0.017472,
+     "gini_in_range_fraction": 1.0,
+     "occupation_ok": true,
+     "occupation_source": "legacy_fallback",
+     "occupation_violation_fraction": 0.0,
+     "occupation_evidence_run_fraction": null,
+     "latest_occupation_source": "legacy_fallback",
+     "latest_occupation_violation_fraction": 0.0,
+     "latest_occupation_evidence_run_fraction": null,
+     "latest_occupation_incomplete_run_fraction": null,
+     "latest_occupation_ok": true,
+     "reason": null,
+     "living_population_ok": true,
+     "final_living_population_by_seed": [
+      {
+       "seed": 42,
+       "population": 98,
+       "source": "world_state.regions",
+       "turn": 160,
+       "agent_mode": "hybrid",
+       "reason": null
+      },
+      {
+       "seed": 43,
+       "population": 98,
+       "source": "world_state.regions",
+       "turn": 160,
+       "agent_mode": "hybrid",
+       "reason": null
+      },
+      {
+       "seed": 44,
+       "population": 98,
+       "source": "world_state.regions",
+       "turn": 160,
+       "agent_mode": "hybrid",
+       "reason": null
+      }
+     ],
+     "final_living_population_counts": [
+      98,
+      98,
+      98
+     ],
+     "extinct_world_count": 0,
+     "extinct_world_fraction": 0.0,
+     "population_unknown_run_count": 0,
+     "population_evidence_run_fraction": 1.0,
+     "civ_survival_counts": [
+      3,
+      3,
+      3
+     ],
+     "civ_zero_survival_fraction": 0.0,
+     "civ_full_survival_fraction": 1.0,
+     "civ_exact_four_region_fraction": 0.0,
+     "treasury_bad_seed_count": 0
+    }
+   },
+   "batch_manifest": {
+    "status": "verified",
+    "manifest_sha256": "<sha256:rich/batch_manifest.json>",
+    "seeds": [
+     42,
+     43,
+     44
+    ],
+    "turns": 160,
+    "simulation": {
+     "agents": "hybrid",
+     "turns": 160
+    },
+    "source": {
+     "git_sha": null,
+     "package_digest": null
+    },
+    "native_sha256": null,
+    "python": null,
+    "platform": null,
+    "thread_env": null
+   },
+   "ablation_arms": {
+    "status": "verified",
+    "manifest_sha256": "<sha256:arms_design2/ablation_manifest.json>",
+    "arms": [
+     "needs",
+     "kin_roots",
+     "placebo"
+    ],
+    "fork_turns": [
+     100
+    ],
+    "window_turns": 20,
+    "forks": 9,
+    "fork_rule": "every 100 turns from 100 while T + 20 < turns",
+    "history_identity": "every fork's agent events equal the plain run's up to the fork turn",
+    "native_sha256": null,
+    "design": 2
+   },
+   "profile": "full",
+   "causal_oracles_required": true
+  },
+  "rich_empty_selection": {
+   "batch_dir": "<WS>/rich",
+   "oracles": [],
+   "results": {},
+   "batch_manifest": {
+    "status": "verified",
+    "manifest_sha256": "<sha256:rich/batch_manifest.json>",
+    "seeds": [
+     42,
+     43,
+     44
+    ],
+    "turns": 160,
+    "simulation": {
+     "agents": "hybrid",
+     "turns": 160
+    },
+    "source": {
+     "git_sha": null,
+     "package_digest": null
+    },
+    "native_sha256": null,
+    "python": null,
+    "platform": null,
+    "thread_env": null
+   },
+   "causal_oracles_required": false
+  },
+  "rich_needs_cohort_design1": {
+   "batch_dir": "<WS>/rich",
+   "oracles": [
+    "cohort",
+    "needs"
+   ],
+   "results": {
+    "cohort": {
+     "status": "FAIL",
+     "method": "observational_and_ablation",
+     "method_version": 4,
+     "causal_oracles_required": false,
+     "required_components": [
+      "observational"
+     ],
+     "component_statuses": {
+      "observational": "FAIL",
+      "ablation": "FAIL"
+     },
+     "observational_status": "FAIL",
+     "observational_method": null,
+     "observational_method_version": 3,
+     "observational_note": "non-discriminating: passes synthetic null and reversed worlds",
+     "outcome_window_start_offset": 1,
+     "outcome_window_turns": 20,
+     "comparison": "matched_pairs",
+     "outcome_censoring": "first_death_in_pair",
+     "analyzed_seeds": 3,
+     "required_seed_count": 2,
+     "seeds_with_expected_direction": 0,
+     "median_effect_size": 0.0,
+     "ablation": {
+      "status": "FAIL",
+      "reason": "members' migration rate ratio 1.8444 (upper bound 3.0352); needs at most 0.85 and a bound below 1",
+      "arm": "kin_roots",
+      "comparison": "plain_vs_ablated_fork",
+      "criterion": "community members at the fork migrate less over the 20 turns after it with the kin roots than without: one-sided 95% seed-clustered upper bound of the rate ratio below 1 and the ratio at most 0.85",
+      "minimum_effect": 0.15,
+      "confidence": 0.95,
+      "window_turns": 20,
+      "failed_criteria": [
+       "upper_bound",
+       "minimum_effect"
+      ],
+      "seeds": 3,
+      "forks": 3,
+      "members_migration": {
+       "direction": "fewer with the term",
+       "cohort": 95,
+       "seeds_with_cohort": 3,
+       "informative_seeds": 3,
+       "plain_events": 83,
+       "ablated_events": 45,
+       "plain_rate": 0.8737,
+       "ablated_rate": 0.4737,
+       "seeds_more_with_term": 3,
+       "seeds_fewer_with_term": 0,
+       "rate_ratio": 1.8444,
+       "effect": 0.8444,
+       "standard_error": 0.4078,
+       "lower_bound": 0.6537,
+       "upper_bound": 3.0352,
+       "interval": [
+        0.0898,
+        3.5991
+       ],
+       "plain_by_window_turn": [
+        7,
+        7,
+        2,
+        4,
+        3,
+        8,
+        2,
+        4,
+        4,
+        3,
+        3,
+        3,
+        6,
+        3,
+        3,
+        4,
+        3,
+        4,
+        7,
+        3
+       ],
+       "ablated_by_window_turn": [
+        3,
+        3,
+        1,
+        3,
+        1,
+        3,
+        2,
+        1,
+        1,
+        4,
+        1,
+        4,
+        3,
+        4,
+        3,
+        2,
+        1,
+        2,
+        1,
+        2
+       ]
+      },
+      "informational": {
+       "members_rebellion": {
+        "cohort": 95,
+        "seeds_with_cohort": 3,
+        "informative_seeds": 3,
+        "plain_events": 31,
+        "ablated_events": 39,
+        "plain_rate": 0.3263,
+        "ablated_rate": 0.4105,
+        "seeds_more_with_term": 1,
+        "seeds_fewer_with_term": 2,
+        "rate_ratio": 0.7949,
+        "effect": -0.2051,
+        "standard_error": 0.2792,
+        "lower_bound": -0.0204,
+        "upper_bound": 1.6101,
+        "interval": [
+         -0.4064,
+         1.9961
+        ]
+       },
+       "non_members_migration": {
+        "cohort": 1,
+        "seeds_with_cohort": 1,
+        "informative_seeds": 1,
+        "plain_events": 2,
+        "ablated_events": 0,
+        "plain_rate": 2.0,
+        "ablated_rate": 0.0,
+        "seeds_more_with_term": 1,
+        "seeds_fewer_with_term": 0,
+        "rate_ratio": null,
+        "effect": null,
+        "standard_error": null,
+        "lower_bound": null,
+        "upper_bound": null,
+        "interval": null
+       },
+       "non_members_rebellion": {
+        "cohort": 1,
+        "seeds_with_cohort": 1,
+        "informative_seeds": 1,
+        "plain_events": 1,
+        "ablated_events": 0,
+        "plain_rate": 1.0,
+        "ablated_rate": 0.0,
+        "seeds_more_with_term": 1,
+        "seeds_fewer_with_term": 0,
+        "rate_ratio": null,
+        "effect": null,
+        "standard_error": null,
+        "lower_bound": null,
+        "upper_bound": null,
+        "interval": null
+       }
+      },
+      "per_seed": [
+       {
+        "seed": 42,
+        "forks": [
+         100
+        ],
+        "communities": 1,
+        "members_migration": [
+         32,
+         27,
+         21
+        ]
+       },
+       {
+        "seed": 43,
+        "forks": [
+         100
+        ],
+        "communities": 2,
+        "members_migration": [
+         32,
+         31,
+         12
+        ]
+       },
+       {
+        "seed": 44,
+        "forks": [
+         100
+        ],
+        "communities": 2,
+        "members_migration": [
+         31,
+         25,
+         12
+        ]
+       }
+      ],
+      "label": "causal evidence (not yet required)"
+     },
+     "per_seed": [
+      {
+       "seed": 42,
+       "snapshot_turn": 100,
+       "communities_analyzed": 1,
+       "migration_effect_direction": "equal",
+       "migration_effect_size": 0.0,
+       "rebellion_effect_direction": "equal",
+       "rebellion_effect_size": 0.0,
+       "pairs": 0,
+       "censored_pairs": 0
+      },
+      {
+       "seed": 43,
+       "snapshot_turn": 100,
+       "communities_analyzed": 2,
+       "migration_effect_direction": "equal",
+       "migration_effect_size": 0.0,
+       "rebellion_effect_direction": "equal",
+       "rebellion_effect_size": 0.0,
+       "pairs": 0,
+       "censored_pairs": 0
+      },
+      {
+       "seed": 44,
+       "snapshot_turn": 100,
+       "communities_analyzed": 2,
+       "migration_effect_direction": "equal",
+       "migration_effect_size": 0.0,
+       "rebellion_effect_direction": "equal",
+       "rebellion_effect_size": 0.0,
+       "pairs": 0,
+       "censored_pairs": 0
+      }
+     ]
+    },
+    "needs": {
+     "status": "FAIL",
+     "method": "observational_and_ablation",
+     "method_version": 7,
+     "causal_oracles_required": false,
+     "required_components": [
+      "observational"
+     ],
+     "component_statuses": {
+      "observational": "FAIL",
+      "ablation": "FAIL"
+     },
+     "observational_status": "FAIL",
+     "observational_method": "pooled_matched_pairs",
+     "observational_criterion": "one-sided 95% lower bound of pooled net concordance > 0 and >= 60% of analyzed seeds with net concordance > 0; binding pairs (lower-need agent below its threshold, partner at or above it): one-sided 95% lower bound of pooled net concordance > 0 (informational in profile subset)",
+     "failed_criteria": [
+      "net_concordance_lower_bound",
+      "seed_fraction"
+     ],
+     "analyzed_seeds": 3,
+     "seeds_with_informative_pairs": 0,
+     "required_seed_count": 2,
+     "seeds_with_expected_sign": 0,
+     "seeds_with_reversed_sign": 0,
+     "total_pairs": 0,
+     "informative_pairs": 0,
+     "concordant_pairs": 0,
+     "discordant_pairs": 0,
+     "net_concordance": null,
+     "net_concordance_se": null,
+     "net_concordance_lower_bound": null,
+     "confidence": 0.95,
+     "need_divergence": 0.1,
+     "personality_tolerance": 0.1,
+     "outcome_window_turns": 20,
+     "autonomy_excludes_prior_rebels": true,
+     "by_pairing": {
+      "autonomy": {
+       "event_type": 2,
+       "pairs": 0,
+       "concordant": 0,
+       "discordant": 0,
+       "low_need_events": 0,
+       "high_need_events": 0,
+       "net_concordance": null,
+       "net_concordance_lower_bound": null
+      },
+      "social": {
+       "event_type": 1,
+       "pairs": 0,
+       "concordant": 0,
+       "discordant": 0,
+       "low_need_events": 0,
+       "high_need_events": 0,
+       "net_concordance": null,
+       "net_concordance_lower_bound": null
+      },
+      "purpose": {
+       "event_type": 3,
+       "pairs": 0,
+       "concordant": 0,
+       "discordant": 0,
+       "low_need_events": 0,
+       "high_need_events": 0,
+       "net_concordance": null,
+       "net_concordance_lower_bound": null
+      },
+      "material": {
+       "event_type": 1,
+       "pairs": 0,
+       "concordant": 0,
+       "discordant": 0,
+       "low_need_events": 0,
+       "high_need_events": 0,
+       "net_concordance": null,
+       "net_concordance_lower_bound": null
+      },
+      "safety": {
+       "event_type": 1,
+       "pairs": 0,
+       "concordant": 0,
+       "discordant": 0,
+       "low_need_events": 0,
+       "high_need_events": 0,
+       "net_concordance": null,
+       "net_concordance_lower_bound": null
+      }
+     },
+     "outcome_window_start_offset": 1,
+     "outcome_censoring": "first_death_in_pair",
+     "censored_pairs": 0,
+     "informational_pairings": {
+      "spiritual": {
+       "event_type": 1,
+       "required": false,
+       "pairs": {
+        "pairs": 0,
+        "concordant": 0,
+        "discordant": 0,
+        "low_need_events": 0,
+        "high_need_events": 0,
+        "informative_pairs": 0,
+        "seeds_with_informative_pairs": 0,
+        "net_concordance": null,
+        "net_concordance_se": null,
+        "net_concordance_lower_bound": null
+       },
+       "binding": {
+        "pairs": 0,
+        "concordant": 0,
+        "discordant": 0,
+        "low_need_events": 0,
+        "high_need_events": 0,
+        "informative_pairs": 0,
+        "seeds_with_informative_pairs": 0,
+        "net_concordance": null,
+        "net_concordance_se": null,
+        "net_concordance_lower_bound": null,
+        "threshold": 0.3
+       }
+      }
+     },
+     "profile": "subset",
+     "binding_required": false,
+     "binding_required_profiles": [
+      "full"
+     ],
+     "pooled_status": "FAIL",
+     "informational_failed_criteria": [
+      "binding_lower_bound"
+     ],
+     "binding": {
+      "status": "FAIL",
+      "required": false,
+      "thresholds": {
+       "autonomy": 0.35,
+       "social": 0.35,
+       "purpose": 0.35,
+       "material": 0.3,
+       "safety": 0.3
+      },
+      "need_divergence": 0.05,
+      "total_pairs": 0,
+      "informative_pairs": 0,
+      "concordant_pairs": 0,
+      "discordant_pairs": 0,
+      "seeds_with_informative_pairs": 0,
+      "seeds_with_expected_sign": 0,
+      "seeds_with_reversed_sign": 0,
+      "net_concordance": null,
+      "net_concordance_se": null,
+      "net_concordance_lower_bound": null,
+      "by_pairing": {
+       "autonomy": {
+        "event_type": 2,
+        "pairs": 0,
+        "concordant": 0,
+        "discordant": 0,
+        "low_need_events": 0,
+        "high_need_events": 0,
+        "net_concordance": null,
+        "net_concordance_lower_bound": null
+       },
+       "social": {
+        "event_type": 1,
+        "pairs": 0,
+        "concordant": 0,
+        "discordant": 0,
+        "low_need_events": 0,
+        "high_need_events": 0,
+        "net_concordance": null,
+        "net_concordance_lower_bound": null
+       },
+       "purpose": {
+        "event_type": 3,
+        "pairs": 0,
+        "concordant": 0,
+        "discordant": 0,
+        "low_need_events": 0,
+        "high_need_events": 0,
+        "net_concordance": null,
+        "net_concordance_lower_bound": null
+       },
+       "material": {
+        "event_type": 1,
+        "pairs": 0,
+        "concordant": 0,
+        "discordant": 0,
+        "low_need_events": 0,
+        "high_need_events": 0,
+        "net_concordance": null,
+        "net_concordance_lower_bound": null
+       },
+       "safety": {
+        "event_type": 1,
+        "pairs": 0,
+        "concordant": 0,
+        "discordant": 0,
+        "low_need_events": 0,
+        "high_need_events": 0,
+        "net_concordance": null,
+        "net_concordance_lower_bound": null
+       }
+      },
+      "censored_pairs": 0
+     },
+     "ablation": {
+      "status": "FAIL",
+      "arm": "needs",
+      "comparison": "plain_vs_ablated_fork",
+      "criterion": "each required pairing: agents below the need's threshold at the fork have more of its event over the 20 turns after it with the need terms than without: one-sided 95% seed-clustered lower bound of the rate ratio above 1 and the ratio at least 1.10",
+      "minimum_effect": 0.1,
+      "confidence": 0.95,
+      "window_turns": 20,
+      "failed_pairings": [
+       "autonomy",
+       "social",
+       "purpose",
+       "material",
+       "safety"
+      ],
+      "seeds": 3,
+      "forks": 3,
+      "by_pairing": {
+       "autonomy": {
+        "event_type": "rebellion",
+        "threshold": 0.35,
+        "required": true,
+        "direction": "more with the term",
+        "status": "FAIL",
+        "failed_criteria": [
+         "lower_bound"
+        ],
+        "cohort": 33,
+        "seeds_with_cohort": 3,
+        "informative_seeds": 3,
+        "plain_events": 17,
+        "ablated_events": 5,
+        "plain_rate": 0.5152,
+        "ablated_rate": 0.1515,
+        "seeds_more_with_term": 2,
+        "seeds_fewer_with_term": 0,
+        "rate_ratio": 3.4,
+        "effect": 2.4,
+        "standard_error": 1.4664,
+        "lower_bound": -0.8819,
+        "upper_bound": 7.6819,
+        "interval": [
+         -2.9095,
+         9.7095
+        ],
+        "plain_by_window_turn": [
+         1,
+         1,
+         0,
+         1,
+         0,
+         2,
+         1,
+         2,
+         2,
+         0,
+         1,
+         0,
+         0,
+         0,
+         3,
+         0,
+         1,
+         1,
+         0,
+         1
+        ],
+        "ablated_by_window_turn": [
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         1,
+         0,
+         1,
+         1,
+         0,
+         0,
+         1,
+         0,
+         0,
+         0,
+         1
+        ]
+       },
+       "social": {
+        "event_type": "migration",
+        "threshold": 0.35,
+        "required": true,
+        "direction": "more with the term",
+        "status": "FAIL",
+        "failed_criteria": [
+         "lower_bound"
+        ],
+        "cohort": 31,
+        "seeds_with_cohort": 3,
+        "informative_seeds": 3,
+        "plain_events": 28,
+        "ablated_events": 1,
+        "plain_rate": 0.9032,
+        "ablated_rate": 0.0323,
+        "seeds_more_with_term": 3,
+        "seeds_fewer_with_term": 0,
+        "rate_ratio": 28.0,
+        "effect": 27.0,
+        "standard_error": 27.2213,
+        "lower_bound": -51.4858,
+        "upper_bound": 107.4858,
+        "interval": [
+         -89.1239,
+         145.1239
+        ],
+        "plain_by_window_turn": [
+         4,
+         2,
+         1,
+         1,
+         2,
+         2,
+         1,
+         0,
+         2,
+         0,
+         2,
+         0,
+         2,
+         0,
+         2,
+         1,
+         1,
+         1,
+         3,
+         1
+        ],
+        "ablated_by_window_turn": [
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         1,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0
+        ]
+       },
+       "purpose": {
+        "event_type": "occupation_switch",
+        "threshold": 0.35,
+        "required": true,
+        "direction": "more with the term",
+        "status": "FAIL",
+        "failed_criteria": [
+         "lower_bound"
+        ],
+        "cohort": 36,
+        "seeds_with_cohort": 3,
+        "informative_seeds": 3,
+        "plain_events": 16,
+        "ablated_events": 9,
+        "plain_rate": 0.4444,
+        "ablated_rate": 0.25,
+        "seeds_more_with_term": 2,
+        "seeds_fewer_with_term": 0,
+        "rate_ratio": 1.7778,
+        "effect": 0.7778,
+        "standard_error": 0.6553,
+        "lower_bound": -0.1355,
+        "upper_bound": 3.6911,
+        "interval": [
+         -1.0415,
+         4.5971
+        ],
+        "plain_by_window_turn": [
+         1,
+         0,
+         0,
+         0,
+         2,
+         1,
+         1,
+         0,
+         1,
+         1,
+         2,
+         0,
+         0,
+         0,
+         1,
+         2,
+         1,
+         1,
+         1,
+         1
+        ],
+        "ablated_by_window_turn": [
+         0,
+         0,
+         0,
+         0,
+         2,
+         1,
+         0,
+         0,
+         1,
+         2,
+         0,
+         1,
+         1,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         1
+        ]
+       },
+       "material": {
+        "event_type": "migration",
+        "threshold": 0.3,
+        "required": true,
+        "direction": "more with the term",
+        "status": "FAIL",
+        "failed_criteria": [
+         "lower_bound"
+        ],
+        "cohort": 30,
+        "seeds_with_cohort": 3,
+        "informative_seeds": 3,
+        "plain_events": 24,
+        "ablated_events": 4,
+        "plain_rate": 0.8,
+        "ablated_rate": 0.1333,
+        "seeds_more_with_term": 3,
+        "seeds_fewer_with_term": 0,
+        "rate_ratio": 6.0,
+        "effect": 5.0,
+        "standard_error": 2.7042,
+        "lower_bound": -1.8961,
+        "upper_bound": 13.8961,
+        "interval": [
+         -5.6351,
+         17.6351
+        ],
+        "plain_by_window_turn": [
+         0,
+         1,
+         0,
+         3,
+         1,
+         4,
+         0,
+         2,
+         1,
+         0,
+         1,
+         0,
+         2,
+         0,
+         0,
+         1,
+         1,
+         3,
+         3,
+         1
+        ],
+        "ablated_by_window_turn": [
+         1,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         1,
+         1,
+         0,
+         0,
+         0,
+         1,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0
+        ]
+       },
+       "safety": {
+        "event_type": "migration",
+        "threshold": 0.3,
+        "required": true,
+        "direction": "more with the term",
+        "status": "FAIL",
+        "failed_criteria": [
+         "lower_bound"
+        ],
+        "cohort": 31,
+        "seeds_with_cohort": 3,
+        "informative_seeds": 3,
+        "plain_events": 28,
+        "ablated_events": 2,
+        "plain_rate": 0.9032,
+        "ablated_rate": 0.0645,
+        "seeds_more_with_term": 3,
+        "seeds_fewer_with_term": 0,
+        "rate_ratio": 14.0,
+        "effect": 13.0,
+        "standard_error": 7.6974,
+        "lower_bound": -8.4763,
+        "upper_bound": 36.4763,
+        "interval": [
+         -19.1192,
+         47.1192
+        ],
+        "plain_by_window_turn": [
+         4,
+         2,
+         1,
+         0,
+         1,
+         2,
+         1,
+         1,
+         2,
+         2,
+         3,
+         0,
+         0,
+         1,
+         2,
+         1,
+         1,
+         1,
+         3,
+         0
+        ],
+        "ablated_by_window_turn": [
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         1,
+         0,
+         0,
+         0,
+         0,
+         1,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0
+        ]
+       },
+       "spiritual": {
+        "event_type": "migration",
+        "threshold": 0.3,
+        "required": false,
+        "direction": "more with the term",
+        "status": "FAIL",
+        "failed_criteria": [
+         "lower_bound"
+        ],
+        "cohort": 32,
+        "seeds_with_cohort": 3,
+        "informative_seeds": 3,
+        "plain_events": 19,
+        "ablated_events": 5,
+        "plain_rate": 0.5938,
+        "ablated_rate": 0.1562,
+        "seeds_more_with_term": 3,
+        "seeds_fewer_with_term": 0,
+        "rate_ratio": 3.8,
+        "effect": 2.8,
+        "standard_error": 2.6572,
+        "lower_bound": -3.959,
+        "upper_bound": 11.559,
+        "interval": [
+         -7.6331,
+         15.2331
+        ],
+        "plain_by_window_turn": [
+         0,
+         0,
+         0,
+         2,
+         0,
+         5,
+         1,
+         1,
+         0,
+         2,
+         0,
+         1,
+         2,
+         0,
+         1,
+         1,
+         0,
+         1,
+         1,
+         1
+        ],
+        "ablated_by_window_turn": [
+         1,
+         0,
+         0,
+         0,
+         0,
+         0,
+         1,
+         1,
+         0,
+         0,
+         0,
+         0,
+         0,
+         1,
+         0,
+         0,
+         1,
+         0,
+         0,
+         0
+        ]
+       }
+      },
+      "unexposed": {
+       "migration": {
+        "event_type": "migration",
+        "cohort": 6,
+        "seeds_with_cohort": 3,
+        "informative_seeds": 3,
+        "plain_events": 7,
+        "ablated_events": 1,
+        "plain_rate": 1.1667,
+        "ablated_rate": 0.1667,
+        "seeds_more_with_term": 2,
+        "seeds_fewer_with_term": 1,
+        "rate_ratio": 7.0,
+        "effect": 6.0,
+        "standard_error": 10.8167,
+        "lower_bound": -24.5845,
+        "upper_bound": 38.5845,
+        "interval": [
+         -39.5403,
+         53.5403
+        ]
+       },
+       "rebellion": {
+        "event_type": "rebellion",
+        "cohort": 6,
+        "seeds_with_cohort": 3,
+        "informative_seeds": 2,
+        "plain_events": 1,
+        "ablated_events": 1,
+        "plain_rate": 0.1667,
+        "ablated_rate": 0.1667,
+        "seeds_more_with_term": 1,
+        "seeds_fewer_with_term": 1,
+        "rate_ratio": 1.0,
+        "effect": 0.0,
+        "standard_error": 2.0,
+        "lower_bound": -11.6275,
+        "upper_bound": 13.6275,
+        "interval": [
+         -24.4124,
+         26.4124
+        ]
+       },
+       "occupation_switch": {
+        "event_type": "occupation_switch",
+        "cohort": 6,
+        "seeds_with_cohort": 3,
+        "informative_seeds": 2,
+        "plain_events": 4,
+        "ablated_events": 0,
+        "plain_rate": 0.6667,
+        "ablated_rate": 0.0,
+        "seeds_more_with_term": 2,
+        "seeds_fewer_with_term": 0,
+        "rate_ratio": null,
+        "effect": null,
+        "standard_error": null,
+        "lower_bound": null,
+        "upper_bound": null,
+        "interval": null
+       }
+      },
+      "per_seed": [
+       {
+        "seed": 42,
+        "forks": [
+         100
+        ],
+        "by_pairing": {
+         "autonomy": [
+          13,
+          10,
+          2
+         ],
+         "social": [
+          7,
+          3,
+          0
+         ],
+         "purpose": [
+          9,
+          5,
+          2
+         ],
+         "material": [
+          10,
+          11,
+          3
+         ],
+         "safety": [
+          8,
+          7,
+          1
+         ],
+         "spiritual": [
+          10,
+          5,
+          1
+         ]
+        }
+       },
+       {
+        "seed": 43,
+        "forks": [
+         100
+        ],
+        "by_pairing": {
+         "autonomy": [
+          9,
+          2,
+          2
+         ],
+         "social": [
+          13,
+          14,
+          0
+         ],
+         "purpose": [
+          14,
+          5,
+          5
+         ],
+         "material": [
+          12,
+          5,
+          0
+         ],
+         "safety": [
+          11,
+          10,
+          0
+         ],
+         "spiritual": [
+          10,
+          7,
+          0
+         ]
+        }
+       },
+       {
+        "seed": 44,
+        "forks": [
+         100
+        ],
+        "by_pairing": {
+         "autonomy": [
+          11,
+          5,
+          1
+         ],
+         "social": [
+          11,
+          11,
+          1
+         ],
+         "purpose": [
+          13,
+          6,
+          2
+         ],
+         "material": [
+          8,
+          8,
+          1
+         ],
+         "safety": [
+          12,
+          11,
+          1
+         ],
+         "spiritual": [
+          12,
+          7,
+          4
+         ]
+        }
+       }
+      ],
+      "label": "causal evidence (not yet required)"
+     },
+     "per_seed": [
+      {
+       "seed": 42,
+       "snapshots": 4,
+       "pairs_found": 0,
+       "informative_pairs": 0,
+       "concordant": 0,
+       "discordant": 0,
+       "net_concordance": null,
+       "sign_test_p": 1.0,
+       "by_pairing": {},
+       "binding": [
+        0,
+        0,
+        0
+       ],
+       "binding_by_pairing": {},
+       "informational": {
+        "spiritual": {
+         "pairs": [
+          0,
+          0,
+          0
+         ],
+         "binding": [
+          0,
+          0,
+          0
+         ]
+        }
+       }
+      },
+      {
+       "seed": 43,
+       "snapshots": 4,
+       "pairs_found": 0,
+       "informative_pairs": 0,
+       "concordant": 0,
+       "discordant": 0,
+       "net_concordance": null,
+       "sign_test_p": 1.0,
+       "by_pairing": {},
+       "binding": [
+        0,
+        0,
+        0
+       ],
+       "binding_by_pairing": {},
+       "informational": {
+        "spiritual": {
+         "pairs": [
+          0,
+          0,
+          0
+         ],
+         "binding": [
+          0,
+          0,
+          0
+         ]
+        }
+       }
+      },
+      {
+       "seed": 44,
+       "snapshots": 4,
+       "pairs_found": 0,
+       "informative_pairs": 0,
+       "concordant": 0,
+       "discordant": 0,
+       "net_concordance": null,
+       "sign_test_p": 1.0,
+       "by_pairing": {},
+       "binding": [
+        0,
+        0,
+        0
+       ],
+       "binding_by_pairing": {},
+       "informational": {
+        "spiritual": {
+         "pairs": [
+          0,
+          0,
+          0
+         ],
+         "binding": [
+          0,
+          0,
+          0
+         ]
+        }
+       }
+      }
+     ]
+    }
+   },
+   "batch_manifest": {
+    "status": "verified",
+    "manifest_sha256": "<sha256:rich/batch_manifest.json>",
+    "seeds": [
+     42,
+     43,
+     44
+    ],
+    "turns": 160,
+    "simulation": {
+     "agents": "hybrid",
+     "turns": 160
+    },
+    "source": {
+     "git_sha": null,
+     "package_digest": null
+    },
+    "native_sha256": null,
+    "python": null,
+    "platform": null,
+    "thread_env": null
+   },
+   "ablation_arms": {
+    "status": "verified",
+    "manifest_sha256": "<sha256:arms_design1/ablation_manifest.json>",
+    "arms": [
+     "needs",
+     "kin_roots"
+    ],
+    "fork_turns": [
+     100
+    ],
+    "window_turns": 20,
+    "forks": 6,
+    "fork_rule": "every 100 turns from 100 while T + 20 < turns",
+    "history_identity": "every fork's agent events equal the plain run's up to the fork turn",
+    "native_sha256": null
+   },
+   "profile": "subset",
+   "causal_oracles_required": false
+  },
+  "rich_subset_no_causal": {
+   "batch_dir": "<WS>/rich",
+   "oracles": [
+    "arcs",
+    "community",
+    "era"
+   ],
+   "results": {
+    "arcs": {
+     "status": "FAIL",
+     "families_found": [
+      "cinderella",
+      "man_in_a_hole",
+      "rags_to_riches"
+     ],
+     "family_count": 3,
+     "arc_counts": {
+      "cinderella": 2,
+      "man_in_a_hole": 2,
+      "rags_to_riches": 5
+     },
+     "dominance_violations": {
+      "rags_to_riches": 0.5555555555555556
+     },
+     "seeds_with_three_types": 1,
+     "per_seed": [
+      {
+       "seed": 42,
+       "arc_types": [
+        "man_in_a_hole",
+        "rags_to_riches",
+        "cinderella"
+       ],
+       "distinct_type_count": 3
+      },
+      {
+       "seed": 43,
+       "arc_types": [
+        "rags_to_riches",
+        "rags_to_riches",
+        "man_in_a_hole"
+       ],
+       "distinct_type_count": 2
+      },
+      {
+       "seed": 44,
+       "arc_types": [
+        "rags_to_riches",
+        "rags_to_riches",
+        "cinderella"
+       ],
+       "distinct_type_count": 2
+      }
+     ]
+    },
+    "community": {
+     "status": "PASS",
+     "method": "legacy_and_spec",
+     "method_version": 2,
+     "spec_required": false,
+     "required_components": [
+      "legacy"
+     ],
+     "component_statuses": {
+      "legacy": "PASS",
+      "spec": "FAIL"
+     },
+     "legacy_status": "PASS",
+     "legacy_note": "method 1: label propagation over every edge, unweighted and across regions; kin-only exclusion against code 0 (the native mentor); a seed passes with any community of 5+",
+     "analyzed_seeds": 3,
+     "required_seed_count": 3,
+     "qualifying_seed_count": 3,
+     "spec": {
+      "status": "FAIL",
+      "label": "M53 oracle 1 as specified (method 2)",
+      "failed_criteria": [
+       "community_count",
+       "region_share"
+      ],
+      "criteria": {
+       "seed_fraction": "communities in at least 75% of seeds",
+       "community_count": "mean communities a seed per steady-state snapshot within 3-15",
+       "median_size": "median community size within 5-12",
+       "region_share": "no community above 5% of its region's living agents at the snapshot"
+      },
+      "steady_state_first_turn": 100,
+      "analyzed_seeds": 3,
+      "required_seed_count": 3,
+      "seeds_with_communities": 3,
+      "snapshots": 12,
+      "communities": 30,
+      "mean_community_count": 2.5,
+      "median_seed_mean_count": 2.5,
+      "seeds_in_count_band": 0,
+      "median_size": 7.0,
+      "size_p90": 8,
+      "max_size": 8,
+      "region_share": {
+       "measure": "community size over the living agents of its region at the snapshot",
+       "max": 1.0,
+       "median": 0.875,
+       "communities_above": 30,
+       "fraction_above": 1.0,
+       "median_region_population": 8,
+       "communities_in_regions_of_at_least": {
+        "population": 100,
+        "communities": 0
+       }
+      },
+      "members_share_of_living_agents": {
+       "median": 0.4688,
+       "mean": 0.4974
+      },
+      "per_seed": [
+       {
+        "seed": 42,
+        "snapshots": 4,
+        "communities": 9,
+        "mean_count": 2.25,
+        "median_size": 7,
+        "max_region_share": 1.0,
+        "communities_above_region_share": 9
+       },
+       {
+        "seed": 43,
+        "snapshots": 4,
+        "communities": 11,
+        "mean_count": 2.75,
+        "median_size": 7,
+        "max_region_share": 1.0,
+        "communities_above_region_share": 11
+       },
+       {
+        "seed": 44,
+        "snapshots": 4,
+        "communities": 10,
+        "mean_count": 2.5,
+        "median_size": 7.0,
+        "max_region_share": 1.0,
+        "communities_above_region_share": 10
+       }
+      ],
+      "reason": "failed community_count, region_share (seeds with communities 3 of 3, mean count 2.5, median size 7.0, 30 of 30 communities above 5% of their region)"
+     },
+     "per_seed": [
+      {
+       "seed": 42,
+       "snapshot_turn": 110,
+       "qualifying_communities": 4,
+       "sampled_turn_count": 4,
+       "source": "raw"
+      },
+      {
+       "seed": 43,
+       "snapshot_turn": 120,
+       "qualifying_communities": 4,
+       "sampled_turn_count": 4,
+       "source": "raw"
+      },
+      {
+       "seed": 44,
+       "snapshot_turn": 110,
+       "qualifying_communities": 3,
+       "sampled_turn_count": 4,
+       "source": "raw"
+      }
+     ]
+    },
+    "era": {
+     "status": "PASS",
+     "analyzed_seeds": 3,
+     "required_seed_count": 3,
+     "seeds_with_inflections": 3,
+     "silent_collapse_seeds": 0,
+     "collapse_episode_count": 3,
+     "collapses_marked_by_era_signal": 3,
+     "collapses_marked_by_crisis_only": 0,
+     "silent_collapse_episodes": [],
+     "per_seed": [
+      {
+       "seed": 42,
+       "inflection_count": 6,
+       "inflection_turns": [
+        37,
+        56,
+        83,
+        92,
+        112,
+        126
+       ],
+       "silent_collapse": false,
+       "collapse_count": 1,
+       "silent_collapse_count": 0,
+       "signal_hits": {
+        "population": 4,
+        "treasury": 3,
+        "stability": 0,
+        "territory": 1,
+        "prestige": 0
+       }
+      },
+      {
+       "seed": 43,
+       "inflection_count": 4,
+       "inflection_turns": [
+        58,
+        80,
+        92,
+        140
+       ],
+       "silent_collapse": false,
+       "collapse_count": 1,
+       "silent_collapse_count": 0,
+       "signal_hits": {
+        "population": 3,
+        "treasury": 1,
+        "stability": 0,
+        "territory": 1,
+        "prestige": 0
+       }
+      },
+      {
+       "seed": 44,
+       "inflection_count": 5,
+       "inflection_turns": [
+        18,
+        83,
+        92,
+        134,
+        148
+       ],
+       "silent_collapse": false,
+       "collapse_count": 1,
+       "silent_collapse_count": 0,
+       "signal_hits": {
+        "population": 4,
+        "treasury": 0,
+        "stability": 0,
+        "territory": 1,
+        "prestige": 0
+       }
+      }
+     ]
+    }
+   },
+   "batch_manifest": {
+    "status": "verified",
+    "manifest_sha256": "<sha256:rich/batch_manifest.json>",
+    "seeds": [
+     42,
+     43,
+     44
+    ],
+    "turns": 160,
+    "simulation": {
+     "agents": "hybrid",
+     "turns": 160
+    },
+    "source": {
+     "git_sha": null,
+     "package_digest": null
+    },
+    "native_sha256": null,
+    "python": null,
+    "platform": null,
+    "thread_env": null
+   },
+   "profile": "subset",
+   "causal_oracles_required": false
+  }
+ },
+ "cli_status": {
+  "broken_error_result": 1,
+  "determinism_all": 0,
+  "determinism_only": 0,
+  "legacy_all": 0,
+  "rich_all": 0,
+  "rich_all_full_design2_causal": 0,
+  "rich_needs_cohort_design1": 0,
+  "rich_subset_no_causal": 0
+ },
+ "request_errors": {
+  "ablation_dir_missing": "ablation arms <WS>/missing: no ablation_manifest.json in <WS>/missing",
+  "all_with_explicit": "all cannot be combined with explicit oracles",
+  "manifest_required": "no batch_manifest.json in <WS>/legacy: a batch written by chronicler.batch records its expected runs there. To validate a directory written before manifests (or a single bundle) without checking which runs it holds, pass --legacy-batch.",
+  "missing_batch": "batch path does not exist: <WS>/missing",
+  "unknown_oracle": "unknown_oracles: bogus"
+ },
+ "cli_error_reports": {
+  "ablation_dir_missing": {
+   "batch_dir": "<WS>/rich",
+   "oracles": [
+    "needs"
+   ],
+   "results": {},
+   "status": "ERROR",
+   "reason": "ablation arms <WS>/missing: no ablation_manifest.json in <WS>/missing"
+  },
+  "all_with_explicit": {
+   "batch_dir": "<WS>/rich",
+   "oracles": [
+    "all",
+    "needs"
+   ],
+   "results": {},
+   "status": "ERROR",
+   "reason": "all cannot be combined with explicit oracles"
+  },
+  "manifest_required": {
+   "batch_dir": "<WS>/legacy",
+   "oracles": [
+    "artifacts"
+   ],
+   "results": {},
+   "status": "ERROR",
+   "reason": "no batch_manifest.json in <WS>/legacy: a batch written by chronicler.batch records its expected runs there. To validate a directory written before manifests (or a single bundle) without checking which runs it holds, pass --legacy-batch."
+  },
+  "missing_batch": {
+   "batch_dir": "<WS>/missing",
+   "oracles": [
+    "needs"
+   ],
+   "results": {},
+   "status": "ERROR",
+   "reason": "batch path does not exist: <WS>/missing"
+  },
+  "unknown_oracle": {
+   "batch_dir": "<WS>/rich",
+   "oracles": [
+    "all",
+    "bogus"
+   ],
+   "results": {},
+   "status": "ERROR",
+   "reason": "unknown_oracles: bogus"
+  },
+  "nonfinite_report": {
+   "batch_dir": "<WS>/nonfinite",
+   "oracles": [
+    "regression"
+   ],
+   "results": {},
+   "status": "ERROR",
+   "reason": "could not serialize validation report: could not serialize JSON: Out of range float values are not JSON compliant: nan"
+  }
+ },
+ "argparse": {
+  "bad_profile": {
+   "chronicler.validate": {
+    "status": 2,
+    "stdout": "",
+    "stderr": "usage: <prog> [-h] --batch-dir BATCH_DIR [--oracles ORACLES [ORACLES ...]] [--profile {subset,full,determinism-off,determinism-hybrid}] [--legacy-batch] [--ablation-dir ABLATION_DIR] [--require-causal-oracles | --no-require-causal-oracles] <prog>: error: argument --profile: invalid choice: 'zzz-not-a-profile' (choose from 'subset', 'full', 'determinism-off', 'determinism-hybrid')"
+   },
+   "chronicler.validation_io": {
+    "status": 2,
+    "stdout": "",
+    "stderr": "usage: <prog> [-h] --batch-dir BATCH_DIR [--oracles ORACLES [ORACLES ...]] [--profile {subset,full,determinism-off,determinism-hybrid}] [--legacy-batch] [--ablation-dir ABLATION_DIR] [--require-causal-oracles | --no-require-causal-oracles] <prog>: error: argument --profile: invalid choice: 'zzz-not-a-profile' (choose from 'subset', 'full', 'determinism-off', 'determinism-hybrid')"
+   }
+  },
+  "help": {
+   "chronicler.validate": {
+    "status": 0,
+    "stdout": "usage: <prog> [-h] --batch-dir BATCH_DIR [--oracles ORACLES [ORACLES ...]] [--profile {subset,full,determinism-off,determinism-hybrid}] [--legacy-batch] [--ablation-dir ABLATION_DIR] [--require-causal-oracles | --no-require-causal-oracles] M53b validation oracle runner options: -h, --help show this help message and exit --batch-dir BATCH_DIR --oracles ORACLES [ORACLES ...] --profile {subset,full,determinism-off,determinism-hybrid} gate profile the needs oracle scores for (default: binding required) --legacy-batch validate a directory without batch_manifest.json (written before manifests, or a single bundle); its runs are not checked --ablation-dir ABLATION_DIR the batch's ablation arms (chronicler.ablation_arms): the needs oracle's ablation component and the cohort oracle read them --require-causal-oracles, --no-require-causal-oracles let the ablation components (needs method 8, cohort method 5) decide (default: validation_gate.CAUSAL_ORACLES_REQUIRED, off: they are reported as causal evidence, not yet required)",
+    "stderr": ""
+   },
+   "chronicler.validation_io": {
+    "status": 0,
+    "stdout": "usage: <prog> [-h] --batch-dir BATCH_DIR [--oracles ORACLES [ORACLES ...]] [--profile {subset,full,determinism-off,determinism-hybrid}] [--legacy-batch] [--ablation-dir ABLATION_DIR] [--require-causal-oracles | --no-require-causal-oracles] M53b validation oracle runner options: -h, --help show this help message and exit --batch-dir BATCH_DIR --oracles ORACLES [ORACLES ...] --profile {subset,full,determinism-off,determinism-hybrid} gate profile the needs oracle scores for (default: binding required) --legacy-batch validate a directory without batch_manifest.json (written before manifests, or a single bundle); its runs are not checked --ablation-dir ABLATION_DIR the batch's ablation arms (chronicler.ablation_arms): the needs oracle's ablation component and the cohort oracle read them --require-causal-oracles, --no-require-causal-oracles let the ablation components (needs method 7, cohort method 4) decide (default: validation_gate.CAUSAL_ORACLES_REQUIRED, off: they are reported as causal evidence, not yet required)",
+    "stderr": ""
+   }
+  },
+  "no_arguments": {
+   "chronicler.validate": {
+    "status": 2,
+    "stdout": "",
+    "stderr": "usage: <prog> [-h] --batch-dir BATCH_DIR [--oracles ORACLES [ORACLES ...]] [--profile {subset,full,determinism-off,determinism-hybrid}] [--legacy-batch] [--ablation-dir ABLATION_DIR] [--require-causal-oracles | --no-require-causal-oracles] <prog>: error: the following arguments are required: --batch-dir"
+   },
+   "chronicler.validation_io": {
+    "status": 2,
+    "stdout": "",
+    "stderr": "usage: <prog> [-h] --batch-dir BATCH_DIR [--oracles ORACLES [ORACLES ...]] [--profile {subset,full,determinism-off,determinism-hybrid}] [--legacy-batch] [--ablation-dir ABLATION_DIR] [--require-causal-oracles | --no-require-causal-oracles] <prog>: error: the following arguments are required: --batch-dir"
+   }
+  }
+ },
+ "imports": {
+  "__all__": {
+   "chronicler.validation_io": [
+    "SCRUB_KEYS",
+    "BUNDLE_FILENAME",
+    "EVENT_NAME_TO_CODE",
+    "ValidationRequestError",
+    "ValidationDependencyError",
+    "_has_pyarrow",
+    "_iter_seed_dirs",
+    "_requires_pyarrow_for_selected_inputs",
+    "scrubbed_equal",
+    "load_bundles",
+    "required_seed_count",
+    "_read_json",
+    "_snapshot_turns",
+    "_choose_snapshot_turn",
+    "_load_graph_snapshot",
+    "_load_needs_snapshot",
+    "_read_arrow_columns",
+    "_load_canonical_graph_snapshot",
+    "_load_canonical_needs_snapshot",
+    "_available_turns_from_columns",
+    "_sample_turns",
+    "_columns_for_turn",
+    "_graph_snapshot_from_columns",
+    "_needs_snapshot_from_columns",
+    "_load_validation_summary",
+    "_load_validation_community_summary",
+    "_load_agent_events",
+    "_world_population_series",
+    "_civ_trajectories",
+    "load_seed_runs",
+    "_total_turns",
+    "_iter_graph_snapshots",
+    "_iter_needs_snapshots",
+    "_iter_joint_sample_turns",
+    "_filter_events_window",
+    "_mean",
+    "_cohen_d",
+    "_collapse_nearby_points",
+    "_trajectory_metric_series",
+    "_trajectory_composite_series",
+    "_smoothed_series",
+    "_significant_slope_pattern",
+    "_agent_count_by_turn",
+    "_final_ginis_from_validation_summary",
+    "detect_communities",
+    "compute_needs_diversity",
+    "_needs_candidate_priority",
+    "detect_inflection_points",
+    "detect_collapse_episodes",
+    "compute_cohort_distinctiveness",
+    "_cohort_candidate_priority",
+    "check_artifact_lifecycle",
+    "_legacy_classify_civ_arc",
+    "_classify_series_by_thirds",
+    "classify_civ_arc",
+    "run_determinism_gate",
+    "run_community_oracle",
+    "run_needs_oracle",
+    "run_needs_oracle_best_of",
+    "run_era_oracle",
+    "run_cohort_oracle",
+    "needs_method_7_result",
+    "cohort_method_4_result",
+    "needs_ablation_method_result",
+    "cohort_ablation_method_result",
+    "ablation_methods",
+    "run_artifact_oracle",
+    "run_arc_oracle",
+    "run_regression_summary",
+    "run_oracles",
+    "check_batch_manifest",
+    "LEGACY_BATCH_FLAG",
+    "main"
+   ],
+   "chronicler.validation_oracles": [
+    "detect_communities",
+    "compute_needs_diversity",
+    "_needs_candidate_priority",
+    "detect_inflection_points",
+    "detect_collapse_episodes",
+    "compute_cohort_distinctiveness",
+    "_cohort_candidate_priority",
+    "check_artifact_lifecycle",
+    "_legacy_classify_civ_arc",
+    "_classify_series_by_thirds",
+    "classify_civ_arc",
+    "run_determinism_gate",
+    "run_community_oracle",
+    "run_needs_oracle",
+    "run_needs_oracle_best_of",
+    "run_era_oracle",
+    "run_cohort_oracle",
+    "run_artifact_oracle",
+    "run_arc_oracle",
+    "run_regression_summary"
+   ],
+   "chronicler.validate": [
+    "SCRUB_KEYS",
+    "BUNDLE_FILENAME",
+    "EVENT_NAME_TO_CODE",
+    "ValidationRequestError",
+    "ValidationDependencyError",
+    "_has_pyarrow",
+    "_iter_seed_dirs",
+    "_requires_pyarrow_for_selected_inputs",
+    "scrubbed_equal",
+    "load_bundles",
+    "required_seed_count",
+    "_read_json",
+    "_snapshot_turns",
+    "_choose_snapshot_turn",
+    "_load_graph_snapshot",
+    "_load_needs_snapshot",
+    "_read_arrow_columns",
+    "_load_canonical_graph_snapshot",
+    "_load_canonical_needs_snapshot",
+    "_available_turns_from_columns",
+    "_sample_turns",
+    "_columns_for_turn",
+    "_graph_snapshot_from_columns",
+    "_needs_snapshot_from_columns",
+    "_load_validation_summary",
+    "_load_validation_community_summary",
+    "_load_agent_events",
+    "_world_population_series",
+    "_civ_trajectories",
+    "load_seed_runs",
+    "_total_turns",
+    "_iter_graph_snapshots",
+    "_iter_needs_snapshots",
+    "_iter_joint_sample_turns",
+    "_filter_events_window",
+    "_mean",
+    "_cohen_d",
+    "_collapse_nearby_points",
+    "_trajectory_metric_series",
+    "_trajectory_composite_series",
+    "_smoothed_series",
+    "_significant_slope_pattern",
+    "_agent_count_by_turn",
+    "_final_ginis_from_validation_summary",
+    "detect_communities",
+    "compute_needs_diversity",
+    "_needs_candidate_priority",
+    "detect_inflection_points",
+    "detect_collapse_episodes",
+    "compute_cohort_distinctiveness",
+    "_cohort_candidate_priority",
+    "check_artifact_lifecycle",
+    "_legacy_classify_civ_arc",
+    "_classify_series_by_thirds",
+    "classify_civ_arc",
+    "run_determinism_gate",
+    "run_community_oracle",
+    "run_needs_oracle",
+    "run_needs_oracle_best_of",
+    "run_era_oracle",
+    "run_cohort_oracle",
+    "needs_method_7_result",
+    "cohort_method_4_result",
+    "needs_ablation_method_result",
+    "cohort_ablation_method_result",
+    "ablation_methods",
+    "run_artifact_oracle",
+    "run_arc_oracle",
+    "run_regression_summary",
+    "run_oracles",
+    "check_batch_manifest",
+    "LEGACY_BATCH_FLAG",
+    "main",
+    "detect_communities",
+    "compute_needs_diversity",
+    "_needs_candidate_priority",
+    "detect_inflection_points",
+    "detect_collapse_episodes",
+    "compute_cohort_distinctiveness",
+    "_cohort_candidate_priority",
+    "check_artifact_lifecycle",
+    "_legacy_classify_civ_arc",
+    "_classify_series_by_thirds",
+    "classify_civ_arc",
+    "run_determinism_gate",
+    "run_community_oracle",
+    "run_needs_oracle",
+    "run_needs_oracle_best_of",
+    "run_era_oracle",
+    "run_cohort_oracle",
+    "run_artifact_oracle",
+    "run_arc_oracle",
+    "run_regression_summary",
+    "ORACLE_RUNNERS",
+    "SEED_RUN_ORACLES",
+    "_normalize_requested_oracles",
+    "run_oracles",
+    "_error_report",
+    "_dump_report",
+    "main"
+   ]
+  },
+  "validation_io_names": {
+   "ABLATION_DIR_FLAG": "value",
+   "ARTIFACT_CREATION_RATE_MAX": "value",
+   "ARTIFACT_CREATION_RATE_MIN": "value",
+   "ARTIFACT_CREATION_RATE_TOLERANCE_MIN": "value",
+   "ARTIFACT_LOSS_RATE_MAX": "value",
+   "ARTIFACT_LOSS_RATE_MIN": "value",
+   "ARTIFACT_TEMPLATE_STARTING_CIVS": "value",
+   "ArtifactIOError": "class",
+   "BUNDLE_FILENAME": "value",
+   "BatchManifestError": "class",
+   "CAUSAL_ORACLES_FLAG": "value",
+   "COHORT_ABLATION_DESIGN1_METHOD_VERSION": "value",
+   "COHORT_ABLATION_METHOD_DESIGNS": "value",
+   "COHORT_DEATH_CENSORED_METHOD_VERSION": "value",
+   "COHORT_LEGACY_COMMUNITY_METHOD_VERSION": "value",
+   "COHORT_LEGACY_METHOD_VERSION": "value",
+   "COHORT_METHOD_VERSIONS": "value",
+   "COHORT_ORACLE_METHOD_VERSION": "value",
+   "COHORT_OUTCOME_WINDOW_TURNS": "value",
+   "COHORT_POST_SNAPSHOT_METHOD_VERSION": "value",
+   "COHORT_SPEC_COMMUNITY_METHODS": "value",
+   "Counter": "class",
+   "ERA_COLLAPSE_DROP_FRACTION": "value",
+   "ERA_COLLAPSE_SMOOTHING_WINDOW": "value",
+   "ERA_CRISIS_EVENT_GROUPS": "value",
+   "ERA_CRISIS_EVENT_TYPES": "value",
+   "ERA_INFLECTION_SEED_FRACTION_MIN": "value",
+   "ERA_SIGNAL_SLACK_TURNS": "value",
+   "ERA_SILENT_COLLAPSE_SEED_FRACTION_MAX": "value",
+   "EVENT_NAME_TO_CODE": "value",
+   "LEGACY_BATCH_FLAG": "value",
+   "MANIFEST_FILENAME": "value",
+   "Mapping": "callable",
+   "MappingProxyType": "class",
+   "NEEDS_ABLATION_DESIGN1_METHOD_VERSION": "value",
+   "NEEDS_ABLATION_METHOD_DESIGNS": "value",
+   "NEEDS_AUTONOMY_EXCLUDES_PRIOR_REBELS": "value",
+   "NEEDS_BEHAVIOUR_THRESHOLDS": "value",
+   "NEEDS_BINDING_DIVERGENCE": "value",
+   "NEEDS_BINDING_METHOD_VERSION": "value",
+   "NEEDS_BINDING_REQUIRED_PROFILES": "value",
+   "NEEDS_CONFIDENCE": "value",
+   "NEEDS_DEATH_CENSORED_METHOD_VERSION": "value",
+   "NEEDS_INFORMATIONAL_METHOD_VERSION": "value",
+   "NEEDS_INFORMATIONAL_PAIRINGS": "value",
+   "NEEDS_INFORMATIONAL_THRESHOLDS": "value",
+   "NEEDS_LEGACY_NEED_DIVERGENCE": "value",
+   "NEEDS_METHOD_VERSIONS": "value",
+   "NEEDS_NEED_DIVERGENCE": "value",
+   "NEEDS_ORACLE_METHOD_VERSION": "value",
+   "NEEDS_OUTCOME_WINDOW_TURNS": "value",
+   "NEEDS_PAIRINGS": "value",
+   "NEEDS_PERSONALITY_TOLERANCE": "value",
+   "NEEDS_POOLED_METHOD_VERSION": "value",
+   "NEEDS_POST_SNAPSHOT_METHOD_VERSION": "value",
+   "NEEDS_SEED_FRACTION_MIN": "value",
+   "ORACLE_RUNNER_NAMES": "value",
+   "PROFILE_CHOICES": "value",
+   "Path": "class",
+   "REGRESSION_LATEST_OCCUPATION_VIOLATION_AGENT_FRACTION_MAX": "value",
+   "REGRESSION_LATEST_SATISFACTION_WINDOW_TURNS": "value",
+   "REGRESSION_MIGRATION_RATE_CALIBRATED_MIN": "value",
+   "REGRESSION_MIGRATION_RATE_MAX": "value",
+   "REGRESSION_MIGRATION_RATE_MIN": "value",
+   "REGRESSION_OCCUPATION_EVIDENCE_RUN_MIN": "value",
+   "REGRESSION_OCCUPATION_SHARE_MAX": "value",
+   "REGRESSION_OCCUPATION_VIOLATION_FRACTION_MAX": "value",
+   "REGRESSION_REBELLION_RATE_MAX": "value",
+   "REGRESSION_REBELLION_RATE_MIN": "value",
+   "REGRESSION_SATISFACTION_MEAN_CALIBRATED_MIN": "value",
+   "REGRESSION_SATISFACTION_MEAN_MAX": "value",
+   "REGRESSION_SATISFACTION_MEAN_MIN": "value",
+   "SCRUB_KEYS": "value",
+   "SEED_RUN_ORACLE_NAMES": "value",
+   "TEMPLATE_WORLD_GENERATOR": "value",
+   "ValidationDependencyError": "class",
+   "ValidationRequestError": "class",
+   "_BatchAdmission": "class",
+   "_IndexedColumns": "class",
+   "_ORACLE_CIV_STAT_KEYS": "value",
+   "_ORACLE_COUNTED_EVENT_CODES": "value",
+   "_ORACLE_WORLD_STATE_KEYS": "value",
+   "_TurnRows": "class",
+   "_agent_count_by_turn": "callable",
+   "_agent_deaths_from_table": "callable",
+   "_agent_events_from_table": "callable",
+   "_aggregate_turn_key": "callable",
+   "_aggregate_turns_descending": "callable",
+   "_available_turns_from_columns": "callable",
+   "_build_turn_rows": "callable",
+   "_bundle_paths": "callable",
+   "_check_arm_designs": "callable",
+   "_choose_snapshot_turn": "callable",
+   "_civ_crisis_event_turns": "callable",
+   "_civ_trajectories": "callable",
+   "_classify_material_arc_when_prestige_masks_growth": "callable",
+   "_classify_rags_candidate": "callable",
+   "_classify_series_by_thirds": "callable",
+   "_cohen_d": "callable",
+   "_cohort_candidate_priority": "callable",
+   "_cohort_observational": "callable",
+   "_collapse_nearby_points": "callable",
+   "_columns_for_turn": "callable",
+   "_compact_column": "callable",
+   "_concordance": "callable",
+   "_dump_report": "callable",
+   "_error_report": "callable",
+   "_filter_events_window": "callable",
+   "_final_ginis_from_validation_summary": "callable",
+   "_final_living_population": "callable",
+   "_first_event_turns": "callable",
+   "_floor_diagnostic": "callable",
+   "_graph_snapshot_from_columns": "callable",
+   "_has_material_rags_growth": "callable",
+   "_has_pyarrow": "callable",
+   "_iter_graph_snapshots": "callable",
+   "_iter_joint_sample_turns": "callable",
+   "_iter_needs_snapshots": "callable",
+   "_iter_seed_dirs": "callable",
+   "_late_satisfaction_window": "callable",
+   "_legacy_classify_civ_arc": "callable",
+   "_load_agent_deaths": "callable",
+   "_load_agent_events": "callable",
+   "_load_agent_events_and_deaths": "callable",
+   "_load_arms": "callable",
+   "_load_bundle": "callable",
+   "_load_canonical_graph_snapshot": "callable",
+   "_load_canonical_needs_snapshot": "callable",
+   "_load_graph_snapshot": "callable",
+   "_load_needs_snapshot": "callable",
+   "_load_validation_community_summary": "callable",
+   "_load_validation_summary": "callable",
+   "_match_binding_pairs": "callable",
+   "_match_needs_pairs": "callable",
+   "_mean": "callable",
+   "_needs_candidate_priority": "callable",
+   "_needs_seed_pairs": "callable",
+   "_needs_snapshot_from_columns": "callable",
+   "_needs_with_ablation": "callable",
+   "_normalize_requested_oracles": "callable",
+   "_oracle_bundle_view": "callable",
+   "_oracle_civ_stats_view": "callable",
+   "_pooled_net_concordance": "callable",
+   "_population_count": "callable",
+   "_prepare_batch_admission": "callable",
+   "_read_arrow_columns": "callable",
+   "_read_json": "callable",
+   "_requires_pyarrow_for_selected_inputs": "callable",
+   "_rounded_delta": "callable",
+   "_rows_for_turn": "callable",
+   "_run_fact_problems": "callable",
+   "_sample_turns": "callable",
+   "_serialization_error_report": "callable",
+   "_sign_test_p": "callable",
+   "_significant_slope_pattern": "callable",
+   "_smoothed_series": "callable",
+   "_snapshot_turns": "callable",
+   "_student_t_quantile": "callable",
+   "_total_turns": "callable",
+   "_trajectory_composite_series": "callable",
+   "_trajectory_metric_series": "callable",
+   "_verify_batch_manifest_inputs": "callable",
+   "_without_agents_with_event_by": "callable",
+   "_world_population_series": "callable",
+   "_world_shape": "callable",
+   "ablation_methods": "callable",
+   "annotations": "value",
+   "array": "class",
+   "batch_cohort": "callable",
+   "bisect_left": "callable",
+   "bisect_right": "callable",
+   "causal_oracles_required": "callable",
+   "ceil": "callable",
+   "check_artifact_lifecycle": "callable",
+   "check_batch_manifest": "callable",
+   "classify_civ_arc": "callable",
+   "cohort_ablation_method_result": "callable",
+   "cohort_method_4_result": "callable",
+   "comb": "callable",
+   "compute_cohort_distinctiveness": "callable",
+   "compute_needs_diversity": "callable",
+   "dataclass": "callable",
+   "defaultdict": "class",
+   "detect_collapse_episodes": "callable",
+   "detect_communities": "callable",
+   "detect_inflection_points": "callable",
+   "file_sha256": "callable",
+   "iter_bundles": "callable",
+   "load_batch_manifest": "callable",
+   "load_bundles": "callable",
+   "load_seed_runs": "callable",
+   "main": "callable",
+   "needs_ablation_method_result": "callable",
+   "needs_method_7_result": "callable",
+   "required_seed_count": "callable",
+   "restore_bundle": "callable",
+   "run_arc_oracle": "callable",
+   "run_artifact_oracle": "callable",
+   "run_cohort_oracle": "callable",
+   "run_community_oracle": "callable",
+   "run_determinism_gate": "callable",
+   "run_era_oracle": "callable",
+   "run_needs_oracle": "callable",
+   "run_needs_oracle_best_of": "callable",
+   "run_oracles": "callable",
+   "run_regression_summary": "callable",
+   "scrubbed_equal": "callable",
+   "strict_json_dumps": "callable",
+   "strict_json_loads": "callable",
+   "summarize_world_shapes": "callable",
+   "verify_batch_manifest": "callable"
+  },
+  "validation_io_constants": {
+   "ABLATION_DIR_FLAG": "--ablation-dir",
+   "ARTIFACT_CREATION_RATE_MAX": 3.0,
+   "ARTIFACT_CREATION_RATE_MIN": 1.0,
+   "ARTIFACT_CREATION_RATE_TOLERANCE_MIN": 0.9,
+   "ARTIFACT_LOSS_RATE_MAX": 0.3,
+   "ARTIFACT_LOSS_RATE_MIN": 0.02,
+   "ARTIFACT_TEMPLATE_STARTING_CIVS": 4,
+   "BUNDLE_FILENAME": "chronicle_bundle.json",
+   "CAUSAL_ORACLES_FLAG": "--require-causal-oracles",
+   "COHORT_ABLATION_DESIGN1_METHOD_VERSION": 4,
+   "COHORT_ABLATION_METHOD_DESIGNS": {
+    "dict": [
+     [
+      4,
+      1
+     ],
+     [
+      5,
+      2
+     ],
+     [
+      6,
+      2
+     ]
+    ]
+   },
+   "COHORT_DEATH_CENSORED_METHOD_VERSION": 3,
+   "COHORT_LEGACY_COMMUNITY_METHOD_VERSION": 5,
+   "COHORT_LEGACY_METHOD_VERSION": 1,
+   "COHORT_METHOD_VERSIONS": {
+    "tuple": [
+     1,
+     2,
+     3,
+     4,
+     5,
+     6
+    ]
+   },
+   "COHORT_ORACLE_METHOD_VERSION": 6,
+   "COHORT_OUTCOME_WINDOW_TURNS": 20,
+   "COHORT_POST_SNAPSHOT_METHOD_VERSION": 2,
+   "COHORT_SPEC_COMMUNITY_METHODS": {
+    "frozenset": [
+     6
+    ]
+   },
+   "ERA_COLLAPSE_DROP_FRACTION": 0.3,
+   "ERA_COLLAPSE_SMOOTHING_WINDOW": 5,
+   "ERA_CRISIS_EVENT_GROUPS": {
+    "dict": [
+     [
+      "hunger",
+      {
+       "tuple": [
+        "famine",
+        "dearth",
+        "supply_shock",
+        "drought",
+        "drought_intensification",
+        "locust_swarm",
+        "soil_exhaustion",
+        "fishery_collapse",
+        "demographic_crisis"
+       ]
+      }
+     ],
+     [
+      "disease",
+      {
+       "tuple": [
+        "plague",
+        "epidemic",
+        "epidemic_arrival",
+        "pandemic",
+        "pandemic_spread"
+       ]
+      }
+     ],
+     [
+      "war",
+      {
+       "tuple": [
+        "war",
+        "war_declared",
+        "battle",
+        "siege_begun",
+        "occupation",
+        "army_destroyed",
+        "scorched_earth",
+        "capital_loss",
+        "civ_conquered",
+        "annexation"
+       ]
+      }
+     ],
+     [
+      "flight",
+      {
+       "tuple": [
+        "migration",
+        "mass_migration",
+        "notable_migration",
+        "Mass Migration",
+        "Persecution",
+        "brain_drain"
+       ]
+      }
+     ],
+     [
+      "disaster",
+      {
+       "tuple": [
+        "earthquake",
+        "flood",
+        "wildfire",
+        "sandstorm",
+        "supervolcano",
+        "mine_collapse"
+       ]
+      }
+     ],
+     [
+      "unrest",
+      {
+       "tuple": [
+        "rebellion",
+        "local_rebellion",
+        "revolt",
+        "civil_war",
+        "secession",
+        "coup",
+        "psi_crisis",
+        "vassal_rebellion",
+        "loyalty_cascade",
+        "succession_crisis",
+        "legitimacy_crisis"
+       ]
+      }
+     ],
+     [
+      "fall",
+      {
+       "tuple": [
+        "collapse",
+        "twilight",
+        "twilight_absorption",
+        "union_annexation",
+        "vassalization"
+       ]
+      }
+     ]
+    ]
+   },
+   "ERA_CRISIS_EVENT_TYPES": {
+    "frozenset": [
+     "Mass Migration",
+     "Persecution",
+     "annexation",
+     "army_destroyed",
+     "battle",
+     "brain_drain",
+     "capital_loss",
+     "civ_conquered",
+     "civil_war",
+     "collapse",
+     "coup",
+     "dearth",
+     "demographic_crisis",
+     "drought",
+     "drought_intensification",
+     "earthquake",
+     "epidemic",
+     "epidemic_arrival",
+     "famine",
+     "fishery_collapse",
+     "flood",
+     "legitimacy_crisis",
+     "local_rebellion",
+     "locust_swarm",
+     "loyalty_cascade",
+     "mass_migration",
+     "migration",
+     "mine_collapse",
+     "notable_migration",
+     "occupation",
+     "pandemic",
+     "pandemic_spread",
+     "plague",
+     "psi_crisis",
+     "rebellion",
+     "revolt",
+     "sandstorm",
+     "scorched_earth",
+     "secession",
+     "siege_begun",
+     "soil_exhaustion",
+     "succession_crisis",
+     "supervolcano",
+     "supply_shock",
+     "twilight",
+     "twilight_absorption",
+     "union_annexation",
+     "vassal_rebellion",
+     "vassalization",
+     "war",
+     "war_declared",
+     "wildfire"
+    ]
+   },
+   "ERA_INFLECTION_SEED_FRACTION_MIN": 0.8,
+   "ERA_SIGNAL_SLACK_TURNS": 5,
+   "ERA_SILENT_COLLAPSE_SEED_FRACTION_MAX": 0.1,
+   "EVENT_NAME_TO_CODE": {
+    "dict": [
+     [
+      "death",
+      0
+     ],
+     [
+      "migration",
+      1
+     ],
+     [
+      "rebellion",
+      2
+     ],
+     [
+      "occupation_switch",
+      3
+     ],
+     [
+      "loyalty_flip",
+      4
+     ],
+     [
+      "birth",
+      5
+     ],
+     [
+      "dissolution",
+      6
+     ]
+    ]
+   },
+   "LEGACY_BATCH_FLAG": "--legacy-batch",
+   "MANIFEST_FILENAME": "batch_manifest.json",
+   "NEEDS_ABLATION_DESIGN1_METHOD_VERSION": 7,
+   "NEEDS_ABLATION_METHOD_DESIGNS": {
+    "dict": [
+     [
+      7,
+      1
+     ],
+     [
+      8,
+      2
+     ]
+    ]
+   },
+   "NEEDS_AUTONOMY_EXCLUDES_PRIOR_REBELS": true,
+   "NEEDS_BEHAVIOUR_THRESHOLDS": {
+    "dict": [
+     [
+      "autonomy",
+      0.35
+     ],
+     [
+      "social",
+      0.35
+     ],
+     [
+      "purpose",
+      0.35
+     ],
+     [
+      "material",
+      0.3
+     ],
+     [
+      "safety",
+      0.3
+     ]
+    ]
+   },
+   "NEEDS_BINDING_DIVERGENCE": 0.05,
+   "NEEDS_BINDING_METHOD_VERSION": 3,
+   "NEEDS_BINDING_REQUIRED_PROFILES": {
+    "tuple": [
+     "full"
+    ]
+   },
+   "NEEDS_CONFIDENCE": 0.95,
+   "NEEDS_DEATH_CENSORED_METHOD_VERSION": 5,
+   "NEEDS_INFORMATIONAL_METHOD_VERSION": 6,
+   "NEEDS_INFORMATIONAL_PAIRINGS": {
+    "tuple": [
+     {
+      "tuple": [
+       "spiritual",
+       1
+      ]
+     }
+    ]
+   },
+   "NEEDS_INFORMATIONAL_THRESHOLDS": {
+    "dict": [
+     [
+      "spiritual",
+      0.3
+     ]
+    ]
+   },
+   "NEEDS_LEGACY_NEED_DIVERGENCE": 0.2,
+   "NEEDS_METHOD_VERSIONS": {
+    "tuple": [
+     2,
+     3,
+     4,
+     5,
+     6,
+     7,
+     8
+    ]
+   },
+   "NEEDS_NEED_DIVERGENCE": 0.1,
+   "NEEDS_ORACLE_METHOD_VERSION": 8,
+   "NEEDS_OUTCOME_WINDOW_TURNS": 20,
+   "NEEDS_PAIRINGS": {
+    "tuple": [
+     {
+      "tuple": [
+       "autonomy",
+       2
+      ]
+     },
+     {
+      "tuple": [
+       "social",
+       1
+      ]
+     },
+     {
+      "tuple": [
+       "purpose",
+       3
+      ]
+     },
+     {
+      "tuple": [
+       "material",
+       1
+      ]
+     },
+     {
+      "tuple": [
+       "safety",
+       1
+      ]
+     }
+    ]
+   },
+   "NEEDS_PERSONALITY_TOLERANCE": 0.1,
+   "NEEDS_POOLED_METHOD_VERSION": 2,
+   "NEEDS_POST_SNAPSHOT_METHOD_VERSION": 4,
+   "NEEDS_SEED_FRACTION_MIN": 0.6,
+   "ORACLE_RUNNER_NAMES": {
+    "set": [
+     "arcs",
+     "artifacts",
+     "cohort",
+     "community",
+     "determinism",
+     "era",
+     "needs",
+     "regression"
+    ]
+   },
+   "PROFILE_CHOICES": {
+    "tuple": [
+     "subset",
+     "full",
+     "determinism-off",
+     "determinism-hybrid"
+    ]
+   },
+   "REGRESSION_LATEST_OCCUPATION_VIOLATION_AGENT_FRACTION_MAX": 0.05,
+   "REGRESSION_LATEST_SATISFACTION_WINDOW_TURNS": 60,
+   "REGRESSION_MIGRATION_RATE_CALIBRATED_MIN": 0.045,
+   "REGRESSION_MIGRATION_RATE_MAX": 0.15,
+   "REGRESSION_MIGRATION_RATE_MIN": 0.05,
+   "REGRESSION_OCCUPATION_EVIDENCE_RUN_MIN": 0.8,
+   "REGRESSION_OCCUPATION_SHARE_MAX": 0.7,
+   "REGRESSION_OCCUPATION_VIOLATION_FRACTION_MAX": 0.01,
+   "REGRESSION_REBELLION_RATE_MAX": 0.08,
+   "REGRESSION_REBELLION_RATE_MIN": 0.02,
+   "REGRESSION_SATISFACTION_MEAN_CALIBRATED_MIN": 0.4,
+   "REGRESSION_SATISFACTION_MEAN_MAX": 0.65,
+   "REGRESSION_SATISFACTION_MEAN_MIN": 0.45,
+   "SCRUB_KEYS": {
+    "set": [
+     "generated_at"
+    ]
+   },
+   "SEED_RUN_ORACLE_NAMES": {
+    "set": [
+     "arcs",
+     "artifacts",
+     "cohort",
+     "community",
+     "era",
+     "needs",
+     "regression"
+    ]
+   },
+   "TEMPLATE_WORLD_GENERATOR": "template",
+   "_ORACLE_CIV_STAT_KEYS": {
+    "tuple": [
+     "population",
+     "treasury",
+     "stability",
+     "regions",
+     "prestige",
+     "gini"
+    ]
+   },
+   "_ORACLE_COUNTED_EVENT_CODES": {
+    "frozenset": [
+     1,
+     2,
+     3
+    ]
+   },
+   "_ORACLE_WORLD_STATE_KEYS": {
+    "tuple": [
+     "turn",
+     "agent_mode",
+     "regions",
+     "artifacts"
+    ]
+   }
+  }
+ }
+}

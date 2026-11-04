@@ -62,6 +62,7 @@ from chronicler.nomads_state import (
     Conquest, Horde, NomadState, Raid, TributePact, nomads_on,
 )
 from chronicler.utils import stable_hash_int
+from chronicler.utils import at_war as _at_war
 
 if TYPE_CHECKING:  # pragma: no cover
     from chronicler.models import Civilization, Event, Region, WorldState
@@ -327,10 +328,6 @@ def _land_neighbors(world, region: "Region", lanes: set) -> list["Region"]:
         if other is not None and other is not region and (region.name, name) not in lanes:
             out.append(other)
     return out
-
-
-def _at_war(world, a: str, b: str) -> bool:
-    return (a, b) in world.active_wars or (b, a) in world.active_wars
 
 
 def _war_enemies(world, name: str) -> set[str]:

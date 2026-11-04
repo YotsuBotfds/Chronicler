@@ -1,8 +1,13 @@
 """Validation oracle algorithm re-exports.
 
-The implementations currently live in ``validation_io`` to preserve the
-recovered pre-split behavior and keep monkeypatch targets such as
-``chronicler.validation_io._load_agent_events`` effective.
+Every name here comes from ``validation_io`` (the same objects). The era and
+arc, artifact and regression oracles are defined in
+``validation_trajectories``, ``validation_artifacts`` and
+``validation_regression``; the others stay in ``validation_io``,
+where tests patch the helpers they call (for example
+``chronicler.validation_io._read_arrow_columns``) and where the needs,
+community and cohort runners re-enter themselves
+(docs/integration/validation-split.md).
 """
 
 from __future__ import annotations

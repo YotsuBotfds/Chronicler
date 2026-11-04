@@ -55,6 +55,7 @@ from chronicler.models import (
     FOOD_CRISIS_EVENT_TYPES, ActionType, Disposition, Event, NamedEvent, VassalRelation,
 )
 from chronicler.utils import STAT_FLOOR, civ_index, clamp, stable_hash_int
+from chronicler.utils import at_war as _at_war
 
 if TYPE_CHECKING:  # pragma: no cover
     from chronicler.models import Civilization, Relationship, WorldState
@@ -287,10 +288,6 @@ def _perceived_power(world, observer: "Civilization", target: "Civilization") ->
     if mil is None:
         return None
     return _power_of(mil, target)
-
-
-def _at_war(world, a: str, b: str) -> bool:
-    return (a, b) in world.active_wars or (b, a) in world.active_wars
 
 
 def _wars_of(world, name: str) -> list[str]:
