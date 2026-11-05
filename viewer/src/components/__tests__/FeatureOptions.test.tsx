@@ -1,0 +1,155 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
+import served from "../../__fixtures__/featureCatalog.json";
+import type { FeatureSelection } from "../../types";
+import { FeatureOptions } from "../FeatureOptions";
+
+afterEach(cleanup);
+
+function catalogWith(change: (raw: Record<string, any>) => void = () => {}) { // eslint-disable-line @typescript-eslint/no-explicit-any
+  const raw = structuredClone(served);
+  change(raw);
+  return raw;
+}
+
+function Harness({ catalog, surface = "live", onChange = () => {}, unavailable = null }: {
+  catalog: unknown; surface?: "live" | "batch"; onChange?: (selection: FeatureSelection) => void;
+  unavailable?: string | null;
+}) {
+  const [selection, setSelection] = useState<FeatureSelection>({});
+  const [agents, setAgents] = useState<string | null>(null);
+  return (
+    <FeatureOptions
+      catalog={catalog}
+      surface={surface}
+      selection={selection}
+      onSelectionChange={(next) => { setSelection(next); onChange(next); }}
+      agents={agents}
+      onAgentsChange={setAgents}
+      unavailable={unavailable}
+    />
+  );
+}
+
+function open() {
+  fireEvent.click(screen.getByRole("button", { name: /Experimental features \(off by default\)/ }));
+}
+
+const box = (name: RegExp) => screen.getByRole("checkbox", { name }) as HTMLInputElement;
+
+function description(element: HTMLElement): string {
+  return element.getAttribute("aria-describedby")!.split(" ")
+    .map((id) => document.getElementById(id)!.textContent).join(" ");
+}
+
+describe("FeatureOptions", () => {
+  it("renders nothing for an older server that sends no catalog", () => {
+    const { container } = render(<Harness catalog={undefined} />);
+    expect(container.innerHTML).toBe("");
+  });
+
+  it("shows a notice instead of options when the catalog is malformed", () => {
+    render(<Harness catalog={catalogWith((raw) => { raw.schema_version = 9; })} />);
+    expect(screen.getByRole("status").textContent).toMatch(/cannot read \(unsupported feature_catalog schema_version 9\)/);
+    expect(screen.queryByRole("button", { name: /Experimental features/ })).toBeNull();
+    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
+  });
+
+  it("is collapsed with nothing selected until opened", () => {
+    render(<Harness catalog={served} />);
+    const toggle = screen.getByRole("button", { name: /Experimental features/ });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
+    open();
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByRole("group", { name: "Livelihoods" })).toBeTruthy();
+    expect(screen.getByRole("group", { name: "Prerequisites" })).toBeTruthy();
+    for (const checkbox of screen.getAllByRole("checkbox")) expect((checkbox as HTMLInputElement).checked).toBe(false);
+    expect(screen.getByText("Selected: none.")).toBeTruthy();
+  });
+
+  it("disables what the server's agent mode cannot run, with the reason", () => {
+    render(<Harness catalog={catalogWith((raw) => {
+      raw.surfaces.live.agents = "off";
+      raw.surfaces.live.agent_modes = ["off"];
+    })} />);
+    open();
+    const workshops = box(/^Workshops --workshops$/);
+    expect(workshops.disabled).toBe(true);
+    expect(description(workshops)).toMatch(/Unavailable: requires --agents hybrid \(this server runs --agents off\)/);
+    expect(box(/^Scholarship --scholarship$/).disabled).toBe(false);
+    expect(screen.getByText(/Agent mode: --agents off \(set when the server was started\)/)).toBeTruthy();
+  });
+
+  it("enables a switch once its prerequisite is on and drops it when the prerequisite goes", () => {
+    const onChange = vi.fn();
+    render(<Harness catalog={served} onChange={onChange} />);
+    open();
+    expect(box(/^Local budgets/).disabled).toBe(true);
+    expect(description(box(/^Local budgets/))).toMatch(/Unavailable: requires --grain-reserves\./);
+    fireEvent.click(box(/^Grain reserves/));
+    expect(box(/^Local budgets/).disabled).toBe(false);
+    fireEvent.click(box(/^Local budgets/));
+    expect(onChange).toHaveBeenLastCalledWith({ grain_reserves: true, local_budgets: true });
+    expect(screen.getByText("--grain-reserves --local-budgets")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /2 selected/ })).toBeTruthy();
+    fireEvent.click(box(/^Grain reserves/));
+    expect(onChange).toHaveBeenLastCalledWith({});
+    expect(box(/^Local budgets/).checked).toBe(false);
+    expect(box(/^Local budgets/).disabled).toBe(true);
+  });
+
+  it("shows a switch's mode only while it is on and sends only a non-default mode", () => {
+    const onChange = vi.fn();
+    render(<Harness catalog={served} onChange={onChange} />);
+    open();
+    expect(screen.queryByRole("combobox", { name: /Workshop mode/ })).toBeNull();
+    fireEvent.click(box(/^Workshops/));
+    const mode = screen.getByRole("combobox", { name: /Workshop mode/ }) as HTMLSelectElement;
+    expect(mode.value).toBe("operate");
+    expect([...mode.options].map((option) => option.textContent)).toEqual(["operate (default)", "observe", "cost_only"]);
+    expect(onChange).toHaveBeenLastCalledWith({ workshops: true });
+    fireEvent.change(mode, { target: { value: "observe" } });
+    expect(onChange).toHaveBeenLastCalledWith({ workshops: true, workshop_mode: "observe" });
+    // Payroll needs the operate mode.
+    expect(box(/^Workshop payroll/).disabled).toBe(true);
+    fireEvent.change(mode, { target: { value: "operate" } });
+    expect(onChange).toHaveBeenLastCalledWith({ workshops: true });
+    fireEvent.click(box(/^Workshop payroll/));
+    fireEvent.change(screen.getByRole("combobox", { name: /Workshop mode/ }), { target: { value: "cost_only" } });
+    expect(onChange).toHaveBeenLastCalledWith({ workshops: true, workshop_mode: "cost_only" });
+    fireEvent.click(box(/^Workshops/));
+    expect(onChange).toHaveBeenLastCalledWith({});
+    expect(screen.queryByRole("combobox", { name: /Workshop mode/ })).toBeNull();
+  });
+
+  it("lets Batch Lab choose the runs' agent mode and re-checks requirements", () => {
+    render(<Harness surface="batch" catalog={catalogWith((raw) => { raw.surfaces.batch.agents = "off"; })} />);
+    open();
+    expect(box(/^Workshops/).disabled).toBe(true);
+    expect(description(box(/^Workshops/))).toMatch(/requires --agents hybrid \(these runs use --agents off\)/);
+    const agents = screen.getByRole("combobox", { name: /Agent mode for these runs/ });
+    fireEvent.change(agents, { target: { value: "hybrid" } });
+    expect(box(/^Workshops/).disabled).toBe(false);
+    fireEvent.click(box(/^Workshops/));
+    expect(box(/^Workshops/).checked).toBe(true);
+    fireEvent.change(agents, { target: { value: "" } });
+    expect(box(/^Workshops/).checked).toBe(false);
+  });
+
+  it("shows what the server's command line already sets", () => {
+    render(<Harness catalog={catalogWith((raw) => { raw.surfaces.live.values = { grain_reserves: true }; })} />);
+    open();
+    expect(box(/^Grain reserves/).checked).toBe(true);
+    expect(screen.getByText(/Already on the server's command line/)).toBeTruthy();
+    expect(box(/^Local budgets/).disabled).toBe(false);
+  });
+
+  it("disables everything with the reason when requests are unavailable", () => {
+    render(<Harness catalog={served} unavailable="Feature options apply to new worlds only." />);
+    open();
+    expect(screen.getByRole("note").textContent).toBe("Feature options apply to new worlds only.");
+    for (const checkbox of screen.getAllByRole("checkbox")) expect((checkbox as HTMLInputElement).disabled).toBe(true);
+  });
+});

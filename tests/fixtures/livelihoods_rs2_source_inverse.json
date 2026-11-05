@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "layer": "rs2",
+  "parent": "992f14bea7d0ba26347d74b4a8833bcafbad51bb",
+  "files": {
+    "src/chronicler/grain_storage.py": {
+      "sha256": "d62eeb3f24dc4ebdef524ea1314cdf636c8fc97a9dd0e106a746d8047580de99",
+      "current_sha256": "26c87849831b20dfc1d532216e2d7fae8525bffa20a98ba19441235cc897b81b",
+      "patches": [
+        {
+          "old": "after native economy execution. `rollback_storage_work` restores held timber\nif that call fails; it does not promise rollback of a native kernel. The caller\nmust always finish or rollback a plan before another turn or checkpoint.\n\"\"\"\nfrom __future__ import annotations\n\n",
+          "new": "after native economy execution. `rollback_storage_work` restores held timber\nif that call fails; it does not promise rollback of a native kernel. The caller\nmust always finish or rollback a plan before another turn or checkpoint.\n\nRS2 seam (``--repair-projects``; inert otherwise): a region whose granary has\nan open repair project has its ordinary request suspended for the turn (the\nplan's ``suspended`` regions), and the native work delivered there belongs to\nthe project, which plans, holds timber for and pays it itself.\n\"\"\"\nfrom __future__ import annotations\n\n"
+        },
+        {
+          "old": "    rows: list[_WorkRow]\n    requests: list[float]\n    status: str = \"pending\"\n\n\ndef prepare_storage_work(world, food_demand: Sequence[float], *, acc=None, simulator=None,\n",
+          "new": "    rows: list[_WorkRow]\n    requests: list[float]\n    status: str = \"pending\"\n    suspended: frozenset = frozenset()\n\n\ndef _repair_suspended(world) -> frozenset:\n    \"\"\"RS2 seam: regions under an open granary repair project (empty unless\n    ``--repair-projects`` is active).\"\"\"\n    if getattr(getattr(world, \"livelihoods\", None), \"repair_projects\", None) is None:\n        return frozenset()\n    from chronicler.repair_projects import storage_suspended_regions\n    return storage_suspended_regions(world)\n\n\ndef prepare_storage_work(world, food_demand: Sequence[float], *, acc=None, simulator=None,\n"
+        },
+        {
+          "old": "    from chronicler.mutual_aid import _treasury_budget\n    index = {c.name: i for i, c in enumerate(world.civilizations)}\n    budgets = [max(0, math.floor(_treasury_budget(world, c, acc))) for c in world.civilizations]\n    rows = []\n    for rid, (region, granary, policy) in enumerate(zip(\n            world.regions, world.grain_reserves.granaries, state.policies, strict=True)):\n",
+          "new": "    from chronicler.mutual_aid import _treasury_budget\n    index = {c.name: i for i, c in enumerate(world.civilizations)}\n    budgets = [max(0, math.floor(_treasury_budget(world, c, acc))) for c in world.civilizations]\n    suspended = _repair_suspended(world)\n    rows = []\n    for rid, (region, granary, policy) in enumerate(zip(\n            world.regions, world.grain_reserves.granaries, state.policies, strict=True)):\n"
+        },
+        {
+          "old": "            remaining = REPAIR_WORK - asset.repair_progress\n        elif owner >= 0 and policy.policy == \"expand\":\n            remaining = EXPANSION_WORK - asset.expansion_progress\n        amount = 0.0\n        if remaining > 0:\n            amount = _f32_floor(min(policy.work_budget, remaining,\n",
+          "new": "            remaining = REPAIR_WORK - asset.repair_progress\n        elif owner >= 0 and policy.policy == \"expand\":\n            remaining = EXPANSION_WORK - asset.expansion_progress\n        if rid in suspended:\n            remaining = 0.0\n        amount = 0.0\n        if remaining > 0:\n            amount = _f32_floor(min(policy.work_budget, remaining,\n"
+        },
+        {
+          "old": "            budgets[owner] -= math.ceil(amount * COINS_PER_WORK)\n        rows.append(_WorkRow(rid, owner, region.controller, asset, policy.policy,\n                             amount, amount * TIMBER_PER_WORK))\n    plan = StorageWorkPlan(id(world), state, world.turn, rows, [r.request for r in rows])\n    for row in rows:\n        if row.held:\n            goods = world.regions[row.region].stockpile.goods\n",
+          "new": "            budgets[owner] -= math.ceil(amount * COINS_PER_WORK)\n        rows.append(_WorkRow(rid, owner, region.controller, asset, policy.policy,\n                             amount, amount * TIMBER_PER_WORK))\n    plan = StorageWorkPlan(id(world), state, world.turn, rows, [r.request for r in rows], suspended=suspended)\n    for row in rows:\n        if row.held:\n            goods = world.regions[row.region].stockpile.goods\n"
+        },
+        {
+          "old": "    _check_plan(world, plan)\n    if len(delivered) != len(plan.requests):\n        raise ValueError(\"storage delivered work must match region count\")\n    if any(not math.isfinite(x) or x < 0 or x > request\n           for x, request in zip(delivered, plan.requests, strict=True)):\n        raise ValueError(\"storage delivered work must be finite and within request\")\n",
+          "new": "    _check_plan(world, plan)\n    if len(delivered) != len(plan.requests):\n        raise ValueError(\"storage delivered work must match region count\")\n    if plan.suspended:\n        delivered = [0.0 if rid in plan.suspended else x for rid, x in enumerate(delivered)]\n    if any(not math.isfinite(x) or x < 0 or x > request\n           for x, request in zip(delivered, plan.requests, strict=True)):\n        raise ValueError(\"storage delivered work must be finite and within request\")\n"
+        }
+      ]
+    },
+    "src/chronicler/tuning.py": {
+      "sha256": "50107f3702163e476f9d5736b5683e7b2173bc0ceb3c593743687c40b86618fc",
+      "current_sha256": "5571aab6e19c6ff09259762710cb8234244ffa9d8b499c1f752d070afc54bb1e",
+      "patches": [
+        {
+          "old": "    \"livelihoods.budgets.envelope_share\", \"livelihoods.budgets.floor\", \"livelihoods.budgets.horizon\",\n    \"livelihoods.budgets.broken_grievance\", \"livelihoods.budgets.kept_grievance\",\n    \"livelihoods.budgets.response_cap\",\n    # Politics\n    K_SECESSION_STABILITY_THRESHOLD, K_SECESSION_SURVEILLANCE_THRESHOLD,\n    K_PROXY_WAR_SECESSION_BONUS, K_BALANCE_OF_POWER_DOMINANCE,\n",
+          "new": "    \"livelihoods.budgets.envelope_share\", \"livelihoods.budgets.floor\", \"livelihoods.budgets.horizon\",\n    \"livelihoods.budgets.broken_grievance\", \"livelihoods.budgets.kept_grievance\",\n    \"livelihoods.budgets.response_cap\",\n    \"repair_projects.war_damage\",\n    # Politics\n    K_SECESSION_STABILITY_THRESHOLD, K_SECESSION_SURVEILLANCE_THRESHOLD,\n    K_PROXY_WAR_SECESSION_BONUS, K_BALANCE_OF_POWER_DOMINANCE,\n"
+        }
+      ]
+    }
+  }
+}

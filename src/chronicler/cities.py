@@ -629,6 +629,12 @@ def _sack(t: _Tick, city: City, region, sacker_idx: int, cause: str | None, *,
     from chronicler import provenance as prov
     prov.remember(world, _sack_key(city), ev)
     _note(city, world.turn, "sacked", ev.event_id)
+    if getattr(world, "livelihoods", None) is not None:
+        # --repair-projects (RS2): the sack damages the city's workshop site and
+        # its region's granary (a no-op unless active).
+        from chronicler.repair_projects import city_sacked
+        city_sacked(world, city.settlement_id, city.region, sacker.name if sacker else None,
+                    victim.name if victim else None)
 
 
 def _update_rank(t: _Tick, city: City, region, residents: int, k: float) -> None:

@@ -367,9 +367,12 @@ impl AgentSimulator {
     /// eligible, crew ids, crew ages, work available).
     /// With `turn`, people already holding work that turn are excluded and
     /// the selected crews are reserved in the shared work registry.
+    /// RS0: `priority_ids` (one list for every site) puts listed eligible
+    /// ids first, in the listed order; None or empty keeps the default order.
     #[allow(clippy::type_complexity)]
-    #[pyo3(signature = (sites, enlisted_ids, turn=None))]
-    pub fn plan_workshop_crews(&mut self, sites: Vec<(u16, u16, u16, f32, u8)>, enlisted_ids: Vec<u32>, turn: Option<u32>)
+    #[pyo3(signature = (sites, enlisted_ids, turn=None, *, priority_ids=None))]
+    pub fn plan_workshop_crews(&mut self, sites: Vec<(u16, u16, u16, f32, u8)>, enlisted_ids: Vec<u32>, turn: Option<u32>,
+                               priority_ids: Option<Vec<u32>>)
         -> PyResult<Vec<(u16, u16, u16, u32, u32, u32, u32, u32, Vec<u32>, Vec<u16>, f32)>> {
         if !self.initialized {
             return Err(PyValueError::new_err("workshop crews require initialized agents"));
@@ -381,7 +384,8 @@ impl AgentSimulator {
             return Err(PyValueError::new_err("workshop site region out of range"));
         }
         let enlisted: std::collections::HashSet<u32> = enlisted_ids.into_iter().collect();
-        let rows = crate::workshop_work::plan_crews(&self.pool, &requests, &enlisted, turn)
+        let rows = crate::workshop_work::plan_crews_with_priority(&self.pool, &requests, &enlisted, turn,
+                                                                  priority_ids.as_deref().unwrap_or(&[]))
             .map_err(PyValueError::new_err)?;
         if let Some(turn) = turn {
             let crew: Vec<(u32, f32)> = rows.iter().zip(&requests)
@@ -395,7 +399,7 @@ impl AgentSimulator {
     }
 
     /// Livelihoods: commit (stable id, fraction) rows for `turn` under a work
-    /// category (0 workshop, 1 learning), all or none; refuses anyone already
+    /// category (0 workshop, 1 learning, 2 apprentice, 3 repair), all or none; refuses anyone already
     /// holding work that turn (registry, rural health work, teaching plan).
     pub fn reserve_work(&mut self, turn: u32, category: u8, rows: Vec<(u32, f32)>) -> PyResult<()> {
         crate::workshop_work::reserve(&mut self.pool, turn, category, &rows).map_err(PyValueError::new_err)
@@ -838,6 +842,26 @@ impl AgentSimulator {
         Ok(receipt.rows.into_iter().map(|r| (r.agent_id, r.requested, r.applied, r.residual, r.status)).collect())
     }
 
+    /// RS4 remittances (`wealth_transfer::remit`): (sender, recipient,
+    /// amount, fee) milli-unit rows under the purpose `remittance`, once per
+    /// (turn, batch). Returns per row (sender, recipient, sent, fee,
+    /// credited, refunded, status: 0 applied, 1 limited, 2 absent). Refuses
+    /// a repeated key or invalid rows unchanged.
+    #[allow(clippy::type_complexity)]
+    pub fn remit_wealth(&mut self, turn: u32, batch: u32, rows: Vec<(u32, u32, i64, i64)>)
+        -> PyResult<Vec<(u32, u32, i64, i64, i64, i64, u8)>> {
+        let out = crate::wealth_transfer::remit(&mut self.pool, turn, batch, &rows).map_err(PyValueError::new_err)?;
+        if out.iter().any(|r| r.sent != 0) {
+            self.snapshot_cache = None; // the pool changed: drop the cached snapshot
+        }
+        Ok(out.into_iter().map(|r| (r.sender, r.recipient, r.sent, r.fee, r.credited, r.refunded, r.status)).collect())
+    }
+
+    /// RS4: stable ids of living agents away on a merchant trip, ascending (reads only).
+    pub fn trip_agent_ids(&self) -> Vec<u32> {
+        crate::wealth_transfer::trip_ids(&self.pool)
+    }
+
     /// Livelihoods L6a: transfer purposes in declaration order (append only).
     #[staticmethod]
     pub fn wealth_transfer_purposes() -> Vec<&'static str> {
@@ -849,6 +873,13 @@ impl AgentSimulator {
     /// reservation for `turn`; the next wealth phase consumes it once.
     pub fn install_paid_work(&mut self, turn: u32, rows: Vec<(u32, f32)>) -> PyResult<()> {
         crate::wealth_transfer::install_paid_work(&mut self.pool, turn, &rows).map_err(PyValueError::new_err)
+    }
+
+    /// RS0: merge (stable id, share) rows into this turn's pending paid-work
+    /// install, or arm one; refuses an id with a pending share, a share above
+    /// the id's reservations and a pending install of another turn.
+    pub fn extend_paid_work(&mut self, turn: u32, rows: Vec<(u32, f32)>) -> PyResult<()> {
+        crate::wealth_transfer::extend_paid_work(&mut self.pool, turn, &rows).map_err(PyValueError::new_err)
     }
 
     /// Livelihoods L6a: drop an armed paid-work share the tick never took.
@@ -1161,6 +1192,9 @@ impl AgentSimulator {
         let harvest_shock_col = rb
             .column_by_name("harvest_shock")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        // RS5 (`--clearing-protection`): validated here, before any mutation.
+        let clearing_protection_col =
+            batch::clearing_protection_column(&rb).map_err(PyValueError::new_err)?;
 
         // M54a: Ecology schema columns
         let disease_baseline_col = rb
@@ -1312,6 +1346,7 @@ impl AgentSimulator {
                     temple_prestige: temple_prestige_col.map_or(0.0, |arr| arr.value(i)),
                     climate_exposure: climate_exposure_col.map_or(1.0, |arr| arr.value(i)),
                     harvest_shock: harvest_shock_col.map_or(0.0, |arr| arr.value(i)),
+                    clearing_protection: clearing_protection_col.map(|arr| arr.value(i)),
                     city_pull: city_pull_col.map_or(0.0, |arr| arr.value(i)),
                     seat_pull: seat_pull_col.map_or(0.0, |arr| arr.value(i)),
                     seat_flight: seat_flight_col.map_or(false, |arr| arr.value(i)),
@@ -1522,6 +1557,7 @@ impl AgentSimulator {
                 r.temple_prestige = temple_prestige_col.map_or(0.0, |arr| arr.value(i));
                 r.climate_exposure = climate_exposure_col.map_or(1.0, |arr| arr.value(i));
                 r.harvest_shock = harvest_shock_col.map_or(0.0, |arr| arr.value(i));
+                r.clearing_protection = clearing_protection_col.map(|arr| arr.value(i));
                 r.city_pull = city_pull_col.map_or(0.0, |arr| arr.value(i));
                 r.seat_pull = seat_pull_col.map_or(0.0, |arr| arr.value(i));
                 r.seat_flight = seat_flight_col.map_or(false, |arr| arr.value(i));

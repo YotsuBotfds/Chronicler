@@ -112,6 +112,16 @@ SIMULATION_ARG_KEYS = WORLD_ARG_KEYS + (
     "relocation_mode",
     "local_budgets",
     "local_budget_mode",
+    "apprenticeship",
+    "apprenticeship_mode",
+    "repair_projects",
+    "repair_mode",
+    "veteran_reintegration",
+    "veteran_mode",
+    "remittances",
+    "remittance_mode",
+    "clearing_protection",
+    "clearing_protection_mode",
     "tuning",
     "preset",
     "aggression_bias",
@@ -226,7 +236,10 @@ def simulation_config(args: Any, tuning_overrides: dict | None = None) -> dict[s
                              "workshops", "workshop_mode", "food_allocation", "food_allocation_regime", "timber_stock", "grain_convoys", "convoy_route_policy",
                              "commons_rules", "commons_rule_mode", "learning_cohorts", "learning_cohort_mode",
                              "workshop_payroll", "workshop_payroll_mode", "relocation_costs", "relocation_mode",
-                             "local_budgets", "local_budget_mode")
+                             "local_budgets", "local_budget_mode",
+                             "apprenticeship", "apprenticeship_mode", "repair_projects", "repair_mode",
+                             "veteran_reintegration", "veteran_mode", "remittances", "remittance_mode",
+                             "clearing_protection", "clearing_protection_mode")
               or getattr(args, key, None) is not None}
     overrides = tuning_overrides if tuning_overrides is not None else getattr(args, "tuning_overrides", None)
     config["tuning_overrides"] = _json_value(overrides or {})

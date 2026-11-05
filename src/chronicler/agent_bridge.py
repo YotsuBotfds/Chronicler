@@ -790,6 +790,15 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
         # that defaulted on them, recomputed from persisted state for every
         # batch; without the column Rust reads 0 (no penalty).
         columns["creditor_grievance"] = pa.array(grievance, type=pa.float32())
+    if getattr(world, "livelihoods", None) is not None:
+        from chronicler.clearing_protection import pending_protection
+        protection = pending_protection(world)
+        if protection is not None:
+            # --clearing-protection (RS5): the share of this turn's
+            # population-driven clearing a funded protection suspends, only
+            # while a plan awaits the ecology tick; without the column Rust
+            # clears in full.
+            columns["clearing_protection"] = pa.array(protection, type=pa.float32())
     return pa.record_batch(columns)
 
 
@@ -1429,17 +1438,23 @@ class AgentBridge:
     def take_post_tick_snapshot(self, turn: int):
         """Hand over the snapshot fetched after this turn's agent tick, once.
 
-        ``_process_tick_results`` reads the pool right after the tick; nothing
-        between there and the Phase 10 capture writes the native pool (bridge
-        post-processing and stockpile settlement only read it or Python
-        state), so the coordinator reuses that batch instead of exporting the
-        pool again. Returns None when no batch of this turn is held.
+        ``_process_tick_results`` reads the pool right after the tick. Bridge
+        post-processing and stockpile settlement only read it or Python state,
+        so the coordinator reuses that batch instead of exporting the pool
+        again. The livelihoods after-tick hooks can write native wealth (L6a
+        wages, L7 fares, RS1 stipends, RS4 remittances), so when any ran they
+        drop the held batch (:meth:`discard_post_tick_snapshot`) and Phase 10
+        exports again. Returns None when no batch of this turn is held.
         """
         held = getattr(self, "_post_tick_snapshot", None)
         self._post_tick_snapshot = None
         if held is not None and held[0] == turn:
             return held[1]
         return None
+
+    def discard_post_tick_snapshot(self) -> None:
+        """Drop the held post-tick batch: the pool was written after the tick."""
+        self._post_tick_snapshot = None
 
     @property
     def ecology_simulator(self):

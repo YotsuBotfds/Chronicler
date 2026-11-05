@@ -162,11 +162,18 @@ source/destination account (kind, identity), amount, applied, residual and statu
 Every firm closes exactly in integers, and `check_firm` raises otherwise:
 
 ```
-cash      = sales − wages applied − distributions − write-offs          (opening 0)
+cash      = sales − wages applied − distributions − write-offs − stipends   (opening 0)
 inventory = titled − delivered − worn − returned
-per turn: cash_close = cash_open + sales − wages_paid − distributed − written_off
+per turn: cash_close = cash_open + sales − wages_paid − distributed − written_off − stipends
           inventory_close = inventory_open + titled − sold − worn − returned
 ```
+
+`stipends` (RS1, [apprenticeship](apprenticeship.md)) is absent, and so zero, unless
+`--apprenticeship` paid one: `pay_from_firm` pays apprentices from cash after the
+turn's payroll pass under transfer purpose 2 (`apprentice_stipend`), records a typed
+`stipend` money transfer (workshop cash → agent wealth), the firm's
+`totals["stipends"]` and the receipt's optional `stipends` (with `cash_close` net of
+it).
 
 The f32 agent wealth receives `applied / 1000`. The books are exact in
 milli-units; the native wealth matches them to f32 precision (a test checks within

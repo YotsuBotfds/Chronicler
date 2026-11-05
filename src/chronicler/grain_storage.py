@@ -16,6 +16,11 @@ native work actually delivered, pays for it and returns unused timber only
 after native economy execution. `rollback_storage_work` restores held timber
 if that call fails; it does not promise rollback of a native kernel. The caller
 must always finish or rollback a plan before another turn or checkpoint.
+
+RS2 seam (``--repair-projects``; inert otherwise): a region whose granary has
+an open repair project has its ordinary request suspended for the turn (the
+plan's ``suspended`` regions), and the native work delivered there belongs to
+the project, which plans, holds timber for and pays it itself.
 """
 from __future__ import annotations
 
@@ -115,6 +120,16 @@ class StorageWorkPlan:
     rows: list[_WorkRow]
     requests: list[float]
     status: str = "pending"
+    suspended: frozenset = frozenset()
+
+
+def _repair_suspended(world) -> frozenset:
+    """RS2 seam: regions under an open granary repair project (empty unless
+    ``--repair-projects`` is active)."""
+    if getattr(getattr(world, "livelihoods", None), "repair_projects", None) is None:
+        return frozenset()
+    from chronicler.repair_projects import storage_suspended_regions
+    return storage_suspended_regions(world)
 
 
 def prepare_storage_work(world, food_demand: Sequence[float], *, acc=None, simulator=None,
@@ -148,6 +163,7 @@ def prepare_storage_work(world, food_demand: Sequence[float], *, acc=None, simul
     from chronicler.mutual_aid import _treasury_budget
     index = {c.name: i for i, c in enumerate(world.civilizations)}
     budgets = [max(0, math.floor(_treasury_budget(world, c, acc))) for c in world.civilizations]
+    suspended = _repair_suspended(world)
     rows = []
     for rid, (region, granary, policy) in enumerate(zip(
             world.regions, world.grain_reserves.granaries, state.policies, strict=True)):
@@ -169,6 +185,8 @@ def prepare_storage_work(world, food_demand: Sequence[float], *, acc=None, simul
             remaining = REPAIR_WORK - asset.repair_progress
         elif owner >= 0 and policy.policy == "expand":
             remaining = EXPANSION_WORK - asset.expansion_progress
+        if rid in suspended:
+            remaining = 0.0
         amount = 0.0
         if remaining > 0:
             amount = _f32_floor(min(policy.work_budget, remaining,
@@ -177,7 +195,7 @@ def prepare_storage_work(world, food_demand: Sequence[float], *, acc=None, simul
             budgets[owner] -= math.ceil(amount * COINS_PER_WORK)
         rows.append(_WorkRow(rid, owner, region.controller, asset, policy.policy,
                              amount, amount * TIMBER_PER_WORK))
-    plan = StorageWorkPlan(id(world), state, world.turn, rows, [r.request for r in rows])
+    plan = StorageWorkPlan(id(world), state, world.turn, rows, [r.request for r in rows], suspended=suspended)
     for row in rows:
         if row.held:
             goods = world.regions[row.region].stockpile.goods
@@ -209,6 +227,8 @@ def finish_storage_work(world, plan: StorageWorkPlan, delivered: Sequence[float]
     _check_plan(world, plan)
     if len(delivered) != len(plan.requests):
         raise ValueError("storage delivered work must match region count")
+    if plan.suspended:
+        delivered = [0.0 if rid in plan.suspended else x for rid, x in enumerate(delivered)]
     if any(not math.isfinite(x) or x < 0 or x > request
            for x, request in zip(delivered, plan.requests, strict=True)):
         raise ValueError("storage delivered work must be finite and within request")

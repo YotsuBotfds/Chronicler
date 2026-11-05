@@ -30,5 +30,14 @@ def test_candidate_projects_exact_reviewed_sources_and_rejects_mutations():
                             source.replace(patch["new"], patch["new"] + " ", 1)):
                 with pytest.raises(AssertionError):
                     before_crisis_candidate(changed, path)
+    # Files the candidate added are pinned whole. Later reviewed livelihoods layers
+    # (tests/fixtures/livelihoods_*_source_inverse.json, e.g. rs2 in grain_storage.py)
+    # are projected out first, exactly as for the edited files above; anything else
+    # still changes the digest.
+    from scripts.testing.livelihoods_sprint_witness import before_livelihoods_sprint
     for path, digest in witness["new_files"].items():
-        assert hashlib.sha256((ROOT / path).read_bytes()).hexdigest() == digest
+        source = (ROOT / path).read_bytes().decode("utf-8")
+        assert hashlib.sha256(before_livelihoods_sprint(source, path).encode("utf-8")).hexdigest() == digest
+        with pytest.raises(AssertionError):
+            changed = before_livelihoods_sprint(source + "\n# unrelated mutation\n", path)
+            assert hashlib.sha256(changed.encode("utf-8")).hexdigest() == digest

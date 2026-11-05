@@ -7,6 +7,8 @@ import { Workshops } from "../Workshops";
 import { record as commonsRecord } from "../../../lib/__tests__/commonsRulesFixture";
 import { payroll } from "../../../lib/__tests__/workshopFinanceFixture";
 import { localBudgetsRecord } from "../../../lib/__tests__/localBudgetsFixture";
+import { record as apprenticeshipRecord } from "../../../lib/__tests__/apprenticeshipFixture";
+import { record as clearingRecord, unprotected as clearingUnprotected } from "../../../lib/__tests__/clearingProtectionFixture";
 afterEach(cleanup);
 
 /** Constructed observations to test rendering; not a simulation run. */
@@ -93,6 +95,58 @@ it("mounts local budgets when the snapshot recorded them", () => {
   const p = props({ schema_version: 1, local_budgets: localBudgetsRecord() }, 31);
   render(<LivelihoodsPanel {...p} onSeek={vi.fn()} onSelectEvent={vi.fn()} onSelectCivilization={vi.fn()} />);
   expect(screen.getByRole("heading", { name: /Local budgets · snapshot 31/ })).toBeInTheDocument();
+});
+
+it("mounts clearing protection only when the snapshot recorded it", () => {
+  // The fixture's other rows name a fourth region; this bundle has three (the reader refuses those).
+  const rec = clearingRecord({ unprotected: [clearingUnprotected()],
+    decisions: [{ turn: 4, region_id: 1, civ: 1, kind: "adopted", reason: "clearing_pressure" }] });
+  const p = props({ schema_version: 1, clearing_protection: rec }, 5);
+  render(<LivelihoodsPanel {...p} onSeek={vi.fn()} onSelectEvent={vi.fn()} onSelectCivilization={vi.fn()} />);
+  expect(screen.getByRole("heading", { name: /Clearing protection · snapshot 5/ })).toBeInTheDocument();
+  expect(screen.queryByText(/names no package this viewer reads/)).not.toBeInTheDocument();
+});
+
+it("mounts apprenticeship and veterans only when the snapshot recorded them", () => {
+  // The apprenticeship fixture names regions 1 and 2 of this three-region bundle.
+  const p = props({ schema_version: 1, apprenticeship: apprenticeshipRecord }, 5);
+  render(<LivelihoodsPanel {...p} onSeek={vi.fn()} onSelectEvent={vi.fn()} onSelectCivilization={vi.fn()} />);
+  expect(screen.getByRole("heading", { name: /Workshop apprenticeship · snapshot 5/ })).toBeInTheDocument();
+  expect(screen.queryByRole("region", { name: "Veterans" })).not.toBeInTheDocument();
+  cleanup();
+  // An unreadable veterans record still mounts the panel, which says it is unavailable.
+  const q = props({ schema_version: 1, veteran_reintegration: { schema_version: 1, stage: "RS3" } }, 5);
+  render(<LivelihoodsPanel {...q} onSeek={vi.fn()} onSelectEvent={vi.fn()} onSelectCivilization={vi.fn()} />);
+  expect(screen.getByText(/Veteran reintegration is not observed or is unavailable at snapshot 5/)).toBeInTheDocument();
+  expect(screen.queryByText(/names no package this viewer reads/)).not.toBeInTheDocument();
+});
+
+it("mounts repair projects only when the snapshot recorded them", () => {
+  // A record of another stage is unreadable: the panel mounts and says so.
+  const p = props({ schema_version: 1, repair_projects: { schema_version: 1, stage: "RS0" } }, 5);
+  render(<LivelihoodsPanel {...p} onSeek={vi.fn()} onSelectEvent={vi.fn()} onSelectCivilization={vi.fn()} />);
+  expect(screen.getByText(/Repair projects are not observed or are unavailable at snapshot 5/)).toBeInTheDocument();
+  expect(screen.queryByText(/names no package this viewer reads/)).not.toBeInTheDocument();
+  cleanup();
+  render(<LivelihoodsPanel {...props({ schema_version: 1, workshops }, 5)} onSeek={vi.fn()} onSelectEvent={vi.fn()}
+    onSelectCivilization={vi.fn()} />);
+  expect(screen.queryByRole("region", { name: "Repair projects" })).not.toBeInTheDocument();
+});
+
+it("mounts remittances only when the snapshot recorded them, an unobserved frame as unknown", () => {
+  const unobserved = { schema_version: 1, stage: "RS4", mode: "send", source_turn: 4, funnel: null, totals: null,
+    regions: null, moves: null, moves_dropped: null, closures: null, closures_dropped: null, receipts: null,
+    receipts_dropped: null, unmet: null, unmet_dropped: null, last_pool_reset: null, counters: {},
+    parameters: { settled_turns: 5, share_permille: 100, reserve_milli: 2000, cap_milli: 1000, fee_permille: 150,
+      min_sentiment: 20, adult_age: 20, max_entries: 2048 } };
+  const p = props({ schema_version: 1, remittances: unobserved }, 5);
+  render(<LivelihoodsPanel {...p} onSeek={vi.fn()} onSelectEvent={vi.fn()} onSelectCivilization={vi.fn()} />);
+  expect(screen.getByRole("heading", { name: /Remittances and diaspora · snapshot 5/ })).toBeInTheDocument();
+  expect(screen.queryByText(/names no package this viewer reads/)).not.toBeInTheDocument();
+  cleanup();
+  render(<LivelihoodsPanel {...props({ schema_version: 1, workshops }, 5)} onSeek={vi.fn()} onSelectEvent={vi.fn()}
+    onSelectCivilization={vi.fn()} />);
+  expect(screen.queryByRole("heading", { name: /Remittances and diaspora/ })).not.toBeInTheDocument();
 });
 
 it("mounts workshop payroll beside its workshops when recorded", () => {

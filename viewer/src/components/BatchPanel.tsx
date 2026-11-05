@@ -1,7 +1,15 @@
 import { useState, useCallback } from "react";
-import type { BatchConfig, BatchReport } from "../types";
+import type { AgentMode, BatchConfig, BatchReport, FeatureSelection } from "../types";
 import type { BatchState } from "../hooks/useBatchConnection";
 import { BatchAnalytics } from "./BatchAnalytics";
+import { FeatureOptions } from "./FeatureOptions";
+import { featurePayload } from "../lib/featureCatalog";
+
+const AGENT_MODES: readonly AgentMode[] = ["off", "demographics-only", "shadow", "hybrid"];
+
+function asAgentMode(value: string | null): AgentMode | null {
+  return AGENT_MODES.find((mode) => mode === value) ?? null;
+}
 
 const TUNING_CATEGORIES: Record<string, { key: string; label: string; default: number }[]> = {
   "Stability Drains": [
@@ -47,6 +55,8 @@ interface BatchPanelProps {
   progress: { completed: number; total: number; currentSeed: number } | null;
   error: string | null;
   runDefaults?: Partial<BatchConfig>;
+  /** The lobby message's `feature_catalog` (absent from older servers). */
+  featureCatalog?: unknown;
   onStart: (config: BatchConfig) => void;
   onCancel: () => void;
   onReset: () => void;
@@ -58,6 +68,7 @@ export function BatchPanel({
   progress,
   error,
   runDefaults,
+  featureCatalog,
   onStart,
   onCancel,
   onReset,
@@ -69,6 +80,8 @@ export function BatchPanel({
   const [simulateOnly, setSimulateOnly] = useState(true);
   const [showTuning, setShowTuning] = useState(false);
   const [tuningValues, setTuningValues] = useState<Record<string, string>>({});
+  const [features, setFeatures] = useState<FeatureSelection>({});
+  const [agents, setAgents] = useState<AgentMode | null>(null);
 
   const handleStart = useCallback(() => {
     const overrides: Record<string, number> = {};
@@ -78,6 +91,8 @@ export function BatchPanel({
       }
     }
 
+    // Nothing selected: the same config as before feature options existed.
+    const requested = featurePayload(features);
     onStart({
       ...runDefaults,
       seed_start: seedStart,
@@ -87,8 +102,10 @@ export function BatchPanel({
       parallel: true,
       workers: workers > 0 ? workers : null,
       tuning_overrides: Object.keys(overrides).length > 0 ? overrides : null,
+      ...(agents !== null ? { agents } : {}),
+      ...(requested ? { features: requested } : {}),
     });
-  }, [runDefaults, seedStart, seedCount, turns, workers, simulateOnly, tuningValues, onStart]);
+  }, [runDefaults, seedStart, seedCount, turns, workers, simulateOnly, tuningValues, agents, features, onStart]);
 
   const setTuningValue = useCallback((key: string, value: string) => {
     setTuningValues((prev) => ({ ...prev, [key]: value }));
@@ -213,6 +230,16 @@ export function BatchPanel({
           </div>
         )}
       </div>
+
+      <FeatureOptions
+        catalog={featureCatalog}
+        surface="batch"
+        selection={features}
+        onSelectionChange={setFeatures}
+        agents={agents}
+        onAgentsChange={(next) => setAgents(asAgentMode(next))}
+        disabled={batchState === "running"}
+      />
 
       {/* Progress bar */}
       {batchState === "running" && progress && (

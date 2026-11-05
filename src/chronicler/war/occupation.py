@@ -41,7 +41,12 @@ def _requisition(region: "Region", factor: float, world=None) -> None:
     if world is not None and getattr(world, "grain_reserves", None) is not None:
         # --grain-reserves: the army takes the same share of the region's granary.
         from chronicler.grain_reserves import seize_granary
-        seize_granary(world, region, factor)
+        taken = seize_granary(world, region, factor)
+        if taken > 0 and getattr(world, "livelihoods", None) is not None:
+            # --repair-projects (RS2): a seizure that took grain damages the
+            # granary (no-op unless active; nothing taken is no seizure).
+            from chronicler.repair_projects import granary_seized
+            granary_seized(world, region, taken)
 
 
 def start_occupation(ctx: WarContext, region: "Region", occupier: "Civilization",

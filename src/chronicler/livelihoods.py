@@ -14,6 +14,20 @@ Independent switches share one persisted container,
 * ``--local-budgets`` (L9): one finite, bargained budget per ruler for relief,
   granary works and workshops.
 
+The recovery-skills phase appends five more (RS0 groundwork: registered with
+inert stub modules; their lanes add the mechanisms):
+
+* ``--apprenticeship`` (RS1): named mentors and apprentices at operating
+  workshop sites, and a workshop qualification by stable id;
+* ``--repair-projects`` (RS2): paid repair projects for workshops and
+  granaries;
+* ``--veteran-reintegration`` (RS3): veterans captured at real roster
+  releases, with priority access to work openings;
+* ``--remittances`` (RS4): a diaspora ledger and bounded remittances along
+  Marriage/Kin bonds;
+* ``--clearing-protection`` (RS5): controller-funded protection of forest
+  cover from clearing.
+
 This module owns only CLI forwarding, validation of prerequisites and the
 fan-out of phase hooks to each package's module ``chronicler.<switch>``.
 State, decisions and accounting belong to those modules. An omitted switch
@@ -33,7 +47,9 @@ economy_result)``, ``after_agent_tick(world, agent_bridge)``,
 tick raised: release what is still pending natively, charge nothing),
 ``phase10_before_reserves(world, acc, economy_result, agent_bridge)`` and
 ``phase10(world, acc, economy_result, agent_bridge)``; event-returning hooks
-return a list.
+return a list. ``before_ecology(world, acc, native=...)`` and ``after_ecology(world,
+acc)`` (event-returning) run immediately before the Phase 9 region sync and
+after the ecology tick, in every agent mode.
 """
 from __future__ import annotations
 
@@ -53,6 +69,11 @@ LIVELIHOODS_CHOICES: dict[str, tuple[str, ...]] = {
     "workshop_payroll_mode": ("paid", "unpaid_labor", "no_customer"),
     "relocation_mode": ("paid", "assisted", "liquidity_only"),
     "local_budget_mode": ("bargained", "fixed_shares"),
+    "apprenticeship_mode": ("train", "no_qualification"),
+    "repair_mode": ("repair", "cost_only"),
+    "veteran_mode": ("priority", "record_only"),
+    "remittance_mode": ("send", "record_only"),
+    "clearing_protection_mode": ("enforced", "cost_only"),
 }
 #: All parser destinations owned here (``batch_manifest.SIMULATION_ARG_KEYS``).
 LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
@@ -62,6 +83,11 @@ LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     "workshop_payroll", "workshop_payroll_mode",
     "relocation_costs", "relocation_mode",
     "local_budgets", "local_budget_mode",
+    "apprenticeship", "apprenticeship_mode",
+    "repair_projects", "repair_mode",
+    "veteran_reintegration", "veteran_mode",
+    "remittances", "remittance_mode",
+    "clearing_protection", "clearing_protection_mode",
 )
 _AGENT_ECONOMY = ("hybrid", "shadow", "demographics-only")
 
@@ -143,6 +169,56 @@ _HELP = {
         "with political response; fixed_shares: the control, the same budget split "
         "by fixed declared shares, no bargaining and no response"
     ),
+    "apprenticeship": (
+        "Apprenticeship and skill continuity (RS1): qualified crew members mentor named "
+        "apprentices at operating workshop sites; apprentices give up part of their ordinary "
+        "income (a stipend with --workshop-payroll) and on completion earn a workshop "
+        "qualification by stable id, kept for life; qualified people perform upkeep against "
+        "site wear; requires --workshops in operate mode (--agents hybrid) (default off)"
+    ),
+    "apprenticeship_mode": (
+        "train (default): completion grants the qualification; no_qualification: the "
+        "cost-retaining control (same wear, attendance and costs, no new qualifications)"
+    ),
+    "repair_projects": (
+        "Repair projects (RS2): paid projects rebuild workshop sites and granaries from their "
+        "real condition and war damage, with named workers, timber and the controller's coins; "
+        "they replace the L1 lump repair; requires --agents hybrid and --workshops or "
+        "--grain-storage (default off)"
+    ),
+    "repair_mode": (
+        "repair (default): delivered work restores condition; cost_only: the cost-retaining "
+        "control (reserves, pays and uses timber identically, condition unchanged)"
+    ),
+    "veteran_reintegration": (
+        "Veteran reintegration (RS3): soldiers released from real armies are recorded by stable "
+        "id and get priority, among otherwise eligible candidates, for workshop crew, "
+        "apprenticeship and repair openings; nothing is guaranteed or created; requires "
+        "--agents hybrid and one of --workshops, --apprenticeship or --repair-projects "
+        "(default off)"
+    ),
+    "veteran_mode": (
+        "priority (default): eligible veterans come first for openings; record_only: the "
+        "control that captures and tracks veterans without priority"
+    ),
+    "remittances": (
+        "Remittances (RS4): a diaspora ledger of applied migrations; settled migrants send a "
+        "bounded share of their wealth along Marriage/Kin bonds to the region they left, with "
+        "a courier fee and exactly-once receipts; requires --agents hybrid (default off)"
+    ),
+    "remittance_mode": (
+        "send (default); record_only: the control that keeps the ledger and sends nothing"
+    ),
+    "clearing_protection": (
+        "Funded clearing protection: a region's controller may protect up to two forested "
+        "regions under population-driven clearing, paying wardens from its treasury for each "
+        "turn the clearing is active; the paid share of the clearing is suspended at the "
+        "ecology's clearing decision (native and Python); works in every agent mode (default off)"
+    ),
+    "clearing_protection_mode": (
+        "enforced (default): the paid protection suspends clearing; cost_only: the control that "
+        "adopts and pays identically but leaves the clearing unchanged"
+    ),
 }
 
 
@@ -188,6 +264,25 @@ def _module(name: str):
     return import_module("chronicler." + name)
 
 
+def _on(world: Any, values: dict, name: str) -> bool:
+    """Requested on, or omitted with a saved enabled state."""
+    saved = getattr(livelihoods_state(world), name, None)
+    return values[name] is True or (values[name] is None and saved is not None and bool(saved.enabled))
+
+
+def _workshops_operate(world: Any, values: dict, args: Any) -> bool:
+    """``--workshops`` on in operate mode (explicit or saved), as L6a checks it."""
+    saved = getattr(livelihoods_state(world), "workshops", None)
+    mode = getattr(args, "workshop_mode", None) or (saved.mode if saved is not None else "operate")
+    return _on(world, values, "workshops") and mode == "operate"
+
+
+def _grain_storage_on(world: Any) -> bool:
+    """Grain storage assets enabled (``main`` applies ``--grain-storage`` first)."""
+    from chronicler.grain_reserves_state import grain_reserves_on
+    return grain_reserves_on(world) and getattr(world.grain_reserves, "storage", None) is not None
+
+
 def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = None) -> None:
     if values["workshops"] is True:
         if agent_mode != "hybrid":
@@ -229,6 +324,22 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
         from chronicler.grain_reserves_state import grain_reserves_on
         if agent_mode != "hybrid" or not grain_reserves_on(world):
             raise ValueError("--local-budgets requires --agents hybrid and --grain-reserves")
+    if values["apprenticeship"] is True:
+        if agent_mode != "hybrid" or not _workshops_operate(world, values, args):
+            raise ValueError("--apprenticeship requires --workshops in operate mode (--agents hybrid)")
+    if values["repair_projects"] is True:
+        # Workshops in any mode (only built sites have anything to repair:
+        # observe mode builds none) or grain storage.
+        if agent_mode != "hybrid" or not (_on(world, values, "workshops") or _grain_storage_on(world)):
+            raise ValueError("--repair-projects requires --agents hybrid and --workshops or --grain-storage")
+    if values["veteran_reintegration"] is True:
+        if agent_mode != "hybrid" or not any(_on(world, values, name) for name in
+                                             ("workshops", "apprenticeship", "repair_projects")):
+            raise ValueError("--veteran-reintegration requires --agents hybrid and one of --workshops, "
+                             "--apprenticeship or --repair-projects")
+    if values["remittances"] is True and agent_mode != "hybrid":
+        raise ValueError("--remittances requires --agents hybrid")
+    # --clearing-protection has no prerequisite (it works in every ecology path).
 
 
 def configure_livelihoods(world: Any, args: Any, *, agent_mode: str) -> None:
@@ -272,6 +383,11 @@ _CHOICE_FIELDS: dict[str, tuple[str, str]] = {
     "workshop_payroll_mode": ("workshop_payroll", "mode"),
     "relocation_mode": ("relocation_costs", "mode"),
     "local_budget_mode": ("local_budgets", "mode"),
+    "apprenticeship_mode": ("apprenticeship", "mode"),
+    "repair_mode": ("repair_projects", "mode"),
+    "veteran_mode": ("veteran_reintegration", "mode"),
+    "remittance_mode": ("remittances", "mode"),
+    "clearing_protection_mode": ("clearing_protection", "mode"),
 }
 
 
@@ -352,6 +468,33 @@ def bind_native_pool(world, agent_bridge, *, reset: bool = True) -> None:
             fn(world)
 
 
+def paid_work_receipt(world, sim) -> dict[int, tuple[float, float, float]] | None:
+    """This turn's native paid-work receipt, shared by every package.
+
+    The native wealth phase records one receipt for the turn's whole paid-work
+    install (``install_paid_work`` plus every ``extend_paid_work``), and it
+    can be taken from the simulator only once. The first package to ask after
+    the agent tick takes it; later callers get the same rows. Returns
+    ``{agent_id: (share, ordinary_income, deducted)}``, or None when nothing
+    was installed this turn. A receipt of another turn is an error.
+    """
+    state = livelihoods_state(world)
+    if state is None:
+        return None
+    cached = state._paid_receipt
+    if cached is not None and cached[0] == world.turn:
+        return cached[1]
+    got = sim.take_paid_work_receipt()
+    if got is None:
+        return None
+    if int(got[0]) != int(world.turn):
+        raise RuntimeError("paid work receipt belongs to another turn")
+    rows = {int(aid): (float(share), float(ordinary), float(deducted))
+            for aid, share, ordinary, deducted in got[1]}
+    state._paid_receipt = (world.turn, rows)
+    return rows
+
+
 def prepare_phase2(world, region_input, agent_bridge, snapshot, *, acc=None):
     """Before the native economy tick: may replace columns; charges nothing."""
     bind_native_pool(world, agent_bridge)
@@ -401,9 +544,30 @@ def wrap_agent_tick(world, agent_bridge, tick_agents, economy_result):
             raise
         for fn in after:
             events = list(events or []) + list(fn(world, agent_bridge) or [])
+        if after:
+            # The hooks may have moved native wealth (wages, fares, stipends,
+            # remittances): Phase 10 must not reuse the batch read in the tick.
+            discard = getattr(type(agent_bridge), "discard_post_tick_snapshot", None)
+            if discard is not None:
+                discard(agent_bridge)
         return events
 
     return _tick
+
+
+def before_ecology(world, *, acc=None, native: bool | None = None) -> None:
+    """Before the Phase 9 region sync and ecology tick: plans; charges nothing.
+    ``native``: whether the native ecology (not the Python fallback) runs it."""
+    for fn in _hooks(world, "before_ecology"):
+        fn(world, acc, native=native)
+
+
+def after_ecology(world, *, acc=None) -> list:
+    """After a successful Phase 9 ecology tick."""
+    events: list = []
+    for fn in _hooks(world, "after_ecology"):
+        events.extend(fn(world, acc) or [])
+    return events
 
 
 def phase10_before_reserves(world, *, acc=None, economy_result=None, agent_bridge=None) -> list:

@@ -821,11 +821,23 @@ def _tick_water(region: Region, civ, climate_phase: ClimatePhase, world: WorldSt
         region.ecology.water += bonus
 
 
-def _tick_forest(region: Region, civ, climate_phase: ClimatePhase, world: WorldState) -> None:
+def _tick_forest(region: Region, civ, climate_phase: ClimatePhase, world: WorldState,
+                 protection: float | None = None) -> tuple[bool, float]:
+    """Controlled forest step; returns (clearing fired, cover kept from it).
+
+    ``protection`` (RS5 ``--clearing-protection``, p in [0, 1]) is applied at
+    the clearing decision: ``forest_clearing x (1 - p)`` is removed (native
+    ``ecology::tick_forest_controlled_protected``). None is the flat loss."""
     forest_pop_ratio = get_override(world, K_FOREST_POP_RATIO, 0.5)
+    active, kept = False, 0.0
     if region.population > region.carrying_capacity * forest_pop_ratio:
         rate = get_override(world, K_FOREST_CLEARING, 0.02)
-        region.ecology.forest_cover -= rate
+        active = True
+        if protection is None:
+            region.ecology.forest_cover -= rate
+        else:
+            region.ecology.forest_cover -= rate * (1.0 - protection)
+            kept = rate * protection
 
     if climate_phase == ClimatePhase.COOLING:
         region.ecology.forest_cover -= (
@@ -838,6 +850,7 @@ def _tick_forest(region: Region, civ, climate_phase: ClimatePhase, world: WorldS
         rate = get_override(world, K_FOREST_REGROWTH, 0.01)
         rate *= _pressure_multiplier(region)
         region.ecology.forest_cover += rate
+    return active, kept
 
 
 def _apply_cross_effects(region: Region, world: "WorldState | None" = None) -> None:
@@ -1051,8 +1064,14 @@ def _tick_ecology_python(
     from chronicler.resources import get_season_id as _get_season_id_fn
     current_season_id = _get_season_id_fn(world.turn)
     m35b_events: list[Event] = []
+    # RS5 (--clearing-protection): this turn's protection column, if planned.
+    protection = None
+    if getattr(world, "livelihoods", None) is not None:
+        from chronicler.clearing_protection import pending_protection
+        protection = pending_protection(world)
+    clearing = [(False, 0.0)] * len(world.regions) if protection is not None else None
 
-    for region in world.regions:
+    for rid, region in enumerate(world.regions):
         if region.controller is None:
             continue
         civ = next((c for c in world.civilizations if c.name == region.controller), None)
@@ -1071,12 +1090,18 @@ def _tick_ecology_python(
 
         _tick_soil(region, civ, climate_phase, world, degradation_mult=soil_mult)
         _tick_water(region, civ, climate_phase, world)
-        _tick_forest(region, civ, climate_phase, world)
+        if clearing is None:
+            _tick_forest(region, civ, climate_phase, world)
+        else:
+            clearing[rid] = _tick_forest(region, civ, climate_phase, world, protection=protection[rid])
         _apply_cross_effects(region, world)
         clamp_ecology(region)
 
         if region.famine_cooldown > 0:
             region.famine_cooldown -= 1
+    if clearing is not None:
+        from chronicler.clearing_protection import record_clearing
+        record_clearing(world, clearing, "python")
 
     # Uncontrolled regions: natural recovery + climate effects only (no civ bonuses)
     for region in world.regions:
@@ -1221,6 +1246,10 @@ def _tick_ecology_rust(world: WorldState, climate_phase: ClimatePhase, acc,
     region_yields = _write_back_ecology(world, region_batch)
     if ledger is not None:
         ledger.observe_native(region_batch)
+    if getattr(world, "livelihoods", None) is not None:
+        # RS5 (--clearing-protection): the native clearing receipts.
+        from chronicler.clearing_protection import observe_native as _observe_clearing
+        _observe_clearing(world, region_batch)
 
     from chronicler.experimental.fisheries import apply_fishery_feedback, fishery_stock_events
     apply_fishery_feedback(world, region_yields, economy_result)

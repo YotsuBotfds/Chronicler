@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "layer": "rs6",
+  "parent": "52711f273f600a1dfeeb735fe4a07217410603e7",
+  "files": {
+    "src/chronicler/live.py": {
+      "sha256": "d914362ab44b276b0e4533d1ed5863ce5853ab73116429e83a4bae1ccfdce1dc",
+      "current_sha256": "e450ea39d03b80eb4a171736bae3069b8ef3d1bc156b5fb0029d42c6b31e3702",
+      "patches": [
+        {
+          "old": "            \"preset\": None,\n        }\n        self._session_client_config: dict[str, Any] = {}\n        # Batch state\n        self._batch_thread: threading.Thread | None = None\n        self._batch_cancel_event = threading.Event()\n",
+          "new": "            \"preset\": None,\n        }\n        self._session_client_config: dict[str, Any] = {}\n        # The command-line namespace a lobby ``start`` inherits (run_live sets\n        # it); its feature switches are the defaults ``features`` overrides.\n        self.feature_args: Any = None\n        # Batch state\n        self._batch_thread: threading.Thread | None = None\n        self._batch_cancel_event = threading.Event()\n"
+        },
+        {
+          "old": "        if preset is not None and preset not in _SUPPORTED_PRESETS:\n            return \"batch_start config 'preset' must be a supported preset name or null\"\n\n        return None\n\n    def _update_session_client_config(self, msg: dict) -> None:\n",
+          "new": "        if preset is not None and preset not in _SUPPORTED_PRESETS:\n            return \"batch_start config 'preset' must be a supported preset name or null\"\n\n        if config.get(\"features\") is not None:\n            # Optional feature switches (chronicler.feature_catalog), checked\n            # with their dependencies before any run starts.\n            from chronicler.feature_catalog import validate_batch_features\n            error = validate_batch_features(config, self._client_defaults)\n            if error is not None:\n                return f\"batch_start config 'features': {error}\"\n\n        return None\n\n    def _update_session_client_config(self, msg: dict) -> None:\n"
+        },
+        {
+          "old": "        resume_state = msg.get(\"resume_state\")\n        if resume_state is not None and not isinstance(resume_state, dict):\n            return {\"type\": \"error\", \"message\": \"Start field 'resume_state' must be an object or null\"}\n        self._start_params = msg\n        self._update_session_client_config(msg)\n        self._server_state = \"running\"\n        self.start_event.set()\n        return None\n\n    def _handle_batch_start(self, msg: dict) -> dict | None:\n        \"\"\"Handle a batch_start command. Runs batch in a background thread.\"\"\"\n",
+          "new": "        resume_state = msg.get(\"resume_state\")\n        if resume_state is not None and not isinstance(resume_state, dict):\n            return {\"type\": \"error\", \"message\": \"Start field 'resume_state' must be an object or null\"}\n        features = msg.get(\"features\")\n        if features is not None:\n            from chronicler.feature_catalog import live_surface, validate_features\n            error = validate_features(features, live_surface(self.feature_args))\n            if error is None and features and resume_state is not None:\n                error = \"applies to new worlds only, not with resume_state\"\n            if error is not None:\n                return {\"type\": \"error\", \"message\": f\"Start field 'features': {error}\"}\n        self._start_params = msg\n        self._update_session_client_config(msg)\n        self._server_state = \"running\"\n        self.start_event.set()\n        return None\n\n    def reopen_lobby(self, message: str) -> None:\n        \"\"\"Return to the lobby after a start the run refused (an ``error``\n        for the viewer, which goes back to its setup), ready for another.\"\"\"\n        self.start_event.clear()\n        self._start_params = None\n        self._server_state = \"lobby\"\n        self.status_queue.put({\"type\": \"error\", \"message\": message})\n\n    def _handle_batch_start(self, msg: dict) -> dict | None:\n        \"\"\"Handle a batch_start command. Runs batch in a background thread.\"\"\"\n"
+        },
+        {
+          "old": "            from chronicler.expansion_features import EXPANSION_SWITCHES, EXPANSION_PREREQUISITES\n            for name in (*EXPANSION_PREREQUISITES, *EXPANSION_SWITCHES):\n                setattr(args, name, config.get(name, self._client_defaults.get(name)))\n\n            try:\n                workers = config.get(\"workers\")\n",
+          "new": "            from chronicler.expansion_features import EXPANSION_SWITCHES, EXPANSION_PREREQUISITES\n            for name in (*EXPANSION_PREREQUISITES, *EXPANSION_SWITCHES):\n                setattr(args, name, config.get(name, self._client_defaults.get(name)))\n            # Requested feature switches, as the CLI parser sets them\n            # (validated in _validate_batch_config; recorded by the manifest).\n            from chronicler.feature_catalog import apply_features\n            apply_features(args, config.get(\"features\"))\n\n            try:\n                workers = config.get(\"workers\")\n"
+        },
+        {
+          "old": "    Reads scenario data directly from YAML — no world generation.\n    \"\"\"\n    import yaml\n\n    if scenario_dir is None:\n        scenario_dir = Path(\"scenarios\")\n",
+          "new": "    Reads scenario data directly from YAML — no world generation.\n    \"\"\"\n    import yaml\n    from chronicler.feature_catalog import lobby_feature_catalog\n\n    if scenario_dir is None:\n        scenario_dir = Path(\"scenarios\")\n"
+        },
+        {
+          "old": "            \"regions\": 8,\n            \"seed\": None,\n        },\n    }\n\n\n",
+          "new": "            \"regions\": 8,\n            \"seed\": None,\n        },\n        # The feature options a start or batch may request (chronicler.feature_catalog).\n        \"feature_catalog\": lobby_feature_catalog(args),\n    }\n\n\n"
+        },
+        {
+          "old": "        _epi = getattr(args, \"epidemiology\", None)\n        set_epidemiology_enabled(\n            world, (_EPI_DEFAULT if _epi is None else bool(_epi)) and _ledger_on(world))\n    from chronicler.expansion_features import configure_expansion_features\n    configure_expansion_features(world, args, agent_mode=getattr(args, \"agents\", \"off\"))\n    return world, scenario_config\n\n\ndef _live_clients(args: Any, server: \"LiveServer\") -> tuple[Any, Any, dict[str, Any]]:\n",
+          "new": "        _epi = getattr(args, \"epidemiology\", None)\n        set_epidemiology_enabled(\n            world, (_EPI_DEFAULT if _epi is None else bool(_epi)) and _ledger_on(world))\n    _apply_live_prerequisites(world, args, getattr(args, \"agents\", \"off\"))\n    from chronicler.expansion_features import configure_expansion_features\n    configure_expansion_features(world, args, agent_mode=getattr(args, \"agents\", \"off\"))\n    return world, scenario_config\n\n\ndef _apply_live_prerequisites(world: WorldState, args: Any, agent_mode: str) -> None:\n    \"\"\"The explicit prerequisites that ``main._configure_run`` applies\n    (academy services, grain storage, public grain shipments), applied before\n    the expansion switches so a live world can enable the switches that need\n    them (--learning-cohorts, --grain-convoys). ``execute_run`` applies the\n    same values again; each setter keeps an already applied state.\"\"\"\n    services = getattr(args, \"academy_services\", None)\n    if services is True and (agent_mode != \"hybrid\" or world.scholarship is None or world.techniques is None):\n        raise ValueError(\"academy services require --agents hybrid, --scholarship and --techniques\")\n    if services is not None:\n        from chronicler.learning_services import set_learning_services_enabled\n        set_learning_services_enabled(world, services)\n    if getattr(args, \"grain_storage\", None) is True:\n        if agent_mode != \"hybrid\":\n            raise ValueError(\"grain storage currently requires --agents hybrid and --grain-reserves\")\n        from chronicler.grain_storage import enable_storage\n        enable_storage(world)\n    shipments = getattr(args, \"public_grain_shipments\", None)\n    if shipments is not None:\n        from chronicler.public_grain_shipments import set_public_grain_shipments_enabled\n        set_public_grain_shipments_enabled(world, shipments, agent_mode=agent_mode)\n\n\ndef _live_clients(args: Any, server: \"LiveServer\") -> tuple[Any, Any, dict[str, Any]]:\n"
+        },
+        {
+          "old": "    from chronicler.expansion_features import EXPANSION_SWITCHES, EXPANSION_PREREQUISITES\n    for name in (*EXPANSION_PREREQUISITES, *EXPANSION_SWITCHES):\n        server._client_defaults[name] = getattr(args, name, None)\n    output_dir = Path(args.output).parent\n    view = LiveView()\n    state = exact_resume.state if exact_resume is not None else None\n",
+          "new": "    from chronicler.expansion_features import EXPANSION_SWITCHES, EXPANSION_PREREQUISITES\n    for name in (*EXPANSION_PREREQUISITES, *EXPANSION_SWITCHES):\n        server._client_defaults[name] = getattr(args, name, None)\n    server.feature_args = args\n    output_dir = Path(args.output).parent\n    view = LiveView()\n    state = exact_resume.state if exact_resume is not None else None\n"
+        },
+        {
+          "old": "            print(f\"Also accepting viewers served from: {', '.join(extra)}\")\n        print(\"Waiting for client to launch simulation...\", flush=True)\n\n        # Block until client sends start (interruptible via Ctrl+C)\n        while not server.start_event.wait(timeout=1.0):\n            pass\n\n        params = server._start_params\n        if params is None:\n            raise RuntimeError(\"start_event set but no _start_params\")\n\n        # --- Phase 2: Simulation ---\n        pause_every = getattr(args, \"pause_every\", None) or getattr(args, \"reflection_interval\", 10) or 10\n        total_turns = params.get(\"turns\") or args.turns or 50\n        server.checkpoints = LiveCheckpoints(output_dir, server.status_queue, view,\n                                             lambda: server.speed, pause_every)\n        world, scenario_config = _live_world(args, params)\n        _record_live_world_args(args, params)\n        sim_client, narrative_client, client_config = _live_clients(args, server)\n    else:\n",
+          "new": "            print(f\"Also accepting viewers served from: {', '.join(extra)}\")\n        print(\"Waiting for client to launch simulation...\", flush=True)\n\n        while True:\n            # Block until client sends start (interruptible via Ctrl+C)\n            while not server.start_event.wait(timeout=1.0):\n                pass\n\n            params = server._start_params\n            if params is None:\n                raise RuntimeError(\"start_event set but no _start_params\")\n\n            # --- Phase 2: Simulation ---\n            # Requested feature switches (validated by _handle_start) are set\n            # on the namespace exactly as the CLI parser sets them.\n            from chronicler.feature_catalog import apply_features\n            features = params.get(\"features\") or {}\n            previous = apply_features(args, features)\n            pause_every = getattr(args, \"pause_every\", None) or getattr(args, \"reflection_interval\", 10) or 10\n            total_turns = params.get(\"turns\") or args.turns or 50\n            server.checkpoints = LiveCheckpoints(output_dir, server.status_queue, view,\n                                                 lambda: server.speed, pause_every)\n            try:\n                world, scenario_config = _live_world(args, params)\n            except ValueError as exc:\n                if not features:\n                    raise\n                # The run refused the requested switches: nothing has started.\n                apply_features(args, previous)\n                server.reopen_lobby(f\"Start field 'features': {exc}\")\n                continue\n            break\n        _record_live_world_args(args, params)\n        sim_client, narrative_client, client_config = _live_clients(args, server)\n    else:\n"
+        }
+      ]
+    },
+    "viewer/src/types.ts": {
+      "sha256": "4a5edf8e6f3f6cf990a27e79a94aba6ebe53141072e2c9bc34cedb02c1e48ab6",
+      "current_sha256": "54972d26124edad02ac4a40ac8e8125d9b322a60411869dcab59f5e93b66a968",
+      "patches": [
+        {
+          "old": "    regions: number;\n    seed: number | null;\n  };\n}\n\nexport interface StartCommand {\n  type: \"start\";\n",
+          "new": "    regions: number;\n    seed: number | null;\n  };\n  /** The server's feature options, unread (lib/featureCatalog reads it); absent from older servers. */\n  feature_catalog?: unknown;\n}\n\n/** Requested feature switches by parser destination: a boolean or one of its choices. */\nexport type FeatureSelection = Record<string, boolean | string>;\n\nexport interface StartCommand {\n  type: \"start\";\n"
+        },
+        {
+          "old": "  narrative_model: string;\n  narrator: NarratorMode;\n  resume_state: WorldState | null;\n}\n\n// --- M20a: Narration Pipeline v2 types ---\n",
+          "new": "  narrative_model: string;\n  narrator: NarratorMode;\n  resume_state: WorldState | null;\n  /** Feature switches for the new world (omitted when none is selected). */\n  features?: FeatureSelection;\n}\n\n// --- M20a: Narration Pipeline v2 types ---\n"
+        },
+        {
+          "old": "  narrator?: NarratorMode;\n  agents?: AgentMode;\n  preset?: string | null;\n}\n\nexport interface BatchReport {\n",
+          "new": "  narrator?: NarratorMode;\n  agents?: AgentMode;\n  preset?: string | null;\n  /** Feature switches for every run (omitted when none is selected). */\n  features?: FeatureSelection;\n}\n\nexport interface BatchReport {\n"
+        }
+      ]
+    },
+    "viewer/src/hooks/useLiveConnection.ts": {
+      "sha256": "dfb158ff8471e79eb86f8b5d58fdd6e1be8575b2d4e18b9355dc47756c0c324c",
+      "current_sha256": "98bd3d69cca43c23eed8bed76a28004bbcff228fb145870107cafd47159ad24c",
+      "patches": [
+        {
+          "old": "                scenarios: msg.scenarios,\n                models: msg.models,\n                defaults: msg.defaults,\n              });\n            } else if (msg.state === \"starting\") {\n              setServerState(\"starting\");\n",
+          "new": "                scenarios: msg.scenarios,\n                models: msg.models,\n                defaults: msg.defaults,\n                feature_catalog: msg.feature_catalog,\n              });\n            } else if (msg.state === \"starting\") {\n              setServerState(\"starting\");\n"
+        }
+      ]
+    }
+  }
+}

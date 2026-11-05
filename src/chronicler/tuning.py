@@ -335,6 +335,7 @@ KNOWN_OVERRIDES: set[str] = {
     "livelihoods.budgets.envelope_share", "livelihoods.budgets.floor", "livelihoods.budgets.horizon",
     "livelihoods.budgets.broken_grievance", "livelihoods.budgets.kept_grievance",
     "livelihoods.budgets.response_cap",
+    "repair_projects.war_damage",
     # Politics
     K_SECESSION_STABILITY_THRESHOLD, K_SECESSION_SURVEILLANCE_THRESHOLD,
     K_PROXY_WAR_SECESSION_BONUS, K_BALANCE_OF_POWER_DOMINANCE,

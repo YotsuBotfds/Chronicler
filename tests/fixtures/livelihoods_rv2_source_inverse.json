@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "layer": "rv2",
+  "parent": "84ac1795cbcefba370020ba243ec88a2843c658c",
+  "files": {
+    "src/chronicler/simulation.py": {
+      "sha256": "ef2d0073c334daf0715ca3aa9f1b3fbfff841f9e84bd8d2a3ef0e3a19c635da9",
+      "current_sha256": "26abf095d48e9d1ec877eadcb974a64789df95591c5d5ff7baa9ae17e7b89726",
+      "patches": [
+        {
+          "old": "    if getattr(world, \"livelihoods\", None) is not None:\n        # Livelihoods: plans against this turn's ecology (clearing protection).\n        from chronicler.livelihoods import before_ecology as _livelihoods_before_ecology\n        _livelihoods_before_ecology(world, acc=acc)\n\n    # Determine the ecology runtime for this turn.\n    # In agent modes, use the AgentSimulator via the split bridge.\n",
+          "new": "    if getattr(world, \"livelihoods\", None) is not None:\n        # Livelihoods: plans against this turn's ecology (clearing protection).\n        from chronicler.livelihoods import before_ecology as _livelihoods_before_ecology\n        _livelihoods_before_ecology(world, acc=acc,\n                                    native=agent_bridge is not None or ecology_runtime is not None)\n\n    # Determine the ecology runtime for this turn.\n    # In agent modes, use the AgentSimulator via the split bridge.\n"
+        }
+      ]
+    }
+  }
+}

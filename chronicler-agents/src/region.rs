@@ -173,6 +173,15 @@ pub struct RegionState {
     /// cap. 0 when the batch carries no `creditor_grievance` column (the
     /// switch off).
     pub creditor_grievance: f32,
+    /// Clearing protection (`--clearing-protection`, RS5): the share p in
+    /// [0, 1] of this turn's population-driven forest clearing that a funded
+    /// protection suspends (`ecology::tick_forest_controlled` removes
+    /// `forest_clearing x (1 - p)`). `None` when the batch carries no
+    /// `clearing_protection` column (the switch off): the clearing is the
+    /// unchanged flat loss. A transient input: every `set_region_state`
+    /// resets it from the batch, the ecology tick consumes (takes) it, and it
+    /// is never checkpointed.
+    pub clearing_protection: Option<f32>,
 }
 
 /// Decode a legacy u32 bitmask into the ascending id list it denotes.
@@ -320,6 +329,7 @@ impl RegionState {
             harsh_rule: 0.0,
             raided_this_turn: false,
             creditor_grievance: 0.0,
+            clearing_protection: None,
         }
     }
 }
@@ -507,4 +517,8 @@ crate::persist_struct!(RegionState {
     stockpile, climate_exposure, harvest_shock, city_pull, seat_pull, seat_flight,
     movement_news, movement_news_intensity, market_demand, market_supply, craft_sufficiency,
     food_severe_turns, harsh_rule, raided_this_turn, creditor_grievance,
+} transient {
+    // RS5: a per-batch input consumed by the ecology tick (absent from the
+    // payload and the schema fingerprint).
+    clearing_protection,
 });

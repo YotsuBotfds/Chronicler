@@ -826,6 +826,10 @@ class ReserveLedger:
         self.surplus: list[float] | None = None
         self.treasury: list[int] | None = None
         self.sufficiency: dict[int, tuple[float, float, float]] = {}
+        # The storage spoilage rate each granary spoiled at (``after_open``,
+        # right after spoilage): a granary's condition may change later in the
+        # turn (RS2 war damage at a Phase 5 seizure, conquest or sack).
+        self.spoil_rates: dict[int, float] = {}
 
     @staticmethod
     def begin(world, state, agent_bridge=None) -> "ReserveLedger | None":
@@ -854,6 +858,10 @@ class ReserveLedger:
         self.market.setdefault(rid, region.stockpile.goods.get(GRAIN, 0.0))
 
     def after_open(self, world, state, economy_result) -> None:
+        if getattr(state, "storage", None) is not None:
+            from chronicler.grain_storage import storage_spoilage
+            rate = _spoilage()
+            self.spoil_rates = {rid: storage_spoilage(world, rid, rate) for rid in range(len(state.granaries))}
         flows = [f for f in state.flows]
         abandoned: dict[int, float] = {}
         for f in flows:
@@ -946,7 +954,9 @@ class ReserveLedger:
                 row["spoiled"] += f.amount
                 if getattr(state, "storage", None) is not None:
                     from chronicler.grain_storage import storage_spoilage
-                    rate = storage_spoilage(world, f.region, _spoilage())
+                    rate = self.spoil_rates.get(f.region)
+                    if rate is None:
+                        rate = storage_spoilage(world, f.region, _spoilage())
                 if (abs(f.before * rate - f.amount) > _TOL * max(1.0, f.before)
                         and not (f.amount == f.before and f.before * (1.0 - rate) < DUST)):
                     self.problems.append(f"granary {f.region}: spoiled {f.amount} of {f.before}")

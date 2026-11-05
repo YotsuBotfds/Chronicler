@@ -340,6 +340,16 @@ def apply_casualties(ctx: WarContext, army: "Army", count: int, *, cause: str) -
     return count
 
 
+def note_released(world, army: "Army", entries, cause: str, *, bridge=None, commit: bool = False) -> None:
+    """RS3 (``--veteran-reintegration``, default off): report the living
+    roster entries ``entries`` leaving ``army`` alive. A no-op without the
+    livelihoods container, and inside :mod:`chronicler.veteran_reintegration`
+    unless that switch is active; it never changes the army or draws RNG."""
+    if entries and getattr(world, "livelihoods", None) is not None:
+        from chronicler.veteran_reintegration import capture_release
+        capture_release(world, army, entries, cause, bridge=bridge, commit=commit)
+
+
 def release_soldiers(ctx: WarContext, army: "Army", count: int, *, cause: str = "desertion") -> int:
     """Soldiers leave the army alive (desertion or demobilization)."""
     count = max(0, min(int(count), army.soldiers))
@@ -351,6 +361,7 @@ def release_soldiers(ctx: WarContext, army: "Army", count: int, *, cause: str = 
         leaving = set(pool if count >= len(pool) else rng.sample(pool, count))
         army.roster = [entry for entry in army.roster if entry not in leaving]
         count = len(leaving)
+        note_released(ctx.world, army, leaving, cause, bridge=ctx.bridge)
     army.soldiers -= count
     if cause == "desertion":
         army.deserted += count
@@ -362,6 +373,12 @@ def disband(ctx: WarContext, army: "Army", reason: str) -> None:
     state = ctx.world.war_state
     if army in state.armies:
         state.armies.remove(army)
+    if army.roster:
+        # Whoever is still enlisted leaves alive (a destroyed army's survivors
+        # were already released as scattered).
+        note_released(ctx.world, army, army.roster,
+                      {"demobilized": "demobilised", "destroyed": "destroyed"}.get(reason, "dissolved"),
+                      bridge=ctx.bridge)
     army.roster = []
     if reason == "destroyed":
         emit(ctx, "army_destroyed", [army.civ], f"{army.name} is destroyed at {army.region}.",

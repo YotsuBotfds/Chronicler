@@ -1,0 +1,264 @@
+"""RS0 recovery-skills groundwork on the real compiled extension.
+
+The appended registry categories and transfer purposes, ``extend_paid_work``
+merged into an L6a-style install and consumed by the real wealth phase, the
+crew planner's keyword-only ``priority_ids`` (direct and through the
+``workshops`` seam) and the inertness of the five stub switches in a real
+hybrid run.
+"""
+from __future__ import annotations
+
+import importlib
+
+import pytest
+
+pytest.importorskip("chronicler_agents")
+pytestmark = pytest.mark.native
+
+RS_FLAGS = ["--apprenticeship", "--repair-projects", "--veteran-reintegration", "--remittances",
+            "--clearing-protection"]
+
+
+def test_the_extension_is_the_compiled_build_with_the_rs0_methods():
+    compiled = importlib.import_module("chronicler_agents.chronicler_agents")
+    assert compiled.__file__.endswith((".so", ".pyd"))
+    from chronicler_agents import AgentSimulator
+    assert isinstance(AgentSimulator, type)
+    for name in ("extend_paid_work", "install_paid_work", "plan_workshop_crews", "reserve_work"):
+        assert callable(getattr(AgentSimulator, name)), name
+    assert AgentSimulator.wealth_transfer_purposes() == [
+        "workshop_wage", "relocation_fare", "apprentice_stipend", "repair_wage", "remittance"]
+
+
+@pytest.fixture
+def live():
+    from chronicler.action_engine import ActionEngine
+    from chronicler.agent_bridge import AgentBridge
+    from chronicler.simulation import run_turn
+    from chronicler.world_gen import generate_world
+    world = generate_world(seed=42, num_regions=8, num_civs=4)
+    world.agent_mode = "hybrid"
+    bridge = AgentBridge(world, mode="hybrid")
+    engine = ActionEngine(world)
+
+    def turn():
+        run_turn(world, lambda c, w: engine.select_action(c, seed=w.seed), lambda w, e: "",
+                 seed=world.seed, agent_bridge=bridge)
+
+    turn()
+    return world, bridge, turn
+
+
+def _ids(sim):
+    return sim.get_snapshot().column("id").to_pylist()
+
+
+def test_appended_categories_share_the_registry_and_purposes_transfer(live):
+    world, bridge, _ = live
+    sim = bridge._sim
+    a, b, c = _ids(sim)[:3]
+    t = world.turn
+    sim.reserve_work(t, 2, [(a, 0.25)])            # apprentice
+    sim.reserve_work(t, 3, [(b, 0.5)])             # repair
+    assert sorted(sim.work_reservations(t)) == sorted([(a, 2, 0.25), (b, 3, 0.5)])
+    for category in (0, 1, 2, 3):
+        with pytest.raises(ValueError, match="already holds work"):
+            sim.reserve_work(t, category, [(a, 0.1)])
+    with pytest.raises(ValueError, match="category"):
+        sim.reserve_work(t, 4, [(c, 0.1)])
+    assert sim.work_reservation_conflicts(t) == []
+    for purpose in (2, 3, 4):
+        out = sim.transfer_wealth(t, purpose, 0, [(c, 10)])
+        assert out[0][2] == 10 and out[0][4] == 0
+    with pytest.raises(ValueError, match="purpose"):
+        sim.transfer_wealth(t, 5, 0, [(c, 10)])
+
+
+def test_extend_paid_work_merges_refuses_and_is_consumed_once_by_the_tick(live):
+    world, bridge, turn = live
+    sim = bridge._sim
+    a, b, c, d = _ids(sim)[:4]
+    t = world.turn
+    sim.reserve_work(t, 0, [(a, 0.3)])
+    sim.reserve_work(t, 2, [(b, 0.25)])
+    sim.reserve_work(t, 3, [(c, 0.5)])
+    sim.install_paid_work(t, [(a, 0.3)])            # the L6a install comes first
+    for rows, match in (([(b, 0.0)], "share"), ([(b, 0.2), (b, 0.1)], "duplicate"),
+                        ([(4_000_000_000, 0.1)], "living"), ([(a, 0.1)], "already has"),
+                        ([(b, 0.3)], "reservation"), ([(d, 0.1)], "reservation")):
+        with pytest.raises(ValueError, match=match):
+            sim.extend_paid_work(t, rows)
+    with pytest.raises(ValueError, match="another turn"):
+        sim.extend_paid_work(t + 1, [(b, 0.25)])
+    sim.extend_paid_work(t, [(b, 0.25)])
+    sim.extend_paid_work(t, [(c, 0.4)])
+    with pytest.raises(ValueError, match="already has"):
+        sim.extend_paid_work(t, [(c, 0.1)])
+    with pytest.raises(ValueError, match="pending"):
+        sim.install_paid_work(t, [(d, 0.1)])        # install keeps refusing a pending share
+    turn()
+    got = sim.take_paid_work_receipt()
+    assert got is not None and got[0] == t
+    rows = {aid: (share, ordinary, deducted) for aid, share, ordinary, deducted in got[1]}
+    assert set(rows) <= {a, b, c}
+    expected = {a: 0.3, b: 0.25, c: 0.4}
+    for aid, (share, ordinary, deducted) in rows.items():
+        assert share == pytest.approx(expected[aid])
+        assert deducted == pytest.approx(share * ordinary, rel=1e-6)
+    assert sim.take_paid_work_receipt() is None
+    assert sim.work_reservations(t) == []           # the tick cleared the registry
+    # Nothing pending now: an extension arms a fresh install for the next turn.
+    t = world.turn
+    sim.reserve_work(t, 3, [(d, 0.5)])
+    sim.extend_paid_work(t, [(d, 0.5)])
+    with pytest.raises(ValueError, match="pending"):
+        sim.install_paid_work(t, [(d, 0.5)])
+    assert sim.cancel_paid_work() is True and sim.cancel_paid_work() is False
+
+
+def _run(tmp_path, *extra, seed=7, turns=40):
+    from chronicler.bundle_codec import load_bundle
+    from chronicler.main import _build_parser, execute_run
+    args = _build_parser().parse_args([
+        "--seed", str(seed), "--turns", str(turns), "--civs", "4", "--regions", "8",
+        "--agents", "hybrid", "--simulate-only",
+        "--output", str(tmp_path / "chronicle.md"), "--state", str(tmp_path / "state.json"), *extra])
+    execute_run(args)
+    return load_bundle(tmp_path / "chronicle_bundle.json")
+
+
+def test_priority_ids_reach_the_native_planner_through_the_workshop_seam(tmp_path, monkeypatch):
+    """Veteran priority lists (here: each site's default crew, reversed, after
+    an unknown id) come first in the listed order; the keyword is accepted
+    only by name and duplicates are refused."""
+    from chronicler import veteran_reintegration as VR
+    from chronicler import workshops as W
+    held = {"sim": None}
+    expected: dict[int, list[int]] = {}
+    seen = {"sites": 0, "reordered": 0}
+    prepare, finish = W.prepare_phase2, W.finish_phase2
+
+    def checked_prepare(world, region_input, agent_bridge, snapshot, acc):
+        held["sim"] = agent_bridge._sim
+        expected.clear()
+        return prepare(world, region_input, agent_bridge, snapshot, acc)
+
+    def priority(world, region):
+        sim = held["sim"]
+        site = next(s for s in world.livelihoods.workshops.sites if s.region == region)
+        request = [(site.site, site.region, site.settlement_id, 0.2, 8)]
+        base = list(sim.plan_workshop_crews(request, W._enlisted(world))[0][8])   # read-only (no turn)
+        listed = list(reversed(base))
+        if base:
+            assert list(sim.plan_workshop_crews(request, W._enlisted(world), priority_ids=listed)[0][8]) == listed
+            with pytest.raises(TypeError):
+                sim.plan_workshop_crews(request, W._enlisted(world), None, listed)
+            with pytest.raises(ValueError, match="duplicate"):
+                sim.plan_workshop_crews(request, W._enlisted(world), priority_ids=[base[0], base[0]])
+        expected[region] = listed
+        return [4_000_000_000, *listed]
+
+    def checked_finish(world, economy_result, agent_bridge, acc):
+        for site_plan in world.livelihoods.workshops._plan.sites:
+            row = site_plan.row
+            assert row["crew"] == expected[row["region"]]
+            seen["sites"] += 1
+            seen["reordered"] += len(row["crew"]) >= 2
+        return finish(world, economy_result, agent_bridge, acc)
+
+    monkeypatch.setattr(W, "prepare_phase2", checked_prepare)
+    monkeypatch.setattr(W, "finish_phase2", checked_finish)
+    monkeypatch.setattr(VR, "priority_ids", priority)
+    _run(tmp_path, "--workshops", "--workshop-mode", "observe", "--veteran-reintegration", turns=30)
+    assert seen["sites"] > 0 and seen["reordered"] > 0
+
+
+#: The stage each recovery-skills package writes once its lane replaced the RS0 stub.
+STAGES = {"apprenticeship": "RS1", "repair_projects": "RS2", "veteran_reintegration": "RS3",
+          "remittances": "RS4"}
+
+
+def test_every_recovery_skills_switch_has_replaced_its_rs0_stub(tmp_path):
+    """Every RS lane has landed, so the RS0 stub-identity test (which compared
+    still-inert switches against a plain run) has nothing left to compare; it
+    is replaced by this check that no switch writes an RS0 stub record on the
+    real extension (each package's own native suite covers its identity)."""
+    bundle = _run(tmp_path, "--workshops", *RS_FLAGS, turns=3)
+    for snapshot in bundle["history"]:
+        livelihoods = snapshot["livelihoods"]
+        for name in (*STAGES, "clearing_protection"):
+            assert livelihoods[name].get("stage") != "RS0", name
+        assert {name: livelihoods[name]["stage"] for name in STAGES} == STAGES
+        assert livelihoods["clearing_protection"]["schema_version"] == 1
+
+
+#: Every recovery-skills switch with the sprint-2 stack and the prerequisites it needs.
+ALL_SWITCHES = ["--scholarship", "--techniques", "--academy-services", "--grain-reserves", "--grain-storage",
+                "--public-grain-shipments", "--workshops", "--workshop-payroll", "--learning-cohorts",
+                "--food-allocation", "--timber-stock", "--commons-rules", "--grain-convoys", "--local-budgets",
+                "--relocation-costs", *RS_FLAGS]
+
+
+def test_an_all_switch_state_fork_closes_every_saved_id_bound_record(tmp_path):
+    """A live Fork saves a state file; ``--fork`` (handled by the CLI's main)
+    rebuilds the native pool under reused ids, so every package's saved
+    id-bound records close, dated, at the fork (``livelihoods.bind_native_pool``
+    -> ``on_pool_reset``)."""
+    import json
+    import os
+    import subprocess
+    import sys
+    from chronicler.bundle_codec import load_bundle
+    env = dict(os.environ, PYTHONHASHSEED="0", RAYON_NUM_THREADS="1", CHRONICLER_QUIET="1")
+
+    def cli(*argv):
+        p = subprocess.run([sys.executable, "-m", "chronicler.main", *argv, "--agents", "hybrid", "--simulate-only",
+                            *ALL_SWITCHES], env=env, capture_output=True, text=True, timeout=900)
+        assert p.returncode == 0, p.stderr[-2000:]
+
+    saved = tmp_path / "a" / "state.json"
+    cli("--seed", "9", "--turns", "40", "--output", str(tmp_path / "a" / "chronicle.md"), "--state", str(saved))
+    before = json.loads(saved.read_text())["livelihoods"]
+    entries = len(before["remittances"]["entries"])
+    open_veterans = [r for r in before["veteran_reintegration"]["records"] if r.get("status") != "closed"]
+    held = [q for q in before["apprenticeship"]["qualifications"] if q.get("status") == "held"]
+    assert entries > 0, "this world was expected to hold diaspora entries at turn 40"
+    cli("--fork", str(saved), "--seed", "21", "--turns", "4", "--output", str(tmp_path / "b" / "chronicle.md"),
+        "--state", str(tmp_path / "b" / "state.json"))
+    first = load_bundle(tmp_path / "b" / "chronicle_bundle.json")["history"][0]["livelihoods"]
+    rem = first["remittances"]
+    assert rem["last_pool_reset"]["turn"] == 40 and rem["last_pool_reset"]["entries_closed"] == entries
+    assert rem["counters"]["pool_resets"] == 1
+    if open_veterans:
+        assert first["veteran_reintegration"]["counters"].get("closed_pool_reset", 0) == len(open_veterans)
+    if held:
+        assert first["apprenticeship"]["counters"].get("retired_pool_reset", 0) == len(held)
+
+
+def test_phase10_reads_the_pool_after_the_livelihoods_after_hooks_moved_wealth(tmp_path, monkeypatch):
+    """Review B 2026-11-05 (major): the bridge held the batch it read inside the
+    agent tick and handed it to Phase 10, but the after-tick hooks then move
+    native wealth (L7 fares, RS4 remittances; L6a wages and RS1 stipends too),
+    so governance read stale wealth. The hooks now drop the held batch."""
+    import pyarrow as pa
+    import chronicler.simulation as S
+    capture = S._capture_agent_snapshot
+    seen = {"turns": 0, "stale": 0}
+
+    def checked(world, bridge):
+        held = capture(world, bridge)
+        if held is not None:
+            live = bridge._sim.get_snapshot()
+            h, l = pa.record_batch(held), pa.record_batch(live)
+            a = dict(zip(h.column("id").to_pylist(), h.column("wealth").to_pylist()))
+            b = dict(zip(l.column("id").to_pylist(), l.column("wealth").to_pylist()))
+            seen["turns"] += 1
+            seen["stale"] += sum(1 for i in a if i in b and a[i] != b[i])
+        return held
+
+    monkeypatch.setattr(S, "_capture_agent_snapshot", checked)
+    bundle = _run(tmp_path, "--food-allocation", "--relocation-costs", "--remittances", turns=16)
+    moved = bundle["history"][-1]["livelihoods"]["remittances"]["counters"].get("rows_applied", 0)
+    fares = bundle["history"][-1]["livelihoods"]["relocation_costs"]["counters"].get("fare_debited_milli", 0)
+    assert seen["turns"] >= 15 and (moved or fares), (seen, moved, fares)
+    assert seen["stale"] == 0

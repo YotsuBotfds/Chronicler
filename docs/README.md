@@ -58,9 +58,17 @@ link to these by path, so keep their names stable.
   [workshop finance and payroll](integration/workshop-finance.md),
   [relocation costs](integration/relocation-costs.md),
   [household purchases (design, left open)](integration/household-purchases-design.md),
-  [local budgets](integration/local-budgets.md); plans in
-  [sprint 1](superpowers/roadmaps/livelihoods-commons-sprint1.md) and
-  [sprint 2](superpowers/roadmaps/livelihoods-commons-sprint2.md).
+  [local budgets](integration/local-budgets.md),
+  [clearing protection](integration/clearing-protection.md),
+  [workshop apprenticeship](integration/apprenticeship.md),
+  [repair projects](integration/repair-projects.md),
+  [veteran reintegration](integration/veteran-reintegration.md),
+  [remittances and the diaspora ledger](integration/remittances.md),
+  [feature options in Batch Lab and live setup](integration/feature-options.md); plans in
+  [sprint 1](superpowers/roadmaps/livelihoods-commons-sprint1.md),
+  [sprint 2](superpowers/roadmaps/livelihoods-commons-sprint2.md) and the
+  [recovery-skills phase](superpowers/roadmaps/recovery-skills-phase.md)
+  ([screens](superpowers/progress/recovery-skills-screens.md)).
 - **World generation:** [geography 2.0](integration/geography-2.md),
   [procedural gates](integration/procedural-gates.md).
 
@@ -97,7 +105,8 @@ map layers. Feature views: [granaries](integration/granary-view.md),
 [research agendas](integration/scientific-research-view.md),
 [expansion inspectors](integration/expansion-inspectors.md),
 [city institutions](integration/city-institution-history.md),
-[entity search](integration/historical-entity-search.md). Commands and pages are in
+[entity search](integration/historical-entity-search.md),
+[feature options in Batch Lab and live setup](integration/feature-options.md). Commands and pages are in
 [`viewer/README.md`](../viewer/README.md).
 
 ## Default-off experiments

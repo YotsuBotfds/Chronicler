@@ -28,6 +28,16 @@ Services (built-in providers; each reuses an existing public API)
     ``wardens``: an L8 commons rule's warden bill (``--commons-rules``) is
     paid, and a new rule adopted, only within the envelope for its stand
     (``commons_rules.prepare_phase2`` reads :func:`envelope`).
+    ``clearing_wardens`` (registered by ``--clearing-protection``, group
+    ``wardens``): an RS5 clearing protection's warden bill is paid, and a
+    protection adopted, only within the envelope for ``clearing:<region>``
+    (``clearing_protection.before_ecology`` reads :func:`envelope`).
+    ``repairs``: all RS2 repair spending of a ruler (``--repair-projects``:
+    workshop repair wages and granary repair coins, hence the timber that
+    work uses) stays within its one ``repairs:<civ>`` envelope
+    (``repair_projects`` reads :func:`envelope`); a granary under a repair
+    project takes no ``granary_*`` envelope (its storage request is
+    suspended).
 
 Budget. ``budget = floor(ENVELOPE_SHARE x max(0, projected - FLOOR -
 obligations - committed))``: the projected treasury replays queued ``keep``
@@ -97,7 +107,7 @@ RESPONSE_CAP = 0.10        # |grievance change| per city per turn
 #: provider is active, and every share is then divided by the active total,
 #: so with only the built-in groups the split is exactly 0.4 / 0.3 / 0.3.
 FIXED_SHARES: dict[str, float] = {"relief": 0.4, "granary": 0.3, "workshop": 0.3,
-                                  "teaching": 0.15, "wardens": 0.15}
+                                  "teaching": 0.15, "wardens": 0.15, "repairs": 0.2}
 _BUILT_IN_GROUPS = ("relief", "granary", "workshop")
 EPS = 1e-9
 
@@ -111,6 +121,8 @@ PROVIDERS: tuple[str, ...] = (
     "chronicler.local_budgets:TEACHING",
     "chronicler.local_budgets:WARDENS",
     "chronicler.local_budgets:RELOCATION",
+    "chronicler.clearing_protection:BUDGET_PROVIDER",
+    "chronicler.local_budgets:REPAIRS",
 )
 
 
@@ -556,10 +568,12 @@ class _Granary(Provider):
         name = world.civilizations[civ].name
         receipts = {r.region: r for r in storage.receipts} if storage.receipt_turn == obs.turn else {}
         horizon = _parameters(world)["horizon"]
+        busy = _repair_regions(world)
         out = []
         for rid, (region, asset) in enumerate(zip(world.regions, storage.assets)):
             receipt = receipts.get(rid)
-            if asset is None or receipt is None or asset.owner != civ or region.controller != name:
+            if asset is None or receipt is None or asset.owner != civ or region.controller != name \
+                    or rid in busy:
                 continue
             grain = world.grain_reserves.granaries[rid].grain
             c, k = asset.condition, asset.capacity
@@ -645,7 +659,7 @@ class _Workshop(Provider):
                 continue
             receipt = frame.get(site.site)
             work = float(receipt.work_available) if receipt is not None else 0.0
-            bill = W._bill(site)
+            bill = W._bill(site, world)      # the RS2 legacy-repair gate, as the workshop plans it
             cost = int(sum(bill.values()))
             if cost < 1:
                 continue
@@ -653,6 +667,11 @@ class _Workshop(Provider):
                 stake = 0.0                                  # cost_only: funding never puts the crew to work
             elif "construction" in bill:
                 stake = work * bill["construction"] / W.CONSTRUCTION_COST
+            elif site.condition < W.OPERATE_CONDITION and "repair" not in bill:
+                # Shut for repair with the lump disabled (RS2 owns the repair):
+                # paying upkeep puts nobody to work, and RS2's own ``repairs``
+                # proposal claims that idle work (review C 2026-11-05).
+                stake = 0.0
             else:
                 stake = work
             out.append(dict(service="workshop", recipients=[site.region], site=site.site,
@@ -980,8 +999,45 @@ class _RelocationAssistance(Provider):
         return int(math.floor(ASSIST_SHARE * max(0, int(world.civilizations[civ].treasury))))
 
 
+def _repair_regions(world) -> frozenset:
+    """Regions whose granary is under an RS2 repair project (empty unless active)."""
+    if getattr(getattr(world, "livelihoods", None), "repair_projects", None) is None:
+        return frozenset()
+    from chronicler.repair_projects import storage_suspended_regions
+    return storage_suspended_regions(world)
+
+
+class _Repairs(Provider):
+    """RS2 repair projects (``--repair-projects``): one divisible proposal per
+    ruler for next turn's work on its open projects (workshop repair wages
+    and granary repair coins, one rounding), relieving the commons' granary
+    wear and the patricians' crew work idle at a site shut for repair.
+    ``repair_projects`` spends only within the ``repairs`` envelope and
+    reports the turn's charge, which settles it."""
+
+    services = ("repairs",)
+    group = "repairs"
+
+    def active(self, world):
+        if getattr(getattr(world, "livelihoods", None), "repair_projects", None) is None:
+            return False
+        from chronicler.repair_projects import repair_projects_active
+        return repair_projects_active(world)
+
+    def proposals(self, world, civ, obs):
+        if not self.active(world):
+            return []
+        from chronicler.repair_projects import budget_proposal
+        return budget_proposal(world, civ, obs)
+
+    def settle(self, world, c, obs):
+        from chronicler.repair_projects import budget_settlement
+        return budget_settlement(world, c, obs)
+
+
 RELIEF, GRANARY, WORKSHOP, TEACHING, WARDENS = _Relief(), _Granary(), _Workshop(), _Teaching(), _Wardens()
 RELOCATION = _RelocationAssistance()
+REPAIRS = _Repairs()
 
 
 def _providers() -> list[Provider]:
@@ -1307,8 +1363,10 @@ def _decide(world, state: LocalBudgetState, obs, providers, acc) -> None:
     params = _parameters(world)
     projected = _projections(world, acc)
     groups = {s: p.group for p in providers for s in p.services}
-    scale = 1.0 + math.fsum(FIXED_SHARES.get(p.group, 0.0) for p in providers
-                            if p.services and p.group not in _BUILT_IN_GROUPS and p.active(world))
+    # A registered group's weight counts once, however many active providers
+    # share it (RS5 clearing wardens share ``wardens`` with L8).
+    scale = 1.0 + math.fsum(FIXED_SHARES.get(g, 0.0) for g in sorted({
+        p.group for p in providers if p.services and p.group not in _BUILT_IN_GROUPS and p.active(world)}))
     decisions, new = [], {id(p): [] for p in providers}
     owner = {s: p for p in providers for s in p.services}
     for ci, civ in enumerate(world.civilizations):
@@ -1404,5 +1462,8 @@ def snapshot_summary(world) -> dict:
         "open": [c.model_dump() for c in state.open],
         "counters": dict(state.counters),
         "parameters": {**_parameters(world), "kept_ratio": KEPT_RATIO, "max_proposals": MAX_PROPOSALS,
-                       "fixed_shares": dict(FIXED_SHARES)},
+                       # RS2's group is listed only while its provider runs
+                       # (feature-off snapshots are unchanged).
+                       "fixed_shares": {k: v for k, v in FIXED_SHARES.items()
+                                        if k != "repairs" or REPAIRS.active(world)}},
     }

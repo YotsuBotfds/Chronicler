@@ -344,11 +344,22 @@ CHUNKS = {
         "tests/test_livelihoods_work_authority.py",
         "tests/test_livelihoods_pool_binding.py",
     ],
+    "recovery-skills": [
+        "tests/test_recovery_skills_wiring.py",
+        "tests/test_clearing_protection.py",
+        "tests/test_remittances.py",
+        "tests/test_veteran_reintegration.py",
+        "tests/test_apprenticeship.py",
+        "tests/test_repair_projects.py",
+    ],
     "expansion-wiring": [
         "tests/test_expansion_feature_wiring.py",
         "tests/test_expansion_experiment.py",
         "tests/test_health_care.py",
         "tests/test_harvest_forecasts.py",
+    ],
+    "feature-options": [
+        "tests/test_feature_catalog.py",
     ],
     "ritual-gatherings": [
         "tests/test_ritual_gatherings.py",
