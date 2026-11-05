@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "layer": "pl2",
+  "parent": "bec63b5b758aa2b83dd8ee4c3d7008dd147c5ed9",
+  "files": {
+    "src/chronicler/batch_manifest.py": {
+      "sha256": "14a08ce478e6681e754377e12d833350a265ad8ef638e2b9b62df87eebb3c70a",
+      "current_sha256": "82f4caf2156e8b1e00ff4054ba0c3940ff5e79796794fbbce6672cf1116ad395",
+      "patches": [
+        {
+          "old": "    \"remittance_mode\",\n    \"clearing_protection\",\n    \"clearing_protection_mode\",\n    \"tuning\",\n    \"preset\",\n    \"aggression_bias\",\n",
+          "new": "    \"remittance_mode\",\n    \"clearing_protection\",\n    \"clearing_protection_mode\",\n    \"operating_wear\",\n    \"tuning\",\n    \"preset\",\n    \"aggression_bias\",\n"
+        },
+        {
+          "old": "                             \"local_budgets\", \"local_budget_mode\",\n                             \"apprenticeship\", \"apprenticeship_mode\", \"repair_projects\", \"repair_mode\",\n                             \"veteran_reintegration\", \"veteran_mode\", \"remittances\", \"remittance_mode\",\n                             \"clearing_protection\", \"clearing_protection_mode\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n    config[\"tuning_overrides\"] = _json_value(overrides or {})\n",
+          "new": "                             \"local_budgets\", \"local_budget_mode\",\n                             \"apprenticeship\", \"apprenticeship_mode\", \"repair_projects\", \"repair_mode\",\n                             \"veteran_reintegration\", \"veteran_mode\", \"remittances\", \"remittance_mode\",\n                             \"clearing_protection\", \"clearing_protection_mode\", \"operating_wear\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n    config[\"tuning_overrides\"] = _json_value(overrides or {})\n"
+        }
+      ]
+    },
+    "tests/test_batch_manifest.py": {
+      "sha256": "d5e0896ca692e90d5d68b676460751e6487ad53ba47d4448ea8312ed385b3684",
+      "current_sha256": "beffd6a35b42c4c693c31c28f8be8cf83e657c4bf685c4578da8c61714f16846",
+      "patches": [
+        {
+          "old": "                                                           \"local_budgets\", \"local_budget_mode\",\n                                                           \"apprenticeship\", \"apprenticeship_mode\", \"repair_projects\", \"repair_mode\",\n                                                           \"veteran_reintegration\", \"veteran_mode\", \"remittances\", \"remittance_mode\",\n                                                           \"clearing_protection\", \"clearing_protection_mode\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n    assert manifest[\"outputs\"][\"simulate_only\"] is True\n    environment = manifest[\"environment\"]\n",
+          "new": "                                                           \"local_budgets\", \"local_budget_mode\",\n                                                           \"apprenticeship\", \"apprenticeship_mode\", \"repair_projects\", \"repair_mode\",\n                                                           \"veteran_reintegration\", \"veteran_mode\", \"remittances\", \"remittance_mode\",\n                                                           \"clearing_protection\", \"clearing_protection_mode\", \"operating_wear\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n    assert manifest[\"outputs\"][\"simulate_only\"] is True\n    environment = manifest[\"environment\"]\n"
+        }
+      ]
+    }
+  }
+}
