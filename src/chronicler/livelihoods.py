@@ -262,6 +262,49 @@ def _present(world: Any):
             yield name, _module(name)
 
 
+#: Each option of ``LIVELIHOODS_CHOICES``: its switch and the sub-state field holding it.
+_CHOICE_FIELDS: dict[str, tuple[str, str]] = {
+    "workshop_mode": ("workshops", "mode"),
+    "food_allocation_regime": ("food_allocation", "regime"),
+    "convoy_route_policy": ("grain_convoys", "route_policy"),
+    "commons_rule_mode": ("commons_rules", "mode"),
+    "learning_cohort_mode": ("learning_cohorts", "mode"),
+    "workshop_payroll_mode": ("workshop_payroll", "mode"),
+    "relocation_mode": ("relocation_costs", "mode"),
+    "local_budget_mode": ("local_budgets", "mode"),
+}
+
+
+def livelihoods_resume_conflicts(world: Any, args: Any, recorded: dict) -> list[str]:
+    """Explicit options an exact resume of ``world`` cannot honour.
+
+    ``batch_manifest.simulation_config`` omits options that were never
+    given, so the generic checkpoint adoption never sees them; the retained
+    state is authoritative. Options the checkpoint recorded (``recorded``)
+    are left to that adoption. Never changes ``world`` or ``args``."""
+    state = livelihoods_state(world)
+    conflicts = []
+    for name in LIVELIHOODS_SWITCHES:
+        given = getattr(args, name, None)
+        if given is None or name in recorded:
+            continue
+        sub = getattr(state, name, None) if state is not None else None
+        effective = sub is not None and bool(sub.enabled)
+        if given != effective:
+            conflicts.append(f"--{name.replace('_', '-')} {given!r} conflicts with the checkpoint "
+                             f"(saved: {effective!r})")
+    for key, (name, field) in _CHOICE_FIELDS.items():
+        given = getattr(args, key, None)
+        if given is None or key in recorded:
+            continue
+        sub = getattr(state, name, None) if state is not None else None
+        saved = getattr(sub, field) if sub is not None else None
+        if given != saved:
+            conflicts.append(f"--{key.replace('_', '-')} {given!r} conflicts with the checkpoint "
+                             f"(saved: {saved!r})")
+    return conflicts
+
+
 def livelihoods_feature_flags(world: Any) -> dict[str, bool]:
     """Checkpoint header flags, only for switches this world ever enabled."""
     return {name: bool(getattr(module, f"{name}_active")(world)) for name, module in _present(world)}
