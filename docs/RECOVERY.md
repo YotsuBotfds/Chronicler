@@ -1,11 +1,31 @@
 # Source, recovery and archive index
 
-Updated 2026-11-04 after PR #69. This is the starting map for future agents;
+Updated 2026-11-05 after PRs #73 and #74. This is the starting map for future agents;
 dated reports keep their original source, platform and qualification limits.
 
 ## Current source and evidence
 
-Use fetched `main` for new work. [PR #69](https://github.com/YotsuBotfds/Chronicler/pull/69)
+Use fetched `main` for new work.
+
+- [PR #73](https://github.com/YotsuBotfds/Chronicler/pull/73) (livelihoods sprint 1,
+  L0–L4) merged on 2026-11-05 at `7001d649346c52d967cb07c6d8c6906bb9e842a4`.
+  - Its tree, `7b6e8e5c`, equals the tree of the reviewed head `3b23d769`.
+  - Premerge Tests run 41983859855 on that head passed all nine jobs.
+  - [Main Tests run 42048286408](https://github.com/YotsuBotfds/Chronicler/actions/runs/42048286408)
+    tested the merge SHA on `push`, attempt 1, and succeeded.
+- [PR #74](https://github.com/YotsuBotfds/Chronicler/pull/74) (sprint 2, L5–L9, plus the
+  fixes from the independent stack review) merged on 2026-11-05 at
+  `ee4c7ac235528253a711e4ec78d2ffc3d9197694`.
+  - Its tree, `2bdfa072`, equals the tree of the reviewed head `da514a5e`.
+  - Premerge Tests run 42048381693 on that head passed all nine jobs.
+  - [Main Tests run 42050133720](https://github.com/YotsuBotfds/Chronicler/actions/runs/42050133720)
+    tested the merge SHA on `push`, attempt 1: success, all nine jobs (optional cache steps skipped, no job skipped).
+
+Every livelihoods switch is off by default. These merges do not complete the 200-seed or
+procedural qualification gates. What landed, the review and the evidence are in the
+[continuation ledger](CONTINUATION.md) and the PR descriptions.
+
+The previous checkpoint follows. [PR #69](https://github.com/YotsuBotfds/Chronicler/pull/69)
 merged on 2026-11-04 at `cc4f70e29166c6bf083abdcd99b0fb5acc3d6594`.
 The merge tree `54904da5dc1a37f2cb67826874dd1e1ab983ab63` equals the trees of
 reviewed head `16dbcc9600ac3844825c46f9599cdce4f23c262c` and premerge CI's synthetic merge
