@@ -198,6 +198,9 @@ pub struct AgentSimulator {
     /// Transient teaching receipt; not an additional persistent work account.
     teaching_result: Option<crate::teaching_work::TeachingPlan>,
     last_teaching_turn: Option<u32>,
+    /// Livelihoods L1A: actual per-good craft input of the last economy tick
+    /// (region order); taken once by Python, never persisted.
+    last_craft_input: Option<Vec<[f32; crate::economy::NUM_GOODS]>>,
 }
 
 impl AgentSimulator {
@@ -256,6 +259,7 @@ impl AgentSimulator {
             mobility_gate_frame: None,
             teaching_result: None,
             last_teaching_turn: None,
+            last_craft_input: None,
         }
     }
 }
@@ -355,6 +359,99 @@ impl AgentSimulator {
         }
         Ok(result)
         // CAREOBS_FINISH_END
+    }
+
+    /// Livelihoods L1A: resolve workshop crews from the live pool. Sites are (site, region, settlement id, diverted fraction,
+    /// max workers); returns per site (site, region, settlement, resident
+    /// adult farmers, excluded trip, excluded army, excluded assigned,
+    /// eligible, crew ids, crew ages, work available).
+    /// With `turn`, people already holding work that turn are excluded and
+    /// the selected crews are reserved in the shared work registry.
+    #[allow(clippy::type_complexity)]
+    #[pyo3(signature = (sites, enlisted_ids, turn=None))]
+    pub fn plan_workshop_crews(&mut self, sites: Vec<(u16, u16, u16, f32, u8)>, enlisted_ids: Vec<u32>, turn: Option<u32>)
+        -> PyResult<Vec<(u16, u16, u16, u32, u32, u32, u32, u32, Vec<u32>, Vec<u16>, f32)>> {
+        if !self.initialized {
+            return Err(PyValueError::new_err("workshop crews require initialized agents"));
+        }
+        let requests: Vec<crate::workshop_work::SiteRequest> = sites.into_iter().map(
+            |(site, region, settlement_id, diverted_fraction, max_workers)| crate::workshop_work::SiteRequest {
+                site, region, settlement_id, diverted_fraction, max_workers }).collect();
+        if requests.iter().any(|s| s.region as usize >= self.num_regions) {
+            return Err(PyValueError::new_err("workshop site region out of range"));
+        }
+        let enlisted: std::collections::HashSet<u32> = enlisted_ids.into_iter().collect();
+        let rows = crate::workshop_work::plan_crews(&self.pool, &requests, &enlisted, turn)
+            .map_err(PyValueError::new_err)?;
+        if let Some(turn) = turn {
+            let crew: Vec<(u32, f32)> = rows.iter().zip(&requests)
+                .flat_map(|(r, s)| r.crew.iter().map(move |&id| (id, s.diverted_fraction))).collect();
+            crate::workshop_work::reserve(&mut self.pool, turn, crate::workshop_work::CATEGORY_WORKSHOP, &crew)
+                .map_err(PyValueError::new_err)?;
+        }
+        Ok(rows.into_iter().map(|r| (r.site, r.region, r.settlement_id, r.resident_adult_farmers,
+            r.excluded_trip, r.excluded_army, r.excluded_assigned, r.eligible, r.crew, r.crew_ages,
+            r.work_available)).collect())
+    }
+
+    /// Livelihoods: commit (stable id, fraction) rows for `turn` under a work
+    /// category (0 workshop, 1 learning), all or none; refuses anyone already
+    /// holding work that turn (registry, rural health work, teaching plan).
+    pub fn reserve_work(&mut self, turn: u32, category: u8, rows: Vec<(u32, f32)>) -> PyResult<()> {
+        crate::workshop_work::reserve(&mut self.pool, turn, category, &rows).map_err(PyValueError::new_err)
+    }
+
+    /// Livelihoods: this turn's registry entries (id, category, fraction).
+    pub fn work_reservations(&self, turn: u32) -> Vec<(u32, u8, f32)> {
+        self.pool.work_reservations.iter().filter(|r| r.turn == turn)
+            .map(|r| (r.agent_id, r.category, r.fraction)).collect()
+    }
+
+    /// Livelihoods: ids held by more than one work consumer this turn.
+    pub fn work_reservation_conflicts(&self, turn: u32) -> Vec<u32> {
+        crate::workshop_work::conflicts(&self.pool, turn)
+    }
+
+    /// Livelihoods L1A: the last economy tick's actual per-good craft input
+    /// by region (goods in `economy::GOOD_NAMES` order), taken once; None
+    /// before any tick or after it was taken.
+    pub fn take_craft_inputs(&mut self) -> Option<Vec<Vec<f32>>> {
+        self.last_craft_input.take().map(|rows| rows.into_iter().map(|r| r.to_vec()).collect())
+    }
+
+    /// Livelihoods L2: install a one-tick food allocation that the next agent
+    /// tick takes (regime 0 equal, 1 floor_means, 2 targeted_relief).
+    /// Rows are per region: food sufficiency before public release (NaN:
+    /// unknown) and the Phase 2 native alive count. Validates before mutation.
+    #[allow(clippy::too_many_arguments)]
+    pub fn set_food_allocation(&mut self, source_turn: u32, regime: u8, floor: f32, target_share: f32,
+                               pre_release: Vec<f32>, phase2_alive: Vec<u32>) -> PyResult<()> {
+        if self.pool.food_allocation_config.is_some() {
+            return Err(PyValueError::new_err("food allocation already pending"));
+        }
+        let cfg = crate::provisioning::ProvisionConfig {
+            source_turn, regime, floor, target_share, pre_release, phase2_alive };
+        crate::provisioning::validate(&cfg, self.num_regions).map_err(PyValueError::new_err)?;
+        self.pool.provision_frame = None;
+        self.pool.food_allocation_config = Some(cfg);
+        Ok(())
+    }
+
+    /// Livelihoods L2: drop an allocation the tick never took.
+    pub fn cancel_food_allocation(&mut self) -> bool {
+        self.pool.food_allocation_config.take().is_some()
+    }
+
+    /// Livelihoods L2: the last allocation's receipts, taken once: (source
+    /// turn, regime, region column names, region rows, bounded person sample
+    /// (id, region, household key, ration, targeted), sample rows dropped).
+    #[allow(clippy::type_complexity)]
+    pub fn take_food_allocation_frame(&mut self)
+        -> Option<(u32, u8, Vec<String>, Vec<Vec<f64>>, Vec<(u32, u16, u32, f32, bool)>, usize)> {
+        self.pool.provision_frame.take().map(|f| (
+            f.source_turn, f.regime,
+            crate::provisioning::REGION_COLUMNS.iter().map(|c| c.to_string()).collect(),
+            f.regions.iter().map(|r| r.row()).collect(), f.sample, f.sample_dropped))
     }
 
     /// Prepare a single regional teaching budget before this turn's economy.
@@ -1390,6 +1487,14 @@ impl AgentSimulator {
                 return Err(PyValueError::new_err("teaching work must be prepared for this tick"));
             }
         }
+        if self.pool.work_reservations.iter().any(|r| r.turn == turn) {
+            // Livelihoods: one person, one work commitment per turn.
+            let clash = crate::workshop_work::conflicts(&self.pool, turn);
+            if !clash.is_empty() {
+                return Err(PyValueError::new_err(format!(
+                    "work reservations overlap for {} agents this turn", clash.len())));
+            }
+        }
         self.teaching_result = None;
         self.mobility_gate_frame = None;
         // A failed tick must never expose a previous turn's observation.
@@ -1520,6 +1625,7 @@ impl AgentSimulator {
                 self.teaching_result = Some(plan);
             }
         }
+        self.pool.work_reservations.clear();
         Ok(PyRecordBatch::new(batch))
     }
 
@@ -3096,6 +3202,26 @@ impl AgentSimulator {
                 region_inputs[i].production_caps[slot] = Some(budget);
             }
         }
+        // Livelihoods L3 (optional, default absent): a timber slot cannot
+        // yield more than the harvestable stock Python reports for it.
+        for slot in 0..3usize {
+            let name = format!("timber_harvest_cap_{slot}");
+            let Some(column) = ri_rb.column_by_name(&name) else { continue };
+            use arrow::array::Array;
+            let caps = column.as_any().downcast_ref::<Float32Array>()
+                .ok_or_else(|| PyValueError::new_err(format!("{name} must be Float32")))?;
+            for i in 0..n_regions {
+                if caps.is_null(i) { continue; }
+                let cap = caps.value(i);
+                if !cap.is_finite() || cap < 0.0 || region_inputs[i].resource_types[slot] != 1 {
+                    return Err(PyValueError::new_err("invalid timber harvest cap"));
+                }
+                region_inputs[i].production_caps[slot] = Some(match region_inputs[i].production_caps[slot] {
+                    Some(existing) => existing.min(cap),
+                    None => cap,
+                });
+            }
+        }
 
         // --- Derive agent counts from live pool ---
         // Partition by region for efficient iteration
@@ -3552,6 +3678,7 @@ impl AgentSimulator {
                 }
             }
         }
+        self.last_craft_input = Some(output.region_results.iter().map(|rr| rr.craft_input).collect());
 
         Ok((
             PyRecordBatch::new(region_result_batch),
@@ -4962,7 +5089,7 @@ crate::persist_struct!(AgentSimulator {
     movements, pending_movement_leaders, pending_promotion_memories, tick_options,
 } skip { snapshot_cache } transient {
     health_work, transaction_receipts_limit, decision_delivery_config, decision_delivery_frame, mobility_gate_frame,
-    teaching_result, last_teaching_turn
+    teaching_result, last_teaching_turn, last_craft_input
 });
 
 #[cfg(test)]

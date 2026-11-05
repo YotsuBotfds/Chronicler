@@ -10,6 +10,8 @@ WITNESS = ROOT / "tests/fixtures/household_candidate_source_inverse.json"
 
 
 def before_household_candidate(source: str, path: str, *, allow_parent: bool = False) -> str:
+    from scripts.testing.livelihoods_sprint_witness import before_livelihoods_sprint
+    source = before_livelihoods_sprint(source, path)
     from scripts.testing.academy_candidate_witness import before_academy_candidate
     source = before_academy_candidate(source, path, allow_parent=True)
     row = json.loads(WITNESS.read_text(encoding="utf-8"))["files"].get(path)

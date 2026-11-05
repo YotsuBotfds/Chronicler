@@ -33,7 +33,8 @@ export type SystemKey =
   | "cities"
   | "movements"
   | "faiths"
-  | "learning";
+  | "learning"
+  | "livelihoods";
 
 /** What every system panel receives from the shell. */
 export interface SystemPanelProps {
@@ -74,7 +75,7 @@ export function recordedSpan(history: TurnSnapshot[]): { first: number; end: num
 /** Display order of the systems panel tabs. */
 export const SYSTEM_KEYS: SystemKey[] = [
   "epidemics", "food", "wars", "finance", "diplomacy", "techniques", "maritime", "nomads", "agendas", "governance",
-  "contact", "cities", "movements", "faiths", "learning",
+  "contact", "cities", "movements", "faiths", "learning", "livelihoods",
 ];
 
 export const SYSTEM_LABELS: Record<SystemKey, string> = {
@@ -93,6 +94,7 @@ export const SYSTEM_LABELS: Record<SystemKey, string> = {
   movements: "Movements",
   faiths: "Faiths",
   learning: "Learning",
+  livelihoods: "Livelihoods",
 };
 
 /** Snapshot field each system writes (governance lives on civ rows; food may come from events alone). */
@@ -136,6 +138,10 @@ export function presentSystems(history: TurnSnapshot[], events: Event[] = [], fa
       return true;
     }
     if (key === "learning" && history.some((snapshot) => snapshot.scientific_claims != null)) return true;
+    // Livelihoods sprint record (loosely typed; absent unless a switch was on).
+    if (key === "livelihoods") {
+      return history.some((snapshot) => (snapshot as unknown as Record<string, unknown>).livelihoods != null);
+    }
     if (key === "food" && history.some((snapshot) => snapshot.grain_reserves != null || snapshot.harvest_forecasts != null || snapshot.transaction_receipts != null)) {
       return true;
     }
@@ -198,6 +204,7 @@ export const SYSTEM_EVENT_TYPES: Record<SystemKey, readonly string[]> = {
     "seat_founded", "seat_rose", "seat_declined", "seat_patron", "seat_master", "seat_fell", "scholars_fled",
   ],
   faiths: ["Schism", "Reformation", "temple_destroyed", "Persecution", "harvest_gathering_held", "harvest_gathering_cancelled"],
+  livelihoods: [],
 };
 
 /**

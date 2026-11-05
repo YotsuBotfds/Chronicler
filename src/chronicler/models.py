@@ -27,6 +27,7 @@ from chronicler.maritime_state import MaritimeState
 from chronicler.gp_agendas_state import GPAgendaState
 from chronicler.nomads_state import NomadState
 from chronicler.cities_state import CityState
+from chronicler.livelihoods_state import LivelihoodsState
 from chronicler.agent_movements_state import MovementState
 from chronicler.guilds_state import GuildState
 from chronicler.scholarship_state import ScholarshipState
@@ -1226,6 +1227,9 @@ class WorldState(BaseModel):
     # the state's domestic loans (chronicler.domestic_credit; None = off and
     # omitted).
     domestic_credit: DomesticCreditState | None = Field(default=None, exclude_if=_is_none)
+    # Livelihoods sprint switches (chronicler.livelihoods; None = never
+    # enabled and omitted). Old pickles lack it: read with getattr.
+    livelihoods: LivelihoodsState | None = Field(default=None, exclude_if=_is_none)
     # Causal provenance index (chronicler.provenance); omitted while empty.
     provenance: ProvenanceState = Field(default_factory=ProvenanceState,
                                         exclude_if=_is_empty_provenance)
@@ -1495,6 +1499,9 @@ class TurnSnapshot(BaseModel):
     food_accounting: dict | None = Field(default=None, exclude_if=_is_none)
     # Dated, bounded native eligibility observations; absent in old bundles.
     household_mobility: dict | None = Field(default=None, exclude_if=_is_none)
+    # Livelihoods sprint observations (workshops, food allocation, timber
+    # stock, grain convoys); absent unless a switch is active.
+    livelihoods: dict | None = Field(default=None, exclude_if=_is_none)
 
 
 # --- M20a: Narration Pipeline v2 models ---

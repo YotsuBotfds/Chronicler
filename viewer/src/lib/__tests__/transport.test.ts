@@ -11,8 +11,9 @@ import {
 } from "../transport";
 
 const staticBundle = parseBundle(JSON.stringify(fixture)).bundle as Bundle;
-// The checked-in fixture predates food accounting and household mobility. This current
-// example exercises the new field without rewriting that historical fixture.
+// The checked-in fixture predates food accounting, household mobility and the
+// livelihoods sprint record. This current example exercises the new fields without
+// rewriting that historical fixture.
 const currentBundle: Bundle = {
   ...staticBundle,
   history: staticBundle.history.map((snapshot) => ({
@@ -31,6 +32,7 @@ const currentBundle: Bundle = {
       passed_native_persons: 0, blocked_groups: 0, blocked_native_persons: 0,
       dropped_samples: 0, samples: [],
     },
+    livelihoods: { schema_version: 1 },
   })),
 };
 
@@ -49,6 +51,7 @@ describe("transport contract", () => {
     for (const snapshot of staticBundle.history) {
       expect(snapshot.food_accounting).toBeUndefined();
       expect("household_mobility" in snapshot).toBe(false);
+      expect("livelihoods" in snapshot).toBe(false);
     }
     for (const snapshot of currentBundle.history) {
       for (const key of Object.keys(snapshot)) {

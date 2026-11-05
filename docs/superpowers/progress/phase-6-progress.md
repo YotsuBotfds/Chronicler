@@ -41,6 +41,44 @@ dated source-scoped records below remain historical evidence.
 
 ---
 
+## Livelihoods/commons sprint 1 (2026-11-05, `claude/livelihoods-commons-sprint1`, draft PR #73)
+
+Bounded sprint L0 + L1–L4, based on main `64863f1`. Plan, board and screens are under
+`docs/superpowers/` (`livelihoods-commons-sprint1.*`, `livelihoods-sprint1-screens.md`).
+Four default-off switches, each reaching the actual simulation:
+
+- **Staffed workshops (`--workshops`).**
+  - Native crews: named adult urban farmers, excluding trips, armies and other work.
+  - Actual native per-good craft inputs.
+  - Treasury-funded construction and upkeep as a disclosed public cost (no wages).
+  - The crew's work replaces the region's craft ceiling.
+  - Arrears and condition survive conquest.
+  - `cost_only` is the ablation.
+- **Household food allocation (`--food-allocation`).** Native rations from the living's share
+  of the unchanged regional withdrawal. Person-level needs, satisfaction and hunger
+  mortality/fertility. `equal` reproduces the off run snapshot for snapshot.
+- **Timber stock (`--timber-stock`).** Renewable stock with a ledger that closes every turn.
+  A native harvest cap column, logistic regrowth gated by water, and cover loss kept separate
+  from extraction.
+- **Grain convoys (`--grain-convoys`).** Paid multi-leg convoys judged leg by leg. Wait,
+  reroute, return, capture or loss, and an escort-or-exposed route choice.
+
+Held screens (12 worlds, 12 arms, 0.53 core-hours):
+
+- All packages activate.
+- floor_means worsens the poorer half's shortfall in 12/12 worlds; targeted relief reverses
+  it in 12/12.
+- Workshops add 5–12% site-region crafts over cost-only, but are input-bound. The timber cap
+  takes off another 5–7%.
+- The timber cap binds in 10/12 worlds; cover loss dominates harvest.
+- Convoys: 63 dispatched naturally, with almost no natural risk outcomes.
+- No aggregate population or treasury effect: every range includes zero.
+
+Feature-off identity is 9 cases, 399 files, 0 differences. Enabled exact resume passes. The
+200-seed gate was not run and defaults are unchanged.
+
+---
+
 ## Dev-lead integration for cross-examination (2026-10-28)
 
 Finite research follow-up: retained knowledge now binds lazily to its original

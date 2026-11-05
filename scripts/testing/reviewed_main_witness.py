@@ -197,11 +197,15 @@ def _inverse_exact(source, repairs):
 
 def before_reviewed_runner_repairs(source):
     """Invert exact ff57 budget extraction and 803 live interrupt repair sites."""
+    from scripts.testing.livelihoods_sprint_witness import before_livelihoods_sprint
+    source = before_livelihoods_sprint(source, "src/chronicler/main.py")
     return _inverse_exact(source, _RUNNER_REPAIRS)
 
 
 def before_reviewed_live_callback_repair(source):
     """Retain ff57's exact extracted helper and invert only 803's callback site."""
+    from scripts.testing.livelihoods_sprint_witness import before_livelihoods_sprint
+    source = before_livelihoods_sprint(source, "src/chronicler/main.py")
     for label, current, _ in _RUNNER_REPAIRS[:2]:
         assert source.count(current) == 1, f"reviewed main witness changed: {label}"
     return _inverse_exact(source, _RUNNER_REPAIRS[2:])
@@ -209,6 +213,8 @@ def before_reviewed_live_callback_repair(source):
 
 def before_reviewed_artifact_repairs(source):
     """Additionally invert exact 0a49 atomic writer sites to care's 2e742 parent."""
+    from scripts.testing.livelihoods_sprint_witness import before_livelihoods_sprint
+    source = before_livelihoods_sprint(source, "src/chronicler/main.py")
     return _inverse_exact(before_reviewed_runner_repairs(source), _ARTIFACT_REPAIRS)
 
 
@@ -259,6 +265,8 @@ _PUBLIC_GRAIN_CONFIGURATION = (
 
 def before_public_grain_configuration(source):
     """Invert exact default-off shipment sites; retain all historical pins."""
+    from scripts.testing.livelihoods_sprint_witness import before_livelihoods_sprint
+    source = before_livelihoods_sprint(source, "src/chronicler/main.py")
     return _inverse_exact(source, _PUBLIC_GRAIN_CONFIGURATION)
 
 
@@ -288,4 +296,6 @@ _PUBLIC_GRAIN_TURN_ADMISSION = (
 
 def before_public_grain_turn_admission(source):
     """Invert exact default-off shipment sites; retain all historical pins."""
+    from scripts.testing.livelihoods_sprint_witness import before_livelihoods_sprint
+    source = before_livelihoods_sprint(source, "src/chronicler/simulation.py")
     return _inverse_exact(source, _PUBLIC_GRAIN_TURN_ADMISSION)

@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "layer": "l3",
+  "parent": "0d9181bf685e6bc4e95452e8627eabbadd54c5f1",
+  "files": {
+    "src/chronicler/tuning.py": {
+      "sha256": "349bec8a1f113a936ecb51399481ca1236a4354290ae7ef1225774f2d7e4960e",
+      "current_sha256": "7e03cae00a5a76dc8596af08bc851f23191efb28ae70e93e493dceadaf29c7dd",
+      "patches": [
+        {
+          "old": "    K_LAND_CARGO_CAP, K_RIVER_CARGO_CAP, K_SEA_CARGO_CAP, K_CARGO_FILL,\n    K_GUILD_NEWS,\n    K_COMMUNITY_FULL_ANCHOR,\n    # Politics\n    K_SECESSION_STABILITY_THRESHOLD, K_SECESSION_SURVEILLANCE_THRESHOLD,\n    K_PROXY_WAR_SECESSION_BONUS, K_BALANCE_OF_POWER_DOMINANCE,\n",
+          "new": "    K_LAND_CARGO_CAP, K_RIVER_CARGO_CAP, K_SEA_CARGO_CAP, K_CARGO_FILL,\n    K_GUILD_NEWS,\n    K_COMMUNITY_FULL_ANCHOR,\n    # Livelihoods sprint packages (default off; chronicler.livelihoods)\n    \"livelihoods.food.floor\", \"livelihoods.food.target_share\",\n    \"livelihoods.timber.enforce_cap\",\n    # Politics\n    K_SECESSION_STABILITY_THRESHOLD, K_SECESSION_SURVEILLANCE_THRESHOLD,\n    K_PROXY_WAR_SECESSION_BONUS, K_BALANCE_OF_POWER_DOMINANCE,\n"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,5 @@
+source 7674aa965fbda59cb797aff7d1b061ecd64412e9
+native_sha256 f820ff2f28583a9c76e96e1bae494ce0d022dc8fc1c5f2259dfe41741e33a637
+started_utc 2026-11-05T05:57:09Z
+runner scratchpad tools/screens.py, committed as scripts/livelihoods_screens.py (report output byte-identical)
+raw run directories were deleted after extraction except the first seed of each stratum; they are reproducible from the fixed seeds

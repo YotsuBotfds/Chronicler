@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "layer": "l2",
+  "parent": "ba3ca22cccaf762c90fe8dc8c09f7346d3eafb78",
+  "files": {
+    "chronicler-agents/src/ffi/mod.rs": {
+      "sha256": "dd9ac5e0487adcd93519c045bf530786f7d96e0f66607f2cebf93505c323fda1",
+      "current_sha256": "9d3f5a5fdceb7c5e0c4622f65d95baf735dd116721a245674abeec07ec52a867",
+      "patches": [
+        {
+          "old": "    /// before any tick or after it was taken.\n    pub fn take_craft_inputs(&mut self) -> Option<Vec<Vec<f32>>> {\n        self.last_craft_input.take().map(|rows| rows.into_iter().map(|r| r.to_vec()).collect())\n    }\n\n    pub fn prepare_teaching_work(&mut self, source_turn: u32, requests: Vec<f32>, excluded_ids: Vec<u32>)\n",
+          "new": "    /// before any tick or after it was taken.\n    pub fn take_craft_inputs(&mut self) -> Option<Vec<Vec<f32>>> {\n        self.last_craft_input.take().map(|rows| rows.into_iter().map(|r| r.to_vec()).collect())\n    }\n\n    /// Livelihoods L2: install a one-tick food allocation that the next agent\n    /// tick takes (regime 0 equal, 1 floor_means, 2 targeted_relief).\n    /// Rows are per region: food sufficiency before public release (NaN:\n    /// unknown) and the Phase 2 native alive count. Validates before mutation.\n    #[allow(clippy::too_many_arguments)]\n    pub fn set_food_allocation(&mut self, source_turn: u32, regime: u8, floor: f32, target_share: f32,\n                               pre_release: Vec<f32>, phase2_alive: Vec<u32>) -> PyResult<()> {\n        if self.pool.food_allocation_config.is_some() {\n            return Err(PyValueError::new_err(\"food allocation already pending\"));\n        }\n        let cfg = crate::provisioning::ProvisionConfig {\n            source_turn, regime, floor, target_share, pre_release, phase2_alive };\n        crate::provisioning::validate(&cfg, self.num_regions).map_err(PyValueError::new_err)?;\n        self.pool.provision_frame = None;\n        self.pool.food_allocation_config = Some(cfg);\n        Ok(())\n    }\n\n    /// Livelihoods L2: drop an allocation the tick never took.\n    pub fn cancel_food_allocation(&mut self) -> bool {\n        self.pool.food_allocation_config.take().is_some()\n    }\n\n    /// Livelihoods L2: the last allocation's receipts, taken once: (source\n    /// turn, regime, region column names, region rows, bounded person sample\n    /// (id, region, household key, ration, targeted), sample rows dropped).\n    #[allow(clippy::type_complexity)]\n    pub fn take_food_allocation_frame(&mut self)\n        -> Option<(u32, u8, Vec<String>, Vec<Vec<f64>>, Vec<(u32, u16, u32, f32, bool)>, usize)> {\n        self.pool.provision_frame.take().map(|f| (\n            f.source_turn, f.regime,\n            crate::provisioning::REGION_COLUMNS.iter().map(|c| c.to_string()).collect(),\n            f.regions.iter().map(|r| r.row()).collect(), f.sample, f.sample_dropped))\n    }\n\n    pub fn prepare_teaching_work(&mut self, source_turn: u32, requests: Vec<f32>, excluded_ids: Vec<u32>)\n"
+        }
+      ]
+    },
+    "chronicler-agents/src/tick.rs": {
+      "sha256": "75441181ac78779da47f03827ed03442235d83eaaa8873966d2b22c9632b31a8",
+      "current_sha256": "3f3582832629740eada70b9876200f5c2dc11019e29637173a21e88368a9bb50",
+      "patches": [
+        {
+          "old": "    // M56b Pass A: assign settlement_id from pre-movement position\n    // -----------------------------------------------------------------------\n    assign_settlement_ids(pool, settlement_grids);\n\n    // -----------------------------------------------------------------------\n    // 0.75 Needs decay + restoration (M49)\n",
+          "new": "    // M56b Pass A: assign settlement_id from pre-movement position\n    // -----------------------------------------------------------------------\n    assign_settlement_ids(pool, settlement_grids);\n\n    // -----------------------------------------------------------------------\n    // 0.7 Livelihoods L2 (default off): allocate this turn's food to people.\n    // -----------------------------------------------------------------------\n    pool.food_access.clear();\n    pool.food_access_ids.clear();\n    pool.food_access_regions.clear();\n    if let Some(cfg) = pool.food_allocation_config.take() {\n        let (access, ids, frame) = crate::provisioning::allocate(pool, regions, &cfg);\n        pool.food_access_regions = pool.regions.clone();\n        pool.food_access = access;\n        pool.food_access_ids = ids;\n        pool.provision_frame = Some(frame);\n    }\n\n    // -----------------------------------------------------------------------\n    // 0.75 Needs decay + restoration (M49)\n"
+        },
+        {
+          "old": "            }\n        }\n    }\n    Ok((events, kin_bond_failures, formation_stats, demo_debug, household_stats, merchant_stats, knowledge_stats))\n}\n\n",
+          "new": "            }\n        }\n    }\n    pool.food_access.clear();\n    pool.food_access_ids.clear();\n    pool.food_access_regions.clear();\n    Ok((events, kin_bond_failures, formation_stats, demo_debug, household_stats, merchant_stats, knowledge_stats))\n}\n\n"
+        },
+        {
+          "old": "                                persecuting_faith: region.persecuting_faith,\n                                gini_coefficient: gini,\n                                wealth_percentile: wealth_pct,\n                                food_sufficiency: region.food_sufficiency,\n                                merchant_margin: region.merchant_margin,\n                                memory_score: crate::memory::compute_memory_satisfaction_score(pool_ref, slot),\n                                is_urban: pool_ref.settlement_ids[slot] != 0,\n",
+          "new": "                                persecuting_faith: region.persecuting_faith,\n                                gini_coefficient: gini,\n                                wealth_percentile: wealth_pct,\n                                food_sufficiency: crate::provisioning::food_for(pool_ref, slot, region.food_sufficiency),\n                                merchant_margin: region.merchant_margin,\n                                memory_score: crate::memory::compute_memory_satisfaction_score(pool_ref, slot),\n                                is_urban: pool_ref.settlement_ids[slot] != 0,\n"
+        },
+        {
+          "old": "        let is_soldier_at_war = occ == 1 && civ_at_war;\n\n        let mut mort_rate = demographics::mortality_rate(age, eco_stress, is_soldier_at_war, region.endemic_severity);\n        if hungry {\n            let wp = wealth_percentiles.get(slot).copied().unwrap_or(0.5);\n            let fed_rate = mort_rate;\n",
+          "new": "        let is_soldier_at_war = occ == 1 && civ_at_war;\n\n        let mut mort_rate = demographics::mortality_rate(age, eco_stress, is_soldier_at_war, region.endemic_severity);\n        // Livelihoods L2: a person's own ration when an allocation ran.\n        let (hunger_dearth, hunger_famine, hunger_fertility, hungry) = if pool.food_access.is_empty() {\n            (hunger_dearth, hunger_famine, hunger_fertility, hungry)\n        } else {\n            let (d, f) = demographics::hunger_components(\n                crate::provisioning::food_for(pool, slot, region.food_sufficiency), region.food_severe_turns);\n            (d, f, demographics::hunger_fertility_multiplier(d, f), d > 0.0)\n        };\n        if hungry {\n            let wp = wealth_percentiles.get(slot).copied().unwrap_or(0.5);\n            let fed_rate = mort_rate;\n"
+        }
+      ]
+    },
+    "chronicler-agents/src/pool.rs": {
+      "sha256": "7c252f327d7900b0aa71d45db96ae82d43d6f221e0bc4232f7de800d5daa58a8",
+      "current_sha256": "d42d19f0477efa3de824153f8c2d1f70560663925cbd5181f8810b31d2bb7a48",
+      "patches": [
+        {
+          "old": "    pub health_work_loss: Vec<(u32, f32)>,\n    /// Prepared/consumed one-turn teaching reservation, never checkpointed.\n    pub teaching_plan: Option<crate::teaching_work::TeachingPlan>,\n    // CAREOBS_SOURCE_BEGIN: pool field\n    /// Opt-in primitive care prefix; transient and absent by default.\n    pub health_care_observation: Option<crate::health_care_observation::CareObservation>,\n",
+          "new": "    pub health_work_loss: Vec<(u32, f32)>,\n    /// Prepared/consumed one-turn teaching reservation, never checkpointed.\n    pub teaching_plan: Option<crate::teaching_work::TeachingPlan>,\n    /// Livelihoods L2: one-tick food allocation request, taken by the tick.\n    pub food_allocation_config: Option<crate::provisioning::ProvisionConfig>,\n    /// Livelihoods L2: this tick's ration by slot (NaN: regional signal) and\n    /// the stable id it belongs to; empty when no allocation ran.\n    pub food_access: Vec<f32>,\n    pub food_access_ids: Vec<u32>,\n    pub food_access_regions: Vec<u16>,\n    /// Livelihoods L2: last allocation receipts, taken once by Python.\n    pub provision_frame: Option<crate::provisioning::ProvisionFrame>,\n    // CAREOBS_SOURCE_BEGIN: pool field\n    /// Opt-in primitive care prefix; transient and absent by default.\n    pub health_care_observation: Option<crate::health_care_observation::CareObservation>,\n"
+        },
+        {
+          "old": "            free_slots: Vec::new(),\n            health_work_loss: Vec::new(),\n            teaching_plan: None,\n            // CAREOBS_SOURCE_BEGIN: pool default\n            health_care_observation: None,\n            // CAREOBS_SOURCE_END: pool default\n",
+          "new": "            free_slots: Vec::new(),\n            health_work_loss: Vec::new(),\n            teaching_plan: None,\n            food_allocation_config: None,\n            food_access: Vec::new(),\n            food_access_ids: Vec::new(),\n            food_access_regions: Vec::new(),\n            provision_frame: None,\n            // CAREOBS_SOURCE_BEGIN: pool default\n            health_care_observation: None,\n            // CAREOBS_SOURCE_END: pool default\n"
+        },
+        {
+          "old": "    trip_path_len, trip_path_cursor, pkt_type_and_hops, pkt_source_region, pkt_source_turn,\n    pkt_intensity, pkt_source_civ, arrived_this_turn, trip_home_region, alive, count, next_id,\n    free_slots,\n} transient { health_work_loss /* CAREOBS_TRANSIENT_BEGIN */, health_care_observation /* CAREOBS_TRANSIENT_END */, teaching_plan });\n",
+          "new": "    trip_path_len, trip_path_cursor, pkt_type_and_hops, pkt_source_region, pkt_source_turn,\n    pkt_intensity, pkt_source_civ, arrived_this_turn, trip_home_region, alive, count, next_id,\n    free_slots,\n} transient { health_work_loss /* CAREOBS_TRANSIENT_BEGIN */, health_care_observation /* CAREOBS_TRANSIENT_END */, teaching_plan,\n    food_allocation_config, food_access, food_access_ids, food_access_regions, provision_frame });\n"
+        }
+      ]
+    },
+    "chronicler-agents/src/lib.rs": {
+      "sha256": "9c2f14e0b824bb210c4cc1654c4d5e9f239a2d83c5f2268cdb931595930ec704",
+      "current_sha256": "56967beae54360cd9848becdc41d8e5eac1f9c4a3553dcd509bd737b70898292",
+      "patches": [
+        {
+          "old": "pub mod health_care;\npub mod teaching_work;\npub mod workshop_work;\n// CAREOBS_SOURCE_BEGIN: module\nmod health_care_observation;\n// CAREOBS_SOURCE_END: module\n",
+          "new": "pub mod health_care;\npub mod teaching_work;\npub mod workshop_work;\npub mod provisioning;\n// CAREOBS_SOURCE_BEGIN: module\nmod health_care_observation;\n// CAREOBS_SOURCE_END: module\n"
+        }
+      ]
+    }
+  }
+}

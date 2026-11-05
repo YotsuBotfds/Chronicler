@@ -26,8 +26,8 @@ def _is_none(value):
 #: share a conquest or an occupying army took; ``abandoned`` is grain left to
 #: the region's market when its granary has no owner; ``captured`` records a
 #: new owner taking the granary (no grain moves).
-FLOW_KINDS: tuple[str, ...] = ("bought", "released", "spoiled", "seized", "abandoned", "captured", "dispatched", "arrived", "storage_returned")
-BOUGHT, RELEASED, SPOILED, SEIZED, ABANDONED, CAPTURED, DISPATCHED, ARRIVED, STORAGE_RETURNED = range(len(FLOW_KINDS))
+FLOW_KINDS: tuple[str, ...] = ("bought", "released", "spoiled", "seized", "abandoned", "captured", "dispatched", "arrived", "storage_returned", "convoy_arrived")
+BOUGHT, RELEASED, SPOILED, SEIZED, ABANDONED, CAPTURED, DISPATCHED, ARRIVED, STORAGE_RETURNED, CONVOY_ARRIVED = range(len(FLOW_KINDS))
 
 #: Cumulative counters kept on ``GrainReserveState.counters`` (insertion order).
 COUNTER_KEYS: tuple[str, ...] = (

@@ -10,6 +10,8 @@ WITNESS = ROOT / "tests/fixtures/scenarios_candidate_source_inverse.json"
 
 
 def before_scenarios_candidate(source: str, path: str, *, allow_parent: bool = False) -> str:
+    from scripts.testing.livelihoods_sprint_witness import before_livelihoods_sprint
+    source = before_livelihoods_sprint(source, path)
     from scripts.testing.gallery_candidate_witness import before_gallery_candidate
     source = before_gallery_candidate(source, path, allow_parent=True)
     from scripts.testing.restoration_candidate_witness import before_restoration_candidate

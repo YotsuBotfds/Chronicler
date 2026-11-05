@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "layer": "s1r",
+  "parent": "1ed0ac0a07277880abed9a66c6896c797d6488d0",
+  "files": {
+    "src/chronicler/simulation.py": {
+      "sha256": "eb210a2d2f1ccf54881b1629e999b6957d09298f65ee6b6b086951b073b30938",
+      "current_sha256": "c6f1d8657c4839ead2f062f6576ed472304f329bdeccf940c4c63d873679b12a",
+      "patches": [
+        {
+          "old": "                    # raw-material demand (optional economy columns).\n                    from chronicler.cities import with_economy_columns\n                    region_input = with_economy_columns(world, region_input, snapshot)\n                if getattr(world, \"livelihoods\", None) is not None:\n                    # Livelihoods sprint (default off): workshop crews and\n                    # timber harvest limits; nothing is charged before finish.\n                    from chronicler.livelihoods import prepare_phase2 as _livelihoods_prepare\n                    region_input = _livelihoods_prepare(world, region_input, agent_bridge, snapshot, acc=acc)\n                trade_route_input = build_economy_trade_route_batch(\n                    world, active_trade_routes=economic_routes,\n                )\n",
+          "new": "                    # raw-material demand (optional economy columns).\n                    from chronicler.cities import with_economy_columns\n                    region_input = with_economy_columns(world, region_input, snapshot)\n                trade_route_input = build_economy_trade_route_batch(\n                    world, active_trade_routes=economic_routes,\n                )\n"
+        },
+        {
+          "old": "                if getattr(world, \"health_care\", None) is not None:\n                    from chronicler.health_care import prepare_health_care\n                    prepare_health_care(world, agent_bridge)\n                rust_return = agent_bridge._sim.tick_economy(\n                    region_input, trade_route_input,\n                    season_id, is_winter, trade_friction,\n",
+          "new": "                if getattr(world, \"health_care\", None) is not None:\n                    from chronicler.health_care import prepare_health_care\n                    prepare_health_care(world, agent_bridge)\n                if getattr(world, \"livelihoods\", None) is not None:\n                    # Livelihoods sprint (default off): workshop crews (after\n                    # this turn's health work exists) and timber harvest limits;\n                    # nothing is charged before finish.\n                    from chronicler.livelihoods import prepare_phase2 as _livelihoods_prepare\n                    region_input = _livelihoods_prepare(world, region_input, agent_bridge, snapshot, acc=acc)\n                rust_return = agent_bridge._sim.tick_economy(\n                    region_input, trade_route_input,\n                    season_id, is_winter, trade_friction,\n"
+        },
+        {
+          "old": "                if any(requests):\n                    armies = getattr(getattr(world, \"war_state\", None), \"armies\", [])\n                    enlisted = sorted({int(aid) for army in armies for aid, _ in army.roster})\n                    sim.prepare_teaching_work(world.turn, list(requests), enlisted)\n                    native_prepared = True\n                events = _ordinary_agent_tick(*args, **kwargs)\n",
+          "new": "                if any(requests):\n                    armies = getattr(getattr(world, \"war_state\", None), \"armies\", [])\n                    enlisted = sorted({int(aid) for army in armies for aid, _ in army.roster})\n                    if getattr(world, \"livelihoods\", None) is not None and callable(getattr(sim, \"work_reservations\", None)):\n                        # One work commitment per person per turn (livelihoods registry).\n                        enlisted = sorted(set(enlisted) | {row[0] for row in sim.work_reservations(world.turn)})\n                    sim.prepare_teaching_work(world.turn, list(requests), enlisted)\n                    native_prepared = True\n                events = _ordinary_agent_tick(*args, **kwargs)\n"
+        }
+      ]
+    },
+    "chronicler-agents/src/ffi/mod.rs": {
+      "sha256": "9d3f5a5fdceb7c5e0c4622f65d95baf735dd116721a245674abeec07ec52a867",
+      "current_sha256": "aab4c535be3f009d5911cb8d7e287633fde1b9d256f73a3922578c4118874b4b",
+      "patches": [
+        {
+          "old": "        // CAREOBS_FINISH_END\n    }\n\n    /// Prepare a single regional teaching budget before this turn's economy.\n    /// Fractions are Scholar-equivalent work-turns; no pay is created.\n    /// Livelihoods L1A: resolve workshop crews from the live pool without\n    /// mutation. Sites are (site, region, settlement id, diverted fraction,\n    /// max workers); returns per site (site, region, settlement, resident\n    /// adult farmers, excluded trip, excluded army, excluded assigned,\n    /// eligible, crew ids, crew ages, work available).\n    #[allow(clippy::type_complexity)]\n    pub fn plan_workshop_crews(&self, sites: Vec<(u16, u16, u16, f32, u8)>, enlisted_ids: Vec<u32>)\n        -> PyResult<Vec<(u16, u16, u16, u32, u32, u32, u32, u32, Vec<u32>, Vec<u16>, f32)>> {\n        if !self.initialized {\n            return Err(PyValueError::new_err(\"workshop crews require initialized agents\"));\n",
+          "new": "        // CAREOBS_FINISH_END\n    }\n\n    /// Livelihoods L1A: resolve workshop crews from the live pool. Sites are (site, region, settlement id, diverted fraction,\n    /// max workers); returns per site (site, region, settlement, resident\n    /// adult farmers, excluded trip, excluded army, excluded assigned,\n    /// eligible, crew ids, crew ages, work available).\n    /// With `turn`, people already holding work that turn are excluded and\n    /// the selected crews are reserved in the shared work registry.\n    #[allow(clippy::type_complexity)]\n    #[pyo3(signature = (sites, enlisted_ids, turn=None))]\n    pub fn plan_workshop_crews(&mut self, sites: Vec<(u16, u16, u16, f32, u8)>, enlisted_ids: Vec<u32>, turn: Option<u32>)\n        -> PyResult<Vec<(u16, u16, u16, u32, u32, u32, u32, u32, Vec<u32>, Vec<u16>, f32)>> {\n        if !self.initialized {\n            return Err(PyValueError::new_err(\"workshop crews require initialized agents\"));\n"
+        },
+        {
+          "old": "            return Err(PyValueError::new_err(\"workshop site region out of range\"));\n        }\n        let enlisted: std::collections::HashSet<u32> = enlisted_ids.into_iter().collect();\n        let rows = crate::workshop_work::plan_crews(&self.pool, &requests, &enlisted)\n            .map_err(PyValueError::new_err)?;\n        Ok(rows.into_iter().map(|r| (r.site, r.region, r.settlement_id, r.resident_adult_farmers,\n            r.excluded_trip, r.excluded_army, r.excluded_assigned, r.eligible, r.crew, r.crew_ages,\n            r.work_available)).collect())\n    }\n\n    /// Livelihoods L1A: the last economy tick's actual per-good craft input\n",
+          "new": "            return Err(PyValueError::new_err(\"workshop site region out of range\"));\n        }\n        let enlisted: std::collections::HashSet<u32> = enlisted_ids.into_iter().collect();\n        let rows = crate::workshop_work::plan_crews(&self.pool, &requests, &enlisted, turn)\n            .map_err(PyValueError::new_err)?;\n        if let Some(turn) = turn {\n            let crew: Vec<(u32, f32)> = rows.iter().zip(&requests)\n                .flat_map(|(r, s)| r.crew.iter().map(move |&id| (id, s.diverted_fraction))).collect();\n            crate::workshop_work::reserve(&mut self.pool, turn, crate::workshop_work::CATEGORY_WORKSHOP, &crew)\n                .map_err(PyValueError::new_err)?;\n        }\n        Ok(rows.into_iter().map(|r| (r.site, r.region, r.settlement_id, r.resident_adult_farmers,\n            r.excluded_trip, r.excluded_army, r.excluded_assigned, r.eligible, r.crew, r.crew_ages,\n            r.work_available)).collect())\n    }\n\n    /// Livelihoods: commit (stable id, fraction) rows for `turn` under a work\n    /// category (0 workshop, 1 learning), all or none; refuses anyone already\n    /// holding work that turn (registry, rural health work, teaching plan).\n    pub fn reserve_work(&mut self, turn: u32, category: u8, rows: Vec<(u32, f32)>) -> PyResult<()> {\n        crate::workshop_work::reserve(&mut self.pool, turn, category, &rows).map_err(PyValueError::new_err)\n    }\n\n    /// Livelihoods: this turn's registry entries (id, category, fraction).\n    pub fn work_reservations(&self, turn: u32) -> Vec<(u32, u8, f32)> {\n        self.pool.work_reservations.iter().filter(|r| r.turn == turn)\n            .map(|r| (r.agent_id, r.category, r.fraction)).collect()\n    }\n\n    /// Livelihoods: ids held by more than one work consumer this turn.\n    pub fn work_reservation_conflicts(&self, turn: u32) -> Vec<u32> {\n        crate::workshop_work::conflicts(&self.pool, turn)\n    }\n\n    /// Livelihoods L1A: the last economy tick's actual per-good craft input\n"
+        },
+        {
+          "old": "            f.regions.iter().map(|r| r.row()).collect(), f.sample, f.sample_dropped))\n    }\n\n    pub fn prepare_teaching_work(&mut self, source_turn: u32, requests: Vec<f32>, excluded_ids: Vec<u32>)\n        -> PyResult<Option<(u32, Vec<(u16, f64, f64, f64, f64)>, Vec<(u32, u16, f32, f32)>, usize)>> {\n        if requests.len() != self.num_regions {\n",
+          "new": "            f.regions.iter().map(|r| r.row()).collect(), f.sample, f.sample_dropped))\n    }\n\n    /// Prepare a single regional teaching budget before this turn's economy.\n    /// Fractions are Scholar-equivalent work-turns; no pay is created.\n    pub fn prepare_teaching_work(&mut self, source_turn: u32, requests: Vec<f32>, excluded_ids: Vec<u32>)\n        -> PyResult<Option<(u32, Vec<(u16, f64, f64, f64, f64)>, Vec<(u32, u16, f32, f32)>, usize)>> {\n        if requests.len() != self.num_regions {\n"
+        },
+        {
+          "old": "                return Err(PyValueError::new_err(\"teaching work must be prepared for this tick\"));\n            }\n        }\n        self.teaching_result = None;\n        self.mobility_gate_frame = None;\n        // A failed tick must never expose a previous turn's observation.\n",
+          "new": "                return Err(PyValueError::new_err(\"teaching work must be prepared for this tick\"));\n            }\n        }\n        if self.pool.work_reservations.iter().any(|r| r.turn == turn) {\n            // Livelihoods: one person, one work commitment per turn.\n            let clash = crate::workshop_work::conflicts(&self.pool, turn);\n            if !clash.is_empty() {\n                return Err(PyValueError::new_err(format!(\n                    \"work reservations overlap for {} agents this turn\", clash.len())));\n            }\n        }\n        self.teaching_result = None;\n        self.mobility_gate_frame = None;\n        // A failed tick must never expose a previous turn's observation.\n"
+        },
+        {
+          "old": "                self.teaching_result = Some(plan);\n            }\n        }\n        Ok(PyRecordBatch::new(batch))\n    }\n\n",
+          "new": "                self.teaching_result = Some(plan);\n            }\n        }\n        self.pool.work_reservations.clear();\n        Ok(PyRecordBatch::new(batch))\n    }\n\n"
+        }
+      ]
+    },
+    "chronicler-agents/src/pool.rs": {
+      "sha256": "d42d19f0477efa3de824153f8c2d1f70560663925cbd5181f8810b31d2bb7a48",
+      "current_sha256": "2d1f5b4c6e05a6516cd8d0462fe445f722224968677cfb55fbf31855dd448668",
+      "patches": [
+        {
+          "old": "    pub food_access_regions: Vec<u16>,\n    /// Livelihoods L2: last allocation receipts, taken once by Python.\n    pub provision_frame: Option<crate::provisioning::ProvisionFrame>,\n    // CAREOBS_SOURCE_BEGIN: pool field\n    /// Opt-in primitive care prefix; transient and absent by default.\n    pub health_care_observation: Option<crate::health_care_observation::CareObservation>,\n",
+          "new": "    pub food_access_regions: Vec<u16>,\n    /// Livelihoods L2: last allocation receipts, taken once by Python.\n    pub provision_frame: Option<crate::provisioning::ProvisionFrame>,\n    /// Livelihoods: this turn's shared work reservations (one authority for\n    /// new work consumers); transient, cleared after each native tick.\n    pub work_reservations: Vec<crate::workshop_work::WorkReservation>,\n    // CAREOBS_SOURCE_BEGIN: pool field\n    /// Opt-in primitive care prefix; transient and absent by default.\n    pub health_care_observation: Option<crate::health_care_observation::CareObservation>,\n"
+        },
+        {
+          "old": "            food_access_ids: Vec::new(),\n            food_access_regions: Vec::new(),\n            provision_frame: None,\n            // CAREOBS_SOURCE_BEGIN: pool default\n            health_care_observation: None,\n            // CAREOBS_SOURCE_END: pool default\n",
+          "new": "            food_access_ids: Vec::new(),\n            food_access_regions: Vec::new(),\n            provision_frame: None,\n            work_reservations: Vec::new(),\n            // CAREOBS_SOURCE_BEGIN: pool default\n            health_care_observation: None,\n            // CAREOBS_SOURCE_END: pool default\n"
+        },
+        {
+          "old": "    pkt_intensity, pkt_source_civ, arrived_this_turn, trip_home_region, alive, count, next_id,\n    free_slots,\n} transient { health_work_loss /* CAREOBS_TRANSIENT_BEGIN */, health_care_observation /* CAREOBS_TRANSIENT_END */, teaching_plan,\n    food_allocation_config, food_access, food_access_ids, food_access_regions, provision_frame });\n",
+          "new": "    pkt_intensity, pkt_source_civ, arrived_this_turn, trip_home_region, alive, count, next_id,\n    free_slots,\n} transient { health_work_loss /* CAREOBS_TRANSIENT_BEGIN */, health_care_observation /* CAREOBS_TRANSIENT_END */, teaching_plan,\n    food_allocation_config, food_access, food_access_ids, food_access_regions, provision_frame,\n    work_reservations });\n"
+        }
+      ]
+    },
+    "src/chronicler/tuning.py": {
+      "sha256": "7e03cae00a5a76dc8596af08bc851f23191efb28ae70e93e493dceadaf29c7dd",
+      "current_sha256": "1e16d7be48470c36dcfb39c5501fb01768007b9736a24de4e1705ce1c0772fef",
+      "patches": [
+        {
+          "old": "    K_COMMUNITY_FULL_ANCHOR,\n    # Livelihoods sprint packages (default off; chronicler.livelihoods)\n    \"livelihoods.food.floor\", \"livelihoods.food.target_share\",\n    \"livelihoods.timber.enforce_cap\",\n    # Politics\n    K_SECESSION_STABILITY_THRESHOLD, K_SECESSION_SURVEILLANCE_THRESHOLD,\n    K_PROXY_WAR_SECESSION_BONUS, K_BALANCE_OF_POWER_DOMINANCE,\n",
+          "new": "    K_COMMUNITY_FULL_ANCHOR,\n    # Livelihoods sprint packages (default off; chronicler.livelihoods)\n    \"livelihoods.food.floor\", \"livelihoods.food.target_share\",\n    \"livelihoods.timber.enforce_cap\", \"livelihoods.convoys.threat_scale\",\n    # Politics\n    K_SECESSION_STABILITY_THRESHOLD, K_SECESSION_SURVEILLANCE_THRESHOLD,\n    K_PROXY_WAR_SECESSION_BONUS, K_BALANCE_OF_POWER_DOMINANCE,\n"
+        }
+      ]
+    }
+  }
+}

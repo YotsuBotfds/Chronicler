@@ -79,7 +79,7 @@ import math
 from typing import TYPE_CHECKING
 
 from chronicler.grain_reserves_state import (
-    ABANDONED, ARRIVED, BOUGHT, CAPTURED, COUNTER_KEYS, DISPATCHED, FLOW_KINDS, RELEASED, SEIZED, SPOILED, STORAGE_RETURNED, GrainReserveState, Granary,
+    ABANDONED, ARRIVED, BOUGHT, CAPTURED, CONVOY_ARRIVED, COUNTER_KEYS, DISPATCHED, FLOW_KINDS, RELEASED, SEIZED, SPOILED, STORAGE_RETURNED, GrainReserveState, Granary,
     ReserveFlow, grain_reserves_on,
 )
 
@@ -535,6 +535,9 @@ def tick_grain_reserves(world: "WorldState", acc=None, economy_result: "EconomyR
         from chronicler.public_grain_shipments import inbound_by_destination, settle_arrivals
         events.extend(settle_arrivals(world))
         inbound = inbound_by_destination(world)
+        if getattr(world, "livelihoods", None) is not None:
+            from chronicler.grain_convoys import add_convoy_inbound
+            add_convoy_inbound(world, inbound)  # paid convoy cargo on the road
 
     if getattr(state, "storage", None) is not None:
         from chronicler.grain_storage import settle_storage_capacity
@@ -950,6 +953,8 @@ class ReserveLedger:
                 row["abandoned"] += f.amount
             elif f.kind == STORAGE_RETURNED:
                 row["storage_returned"] = row.get("storage_returned", 0.0) + f.amount
+            elif f.kind == CONVOY_ARRIVED:
+                row["convoy_arrived"] = row.get("convoy_arrived", 0.0) + f.amount
         schema = dict(RESERVE_LEDGER_COLUMNS)
         pending_after = None
         if getattr(state, "shipments", None) is not None:
@@ -966,6 +971,7 @@ class ReserveLedger:
             arrived = row.get("arrived", 0.0)
             dispatched = row.get("dispatched", 0.0)
             expect = before + row["bought"] + arrived - row["released"] - row["spoiled"] - row["seized"] - row["abandoned"] - row.get("storage_returned", 0.0)
+            expect += row.get("convoy_arrived", 0.0)
             pending0 = (self.pending_before[rid] if self.pending_before is not None else 0.0)
             pending1 = pending_after[rid] if pending_after is not None else 0.0
             if abs(pending1 - pending0 - dispatched + arrived) > _TOL * max(1.0, pending0 + dispatched):

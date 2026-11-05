@@ -2107,6 +2107,12 @@ def run_turn_result(
                 if getattr(world, "health_care", None) is not None:
                     from chronicler.health_care import prepare_health_care
                     prepare_health_care(world, agent_bridge)
+                if getattr(world, "livelihoods", None) is not None:
+                    # Livelihoods sprint (default off): workshop crews (after
+                    # this turn's health work exists) and timber harvest limits;
+                    # nothing is charged before finish.
+                    from chronicler.livelihoods import prepare_phase2 as _livelihoods_prepare
+                    region_input = _livelihoods_prepare(world, region_input, agent_bridge, snapshot, acc=acc)
                 rust_return = agent_bridge._sim.tick_economy(
                     region_input, trade_route_input,
                     season_id, is_winter, trade_friction,
@@ -2121,9 +2127,16 @@ def run_turn_result(
                         raise RuntimeError("Storage work requires a matching native extension with delivered-work observations")
                     finish_storage_work(world, _storage_plan,
                                         [delivered[rid] for rid in range(len(world.regions))], acc=acc)
+                if getattr(world, "livelihoods", None) is not None:
+                    # Settle after native success, before public granaries open.
+                    from chronicler.livelihoods import finish_phase2 as _livelihoods_finish
+                    _emit(_livelihoods_finish(world, economy_result, agent_bridge, acc=acc))
             except BaseException:
                 if _storage_plan is not None and _storage_plan.status == "pending":
                     rollback_storage_work(world, _storage_plan)
+                if getattr(world, "livelihoods", None) is not None:
+                    from chronicler.livelihoods import rollback_phase2 as _livelihoods_rollback
+                    _livelihoods_rollback(world)
                 raise
             from chronicler.food_accounting import public_opening, capture_food_accounting
             _public_food_opening = public_opening(world)
@@ -2293,6 +2306,9 @@ def run_turn_result(
                 if any(requests):
                     armies = getattr(getattr(world, "war_state", None), "armies", [])
                     enlisted = sorted({int(aid) for army in armies for aid, _ in army.roster})
+                    if getattr(world, "livelihoods", None) is not None and callable(getattr(sim, "work_reservations", None)):
+                        # One work commitment per person per turn (livelihoods registry).
+                        enlisted = sorted(set(enlisted) | {row[0] for row in sim.work_reservations(world.turn)})
                     sim.prepare_teaching_work(world.turn, list(requests), enlisted)
                     native_prepared = True
                 events = _ordinary_agent_tick(*args, **kwargs)
@@ -2307,6 +2323,11 @@ def run_turn_result(
                 if learning_work_pending(world):
                     cancel_learning_work(world, plan)
                 raise
+
+    if getattr(world, "livelihoods", None) is not None and agent_bridge is not None:
+        # Livelihoods sprint: per-person food allocation around the native tick.
+        from chronicler.livelihoods import wrap_agent_tick as _livelihoods_wrap
+        tick_agents = _livelihoods_wrap(world, agent_bridge, tick_agents, economy_result)
 
     # Apply accumulated stat mutations and route agent signals
     if world.agent_mode == "hybrid" and agent_bridge is not None:
@@ -2494,11 +2515,19 @@ def run_turn_result(
     # Public granaries (--grain-reserves): this turn's harvests and targets,
     # purchases toward them from real surplus; after the merchants planned
     # their trips, before the Phase 10 flush below.
+    if getattr(world, "livelihoods", None) is not None:
+        from chronicler.livelihoods import phase10_before_reserves as _livelihoods_p10a
+        _emit(_livelihoods_p10a(world, acc=phase10_acc, economy_result=artifacts.economy,
+                                agent_bridge=agent_bridge))
     if _grain_reserves_on(world):
         from chronicler.grain_reserves import tick_grain_reserves
         _emit(tick_grain_reserves(
             world, acc=phase10_acc, economy_result=artifacts.economy, agent_bridge=agent_bridge,
         ))
+    if getattr(world, "livelihoods", None) is not None:
+        from chronicler.livelihoods import phase10 as _livelihoods_p10
+        _emit(_livelihoods_p10(world, acc=phase10_acc, economy_result=artifacts.economy,
+                               agent_bridge=agent_bridge))
 
     # Recurring local harvest gatherings: real surplus grain and projected
     # treasury, after the granary resource ledger closes, before keep flush.

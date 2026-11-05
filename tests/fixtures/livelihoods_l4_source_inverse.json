@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "layer": "l4",
+  "parent": "e096f476e9c6b78cc8a5ed10037494d793d4ce62",
+  "files": {
+    "src/chronicler/grain_reserves.py": {
+      "sha256": "b4f183710ccf8ace3c7194418fa411d65c4e81fe9b61400c783db79b0a361cfb",
+      "current_sha256": "95b0132b86739e9fc9a6cb16e69f89ca97f479cdf7bd659b8ea2182bc10288d9",
+      "patches": [
+        {
+          "old": "from typing import TYPE_CHECKING\n\nfrom chronicler.grain_reserves_state import (\n    ABANDONED, ARRIVED, BOUGHT, CAPTURED, COUNTER_KEYS, DISPATCHED, FLOW_KINDS, RELEASED, SEIZED, SPOILED, STORAGE_RETURNED, GrainReserveState, Granary,\n    ReserveFlow, grain_reserves_on,\n)\n\n",
+          "new": "from typing import TYPE_CHECKING\n\nfrom chronicler.grain_reserves_state import (\n    ABANDONED, ARRIVED, BOUGHT, CAPTURED, CONVOY_ARRIVED, COUNTER_KEYS, DISPATCHED, FLOW_KINDS, RELEASED, SEIZED, SPOILED, STORAGE_RETURNED, GrainReserveState, Granary,\n    ReserveFlow, grain_reserves_on,\n)\n\n"
+        },
+        {
+          "old": "        from chronicler.public_grain_shipments import inbound_by_destination, settle_arrivals\n        events.extend(settle_arrivals(world))\n        inbound = inbound_by_destination(world)\n\n    if getattr(state, \"storage\", None) is not None:\n        from chronicler.grain_storage import settle_storage_capacity\n",
+          "new": "        from chronicler.public_grain_shipments import inbound_by_destination, settle_arrivals\n        events.extend(settle_arrivals(world))\n        inbound = inbound_by_destination(world)\n        if getattr(world, \"livelihoods\", None) is not None:\n            from chronicler.grain_convoys import add_convoy_inbound\n            add_convoy_inbound(world, inbound)  # paid convoy cargo on the road\n\n    if getattr(state, \"storage\", None) is not None:\n        from chronicler.grain_storage import settle_storage_capacity\n"
+        },
+        {
+          "old": "                row[\"abandoned\"] += f.amount\n            elif f.kind == STORAGE_RETURNED:\n                row[\"storage_returned\"] = row.get(\"storage_returned\", 0.0) + f.amount\n        schema = dict(RESERVE_LEDGER_COLUMNS)\n        pending_after = None\n        if getattr(state, \"shipments\", None) is not None:\n",
+          "new": "                row[\"abandoned\"] += f.amount\n            elif f.kind == STORAGE_RETURNED:\n                row[\"storage_returned\"] = row.get(\"storage_returned\", 0.0) + f.amount\n            elif f.kind == CONVOY_ARRIVED:\n                row[\"convoy_arrived\"] = row.get(\"convoy_arrived\", 0.0) + f.amount\n        schema = dict(RESERVE_LEDGER_COLUMNS)\n        pending_after = None\n        if getattr(state, \"shipments\", None) is not None:\n"
+        },
+        {
+          "old": "            arrived = row.get(\"arrived\", 0.0)\n            dispatched = row.get(\"dispatched\", 0.0)\n            expect = before + row[\"bought\"] + arrived - row[\"released\"] - row[\"spoiled\"] - row[\"seized\"] - row[\"abandoned\"] - row.get(\"storage_returned\", 0.0)\n            pending0 = (self.pending_before[rid] if self.pending_before is not None else 0.0)\n            pending1 = pending_after[rid] if pending_after is not None else 0.0\n            if abs(pending1 - pending0 - dispatched + arrived) > _TOL * max(1.0, pending0 + dispatched):\n",
+          "new": "            arrived = row.get(\"arrived\", 0.0)\n            dispatched = row.get(\"dispatched\", 0.0)\n            expect = before + row[\"bought\"] + arrived - row[\"released\"] - row[\"spoiled\"] - row[\"seized\"] - row[\"abandoned\"] - row.get(\"storage_returned\", 0.0)\n            expect += row.get(\"convoy_arrived\", 0.0)\n            pending0 = (self.pending_before[rid] if self.pending_before is not None else 0.0)\n            pending1 = pending_after[rid] if pending_after is not None else 0.0\n            if abs(pending1 - pending0 - dispatched + arrived) > _TOL * max(1.0, pending0 + dispatched):\n"
+        }
+      ]
+    },
+    "src/chronicler/grain_reserves_state.py": {
+      "sha256": "ca12ad57c3b7a0cd6d211abaf9c4572cfb8a25c138cb2803577228d2df0eb727",
+      "current_sha256": "9b38d403c3ea080ab24fbbcc2eee7f3cc980e6758eafa68aeac0c858d4713102",
+      "patches": [
+        {
+          "old": "#: share a conquest or an occupying army took; ``abandoned`` is grain left to\n#: the region's market when its granary has no owner; ``captured`` records a\n#: new owner taking the granary (no grain moves).\nFLOW_KINDS: tuple[str, ...] = (\"bought\", \"released\", \"spoiled\", \"seized\", \"abandoned\", \"captured\", \"dispatched\", \"arrived\", \"storage_returned\")\nBOUGHT, RELEASED, SPOILED, SEIZED, ABANDONED, CAPTURED, DISPATCHED, ARRIVED, STORAGE_RETURNED = range(len(FLOW_KINDS))\n\n#: Cumulative counters kept on ``GrainReserveState.counters`` (insertion order).\nCOUNTER_KEYS: tuple[str, ...] = (\n",
+          "new": "#: share a conquest or an occupying army took; ``abandoned`` is grain left to\n#: the region's market when its granary has no owner; ``captured`` records a\n#: new owner taking the granary (no grain moves).\nFLOW_KINDS: tuple[str, ...] = (\"bought\", \"released\", \"spoiled\", \"seized\", \"abandoned\", \"captured\", \"dispatched\", \"arrived\", \"storage_returned\", \"convoy_arrived\")\nBOUGHT, RELEASED, SPOILED, SEIZED, ABANDONED, CAPTURED, DISPATCHED, ARRIVED, STORAGE_RETURNED, CONVOY_ARRIVED = range(len(FLOW_KINDS))\n\n#: Cumulative counters kept on ``GrainReserveState.counters`` (insertion order).\nCOUNTER_KEYS: tuple[str, ...] = (\n"
+        }
+      ]
+    }
+  }
+}

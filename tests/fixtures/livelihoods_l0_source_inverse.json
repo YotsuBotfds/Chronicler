@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "layer": "l0",
+  "parent": "b32941721ea3daf430e9049d2b91f56ef8c3c3d1",
+  "files": {
+    "src/chronicler/models.py": {
+      "sha256": "1a000a0ef8f5bd26b6e8b721b570a26d413fcebeaf82d0142089ee3b6dc1ae25",
+      "current_sha256": "a30f8b3de3846178821b860e2348dfb8df986e8dc9d202209c96c684e6f8aa9e",
+      "patches": [
+        {
+          "old": "from chronicler.gp_agendas_state import GPAgendaState\nfrom chronicler.nomads_state import NomadState\nfrom chronicler.cities_state import CityState\nfrom chronicler.agent_movements_state import MovementState\nfrom chronicler.guilds_state import GuildState\nfrom chronicler.scholarship_state import ScholarshipState\n",
+          "new": "from chronicler.gp_agendas_state import GPAgendaState\nfrom chronicler.nomads_state import NomadState\nfrom chronicler.cities_state import CityState\nfrom chronicler.livelihoods_state import LivelihoodsState\nfrom chronicler.agent_movements_state import MovementState\nfrom chronicler.guilds_state import GuildState\nfrom chronicler.scholarship_state import ScholarshipState\n"
+        },
+        {
+          "old": "    # the state's domestic loans (chronicler.domestic_credit; None = off and\n    # omitted).\n    domestic_credit: DomesticCreditState | None = Field(default=None, exclude_if=_is_none)\n    # Causal provenance index (chronicler.provenance); omitted while empty.\n    provenance: ProvenanceState = Field(default_factory=ProvenanceState,\n                                        exclude_if=_is_empty_provenance)\n",
+          "new": "    # the state's domestic loans (chronicler.domestic_credit; None = off and\n    # omitted).\n    domestic_credit: DomesticCreditState | None = Field(default=None, exclude_if=_is_none)\n    # Livelihoods sprint switches (chronicler.livelihoods; None = never\n    # enabled and omitted). Old pickles lack it: read with getattr.\n    livelihoods: LivelihoodsState | None = Field(default=None, exclude_if=_is_none)\n    # Causal provenance index (chronicler.provenance); omitted while empty.\n    provenance: ProvenanceState = Field(default_factory=ProvenanceState,\n                                        exclude_if=_is_empty_provenance)\n"
+        },
+        {
+          "old": "    food_accounting: dict | None = Field(default=None, exclude_if=_is_none)\n    # Dated, bounded native eligibility observations; absent in old bundles.\n    household_mobility: dict | None = Field(default=None, exclude_if=_is_none)\n\n\n# --- M20a: Narration Pipeline v2 models ---\n",
+          "new": "    food_accounting: dict | None = Field(default=None, exclude_if=_is_none)\n    # Dated, bounded native eligibility observations; absent in old bundles.\n    household_mobility: dict | None = Field(default=None, exclude_if=_is_none)\n    # Livelihoods sprint observations (workshops, food allocation, timber\n    # stock, grain convoys); absent unless a switch is active.\n    livelihoods: dict | None = Field(default=None, exclude_if=_is_none)\n\n\n# --- M20a: Narration Pipeline v2 models ---\n"
+        }
+      ]
+    },
+    "src/chronicler/transport_contract.json": {
+      "sha256": "c1995a920def46e573f1899b5717514857963f2b1713589440d4123adcd0698f",
+      "current_sha256": "23444d004b8db07c2fed74c6af46e8399e2731ead2e1f2250821ea41ee336627",
+      "patches": [
+        {
+          "old": "    \"migration\",\n    \"regional_population\",\n    \"food_accounting\",\n    \"household_mobility\"\n  ],\n  \"bundle_systems\": [\n    \"historiography\",\n",
+          "new": "    \"migration\",\n    \"regional_population\",\n    \"food_accounting\",\n    \"household_mobility\",\n    \"livelihoods\"\n  ],\n  \"bundle_systems\": [\n    \"historiography\",\n"
+        }
+      ]
+    },
+    "src/chronicler/batch_manifest.py": {
+      "sha256": "973960e67d75ae0519a169f4f05979d70bb6a591474cd65076a291275f3f9ea0",
+      "current_sha256": "5c75331c36a7098e6346647ddc77e6013c394a33a2bdff38e6db39cf07ffe7ca",
+      "patches": [
+        {
+          "old": "    \"scientific_research_agendas\",\n    \"transaction_receipts\",\n    \"domestic_credit\",\n    \"tuning\",\n    \"preset\",\n    \"aggression_bias\",\n",
+          "new": "    \"scientific_research_agendas\",\n    \"transaction_receipts\",\n    \"domestic_credit\",\n    \"workshops\",\n    \"workshop_mode\",\n    \"food_allocation\",\n    \"food_allocation_regime\",\n    \"timber_stock\",\n    \"grain_convoys\",\n    \"convoy_route_policy\",\n    \"tuning\",\n    \"preset\",\n    \"aggression_bias\",\n"
+        },
+        {
+          "old": "    tuning overrides in effect. The new nested research switch is omitted\n    when unspecified so legacy manifests/checkpoints keep their exact shape.\"\"\"\n    config = {key: _json_value(getattr(args, key, None)) for key in SIMULATION_ARG_KEYS\n              if key not in (\"scientific_research_agendas\", \"public_grain_shipments\", \"grain_storage\", \"grain_storage_policy\", \"grain_storage_work_budget\", \"household_mobility_liquid_requirement\", \"academy_services\", \"harvest_report_delay\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n    config[\"tuning_overrides\"] = _json_value(overrides or {})\n",
+          "new": "    tuning overrides in effect. The new nested research switch is omitted\n    when unspecified so legacy manifests/checkpoints keep their exact shape.\"\"\"\n    config = {key: _json_value(getattr(args, key, None)) for key in SIMULATION_ARG_KEYS\n              if key not in (\"scientific_research_agendas\", \"public_grain_shipments\", \"grain_storage\", \"grain_storage_policy\", \"grain_storage_work_budget\", \"household_mobility_liquid_requirement\", \"academy_services\", \"harvest_report_delay\",\n                             \"workshops\", \"workshop_mode\", \"food_allocation\", \"food_allocation_regime\", \"timber_stock\", \"grain_convoys\", \"convoy_route_policy\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n    config[\"tuning_overrides\"] = _json_value(overrides or {})\n"
+        }
+      ]
+    },
+    "src/chronicler/simulation.py": {
+      "sha256": "12a1e06b6f58f7078de5ae9f8a2dccd3ea9a2edfada07a5b719fffe4822a3de6",
+      "current_sha256": "eb210a2d2f1ccf54881b1629e999b6957d09298f65ee6b6b086951b073b30938",
+      "patches": [
+        {
+          "old": "                    # raw-material demand (optional economy columns).\n                    from chronicler.cities import with_economy_columns\n                    region_input = with_economy_columns(world, region_input, snapshot)\n                trade_route_input = build_economy_trade_route_batch(\n                    world, active_trade_routes=economic_routes,\n                )\n",
+          "new": "                    # raw-material demand (optional economy columns).\n                    from chronicler.cities import with_economy_columns\n                    region_input = with_economy_columns(world, region_input, snapshot)\n                if getattr(world, \"livelihoods\", None) is not None:\n                    # Livelihoods sprint (default off): workshop crews and\n                    # timber harvest limits; nothing is charged before finish.\n                    from chronicler.livelihoods import prepare_phase2 as _livelihoods_prepare\n                    region_input = _livelihoods_prepare(world, region_input, agent_bridge, snapshot, acc=acc)\n                trade_route_input = build_economy_trade_route_batch(\n                    world, active_trade_routes=economic_routes,\n                )\n"
+        },
+        {
+          "old": "                        raise RuntimeError(\"Storage work requires a matching native extension with delivered-work observations\")\n                    finish_storage_work(world, _storage_plan,\n                                        [delivered[rid] for rid in range(len(world.regions))], acc=acc)\n            except BaseException:\n                if _storage_plan is not None and _storage_plan.status == \"pending\":\n                    rollback_storage_work(world, _storage_plan)\n                raise\n            from chronicler.food_accounting import public_opening, capture_food_accounting\n            _public_food_opening = public_opening(world)\n",
+          "new": "                        raise RuntimeError(\"Storage work requires a matching native extension with delivered-work observations\")\n                    finish_storage_work(world, _storage_plan,\n                                        [delivered[rid] for rid in range(len(world.regions))], acc=acc)\n                if getattr(world, \"livelihoods\", None) is not None:\n                    # Settle after native success, before public granaries open.\n                    from chronicler.livelihoods import finish_phase2 as _livelihoods_finish\n                    _emit(_livelihoods_finish(world, economy_result, agent_bridge, acc=acc))\n            except BaseException:\n                if _storage_plan is not None and _storage_plan.status == \"pending\":\n                    rollback_storage_work(world, _storage_plan)\n                if getattr(world, \"livelihoods\", None) is not None:\n                    from chronicler.livelihoods import rollback_phase2 as _livelihoods_rollback\n                    _livelihoods_rollback(world)\n                raise\n            from chronicler.food_accounting import public_opening, capture_food_accounting\n            _public_food_opening = public_opening(world)\n"
+        },
+        {
+          "old": "                if learning_work_pending(world):\n                    cancel_learning_work(world, plan)\n                raise\n\n    # Apply accumulated stat mutations and route agent signals\n    if world.agent_mode == \"hybrid\" and agent_bridge is not None:\n",
+          "new": "                if learning_work_pending(world):\n                    cancel_learning_work(world, plan)\n                raise\n\n    if getattr(world, \"livelihoods\", None) is not None and agent_bridge is not None:\n        # Livelihoods sprint: per-person food allocation around the native tick.\n        from chronicler.livelihoods import wrap_agent_tick as _livelihoods_wrap\n        tick_agents = _livelihoods_wrap(world, agent_bridge, tick_agents, economy_result)\n\n    # Apply accumulated stat mutations and route agent signals\n    if world.agent_mode == \"hybrid\" and agent_bridge is not None:\n"
+        },
+        {
+          "old": "    # Public granaries (--grain-reserves): this turn's harvests and targets,\n    # purchases toward them from real surplus; after the merchants planned\n    # their trips, before the Phase 10 flush below.\n    if _grain_reserves_on(world):\n        from chronicler.grain_reserves import tick_grain_reserves\n        _emit(tick_grain_reserves(\n            world, acc=phase10_acc, economy_result=artifacts.economy, agent_bridge=agent_bridge,\n        ))\n\n    # Recurring local harvest gatherings: real surplus grain and projected\n    # treasury, after the granary resource ledger closes, before keep flush.\n",
+          "new": "    # Public granaries (--grain-reserves): this turn's harvests and targets,\n    # purchases toward them from real surplus; after the merchants planned\n    # their trips, before the Phase 10 flush below.\n    if getattr(world, \"livelihoods\", None) is not None:\n        from chronicler.livelihoods import phase10_before_reserves as _livelihoods_p10a\n        _emit(_livelihoods_p10a(world, acc=phase10_acc, economy_result=artifacts.economy,\n                                agent_bridge=agent_bridge))\n    if _grain_reserves_on(world):\n        from chronicler.grain_reserves import tick_grain_reserves\n        _emit(tick_grain_reserves(\n            world, acc=phase10_acc, economy_result=artifacts.economy, agent_bridge=agent_bridge,\n        ))\n    if getattr(world, \"livelihoods\", None) is not None:\n        from chronicler.livelihoods import phase10 as _livelihoods_p10\n        _emit(_livelihoods_p10(world, acc=phase10_acc, economy_result=artifacts.economy,\n                               agent_bridge=agent_bridge))\n\n    # Recurring local harvest gatherings: real surplus grain and projected\n    # treasury, after the granary resource ledger closes, before keep flush.\n"
+        }
+      ]
+    },
+    "tests/test_batch_manifest.py": {
+      "sha256": "b19cbf29c3801ac49189b74379d510be90c34ac3a6720dd32a47135d0fb69ae5",
+      "current_sha256": "64c280ffc400cce7781717176f8a13db022abbb5dad337bdc56c55fdc33b31ff",
+      "patches": [
+        {
+          "old": "    assert (manifest[\"kind\"], manifest[\"schema_version\"], manifest[\"status\"]) == (\"chronicler-batch\", 1, \"complete\")\n    assert manifest[\"seeds\"] == [42, 43, 44] and manifest[\"turns\"] == 3\n    simulation = manifest[\"simulation\"]\n    assert set(simulation) == (set(SIMULATION_ARG_KEYS) - {\"scientific_research_agendas\", \"public_grain_shipments\", \"grain_storage\", \"grain_storage_policy\", \"grain_storage_work_budget\", \"household_mobility_liquid_requirement\", \"academy_services\", \"harvest_report_delay\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n    assert manifest[\"outputs\"][\"simulate_only\"] is True\n    environment = manifest[\"environment\"]\n",
+          "new": "    assert (manifest[\"kind\"], manifest[\"schema_version\"], manifest[\"status\"]) == (\"chronicler-batch\", 1, \"complete\")\n    assert manifest[\"seeds\"] == [42, 43, 44] and manifest[\"turns\"] == 3\n    simulation = manifest[\"simulation\"]\n    assert set(simulation) == (set(SIMULATION_ARG_KEYS) - {\"scientific_research_agendas\", \"public_grain_shipments\", \"grain_storage\", \"grain_storage_policy\", \"grain_storage_work_budget\", \"household_mobility_liquid_requirement\", \"academy_services\", \"harvest_report_delay\",\n                                                           \"workshops\", \"workshop_mode\", \"food_allocation\", \"food_allocation_regime\", \"timber_stock\", \"grain_convoys\", \"convoy_route_policy\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n    assert manifest[\"outputs\"][\"simulate_only\"] is True\n    environment = manifest[\"environment\"]\n"
+        }
+      ]
+    }
+  }
+}
