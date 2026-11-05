@@ -255,6 +255,18 @@ pub struct ExtractionLedger {
     /// capacity before this tick's soil change); 0 without output. The
     /// mines' soil charge is `proxy_mine_soil` times this ratio.
     pub mine_crew_ratio: f32,
+    /// Clearing protection (RS5): the region's batch carried a
+    /// `clearing_protection` value this tick (`RegionState::clearing_protection`
+    /// was `Some`). Only then are the two receipts below returned
+    /// (`ffi::batch::build_ecology_batches`).
+    pub protection_input: bool,
+    /// Population-driven clearing fired this tick: a controlled region whose
+    /// population was above `forest_pop_ratio` of its carrying capacity.
+    pub clearing_active: bool,
+    /// Forest cover the protection kept from that clearing this tick:
+    /// `forest_clearing x p` (nominal, before the tick's clamp); 0 when the
+    /// clearing did not fire or p is 0.
+    pub cover_not_cleared: f32,
 }
 
 /// Relative shortfall below the base yield that counts as degradation (the
@@ -759,15 +771,49 @@ fn tick_water_uncontrolled(
     }
 }
 
+/// The controlled forest step without a protection column (unit tests).
+#[cfg(test)]
 fn tick_forest_controlled(
     region: &mut RegionState,
     config: &EcologyConfig,
     climate_phase: u8,
 ) {
+    tick_forest_controlled_protected(region, config, climate_phase, None);
+}
+
+/// Clearing receipt of one controlled forest step: (clearing fired, cover
+/// the protection kept from it).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct ClearingReceipt {
+    pub active: bool,
+    pub cover_not_cleared: f32,
+}
+
+/// [`tick_forest_controlled`] under a clearing protection p in [0, 1]
+/// (RS5, `--clearing-protection`): the authoritative clearing decision
+/// removes `forest_clearing x (1 - p)` instead of `forest_clearing`. `None`
+/// (no column) is the unchanged flat loss, bit for bit. Cooling and regrowth
+/// are untouched: regrowth stays blocked while the population is above the
+/// threshold, so a full protection freezes cover against clearing; it never
+/// restores cover.
+pub fn tick_forest_controlled_protected(
+    region: &mut RegionState,
+    config: &EcologyConfig,
+    climate_phase: u8,
+    protection: Option<f32>,
+) -> ClearingReceipt {
     let pop_threshold = region.carrying_capacity as f32 * config.forest_pop_ratio;
+    let mut receipt = ClearingReceipt::default();
 
     if region.population as f32 > pop_threshold {
-        region.forest_cover -= config.forest_clearing;
+        receipt.active = true;
+        match protection {
+            None => region.forest_cover -= config.forest_clearing,
+            Some(p) => {
+                region.forest_cover -= config.forest_clearing * (1.0 - p);
+                receipt.cover_not_cleared = config.forest_clearing * p;
+            }
+        }
     }
 
     if climate_phase == CLIMATE_COOLING {
@@ -780,6 +826,7 @@ fn tick_forest_controlled(
         let rate = config.forest_regrowth * pressure_multiplier(region, config);
         region.forest_cover += rate;
     }
+    receipt
 }
 
 fn tick_forest_uncontrolled(
@@ -1065,6 +1112,9 @@ pub fn tick_ecology_with_ledger(
         let controlled = region.controller_civ != UNCONTROLLED;
         let ledger = &mut ledgers[i];
         ledger.realized = region.realized_extraction.is_some();
+        // RS5: the batch's clearing protection is consumed by this tick.
+        let protection = region.clearing_protection.take();
+        ledger.protection_input = protection.is_some();
 
         // Step 1: Disease (both controlled and uncontrolled)
         tick_disease(region, config, pandemic, army, season_id);
@@ -1085,7 +1135,9 @@ pub fn tick_ecology_with_ledger(
             // Step 3: Soil/water/forest (controlled path)
             tick_soil_controlled_ledger(region, config, soil_mult, ledger);
             tick_water_controlled(region, config, climate_phase);
-            tick_forest_controlled(region, config, climate_phase);
+            let clearing = tick_forest_controlled_protected(region, config, climate_phase, protection);
+            ledger.clearing_active = clearing.active;
+            ledger.cover_not_cleared = clearing.cover_not_cleared;
         } else {
             // Step 3: Soil/water/forest (uncontrolled — natural recovery only)
             tick_soil_uncontrolled(region, config);
