@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 
 def _amount():
@@ -86,6 +86,10 @@ class TimberStockState(BaseModel):
     ledger_turn: int | None = None
     ledger: list[TimberLedgerRow] = Field(default_factory=list)
     totals: TimberTotals = Field(default_factory=TimberTotals)
+    # Transient, within one Phase 2 only: what prepare offered the economy,
+    # {(region, slot): (cap, harvest possible)}; finish and rollback clear it.
+    # Never serialized; None between turns.
+    _offered: dict | None = PrivateAttr(default=None)
 
     def __setstate__(self, state):
         super().__setstate__(state)
@@ -93,3 +97,8 @@ class TimberStockState(BaseModel):
         for name, factory in _BACKFILL.items():
             if name not in self.__dict__:
                 self.__dict__[name] = factory()
+        private = getattr(self, "__pydantic_private__", None)
+        if private is None:
+            object.__setattr__(self, "__pydantic_private__", {"_offered": None})
+        else:
+            private.setdefault("_offered", None)

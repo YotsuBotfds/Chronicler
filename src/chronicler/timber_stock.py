@@ -193,13 +193,16 @@ def set_timber_stock_enabled(world, value: bool, *, args=None, agent_mode=None) 
     if state is None:
         if not value:
             return  # never enabled: nothing to record
+        if getattr(world, "livelihoods", None) is None:
+            from chronicler.livelihoods_state import LivelihoodsState
+            world.livelihoods = LivelihoodsState()
         world.livelihoods.timber_stock = state = TimberStockState()
     state.enabled = bool(value)
     if state.enabled:
         opening = _opening(world, state)
         held = {(row.region_id, row.slot) for row in state.stocks}
         if set(opening) - held:
-            kept = [row for row in state.stocks]
+            kept = list(state.stocks)
             kept += [TimberSlotStock(region_id=rid, slot=slot, stock=initial)
                      for (rid, slot), initial in opening.items() if (rid, slot) not in held]
             state.stocks = sorted(kept, key=lambda row: (row.region_id, row.slot))
@@ -207,11 +210,29 @@ def set_timber_stock_enabled(world, value: bool, *, args=None, agent_mode=None) 
 
 # --- Protocol: Phase 2 ---------------------------------------------------------
 
+def _farmers_by_region(snapshot, n: int) -> list[int] | None:
+    """Farmers (occupation 0) per region index of the Phase 2 agent snapshot,
+    the pool the native economy derives its labour from; None when unknown."""
+    from chronicler.columnar import batch_arrays
+
+    arrays = batch_arrays(snapshot, ("region", "occupation"))
+    if arrays is None:
+        return None
+    import numpy as np
+
+    regions = arrays[0].astype(np.int64)
+    farmers = (regions >= 0) & (regions < n) & (arrays[1] == 0)
+    return np.bincount(regions[farmers], minlength=n).tolist()
+
+
 def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
     """Append ``timber_harvest_cap_{slot}`` (Float32; null off timber slots and
-    under the ablation). Charges and mutates nothing."""
+    under the ablation). Charges nothing and changes no stock; remembers what
+    it offered (and whether a harvest was possible: a positive goods yield in
+    the batch and farmers in the region) for this turn's finish only."""
     import pyarrow as pa
 
+    state = _state(world)
     names = set(region_input.schema.names)
     if names & set(CAP_COLUMNS):
         raise ValueError("timber harvest cap columns are owned by the timber stock")
@@ -230,7 +251,26 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
     for slot, name in enumerate(CAP_COLUMNS):
         values = [caps.get((rid, slot)) for rid in range(n)]
         region_input = region_input.append_column(name, pa.array(values, type=pa.float32()))
+    farmers = _farmers_by_region(snapshot, n)
+    offered = {}
+    for rid, slot in timber_slots(world):
+        column = f"resource_yield_{slot}"
+        if column in names:
+            goods_yield = region_input.column(column)[rid].as_py()
+        else:
+            from chronicler.experimental.fisheries import economy_yield
+            goods_yield = economy_yield(world, world.regions[rid], slot)
+        possible = None if farmers is None else bool(goods_yield and goods_yield > 0.0 and farmers[rid] > 0)
+        offered[(rid, slot)] = (caps.get((rid, slot)), possible)
+    state._offered = offered
     return region_input
+
+
+def rollback_phase2(world) -> None:
+    """A failed Phase 2 charged nothing; forget what prepare offered."""
+    state = _state(world)
+    if state is not None:
+        state._offered = None
 
 
 def _realized(economy_result, region, slot: int) -> float:
@@ -258,8 +298,11 @@ def _check_row(row: TimberLedgerRow) -> None:
 
 
 def settle_slot(world, rid: int, slot: int, opening: float, extraction: float,
-                *, enforced: bool) -> TimberLedgerRow:
-    """One slot's account (cleared, extraction, regrowth); pure."""
+                *, enforced: bool, possible: bool | None = None) -> TimberLedgerRow:
+    """One slot's account (cleared, extraction, regrowth); pure.
+
+    ``possible``: whether the economy could harvest at all (positive yield and
+    farmers, observed at prepare); it decides whether a zero cap bound."""
     region = world.regions[rid]
     capacity = effective_capacity(region, slot)
     available = min(opening, capacity)
@@ -274,7 +317,12 @@ def settle_slot(world, rid: int, slot: int, opening: float, extraction: float,
     gate = water_gate_open(world, region)
     grown = regrowth(after, capacity, gate)
     stock = min(after + grown, capacity)
-    capped = None if cap is None or cap <= 0.0 else extraction >= cap
+    if cap is None:
+        capped = None
+    elif cap > 0.0:
+        capped = extraction >= cap
+    else:
+        capped = possible  # nothing standing: it bound wherever a harvest was possible
     return TimberLedgerRow(
         region_id=rid, slot=slot, opening=opening, cleared=cleared, extraction=extraction,
         overdraft=overdraft, regrowth=grown, removed=0.0, stock=stock,
@@ -285,16 +333,25 @@ def settle_slot(world, rid: int, slot: int, opening: float, extraction: float,
 def finish_phase2(world, economy_result, agent_bridge, acc) -> list:
     """Settle every timber slot's account for this turn; commits atomically."""
     state = _state(world)
-    if state is None or not state.enabled:
+    if state is None:
+        return []
+    offered, state._offered = state._offered, None
+    if not state.enabled:
         return []
     if state.ledger_turn is not None and state.ledger_turn >= world.turn:
         raise RuntimeError(f"timber stock already settled turn {state.ledger_turn}")
     enforced = enforce_cap(world)
     opening = _opening(world, state)
+    if offered is not None and set(offered) != set(opening):
+        raise RuntimeError("timber slots changed between prepare and finish")
     rows: list[TimberLedgerRow] = []
     for (rid, slot), stock in opening.items():
         extraction = _realized(economy_result, world.regions[rid], slot)
-        rows.append(settle_slot(world, rid, slot, stock, extraction, enforced=enforced))
+        possible = offered[(rid, slot)][1] if offered is not None else None
+        row = settle_slot(world, rid, slot, stock, extraction, enforced=enforced, possible=possible)
+        if offered is not None and offered[(rid, slot)][0] != row.cap:
+            raise RuntimeError("the timber harvest cap changed between prepare and finish")
+        rows.append(row)
     for held in state.stocks:
         if (held.region_id, held.slot) not in opening:
             # The slot is no longer timber (or its region is gone): its stock leaves.

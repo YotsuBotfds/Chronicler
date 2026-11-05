@@ -16,6 +16,8 @@ import pyarrow as pa
 import pytest
 
 from chronicler import timber_stock as ts
+from chronicler.climate import get_climate_phase
+from chronicler.ecology import refresh_resource_yields
 from chronicler.economy import EconomyResult
 from chronicler.livelihoods import configure_livelihoods, finish_phase2, prepare_phase2
 from chronicler.main import _build_parser
@@ -28,6 +30,8 @@ TIMBER = int(ResourceType.TIMBER)
 
 def _world(*flags, seed=3, overrides=None):
     world = generate_world(seed=seed)
+    # Phase 2's yield preview (transient; never serialized).
+    refresh_resource_yields(world, get_climate_phase(world.turn, world.climate_config))
     if overrides:
         world.tuning_overrides = dict(overrides)
     if flags:
@@ -44,12 +48,22 @@ def _batch(world):
     return pa.record_batch(data)
 
 
-def _tick(world, potential=None):
+def _snapshot(farmers_by_region):
+    """A Phase 2 agent snapshot: ``n`` farmers (occupation 0) and one soldier per region."""
+    regions, occupations = [], []
+    for rid, n in enumerate(farmers_by_region):
+        regions += [rid] * (n + 1)
+        occupations += [0] * n + [1]
+    return pa.record_batch({"region": pa.array(regions, type=pa.uint16()),
+                            "occupation": pa.array(occupations, type=pa.uint8())})
+
+
+def _tick(world, potential=None, snapshot=None):
     """One Phase 2: prepare, a recorded kernel, finish; then the turn ends.
 
     ``potential``: uncapped timber output per (region, slot) (default 0)."""
     potential = potential or {}
-    batch = prepare_phase2(world, _batch(world), None, None)
+    batch = prepare_phase2(world, _batch(world), None, snapshot)
     result = EconomyResult()
     for rid, region in enumerate(world.regions):
         outputs = []
@@ -269,6 +283,49 @@ def test_a_kernel_that_ignores_the_cap_is_refused_without_partial_state():
     assert world.model_dump_json() == before
 
 
+def test_a_zero_cap_binds_only_where_a_harvest_was_possible():
+    world = _world("--timber-stock")
+    world.livelihoods.timber_stock.stocks[0].stock = 0.0  # cut to nothing; cover stands
+    with_farmers = _snapshot([3] * len(world.regions))
+    no_farmers = _snapshot([0, *([3] * (len(world.regions) - 1))])
+    for snapshot, expected in ((with_farmers, True), (no_farmers, False), (None, None)):
+        batch, _ = _tick(world, {(0, 0): 5.0, (2, 0): 1.0}, snapshot)
+        rows = _rows(world)
+        assert batch.column("timber_harvest_cap_0")[0].as_py() == 0.0
+        assert rows[(0, 0)]["extraction"] == 0.0 and rows[(0, 0)]["capped"] is expected
+        assert rows[(2, 0)]["capped"] is False  # a positive cap above the harvest
+        world.livelihoods.timber_stock.stocks[0].stock = 0.0
+    # No goods yield (e.g. a burnt stand's suspended timber): nothing could be cut.
+    batch = _batch(world).append_column("resource_yield_0", pa.array([0.0] * len(world.regions), type=pa.float32()))
+    prepare_phase2(world, batch, None, with_farmers)
+    assert world.livelihoods.timber_stock._offered[(0, 0)] == (0.0, False)
+    ts.rollback_phase2(world)
+
+
+def test_the_offer_is_consumed_once_and_cleared_on_rollback():
+    world = _world("--timber-stock")
+    state = world.livelihoods.timber_stock
+    assert state._offered is None
+    prepare_phase2(world, _batch(world), None, None)
+    assert set(state._offered) == {(0, 0), (2, 0)}
+    from chronicler.livelihoods import rollback_phase2
+    rollback_phase2(world)
+    assert state._offered is None
+    for _ in range(3):
+        _tick(world, {(0, 0): 2.0})
+        assert state._offered is None, "finish consumes the offer every turn"
+    # The world may not change between the offer and the settlement.
+    prepare_phase2(world, _batch(world), None, None)
+    world.regions[0].ecology.forest_cover -= 0.5
+    result = EconomyResult()
+    for region in world.regions:
+        result.slot_output[region.name] = (0.0, 0.0, 0.0)
+    before = world.livelihoods.timber_stock.model_dump_json()
+    with pytest.raises(RuntimeError, match="changed between prepare and finish"):
+        finish_phase2(world, result, None)
+    assert state._offered is None and state.model_dump_json() == before
+
+
 def test_a_turn_is_settled_once():
     world = _world("--timber-stock")
     result = EconomyResult()
@@ -365,12 +422,14 @@ def test_stub_pickles_and_saves_backfill_the_new_fields():
     raw = stub.__getstate__()
     for name in ("stocks", "ledger_turn", "ledger", "totals"):
         raw["__dict__"].pop(name)
+    raw["__pydantic_private__"] = None  # the stub class had no private attributes
     back = TimberStockState.__new__(TimberStockState)
     back.__setstate__(raw)
     assert (back.enabled, back.stocks, back.ledger_turn, back.ledger, back.totals) == (
         False, [], None, [], TimberTotals())
     assert pickle.loads(pickle.dumps(back)).model_dump_json() == stub.model_dump_json()
     assert TimberStockState.model_validate_json('{"schema_version": 1, "enabled": true}') == TimberStockState()
+    assert back._offered is None
 
 
 def test_enabled_state_round_trips_exactly():
