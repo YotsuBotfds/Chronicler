@@ -382,3 +382,20 @@ this phase:
   recovery-skills switch on: PASS at 19 resume points.
 - Viewer: 139 test files and 1,346 tests, lint and build. The browser QA
   (`viewer/scripts/qa-recovery-skills.mjs`) passed 470 checks at desktop and phone.
+
+**Held screens.** 228 runs, 0 failed, 0.86 core-hours
+(`docs/superpowers/progress/recovery-skills-screens.md`, Results):
+- RS2 granary condition: +0.030 (t) and +0.079 (p) against cost_only.
+- RS5 forest cover: +0.025 and +0.057 against cost_only.
+- RS4: 926 and 1,161 wealth units credited per world, with 163 and 204 in fees.
+- RS1 completions are rare (3.3 and 0.8 per world), and its operating wear costs 10–14
+  lump repairs per world.
+- RS3 priority is a null.
+
+**Out of scope, unchanged:**
+- household food retail (L6b);
+- infrastructure repair;
+- any new combat generator;
+- calibration of the declared constants;
+- default promotion;
+- the 200-seed and procedural qualification gates.

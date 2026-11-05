@@ -1,43 +1,122 @@
 {
   "schema_version": 3,
-  "board_version": 1,
+  "board_version": 2,
   "title": "Recovery, skills and resilient local economies (RS0-RS7) operational board",
   "plan": "docs/superpowers/roadmaps/recovery-skills-phase.md",
   "owner_instruction": "2026-11-05: review, fix and merge #73 then #74; then own the phase end to end (apprenticeship, repair and veterans, diaspora and remittances, funded clearing protection, viewer and evidence) with gated merges; new behaviour opt-in and default off; no default promotion; no 200-seed or procedural qualification gates without asking; bounded screens allowed; household food retail stays an explicit gap.",
-  "durable_location": {"branch": "claude/recovery-skills", "base": "main at 9f950cb4 (after #73 7001d649, #74 ee4c7ac2, #75 9f950cb4)"},
-  "status_values": ["proposed", "ready", "active", "blocked", "integrated", "evaluated", "deferred"],
-  "packages": [
-    {"id": "RS0", "status": "integrated", "lane": "lead", "switch": null,
-     "summary": "Work-registry categories apprentice/repair, paid-work extend and shared receipt, transfer purposes, crew priority seam, five switches with modes and stubs, bind_native_pool."},
-    {"id": "RS1", "status": "integrated", "lane": "claude/rs1-apprenticeship (7b0b2e5c)", "switch": "--apprenticeship (train | no_qualification)",
-     "summary": "Named mentors and apprentices in the work registry; service and apprenticeship qualifications by stable id; qualified upkeep against operating wear; stipends from firm cash."},
-    {"id": "RS2", "status": "integrated", "lane": "claude/rs2-repair (e7d72f76)", "switch": "--repair-projects (repair | cost_only)",
-     "summary": "Paid repair projects for workshop sites and granaries from real condition, named or storage-channel labour, timber, coins and L9 repairs envelopes; war damage at real conquest, sack and seizure events; legacy lump repair disabled while active."},
-    {"id": "RS3", "status": "integrated", "lane": "claude/rs3-veterans (6a5801e2)", "switch": "--veteran-reintegration (priority | record_only)",
-     "summary": "Veterans captured at real roster releases by stable id; crew priority without guarantees; dated placements (crew, apprentice, repair), waiting and closures."},
-    {"id": "RS4", "status": "integrated", "lane": "claude/rs4-remittances (c7730cc9)", "switch": "--remittances (send | record_only)",
-     "summary": "Diaspora ledger from applied native migrations; bounded exactly-once remittances to one Marriage or Kin partner at home through native wealth_transfer::remit; disclosed courier fee; no income created."},
-    {"id": "RS5", "status": "integrated", "lane": "claude/rs5-clearing (e0cb49e6)", "switch": "--clearing-protection (enforced | cost_only)",
-     "summary": "Funded warden protection at the authoritative clearing decision in Rust (tick_forest_controlled_protected) and the Python fallback, with a stated cost charged once to the controller."},
-    {"id": "RS6", "status": "integrated", "lane": "claude/rs6-options (e3de7f3b)", "switch": null,
-     "summary": "Feature catalog served to Batch Lab and live setup; options off by default; live validation of features."},
-    {"id": "RS7", "status": "active", "lane": "lead", "switch": null,
-     "summary": "Preregistered held screens (docs/superpowers/progress/recovery-skills-screens.md), natural and constructed examples, viewer QA."}
+  "durable_location": {
+    "branch": "claude/recovery-skills",
+    "base": "main at 9f950cb4 (after #73 7001d649, #74 ee4c7ac2, #75 9f950cb4)"
+  },
+  "status_values": [
+    "proposed",
+    "ready",
+    "active",
+    "blocked",
+    "integrated",
+    "evaluated",
+    "deferred"
   ],
-  "compute_budget": {"core_hours": 2.0, "concurrency": 3, "transient_disk_gib": 6,
-                     "pilot": "template 2, procedural 7; 38 runs, 0 failed, 0.90 core-hours projected",
-                     "held_cohort": "template 501-506; procedural 32x10 601-606; 200 turns", "used_core_hours": 0.0},
-  "layers": ["rs0", "rs6", "rs5", "rs4", "rs2", "rv1", "rv2"],
-  "native_extension": {"source_commit": "c7957733 (RS4 Rust; unchanged since)", "sha256": "6c675042caa9e37895a3d9d813124d1fa89d5ad2557d2bd7a514e59e3e331e2a"},
+  "packages": [
+    {
+      "id": "RS0",
+      "status": "integrated",
+      "lane": "lead",
+      "switch": null,
+      "summary": "Work-registry categories apprentice/repair, paid-work extend and shared receipt, transfer purposes, crew priority seam, five switches with modes and stubs, bind_native_pool."
+    },
+    {
+      "id": "RS1",
+      "status": "evaluated",
+      "lane": "claude/rs1-apprenticeship (7b0b2e5c)",
+      "switch": "--apprenticeship (train | no_qualification)",
+      "summary": "Named mentors and apprentices in the work registry; service and apprenticeship qualifications by stable id; qualified upkeep against operating wear; stipends from firm cash.",
+      "held_outcome": "Held: 88 enrolled/world; completions 3.3 (t, 3/6 worlds) and 0.8 (p, 2/6); adverse +10.5/+13.5 lump repairs and -0.35/-0.15 end condition vs W_operate (operating wear)."
+    },
+    {
+      "id": "RS2",
+      "status": "evaluated",
+      "lane": "claude/rs2-repair (e7d72f76)",
+      "switch": "--repair-projects (repair | cost_only)",
+      "summary": "Paid repair projects for workshop sites and granaries from real condition, named or storage-channel labour, timber, coins and L9 repairs envelopes; war damage at real conquest, sack and seizure events; legacy lump repair disabled while active.",
+      "held_outcome": "Held: granary condition +0.030 (t) / +0.079 (p, 6/6) vs cost_only; 99% of stalls for want of timber; workshop repair mixed; capacity unchanged."
+    },
+    {
+      "id": "RS3",
+      "status": "evaluated",
+      "lane": "claude/rs3-veterans (6a5801e2)",
+      "switch": "--veteran-reintegration (priority | record_only)",
+      "summary": "Veterans captured at real roster releases by stable id; crew priority without guarantees; dated placements (crew, apprentice, repair), waiting and closures.",
+      "held_outcome": "Held: 29 (t) / 113 (p) veterans captured per world; priority vs record_only placements +0.5 / +0.17 (null)."
+    },
+    {
+      "id": "RS4",
+      "status": "evaluated",
+      "lane": "claude/rs4-remittances (c7730cc9)",
+      "switch": "--remittances (send | record_only)",
+      "summary": "Diaspora ledger from applied native migrations; bounded exactly-once remittances to one Marriage or Kin partner at home through native wealth_transfer::remit; disclosed courier fee; no income created.",
+      "held_outcome": "Held: 926 (t) / 1161 (p) wealth credited per world, 163 / 204 courier fees leaving the economy; linked share 0.21 / 0.14."
+    },
+    {
+      "id": "RS5",
+      "status": "evaluated",
+      "lane": "claude/rs5-clearing (e0cb49e6)",
+      "switch": "--clearing-protection (enforced | cost_only)",
+      "summary": "Funded warden protection at the authoritative clearing decision in Rust (tick_forest_controlled_protected) and the Python fallback, with a stated cost charged once to the controller.",
+      "held_outcome": "Held: forest cover +0.025 (t) / +0.057 (p), 5/6 each, vs cost_only; 468 / 1305 coins per world; the control matches cost per decision only."
+    },
+    {
+      "id": "RS6",
+      "status": "integrated",
+      "lane": "claude/rs6-options (e3de7f3b)",
+      "switch": null,
+      "summary": "Feature catalog served to Batch Lab and live setup; options off by default; live validation of features."
+    },
+    {
+      "id": "RS7",
+      "status": "evaluated",
+      "lane": "lead",
+      "switch": null,
+      "summary": "Preregistered held screens (docs/superpowers/progress/recovery-skills-screens.md), natural and constructed examples, viewer QA."
+    }
+  ],
+  "compute_budget": {
+    "core_hours": 2.0,
+    "concurrency": 3,
+    "transient_disk_gib": 6,
+    "pilot": "template 2, procedural 7; 38 runs, 0 failed, 0.90 core-hours projected",
+    "held_cohort": "template 501-506; procedural 32x10 601-606; 200 turns",
+    "used_core_hours": 0.86,
+    "held_run": "228 runs, 0 failed, 20 min wall, source a4adfde6"
+  },
+  "layers": [
+    "rs0",
+    "rs6",
+    "rs5",
+    "rs4",
+    "rs2",
+    "rv1",
+    "rv2",
+    "rv3"
+  ],
+  "native_extension": {
+    "source_commit": "c7957733 (RS4 Rust; unchanged since)",
+    "sha256": "6c675042caa9e37895a3d9d813124d1fa89d5ad2557d2bd7a514e59e3e331e2a"
+  },
   "review_fixes": [
     "414d9063 (layer rv1 fe8e7a14) Phase 10 read the post-tick batch after the livelihoods after-hooks moved wealth (review B, major; predates the phase, also L6a/L7)",
     "84ac1795 every reserved apprentice seat is a dated RS3 placement in either mode (review A, major)",
+    "59cf09a7 / 64962ad5 RS2: real seizures, timber-supported worker-turns (MIN_WORKER_TIMBER 0.5), open-record veterans, L9 stake for shut sites, seated mentors; ledger spoilage rate (layer rv3) (review C)",
     "eecf3169 (layer rv2 ade4f944) RS5 plans pressure in the deciding engine's precision; every decision of the turn kept (review B, minor)",
     "dbd3b6f9 money closure covers RS2/RS4/RS5 (review B, test gap)",
     "b5082db0 exact resume refuses RS mode options the checkpoint never recorded (RS1 lane report)",
     "b36aea03 / 6ae38b6f identity tools refuse or resolve a source path they would not import (found by the lead)"
   ],
-  "final_source": null,
+  "final_source": {
+    "commit": "a4adfde6",
+    "native_sha256": "6c675042caa9e37895a3d9d813124d1fa89d5ad2557d2bd7a514e59e3e331e2a",
+    "verification": "offline oracle lane PASS; native 130 passed 1 skipped; turn_speed_identity vs main 9f950cb4: 9 cases 399 files 0 differences; all-switch checkpoint_identity hybrid_s42_long PASS (19 resume points); viewer 139 files 1346 tests, lint, build; browser QA 470/470"
+  },
   "merge": null,
-  "next": "Finish the RS2 review, run the held screens on the final source, record outcomes, open the phase PR."
+  "next": "Open the phase PR, merge after CI, then a merge-record docs PR. Candidates for a next phase (need an owner instruction): household food retail (L6b, still open); timber supply as RS2's binding constraint; RS1 wear calibration."
 }

@@ -1,5 +1,44 @@
 # Current continuation — livelihoods stack merged; recovery-skills phase, 2026-11-05
 
+## Recovery, skills and resilient local economies (2026-11-05)
+
+The phase was built on `claude/recovery-skills` from `main` `9f950cb4`. Plan and handoff:
+[recovery-skills-phase.md](superpowers/roadmaps/recovery-skills-phase.md), section 8.
+Board: [recovery-skills.json](superpowers/progress/recovery-skills.json). Screens:
+[recovery-skills-screens.md](superpowers/progress/recovery-skills-screens.md). Examples:
+[recovery-skills-examples.md](superpowers/progress/recovery-skills-examples.md).
+
+- **New switches, all off by default, none promoted.**
+  - `--apprenticeship` (RS1, `train` or `no_qualification`).
+  - `--repair-projects` (RS2, `repair` or `cost_only`).
+  - `--veteran-reintegration` (RS3, `priority` or `record_only`).
+  - `--remittances` (RS4, `send` or `record_only`).
+  - `--clearing-protection` (RS5, `enforced` or `cost_only`).
+  - All five appear in Batch Lab and live setup (RS6), off by default.
+  - The integration pages are listed in [docs/README.md](README.md).
+- **Final source** `a4adfde6`, native extension `6c675042…` (Rust unchanged since
+  `c7957733`).
+  - The offline lane passes. Native suites: 130 passed, 1 skipped.
+  - Feature-off identity against `main`: 9 cases, 399 files, 0 differences.
+  - All-switch exact checkpoint identity: PASS at 19 resume points.
+  - Viewer: 1,346 tests, lint and build pass. The browser QA passed 470 checks at desktop
+    and phone.
+- **Review.** Three independent reviewers found no blockers. Every confirmed defect was
+  fixed with a regression test (board `review_fixes`). Two of them reach beyond the phase:
+  - Phase 10 read wealth from before the livelihoods after-hooks. This was already true on
+    `main` for L6a wages and L7 fares, and it changes their feature-on trajectories.
+  - The #74 identity correction below.
+- **Held screens.** 228 preregistered runs on fresh seeds, 0 failed.
+  - RS2 raised granary condition, RS5 kept forest cover and RS4 moved support to kin, each
+    at a stated cost.
+  - RS1 and RS3 were mostly nulls. RS1 adds a consistent cost through its operating wear.
+- **Limits carried forward.**
+  - Household food retail (L6b) remains open.
+  - Timber, not money, binds RS2.
+  - RS1's wear and every other constant are declared, not calibrated.
+  - L8 commons rules keep the 64-entry rolling decision log that RS5 dropped.
+  - The 200-seed and procedural qualification gates were not run.
+
 ## Stack review and merge (2026-11-05)
 
 Owner instruction, 2026-11-05: review, fix and merge #73 and then #74, then build the

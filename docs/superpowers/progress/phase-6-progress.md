@@ -1,7 +1,9 @@
 # Phase 6+7 Progress — Living Society + Depth Track
 
 Current source, gates and onboarding: [recovery index](../../RECOVERY.md) and
-[continuation ledger](../../CONTINUATION.md) (main after PRs #73 and #74, 2026-11-05).
+[continuation ledger](../../CONTINUATION.md) (main after PRs #73 and #74, 2026-11-05; the
+recovery-skills phase RS0–RS7, default off, is recorded there and in
+[recovery-skills.json](recovery-skills.json)).
 The [2026-11-03 integration handoff](../../integration/development-lead.md) and the
 dated source-scoped records below remain historical evidence.
 
