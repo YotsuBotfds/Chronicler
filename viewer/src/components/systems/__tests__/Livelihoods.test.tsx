@@ -106,6 +106,22 @@ it("mounts clearing protection only when the snapshot recorded it", () => {
   expect(screen.queryByText(/names no package this viewer reads/)).not.toBeInTheDocument();
 });
 
+it("mounts remittances only when the snapshot recorded them, an unobserved frame as unknown", () => {
+  const unobserved = { schema_version: 1, stage: "RS4", mode: "send", source_turn: 4, funnel: null, totals: null,
+    regions: null, moves: null, moves_dropped: null, closures: null, closures_dropped: null, receipts: null,
+    receipts_dropped: null, unmet: null, unmet_dropped: null, last_pool_reset: null, counters: {},
+    parameters: { settled_turns: 5, share_permille: 100, reserve_milli: 2000, cap_milli: 1000, fee_permille: 150,
+      min_sentiment: 20, adult_age: 20, max_entries: 2048 } };
+  const p = props({ schema_version: 1, remittances: unobserved }, 5);
+  render(<LivelihoodsPanel {...p} onSeek={vi.fn()} onSelectEvent={vi.fn()} onSelectCivilization={vi.fn()} />);
+  expect(screen.getByRole("heading", { name: /Remittances and diaspora · snapshot 5/ })).toBeInTheDocument();
+  expect(screen.queryByText(/names no package this viewer reads/)).not.toBeInTheDocument();
+  cleanup();
+  render(<LivelihoodsPanel {...props({ schema_version: 1, workshops }, 5)} onSeek={vi.fn()} onSelectEvent={vi.fn()}
+    onSelectCivilization={vi.fn()} />);
+  expect(screen.queryByRole("heading", { name: /Remittances and diaspora/ })).not.toBeInTheDocument();
+});
+
 it("mounts workshop payroll beside its workshops when recorded", () => {
   const p = props({ schema_version: 1, workshop_payroll: payroll });
   render(<LivelihoodsPanel {...p} onSeek={vi.fn()} onSelectEvent={vi.fn()} onSelectCivilization={vi.fn()} />);
