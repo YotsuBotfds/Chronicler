@@ -59,9 +59,16 @@ link to these by path, so keep their names stable.
   [relocation costs](integration/relocation-costs.md),
   [household purchases (design, left open)](integration/household-purchases-design.md),
   [local budgets](integration/local-budgets.md),
-  [clearing protection](integration/clearing-protection.md); plans in
-  [sprint 1](superpowers/roadmaps/livelihoods-commons-sprint1.md) and
-  [sprint 2](superpowers/roadmaps/livelihoods-commons-sprint2.md).
+  [clearing protection](integration/clearing-protection.md),
+  [workshop apprenticeship](integration/apprenticeship.md),
+  [repair projects](integration/repair-projects.md),
+  [veteran reintegration](integration/veteran-reintegration.md),
+  [remittances and the diaspora ledger](integration/remittances.md),
+  [feature options in Batch Lab and live setup](integration/feature-options.md); plans in
+  [sprint 1](superpowers/roadmaps/livelihoods-commons-sprint1.md),
+  [sprint 2](superpowers/roadmaps/livelihoods-commons-sprint2.md) and the
+  [recovery-skills phase](superpowers/roadmaps/recovery-skills-phase.md)
+  ([screens](superpowers/progress/recovery-skills-screens.md)).
 - **World generation:** [geography 2.0](integration/geography-2.md),
   [procedural gates](integration/procedural-gates.md).
 

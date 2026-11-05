@@ -35,7 +35,17 @@ next phase, "Recovery, skills and resilient local economies".
 - **Evidence on `da514a5e`.**
   - Feature-off `turn_speed_identity` against `64863f12`, each with its own extension
     (`9e0434fd…` / `70587268…`): 9 cases, 399 files, 0 differences.
-  - All-switch `checkpoint_identity` `hybrid_s42_long`: PASS at 19 resume points.
+    - **Correction, 2026-11-05.** That run as first recorded passed `--source-root .../src`.
+      The tool appends `src` itself, so both sides silently imported the same installed
+      tree (`64863f12`) and compared only the two extensions.
+    - Rerun with the checkout roots (`64863f12` vs `da514a5e`, imports checked in each
+      log): 9 cases, 399 files, 0 differences. The claim holds; the original evidence did
+      not support it.
+    - The tool now refuses a root it would not import (`b36aea03`).
+  - All-switch `checkpoint_identity` `hybrid_s42_long`: PASS at 19 resume points. Run with
+    `PYTHONPATH=src` from the `da514a5e` worktree; its venv's editable install was that
+    same tree, so it tested the intended source. The tool now makes relative `PYTHONPATH`
+    entries absolute (`6ae38b6f`).
   - Witness layers `r3` and `s2r` were added; no historical fixture was rewritten.
   - The sprint-2 held screens ran on `aea7972f`, before the review fixes, and were not
     rerun. The fixes can change feature-on trajectories in three cases: L6a liquidation
