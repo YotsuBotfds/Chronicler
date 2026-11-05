@@ -7,8 +7,8 @@ drift. It lists:
 
 * every livelihoods switch and its mode, generated from the registry
   (``livelihoods_state.LIVELIHOODS_SWITCHES``, ``livelihoods.LIVELIHOODS_ARG_KEYS``
-  and ``LIVELIHOODS_CHOICES``); a choice key belongs to the switch declared
-  before it;
+  and ``LIVELIHOODS_CHOICES``; the parser's help is ``livelihoods._HELP``); a
+  choice key belongs to the switch declared before it;
 * the expansion prerequisites those switches depend on (``PREREQUISITES``).
 
 Each entry's key is the CLI parser destination; flag, help text and choices
@@ -38,7 +38,6 @@ import copy
 from functools import lru_cache
 from typing import Any, Mapping
 
-from chronicler.livelihoods import _HELP as _LIVELIHOODS_HELP
 from chronicler.livelihoods import LIVELIHOODS_ARG_KEYS, LIVELIHOODS_CHOICES
 from chronicler.livelihoods_state import LIVELIHOODS_SWITCHES
 
@@ -148,7 +147,7 @@ def _parser_actions() -> dict[str, Any]:
 
 
 def _entry(key: str, actions: Mapping[str, Any], *, group: str, experimental: bool,
-           parent: str | None, help_text: str | None = None) -> dict:
+           parent: str | None) -> dict:
     action = actions[key]
     choices = list(action.choices) if action.choices is not None else None
     if parent is None:
@@ -159,7 +158,7 @@ def _entry(key: str, actions: Mapping[str, Any], *, group: str, experimental: bo
         "key": key,
         "flag": action.option_strings[0],
         "label": _label(key),
-        "help": help_text if help_text is not None else (action.help or ""),
+        "help": action.help or "",
         "kind": "choice" if choices is not None else "bool",
         "choices": choices,
         "default": None,
@@ -186,7 +185,7 @@ def _features() -> tuple[dict, ...]:
         elif key not in LIVELIHOODS_CHOICES or parent is None:
             raise ValueError(f"livelihoods key {key!r} is neither a switch nor a mode of one")
         entry = _entry(key, actions, group=LIVELIHOODS_GROUP, experimental=True,
-                       parent=None if is_switch else parent, help_text=_LIVELIHOODS_HELP[key])
+                       parent=None if is_switch else parent)
         if not is_switch and entry["choices"] != list(LIVELIHOODS_CHOICES[key]):
             raise ValueError(f"{key} parser choices differ from LIVELIHOODS_CHOICES")
         entries.append(entry)
@@ -257,8 +256,9 @@ def batch_surface(client_defaults: Mapping[str, Any], config: Mapping[str, Any] 
         if name in keys and value is not None:
             values[name] = value
     techniques = _batch_value("techniques", client_defaults, config)
+    agents = client_defaults.get("agents", "off")
     return {
-        "agents": _batch_value("agents", {"agents": client_defaults.get("agents", "off")}, config),
+        "agents": config.get("agents", agents) if config is not None else agents,
         "agent_modes": list(AGENT_MODES),
         "values": values,
         "settings": {
