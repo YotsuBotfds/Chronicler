@@ -53,6 +53,7 @@ LIVELIHOODS_CHOICES: dict[str, tuple[str, ...]] = {
     "workshop_payroll_mode": ("paid", "unpaid_labor", "no_customer"),
     "relocation_mode": ("paid", "assisted", "liquidity_only"),
     "local_budget_mode": ("bargained", "fixed_shares"),
+    "clearing_protection_mode": ("enforced", "cost_only"),
 }
 #: All parser destinations owned here (``batch_manifest.SIMULATION_ARG_KEYS``).
 LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
@@ -62,6 +63,7 @@ LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     "workshop_payroll", "workshop_payroll_mode",
     "relocation_costs", "relocation_mode",
     "local_budgets", "local_budget_mode",
+    "clearing_protection", "clearing_protection_mode",
 )
 _AGENT_ECONOMY = ("hybrid", "shadow", "demographics-only")
 
@@ -142,6 +144,16 @@ _HELP = {
         "bargained (default): constituencies' allocations arbitrated by influence, "
         "with political response; fixed_shares: the control, the same budget split "
         "by fixed declared shares, no bargaining and no response"
+    ),
+    "clearing_protection": (
+        "Funded clearing protection: a region's controller may protect up to two forested "
+        "regions under population-driven clearing, paying wardens from its treasury for each "
+        "turn the clearing is active; the paid share of the clearing is suspended at the "
+        "ecology's clearing decision (native and Python); works in every agent mode (default off)"
+    ),
+    "clearing_protection_mode": (
+        "enforced (default): the paid protection suspends clearing; cost_only: the control that "
+        "adopts and pays identically but leaves the clearing unchanged"
     ),
 }
 

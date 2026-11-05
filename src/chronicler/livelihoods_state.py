@@ -14,6 +14,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from chronicler.clearing_protection_state import ClearingProtectionState
 from chronicler.commons_rules_state import CommonsRulesState
 from chronicler.food_allocation_state import FoodAllocationState
 from chronicler.grain_convoys_state import GrainConvoyState
@@ -27,7 +28,7 @@ from chronicler.workshops_state import WorkshopState
 #: Switch names, in declaration order (CLI ``--<name>``; module ``chronicler.<name>``).
 LIVELIHOODS_SWITCHES: tuple[str, ...] = ("workshops", "food_allocation", "timber_stock", "grain_convoys",
                                          "commons_rules", "learning_cohorts", "workshop_payroll",
-                                         "relocation_costs", "local_budgets")
+                                         "relocation_costs", "local_budgets", "clearing_protection")
 
 
 def _is_none(value) -> bool:
@@ -45,6 +46,7 @@ class LivelihoodsState(BaseModel):
     workshop_payroll: WorkshopPayrollState | None = Field(default=None, exclude_if=_is_none)
     relocation_costs: RelocationCostsState | None = Field(default=None, exclude_if=_is_none)
     local_budgets: LocalBudgetState | None = Field(default=None, exclude_if=_is_none)
+    clearing_protection: ClearingProtectionState | None = Field(default=None, exclude_if=_is_none)
 
     def __setstate__(self, state):
         super().__setstate__(state)
