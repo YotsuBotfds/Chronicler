@@ -121,6 +121,18 @@ it("mounts apprenticeship and veterans only when the snapshot recorded them", ()
   expect(screen.queryByText(/names no package this viewer reads/)).not.toBeInTheDocument();
 });
 
+it("mounts repair projects only when the snapshot recorded them", () => {
+  // A record of another stage is unreadable: the panel mounts and says so.
+  const p = props({ schema_version: 1, repair_projects: { schema_version: 1, stage: "RS0" } }, 5);
+  render(<LivelihoodsPanel {...p} onSeek={vi.fn()} onSelectEvent={vi.fn()} onSelectCivilization={vi.fn()} />);
+  expect(screen.getByText(/Repair projects are not observed or are unavailable at snapshot 5/)).toBeInTheDocument();
+  expect(screen.queryByText(/names no package this viewer reads/)).not.toBeInTheDocument();
+  cleanup();
+  render(<LivelihoodsPanel {...props({ schema_version: 1, workshops }, 5)} onSeek={vi.fn()} onSelectEvent={vi.fn()}
+    onSelectCivilization={vi.fn()} />);
+  expect(screen.queryByRole("region", { name: "Repair projects" })).not.toBeInTheDocument();
+});
+
 it("mounts remittances only when the snapshot recorded them, an unobserved frame as unknown", () => {
   const unobserved = { schema_version: 1, stage: "RS4", mode: "send", source_turn: 4, funnel: null, totals: null,
     regions: null, moves: null, moves_dropped: null, closures: null, closures_dropped: null, receipts: null,
