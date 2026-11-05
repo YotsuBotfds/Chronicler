@@ -7,6 +7,7 @@ import { Workshops } from "../Workshops";
 import { record as commonsRecord } from "../../../lib/__tests__/commonsRulesFixture";
 import { payroll } from "../../../lib/__tests__/workshopFinanceFixture";
 import { localBudgetsRecord } from "../../../lib/__tests__/localBudgetsFixture";
+import { record as apprenticeshipRecord } from "../../../lib/__tests__/apprenticeshipFixture";
 import { record as clearingRecord, unprotected as clearingUnprotected } from "../../../lib/__tests__/clearingProtectionFixture";
 afterEach(cleanup);
 
@@ -103,6 +104,20 @@ it("mounts clearing protection only when the snapshot recorded it", () => {
   const p = props({ schema_version: 1, clearing_protection: rec }, 5);
   render(<LivelihoodsPanel {...p} onSeek={vi.fn()} onSelectEvent={vi.fn()} onSelectCivilization={vi.fn()} />);
   expect(screen.getByRole("heading", { name: /Clearing protection · snapshot 5/ })).toBeInTheDocument();
+  expect(screen.queryByText(/names no package this viewer reads/)).not.toBeInTheDocument();
+});
+
+it("mounts apprenticeship and veterans only when the snapshot recorded them", () => {
+  // The apprenticeship fixture names regions 1 and 2 of this three-region bundle.
+  const p = props({ schema_version: 1, apprenticeship: apprenticeshipRecord }, 5);
+  render(<LivelihoodsPanel {...p} onSeek={vi.fn()} onSelectEvent={vi.fn()} onSelectCivilization={vi.fn()} />);
+  expect(screen.getByRole("heading", { name: /Workshop apprenticeship · snapshot 5/ })).toBeInTheDocument();
+  expect(screen.queryByRole("region", { name: "Veterans" })).not.toBeInTheDocument();
+  cleanup();
+  // An unreadable veterans record still mounts the panel, which says it is unavailable.
+  const q = props({ schema_version: 1, veteran_reintegration: { schema_version: 1, stage: "RS3" } }, 5);
+  render(<LivelihoodsPanel {...q} onSeek={vi.fn()} onSelectEvent={vi.fn()} onSelectCivilization={vi.fn()} />);
+  expect(screen.getByText(/Veteran reintegration is not observed or is unavailable at snapshot 5/)).toBeInTheDocument();
   expect(screen.queryByText(/names no package this viewer reads/)).not.toBeInTheDocument();
 });
 

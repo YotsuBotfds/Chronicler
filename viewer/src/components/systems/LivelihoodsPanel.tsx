@@ -1,6 +1,8 @@
 import type { SystemPanelProps } from "../../lib/systems";
 import { ClearingProtection } from "./ClearingProtection";
 import { Remittances } from "./Remittances";
+import { Apprenticeship } from "./Apprenticeship";
+import { Veterans } from "./Veterans";
 import { CommonsRules } from "./CommonsRules";
 import { FoodAllocation } from "./FoodAllocation";
 import { GrainConvoys } from "./GrainConvoys";
@@ -17,7 +19,7 @@ import { Workshops } from "./Workshops";
  */
 const PACKAGES = ["workshops", "workshop_payroll", "food_allocation", "timber_stock", "grain_convoys",
   "commons_rules", "learning_cohorts", "relocation_costs", "local_budgets", "clearing_protection",
-  "remittances"];
+  "remittances", "apprenticeship", "veteran_reintegration"];
 
 export function LivelihoodsPanel({ bundle, snapshot, currentTurn, onSelectRegion }: SystemPanelProps) {
   const row = snapshot as unknown as Record<string, unknown> | null;
@@ -41,6 +43,8 @@ export function LivelihoodsPanel({ bundle, snapshot, currentTurn, onSelectRegion
     {record?.relocation_costs != null ? <Relocation {...props} /> : null}
     {record?.local_budgets != null ? <LocalBudgets {...props} /> : null}
     {record?.clearing_protection != null ? <ClearingProtection {...props} /> : null}
+    {record?.apprenticeship != null ? <Apprenticeship {...props} /> : null}
+    {record?.veteran_reintegration != null ? <Veterans {...props} /> : null}
     {record?.remittances != null ? <Remittances {...props} /> : null}
     {raw === null ? <p className="systems-note">No livelihoods observation is recorded at snapshot {at}.</p> : null}
   </div>;
