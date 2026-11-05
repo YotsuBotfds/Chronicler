@@ -251,9 +251,14 @@ reproduce the raw bundles.
   - Mean forest cover at the end, enforced against cost_only: +0.025 in t and +0.057 in p
     (5/6 above in each stratum).
   - Against off: +0.013 in t (3/3 split) and +0.052 in p (5/6 above).
-  - Coins charged, enforced against cost_only: 468 per world in t and 1,305 in p. This is
-    expected, because cost_only pays only while clearing is active and clearing differs
-    once protection holds cover.
+  - Coins charged, enforced against cost_only: 468 per world in t and 1,305 in p (6/6
+    above). The preregistered expectation, similar charges because the control retains
+    the cost, did not hold over 200 turns.
+    - The control does retain each decision's cost.
+    - But without the effect, cover keeps falling below the minimum and its protections
+      end: 75 against 383 protected region-turns per world in t, and 389 against 1,251
+      in p.
+    - The cost-retaining control is therefore exact per decision, not cumulatively.
   - Cover not cleared: 5.7 in t and 17.7 in p. Adoptions: 9.5 and 29 per world.
 - **Interactions.**
   - *Apprenticeship × repair*, against RS2_repair:
