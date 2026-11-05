@@ -338,6 +338,7 @@ CHUNKS = {
         "tests/test_workshops.py",
         "tests/test_livelihoods_sprint_witness.py",
         "tests/test_livelihoods_wiring.py",
+        "tests/test_clearing_protection.py",
     ],
     "expansion-wiring": [
         "tests/test_expansion_feature_wiring.py",
