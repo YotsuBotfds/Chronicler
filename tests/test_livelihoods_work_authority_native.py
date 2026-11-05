@@ -193,3 +193,35 @@ def test_a_failed_agent_tick_releases_the_learners_work_commitment(monkeypatch):
     assert sim.work_reservations(turn) == [], "learners still hold work after a failed tick"
     assert state._pending is None
     bridge.close()
+
+
+def test_exact_resume_mid_construction_with_crews_health_and_teaching(tmp_path, monkeypatch):
+    """Lifecycle: an exact checkpoint taken while a workshop is still being
+    built (construction partly paid) resumes to the same history, world and
+    state file; the transient registry never crosses the turn boundary."""
+    import sys
+
+    import chronicler.main as main_mod
+    from chronicler.bundle_codec import load_bundle
+
+    def cli(folder, *argv):
+        monkeypatch.setattr(sys, "argv", ["chronicler", *argv, "--output", str(folder / "chronicle.md"),
+                                          "--state", str(folder / "state.json")])
+        main_mod.main()
+
+    flags = ["--civs", "4", "--regions", "8", "--agents", "hybrid", "--simulate-only", "--workshops",
+             "--health-care", "--scholarship", "--techniques", "--academy-services", "--learning-cohorts"]
+    straight, resumed = tmp_path / "straight", tmp_path / "resumed"
+    cli(straight, "--seed", "7", "--turns", "26", *flags, "--checkpoint-turns", "20")
+    ckpt = straight / "checkpoint_turn_20.ckpt"
+    assert ckpt.exists()
+    cli(resumed, "--resume", str(ckpt))
+    a, b = (load_bundle(p / "chronicle_bundle.json") for p in (straight, resumed))
+    for bundle in (a, b):
+        bundle["metadata"].pop("generated_at", None)
+    sites = a["history"][19]["livelihoods"]["workshops"]["sites"]
+    assert any(s["asset"] == "building" and 0 < s["construction_paid"] < 60 for s in sites), sites
+    # After the resume the partly built sites open and their crews work.
+    assert any(r["allocated"] > 0 for h in b["history"][20:] for r in h["livelihoods"]["workshops"]["receipts"] or [])
+    assert a["history"] == b["history"] and a["world_state"] == b["world_state"]
+    assert (straight / "state.json").read_bytes() == (resumed / "state.json").read_bytes()
