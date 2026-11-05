@@ -372,8 +372,11 @@ or procedural gate was run.
   - part 2: on seed 1 with every switch the providers need (200 turns), every warden
     payment and every firm academy sale sits inside an accepted envelope, and spent equals
     paid.
-- Viewer: `localBudgets.test.ts` and `LocalBudgets.test.tsx` (5 tests). Full suite 118
-  files, 1,223 tests; lint and build pass.
+- Viewer: `localBudgets.test.ts` and `LocalBudgets.test.tsx` (6 tests after part 2). Full
+  suite 124 files, 1,249 tests; lint and build pass.
+- Bounded offline lane (`scripts/run_python_oracle_checks.py`) on the part-2 source:
+  PASS, 57 chunks, 6,197 passed, 69 skipped, 0 failed, 233.7 s. The livelihoods chunk took
+  3.2 s of 110.
 - Feature-off identity against the base source (bd22f70d), on the native extension, 120
   turns:
   - seed 2 with `--grain-reserves --grain-storage --workshops --food-allocation` (L9 off);
@@ -389,6 +392,9 @@ or procedural gate was run.
   - Result: `history` and `world_state` are equal and `state.json` is byte-identical.
   - Both runs exercise the hooked paths. Seed 1 adopted a rule and paid 214 coins of
     wardens, and its firms made 44 academy sales. Seed 3 adopted 4 rules and paid 298.
+  - The same check on procedural seed 7 (32 × 10, adding `--grain-convoys
+    --grain-storage`) is also identical. It adopted 7 rules, paid 522 coins of wardens
+    and made 21 firm academy sales.
 
 ### Funnel, 200 turns
 
