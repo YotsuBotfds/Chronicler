@@ -246,7 +246,10 @@ container with Python 3.13 and the native extension built fresh from it.
   cleanly without the extension.
 - **Viewer.** `src/lib/__tests__/learningCohorts.test.ts` (4 tests) and
   `src/components/systems/__tests__/LearningCohorts.test.tsx` (2 tests) pass;
-  lint and build pass.
+  lint and build pass. The full suite ran on a heavily shared container:
+  1,222 of 1,224 passed. The two failures were AppShell timing tests that
+  do not import these files, and both passed when rerun alone. The reader
+  and component are not mounted; the lead mounts them in `LivelihoodsPanel`.
 
 ### Feature-off identity against the sprint-2 base
 
