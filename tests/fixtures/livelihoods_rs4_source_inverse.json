@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "layer": "rs4",
+  "parent": "76d4bb7846d7ca614e8496657a360525652671e2",
+  "files": {
+    "chronicler-agents/src/ffi/mod.rs": {
+      "sha256": "180bfd77a67cfbe316170da98a44eec422b3c42d7abed42ff4af6585bf31358f",
+      "current_sha256": "dd60f42bf43f13c5800dbb6ab0c4c5b55e2d0aba0361c3c1ee7ddf0417af8fa8",
+      "patches": [
+        {
+          "old": "            self.snapshot_cache = None; // the pool changed: drop the cached snapshot\n        }\n        Ok(receipt.rows.into_iter().map(|r| (r.agent_id, r.requested, r.applied, r.residual, r.status)).collect())\n    }\n\n    /// Livelihoods L6a: transfer purposes in declaration order (append only).\n",
+          "new": "            self.snapshot_cache = None; // the pool changed: drop the cached snapshot\n        }\n        Ok(receipt.rows.into_iter().map(|r| (r.agent_id, r.requested, r.applied, r.residual, r.status)).collect())\n    }\n\n    /// RS4 remittances (`wealth_transfer::remit`): (sender, recipient,\n    /// amount, fee) milli-unit rows under the purpose `remittance`, once per\n    /// (turn, batch). Returns per row (sender, recipient, sent, fee,\n    /// credited, refunded, status: 0 applied, 1 limited, 2 absent). Refuses\n    /// a repeated key or invalid rows unchanged.\n    #[allow(clippy::type_complexity)]\n    pub fn remit_wealth(&mut self, turn: u32, batch: u32, rows: Vec<(u32, u32, i64, i64)>)\n        -> PyResult<Vec<(u32, u32, i64, i64, i64, i64, u8)>> {\n        let out = crate::wealth_transfer::remit(&mut self.pool, turn, batch, &rows).map_err(PyValueError::new_err)?;\n        if out.iter().any(|r| r.sent != 0) {\n            self.snapshot_cache = None; // the pool changed: drop the cached snapshot\n        }\n        Ok(out.into_iter().map(|r| (r.sender, r.recipient, r.sent, r.fee, r.credited, r.refunded, r.status)).collect())\n    }\n\n    /// RS4: stable ids of living agents away on a merchant trip, ascending (reads only).\n    pub fn trip_agent_ids(&self) -> Vec<u32> {\n        crate::wealth_transfer::trip_ids(&self.pool)\n    }\n\n    /// Livelihoods L6a: transfer purposes in declaration order (append only).\n"
+        }
+      ]
+    }
+  }
+}
