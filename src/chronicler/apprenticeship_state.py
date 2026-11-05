@@ -25,6 +25,21 @@ Bounded containers:
 ``no_qualification`` is the cost-retaining control: the same wear, attendance and
 costs, and no qualification from a completed apprenticeship.
 
+Schema and rules versions (PL2). ``schema_version`` is also the version of the
+RS1 rules the state runs under (:attr:`ApprenticeshipState.rules_version`):
+
+* ``1``: the RS1 rules as merged (presence in the city box, exclusive seats
+  reserved before the crew, the consecutive-miss dropout). Only a state saved
+  before PL2 (an exact checkpoint or a state file) carries it; it resumes under
+  those rules, unchanged, and serializes exactly as before.
+* ``2``: RS1 rules version 2, the default of every new state (attendance by
+  region, portable gap-tolerant progress, training on the job). Its records
+  carry the fields marked "v2" below; in a version-1 state they are None and
+  omitted from every dump.
+
+Pickles written before PL2 lack the fields added since; exact pickle
+restoration bypasses defaults, so ``__setstate__`` fills them (None).
+
 Tuple orders below are declaration orders: append new values at the end, never
 reorder.
 """
@@ -32,7 +47,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, PrivateAttr
+from pydantic import BaseModel, Field, PrivateAttr, model_validator
 
 #: Modes (first: the default when enabled).
 MODES: tuple[str, ...] = ("train", "no_qualification")
@@ -55,11 +70,19 @@ RETIRE_REASONS: tuple[str, ...] = ("died", "pool_reset")
 END_REASONS: tuple[str, ...] = (
     "completed", "dropout", "died", "migrated", "departed", "occupation_changed",
     "site_closed", "remobilised", "pool_reset", "disabled", "service_qualified",
+    # v2: more than ``MAX_GAP`` consecutive turns absent (no open site with room
+    # in the region the apprentice lives in).
+    "long_absence",
 )
 #: Why an open apprenticeship missed a turn (an interruption).
 MISS_REASONS: tuple[str, ...] = (
     "unavailable", "no_mentor", "site_not_operating", "reservation_refused", "away",
+    # v2: no open workshop site in the apprentice's region (absent), or that
+    # region's site already holds ``PER_SITE`` apprenticeships (no_room).
+    "absent", "no_room",
 )
+#: v2: how an attending apprentice was aboard the site's crew.
+ABOARD: tuple[str, ...] = ("crew", "attached")
 #: Dated continuity events.
 EVENT_KINDS: tuple[str, ...] = ("teaching_lost", "teaching_restored", "conquest")
 #: A turn's stipend outcome for one apprentice.
@@ -84,7 +107,32 @@ COUNTERS: tuple[str, ...] = (
     "end_occupation_changed", "end_site_closed", "end_remobilised", "end_pool_reset", "end_disabled",
     "end_service_qualified",
     "teaching_lost", "teaching_restored", "conquests",
+    # v2 (RS1 rules version 2) and the PL2 useful-work records.
+    "miss_absent", "miss_no_room", "end_long_absence", "transferred",
+    "apprentice_turns_on_crew", "apprentice_turns_attached",
+    "qualified_crew_turns", "graduate_crew_turns", "graduates", "graduates_died", "graduates_refused_cap",
+    "covered_site_turns", "full_offset_site_turns",
+    "upkeep_offset_apprenticeship", "upkeep_offset_service", "upkeep_offset_graduates",
 )
+
+
+def _is_none(value) -> bool:
+    return value is None
+
+
+def _v2(default=None, **kwargs):
+    """A field only version-2 states set: None (and omitted) in a version-1 state."""
+    return Field(default=default, exclude_if=_is_none, **kwargs)
+
+
+class _Record(BaseModel):
+    """Restores pickles written before PL2 (which lack its fields) exactly."""
+
+    def __setstate__(self, state):
+        super().__setstate__(state)
+        for name, field in type(self).model_fields.items():
+            if name not in self.__dict__:
+                self.__dict__[name] = field.get_default(call_default_factory=True)
 
 
 class Qualification(BaseModel):
@@ -115,7 +163,11 @@ class ServiceRecord(BaseModel):
     last_site: int
 
 
-class Apprenticeship(BaseModel):
+class Apprenticeship(_Record):
+    """One apprenticeship. In version 2 ``site``/``settlement_id``/``region`` are
+    the site it is attached to now (a migrant transfers to the site of the
+    region they live in); ``first_site`` is where it began."""
+
     agent_id: int
     site: int
     settlement_id: int
@@ -138,6 +190,16 @@ class Apprenticeship(BaseModel):
     ended_reason: str | None = None
     #: At completion: whether the qualification was granted (False in the control).
     granted: bool | None = None
+    #: v2: consecutive absent turns (``absent`` or ``no_room``); more than
+    #: ``MAX_GAP`` end the apprenticeship (``long_absence``).
+    absent: int | None = _v2()
+    #: v2: the site it began at, its age then, and how often it moved site.
+    first_site: int | None = _v2()
+    entry_age: int | None = _v2()
+    transfers: int | None = _v2()
+    #: v2: attended turns on the planned crew and attached to it.
+    on_crew: int | None = _v2()
+    attached: int | None = _v2()
 
 
 class SiteContinuity(BaseModel):
@@ -165,7 +227,7 @@ class ContinuityEvent(BaseModel):
     detail: dict[str, int | str | None] = Field(default_factory=dict)
 
 
-class Seat(BaseModel):
+class Seat(_Record):
     """One open apprenticeship's turn at a site: taught, missed or ended."""
 
     agent_id: int
@@ -186,9 +248,14 @@ class Seat(BaseModel):
     stipend_due: int = 0
     stipend_paid: int = 0
     stipend_status: str | None = None
+    #: v2: ``crew`` (a member of the planned crew, training on crew time) or
+    #: ``attached`` (reserved for ``APPRENTICE_FRACTION`` beside the crew).
+    aboard: str | None = _v2()
+    #: v2: the site this record transferred from this turn.
+    transferred_from: int | None = _v2()
 
 
-class SiteReceipt(BaseModel):
+class SiteReceipt(_Record):
     """One open site's completed turn. Work is in person-turns of the crew's
     diverted time; for an operating site ``crew_work = craft_work +
     upkeep_work + teaching_work`` (crew time is never counted twice)."""
@@ -226,10 +293,37 @@ class SiteReceipt(BaseModel):
     completed: list[int] = Field(default_factory=list)
     teaching_lost: bool = False
     stipend_status: str | None = None
+    # v2 useful-work records of an operating site-turn (None in version 1).
+    #: Completed apprentices (either mode) on the crew.
+    graduates_on_crew: list[int] | None = _v2()
+    #: An operating site-turn with at least one qualified crew member.
+    covered: bool | None = _v2()
+    #: The whole wear was offset by qualified upkeep.
+    full_offset: bool | None = _v2()
+    #: The upkeep offset by the route of the qualification that delivered it
+    #: (``apprenticeship``, ``service``), and by completed apprentices.
+    offset_by_via: dict[str, float] | None = _v2()
+    offset_by_graduates: float | None = _v2()
 
 
-class ApprenticeshipState(BaseModel):
-    schema_version: Literal[1] = 1
+class GraduateRecord(BaseModel):
+    """v2: a living person who completed an apprenticeship (granted or, in the
+    control, not), and the work they did on operating crews since."""
+
+    agent_id: int
+    completed_turn: int
+    site: int
+    region: int
+    granted: bool
+    crew_turns: int = 0
+    upkeep_offset: float = 0.0
+    last_crew_turn: int | None = None
+
+
+class ApprenticeshipState(_Record):
+    #: Also the RS1 rules version (see the module docstring): 1 only in a state
+    #: saved before PL2, 2 for every new state.
+    schema_version: Literal[1, 2] = 2
     enabled: bool = True
     mode: Literal["train", "no_qualification"] = "train"
     #: Scalar lifetime counters (bounded: the fixed key set ``COUNTERS``).
@@ -248,4 +342,19 @@ class ApprenticeshipState(BaseModel):
     continuity: dict[str, int | list[int]] = Field(default_factory=dict)
     #: The last turn whose apprenticeship pass settled (exactly-once guard).
     last_settled_turn: int | None = None
+    #: v2: living graduates (at most ``MAX_QUALIFIED``; the dead are dropped).
+    graduates: list[GraduateRecord] | None = _v2()
+    #: v2: the frame turn's misses of open apprenticeships whose site is not
+    #: open (absent after a closure or a move), with their site of record.
+    detached: list[Seat] | None = _v2()
     _pending: object | None = PrivateAttr(default=None)
+
+    @property
+    def rules_version(self) -> int:
+        return int(self.schema_version)
+
+    @model_validator(mode="after")
+    def _rules_fields(self):
+        if self.schema_version == 1 and (self.graduates is not None or self.detached is not None):
+            raise ValueError("a version-1 apprenticeship state has no version-2 records")
+        return self

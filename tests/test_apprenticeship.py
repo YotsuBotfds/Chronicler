@@ -7,6 +7,9 @@ per person and turn), the paid-work install/extension consumed once by the
 wealth phase, and stable-id wealth transfers applied once per key. Everything
 else is the real L1 workshop, L6a payroll and RS1 code, driven through the
 livelihoods phase hooks in their production order.
+
+These tests pin RS1 rules version 1 (``_world(rules=1)``): the merged rules a
+state saved before PL2 resumes under. Version 2 is ``tests/test_apprenticeship_v2.py``.
 """
 from __future__ import annotations
 
@@ -121,6 +124,9 @@ class FakeSim:
     def work_reservations(self, turn):
         return [(a, c, f) for t, a, c, f in self.registry if t == turn]
 
+    def trip_agent_ids(self):
+        return sorted(p.id for p in self._alive() if p.trip)
+
     def _check_paid(self, turn, rows):
         for aid, share in rows:
             reserved = sum(f for t, a, _c, f in self.registry if t == turn and a == aid)
@@ -197,7 +203,7 @@ class FakeSim:
         return out
 
 
-def _world(mode=None, rank=1, treasury=10_000):
+def _world(mode=None, rank=1, treasury=10_000, rules=1):
     civs = [SimpleNamespace(name=f"Civ{i}", treasury=treasury) for i in range(2)]
     world = SimpleNamespace(
         turn=1, agent_mode="hybrid", civilizations=civs,
@@ -207,7 +213,12 @@ def _world(mode=None, rank=1, treasury=10_000):
                                       founder=0, rank=rank, size=10.0)]),
         livelihoods=LivelihoodsState(), war_state=SimpleNamespace(armies=[]), scholarship=None)
     world.livelihoods.workshops = WorkshopState(mode="operate")
-    A.set_apprenticeship_enabled(world, True, args=SimpleNamespace(apprenticeship_mode=mode))
+    previous, A.RULES_VERSION = A.RULES_VERSION, rules
+    try:
+        A.set_apprenticeship_enabled(world, True, args=SimpleNamespace(apprenticeship_mode=mode))
+    finally:
+        A.RULES_VERSION = previous
+    assert world.livelihoods.apprenticeship.rules_version == rules
     return world
 
 

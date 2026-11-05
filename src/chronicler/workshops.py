@@ -57,8 +57,9 @@ qualified members spend on upkeep and teaching
 (``apprenticeship.crew_maintenance``, RS1) comes out of the craft work
 allocated and so out of the ceiling; in ``_bill``, the lump repair only while
 ``repair_projects.legacy_workshop_repair_allowed`` (RS2); and at settlement,
-``apprenticeship.operating_wear`` of a funded operating site (RS1; condition
-is untouched when it is 0). RS2 adds two guarded seams:
+the operating wear of a funded operating site (``operating_wear.operating_wear``
+with ``--operating-wear``, PL2, else ``apprenticeship.operating_wear``, RS1,
+which implies it; condition is untouched when it is 0). RS2 adds two guarded seams:
 right after the RS1 seats and before the crew planner,
 ``repair_projects.before_crews`` reserves each open repair project's named
 crew (registry category ``repair``), so the L1 planner never also employs a
@@ -280,11 +281,16 @@ def _crew_maintenance(world, site: WorkshopSite, row: dict) -> float:
 
 
 def _operating_wear(world, site: WorkshopSite) -> float:
-    """RS0 seam (RS1): this turn's wear of a funded operating site; 0.0 unless
-    apprenticeship is active."""
-    if not _lane_active(world, "apprenticeship"):
+    """RS0 seam (RS1, PL2): this turn's wear of a funded operating site; 0.0
+    unless operating wear is active: ``--operating-wear`` (which takes RS1's
+    upkeep offset when apprenticeship is active) or apprenticeship alone, which
+    implies the same wear."""
+    if _lane_active(world, "operating_wear"):
+        from chronicler.operating_wear import operating_wear
+    elif _lane_active(world, "apprenticeship"):
+        from chronicler.apprenticeship import operating_wear
+    else:
         return 0.0
-    from chronicler.apprenticeship import operating_wear
     wear = float(operating_wear(world, site))
     if not (math.isfinite(wear) and 0.0 <= wear <= 1.0):
         raise ValueError("operating wear must be finite and in [0, 1]")
