@@ -1,14 +1,47 @@
 {
   "schema_version": 3,
-  "board_version": 1,
+  "board_version": 2,
   "title": "Livelihoods, Commons and Collective Choices - sprint 1 operational board",
   "plan": "docs/superpowers/roadmaps/livelihoods-commons-sprint1.md",
   "owner_instruction": "2026-11-05: execute the revision-5 sprint packet end to end. Scope taken as the packet's bounded sprint: L0 + L1-L4 with L10 viewer slices and L11 evidence. No merge, approval, main writes, default changes, 200-seed/procedural gates, Drive sharing changes, purchases or deployment.",
-  "packet": {"revision": 5, "canonical": "01_LEAD_AGENT_PROMPT.md", "canonical_sha256": "1804c3b28382faabd9f609830a51f1959ff44a108f378cb424cc86a9f0b94284", "storage": "owner-private; locators intentionally omitted"},
-  "durable_location": {"branch": "claude/livelihoods-commons-sprint1", "repo": "YotsuBotfds/Chronicler", "note": "Cloud session: this file on the pushed integration branch is the authoritative board copy."},
-  "source_baseline": {"main": "64863f1274e400c3898972fe0cd5df510d3bb06f", "tree": "1b0cd0dcb5e5433af6aa4429a65e5dae2ec4e89e", "main_ci_run": 41926433490, "main_ci": "success, 9 jobs, rechecked 2026-11-05", "fetched": "2026-11-05T04:31Z, main not advanced"},
-  "environment": {"cores": 4, "ram_gib": 15, "free_disk_gib": 30, "python": "3.13.18", "cargo": "1.97.0", "node": "22.23.4", "native_build_s": 210, "native_venv": "~/.venvs/chronicler-native (lead lane only)", "no_native_venv": ".venv (check_python_env --expect no-native PASS)"},
-  "status_values": ["proposed", "ready", "active", "blocked", "integrated", "evaluated", "deferred"],
+  "packet": {
+    "revision": 5,
+    "canonical": "01_LEAD_AGENT_PROMPT.md",
+    "canonical_sha256": "1804c3b28382faabd9f609830a51f1959ff44a108f378cb424cc86a9f0b94284",
+    "storage": "owner-private; locators intentionally omitted"
+  },
+  "durable_location": {
+    "branch": "claude/livelihoods-commons-sprint1",
+    "repo": "YotsuBotfds/Chronicler",
+    "note": "Cloud session: this file on the pushed integration branch is the authoritative board copy."
+  },
+  "source_baseline": {
+    "main": "64863f1274e400c3898972fe0cd5df510d3bb06f",
+    "tree": "1b0cd0dcb5e5433af6aa4429a65e5dae2ec4e89e",
+    "main_ci_run": 41926433490,
+    "main_ci": "success, 9 jobs, rechecked 2026-11-05",
+    "fetched": "2026-11-05T04:31Z, main not advanced"
+  },
+  "environment": {
+    "cores": 4,
+    "ram_gib": 15,
+    "free_disk_gib": 30,
+    "python": "3.13.18",
+    "cargo": "1.97.0",
+    "node": "22.23.4",
+    "native_build_s": 210,
+    "native_venv": "~/.venvs/chronicler-native (lead lane only)",
+    "no_native_venv": ".venv (check_python_env --expect no-native PASS)"
+  },
+  "status_values": [
+    "proposed",
+    "ready",
+    "active",
+    "blocked",
+    "integrated",
+    "evaluated",
+    "deferred"
+  ],
   "owners": {
     "lead": "this session: board, witness/inverse layers, native_shards_manifest + test_native_ci_shards additions, offline CHUNKS, landing order",
     "native_owner": "lead: chronicler-agents/src/ffi/mod.rs, ffi/schema.rs, tick.rs, economy.rs, lib.rs, pool.rs",
@@ -20,19 +53,145 @@
     "convoy_lane": "L4 worker: new public convoy module(s); public_grain_shipments.py and grain_reserves.py hooks delivered as patches to the lead"
   },
   "packages": [
-    {"id": "L0", "status": "active", "owner": "lead", "next_action": "Pilot timing and funding evidence; push board; dispatch L3/L4 handoffs; freeze compute budget.", "evidence": []},
-    {"id": "L1A", "status": "proposed", "owner": "lead (native owner)", "depends_on": ["L0"], "funded_operation_enabled": false, "next_action": "Native eligibility + work reservation + per-good craft input reporting.", "evidence": []},
-    {"id": "L1B", "status": "proposed", "owner": "lead", "depends_on": ["L1A", "funding route"], "blocks_l2": false, "next_action": "Await 60-minute funding comparison.", "evidence": []},
-    {"id": "L2", "status": "proposed", "owner": "lead (native owner)", "depends_on": ["L0"], "native_landing_after": "L1A", "next_action": "Design allocation module concurrently with L1A.", "evidence": []},
-    {"id": "L3", "status": "proposed", "owner": "ecology lane", "depends_on": ["L0"], "next_action": "Dispatch versioned handoff after board push.", "evidence": []},
-    {"id": "L4", "status": "proposed", "owner": "convoy lane", "depends_on": ["L0"], "next_action": "Dispatch versioned handoff after board push.", "evidence": []},
-    {"id": "L5", "status": "deferred", "sprint_status": "design_only_deferred"},
-    {"id": "L6", "status": "deferred", "sprint_status": "design_only_deferred"},
-    {"id": "L7", "status": "deferred", "sprint_status": "design_only_deferred"},
-    {"id": "L8", "status": "deferred", "sprint_status": "design_only_deferred"},
-    {"id": "L9", "status": "deferred", "sprint_status": "design_only_deferred"},
-    {"id": "L10", "status": "proposed", "owner": "lead", "next_action": "Per-slice inspector extensions attach to each landing."},
-    {"id": "L11", "status": "proposed", "owner": "lead", "next_action": "Size screens from pilot within the aggregate budget."}
+    {
+      "id": "L0",
+      "status": "integrated",
+      "owner": "lead",
+      "next_action": "Funding route chosen (treasury stage 1); compute budget frozen; L3/L4 handoffs dispatched from 050cfbe.",
+      "evidence": [
+        "main CI 41926433490 success on 64863f1",
+        "offline lane 58/58 chunks pass at 050cfbe",
+        "baseline pilot reproduces all run outputs at 050cfbe (checkpoint: source identity + None field only)",
+        "baseline checkpoint resumes on 050cfbe with --resume-allow-mismatch"
+      ],
+      "landing_sha": "050cfbeb257ff7434554eb8116b23a2eb7ce9075"
+    },
+    {
+      "id": "L1A",
+      "status": "active",
+      "owner": "lead (native owner)",
+      "depends_on": [
+        "L0"
+      ],
+      "funded_operation_enabled": false,
+      "next_action": "Native crew planner + actual craft-input export; layer l1a; then release interface SHA to L2.",
+      "evidence": []
+    },
+    {
+      "id": "L1B",
+      "status": "ready",
+      "owner": "lead",
+      "depends_on": [
+        "L1A",
+        "funding route"
+      ],
+      "blocks_l2": false,
+      "next_action": "Treasury route selected (plan section 5); implement after L1A.",
+      "evidence": []
+    },
+    {
+      "id": "L2",
+      "status": "active",
+      "owner": "lead (native owner)",
+      "depends_on": [
+        "L0"
+      ],
+      "native_landing_after": "L1A",
+      "next_action": "Design native allocation module; native landing after L1A.",
+      "evidence": []
+    },
+    {
+      "id": "L3",
+      "status": "active",
+      "owner": "ecology lane",
+      "depends_on": [
+        "L0"
+      ],
+      "next_action": "Worker implementing in isolated worktree; lead integrates hooks and layer.",
+      "evidence": [],
+      "branch": "claude/livelihoods-l3-timber",
+      "base_sha": "050cfbeb257ff7434554eb8116b23a2eb7ce9075",
+      "interface_version": "livelihoods wiring v1 (chronicler.livelihoods protocol)"
+    },
+    {
+      "id": "L4",
+      "status": "active",
+      "owner": "convoy lane",
+      "depends_on": [
+        "L0"
+      ],
+      "next_action": "Worker implementing in isolated worktree; lead integrates hooks and layer.",
+      "evidence": [],
+      "branch": "claude/livelihoods-l4-convoys",
+      "base_sha": "050cfbeb257ff7434554eb8116b23a2eb7ce9075",
+      "interface_version": "livelihoods wiring v1 (chronicler.livelihoods protocol)"
+    },
+    {
+      "id": "L5",
+      "status": "deferred",
+      "sprint_status": "design_only_deferred"
+    },
+    {
+      "id": "L6",
+      "status": "deferred",
+      "sprint_status": "design_only_deferred"
+    },
+    {
+      "id": "L7",
+      "status": "deferred",
+      "sprint_status": "design_only_deferred"
+    },
+    {
+      "id": "L8",
+      "status": "deferred",
+      "sprint_status": "design_only_deferred"
+    },
+    {
+      "id": "L9",
+      "status": "deferred",
+      "sprint_status": "design_only_deferred"
+    },
+    {
+      "id": "L10",
+      "status": "proposed",
+      "owner": "lead",
+      "next_action": "Per-slice inspector extensions attach to each landing."
+    },
+    {
+      "id": "L11",
+      "status": "proposed",
+      "owner": "lead",
+      "next_action": "Size screens from pilot within the aggregate budget."
+    }
   ],
-  "landing_log": []
+  "landing_log": [
+    {
+      "landing": "L0",
+      "sha": "050cfbeb257ff7434554eb8116b23a2eb7ce9075",
+      "layer": "l0",
+      "files": [
+        "src/chronicler/models.py",
+        "src/chronicler/simulation.py",
+        "src/chronicler/batch_manifest.py",
+        "src/chronicler/transport_contract.json",
+        "tests/test_batch_manifest.py"
+      ]
+    }
+  ],
+  "funding_decision": {
+    "timebox_start": "2026-11-05T04:35:41Z",
+    "decided": "2026-11-05T04:50Z",
+    "route": "stage 1 public treasury (controller civ) as disclosed public cost sink; guild co-funding deferred",
+    "evidence": "plan section 5; pilots seeds 7/11 template, 7 procedural-8: living guild purses 0.2-7.2 vs treasuries 242-1396"
+  },
+  "compute_budget": {
+    "core_hours": 1.5,
+    "wall_min": 45,
+    "concurrency": 3,
+    "peak_ram_gib": 2.4,
+    "transient_disk_gib": 4,
+    "dev_cohort": "template seeds 1-3",
+    "held_cohort": "template 101-106; procedural 32x10 seeds 201-206; 200 turns",
+    "used_core_hours": 0.02
+  }
 }
