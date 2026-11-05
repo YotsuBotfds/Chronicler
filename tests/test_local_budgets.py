@@ -569,3 +569,30 @@ def test_cli_and_prerequisites():
         configure_livelihoods(world, parse(["--local-budgets"]), agent_mode="shadow")
     configure_livelihoods(world, args, agent_mode="hybrid")
     assert world.livelihoods.local_budgets.mode == "fixed_shares"
+
+
+def test_relief_counts_convoy_spending_once_inside_the_envelope():
+    """Regression: L4 convoys deduct their purchase and escort fee from the
+    procurement budget's remaining amount, so the relief settlement must not
+    add them again (a procedural world raised 'spent 2 beyond its envelope
+    of 1' when a convoy dispatched)."""
+    from types import SimpleNamespace as NS
+    from chronicler.local_budgets import _Relief
+
+    turn, civ = 12, 0
+    convoy = NS(operation="dispatched", buyer=civ, turn=turn, paid=1, escort_fee=1, cargo=0.5)
+    world = NS(turn=turn,
+               regions=[NS(name="Verdant", controller="Kethani")],
+               civilizations=[NS(name="Kethani")],
+               grain_reserves=NS(flows=[], flows_turn=turn, shipments=None,
+                                 granaries=[NS(owner=civ, target=1.0, grain=0.0)]),
+               livelihoods=NS(grain_convoys=NS(frame_turn=turn, frame=[convoy])))
+    # Envelope 2: the granary pass bought nothing; the convoy spent 1 + fee 1.
+    obs = NS(trace={("relief", 7): {"turn": turn, "cap": 2, "available": 50}},
+             economy=NS(food_procurement_budget={civ: (2, 0)}))
+    commitment = NS(cid=7, civ=civ, amount=2, expected=1.0)
+    result = _Relief().settle(world, commitment, obs)
+    assert result["spent"] == 2                         # once, purchase and fee together
+    assert result["spent"] <= commitment.amount
+    assert result["detail"]["escort_fees"] == 1          # itemised, inside the envelope
+    assert result["delivered"] == pytest.approx(0.5)
