@@ -580,6 +580,10 @@ fn try_tick_agents_with_movements_observer<M: crate::decision_delivery::MoveObse
         pool.food_access = access;
         pool.food_access_ids = ids;
         pool.provision_frame = Some(frame);
+        // Livelihoods L6b (default off): household retail in its pilot regions.
+        if let Some(retail) = pool.retail_config.take() {
+            pool.retail_frame = Some(crate::provisioning::retail(pool, regions, &cfg, &retail, turn));
+        }
     }
     // Livelihoods L7: last turn's arrivals' own rations against residents'.
     crate::relocation::observe_rations(pool);
@@ -1508,6 +1512,9 @@ pub fn wealth_tick(
     // Livelihoods L6a: the armed paid-work share is consumed here, once.
     let paid_work = pool.paid_work.take();
     let mut paid_work_rows = Vec::new();
+    // Livelihoods L6b: pilot farmers' farm income replacement, consumed once.
+    let retail_income = pool.retail_income.take();
+    let mut retail_income_rows = Vec::new();
     let mut teaching_plan = pool.teaching_plan.take().filter(|plan| !plan.consumed);
     let teaching_by_slot = teaching_plan.as_ref().map(|plan| {
         let mut index = vec![None; pool.capacity()];
@@ -1592,6 +1599,10 @@ pub fn wealth_tick(
         // ordinary income (wages are paid separately, never on top).
         let income = crate::wealth_transfer::paid_work_income(
             &paid_work, &mut paid_work_rows, pool.ids[slot], slot, income);
+        // Livelihoods L6b: what is left of a pilot farmer's farm income is
+        // replaced by food sales (recorded, then zero).
+        let income = crate::wealth_transfer::retail_income(
+            &retail_income, &mut retail_income_rows, occ, region_id, pool.ids[slot], income);
         // CAREOBS_SOURCE_BEGIN: actual pre-health base income
         if let Some(observation) = &mut health_care_observation { observation.wealth_value(slot, 1, income); }
         // CAREOBS_SOURCE_END: actual pre-health base income
@@ -1627,6 +1638,10 @@ pub fn wealth_tick(
     if let Some(plan) = paid_work {
         pool.paid_work_receipt = Some(crate::wealth_transfer::PaidWorkReceipt {
             turn: plan.turn, rows: paid_work_rows });
+    }
+    if let Some(plan) = retail_income {
+        pool.retail_income_receipt = Some(crate::wealth_transfer::RetailIncomeReceipt {
+            turn: plan.turn, rows: retail_income_rows });
     }
 
     // CAREOBS_SOURCE_BEGIN: finish wealth copies
