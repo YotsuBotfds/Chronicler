@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "layer": "rv1",
+  "parent": "64ca606773541a2d0ced2292cc150b0ff668fe40",
+  "files": {
+    "src/chronicler/agent_bridge.py": {
+      "sha256": "04c1d68862634729ef6380f2fae3b134dd7dc8abf3bfc219d27bc76d39bfdc6d",
+      "current_sha256": "0205fb68abacdf072501af8d4bac070d58d14f30a49bd20c8aee0fc17cb9b3a3",
+      "patches": [
+        {
+          "old": "    def take_post_tick_snapshot(self, turn: int):\n        \"\"\"Hand over the snapshot fetched after this turn's agent tick, once.\n\n        ``_process_tick_results`` reads the pool right after the tick; nothing\n        between there and the Phase 10 capture writes the native pool (bridge\n        post-processing and stockpile settlement only read it or Python\n        state), so the coordinator reuses that batch instead of exporting the\n        pool again. Returns None when no batch of this turn is held.\n        \"\"\"\n        held = getattr(self, \"_post_tick_snapshot\", None)\n        self._post_tick_snapshot = None\n        if held is not None and held[0] == turn:\n            return held[1]\n        return None\n\n    @property\n    def ecology_simulator(self):\n",
+          "new": "    def take_post_tick_snapshot(self, turn: int):\n        \"\"\"Hand over the snapshot fetched after this turn's agent tick, once.\n\n        ``_process_tick_results`` reads the pool right after the tick. Bridge\n        post-processing and stockpile settlement only read it or Python state,\n        so the coordinator reuses that batch instead of exporting the pool\n        again. The livelihoods after-tick hooks can write native wealth (L6a\n        wages, L7 fares, RS1 stipends, RS4 remittances), so when any ran they\n        drop the held batch (:meth:`discard_post_tick_snapshot`) and Phase 10\n        exports again. Returns None when no batch of this turn is held.\n        \"\"\"\n        held = getattr(self, \"_post_tick_snapshot\", None)\n        self._post_tick_snapshot = None\n        if held is not None and held[0] == turn:\n            return held[1]\n        return None\n\n    def discard_post_tick_snapshot(self) -> None:\n        \"\"\"Drop the held post-tick batch: the pool was written after the tick.\"\"\"\n        self._post_tick_snapshot = None\n\n    @property\n    def ecology_simulator(self):\n"
+        }
+      ]
+    }
+  }
+}
