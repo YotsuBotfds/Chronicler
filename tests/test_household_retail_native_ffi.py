@@ -260,25 +260,29 @@ def test_title_sale_payment_ration_and_income_move_exactly_once_and_close():
     source, columns, region_rows, claim_rows, money, sample, dropped = frame
     assert source == turn and len(region_rows) == 1
     row = dict(zip(columns, region_rows[0], strict=True))
-    assert (row["region"], row["mode"], row["price"], row["milli_food_per_ration"]) == (r, 0, price, MILLI_PER_RATION)
+    # The columns PL4-python requires (household_retail.FRAME_COLUMNS) are all present.
+    assert {"region", "price_milli", "free_rations", "free_given", "free_unallocated", "offered_milli",
+            "own_eaten_milli", "sold_milli", "unsold_milli", "paid_milli", "credited_milli", "refunded_milli",
+            "rations", "persons", "priced_out_persons", "offer_short_persons"} <= set(columns)
+    assert (row["region"], row["mode"], row["price_milli"], row["milli_food_per_ration"]) == (r, 0, price, MILLI_PER_RATION)
     assert row["free_given"] + row["free_unallocated"] == pytest.approx(free, abs=1e-9)
     # Food: the claims close and every ration is free plus own plus bought.
-    assert row["offered"] == owned_milli + 400
+    assert row["offered_milli"] == owned_milli + 400
     eaten = sum(c[2] for c in claim_rows)
     sold = sum(c[3] for c in claim_rows)
-    assert row["own_eaten_fair"] + row["own_eaten_open"] == eaten
-    assert row["sold_fair"] + row["sold_open"] == sold
-    assert eaten + sold + row["unsold"] == row["offered"]
+    assert row["own_eaten_milli"] == eaten == row["own_eaten_fair_milli"] + row["own_eaten_open_milli"]
+    assert row["sold_milli"] == sold == row["sold_fair_milli"] + row["sold_open_milli"]
+    assert eaten + sold + row["unsold_milli"] == row["offered_milli"]
     assert row["rations"] == pytest.approx(row["free_given"] + (eaten + sold) / MILLI_PER_RATION, abs=1e-6)
-    assert sold > 0 and row["paid"] > 0
+    assert sold > 0 and row["paid_milli"] > 0
     assert {(c[0], c[1]) for c in claim_rows} == {(o, rr) for o, rr, _ in rows}
     assert next(c for c in claim_rows if c[0] == absent)[2] == 0          # an absent owner only sells
-    assert len(sample) + dropped == row["alive"]
+    assert len(sample) + dropped == row["persons"]
     assert all(0.0 <= s[3] <= 1.0 and s[1] == r and s[5] in (0, 1, 2) for s in sample)
     assert sum(1 for s in sample if s[5] == 0) == row["fed_fair"]
     # Money: debits equal credits plus refunds exactly; nobody below zero.
-    assert row["paid"] == row["credited"] + row["refunded"]
-    assert sum(m[1] for m in money) == row["paid"] == sum(m[2] + m[3] for m in money)
+    assert row["paid_milli"] == row["credited_milli"] + row["refunded_milli"]
+    assert sum(m[1] for m in money) == row["paid_milli"] == sum(m[2] + m[3] for m in money)
     # Income replacement: one row per farmer of the pilot region alive at 0.5.
     assert receipt[0] == turn
     replaced = dict(receipt[1])

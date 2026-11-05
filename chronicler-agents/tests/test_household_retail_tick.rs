@@ -71,8 +71,8 @@ fn the_tick_consumes_retail_and_income_once_and_the_next_tick_runs_neither() {
     let frame = pool.retail_frame.take().expect("the tick ran retail");
     assert_eq!((frame.source_turn, frame.regions.len(), frame.regions[0].region), (5, 1, 0));
     let row = &frame.regions[0];
-    assert!(row.sold_fair + row.sold_open > 0 && row.paid > 0);
-    assert_eq!(row.paid, row.credited + row.refunded);
+    assert!(row.sold_fair_milli + row.sold_open_milli > 0 && row.paid_milli > 0);
+    assert_eq!(row.paid_milli, row.credited_milli + row.refunded_milli);
     // Six farmers of region 0 had their farm income replaced; region 1's did not.
     let receipt = pool.retail_income_receipt.take().expect("the wealth phase replaced income");
     assert_eq!((receipt.turn, receipt.rows.len()), (5, 6));

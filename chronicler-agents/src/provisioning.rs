@@ -451,13 +451,13 @@ pub struct RetailRegionRow {
     pub region: u16,
     pub mode: u8,
     pub phase2_alive: u32,
-    pub alive: u32,
+    pub persons: u32,
     pub households: u32,
     pub children: u32,
     pub sufficiency: f32,
     pub fair_share: f64,
-    pub price_quoted: i64,
-    pub price: i64,
+    pub price_quoted_milli: i64,
+    pub price_milli: i64,
     pub milli_food_per_ration: i64,
     pub free_rations: f64,
     pub free_living: f64,
@@ -467,21 +467,21 @@ pub struct RetailRegionRow {
     pub priority_households: u32,
     pub claims: u32,
     pub present_claims: u32,
-    pub offered: i64,
-    pub own_eaten_fair: i64,
-    pub own_eaten_open: i64,
-    pub sold_fair: i64,
-    pub sold_open: i64,
-    pub unsold: i64,
-    pub demand_fair: i64,
-    pub demand_open: i64,
+    pub offered_milli: i64,
+    pub own_eaten_fair_milli: i64,
+    pub own_eaten_open_milli: i64,
+    pub sold_fair_milli: i64,
+    pub sold_open_milli: i64,
+    pub unsold_milli: i64,
+    pub demand_fair_milli: i64,
+    pub demand_open_milli: i64,
     pub buying_households: u32,
     pub sellers: u32,
-    pub paid: i64,
-    pub credited: i64,
-    pub refunded: i64,
-    pub refused_ceiling: i64,
-    pub refused_dead: i64,
+    pub paid_milli: i64,
+    pub credited_milli: i64,
+    pub refunded_milli: i64,
+    pub refused_ceiling_milli: i64,
+    pub refused_dead_milli: i64,
     pub rations: f64,
     pub fed_fair: u32,
     pub full_ration: u32,
@@ -498,13 +498,16 @@ pub struct RetailRegionRow {
     pub offer_short_deficit: f64,
 }
 
-/// Column names of [`RetailRegionRow::row`], in order.
-pub const RETAIL_REGION_COLUMNS: [&str; 48] = [
-    "region", "mode", "phase2_alive", "alive", "households", "children", "sufficiency", "fair_share",
-    "price_quoted", "price", "milli_food_per_ration", "free_rations", "free_living", "free_given",
-    "free_unallocated", "free_to_priority", "priority_households", "claims", "present_claims", "offered",
-    "own_eaten_fair", "own_eaten_open", "sold_fair", "sold_open", "unsold", "demand_fair", "demand_open",
-    "buying_households", "sellers", "paid", "credited", "refunded", "refused_ceiling", "refused_dead",
+/// Column names of [`RetailRegionRow::row`], in order: food in milli-food,
+/// money in milli-units (`_milli`), rations as fractions of one ration.
+/// `own_eaten_milli` and `sold_milli` are the two rounds together.
+pub const RETAIL_REGION_COLUMNS: [&str; 50] = [
+    "region", "mode", "phase2_alive", "persons", "households", "children", "sufficiency", "fair_share",
+    "price_quoted_milli", "price_milli", "milli_food_per_ration", "free_rations", "free_living", "free_given",
+    "free_unallocated", "free_to_priority", "priority_households", "claims", "present_claims", "offered_milli",
+    "own_eaten_milli", "own_eaten_fair_milli", "own_eaten_open_milli", "sold_milli", "sold_fair_milli",
+    "sold_open_milli", "unsold_milli", "demand_fair_milli", "demand_open_milli", "buying_households", "sellers",
+    "paid_milli", "credited_milli", "refunded_milli", "refused_ceiling_milli", "refused_dead_milli",
     "rations", "fed_fair", "full_ration", "min_ration", "max_ration", "deficit", "priced_out_households",
     "priced_out_persons", "priced_out_children", "priced_out_deficit", "offer_short_households",
     "offer_short_persons", "offer_short_children", "offer_short_deficit",
@@ -513,16 +516,19 @@ pub const RETAIL_REGION_COLUMNS: [&str; 48] = [
 impl RetailRegionRow {
     pub fn row(&self) -> Vec<f64> {
         vec![
-            self.region as f64, self.mode as f64, self.phase2_alive as f64, self.alive as f64,
+            self.region as f64, self.mode as f64, self.phase2_alive as f64, self.persons as f64,
             self.households as f64, self.children as f64, self.sufficiency as f64, self.fair_share,
-            self.price_quoted as f64, self.price as f64, self.milli_food_per_ration as f64, self.free_rations,
-            self.free_living, self.free_given, self.free_unallocated, self.free_to_priority,
-            self.priority_households as f64, self.claims as f64, self.present_claims as f64, self.offered as f64,
-            self.own_eaten_fair as f64, self.own_eaten_open as f64, self.sold_fair as f64, self.sold_open as f64,
-            self.unsold as f64, self.demand_fair as f64, self.demand_open as f64, self.buying_households as f64,
-            self.sellers as f64, self.paid as f64, self.credited as f64, self.refunded as f64,
-            self.refused_ceiling as f64, self.refused_dead as f64, self.rations, self.fed_fair as f64,
-            self.full_ration as f64, self.min_ration, self.max_ration, self.deficit,
+            self.price_quoted_milli as f64, self.price_milli as f64, self.milli_food_per_ration as f64,
+            self.free_rations, self.free_living, self.free_given, self.free_unallocated, self.free_to_priority,
+            self.priority_households as f64, self.claims as f64, self.present_claims as f64,
+            self.offered_milli as f64, (self.own_eaten_fair_milli + self.own_eaten_open_milli) as f64,
+            self.own_eaten_fair_milli as f64, self.own_eaten_open_milli as f64,
+            (self.sold_fair_milli + self.sold_open_milli) as f64, self.sold_fair_milli as f64,
+            self.sold_open_milli as f64, self.unsold_milli as f64, self.demand_fair_milli as f64,
+            self.demand_open_milli as f64, self.buying_households as f64, self.sellers as f64,
+            self.paid_milli as f64, self.credited_milli as f64, self.refunded_milli as f64,
+            self.refused_ceiling_milli as f64, self.refused_dead_milli as f64, self.rations,
+            self.fed_fair as f64, self.full_ration as f64, self.min_ration, self.max_ration, self.deficit,
             self.priced_out_households as f64, self.priced_out_persons as f64, self.priced_out_children as f64,
             self.priced_out_deficit, self.offer_short_households as f64, self.offer_short_persons as f64,
             self.offer_short_children as f64, self.offer_short_deficit,
@@ -697,11 +703,11 @@ pub fn retail(pool: &mut AgentPool, regions: &[RegionState], l2: &ProvisionConfi
             let living = (n as u32).min(n2) as f64;
             let free_living = if n2 > 0 { offer.free_rations * living / n2 as f64 } else { 0.0 };
             let mut row = RetailRegionRow {
-                region: offer.region, mode: cfg.mode, phase2_alive: n2, alive: n as u32,
+                region: offer.region, mode: cfg.mode, phase2_alive: n2, persons: n as u32,
                 children: people.iter().filter(|p| p.child).count() as u32, sufficiency: fs, fair_share: cf,
-                price_quoted: offer.price_milli, price, milli_food_per_ration: cfg.milli_food_per_ration,
+                price_quoted_milli: offer.price_milli, price_milli: price, milli_food_per_ration: cfg.milli_food_per_ration,
                 free_rations: offer.free_rations, free_living, claims: region_claims.len() as u32,
-                offered: region_claims.iter().map(|&c| left[c]).sum(), ..Default::default()
+                offered_milli: region_claims.iter().map(|&c| left[c]).sum(), ..Default::default()
             };
             // Households, children first within each, and their payers' cash.
             let index: std::collections::HashMap<usize, usize> =
@@ -821,20 +827,20 @@ pub fn retail(pool: &mut AgentPool, regions: &[RegionState], l2: &ProvisionConfi
             let mut own = vec![0i64; n];
             let mut bought = vec![0i64; n];
             for h in &hhs {
-                row.own_eaten_fair += eat_own(h, &cap_fair, &mut own, &bought, &cfg.claims, &mut left, &mut eaten);
+                row.own_eaten_fair_milli += eat_own(h, &cap_fair, &mut own, &bought, &cfg.claims, &mut left, &mut eaten);
             }
             let (demand, got) = buy_round(&mut hhs, &cap_fair, &own, &mut bought, region_claims, &cfg.claims,
                                           &mut left, &mut sold, true);
-            row.demand_fair = demand;
-            row.sold_fair = got;
+            row.demand_fair_milli = demand;
+            row.sold_fair_milli = got;
             for h in &hhs {
-                row.own_eaten_open += eat_own(h, &cap_open, &mut own, &bought, &cfg.claims, &mut left, &mut eaten);
+                row.own_eaten_open_milli += eat_own(h, &cap_open, &mut own, &bought, &cfg.claims, &mut left, &mut eaten);
             }
             let (demand, got) = buy_round(&mut hhs, &cap_open, &own, &mut bought, region_claims, &cfg.claims,
                                           &mut left, &mut sold, false);
-            row.demand_open = demand;
-            row.sold_open = got;
-            row.unsold = region_claims.iter().map(|&c| left[c]).sum();
+            row.demand_open_milli = demand;
+            row.sold_open_milli = got;
+            row.unsold_milli = region_claims.iter().map(|&c| left[c]).sum();
             row.sellers = region_claims.iter().filter(|&&c| sold[c] > 0).count() as u32;
             row.buying_households = hhs.iter().filter(|h| h.bought > 0).count() as u32;
             // Payments (settled after every region is decided).
@@ -899,11 +905,11 @@ pub fn retail(pool: &mut AgentPool, regions: &[RegionState], l2: &ProvisionConfi
         let purchases: Vec<crate::wealth_transfer::FoodPurchases> = works.iter().map(|w| w.purchase.clone()).collect();
         let (money, book) = crate::wealth_transfer::settle_food_purchases(pool, turn, &purchases);
         for (w, m) in works.iter_mut().zip(money) {
-            w.row.paid = m.paid;
-            w.row.credited = m.credited;
-            w.row.refunded = m.refunded;
-            w.row.refused_ceiling = m.refused_ceiling;
-            w.row.refused_dead = m.refused_dead;
+            w.row.paid_milli = m.paid;
+            w.row.credited_milli = m.credited;
+            w.row.refunded_milli = m.refunded;
+            w.row.refused_ceiling_milli = m.refused_ceiling;
+            w.row.refused_dead_milli = m.refused_dead;
         }
         frame.money = book;
     }
@@ -1121,23 +1127,25 @@ mod tests {
 
     /// Every identity of the frame: free, food, rations and money.
     fn assert_closes(frame: &RetailFrame, rc: &RetailConfig) {
-        assert_eq!(RETAIL_REGION_COLUMNS.len(), frame.regions.first().map_or(48, |r| r.row().len()));
+        assert_eq!(RETAIL_REGION_COLUMNS.len(), frame.regions.first().map_or(50, |r| r.row().len()));
         for row in &frame.regions {
             assert!((row.free_given + row.free_unallocated - row.free_rations).abs() < 1e-9);
             assert!(row.free_given <= row.free_living + 1e-9);
-            assert_eq!(row.own_eaten_fair + row.own_eaten_open + row.sold_fair + row.sold_open + row.unsold, row.offered);
-            let food = (row.own_eaten_fair + row.own_eaten_open + row.sold_fair + row.sold_open) as f64 / R as f64;
+            assert_eq!(row.own_eaten_fair_milli + row.own_eaten_open_milli + row.sold_fair_milli + row.sold_open_milli + row.unsold_milli, row.offered_milli);
+            let food = (row.own_eaten_fair_milli + row.own_eaten_open_milli + row.sold_fair_milli + row.sold_open_milli) as f64 / R as f64;
             assert!((row.rations - row.free_given - food).abs() < 1e-6, "{row:?}");
-            assert_eq!(row.paid, row.credited + row.refunded);
-            assert_eq!(row.refunded, row.refused_ceiling + row.refused_dead);
+            assert_eq!(col(row, "own_eaten_milli") as i64, row.own_eaten_fair_milli + row.own_eaten_open_milli);
+            assert_eq!(col(row, "sold_milli") as i64, row.sold_fair_milli + row.sold_open_milli);
+            assert_eq!(row.paid_milli, row.credited_milli + row.refunded_milli);
+            assert_eq!(row.refunded_milli, row.refused_ceiling_milli + row.refused_dead_milli);
             assert!(row.min_ration >= 0.0 && row.max_ration <= 1.0);
             assert!((row.deficit - row.priced_out_deficit - row.offer_short_deficit).abs() < 1e-12);
-            assert_eq!(row.fed_fair + row.priced_out_persons + row.offer_short_persons, row.alive);
+            assert_eq!(row.fed_fair + row.priced_out_persons + row.offer_short_persons, row.persons);
             let claims: Vec<_> = frame.claims.iter().filter(|c| c.1 == row.region).collect();
             assert_eq!(claims.len() as u32, row.claims);
-            assert_eq!(claims.iter().map(|c| c.2).sum::<i64>(), row.own_eaten_fair + row.own_eaten_open);
-            assert_eq!(claims.iter().map(|c| c.3).sum::<i64>(), row.sold_fair + row.sold_open);
-            if row.mode == RETAIL_MODE_FREE_EXCHANGE { assert_eq!((row.price, row.paid), (0, 0)); }
+            assert_eq!(claims.iter().map(|c| c.2).sum::<i64>(), row.own_eaten_fair_milli + row.own_eaten_open_milli);
+            assert_eq!(claims.iter().map(|c| c.3).sum::<i64>(), row.sold_fair_milli + row.sold_open_milli);
+            if row.mode == RETAIL_MODE_FREE_EXCHANGE { assert_eq!((row.price_milli, row.paid_milli), (0, 0)); }
         }
         // Each claim moves at most what it held.
         for &(owner, region, eaten, sold) in &frame.claims {
@@ -1145,9 +1153,9 @@ mod tests {
             assert!(eaten >= 0 && sold >= 0 && eaten + sold <= held);
         }
         let money = |f: fn(&(u32, i64, i64, i64)) -> i64| frame.money.iter().map(f).sum::<i64>();
-        assert_eq!(money(|m| m.1), frame.regions.iter().map(|r| r.paid).sum::<i64>());
-        assert_eq!(money(|m| m.2), frame.regions.iter().map(|r| r.credited).sum::<i64>());
-        assert_eq!(money(|m| m.3), frame.regions.iter().map(|r| r.refunded).sum::<i64>());
+        assert_eq!(money(|m| m.1), frame.regions.iter().map(|r| r.paid_milli).sum::<i64>());
+        assert_eq!(money(|m| m.2), frame.regions.iter().map(|r| r.credited_milli).sum::<i64>());
+        assert_eq!(money(|m| m.3), frame.regions.iter().map(|r| r.refunded_milli).sum::<i64>());
         assert!(frame.money.windows(2).all(|w| w[0].0 < w[1].0));
     }
 
@@ -1161,7 +1169,7 @@ mod tests {
         let row = &f.regions[0];
         // A eats its fair share, B buys its fair share, then A eats the rest:
         // owners never eat beyond the fair share while a paying neighbour is below it.
-        assert_eq!((row.own_eaten_fair, row.sold_fair, row.own_eaten_open, row.sold_open, row.unsold), (300, 300, 100, 0, 0));
+        assert_eq!((row.own_eaten_fair_milli, row.sold_fair_milli, row.own_eaten_open_milli, row.sold_open_milli, row.unsold_milli), (300, 300, 100, 0, 0));
         assert!((access(&pool, 0) - 0.8).abs() < 1e-6);
         assert!((access(&pool, 1) - 0.6).abs() < 1e-6);
         assert_eq!(f.claims, vec![(a, 0, 400, 300)]);
@@ -1174,7 +1182,7 @@ mod tests {
         let (mut pool, regions) = world(&[(0, 30, 0.0), (0, 30, 10.0)], &[0.6]);
         let rc = offer(RETAIL_MODE_RETAIL, vec![(0, 250, 0.0)], vec![(a, 0, 1000)], 1);
         let f = sell(&mut pool, &regions, &l2_equal(vec![2]), &rc);
-        assert_eq!((f.regions[0].sold_fair, f.regions[0].sold_open, f.regions[0].unsold), (300, 200, 0));
+        assert_eq!((f.regions[0].sold_fair_milli, f.regions[0].sold_open_milli, f.regions[0].unsold_milli), (300, 200, 0));
         assert_eq!((access(&pool, 0), access(&pool, 1)), (1.0, 1.0)); // short region: 1.0, not the signal
     }
 
@@ -1220,7 +1228,7 @@ mod tests {
         let (mut pool, regions) = world(&[(0, 10, 0.0), (0, 30, 0.0)], &[0.6]);
         let f = sell(&mut pool, &regions, &l2_equal(vec![2]), &rc);
         assert_eq!(access(&pool, 0), 0.0);
-        assert_eq!((f.regions[0].priced_out_children, f.regions[0].paid), (1, 0));
+        assert_eq!((f.regions[0].priced_out_children, f.regions[0].paid_milli), (1, 0));
     }
 
     #[test]
@@ -1232,7 +1240,7 @@ mod tests {
         let rc = offer(RETAIL_MODE_RETAIL, vec![(0, 250, 0.0)], vec![(ids[2], 0, 150), (ids[3], 0, 301)], 2);
         let f = sell(&mut pool, &regions, &l2_equal(vec![3, 1]), &rc);
         let row = &f.regions[0];
-        assert_eq!((row.demand_fair, row.sold_fair, row.unsold), (750, 301, 0));
+        assert_eq!((row.demand_fair_milli, row.sold_fair_milli, row.unsold_milli), (750, 301, 0));
         // 120.4, 120.4, 60.2: the leftover milli-food goes to the smaller key.
         let got = |s: usize| (access(&pool, s) as f64 * R as f64).round() as i64;
         assert_eq!((got(0), got(1), got(2)), (121, 120, 150 + 60));
@@ -1249,7 +1257,7 @@ mod tests {
         let f = sell(&mut pool, &regions, &l2_equal(vec![1, 3]), &rc);
         // 200 in the fair round (66.7 each), then 100 more in the open round.
         assert_eq!(f.claims, vec![(ids[1], 0, 0, 100), (ids[2], 0, 0, 100), (ids[3], 0, 0, 100)]);
-        assert_eq!((f.regions[0].sold_fair, f.regions[0].sold_open), (200, 100));
+        assert_eq!((f.regions[0].sold_fair_milli, f.regions[0].sold_open_milli), (200, 100));
         let (mut pool, regions) = world(&[(0, 30, 10.0), (1, 30, 0.0), (1, 30, 0.0), (1, 30, 0.0)], &[0.4, 1.0]);
         let rc = offer(RETAIL_MODE_RETAIL, vec![(0, 250, 0.0)],
             vec![(ids[3], 0, 100), (ids[1], 0, 100), (ids[2], 0, 1000)], 2);
@@ -1271,8 +1279,8 @@ mod tests {
         let rc = offer(RETAIL_MODE_RETAIL, vec![(0, 250, 0.0)], vec![(s, 0, 1000)], 2);
         let f = sell(&mut pool, &regions, &l2_equal(vec![1, 1]), &rc);
         let row = &f.regions[0];
-        assert_eq!((row.sold_fair, row.sold_open), (250, 0));
-        assert_eq!((row.paid, row.credited, row.refused_ceiling, row.refunded), (125, room, 125 - room, 125 - room));
+        assert_eq!((row.sold_fair_milli, row.sold_open_milli), (250, 0));
+        assert_eq!((row.paid_milli, row.credited_milli, row.refused_ceiling_milli, row.refunded_milli), (125, room, 125 - room, 125 - room));
         assert_eq!(f.money, vec![(b, 125, 0, 125 - room), (s, 0, room, 0)]);
         assert_eq!(milli(&pool, 0), 125 - room);
         assert!(pool.wealth[0] >= 0.0 && pool.wealth[1] <= crate::agent::MAX_WEALTH);
@@ -1291,13 +1299,13 @@ mod tests {
         let rc = offer(RETAIL_MODE_RETAIL, vec![(0, 250, 0.3)], vec![(o, 0, 400)], 1);
         let f = sell(&mut pool, &regions, &l2_equal(vec![3]), &rc);
         let row = &f.regions[0];
-        assert_eq!((row.alive, row.present_claims), (1, 0));
+        assert_eq!((row.persons, row.present_claims), (1, 0));
         assert!((row.free_living - 0.1).abs() < 1e-12 && (row.free_unallocated - 0.2).abs() < 1e-9);
         // B buys from the dead owner's claim; the credit has no living holder
         // and is refunded, so B's wealth is unchanged.
         // B's fair share is 0.6 less its 0.1 free (250), then 150 more in the open round.
-        assert_eq!((row.own_eaten_fair + row.own_eaten_open, row.sold_fair, row.sold_open), (0, 250, 150));
-        assert_eq!((row.paid, row.refused_dead, row.refunded, row.credited), (200, 200, 200, 0));
+        assert_eq!((row.own_eaten_fair_milli + row.own_eaten_open_milli, row.sold_fair_milli, row.sold_open_milli), (0, 250, 150));
+        assert_eq!((row.paid_milli, row.refused_dead_milli, row.refunded_milli, row.credited_milli), (200, 200, 200, 0));
         assert_eq!(f.money, vec![(o, 0, 0, 0), (b, 200, 0, 200)]);
         assert_eq!(milli(&pool, 1), 10_000);
         assert!(f.money.iter().all(|m| m.0 != d) && f.sample.iter().all(|s| s.0 == b));
@@ -1316,10 +1324,10 @@ mod tests {
         let f = sell(&mut pool, &regions, &l2_equal(vec![2]), &rc);
         let row = &f.regions[0];
         // The newborn does not eat the dead owner's claim and cannot pay.
-        assert_eq!((row.present_claims, row.own_eaten_fair + row.own_eaten_open), (0, 0));
+        assert_eq!((row.present_claims, row.own_eaten_fair_milli + row.own_eaten_open_milli), (0, 0));
         assert_eq!(access(&pool, 0), 0.0);
         assert!((access(&pool, 1) - 0.8).abs() < 1e-6);
-        assert_eq!(row.refused_dead, row.paid);
+        assert_eq!(row.refused_dead_milli, row.paid_milli);
         assert_eq!(milli(&pool, 0), 0);
         assert_eq!(f.claims, vec![(o, 0, 0, 400)]);
         let _ = b;
@@ -1374,14 +1382,14 @@ mod tests {
         let rc = offer(RETAIL_MODE_NO_RELIEF, vec![(0, 250, 1.6)], claims(&pool), 2);
         let f = sell(&mut pool, &regions, &cfg(REGIME_FLOOR_MEANS, vec![f32::NAN; 2], vec![2, 1]), &rc);
         assert!((access(&pool, 0) - 0.6).abs() < 1e-6 && access(&pool, 1) == 1.0);
-        assert_eq!((f.regions[0].paid, f.regions[0].sold_fair + f.regions[0].sold_open), (0, 0));
+        assert_eq!((f.regions[0].paid_milli, f.regions[0].sold_fair_milli + f.regions[0].sold_open_milli), (0, 0));
         // Means test, own food counted: an owner with enough food is not tested.
         let (mut pool, regions) = world(&[(0, 30, 0.0), (0, 30, 0.0)], &[0.6]);
         let rc = offer(RETAIL_MODE_RETAIL, vec![(0, 250, 0.6)], vec![(pool.ids[0], 0, 300)], 1);
         let f = sell(&mut pool, &regions, &l2_equal(vec![2]), &rc);
         assert_eq!(f.regions[0].priority_households, 1);
         assert!((access(&pool, 0) - 0.6).abs() < 1e-6 && (access(&pool, 1) - 0.6).abs() < 1e-6);
-        assert_eq!(f.regions[0].own_eaten_fair, 300);
+        assert_eq!(f.regions[0].own_eaten_fair_milli, 300);
     }
 
     #[test]
@@ -1392,12 +1400,12 @@ mod tests {
         let before: Vec<i64> = (0..3).map(|s| milli(&pool, s)).collect();
         let f = sell(&mut pool, &regions, &l2_equal(vec![3]), &rc);
         let row = &f.regions[0];
-        assert_eq!((row.price_quoted, row.price, row.paid), (250, 0, 0));
+        assert_eq!((row.price_quoted_milli, row.price_milli, row.paid_milli), (250, 0, 0));
         assert!(f.money.is_empty());
         assert_eq!((0..3).map(|s| milli(&pool, s)).collect::<Vec<_>>(), before);
         assert!(pool.wealth_transfer_log.is_empty());
         // The penniless buy at price 0: everyone reaches the fair share first.
-        assert_eq!((row.own_eaten_fair, row.sold_fair), (300, 600));
+        assert_eq!((row.own_eaten_fair_milli, row.sold_fair_milli), (300, 600));
         assert!((0..3).all(|s| access(&pool, s) >= 0.6 - 1e-6));
     }
 
@@ -1458,8 +1466,8 @@ mod tests {
             }
             assert!((0..30).all(|s| p.wealth[s] >= 0.0));
             if mode != RETAIL_MODE_FREE_EXCHANGE {
-                assert!(f.regions.iter().map(|r| r.paid).sum::<i64>() > 0);
-                assert!(f.regions.iter().map(|r| r.refused_dead).sum::<i64>() > 0);
+                assert!(f.regions.iter().map(|r| r.paid_milli).sum::<i64>() > 0);
+                assert!(f.regions.iter().map(|r| r.refused_dead_milli).sum::<i64>() > 0);
             }
         }
     }
