@@ -73,6 +73,15 @@ it("composes only the packages a snapshot recorded", () => {
   expect(screen.queryByRole("heading", { name: /Public workshops/ })).not.toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: /Timber stock/ })).not.toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: /Commons rules/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: /Academy learners/ })).not.toBeInTheDocument();
+});
+
+it("mounts academy learners when the snapshot recorded them", () => {
+  const learning = { schema_version: 1, stage: "L5", mode: "learn", source_turn: 4, cohorts: [], archive: [],
+    graduates: [], receipts: [], counters: { academy_turns: 1 }, parameters: { sessions_to_complete: 4 } };
+  const p = props({ schema_version: 1, learning_cohorts: learning });
+  render(<LivelihoodsPanel {...p} onSeek={vi.fn()} onSelectEvent={vi.fn()} onSelectCivilization={vi.fn()} />);
+  expect(screen.getByRole("heading", { name: /Academy learners · snapshot 5/ })).toBeInTheDocument();
 });
 
 it("mounts commons rules when the snapshot recorded them", () => {

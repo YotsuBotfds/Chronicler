@@ -200,6 +200,9 @@ pub struct AgentPool {
     /// Livelihoods: this turn's shared work reservations (one authority for
     /// new work consumers); transient, cleared after each native tick.
     pub work_reservations: Vec<crate::workshop_work::WorkReservation>,
+    /// Livelihoods L5: one-turn learner attendance, taken by the wealth
+    /// phase and then by Python; transient, never checkpointed.
+    pub learning_attendance: Option<crate::learning_work::AttendancePlan>,
     // CAREOBS_SOURCE_BEGIN: pool field
     /// Opt-in primitive care prefix; transient and absent by default.
     pub health_care_observation: Option<crate::health_care_observation::CareObservation>,
@@ -284,6 +287,7 @@ impl AgentPool {
             food_access_regions: Vec::new(),
             provision_frame: None,
             work_reservations: Vec::new(),
+            learning_attendance: None,
             // CAREOBS_SOURCE_BEGIN: pool default
             health_care_observation: None,
             // CAREOBS_SOURCE_END: pool default
@@ -1852,4 +1856,4 @@ crate::persist_struct!(AgentPool {
     free_slots,
 } transient { health_work_loss /* CAREOBS_TRANSIENT_BEGIN */, health_care_observation /* CAREOBS_TRANSIENT_END */, teaching_plan,
     food_allocation_config, food_access, food_access_ids, food_access_regions, provision_frame,
-    work_reservations });
+    work_reservations, learning_attendance });

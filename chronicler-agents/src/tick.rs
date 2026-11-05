@@ -1500,6 +1500,8 @@ pub fn wealth_tick(
         }
         index
     });
+    // Livelihoods L5: seat named learners from this turn's actual teaching.
+    let mut learning = crate::learning_work::begin(pool, teaching_plan.as_ref(), &health_loss);
     // CAREOBS_SOURCE_BEGIN: actual consumed loss vector
     let mut health_care_observation = pool.health_care_observation.take();
     if let Some(observation) = &mut health_care_observation {
@@ -1568,6 +1570,8 @@ pub fn wealth_tick(
                 } else { income }
             } else { income }
         } else { income };
+        // A seated learner's attendance withholds that share of ordinary income.
+        let income = crate::learning_work::charge(&mut learning, slot, pool.ids[slot], income);
         // CAREOBS_SOURCE_BEGIN: actual pre-health base income
         if let Some(observation) = &mut health_care_observation { observation.wealth_value(slot, 1, income); }
         // CAREOBS_SOURCE_END: actual pre-health base income
@@ -1599,6 +1603,7 @@ pub fn wealth_tick(
         plan.consumed = true;
         pool.teaching_plan = Some(plan);
     }
+    crate::learning_work::end(pool, learning);
 
     // CAREOBS_SOURCE_BEGIN: finish wealth copies
     if let Some(observation) = &mut health_care_observation { observation.wealth_end(); }

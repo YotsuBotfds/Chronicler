@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "layer": "l5",
+  "parent": "727ed5dc1ab88dab212a1c12ab05f934e44da733",
+  "files": {
+    "chronicler-agents/src/ffi/mod.rs": {
+      "sha256": "aab4c535be3f009d5911cb8d7e287633fde1b9d256f73a3922578c4118874b4b",
+      "current_sha256": "b0b1b82fe44d47c1ea3379b0e2ce2cba86d7a1573eaea05998a048693396f53c",
+      "patches": [
+        {
+          "old": "    /// Livelihoods: ids held by more than one work consumer this turn.\n    pub fn work_reservation_conflicts(&self, turn: u32) -> Vec<u32> {\n        crate::workshop_work::conflicts(&self.pool, turn)\n    }\n\n    /// Livelihoods L1A: the last economy tick's actual per-good craft input\n",
+          "new": "    /// Livelihoods: ids held by more than one work consumer this turn.\n    pub fn work_reservation_conflicts(&self, turn: u32) -> Vec<u32> {\n        crate::workshop_work::conflicts(&self.pool, turn)\n    }\n\n    /// Livelihoods L5: per cohort (region, active member ids, recruits\n    /// wanted, max current-occupation skill) return the members' (id, status,\n    /// occupation, skill), the recruits (id, occupation, skill, age) and the\n    /// counts (resident adults, excluded scholar, member, trip, army,\n    /// assigned, skilled, eligible). Read-only.\n    #[allow(clippy::type_complexity)]\n    pub fn plan_learners(&self, turn: u32, cohorts: Vec<(u16, Vec<u32>, u8, f32)>, enlisted_ids: Vec<u32>)\n        -> PyResult<Vec<(Vec<(u32, u8, u8, f32)>, Vec<(u32, u8, f32, u16)>, Vec<u32>)>> {\n        if !self.initialized {\n            return Err(PyValueError::new_err(\"learning cohorts require initialized agents\"));\n        }\n        let requests: Vec<crate::learning_work::CohortRequest> = cohorts.into_iter().map(\n            |(region, members, recruit, max_skill)| crate::learning_work::CohortRequest {\n                region, members, recruit, max_skill }).collect();\n        let enlisted: std::collections::HashSet<u32> = enlisted_ids.into_iter().collect();\n        let rows = crate::learning_work::plan(&self.pool, turn, &requests, &enlisted, self.num_regions)\n            .map_err(PyValueError::new_err)?;\n        Ok(rows.into_iter().map(|r| (r.members, r.recruits, vec![r.resident_adults, r.excluded_scholar,\n            r.excluded_member, r.excluded_trip, r.excluded_army, r.excluded_assigned, r.excluded_skilled,\n            r.eligible])).collect())\n    }\n\n    /// Livelihoods L5: reserve (id, region, attended fraction) learners in the\n    /// work registry (category learning) and install this turn's attendance;\n    /// the wealth phase seats them from actual teaching. All or none.\n    pub fn reserve_learning_attendance(&mut self, turn: u32, learners_per_teacher: f32,\n                                       rows: Vec<(u32, u16, f32)>) -> PyResult<()> {\n        crate::learning_work::reserve(&mut self.pool, turn, learners_per_teacher, &rows, self.num_regions)\n            .map_err(PyValueError::new_err)\n    }\n\n    /// Livelihoods L5: the consumed attendance of `turn`, taken once: per\n    /// region (delivered Scholar work, seats) and per learner (id, region,\n    /// fraction, outcome, ordinary income, income withheld).\n    #[allow(clippy::type_complexity)]\n    pub fn take_learning_attendance(&mut self, turn: u32)\n        -> Option<(Vec<(f64, u32)>, Vec<(u32, u16, f32, u8, f32, f32)>)> {\n        crate::learning_work::take(&mut self.pool, turn).map(|plan| (\n            plan.delivered.iter().copied().zip(plan.seats.iter().copied()).collect(),\n            plan.rows.iter().map(|r| (r.agent_id, r.region, r.fraction, r.outcome, r.income, r.charged)).collect()))\n    }\n\n    /// Livelihoods L5: drop an unconsumed attendance of `turn`.\n    pub fn cancel_learning_attendance(&mut self, turn: u32) -> bool {\n        crate::learning_work::cancel(&mut self.pool, turn)\n    }\n\n    pub fn has_pending_learning_attendance(&self) -> bool {\n        self.pool.learning_attendance.as_ref().is_some_and(|p| !p.consumed)\n    }\n\n    /// Livelihoods L5: raise (gain > 0) or read (gain 0) graduates' skill in\n    /// the learned occupation; returns (id, occupation, alive, before, after).\n    pub fn grant_learning_skill(&mut self, rows: Vec<(u32, u8, f32)>) -> PyResult<Vec<(u32, u8, bool, f32, f32)>> {\n        let out = crate::learning_work::grant(&mut self.pool, &rows).map_err(PyValueError::new_err)?;\n        if out.iter().any(|r| r.2 && r.3 != r.4) {\n            self.snapshot_cache = None; // skills changed: drop the cached snapshot\n        }\n        Ok(out)\n    }\n\n    /// Livelihoods L1A: the last economy tick's actual per-good craft input\n"
+        },
+        {
+          "old": "                return Err(PyValueError::new_err(\"teaching work must be prepared for this tick\"));\n            }\n        }\n        if self.pool.work_reservations.iter().any(|r| r.turn == turn) {\n            // Livelihoods: one person, one work commitment per turn.\n            let clash = crate::workshop_work::conflicts(&self.pool, turn);\n",
+          "new": "                return Err(PyValueError::new_err(\"teaching work must be prepared for this tick\"));\n            }\n        }\n        crate::learning_work::check_tick(&self.pool, turn).map_err(PyValueError::new_err)?;\n        if self.pool.work_reservations.iter().any(|r| r.turn == turn) {\n            // Livelihoods: one person, one work commitment per turn.\n            let clash = crate::workshop_work::conflicts(&self.pool, turn);\n"
+        }
+      ]
+    },
+    "chronicler-agents/src/lib.rs": {
+      "sha256": "56967beae54360cd9848becdc41d8e5eac1f9c4a3553dcd509bd737b70898292",
+      "current_sha256": "5458d00569f0af7fb504f0768a23a85df2c348864f7d2d65ec415f75ce268610",
+      "patches": [
+        {
+          "old": "pub mod health_care;\npub mod teaching_work;\npub mod workshop_work;\npub mod provisioning;\n// CAREOBS_SOURCE_BEGIN: module\nmod health_care_observation;\n",
+          "new": "pub mod health_care;\npub mod teaching_work;\npub mod workshop_work;\npub mod learning_work;\npub mod provisioning;\n// CAREOBS_SOURCE_BEGIN: module\nmod health_care_observation;\n"
+        }
+      ]
+    },
+    "chronicler-agents/src/pool.rs": {
+      "sha256": "2d1f5b4c6e05a6516cd8d0462fe445f722224968677cfb55fbf31855dd448668",
+      "current_sha256": "720f717ac45561cb50d8eaec3d13554b58039cc58019510eb72a2b8f820a3758",
+      "patches": [
+        {
+          "old": "    /// Livelihoods: this turn's shared work reservations (one authority for\n    /// new work consumers); transient, cleared after each native tick.\n    pub work_reservations: Vec<crate::workshop_work::WorkReservation>,\n    // CAREOBS_SOURCE_BEGIN: pool field\n    /// Opt-in primitive care prefix; transient and absent by default.\n    pub health_care_observation: Option<crate::health_care_observation::CareObservation>,\n",
+          "new": "    /// Livelihoods: this turn's shared work reservations (one authority for\n    /// new work consumers); transient, cleared after each native tick.\n    pub work_reservations: Vec<crate::workshop_work::WorkReservation>,\n    /// Livelihoods L5: one-turn learner attendance, taken by the wealth\n    /// phase and then by Python; transient, never checkpointed.\n    pub learning_attendance: Option<crate::learning_work::AttendancePlan>,\n    // CAREOBS_SOURCE_BEGIN: pool field\n    /// Opt-in primitive care prefix; transient and absent by default.\n    pub health_care_observation: Option<crate::health_care_observation::CareObservation>,\n"
+        },
+        {
+          "old": "            food_access_regions: Vec::new(),\n            provision_frame: None,\n            work_reservations: Vec::new(),\n            // CAREOBS_SOURCE_BEGIN: pool default\n            health_care_observation: None,\n            // CAREOBS_SOURCE_END: pool default\n",
+          "new": "            food_access_regions: Vec::new(),\n            provision_frame: None,\n            work_reservations: Vec::new(),\n            learning_attendance: None,\n            // CAREOBS_SOURCE_BEGIN: pool default\n            health_care_observation: None,\n            // CAREOBS_SOURCE_END: pool default\n"
+        },
+        {
+          "old": "    free_slots,\n} transient { health_work_loss /* CAREOBS_TRANSIENT_BEGIN */, health_care_observation /* CAREOBS_TRANSIENT_END */, teaching_plan,\n    food_allocation_config, food_access, food_access_ids, food_access_regions, provision_frame,\n    work_reservations });\n",
+          "new": "    free_slots,\n} transient { health_work_loss /* CAREOBS_TRANSIENT_BEGIN */, health_care_observation /* CAREOBS_TRANSIENT_END */, teaching_plan,\n    food_allocation_config, food_access, food_access_ids, food_access_regions, provision_frame,\n    work_reservations, learning_attendance });\n"
+        }
+      ]
+    },
+    "chronicler-agents/src/tick.rs": {
+      "sha256": "3f3582832629740eada70b9876200f5c2dc11019e29637173a21e88368a9bb50",
+      "current_sha256": "be3f7e960ca1a12b263f1ead2526971de868bb3b51261f1c825bd1c03805a0f3",
+      "patches": [
+        {
+          "old": "        }\n        index\n    });\n    // CAREOBS_SOURCE_BEGIN: actual consumed loss vector\n    let mut health_care_observation = pool.health_care_observation.take();\n    if let Some(observation) = &mut health_care_observation {\n",
+          "new": "        }\n        index\n    });\n    // Livelihoods L5: seat named learners from this turn's actual teaching.\n    let mut learning = crate::learning_work::begin(pool, teaching_plan.as_ref(), &health_loss);\n    // CAREOBS_SOURCE_BEGIN: actual consumed loss vector\n    let mut health_care_observation = pool.health_care_observation.take();\n    if let Some(observation) = &mut health_care_observation {\n"
+        },
+        {
+          "old": "                } else { income }\n            } else { income }\n        } else { income };\n        // CAREOBS_SOURCE_BEGIN: actual pre-health base income\n        if let Some(observation) = &mut health_care_observation { observation.wealth_value(slot, 1, income); }\n        // CAREOBS_SOURCE_END: actual pre-health base income\n",
+          "new": "                } else { income }\n            } else { income }\n        } else { income };\n        // A seated learner's attendance withholds that share of ordinary income.\n        let income = crate::learning_work::charge(&mut learning, slot, pool.ids[slot], income);\n        // CAREOBS_SOURCE_BEGIN: actual pre-health base income\n        if let Some(observation) = &mut health_care_observation { observation.wealth_value(slot, 1, income); }\n        // CAREOBS_SOURCE_END: actual pre-health base income\n"
+        },
+        {
+          "old": "        plan.consumed = true;\n        pool.teaching_plan = Some(plan);\n    }\n\n    // CAREOBS_SOURCE_BEGIN: finish wealth copies\n    if let Some(observation) = &mut health_care_observation { observation.wealth_end(); }\n",
+          "new": "        plan.consumed = true;\n        pool.teaching_plan = Some(plan);\n    }\n    crate::learning_work::end(pool, learning);\n\n    // CAREOBS_SOURCE_BEGIN: finish wealth copies\n    if let Some(observation) = &mut health_care_observation { observation.wealth_end(); }\n"
+        }
+      ]
+    },
+    "src/chronicler/batch_manifest.py": {
+      "sha256": "707012fa53505a7f9fbd3db290d17ec34e222ef0d29d66964ce2e4ebb858ce04",
+      "current_sha256": "09609a00ebbcbddc5201db47190e62eea0c95f97c7c13b09bd57baab94bd3905",
+      "patches": [
+        {
+          "old": "    \"convoy_route_policy\",\n    \"commons_rules\",\n    \"commons_rule_mode\",\n    \"tuning\",\n    \"preset\",\n    \"aggression_bias\",\n",
+          "new": "    \"convoy_route_policy\",\n    \"commons_rules\",\n    \"commons_rule_mode\",\n    \"learning_cohorts\",\n    \"learning_cohort_mode\",\n    \"tuning\",\n    \"preset\",\n    \"aggression_bias\",\n"
+        },
+        {
+          "old": "    config = {key: _json_value(getattr(args, key, None)) for key in SIMULATION_ARG_KEYS\n              if key not in (\"scientific_research_agendas\", \"public_grain_shipments\", \"grain_storage\", \"grain_storage_policy\", \"grain_storage_work_budget\", \"household_mobility_liquid_requirement\", \"academy_services\", \"harvest_report_delay\",\n                             \"workshops\", \"workshop_mode\", \"food_allocation\", \"food_allocation_regime\", \"timber_stock\", \"grain_convoys\", \"convoy_route_policy\",\n                             \"commons_rules\", \"commons_rule_mode\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n    config[\"tuning_overrides\"] = _json_value(overrides or {})\n",
+          "new": "    config = {key: _json_value(getattr(args, key, None)) for key in SIMULATION_ARG_KEYS\n              if key not in (\"scientific_research_agendas\", \"public_grain_shipments\", \"grain_storage\", \"grain_storage_policy\", \"grain_storage_work_budget\", \"household_mobility_liquid_requirement\", \"academy_services\", \"harvest_report_delay\",\n                             \"workshops\", \"workshop_mode\", \"food_allocation\", \"food_allocation_regime\", \"timber_stock\", \"grain_convoys\", \"convoy_route_policy\",\n                             \"commons_rules\", \"commons_rule_mode\", \"learning_cohorts\", \"learning_cohort_mode\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n    config[\"tuning_overrides\"] = _json_value(overrides or {})\n"
+        }
+      ]
+    },
+    "tests/test_batch_manifest.py": {
+      "sha256": "7a08ca9abdea69f4b820a9876c5ff5d01cac1a8485caa9983a0ee1ca9f8a045a",
+      "current_sha256": "a5e6d93342baaa9d4c3d74df4336967c05ec34a74ca23e29a61c08c6d9944798",
+      "patches": [
+        {
+          "old": "    simulation = manifest[\"simulation\"]\n    assert set(simulation) == (set(SIMULATION_ARG_KEYS) - {\"scientific_research_agendas\", \"public_grain_shipments\", \"grain_storage\", \"grain_storage_policy\", \"grain_storage_work_budget\", \"household_mobility_liquid_requirement\", \"academy_services\", \"harvest_report_delay\",\n                                                           \"workshops\", \"workshop_mode\", \"food_allocation\", \"food_allocation_regime\", \"timber_stock\", \"grain_convoys\", \"convoy_route_policy\",\n                                                           \"commons_rules\", \"commons_rule_mode\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n    assert manifest[\"outputs\"][\"simulate_only\"] is True\n    environment = manifest[\"environment\"]\n",
+          "new": "    simulation = manifest[\"simulation\"]\n    assert set(simulation) == (set(SIMULATION_ARG_KEYS) - {\"scientific_research_agendas\", \"public_grain_shipments\", \"grain_storage\", \"grain_storage_policy\", \"grain_storage_work_budget\", \"household_mobility_liquid_requirement\", \"academy_services\", \"harvest_report_delay\",\n                                                           \"workshops\", \"workshop_mode\", \"food_allocation\", \"food_allocation_regime\", \"timber_stock\", \"grain_convoys\", \"convoy_route_policy\",\n                                                           \"commons_rules\", \"commons_rule_mode\", \"learning_cohorts\", \"learning_cohort_mode\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n    assert manifest[\"outputs\"][\"simulate_only\"] is True\n    environment = manifest[\"environment\"]\n"
+        }
+      ]
+    }
+  }
+}

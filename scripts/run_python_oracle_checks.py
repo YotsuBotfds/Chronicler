@@ -327,6 +327,7 @@ CHUNKS = {
         "tests/test_grain_release_policy.py",
     ],
     "livelihoods": [
+        "tests/test_learning_cohorts.py",
         "tests/test_commons_rules.py",
         "tests/test_grain_convoys.py",
         "tests/test_timber_stock.py",
