@@ -13,6 +13,7 @@ import { FinancePanel } from "./FinancePanel";
 import { FoodPanel } from "./FoodPanel";
 import { GovernancePanel } from "./GovernancePanel";
 import { LearningPanel } from "./LearningPanel";
+import { LivelihoodsPanel } from "./LivelihoodsPanel";
 import { MaritimePanel } from "./MaritimePanel";
 import { MovementsPanel } from "./MovementsPanel";
 import { NomadsPanel } from "./NomadsPanel";
@@ -36,6 +37,7 @@ const PANELS: Record<SystemKey, (props: SystemPanelProps) => React.ReactElement>
   movements: MovementsPanel,
   faiths: FaithsPanel,
   learning: LearningPanel,
+  livelihoods: LivelihoodsPanel,
 };
 
 /**
