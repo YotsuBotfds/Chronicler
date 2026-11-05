@@ -412,6 +412,67 @@ impl AgentSimulator {
         crate::workshop_work::conflicts(&self.pool, turn)
     }
 
+    /// Livelihoods L5: per cohort (region, active member ids, recruits
+    /// wanted, max current-occupation skill) return the members' (id, status,
+    /// occupation, skill), the recruits (id, occupation, skill, age) and the
+    /// counts (resident adults, excluded scholar, member, trip, army,
+    /// assigned, skilled, eligible). Read-only.
+    #[allow(clippy::type_complexity)]
+    pub fn plan_learners(&self, turn: u32, cohorts: Vec<(u16, Vec<u32>, u8, f32)>, enlisted_ids: Vec<u32>)
+        -> PyResult<Vec<(Vec<(u32, u8, u8, f32)>, Vec<(u32, u8, f32, u16)>, Vec<u32>)>> {
+        if !self.initialized {
+            return Err(PyValueError::new_err("learning cohorts require initialized agents"));
+        }
+        let requests: Vec<crate::learning_work::CohortRequest> = cohorts.into_iter().map(
+            |(region, members, recruit, max_skill)| crate::learning_work::CohortRequest {
+                region, members, recruit, max_skill }).collect();
+        let enlisted: std::collections::HashSet<u32> = enlisted_ids.into_iter().collect();
+        let rows = crate::learning_work::plan(&self.pool, turn, &requests, &enlisted, self.num_regions)
+            .map_err(PyValueError::new_err)?;
+        Ok(rows.into_iter().map(|r| (r.members, r.recruits, vec![r.resident_adults, r.excluded_scholar,
+            r.excluded_member, r.excluded_trip, r.excluded_army, r.excluded_assigned, r.excluded_skilled,
+            r.eligible])).collect())
+    }
+
+    /// Livelihoods L5: reserve (id, region, attended fraction) learners in the
+    /// work registry (category learning) and install this turn's attendance;
+    /// the wealth phase seats them from actual teaching. All or none.
+    pub fn reserve_learning_attendance(&mut self, turn: u32, learners_per_teacher: f32,
+                                       rows: Vec<(u32, u16, f32)>) -> PyResult<()> {
+        crate::learning_work::reserve(&mut self.pool, turn, learners_per_teacher, &rows, self.num_regions)
+            .map_err(PyValueError::new_err)
+    }
+
+    /// Livelihoods L5: the consumed attendance of `turn`, taken once: per
+    /// region (delivered Scholar work, seats) and per learner (id, region,
+    /// fraction, outcome, ordinary income, income withheld).
+    #[allow(clippy::type_complexity)]
+    pub fn take_learning_attendance(&mut self, turn: u32)
+        -> Option<(Vec<(f64, u32)>, Vec<(u32, u16, f32, u8, f32, f32)>)> {
+        crate::learning_work::take(&mut self.pool, turn).map(|plan| (
+            plan.delivered.iter().copied().zip(plan.seats.iter().copied()).collect(),
+            plan.rows.iter().map(|r| (r.agent_id, r.region, r.fraction, r.outcome, r.income, r.charged)).collect()))
+    }
+
+    /// Livelihoods L5: drop an unconsumed attendance of `turn`.
+    pub fn cancel_learning_attendance(&mut self, turn: u32) -> bool {
+        crate::learning_work::cancel(&mut self.pool, turn)
+    }
+
+    pub fn has_pending_learning_attendance(&self) -> bool {
+        self.pool.learning_attendance.as_ref().is_some_and(|p| !p.consumed)
+    }
+
+    /// Livelihoods L5: raise (gain > 0) or read (gain 0) graduates' skill in
+    /// the learned occupation; returns (id, occupation, alive, before, after).
+    pub fn grant_learning_skill(&mut self, rows: Vec<(u32, u8, f32)>) -> PyResult<Vec<(u32, u8, bool, f32, f32)>> {
+        let out = crate::learning_work::grant(&mut self.pool, &rows).map_err(PyValueError::new_err)?;
+        if out.iter().any(|r| r.2 && r.3 != r.4) {
+            self.snapshot_cache = None; // skills changed: drop the cached snapshot
+        }
+        Ok(out)
+    }
+
     /// Livelihoods L1A: the last economy tick's actual per-good craft input
     /// by region (goods in `economy::GOOD_NAMES` order), taken once; None
     /// before any tick or after it was taken.
@@ -1487,6 +1548,7 @@ impl AgentSimulator {
                 return Err(PyValueError::new_err("teaching work must be prepared for this tick"));
             }
         }
+        crate::learning_work::check_tick(&self.pool, turn).map_err(PyValueError::new_err)?;
         if self.pool.work_reservations.iter().any(|r| r.turn == turn) {
             // Livelihoods: one person, one work commitment per turn.
             let clash = crate::workshop_work::conflicts(&self.pool, turn);

@@ -14,11 +14,13 @@ from pydantic import BaseModel, Field
 
 from chronicler.food_allocation_state import FoodAllocationState
 from chronicler.grain_convoys_state import GrainConvoyState
+from chronicler.learning_cohorts_state import LearningCohortState
 from chronicler.timber_stock_state import TimberStockState
 from chronicler.workshops_state import WorkshopState
 
 #: Switch names, in declaration order (CLI ``--<name>``; module ``chronicler.<name>``).
-LIVELIHOODS_SWITCHES: tuple[str, ...] = ("workshops", "food_allocation", "timber_stock", "grain_convoys")
+LIVELIHOODS_SWITCHES: tuple[str, ...] = ("workshops", "food_allocation", "timber_stock", "grain_convoys",
+                                         "learning_cohorts")
 
 
 def _is_none(value) -> bool:
@@ -31,6 +33,7 @@ class LivelihoodsState(BaseModel):
     food_allocation: FoodAllocationState | None = Field(default=None, exclude_if=_is_none)
     timber_stock: TimberStockState | None = Field(default=None, exclude_if=_is_none)
     grain_convoys: GrainConvoyState | None = Field(default=None, exclude_if=_is_none)
+    learning_cohorts: LearningCohortState | None = Field(default=None, exclude_if=_is_none)
 
     def __setstate__(self, state):
         super().__setstate__(state)

@@ -40,11 +40,13 @@ LIVELIHOODS_CHOICES: dict[str, tuple[str, ...]] = {
     "workshop_mode": ("operate", "observe", "cost_only"),
     "food_allocation_regime": ("floor_means", "equal", "targeted_relief"),
     "convoy_route_policy": ("adaptive", "cheapest", "safest"),
+    "learning_cohort_mode": ("learn", "no_learning"),
 }
 #: All parser destinations owned here (``batch_manifest.SIMULATION_ARG_KEYS``).
 LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     "workshops", "workshop_mode", "food_allocation", "food_allocation_regime",
     "timber_stock", "grain_convoys", "convoy_route_policy",
+    "learning_cohorts", "learning_cohort_mode",
 )
 _AGENT_ECONOMY = ("hybrid", "shadow", "demographics-only")
 
@@ -78,6 +80,13 @@ _HELP = {
         "--public-grain-shipments (default off)"
     ),
     "convoy_route_policy": "adaptive (default), cheapest or safest route choice at dispatch",
+    "learning_cohorts": (
+        "Named learners at academies: finite cohorts of present adults attend actual "
+        "delivered academy teaching, give up part of their ordinary income, and on "
+        "completion gain skill in their trade; requires --agents hybrid and "
+        "--academy-services (default off)"
+    ),
+    "learning_cohort_mode": "learn (default): completion raises the learner's trade skill; no_learning: the cost-retaining control (same attendance, cost and supplies, no skill gain)",
 }
 
 
@@ -137,6 +146,12 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str) -> None:
         reserves = getattr(world, "grain_reserves", None)
         if reserves is None or getattr(reserves, "shipments", None) is None:
             raise ValueError("--grain-convoys requires --public-grain-shipments")
+    if values["learning_cohorts"] is True:
+        if agent_mode != "hybrid":
+            raise ValueError("--learning-cohorts requires --agents hybrid")
+        services = getattr(getattr(world, "scholarship", None), "learning_services", None)
+        if services is None or not getattr(services, "enabled", True):
+            raise ValueError("--learning-cohorts requires --academy-services")
 
 
 def configure_livelihoods(world: Any, args: Any, *, agent_mode: str) -> None:
