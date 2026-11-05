@@ -58,7 +58,13 @@ qualified members spend on upkeep and teaching
 allocated and so out of the ceiling; in ``_bill``, the lump repair only while
 ``repair_projects.legacy_workshop_repair_allowed`` (RS2); and at settlement,
 ``apprenticeship.operating_wear`` of a funded operating site (RS1; condition
-is untouched when it is 0).
+is untouched when it is 0). RS2 adds two guarded seams:
+right after the RS1 seats and before the crew planner,
+``repair_projects.before_crews`` reserves each open repair project's named
+crew (registry category ``repair``), so the L1 planner never also employs a
+repairer; and :func:`_pending_storage_bills` includes the repair work planned
+but not yet charged (``repair_projects.pending_bills``), so the L1 funding and
+every later planner leave room for it.
 """
 from __future__ import annotations
 
@@ -228,6 +234,14 @@ def _before_crews(world, sim, requests: list) -> None:
         before_crews(world, sim, requests)
 
 
+def _before_repair_crews(world, sim, requests: list, acc) -> None:
+    """RS0 seam (RS2): reserves repair crews after the RS1 seats, before the
+    native crew planner, while repair projects are active."""
+    if _lane_active(world, "repair_projects"):
+        from chronicler.repair_projects import before_crews
+        before_crews(world, sim, requests, acc)
+
+
 def _crew_priority(world, state: WorkshopState) -> list[int]:
     """RS0 seam (RS3, RS1): one priority list for the native planner,
     deduplicated: while apprenticeship is active, this turn's living
@@ -296,6 +310,7 @@ def _pending_storage_bills(world) -> list[int]:
     Storage budgets its work against the same projected treasury before the
     native tick and charges after it; its plan holds no accumulator entry yet,
     so the workshop must leave room for it (never spend the same coins twice).
+    With RS2 active it includes the repair work planned and not yet charged.
     """
     bills = [0] * len(world.civilizations)
     storage = getattr(getattr(world, "grain_reserves", None), "storage", None)
@@ -305,6 +320,10 @@ def _pending_storage_bills(world) -> list[int]:
         for row in plan.rows:
             if row.owner >= 0 and row.request:
                 bills[row.owner] += math.ceil(row.request * COINS_PER_WORK)
+    if _lane_active(world, "repair_projects"):
+        from chronicler.repair_projects import pending_bills
+        for i, amount in enumerate(pending_bills(world)):
+            bills[i] += amount
     return bills
 
 
@@ -344,6 +363,7 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
                  float(_diverted(int(cities[s.site].rank)) * terms[s.site][1]), terms[s.site][0])
                 for s in state.sites]
     _before_crews(world, sim, requests)
+    _before_repair_crews(world, sim, requests, acc)
     rows = {}
     # Observe mode employs nobody: its crews are available, not employed, so
     # they hold no work commitment in the shared registry (L5 learners and

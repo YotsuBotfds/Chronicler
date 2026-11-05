@@ -174,7 +174,8 @@ def test_priority_ids_reach_the_native_planner_through_the_workshop_seam(tmp_pat
 
 
 #: Packages whose lane replaced the inert RS0 stub.
-IMPLEMENTED = {"clearing_protection", "remittances", "veteran_reintegration", "apprenticeship"}
+IMPLEMENTED = {"clearing_protection", "remittances", "veteran_reintegration", "apprenticeship",
+               "repair_projects"}
 
 
 def test_the_stub_switches_leave_a_real_operating_run_unchanged(tmp_path):

@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field, PrivateAttr
 MODES: tuple[str, ...] = ("bargained", "fixed_shares")
 #: Built-in services in declaration order. Registered providers add their own.
 SERVICES: tuple[str, ...] = ("relief", "granary_maintain", "granary_expand", "workshop",
-                              "teaching_supplies", "wardens")
+                              "teaching_supplies", "wardens", "repairs")
 #: Existing constituencies that bargain, in declaration order (the tie-break).
 CONSTITUENCIES: tuple[str, ...] = ("commons", "patricians")
 #: Candidate allocations, in arbitration tie-break order.

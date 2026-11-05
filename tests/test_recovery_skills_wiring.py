@@ -38,7 +38,8 @@ from chronicler.world_gen import generate_world
 
 RS = ("apprenticeship", "repair_projects", "veteran_reintegration", "remittances", "clearing_protection")
 #: Packages whose lane replaced the inert RS0 stub (their own tests cover them).
-IMPLEMENTED = {"clearing_protection", "remittances", "veteran_reintegration", "apprenticeship"}
+IMPLEMENTED = {"clearing_protection", "remittances", "veteran_reintegration", "apprenticeship",
+               "repair_projects"}
 MODE_KEYS = {"apprenticeship": "apprenticeship_mode", "repair_projects": "repair_mode",
              "veteran_reintegration": "veteran_mode", "remittances": "remittance_mode",
              "clearing_protection": "clearing_protection_mode"}
@@ -279,8 +280,10 @@ def test_activity_follows_prerequisite_state_at_run_time(world):
     assert CP.clearing_protection_active(world)
     world.agent_mode = "hybrid"
     world.livelihoods.workshops.mode = "cost_only"
-    # Apprenticeship needs operate mode; repair projects accept a cost_only site.
-    assert not A.apprenticeship_active(world) and RP.repair_projects_active(world)
+    assert not A.apprenticeship_active(world)
+    # RS2 runs with workshops in any mode (sites are repaired only in operate
+    # mode, so the cost-only lump stays in force).
+    assert RP.repair_projects_active(world) and RP.legacy_workshop_repair_allowed(world)
     assert VR.veteran_reintegration_active(world) and RM.remittances_active(world)
 
 
@@ -313,7 +316,8 @@ def test_cross_lane_stubs_are_inert(world):
     before = world.model_dump_json()
     # RS1 landed: with no qualification held its cross-lane API is still empty.
     assert A.qualified_ids(world, 0) == [] and VR.priority_ids(world, 3) == []
-    assert RP.legacy_workshop_repair_allowed(world) is True
+    # RS2 landed: with operate-mode workshops it owns workshop repair.
+    assert RP.legacy_workshop_repair_allowed(world) is False
     for kind in OUTCOMES:
         assert VR.note_outcome(world, 7, kind, turn=3, detail={"site": 0}) is None
     with pytest.raises(ValueError, match="unknown veteran outcome"):
@@ -460,7 +464,8 @@ def test_legacy_repair_gate_bills_the_lump_only_while_allowed(monkeypatch):
     site.condition = 0.3
     assert "repair" in W._bill(site) and "repair" in W._bill(site, world)
     _enable(world, "repair_projects")
-    assert "repair" in W._bill(site, world)                 # the RS0 stub allows it
+    # RS2 landed: active repair projects own workshop repair, so the gate is shut.
+    assert RP.legacy_workshop_repair_allowed(world) is False
     monkeypatch.setattr(RP, "legacy_workshop_repair_allowed", lambda w: False)
     assert W._bill(site, world) == {"upkeep": W.UPKEEP}
     assert "repair" in W._bill(site)                        # no world: today's bill

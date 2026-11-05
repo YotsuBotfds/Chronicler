@@ -635,6 +635,11 @@ def apply_region_conquest(
         # --grain-reserves: the conquest destroys the same share of its granary.
         from chronicler.grain_reserves import seize_granary
         seize_granary(world, contested, CONQUEST_STOCKPILE_SURVIVAL)
+    if getattr(world, "livelihoods", None) is not None:
+        # --repair-projects (RS2): the conquest damages the region's granary
+        # and workshop site (a no-op unless active).
+        from chronicler.repair_projects import region_conquered
+        region_conquered(world, contested, attacker.name, defender.name)
     contested.last_conquered_turn = world.turn
     attacker.regions.append(contested.name)
     defender.regions = [r for r in defender.regions if r != contested.name]
