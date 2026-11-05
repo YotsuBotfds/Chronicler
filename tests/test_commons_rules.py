@@ -371,6 +371,15 @@ def test_settlement_refuses_a_bill_the_treasury_no_longer_covers():
     assert world.livelihoods.commons_rules.model_dump_json() == before
 
 
+def test_settlement_refuses_a_payer_that_lost_the_region_mid_turn():
+    world = _adopted()
+    batch = prepare_phase2(world, _batch(world), None, _snapshot(world))
+    world.regions[0].controller = world.civilizations[0].name
+    with pytest.raises(RuntimeError, match="payer changed"):
+        finish_phase2(world, _kernel(world, batch, {THORN: 5.0}), None)
+    rollback_phase2(world)
+
+
 # --- Repeal, lapse and ownership change ---------------------------------------------
 
 def test_recovered_stand_repeals_the_rule():
@@ -466,6 +475,22 @@ def test_binding_rule_raises_city_grievance_up_to_a_ceiling():
     city.grievance = 0.0
     _tick(world, {THORN: 5.0}, without=(0,))
     assert _receipt(world, THORN)["grievance_added"] == 0.0 and city.grievance == 0.0
+
+
+def test_two_binding_stands_in_one_region_add_grievance_once_each():
+    from chronicler.models import ResourceType
+    world = _world()
+    world.regions[2].resource_types[1] = ResourceType.TIMBER        # Mistwood: two timber slots
+    configure_livelihoods(world, _build_parser().parse_args(["--timber-stock", "--commons-rules"]),
+                          agent_mode="hybrid")
+    second = (2, 1)
+    for key in (MIST, second):
+        _set_stock(world, key, 0.1)
+    _tick(world, {MIST: 5.0, second: 5.0})
+    city = _city(world, rid=2, grievance=0.1)
+    _tick(world, {MIST: 5.0, second: 5.0})
+    added = [_receipt(world, key)["grievance_added"] for key in (MIST, second)]
+    assert added == pytest.approx([0.02, 0.02]) and city.grievance == pytest.approx(0.14)
 
 
 def test_cost_only_and_cityless_regions_add_no_grievance():

@@ -412,12 +412,12 @@ def finish_phase2(world, economy_result, agent_bridge, acc) -> list:
     # Validate everything before committing anything.
     totals_by_civ: dict[int, int] = {}
     for row in plan.rows:
+        if _controller(world, row.rule.region_id) != row.owner:
+            raise RuntimeError("commons rule payer changed while its bill was pending")
         if row.paid:
             totals_by_civ[row.owner] = totals_by_civ.get(row.owner, 0) + row.paid
     for owner, amount in totals_by_civ.items():
         civ = world.civilizations[owner]
-        if world.civ_index_map.get(civ.name) != owner:
-            raise RuntimeError("commons rule payer changed while its bill was pending")
         if _treasury_budget(world, civ, acc) < amount:
             # Planning left room for every other Phase 2 bill; a shortfall here
             # means another spender was missed.
@@ -425,7 +425,7 @@ def finish_phase2(world, economy_result, agent_bridge, acc) -> list:
     timber_slots = set(_timber().timber_slots(world))
     index = {r.name: i for i, r in enumerate(world.regions)}
     receipts: list[CommonsReceipt] = []
-    grievance: list[tuple[Any, float]] = []
+    grievance: dict[int, tuple[Any, float]] = {}   # settlement id -> (city, new grievance)
     for row in plan.rows:
         rid, slot = row.rule.region_id, row.rule.slot
         extraction = extraction_of(rid, slot)
@@ -442,12 +442,14 @@ def finish_phase2(world, economy_result, agent_bridge, acc) -> list:
             excess = max(0.0, extraction - row.limit)
         city = carrier_city(world, rid)
         added = 0.0
-        if binding and city is not None and city.grievance < GRIEVANCE_CEILING:
+        current = grievance[city.settlement_id][1] if city is not None and city.settlement_id in grievance \
+            else (city.grievance if city is not None else 0.0)
+        if binding and city is not None and current < GRIEVANCE_CEILING:
             from chronicler.cities import _q
-            new = _q(min(GRIEVANCE_CEILING, city.grievance + RULE_GRIEVANCE))
-            added = max(0.0, new - city.grievance)
+            new = _q(min(GRIEVANCE_CEILING, current + RULE_GRIEVANCE))
+            added = max(0.0, new - current)
             if added > 0.0:
-                grievance.append((city, new))
+                grievance[city.settlement_id] = (city, new)
         neighbours = []
         for adj in region.adjacencies:
             j = index.get(adj)
@@ -476,7 +478,7 @@ def finish_phase2(world, economy_result, agent_bridge, acc) -> list:
             civ.treasury -= amount
         else:
             acc.add(owner, civ, "treasury", -amount, "keep")
-    for city, value in grievance:
+    for city, value in grievance.values():
         city.grievance = value
     counters = state.counters
     for key in COUNTER_KEYS:
