@@ -591,6 +591,10 @@ class EconomyResult:
     food_procurement_budget: dict[int, tuple[int, int]] = field(default_factory=dict)
     # Native aggregate farmer-equivalent work, only for the opt-in asset caller.
     granary_work_delivered: dict[int, float] = field(default_factory=dict)
+    # PL1 timber supply: woodcutting crews' farm labour removed at home and
+    # marginal harvest at the forest, by region index; empty without the columns.
+    woodcut_labor_away_delivered: dict[int, float] = field(default_factory=dict)
+    woodcut_output: dict[int, float] = field(default_factory=dict)
     # Merchant routing (2026-10): demand and post-trade supply per category
     # (``CATEGORIES`` order), the merchant planner's market prices. Filled by
     # the native economy; empty for the Python oracle.
@@ -1570,6 +1574,11 @@ def reconstruct_economy_result(
     if "granary_work_delivered" in rr_names:
         delivered = pylist(region_result_batch.column("granary_work_delivered"))
         result.granary_work_delivered = {rid: float(delivered[i]) for i, rid in enumerate(rr_ids)}
+    if "woodcut_output" in rr_names:
+        away = pylist(region_result_batch.column("woodcut_labor_away_delivered"))
+        cut = pylist(region_result_batch.column("woodcut_output"))
+        result.woodcut_labor_away_delivered = {rid: float(away[i]) for i, rid in enumerate(rr_ids)}
+        result.woodcut_output = {rid: float(cut[i]) for i, rid in enumerate(rr_ids)}
 
     trc_vals = pylist(region_result_batch.column("trade_route_count"))
     for i, rid in enumerate(rr_ids):
@@ -1680,6 +1689,8 @@ def reconstruct_economy_result(
     # M58b: in_transit_delta (nullable, absent in pre-M58b batches)
     if "in_transit_delta" in schema_names(conservation_batch):
         result.conservation["in_transit_delta"] = pylist(conservation_batch.column("in_transit_delta"))[0]
+    if "woodcut_outflow" in schema_names(conservation_batch):   # PL1: crews' harvest, never stocked
+        result.conservation["woodcut_outflow"] = pylist(conservation_batch.column("woodcut_outflow"))[0]
 
     # --- M58b: Oracle shadow imports (nullable columns, zero when no oracle) ---
     if "oracle_imports_food" in schema_names(observability_batch):

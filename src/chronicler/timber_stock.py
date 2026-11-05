@@ -274,6 +274,33 @@ def offered_caps(world) -> dict | None:
     return dict(offered) if offered is not None else None
 
 
+def stand(world, rid: int, slot: int) -> tuple[float, float] | None:
+    """PL1 read seam (timber supply's ecological guard): ``(standing stock,
+    effective capacity)`` of a timber slot now, the stock within this turn's
+    capacity (what the harvest cap offers); None while the stock is off or
+    when the slot is not timber. Reads state only."""
+    state = _state(world)
+    if state is None or not state.enabled or not 0 <= rid < len(world.regions):
+        return None
+    region = world.regions[rid]
+    if not 0 <= slot < len(region.resource_types) or not _is_timber(region.resource_types[slot]):
+        return None
+    capacity = effective_capacity(region, slot)
+    held = next((row.stock for row in state.stocks if (row.region_id, row.slot) == (rid, slot)), capacity)
+    return min(held, capacity), capacity
+
+
+def settled_accounts(world) -> dict[tuple[int, int], tuple[float, float, float]]:
+    """PL1 read seam: this turn's settled accounts, ``{(region, slot): (opening
+    standing within capacity, stock after, capacity)}``; empty before the
+    turn's settlement. Reads state only."""
+    state = _state(world)
+    if state is None or state.ledger_turn != getattr(world, "turn", None):
+        return {}
+    return {(row.region_id, row.slot): (row.opening - row.cleared, row.stock, row.capacity)
+            for row in state.ledger if row.removed == 0.0}
+
+
 def tighten_harvest_caps(world, region_input, limits: dict):
     """Lower this turn's ``timber_harvest_cap_{slot}`` to external rule limits.
 

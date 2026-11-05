@@ -3152,7 +3152,7 @@ impl AgentSimulator {
             Float32Builder, UInt8Builder, UInt16Builder, BooleanBuilder,
         };
         use crate::economy::{
-            EconomyRegionInput, RegionAgentCounts, TradeRouteInput, tick_economy_core_with_granary_work,
+            EconomyRegionInput, RegionAgentCounts, TradeRouteInput, tick_economy_core_with_woodcut,
         };
 
         let _ = season_id; // reserved for future seasonal modifiers
@@ -3210,6 +3210,28 @@ impl AgentSimulator {
                 *request = values.value(i);
             }
         }
+        // PL1 timber supply (optional, default absent): woodcutting crews'
+        // headcount labour away from home and on a forest's timber slot. Both
+        // columns or neither, non-null, finite and >= 0.
+        let woodcut_columns: Option<(Vec<f32>, Vec<f32>)> =
+            match (ri_rb.column_by_name("woodcut_labor_away"), ri_rb.column_by_name("woodcut_labor")) {
+                (None, None) => None,
+                (Some(away), Some(labor)) => {
+                    let read = |column: &Arc<dyn Array>, name: &str| -> PyResult<Vec<f32>> {
+                        let values = column.as_any().downcast_ref::<Float32Array>()
+                            .ok_or_else(|| PyValueError::new_err(format!("{name} must be Float32")))?;
+                        (0..n_regions).map(|i| {
+                            if values.is_null(i) || !values.value(i).is_finite() || values.value(i) < 0.0 {
+                                Err(PyValueError::new_err(format!("invalid {name}")))
+                            } else {
+                                Ok(values.value(i))
+                            }
+                        }).collect()
+                    };
+                    Some((read(away, "woodcut_labor_away")?, read(labor, "woodcut_labor")?))
+                }
+                _ => return Err(PyValueError::new_err("woodcut_labor_away and woodcut_labor come together")),
+            };
 
         let ri_region_ids = col_u16!(&ri_rb, "region_id");
         let ri_terrain = col_u8!(&ri_rb, "terrain");
@@ -3398,6 +3420,14 @@ impl AgentSimulator {
             }
         }
 
+        // PL1: crew labour only on a region with a timber slot.
+        if let Some((_, labor)) = &woodcut_columns {
+            if labor.iter().zip(&region_inputs)
+                .any(|(&crew, inp)| crew > 0.0 && crate::economy::woodcut_slot(&inp.resource_types).is_none()) {
+                return Err(PyValueError::new_err("woodcut_labor needs a timber slot"));
+            }
+        }
+
         // --- Derive agent counts from live pool ---
         // Partition by region for efficient iteration
         let partitioned = self.pool.partition_by_region(n_regions as u16);
@@ -3553,7 +3583,9 @@ impl AgentSimulator {
             .collect();
 
         // --- Call the core ---
-        let output = tick_economy_core_with_granary_work(
+        let woodcut = woodcut_columns.as_ref().map(|(away, labor)| crate::economy::WoodcutInput {
+            labor_away: away, labor });
+        let output = tick_economy_core_with_woodcut(
             &region_inputs,
             &agent_counts,
             &routes,
@@ -3566,6 +3598,7 @@ impl AgentSimulator {
             is_winter,
             hybrid_delivery.as_ref(),
             &granary_work_requested,
+            woodcut.as_ref(),
         );
 
         // M58b: Write transit decay diagnostics back to delivery buffer before clearing.
@@ -3686,8 +3719,20 @@ impl AgentSimulator {
         for builder in rr_market_price.iter_mut() {
             rr_columns.push(Arc::new(builder.finish()));
         }
+        // PL1: the crews' results, appended only when their columns came in.
+        let mut rr_schema = economy_region_result_schema();
+        if woodcut.is_some() {
+            let mut fields: Vec<Field> = rr_schema.fields().iter().map(|f| f.as_ref().clone()).collect();
+            fields.push(Field::new("woodcut_labor_away_delivered", DataType::Float32, false));
+            fields.push(Field::new("woodcut_output", DataType::Float32, false));
+            rr_schema = Schema::new(fields);
+            rr_columns.push(Arc::new(Float32Array::from(
+                output.region_results.iter().map(|rr| rr.woodcut_labor_away_delivered).collect::<Vec<f32>>())));
+            rr_columns.push(Arc::new(Float32Array::from(
+                output.region_results.iter().map(|rr| rr.woodcut_output).collect::<Vec<f32>>())));
+        }
         let region_result_batch = RecordBatch::try_new(
-            Arc::new(economy_region_result_schema()),
+            Arc::new(rr_schema),
             rr_columns,
         ).map_err(arrow_err)?;
 
@@ -3824,17 +3869,26 @@ impl AgentSimulator {
             Some(v) => Arc::new(Float64Array::from(vec![Some(v)])),
             None => Arc::new(Float64Array::from(vec![None::<f64>])),
         };
+        let mut conservation_schema = economy_conservation_schema();
+        let mut conservation_columns: Vec<Arc<dyn arrow::array::Array>> = vec![
+            Arc::new(Float64Array::from(vec![c.production])),
+            Arc::new(Float64Array::from(vec![c.transit_loss])),
+            Arc::new(Float64Array::from(vec![c.consumption])),
+            Arc::new(Float64Array::from(vec![c.storage_loss])),
+            Arc::new(Float64Array::from(vec![c.cap_overflow])),
+            Arc::new(Float64Array::from(vec![c.clamp_floor_loss])),
+            in_transit_delta_arr,
+        ];
+        if woodcut.is_some() {
+            // PL1: the crews' harvest left in production's count, never stocked.
+            let mut fields: Vec<Field> = conservation_schema.fields().iter().map(|f| f.as_ref().clone()).collect();
+            fields.push(Field::new("woodcut_outflow", DataType::Float64, false));
+            conservation_schema = Schema::new(fields);
+            conservation_columns.push(Arc::new(Float64Array::from(vec![c.woodcut_outflow])));
+        }
         let conservation_batch = RecordBatch::try_new(
-            Arc::new(economy_conservation_schema()),
-            vec![
-                Arc::new(Float64Array::from(vec![c.production])),
-                Arc::new(Float64Array::from(vec![c.transit_loss])),
-                Arc::new(Float64Array::from(vec![c.consumption])),
-                Arc::new(Float64Array::from(vec![c.storage_loss])),
-                Arc::new(Float64Array::from(vec![c.cap_overflow])),
-                Arc::new(Float64Array::from(vec![c.clamp_floor_loss])),
-                in_transit_delta_arr,
-            ],
+            Arc::new(conservation_schema),
+            conservation_columns,
         ).map_err(arrow_err)?;
 
         // M58b: Clear delivery buffer AFTER Arrow packing succeeds (transactional guarantee).
@@ -4462,6 +4516,116 @@ mod tests {
             assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &sim), before);
             assert_eq!(sim.merchant_delivery_buf.as_ref().unwrap().arrival_imports.len(), 1);
             assert_eq!(sim.health_work.as_ref().unwrap().losses, vec![1.0]);
+            assert!(!sim.health_work.as_ref().unwrap().worked[0]);
+        }
+    }
+
+    /// PL1: the granary test region with a timber slot (yield 2) and the
+    /// optional woodcut columns.
+    fn woodcut_input(columns: Vec<(&str, arrow::array::ArrayRef)>, timber: bool) -> PyRecordBatch {
+        use arrow::array::{ArrayRef, Float32Array};
+        let input = granary_work_input(None, 1.0).into_inner();
+        let mut fields: Vec<Field> = input.schema().fields().iter().map(|f| f.as_ref().clone()).collect();
+        let mut cols: Vec<ArrayRef> = input.columns().to_vec();
+        if timber {
+            let i = fields.iter().position(|f| f.name() == "resource_type_1").unwrap();
+            cols[i] = Arc::new(UInt8Array::from(vec![1]));
+            let i = fields.iter().position(|f| f.name() == "resource_yield_1").unwrap();
+            cols[i] = Arc::new(Float32Array::from(vec![2.0]));
+        }
+        for (name, column) in columns {
+            fields.push(Field::new(name, column.data_type().clone(), true));
+            cols.push(column);
+        }
+        PyRecordBatch::new(RecordBatch::try_new(Arc::new(Schema::new(fields)), cols).unwrap())
+    }
+
+    fn f32_column(value: Option<f32>) -> arrow::array::ArrayRef {
+        Arc::new(arrow::array::Float32Array::from(vec![value]))
+    }
+
+    #[test]
+    fn woodcut_ffi_absent_and_zero_columns_keep_outputs_and_state() {
+        use arrow::array::{Float32Array, Float64Array};
+        let mut absent = granary_work_sim();
+        let mut zero = granary_work_sim();
+        let a = absent.tick_economy(woodcut_input(vec![], true), granary_work_routes(), 0, false, 1.0).unwrap();
+        let b = zero.tick_economy(woodcut_input(vec![("woodcut_labor_away", f32_column(Some(0.0))),
+                                                   ("woodcut_labor", f32_column(Some(0.0)))], true),
+                                  granary_work_routes(), 0, false, 1.0).unwrap();
+        let (ra, rb) = (a.0.into_inner(), b.0.into_inner());
+        // The appended result columns are the only difference, and they are zero.
+        let names: Vec<String> = rb.schema().fields().iter().map(|f| f.name().clone()).collect();
+        assert_eq!(&names[names.len() - 2..], &["woodcut_labor_away_delivered", "woodcut_output"]);
+        assert_eq!(rb.project(&(0..ra.num_columns()).collect::<Vec<_>>()).unwrap(), ra);
+        for name in ["woodcut_labor_away_delivered", "woodcut_output"] {
+            assert_eq!(rb.column_by_name(name).unwrap().as_any().downcast_ref::<Float32Array>().unwrap().value(0), 0.0);
+        }
+        assert!(ra.column_by_name("woodcut_output").is_none());
+        assert_eq!(a.1.into_inner(), b.1.into_inner());
+        assert_eq!(a.2.into_inner(), b.2.into_inner());
+        assert_eq!(a.3.into_inner(), b.3.into_inner());
+        let (ca, cb) = (a.4.into_inner(), b.4.into_inner());
+        assert_eq!(cb.project(&(0..ca.num_columns()).collect::<Vec<_>>()).unwrap(), ca);
+        assert_eq!(cb.column_by_name("woodcut_outflow").unwrap().as_any().downcast_ref::<Float64Array>().unwrap()
+                   .value(0), 0.0);
+        assert!(ca.column_by_name("woodcut_outflow").is_none());
+        assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &absent),
+                   crate::persist::encode(crate::persist::KIND_AGENT, &zero));
+    }
+
+    #[test]
+    fn woodcut_ffi_reports_the_crew_and_keeps_the_stock() {
+        use arrow::array::{Float32Array, Float64Array};
+        let mut plain = granary_work_sim();
+        let mut crews = granary_work_sim();
+        let a = plain.tick_economy(woodcut_input(vec![], true), granary_work_routes(), 0, false, 1.0).unwrap();
+        let b = crews.tick_economy(woodcut_input(vec![("woodcut_labor_away", f32_column(Some(1.0))),
+                                                    ("woodcut_labor", f32_column(Some(2.0)))], true),
+                                   granary_work_routes(), 0, false, 1.0).unwrap();
+        let (ra, rb) = (a.0.into_inner(), b.0.into_inner());
+        let val = |batch: &RecordBatch, name: &str| batch.column_by_name(name).unwrap().as_any()
+            .downcast_ref::<Float32Array>().unwrap().value(0);
+        // 10 farmers at half time, less one care loss: 4 headcount; one away.
+        assert_eq!(val(&rb, "woodcut_labor_away_delivered"), 1.0);
+        let cut = val(&rb, "woodcut_output");
+        assert!(cut > 0.0);
+        // Without slot curves the crew of two adds 2 x yield 2 on the slot.
+        assert!((cut - 4.0).abs() < 1e-5, "{cut}");
+        assert!(val(&rb, "slot_output_1") >= cut);
+        let cons = b.4.into_inner();
+        let outflow = cons.column_by_name("woodcut_outflow").unwrap().as_any()
+            .downcast_ref::<Float64Array>().unwrap().value(0);
+        assert_eq!(outflow, cut as f64);
+        // The harvest left with the crew: the timber stock is the residents'.
+        let resident_a = val(&ra, "slot_output_1");
+        let resident_b = val(&rb, "slot_output_1") - cut;
+        assert!(resident_b < resident_a);   // one farmer fewer at home
+        assert!((val(&rb, "stockpile_timber") - resident_b * (1.0 - 0.005)).abs() < 1e-5);
+    }
+
+    #[test]
+    fn woodcut_ffi_invalid_inputs_preserve_state() {
+        let cases: Vec<(Vec<(&str, arrow::array::ArrayRef)>, bool)> = vec![
+            (vec![("woodcut_labor_away", f32_column(Some(1.0)))], true),
+            (vec![("woodcut_labor", f32_column(Some(1.0)))], true),
+            (vec![("woodcut_labor_away", f32_column(Some(0.0))), ("woodcut_labor", f32_column(Some(1.0)))], false),
+            (vec![("woodcut_labor_away", f32_column(Some(-1.0))), ("woodcut_labor", f32_column(Some(0.0)))], true),
+            (vec![("woodcut_labor_away", f32_column(Some(0.0))), ("woodcut_labor", f32_column(Some(f32::NAN)))], true),
+            (vec![("woodcut_labor_away", f32_column(None)), ("woodcut_labor", f32_column(Some(0.0)))], true),
+            (vec![("woodcut_labor_away", Arc::new(arrow::array::Float64Array::from(vec![0.0]))),
+                  ("woodcut_labor", f32_column(Some(0.0)))], true),
+        ];
+        for (columns, timber) in cases {
+            let mut sim = granary_work_sim();
+            sim.set_hybrid_economy_mode(true);
+            let mut buffer = crate::merchant::DeliveryBuffer::new(1);
+            buffer.record_arrival(0, 0, 0, 1.0);
+            sim.merchant_delivery_buf = Some(buffer);
+            let before = crate::persist::encode(crate::persist::KIND_AGENT, &sim);
+            assert!(sim.tick_economy(woodcut_input(columns, timber), granary_work_routes(), 0, false, 1.0).is_err());
+            assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &sim), before);
+            assert_eq!(sim.merchant_delivery_buf.as_ref().unwrap().arrival_imports.len(), 1);
             assert!(!sim.health_work.as_ref().unwrap().worked[0]);
         }
     }
