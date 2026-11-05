@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "layer": "rs0",
+  "parent": "da514a5e922f23bc77c2d386e814f33b6b0b0350",
+  "files": {
+    "chronicler-agents/src/ffi/mod.rs": {
+      "sha256": "5561dcc4dced40a1947e3adc9c75d7b53711d7fe92027611519ecaf270f025be",
+      "current_sha256": "576c249a25aa39b65340f92b90ccc31a197f71101be787c5b1cd5e2df7feec97",
+      "patches": [
+        {
+          "old": "    /// eligible, crew ids, crew ages, work available).\n    /// With `turn`, people already holding work that turn are excluded and\n    /// the selected crews are reserved in the shared work registry.\n    #[allow(clippy::type_complexity)]\n    #[pyo3(signature = (sites, enlisted_ids, turn=None))]\n    pub fn plan_workshop_crews(&mut self, sites: Vec<(u16, u16, u16, f32, u8)>, enlisted_ids: Vec<u32>, turn: Option<u32>)\n        -> PyResult<Vec<(u16, u16, u16, u32, u32, u32, u32, u32, Vec<u32>, Vec<u16>, f32)>> {\n        if !self.initialized {\n            return Err(PyValueError::new_err(\"workshop crews require initialized agents\"));\n",
+          "new": "    /// eligible, crew ids, crew ages, work available).\n    /// With `turn`, people already holding work that turn are excluded and\n    /// the selected crews are reserved in the shared work registry.\n    /// RS0: `priority_ids` (one list for every site) puts listed eligible\n    /// ids first, in the listed order; None or empty keeps the default order.\n    #[allow(clippy::type_complexity)]\n    #[pyo3(signature = (sites, enlisted_ids, turn=None, *, priority_ids=None))]\n    pub fn plan_workshop_crews(&mut self, sites: Vec<(u16, u16, u16, f32, u8)>, enlisted_ids: Vec<u32>, turn: Option<u32>,\n                               priority_ids: Option<Vec<u32>>)\n        -> PyResult<Vec<(u16, u16, u16, u32, u32, u32, u32, u32, Vec<u32>, Vec<u16>, f32)>> {\n        if !self.initialized {\n            return Err(PyValueError::new_err(\"workshop crews require initialized agents\"));\n"
+        },
+        {
+          "old": "            return Err(PyValueError::new_err(\"workshop site region out of range\"));\n        }\n        let enlisted: std::collections::HashSet<u32> = enlisted_ids.into_iter().collect();\n        let rows = crate::workshop_work::plan_crews(&self.pool, &requests, &enlisted, turn)\n            .map_err(PyValueError::new_err)?;\n        if let Some(turn) = turn {\n            let crew: Vec<(u32, f32)> = rows.iter().zip(&requests)\n",
+          "new": "            return Err(PyValueError::new_err(\"workshop site region out of range\"));\n        }\n        let enlisted: std::collections::HashSet<u32> = enlisted_ids.into_iter().collect();\n        let rows = crate::workshop_work::plan_crews_with_priority(&self.pool, &requests, &enlisted, turn,\n                                                                  priority_ids.as_deref().unwrap_or(&[]))\n            .map_err(PyValueError::new_err)?;\n        if let Some(turn) = turn {\n            let crew: Vec<(u32, f32)> = rows.iter().zip(&requests)\n"
+        },
+        {
+          "old": "    }\n\n    /// Livelihoods: commit (stable id, fraction) rows for `turn` under a work\n    /// category (0 workshop, 1 learning), all or none; refuses anyone already\n    /// holding work that turn (registry, rural health work, teaching plan).\n    pub fn reserve_work(&mut self, turn: u32, category: u8, rows: Vec<(u32, f32)>) -> PyResult<()> {\n        crate::workshop_work::reserve(&mut self.pool, turn, category, &rows).map_err(PyValueError::new_err)\n",
+          "new": "    }\n\n    /// Livelihoods: commit (stable id, fraction) rows for `turn` under a work\n    /// category (0 workshop, 1 learning, 2 apprentice, 3 repair), all or none; refuses anyone already\n    /// holding work that turn (registry, rural health work, teaching plan).\n    pub fn reserve_work(&mut self, turn: u32, category: u8, rows: Vec<(u32, f32)>) -> PyResult<()> {\n        crate::workshop_work::reserve(&mut self.pool, turn, category, &rows).map_err(PyValueError::new_err)\n"
+        },
+        {
+          "old": "    /// reservation for `turn`; the next wealth phase consumes it once.\n    pub fn install_paid_work(&mut self, turn: u32, rows: Vec<(u32, f32)>) -> PyResult<()> {\n        crate::wealth_transfer::install_paid_work(&mut self.pool, turn, &rows).map_err(PyValueError::new_err)\n    }\n\n    /// Livelihoods L6a: drop an armed paid-work share the tick never took.\n",
+          "new": "    /// reservation for `turn`; the next wealth phase consumes it once.\n    pub fn install_paid_work(&mut self, turn: u32, rows: Vec<(u32, f32)>) -> PyResult<()> {\n        crate::wealth_transfer::install_paid_work(&mut self.pool, turn, &rows).map_err(PyValueError::new_err)\n    }\n\n    /// RS0: merge (stable id, share) rows into this turn's pending paid-work\n    /// install, or arm one; refuses an id with a pending share, a share above\n    /// the id's reservations and a pending install of another turn.\n    pub fn extend_paid_work(&mut self, turn: u32, rows: Vec<(u32, f32)>) -> PyResult<()> {\n        crate::wealth_transfer::extend_paid_work(&mut self.pool, turn, &rows).map_err(PyValueError::new_err)\n    }\n\n    /// Livelihoods L6a: drop an armed paid-work share the tick never took.\n"
+        }
+      ]
+    },
+    "src/chronicler/batch_manifest.py": {
+      "sha256": "0e97182cf2b92bfef2ecc3077d8caa3c69da39083877ed01a52bbf01292bbc98",
+      "current_sha256": "14a08ce478e6681e754377e12d833350a265ad8ef638e2b9b62df87eebb3c70a",
+      "patches": [
+        {
+          "old": "    \"relocation_mode\",\n    \"local_budgets\",\n    \"local_budget_mode\",\n    \"tuning\",\n    \"preset\",\n    \"aggression_bias\",\n",
+          "new": "    \"relocation_mode\",\n    \"local_budgets\",\n    \"local_budget_mode\",\n    \"apprenticeship\",\n    \"apprenticeship_mode\",\n    \"repair_projects\",\n    \"repair_mode\",\n    \"veteran_reintegration\",\n    \"veteran_mode\",\n    \"remittances\",\n    \"remittance_mode\",\n    \"clearing_protection\",\n    \"clearing_protection_mode\",\n    \"tuning\",\n    \"preset\",\n    \"aggression_bias\",\n"
+        },
+        {
+          "old": "                             \"workshops\", \"workshop_mode\", \"food_allocation\", \"food_allocation_regime\", \"timber_stock\", \"grain_convoys\", \"convoy_route_policy\",\n                             \"commons_rules\", \"commons_rule_mode\", \"learning_cohorts\", \"learning_cohort_mode\",\n                             \"workshop_payroll\", \"workshop_payroll_mode\", \"relocation_costs\", \"relocation_mode\",\n                             \"local_budgets\", \"local_budget_mode\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n    config[\"tuning_overrides\"] = _json_value(overrides or {})\n",
+          "new": "                             \"workshops\", \"workshop_mode\", \"food_allocation\", \"food_allocation_regime\", \"timber_stock\", \"grain_convoys\", \"convoy_route_policy\",\n                             \"commons_rules\", \"commons_rule_mode\", \"learning_cohorts\", \"learning_cohort_mode\",\n                             \"workshop_payroll\", \"workshop_payroll_mode\", \"relocation_costs\", \"relocation_mode\",\n                             \"local_budgets\", \"local_budget_mode\",\n                             \"apprenticeship\", \"apprenticeship_mode\", \"repair_projects\", \"repair_mode\",\n                             \"veteran_reintegration\", \"veteran_mode\", \"remittances\", \"remittance_mode\",\n                             \"clearing_protection\", \"clearing_protection_mode\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n    config[\"tuning_overrides\"] = _json_value(overrides or {})\n"
+        }
+      ]
+    },
+    "tests/test_batch_manifest.py": {
+      "sha256": "a2d43cd62c466736cebecec9a0746bc71e979b73c989b29706e69372b8be4797",
+      "current_sha256": "d5e0896ca692e90d5d68b676460751e6487ad53ba47d4448ea8312ed385b3684",
+      "patches": [
+        {
+          "old": "                                                           \"workshops\", \"workshop_mode\", \"food_allocation\", \"food_allocation_regime\", \"timber_stock\", \"grain_convoys\", \"convoy_route_policy\",\n                                                           \"commons_rules\", \"commons_rule_mode\", \"learning_cohorts\", \"learning_cohort_mode\",\n                                                           \"workshop_payroll\", \"workshop_payroll_mode\", \"relocation_costs\", \"relocation_mode\",\n                                                           \"local_budgets\", \"local_budget_mode\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n    assert manifest[\"outputs\"][\"simulate_only\"] is True\n    environment = manifest[\"environment\"]\n",
+          "new": "                                                           \"workshops\", \"workshop_mode\", \"food_allocation\", \"food_allocation_regime\", \"timber_stock\", \"grain_convoys\", \"convoy_route_policy\",\n                                                           \"commons_rules\", \"commons_rule_mode\", \"learning_cohorts\", \"learning_cohort_mode\",\n                                                           \"workshop_payroll\", \"workshop_payroll_mode\", \"relocation_costs\", \"relocation_mode\",\n                                                           \"local_budgets\", \"local_budget_mode\",\n                                                           \"apprenticeship\", \"apprenticeship_mode\", \"repair_projects\", \"repair_mode\",\n                                                           \"veteran_reintegration\", \"veteran_mode\", \"remittances\", \"remittance_mode\",\n                                                           \"clearing_protection\", \"clearing_protection_mode\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n    assert manifest[\"outputs\"][\"simulate_only\"] is True\n    environment = manifest[\"environment\"]\n"
+        }
+      ]
+    }
+  }
+}
