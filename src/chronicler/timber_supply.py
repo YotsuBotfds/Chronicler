@@ -461,6 +461,22 @@ def _healthy(stand) -> bool:
     return stand is not None and stand[1] > 0.0 and stand[0] >= GUARD_SHARE * stand[1]
 
 
+def pending_bills(world) -> list[int]:
+    """Whole units each civ's planned, not yet charged expedition wages will
+    cost this Phase 2 (for planners that run after this package; nothing
+    reads it yet: the lead wires it where later lanes need it)."""
+    out = [0] * len(world.civilizations)
+    state = _state(world)
+    t = state._turn if state is not None else None
+    if t is None or t.turn != world.turn or t.finished or not t.prepared:
+        return out
+    milli = [0] * len(out)
+    for p in t.plans:
+        if p.crew and 0 <= p.exp.civ < len(milli):
+            milli[p.exp.civ] += len(p.crew) * p.wage
+    return [-(-m // MILLI) for m in milli]
+
+
 # ---------------------------------------------------------------------------
 # Phase 2
 # ---------------------------------------------------------------------------

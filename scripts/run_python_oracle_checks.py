@@ -352,6 +352,9 @@ CHUNKS = {
         "tests/test_apprenticeship.py",
         "tests/test_repair_projects.py",
     ],
+    "timber-supply": [
+        "tests/test_timber_supply.py",
+    ],
     "expansion-wiring": [
         "tests/test_expansion_feature_wiring.py",
         "tests/test_expansion_experiment.py",
