@@ -251,8 +251,9 @@ def _pro_rata(cash: int, due: dict[int, int]) -> dict[int, int]:
 
 
 def _living(t: _Turn) -> set[int]:
-    """Stable ids alive after this turn's tick (deaths happen only in the tick),
-    from the native snapshot of the living pool, read once per payroll turn."""
+    """Stable ids alive now (deaths happen only in the native tick), from the
+    native snapshot of the living pool, read once per phase: before the tick
+    for a Phase 2 liquidation, after it for Phase 10 wages (``phase10`` resets it)."""
     if t.sim is None:
         raise RuntimeError("workshop wages require the native simulator")
     if t.alive is None:
@@ -621,6 +622,9 @@ def phase10(world, acc, economy_result, agent_bridge):
     sim = _native(agent_bridge)
     if t is None or t.turn != world.turn:
         t = _Turn(world.turn, sim)
+    # A Phase 2 liquidation read the living before the tick; Phase 10 wages
+    # share cash only among those alive after it (read once, on first use).
+    t.alive = None
     if t.installed and t.receipt is None:
         sim.cancel_paid_work()               # no wealth phase took it: unknown, not zero
     customers = _customers(world) if state.mode != "no_customer" else []
