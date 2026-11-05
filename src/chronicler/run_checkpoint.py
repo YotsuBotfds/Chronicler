@@ -646,6 +646,10 @@ def read_checkpoint(path: Path, *, allow_mismatch: bool = False) -> LoadedCheckp
 def _rebind_markers(state: RunState) -> None:
     if state.markers.get("war_roster_bound") and state.agent_bridge is not None:
         state.world._war_roster_sim = id(state.agent_bridge._sim)
+    if getattr(state.world, "livelihoods", None) is not None and state.agent_bridge is not None:
+        # The exact load restored the same pool: its saved ids stay bound.
+        from chronicler.livelihoods import bind_native_pool
+        bind_native_pool(state.world, state.agent_bridge, reset=False)
 
 
 def _upgrade_faiths(state: RunState) -> None:

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr
 
 from chronicler.commons_rules_state import CommonsRulesState
 from chronicler.food_allocation_state import FoodAllocationState
@@ -46,8 +46,25 @@ class LivelihoodsState(BaseModel):
     relocation_costs: RelocationCostsState | None = Field(default=None, exclude_if=_is_none)
     local_budgets: LocalBudgetState | None = Field(default=None, exclude_if=_is_none)
 
+    # Transient: ``id()`` of the native simulator whose pool the saved stable
+    # ids belong to (``livelihoods.bind_native_pool``). Never serialized; an
+    # exact checkpoint load re-binds it (``run_checkpoint._rebind_markers``).
+    _pool_sim: int | None = PrivateAttr(default=None)
+
+    def __getstate__(self):
+        state = super().__getstate__()
+        private = state.get("__pydantic_private__")
+        if private and private.get("_pool_sim") is not None:
+            state = {**state, "__pydantic_private__": {**private, "_pool_sim": None}}
+        return state
+
     def __setstate__(self, state):
         super().__setstate__(state)
         # Exact pickle restoration bypasses Pydantic defaults.
         for name in LIVELIHOODS_SWITCHES:
             self.__dict__.setdefault(name, None)
+        private = getattr(self, "__pydantic_private__", None)
+        if private is None:
+            object.__setattr__(self, "__pydantic_private__", {"_pool_sim": None})
+        else:
+            private.setdefault("_pool_sim", None)

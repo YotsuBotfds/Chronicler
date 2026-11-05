@@ -188,6 +188,16 @@ def _region_rows(world, receipt_groups, before, after, food) -> list[RegionPress
     return [rows[r] for r in sorted(rows)]
 
 
+def on_pool_reset(world) -> None:
+    """A rebuilt native pool (``livelihoods.bind_native_pool``): tracked
+    arrivals and their origins name other people now and are dropped."""
+    state = _state(world)
+    if state is None or not (state.tracked or state.origins):
+        return
+    state.tracked, state.tracked_turn, state.origins = [], None, {}
+    _bump(state, "pool_resets")
+
+
 def rollback_agent_tick(world, agent_bridge) -> None:
     """The agent tick raised: drop an untaken fare policy; nothing is charged."""
     state = _state(world)

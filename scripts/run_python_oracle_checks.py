@@ -341,6 +341,7 @@ CHUNKS = {
     ],
     "livelihoods-work-authority": [
         "tests/test_livelihoods_work_authority.py",
+        "tests/test_livelihoods_pool_binding.py",
     ],
     "expansion-wiring": [
         "tests/test_expansion_feature_wiring.py",

@@ -43,7 +43,7 @@ COUNTERS: tuple[str, ...] = (
     "groups_paid", "fare_due_milli", "fare_debited_milli", "fare_residual_milli",
     "fare_not_charged_milli", "assistance_granted_milli", "assistance_charged_milli",
     "assistance_refused_milli", "travel_sink_milli", "groups_with_residual",
-    "returns", "service_receipts", "assistance_rounding_milli",
+    "returns", "service_receipts", "assistance_rounding_milli", "pool_resets",
 )
 
 

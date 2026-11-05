@@ -265,6 +265,18 @@ def _no_session_reason(ct: _CohortTurn, receipt) -> str:
     return "members_absent"
 
 
+def on_pool_reset(world) -> None:
+    """A rebuilt native pool (``livelihoods.bind_native_pool``): the saved
+    members' ids name other people now, so every open cohort closes with
+    reason ``pool_reset`` and nobody inherits a member's sessions."""
+    state = _state(world)
+    if state is None:
+        return
+    for cohort in list(state.cohorts):
+        if cohort.status == "open":
+            _close(state, cohort, world.turn, "pool_reset", "pool_reset")
+
+
 def rollback_agent_tick(world, agent_bridge) -> None:
     """The agent tick raised: release this turn's unconsumed attendance and its
     registry rows (as academy services cancel their teaching reservation) and

@@ -499,6 +499,22 @@ def rollback_phase2(world) -> None:
         state._turn = None
 
 
+def on_pool_reset(world) -> None:
+    """A rebuilt native pool (``livelihoods.bind_native_pool``): wages owed to
+    saved ids would go to other people, so they lapse with reason
+    ``pool_reset`` (recorded per firm and in ``owed_pool_reset``)."""
+    state = _state(world)
+    if state is None:
+        return
+    for firm in state.firms:
+        lapsed = sum(o.amount for o in firm.owed)
+        if lapsed:
+            _total(firm, "owed_pool_reset", lapsed)
+            _note(firm, world.turn, "owed_pool_reset", lapsed)
+            _bump(state, "owed_pool_reset", lapsed)
+        firm.owed = []
+
+
 def rollback_agent_tick(world, agent_bridge) -> None:
     """The agent tick raised: disarm an unconsumed paid-work share. A failed
     turn is abandoned, so its Phase 10 (and any wage) never runs."""

@@ -29,7 +29,7 @@ Package module protocol (each function optional unless noted):
 the region batch, ``finish_phase2(world, economy_result, agent_bridge, acc)``,
 ``rollback_phase2(world)``, ``before_agent_tick(world, agent_bridge,
 economy_result)``, ``after_agent_tick(world, agent_bridge)``,
-``rollback_agent_tick(world, agent_bridge)`` (the before hooks or the agent
+``on_pool_reset(world)`` (see :func:`bind_native_pool`), ``rollback_agent_tick(world, agent_bridge)`` (the before hooks or the agent
 tick raised: release what is still pending natively, charge nothing),
 ``phase10_before_reserves(world, acc, economy_result, agent_bridge)`` and
 ``phase10(world, acc, economy_result, agent_bridge)``; event-returning hooks
@@ -283,8 +283,35 @@ def _hooks(world: Any, hook: str):
             yield fn
 
 
+def bind_native_pool(world, agent_bridge, *, reset: bool = True) -> None:
+    """Bind saved stable ids to the native pool they name.
+
+    Native agent ids are scoped to one pool. A run that rebuilds the pool
+    (a legacy state-file resume spawns new people from region populations
+    under reused ids) must not hand saved id-bound progress to strangers, as
+    the war rosters already re-draft for the same reason. The first hook of
+    a turn against a simulator other than the bound one calls each present
+    package's optional ``on_pool_reset(world)``, which closes its id-bound
+    records with a dated reason (a no-op when it holds none, as in a fresh
+    run). An exact checkpoint load restores the same pool and re-binds
+    without a reset (``reset=False``).
+    """
+    state = livelihoods_state(world)
+    sim = getattr(agent_bridge, "_sim", None) if agent_bridge is not None else None
+    if state is None or sim is None or state._pool_sim == id(sim):
+        return
+    state._pool_sim = id(sim)
+    if not reset:
+        return
+    for _name, module in _present(world):
+        fn = getattr(module, "on_pool_reset", None)
+        if fn is not None:
+            fn(world)
+
+
 def prepare_phase2(world, region_input, agent_bridge, snapshot, *, acc=None):
     """Before the native economy tick: may replace columns; charges nothing."""
+    bind_native_pool(world, agent_bridge)
     for fn in _hooks(world, "prepare_phase2"):
         region_input = fn(world, region_input, agent_bridge, snapshot, acc)
     return region_input
@@ -315,6 +342,7 @@ def wrap_agent_tick(world, agent_bridge, tick_agents, economy_result):
         return tick_agents
 
     def _tick(*args, **kwargs):
+        bind_native_pool(world, agent_bridge)
         try:
             for fn in before:
                 fn(world, agent_bridge, economy_result)
@@ -336,6 +364,7 @@ def wrap_agent_tick(world, agent_bridge, tick_agents, economy_result):
 
 
 def phase10_before_reserves(world, *, acc=None, economy_result=None, agent_bridge=None) -> list:
+    bind_native_pool(world, agent_bridge)
     events: list = []
     for fn in _hooks(world, "phase10_before_reserves"):
         events.extend(fn(world, acc, economy_result, agent_bridge) or [])
