@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "board_version": 2,
+  "board_version": 3,
   "title": "Recovery, skills and resilient local economies (RS0-RS7) operational board",
   "plan": "docs/superpowers/roadmaps/recovery-skills-phase.md",
   "owner_instruction": "2026-11-05: review, fix and merge #73 then #74; then own the phase end to end (apprenticeship, repair and veterans, diaspora and remittances, funded clearing protection, viewer and evidence) with gated merges; new behaviour opt-in and default off; no default promotion; no 200-seed or procedural qualification gates without asking; bounded screens allowed; household food retail stays an explicit gap.",
@@ -117,6 +117,14 @@
     "native_sha256": "6c675042caa9e37895a3d9d813124d1fa89d5ad2557d2bd7a514e59e3e331e2a",
     "verification": "offline oracle lane PASS; native 130 passed 1 skipped; turn_speed_identity vs main 9f950cb4: 9 cases 399 files 0 differences; all-switch checkpoint_identity hybrid_s42_long PASS (19 resume points); viewer 139 files 1346 tests, lint, build; browser QA 470/470"
   },
-  "merge": null,
-  "next": "Open the phase PR, merge after CI, then a merge-record docs PR. Candidates for a next phase (need an owner instruction): household food retail (L6b, still open); timber supply as RS2's binding constraint; RS1 wear calibration."
+  "merge": {
+    "pr": 76,
+    "merged_at": "c4e259b65b2b2bd8dfd5c7d545597a858de9c1a2",
+    "reviewed_head": "59a8f3c3",
+    "tree": "ad3507e3 (equals the reviewed head's tree)",
+    "premerge_ci": "Tests run 42079224091, all nine jobs green on the head",
+    "main_ci": "Tests run 42080888486 (push, attempt 1): success, all nine jobs (optional cache steps skipped, no job skipped)",
+    "note": "59a8f3c3 (after the verified simulation source a4adfde6) replaces the always-skipping RS0 stub-identity test; tests and docs only"
+  },
+  "next": "Phase merged. Candidates for a next phase (need an owner instruction): household food retail (L6b, still open); timber supply as RS2's binding constraint; RS1 wear calibration."
 }
