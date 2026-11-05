@@ -140,7 +140,9 @@ def test_apprenticeship_implies_the_wear_and_the_switch_then_only_records_it(mon
 
 
 def test_registry_cli_prerequisites_and_conflicts():
-    assert LIVELIHOODS_SWITCHES[-1] == "operating_wear" and L.LIVELIHOODS_ARG_KEYS[-1] == "operating_wear"
+    # Appended after the recovery-skills block (later switches append after it).
+    assert LIVELIHOODS_SWITCHES.index("operating_wear") == LIVELIHOODS_SWITCHES.index("clearing_protection") + 1
+    assert L.LIVELIHOODS_ARG_KEYS.index("operating_wear") == L.LIVELIHOODS_ARG_KEYS.index("clearing_protection_mode") + 1
     assert "operating_wear" in SIMULATION_ARG_KEYS and "operating_wear" not in L.LIVELIHOODS_CHOICES
     assert REQUIREMENTS["operating_wear"] == REQUIREMENTS["apprenticeship"]
     from chronicler.main import _build_parser
