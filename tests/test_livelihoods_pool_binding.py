@@ -112,3 +112,33 @@ def test_open_cohorts_close_with_reason_pool_reset_and_nobody_keeps_progress():
     assert {m.status for m in cohort.members} == {"exited"}
     assert {m.exit_reason for m in cohort.members} == {"pool_reset"}
     assert state.counters["exit_pool_reset"] == 2 and state.counters["cohorts_pool_reset"] == 1
+
+
+class _ReceiptSim:
+    def __init__(self, turn, rows):
+        self.pending, self.takes = (turn, rows), 0
+
+    def take_paid_work_receipt(self):
+        self.takes += 1
+        got, self.pending = self.pending, None
+        return got
+
+
+def test_the_paid_work_receipt_is_taken_once_and_shared_by_every_package():
+    world = SimpleNamespace(turn=4, livelihoods=LivelihoodsState())
+    sim = _ReceiptSim(4, [(7, 0.5, 0.3, 0.15), (9, 0.25, 0.2, 0.05)])
+    first = livelihoods.paid_work_receipt(world, sim)
+    second = livelihoods.paid_work_receipt(world, sim)
+    assert first == second == {7: (0.5, 0.3, 0.15), 9: (0.25, 0.2, 0.05)}
+    assert sim.takes == 1
+    world.turn = 5                     # next turn: nothing installed, nothing cached
+    assert livelihoods.paid_work_receipt(world, sim) is None
+    restored = pickle.loads(pickle.dumps(world.livelihoods))
+    assert restored._paid_receipt is None
+
+
+def test_a_receipt_of_another_turn_is_refused():
+    import pytest
+    world = SimpleNamespace(turn=6, livelihoods=LivelihoodsState())
+    with pytest.raises(RuntimeError, match="another turn"):
+        livelihoods.paid_work_receipt(world, _ReceiptSim(5, []))

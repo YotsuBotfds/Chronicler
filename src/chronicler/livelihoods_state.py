@@ -65,12 +65,16 @@ class LivelihoodsState(BaseModel):
     # ids belong to (``livelihoods.bind_native_pool``). Never serialized; an
     # exact checkpoint load re-binds it (``run_checkpoint._rebind_markers``).
     _pool_sim: int | None = PrivateAttr(default=None)
+    # Transient, within one turn: the native paid-work receipt, taken once
+    # and shared by every package that installed paid work
+    # (``livelihoods.paid_work_receipt``). Never serialized.
+    _paid_receipt: tuple | None = PrivateAttr(default=None)
 
     def __getstate__(self):
         state = super().__getstate__()
         private = state.get("__pydantic_private__")
-        if private and private.get("_pool_sim") is not None:
-            state = {**state, "__pydantic_private__": {**private, "_pool_sim": None}}
+        if private and (private.get("_pool_sim") is not None or private.get("_paid_receipt") is not None):
+            state = {**state, "__pydantic_private__": {**private, "_pool_sim": None, "_paid_receipt": None}}
         return state
 
     def __setstate__(self, state):
@@ -80,6 +84,7 @@ class LivelihoodsState(BaseModel):
             self.__dict__.setdefault(name, None)
         private = getattr(self, "__pydantic_private__", None)
         if private is None:
-            object.__setattr__(self, "__pydantic_private__", {"_pool_sim": None})
+            object.__setattr__(self, "__pydantic_private__", {"_pool_sim": None, "_paid_receipt": None})
         else:
             private.setdefault("_pool_sim", None)
+            private.setdefault("_paid_receipt", None)

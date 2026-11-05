@@ -530,11 +530,11 @@ def after_agent_tick(world, agent_bridge):
     t = state._turn
     if t is None or t.turn != world.turn or not t.installed:
         return []
-    got = t.sim.take_paid_work_receipt()
-    if got is None or got[0] != t.turn:
+    from chronicler.livelihoods import paid_work_receipt
+    receipt = paid_work_receipt(world, t.sim)   # shared with other paid-work packages
+    if receipt is None:
         raise RuntimeError("paid work receipt missing for this turn")
-    t.receipt = {int(aid): (float(share), float(ordinary), float(deducted))
-                 for aid, share, ordinary, deducted in got[1]}
+    t.receipt = receipt
     return []
 
 

@@ -459,6 +459,33 @@ def bind_native_pool(world, agent_bridge, *, reset: bool = True) -> None:
             fn(world)
 
 
+def paid_work_receipt(world, sim) -> dict[int, tuple[float, float, float]] | None:
+    """This turn's native paid-work receipt, shared by every package.
+
+    The native wealth phase records one receipt for the turn's whole paid-work
+    install (``install_paid_work`` plus every ``extend_paid_work``), and it
+    can be taken from the simulator only once. The first package to ask after
+    the agent tick takes it; later callers get the same rows. Returns
+    ``{agent_id: (share, ordinary_income, deducted)}``, or None when nothing
+    was installed this turn. A receipt of another turn is an error.
+    """
+    state = livelihoods_state(world)
+    if state is None:
+        return None
+    cached = state._paid_receipt
+    if cached is not None and cached[0] == world.turn:
+        return cached[1]
+    got = sim.take_paid_work_receipt()
+    if got is None:
+        return None
+    if int(got[0]) != int(world.turn):
+        raise RuntimeError("paid work receipt belongs to another turn")
+    rows = {int(aid): (float(share), float(ordinary), float(deducted))
+            for aid, share, ordinary, deducted in got[1]}
+    state._paid_receipt = (world.turn, rows)
+    return rows
+
+
 def prepare_phase2(world, region_input, agent_bridge, snapshot, *, acc=None):
     """Before the native economy tick: may replace columns; charges nothing."""
     bind_native_pool(world, agent_bridge)
