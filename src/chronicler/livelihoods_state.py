@@ -7,8 +7,9 @@ independent switches was enabled: ``workshops`` (L1), ``food_allocation``
 (L7), ``local_budgets`` (L9) and the recovery-skills phase's
 ``apprenticeship`` (RS1), ``repair_projects`` (RS2),
 ``veteran_reintegration`` (RS3), ``remittances`` (RS4) and
-``clearing_protection`` (RS5). Each sub-state is owned by its own module and
-is None while that switch has never been enabled.
+``clearing_protection`` (RS5), and the productive-recovery phase's
+``household_retail`` (PL4, L6b). Each sub-state is owned by its own module
+and is None while that switch has never been enabled.
 Pure data, importable by :mod:`chronicler.models`.
 """
 from __future__ import annotations
@@ -22,6 +23,7 @@ from chronicler.clearing_protection_state import ClearingProtectionState
 from chronicler.commons_rules_state import CommonsRulesState
 from chronicler.food_allocation_state import FoodAllocationState
 from chronicler.grain_convoys_state import GrainConvoyState
+from chronicler.household_retail_state import HouseholdRetailState
 from chronicler.learning_cohorts_state import LearningCohortState
 from chronicler.local_budgets_state import LocalBudgetState
 from chronicler.relocation_costs_state import RelocationCostsState
@@ -37,7 +39,8 @@ LIVELIHOODS_SWITCHES: tuple[str, ...] = ("workshops", "food_allocation", "timber
                                          "commons_rules", "learning_cohorts", "workshop_payroll",
                                          "relocation_costs", "local_budgets",
                                          "apprenticeship", "repair_projects", "veteran_reintegration",
-                                         "remittances", "clearing_protection")
+                                         "remittances", "clearing_protection",
+                                         "household_retail")
 
 
 def _is_none(value) -> bool:
@@ -60,6 +63,7 @@ class LivelihoodsState(BaseModel):
     veteran_reintegration: VeteranReintegrationState | None = Field(default=None, exclude_if=_is_none)
     remittances: RemittancesState | None = Field(default=None, exclude_if=_is_none)
     clearing_protection: ClearingProtectionState | None = Field(default=None, exclude_if=_is_none)
+    household_retail: HouseholdRetailState | None = Field(default=None, exclude_if=_is_none)
 
     # Transient: ``id()`` of the native simulator whose pool the saved stable
     # ids belong to (``livelihoods.bind_native_pool``). Never serialized; an

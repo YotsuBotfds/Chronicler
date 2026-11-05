@@ -28,6 +28,11 @@ inert stub modules; their lanes add the mechanisms):
 * ``--clearing-protection`` (RS5): controller-funded protection of forest
   cover from clearing.
 
+The productive-recovery phase appends:
+
+* ``--household-retail`` (PL4, L6b): producer title of new harvest, owned
+  food, paid provisioning, income replacement and relief in pilot regions.
+
 This module owns only CLI forwarding, validation of prerequisites and the
 fan-out of phase hooks to each package's module ``chronicler.<switch>``.
 State, decisions and accounting belong to those modules. An omitted switch
@@ -74,6 +79,8 @@ LIVELIHOODS_CHOICES: dict[str, tuple[str, ...]] = {
     "veteran_mode": ("priority", "record_only"),
     "remittance_mode": ("send", "record_only"),
     "clearing_protection_mode": ("enforced", "cost_only"),
+    "household_retail_mode": ("retail", "no_relief", "free_exchange", "record_only"),
+    "household_retail_boundary": ("market", "paid_work", "all"),
 }
 #: All parser destinations owned here (``batch_manifest.SIMULATION_ARG_KEYS``).
 LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
@@ -88,6 +95,7 @@ LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     "veteran_reintegration", "veteran_mode",
     "remittances", "remittance_mode",
     "clearing_protection", "clearing_protection_mode",
+    "household_retail", "household_retail_mode", "household_retail_boundary",
 )
 _AGENT_ECONOMY = ("hybrid", "shadow", "demographics-only")
 
@@ -219,6 +227,22 @@ _HELP = {
         "enforced (default): the paid protection suspends clearing; cost_only: the control that "
         "adopts and pays identically but leaves the clearing unchanged"
     ),
+    "household_retail": (
+        "Household food retail (L6b): in pilot regions most of each new harvest belongs to its "
+        "farmers by stable id; owners' households eat their own food and sell the rest to "
+        "neighbours at the clamped market price, buyers pay from their wealth, farmers' ordinary "
+        "farm income is replaced by their sales; commons and granary releases stay free; requires "
+        "--agents hybrid and --food-allocation (default off)"
+    ),
+    "household_retail_mode": (
+        "retail (default); no_relief: the whole harvest titled, L2's rule on the commons, no means "
+        "test; free_exchange: the same title and rounds at price 0 with farm income kept; "
+        "record_only: the control that computes the pilot and the would-be title and changes nothing"
+    ),
+    "household_retail_boundary": (
+        "market (default): each ruler's capital region, sticky; paid_work: regions that have had an "
+        "open workshop firm or a paid repair crew, sticky; all: every controlled region (stress)"
+    ),
 }
 
 
@@ -340,6 +364,9 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
     if values["remittances"] is True and agent_mode != "hybrid":
         raise ValueError("--remittances requires --agents hybrid")
     # --clearing-protection has no prerequisite (it works in every ecology path).
+    if values["household_retail"] is True:
+        if agent_mode != "hybrid" or not _on(world, values, "food_allocation"):
+            raise ValueError("--household-retail requires --agents hybrid and --food-allocation")
 
 
 def configure_livelihoods(world: Any, args: Any, *, agent_mode: str) -> None:
@@ -388,6 +415,8 @@ _CHOICE_FIELDS: dict[str, tuple[str, str]] = {
     "veteran_mode": ("veteran_reintegration", "mode"),
     "remittance_mode": ("remittances", "mode"),
     "clearing_protection_mode": ("clearing_protection", "mode"),
+    "household_retail_mode": ("household_retail", "mode"),
+    "household_retail_boundary": ("household_retail", "boundary"),
 }
 
 

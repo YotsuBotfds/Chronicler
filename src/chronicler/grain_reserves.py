@@ -551,6 +551,13 @@ def tick_grain_reserves(world: "WorldState", acc=None, economy_result: "EconomyR
         commitments = read_stockpile_commitments(world, agent_bridge._sim)
     demand = [_demand(economy_result, r.name) for r in regions]
     price = [_food_price(economy_result, r.name) for r in regions]
+    # Household retail (L6b): owners' unsold grain in pilot markets, sold to
+    # their own ruler first (None: retail off or nothing owned).
+    owned = owned_part = None
+    if getattr(world, "livelihoods", None) is not None:
+        from chronicler.household_retail import procurement_owned_grain
+        owned = procurement_owned_grain(world)
+        owned_part = None if owned is None else [0.0] * len(regions)
     surplus = []
     for rid, region in enumerate(regions):
         if region.controller not in index or demand[rid] <= 0 or region.population <= 0:
@@ -559,7 +566,11 @@ def tick_grain_reserves(world: "WorldState", acc=None, economy_result: "EconomyR
         held = commitments.get(region.name, {})
         goods = region.stockpile.goods
         free = {g: max(0.0, goods.get(g, 0.0) - held.get(g, 0.0)) for g in sorted(FOOD_GOODS)}
+        if owned is not None and owned[rid] > 0.0:
+            free[GRAIN] += owned[rid]
         surplus.append(max(0.0, min(free[GRAIN], math.fsum(free.values()) - KEEP_TURNS * demand[rid])))
+        if owned is not None:
+            owned_part[rid] = min(owned[rid], surplus[rid])
     if ledger is not None:
         ledger.before_buy(world, acc, surplus)
     projected = _projections(world, acc)
@@ -628,14 +639,16 @@ def tick_grain_reserves(world: "WorldState", acc=None, economy_result: "EconomyR
                     if foreign and shipments is not None and shipments.accept_orders and steps[src] != 1:
                         continue
                     p = price[src]
-                    if surplus[src] <= EPS or p <= 0:
+                    # Owned grain is sold only to the owners' own ruler.
+                    avail = surplus[src] if owned_part is None or not foreign else surplus[src] - owned_part[src]
+                    if avail <= EPS or p <= 0:
                         continue
                     keep = 1.0 if steps[src] == 0 else 1.0 - loss
                     want = deficit / keep
-                    cost = min(budget[ci], int(math.floor(min(surplus[src], want) * p + EPS)))
+                    cost = min(budget[ci], int(math.floor(min(avail, want) * p + EPS)))
                     if cost < 1:
                         continue
-                    sent = min(surplus[src], cost / p)
+                    sent = min(avail, cost / p)
                     received = sent * keep
                     seller = index[regions[src].controller]
                     if foreign and shipments is not None and shipments.accept_orders:
@@ -659,7 +672,12 @@ def tick_grain_reserves(world: "WorldState", acc=None, economy_result: "EconomyR
                         if paid != cost:
                             raise AssertionError(f"granary purchase of {cost} paid {paid}")
                     goods = regions[src].stockpile.goods
-                    goods[GRAIN] = goods.get(GRAIN, 0.0) - sent
+                    from_owned = 0.0
+                    if owned_part is not None and not foreign and owned_part[src] > 0.0:
+                        from chronicler.household_retail import take_procured
+                        from_owned = take_procured(world, src, min(owned_part[src], sent), len(flows))
+                        owned_part[src] -= from_owned
+                    goods[GRAIN] = goods.get(GRAIN, 0.0) - (sent - from_owned)
                     surplus[src] -= sent
                     budget[ci] -= cost
                     granary.grain += received
@@ -900,6 +918,10 @@ class ReserveLedger:
     def after_buy(self, world, acc, state) -> None:
         from chronicler.finance import _projections
         loss = _transit_loss()
+        owned: dict[int, float] = {}   # household retail: owners' grain sold (not market stock)
+        if getattr(world, "livelihoods", None) is not None:
+            from chronicler.household_retail import owned_grain_sold
+            owned = owned_grain_sold(world)
         sold: dict[int, float] = {}
         paid: dict[int, int] = {}
         got: dict[int, int] = {}
@@ -917,7 +939,7 @@ class ReserveLedger:
                 self.problems.append(f"granary {f.region}: a purchase of {f.sent} for {f.cost}")
         for rid, before in self.market.items():
             now = world.regions[rid].stockpile.goods.get(GRAIN, 0.0)
-            if abs((before - now) - sold.get(rid, 0.0)) > _TOL * max(1.0, before):
+            if abs((before - now) + owned.get(rid, 0.0) - sold.get(rid, 0.0)) > _TOL * max(1.0, before):
                 self.problems.append(f"region {rid}: market grain {before} -> {now}, sold {sold.get(rid, 0.0)}")
             if self.surplus is not None and sold.get(rid, 0.0) > self.surplus[rid] + _TOL * max(1.0, before):
                 self.problems.append(f"region {rid}: sold {sold.get(rid, 0.0)} beyond its surplus {self.surplus[rid]}")
