@@ -163,5 +163,14 @@ that fails on the previous code.
   apprenticeship is on.
 - **RS5 planning precision and decision log** (`eecf3169`, layer `rv2`;
   review B, minor). Default tuning is unaffected in precision.
-- **RS2 seizures, whole worker-turns, open-record veterans, L9 stake for
-  shut sites, and seated mentors** (`59cf09a7`; review C).
+- **RS2 seizures, timber-supported worker-turns, open-record veterans, L9
+  stake for shut sites, and seated mentors** (`59cf09a7`, `64962ad5`; review
+  C).
+  - `64962ad5` adds one declared, uncalibrated parameter, set as part of the
+    defect fix and not from any outcome: a last partial repairer is hired
+    only when the free timber supports at least `MIN_WORKER_TIMBER = 0.5` of
+    their turn. The first fix's whole-turn rule left the RS2 native test world
+    with no workshop repair at all.
+  - The same commit makes the granary resource-ledger check (layer `rv3`) use
+    the spoilage rate recorded at spoilage. That is check-only, with no
+    outcome change.
