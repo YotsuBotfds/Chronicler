@@ -173,10 +173,18 @@ def test_priority_ids_reach_the_native_planner_through_the_workshop_seam(tmp_pat
     assert seen["sites"] > 0 and seen["reordered"] > 0
 
 
+#: Packages whose lane replaced the inert RS0 stub.
+IMPLEMENTED = {"clearing_protection"}
+
+
 def test_the_stub_switches_leave_a_real_operating_run_unchanged(tmp_path):
+    # Only switches whose lane has not replaced the inert RS0 stub yet.
+    rs = tuple(name for name in ("apprenticeship", "repair_projects", "veteran_reintegration", "remittances",
+                                 "clearing_protection") if name not in IMPLEMENTED)
+    if not rs:
+        pytest.skip("every recovery-skills switch is implemented; each package has its own identity test")
     base = _run(tmp_path / "base", "--workshops", turns=40)
-    stubs = _run(tmp_path / "stubs", "--workshops", *RS_FLAGS, turns=40)
-    rs = ("apprenticeship", "repair_projects", "veteran_reintegration", "remittances", "clearing_protection")
+    stubs = _run(tmp_path / "stubs", "--workshops", *[f"--{n.replace('_', '-')}" for n in rs], turns=40)
     assert len(base["history"]) == len(stubs["history"])
     for a, b in zip(base["history"], stubs["history"], strict=True):
         b = dict(b)
