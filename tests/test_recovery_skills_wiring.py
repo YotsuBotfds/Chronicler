@@ -80,7 +80,10 @@ def test_switches_are_appended_in_order_with_their_choices():
         assert name in LivelihoodsState.model_fields
         for fn in (f"set_{name}_enabled", f"{name}_active", "snapshot_summary"):
             assert callable(getattr(module, fn)), (name, fn)
-        # RS0 registers no phase hook: nothing runs during a turn yet.
+        # RS0 registers no phase hook: nothing runs during a turn yet (RS3
+        # has its mechanism: tests/test_veteran_reintegration.py).
+        if name == "veteran_reintegration":
+            continue
         for hook in ("prepare_phase2", "finish_phase2", "rollback_phase2", "before_agent_tick",
                      "after_agent_tick", "phase10_before_reserves", "phase10"):
             assert not hasattr(module, hook), (name, hook)
@@ -218,6 +221,11 @@ def test_each_stub_switch_enables_records_its_mode_and_observes_only_itself(worl
         assert (sub.schema_version, sub.enabled, sub.mode, sub.counters) == \
             (1, True, MODES[MODE_KEYS[name]][0], {}), name
         assert getattr(module, f"{name}_active")(world), name
+        if name == "veteran_reintegration":
+            summary = module.snapshot_summary(world)
+            assert (summary["stage"], summary["mode"], summary["frame"], summary["veterans"],
+                    summary["counters"]) == ("RS3", "priority", None, [], {})
+            continue
         assert module.snapshot_summary(world) == {"schema_version": 1, "stage": "RS0", "enabled": True,
                                                   "mode": MODES[MODE_KEYS[name]][0], "counters": {}}
     flags = livelihoods_feature_flags(world)
@@ -304,7 +312,7 @@ def test_cross_lane_stubs_are_inert(world):
         VR.note_outcome(world, 7, "placed:army", turn=3)
     assert world.model_dump_json() == before
     assert OUTCOMES == ("placed:crew", "placed:apprentice", "placed:repair", "waiting", "remobilised",
-                        "died", "migrated", "control_lost", "expired")
+                        "died", "migrated", "control_lost", "expired", "pool_reset")
 
 
 # --- workshops.py seams -----------------------------------------------------------

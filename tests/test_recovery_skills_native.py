@@ -184,7 +184,9 @@ def test_the_stub_switches_leave_a_real_operating_run_unchanged(tmp_path):
         a = dict(a)
         a_livelihoods = a.pop("livelihoods")
         for name in rs:
-            assert livelihoods.pop(name)["stage"] == "RS0"
+            # RS3 has its mechanism; this world releases nobody from an army.
+            stage = livelihoods.pop(name)["stage"]
+            assert stage == ("RS3" if name == "veteran_reintegration" else "RS0")
         assert livelihoods == a_livelihoods
         assert a == b
     ws = dict(stubs["world_state"])

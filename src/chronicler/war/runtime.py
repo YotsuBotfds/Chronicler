@@ -24,7 +24,7 @@ from chronicler.contact_ledger import ledger_enabled as _contact_ledger_on
 from chronicler.war import params as P
 from chronicler.war.ai import assign_orders, threat_regions
 from chronicler.war.armies import (
-    can_raise, disband, raise_army, rebind_rosters, refresh_generals, release_soldiers,
+    can_raise, disband, note_released, raise_army, rebind_rosters, refresh_generals, release_soldiers,
 )
 from chronicler.war.battles import (
     garrison_size, side_for, siege_turn, skirmish, fight,
@@ -174,6 +174,7 @@ def _validate_armies(ctx: WarContext) -> None:
         if civ is None or army.region not in world.region_map:
             if army in world.war_state.armies:
                 world.war_state.armies.remove(army)
+                note_released(world, army, army.roster, "dissolved", bridge=ctx.bridge)
             continue
         if war_for(world, army.war_key) is None and army.phase != "returning":
             army.phase = "returning"
@@ -342,7 +343,16 @@ def end_of_turn_sync(world: "WorldState") -> None:
         if o.region in region_map and region_map[o.region].controller == o.owner
         and living_civ(world, o.occupier) is not None
     ]
-    state.armies = [a for a in state.armies if living_civ(world, a.civ) is not None]
+    kept = [a for a in state.armies if living_civ(world, a.civ) is not None]
+    if len(kept) != len(state.armies) and getattr(world, "livelihoods", None) is not None:
+        # After Phase 10: the rosters were reconciled against the post-tick
+        # pool, so these people are alive; recorded into the settled turn.
+        bridge = getattr(world, "_agent_bridge", None)
+        staying = {id(a) for a in kept}
+        for army in state.armies:
+            if id(army) not in staying:
+                note_released(world, army, army.roster, "dissolved", bridge=bridge, commit=True)
+    state.armies = kept
     _sync_occupied_flags(world)
 
 
