@@ -29,6 +29,8 @@ Package module protocol (each function optional unless noted):
 the region batch, ``finish_phase2(world, economy_result, agent_bridge, acc)``,
 ``rollback_phase2(world)``, ``before_agent_tick(world, agent_bridge,
 economy_result)``, ``after_agent_tick(world, agent_bridge)``,
+``rollback_agent_tick(world, agent_bridge)`` (the before hooks or the agent
+tick raised: release what is still pending natively, charge nothing),
 ``phase10_before_reserves(world, acc, economy_result, agent_bridge)`` and
 ``phase10(world, acc, economy_result, agent_bridge)``; event-returning hooks
 return a list.
@@ -308,13 +310,24 @@ def wrap_agent_tick(world, agent_bridge, tick_agents, economy_result):
     """Wrap the native agent tick with the active packages' before/after hooks."""
     before = list(_hooks(world, "before_agent_tick"))
     after = list(_hooks(world, "after_agent_tick"))
+    release = list(_hooks(world, "rollback_agent_tick"))
     if (not before and not after) or tick_agents is None:
         return tick_agents
 
     def _tick(*args, **kwargs):
-        for fn in before:
-            fn(world, agent_bridge, economy_result)
-        events = tick_agents(*args, **kwargs)
+        try:
+            for fn in before:
+                fn(world, agent_bridge, economy_result)
+            events = tick_agents(*args, **kwargs)
+        except BaseException as exc:
+            # A failed kernel is not rolled back: release only reservations and
+            # one-tick installs that remain pending (the teaching precedent).
+            for fn in reversed(release):
+                try:
+                    fn(world, agent_bridge)
+                except Exception as error:
+                    exc.add_note(f"livelihoods release also failed: {error!r}")
+            raise
         for fn in after:
             events = list(events or []) + list(fn(world, agent_bridge) or [])
         return events

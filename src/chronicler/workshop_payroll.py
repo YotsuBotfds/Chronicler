@@ -499,6 +499,16 @@ def rollback_phase2(world) -> None:
         state._turn = None
 
 
+def rollback_agent_tick(world, agent_bridge) -> None:
+    """The agent tick raised: disarm an unconsumed paid-work share. A failed
+    turn is abandoned, so its Phase 10 (and any wage) never runs."""
+    state = _state(world)
+    t = getattr(state, "_turn", None) if state is not None else None
+    if t is not None and t.turn == world.turn and t.installed and t.sim is not None:
+        t.sim.cancel_paid_work()
+        t.installed = False
+
+
 def after_agent_tick(world, agent_bridge):
     state = _state(world)
     t = state._turn

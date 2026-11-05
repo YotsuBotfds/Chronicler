@@ -188,6 +188,14 @@ def _region_rows(world, receipt_groups, before, after, food) -> list[RegionPress
     return [rows[r] for r in sorted(rows)]
 
 
+def rollback_agent_tick(world, agent_bridge) -> None:
+    """The agent tick raised: drop an untaken fare policy; nothing is charged."""
+    state = _state(world)
+    if getattr(state, "_pending", None) is not None:
+        state._pending = None
+        agent_bridge._sim.cancel_relocation_policy()
+
+
 def after_agent_tick(world, agent_bridge) -> list:
     """Record arrivals, debit the movers' share once, track arrivals for service."""
     state = _state(world)

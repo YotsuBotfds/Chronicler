@@ -107,6 +107,14 @@ def before_agent_tick(world, agent_bridge, economy_result) -> None:
     state._installed = (world.turn, [math.isnan(value) for value in pre])
 
 
+def rollback_agent_tick(world, agent_bridge) -> None:
+    """The agent tick raised: drop an allocation the tick never took."""
+    state = _state(world)
+    if getattr(state, "_installed", None) is not None:
+        state._installed = state._phase2 = None
+        agent_bridge._sim.cancel_food_allocation()
+
+
 def after_agent_tick(world, agent_bridge) -> list:
     state = _state(world)
     sim = agent_bridge._sim

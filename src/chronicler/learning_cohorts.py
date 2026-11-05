@@ -265,6 +265,16 @@ def _no_session_reason(ct: _CohortTurn, receipt) -> str:
     return "members_absent"
 
 
+def rollback_agent_tick(world, agent_bridge) -> None:
+    """The agent tick raised: release this turn's unconsumed attendance and its
+    registry rows (as academy services cancel their teaching reservation) and
+    drop the pending decisions; nothing persisted changed before the tick."""
+    state = _state(world)
+    pending, state._pending = getattr(state, "_pending", None), None
+    if pending is not None and pending.reserved:
+        agent_bridge._sim.cancel_learning_attendance(pending.turn)
+
+
 def after_agent_tick(world, agent_bridge) -> list:
     """Commit exits, attendance, progress and completions of the finished tick."""
     from chronicler.learning_services import CRAFTS_PER_LEARNER
