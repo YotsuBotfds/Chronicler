@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "layer": "rv3",
+  "parent": "4d29c069d7f95aeeeeb6b1163c860cf3e912e907",
+  "files": {
+    "src/chronicler/grain_reserves.py": {
+      "sha256": "637252f0f69231e5c6e22547c314907f28423a1381d1b49ab16ae5ba39d6995c",
+      "current_sha256": "098091aafcf8e071dd1340b0c625b913fbb9bd0b157032dd290b7aa13e04c1b5",
+      "patches": [
+        {
+          "old": "        self.surplus: list[float] | None = None\n        self.treasury: list[int] | None = None\n        self.sufficiency: dict[int, tuple[float, float, float]] = {}\n\n    @staticmethod\n    def begin(world, state, agent_bridge=None) -> \"ReserveLedger | None\":\n",
+          "new": "        self.surplus: list[float] | None = None\n        self.treasury: list[int] | None = None\n        self.sufficiency: dict[int, tuple[float, float, float]] = {}\n        # The storage spoilage rate each granary spoiled at (``after_open``,\n        # right after spoilage): a granary's condition may change later in the\n        # turn (RS2 war damage at a Phase 5 seizure, conquest or sack).\n        self.spoil_rates: dict[int, float] = {}\n\n    @staticmethod\n    def begin(world, state, agent_bridge=None) -> \"ReserveLedger | None\":\n"
+        },
+        {
+          "old": "        self.market.setdefault(rid, region.stockpile.goods.get(GRAIN, 0.0))\n\n    def after_open(self, world, state, economy_result) -> None:\n        flows = [f for f in state.flows]\n        abandoned: dict[int, float] = {}\n        for f in flows:\n",
+          "new": "        self.market.setdefault(rid, region.stockpile.goods.get(GRAIN, 0.0))\n\n    def after_open(self, world, state, economy_result) -> None:\n        if getattr(state, \"storage\", None) is not None:\n            from chronicler.grain_storage import storage_spoilage\n            rate = _spoilage()\n            self.spoil_rates = {rid: storage_spoilage(world, rid, rate) for rid in range(len(state.granaries))}\n        flows = [f for f in state.flows]\n        abandoned: dict[int, float] = {}\n        for f in flows:\n"
+        },
+        {
+          "old": "                row[\"spoiled\"] += f.amount\n                if getattr(state, \"storage\", None) is not None:\n                    from chronicler.grain_storage import storage_spoilage\n                    rate = storage_spoilage(world, f.region, _spoilage())\n                if (abs(f.before * rate - f.amount) > _TOL * max(1.0, f.before)\n                        and not (f.amount == f.before and f.before * (1.0 - rate) < DUST)):\n                    self.problems.append(f\"granary {f.region}: spoiled {f.amount} of {f.before}\")\n",
+          "new": "                row[\"spoiled\"] += f.amount\n                if getattr(state, \"storage\", None) is not None:\n                    from chronicler.grain_storage import storage_spoilage\n                    rate = self.spoil_rates.get(f.region)\n                    if rate is None:\n                        rate = storage_spoilage(world, f.region, _spoilage())\n                if (abs(f.before * rate - f.amount) > _TOL * max(1.0, f.before)\n                        and not (f.amount == f.before and f.before * (1.0 - rate) < DUST)):\n                    self.problems.append(f\"granary {f.region}: spoiled {f.amount} of {f.before}\")\n"
+        }
+      ]
+    }
+  }
+}
