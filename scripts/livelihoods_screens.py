@@ -39,8 +39,63 @@ ARMS = {
 PROCEDURAL = ["--worldgen", "procedural", "--regions", "32", "--civs", "10"]
 STRATA = {"template": [("t", s, []) for s in range(101, 107)],
           "procedural": [("p", s, PROCEDURAL) for s in range(201, 207)]}
+# Sprint 2 (preregistered in docs/superpowers/progress/livelihoods-sprint2-screens.md).
+# Every arm shares the base below, so one off arm serves as the root control;
+# each package is also compared with its own reference arm.
+BASE2 = ["--scholarship", "--techniques", "--academy-services", "--grain-storage"]
+_W = ["--workshops"]
+_PAY = _W + ["--workshop-payroll"]
+_TS = ["--timber-stock"]
+_SERVICES = _W + ["--food-allocation", "--food-allocation-regime", "targeted_relief"]
+_FOOD = ["--food-allocation"]
+_RELOC = _FOOD + ["--relocation-costs"]
+ARMS2 = {
+    "off": ([], None, None),
+    "D1_workshops": (_W, "off", None),                                   # L1 downstream supplies
+    "L5_learn": (["--learning-cohorts"], "off", None),
+    "L5_no_learning": (["--learning-cohorts", "--learning-cohort-mode", "no_learning"], "off", None),
+    "L6_paid": (_PAY, "D1_workshops", None),
+    "L6_unpaid_labor": (_PAY + ["--workshop-payroll-mode", "unpaid_labor"], "D1_workshops", None),
+    "L6_no_customer": (_PAY + ["--workshop-payroll-mode", "no_customer"], "D1_workshops", None),
+    "T_timber": (_TS, "off", None),
+    "L8_enforced": (_TS + ["--commons-rules"], "T_timber", None),
+    "L8_cost_only": (_TS + ["--commons-rules", "--commons-rule-mode", "cost_only"], "T_timber", None),
+    "I_timber_work": (_TS + _W, "D1_workshops", None),
+    "I_commons_work": (_TS + _W + ["--commons-rules"], "I_timber_work", None),
+    "W_services": (_SERVICES, "off", None),
+    "L9_bargained": (_SERVICES + ["--local-budgets"], "W_services", None),
+    "L9_fixed_shares": (_SERVICES + ["--local-budgets", "--local-budget-mode", "fixed_shares"], "W_services", None),
+    "F_food": (_FOOD, "off", None),
+    "L7_liquidity_only": (_RELOC + ["--relocation-mode", "liquidity_only"], "F_food", None),
+    "L7_paid": (_RELOC + ["--relocation-mode", "paid"], "L7_liquidity_only", None),
+    "L7_assisted": (_RELOC + ["--relocation-mode", "assisted"], "L7_liquidity_only", None),
+    "I_learn_pay": (_PAY + ["--learning-cohorts"], "L6_paid", None),
+    "ALL": (_PAY + ["--learning-cohorts", "--food-allocation", "--timber-stock", "--commons-rules",
+                    "--grain-convoys", "--local-budgets", "--relocation-costs"], "off", None),
+}
+STRATA2 = {"template": [("t", s, BASE2) for s in range(301, 307)],
+           "procedural": [("p", s, BASE2 + PROCEDURAL) for s in range(401, 407)]}
 SPRINTS = {1: {"arms": ARMS, "strata": STRATA,
-               "labels": {"t": "template 8x4 (seeds 101-106)", "p": "procedural 32x10 (seeds 201-206)"}}}
+               "labels": {"t": "template 8x4 (seeds 101-106)", "p": "procedural 32x10 (seeds 201-206)"}},
+           2: {"arms": ARMS2, "strata": STRATA2,
+               "labels": {"t": "template 8x4 (seeds 301-306)", "p": "procedural 32x10 (seeds 401-406)"}}}
+#: Sprint-2 packages whose lifetime counters are copied from the last snapshot.
+COUNTED = ("learning_cohorts", "workshop_payroll", "commons_rules", "local_budgets", "relocation")
+#: Funnel counters reported per package (None: every counter the records hold).
+FUNNEL_KEYS = {
+    "learning_cohorts": ("academy_turns", "cohorts_formed", "learners_enrolled", "sessions", "learner_turns_attended",
+                         "learner_turns_no_seat", "no_session_too_little_teaching", "no_session_no_supplies",
+                         "completions", "capability_changes", "attendance_income_charged"),
+    "workshop_payroll": ("firms_opened", "operating_site_turns", "customer_firm_turns", "sales", "wages_due",
+                         "wages_paid", "income_replaced", "paid_person_turns", "insolvent_firm_turns",
+                         "hours_cuts", "layoffs", "closed_insolvent", "owed_written_off", "distributed"),
+    "commons_rules": ("eligible_slot_turns", "adoption_candidates", "adopted", "rule_slot_turns", "paid",
+                      "tightened_turns", "binding_turns", "excess", "extraction_under_rule", "grievance_added",
+                      "repealed_recovered", "repealed_unfunded"),
+    "local_budgets": ("decision_civ_turns", "budget_civ_turns", "proposals", "awards", "envelope_coins",
+                      "spent_coins", "kept", "deferred", "outcome_uncontested", "grievance_raised", "grievance_eased"),
+    "relocation": None,
+}
 
 
 def _yaml(tree: dict, indent: int = 0) -> str:
@@ -97,6 +152,22 @@ def metrics(bundle_path: Path) -> dict:
     if any(s.get("livelihoods", {}).get("timber_stock") for s in hist): m["timber"] = t
     gc = (last.get("livelihoods") or {}).get("grain_convoys")
     if gc: m["convoys"] = gc["counters"]
+    services = ((last.get("scholarship") or {}).get("learning_services") or {})
+    if services.get("totals"):
+        seen, work, learners = set(), 0.0, 0.0
+        for snap in hist:                       # each teaching receipt once, by seat and turn
+            for r in (((snap.get("scholarship") or {}).get("learning_services") or {}).get("teaching_receipts") or []):
+                key = (r.get("seat_id"), r.get("source_turn"))
+                if key not in seen:
+                    seen.add(key); work += r.get("work_delivered") or 0.0; learners += r.get("learners_delivered") or 0.0
+        t = services["totals"]
+        m["academy"] = {"founded": (last["scholarship"].get("counters") or {}).get("founded", 0),
+                        "purchased": t.get("purchased", 0.0), "used": t.get("used", 0.0), "lost": t.get("lost", 0.0),
+                        "teaching_receipts": len(seen), "work_delivered": work, "learners_delivered": learners}
+    for name in COUNTED:
+        record = (last.get("livelihoods") or {}).get(name)
+        if record and isinstance(record.get("counters"), dict):
+            m.setdefault("counters", {})[name] = record["counters"]
     return m
 
 
@@ -222,6 +293,17 @@ def report_main(argv):
                 c = [r["convoys"] for r in rs]
                 keys = ("eligible", "no_budget", "unaffordable", "dispatched", "arrived", "delivered", "captured", "lost", "returned", "stranded", "escorted", "escort_wasted")
                 parts.append("convoys (sum over worlds): " + ", ".join(f"{k} {sum(x.get(k, 0) for x in c):.0f}" for k in keys))
+            if any("academy" in r for r in rs):
+                a = [r["academy"] for r in rs if "academy" in r]
+                parts.append("academy supplies (mean/world): " + ", ".join(
+                    f"{k} {mean(x[k] for x in a):.4g}" for k in ("founded", "purchased", "used", "lost",
+                                                                 "teaching_receipts", "work_delivered", "learners_delivered")))
+            for name, keys in FUNNEL_KEYS.items():
+                cs = [r["counters"][name] for r in rs if name in r.get("counters", {})]
+                if cs:
+                    keys = keys or sorted({k for c in cs for k in c})
+                    parts.append(f"{name} (mean/world, {len(cs)} worlds): "
+                                 + ", ".join(f"{k} {mean(c.get(k, 0) for c in cs):.4g}" for k in keys))
             if parts:
                 out.append(f"- {arm}: " + "; ".join(parts))
     print("\n".join(out))
