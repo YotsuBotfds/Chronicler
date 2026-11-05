@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "board_version": 3,
+  "board_version": 4,
   "title": "Livelihoods, commons and collective choices - sprint 2 (L5-L9) operational board",
   "plan": "docs/superpowers/roadmaps/livelihoods-commons-sprint2.md",
   "owner_instruction": "2026-11-05: continue the entire roadmap end to end including L5-L9 with viewer, integration and evidence; sprint boundaries are checkpoints; branches and draft PRs; features default-off; no merge; no 200-seed gates without approval.",
@@ -39,7 +39,7 @@
     {
       "id": "L5",
       "wave": "2A",
-      "status": "active",
+      "status": "integrated",
       "lane": "learners",
       "depends_on": [
         "L1 work registry",
@@ -48,12 +48,15 @@
       "branch": "claude/livelihoods-l5-learners",
       "base_sha": "0cc62442564e725df6096692a9b0569da5600264",
       "handoff": "v1 (2026-11-05)",
-      "next_action": "Worker implementing; lead integrates hooks, layers, enrollment, viewer mount."
+      "next_action": "Held screens (L5_learn vs L5_no_learning, I_learn_pay). Development finding: natural cohorts are rare because academies deliver little teaching; workshops/payroll raise activation.",
+      "integration_commit": "a26954e5",
+      "layer": "l5",
+      "lane_head": "0075103d"
     },
     {
       "id": "L6a",
       "wave": "2A",
-      "status": "active",
+      "status": "integrated",
       "lane": "finance",
       "depends_on": [
         "L1B"
@@ -61,12 +64,15 @@
       "branch": "claude/livelihoods-l6-payroll",
       "base_sha": "0cc62442564e725df6096692a9b0569da5600264",
       "handoff": "v1 (2026-11-05)",
-      "next_action": "Worker implementing; lead integrates hooks, layers, enrollment, viewer mount."
+      "next_action": "Held screens (L6_paid, L6_unpaid_labor, L6_no_customer). Provides the native wealth-transfer seam reused by L7.",
+      "integration_commit": "e555b0db",
+      "layer": "l6",
+      "lane_head": "c3356f16"
     },
     {
       "id": "L8",
       "wave": "2A",
-      "status": "active",
+      "status": "integrated",
       "lane": "commons",
       "depends_on": [
         "L3"
@@ -74,22 +80,29 @@
       "branch": "claude/livelihoods-l8-commons",
       "base_sha": "0cc62442564e725df6096692a9b0569da5600264",
       "handoff": "v1 (2026-11-05)",
-      "next_action": "Worker implementing; lead integrates hooks, layers, enrollment, viewer mount."
+      "next_action": "Held screens (L8_enforced, L8_cost_only, I_commons_work). Clearing moratorium proposal recorded as a design note (needs Python and native ecology changes and a declared cost).",
+      "integration_commit": "727ed5dc",
+      "layer": "l8",
+      "lane_head": "494460d7"
     },
     {
       "id": "L7",
       "wave": "2B",
-      "status": "proposed",
+      "status": "integrated",
       "lane": "learners",
       "depends_on": [
         "L2",
         "L6a wealth transfer"
-      ]
+      ],
+      "integration_commit": "83e21af5",
+      "layer": "l7",
+      "lane_head": "13c3ad3e",
+      "next_action": "Held screens (L7_liquidity_only, L7_paid, L7_assisted). Declared limitation: assistance reserved before the tick, charged in Phase 10 (refusals recorded)."
     },
     {
       "id": "L9",
       "wave": "2B",
-      "status": "active",
+      "status": "integrated",
       "lane": "commons",
       "depends_on": [
         "L1",
@@ -99,28 +112,36 @@
       "branch": "claude/livelihoods-l9-budgets",
       "base_sha": "bd22f70dfd9cc779e5bcdbaf039253578072b985",
       "handoff": "v1 (2026-11-05)",
-      "next_action": "Dispatched early (Python-only lane): the roadmap says L9 starts from L1, L2 and granary maintenance and must not block on optional subsystems; L5/L6/L8 register later through its proposal-provider interface."
+      "next_action": "Lead fix e7d18444 (convoy relief spending counted twice, found by the screen pilot). Part 2 (L8 warden bills and L6a academy purchases as bargained services) in review on claude/livelihoods-l9b-providers.",
+      "integration_commit": "60b63f25",
+      "layer": "l9",
+      "lane_head": "591b0350"
     },
     {
       "id": "L6b",
       "wave": "2B",
-      "status": "proposed",
+      "status": "deferred",
       "lane": "finance",
       "depends_on": [
         "L2",
         "L6a",
         "inventory title"
-      ]
+      ],
+      "branch": "claude/livelihoods-l6b-purchases",
+      "design": "docs/integration/household-purchases-design.md",
+      "next_action": "Left open (roadmap-permitted): real retail needs producer title, per-agent inventories and income replacement in the native economy; the bounded granary-only fallback covers ~1-5% of shortfall. Not replaced by a wealth threshold."
     },
     {
       "id": "L10-s2",
-      "status": "proposed",
-      "lane": "lead"
+      "status": "active",
+      "lane": "lead",
+      "next_action": "All sprint-2 panels mounted; viewer 124 files / 1248 tests, lint, build pass; browser journey (desktop+phone) shows every panel, re-dates on rewind, no overflow, no console errors. Old-bundle step to rerun with a feature-off bundle."
     },
     {
       "id": "L11-s2",
-      "status": "proposed",
-      "lane": "lead"
+      "status": "active",
+      "lane": "lead",
+      "next_action": "Preregistered (docs/superpowers/progress/livelihoods-sprint2-screens.md, a711836a). Pilot: 36 development runs, 0 failures after the L9 fix, ~1.1 of 2.0 core-hours projected. Next: identity, checkpoint, held screens on the final source."
     }
   ],
   "compute_budget": {
@@ -131,5 +152,22 @@
     "held_cohort": "template 301-306; procedural 32x10 401-406; 200 turns",
     "used_core_hours": 0.0
   },
-  "landing_log": []
+  "landing_log": [],
+  "layers": [
+    "l0",
+    "l1a",
+    "l2",
+    "l3",
+    "l4",
+    "s1r",
+    "l8",
+    "l5",
+    "l6",
+    "l9",
+    "l7"
+  ],
+  "native_extension": {
+    "source_commit": "83e21af5",
+    "sha256": "70587268a128b5a51a10b37c68e4c203bce0fa3eb492a66b21be86e851ea6677"
+  }
 }
