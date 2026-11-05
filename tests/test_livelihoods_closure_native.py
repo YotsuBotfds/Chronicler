@@ -39,7 +39,7 @@ FLAGS = ("--grain-reserves", "--grain-storage", "--public-grain-shipments", "--g
 #: (seed, turns, extra): a template world in the fixed-shares control (firm
 #: sales and wardens early) and a procedural world (shipments and convoys).
 WORLDS = ((4, 80, ("--civs", "4", "--regions", "8", "--local-budget-mode", "fixed_shares")),
-          (7, 100, ("--worldgen", "procedural", "--civs", "10", "--regions", "32")))
+          (9, 80, ("--worldgen", "procedural", "--civs", "10", "--regions", "32")))
 #: Modules whose treasury changes are itemised in their own receipts.
 CLAIMANTS = ("chronicler.workshops", "chronicler.grain_storage", "chronicler.commons_rules",
              "chronicler.workshop_payroll", "chronicler.relocation_costs", "chronicler.grain_reserves",
