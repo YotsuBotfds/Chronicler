@@ -154,21 +154,65 @@ ascending stable id. Veterans on a crew (by open RS3 record) are noted
 - Timber left in a region without an open RS2 project at Phase 10 is released
   to the region's stockpile, recorded (`released`, store row).
 
-### Endings
+### A turn the civ cannot pay: recall
 
-Delivered; or abandoned with the cargo lost: `crew_lost` (no member left),
-`no_coins` (a turn's wages cannot be paid), `home_lost` (the home region
-changed hands or lost its controller), `forest_lost` (before arrival),
-`pool_reset` (a rebuilt native pool: saved ids name strangers; stores are kept)
-and `switched_off`.
+If the controller's projected treasury cannot pay a turn's wages (after every
+bill planned earlier in Phase 2), the expedition is **recalled**, not ended:
 
-### `cost_only`
+- outbound: the crew turns back and walks the hops it has travelled;
+- cutting: the cutting ends (`cut_end` `recalled`) and the crew walks home with
+  its cargo;
+- a crew already at home (a forest in the home region, or recalled before the
+  first hop) arrives at once and delivers in that Phase 10, unpaid and
+  unreserved.
 
-The same need, launches, crews, travel, schedule, reservations, wages and home
-labour removal; `woodcut_labor` is zero, so nothing is cut, no stock is debited
-and no timber is delivered. Because it supplies nothing, its need persists and
-it keeps launching expeditions: it is the cost of the mechanism without its
-benefit.
+Every return-leg turn the civ cannot pay is walked **unpaid** (`unpaid_turns`,
+receipt `unpaid`): the members are still reserved and away, their farm labour
+still leaves the home land and their ordinary income is withheld, but no wage
+is paid or charged. Only those travel turns are unpaid; nobody cuts on one. A
+return turn the civ can pay again is paid as usual. The launch check (the whole
+expedition payable at launch) is unchanged, so recalls come from treasuries
+that fell after launch.
+
+### Lost members and endings
+
+A dropped member leaves the crew; the expedition goes on while at least one
+member remains. It ends without delivering only when:
+
+| End | When |
+| --- | --- |
+| `crew_lost` | no member is left (observed in Phase 2 or after the agent tick) |
+| `home_lost` | the home region changed hands or lost its controller |
+| `forest_lost` | the forest fell to another civ before the crew got there (no cargo yet) |
+| `pool_reset` | a rebuilt native pool: saved ids name strangers (stores are kept) |
+| `switched_off` | `--no-timber-supply` |
+
+**Cut timber never vanishes.** The cargo of an expedition that ends without
+delivering is deposited in the **forest region's** stockpile as commons and
+recorded `abandoned` (per expedition, a dated `deposits` row and the
+`abandoned_cargo` counter). No position is tracked on the way home, so a crew
+lost on the return leg also leaves its cargo at the forest. A deposit is made
+after the economy's stockpile write-back (Phase 2 settlement or Phase 10); one
+caused by a pool rebuild, which can be noticed after the economy batch was
+packed, waits in `pending_deposits` until that turn's Phase 10. Only transit
+decay is a loss. `no_coins` stays in the declared end reasons but no longer
+ends an expedition.
+
+### `cost_only`: matched per expedition, not in total
+
+The same need, launches, crews, travel, schedule, reservations, wages, recalls
+and home labour removal; `woodcut_labor` is zero, so nothing is cut, no stock is
+debited and no timber is delivered.
+
+The control is **asymmetric in total**. Because it supplies nothing, its need is
+never met and it keeps launching expeditions, so over a run it pays more and
+takes more labour than `supply` (see the screens below). What it matches is the
+cost of **one expedition**: the same crew rule, schedule, wage, home labour
+removal and recall rule, as RS5's `cost_only` matched the cost of each
+protection decision rather than the run's total. Comparisons of cost should
+therefore be made per expedition: every ended expedition adds its wages,
+person-turns, farm labour away, unpaid turns, cut and delivery to the `ended_*`
+counters, and the snapshot reports their means (`per_expedition`).
 
 ## Native seam (`economy.rs`, `ffi/mod.rs`)
 
@@ -225,15 +269,21 @@ Copied completed-turn observations dated by `source_turn`:
 - `expeditions` (live) and `closed` (the last 32): home, forest, slot, hops,
   stage, crew (launched and current), veterans, need, cargo, cut, cut turns and
   why cutting ended, person-turns, wages, income withheld, farm labour asked
-  and removed, delivered, lost, dated drops and history;
+  and removed, delivered, lost (transit decay), abandoned (deposited as
+  commons), unpaid turns, the recall turn, dated drops and history;
 - `receipts` (one per worked expedition this turn: stage, crew, drops, farm
   labour away, crew labour, cut, cargo, L3 stock before and after and capacity
-  while cutting, wages, income withheld) and `ledger` (per civ wages, charge
+  while cutting, wages, income withheld, whether the turn was unpaid or
+  recalled) and `ledger` (per civ wages, charge
   and prepaid): `null` without a Phase 2 that turn (unknown, not zero);
 - `stores` (per region: opening, held by RS2, returned, delivered, released,
   closing) and `needs` (per region: want, free, store, in transit, gap and
   `supplied` / `expedition` / `launched` / `refused` with its reason);
-- `store`, `prepaid`, `counters` (lifetime: need, launches, refusals and
+- `deposits` (the frame turn's abandoned cargo: turn, expedition, region,
+  timber) and `per_expedition` (means over ended expeditions: wages,
+  person-turns, farm labour away, unpaid turns, cut, delivered);
+- `store`, `prepaid`, `pending_deposits` (state only), `counters` (lifetime:
+  need, launches, recalls, unpaid turns, abandoned cargo, refusals and
   abandonments by reason, drops by reason, cut, lost, delivered, released, wages,
   income withheld, home labour, crew labour, crew-turns by stage) and
   `parameters`.
@@ -242,7 +292,8 @@ Copied completed-turn observations dated by `source_turn`:
 
 - Per civ: `charged x 1000 + prepaid_before == wages_applied + prepaid_after`,
   `wages_applied + residual == wages_due`, balances in [0, 1000).
-- Per expedition: `cut == cargo + delivered + lost`.
+- Per expedition: `cut == cargo + delivered + lost + abandoned`, with `lost` the
+  transit decay alone.
 - Per store region: `opening - held + returned + delivered - released == closing`.
 - The economy's `woodcut_output` is non-zero only where a crew cut, and
   `woodcut_labor_away_delivered` never exceeds the request.
@@ -304,11 +355,12 @@ Copied completed-turn observations dated by `source_turn`:
 | --- | --- |
 | `cargo test --locked --manifest-path chronicler-agents/Cargo.toml --lib woodcut` | 9 passed |
 | full `cargo test --locked` (debug info off: `CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0`) | 38 suites, 1,264 passed, 0 failed, 2 ignored |
-| `pytest tests/test_timber_supply.py` (offline, stand-in native) | 36 passed, 0.4 s |
-| `pytest tests/test_timber_supply_native.py` (real extension `fdcb0ca0…`) | 4 passed, 5 s |
+| `pytest tests/test_timber_supply.py` (offline, stand-in native) | 42 passed, 0.5 s (8 of them fail on `af745ee0`, the old destroy-the-cargo rule) |
+| `pytest tests/test_timber_supply_native.py` (real extension `fdcb0ca0…`), on `308422f2` | 4 passed, 6 s |
 | `pytest` RS2, L3, L8, wiring, catalog, manifest, shard modules | all pass |
 | `scripts/run_python_oracle_checks.py` | FAIL, stopping at the first chunk holding a witness test (expected, below) |
-| every lane chunk run the same way without stopping (a scratch driver: the runner's command, guard and 110 s limit per chunk) | 61 chunks, guard PASS in all; 6,341 passed, 69 skipped; the only failures are the 9 witness tests below (8 chunks); the new `timber-supply` chunk 36 passed in 2 s; slowest chunk 52.7 s |
+| every lane chunk run the same way without stopping (a scratch driver: the runner's command, guard and 110 s limit per chunk), on `af745ee0` | 61 chunks, guard PASS in all; 6,341 passed, 69 skipped; the only failures are the 9 witness tests below (8 chunks); slowest chunk 52.7 s |
+| `timber-supply` chunk on `308422f2` | 42 passed |
 
 Rust (`economy::woodcut_tests`, `ffi::tests::woodcut_ffi_*`):
 
@@ -340,8 +392,15 @@ half unit; a city farmer's share; the full schedule with decay into the store an
 RS2's hold from the store first; stockpile-first returns; release without a
 project; `cost_only`; the guard ending the cutting; death, migration, enlistment,
 an army roster, a merchant trip and other work; cargo lost with the crew; the
-asset completing mid-expedition; forest and home controller change; the forest
-lost before arrival; pool reset; switching off; a failed economy tick and a failed
+asset completing mid-expedition; forest and home controller change (the home
+lost on the way: cargo deposited at the forest); the forest lost before
+arrival; pool reset, and a rebuild noticed after packing (the deposit waits for
+Phase 10); a whole crew dying out at each stage (outbound with nothing cut,
+cutting and returning: the cargo deposited in the forest region's stockpile,
+nothing lost); a partly lost crew going on and delivering; an unpayable turn
+recalling the crew home with its cargo (walked unpaid: reserved, away, income
+withheld, no wage), a recall on the way out turning back, and one at a home
+forest arriving at once; switching off; a failed economy tick and a failed
 agent tick; duplicate, stale and misplaced results; closure refusals; the wage
 ceiling; dated and unknown snapshots; exact JSON and pickle round trips; a resume
 from a pickle equal to the uninterrupted run.
@@ -353,8 +412,9 @@ Real extension (`tests/test_timber_supply_native.py`):
   the home region, with no registry conflicts; every wage transfer moves real
   wealth once (a repeated key is refused); `woodcut_outflow` equals the sum of
   `woodcut_output`; the L3 extraction of each cut slot is the economy's slot output
-  and includes the cut; wages, stores and expeditions close; RS2 held timber from
-  the store;
+  and includes the cut; wages, stores and expeditions close, with `cut == cargo +
+  delivered + lost + abandoned` and `lost` exactly the transit decay; RS2 held
+  timber from the store;
 - a constructed world with an uninhabited forest one hop away: each cutting
   turn's L3 extraction equals the crew's harvest exactly, the stock moves by
   exactly that, delivery is the cut times 0.99, and RS2 holds from the store the
@@ -376,7 +436,7 @@ archive`, the imported tree and extension recorded in each `which.txt`):
   (`--grain-reserves --public-grain-shipments --grain-storage --workshops
   --repair-projects --timber-stock`): 205 files, 0 differences.
 
-The commit after `7c16e9ce` changed tests, enrollment and `pending_bills` only.
+Later commits changed tests, enrollment, `pending_bills` and (`308422f2`) the recall and deposit rules inside `timber_supply.py` and `timber_supply_state.py`, which a world without the switch never imports.
 Template seed 1 with the switch on never launched an expedition, and its whole
 history and world state equal the run without the switch (apart from the
 package's own key).
@@ -387,55 +447,69 @@ Arms: `base` (prerequisites only), `supply`, `cost_only`, each with
 `--agents hybrid --simulate-only --grain-reserves --public-grain-shipments
 --grain-storage --workshops --repair-projects --timber-stock`
 (`PYTHONHASHSEED=0 RAYON_NUM_THREADS=1`; procedural worlds `--worldgen procedural
---regions 32 --civs 10`). Single worlds: trajectories diverge once spending
-differs, so differences between arms are not effect estimates.
+--regions 32 --civs 10`). `supply` and `cost_only` ran on `308422f2` (the recall
+and deposit rules); `base` has the switch off and is unchanged since `7c16e9ce`
+(identity above). Single worlds: trajectories diverge once spending differs, so
+differences between arms are not effect estimates.
 
-| World | Launched (delivered) supply / cost only | Cut, delivered, lost, released (supply) | RS2 used from store | Wages, coins: supply / cost only | Farmer-turns away (supply) | RS2 `no_timber` stalls: base / supply / cost only | RS2 timber used: base / supply / cost only | Granary mean condition: base / supply / cost only | L3 extraction: base / supply / cost only |
+| World | Launched (delivered) supply / cost only | Cut, delivered, transit decay, abandoned, released (supply) | RS2 used from store | Wages, coins: supply / cost only | Farmer-turns away (supply) | RS2 `no_timber` stalls: base / supply / cost only | RS2 timber used: base / supply / cost only | Granary mean condition: base / supply / cost only | L3 extraction: base / supply / cost only |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | T1 | 0 / 0 | none | 0 | 0 / 0 | 0 | 790 / 790 / 790 | 40.8 / 40.8 / 40.8 | 0.301 / 0.301 / 0.301 | 70.6 (all) |
-| T3 | 10 (9) / 19 (13) | 15.8, 15.1, 0.7, 0 | 15.1 | 39.5 / 75.0 | 40 | 738 / 797 / 826 | 106.2 / 97.7 / 88.1 | 0.383 / 0.366 / 0.370 | 316.5 / 303.0 / 295.3 |
-| T11 | 8 (8) / 20 (19) | 18.2, 18.2, 0, 1.9 | 16.3 | 32.5 / 72.0 | 34 | 1,043 / 775 / 885 | 94.1 / 101.7 / 90.0 | 0.342 / 0.363 / 0.333 | 245.7 / 273.8 / 247.0 |
-| T23 | 32 (18) / 46 (23) | 209.6, 158.8, 38.5, 70.1 | 88.8 | 171.7 / 213.0 | 162 | 655 / 547 / 670 | 118.5 / 209.5 / 116.9 | 0.368 / 0.526 / 0.386 | 131.7 / 350.4 / 126.0 |
-| P7 | 43 (28) / 68 (48) | 120.3, 105.0, 15.3, 18.9 | 84.8 | 262.0 / 369.0 | 243 | 1,885 / 1,859 / 2,083 | 350.1 / 426.9 / 307.7 | 0.454 / 0.488 / 0.417 | 677.5 / 898.7 / 706.2 |
-| P13 | 37 (26) / 40 (25) | 135.6, 112.3, 23.3, 77.1 | 35.2 | 207.5 / 237.5 | 200 | 2,163 / 1,958 / 2,263 | 425.4 / 449.2 / 469.7 | 0.399 / 0.454 / 0.448 | 1,442.0 / 1,360.4 / 1,454.2 |
-| P21 | 64 (42) / 75 (50) | 399.4, 309.8, 85.9, 109.0 | 200.8 | 380.5 / 448.0 | 262 | 2,140 / 1,781 / 1,703 | 293.9 / 489.7 / 379.6 | 0.386 / 0.531 / 0.469 | 724.7 / 1,116.0 / 817.9 |
-| P31 | 50 (25) / 55 (37) | 266.4, 157.5, 104.7, 30.0 | 127.5 | 281.5 / 335.0 | 252 | 2,449 / 2,377 / 2,400 | 306.9 / 381.3 / 303.8 | 0.327 / 0.401 / 0.348 | 519.0 / 896.8 / 728.1 |
+| T3 | 7 (5) / 19 (13) | 14.9, 14.2, 0, 0.7, 0 | 10.8 | 22.5 / 75.0 | 17 | 738 / 813 / 826 | 106.2 / 95.8 / 88.1 | 0.383 / 0.367 / 0.370 | 316.5 / 304.6 / 295.3 |
+| T11 | 8 (8) / 20 (19) | 18.2, 18.2, 0, 0, 1.9 | 16.3 | 32.5 / 72.0 | 34 | 1,043 / 775 / 885 | 94.1 / 101.7 / 90.0 | 0.342 / 0.363 / 0.333 | 245.7 / 273.8 / 247.0 |
+| T23 | 29 (17) / 46 (23) | 204.6, 153.4, 2.3, 48.9, 55.4 | 98.0 | 160.5 / 213.0 | 148 | 655 / 483 / 670 | 118.5 / 204.5 / 116.9 | 0.368 / 0.532 / 0.386 | 131.7 / 320.6 / 126.0 |
+| P7 | 32 (28) / 67 (45) | 93.2, 84.4, 0.7, 8.1, 21.7 | 62.8 | 204.0 / 344.0 | 159 | 1,885 / 1,968 / 2,107 | 350.1 / 378.4 / 356.9 | 0.454 / 0.476 / 0.447 | 677.5 / 792.2 / 737.6 |
+| P13 | 29 (24) / 48 (36) | 114.1, 100.3, 1.0, 12.9, 61.5 | 38.8 | 156.5 / 275.5 | 166 | 2,163 / 1,818 / 2,265 | 425.4 / 492.5 / 464.1 | 0.399 / 0.471 / 0.430 | 1,442.0 / 1,438.6 / 1,533.8 |
+| P21 | 68 (46) / 82 (65) | 321.7, 243.5, 2.9, 67.5, 68.9 | 174.6 | 378.5 / 460.5 | 322 | 2,140 / 1,450 / 1,718 | 293.9 / 560.9 / 429.0 | 0.386 / 0.578 / 0.502 | 724.7 / 1,081.6 / 819.5 |
+| P31 | 63 (44) / 72 (57) | 448.8, 344.1, 4.2, 100.5, 67.6 | 267.9 | 358.5 / 423.0 | 300 | 2,449 / 1,991 / 2,341 | 306.9 / 530.9 / 359.8 | 0.327 / 0.459 / 0.365 | 519.0 / 1,071.8 / 746.7 |
+
+Per ended expedition (the comparison the control supports):
+
+| World | Ended: supply / cost only | Wages, coins | Person-turns | Farmer-turns away | Cut (supply) | Delivered (supply) | Recalls / unpaid turns: supply / cost only |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| T3 | 7 / 19 | 3.21 / 3.95 | 6.4 / 7.9 | 2.4 / 4.1 | 2.13 | 2.03 | 0, 0 / 0, 0 |
+| T11 | 8 / 20 | 4.06 / 3.60 | 8.1 / 7.2 | 4.3 / 4.1 | 2.27 | 2.27 | 0, 0 / 0, 0 |
+| T23 | 28 / 45 | 5.73 / 4.68 | 11.6 / 9.4 | 5.3 / 4.2 | 7.31 | 5.48 | 0, 0 / 0, 0 |
+| P7 | 32 / 66 | 6.38 / 5.16 | 13.3 / 10.5 | 5.0 / 5.2 | 2.91 | 2.64 | 5, 5 / 2, 4 |
+| P13 | 29 / 47 | 5.40 / 5.86 | 10.9 / 11.9 | 5.7 / 6.4 | 3.94 | 3.46 | 2, 1 / 5, 2 |
+| P21 | 66 / 81 | 5.64 / 5.64 | 11.4 / 11.5 | 4.8 / 4.7 | 4.76 | 3.69 | 5, 4 / 7, 6 |
+| P31 | 63 / 70 | 5.69 / 5.99 | 11.7 / 12.2 | 4.8 / 6.1 | 7.12 | 5.46 | 5, 8 / 7, 6 |
 
 - **Where it acts.** Template worlds have one or two timber regions, so most
   civs have no forest of their own or of nobody: `no_forest` is the largest
-  refusal in every template world (291-714 region-turns) and T1 never launches
-  (`no_forest` 714, `forest_depleted` 122: its one forest is cleared below the
-  guard). Procedural worlds refuse mostly `no_forest`, `too_far` (P21 484, P31
-  826) and `forest_depleted` (P13 1,517). Cross-civ timber is out of scope.
-- **Timber delivered.** 15-310 timber per world over 200 turns in `supply`, 0 in
-  `cost_only`. Crews cut 0.2-1.3 timber per person-turn while cutting (D1's
-  single-farmer gain was 0.19-0.75). RS2's timber use rises over `base` in six
-  of seven acting worlds (not T3; T23 118.5 to 209.5, P21 293.9 to 489.7) and
-  over `cost_only` in six of seven (not P13).
-- **RS2 stalls and condition.** `no_timber` stalls fall below `cost_only` in six
-  of seven acting worlds (not P21) and mean granary condition is above
-  `cost_only` in six of seven (not T3, 0.366 against 0.370); the largest gains
-  are T23 (0.386 to 0.526) and P21 (0.469 to 0.531). The granaries still end
+  refusal in every template world and T1 never launches (`no_forest` 714,
+  `forest_depleted` 122: its one forest is cleared below the guard). Procedural
+  worlds refuse mostly `no_forest`, `too_far` (P21 525, P31 919) and
+  `forest_depleted` (P13 1,511). Cross-civ timber is out of scope.
+- **Timber delivered.** 14-344 timber per world over 200 turns in `supply`, 0 in
+  `cost_only`. Crews cut 0.28-1.39 timber per person-turn while cutting (D1's
+  single-farmer gain was 0.19-0.75). RS2's timber use is above `cost_only` in all
+  seven acting worlds and above `base` in six (not T3).
+- **RS2 stalls and condition.** `no_timber` stalls are below `cost_only` in all
+  seven acting worlds, and mean granary condition is above it in six of seven
+  (not T3, 0.367 against 0.370); the largest differences are T23 (0.386 to
+  0.532), P31 (0.365 to 0.459) and P21 (0.502 to 0.578). The granaries still end
   worn in most worlds: timber is one of several limits (coins, labour, war).
-- **Losses.** Transit decay costs 1-3 timber per world. Most of the "lost"
-  column is the cargo of expeditions that ended without delivering: crews lost
-  to migration, death, enlistment or trips (`crew_lost`, T23 36.0, P21 69.0) and
-  turns the treasury could not pay (`no_coins`, P31 14 expeditions, 76.2). Crew
-  churn is high because the people stay in the pool at home: 12-144 member drops
-  per world in `supply`, `migrated` the most common reason.
-- **Home food cost (inferred, not measured).** 34-262 farmer-turns left the home
-  land in `supply` (40-358 in `cost_only`, which keeps launching). At D1's
-  0.27-1.02 food lost per farmer moved off food, that is about 9-267 food per
-  world over 200 turns, against 11,000-65,000 food produced in the world. The
-  bundle does not separate the counterfactual harvest, so no direct number is
-  claimed.
-- **L3 stock.** Expeditions add to the stands' extraction (T23 131.7 to 350.4, P31
-  519.0 to 896.8). The guard holds: the lowest stock share after any cutting turn
-  is 0.51-0.78 of capacity, and `forest_depleted` refuses or ends cutting below
-  half.
-- **Wages.** 32.5-380.5 coins per world over 200 turns in `supply` (500 milli a
-  person-turn), more in `cost_only` (72-448), which pays for expeditions that
-  supply nothing.
+- **No timber destroyed.** Transit decay is the only loss (0-4.2 per world). The
+  cargo of expeditions whose whole crew was lost (2-20 per world) was deposited
+  at the forest as commons: 0.7-100.5 timber per world, 5-22% of the cut. Under
+  the old rule the same endings destroyed 18-39% of the cut. Recalls are rare
+  (0-5 per world in `supply`, 0-8 unpaid return turns): the launch check already
+  requires the whole expedition to be payable.
+- **Crew churn.** People stay in the pool at home, so native migration, death,
+  enlistment and trips take members away; `migrated` is the most common drop.
+- **Home food cost (inferred, not measured).** 17-322 farmer-turns left the home
+  land in `supply`. At D1's 0.27-1.02 food lost per farmer moved off food, that
+  is about 5-328 food per world over 200 turns, against 11,000-65,000 food
+  produced in the world. The bundle does not separate the counterfactual
+  harvest, so no direct number is claimed.
+- **L3 stock.** Expeditions add to the stands' extraction (T23 131.7 to 320.6, P31
+  519.0 to 1,071.8). The guard holds: the lowest stock share after any cutting
+  turn is 0.51-0.78 of capacity.
+- **Wages and the control.** In total `cost_only` pays more (72-461 coins against
+  23-379) because it keeps launching; per ended expedition the two arms cost
+  about the same (3.2-6.4 coins and 6-13 person-turns), which is what the control
+  matches.
 
 Driver and summary scripts were kept outside the repository (scratch); the
 commands are the arms above.
@@ -463,13 +537,18 @@ Failing witness tests (9, all from these edits; no fixture was touched):
 
 ## Limits and open risks
 
-- **Cargo lost on abandonment.** An expedition that ends without delivering
-  loses its whole cargo; in P31, P21 and T23 that is 39%, 22% and 18% of the cut.
-  A partial delivery (the members left carry it home) or wages paid as far as
-  the treasury allows would change this; neither is built.
+- **Abandoned cargo stays at the forest.** A crew lost on the way home leaves
+  its cargo at the forest, not where it was (no position is tracked); the
+  deposit is commons in that region's stockpile, where the stock cap, crafts and
+  merchants can take it like any other timber.
+- **Unpaid return turns withhold ordinary income.** A recalled crew walking an
+  unpaid turn is away, so its ordinary income is withheld with no wage; the
+  household bears that turn. Paying nothing and withholding nothing would let
+  people earn at home while away.
 - **Crew churn.** The crew stays in the pool at home, so native migration,
-  death, drafting between reservations and trips take members away mid-trip.
-  That is honest about the model, and it makes expeditions fragile.
+  death, drafting between reservations and trips take members away mid-trip
+  (12-174 drops per world in `supply`). That is honest about the model, and it
+  makes expeditions fragile.
 - **Placement order.** PL1 reserves after the workshop, RS1 and RS2 planners, so
   an L1 crew can take an expedition member who is in a workshop city that turn
   (`other_work`, up to 58 drops per world). Reserving earlier needs a seam in
@@ -480,7 +559,8 @@ Failing witness tests (9, all from these edits; no fixture was touched):
 - **Not modelled.** The crew's city craft time; storage decay of the store; a
   second timber slot in a region; the work-injury proxy of the forest region
   (the crew's harvest marks it worked).
-- **`cost_only` keeps launching.** It supplies nothing, so its need persists; its
-  costs are therefore larger than `supply`'s, by design of the control.
+- **The control is matched per expedition, not in total.** `cost_only` supplies
+  nothing, so its need persists and it launches more expeditions: its total
+  cost exceeds `supply`'s. Compare costs per expedition (`per_expedition`).
 - **Viewer.** No reader or panel (PL5).
 - No held seed, 200-seed or procedural qualification gate was run.
