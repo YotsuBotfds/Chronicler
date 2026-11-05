@@ -21,6 +21,11 @@
 //!   always reserved time. The wealth phase removes `share` of the person's
 //!   ordinary income (the time is paid by wages instead, never on top) and
 //!   records each actual deduction in a receipt taken once by the caller.
+//! * [`extend_paid_work`] (recovery-skills RS0) merges further rows into the
+//!   turn's pending install, or arms one: a later paid-work consumer of the
+//!   same turn (apprentice stipends, repair wages) adds its people without
+//!   replacing L6a's. Each person still has at most one paid share per turn,
+//!   within their reservations for that turn.
 //!
 //! Both are transient: the key log, a pending share and an untaken receipt
 //! are never checkpointed (exact checkpoints are taken between turns, when
@@ -32,10 +37,15 @@ use crate::pool::AgentPool;
 
 /// Milli-units per wealth (and treasury) unit.
 pub const MILLI: i64 = 1000;
-/// Transfer purposes, in declaration order (append only).
-pub const PURPOSES: [&str; 2] = ["workshop_wage", "relocation_fare"];
+/// Transfer purposes, in declaration order (append only). The last three
+/// were appended by the recovery-skills groundwork (RS0) for apprentice
+/// stipends (RS1), repair wages (RS2) and remittances (RS4).
+pub const PURPOSES: [&str; 5] = ["workshop_wage", "relocation_fare", "apprentice_stipend", "repair_wage", "remittance"];
 pub const PURPOSE_WORKSHOP_WAGE: u8 = 0;
 pub const PURPOSE_RELOCATION_FARE: u8 = 1;
+pub const PURPOSE_APPRENTICE_STIPEND: u8 = 2;
+pub const PURPOSE_REPAIR_WAGE: u8 = 3;
+pub const PURPOSE_REMITTANCE: u8 = 4;
 /// Largest magnitude accepted for one row (10^12 milli-units).
 pub const MAX_ROW_MILLIS: i64 = 1_000_000_000_000;
 /// Row statuses, in declaration order (append only).
@@ -160,6 +170,58 @@ pub fn install_paid_work(pool: &mut AgentPool, turn: u32, rows: &[(u32, f32)]) -
     Ok(())
 }
 
+/// Merge `rows` (stable id, share) into the pending paid-work install of
+/// `turn`, or arm one when none is pending, all or none. Refuses a pending
+/// install of another turn, an invalid share, duplicate ids within `rows`,
+/// dead or unknown ids, an id that already has a pending share this turn,
+/// and any share above the id's total work reservations for `turn`.
+/// [`install_paid_work`] keeps refusing any pending install, so the L6a
+/// payroll installs first and later consumers extend.
+pub fn extend_paid_work(pool: &mut AgentPool, turn: u32, rows: &[(u32, f32)]) -> Result<(), &'static str> {
+    if pool.paid_work.as_ref().is_some_and(|p| p.turn != turn) {
+        return Err("paid work share pending for another turn");
+    }
+    let slots = pool.build_id_slots();
+    let mut seen = std::collections::HashSet::with_capacity(rows.len());
+    let mut resolved = Vec::with_capacity(rows.len());
+    for &(id, share) in rows {
+        if !(share > 0.0 && share <= 1.0) {
+            return Err("paid work share must be in (0, 1]");
+        }
+        if !seen.insert(id) {
+            return Err("duplicate agent in paid work");
+        }
+        let slot = match slots.get(id) {
+            Some(slot) if pool.is_alive(slot) && pool.ids[slot] == id => slot,
+            _ => return Err("paid work names no living agent"),
+        };
+        if let Some(plan) = pool.paid_work.as_ref() {
+            if matches!(plan.by_slot.get(slot), Some(&(held, pending)) if held == id && pending > 0.0) {
+                return Err("agent already has a paid work share this turn");
+            }
+        }
+        let reserved: f32 = pool.work_reservations.iter()
+            .filter(|r| r.turn == turn && r.agent_id == id).map(|r| r.fraction).sum();
+        if share > reserved + 1e-6 {
+            return Err("paid work exceeds the agent's work reservation this turn");
+        }
+        resolved.push((slot, id, share));
+    }
+    let capacity = pool.capacity();
+    if pool.paid_work.is_none() {
+        pool.paid_work = Some(PaidWork { turn, by_slot: vec![(0u32, 0.0f32); capacity] });
+        pool.paid_work_receipt = None;
+    }
+    let plan = pool.paid_work.as_mut().expect("armed above");
+    if plan.by_slot.len() < capacity {
+        plan.by_slot.resize(capacity, (0, 0.0));
+    }
+    for (slot, id, share) in resolved {
+        plan.by_slot[slot] = (id, share);
+    }
+    Ok(())
+}
+
 /// Wealth phase: the ordinary income left after paid work at `slot`,
 /// recording the actual deduction. The id guard keeps a reused slot clean.
 #[inline]
@@ -252,6 +314,97 @@ mod tests {
         assert_eq!(paid_work_income(&plan, &mut receipt, c, 2, 2.0), 2.0);
         assert_eq!(receipt.len(), 2);
         assert!((receipt[1].3 - 0.3).abs() < 1e-6);
+    }
+
+    #[test]
+    fn appended_purposes_keep_the_old_codes() {
+        assert_eq!(PURPOSES, ["workshop_wage", "relocation_fare", "apprentice_stipend", "repair_wage", "remittance"]);
+        assert_eq!((PURPOSE_APPRENTICE_STIPEND, PURPOSE_REPAIR_WAGE, PURPOSE_REMITTANCE), (2, 3, 4));
+        let mut pool = pool_with(&[1.0]);
+        let a = pool.ids[0];
+        for purpose in [PURPOSE_APPRENTICE_STIPEND, PURPOSE_REPAIR_WAGE, PURPOSE_REMITTANCE] {
+            transfer(&mut pool, 2, purpose, 0, &[(a, 100)]).unwrap();
+        }
+        assert!(transfer(&mut pool, 2, 5, 0, &[(a, 100)]).is_err());
+        assert!((pool.wealth[0] - 1.3).abs() < 1e-5);
+    }
+
+    #[test]
+    fn extend_merges_into_an_l6a_install_and_keeps_one_share_per_person() {
+        use crate::workshop_work::{CATEGORY_APPRENTICE, CATEGORY_REPAIR};
+        let mut pool = pool_with(&[1.0, 1.0, 1.0, 1.0]);
+        let (a, b, c, d) = (pool.ids[0], pool.ids[1], pool.ids[2], pool.ids[3]);
+        reserve(&mut pool, 7, CATEGORY_WORKSHOP, &[(a, 0.3)]).unwrap();
+        reserve(&mut pool, 7, CATEGORY_APPRENTICE, &[(b, 0.25)]).unwrap();
+        reserve(&mut pool, 7, CATEGORY_REPAIR, &[(c, 0.5)]).unwrap();
+        install_paid_work(&mut pool, 7, &[(a, 0.3)]).unwrap();          // L6a-style install
+        pool.paid_work_receipt = Some(PaidWorkReceipt { turn: 6, rows: Vec::new() });
+        extend_paid_work(&mut pool, 7, &[(b, 0.25)]).unwrap();
+        extend_paid_work(&mut pool, 7, &[(c, 0.4)]).unwrap();
+        let plan = pool.paid_work.clone().unwrap();
+        assert_eq!(plan.turn, 7);
+        assert_eq!(&plan.by_slot[..4], &[(a, 0.3), (b, 0.25), (c, 0.4), (0, 0.0)]);
+        // Merging never touches an untaken receipt; install still refuses.
+        assert_eq!(pool.paid_work_receipt.as_ref().map(|r| r.turn), Some(6));
+        assert!(install_paid_work(&mut pool, 7, &[(d, 0.1)]).is_err());
+        let mut receipt = Vec::new();
+        assert!((paid_work_income(&pool.paid_work, &mut receipt, b, 1, 2.0) - 1.5).abs() < 1e-6);
+        assert!((paid_work_income(&pool.paid_work, &mut receipt, c, 2, 1.0) - 0.6).abs() < 1e-6);
+        assert_eq!(paid_work_income(&pool.paid_work, &mut receipt, d, 3, 1.0), 1.0);
+    }
+
+    #[test]
+    fn extend_arms_a_fresh_install_when_none_is_pending() {
+        let mut pool = pool_with(&[1.0, 1.0]);
+        let (a, b) = (pool.ids[0], pool.ids[1]);
+        reserve(&mut pool, 3, crate::workshop_work::CATEGORY_REPAIR, &[(a, 0.5), (b, 0.5)]).unwrap();
+        pool.paid_work_receipt = Some(PaidWorkReceipt { turn: 2, rows: Vec::new() });
+        extend_paid_work(&mut pool, 3, &[(b, 0.5)]).unwrap();
+        let plan = pool.paid_work.clone().unwrap();
+        assert_eq!((plan.turn, plan.by_slot.len()), (3, pool.capacity()));
+        assert_eq!(&plan.by_slot[..2], &[(0, 0.0), (b, 0.5)]);
+        assert!(pool.paid_work_receipt.is_none());         // as install clears it
+        extend_paid_work(&mut pool, 3, &[(a, 0.2)]).unwrap();
+        assert_eq!(pool.paid_work.as_ref().unwrap().by_slot[0], (a, 0.2));
+        // An empty extension with nothing pending arms an empty install, as install does.
+        let mut empty = pool_with(&[1.0]);
+        extend_paid_work(&mut empty, 4, &[]).unwrap();
+        assert!(empty.paid_work.as_ref().is_some_and(|p| p.turn == 4 && p.by_slot.iter().all(|&(id, s)| id == 0 && s == 0.0)));
+    }
+
+    #[test]
+    fn extend_refuses_bad_rows_all_or_none() {
+        use crate::workshop_work::CATEGORY_APPRENTICE;
+        let mut pool = pool_with(&[1.0, 1.0, 1.0, 1.0]);
+        let (a, b, c, d) = (pool.ids[0], pool.ids[1], pool.ids[2], pool.ids[3]);
+        reserve(&mut pool, 7, CATEGORY_WORKSHOP, &[(a, 0.3)]).unwrap();
+        reserve(&mut pool, 7, CATEGORY_APPRENTICE, &[(b, 0.25), (c, 0.25)]).unwrap();
+        install_paid_work(&mut pool, 7, &[(a, 0.3)]).unwrap();
+        let before = pool.paid_work.clone();
+        // Invalid shares.
+        for share in [0.0, -0.1, 1.5, f32::NAN, f32::INFINITY] {
+            assert!(extend_paid_work(&mut pool, 7, &[(b, share)]).is_err());
+        }
+        // Duplicate ids within the rows.
+        assert!(extend_paid_work(&mut pool, 7, &[(b, 0.2), (b, 0.1)]).is_err());
+        // Unknown and dead ids.
+        assert!(extend_paid_work(&mut pool, 7, &[(b, 0.2), (999_999, 0.1)]).is_err());
+        pool.kill(3);
+        assert!(extend_paid_work(&mut pool, 7, &[(d, 0.1)]).is_err());
+        // An id that already has a pending share this turn (L6a's or an earlier extension).
+        assert!(extend_paid_work(&mut pool, 7, &[(b, 0.2), (a, 0.1)]).is_err());
+        // A share above the id's total reservations, or with none.
+        assert!(extend_paid_work(&mut pool, 7, &[(b, 0.3)]).is_err());
+        assert_eq!(pool.paid_work, before);
+        extend_paid_work(&mut pool, 7, &[(b, 0.25)]).unwrap();
+        assert!(extend_paid_work(&mut pool, 7, &[(b, 0.1)]).is_err());
+        // A pending install of another turn (an older one the tick never took).
+        assert!(extend_paid_work(&mut pool, 8, &[(c, 0.25)]).is_err());
+        let mut fresh = pool_with(&[1.0, 1.0]);
+        let (e, f) = (fresh.ids[0], fresh.ids[1]);
+        reserve(&mut fresh, 2, CATEGORY_APPRENTICE, &[(e, 0.25)]).unwrap();
+        assert!(extend_paid_work(&mut fresh, 2, &[(e, 0.25), (f, 0.1)]).is_err());   // unreserved
+        assert!(fresh.paid_work.is_none());
     }
 
     #[test]

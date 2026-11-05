@@ -367,9 +367,12 @@ impl AgentSimulator {
     /// eligible, crew ids, crew ages, work available).
     /// With `turn`, people already holding work that turn are excluded and
     /// the selected crews are reserved in the shared work registry.
+    /// RS0: `priority_ids` (one list for every site) puts listed eligible
+    /// ids first, in the listed order; None or empty keeps the default order.
     #[allow(clippy::type_complexity)]
-    #[pyo3(signature = (sites, enlisted_ids, turn=None))]
-    pub fn plan_workshop_crews(&mut self, sites: Vec<(u16, u16, u16, f32, u8)>, enlisted_ids: Vec<u32>, turn: Option<u32>)
+    #[pyo3(signature = (sites, enlisted_ids, turn=None, *, priority_ids=None))]
+    pub fn plan_workshop_crews(&mut self, sites: Vec<(u16, u16, u16, f32, u8)>, enlisted_ids: Vec<u32>, turn: Option<u32>,
+                               priority_ids: Option<Vec<u32>>)
         -> PyResult<Vec<(u16, u16, u16, u32, u32, u32, u32, u32, Vec<u32>, Vec<u16>, f32)>> {
         if !self.initialized {
             return Err(PyValueError::new_err("workshop crews require initialized agents"));
@@ -381,7 +384,8 @@ impl AgentSimulator {
             return Err(PyValueError::new_err("workshop site region out of range"));
         }
         let enlisted: std::collections::HashSet<u32> = enlisted_ids.into_iter().collect();
-        let rows = crate::workshop_work::plan_crews(&self.pool, &requests, &enlisted, turn)
+        let rows = crate::workshop_work::plan_crews_with_priority(&self.pool, &requests, &enlisted, turn,
+                                                                  priority_ids.as_deref().unwrap_or(&[]))
             .map_err(PyValueError::new_err)?;
         if let Some(turn) = turn {
             let crew: Vec<(u32, f32)> = rows.iter().zip(&requests)
@@ -395,7 +399,7 @@ impl AgentSimulator {
     }
 
     /// Livelihoods: commit (stable id, fraction) rows for `turn` under a work
-    /// category (0 workshop, 1 learning), all or none; refuses anyone already
+    /// category (0 workshop, 1 learning, 2 apprentice, 3 repair), all or none; refuses anyone already
     /// holding work that turn (registry, rural health work, teaching plan).
     pub fn reserve_work(&mut self, turn: u32, category: u8, rows: Vec<(u32, f32)>) -> PyResult<()> {
         crate::workshop_work::reserve(&mut self.pool, turn, category, &rows).map_err(PyValueError::new_err)
@@ -849,6 +853,13 @@ impl AgentSimulator {
     /// reservation for `turn`; the next wealth phase consumes it once.
     pub fn install_paid_work(&mut self, turn: u32, rows: Vec<(u32, f32)>) -> PyResult<()> {
         crate::wealth_transfer::install_paid_work(&mut self.pool, turn, &rows).map_err(PyValueError::new_err)
+    }
+
+    /// RS0: merge (stable id, share) rows into this turn's pending paid-work
+    /// install, or arm one; refuses an id with a pending share, a share above
+    /// the id's reservations and a pending install of another turn.
+    pub fn extend_paid_work(&mut self, turn: u32, rows: Vec<(u32, f32)>) -> PyResult<()> {
+        crate::wealth_transfer::extend_paid_work(&mut self.pool, turn, &rows).map_err(PyValueError::new_err)
     }
 
     /// Livelihoods L6a: drop an armed paid-work share the tick never took.
