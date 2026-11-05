@@ -548,6 +548,10 @@ def _sell(world, state, firm: WorkshopFirm, t: _Turn, customers, acc) -> None:
             continue
         need = math.floor(_remaining_need(receipt, asset) * MILLI)
         budget = _budget(world, lord, acc)
+        from chronicler.local_budgets import envelope   # L9 teaching envelope (None: the legacy rule)
+        cap = envelope(world, lord, "teaching_supplies", site=firm.site)
+        if cap is not None:
+            budget = min(budget, max(0, cap - row.get("sales", 0) // MILLI))
         if need <= 0 or budget <= 0:
             continue
         _add(row, "customers", 1)

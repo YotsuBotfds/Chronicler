@@ -18,10 +18,16 @@ Services (built-in providers; each reuses an existing public API)
     claim the same storage slot, so they are incompatible.
     ``workshop``: an L1 site's next bill is paid only if its envelope covers it
     (``workshops._plan_funding`` consults :func:`workshop_funded`).
-    Teaching: academy supplies (``learning_services.procure_learning_supplies``)
-    cannot be capped without editing a byte-pinned file, so they are not
-    bargained. Their dated upper bound is reserved first as a standing
-    obligation, so no envelope promises the coins they take.
+    ``teaching_supplies``: an academy's purchase from an L6a workshop firm
+    (``--workshop-payroll``) is paid only within the envelope for (ruler,
+    firm site) (``workshop_payroll._sell`` reads :func:`envelope`). The
+    academies' own market procurement (``learning_services``) cannot be
+    capped without editing a byte-pinned file: its dated upper bound is
+    reserved first as a standing obligation, so no envelope promises the
+    coins it takes. L5 learning cohorts spend no treasury.
+    ``wardens``: an L8 commons rule's warden bill (``--commons-rules``) is
+    paid, and a new rule adopted, only within the envelope for its stand
+    (``commons_rules.prepare_phase2`` reads :func:`envelope`).
 
 Budget. ``budget = floor(ENVELOPE_SHARE x max(0, projected - FLOOR -
 obligations - committed))``: the projected treasury replays queued ``keep``
@@ -726,11 +732,15 @@ class _Teaching(Provider):
             want = min(float(r.learner_upper_bound), r.scholar_upper_bound * LEARNERS_PER_SCHOLAR)
             need[r.seat_id] = math.floor(max(0.0, want * CRAFTS_PER_LEARNER - asset.held) * P.MILLI)
         name = world.civilizations[civ].name
+        # The firm titles next turn's output before it sells: last turn's
+        # titled wares are the dated estimate of what it adds.
+        titled = {r.site: r.titled for r in state.frame} if state.frame_turn == obs.turn else {}
         out = []
         for firm in sorted(state.firms, key=lambda f: f.site):
-            if firm.status != "open" or firm.inventory <= 0 or world.regions[firm.region].controller != name:
+            stock = firm.inventory + titled.get(firm.site, 0)
+            if firm.status != "open" or stock <= 0 or world.regions[firm.region].controller != name:
                 continue
-            inventory, units, quantity = firm.inventory, 0, 0
+            inventory, units, quantity = stock, 0, 0
             for r, _asset in customers:
                 if need[r.seat_id] <= 0 or inventory <= 0:
                     continue
@@ -753,7 +763,8 @@ class _Teaching(Provider):
                             claims=[f"teaching:{firm.site}"], cost=units, divisible=True, unit="crafts",
                             expected=quantity / P.MILLI,
                             relief={"patricians": covered / P.WAGE_PER_WORK} if covered > 0 else {},
-                            detail={"inventory": firm.inventory, "cash": firm.cash, "owed": owed,
+                            detail={"inventory": firm.inventory, "titled_last": titled.get(firm.site, 0),
+                                    "cash": firm.cash, "owed": owed,
                                     "next_bill": bill, "learners_served": round(quantity / P.MILLI, 6)}))
         return out
 
@@ -770,13 +781,15 @@ class _Teaching(Provider):
         remaining = math.fsum(P._remaining_need(r, asset) for r, asset in _academy_customers(world, c.civ, world.turn))
         detail = {"customers": row.customers, "inventory_open": row.inventory_open,
                   "remaining_need": round(remaining, 6)}
-        if spent >= KEPT_RATIO * c.amount or ratio >= KEPT_RATIO or (row.customers and remaining * P.MILLI < 1):
+        if spent >= KEPT_RATIO * c.amount or ratio >= KEPT_RATIO or (row.sold and remaining * P.MILLI < 1):
             return {"outcome": "kept", "reason": None, "spent": spent, "delivered": delivered,
                     "ratio": 1.0 if remaining * P.MILLI < 1 else ratio, "detail": detail}
-        if not row.customers:
-            reason = "no_demand"
-        elif row.inventory_open - row.sold <= 0:
-            reason = "inputs_short"
+        prices = [float(r.craft_price) for r, _ in _academy_customers(world, c.civ, world.turn)]
+        left = row.inventory_open - row.sold
+        if remaining * P.MILLI < 1:
+            reason = "no_demand"                    # no informed order with need left
+        elif left <= 0 or not prices or math.floor(min(left, remaining * P.MILLI) * max(prices) / P.MILLI) < 1:
+            reason = "inputs_short"                 # the wares left are worth less than a coin
         else:
             reason = "treasury_shortfall"
         return {"outcome": "deferred", "reason": reason, "spent": spent, "delivered": delivered,
@@ -811,11 +824,16 @@ class _Wardens(Provider):
     ``wardens:<region>:<slot>``. Proposals read the timber account the next
     planning will read (settled in this turn's Phase 2): rules that would
     continue (no repeal reason), and adoption candidates by L8's own rule.
-    The stake is the stand's growth the wardens keep from open access over
-    ``HORIZON`` turns, as the crew work its raw loads could supply the towns'
-    crafts (``workshops.K_RAW_PER_WORK``): the patricians'. The commons, whose
+    The stake is the timber the rule keeps from open access over ``HORIZON``
+    turns: the L3 reference crew's harvest (``timber_stock.reference_harvest``;
+    zero when the last receipt shows nobody could harvest) above the rule's
+    quota, bounded by the standing stock and its regrowth, counted as the
+    crew work its raw loads could supply the towns' crafts
+    (``workshops.K_RAW_PER_WORK``): the patricians' stake. The commons, whose
     timber access the rule restricts, gain nothing from it; the rule's own
-    grievance channel already carries their side of the conflict."""
+    grievance channel already carries their side of the conflict. The full
+    bill is promised: the institution's share L8 applies at planning is not
+    known at the decision."""
 
     services = ("wardens",)
     group = "wardens"
@@ -839,20 +857,30 @@ class _Wardens(Provider):
         if obs.economy is None or not self.active(world):
             return []
         from chronicler import commons_rules as R
-        from chronicler.timber_stock import regrowth, timber_slots
+        from chronicler.timber_stock import reference_harvest, regrowth, timber_slots
         from chronicler.workshops import K_RAW_PER_WORK
         state = _commons(world)
+        receipts = {(r.region_id, r.slot): r for r in state.frame} if state.frame_turn == obs.turn else {}
         name = world.civilizations[civ].name
         observations = self._observations(world, obs.turn)
         slots = set(timber_slots(world))
-        bill = R.bill_for(R.institution_share(world, world.civilizations[civ]))
-        if bill < 1:
-            return []
+        # L8 reads Commons Management's share when it plans, before this
+        # turn's institution funding runs later in Phase 2, so the share it
+        # can apply is not known here: the full bill is promised (a smaller
+        # actual bill simply spends less).
+        bill = R.bill_for(0.0)
         horizon = _parameters(world)["horizon"]
 
-        def item(rid, slot, observation, new):
-            grown = regrowth(observation.stock, observation.capacity, observation.water_gate_open)
-            stake = horizon * grown / K_RAW_PER_WORK
+        def item(rid, slot, observation, new, status=None):
+            receipt = receipts.get((rid, slot))
+            pressure = 0.0 if receipt is not None and receipt.possible is False \
+                else reference_harvest(world.regions[rid], slot)
+            quota = 0.0 if R.next_status(status, observation) == "rest" else R.allowable_harvest(
+                observation.stock, observation.capacity, observation.water_gate_open)
+            kept = horizon * max(0.0, min(pressure, observation.stock) - quota)
+            supply = observation.stock + horizon * regrowth(observation.stock, observation.capacity,
+                                                            observation.water_gate_open)
+            stake = min(kept, supply) / K_RAW_PER_WORK
             return dict(service="wardens", recipients=[rid], claims=[f"wardens:{rid}:{slot}"], cost=bill,
                         divisible=not new, unit="coverage", expected=1.0,
                         relief={"patricians": stake} if stake > EPS else {},
@@ -869,7 +897,7 @@ class _Wardens(Provider):
             observation = observations.get(key, rule.observation)
             if observation is None or R._repeal_reason(world, rule, observation) is not None:
                 continue
-            out.append(item(rule.region_id, rule.slot, observation, False))
+            out.append(item(rule.region_id, rule.slot, observation, False, rule.status))
         cooling = {(c.region_id, c.slot) for c in state.cooldowns if c.until > obs.turn + 1}
         for key in sorted(observations):
             rid, slot = key
@@ -903,7 +931,8 @@ class _Wardens(Provider):
         if receipt.paid >= due:
             return {"outcome": "kept", "reason": None, "spent": receipt.paid, "delivered": receipt.coverage,
                     "ratio": 1.0, "detail": detail}
-        return {"outcome": "deferred", "reason": "cost_rose" if receipt.bill > c.amount else "treasury_shortfall",
+        rose = receipt.bill > int(c.detail.get("cost", receipt.bill))
+        return {"outcome": "deferred", "reason": "cost_rose" if rose else "treasury_shortfall",
                 "spent": receipt.paid, "delivered": receipt.coverage, "ratio": ratio, "detail": detail}
 
 
@@ -1041,6 +1070,9 @@ def _bargain(decision: Decision, items: list[Proposal]) -> tuple[list[tuple[Prop
         top = max(shares)
         sponsors[p.pid] = top[2] if top[0] > EPS else None
     refused = dict(refusals[chosen])
+    for p in items:
+        if refused.get(p.pid) == "no_support" and any(v > EPS for v in p.relief.values()):
+            refused[p.pid] = "budget"           # wanted, but no constituency could afford it
     awarded = {p.pid for p, _ in bundles[chosen]}
     for p in items:
         if p.pid not in awarded and p.pid not in refused:
@@ -1280,7 +1312,8 @@ def _decide(world, state: LocalBudgetState, obs, providers, acc) -> None:
             c = Commitment(cid=state.next_cid, civ=ci, service=p.service, pid=p.pid, decided_turn=obs.turn,
                            for_turn=obs.turn + 1, recipients=list(p.recipients), site=p.site,
                            claims=list(p.claims), amount=amount, unit=p.unit,
-                           expected=round(p.expected * amount / p.cost, 6), sponsor=sponsors.get(p.pid))
+                           expected=round(p.expected * amount / p.cost, 6), sponsor=sponsors.get(p.pid),
+                           detail={"cost": p.cost})
             c.venue = _venue(world, ci, c, decision.seat)
             state.next_cid += 1
             state.open.append(c)

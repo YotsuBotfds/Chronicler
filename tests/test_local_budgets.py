@@ -596,3 +596,180 @@ def test_relief_counts_convoy_spending_once_inside_the_envelope():
     assert result["spent"] <= commitment.amount
     assert result["detail"]["escort_fees"] == 1          # itemised, inside the envelope
     assert result["delivered"] == pytest.approx(0.5)
+
+
+# --- Registered services: L8 warden bills and L6a teaching supplies ---------------
+
+def _l9_on(world, *commitments):
+    """Activate L9 on a fixture world and open these envelopes for this turn."""
+    from chronicler.grain_reserves_state import GrainReserveState
+    from chronicler.local_budgets_state import Commitment
+    world.agent_mode = "hybrid"
+    if not isinstance(getattr(world, "grain_reserves", None), GrainReserveState):
+        world.grain_reserves = GrainReserveState()
+    state = world.livelihoods.local_budgets = LocalBudgetState()
+    for cid, (civ, service, amount, claim, site, region) in enumerate(commitments):
+        state.open.append(Commitment(cid=cid, civ=civ, service=service, pid=cid, decided_turn=world.turn - 1,
+                                     for_turn=world.turn, recipients=[region], site=site, claims=[claim],
+                                     amount=amount, unit="x", expected=1.0, sponsor="patricians"))
+    return state
+
+
+def test_warden_bills_stay_inside_their_envelope_and_none_keeps_the_legacy_rule():
+    from tests.test_commons_rules import THORN, THORN_OWNER, _adopted, _receipt, _rule, _tick
+    claim = f"wardens:{THORN[0]}:{THORN[1]}"
+    # L9 absent, or present but switched off: the legacy rule, byte for byte.
+    legacy, off = _adopted(), _adopted()
+    _l9_on(off).enabled = False                        # prerequisites met, switch off
+    for world in (legacy, off):
+        assert LB.envelope(world, THORN_OWNER, "wardens", claim=claim) is None
+        for _ in range(3):
+            _tick(world, {THORN: 5.0})
+    assert off.livelihoods.commons_rules.model_dump_json() == legacy.livelihoods.commons_rules.model_dump_json()
+    assert [c.treasury for c in off.civilizations] == [c.treasury for c in legacy.civilizations]
+    # Active without an envelope: the depleted stand is not adopted.
+    world = _adopted()
+    _l9_on(world)
+    _tick(world, {THORN: 5.0})
+    assert _rule(world, THORN) is None
+    counters = world.livelihoods.commons_rules.counters
+    assert counters["adoption_candidates"] == counters["adoption_unaffordable"] == 1
+    # An envelope smaller than the first bill does not adopt either; a full one does.
+    world = _adopted()
+    _l9_on(world, (THORN_OWNER, "wardens", 1, claim, None, THORN[0]))
+    _tick(world, {THORN: 5.0})
+    assert _rule(world, THORN) is None
+    world = _adopted()
+    _l9_on(world, (THORN_OWNER, "wardens", 2, claim, None, THORN[0]))
+    treasury = world.civilizations[THORN_OWNER].treasury
+    _tick(world, {THORN: 5.0})
+    assert _rule(world, THORN) is not None and _receipt(world, THORN)["paid"] == 2
+    assert world.civilizations[THORN_OWNER].treasury == treasury - 2
+    # A continuing rule pays only what its envelope allows: half coverage.
+    _l9_on(world, (THORN_OWNER, "wardens", 1, claim, None, THORN[0]))
+    _tick(world, {THORN: 500.0})
+    receipt = _receipt(world, THORN)
+    assert receipt["paid"] == 1 and receipt["coverage"] == 0.5 and receipt["bill"] == 2
+    # No envelope at all: no payment, no coverage.
+    _l9_on(world)
+    _tick(world, {THORN: 5.0})
+    assert _receipt(world, THORN)["paid"] == 0 and _receipt(world, THORN)["coverage"] == 0.0
+
+
+def test_wardens_are_proposed_from_the_dated_stock_account_and_settled_from_l8_receipts():
+    from chronicler import commons_rules as R
+    from chronicler.timber_stock import reference_harvest, regrowth
+    from chronicler.workshops import K_RAW_PER_WORK
+    from tests.test_commons_rules import THORN, THORN_OWNER, _adopted, _tick
+    world = _adopted()
+    _l9_on(world)
+    world.turn -= 1                                    # the Phase 10 that follows the settled account
+    obs = SimpleNamespace(turn=world.turn, economy=object())
+    (item,) = LB.WARDENS.proposals(world, THORN_OWNER, obs)
+    ledger = {(r.region_id, r.slot): r for r in world.livelihoods.timber_stock.ledger}[THORN]
+    assert item["claims"] == [f"wardens:{THORN[0]}:{THORN[1]}"] and item["recipients"] == [THORN[0]]
+    assert item["cost"] == R.ADMIN_COST and item["divisible"] is False and item["detail"]["new"] == 1
+    quota = 0.0 if R.next_status(None, ledger) == "rest" else R.allowable_harvest(
+        ledger.stock, ledger.capacity, ledger.water_gate_open)
+    pressure = reference_harvest(world.regions[THORN[0]], THORN[1])
+    kept = LB.HORIZON * max(0.0, min(pressure, ledger.stock) - quota)
+    supply = ledger.stock + LB.HORIZON * regrowth(ledger.stock, ledger.capacity, ledger.water_gate_open)
+    stake = min(kept, supply) / K_RAW_PER_WORK
+    assert stake > 0 and item["relief"] == {"patricians": pytest.approx(stake)} and "commons" not in item["relief"]
+    assert LB.WARDENS.proposals(world, 0 if THORN_OWNER else 1, obs) == []
+    world.turn += 1
+    # Promise the first bill, run the Phase 2 that adopts the rule, settle it.
+    claim = f"wardens:{THORN[0]}:{THORN[1]}"
+    _l9_on(world, (THORN_OWNER, "wardens", 2, claim, None, THORN[0]))
+    c = world.livelihoods.local_budgets.open[0]
+    _tick(world, {THORN: 5.0})
+    world.turn -= 1
+    result = LB.WARDENS.settle(world, c, SimpleNamespace(turn=world.turn))
+    assert (result["outcome"], result["spent"], result["delivered"]) == ("kept", 2, 1.0)
+    # The rule now continues: proposed as a divisible continuation.
+    (item,) = LB.WARDENS.proposals(world, THORN_OWNER, SimpleNamespace(turn=world.turn, economy=object()))
+    assert item["divisible"] is True and item["detail"]["new"] == 0
+    world.turn += 1
+    _l9_on(world, (THORN_OWNER, "wardens", 1, claim, None, THORN[0]))
+    world.civilizations[THORN_OWNER].treasury = 0
+    c = world.livelihoods.local_budgets.open[0]
+    _tick(world, {THORN: 5.0})
+    world.turn -= 1
+    result = LB.WARDENS.settle(world, c, SimpleNamespace(turn=world.turn))
+    assert (result["outcome"], result["reason"], result["spent"]) == ("deferred", "treasury_shortfall", 0)
+
+
+def _payroll_world():
+    from tests.test_workshop_payroll import FakeSim, _build, _turn, _world
+    world = _world()
+    sim = FakeSim()
+    _build(world, sim)
+    for _ in range(3):
+        _turn(world, sim, output=1.2)
+    return world, sim
+
+
+def test_teaching_supplies_bought_from_a_firm_stay_inside_their_envelope():
+    from tests.test_workshop_payroll import _turn
+    sales = {}
+    for name, envelope in (("legacy", None), ("off", "off"), ("capped", 1), ("none", 0)):
+        world, sim = _payroll_world()
+        site = world.livelihoods.workshop_payroll.firms[0].site
+        region = world.livelihoods.workshop_payroll.firms[0].region
+        if envelope == "off":
+            world.livelihoods.local_budgets = LocalBudgetState(enabled=False)
+        elif envelope is not None:
+            opened = [(0, "workshop", 100, f"workshop:{site}", site, region)]
+            if envelope:
+                opened.append((0, "teaching_supplies", envelope, f"teaching:{site}", site, region))
+            _l9_on(world, *opened)
+        before = world.civilizations[0].treasury
+        _turn(world, sim, output=1.2)
+        row = world.livelihoods.workshop_payroll.frame[0]
+        sales[name] = (row.sales, row.sold, before - world.civilizations[0].treasury)
+    assert sales["off"] == sales["legacy"] and sales["legacy"][0] > 1000
+    assert sales["capped"][0] == 1000 and sales["capped"][1] > 0          # one treasury unit
+    assert sales["none"][0] == 0 and sales["none"][1] == 0
+
+
+def test_teaching_supplies_are_proposed_from_informed_orders_and_settled_from_firm_receipts():
+    from chronicler import workshop_payroll as P
+    from tests.test_workshop_payroll import _turn
+    world, sim = _payroll_world()
+    firm = world.livelihoods.workshop_payroll.firms[0]
+    world.turn -= 1
+    obs = SimpleNamespace(turn=world.turn, economy=object())
+    assert LB.TEACHING.active(world)
+    (item,) = LB.TEACHING.proposals(world, 0, obs)
+    assert item["claims"] == [f"teaching:{firm.site}"] and item["site"] == firm.site and item["cost"] >= 1
+    titled = world.livelihoods.workshop_payroll.frame[0].titled
+    assert item["expected"] <= (firm.inventory + titled) / P.MILLI and item["detail"]["titled_last"] == titled
+    owed = sum(o.amount for o in firm.owed)
+    shortfall = max(0, owed + P._bill(firm, firm.crew_cap, firm.hours) - firm.cash)
+    if shortfall:
+        assert item["relief"]["patricians"] == pytest.approx(min(item["cost"] * P.MILLI, shortfall) / P.WAGE_PER_WORK)
+    else:
+        assert item["relief"] == {}                    # a flush firm's crew gains nothing from the sale
+    world.turn += 1
+    _l9_on(world, (0, "workshop", 100, f"workshop:{firm.site}", firm.site, firm.region),
+           (0, "teaching_supplies", item["cost"], f"teaching:{firm.site}", firm.site, firm.region))
+    c = world.livelihoods.local_budgets.open[1]
+    c.expected = item["expected"]
+    _turn(world, sim, output=1.2)
+    world.turn -= 1
+    result = LB.TEACHING.settle(world, c, SimpleNamespace(turn=world.turn))
+    assert result["outcome"] == "kept" and 0 < result["spent"] <= c.amount
+
+
+def test_fixed_shares_scale_only_while_a_registered_group_is_active():
+    items = [LB.Proposal(pid=i, service=svc, civ=0, source_turn=1, recipients=[i], claims=[f"{svc}:{i}"],
+                         cost=100, divisible=True, unit="x", expected=1.0)
+             for i, svc in enumerate(("relief", "granary_maintain", "workshop", "teaching_supplies", "wardens"))]
+    groups = {"relief": "relief", "granary_maintain": "granary", "workshop": "workshop",
+              "teaching_supplies": "teaching", "wardens": "wardens"}
+    d = LB.Decision(turn=1, civ=0, mode="fixed_shares", projected=0, floor=0, obligations=0, committed=0, budget=100)
+    awards, _, _ = LB._fixed_shares(d, items[:3], groups)
+    assert {p.service: a for p, a in awards} == {"relief": 40, "granary_maintain": 30, "workshop": 30}
+    awards, _, _ = LB._fixed_shares(d, items, groups, 1.3)
+    assert {p.service: a for p, a in awards} == {"relief": 30, "granary_maintain": 23, "workshop": 23,
+                                                 "teaching_supplies": 11, "wardens": 11}
