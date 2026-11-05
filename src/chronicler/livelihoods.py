@@ -28,6 +28,11 @@ inert stub modules; their lanes add the mechanisms):
 * ``--clearing-protection`` (RS5): controller-funded protection of forest
   cover from clearing.
 
+The productive-recovery phase appends:
+
+* ``--operating-wear`` (PL2): funded operating workshop sites wear each turn,
+  offset only by qualified upkeep (``--apprenticeship`` implies it).
+
 This module owns only CLI forwarding, validation of prerequisites and the
 fan-out of phase hooks to each package's module ``chronicler.<switch>``.
 State, decisions and accounting belong to those modules. An omitted switch
@@ -88,6 +93,7 @@ LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     "veteran_reintegration", "veteran_mode",
     "remittances", "remittance_mode",
     "clearing_protection", "clearing_protection_mode",
+    "operating_wear",
 )
 _AGENT_ECONOMY = ("hybrid", "shadow", "demographics-only")
 
@@ -219,6 +225,13 @@ _HELP = {
         "enforced (default): the paid protection suspends clearing; cost_only: the control that "
         "adopts and pays identically but leaves the clearing unchanged"
     ),
+    "operating_wear": (
+        "Workshop operating wear (PL2): each funded operating workshop site loses 0.02 condition a "
+        "turn, offset only by the upkeep of qualified crew members (--apprenticeship); a worn site "
+        "stops until repaired. --apprenticeship implies it; --workshops --operating-wear is the "
+        "reference arm with the same maintenance assumption; requires --workshops in operate mode "
+        "(--agents hybrid) (default off)"
+    ),
 }
 
 
@@ -340,6 +353,9 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
     if values["remittances"] is True and agent_mode != "hybrid":
         raise ValueError("--remittances requires --agents hybrid")
     # --clearing-protection has no prerequisite (it works in every ecology path).
+    if values["operating_wear"] is True:
+        if agent_mode != "hybrid" or not _workshops_operate(world, values, args):
+            raise ValueError("--operating-wear requires --workshops in operate mode (--agents hybrid)")
 
 
 def configure_livelihoods(world: Any, args: Any, *, agent_mode: str) -> None:

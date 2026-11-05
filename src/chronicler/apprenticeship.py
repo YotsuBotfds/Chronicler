@@ -24,7 +24,8 @@ death retires the record (dated).
 
 What it enables (the real activity). With the switch on (both modes) a funded
 operating site wears ``OPERATING_WEAR`` per turn (the RS0 ``_operating_wear``
-seam). Qualified crew members present that turn do the upkeep: in crew order
+seam; the constant now lives in :mod:`chronicler.operating_wear`, PL2, and
+``--apprenticeship`` implies that wear). Qualified crew members present that turn do the upkeep: in crew order
 each spends up to ``UPKEEP_SHARE`` of their crew time, only as much as the turn's
 wear needs, and each unit of upkeep work offsets ``WEAR_PER_UPKEEP_WORK`` of
 condition, so the offset never exceeds the wear and condition stays in [0, 1]. A
@@ -91,6 +92,38 @@ a qualified resident has none, naming where each went (died or the region they
 live in now) and how many still hold their record; ``teaching_restored`` when
 one returns. :func:`qualified_ids` serves RS2 repair crews.
 
+Rules version 2 (PL2; every new state; ``docs/integration/apprenticeship.md``,
+"RS1 rules version 2"). The paragraphs above describe version 1, which only a
+state saved before PL2 runs (it resumes under those rules unchanged). Version 2
+changes who attends and how progress is kept; wear, upkeep, service, teaching
+time, stipends, mentors and the qualification are as above:
+
+* Crews are planned exactly as before (qualified first, RS3 veterans, then
+  ascending id); nobody is reserved ahead of them, so no crew is displaced.
+* Presence is by region: an open apprenticeship continues while the apprentice
+  lives in the region of an open site. A migrant transfers to the site of the
+  region they now live in (when it holds fewer than ``PER_SITE``).
+* Training is on the job. At an operating site (:func:`crew_maintenance`) an
+  apprentice on the planned crew trains on crew time; one who is not (the native
+  planner draws only the city's adult urban farmers, so a resident outside the
+  city box is never on it) is *attached*: reserved for ``APPRENTICE_FRACTION``
+  after the crew was planned, that share of ordinary income withheld, and a
+  stipend from firm cash with L6a; attached time adds no craft work. A turn
+  counts when a qualified crew member (``PER_MENTOR`` each) teaches them.
+* Missed turns pause progress. Only a long absence ends it: more than
+  ``MAX_GAP`` consecutive turns living where no open site (with room) is
+  (``long_absence``). Death, an occupation change, an army roster, a service
+  qualification, a pool reset and disabling end it as before; a closed site
+  makes its apprentices absent until they reach another site.
+* New apprentices: RS3 veterans, then members of this turn's crew, then the
+  region's other adult farmers (attached); youngest first within each, and
+  nobody older than :func:`max_entry_age` (they would reach ``AGE_ELDER``
+  before completing).
+* Useful-work records per operating site-turn: the qualified members aboard,
+  the graduates on the crew, coverage, full offset and the upkeep offset by
+  qualification route and by graduates; ``graduates`` keeps every living
+  person who completed (either mode) and their crew-turns since.
+
 Identity, timing and bounds: stable native ids only; observations are dated by
 ``source_turn`` and unknown is None, never zero; no RNG is drawn; every list is
 bounded (``apprenticeship_state``). ``on_pool_reset`` retires every qualification
@@ -104,17 +137,22 @@ from __future__ import annotations
 
 import math
 
+from chronicler import operating_wear as _ow
 from chronicler.apprenticeship_state import (
     COUNTERS, MAX_ARCHIVE, MAX_EVENTS, MAX_MENTORS, MAX_QUALIFIED, MAX_RETIRED, MAX_SERVICE, MODES,
-    Apprenticeship, ApprenticeshipState, ContinuityEvent, Qualification, Seat, ServiceRecord,
-    SiteContinuity, SiteReceipt,
+    Apprenticeship, ApprenticeshipState, ContinuityEvent, GraduateRecord, Qualification, Seat,
+    ServiceRecord, SiteContinuity, SiteReceipt,
 )
+# Moved unchanged to ``operating_wear`` (PL2); RS1 reads it there at call time.
+from chronicler.operating_wear import OPERATING_WEAR  # noqa: F401  (re-exported)
+
+#: RS1 rules version of every new state (``ApprenticeshipState.schema_version``);
+#: a state saved under version 1 keeps it (see ``apprenticeship_state``).
+RULES_VERSION = 2
 
 # Declared, uncalibrated modeling choices.
 #: Operating crew-turns (at any site) that earn a service qualification.
 SERVICE_TURNS = 12
-#: Condition an operating funded site loses per turn while this switch is on.
-OPERATING_WEAR = 0.02
 #: Most of a qualified crew member's crew time spent on upkeep in one turn.
 UPKEEP_SHARE = 0.25
 #: Condition one unit of upkeep work (one person's whole turn) offsets.
@@ -125,7 +163,10 @@ PER_MENTOR = 2
 PER_SITE = 4
 #: Share of an apprentice's turn reserved for training (and withheld from income).
 APPRENTICE_FRACTION = 0.5
-#: Consecutive missed turns tolerated; one more is a dropout.
+#: Version 1: consecutive missed turns tolerated; one more is a dropout.
+#: Version 2: consecutive absent turns tolerated (no open site with room in the
+#: apprentice's region); one more ends it (``long_absence``). Other missed
+#: turns pause progress and never end it.
 MAX_GAP = 4
 COMPLETION_TURNS = 10
 #: Stipend per unit of attended apprentice time (milli-units; half the L6a wage).
@@ -137,9 +178,18 @@ CATEGORY_APPRENTICE = 2
 PURPOSE_APPRENTICE_STIPEND = 2
 _FARMER = 0          # Occupation::Farmer
 _AGE_ADULT = 20      # agent.rs AGE_ADULT
+_AGE_ELDER = 60      # agent.rs AGE_ELDER (adult mortality 0.0025, elder 0.016 a turn)
 _MAX_CREW = 8
 _NATIVE = ("plan_workshop_crews", "reserve_work", "work_reservations", "extend_paid_work",
            "cancel_paid_work", "take_paid_work_receipt", "get_snapshot")
+#: Version 2 also reads merchant trips for apprentices outside the crew pool.
+_NATIVE_V2 = ("trip_agent_ids",)
+
+
+def max_entry_age() -> int:
+    """Version 2 age rule: the oldest age at which an apprentice is taken on,
+    so that ``COMPLETION_TURNS`` attended turns end before ``AGE_ELDER``."""
+    return _AGE_ELDER - COMPLETION_TURNS
 
 
 class _SiteTurn:
@@ -166,6 +216,15 @@ class _SiteTurn:
         self.wear = self.offset = self.net_wear = 0.0
         self.wear_applied = False
         self.condition_after: float | None = None
+        # Version 2 only.
+        self.continuing: list[int] = []                    # open records present here, enrolment order
+        self.transfers_in: dict[int, int] = {}             # id -> the site it moves from
+        self.open_after = 0                                # records attached here after this turn
+        self.pool: list[int] = []                          # new candidates, in enrolment order
+        self.vets: set[int] = set()
+        self.aboard: dict[int, str] = {}                   # taught id -> "crew" | "attached"
+        self.new: list[int] = []
+        self.taught: list[int] = []
 
 
 class _Pending:
@@ -179,6 +238,11 @@ class _Pending:
         self.stipends: dict[int, dict[int, int]] = {}
         self.records: dict[int, Apprenticeship] = {}
         self.receipts: dict[int, SiteReceipt] = {}
+        # Version 2 only.
+        self.detached: dict[int, str] = {}                 # absent records of sites not open
+        self.via: dict[int, str] = {}                      # qualified id -> route (turn start)
+        self.graduates: set[int] = set()                   # living graduates (turn start)
+        self.trips: set[int] | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -204,7 +268,9 @@ def set_apprenticeship_enabled(world, value: bool, *, args=None, agent_mode=None
     mode = getattr(args, "apprenticeship_mode", None) if args is not None else None
     state = _state(world)
     if state is None:
-        world.livelihoods.apprenticeship = state = ApprenticeshipState(mode=mode or MODES[0])
+        world.livelihoods.apprenticeship = state = ApprenticeshipState(
+            mode=mode or MODES[0], schema_version=RULES_VERSION,
+            **({"graduates": [], "detached": []} if RULES_VERSION >= 2 else {}))
     elif mode is not None and mode != state.mode:
         if state.apprenticeships:
             raise ValueError("cannot switch the apprenticeship mode while apprenticeships are open")
@@ -225,10 +291,14 @@ def apprenticeship_active(world) -> bool:
     return workshops_active(world) and world.livelihoods.workshops.mode == "operate"
 
 
-def _native(sim):
-    if sim is None or not all(callable(getattr(sim, name, None)) for name in _NATIVE):
+def _native(sim, names=_NATIVE):
+    if sim is None or not all(callable(getattr(sim, name, None)) for name in names):
         raise RuntimeError("apprenticeship requires a fresh native build with the work registry seams")
     return sim
+
+
+def _v2(state: ApprenticeshipState) -> bool:
+    return state.rules_version >= 2
 
 
 def _people(sim) -> dict[int, tuple[int, int, int, int]]:
@@ -346,9 +416,13 @@ def seated_mentors(world) -> frozenset[int]:
     if p is None or p.turn != world.turn:
         return frozenset()
     out: set[int] = set()
+    v2 = _v2(state)
     for st in p.sites.values():
-        if st.seats:
-            out.update(st.mentors_pred[:math.ceil(len(st.seats) / PER_MENTOR)])
+        # Version 2 reserves nobody before the crew: the mentors the present
+        # continuing apprentices rely on are kept off repair crews instead.
+        need = len(st.continuing) if v2 else len(st.seats)
+        if need:
+            out.update(st.mentors_pred[:math.ceil(need / PER_MENTOR)])
     return frozenset(out)
 
 
@@ -384,6 +458,10 @@ def before_crews(world, sim, requests: list) -> None:
     state._pending = p
     requested = [(int(s), int(r), int(st), float(d), int(m)) for s, r, st, d, m in requests]
     open_sites = {s.site: s for s in ws.sites}
+    if _v2(state):
+        _native(sim, _NATIVE_V2)
+        _before_crews_v2(world, sim, state, p, requested, open_sites, enlisted, holding)
+        return
     by_site: dict[int, list[Apprenticeship]] = {}
     for record in state.apprenticeships:
         if record.site in {r[0] for r in requested}:
@@ -514,16 +592,20 @@ def crew_maintenance(world, site, row: dict) -> float:
     d = float(row["diverted_fraction"])
     # Each qualified crew member gives up to UPKEEP_SHARE of their crew time,
     # only as much as the turn's wear needs: the offset is at most the wear.
-    need = OPERATING_WEAR / WEAR_PER_UPKEEP_WORK
-    capacity = UPKEEP_SHARE * d * len(st.qualified_on_crew)
     # (The diverted fraction is 1 - a rounded farm factor, so "enough" allows a
     # relative 1e-9 for float noise.)
+    capacity = UPKEEP_SHARE * d * len(st.qualified_on_crew)
+    wear = _ow.OPERATING_WEAR
+    need = wear / WEAR_PER_UPKEEP_WORK
     full = capacity >= need * (1.0 - 1e-9)
     st.upkeep_work = need if full else capacity
-    st.wear = OPERATING_WEAR
-    st.offset = OPERATING_WEAR if full else min(OPERATING_WEAR, capacity * WEAR_PER_UPKEEP_WORK)
-    st.net_wear = max(0.0, OPERATING_WEAR - st.offset)
-    seated = [aid for aid, _new, _vet in st.seats if aid not in st.missed]
+    st.wear = wear
+    st.offset = wear if full else min(wear, capacity * WEAR_PER_UPKEEP_WORK)
+    st.net_wear = max(0.0, wear - st.offset)
+    if _v2(_state(world)):
+        seated = _aboard_v2(world, p, st)
+    else:
+        seated = [aid for aid, _new, _vet in st.seats if aid not in st.missed]
     st.assigned = {}
     queue = iter(seated)
     for mentor in st.qualified_on_crew:
@@ -548,6 +630,15 @@ def operating_wear(world, site) -> float:
     return st.net_wear
 
 
+def upkeep_offset(world, site) -> tuple[float, list[int]]:
+    """PL2 seam (``operating_wear``): this turn's upkeep offset of the funded
+    operating ``site`` and its qualified crew members (after :func:`crew_maintenance`)."""
+    st = _pending(world).sites.get(site.site)
+    if st is None or not st.operating:
+        raise RuntimeError("upkeep offset requested for a site without a prepared crew")
+    return st.offset, list(st.qualified_on_crew)
+
+
 # ---------------------------------------------------------------------------
 # Phase hooks
 # ---------------------------------------------------------------------------
@@ -562,6 +653,7 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
     receipts = {r.site: r for r in ws.frame}
     sites = {s.site: s for s in ws.sites}
     rows = []
+    v2 = _v2(_state(world))
     for st in p.sites.values():
         site = sites.get(st.site)
         st.condition_after = float(site.condition) if site is not None else None
@@ -571,6 +663,9 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
                 raise RuntimeError("workshop craft work does not match the apprenticeship crew time")
             if not st.wear_applied:
                 raise RuntimeError("operating wear was not applied to an operating site")
+        if v2:
+            rows.extend(_attending_v2(st))
+            continue
         for aid, _new, _vet in st.seats:
             if aid in st.missed:
                 continue
@@ -624,6 +719,9 @@ def on_pool_reset(world) -> None:
         _end(state, record, turn, "pool_reset")
     for sc in state.sites:
         sc.present = []
+    if _v2(state):
+        state.graduates = []
+        state.detached = []
     state._pending = None
 
 
@@ -643,7 +741,10 @@ def after_agent_tick(world, agent_bridge) -> list:
         if receipt is None:
             raise RuntimeError("paid work receipt missing for this turn")
     after = _people(sim)
-    _commit(world, state, p, after, receipt)
+    if _v2(state):
+        _commit_v2(world, state, p, after, receipt)
+    else:
+        _commit(world, state, p, after, receipt)
     p.committed = True
     return []
 
@@ -849,6 +950,459 @@ def _continuity(world, state: ApprenticeshipState, p: _Pending, frame: list[Site
     }
 
 
+# ---------------------------------------------------------------------------
+# RS1 rules version 2 (PL2): attendance by region, portable gap-tolerant
+# progress and training on the job. Version-1 states never reach this code.
+# ---------------------------------------------------------------------------
+
+def _absent_v2(p: _Pending, record: Apprenticeship, reason: str) -> None:
+    """An open record that cannot attend anywhere this turn: missed at its site
+    of record when that site is open, otherwise detached."""
+    st = p.sites.get(record.site)
+    if st is not None:
+        st.missed[record.agent_id] = reason
+    else:
+        p.detached[record.agent_id] = reason
+
+
+def _before_crews_v2(world, sim, state: ApprenticeshipState, p: _Pending, requested: list,
+                     open_sites: dict, enlisted: list[int], holding: set[int]) -> None:
+    """Version 2, before the crew planner: endings, presence by region,
+    transfers and the new candidates. Nobody is reserved here, so apprentices
+    never displace the crew; :func:`_aboard_v2` places them after it."""
+    people, army, held = p.people, set(enlisted), p.held | {q.agent_id for q in state.qualifications}
+    p.via = {q.agent_id: q.via for q in state.qualifications}
+    p.graduates = {g.agent_id for g in state.graduates or []}
+    site_by_region = {}
+    for site_id, region, settlement, diverted, max_workers in requested:
+        site = open_sites[site_id]
+        st = _SiteTurn(site_id, region, settlement, site.city_name, diverted, max_workers,
+                       float(site.condition), _controller(world, region))
+        p.sites[site_id] = st
+        st.present = [a for a in p.living_q if people[a][0] == region and people[a][1] == settlement]
+        st.in_region = [a for a in p.living_q if people[a][0] == region]
+        site_by_region[region] = site_id
+    # Endings and presence, in enrolment order. ``held_here`` counts the
+    # records attached to each site after the decisions made so far; a move is
+    # accepted only into room that exists when it is decided (moves are decided
+    # in enrolment order), so no site ever holds more than PER_SITE.
+    held_here = {site_id: 0 for site_id in p.sites}
+    movers = []
+    for record in state.apprenticeships:
+        aid = record.agent_id
+        here = people.get(aid)
+        reason = None
+        if here is None:
+            reason = "died"
+        elif aid in army:
+            reason = "remobilised"
+        elif here[2] != _FARMER:
+            reason = "occupation_changed"
+        elif aid in held:
+            reason = "service_qualified"
+        if reason is not None:
+            if record.site in p.sites:
+                p.sites[record.site].ended[aid] = reason
+            else:
+                p.closed[aid] = reason
+            continue
+        if record.site in held_here:
+            held_here[record.site] += 1
+        target = site_by_region.get(here[0])
+        if target is None:
+            _absent_v2(p, record, "absent")
+        elif target == record.site:
+            p.sites[target].continuing.append(aid)
+        else:
+            movers.append((record, target))
+    for record, target in movers:
+        if held_here[target] < PER_SITE:
+            st = p.sites[target]
+            st.continuing.append(record.agent_id)
+            st.transfers_in[record.agent_id] = record.site
+            held_here[target] += 1
+            if record.site in held_here:
+                held_here[record.site] -= 1
+        else:
+            _absent_v2(p, record, "no_room")
+    apprenticing = {a.agent_id for a in state.apprenticeships}
+    oldest = max_entry_age()
+    region_farmers: dict[int, list[tuple[int, int]]] = {}
+    for aid, (region, _settlement, occupation, age) in people.items():
+        if occupation == _FARMER and age >= _AGE_ADULT and region in site_by_region:
+            region_farmers.setdefault(region, []).append((age, aid))
+    for st in p.sites.values():
+        st.open_after = held_here[st.site]
+        local = region_farmers.get(st.region, [])
+        st.residents = len(local)
+        # Age rule: youngest first, and nobody who would reach AGE_ELDER before
+        # completing (D2: 80% of qualifications ended in death within the run).
+        pool = [aid for age, aid in sorted(local)
+                if age <= oldest and aid not in held and aid not in apprenticing and aid not in army]
+        vets = [v for v in _veterans(world, st.region) if v in set(pool)]
+        st.vets = set(vets)
+        st.pool = vets + [a for a in pool if a not in st.vets]
+        st.candidates = len(st.pool)
+    # The mentors the present apprentices rely on (``seated_mentors``, RS2):
+    # one read-only planner pass with the qualified listed first.
+    if p.living_q and any(st.continuing for st in p.sites.values()):
+        full = [(s, r, stl, d, _MAX_CREW) for s, r, stl, d, _m in requested]
+        rows = sim.plan_workshop_crews(full, enlisted, None, priority_ids=p.living_q)
+        for (site_id, *_rest), row in zip(requested, rows, strict=True):
+            st = p.sites[site_id]
+            qualified = [int(a) for a in row[8] if int(a) in p.held and int(a) not in holding]
+            st.mentors_pred = qualified[:st.max_workers]
+
+
+def _aboard_v2(world, p: _Pending, st: _SiteTurn) -> list[int]:
+    """Version 2, at an operating site after its crew was planned: who is
+    aboard and taught this turn, in order (continuing first, then new).
+
+    An apprentice on the planned crew trains on crew time. One who is not (the
+    native planner draws only adult urban farmers of the city, so an apprentice
+    living in the region outside the city box is never on it) is *attached*:
+    reserved for ``APPRENTICE_FRACTION`` in the registry now, after the crew,
+    so the crew is never displaced. Teaching capacity is ``PER_MENTOR`` per
+    qualified crew member."""
+    sim = p.sim
+    if p.trips is None:
+        p.trips = {int(a) for a in sim.trip_agent_ids()}
+    holding = {int(row[0]) for row in sim.work_reservations(p.turn)}
+    on_crew = set(st.crew)
+    st.capacity = min(PER_SITE, PER_MENTOR * len(st.qualified_on_crew))
+    taught: list[int] = []
+
+    def board(aid: int) -> str | None:
+        if aid in on_crew:
+            return "crew"
+        if aid in p.trips or aid in holding:
+            return None
+        try:
+            sim.reserve_work(p.turn, CATEGORY_APPRENTICE, [(aid, APPRENTICE_FRACTION)])
+        except ValueError:
+            return "refused"
+        holding.add(aid)
+        return "attached"
+
+    for aid in st.continuing:
+        if len(taught) >= st.capacity:
+            st.missed[aid] = "no_mentor"
+            continue
+        how = board(aid)
+        if how is None:
+            st.missed[aid] = "unavailable"
+        elif how == "refused":
+            st.missed[aid] = "reservation_refused"
+        else:
+            st.aboard[aid] = how
+            taught.append(aid)
+    room = max(0, min(PER_SITE - st.open_after, st.capacity - len(taught)))
+    # New apprentices: RS3 veterans first, then members of this turn's crew
+    # (the qualification is used only on the crew: upkeep and teaching), then
+    # the region's other residents, attached; youngest first within each.
+    ordered = ([a for a in st.pool if a in st.vets] + [a for a in st.pool if a not in st.vets and a in on_crew]
+               + [a for a in st.pool if a not in st.vets and a not in on_crew])
+    eligible = 0
+    for aid in ordered:
+        if aid not in on_crew and (aid in p.trips or aid in holding):
+            continue
+        eligible += 1
+        if room <= 0:
+            continue
+        how = board(aid)
+        if how == "refused":
+            st.refused_new += 1
+            continue
+        st.aboard[aid] = how
+        st.new.append(aid)
+        taught.append(aid)
+        room -= 1
+    st.eligible = eligible
+    st.taught = taught
+    return taught
+
+
+def _attending_v2(st: _SiteTurn) -> list[tuple[int, float]]:
+    """Version 2, after funding: the taught apprentices attend; attached ones
+    give up ``APPRENTICE_FRACTION`` of their ordinary income (crew members
+    already give their crew time, paid once as crew time)."""
+    if not st.operating:
+        for aid in st.continuing:
+            st.missed.setdefault(aid, "site_not_operating")
+        return []
+    rows = []
+    for aid in st.taught:
+        if aid not in st.assigned:
+            raise RuntimeError("a taught apprentice has no mentor")
+        st.attending.append(aid)
+        if st.aboard[aid] == "attached":
+            rows.append((aid, APPRENTICE_FRACTION))
+    return rows
+
+
+def _miss_v2(state: ApprenticeshipState, record: Apprenticeship, seat: Seat, turn: int) -> bool:
+    """Count a missed turn: progress pauses; only a long absence ends it.
+    Returns True when the record ended."""
+    record.gap += 1
+    record.interruptions += 1
+    _bump(state, "miss_" + seat.reason)
+    if seat.reason in ("absent", "no_room"):
+        record.absent = (record.absent or 0) + 1
+        if record.absent > MAX_GAP:
+            seat.ending = "long_absence"
+            _end(state, record, turn, "long_absence")
+            return True
+    else:
+        record.absent = 0
+    return False
+
+
+def _upkeep_split(st: _SiteTurn, p: _Pending) -> tuple[dict[str, float], dict[int, float]]:
+    """The upkeep offset by qualification route and by member: in crew order
+    each qualified member gives up to ``UPKEEP_SHARE`` of their crew time until
+    the wear's need is met (as :func:`crew_maintenance` counts it)."""
+    d = st.diverted
+    share = UPKEEP_SHARE * d
+    remaining = st.upkeep_work
+    work: dict[int, float] = {}
+    for aid in st.qualified_on_crew:
+        given = min(share, remaining)
+        if given <= 0.0:
+            break
+        work[aid] = given
+        remaining -= given
+    total = sum(work.values())
+    per = {aid: (st.offset * w / total if total > 0.0 else 0.0) for aid, w in work.items()}
+    by_via = {"apprenticeship": 0.0, "service": 0.0}
+    for aid, amount in per.items():
+        by_via[p.via.get(aid, "service")] += amount
+    return by_via, per
+
+
+def _commit_v2(world, state: ApprenticeshipState, p: _Pending, after: dict, receipt) -> None:
+    turn = p.turn
+    train = state.mode == "train"
+    _bump(state, "turns")
+    active = {a.agent_id: a for a in state.apprenticeships}
+    for aid, reason in sorted(p.closed.items()):
+        _end(state, active.pop(aid), turn, reason)
+    detached: list[Seat] = []
+    for aid, reason in p.detached.items():
+        record = active[aid]
+        seat = Seat(agent_id=aid, veteran=record.veteran, outcome="missed", reason=reason)
+        if _miss_v2(state, record, seat, turn):
+            active.pop(aid)
+        detached.append(seat)
+    for q in list(state.qualifications):
+        if q.agent_id not in after:
+            _retire(state, q, turn, "died")
+    graduates = {g.agent_id: g for g in state.graduates or []}
+    for aid in [a for a in graduates if a not in after]:
+        del graduates[aid]
+        _bump(state, "graduates_died")
+    service = {r.agent_id: r for r in state.service}
+    frame = []
+    from chronicler.veteran_reintegration import note_outcome
+    for st in p.sites.values():
+        _bump(state, "site_turns")
+        _bump(state, "candidate_turns", st.candidates)
+        _bump(state, "seats_offered", st.capacity)
+        attached = [aid for aid in st.taught if st.aboard.get(aid) == "attached"]
+        _bump(state, "apprentice_turns_reserved", len(attached))
+        if st.refused_new:
+            _bump(state, "seat_refused", st.refused_new)
+        seats: list[Seat] = []
+        completed: list[int] = []
+        for aid, reason in st.ended.items():
+            record = active.pop(aid)
+            seats.append(Seat(agent_id=aid, veteran=record.veteran, outcome="ended", reason=reason))
+            _end(state, record, turn, reason)
+        for aid, source in st.transfers_in.items():
+            record = active[aid]
+            record.site, record.region, record.settlement_id = st.site, st.region, st.settlement
+            record.transfers = (record.transfers or 0) + 1
+            _bump(state, "transferred")
+        missed_here = [aid for aid in st.missed if aid not in st.continuing]
+        for aid in st.new:
+            veteran = aid in st.vets
+            record = Apprenticeship(agent_id=aid, site=st.site, settlement_id=st.settlement, region=st.region,
+                                    started_turn=turn, veteran=veteran, absent=0, first_site=st.site,
+                                    entry_age=p.people[aid][3], transfers=0, on_crew=0, attached=0)
+            state.apprenticeships.append(record)
+            active[aid] = record
+            _bump(state, "enrolled")
+            if veteran:
+                _bump(state, "veterans_enrolled")
+        new = set(st.new)
+        for aid in st.continuing + missed_here + st.new:
+            record = active[aid]
+            how = st.aboard.get(aid)
+            if how is not None and aid in after:
+                # RS3: every apprentice aboard this turn is a dated training
+                # placement of whoever holds an open veteran record.
+                note_outcome(world, aid, "placed:apprentice", turn=turn,
+                             detail={"site": st.site, "region": st.region, "attended": aid in st.attending})
+            p.records[aid] = record
+            seat = Seat(agent_id=aid, new=aid in new, veteran=record.veteran, outcome="missed",
+                        share=APPRENTICE_FRACTION if how == "attached" else 0.0, aboard=how,
+                        transferred_from=st.transfers_in.get(aid))
+            seats.append(seat)
+            if aid in st.attending:
+                seat.mentor = st.assigned[aid]
+                if how == "attached":
+                    forgone = receipt[aid][2] if receipt is not None and aid in receipt else None
+                    seat.income_forgone = forgone
+                    if forgone is not None:
+                        record.income_forgone += forgone
+                        _bump(state, "income_forgone", forgone)
+                if aid not in after:              # died later in the tick: the turn does not count
+                    seat.outcome, seat.reason = "ended", "died"
+                    _end(state, record, turn, "died")
+                    active.pop(aid)
+                    continue
+                seat.outcome = "attended"
+                record.attended += 1
+                record.gap = 0
+                record.absent = 0
+                record.last_attended_turn = turn
+                if how == "crew":
+                    record.on_crew = (record.on_crew or 0) + 1
+                    _bump(state, "apprentice_turns_on_crew")
+                else:
+                    record.attached = (record.attached or 0) + 1
+                    _bump(state, "apprentice_turns_attached")
+                if seat.mentor not in record.mentors and len(record.mentors) < MAX_MENTORS:
+                    record.mentors.append(seat.mentor)
+                _bump(state, "apprentice_turns_attended")
+                if how == "attached":
+                    seat.stipend_due = math.floor(seat.share * STIPEND_PER_WORK + 0.5)
+                    p.stipends.setdefault(st.site, {})[aid] = seat.stipend_due
+                if record.attended >= COMPLETION_TURNS:
+                    completed.append(aid)
+                    _bump(state, "completions")
+                    record.granted = bool(train and _grant(state, aid, turn, st, "apprenticeship",
+                                                           after[aid][:2]))
+                    if record.granted:
+                        _bump(state, "completions_granted")
+                    if len(graduates) < MAX_QUALIFIED:
+                        graduates[aid] = GraduateRecord(agent_id=aid, completed_turn=turn, site=st.site,
+                                                        region=st.region, granted=record.granted)
+                        _bump(state, "graduates")
+                    else:
+                        _bump(state, "graduates_refused_cap")
+                    seat.ending = "completed"
+                    _end(state, record, turn, "completed")
+                    active.pop(aid)
+                continue
+            seat.reason = st.missed[aid]
+            if _miss_v2(state, record, seat, turn):
+                active.pop(aid)
+        service_qualified = []
+        useful: dict = {}
+        if st.operating:
+            _bump(state, "operating_site_turns")
+            _bump(state, "mentor_turns", len(set(st.assigned.values())))
+            _bump(state, "upkeep_work", st.upkeep_work)
+            _bump(state, "upkeep_offset", st.offset)
+            _bump(state, "wear", st.wear)
+            _bump(state, "teaching_work", st.teaching_work)
+            # Useful work: who kept the site this turn.
+            by_via, per = _upkeep_split(st, p)
+            on_crew_graduates = [a for a in st.crew if a in p.graduates]
+            by_graduates = sum((per.get(a, 0.0) for a in on_crew_graduates), 0.0)
+            for aid in on_crew_graduates:
+                g = graduates.get(aid)
+                if g is not None:
+                    g.crew_turns += 1
+                    g.upkeep_offset += per.get(aid, 0.0)
+                    g.last_crew_turn = turn
+            covered = bool(st.qualified_on_crew)
+            full_offset = st.offset >= st.wear
+            _bump(state, "qualified_crew_turns", len(st.qualified_on_crew))
+            _bump(state, "graduate_crew_turns", len(on_crew_graduates))
+            _bump(state, "covered_site_turns", int(covered))
+            _bump(state, "full_offset_site_turns", int(full_offset))
+            _bump(state, "upkeep_offset_apprenticeship", by_via["apprenticeship"])
+            _bump(state, "upkeep_offset_service", by_via["service"])
+            _bump(state, "upkeep_offset_graduates", by_graduates)
+            useful = dict(graduates_on_crew=on_crew_graduates, covered=covered, full_offset=full_offset,
+                          offset_by_via=by_via, offset_by_graduates=by_graduates)
+            held = {q.agent_id for q in state.qualifications}
+            for aid in st.crew:
+                if aid in held:
+                    continue
+                _bump(state, "crew_turns_served")
+                rec = service.get(aid)
+                if rec is None:
+                    rec = service[aid] = ServiceRecord(agent_id=aid, last_turn=turn, last_site=st.site)
+                rec.crew_turns += 1
+                rec.last_turn, rec.last_site = turn, st.site
+                if rec.crew_turns >= SERVICE_TURNS and aid in after:
+                    if _grant(state, aid, turn, st, "service", after[aid][:2]):
+                        service_qualified.append(aid)
+                        del service[aid]
+                        if aid in active and active[aid].site == st.site:
+                            # An apprentice of this site on its crew qualified
+                            # by service first (the apprenticeship ends so).
+                            seat = next(s for s in seats if s.agent_id == aid)
+                            seat.ending = "service_qualified"
+                            _end(state, active.pop(aid), turn, "service_qualified")
+        if not st.in_region:
+            _bump(state, "sites_without_qualified_turns")
+        frame.append(SiteReceipt(
+            turn=turn, site=st.site, region=st.region, settlement_id=st.settlement,
+            controller=st.controller, operating=st.operating, crew=list(st.crew),
+            qualified_present=list(st.present), qualified_in_region=list(st.in_region),
+            qualified_on_crew=list(st.qualified_on_crew),
+            mentors=sorted(set(st.assigned.values())), crew_work=st.crew_work, craft_work=st.craft_work,
+            upkeep_work=st.upkeep_work, teaching_work=st.teaching_work,
+            condition_before=st.condition_before, wear=st.wear, upkeep_offset=st.offset,
+            net_wear=st.net_wear, condition_after=st.condition_after, residents=st.residents,
+            candidates=st.candidates, eligible=st.eligible, seat_capacity=st.capacity, seats=seats,
+            service_qualified=service_qualified, completed=completed, **useful))
+    kept = [r for aid, r in sorted(service.items()) if aid in after]
+    if len(kept) > MAX_SERVICE:
+        kept.sort(key=lambda r: (r.last_turn, r.crew_turns, r.agent_id))
+        _bump(state, "service_evicted", len(kept) - MAX_SERVICE)
+        kept = kept[len(kept) - MAX_SERVICE:]
+    state.service = sorted(kept, key=lambda r: r.agent_id)
+    for q in state.qualifications:
+        q.seen_turn = turn
+        q.seen_region, q.seen_settlement = after[q.agent_id][0], after[q.agent_id][1]
+    state.graduates = sorted(graduates.values(), key=lambda g: g.agent_id)
+    state.detached = detached
+    _continuity(world, state, p, frame, after)
+    state.frame = frame
+    state.frame_turn = turn
+    p.receipts = {r.site: r for r in frame}
+
+
+def _snapshot_v2(state: ApprenticeshipState, source: int, fresh: bool) -> dict:
+    return {
+        "schema_version": 2, "rules_version": 2, "stage": "RS1", "mode": state.mode, "source_turn": source,
+        "units": {"stipend": "milli_treasury_units", "work": "person_turns", "milli": 1000},
+        "qualifications": [q.model_dump() for q in state.qualifications],
+        "retired": [q.model_dump() for q in state.retired],
+        "apprenticeships": [a.model_dump() for a in state.apprenticeships],
+        "archive": [a.model_dump() for a in state.archive],
+        "graduates": [g.model_dump() for g in state.graduates or []],
+        "sites": [s.model_dump() for s in state.sites],
+        "events": [e.model_dump() for e in state.events],
+        # None: no completed apprenticeship pass in the source turn (unknown, not zero).
+        "receipts": [r.model_dump() for r in state.frame] if fresh else None,
+        "detached": [s.model_dump() for s in state.detached or []] if fresh else None,
+        "continuity": dict(state.continuity) if fresh and state.continuity else None,
+        "counters": {k: state.counters[k] for k in COUNTERS if k in state.counters},
+        "parameters": {
+            "service_turns": SERVICE_TURNS, "operating_wear": _ow.OPERATING_WEAR, "upkeep_share": UPKEEP_SHARE,
+            "wear_per_upkeep_work": WEAR_PER_UPKEEP_WORK, "teach_share": TEACH_SHARE,
+            "per_mentor": PER_MENTOR, "per_site": PER_SITE, "apprentice_fraction": APPRENTICE_FRACTION,
+            "long_absence_turns": MAX_GAP, "completion_turns": COMPLETION_TURNS,
+            "stipend_per_work": STIPEND_PER_WORK, "max_entry_age": max_entry_age(),
+        },
+    }
+
+
 def phase10(world, acc, economy_result, agent_bridge) -> list:
     """Pay this turn's stipends from the sites' firm cash after wages (L6a on),
     exactly once, then close the turn."""
@@ -908,6 +1462,8 @@ def snapshot_summary(world) -> dict:
     state = _state(world)
     source = world.turn - 1
     fresh = state.frame_turn == source
+    if _v2(state):
+        return _snapshot_v2(state, source, fresh)
     return {
         "schema_version": 1, "stage": "RS1", "mode": state.mode, "source_turn": source,
         "units": {"stipend": "milli_treasury_units", "work": "person_turns", "milli": 1000},
@@ -922,7 +1478,7 @@ def snapshot_summary(world) -> dict:
         "continuity": dict(state.continuity) if fresh and state.continuity else None,
         "counters": {k: state.counters[k] for k in COUNTERS if k in state.counters},
         "parameters": {
-            "service_turns": SERVICE_TURNS, "operating_wear": OPERATING_WEAR, "upkeep_share": UPKEEP_SHARE,
+            "service_turns": SERVICE_TURNS, "operating_wear": _ow.OPERATING_WEAR, "upkeep_share": UPKEEP_SHARE,
             "wear_per_upkeep_work": WEAR_PER_UPKEEP_WORK, "teach_share": TEACH_SHARE,
             "per_mentor": PER_MENTOR, "per_site": PER_SITE, "apprentice_fraction": APPRENTICE_FRACTION,
             "max_gap": MAX_GAP, "completion_turns": COMPLETION_TURNS, "stipend_per_work": STIPEND_PER_WORK,
