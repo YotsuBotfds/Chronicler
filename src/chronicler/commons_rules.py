@@ -186,12 +186,19 @@ def effective_limit(quota: float, stock_cap: float, cover: float) -> float:
 
 
 def institution_share(world, civ) -> float:
-    """The wardens' share Commons Management supplies: legitimacy x this
-    turn's institution funding ratio, for an institution enacted before this
-    turn; 0 without one (or with governance off)."""
+    """The wardens' share Commons Management supplies: legitimacy x the last
+    settled institution funding ratio, for an institution enacted before this
+    turn; 0 without one, with stale funding or with governance off.
+
+    Rules are planned in Phase 2 before this turn's institutions are funded
+    (``apply_automatic_effects``), so the last settled ratio is the previous
+    turn's: a dated observation, like the stock. A lead review on 2026-11-05
+    found that requiring this turn's funding made the share 0 in every real
+    turn."""
     from chronicler.governance_runtime import governance_enabled
     gov = getattr(civ, "governance", None)
-    if gov is None or not governance_enabled(world) or gov.funding_turn != world.turn:
+    funded = getattr(gov, "funding_turn", None) if gov is not None else None
+    if gov is None or not governance_enabled(world) or funded is None or not world.turn - 1 <= funded <= world.turn:
         return 0.0
     for inst in gov.institutions:
         if inst.institution_type == "commons_management" and inst.enacted_turn < world.turn:

@@ -59,9 +59,15 @@ zero while the observed water gate is closed.
 
 - **Bill.** A rule needs `ADMIN_COST` (2) coins of wardens per turn.
 - **Commons Management.** A controller holding a Commons Management institution enacted before
-  this turn supplies the share `legitimacy x this turn's institution funding ratio` of the
-  wardens from the enforcement governance already paid in Phase 2. With governance off, or no
-  such institution, the share is 0.
+  this turn supplies the share `legitimacy x the last settled institution funding ratio` of
+  the wardens. Rules are planned in Phase 2 before this turn's institutions are funded, so
+  that ratio is the previous turn's (a dated observation, like the stock); older funding is
+  stale and counts 0. With governance off, or no such institution, the share is 0.
+  A lead review on 2026-11-05 found that the first landing required this turn's funding,
+  which made the share 0 in every real turn (only a unit test that set the funding turn by
+  hand exercised it). It now has a regression test in the real phase order. The development
+  evidence below predates the correction; no protected stand's owner held the institution
+  there, so its numbers are unaffected.
 - **Treasury.** The treasury is billed `ceil((1 - share) x ADMIN_COST)` whole coins.
 - **Planning.** The bill is planned before the native tick against the projected treasury
   (`mutual_aid._treasury_budget`, which replays queued `keep` changes). It first leaves room for

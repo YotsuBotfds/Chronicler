@@ -614,3 +614,21 @@ def test_exact_pickle_and_json_round_trip():
     bare = CommonsRulesState.__new__(CommonsRulesState)
     bare.__setstate__(raw)
     assert bare._plan is None and bare.model_dump_json() == state.model_dump_json()
+
+
+def test_commons_management_uses_the_last_settled_funding_in_real_phase_order():
+    """Regression: rules are planned in Phase 2 before this turn's institutions
+    are funded, so at planning the governance record holds the previous turn's
+    funding. That dated ratio must count; older funding is stale."""
+    from chronicler.governance_runtime import set_governance_enabled
+    from chronicler.governance_state import CivGovernance, GovernanceInstitution
+    world = _adopted()
+    set_governance_enabled(world, True)
+    civ = world.civilizations[THORN_OWNER]
+    civ.governance = CivGovernance(institutions=[GovernanceInstitution(
+        institution_type="commons_management", enacted_turn=0, legitimacy=0.5, opposing_faction="cultural")])
+    civ.governance.funding_turn = world.turn - 1        # what Phase 2 planning actually sees
+    civ.governance.last_institution_funding_ratio = 1.0
+    assert cr.institution_share(world, civ) == 0.5
+    civ.governance.funding_turn = world.turn - 2        # stale: not funded last turn
+    assert cr.institution_share(world, civ) == 0.0
