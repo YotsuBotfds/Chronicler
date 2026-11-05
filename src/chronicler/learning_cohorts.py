@@ -230,7 +230,7 @@ def before_agent_tick(world, agent_bridge, economy_result) -> None:
                 ct.reserved.append(aid)
                 rows.append((aid, cohort.region, ATTENDANCE_FRACTION))
         turns.append(ct)
-    for (seat_id, seat), (_members, recruits, counts) in zip(forming, plans[len(open_):], strict=True):
+    for (seat_id, seat), (_members, recruits, _counts) in zip(forming, plans[len(open_):], strict=True):
         if len(recruits) < MIN_COHORT:
             continue
         cohort = Cohort(cohort_id=state.next_cohort_id + sum(t.new for t in turns), seat_id=seat_id,
@@ -267,7 +267,7 @@ def _no_session_reason(ct: _CohortTurn, receipt) -> str:
 
 def after_agent_tick(world, agent_bridge) -> list:
     """Commit exits, attendance, progress and completions of the finished tick."""
-    from chronicler.learning_services import CRAFTS_PER_LEARNER, LEARNERS_PER_SCHOLAR
+    from chronicler.learning_services import CRAFTS_PER_LEARNER
     state = _state(world)
     pending, state._pending = state._pending, None
     if pending is None:
@@ -281,12 +281,11 @@ def after_agent_tick(world, agent_bridge) -> list:
             sim.cancel_learning_attendance(turn)
             raise RuntimeError("native learning attendance was not consumed by the tick")
         delivered, rows = result
-        for aid, region, fraction, code, income, charged in rows:
+        for aid, region, _fraction, code, income, charged in rows:
             outcomes[aid] = (region, ATTENDANCE_OUTCOMES[code], float(income), float(charged))
     services = world.scholarship.learning_services
     teaching = {r.seat_id: r for r in (services.teaching_receipts or []) if r.source_turn == turn}
     _bump(state, "academy_turns", pending.academies)
-    grants: list[tuple[int, int, float]] = []
     pending_completion: dict[int, tuple[_CohortTurn, CohortMember]] = {}
     receipts = []
     for ct in pending.cohorts:
@@ -311,7 +310,7 @@ def after_agent_tick(world, agent_bridge) -> list:
         work = receipt.work_delivered if receipt is not None else None
         learners_delivered = receipt.learners_delivered if receipt is not None else None
         if delivered and cohort.region < len(delivered):
-            native_work, seats = delivered[cohort.region]
+            native_work, _seats = delivered[cohort.region]
             if (work is None and native_work > 0) or (work is not None and abs(work - native_work) > 1e-9):
                 raise RuntimeError("native learner seats do not match the academy's delivered teaching")
         active = {m.agent_id: m for m in cohort.members if m.status == "active"}

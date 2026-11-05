@@ -549,4 +549,31 @@ mod tests {
         assert!(grant(&mut pool, &[(id, 1, -0.1)]).is_err());
         assert!(grant(&mut pool, &[(id, 1, 0.1), (id, 2, 0.1)]).is_err());
     }
+
+    fn military(pool: &AgentPool, regions: &[crate::region::RegionState]) -> Vec<(u8, u32)> {
+        use arrow::array::{Array, UInt32Array, UInt8Array};
+        let batch = pool.compute_aggregates(regions).unwrap();
+        let civ = batch.column(0).as_any().downcast_ref::<UInt8Array>().unwrap();
+        let mil = batch.column(2).as_any().downcast_ref::<UInt32Array>().unwrap();
+        (0..civ.len()).map(|i| (civ.value(i), mil.value(i))).collect()
+    }
+
+    #[test]
+    fn a_migrant_graduate_counts_in_the_new_controllers_capacity() {
+        let mut regions = vec![crate::region::RegionState::new(0), crate::region::RegionState::new(1)];
+        regions[0].controller_civ = 0;
+        regions[1].controller_civ = 1;
+        let mut pool = AgentPool::new(4);
+        let s = spawn(&mut pool, 0, Occupation::Soldier, 30);
+        let id = pool.ids[s];
+        pool.skills[s * 5 + 1] = 0.3;
+        let before = military(&pool, &regions);
+        grant(&mut pool, &[(id, 1, 0.25)]).unwrap();
+        let home = military(&pool, &regions);
+        assert!(home[0].1 > before[0].1 && home[1] == before[1]);
+        // Migration (as the tick applies it) carries the skill to region 1's ruler.
+        pool.set_region(s, 1);
+        let moved = military(&pool, &regions);
+        assert_eq!((moved[0].1, moved[1].1), (0, home[0].1));
+    }
 }
