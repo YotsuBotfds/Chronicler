@@ -225,3 +225,33 @@ def test_exact_resume_mid_construction_with_crews_health_and_teaching(tmp_path, 
     assert any(r["allocated"] > 0 for h in b["history"][20:] for r in h["livelihoods"]["workshops"]["receipts"] or [])
     assert a["history"] == b["history"] and a["world_state"] == b["world_state"]
     assert (straight / "state.json").read_bytes() == (resumed / "state.json").read_bytes()
+
+
+def test_a_legacy_resume_does_not_bind_cohort_progress_to_the_new_pools_people(tmp_path):
+    """Lifecycle (stable ids are pool-scoped): a legacy state-file resume
+    spawns a new native pool from region populations, with new people under
+    reused ids (checkpoint-continuation.md, section 2; the war rosters rebind
+    for this reason). L5 progress belongs to the person who attended, so the
+    resumed turn must not seat the new pool's people under the old members'
+    ids and carry their predecessors' sessions toward a skill grant."""
+    from chronicler.agent_bridge import AgentBridge
+    from chronicler.models import WorldState
+    world, bridge, region = _academy_world()
+    for _ in range(3):
+        state = _academy_turn(world, bridge, region)
+    members = {m.agent_id: m.attended for m in state.cohorts[0].members if m.status == "active"}
+    assert members and all(n == 2 for n in members.values())
+    old = {r["id"]: r for r in pa.record_batch(bridge._sim.get_snapshot()).to_pylist()}
+    path = tmp_path / "state.json"
+    world.save(path)
+    bridge.close()
+    resumed = WorldState.load(path)                        # main.py's legacy-state resume
+    fresh = AgentBridge(resumed, mode="hybrid")
+    new = {r["id"]: r for r in pa.record_batch(fresh._sim.get_snapshot()).to_pylist()}
+    # Not vacuous: the old ids name different people in the new pool.
+    assert any(aid in new and new[aid]["age"] != old[aid]["age"] for aid in members)
+    state = _academy_turn(resumed, fresh, region)
+    credited = [m.agent_id for c in state.cohorts for m in c.members
+                if m.agent_id in members and m.attended > members[m.agent_id]]
+    assert credited == [], "a new pool's people inherited cohort progress under reused ids"
+    fresh.close()
