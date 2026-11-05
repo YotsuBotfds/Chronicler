@@ -38,7 +38,7 @@ from chronicler.world_gen import generate_world
 
 RS = ("apprenticeship", "repair_projects", "veteran_reintegration", "remittances", "clearing_protection")
 #: Packages whose lane replaced the inert RS0 stub (their own tests cover them).
-IMPLEMENTED = {"clearing_protection", "remittances", "veteran_reintegration"}
+IMPLEMENTED = {"clearing_protection", "remittances", "veteran_reintegration", "apprenticeship"}
 MODE_KEYS = {"apprenticeship": "apprenticeship_mode", "repair_projects": "repair_mode",
              "veteran_reintegration": "veteran_mode", "remittances": "remittance_mode",
              "clearing_protection": "clearing_protection_mode"}
@@ -47,6 +47,9 @@ MODES = {"apprenticeship_mode": ("train", "no_qualification"), "repair_mode": ("
          "clearing_protection_mode": ("enforced", "cost_only")}
 MODULES = {"apprenticeship": A, "repair_projects": RP, "veteran_reintegration": VR,
            "remittances": RM, "clearing_protection": CP}
+#: Switches that leave workshop operation untouched while nobody qualifies
+#: (apprenticeship adds operating wear and upkeep time: tests/test_apprenticeship.py).
+STUBS = tuple(name for name in RS if name != "apprenticeship")
 #: Flags that satisfy every RS prerequisite on a world with cities.
 ALL_ON = ["--workshops", "--apprenticeship", "--repair-projects", "--veteran-reintegration",
           "--remittances", "--clearing-protection"]
@@ -308,9 +311,8 @@ def test_state_round_trips_through_json_and_pickle(world):
 def test_cross_lane_stubs_are_inert(world):
     configure_livelihoods(world, parse(*ALL_ON), agent_mode="hybrid")
     before = world.model_dump_json()
+    # RS1 landed: with no qualification held its cross-lane API is still empty.
     assert A.qualified_ids(world, 0) == [] and VR.priority_ids(world, 3) == []
-    assert A.before_crews(world, None, [(0, 1, 2, 0.2, 8)]) is None
-    assert A.operating_wear(world, None) == 0.0
     assert RP.legacy_workshop_repair_allowed(world) is True
     for kind in OUTCOMES:
         assert VR.note_outcome(world, 7, kind, turn=3, detail={"site": 0}) is None
@@ -384,9 +386,18 @@ def _run(world, turns=9):
     return sim, batches
 
 
+def _inert_rs1(monkeypatch):
+    """Replace the landed RS1 hooks the workshop seams call with inert ones, so
+    these RS0 seam tests keep testing only the seams (RS1 has its own tests)."""
+    monkeypatch.setattr(A, "before_crews", lambda w, s, requests: None)
+    monkeypatch.setattr(A, "crew_priority_ids", lambda w: [])
+    monkeypatch.setattr(A, "crew_maintenance", lambda w, site, row: 0.0)
+    monkeypatch.setattr(A, "operating_wear", lambda w, site: 0.0)
+
+
 def test_stub_switches_leave_workshop_operation_identical():
     plain, stubbed = _ws_world(), _ws_world()
-    _enable(stubbed, *RS)
+    _enable(stubbed, *STUBS)
     sim_a, batches_a = _run(plain)
     sim_b, batches_b = _run(stubbed)
     assert batches_a == batches_b and sim_a.calls == sim_b.calls
@@ -422,6 +433,7 @@ def test_before_crews_runs_first_only_while_apprenticeship_is_active(monkeypatch
     world = _ws_world()
     seen = []
     sim = _Sim()
+    _inert_rs1(monkeypatch)
     monkeypatch.setattr(A, "before_crews", lambda w, s, requests: seen.append((s, list(requests), len(s.calls))))
     _turn(world, sim)
     assert seen == []
@@ -470,6 +482,7 @@ def test_operating_wear_touches_condition_only_when_positive(monkeypatch):
     world, sim = _built_site_world()
     sites = world.livelihoods.workshops.sites
     sites[0].condition = 0.8125
+    _inert_rs1(monkeypatch)
     _enable(world, "apprenticeship")
     _turn(world, sim)
     assert sites[0].condition == 0.8125                    # stub wear 0.0: untouched
@@ -487,6 +500,7 @@ def test_operating_wear_touches_condition_only_when_positive(monkeypatch):
 
 def test_unfunded_or_non_operating_sites_never_read_operating_wear(monkeypatch):
     world, sim = _built_site_world()
+    _inert_rs1(monkeypatch)
     _enable(world, "apprenticeship")
     monkeypatch.setattr(A, "operating_wear", lambda w, site: pytest.fail("read for a non-operating site"))
     world.civilizations[0].treasury = 0

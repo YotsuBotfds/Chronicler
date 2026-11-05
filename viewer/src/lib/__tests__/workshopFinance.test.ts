@@ -28,6 +28,19 @@ describe("workshop finance reader", () => {
     expect(workshopFinanceAt(snap({ ...payroll, firms: [firm, firm, firm, firm, firm] }), 3)).toBeNull();
   });
 
+  it("closes RS1 apprentice stipends paid from firm cash", () => {
+    const paidFirm = { ...firm, cash: firm.cash - 250, totals: { ...firm.totals, stipends: 250 } };
+    const paidReceipt = { ...receipt, stipends: 250, cash_close: receipt.cash_close - 250 };
+    const stipend = { ...payroll.transfers.money[0], id: "wp:4:stipend:0:9", kind: "stipend",
+      payer: ["workshop_cash", 0], payee: ["agent_wealth", 9], amount: 250, applied: 250, residual: 0 };
+    const transfers = { ...payroll.transfers, money: [...payroll.transfers.money, stipend] };
+    const record = workshopFinanceAt(snap({ ...payroll, firms: [paidFirm], receipts: [paidReceipt], transfers }), 3);
+    expect(record?.receipts?.[0].stipends).toBe(250);
+    // A stipend that left the cash but is not recorded does not close.
+    expect(workshopFinanceAt(snap({ ...payroll, firms: [{ ...firm, cash: firm.cash - 250 }] }), 3)).toBeNull();
+    expect(workshopFinanceAt(snap({ ...payroll, receipts: [{ ...receipt, stipends: 250 }] }), 3)).toBeNull();
+  });
+
   it("keeps unobserved turns and unknown income unknown, not zero", () => {
     const unobserved = workshopFinanceAt(snap({ ...payroll, receipts: null, transfers: null }), 3);
     expect(unobserved?.receipts).toBeNull();

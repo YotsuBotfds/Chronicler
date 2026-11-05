@@ -26,8 +26,9 @@ PAYROLL_MODES: tuple[str, ...] = ("paid", "unpaid_labor", "no_customer")
 FIRM_CLOSE_REASONS: tuple[str, ...] = ("insolvent", "city_fell", "city_missing", "region_changed")
 #: Money transfer kinds (append only). ``sale``: buyer treasury -> firm cash;
 #: ``wage``: firm cash -> agent wealth; ``distribution``: firm cash -> owner
-#: treasury; ``write_off``: firm cash -> named sink (no owner, sub-unit rest).
-MONEY_KINDS: tuple[str, ...] = ("sale", "wage", "distribution", "write_off")
+#: treasury; ``write_off``: firm cash -> named sink (no owner, sub-unit rest);
+#: ``stipend`` (RS1): firm cash -> an apprentice's wealth.
+MONEY_KINDS: tuple[str, ...] = ("sale", "wage", "distribution", "write_off", "stipend")
 #: Material transfer kinds (append only). ``title``: region market -> firm
 #: inventory; ``delivery``: firm inventory -> academy inventory; ``wear``:
 #: firm inventory -> named sink; ``return``: firm inventory -> region market.
@@ -39,6 +40,11 @@ ACCOUNT_KINDS: tuple[str, ...] = (
 )
 
 MAX_OWED = 16
+
+
+def _is_none(value) -> bool:
+    return value is None
+
 MAX_CLOSED = 8
 MAX_HISTORY = 16
 MAX_TRANSFERS = 512
@@ -144,6 +150,9 @@ class PayrollReceipt(BaseModel):
     hours_next: float | None = None
     crew_cap_next: int | None = None
     event: str | None = None
+    #: RS1 apprentice stipends paid from cash after this receipt's payroll pass
+    #: (``cash_close`` already net of them); absent unless apprenticeship paid one.
+    stipends: int | None = Field(default=None, exclude_if=_is_none)
 
 
 class WorkshopPayrollState(BaseModel):

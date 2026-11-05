@@ -26,10 +26,13 @@ export interface PayrollReceiptRecord {
   worn: number; returned: number; distributed: number; written_off: number;
   cash_close: number; inventory_close: number; insolvent: boolean;
   hours_next: number | null; crew_cap_next: number | null; event: string | null;
+  /** RS1 apprentice stipends paid from cash after the payroll pass; absent unless one was paid. */
+  stipends?: number;
 }
 
 export interface MoneyTransferRecord {
-  id: string; turn: number; phase: "phase2" | "phase10"; kind: "sale" | "wage" | "distribution" | "write_off";
+  id: string; turn: number; phase: "phase2" | "phase10";
+  kind: "sale" | "wage" | "distribution" | "write_off" | "stipend";
   payer: [string, number]; payee: [string, number]; amount: number; applied: number; residual: number; status: string;
 }
 
@@ -54,7 +57,7 @@ const finite = (x: unknown): x is number => typeof x === "number" && Number.isFi
 const count = (x: unknown): x is number => finite(x) && Number.isInteger(x) && x >= 0;
 const amount = (x: unknown): x is number => finite(x) && x >= 0;
 const MODES = ["paid", "unpaid_labor", "no_customer"];
-const MONEY = ["sale", "wage", "distribution", "write_off"];
+const MONEY = ["sale", "wage", "distribution", "write_off", "stipend"];
 const MATERIAL = ["title", "delivery", "wear", "return"];
 const account = (x: unknown) => Array.isArray(x) && x.length === 2 && typeof x[0] === "string" && finite(x[1]);
 
@@ -71,10 +74,11 @@ function validFirm(x: unknown, regions: number): boolean {
     || x.owed.length > 16 || !x.owed.every((o) => object(o) && count(o.agent_id) && count(o.amount))
     || !object(x.totals)) return false;
   const t = (key: string) => total(x.totals as Record<string, unknown>, key);
-  const keys = ["sales", "wages", "distributed", "written_off", "titled", "delivered", "worn", "returned"];
+  const keys = ["sales", "wages", "distributed", "written_off", "titled", "delivered", "worn", "returned",
+    "stipends"];
   if (keys.some((k) => t(k) === null)) return false;
-  // Exact closure of the firm's accounts.
-  return x.cash === t("sales")! - t("wages")! - t("distributed")! - t("written_off")!
+  // Exact closure of the firm's accounts (RS1 apprentice stipends: absent is zero).
+  return x.cash === t("sales")! - t("wages")! - t("distributed")! - t("written_off")! - t("stipends")!
     && x.inventory === t("titled")! - t("delivered")! - t("worn")! - t("returned")!;
 }
 
@@ -88,8 +92,9 @@ function validReceipt(x: unknown, regions: number, source: number): boolean {
   if (!ints.every((k) => count(x[k]))) return false;
   if (x.income_replaced !== null && !amount(x.income_replaced)) return false;
   if (x.output !== null && !amount(x.output)) return false;
+  if (x.stipends !== undefined && !count(x.stipends)) return false;
   return x.cash_close === (x.cash_open as number) + (x.sales as number) - (x.wages_paid as number)
-      - (x.distributed as number) - (x.written_off as number)
+      - (x.distributed as number) - (x.written_off as number) - ((x.stipends as number | undefined) ?? 0)
     && x.inventory_close === (x.inventory_open as number) + (x.titled as number) - (x.sold as number)
       - (x.worn as number) - (x.returned as number);
 }
