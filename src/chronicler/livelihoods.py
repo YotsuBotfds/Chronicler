@@ -28,6 +28,11 @@ inert stub modules; their lanes add the mechanisms):
 * ``--clearing-protection`` (RS5): controller-funded protection of forest
   cover from clearing.
 
+The productive-recovery phase appends:
+
+* ``--timber-supply`` (PL1): named, paid woodcutting expeditions that carry
+  timber from a forest of the civ to its repair projects.
+
 This module owns only CLI forwarding, validation of prerequisites and the
 fan-out of phase hooks to each package's module ``chronicler.<switch>``.
 State, decisions and accounting belong to those modules. An omitted switch
@@ -74,6 +79,7 @@ LIVELIHOODS_CHOICES: dict[str, tuple[str, ...]] = {
     "veteran_mode": ("priority", "record_only"),
     "remittance_mode": ("send", "record_only"),
     "clearing_protection_mode": ("enforced", "cost_only"),
+    "timber_supply_mode": ("supply", "cost_only"),
 }
 #: All parser destinations owned here (``batch_manifest.SIMULATION_ARG_KEYS``).
 LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
@@ -88,6 +94,7 @@ LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     "veteran_reintegration", "veteran_mode",
     "remittances", "remittance_mode",
     "clearing_protection", "clearing_protection_mode",
+    "timber_supply", "timber_supply_mode",
 )
 _AGENT_ECONOMY = ("hybrid", "shadow", "demographics-only")
 
@@ -219,6 +226,18 @@ _HELP = {
         "enforced (default): the paid protection suspends clearing; cost_only: the control that "
         "adopts and pays identically but leaves the clearing unchanged"
     ),
+    "timber_supply": (
+        "Timber supply (PL1): when RS2 repair projects lack timber, a named, paid crew of adults "
+        "from the needing region (veterans first) walks to a forest of its civ or of nobody "
+        "within two hops, cuts for a season and carries the timber home to the projects; their "
+        "farm labour leaves the home economy, the harvest is debited from the L3 stock, wages "
+        "come from the controller's treasury; requires --agents hybrid, --repair-projects and "
+        "--timber-stock (default off)"
+    ),
+    "timber_supply_mode": (
+        "supply (default); cost_only: the cost-retaining control (the same expeditions, crews, "
+        "travel, wages and home labour removal, no cutting: no timber and no stock debit)"
+    ),
 }
 
 
@@ -340,6 +359,10 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
     if values["remittances"] is True and agent_mode != "hybrid":
         raise ValueError("--remittances requires --agents hybrid")
     # --clearing-protection has no prerequisite (it works in every ecology path).
+    if values["timber_supply"] is True:
+        if agent_mode != "hybrid" or not _on(world, values, "repair_projects") \
+                or not _on(world, values, "timber_stock"):
+            raise ValueError("--timber-supply requires --agents hybrid, --repair-projects and --timber-stock")
 
 
 def configure_livelihoods(world: Any, args: Any, *, agent_mode: str) -> None:
@@ -388,6 +411,7 @@ _CHOICE_FIELDS: dict[str, tuple[str, str]] = {
     "veteran_mode": ("veteran_reintegration", "mode"),
     "remittance_mode": ("remittances", "mode"),
     "clearing_protection_mode": ("clearing_protection", "mode"),
+    "timber_supply_mode": ("timber_supply", "mode"),
 }
 
 

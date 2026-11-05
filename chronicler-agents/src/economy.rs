@@ -341,6 +341,14 @@ pub struct EconomyRegionResult {
     /// `craft_output` it is all the region's production: the production
     /// ledger reconciles their sum with `ConservationSummary::production`.
     pub forage_output: f32,
+    /// PL1 timber supply: headcount farm labour the region's woodcutting
+    /// crews took away from its land (0.0 without the woodcut columns).
+    pub woodcut_labor_away_delivered: f32,
+    /// PL1 timber supply: the crews' marginal harvest on the region's first
+    /// timber slot. It is part of that slot's `slot_output` (the L3 account
+    /// debits it) but leaves with the crew: it never enters the stockpile
+    /// (`ConservationSummary::woodcut_outflow`). 0.0 without the columns.
+    pub woodcut_output: f32,
 }
 
 /// Output row per civ.
@@ -384,6 +392,9 @@ pub struct ConservationSummary {
     /// M58b: in-flight inventory change = departures - arrivals - returns.
     /// `Some` in hybrid mode, `None` in abstract mode.
     pub in_transit_delta: Option<f64>,
+    /// PL1 timber supply: woodcutting crews' harvest, counted in `production`
+    /// (it is slot output) and carried away by the crews, never stocked.
+    pub woodcut_outflow: f64,
 }
 
 impl ConservationSummary {
@@ -396,7 +407,48 @@ impl ConservationSummary {
             cap_overflow: 0.0,
             clamp_floor_loss: 0.0,
             in_transit_delta: None,
+            woodcut_outflow: 0.0,
         }
+    }
+}
+
+/// PL1 timber supply (`--timber-supply`, default off): woodcutting crews,
+/// per region (both slices one value per region input, finite and >= 0).
+pub struct WoodcutInput<'a> {
+    /// Headcount farm labour each region's crews take away from its land
+    /// (removed before granary work, as the crews are not there).
+    pub labor_away: &'a [f32],
+    /// Headcount crew labour each region's first timber slot receives.
+    pub labor: &'a [f32],
+}
+
+/// Resource type code of timber (`ResourceType.TIMBER`).
+pub const RT_TIMBER: u8 = 1;
+
+/// PL1: the slot a woodcutting crew works, the region's first timber slot.
+#[inline]
+pub fn woodcut_slot(resource_types: &[u8; 3]) -> Option<usize> {
+    resource_types.iter().position(|&rt| rt == RT_TIMBER)
+}
+
+/// PL1: effective labour on timber slot `slot` with a crew of `crew`
+/// headcount added to the residents. With slot curves the slot's own curve
+/// takes the residents' headcount on the slot (the food-first split,
+/// recomputed) plus the crew; without them the farm curve takes all farm
+/// labour, so the crew adds its marginal effective labour
+/// `E(H + crew) - E(H)` (constant returns without a farm curve) to the
+/// residents' effective labour on the slot (`resident`).
+pub fn woodcut_slot_labor(inp: &EconomyRegionInput, headcount_labor: f32, food_demand: f32,
+                          resident: f32, slot: usize, crew: f32) -> f32 {
+    if inp.slot_curves {
+        let food_curve = (inp.farm_labor_ref, inp.farm_labor_half);
+        let head = allocate_farm_labor_curved(&inp.resource_types, &inp.resource_yields, headcount_labor,
+                                              food_demand, inp.subsistence_yield, food_curve).slot_labor[slot];
+        effective_farm_labor(head + crew, inp.slot_labor_ref[slot], inp.slot_labor_half[slot])
+    } else {
+        let gain = effective_farm_labor(headcount_labor + crew, inp.farm_labor_ref, inp.farm_labor_half)
+            - effective_farm_labor(headcount_labor, inp.farm_labor_ref, inp.farm_labor_half);
+        resident + gain.max(0.0)
     }
 }
 
@@ -1015,8 +1067,35 @@ pub fn tick_economy_core_with_granary_work(
     hybrid_delivery: Option<&HybridDeliveryInput>,
     granary_work_requested: &[f32],
 ) -> EconomyOutput {
+    tick_economy_core_with_woodcut(region_inputs, agent_counts, routes, civ_merchant_wealth,
+        civ_priest_count, n_civs, region_civ_owner, config, trade_friction, is_winter, hybrid_delivery,
+        granary_work_requested, None)
+}
+
+/// [`tick_economy_core_with_granary_work`] with PL1 woodcutting crews
+/// (`None`: every output exactly as without them).
+#[allow(clippy::too_many_arguments)]
+pub fn tick_economy_core_with_woodcut(
+    region_inputs: &[EconomyRegionInput],
+    agent_counts: &[RegionAgentCounts],
+    routes: &[TradeRouteInput],
+    civ_merchant_wealth: &[f32],
+    civ_priest_count: &[u32],
+    n_civs: usize,
+    region_civ_owner: &[u8],
+    config: &EconomyConfig,
+    trade_friction: f32,
+    is_winter: bool,
+    hybrid_delivery: Option<&HybridDeliveryInput>,
+    granary_work_requested: &[f32],
+    woodcut: Option<&WoodcutInput>,
+) -> EconomyOutput {
     assert!(granary_work_requested.is_empty() || granary_work_requested.len() == region_inputs.len());
     assert!(granary_work_requested.iter().all(|v| v.is_finite() && *v >= 0.0));
+    if let Some(w) = woodcut {
+        assert!(w.labor_away.len() == region_inputs.len() && w.labor.len() == region_inputs.len());
+        assert!(w.labor_away.iter().chain(w.labor.iter()).all(|v| v.is_finite() && *v >= 0.0));
+    }
     let n_regions = region_inputs.len();
     assert_eq!(agent_counts.len(), n_regions, "agent_counts length mismatch");
 
@@ -1046,6 +1125,8 @@ pub fn tick_economy_core_with_granary_work(
     let mut slot_output: Vec<[f32; 3]> = Vec::with_capacity(n_regions);
     let mut forage_output: Vec<f32> = Vec::with_capacity(n_regions);
     let mut granary_work_delivered: Vec<f32> = Vec::with_capacity(n_regions);
+    let mut woodcut_away_delivered: Vec<f32> = Vec::with_capacity(n_regions);
+    let mut woodcut_output: Vec<f32> = Vec::with_capacity(n_regions);
     for (i, inp) in region_inputs.iter().enumerate() {
         let ac = &agent_counts[i];
         // Split a finite farmer labor budget equally across occupied slots.
@@ -1059,6 +1140,11 @@ pub fn tick_economy_core_with_granary_work(
         } else {
             ac.farmer_count as f32
         };
+        // PL1: the woodcutting crews are away; their farm labour leaves first.
+        let away = woodcut.map_or(0.0, |w| w.labor_away[i]);
+        let away_delivered = if away > 0.0 { away.min(headcount_labor) } else { 0.0 };
+        let headcount_labor = if away > 0.0 { headcount_labor - away_delivered } else { headcount_labor };
+        woodcut_away_delivered.push(away_delivered);
         let requested = granary_work_requested.get(i).copied().unwrap_or(0.0);
         let delivered = if requested > 0.0 { requested.min(headcount_labor) } else { 0.0 };
         let headcount_labor = if requested > 0.0 { headcount_labor - delivered } else { headcount_labor };
@@ -1086,6 +1172,15 @@ pub fn tick_economy_core_with_granary_work(
         };
         farm_productivity.push(productivity);
         let slot_labor = labor.slot_labor;
+        // PL1: a crew on the region's first timber slot (effective labour with it).
+        let crew = woodcut.map_or(0.0, |w| w.labor[i]);
+        let crew_labor = if crew > 0.0 {
+            woodcut_slot(&inp.resource_types).map(|s| (s, woodcut_slot_labor(inp, headcount_labor,
+                ac.population as f32 * config.per_capita_food, slot_labor[s], s, crew)))
+        } else {
+            None
+        };
+        let mut cut = 0.0f32;
         let mut production = [0.0f32; NUM_CATEGORIES];
         let mut per_good_production = [0.0f32; NUM_GOODS];
         let mut outputs = [0.0f32; 3];
@@ -1108,7 +1203,25 @@ pub fn tick_economy_core_with_granary_work(
             per_good_production[slot] += amount;
             production[slot_to_category(slot)] += amount;
             conservation.production += amount as f64;
+            // PL1: the crew's marginal harvest (the total with it, under any
+            // cap, less the residents' output) is the slot's output too, so the
+            // L3 account debits it; it leaves with the crew, never stocked.
+            if let Some((s, with_crew)) = crew_labor {
+                if s == resource_idx {
+                    let mut total = inp.resource_yields[resource_idx].max(0.0) * with_crew;
+                    if let Some(cap) = inp.production_caps[resource_idx] {
+                        total = total.min(cap.max(0.0));
+                    }
+                    if total > amount {
+                        cut = total - amount;
+                        outputs[resource_idx] = total;
+                        conservation.production += cut as f64;
+                        conservation.woodcut_outflow += cut as f64;
+                    }
+                }
+            }
         }
+        woodcut_output.push(cut);
         slot_output.push(outputs);
         let mut available = production;
         for g in 0..NUM_GOODS {
@@ -1829,6 +1942,8 @@ pub fn tick_economy_core_with_granary_work(
             slot_output: slot_output[ri],
             craft_input: w.craft_input,
             forage_output: forage_output[ri],
+            woodcut_labor_away_delivered: woodcut_away_delivered[ri],
+            woodcut_output: woodcut_output[ri],
         });
 
         // Step 7: Derive observability.
@@ -2474,6 +2589,237 @@ mod tests {
         assert!((compute_transport_cost(TERRAIN_COAST, TERRAIN_COAST, true, false, 1.0) - 0.03).abs() < 0.001);
         // Winter: 0.10 * 1.5 = 0.15
         assert!((compute_transport_cost(0, 0, false, true, 1.0) - 0.15).abs() < 0.001);
+    }
+}
+
+#[cfg(test)]
+mod woodcut_tests {
+    //! PL1 timber supply: the optional woodcutting crew inputs.
+    use super::*;
+
+    /// Region 0, a farming home (grain); region 1, a forest (grain, timber).
+    fn regions(curves: bool) -> Vec<EconomyRegionInput> {
+        let base = |region_id: u16, resource_types: [u8; 3], resource_yields: [f32; 3]| EconomyRegionInput {
+            region_id, terrain: 0, storage_population: 40, resource_types, resource_yields,
+            production_caps: [None; 3], stockpile: [0.0; NUM_GOODS], subsistence_yield: 0.0,
+            farm_labor_factor: 1.0, craft_raw_demand: 0.0, craft_demand: 0.0,
+            farm_labor_ref: 20.0, farm_labor_half: 20.0, slot_curves: curves,
+            slot_labor_ref: [0.0; 3], slot_labor_half: [0.0; 3],
+        };
+        let mut home = base(0, [0, 255, 255], [1.0, 0.0, 0.0]);
+        home.stockpile[SLOT_TIMBER] = 1.0;
+        let mut forest = base(1, [0, RT_TIMBER, 255], [1.0, 2.0, 0.0]);
+        forest.slot_labor_ref = [0.0, 10.0, 0.0];
+        forest.slot_labor_half = [0.0, 10.0, 0.0];
+        forest.stockpile[SLOT_TIMBER] = 3.0;
+        vec![home, forest]
+    }
+
+    fn counts(home_farmers: u32) -> Vec<RegionAgentCounts> {
+        vec![
+            RegionAgentCounts { population: 20, farmer_count: home_farmers, soldier_count: 2, merchant_count: 0,
+                                wealthy_count: 0 },
+            RegionAgentCounts { population: 10, farmer_count: 8, soldier_count: 0, merchant_count: 0,
+                                wealthy_count: 0 },
+        ]
+    }
+
+    fn run_with(regions: &[EconomyRegionInput], home_farmers: u32, requests: &[f32],
+                woodcut: Option<(&[f32], &[f32])>) -> EconomyOutput {
+        let input = woodcut.map(|(labor_away, labor)| WoodcutInput { labor_away, labor });
+        tick_economy_core_with_woodcut(regions, &counts(home_farmers), &[], &[0.0], &[0], 1, &[0, 0],
+            &EconomyConfig::default(), 1.0, false, None, requests, input.as_ref())
+    }
+
+    fn run(regions: &[EconomyRegionInput], requests: &[f32], woodcut: Option<(&[f32], &[f32])>) -> EconomyOutput {
+        run_with(regions, 12, requests, woodcut)
+    }
+
+    /// Every region, civ and conservation output, bit for bit.
+    fn assert_same_bits(a: &EconomyOutput, b: &EconomyOutput) {
+        assert_eq!(a.region_results.len(), b.region_results.len());
+        for (x, y) in a.region_results.iter().zip(&b.region_results) {
+            assert_eq!(x.region_id, y.region_id);
+            assert_eq!(x.food_ledger.map(f64::to_bits), y.food_ledger.map(f64::to_bits));
+            assert_eq!(x.granary_work_delivered.to_bits(), y.granary_work_delivered.to_bits());
+            assert_eq!(x.stockpile.map(f32::to_bits), y.stockpile.map(f32::to_bits));
+            assert_eq!(x.farmer_income_modifier.to_bits(), y.farmer_income_modifier.to_bits());
+            assert_eq!(x.food_sufficiency.to_bits(), y.food_sufficiency.to_bits());
+            assert_eq!(x.merchant_margin.to_bits(), y.merchant_margin.to_bits());
+            assert_eq!(x.merchant_trade_income.to_bits(), y.merchant_trade_income.to_bits());
+            assert_eq!(x.trade_route_count, y.trade_route_count);
+            assert_eq!(x.market_demand.map(f32::to_bits), y.market_demand.map(f32::to_bits));
+            assert_eq!(x.market_supply.map(f32::to_bits), y.market_supply.map(f32::to_bits));
+            assert_eq!(x.market_price.map(f32::to_bits), y.market_price.map(f32::to_bits));
+            assert_eq!(x.farm_productivity.to_bits(), y.farm_productivity.to_bits());
+            assert_eq!(x.craft_output.to_bits(), y.craft_output.to_bits());
+            assert_eq!(x.craft_sufficiency.to_bits(), y.craft_sufficiency.to_bits());
+            assert_eq!(x.slot_output.map(f32::to_bits), y.slot_output.map(f32::to_bits));
+            assert_eq!(x.craft_input.map(f32::to_bits), y.craft_input.map(f32::to_bits));
+            assert_eq!(x.forage_output.to_bits(), y.forage_output.to_bits());
+            assert_eq!(x.woodcut_labor_away_delivered.to_bits(), y.woodcut_labor_away_delivered.to_bits());
+            assert_eq!(x.woodcut_output.to_bits(), y.woodcut_output.to_bits());
+        }
+        for (x, y) in a.civ_results.iter().zip(&b.civ_results) {
+            assert_eq!((x.civ_id, x.treasury_tax.to_bits(), x.tithe_base.to_bits(), x.priest_tithe_share.to_bits()),
+                       (y.civ_id, y.treasury_tax.to_bits(), y.tithe_base.to_bits(), y.priest_tithe_share.to_bits()));
+        }
+        for (x, y) in a.observability.iter().zip(&b.observability) {
+            assert_eq!([x.imports_food, x.imports_raw_material, x.imports_luxury, x.imports_craft, x.stockpile_food,
+                        x.stockpile_raw_material, x.stockpile_luxury, x.stockpile_craft, x.import_share].map(f32::to_bits),
+                       [y.imports_food, y.imports_raw_material, y.imports_luxury, y.imports_craft, y.stockpile_food,
+                        y.stockpile_raw_material, y.stockpile_luxury, y.stockpile_craft, y.import_share].map(f32::to_bits));
+            assert_eq!(x.trade_dependent, y.trade_dependent);
+        }
+        let (c, d) = (&a.conservation, &b.conservation);
+        assert_eq!([c.production, c.transit_loss, c.consumption, c.storage_loss, c.cap_overflow, c.clamp_floor_loss,
+                    c.woodcut_outflow].map(f64::to_bits),
+                   [d.production, d.transit_loss, d.consumption, d.storage_loss, d.cap_overflow, d.clamp_floor_loss,
+                    d.woodcut_outflow].map(f64::to_bits));
+        assert_eq!(c.in_transit_delta.map(f64::to_bits), d.in_transit_delta.map(f64::to_bits));
+    }
+
+    #[test]
+    fn absent_or_zero_woodcut_columns_keep_every_output_bit() {
+        for curves in [false, true] {
+            let r = regions(curves);
+            for requests in [&[][..], &[3.0, 0.0][..]] {
+                let legacy = tick_economy_core_with_granary_work(&r, &counts(12), &[], &[0.0], &[0], 1, &[0, 0],
+                    &EconomyConfig::default(), 1.0, false, None, requests);
+                let absent = run(&r, requests, None);
+                let zero = run(&r, requests, Some((&[0.0, 0.0], &[0.0, 0.0])));
+                assert_same_bits(&legacy, &absent);
+                assert_same_bits(&legacy, &zero);
+                assert_eq!(absent.conservation.woodcut_outflow, 0.0);
+                assert!(absent.region_results.iter().all(|rr| rr.woodcut_output == 0.0
+                    && rr.woodcut_labor_away_delivered == 0.0));
+            }
+        }
+    }
+
+    #[test]
+    fn away_labour_is_delivered_up_to_the_headcount_and_is_exactly_fewer_farmers() {
+        for curves in [false, true] {
+            let r = regions(curves);
+            let away = run(&r, &[], Some((&[5.0, 0.0], &[0.0, 0.0])));
+            assert_eq!(away.region_results[0].woodcut_labor_away_delivered, 5.0);
+            // Five farmers away is the same economy as seven farmers at home.
+            let mut seven = run_with(&r, 7, &[], None);
+            seven.region_results[0].woodcut_labor_away_delivered = 5.0;
+            assert_same_bits(&away, &seven);
+            // More than the headcount: all of it, never more.
+            let all = run(&r, &[], Some((&[20.0, 0.0], &[0.0, 0.0])));
+            assert_eq!(all.region_results[0].woodcut_labor_away_delivered, 12.0);
+            assert_eq!(all.region_results[0].slot_output[0], 0.0);
+            // The crew leaves before granary work: the rest do what they can.
+            let both = run(&r, &[4.0, 0.0], Some((&[10.0, 0.0], &[0.0, 0.0])));
+            assert_eq!(both.region_results[0].woodcut_labor_away_delivered, 10.0);
+            assert_eq!(both.region_results[0].granary_work_delivered, 2.0);
+            for rr in &both.region_results {
+                assert!(rr.woodcut_labor_away_delivered <= counts(12)[rr.region_id as usize].farmer_count as f32);
+            }
+        }
+    }
+
+    #[test]
+    fn crew_output_is_the_marginal_harvest_on_the_curve_and_linear_paths() {
+        let crew = 3.0f32;
+        // Slot curves: 8 farmers split 4 / 4 (food need 5 within the equal
+        // share); the forest's own curve (10, 10) takes 4 residents, then 7.
+        let r = regions(true);
+        let without = run(&r, &[], None);
+        let with = run(&r, &[], Some((&[0.0, 0.0], &[0.0, crew])));
+        let resident = 2.0 * effective_farm_labor(4.0, 10.0, 10.0);
+        let total = 2.0 * effective_farm_labor(4.0 + crew, 10.0, 10.0);
+        let f = &with.region_results[1];
+        assert!((without.region_results[1].slot_output[1] - resident).abs() < 1e-5);
+        assert!((f.slot_output[1] - total).abs() < 1e-5);
+        assert!((f.woodcut_output - (total - resident)).abs() < 1e-5);
+        assert_eq!(f.slot_output[1], without.region_results[1].slot_output[1] + f.woodcut_output);
+        // Linear: the farm curve (20, 20) takes all 8 farmers (E = 80 / 7),
+        // half on timber; the crew adds E(11) - E(8) on the slot.
+        let r = regions(false);
+        let without = run(&r, &[], None);
+        let with = run(&r, &[], Some((&[0.0, 0.0], &[0.0, crew])));
+        let gain = effective_farm_labor(8.0 + crew, 20.0, 20.0) - effective_farm_labor(8.0, 20.0, 20.0);
+        let resident = without.region_results[1].slot_output[1];
+        assert!((resident - effective_farm_labor(8.0, 20.0, 20.0)).abs() < 1e-5);
+        assert!((with.region_results[1].woodcut_output - 2.0 * gain).abs() < 1e-5);
+        // A forest nobody lives in: the crew harvests on the empty curve.
+        let mut nobody = counts(12);
+        nobody[1] = RegionAgentCounts { population: 0, farmer_count: 0, soldier_count: 0, merchant_count: 0,
+                                        wealthy_count: 0 };
+        let empty = tick_economy_core_with_woodcut(&regions(true), &nobody, &[], &[0.0], &[0], 1, &[0, 0],
+            &EconomyConfig::default(), 1.0, false, None, &[],
+            Some(&WoodcutInput { labor_away: &[0.0, 0.0], labor: &[0.0, crew] }));
+        let e = &empty.region_results[1];
+        assert!((e.woodcut_output - 2.0 * effective_farm_labor(crew, 10.0, 10.0)).abs() < 1e-5);
+        assert_eq!(e.slot_output[1], e.woodcut_output);
+        // No timber slot, or no crew: nothing.
+        assert_eq!(with.region_results[0].woodcut_output, 0.0);
+    }
+
+    #[test]
+    fn an_l3_cap_binds_the_total_residents_first() {
+        for curves in [false, true] {
+            let mut r = regions(curves);
+            let resident = run(&r, &[], None).region_results[1].slot_output[1];
+            // A cap above the residents' harvest: the crew takes what is left.
+            r[1].production_caps[1] = Some(resident + 0.5);
+            let capped = run(&r, &[], Some((&[0.0, 0.0], &[0.0, 3.0])));
+            let f = &capped.region_results[1];
+            assert_eq!(f.slot_output[1], resident + 0.5);
+            assert!((f.woodcut_output - 0.5).abs() < 1e-5);
+            // A cap the residents already reach: the crew cuts nothing.
+            r[1].production_caps[1] = Some(resident * 0.5);
+            let bound = run(&r, &[], Some((&[0.0, 0.0], &[0.0, 3.0])));
+            assert_eq!(bound.region_results[1].woodcut_output, 0.0);
+            assert_eq!(bound.region_results[1].slot_output[1], resident * 0.5);
+            assert_same_bits(&bound, &run(&r, &[], None));
+        }
+    }
+
+    #[test]
+    fn crew_harvest_is_slot_output_but_never_stock() {
+        for curves in [false, true] {
+            let r = regions(curves);
+            let without = run(&r, &[], None);
+            let with = run(&r, &[], Some((&[0.0, 0.0], &[0.0, 3.0])));
+            let (a, b) = (&without.region_results[1], &with.region_results[1]);
+            assert!(b.woodcut_output > 0.0);
+            assert_eq!(b.slot_output[1], a.slot_output[1] + b.woodcut_output);
+            // The forest's stock, prices, food and farm signals are untouched.
+            assert_eq!(a.stockpile.map(f32::to_bits), b.stockpile.map(f32::to_bits));
+            assert_eq!(a.market_supply.map(f32::to_bits), b.market_supply.map(f32::to_bits));
+            assert_eq!(a.market_price.map(f32::to_bits), b.market_price.map(f32::to_bits));
+            assert_eq!(a.farmer_income_modifier.to_bits(), b.farmer_income_modifier.to_bits());
+            assert_eq!(a.farm_productivity.to_bits(), b.farm_productivity.to_bits());
+            assert_eq!(a.food_ledger.map(f64::to_bits), b.food_ledger.map(f64::to_bits));
+            assert_eq!(with.region_results[0].stockpile.map(f32::to_bits),
+                       without.region_results[0].stockpile.map(f32::to_bits));
+        }
+    }
+
+    #[test]
+    fn conservation_closes_with_the_woodcut_outflow() {
+        for curves in [false, true] {
+            let r = regions(curves);
+            let without = run(&r, &[], Some((&[4.0, 0.0], &[0.0, 0.0])));
+            let with = run(&r, &[], Some((&[4.0, 0.0], &[0.0, 3.0])));
+            let cut: f64 = with.region_results.iter().map(|rr| rr.woodcut_output as f64).sum();
+            assert!(cut > 0.0);
+            assert_eq!(with.conservation.woodcut_outflow, cut);
+            // Production counts the harvest; less the outflow it is what was stocked.
+            assert!((with.conservation.production - with.conservation.woodcut_outflow
+                     - without.conservation.production).abs() < 1e-9);
+            let slots: f64 = with.region_results.iter()
+                .map(|rr| rr.slot_output.iter().map(|&x| x as f64).sum::<f64>() + rr.forage_output as f64).sum();
+            assert!((slots - with.conservation.production).abs() < 1e-5);
+            // Every other flow is the crew-free economy's, bit for bit.
+            let (c, d) = (&with.conservation, &without.conservation);
+            assert_eq!([c.consumption, c.storage_loss, c.cap_overflow, c.clamp_floor_loss].map(f64::to_bits),
+                       [d.consumption, d.storage_loss, d.cap_overflow, d.clamp_floor_loss].map(f64::to_bits));
+        }
     }
 }
 

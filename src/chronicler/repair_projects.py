@@ -193,6 +193,7 @@ class _Turn:
         self.receipts: list[RepairReceipt] = []
         self.ledger: list[CivLedger] = []
         self.suspended: list[int] = []
+        self.store_holds: dict[int, float] = {}   # PL1: the part of each hold taken from the store
 
 
 def _state(world) -> RepairProjectsState | None:
@@ -367,7 +368,47 @@ def _free_timber(world, region: int, commitments: dict, held: float) -> float:
     committed = float(commitments.get(r.name, {}).get("timber", 0.0))
     if not all(math.isfinite(x) and x >= 0 for x in (stock, committed)):
         raise ValueError("invalid timber stock or merchant commitment")
+    store = _store(world, region)
+    if store > 0.0:
+        # PL1: the woodcutters' earmarked store is read ahead of the stockpile.
+        return max(0.0, max(0.0, stock - committed) + store - held)
     return max(0.0, stock - committed - held)
+
+
+def _store(world, region: int) -> float:
+    """PL1 seam: the region's earmarked timber store (``timber_supply``), free
+    timber only RS2 may use; 0.0 unless timber supply is active."""
+    if not _lane_active(world, "timber_supply"):
+        return 0.0
+    from chronicler.timber_supply import store_free
+    return store_free(world, region)
+
+
+def _take_store(world, t, region: int, amount: float) -> float:
+    """PL1 seam: a region's hold takes from the store first; returns that part."""
+    if not _lane_active(world, "timber_supply"):
+        return 0.0
+    from chronicler.timber_supply import take_store
+    taken = take_store(world, region, amount)
+    if taken:
+        t.store_holds[region] = taken
+    return taken
+
+
+def _return_store(world, t, region: int, returned: float) -> float:
+    """PL1 seam: the store's part of unused held timber goes back to it."""
+    if not t.store_holds.get(region):
+        return 0.0
+    from chronicler.timber_supply import return_store
+    return return_store(world, region, returned)
+
+
+def _restore_store(world, t, region: int) -> float:
+    """PL1 seam (a failed Phase 2): the store's part of a hold goes back to it."""
+    if not t.store_holds.get(region):
+        return 0.0
+    from chronicler.timber_supply import restore_store
+    return restore_store(world, region)
 
 
 def _envelope(world, civ: int) -> int | None:
@@ -790,6 +831,11 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
         column = region_input.column(idx).to_pylist()
         for region, amount in sorted(t.holds.items()):
             if amount > 0:
+                taken = _take_store(world, t, region, amount)     # PL1: the store first
+                if taken:
+                    amount = amount - taken
+                    if not amount > 0:
+                        continue
                 goods = world.regions[region].stockpile.goods
                 goods["timber"] = goods.get("timber", 0.0) - amount
                 column[region] = goods["timber"]
@@ -883,8 +929,10 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
             raise RuntimeError("repair work used more timber than it held")
         returned = max(0.0, returned)
         if returned:
-            goods = world.regions[w.region].stockpile.goods
-            goods["timber"] = goods.get("timber", 0.0) + returned
+            to_store = _return_store(world, t, w.region, returned)   # PL1: 0.0 without a store hold
+            if to_store < returned:
+                goods = world.regions[w.region].stockpile.goods
+                goods["timber"] = goods.get("timber", 0.0) + (returned - to_store if to_store else returned)
         before = _condition(world, p.kind, p.asset)
         credit = done if mode_repairs else 0.0
         if credit:
@@ -1004,6 +1052,11 @@ def rollback_phase2(world) -> None:
     if t.prepared and not t.finished:
         for region, amount in sorted(t.holds.items()):
             if amount > 0:
+                restored = _restore_store(world, t, region)       # PL1: the store's part
+                if restored:
+                    amount = amount - restored
+                    if not amount > 0:
+                        continue
                 goods = world.regions[region].stockpile.goods
                 goods["timber"] = goods.get("timber", 0.0) + amount
     if t.installed and t.sim is not None:
