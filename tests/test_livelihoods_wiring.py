@@ -139,3 +139,88 @@ def test_exact_resume_refuses_livelihoods_options_the_checkpoint_never_recorded(
         conflicts = _adopt_checkpoint_args(parser, parser.parse_args(flags), on)
         assert len(conflicts) == 1 and "conflicts with the checkpoint" in conflicts[0], flags
     assert world.model_dump_json() == before
+
+
+def test_state_file_resume_keeps_omitted_switches_and_explicit_disable_only_freezes_one(world, tmp_path):
+    """Review R3 adversarial: a legacy state-file resume re-applies the CLI.
+    Omitted switches keep the saved sub-states byte for byte; an explicit
+    ``--no-x`` disables only x (its state is kept, frozen); re-enabling resumes."""
+    from chronicler.models import WorldState
+    from chronicler.livelihoods import livelihoods_feature_flags
+    parse = _build_parser().parse_args
+    _world_with_workshops_and_fares(world)
+    configure_livelihoods(world, parse(["--timber-stock"]), agent_mode="hybrid")
+    saved = world.livelihoods.model_dump_json()
+    path = tmp_path / "state.json"
+    world.save(path)
+    loaded = WorldState.load(path)
+    assert loaded.livelihoods.model_dump_json() == saved
+    configure_livelihoods(loaded, parse([]), agent_mode="hybrid")
+    assert loaded.livelihoods.model_dump_json() == saved
+    configure_livelihoods(loaded, parse(["--no-timber-stock"]), agent_mode="hybrid")
+    state = loaded.livelihoods
+    assert state.timber_stock.enabled is False and state.timber_stock.stocks == world.livelihoods.timber_stock.stocks
+    assert state.workshops.model_dump() == world.livelihoods.workshops.model_dump()
+    assert livelihoods_feature_flags(loaded)["timber_stock"] is False
+    assert "timber_stock" not in expansion_snapshot_fields(loaded).get("livelihoods", {})
+    configure_livelihoods(loaded, parse(["--timber-stock"]), agent_mode="hybrid")
+    assert loaded.livelihoods.model_dump_json() == saved
+    # Dependants of a disabled prerequisite stay dormant, never re-created.
+    with pytest.raises(ValueError, match="requires --timber-stock"):
+        configure_livelihoods(loaded, parse(["--no-timber-stock", "--commons-rules"]), agent_mode="hybrid")
+
+
+def test_feature_off_checkpoint_of_the_baseline_loads_without_the_field(world, tmp_path):
+    """Review R3 adversarial: a world pickled by main 64863f1 has no
+    ``livelihoods`` entry at all. This code must load it, serialize it to the
+    exact baseline bytes and add no flag, snapshot key or container until a
+    switch is explicitly enabled."""
+    from chronicler.run_checkpoint import load_world, read_checkpoint, save_world
+    world.turn = 3
+    expected = world.model_dump_json()
+    del world.__dict__["livelihoods"]          # main's pickled WorldState
+    assert world.model_dump_json() == expected
+    path = tmp_path / "baseline.ckpt"
+    save_world(path, world)
+    header = read_checkpoint(path).header
+    assert not set(LIVELIHOODS_SWITCHES) & set(header["flags"])
+    back = load_world(path)
+    assert "livelihoods" not in back.__dict__ and getattr(back, "livelihoods", None) is None
+    assert back.model_dump_json() == expected and "livelihoods" not in json.loads(back.model_dump_json())
+    assert not set(LIVELIHOODS_SWITCHES) & set(expansion_feature_flags(back))
+    assert "livelihoods" not in expansion_snapshot_fields(back)
+    configure_livelihoods(back, _build_parser().parse_args(["--no-workshops", "--no-timber-stock"]),
+                          agent_mode="hybrid")
+    assert getattr(back, "livelihoods", None) is None and back.model_dump_json() == expected
+    configure_livelihoods(back, _build_parser().parse_args(["--timber-stock"]), agent_mode="hybrid")
+    assert back.livelihoods.timber_stock.enabled is True
+
+
+def test_feature_on_checkpoint_keeps_every_switch_when_resumed_with_flags_omitted(world, tmp_path):
+    """Review R3 adversarial: the header flags, the retained sub-states and the
+    adopted arguments of a features-on checkpoint resumed with no flags."""
+    from chronicler.main import _adopt_checkpoint_args
+    from chronicler.run_checkpoint import read_checkpoint, save_world
+    parse = _build_parser().parse_args
+    _world_with_workshops_and_fares(world)
+    configure_livelihoods(world, parse(["--timber-stock"]), agent_mode="hybrid")
+    configure_livelihoods(world, parse(["--no-relocation-costs"]), agent_mode="hybrid")
+    world.turn = 4
+    saved = world.livelihoods.model_dump_json()
+    path = tmp_path / "on.ckpt"
+    save_world(path, world)
+    loaded = read_checkpoint(path)
+    flags = loaded.header["flags"]
+    assert flags["timber_stock"] is True and flags["relocation_costs"] is False
+    assert "food_allocation" not in flags                 # never enabled: no flag
+    assert loaded.state.world.livelihoods.model_dump_json() == saved
+    loaded.state.run_config = {"simulation_args": simulation_config(
+        parse(["--workshops", "--timber-stock", "--no-relocation-costs"]))}
+    loaded.state.num_turns = 8
+    args = parse([])
+    assert _adopt_checkpoint_args(_build_parser(), args, loaded) == []
+    assert (args.workshops, args.timber_stock, args.relocation_costs) == (True, True, False)
+    assert loaded.state.world.livelihoods.model_dump_json() == saved
+    for flags in (["--relocation-costs"], ["--relocation-mode", "assisted"], ["--workshop-mode", "observe"]):
+        assert len(_adopt_checkpoint_args(_build_parser(), parse(flags), loaded)) == 1, flags
+    assert loaded.state.world.livelihoods.model_dump_json() == saved
