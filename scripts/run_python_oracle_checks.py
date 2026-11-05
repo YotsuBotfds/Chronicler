@@ -338,6 +338,7 @@ CHUNKS = {
         "tests/test_workshops.py",
         "tests/test_livelihoods_sprint_witness.py",
         "tests/test_livelihoods_wiring.py",
+        "tests/test_livelihoods_shared_treasury.py",
     ],
     "livelihoods-work-authority": [
         "tests/test_livelihoods_work_authority.py",

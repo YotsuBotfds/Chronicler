@@ -44,7 +44,8 @@ empty at every turn boundary.
 
 - `projected` is the civ's treasury after the `keep` changes already queued
   (`finance._projections`).
-- `obligations` are coins a provider will spend next turn that it cannot cap.
+- `obligations` are coins a provider will spend next turn that it cannot cap, recorded by
+  provider group in the decision (`reserved`).
 - `committed` is any envelope still open (none for the built-in one-turn services).
 
 Every accepted envelope of a civ is committed against this single budget, so two services
@@ -564,7 +565,9 @@ What these runs show:
 - Relief is supply-bound in the development worlds. Their markets rarely hold grain beyond
   the reserve rule's four turns of demand, so relief is rarely executable whatever the
   budget. The surplus and one-coin purchase rules are unchanged.
-- Teaching: academies' market procurement stays reserved (byte-pinned). Their purchases from
+- Teaching: academies' market procurement stays reserved (byte-pinned). The reservation is
+  dated, not a bound: an academy whose scholars return after a turn with none buys more than
+  was reserved (procedural seed 7, turn 60: 1 coin against 0; review R2, 2026-11-05). Their purchases from
   workshop firms are bargained, but the learners have no separate voice: the only existing
   scholarly voice is the cultural faction (scholarship focus, scientist agendas), and L9
   already uses it for the commons through the movements precedent. Counting it twice would
@@ -583,7 +586,14 @@ What these runs show:
   moves and is charged in Phase 10, so L9 cannot cap it. Its ceiling
   (`relocation_costs.ASSIST_SHARE` of the treasury) is reserved as an obligation before any
   envelope while relocation runs in assisted mode, so the two never claim the same coins
-  (added after a lead review on 2026-11-05; other relocation modes reserve nothing).
+  (added after a lead review on 2026-11-05; other relocation modes reserve nothing). The
+  next turn's gate installs at most that reservation: each decision records its
+  obligations by provider group (`Decision.reserved`), and
+  `relocation_costs.assistance_budgets` caps its ceiling by `local_budgets.reserved`.
+  Review R2 (2026-11-05) found the ceiling recomputed on the next turn's larger treasury,
+  beyond the reservation (4 to 9 charges per development world: template seeds 1 and 4,
+  procedural seed 7); corrected with regression tests
+  (`tests/test_livelihoods_shared_treasury.py`, `tests/test_livelihoods_closure_native.py`).
 - A region's controller cannot change between L9's decision (the last Phase 10 hook) and the
   next Phase 2: control changes in Phase 10 politics, which run before the decision, and in
   Phase 5 conquest, after the storage plan. A granary-works policy is therefore paid by the
