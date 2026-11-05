@@ -87,3 +87,55 @@ def test_screen_runner_counts_only_real_livelihoods_switches():
     screens.check_counted()
     for name, (flags, control, _tuning) in screens.ARMS2.items():
         assert control is None or control in screens.ARMS2, name
+
+
+def _saved_checkpoint(world, flags):
+    """A loaded checkpoint as ``_adopt_checkpoint_args`` reads it."""
+    from types import SimpleNamespace
+    simulation_args = simulation_config(_build_parser().parse_args(flags))
+    return SimpleNamespace(state=SimpleNamespace(world=world, seed=42, num_turns=8,
+                                                 run_config={"simulation_args": simulation_args}))
+
+
+def _world_with_workshops_and_fares(world):
+    from chronicler.relocation_costs_state import RelocationCostsState
+    from chronicler.workshops_state import WorkshopState
+    world.livelihoods = LivelihoodsState()
+    world.livelihoods.workshops = WorkshopState(mode="operate")
+    world.livelihoods.relocation_costs = RelocationCostsState(mode="paid")
+    return world
+
+
+def test_exact_resume_refuses_livelihoods_options_the_checkpoint_never_recorded(world):
+    """Review R3 2026-11-05. ``simulation_config`` omits livelihoods options
+    that were never given, so ``_adopt_checkpoint_args`` never compared them:
+    ``--resume CKPT --workshops`` (or ``--relocation-mode assisted``) exited 0
+    and silently continued without the request. An exact resume refuses any
+    option given with a value other than the checkpoint's
+    (docs/integration/checkpoint-continuation.md, section 1)."""
+    from chronicler.main import _adopt_checkpoint_args
+    parser = _build_parser()
+    world.turn = 2
+    off = _saved_checkpoint(world, [])
+    before = world.model_dump_json()
+    # Requests that agree with the retained state stay accepted.
+    assert _adopt_checkpoint_args(parser, parser.parse_args(["--no-workshops", "--no-timber-stock"]), off) == []
+    for flags in (["--workshops"], ["--timber-stock"], ["--local-budgets"], ["--grain-convoys"],
+                  ["--workshop-mode", "cost_only"], ["--relocation-mode", "assisted"]):
+        conflicts = _adopt_checkpoint_args(parser, parser.parse_args(flags), off)
+        assert len(conflicts) == 1 and "conflicts with the checkpoint" in conflicts[0], flags
+    assert world.livelihoods is None and world.model_dump_json() == before
+
+    on = _saved_checkpoint(_world_with_workshops_and_fares(world), ["--workshops", "--relocation-costs"])
+    before = world.model_dump_json()
+    for flags in ([], ["--workshops"], ["--workshop-mode", "operate"], ["--relocation-mode", "paid"],
+                  ["--no-food-allocation"]):
+        args = parser.parse_args(flags)
+        assert _adopt_checkpoint_args(parser, args, on) == [], flags
+        # An omitted switch takes the checkpoint's value.
+        assert args.workshops is True and args.relocation_costs is True
+    for flags in (["--no-workshops"], ["--no-relocation-costs"], ["--workshop-mode", "cost_only"],
+                  ["--relocation-mode", "liquidity_only"], ["--food-allocation"]):
+        conflicts = _adopt_checkpoint_args(parser, parser.parse_args(flags), on)
+        assert len(conflicts) == 1 and "conflicts with the checkpoint" in conflicts[0], flags
+    assert world.model_dump_json() == before
