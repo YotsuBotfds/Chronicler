@@ -41,6 +41,47 @@ dated source-scoped records below remain historical evidence.
 
 ---
 
+## Livelihoods/commons sprint 2 (2026-11-05, `claude/livelihoods-sprint2`, draft PR #74)
+
+L5–L9 on top of sprint 1. Plan, board, screens and handoff are under `docs/superpowers/`
+(`livelihoods-commons-sprint2.*`, `livelihoods-sprint2-screens.md`). Five default-off switches
+reach the actual simulation; L6b household purchases are left open with a design note.
+
+- **Learning cohorts (`--learning-cohorts`).** Finite named cohorts. Learners are reserved in
+  the shared native work registry and seated from actual delivered teaching. The attended
+  share of income is withheld. Completion raises trade skill, which travels with migrants.
+- **Workshop payroll (`--workshop-payroll`).**
+  - Firms open only around an actual academy order.
+  - They hold cash and owned wares in exact milli-units and sell to the ruler's academy.
+  - Wages are paid through a native exactly-once wealth transfer and replace the crew's
+    income share.
+  - Unpaid wages cut hours, then crew, then close the firm.
+- **Relocation costs (`--relocation-costs`).**
+  - A native fare gate on consolidated households.
+  - The movers' share is debited only for applied moves, with residuals recorded.
+  - Optional receiving-ruler assistance.
+  - Arrivals' rations and receiving pressure are recorded.
+- **Commons rules (`--commons-rules`).** Controller-adopted timber quota and rest period with
+  paid wardens. Coverage follows payment. The Commons Management institution supplies wardens
+  from its last settled funding.
+- **Local budgets (`--local-budgets`).** One finite budget per ruler. Bargaining between two
+  existing constituencies sets envelopes for relief, granary works, workshops, wardens and
+  teaching supplies. Kept or broken promises move city grievance (capped).
+
+Held screens (12 worlds, 21 arms, 1.08 core-hours, 0 failed):
+- payroll helps its crew in every template world;
+- commons rules cut extraction in 5 of 6 worlds per stratum, but clearing stays 10–20× harvest;
+- budgets trade workshop output (down in 12 of 12 worlds) for relief that barely moves the
+  poorer half's shortfall;
+- learners rarely complete, because teaching seats bind;
+- relocation fares block many households, and assistance reduces that in 11 of 12 worlds;
+- several effects differ by stratum.
+
+Feature-off identity is 0 differences against pre-sprint main, and all-switch exact resume
+passes. No qualification gate was run.
+
+---
+
 ## Livelihoods/commons sprint 1 (2026-11-05, `claude/livelihoods-commons-sprint1`, draft PR #73)
 
 Bounded sprint L0 + L1–L4, based on main `64863f1`. Plan, board and screens are under

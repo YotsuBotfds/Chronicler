@@ -93,3 +93,89 @@ only if they stay bounded. Each starts with a written design.
   - bounded offline lane, `cargo test`, native module tests;
   - viewer tests, lint and build, and a browser journey;
   - PR CI.
+
+## Handoff (2026-11-05)
+
+### Delivered
+
+Integrated on `claude/livelihoods-sprint2` (draft PR #74, stacked on #73). Every switch is off
+by default.
+
+| Package | Switch | Lane head | Integration | Layer |
+| --- | --- | --- | --- | --- |
+| L5 named learners | `--learning-cohorts` | `0075103d` | `a26954e5` | l5 |
+| L6a workshop payroll | `--workshop-payroll` | `c3356f16` | `e555b0db` | l6 |
+| L7 relocation costs | `--relocation-costs` | `13c3ad3e` | `83e21af5` | l7 |
+| L8 commons rules | `--commons-rules` | `494460d7` | `727ed5dc` | l8 |
+| L9 local budgets (+ wardens, teaching supplies) | `--local-budgets` | `591b0350`, `1461686e` | `60b63f25`, `2441edb5` | l9 |
+| L6b household purchases | — | `9fbe6585` (design) | `90591762` | — |
+
+L6b is left open, as the roadmap allows. Real retail needs producer title, per-agent
+inventories and income replacement in the native economy. The bounded granary-only fallback
+would not test whether lack of cash reaches food access
+([design note](../../integration/household-purchases-design.md)).
+
+### Review fixes before the held cohort
+
+Each fix has a regression test that fails on the previous code.
+
+- `e7d18444`: L9 counted L4 convoy spending twice. Found by the timing pilot.
+- `957f47c9`: L8 read the Commons Management funding ratio before it was set each turn.
+- `aea7972f`, from an independent review:
+  - the screen runner missed L7's snapshot key;
+  - L6a shared wage cash with dead workers;
+  - L7 assistance sat outside L9's one budget;
+  - a workshop deferral reason was wrong.
+
+### Evidence on the final source (`aea7972f`, native extension `70587268…`)
+
+- Feature-off `turn_speed_identity` against pre-sprint `main` with its own extension: 9 cases,
+  399 files, 0 differences.
+- Enabled exact resume, `checkpoint_identity` `hybrid_s42_long` with every switch on and
+  assisted relocation: PASS at 11 resume points on this commit. An earlier commit passed at
+  33 more, including points inside live firms, cohorts and commons rules.
+- Bounded offline lane PASS; `cargo test` 1,235 passed; sprint native suites pass.
+- Viewer: 126 files, 1,256 tests, lint and build pass.
+- Browser journey on the production build at desktop and phone width: every panel, re-dated
+  on rewind, no overflow, no console errors, and no tab for feature-off bundles.
+- Held screens: 21 arms × 12 worlds, 0 failed, 1.08 of the 2.0 core-hours.
+  [Results](../progress/livelihoods-sprint2-screens.md).
+- Not run: the 200-seed and procedural qualification gates.
+
+### Known limits carried forward
+
+- L5: delivered teaching, not learners or supplies, limits completions.
+- L7: assistance is reserved before the tick and charged in Phase 10. Refusals are recorded;
+  L9 reserves the ceiling.
+- L8: clearing, at 10–20× extraction, is outside the rule's reach. A clearing moratorium needs
+  Python and native ecology parity and a declared cost (proposal in
+  [commons rules](../../integration/commons-rules.md)).
+- L9: contested choices are rare. Its relief side delivers little while workshops lose
+  output.
+- Granary condition: the base storage policy maintains nothing, so end condition is 0 in every
+  arm.
+
+### Recommended next candidates
+
+From the roadmap's stretch notes: at most two, ranked by activation, narrative payoff,
+dependencies and performance. Neither is started. Each needs a new owner instruction and a
+written design first.
+
+1. **Apprenticeship in workshops, then knowledge loss and diaspora remittances.**
+   - Activation: the screens show L5 is limited by academy teaching seats. Workshop crews
+     already exist in the shared work registry, and payroll firms pay wages through the
+     native transfer seam. Crew-taught apprentices would add teaching where work already
+     happens, instead of a second school model.
+   - Later remittances can reuse L7 movers and the wealth transfer.
+   - Cost: low; one native consumer in the wealth phase.
+2. **Postwar reconstruction and veteran reintegration.**
+   - Wars and occupation are frequent, so activation is high.
+   - Reconstruction is a consumer of the systems built here: repair work through the
+     registry, funding through L9 envelopes, skills through L5, and households through L2
+     and L7.
+   - Payoff: visible recovery stories.
+   - Needs care not to add a second combat event generator.
+
+Deferred: watershed storage (needs conserved water units and forcing first), draft animals
+(needs reconciled herds), and private cargo cover (needs L6b-style private title and
+voyage identity).
