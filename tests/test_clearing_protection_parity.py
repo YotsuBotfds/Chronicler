@@ -200,6 +200,38 @@ def test_native_and_python_fallback_agree_tick_by_tick(mode):
     assert (c["cover_not_cleared"] > 0) == (mode == "enforced")
 
 
+def test_planning_tests_pressure_in_the_precision_of_the_deciding_engine():
+    """Review B 2026-11-05: with a tuned ``ecology.forest_pop_ratio`` f32 cannot
+    represent (0.65; capacity 180, population 117) the native f32 decision
+    clears while a float64 plan saw no pressure, so the clearing went
+    unprotected (``not_planned``). Planning now follows the engine Phase 9
+    names: native plans pressure and protects, the Python fallback neither."""
+    from chronicler.agent_bridge import build_region_batch
+    world = _world("--clearing-protection")
+    world.tuning_overrides = {"ecology.forest_pop_ratio": 0.65}
+    for region in world.regions:
+        region.population = 1
+    r0 = world.regions[0]
+    r0.carrying_capacity, r0.population, r0.ecology.forest_cover = 180, 117, 0.6
+    py, nat = world, copy.deepcopy(world)
+    runtime = _native_runtime(nat)
+    before_ecology(nat, acc=None, native=True)
+    before_ecology(py, acc=None, native=False)
+    assert cp.under_pressure(nat, nat.regions[0]) and not cp.under_pressure(py, py.regions[0])
+    runtime.set_region_state(build_region_batch(nat))
+    tick_ecology(nat, ClimatePhase.TEMPERATE, acc=None, ecology_runtime=runtime)
+    tick_ecology(py, ClimatePhase.TEMPERATE, acc=None)
+    for w in (py, nat):
+        after_ecology(w, acc=None)
+    native_row = {r.region_id: r for r in nat.livelihoods.clearing_protection.frame}.get(0)
+    assert native_row is not None and native_row.clearing_active and native_row.pressure_planned
+    assert native_row.p_applied == 1.0 and native_row.cover_not_cleared > 0
+    assert not [u for u in nat.livelihoods.clearing_protection.unprotected if u.region_id == 0]
+    assert 0 not in {r.region_id for r in py.livelihoods.clearing_protection.frame}
+    assert py.regions[0].ecology.forest_cover == pytest.approx(0.6)          # no clearing in float64
+    assert nat.regions[0].ecology.forest_cover == pytest.approx(0.6)         # cleared, then fully protected
+
+
 def test_an_extension_that_ignores_the_column_is_refused():
     world = _world("--clearing-protection")
     before_ecology(world, acc=None)

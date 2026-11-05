@@ -12,8 +12,6 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
-#: Bounded logs.
-MAX_DECISIONS = 64
 #: Funnel counters, in report order (all start at zero).
 COUNTER_KEYS: tuple[str, ...] = (
     "planned_turns", "settled_turns", "abandoned_plans",
@@ -124,6 +122,8 @@ class ClearingProtectionState(BaseModel):
     mode: Literal["enforced", "cost_only"] = "enforced"
     # Sorted by region_id; at most one protection per region.
     protections: list[Protection] = Field(default_factory=list)
+    # The last settled turn's decisions, all of them (no cap: bounded by the
+    # regions); earlier turns are not kept.
     decisions: list[ProtectionDecision] = Field(default_factory=list)
     # The turn whose Phase 9 the frame records (None before the first).
     frame_turn: int | None = None
@@ -136,6 +136,11 @@ class ClearingProtectionState(BaseModel):
     # plan left by a failed tick is dropped (nothing charged). Never
     # serialized; None between turns.
     _plan: object | None = PrivateAttr(default=None)
+    # Whether the native ecology (f32) or the Python fallback (f64) decides
+    # this run's clearing, as Phase 9 reports it to ``before_ecology``; kept
+    # in exact checkpoints (the engine is fixed for a run), unknown (None)
+    # before the first Phase 9 of a run or after a state-file load.
+    _native_ecology: bool | None = PrivateAttr(default=None)
 
     def __getstate__(self):
         state = super().__getstate__()
@@ -149,6 +154,7 @@ class ClearingProtectionState(BaseModel):
         self.__dict__.setdefault("unprotected", [])
         private = getattr(self, "__pydantic_private__", None)
         if private is None:
-            object.__setattr__(self, "__pydantic_private__", {"_plan": None})
+            object.__setattr__(self, "__pydantic_private__", {"_plan": None, "_native_ecology": None})
         else:
             private.setdefault("_plan", None)
+            private.setdefault("_native_ecology", None)

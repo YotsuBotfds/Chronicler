@@ -65,8 +65,10 @@ from __future__ import annotations
 
 import math
 
+import numpy
+
 from chronicler.clearing_protection_state import (
-    COUNTER_KEYS, MAX_DECISIONS, ClearingProtectionState, Protection, ProtectionDecision,
+    COUNTER_KEYS, ClearingProtectionState, Protection, ProtectionDecision,
     ProtectionReceipt, UnprotectedRegion,
 )
 
@@ -159,9 +161,28 @@ def forest_clearing(world) -> float:
     return float(get_override(world, K_FOREST_CLEARING, 0.02))
 
 
+def native_ecology(world) -> bool:
+    """Whether this run's clearing is decided by the native ecology (f32):
+    as Phase 9 last reported it, else every agent mode (the bridge's
+    ecology) and agents-off only with a native ecology runtime."""
+    state = _state(world)
+    flag = state._native_ecology if state is not None else None
+    if flag is None:
+        flag = getattr(world, "agent_mode", None) not in (None, "off")
+    return bool(flag)
+
+
 def under_pressure(world, region, ratio: float | None = None) -> bool:
-    """The ecology's clearing condition, read before the tick."""
+    """The ecology's clearing condition, read before the tick, in the
+    precision of the engine that decides it: ``ecology::tick_forest_controlled``
+    compares ``population as f32 > capacity as f32 * ratio`` in f32, the
+    Python fallback (``ecology._tick_forest``) in float64. They differ only for
+    a tuned ``ecology.forest_pop_ratio`` that f32 cannot represent exactly
+    (review B, 2026-11-05); the default 0.5 is exact in both."""
     ratio = forest_pop_ratio(world) if ratio is None else ratio
+    if native_ecology(world):
+        f32 = numpy.float32
+        return bool(f32(region.population) > f32(region.carrying_capacity) * f32(ratio))
     return region.population > region.carrying_capacity * ratio
 
 
@@ -189,12 +210,16 @@ def _envelope(world, owner: int, rid: int) -> int | None:
 
 # --- Protocol: Phase 9 ------------------------------------------------------------
 
-def before_ecology(world, acc) -> None:
+def before_ecology(world, acc, *, native: bool | None = None) -> None:
     """Decide (end, adopt) and plan the warden bills and the protection
     column from the pre-tick state. Charges nothing and changes no
     protection; a plan left by a failed tick is dropped first (counted as
-    ``abandoned_plans``: it charged nothing)."""
+    ``abandoned_plans``: it charged nothing). ``native``: whether the native
+    ecology decides this turn's clearing (Phase 9), so planning tests the
+    clearing condition in that engine's precision (:func:`under_pressure`)."""
     state = _state(world)
+    if native is not None:
+        state._native_ecology = bool(native)
     if state._plan is not None:
         state._plan = None
         state.counters["abandoned_plans"] = state.counters.get("abandoned_plans", 0) + 1
@@ -459,7 +484,11 @@ def after_ecology(world, acc) -> list:
         _bump(counters, "unprotected_clearing_turns", 1 if row.clearing_active else 0)
         _bump(counters, "cover_cleared_unprotected", row.cleared)
     state.protections = sorted(protections, key=lambda p: p.region_id)
-    state.decisions = (state.decisions + plan.decisions)[-MAX_DECISIONS:]
+    # This turn's decisions in full (at most two per region: an end and an
+    # adoption); the snapshot and the L9 settlement read only the current
+    # turn, so older turns are not kept. Review B 2026-11-05: a rolling cap
+    # of 64 silently dropped decisions of a turn with more.
+    state.decisions = list(plan.decisions)
     state.frame = receipts
     state.unprotected = unprotected
     state.frame_turn = plan.turn

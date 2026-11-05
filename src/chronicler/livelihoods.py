@@ -47,7 +47,7 @@ economy_result)``, ``after_agent_tick(world, agent_bridge)``,
 tick raised: release what is still pending natively, charge nothing),
 ``phase10_before_reserves(world, acc, economy_result, agent_bridge)`` and
 ``phase10(world, acc, economy_result, agent_bridge)``; event-returning hooks
-return a list. ``before_ecology(world, acc)`` and ``after_ecology(world,
+return a list. ``before_ecology(world, acc, native=...)`` and ``after_ecology(world,
 acc)`` (event-returning) run immediately before the Phase 9 region sync and
 after the ecology tick, in every agent mode.
 """
@@ -555,10 +555,11 @@ def wrap_agent_tick(world, agent_bridge, tick_agents, economy_result):
     return _tick
 
 
-def before_ecology(world, *, acc=None) -> None:
-    """Before the Phase 9 region sync and ecology tick: plans; charges nothing."""
+def before_ecology(world, *, acc=None, native: bool | None = None) -> None:
+    """Before the Phase 9 region sync and ecology tick: plans; charges nothing.
+    ``native``: whether the native ecology (not the Python fallback) runs it."""
     for fn in _hooks(world, "before_ecology"):
-        fn(world, acc)
+        fn(world, acc, native=native)
 
 
 def after_ecology(world, *, acc=None) -> list:

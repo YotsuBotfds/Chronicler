@@ -2253,7 +2253,8 @@ def run_turn_result(
     if getattr(world, "livelihoods", None) is not None:
         # Livelihoods: plans against this turn's ecology (clearing protection).
         from chronicler.livelihoods import before_ecology as _livelihoods_before_ecology
-        _livelihoods_before_ecology(world, acc=acc)
+        _livelihoods_before_ecology(world, acc=acc,
+                                    native=agent_bridge is not None or ecology_runtime is not None)
 
     # Determine the ecology runtime for this turn.
     # In agent modes, use the AgentSimulator via the split bridge.

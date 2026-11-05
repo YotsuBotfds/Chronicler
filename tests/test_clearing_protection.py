@@ -604,3 +604,32 @@ def test_a_run_protects_charges_and_resumes_exactly(tmp_path):
     expected, got = outputs(straight), outputs(resumed)
     assert got.keys() == expected.keys()
     assert [name for name in got if got[name] != expected[name]] == []
+
+
+def test_a_turn_with_more_than_64_decisions_keeps_every_one():
+    """Review B 2026-11-05: decisions were a rolling log capped at 64 with no
+    drop count, so a turn with more adoptions lost some from the completed-turn
+    record (and from L9's settlement lookup). The settled turn now keeps all."""
+    from chronicler.climate import ClimatePhase
+    from chronicler.ecology import tick_ecology
+    from chronicler.livelihoods import after_ecology, configure_livelihoods
+    from chronicler.main import _build_parser
+    from chronicler.world_gen import generate_world
+    world = generate_world(seed=3, num_regions=80, num_civs=40, worldgen="procedural")
+    configure_livelihoods(world, _build_parser().parse_args(["--clearing-protection"]), agent_mode="off")
+    n = len(world.civilizations)
+    for c in world.civilizations:
+        c.treasury = 100
+    for rid, r in enumerate(world.regions):
+        r.controller = world.civilizations[rid % n].name
+        r.ecology.forest_cover = 0.6
+        r.carrying_capacity = max(r.carrying_capacity, 10)
+        r.population = r.carrying_capacity
+    before_ecology(world, acc=None)
+    tick_ecology(world, ClimatePhase.TEMPERATE, acc=None)
+    after_ecology(world, acc=None)
+    world.turn += 1
+    s = cp.snapshot_summary(world)
+    adopted = [d for d in s["decisions"] if d["kind"] == "adopted"]
+    assert s["counters"]["adopted"] > 64
+    assert len(adopted) == s["counters"]["adopted"] == len(s["receipts"])
