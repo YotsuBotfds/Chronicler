@@ -47,7 +47,9 @@ economy_result)``, ``after_agent_tick(world, agent_bridge)``,
 tick raised: release what is still pending natively, charge nothing),
 ``phase10_before_reserves(world, acc, economy_result, agent_bridge)`` and
 ``phase10(world, acc, economy_result, agent_bridge)``; event-returning hooks
-return a list.
+return a list. ``before_ecology(world, acc)`` and ``after_ecology(world,
+acc)`` (event-returning) run immediately before the Phase 9 region sync and
+after the ecology tick, in every agent mode.
 """
 from __future__ import annotations
 
@@ -181,8 +183,8 @@ _HELP = {
     "repair_projects": (
         "Repair projects (RS2): paid projects rebuild workshop sites and granaries from their "
         "real condition and war damage, with named workers, timber and the controller's coins; "
-        "they replace the L1 lump repair; requires --agents hybrid and --workshops in operate "
-        "mode or --grain-storage (default off)"
+        "they replace the L1 lump repair; requires --agents hybrid and --workshops or "
+        "--grain-storage (default off)"
     ),
     "repair_mode": (
         "repair (default): delivered work restores condition; cost_only: the cost-retaining "
@@ -208,13 +210,14 @@ _HELP = {
         "send (default); record_only: the control that keeps the ledger and sends nothing"
     ),
     "clearing_protection": (
-        "Funded clearing protection (RS5): a region's controller pays wardens to protect "
-        "forest cover from clearing in a bounded number of regions; protection freezes cover "
-        "and forgoes the succession bonus; works in every ecology path (default off)"
+        "Funded clearing protection: a region's controller may protect up to two forested "
+        "regions under population-driven clearing, paying wardens from its treasury for each "
+        "turn the clearing is active; the paid share of the clearing is suspended at the "
+        "ecology's clearing decision (native and Python); works in every agent mode (default off)"
     ),
     "clearing_protection_mode": (
-        "enforced (default): protection lowers clearing; cost_only: the cost-retaining "
-        "control (adopts and pays identically, no cap)"
+        "enforced (default): the paid protection suspends clearing; cost_only: the control that "
+        "adopts and pays identically but leaves the clearing unchanged"
     ),
 }
 
@@ -539,6 +542,20 @@ def wrap_agent_tick(world, agent_bridge, tick_agents, economy_result):
         return events
 
     return _tick
+
+
+def before_ecology(world, *, acc=None) -> None:
+    """Before the Phase 9 region sync and ecology tick: plans; charges nothing."""
+    for fn in _hooks(world, "before_ecology"):
+        fn(world, acc)
+
+
+def after_ecology(world, *, acc=None) -> list:
+    """After a successful Phase 9 ecology tick."""
+    events: list = []
+    for fn in _hooks(world, "after_ecology"):
+        events.extend(fn(world, acc) or [])
+    return events
 
 
 def phase10_before_reserves(world, *, acc=None, economy_result=None, agent_bridge=None) -> list:

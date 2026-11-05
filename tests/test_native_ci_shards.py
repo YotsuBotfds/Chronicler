@@ -265,8 +265,10 @@ def test_checked_in_partition_preserves_historical_assignment_with_explicit_new_
         'tests/test_recovery_skills_native.py': '1',
         'tests/test_recovery_skills_wiring.py': '0',
         'tests/test_feature_catalog.py': '0',
+        'tests/test_clearing_protection.py': '0',
+        'tests/test_clearing_protection_parity.py': '1',
     }
-    assert len(owners) == 376
+    assert len(owners) == 378
     assert {name: owners[name] for name in additions} == additions
     old_owners = {name: shard for name, shard in owners.items() if name not in additions}
     assert len(old_owners) == 300

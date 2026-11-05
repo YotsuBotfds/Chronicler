@@ -28,6 +28,10 @@ Services (built-in providers; each reuses an existing public API)
     ``wardens``: an L8 commons rule's warden bill (``--commons-rules``) is
     paid, and a new rule adopted, only within the envelope for its stand
     (``commons_rules.prepare_phase2`` reads :func:`envelope`).
+    ``clearing_wardens`` (registered by ``--clearing-protection``, group
+    ``wardens``): an RS5 clearing protection's warden bill is paid, and a
+    protection adopted, only within the envelope for ``clearing:<region>``
+    (``clearing_protection.before_ecology`` reads :func:`envelope`).
 
 Budget. ``budget = floor(ENVELOPE_SHARE x max(0, projected - FLOOR -
 obligations - committed))``: the projected treasury replays queued ``keep``
@@ -111,6 +115,7 @@ PROVIDERS: tuple[str, ...] = (
     "chronicler.local_budgets:TEACHING",
     "chronicler.local_budgets:WARDENS",
     "chronicler.local_budgets:RELOCATION",
+    "chronicler.clearing_protection:BUDGET_PROVIDER",
 )
 
 
@@ -1307,8 +1312,10 @@ def _decide(world, state: LocalBudgetState, obs, providers, acc) -> None:
     params = _parameters(world)
     projected = _projections(world, acc)
     groups = {s: p.group for p in providers for s in p.services}
-    scale = 1.0 + math.fsum(FIXED_SHARES.get(p.group, 0.0) for p in providers
-                            if p.services and p.group not in _BUILT_IN_GROUPS and p.active(world))
+    # A registered group's weight counts once, however many active providers
+    # share it (RS5 clearing wardens share ``wardens`` with L8).
+    scale = 1.0 + math.fsum(FIXED_SHARES.get(g, 0.0) for g in sorted({
+        p.group for p in providers if p.services and p.group not in _BUILT_IN_GROUPS and p.active(world)}))
     decisions, new = [], {id(p): [] for p in providers}
     owner = {s: p for p in providers for s in p.services}
     for ci, civ in enumerate(world.civilizations):

@@ -2250,6 +2250,10 @@ def run_turn_result(
     from chronicler.ecology import tick_ecology
     from chronicler.climate import get_climate_phase
     climate_phase = get_climate_phase(world.turn, world.climate_config)
+    if getattr(world, "livelihoods", None) is not None:
+        # Livelihoods: plans against this turn's ecology (clearing protection).
+        from chronicler.livelihoods import before_ecology as _livelihoods_before_ecology
+        _livelihoods_before_ecology(world, acc=acc)
 
     # Determine the ecology runtime for this turn.
     # In agent modes, use the AgentSimulator via the split bridge.
@@ -2275,6 +2279,9 @@ def run_turn_result(
     ))
     finish_turn_ledger(world, _resource_ledger, agent_bridge)
     del _resource_ledger
+    if getattr(world, "livelihoods", None) is not None:
+        from chronicler.livelihoods import after_ecology as _livelihoods_after_ecology
+        _emit(_livelihoods_after_ecology(world, acc=acc))
 
     artifacts.conquered_civ_ids = getattr(world, '_conquered_this_turn', set())
     world._conquered_this_turn = set()  # clear immediately before bridge consumption

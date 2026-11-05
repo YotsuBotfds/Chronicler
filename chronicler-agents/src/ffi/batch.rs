@@ -1079,8 +1079,20 @@ pub(crate) fn build_ecology_batches(
         y2.append_value(ys[2]);
     }
 
+    // RS5: the clearing receipts are returned only when the input batch
+    // carried a `clearing_protection` column (the switch on), so a run
+    // without it keeps the exact schema of `ecology_region_schema`.
+    let protected = ledgers.iter().any(|l| l.protection_input);
+    let schema = if protected {
+        let mut fields: Vec<arrow::datatypes::Field> =
+            ecology_region_schema().fields().iter().map(|f| f.as_ref().clone()).collect();
+        fields.extend(clearing_receipt_fields());
+        arrow::datatypes::Schema::new(fields)
+    } else {
+        ecology_region_schema()
+    };
     let region_batch = RecordBatch::try_new(
-        Arc::new(ecology_region_schema()),
+        Arc::new(schema),
         vec![
             Arc::new(region_ids.finish()) as _,
             Arc::new(soils.finish()) as _,
@@ -1104,6 +1116,7 @@ pub(crate) fn build_ecology_batches(
         ]
         .into_iter()
         .chain(ecology_ledger_columns(n, ledgers))
+        .chain(if protected { clearing_receipt_columns(n, ledgers) } else { Vec::new() })
         .collect(),
     )?;
 
@@ -1165,6 +1178,60 @@ fn ecology_ledger_columns(
         columns.push(Arc::new(builder.finish()));
     }
     columns
+}
+
+/// RS5 clearing receipts appended to the ecology region batch when the
+/// input carried `clearing_protection`: whether population-driven clearing
+/// fired and the cover the protection kept from it (`ExtractionLedger`).
+pub(crate) fn clearing_receipt_fields() -> Vec<arrow::datatypes::Field> {
+    use arrow::datatypes::{DataType, Field};
+    vec![
+        Field::new("clearing_active", DataType::Boolean, false),
+        Field::new("cover_not_cleared", DataType::Float32, false),
+    ]
+}
+
+fn clearing_receipt_columns(
+    n: usize,
+    ledgers: &[crate::ecology::ExtractionLedger],
+) -> Vec<Arc<dyn arrow::array::Array>> {
+    use arrow::array::{BooleanBuilder, Float32Builder};
+    let default = crate::ecology::ExtractionLedger::default();
+    let mut active = BooleanBuilder::with_capacity(n);
+    let mut kept = Float32Builder::with_capacity(n);
+    for i in 0..n {
+        let l = ledgers.get(i).unwrap_or(&default);
+        active.append_value(l.clearing_active);
+        kept.append_value(l.cover_not_cleared);
+    }
+    vec![Arc::new(active.finish()), Arc::new(kept.finish())]
+}
+
+/// RS5: the optional `clearing_protection` region-batch column (Float32,
+/// p in [0, 1], no nulls). `Ok(None)` when absent; an error for any other
+/// type, a null, a non-finite value or one outside [0, 1], so a malformed
+/// protection is refused before any region state changes.
+pub(crate) fn clearing_protection_column(
+    rb: &RecordBatch,
+) -> Result<Option<&arrow::array::Float32Array>, String> {
+    use arrow::array::Array;
+    let Some(column) = rb.column_by_name("clearing_protection") else {
+        return Ok(None);
+    };
+    let arr = column
+        .as_any()
+        .downcast_ref::<arrow::array::Float32Array>()
+        .ok_or_else(|| "column clearing_protection not Float32".to_string())?;
+    if arr.null_count() > 0 {
+        return Err("column clearing_protection has nulls".to_string());
+    }
+    for i in 0..arr.len() {
+        let p = arr.value(i);
+        if !p.is_finite() || !(0.0..=1.0).contains(&p) {
+            return Err(format!("invalid clearing protection {p} in row {i}"));
+        }
+    }
+    Ok(Some(arr))
 }
 
 /// Parse a post-pass patch batch and apply it to regions.

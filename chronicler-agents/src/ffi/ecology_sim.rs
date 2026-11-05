@@ -204,6 +204,9 @@ impl EcologySimulator {
         let harvest_shock_col = rb
             .column_by_name("harvest_shock")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        // RS5 (`--clearing-protection`): validated before any state changes.
+        let clearing_protection_col =
+            super::batch::clearing_protection_column(&rb).map_err(PyValueError::new_err)?;
 
         if self.regions.is_empty() {
             // First call: initialize regions.
@@ -265,6 +268,7 @@ impl EcologySimulator {
                     r.temple_prestige = temple_prestige_col.map_or(0.0, |arr| arr.value(i));
                     r.climate_exposure = climate_exposure_col.map_or(1.0, |arr| arr.value(i));
                     r.harvest_shock = harvest_shock_col.map_or(0.0, |arr| arr.value(i));
+                    r.clearing_protection = clearing_protection_col.map(|arr| arr.value(i));
                     r
                 })
                 .collect();
@@ -317,6 +321,7 @@ impl EcologySimulator {
                 r.temple_prestige = temple_prestige_col.map_or(0.0, |arr| arr.value(i));
                 r.climate_exposure = climate_exposure_col.map_or(1.0, |arr| arr.value(i));
                 r.harvest_shock = harvest_shock_col.map_or(0.0, |arr| arr.value(i));
+                r.clearing_protection = clearing_protection_col.map(|arr| arr.value(i));
             }
         }
         Ok(())

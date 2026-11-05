@@ -37,6 +37,8 @@ from chronicler.workshops_state import WorkshopState
 from chronicler.world_gen import generate_world
 
 RS = ("apprenticeship", "repair_projects", "veteran_reintegration", "remittances", "clearing_protection")
+#: Packages whose lane replaced the inert RS0 stub (their own tests cover them).
+IMPLEMENTED = {"clearing_protection"}
 MODE_KEYS = {"apprenticeship": "apprenticeship_mode", "repair_projects": "repair_mode",
              "veteran_reintegration": "veteran_mode", "remittances": "remittance_mode",
              "clearing_protection": "clearing_protection_mode"}
@@ -220,6 +222,9 @@ def test_each_stub_switch_enables_records_its_mode_and_observes_only_itself(worl
     configure_livelihoods(world, parse(*ALL_ON), agent_mode="hybrid")
     state = world.livelihoods
     for name, module in MODULES.items():
+        assert getattr(module, f"{name}_active")(world), name
+        if name in IMPLEMENTED:
+            continue
         sub = getattr(state, name)
         assert (sub.schema_version, sub.enabled, sub.mode, sub.counters) == \
             (1, True, MODES[MODE_KEYS[name]][0], {}), name
