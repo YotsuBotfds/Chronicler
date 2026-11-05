@@ -506,3 +506,40 @@ def test_unfunded_or_non_operating_sites_never_read_operating_wear(monkeypatch):
     world.civilizations[0].treasury = 0
     _turn(world, sim)                                      # unfunded: L1 wear only
     assert world.livelihoods.workshops.sites[0].condition == pytest.approx(1.0 - W.CONDITION_WEAR)
+
+
+# --- Exact resume ---------------------------------------------------------------
+
+
+def test_exact_resume_refuses_a_recovery_skills_mode_the_checkpoint_never_recorded(world):
+    """Lead integration 2026-11-05 (RS1 lane report): the five RS mode options
+    were missing from ``livelihoods_resume_conflicts``, so ``--resume CKPT
+    --remittance-mode record_only`` would have continued silently in the saved
+    mode. An exact resume refuses a mode other than the retained one."""
+    from types import SimpleNamespace
+    from chronicler.batch_manifest import simulation_config
+    from chronicler.main import _adopt_checkpoint_args
+    parser = _build_parser()
+    world.turn = 2
+
+    def saved(flags):
+        return SimpleNamespace(state=SimpleNamespace(
+            world=world, seed=42, num_turns=8,
+            run_config={"simulation_args": simulation_config(parser.parse_args(flags))}))
+
+    off = saved([])
+    for key, (default, other) in ((MODE_KEYS[n], MODES[MODE_KEYS[n]]) for n in RS):
+        flag = "--" + key.replace("_", "-")
+        conflicts = _adopt_checkpoint_args(parser, parser.parse_args([flag, other]), off)
+        assert len(conflicts) == 1 and flag in conflicts[0] and "conflicts with the checkpoint" in conflicts[0]
+    configure_livelihoods(world, parse(*ALL_ON), agent_mode="hybrid")
+    on = saved([])
+    before = world.model_dump_json()
+    for name in RS:
+        key = MODE_KEYS[name]
+        default, other = MODES[key]
+        flag = "--" + key.replace("_", "-")
+        assert _adopt_checkpoint_args(parser, parser.parse_args([flag, default]), on) == [], flag
+        conflicts = _adopt_checkpoint_args(parser, parser.parse_args([flag, other]), on)
+        assert len(conflicts) == 1 and flag in conflicts[0], flag
+    assert world.model_dump_json() == before

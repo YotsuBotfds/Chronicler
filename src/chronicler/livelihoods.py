@@ -383,6 +383,11 @@ _CHOICE_FIELDS: dict[str, tuple[str, str]] = {
     "workshop_payroll_mode": ("workshop_payroll", "mode"),
     "relocation_mode": ("relocation_costs", "mode"),
     "local_budget_mode": ("local_budgets", "mode"),
+    "apprenticeship_mode": ("apprenticeship", "mode"),
+    "repair_mode": ("repair_projects", "mode"),
+    "veteran_mode": ("veteran_reintegration", "mode"),
+    "remittance_mode": ("remittances", "mode"),
+    "clearing_protection_mode": ("clearing_protection", "mode"),
 }
 
 
