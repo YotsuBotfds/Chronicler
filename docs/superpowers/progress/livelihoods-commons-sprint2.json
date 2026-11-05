@@ -1,0 +1,118 @@
+{
+  "schema_version": 3,
+  "board_version": 1,
+  "title": "Livelihoods, commons and collective choices - sprint 2 (L5-L9) operational board",
+  "plan": "docs/superpowers/roadmaps/livelihoods-commons-sprint2.md",
+  "owner_instruction": "2026-11-05: continue the entire roadmap end to end including L5-L9 with viewer, integration and evidence; sprint boundaries are checkpoints; branches and draft PRs; features default-off; no merge; no 200-seed gates without approval.",
+  "durable_location": {
+    "branch": "claude/livelihoods-sprint2",
+    "stacked_on": "claude/livelihoods-commons-sprint1"
+  },
+  "base": {
+    "sprint1_head": "3b23d769",
+    "main": "64863f1274e400c3898972fe0cd5df510d3bb06f",
+    "sprint1_ci": "run 41979324402 success on 1ed0ac0; review fixes 25252337 + L4 ablation merge 3b23d769 pending CI"
+  },
+  "sprint1_review": {
+    "reviewer": "independent agent, code-anchored",
+    "gaps_fixed_in": "25252337 (layer s1r) and fad0aee",
+    "findings": [
+      "work reservations disjoint-by-predicate only -> native registry authority",
+      "storage+workshop double spend -> fixed",
+      "no convoy risk ablation -> threat_scale key + delay-only release test",
+      "unknown relief recorded as zero -> null; lifecycle tests added",
+      "screen artifacts only in scratch -> committed runner + metrics",
+      "L1 resume/death tests missing -> added"
+    ]
+  },
+  "status_values": [
+    "proposed",
+    "ready",
+    "active",
+    "blocked",
+    "integrated",
+    "evaluated",
+    "deferred"
+  ],
+  "packages": [
+    {
+      "id": "L5",
+      "wave": "2A",
+      "status": "ready",
+      "lane": "learners",
+      "depends_on": [
+        "L1 work registry",
+        "academy services"
+      ]
+    },
+    {
+      "id": "L6a",
+      "wave": "2A",
+      "status": "ready",
+      "lane": "finance",
+      "depends_on": [
+        "L1B"
+      ]
+    },
+    {
+      "id": "L8",
+      "wave": "2A",
+      "status": "ready",
+      "lane": "commons",
+      "depends_on": [
+        "L3"
+      ]
+    },
+    {
+      "id": "L7",
+      "wave": "2B",
+      "status": "proposed",
+      "lane": "learners",
+      "depends_on": [
+        "L2",
+        "L6a wealth transfer"
+      ]
+    },
+    {
+      "id": "L9",
+      "wave": "2B",
+      "status": "proposed",
+      "lane": "commons",
+      "depends_on": [
+        "L1",
+        "L2",
+        "L5/L6/L8 services"
+      ]
+    },
+    {
+      "id": "L6b",
+      "wave": "2B",
+      "status": "proposed",
+      "lane": "finance",
+      "depends_on": [
+        "L2",
+        "L6a",
+        "inventory title"
+      ]
+    },
+    {
+      "id": "L10-s2",
+      "status": "proposed",
+      "lane": "lead"
+    },
+    {
+      "id": "L11-s2",
+      "status": "proposed",
+      "lane": "lead"
+    }
+  ],
+  "compute_budget": {
+    "core_hours": 2.0,
+    "concurrency": 3,
+    "transient_disk_gib": 6,
+    "dev_cohort": "template 1-3",
+    "held_cohort": "template 301-306; procedural 32x10 401-406; 200 turns",
+    "used_core_hours": 0.0
+  },
+  "landing_log": []
+}
