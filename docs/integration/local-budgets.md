@@ -13,7 +13,9 @@ One existing decision point per civilization makes a finite budget choice: its r
 judged at its seat city. It decides once a turn, in Phase 10 of turn T, for turn T+1.
 
 - Governed services spend only through an accepted envelope. These are public granary
-  purchases, granary works and L1 workshop bills.
+  purchases, granary works, L1 workshop bills and, through registered providers, L8 warden
+  bills (`--commons-rules`) and academies' purchases from L6a workshop firms
+  (`--workshop-payroll`).
 - The council does not invent a politics simulator. It reuses existing factions' influence,
   existing city grievance, and the services' own costs and receipts.
 - Political response follows observed delivery. It feeds the existing chain from city
@@ -27,7 +29,9 @@ judged at its seat city. It decides once a turn, in Phase 10 of turn T, for turn
 | Phase 10 of T, last livelihoods hook (after the granary pass, convoys and cities) | settle the envelopes that executed in T; apply the response; decide T+1 from the dated observations of T; install the storage policies |
 | Phase 2 of T+1, storage plan | storage works within its envelope (policy `maintain`/`expand` with a work budget of envelope / 2 coins; every other storage region is set to `neglect`) |
 | Phase 2 of T+1, workshop plan | a site's bill is paid only if its civ holds an envelope covering it (`workshops._plan_funding` → `local_budgets.workshop_funded`) |
+| Phase 2 of T+1, commons rules plan | a rule's warden bill is paid, and a new rule adopted, only within the envelope for its stand (`commons_rules.prepare_phase2` → `local_budgets.envelope(..., "wardens", claim=...)`) |
 | Phase 10 of T+1, granary pass | the civ's purchase budget is its relief envelope, at most its treasury above the floor (`grain_reserves.tick_grain_reserves` → `local_budgets.procurement_budget`); L4 convoys then spend only what the envelope left |
+| Phase 10 of T+1, payroll hook (after academy procurement) | an academy's purchase from a workshop firm is paid only within the envelope for (ruler, site) (`workshop_payroll._sell` → `local_budgets.envelope(..., "teaching_supplies", site=...)`) |
 | Phase 10 of T+1, L9 hook | settlement of T's envelopes, then the next decision |
 
 Envelopes are persisted, so a checkpoint between turns resumes exactly. Execution traces
@@ -46,14 +50,21 @@ empty at every turn boundary.
 Every accepted envelope of a civ is committed against this single budget, so two services
 never spend the same coins. Settlement checks that no service spent more than its envelope.
 
-**Teaching is reserved, not bargained.** Academy supplies
-(`learning_services.procure_learning_supplies`) buy against the whole projected treasury in
-Phase 10, before any livelihoods hook. They take no budget parameter, and
-`learning_services.py` is byte-pinned. So they cannot be capped without a reviewed edit.
-Instead, their dated upper bound is reserved first as an obligation: from the last
-procurement receipts of the civ's academies, the larger of what was paid and the full want
-`min(learners, 8 × scholars) × craft price`. A teaching choice needs either an envelope
-parameter there (a new inverse layer) or an L5 provider.
+**Teaching: one channel bargained, one reserved.** Academies get paid supplies in two
+ways.
+
+- **Their own market procurement** (`learning_services.procure_learning_supplies`) buys
+  against the whole projected treasury in Phase 10, before any livelihoods hook. It takes no
+  budget parameter and `learning_services.py` is byte-pinned, so it cannot be capped without
+  a reviewed edit. Its dated upper bound is reserved first as an obligation: from the last
+  procurement receipts of the civ's academies, the larger of what was paid and the full want
+  `min(learners, 8 × scholars) × craft price`.
+- **Their purchase from an L6a workshop firm** for the need left after that procurement is
+  a ruler's Phase 10 treasury spend in a sprint module, so it is a bargained service:
+  `teaching_supplies` (below).
+
+L5 learning cohorts spend no treasury (learners pay with their attended time and seats come
+from delivered teaching), so there is nothing of L5 to govern.
 
 ## Constituencies and measured burdens
 
@@ -63,7 +74,7 @@ T's receipts only. An unknown observation stays `null`, never zero.
 | Constituency | Voice (existing influence) | Measured burden (unit) | Its services |
 | --- | --- | --- | --- |
 | commons: the poorer households | the faction the movements model allies with the commons creed (`agent_movements._ally_faction(COMMONS)`, the cultural faction) | food shortfall of the poorer half by means (L2 receipts; without L2, the regional post-release shortfall). Plus the reserve gap: each granary's deficit, up to the harvest shortfall its own yearly harvest mean expects over `HORIZON` turns. Plus granary wear: extra spoilage of held grain over `HORIZON` turns, and the reserve target the worn capacity cannot hold (food) | relief, granary works |
-| patricians: the towns' merchants and burghers | `cities._merchant_influence` (merchants, plus burghers with `--guilds`) | crew work standing idle at the civ's workshop sites (work) | workshops |
+| patricians: the towns' merchants and burghers | `cities._merchant_influence` (merchants, plus burghers with `--guilds`) | crew work standing idle at the civ's workshop sites (work) | workshops; teaching supplies bought from workshop firms (the crew's wages the sale covers); wardens (the timber kept for the towns' crafts) |
 
 The existing movements model also lists the merchants as the opponents of poor relief
 (`REFORM_OPPONENTS`). Here the two constituencies prefer different allocations only because
@@ -87,7 +98,8 @@ across constituencies.
   purchase rule could buy from the observed surpluses, simulated with an unlimited
   envelope:
   - the realm's markets within `MAX_HOPS`, nearest then cheapest;
-  - then one step abroad, cheapest first;
+  - then one step abroad, cheapest first, where a foreign market sells only beyond its
+    own ruler's granary deficits (every ruler buys at home first);
   - whole coins per purchase, so a market worth less than a coin sells nothing;
   - transit loss off the granary's own market.
 
@@ -106,6 +118,34 @@ across constituencies.
   stake is the crew's available work. A construction installment counts pro rata
   (`installment / CONSTRUCTION_COST`). In `cost_only` mode funding never puts a crew to
   work, so the patricians gain nothing from it.
+- **`teaching_supplies`** (per open L6a firm in the civ's land, divisible; requires
+  `--workshop-payroll` with a customer, so not `no_customer`). Recipients: the firm's region
+  and site; claim `teaching:<site>`.
+  - The cost and the crafts are what the firm could sell, by L6a's own sale rule, to the
+    civ's academies whose procurement this turn was fully informed. Each academy has its
+    remaining need, at its craft price, from the firm's wares: its inventory plus last
+    turn's titled wares, because the firm titles the new output before it sells.
+  - The patricians' stake is the firm crew's wages the sale's cash would cover: owed wages
+    plus next turn's full-crew bill beyond the firm's cash, as crew work at
+    `WAGE_PER_WORK`.
+  - A flush firm's crew gains nothing; its surplus cash is distributed back to the ruler
+    anyway. The learners have no separate voice (see Limits).
+- **`wardens`** (per L8 commons rule of the civ, or per stand L8 would adopt; requires
+  `--commons-rules`). Recipients: the stand's region; claim `wardens:<region>:<slot>`.
+  - Proposals read the timber account the next planning reads, settled in this turn's
+    Phase 2. A rule is proposed only if it would continue (no repeal reason). An adoption
+    candidate must meet L8's own adoption test: harvested, depleted, not cooling. Adoption
+    is indivisible, because L8 adopts only with the full first bill; continuation is
+    divisible, because a partial payment gives partial coverage.
+  - The cost is the full bill (`ADMIN_COST`). L8 reads Commons Management's share at
+    planning, before that turn's institution funding runs later in Phase 2, so the share
+    it will apply is not known at the decision (see Limits).
+  - The patricians' stake is the timber the rule keeps from open access over `HORIZON`
+    turns: the L3 reference crew's harvest above the quota, bounded by the standing stock
+    and its regrowth, as the crew work its raw loads could supply the towns' crafts
+    (`K_RAW_PER_WORK`). It is zero when the last receipt shows nobody could harvest.
+  - The commons gain nothing: the rule restricts their timber access, and L8's own
+    grievance channel already carries that side of the conflict.
 
 ## Arbitration (`bargained`)
 
@@ -139,7 +179,11 @@ Every decision records:
 
 The control commits the same budget, split by declared shares:
 
-- relief 0.4, granary 0.3, workshop 0.3;
+- relief 0.4, granary 0.3, workshop 0.3 for the built-in groups;
+- a registered group (teaching 0.15, wardens 0.15) adds its weight only while its provider
+  is active (its switch is on), and every share is then divided by the active total. With
+  only the built-in groups the split is exactly 0.4 / 0.3 / 0.3; with both registered groups
+  active it is 0.31 / 0.23 / 0.23 / 0.115 / 0.115;
 - within each group, items are funded in the fixed service and recipient order;
 - an unused share stays unspent.
 
@@ -183,6 +227,25 @@ else the seat city. The seat city is the civ's city in its capital region, else 
 city. The change is applied after selection, and only from observed delivery. Its sum is
 capped at `RESPONSE_CAP` per city per turn. Grievance stays in [0, 1].
 
+Settlement of the registered services:
+
+- **Teaching supplies:** the firm's payroll receipt for the turn: sales in whole units
+  (spent) and crafts delivered. It is kept at 95% of the envelope or the expected crafts, or
+  when the sale met the academies' remaining need. Otherwise it is deferred:
+  - `no_demand` when no informed order had need left;
+  - `inputs_short` when the wares left are worth less than one coin at today's craft
+    price;
+  - `treasury_shortfall` otherwise;
+  - `recipient_lost` when the firm closed or changed ruler.
+- **Wardens:** L8's receipt for the stand. It is kept when the payment covered the
+  promised share of the bill (`paid ≥ min(envelope, bill)`). Otherwise it is deferred with
+  `treasury_shortfall`, or with `cost_rose` when the bill exceeded the proposal's cost.
+  Without a receipt:
+  - a rule repealed because its stand recovered is kept (the need ended);
+  - a lapsed rule is `recipient_lost`;
+  - another repeal is `service_off`;
+  - a stand that was not adopted is `not_adopted`.
+
 Grievance then decays and feeds unrest through `cities._unrest` next turn. No unrest is
 added directly, so there is no second unrest signal.
 
@@ -198,7 +261,7 @@ added directly, so there is no second unrest signal.
 | `RESPONSE_CAP` | 0.10 per city per turn | `livelihoods.budgets.response_cap` |
 | `KEPT_RATIO` | 0.95 | (constant) |
 | `MAX_PROPOSALS` | 8 per civ per turn | (constant) |
-| `FIXED_SHARES` | relief 0.4, granary 0.3, workshop 0.3 | (constant) |
+| `FIXED_SHARES` | relief 0.4, granary 0.3, workshop 0.3; registered teaching 0.15, wardens 0.15 (scaled while active) | (constant) |
 
 The keys are read through `tuning.get_override`. Until they are added to
 `KNOWN_OVERRIDES`, a YAML file naming them loads with an "unknown key" warning.
@@ -210,6 +273,8 @@ A service joins the one budget by appending `"module:attribute"` to
 
 - `services`: its unique service names.
 - `group`: its `FIXED_SHARES` group. It gets no share in the control unless declared there.
+- `active(world) -> bool`: whether its service runs (its own switch). A registered group
+  takes a fixed share only while active. The default is `True`.
 - `proposals(world, civ, obs) -> list[dict]`: the `Proposal` fields (`service`,
   `recipients`, optional `site`, `claims`, `cost` ≥ 1 coin, `divisible`, `unit`,
   `expected`, `relief` by constituency, `detail`). They come from the dated observations of
@@ -218,8 +283,10 @@ A service joins the one budget by appending `"module:attribute"` to
 - `install(world, commitments)`: called once per decision with this provider's new
   envelopes, possibly none. It must make the service spend only within them next turn.
   At execution the service reads its amount with
-  `local_budgets.envelope(world, civ, service, site=..., region=...)`. That returns `None`
-  when L9 is inactive, which means keep the legacy rule. The service may record a trace
+  `local_budgets.envelope(world, civ, service, site=..., region=..., claim=...)`. That is
+  the sum of the civ's open envelopes for the service, optionally one site, recipient
+  region or claim, and 0 without one. It returns `None` when L9 is inactive, which means
+  keep the legacy rule. The service may record a trace
   with `local_budgets.record_execution(world, cid, service, **fields)`.
 - `settle(world, commitment, obs) -> dict`: the observed delivery from the service's own
   receipts: `outcome` (`kept`/`deferred`), `reason` (one of `REASONS`), `spent` (never above
@@ -228,13 +295,16 @@ A service joins the one budget by appending `"module:attribute"` to
 
 Relief must be declared in an existing constituency's unit: food for commons, crew work
 for patricians. A new constituency would extend `CONSTITUENCIES` (append-only) and
-`_influence`. Examples:
+`_influence`.
 
-- L8 commons enforcement as wardens' work;
-- L5 teaching for a scholars constituency;
-- L6 payroll as patricians' or workers' work.
+Registered providers, all in `local_budgets.py`, use this interface:
 
-The built-in relief, granary, workshop and teaching providers use this interface.
+- `RELIEF`, `GRANARY` and `WORKSHOP` (built-in);
+- `TEACHING`: L6a firm purchases are bargained; academy market procurement is reserved;
+- `WARDENS`: L8.
+
+Keeping the providers in `local_budgets.py` keeps the hooks in the services' own modules to
+a single envelope read each.
 
 ## Shared-file hooks (each listed for the lead's inverse layer)
 
@@ -248,6 +318,13 @@ The built-in relief, granary, workshop and teaching providers use this interface
 - `src/chronicler/batch_manifest.py` (pinned) and its mirror in
   `tests/test_batch_manifest.py` (pinned): `local_budgets` and `local_budget_mode` in
   `SIMULATION_ARG_KEYS` and in the omit-when-None tuple.
+- Part 2, sprint modules, unpinned. Both are the identity when `envelope()` returns `None`.
+  - `src/chronicler/commons_rules.py`, `prepare_phase2`: one import; a `payable(owner,
+    rule)` helper (the treasury left, within the stand's warden envelope when L9 is
+    active); and two uses of it, for a continuing rule's payment and the adoption test.
+  - `src/chronicler/workshop_payroll.py`, `_sell`: the buyer's budget is capped by the
+    `teaching_supplies` envelope for (ruler, site), less what this firm already sold it
+    this turn.
 
 ## Evidence
 
@@ -257,7 +334,7 @@ or procedural gate was run.
 
 ### Tests
 
-- `tests/test_local_budgets.py` (offline, 23 tests; guard-clean under the offline lane's
+- `tests/test_local_budgets.py` (offline, 29 tests; guard-clean under the offline lane's
   guard, about 1.6 s with the workshop and wiring modules). It runs the real storage,
   workshop and granary-purchase code on the template world (seed 42). It covers:
   - proposals with costs, recipients and dated benefits;
@@ -276,16 +353,30 @@ or procedural gate was run.
   - exact pickle resume;
   - unknown versus zero in the snapshot;
   - a registered provider;
-  - switch-off lapses; CLI and prerequisites.
-- `tests/test_local_budgets_native.py` (real extension, 3 tests):
+  - switch-off lapses; CLI and prerequisites;
+  - convoy relief counted once, inside the envelope (the lead's regression test);
+  - part 2, on the L8 and L6a fixtures:
+    - warden bills inside their envelope; `None` is byte-identical to the legacy rule;
+      adoption refused without a full envelope;
+    - wardens proposed from the dated stock account and settled from L8 receipts;
+    - firm academy sales capped by the envelope, none without one, identity when off;
+    - teaching-supplies proposals and settlement;
+    - fixed shares scaled only while a registered group is active.
+- `tests/test_local_budgets_native.py` (real extension, 4 tests):
   - every governed payment in a 60-turn hybrid run (seed 3) sits inside an accepted
     envelope of its payer for that turn: workshop bills, storage work, granary purchases.
     Awards never exceed the budget, and claims are unique;
   - bargained and fixed shares move different spending;
   - a world with open envelopes resumes exactly from a checkpoint for four turns: world
-    JSON, native checkpoint state and the global RNG.
-- Viewer: `localBudgets.test.ts` and `LocalBudgets.test.tsx` (5 tests). Full suite 118
-  files, 1,223 tests; lint and build pass.
+    JSON, native checkpoint state and the global RNG;
+  - part 2: on seed 1 with every switch the providers need (200 turns), every warden
+    payment and every firm academy sale sits inside an accepted envelope, and spent equals
+    paid.
+- Viewer: `localBudgets.test.ts` and `LocalBudgets.test.tsx` (6 tests after part 2). Full
+  suite 124 files, 1,249 tests; lint and build pass.
+- Bounded offline lane (`scripts/run_python_oracle_checks.py`) on the part-2 source:
+  PASS, 57 chunks, 6,197 passed, 69 skipped, 0 failed, 233.7 s. The livelihoods chunk took
+  3.2 s of 110.
 - Feature-off identity against the base source (bd22f70d), on the native extension, 120
   turns:
   - seed 2 with `--grain-reserves --grain-storage --workshops --food-allocation` (L9 off);
@@ -293,6 +384,17 @@ or procedural gate was run.
 
   In both, `history` and `world_state` are equal and `state.json` is byte-identical. Only
   the bundle's `metadata` (source identity) differs.
+- Part-2 switch-pair identity (L9 off, commons rules and workshop payroll on) against the
+  integrated head 60b63f2, on the native extension, 200 turns, template seeds 1 and 3.
+  - Flags: `--grain-reserves --public-grain-shipments --scholarship --techniques
+    --academy-services --workshops --workshop-payroll --timber-stock --commons-rules
+    --food-allocation`.
+  - Result: `history` and `world_state` are equal and `state.json` is byte-identical.
+  - Both runs exercise the hooked paths. Seed 1 adopted a rule and paid 214 coins of
+    wardens, and its firms made 44 academy sales. Seed 3 adopted 4 rules and paid 298.
+  - The same check on procedural seed 7 (32 × 10, adding `--grain-convoys
+    --grain-storage`) is also identical. It adopted 7 rules, paid 522 coins of wardens
+    and made 21 firm academy sales.
 
 ### Funnel, 200 turns
 
@@ -392,16 +494,88 @@ identical snapshots).
 
      Case 1 is built on the turn-91 one.
 
-The evidence scripts are development tools kept outside the repository. Their commands
-are the CLI flags above, plus `--seed N --turns 200`.
+### Registered services (part 2) and the driver
+
+The driver `local-budgets-evidence/driver.py` reproduces every row of this page: the base
+arms above, the provider arms, procedural seed 7 and the constructed pairs with their
+natural twins. Its metrics are in `local-budgets-evidence/metrics.jsonl`, and the source and
+extension identity in `local-budgets-evidence/source.txt`. The base arms reproduce the
+part-1 numbers above exactly.
+
+**Provider arms**, 200 turns: every switch the providers need, `--grain-reserves
+--public-grain-shipments --scholarship --techniques --academy-services --workshops
+--workshop-payroll --timber-stock --commons-rules --food-allocation`. Procedural seed 7
+(32 regions × 10 civilizations) adds `--grain-convoys --grain-storage`.
+
+| Arm | Seed | Decisions | With budget | With proposals | Proposals | Envelopes | Coins committed / spent | Kept | Deferred (reasons) | Responses raised / eased | Awards by service |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| bargained | 1 | 800 | 541 | 152 | 231 | 118 | 404 / 392 | 107 | 11 (8 relief no supply; 3 teaching supplies inputs short) | 11 / 12 | relief 17, teaching supplies 3, wardens 55, workshop 43 |
+| fixed_shares | 1 | 800 | 566 | 214 | 427 | 244 | 786 / 745 | 227 | 16 (2 relief no supply; 13 teaching supplies inputs short; 1 no demand) | — | relief 12, teaching supplies 42, wardens 10, workshop 180 |
+| bargained | 2 | 607 | 434 | 267 | 282 | 93 | 526 / 504 | 85 | 6 (5 relief no supply; 1 workshop recipient lost) | 1 / 19 | relief 16, workshop 77 |
+| fixed_shares | 2 | 607 | 355 | 290 | 350 | 46 | 212 / 203 | 41 | 4 (2 relief no supply; 2 workshop recipient lost) | — | relief 6, workshop 40 |
+| bargained | 3 | 671 | 617 | 311 | 472 | 401 | 1371 / 1358 | 393 | 7 (5 relief no supply; 2 workshop recipient lost) | 5 / 53 | relief 12, wardens 72, workshop 317 |
+| fixed_shares | 3 | 800 | 748 | 367 | 568 | 520 | 1553 / 1542 | 513 | 5 (relief no supply) | — | relief 10, wardens 161, workshop 349 |
+| procedural bargained | 7 | 1815 | 1607 | 1343 | 2698 | 1127 | 3713 / 3655 | 1105 | 17 (13 relief no supply; 1 relief treasury shortfall; 1 teaching inputs short; 2 workshop recipient lost) | 13 / 180 | granary expand 87, granary maintain 232, relief 44, teaching supplies 21, wardens 230, workshop 513 |
+| procedural fixed_shares | 7 | 1658 | 1256 | 1000 | 2267 | 711 | 1907 / 1856 | 688 | 22 (13 granary work short; 2 relief no supply; 6 teaching inputs short; 1 no demand) | — | granary expand 21, granary maintain 366, relief 24, teaching supplies 22, wardens 73, workshop 205 |
+
+Actual spending from the services' own receipts:
+
+| Arm | Seed | Workshop coins | Crew work | Storage coins | Relief coins / grain | Warden coins (turns covered) | Teaching coins / crafts | Treasury at end |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| L9 off | 1 | 951 | 215.3 | — | 19 / 131.3 | 214 (109) | 157 / 50.4 | 1580 |
+| bargained | 1 | 270 | 18.9 | — | 12 / 93.6 | 110 (55) | 0 / 0 | 1964 |
+| fixed_shares | 1 | 621 | 76.9 | — | 10 / 68.0 | 14 (10) | 100 / 39.8 | 1832 |
+| L9 off | 2 | 633 | 39.5 | — | 15 / 93.7 | 0 | 0 | 1881 |
+| bargained | 2 | 481 | 13.6 | — | 23 / 172.4 | 0 | 0 | 1653 |
+| fixed_shares | 2 | 198 | 0 | — | 5 / 42.5 | 0 | 0 | 831 |
+| L9 off | 3 | 1266 | 289.1 | — | 12 / 73.7 | 298 (149) | 0 | 1851 |
+| bargained | 3 | 1208 | 291.9 | — | 8 / 49.1 | 142 (71) | 0 | 1963 |
+| fixed_shares | 3 | 1212 | 252.0 | — | 10 / 64.2 | 320 (160) | 0 | 2165 |
+| procedural bargained | 7 | 2221 | 345.0 | 869 | 46 / 320.4 | 460 (230) | 57 / 26.7 | 3382 |
+| procedural fixed_shares | 7 | 825 | 70.6 | 834 | 26 / 177.6 | 144 (73) | 22 / 19.2 | 1945 |
+
+What these runs show:
+
+- **All six services run inside one budget.** In the procedural world, every governed
+  payment is a settled envelope: relief, granary works, workshops, wardens and teaching
+  supplies (the native test checks wardens and sales on seed 1). Every settled warden
+  promise was kept: 55, 71 and 230, none deferred; one seed-3 envelope was still open at
+  the end. The procedural world
+  also shows a natural budget-loss deferral (relief, `treasury_shortfall`), which the
+  template worlds never did.
+- **The commons choice is real.** The ruler pays wardens only while the patricians'
+  stake is positive. On seed 1, a resting rule whose stand nobody could harvest got no
+  envelope, went unfunded and was repealed after three turns; L8 alone keeps paying until
+  it is repealed as idle. Warden spending is 110 against 214 coins on seed 1, and 142
+  against 298 on seed 3, against L9 off.
+- **Teaching is supported only through the firms' crews.** Bargained mode funds academy
+  purchases only where the firm owes wages.
+  - Template worlds: rare. Seed 1 has 3 envelopes, all `inputs_short`: the craft price fell
+    below what the firm's few wares could sell for.
+  - Procedural world: 21 envelopes, 20 kept, 57 coins for 26.7 crafts.
+  - Fixed shares fund them by rule: 42 envelopes on seed 1 (28 kept, 100 coins).
+- **Budgets cascade on seed 1.** The poorer civs' envelopes cover few workshop bills (270
+  against 951 coins with L9 off). Firms then rarely operate, and the academy purchases
+  that L9 off made (157 coins) disappear. This is a consequence of the allocation and
+  budget rule, not a welfare claim.
 
 ## Limits
 
 - Relief is supply-bound in the development worlds. Their markets rarely hold grain beyond
   the reserve rule's four turns of demand, so relief is rarely executable whatever the
   budget. The surplus and one-coin purchase rules are unchanged.
-- Teaching is reserved, not bargained (see above). L4 escort fees are paid inside the relief
-  envelope and itemised.
+- Teaching: academies' market procurement stays reserved (byte-pinned). Their purchases from
+  workshop firms are bargained, but the learners have no separate voice: the only existing
+  scholarly voice is the cultural faction (scholarship focus, scientist agendas), and L9
+  already uses it for the commons through the movements precedent. Counting it twice would
+  double that faction. So in bargained mode teaching wins support only through the firm
+  crew's wages. L4 escort fees are paid inside the relief envelope and itemised.
+- Wardens: the full bill is promised. L8 reads Commons Management's share
+  (`institution_share`) in Phase 2 planning, before that turn's institution funding.
+  `fund_institutions_phase2` runs in `apply_automatic_effects`, after the economy block,
+  so at planning `funding_turn` is still the previous turn and the share is 0. This is
+  why L8's unit test sets `funding_turn` by hand. It is an L8 finding, reported to the
+  lead and left unchanged here.
 - L9 replaces the `--grain-storage-policy` setting while active. Its last policies remain
   if it is switched off. Switching it off lapses open envelopes.
 - The political response reaches only cities: a civ without a city has no venue.

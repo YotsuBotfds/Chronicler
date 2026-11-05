@@ -1,0 +1,13 @@
+L9 local budgets, development-cohort evidence (template seeds 1-3, procedural seed 7), 2026-11-05.
+Source: commit 9b2bb652fbb1d78a6b0d8b1c04a2f09ddffb2bc2 on branch claude/livelihoods-l9b-providers
+  (src/ as of that commit; later commits change only docs, tests and viewer files).
+  A first run on the same source before it was committed gave identical metrics in all 29 rows
+  (wall times aside).
+Native extension: ~/.venvs/chronicler-native, chronicler_agents.cpython-313-x86_64-linux-gnu.so
+  SHA-256 70587268a128b5a51a10b37c68e4c203bce0fa3eb492a66b21be86e851ea6677
+  (built by the lead from the sprint head's native source; this lane changes no Rust).
+Interpreter: Python 3.13 (native venv), PYTHONHASHSEED=0, RAYON_NUM_THREADS=1, CHRONICLER_QUIET=1.
+Command: python docs/integration/local-budgets-evidence/driver.py run OUT --jobs 2
+Runs: 26 arm runs (base 15, providers 9, procedural 2) and 3 constructed pairs (each with its
+  natural twin), 200 turns (constructed: 100-110); 29 rows, 0 failed, 165 s wall.
+Raw bundles are not kept; they are reproducible from the fixed seeds.

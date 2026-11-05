@@ -152,3 +152,35 @@ def test_open_envelopes_resume_exactly_from_a_checkpoint(tmp_path):
         assert resumed.model_dump_json() == world.model_dump_json()
         assert resumed_bridge._sim.checkpoint_state() == bridge._sim.checkpoint_state()
     assert world.livelihoods.local_budgets.counters.get("awards", 0) >= 1
+
+
+ALL_FLAGS = ("--grain-reserves", "--public-grain-shipments", "--scholarship", "--techniques", "--academy-services",
+             "--workshops", "--workshop-payroll", "--timber-stock", "--commons-rules", "--food-allocation",
+             "--local-budgets")
+
+
+def test_warden_bills_and_firm_academy_sales_sit_inside_their_envelopes(tmp_path):
+    """Seed 1: academy orders from workshop firms from about turn 70, a
+    commons rule paid from turn 85 (docs/integration/local-budgets.md)."""
+    bundle = _run(tmp_path, *ALL_FLAGS, seed=1, turns=200)
+    paid, envelopes, teaching = {}, {}, 0
+    for snap in bundle["history"]:
+        liv = snap["livelihoods"]
+        commons = liv["commons_rules"]
+        for r in commons["receipts"] or []:
+            if r["paid"]:
+                paid[(commons["source_turn"], r["owner"], "wardens", f'wardens:{r["region_id"]}:{r["slot"]}')] = r["paid"]
+        for r in liv["workshop_payroll"]["receipts"] or []:
+            if r["sales"]:
+                paid[(r["turn"], r["controller"], "teaching_supplies", f'teaching:{r["site"]}')] = r["sales"] // 1000
+        lb = liv["local_budgets"]
+        for c in lb["settled"] or []:
+            if c["service"] in ("wardens", "teaching_supplies"):
+                envelopes[(c["for_turn"], c["civ"], c["service"], c["claims"][0])] = c
+        for d in lb["decisions"] or []:
+            teaching += sum(p["service"] == "teaching_supplies" for p in d["proposals"])
+    assert any(key[2] == "wardens" for key in paid) and teaching >= 1
+    for key, amount in paid.items():
+        c = envelopes.get(key)
+        assert c is not None, f"payment without an envelope: {key} {amount}"
+        assert c["spent"] == amount <= c["amount"]

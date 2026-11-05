@@ -274,6 +274,7 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
     observations; in enforced mode lower the native harvest caps. Charges
     nothing and changes no persisted state."""
     from chronicler.mutual_aid import _treasury_budget
+    from chronicler.local_budgets import envelope   # L9 warden envelopes (None: the legacy rule)
     ts = _timber()
     state = _state(world)
     if state._plan is not None:
@@ -290,6 +291,10 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
     decisions: list[CommonsDecision] = []
     cooldowns = [c for c in state.cooldowns if c.until > turn]
     rows: list[_Row] = []
+
+    def payable(owner, rule):
+        cap = envelope(world, owner, "wardens", claim=f"wardens:{rule.region_id}:{rule.slot}")
+        return budgets[owner] if cap is None else min(budgets[owner], cap)
 
     def plan_row(rule, owner, observation, new):
         status = next_status(None if new else rule.status, observation)
@@ -326,7 +331,7 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
         if observation is None:
             raise RuntimeError("a commons rule has no stock observation")
         row = plan_row(rule, owner, observation, False)
-        row.paid = min(row.bill, budgets[owner])
+        row.paid = min(row.bill, payable(owner, rule))
         budgets[owner] -= row.paid
         rows.append(row)
 
@@ -349,7 +354,7 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
         candidates += 1
         rule = CommonsRule(region_id=rid, slot=slot, owner=owner, adopted_turn=turn, observation=observation)
         row = plan_row(rule, owner, observation, True)
-        if budgets[owner] < row.bill:
+        if payable(owner, rule) < row.bill:
             unaffordable += 1
             continue
         row.paid = row.bill

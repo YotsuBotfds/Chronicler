@@ -40,3 +40,18 @@ it("labels the fixed-shares control and keeps unobserved turns unknown", () => {
   render(<LocalBudgets {...props(localBudgetsRecord(), 32)} />);
   expect(screen.getByText(/not observed or are unavailable at snapshot 32/)).toBeInTheDocument();
 });
+
+it("names the registered services' settlements by their service", () => {
+  const record = localBudgetsRecord();
+  record.settled = [
+    { ...record.settled![0], cid: 7, service: "wardens", recipients: [1], claims: ["wardens:1:0"], amount: 2, unit: "coverage",
+      expected: 1, outcome: "kept", reason: null, spent: 2, delivered: 1, ratio: 1, response: -0.03 },
+    { ...record.settled![0], cid: 8, service: "teaching_supplies", recipients: [1], site: 0, claims: ["teaching:0"], amount: 1,
+      unit: "crafts", expected: 0.5, outcome: "deferred", reason: "inputs_short", spent: 0, delivered: 0, ratio: 0, response: 0.1 },
+  ];
+  render(<LocalBudgets {...props(record)} />);
+  const settled = within(screen.getByRole("table", { name: "Settled envelopes at snapshot 31" }));
+  expect(settled.getByRole("row", { name: /wardens/ })).toHaveTextContent("Kept");
+  expect(settled.getByRole("row", { name: /teaching supplies/ })).toHaveTextContent("Deferred (inputs short)");
+  expect(screen.getByText(/commons wardens and academies' purchases from workshop firms/)).toBeInTheDocument();
+});
