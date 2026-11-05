@@ -246,3 +246,32 @@ def test_an_all_switch_state_fork_closes_every_saved_id_bound_record(tmp_path):
         assert first["veteran_reintegration"]["counters"].get("closed_pool_reset", 0) == len(open_veterans)
     if held:
         assert first["apprenticeship"]["counters"].get("retired_pool_reset", 0) == len(held)
+
+
+def test_phase10_reads_the_pool_after_the_livelihoods_after_hooks_moved_wealth(tmp_path, monkeypatch):
+    """Review B 2026-11-05 (major): the bridge held the batch it read inside the
+    agent tick and handed it to Phase 10, but the after-tick hooks then move
+    native wealth (L7 fares, RS4 remittances; L6a wages and RS1 stipends too),
+    so governance read stale wealth. The hooks now drop the held batch."""
+    import pyarrow as pa
+    import chronicler.simulation as S
+    capture = S._capture_agent_snapshot
+    seen = {"turns": 0, "stale": 0}
+
+    def checked(world, bridge):
+        held = capture(world, bridge)
+        if held is not None:
+            live = bridge._sim.get_snapshot()
+            h, l = pa.record_batch(held), pa.record_batch(live)
+            a = dict(zip(h.column("id").to_pylist(), h.column("wealth").to_pylist()))
+            b = dict(zip(l.column("id").to_pylist(), l.column("wealth").to_pylist()))
+            seen["turns"] += 1
+            seen["stale"] += sum(1 for i in a if i in b and a[i] != b[i])
+        return held
+
+    monkeypatch.setattr(S, "_capture_agent_snapshot", checked)
+    bundle = _run(tmp_path, "--food-allocation", "--relocation-costs", "--remittances", turns=16)
+    moved = bundle["history"][-1]["livelihoods"]["remittances"]["counters"].get("rows_applied", 0)
+    fares = bundle["history"][-1]["livelihoods"]["relocation_costs"]["counters"].get("fare_debited_milli", 0)
+    assert seen["turns"] >= 15 and (moved or fares), (seen, moved, fares)
+    assert seen["stale"] == 0

@@ -544,6 +544,12 @@ def wrap_agent_tick(world, agent_bridge, tick_agents, economy_result):
             raise
         for fn in after:
             events = list(events or []) + list(fn(world, agent_bridge) or [])
+        if after:
+            # The hooks may have moved native wealth (wages, fares, stipends,
+            # remittances): Phase 10 must not reuse the batch read in the tick.
+            discard = getattr(type(agent_bridge), "discard_post_tick_snapshot", None)
+            if discard is not None:
+                discard(agent_bridge)
         return events
 
     return _tick

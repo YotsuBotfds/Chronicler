@@ -1438,17 +1438,23 @@ class AgentBridge:
     def take_post_tick_snapshot(self, turn: int):
         """Hand over the snapshot fetched after this turn's agent tick, once.
 
-        ``_process_tick_results`` reads the pool right after the tick; nothing
-        between there and the Phase 10 capture writes the native pool (bridge
-        post-processing and stockpile settlement only read it or Python
-        state), so the coordinator reuses that batch instead of exporting the
-        pool again. Returns None when no batch of this turn is held.
+        ``_process_tick_results`` reads the pool right after the tick. Bridge
+        post-processing and stockpile settlement only read it or Python state,
+        so the coordinator reuses that batch instead of exporting the pool
+        again. The livelihoods after-tick hooks can write native wealth (L6a
+        wages, L7 fares, RS1 stipends, RS4 remittances), so when any ran they
+        drop the held batch (:meth:`discard_post_tick_snapshot`) and Phase 10
+        exports again. Returns None when no batch of this turn is held.
         """
         held = getattr(self, "_post_tick_snapshot", None)
         self._post_tick_snapshot = None
         if held is not None and held[0] == turn:
             return held[1]
         return None
+
+    def discard_post_tick_snapshot(self) -> None:
+        """Drop the held post-tick batch: the pool was written after the tick."""
+        self._post_tick_snapshot = None
 
     @property
     def ecology_simulator(self):
