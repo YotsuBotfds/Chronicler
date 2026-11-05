@@ -164,7 +164,7 @@ def test_wealth_transfer_contract_on_a_live_pool():
     run_turn(world, lambda c, w: engine.select_action(c, seed=w.seed), lambda w, e: "",
              seed=world.seed, agent_bridge=bridge)
     sim = bridge._sim
-    assert sim.wealth_transfer_purposes() == ["workshop_wage"]
+    assert sim.wealth_transfer_purposes()[0] == "workshop_wage"      # append-only codes
     snap = sim.get_snapshot()
     ids = snap.column("id").to_pylist()
     wealth = dict(zip(ids, snap.column("wealth").to_pylist(), strict=True))

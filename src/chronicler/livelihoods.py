@@ -10,6 +10,7 @@ Independent switches share one persisted container,
 * ``--commons-rules`` (L8): a paid, enforced harvest rule on the timber stock;
 * ``--learning-cohorts`` (L5): named learners attending delivered academy teaching;
 * ``--workshop-payroll`` (L6a): customers and payroll around the workshops;
+* ``--relocation-costs`` (L7): a fare paid for ordinary household moves;
 * ``--local-budgets`` (L9): one finite, bargained budget per ruler for relief,
   granary works and workshops.
 
@@ -48,6 +49,7 @@ LIVELIHOODS_CHOICES: dict[str, tuple[str, ...]] = {
     "commons_rule_mode": ("enforced", "cost_only"),
     "learning_cohort_mode": ("learn", "no_learning"),
     "workshop_payroll_mode": ("paid", "unpaid_labor", "no_customer"),
+    "relocation_mode": ("paid", "assisted", "liquidity_only"),
     "local_budget_mode": ("bargained", "fixed_shares"),
 }
 #: All parser destinations owned here (``batch_manifest.SIMULATION_ARG_KEYS``).
@@ -56,6 +58,7 @@ LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     "timber_stock", "grain_convoys", "convoy_route_policy", "commons_rules", "commons_rule_mode",
     "learning_cohorts", "learning_cohort_mode",
     "workshop_payroll", "workshop_payroll_mode",
+    "relocation_costs", "relocation_mode",
     "local_budgets", "local_budget_mode",
 )
 _AGENT_ECONOMY = ("hybrid", "shadow", "demographics-only")
@@ -114,6 +117,17 @@ _HELP = {
     "workshop_payroll_mode": (
         "paid (default); unpaid_labor: the ablation that sells and replaces the income share "
         "but pays no wage; no_customer: wages are owed but nothing is sold"
+    ),
+    "relocation_costs": (
+        "Costly voluntary relocation (L7): an ordinary household move costs a fare per person "
+        "(children included) that the adult movers must hold at the household gate and pay "
+        "after the move is applied; requires --agents hybrid and no household-mobility liquid "
+        "requirement (default off)"
+    ),
+    "relocation_mode": (
+        "paid (default); assisted: the destination's ruler funds a bounded share of the fare "
+        "for households short of it; liquidity_only: the control that requires the fare but "
+        "charges nothing"
     ),
     "local_budgets": (
         "Local collective budgets: each ruler commits one finite projected budget "
@@ -203,6 +217,12 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
         mode = getattr(args, "workshop_mode", None) or (saved.mode if saved is not None else "operate")
         if not on or mode != "operate" or agent_mode != "hybrid":
             raise ValueError("--workshop-payroll requires --workshops in operate mode (--agents hybrid)")
+    if values["relocation_costs"] is True:
+        if agent_mode != "hybrid":
+            raise ValueError("--relocation-costs requires --agents hybrid")
+        from chronicler.household_mobility_state import liquid_requirement
+        if liquid_requirement(world) > 0:
+            raise ValueError("--relocation-costs cannot run with a household-mobility liquid requirement")
     if values["local_budgets"] is True:
         from chronicler.grain_reserves_state import grain_reserves_on
         if agent_mode != "hybrid" or not grain_reserves_on(world):

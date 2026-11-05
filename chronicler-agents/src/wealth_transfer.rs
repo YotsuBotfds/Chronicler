@@ -33,8 +33,9 @@ use crate::pool::AgentPool;
 /// Milli-units per wealth (and treasury) unit.
 pub const MILLI: i64 = 1000;
 /// Transfer purposes, in declaration order (append only).
-pub const PURPOSES: [&str; 1] = ["workshop_wage"];
+pub const PURPOSES: [&str; 2] = ["workshop_wage", "relocation_fare"];
 pub const PURPOSE_WORKSHOP_WAGE: u8 = 0;
+pub const PURPOSE_RELOCATION_FARE: u8 = 1;
 /// Largest magnitude accepted for one row (10^12 milli-units).
 pub const MAX_ROW_MILLIS: i64 = 1_000_000_000_000;
 /// Row statuses, in declaration order (append only).

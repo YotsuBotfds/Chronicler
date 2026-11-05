@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "layer": "l7",
+  "parent": "a711836a9a211111475499e8eccb0cf3d54dc5ad",
+  "files": {
+    "chronicler-agents/src/ffi/mod.rs": {
+      "sha256": "5b554fe30c3555f0a94a737a38c8bfaa7c84f4f307941bf444721af0fe45754a",
+      "current_sha256": "5561dcc4dced40a1947e3adc9c75d7b53711d7fe92027611519ecaf270f025be",
+      "patches": [
+        {
+          "old": "        }\n        self.snapshot_cache = None; // the pool changes: drop the cached snapshot\n        Ok(crate::credit::apply_merchant_transfers(&mut self.pool, self.regions.len(), &region_ids, &amounts))\n    }\n\n    /// Livelihoods L6a wealth transfer (shared seam, `wealth_transfer.rs`):\n",
+          "new": "        }\n        self.snapshot_cache = None; // the pool changes: drop the cached snapshot\n        Ok(crate::credit::apply_merchant_transfers(&mut self.pool, self.regions.len(), &region_ids, &amounts))\n    }\n\n    /// Livelihoods L7: install this turn's relocation fare policy: fare and\n    /// assistance per person (milli-units), per region the civilization that\n    /// assists arrivals (-1 none), per civilization its assistance budget,\n    /// and last turn's arrivals whose rations to observe. Validates first.\n    pub fn set_relocation_policy(&mut self, turn: u32, fare_milli: i64, assist_milli: i64,\n        region_payer: Vec<i16>, budget_milli: Vec<i64>, track_ids: Vec<u32>) -> PyResult<()> {\n        crate::relocation::install(&mut self.pool, turn, fare_milli, assist_milli, region_payer,\n            budget_milli, track_ids, self.num_regions).map_err(PyValueError::new_err)\n    }\n\n    /// Livelihoods L7: drop a policy the tick never took.\n    pub fn cancel_relocation_policy(&mut self) -> bool {\n        self.pool.relocation_policy.take().is_some()\n    }\n\n    /// Livelihoods L7: the tick's relocation receipt, taken once: groups as\n    /// ((lead, from, to, reason, applied), (member ids, adults (id, liquid\n    /// milli), children), (liquid, fare, assistance milli, payer)), alive\n    /// counts by region before the gate and after the moves, remaining\n    /// budgets, and per region (arrivals, their ration sum, residents, their\n    /// ration sum) when an allocation ran.\n    #[allow(clippy::type_complexity)]\n    pub fn take_relocation_receipt(&mut self, turn: u32) -> Option<(\n        Vec<((u32, u16, u16, u8, bool), (Vec<u32>, Vec<(u32, i64)>, u32), (i64, i64, i64, i16))>,\n        Vec<u32>, Vec<u32>, Vec<i64>, Option<Vec<(u16, u32, f64, u32, f64)>>)> {\n        crate::relocation::take(&mut self.pool, turn).map(|r| (\n            r.groups.into_iter().map(|g| ((g.lead, g.from, g.to, g.reason, g.applied),\n                (g.members.iter().map(|m| m.0).collect(), g.adults, g.children),\n                (g.liquid_milli, g.fare_milli, g.grant_milli, g.payer))).collect(),\n            r.before, r.after, r.budget_milli, r.rations))\n    }\n\n    /// Livelihoods L6a wealth transfer (shared seam, `wealth_transfer.rs`):\n"
+        },
+        {
+          "old": "            }\n        }\n        crate::learning_work::check_tick(&self.pool, turn).map_err(PyValueError::new_err)?;\n        if self.pool.paid_work.as_ref().is_some_and(|p| p.turn != turn) {\n            return Err(PyValueError::new_err(\"paid work must be armed for this tick\"));\n        }\n",
+          "new": "            }\n        }\n        crate::learning_work::check_tick(&self.pool, turn).map_err(PyValueError::new_err)?;\n        crate::relocation::check_tick(&self.pool, turn, liquid_requirement).map_err(PyValueError::new_err)?;\n        if self.pool.paid_work.as_ref().is_some_and(|p| p.turn != turn) {\n            return Err(PyValueError::new_err(\"paid work must be armed for this tick\"));\n        }\n"
+        }
+      ]
+    },
+    "chronicler-agents/src/lib.rs": {
+      "sha256": "d56cfd89c0075098423c739dc3c963a7945e2ca85c75d373c3e9bd6c9cb24ff7",
+      "current_sha256": "d72c1b22c439748fd838a0ec7040fc89bca87f00ea59729a75d318dba213bd41",
+      "patches": [
+        {
+          "old": "pub mod workshop_work;\npub mod learning_work;\npub mod wealth_transfer;\npub mod provisioning;\n// CAREOBS_SOURCE_BEGIN: module\nmod health_care_observation;\n",
+          "new": "pub mod workshop_work;\npub mod learning_work;\npub mod wealth_transfer;\npub mod relocation;\npub mod provisioning;\n// CAREOBS_SOURCE_BEGIN: module\nmod health_care_observation;\n"
+        }
+      ]
+    },
+    "chronicler-agents/src/pool.rs": {
+      "sha256": "7e5d1cefff1a8bf0039d17e7113b826649ae45808f0fd8b3d3e2d754ba192123",
+      "current_sha256": "38ee58244fb76a7a24188ea340a68e8d148915479d9537714b9d669a38a6d502",
+      "patches": [
+        {
+          "old": "    pub paid_work: Option<crate::wealth_transfer::PaidWork>,\n    pub paid_work_receipt: Option<crate::wealth_transfer::PaidWorkReceipt>,\n    pub wealth_transfer_log: Vec<(u32, u8, u32)>,\n    // CAREOBS_SOURCE_BEGIN: pool field\n    /// Opt-in primitive care prefix; transient and absent by default.\n    pub health_care_observation: Option<crate::health_care_observation::CareObservation>,\n",
+          "new": "    pub paid_work: Option<crate::wealth_transfer::PaidWork>,\n    pub paid_work_receipt: Option<crate::wealth_transfer::PaidWorkReceipt>,\n    pub wealth_transfer_log: Vec<(u32, u8, u32)>,\n    /// Livelihoods L7: one-turn relocation fare policy and its receipt\n    /// (taken once by Python); transient, never checkpointed.\n    pub relocation_policy: Option<crate::relocation::RelocationPolicy>,\n    pub relocation_receipt: Option<crate::relocation::RelocationReceipt>,\n    // CAREOBS_SOURCE_BEGIN: pool field\n    /// Opt-in primitive care prefix; transient and absent by default.\n    pub health_care_observation: Option<crate::health_care_observation::CareObservation>,\n"
+        },
+        {
+          "old": "            paid_work: None,\n            paid_work_receipt: None,\n            wealth_transfer_log: Vec::new(),\n            // CAREOBS_SOURCE_BEGIN: pool default\n            health_care_observation: None,\n            // CAREOBS_SOURCE_END: pool default\n",
+          "new": "            paid_work: None,\n            paid_work_receipt: None,\n            wealth_transfer_log: Vec::new(),\n            relocation_policy: None,\n            relocation_receipt: None,\n            // CAREOBS_SOURCE_BEGIN: pool default\n            health_care_observation: None,\n            // CAREOBS_SOURCE_END: pool default\n"
+        },
+        {
+          "old": "    free_slots,\n} transient { health_work_loss /* CAREOBS_TRANSIENT_BEGIN */, health_care_observation /* CAREOBS_TRANSIENT_END */, teaching_plan,\n    food_allocation_config, food_access, food_access_ids, food_access_regions, provision_frame,\n    work_reservations, learning_attendance, paid_work, paid_work_receipt, wealth_transfer_log });\n",
+          "new": "    free_slots,\n} transient { health_work_loss /* CAREOBS_TRANSIENT_BEGIN */, health_care_observation /* CAREOBS_TRANSIENT_END */, teaching_plan,\n    food_allocation_config, food_access, food_access_ids, food_access_regions, provision_frame,\n    work_reservations, learning_attendance, paid_work, paid_work_receipt, wealth_transfer_log,\n    relocation_policy, relocation_receipt });\n"
+        }
+      ]
+    },
+    "chronicler-agents/src/tick.rs": {
+      "sha256": "cdba5448c19013e4699b5fb38b62aa2d8278b6fab9e969cc0f373590df9c9869",
+      "current_sha256": "294f97edfd98452f5af0e4e90aa77daa6c82567f8e3ccc3d2d7351132cdfba15",
+      "patches": [
+        {
+          "old": "        pool.food_access_ids = ids;\n        pool.provision_frame = Some(frame);\n    }\n\n    // -----------------------------------------------------------------------\n    // 0.75 Needs decay + restoration (M49)\n",
+          "new": "        pool.food_access_ids = ids;\n        pool.provision_frame = Some(frame);\n    }\n    // Livelihoods L7: last turn's arrivals' own rations against residents'.\n    crate::relocation::observe_rations(pool);\n\n    // -----------------------------------------------------------------------\n    // 0.75 Needs decay + restoration (M49)\n"
+        },
+        {
+          "old": "    let mut pending_decisions = pending_decisions; // make mutable for consolidation\n    // Consolidation may replace followers' rebellion/switch decisions. Retain\n    // those primary actions if the later household gate cancels their move.\n    let original_actions = gate.as_ref().map(|_| pending_decisions.iter()\n        .map(|pd| (pd.rebellions.clone(), pd.occupation_switches.clone())).collect::<Vec<_>>());\n    let mut gate_groups = gate.as_ref().map(|_| (0..pending_decisions.len())\n        .map(|_| std::collections::BTreeMap::new()).collect::<Vec<_>>());\n    if M::ENABLED { move_observer.begin(pool, &pending_decisions); }\n    crate::household::consolidate_household_migrations_with_groups(\n",
+          "new": "    let mut pending_decisions = pending_decisions; // make mutable for consolidation\n    // Consolidation may replace followers' rebellion/switch decisions. Retain\n    // those primary actions if the later household gate cancels their move.\n    // Livelihoods L7: a relocation fare policy prices the same household groups.\n    let mut relocation = pool.relocation_policy.take().filter(|p| p.turn == turn && gate.is_none());\n    let grouped = gate.is_some() || relocation.is_some();\n    let original_actions = grouped.then(|| pending_decisions.iter()\n        .map(|pd| (pd.rebellions.clone(), pd.occupation_switches.clone())).collect::<Vec<_>>());\n    let mut gate_groups = grouped.then(|| (0..pending_decisions.len())\n        .map(|_| std::collections::BTreeMap::new()).collect::<Vec<_>>());\n    if M::ENABLED { move_observer.begin(pool, &pending_decisions); }\n    crate::household::consolidate_household_migrations_with_groups(\n"
+        },
+        {
+          "old": "\n    if let Some((requirement, frame)) = gate {\n        let blocked = crate::household::gate_household_mobility(pool, &mut pending_decisions, regions, requirement, frame, gate_groups.as_deref().unwrap());\n        if let Some(original) = original_actions {\n            restore_blocked_primary_actions(&mut pending_decisions, &blocked, &original);\n        }\n",
+          "new": "\n    if let Some((requirement, frame)) = gate {\n        let blocked = crate::household::gate_household_mobility(pool, &mut pending_decisions, regions, requirement, frame, gate_groups.as_deref().unwrap());\n        if let Some(original) = original_actions {\n            restore_blocked_primary_actions(&mut pending_decisions, &blocked, &original);\n        }\n    } else if let Some(policy) = relocation.as_mut() {\n        let blocked = crate::relocation::gate(pool, &mut pending_decisions, regions, policy, gate_groups.as_deref().unwrap());\n        if let Some(original) = original_actions {\n            restore_blocked_primary_actions(&mut pending_decisions, &blocked, &original);\n        }\n"
+        },
+        {
+          "old": "            });\n        }\n    }\n\n    // -----------------------------------------------------------------------\n    // 4.5a: Migration reset — place migrated agents near attractors\n",
+          "new": "            });\n        }\n    }\n\n    // Livelihoods L7: receipts only for household moves actually applied.\n    if let Some(policy) = relocation { crate::relocation::finish(pool, regions, policy); }\n\n    // -----------------------------------------------------------------------\n    // 4.5a: Migration reset — place migrated agents near attractors\n"
+        }
+      ]
+    },
+    "src/chronicler/batch_manifest.py": {
+      "sha256": "ac332ae4eccd218886cc8d39070535f3549cb57014eac5af047b829dcb56490e",
+      "current_sha256": "0e97182cf2b92bfef2ecc3077d8caa3c69da39083877ed01a52bbf01292bbc98",
+      "patches": [
+        {
+          "old": "    \"learning_cohort_mode\",\n    \"workshop_payroll\",\n    \"workshop_payroll_mode\",\n    \"local_budgets\",\n    \"local_budget_mode\",\n    \"tuning\",\n",
+          "new": "    \"learning_cohort_mode\",\n    \"workshop_payroll\",\n    \"workshop_payroll_mode\",\n    \"relocation_costs\",\n    \"relocation_mode\",\n    \"local_budgets\",\n    \"local_budget_mode\",\n    \"tuning\",\n"
+        },
+        {
+          "old": "              if key not in (\"scientific_research_agendas\", \"public_grain_shipments\", \"grain_storage\", \"grain_storage_policy\", \"grain_storage_work_budget\", \"household_mobility_liquid_requirement\", \"academy_services\", \"harvest_report_delay\",\n                             \"workshops\", \"workshop_mode\", \"food_allocation\", \"food_allocation_regime\", \"timber_stock\", \"grain_convoys\", \"convoy_route_policy\",\n                             \"commons_rules\", \"commons_rule_mode\", \"learning_cohorts\", \"learning_cohort_mode\",\n                             \"workshop_payroll\", \"workshop_payroll_mode\", \"local_budgets\", \"local_budget_mode\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n    config[\"tuning_overrides\"] = _json_value(overrides or {})\n",
+          "new": "              if key not in (\"scientific_research_agendas\", \"public_grain_shipments\", \"grain_storage\", \"grain_storage_policy\", \"grain_storage_work_budget\", \"household_mobility_liquid_requirement\", \"academy_services\", \"harvest_report_delay\",\n                             \"workshops\", \"workshop_mode\", \"food_allocation\", \"food_allocation_regime\", \"timber_stock\", \"grain_convoys\", \"convoy_route_policy\",\n                             \"commons_rules\", \"commons_rule_mode\", \"learning_cohorts\", \"learning_cohort_mode\",\n                             \"workshop_payroll\", \"workshop_payroll_mode\", \"relocation_costs\", \"relocation_mode\",\n                             \"local_budgets\", \"local_budget_mode\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n    config[\"tuning_overrides\"] = _json_value(overrides or {})\n"
+        }
+      ]
+    },
+    "tests/test_batch_manifest.py": {
+      "sha256": "55a837aa5b870c7fdd5b4558a1583b3a2dbcf238d62551fedaba1fe00345f7d1",
+      "current_sha256": "a2d43cd62c466736cebecec9a0746bc71e979b73c989b29706e69372b8be4797",
+      "patches": [
+        {
+          "old": "    assert set(simulation) == (set(SIMULATION_ARG_KEYS) - {\"scientific_research_agendas\", \"public_grain_shipments\", \"grain_storage\", \"grain_storage_policy\", \"grain_storage_work_budget\", \"household_mobility_liquid_requirement\", \"academy_services\", \"harvest_report_delay\",\n                                                           \"workshops\", \"workshop_mode\", \"food_allocation\", \"food_allocation_regime\", \"timber_stock\", \"grain_convoys\", \"convoy_route_policy\",\n                                                           \"commons_rules\", \"commons_rule_mode\", \"learning_cohorts\", \"learning_cohort_mode\",\n                                                           \"workshop_payroll\", \"workshop_payroll_mode\", \"local_budgets\", \"local_budget_mode\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n    assert manifest[\"outputs\"][\"simulate_only\"] is True\n    environment = manifest[\"environment\"]\n",
+          "new": "    assert set(simulation) == (set(SIMULATION_ARG_KEYS) - {\"scientific_research_agendas\", \"public_grain_shipments\", \"grain_storage\", \"grain_storage_policy\", \"grain_storage_work_budget\", \"household_mobility_liquid_requirement\", \"academy_services\", \"harvest_report_delay\",\n                                                           \"workshops\", \"workshop_mode\", \"food_allocation\", \"food_allocation_regime\", \"timber_stock\", \"grain_convoys\", \"convoy_route_policy\",\n                                                           \"commons_rules\", \"commons_rule_mode\", \"learning_cohorts\", \"learning_cohort_mode\",\n                                                           \"workshop_payroll\", \"workshop_payroll_mode\", \"relocation_costs\", \"relocation_mode\",\n                                                           \"local_budgets\", \"local_budget_mode\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n    assert manifest[\"outputs\"][\"simulate_only\"] is True\n    environment = manifest[\"environment\"]\n"
+        }
+      ]
+    }
+  }
+}

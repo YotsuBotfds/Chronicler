@@ -56,6 +56,8 @@ link to these by path, so keep their names stable.
   [commons rules](integration/commons-rules.md),
   [learning cohorts](integration/learning-cohorts.md),
   [workshop finance and payroll](integration/workshop-finance.md),
+  [relocation costs](integration/relocation-costs.md),
+  [household purchases (design, left open)](integration/household-purchases-design.md),
   [local budgets](integration/local-budgets.md); plans in
   [sprint 1](superpowers/roadmaps/livelihoods-commons-sprint1.md) and
   [sprint 2](superpowers/roadmaps/livelihoods-commons-sprint2.md).

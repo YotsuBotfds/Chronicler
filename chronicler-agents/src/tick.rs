@@ -581,6 +581,8 @@ fn try_tick_agents_with_movements_observer<M: crate::decision_delivery::MoveObse
         pool.food_access_ids = ids;
         pool.provision_frame = Some(frame);
     }
+    // Livelihoods L7: last turn's arrivals' own rations against residents'.
+    crate::relocation::observe_rations(pool);
 
     // -----------------------------------------------------------------------
     // 0.75 Needs decay + restoration (M49)
@@ -781,9 +783,12 @@ fn try_tick_agents_with_movements_observer<M: crate::decision_delivery::MoveObse
     let mut pending_decisions = pending_decisions; // make mutable for consolidation
     // Consolidation may replace followers' rebellion/switch decisions. Retain
     // those primary actions if the later household gate cancels their move.
-    let original_actions = gate.as_ref().map(|_| pending_decisions.iter()
+    // Livelihoods L7: a relocation fare policy prices the same household groups.
+    let mut relocation = pool.relocation_policy.take().filter(|p| p.turn == turn && gate.is_none());
+    let grouped = gate.is_some() || relocation.is_some();
+    let original_actions = grouped.then(|| pending_decisions.iter()
         .map(|pd| (pd.rebellions.clone(), pd.occupation_switches.clone())).collect::<Vec<_>>());
-    let mut gate_groups = gate.as_ref().map(|_| (0..pending_decisions.len())
+    let mut gate_groups = grouped.then(|| (0..pending_decisions.len())
         .map(|_| std::collections::BTreeMap::new()).collect::<Vec<_>>());
     if M::ENABLED { move_observer.begin(pool, &pending_decisions); }
     crate::household::consolidate_household_migrations_with_groups(
@@ -799,6 +804,11 @@ fn try_tick_agents_with_movements_observer<M: crate::decision_delivery::MoveObse
 
     if let Some((requirement, frame)) = gate {
         let blocked = crate::household::gate_household_mobility(pool, &mut pending_decisions, regions, requirement, frame, gate_groups.as_deref().unwrap());
+        if let Some(original) = original_actions {
+            restore_blocked_primary_actions(&mut pending_decisions, &blocked, &original);
+        }
+    } else if let Some(policy) = relocation.as_mut() {
+        let blocked = crate::relocation::gate(pool, &mut pending_decisions, regions, policy, gate_groups.as_deref().unwrap());
         if let Some(original) = original_actions {
             restore_blocked_primary_actions(&mut pending_decisions, &blocked, &original);
         }
@@ -899,6 +909,9 @@ fn try_tick_agents_with_movements_observer<M: crate::decision_delivery::MoveObse
             });
         }
     }
+
+    // Livelihoods L7: receipts only for household moves actually applied.
+    if let Some(policy) = relocation { crate::relocation::finish(pool, regions, policy); }
 
     // -----------------------------------------------------------------------
     // 4.5a: Migration reset — place migrated agents near attractors

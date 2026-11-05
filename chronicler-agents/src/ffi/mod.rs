@@ -790,6 +790,38 @@ impl AgentSimulator {
         Ok(crate::credit::apply_merchant_transfers(&mut self.pool, self.regions.len(), &region_ids, &amounts))
     }
 
+    /// Livelihoods L7: install this turn's relocation fare policy: fare and
+    /// assistance per person (milli-units), per region the civilization that
+    /// assists arrivals (-1 none), per civilization its assistance budget,
+    /// and last turn's arrivals whose rations to observe. Validates first.
+    pub fn set_relocation_policy(&mut self, turn: u32, fare_milli: i64, assist_milli: i64,
+        region_payer: Vec<i16>, budget_milli: Vec<i64>, track_ids: Vec<u32>) -> PyResult<()> {
+        crate::relocation::install(&mut self.pool, turn, fare_milli, assist_milli, region_payer,
+            budget_milli, track_ids, self.num_regions).map_err(PyValueError::new_err)
+    }
+
+    /// Livelihoods L7: drop a policy the tick never took.
+    pub fn cancel_relocation_policy(&mut self) -> bool {
+        self.pool.relocation_policy.take().is_some()
+    }
+
+    /// Livelihoods L7: the tick's relocation receipt, taken once: groups as
+    /// ((lead, from, to, reason, applied), (member ids, adults (id, liquid
+    /// milli), children), (liquid, fare, assistance milli, payer)), alive
+    /// counts by region before the gate and after the moves, remaining
+    /// budgets, and per region (arrivals, their ration sum, residents, their
+    /// ration sum) when an allocation ran.
+    #[allow(clippy::type_complexity)]
+    pub fn take_relocation_receipt(&mut self, turn: u32) -> Option<(
+        Vec<((u32, u16, u16, u8, bool), (Vec<u32>, Vec<(u32, i64)>, u32), (i64, i64, i64, i16))>,
+        Vec<u32>, Vec<u32>, Vec<i64>, Option<Vec<(u16, u32, f64, u32, f64)>>)> {
+        crate::relocation::take(&mut self.pool, turn).map(|r| (
+            r.groups.into_iter().map(|g| ((g.lead, g.from, g.to, g.reason, g.applied),
+                (g.members.iter().map(|m| m.0).collect(), g.adults, g.children),
+                (g.liquid_milli, g.fare_milli, g.grant_milli, g.payer))).collect(),
+            r.before, r.after, r.budget_milli, r.rations))
+    }
+
     /// Livelihoods L6a wealth transfer (shared seam, `wealth_transfer.rs`):
     /// credit (positive) or debit (negative) stable ids by whole milli-units
     /// (1000 = one wealth unit), once per (turn, purpose, batch). Returns per
@@ -1590,6 +1622,7 @@ impl AgentSimulator {
             }
         }
         crate::learning_work::check_tick(&self.pool, turn).map_err(PyValueError::new_err)?;
+        crate::relocation::check_tick(&self.pool, turn, liquid_requirement).map_err(PyValueError::new_err)?;
         if self.pool.paid_work.as_ref().is_some_and(|p| p.turn != turn) {
             return Err(PyValueError::new_err("paid work must be armed for this tick"));
         }

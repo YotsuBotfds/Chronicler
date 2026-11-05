@@ -108,6 +108,8 @@ SIMULATION_ARG_KEYS = WORLD_ARG_KEYS + (
     "learning_cohort_mode",
     "workshop_payroll",
     "workshop_payroll_mode",
+    "relocation_costs",
+    "relocation_mode",
     "local_budgets",
     "local_budget_mode",
     "tuning",
@@ -223,7 +225,8 @@ def simulation_config(args: Any, tuning_overrides: dict | None = None) -> dict[s
               if key not in ("scientific_research_agendas", "public_grain_shipments", "grain_storage", "grain_storage_policy", "grain_storage_work_budget", "household_mobility_liquid_requirement", "academy_services", "harvest_report_delay",
                              "workshops", "workshop_mode", "food_allocation", "food_allocation_regime", "timber_stock", "grain_convoys", "convoy_route_policy",
                              "commons_rules", "commons_rule_mode", "learning_cohorts", "learning_cohort_mode",
-                             "workshop_payroll", "workshop_payroll_mode", "local_budgets", "local_budget_mode")
+                             "workshop_payroll", "workshop_payroll_mode", "relocation_costs", "relocation_mode",
+                             "local_budgets", "local_budget_mode")
               or getattr(args, key, None) is not None}
     overrides = tuning_overrides if tuning_overrides is not None else getattr(args, "tuning_overrides", None)
     config["tuning_overrides"] = _json_value(overrides or {})

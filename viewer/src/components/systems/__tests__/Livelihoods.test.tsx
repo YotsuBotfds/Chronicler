@@ -78,6 +78,15 @@ it("composes only the packages a snapshot recorded", () => {
   expect(screen.queryByRole("heading", { name: /Academy learners/ })).not.toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: /Workshop payroll/ })).not.toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: /Local budgets/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: /Relocation costs/ })).not.toBeInTheDocument();
+});
+
+it("mounts relocation costs when the snapshot recorded them", () => {
+  const relocation = { schema_version: 1, stage: "L7", mode: "paid", source_turn: 4, gate: null, households: null,
+    regions: null, services: null, assistance: null, counters: { groups_proposed: 0 }, parameters: { fare_milli: 1000 } };
+  const p = props({ schema_version: 1, relocation_costs: relocation });
+  render(<LivelihoodsPanel {...p} onSeek={vi.fn()} onSelectEvent={vi.fn()} onSelectCivilization={vi.fn()} />);
+  expect(screen.getByRole("heading", { name: /Relocation costs · snapshot 5/ })).toBeInTheDocument();
 });
 
 it("mounts local budgets when the snapshot recorded them", () => {
