@@ -325,9 +325,10 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
         if agent_mode != "hybrid" or not _workshops_operate(world, values, args):
             raise ValueError("--apprenticeship requires --workshops in operate mode (--agents hybrid)")
     if values["repair_projects"] is True:
-        if agent_mode != "hybrid" or not (_workshops_operate(world, values, args) or _grain_storage_on(world)):
-            raise ValueError("--repair-projects requires --agents hybrid and --workshops in operate "
-                             "mode or --grain-storage")
+        # Workshops in any mode (only built sites have anything to repair:
+        # observe mode builds none) or grain storage.
+        if agent_mode != "hybrid" or not (_on(world, values, "workshops") or _grain_storage_on(world)):
+            raise ValueError("--repair-projects requires --agents hybrid and --workshops or --grain-storage")
     if values["veteran_reintegration"] is True:
         if agent_mode != "hybrid" or not any(_on(world, values, name) for name in
                                              ("workshops", "apprenticeship", "repair_projects")):

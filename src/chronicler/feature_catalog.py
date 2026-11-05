@@ -106,6 +106,12 @@ REQUIREMENTS: dict[str, tuple[dict, ...]] = {
     "workshop_payroll": (_HYBRID, _feature("workshops"), _choice("workshop_mode", "operate")),
     "relocation_costs": (_HYBRID, _setting("no_household_mobility_liquid_requirement")),
     "local_budgets": (_HYBRID, _feature("grain_reserves")),
+    "apprenticeship": (_HYBRID, _feature("workshops"), _choice("workshop_mode", "operate")),
+    "repair_projects": (_HYBRID, _any(_feature("workshops"), _feature("grain_storage"))),
+    "veteran_reintegration": (_HYBRID, _any(_feature("workshops"), _feature("apprenticeship"),
+                                            _feature("repair_projects"))),
+    "remittances": (_HYBRID,),
+    "clearing_protection": (),
 }
 
 

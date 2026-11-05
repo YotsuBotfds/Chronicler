@@ -49,8 +49,8 @@ def repair_projects_active(world) -> bool:
     if state is None or not state.enabled or getattr(world, "agent_mode", None) != "hybrid":
         return False
     from chronicler.workshops import workshops_active
-    workshops = workshops_active(world) and world.livelihoods.workshops.mode == "operate"
-    return workshops or _grain_storage_on(world)
+    # Workshops in any mode (observe builds no asset, so its side is inert) or storage.
+    return workshops_active(world) or _grain_storage_on(world)
 
 
 def snapshot_summary(world) -> dict:

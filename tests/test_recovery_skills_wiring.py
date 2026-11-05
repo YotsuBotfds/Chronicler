@@ -143,7 +143,6 @@ def test_prerequisites_refuse_before_any_change(world):
         (["--apprenticeship"], "hybrid", "operate mode"),
         (["--workshops", "--workshop-mode", "observe", "--apprenticeship"], "hybrid", "operate mode"),
         (["--repair-projects"], "hybrid", "grain-storage"),
-        (["--workshops", "--workshop-mode", "cost_only", "--repair-projects"], "hybrid", "grain-storage"),
         (["--veteran-reintegration"], "hybrid", "one of --workshops"),
         (["--remittances"], "shadow", "--remittances requires --agents hybrid"),
     ]
@@ -160,6 +159,12 @@ def test_prerequisites_refuse_before_any_change(world):
             with pytest.raises(ValueError, match=match):
                 configure_livelihoods(world, parse(flag), agent_mode=mode)
     assert world.model_dump_json() == saved
+    # Repair projects accept workshops in any mode (observe builds nothing to repair).
+    costed = generate_world(seed=4, num_regions=6, num_civs=2)
+    costed.cities = CityState()
+    configure_livelihoods(costed, parse("--workshops", "--workshop-mode", "cost_only", "--repair-projects"),
+                          agent_mode="hybrid")
+    assert costed.livelihoods.repair_projects.enabled
     # Clearing protection has no prerequisite: any agent mode, no cities.
     bare = generate_world(seed=3, num_regions=4, num_civs=2)
     configure_livelihoods(bare, parse("--clearing-protection"), agent_mode="off")
@@ -174,10 +179,11 @@ def test_prerequisites_read_saved_state_when_a_switch_is_omitted(world):
     configure_livelihoods(world, parse("--repair-projects"), agent_mode="hybrid")
     configure_livelihoods(world, parse("--veteran-reintegration"), agent_mode="hybrid")
     # An explicit disable, or another saved mode, does not.
-    for argv in (["--no-workshops", "--apprenticeship"], ["--workshop-mode", "cost_only", "--apprenticeship"],
-                 ["--no-workshops", "--repair-projects"]):
+    for argv in (["--no-workshops", "--apprenticeship"], ["--workshop-mode", "cost_only", "--apprenticeship"]):
         with pytest.raises(ValueError, match="operate mode"):
             configure_livelihoods(world, parse(*argv), agent_mode="hybrid")
+    with pytest.raises(ValueError, match="--workshops or --grain-storage"):
+        configure_livelihoods(world, parse("--no-workshops", "--repair-projects"), agent_mode="hybrid")
     assert world.livelihoods.workshops.enabled and world.livelihoods.workshops.mode == "operate"
     # Veterans need one consumer: a saved apprenticeship or repair switch is enough.
     other = generate_world(seed=5, num_regions=6, num_civs=2)
@@ -263,7 +269,8 @@ def test_activity_follows_prerequisite_state_at_run_time(world):
     assert CP.clearing_protection_active(world)
     world.agent_mode = "hybrid"
     world.livelihoods.workshops.mode = "cost_only"
-    assert not A.apprenticeship_active(world) and not RP.repair_projects_active(world)
+    # Apprenticeship needs operate mode; repair projects accept a cost_only site.
+    assert not A.apprenticeship_active(world) and RP.repair_projects_active(world)
     assert VR.veteran_reintegration_active(world) and RM.remittances_active(world)
 
 
