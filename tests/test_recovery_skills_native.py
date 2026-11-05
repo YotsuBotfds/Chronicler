@@ -173,36 +173,23 @@ def test_priority_ids_reach_the_native_planner_through_the_workshop_seam(tmp_pat
     assert seen["sites"] > 0 and seen["reordered"] > 0
 
 
-#: Packages whose lane replaced the inert RS0 stub.
-IMPLEMENTED = {"clearing_protection", "remittances", "veteran_reintegration", "apprenticeship",
-               "repair_projects"}
+#: The stage each recovery-skills package writes once its lane replaced the RS0 stub.
+STAGES = {"apprenticeship": "RS1", "repair_projects": "RS2", "veteran_reintegration": "RS3",
+          "remittances": "RS4"}
 
 
-def test_the_stub_switches_leave_a_real_operating_run_unchanged(tmp_path):
-    # Only switches whose lane has not replaced the inert RS0 stub yet.
-    rs = tuple(name for name in ("apprenticeship", "repair_projects", "veteran_reintegration", "remittances",
-                                 "clearing_protection") if name not in IMPLEMENTED)
-    if not rs:
-        pytest.skip("every recovery-skills switch is implemented; each package has its own identity test")
-    base = _run(tmp_path / "base", "--workshops", turns=40)
-    stubs = _run(tmp_path / "stubs", "--workshops", *[f"--{n.replace('_', '-')}" for n in rs], turns=40)
-    assert len(base["history"]) == len(stubs["history"])
-    for a, b in zip(base["history"], stubs["history"], strict=True):
-        b = dict(b)
-        livelihoods = dict(b.pop("livelihoods"))
-        a = dict(a)
-        a_livelihoods = a.pop("livelihoods")
-        for name in rs:
-            assert livelihoods.pop(name)["stage"] == "RS0"
-        assert livelihoods == a_livelihoods
-        assert a == b
-    ws = dict(stubs["world_state"])
-    saved = dict(ws.pop("livelihoods"))
-    base_ws = dict(base["world_state"])
-    base_saved = base_ws.pop("livelihoods")
-    for name in rs:
-        assert saved.pop(name)["enabled"] is True
-    assert saved == base_saved and ws == base_ws
+def test_every_recovery_skills_switch_has_replaced_its_rs0_stub(tmp_path):
+    """Every RS lane has landed, so the RS0 stub-identity test (which compared
+    still-inert switches against a plain run) has nothing left to compare; it
+    is replaced by this check that no switch writes an RS0 stub record on the
+    real extension (each package's own native suite covers its identity)."""
+    bundle = _run(tmp_path, "--workshops", *RS_FLAGS, turns=3)
+    for snapshot in bundle["history"]:
+        livelihoods = snapshot["livelihoods"]
+        for name in (*STAGES, "clearing_protection"):
+            assert livelihoods[name].get("stage") != "RS0", name
+        assert {name: livelihoods[name]["stage"] for name in STAGES} == STAGES
+        assert livelihoods["clearing_protection"]["schema_version"] == 1
 
 
 #: Every recovery-skills switch with the sprint-2 stack and the prerequisites it needs.
