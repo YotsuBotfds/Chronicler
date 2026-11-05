@@ -390,7 +390,7 @@ def test_workshop_crew_is_reserved_paid_by_id_and_never_also_crew():
     assert "repair" not in receipt.paid and receipt.allocated == 0.0
 
 
-@pytest.mark.parametrize("residue", ["1e-8 timber", "half a worker-turn"])
+@pytest.mark.parametrize("residue", ["1e-8 timber", "a tenth of a worker-turn"])
 def test_a_timber_residue_too_small_for_one_turn_hires_nobody(residue):
     """Review C 2026-11-05 (major): a 1e-8 timber stock passed the EPS check, so
     a named repairer was reserved, paid a full wage and taken off the L1 crew
@@ -398,7 +398,7 @@ def test_a_timber_residue_too_small_for_one_turn_hires_nobody(residue):
     (or the project's whole remaining work)."""
     d = 1.0 - 0.8
     per = d * RP.UNQUALIFIED_RATE
-    timber = 1e-8 if residue == "1e-8 timber" else 0.5 * per * RP.WORKSHOP_TIMBER_PER_WORK
+    timber = 1e-8 if residue == "1e-8 timber" else 0.1 * per * RP.WORKSHOP_TIMBER_PER_WORK
     world = _world(granary=1.0, site=0.4, timber=timber)
     _open(world)
     sim = _Sim(_people())
@@ -412,6 +412,15 @@ def test_a_timber_residue_too_small_for_one_turn_hires_nobody(residue):
     # The L9 proposal asks for nothing it cannot deliver (no granary needs work here).
     obs = SimpleNamespace(economy=object(), turn=world.turn, held={})
     assert RP.budget_proposal(world, 0, obs) == []
+
+
+def test_timber_workers_hire_whole_turns_and_a_last_one_only_for_half_a_turn():
+    per = 0.1
+    assert RP._timber_workers(1.0, 0.25, per) == 3               # two whole turns and a half
+    assert RP._timber_workers(1.0, 0.249, per) == 2              # 2.49 turns: the last is under half
+    assert RP._timber_workers(0.05, 1.0, per) == 1               # the remaining work alone
+    assert RP._timber_workers(1.0, 1e-8, per) == 0 and RP._timber_workers(1.0, 0.04, per) == 0
+    assert RP._timber_workers(1.0, 0.05, per) == 1               # exactly half a turn
 
 
 def test_qualified_people_and_veterans_come_first_and_veterans_are_noted(monkeypatch):

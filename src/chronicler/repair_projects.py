@@ -126,6 +126,10 @@ PURPOSE_REPAIR_WAGE = 3
 CATEGORY_REPAIR = 3
 TUNING_WAR_DAMAGE = "repair_projects.war_damage"
 EPS = 1e-9
+#: Least share of one repairer's turn the free timber must support for that
+#: repairer to be hired (declared, uncalibrated; review C: a timber residue
+#: bought a full wage for almost no work).
+MIN_WORKER_TIMBER = 0.5
 #: Least work an L9 ``repairs`` proposal may promise (work units); a residue
 #: below it is no proposal (review C: 1 coin was asked for about 3e-8 work).
 MIN_PROPOSAL_WORK = 1e-3
@@ -327,16 +331,19 @@ def _diverted(world, site) -> float:
 
 
 def _timber_workers(remaining: float, available: float, per: float) -> int:
-    """Named repairers whose whole turn of work the region's free timber
-    supports (``available`` work units), or every worker the project's
-    ``remaining`` work needs when the timber covers all of it. A residue too
-    small for one worker's turn hires and pays nobody (review C 2026-11-05: a
-    1e-8 timber stock reserved and paid a full wage for 1e-8 work)."""
+    """Named repairers the region's free timber (``available`` work units)
+    supports: every worker the project's ``remaining`` work needs when the
+    timber covers all of it, otherwise one per whole turn plus a last one only
+    when the timber covers at least ``MIN_WORKER_TIMBER`` of that turn. A
+    residue below it hires and pays nobody (review C 2026-11-05: a 1e-8 timber
+    stock reserved and paid a full wage for 1e-8 work)."""
     if remaining <= DONE or per <= 0:
         return 0
     if available + EPS >= remaining:
         return math.ceil(remaining / per - EPS)
-    return max(0, math.floor(available / per + EPS))
+    turns = max(0.0, available / per)
+    whole = math.floor(turns + EPS)
+    return whole + (1 if turns - whole >= MIN_WORKER_TIMBER - EPS else 0)
 
 
 def _wage(share: float) -> int:

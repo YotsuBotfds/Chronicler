@@ -29,6 +29,13 @@ def _cli(monkeypatch, folder, *argv):
     main_mod.main()
 
 
+#: A development world (procedural 32x10, seed 31) whose first 60 turns hold
+#: named workshop repair crews, a real seizure and a conquest on the reviewed
+#: source; template seed 11 no longer has a workshop project once seizures
+#: need grain (review C, 2026-11-05).
+PROCEDURAL = ("--worldgen", "procedural", "--civs", "10", "--regions", "32")
+
+
 def _run(monkeypatch, folder, *extra, seed=11, turns=60):
     from chronicler.bundle_codec import load_bundle
     _cli(monkeypatch, folder, "--seed", str(seed), "--turns", str(turns), *FLAGS, *extra)
@@ -89,7 +96,7 @@ def test_projects_reserve_pay_and_close_their_books_on_the_real_extension(tmp_pa
     monkeypatch.setattr(RP, "finish_phase2", checked_finish)
     monkeypatch.setattr(RP, "_native", lambda bridge: Checked(original_native(bridge)))
     monkeypatch.setenv("CHRONICLER_CHECK_RESOURCES", "1")
-    bundle = _run(monkeypatch, tmp_path)
+    bundle = _run(monkeypatch, tmp_path, *PROCEDURAL, seed=31)
     totals = {"granary": 0.0, "workshop": 0.0, "charged": 0, "wages": 0, "damages": set()}
     for snap in bundle["history"]:
         record = snap["livelihoods"]["repair_projects"]
@@ -234,15 +241,15 @@ class _Failing:
 def test_exact_checkpoint_resume_inside_live_projects(tmp_path, monkeypatch):
     from chronicler.bundle_codec import load_bundle
     straight = tmp_path / "straight"
-    _cli(monkeypatch, straight, "--seed", "11", "--turns", "46", *FLAGS, "--checkpoint-turns", "40")
-    ckpt = straight / "checkpoint_turn_40.ckpt"
+    _cli(monkeypatch, straight, "--seed", "31", "--turns", "46", *FLAGS, *PROCEDURAL, "--checkpoint-turns", "39")
+    ckpt = straight / "checkpoint_turn_39.ckpt"
     assert ckpt.exists()
     resumed = tmp_path / "resumed"
     _cli(monkeypatch, resumed, "--resume", str(ckpt))
     a, b = (load_bundle(p / "chronicle_bundle.json") for p in (straight, resumed))
     for bundle in (a, b):
         bundle["metadata"].pop("generated_at", None)
-    record = a["history"][39]["livelihoods"]["repair_projects"]
+    record = a["history"][38]["livelihoods"]["repair_projects"]
     assert record["projects"], "the checkpoint must hold open projects"
     assert any(p["kind"] == "workshop" and p["last_crew"] for p in record["projects"])
     assert a["history"] == b["history"] and a["world_state"] == b["world_state"]
