@@ -1,6 +1,20 @@
-# Current continuation — livelihoods stack merged; recovery-skills phase, 2026-11-05
+# Current continuation — recovery-skills phase merged (PR #76), 2026-11-05
 
 ## Recovery, skills and resilient local economies (2026-11-05)
+
+- **Merged** as PR #76 at `c4e259b6`. The merge tree `ad3507e3` equals the tree of the
+  reviewed head `59a8f3c3`.
+  - Premerge Tests run 42079224091 passed all nine jobs.
+  - [Main Tests run 42080888486](https://github.com/YotsuBotfds/Chronicler/actions/runs/42080888486) tested the merge SHA on `push`, attempt 1: success, all nine jobs (optional cache steps skipped, no job skipped).
+  - Between the verified simulation source `a4adfde6` and that head, only tests and docs
+    changed. `59a8f3c3` replaces the obsolete RS0 stub-identity test (it always skipped
+    once every lane had landed, and the native aggregate refused the unregistered skip)
+    with a check that no switch writes an RS0 stub. The native suites therefore no longer
+    report the one skip recorded below.
+- **Start next work from fetched `main`.** Candidates need a new owner instruction:
+  - household food retail (L6b);
+  - timber supply, RS2's binding constraint;
+  - calibration of RS1's wear.
 
 The phase was built on `claude/recovery-skills` from `main` `9f950cb4`. Plan and handoff:
 [recovery-skills-phase.md](superpowers/roadmaps/recovery-skills-phase.md), section 8.
