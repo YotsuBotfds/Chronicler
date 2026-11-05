@@ -541,7 +541,7 @@ def run(out: Path, arms: dict, arm: str, stratum: str, seed: int, extra: list[st
         flags += ["--tuning", str(d / "tuning.yaml")]
     cmd = [PY, "-m", "chronicler.main", "--seed", str(seed), *BASE, *extra, *flags,
            "--output", str(d / "chronicle.md"), "--state", str(d / "state.json")]
-    env = dict(os.environ, PYTHONHASHSEED="0", RAYON_NUM_THREADS="1", CHRONICLER_QUIET="1")
+    env = _run_env()
     t0 = time.time()
     p = subprocess.run(cmd, cwd=REPO, env=env, capture_output=True, text=True)
     row = {"arm": arm, "stratum": stratum, "seed": seed, "rc": p.returncode, "wall_s": round(time.time() - t0, 1)}
@@ -554,6 +554,32 @@ def run(out: Path, arms: dict, arm: str, stratum: str, seed: int, extra: list[st
     if not keep:
         shutil.rmtree(d)
     return row
+
+
+def _run_env() -> dict:
+    """Every run imports this checkout's ``src`` (never an installed copy)."""
+    return dict(os.environ, PYTHONHASHSEED="0", RAYON_NUM_THREADS="1", CHRONICLER_QUIET="1",
+                PYTHONPATH=f"{REPO}/src")
+
+
+_WHICH = ("import hashlib, chronicler, chronicler_agents.chronicler_agents as m\n"
+          "print(chronicler.__file__)\n"
+          "print(m.__file__, hashlib.sha256(open(m.__file__, 'rb').read()).hexdigest())\n")
+
+
+def source_identity(out: Path) -> str:
+    """Record (and check) the source tree, commit and native extension the runs use."""
+    p = subprocess.run([PY, "-c", _WHICH], cwd=REPO, env=_run_env(), capture_output=True, text=True)
+    lines = p.stdout.split("\n")
+    if p.returncode != 0 or not lines[0].startswith(f"{REPO}/src/"):
+        raise SystemExit(f"runs would not import {REPO}/src: {p.stdout} {p.stderr[-500:]}")
+    rev = subprocess.run(["git", "-C", REPO, "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    dirty = subprocess.run(["git", "-C", REPO, "status", "--porcelain", "--untracked-files=no"],
+                           capture_output=True, text=True).stdout.strip()
+    text = (f"source {rev}{' (dirty)' if dirty else ''}\nchronicler {lines[0]}\n"
+            f"native {lines[1]}\ninterpreter {PY}\n")
+    (out / "source.txt").write_text(text)
+    return text
 
 
 def run_main(argv):
@@ -576,6 +602,7 @@ def run_main(argv):
     if unknown:
         raise SystemExit(f"unknown arms for sprint {a.sprint}: {unknown}")
     out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
+    print(source_identity(out), end="", flush=True)
     strata = list(all_strata) if a.seeds == "all" else [a.seeds]
     jobs = []
     for name in strata:
