@@ -148,4 +148,20 @@ whose arm or control failed, or whose outcome is unknown, are listed as such.
 
 ## Amendments
 
-None yet.
+**2026-11-05, before any held run: defect fixes from the independent reviews.**
+No arm, control, outcome, cohort, parameter or budget changed. The fixed
+source can change feature-on trajectories, so the held run uses the source
+after these fixes (recorded in `source.txt`). Each fix has a regression test
+that fails on the previous code.
+
+- **Phase 10 wealth after livelihoods after-hooks** (`414d9063`, layer `rv1`;
+  review B, major; predates the phase). The post-tick batch is dropped once
+  the hooks have moved wealth, so Phase 10 readers see wages, fares, stipends
+  and remittances. This affects RS4_send, ALL3 and every arm with workshops.
+- **Veteran apprentices in both RS3 modes** (`84ac1795`; review A, major).
+  This affects I_vet_appr, ALL3 and the RS3 placement outcomes when
+  apprenticeship is on.
+- **RS5 planning precision and decision log** (`eecf3169`, layer `rv2`;
+  review B, minor). Default tuning is unaffected in precision.
+- **RS2 seizures, whole worker-turns, open-record veterans, L9 stake for
+  shut sites, and seated mentors** (`59cf09a7`; review C).
