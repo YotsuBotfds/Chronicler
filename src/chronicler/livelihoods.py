@@ -1,12 +1,13 @@
 """Wiring and phase hooks for the livelihoods/commons sprint (default off).
 
-Four independent switches share one persisted container,
+Five independent switches share one persisted container,
 ``WorldState.livelihoods`` (:mod:`chronicler.livelihoods_state`):
 
 * ``--workshops`` (L1): staffed public workshops in selected cities;
 * ``--food-allocation`` (L2): explicit allocation of regional food to people;
 * ``--timber-stock`` (L3): a renewable harvestable timber stock;
-* ``--grain-convoys`` (L4): multi-leg public grain convoys under risk.
+* ``--grain-convoys`` (L4): multi-leg public grain convoys under risk;
+* ``--commons-rules`` (L8): a paid, enforced harvest rule on the timber stock.
 
 This module owns only CLI forwarding, validation of prerequisites and the
 fan-out of phase hooks to each package's module ``chronicler.<switch>``.
@@ -40,11 +41,12 @@ LIVELIHOODS_CHOICES: dict[str, tuple[str, ...]] = {
     "workshop_mode": ("operate", "observe", "cost_only"),
     "food_allocation_regime": ("floor_means", "equal", "targeted_relief"),
     "convoy_route_policy": ("adaptive", "cheapest", "safest"),
+    "commons_rule_mode": ("enforced", "cost_only"),
 }
 #: All parser destinations owned here (``batch_manifest.SIMULATION_ARG_KEYS``).
 LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     "workshops", "workshop_mode", "food_allocation", "food_allocation_regime",
-    "timber_stock", "grain_convoys", "convoy_route_policy",
+    "timber_stock", "grain_convoys", "convoy_route_policy", "commons_rules", "commons_rule_mode",
 )
 _AGENT_ECONOMY = ("hybrid", "shadow", "demographics-only")
 
@@ -78,6 +80,13 @@ _HELP = {
         "--public-grain-shipments (default off)"
     ),
     "convoy_route_policy": "adaptive (default), cheapest or safest route choice at dispatch",
+    "commons_rules": (
+        "Commons rules on the timber stock: a region's controller may adopt a harvest "
+        "quota with a rest period on a depleted, harvested stand, paying wardens from its "
+        "treasury; partial payment leaves part of the stand open access; requires "
+        "--timber-stock (default off)"
+    ),
+    "commons_rule_mode": "enforced (default): the rule lowers the harvest cap; cost_only: the ablation that adopts and pays identically but applies no cap",
 }
 
 
@@ -137,6 +146,11 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str) -> None:
         reserves = getattr(world, "grain_reserves", None)
         if reserves is None or getattr(reserves, "shipments", None) is None:
             raise ValueError("--grain-convoys requires --public-grain-shipments")
+    if values["commons_rules"] is True:
+        saved = getattr(livelihoods_state(world), "timber_stock", None)
+        if values["timber_stock"] is False or (values["timber_stock"] is None
+                                               and not getattr(saved, "enabled", False)):
+            raise ValueError("--commons-rules requires --timber-stock")
 
 
 def configure_livelihoods(world: Any, args: Any, *, agent_mode: str) -> None:

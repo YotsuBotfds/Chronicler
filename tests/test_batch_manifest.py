@@ -130,7 +130,8 @@ def test_the_manifest_records_the_cohort_and_identity(batch_42):
     assert manifest["seeds"] == [42, 43, 44] and manifest["turns"] == 3
     simulation = manifest["simulation"]
     assert set(simulation) == (set(SIMULATION_ARG_KEYS) - {"scientific_research_agendas", "public_grain_shipments", "grain_storage", "grain_storage_policy", "grain_storage_work_budget", "household_mobility_liquid_requirement", "academy_services", "harvest_report_delay",
-                                                           "workshops", "workshop_mode", "food_allocation", "food_allocation_regime", "timber_stock", "grain_convoys", "convoy_route_policy"}) | {"tuning_overrides"}
+                                                           "workshops", "workshop_mode", "food_allocation", "food_allocation_regime", "timber_stock", "grain_convoys", "convoy_route_policy",
+                                                           "commons_rules", "commons_rule_mode"}) | {"tuning_overrides"}
     assert (simulation["civs"], simulation["regions"], simulation["agents"], simulation["cities"]) == (2, 4, "off", None)
     assert manifest["outputs"]["simulate_only"] is True
     environment = manifest["environment"]
