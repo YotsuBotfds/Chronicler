@@ -64,6 +64,7 @@ link to these by path, so keep their names stable.
   [repair projects](integration/repair-projects.md),
   [veteran reintegration](integration/veteran-reintegration.md),
   [remittances and the diaspora ledger](integration/remittances.md),
+  [workshop operating wear](integration/operating-wear.md),
   [feature options in Batch Lab and live setup](integration/feature-options.md); plans in
   [sprint 1](superpowers/roadmaps/livelihoods-commons-sprint1.md),
   [sprint 2](superpowers/roadmaps/livelihoods-commons-sprint2.md) and the

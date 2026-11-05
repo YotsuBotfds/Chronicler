@@ -24,7 +24,8 @@ death retires the record (dated).
 
 What it enables (the real activity). With the switch on (both modes) a funded
 operating site wears ``OPERATING_WEAR`` per turn (the RS0 ``_operating_wear``
-seam). Qualified crew members present that turn do the upkeep: in crew order
+seam; the constant now lives in :mod:`chronicler.operating_wear`, PL2, and
+``--apprenticeship`` implies that wear). Qualified crew members present that turn do the upkeep: in crew order
 each spends up to ``UPKEEP_SHARE`` of their crew time, only as much as the turn's
 wear needs, and each unit of upkeep work offsets ``WEAR_PER_UPKEEP_WORK`` of
 condition, so the offset never exceeds the wear and condition stays in [0, 1]. A
@@ -90,6 +91,38 @@ capacity) and those on its crew; separately, qualified people alive anywhere
 a qualified resident has none, naming where each went (died or the region they
 live in now) and how many still hold their record; ``teaching_restored`` when
 one returns. :func:`qualified_ids` serves RS2 repair crews.
+
+Rules version 2 (PL2; every new state; ``docs/integration/apprenticeship.md``,
+"RS1 rules version 2"). The paragraphs above describe version 1, which only a
+state saved before PL2 runs (it resumes under those rules unchanged). Version 2
+changes who attends and how progress is kept; wear, upkeep, service, teaching
+time, stipends, mentors and the qualification are as above:
+
+* Crews are planned exactly as before (qualified first, RS3 veterans, then
+  ascending id); nobody is reserved ahead of them, so no crew is displaced.
+* Presence is by region: an open apprenticeship continues while the apprentice
+  lives in the region of an open site. A migrant transfers to the site of the
+  region they now live in (when it holds fewer than ``PER_SITE``).
+* Training is on the job. At an operating site (:func:`crew_maintenance`) an
+  apprentice on the planned crew trains on crew time; one who is not (the native
+  planner draws only the city's adult urban farmers, so a resident outside the
+  city box is never on it) is *attached*: reserved for ``APPRENTICE_FRACTION``
+  after the crew was planned, that share of ordinary income withheld, and a
+  stipend from firm cash with L6a; attached time adds no craft work. A turn
+  counts when a qualified crew member (``PER_MENTOR`` each) teaches them.
+* Missed turns pause progress. Only a long absence ends it: more than
+  ``MAX_GAP`` consecutive turns living where no open site (with room) is
+  (``long_absence``). Death, an occupation change, an army roster, a service
+  qualification, a pool reset and disabling end it as before; a closed site
+  makes its apprentices absent until they reach another site.
+* New apprentices: RS3 veterans, then members of this turn's crew, then the
+  region's other adult farmers (attached); youngest first within each, and
+  nobody older than :func:`max_entry_age` (they would reach ``AGE_ELDER``
+  before completing).
+* Useful-work records per operating site-turn: the qualified members aboard,
+  the graduates on the crew, coverage, full offset and the upkeep offset by
+  qualification route and by graduates; ``graduates`` keeps every living
+  person who completed (either mode) and their crew-turns since.
 
 Identity, timing and bounds: stable native ids only; observations are dated by
 ``source_turn`` and unknown is None, never zero; no RNG is drawn; every list is
