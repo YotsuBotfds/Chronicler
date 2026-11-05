@@ -1,8 +1,9 @@
 """Persisted container for the livelihoods/commons sprint (default off).
 
-``WorldState.livelihoods`` is None (and omitted) unless one of the four
+``WorldState.livelihoods`` is None (and omitted) unless one of the
 independent switches was enabled: ``workshops`` (L1), ``food_allocation``
-(L2), ``timber_stock`` (L3) and ``grain_convoys`` (L4). Each sub-state is
+(L2), ``timber_stock`` (L3), ``grain_convoys`` (L4) and ``local_budgets``
+(L9). Each sub-state is
 owned by its own module and is None while that switch has never been enabled.
 Pure data, importable by :mod:`chronicler.models`.
 """
@@ -14,11 +15,13 @@ from pydantic import BaseModel, Field
 
 from chronicler.food_allocation_state import FoodAllocationState
 from chronicler.grain_convoys_state import GrainConvoyState
+from chronicler.local_budgets_state import LocalBudgetState
 from chronicler.timber_stock_state import TimberStockState
 from chronicler.workshops_state import WorkshopState
 
 #: Switch names, in declaration order (CLI ``--<name>``; module ``chronicler.<name>``).
-LIVELIHOODS_SWITCHES: tuple[str, ...] = ("workshops", "food_allocation", "timber_stock", "grain_convoys")
+LIVELIHOODS_SWITCHES: tuple[str, ...] = ("workshops", "food_allocation", "timber_stock", "grain_convoys",
+                                         "local_budgets")
 
 
 def _is_none(value) -> bool:
@@ -31,6 +34,7 @@ class LivelihoodsState(BaseModel):
     food_allocation: FoodAllocationState | None = Field(default=None, exclude_if=_is_none)
     timber_stock: TimberStockState | None = Field(default=None, exclude_if=_is_none)
     grain_convoys: GrainConvoyState | None = Field(default=None, exclude_if=_is_none)
+    local_budgets: LocalBudgetState | None = Field(default=None, exclude_if=_is_none)
 
     def __setstate__(self, state):
         super().__setstate__(state)

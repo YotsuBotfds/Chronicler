@@ -207,6 +207,7 @@ def _plan_funding(world, state, acc) -> list[tuple[WorkshopSite, int, str | None
     """Payer and bill per open site, funded against one projected budget per civ
     after any pending grain-storage bill."""
     from chronicler.mutual_aid import _treasury_budget
+    from chronicler.local_budgets import workshop_funded   # L9 envelope gate (identity when off)
     index = {c.name: i for i, c in enumerate(world.civilizations)}
     storage = _pending_storage_bills(world)
     budgets = [max(0, math.floor(_treasury_budget(world, c, acc)) - storage[i])
@@ -217,7 +218,7 @@ def _plan_funding(world, state, acc) -> list[tuple[WorkshopSite, int, str | None
         payer = index.get(controller, -1)
         bill = _bill(site)
         cost = sum(bill.values())
-        funded = payer >= 0 and budgets[payer] >= cost
+        funded = workshop_funded(world, payer, site, cost, payer >= 0 and budgets[payer] >= cost)
         if funded:
             budgets[payer] -= cost
         out.append((site, payer, controller, bill, funded))
