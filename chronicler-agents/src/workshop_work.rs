@@ -25,6 +25,89 @@ use crate::pool::AgentPool;
 pub const MAX_SITES: usize = 4;
 pub const MAX_WORKERS_PER_SITE: usize = 8;
 
+/// Work-reservation categories, in declaration order (append only).
+pub const RESERVATION_CATEGORIES: [&str; 2] = ["workshop", "learning"];
+pub const CATEGORY_WORKSHOP: u8 = 0;
+pub const CATEGORY_LEARNING: u8 = 1;
+/// Holder codes for the pre-existing consumers the registry also respects.
+pub const HOLDER_HEALTH: u8 = 100;
+pub const HOLDER_TEACHING: u8 = 101;
+
+/// One agent's explicit work commitment for one turn. The registry is the
+/// single authority new work consumers share: a person holds at most one
+/// work commitment per turn across the registry, rural health work
+/// (`health_work_loss`) and a pending teaching plan. Transient: cleared after
+/// the turn's native tick, never checkpointed.
+#[derive(Clone, Debug, PartialEq)]
+pub struct WorkReservation {
+    pub agent_id: u32,
+    pub category: u8,
+    pub fraction: f32,
+    pub turn: u32,
+}
+
+/// Every stable id already holding work this turn, with its holder code.
+pub fn holders(pool: &AgentPool, turn: u32) -> Vec<(u32, u8)> {
+    let mut out: Vec<(u32, u8)> = pool.work_reservations.iter()
+        .filter(|r| r.turn == turn).map(|r| (r.agent_id, r.category)).collect();
+    // `health_work_loss` is slot-indexed with (0, 0.0) placeholders; only a
+    // positive loss (a patient or carer this turn) is a work commitment.
+    out.extend(pool.health_work_loss.iter().filter(|(_, loss)| *loss > 0.0).map(|(id, _)| (*id, HOLDER_HEALTH)));
+    if let Some(plan) = pool.teaching_plan.as_ref() {
+        if !plan.consumed {
+            out.extend(plan.rows.iter().map(|row| (row.agent_id, HOLDER_TEACHING)));
+        }
+    }
+    out
+}
+
+/// Stable ids held by more than one consumer this turn (sorted).
+pub fn conflicts(pool: &AgentPool, turn: u32) -> Vec<u32> {
+    let mut seen: HashMap<u32, u8> = HashMap::new();
+    let mut clash: Vec<u32> = Vec::new();
+    for (id, holder) in holders(pool, turn) {
+        match seen.get(&id) {
+            Some(_) => clash.push(id),
+            None => { seen.insert(id, holder); }
+        }
+    }
+    clash.sort_unstable();
+    clash.dedup();
+    clash
+}
+
+/// Commit rows (stable id, fraction) for `turn` under `category`, all or none.
+/// Refuses unknown categories, invalid fractions, duplicate ids, dead or
+/// unknown ids, and anyone already holding work this turn. Drops entries of
+/// earlier turns first.
+pub fn reserve(pool: &mut AgentPool, turn: u32, category: u8, rows: &[(u32, f32)]) -> Result<(), &'static str> {
+    if category as usize >= RESERVATION_CATEGORIES.len() {
+        return Err("unknown work reservation category");
+    }
+    let held: HashSet<u32> = holders(pool, turn).into_iter().map(|(id, _)| id).collect();
+    let slots = pool.build_id_slots();
+    let mut fresh = HashSet::new();
+    for &(id, fraction) in rows {
+        if !(fraction > 0.0 && fraction <= 1.0) {
+            return Err("work reservation fraction must be in (0, 1]");
+        }
+        if !fresh.insert(id) {
+            return Err("duplicate agent in work reservation");
+        }
+        match slots.get(id) {
+            Some(slot) if pool.is_alive(slot) => {}
+            _ => return Err("work reservation names no living agent"),
+        }
+        if held.contains(&id) {
+            return Err("agent already holds work this turn");
+        }
+    }
+    pool.work_reservations.retain(|r| r.turn == turn);
+    pool.work_reservations.extend(rows.iter().map(|&(agent_id, fraction)|
+        WorkReservation { agent_id, category, fraction, turn }));
+    Ok(())
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct SiteRequest {
     pub site: u16,
@@ -78,12 +161,18 @@ pub fn validate(sites: &[SiteRequest]) -> Result<(), &'static str> {
 }
 
 /// Resolve crews in one pass over the pool; returns rows in request order.
-pub fn plan_crews(pool: &AgentPool, sites: &[SiteRequest], enlisted: &HashSet<u32>)
+/// With `turn`, anyone already holding work in the registry for that turn
+/// is excluded as well (the caller then reserves the crew).
+pub fn plan_crews(pool: &AgentPool, sites: &[SiteRequest], enlisted: &HashSet<u32>, turn: Option<u32>)
     -> Result<Vec<SiteCrew>, &'static str> {
     validate(sites)?;
-    let mut assigned: HashSet<u32> = pool.health_work_loss.iter().map(|(id, _)| *id).collect();
+    let mut assigned: HashSet<u32> = pool.health_work_loss.iter()
+        .filter(|(_, loss)| *loss > 0.0).map(|(id, _)| *id).collect();
     if let Some(plan) = pool.teaching_plan.as_ref() {
         assigned.extend(plan.rows.iter().map(|row| row.agent_id));
+    }
+    if let Some(turn) = turn {
+        assigned.extend(pool.work_reservations.iter().filter(|r| r.turn == turn).map(|r| r.agent_id));
     }
     let by_settlement: HashMap<u16, usize> =
         sites.iter().enumerate().map(|(i, s)| (s.settlement_id, i)).collect();
@@ -158,7 +247,7 @@ mod tests {
             (0, 0, Occupation::Farmer, 30), (0, 6, Occupation::Farmer, 30),
             (1, 5, Occupation::Farmer, 30),
         ]);
-        let rows = plan_crews(&pool, &[site(0, 0, 5)], &HashSet::new()).unwrap();
+        let rows = plan_crews(&pool, &[site(0, 0, 5)], &HashSet::new(), None).unwrap();
         assert_eq!(rows[0].resident_adult_farmers, 1);
         assert_eq!(rows[0].crew, vec![pool.ids[0]]);
         assert!((rows[0].work_available - 0.2).abs() < 1e-6);
@@ -170,7 +259,7 @@ mod tests {
         pool.health_work_loss.push((pool.ids[2], 0.5));
         pool.trip_phase[3] = 1;
         let enlisted: HashSet<u32> = [pool.ids[1]].into_iter().collect();
-        let rows = plan_crews(&pool, &[site(0, 0, 5)], &enlisted).unwrap();
+        let rows = plan_crews(&pool, &[site(0, 0, 5)], &enlisted, None).unwrap();
         let r = &rows[0];
         assert_eq!((r.resident_adult_farmers, r.excluded_army, r.excluded_assigned, r.excluded_trip, r.eligible),
                    (4, 1, 1, 1, 1));
@@ -181,7 +270,7 @@ mod tests {
     fn cap_is_eight_by_ascending_id_and_dead_are_skipped() {
         let mut pool = pool_with(&[(0, 5, Occupation::Farmer, 40); 11]);
         pool.kill(0);
-        let rows = plan_crews(&pool, &[site(0, 0, 5)], &HashSet::new()).unwrap();
+        let rows = plan_crews(&pool, &[site(0, 0, 5)], &HashSet::new(), None).unwrap();
         assert_eq!(rows[0].eligible, 10);
         assert_eq!(rows[0].crew.len(), 8);
         let mut expected: Vec<u32> = (1..11).map(|s| pool.ids[s]).collect();
@@ -191,14 +280,44 @@ mod tests {
     }
 
     #[test]
+    fn one_registry_refuses_double_booking_across_consumers() {
+        let mut pool = pool_with(&[(0, 5, Occupation::Farmer, 30); 3]);
+        let (a, b, c) = (pool.ids[0], pool.ids[1], pool.ids[2]);
+        // Slot-indexed with placeholders, as health care writes it.
+        pool.health_work_loss = vec![(0, 0.0), (0, 0.0), (c, 0.5)];
+        reserve(&mut pool, 7, CATEGORY_WORKSHOP, &[(a, 0.3)]).unwrap();
+        // The same person cannot be booked again by any consumer this turn.
+        assert!(reserve(&mut pool, 7, CATEGORY_LEARNING, &[(a, 0.2)]).is_err());
+        assert!(reserve(&mut pool, 7, CATEGORY_LEARNING, &[(c, 0.2)]).is_err());
+        // All-or-none: one bad row leaves the registry unchanged.
+        assert!(reserve(&mut pool, 7, CATEGORY_LEARNING, &[(b, 0.2), (b, 0.1)]).is_err());
+        assert!(reserve(&mut pool, 7, 9, &[(b, 0.2)]).is_err());
+        assert_eq!(pool.work_reservations.len(), 1);
+        reserve(&mut pool, 7, CATEGORY_LEARNING, &[(b, 0.2)]).unwrap();
+        assert!(conflicts(&pool, 7).is_empty());
+        // The planner excludes registered people; a later turn starts clean.
+        let rows = plan_crews(&pool, &[site(0, 0, 5)], &HashSet::new(), Some(7)).unwrap();
+        assert_eq!((rows[0].excluded_assigned, rows[0].eligible), (3, 0));
+        let rows = plan_crews(&pool, &[site(0, 0, 5)], &HashSet::new(), Some(8)).unwrap();
+        assert_eq!(rows[0].excluded_assigned, 1);   // health work only
+        reserve(&mut pool, 8, CATEGORY_WORKSHOP, &[(a, 0.3)]).unwrap();
+        assert!(pool.work_reservations.iter().all(|r| r.turn == 8));
+        // A direct overlap (bypassing reserve) is detected.
+        pool.work_reservations.push(WorkReservation { agent_id: c, category: CATEGORY_WORKSHOP, fraction: 0.3, turn: 8 });
+        assert_eq!(conflicts(&pool, 8), vec![c]);
+        pool.kill(1);
+        assert!(reserve(&mut pool, 8, CATEGORY_LEARNING, &[(b, 0.2)]).is_err());
+    }
+
+    #[test]
     fn invalid_requests_are_refused_without_a_plan() {
         let pool = pool_with(&[]);
         let mut bad = site(0, 0, 5);
         bad.max_workers = 9;
-        assert!(plan_crews(&pool, &[bad], &HashSet::new()).is_err());
-        assert!(plan_crews(&pool, &[site(0, 0, 5), site(1, 0, 6)], &HashSet::new()).is_err());
-        assert!(plan_crews(&pool, &[site(0, 0, 0)], &HashSet::new()).is_err());
+        assert!(plan_crews(&pool, &[bad], &HashSet::new(), None).is_err());
+        assert!(plan_crews(&pool, &[site(0, 0, 5), site(1, 0, 6)], &HashSet::new(), None).is_err());
+        assert!(plan_crews(&pool, &[site(0, 0, 0)], &HashSet::new(), None).is_err());
         let five: Vec<SiteRequest> = (0..5).map(|i| site(i, i, i + 1)).collect();
-        assert!(plan_crews(&pool, &five, &HashSet::new()).is_err());
+        assert!(plan_crews(&pool, &five, &HashSet::new(), None).is_err());
     }
 }

@@ -104,7 +104,7 @@ def before_agent_tick(world, agent_bridge, economy_result) -> None:
     floor, share = _parameters(world)
     _, pre, counts = phase2
     sim.set_food_allocation(world.turn, REGIMES.index(state.regime), floor, share, pre, counts)
-    state._installed = world.turn
+    state._installed = (world.turn, [math.isnan(value) for value in pre])
 
 
 def after_agent_tick(world, agent_bridge) -> list:
@@ -113,6 +113,7 @@ def after_agent_tick(world, agent_bridge) -> list:
     installed, state._installed, state._phase2 = state._installed, None, None
     if installed is None:
         return []
+    installed, unknown_pre = installed
     frame = sim.take_food_allocation_frame()
     if frame is None:
         # The tick never took it: drop it rather than let it leak a turn.
@@ -123,6 +124,9 @@ def after_agent_tick(world, agent_bridge) -> list:
     if turn != installed or REGIMES[regime] != state.regime:
         raise RuntimeError("native food allocation receipts do not match the request")
     rows = [dict(zip(columns, row)) for row in rows]
+    for r in rows:
+        if unknown_pre[int(r["region"])]:
+            r["relief_available"] = r["relief_to_targeted"] = 0.0      # excluded from totals; unknown below
     totals = {key: sum(r[key] for r in rows) for key in (
         "alive", "rations_available", "relief_available", "allocated", "unallocated",
         "relief_to_targeted", "shortfall", "below_floor", "people_poorer_half",
@@ -137,7 +141,13 @@ def after_agent_tick(world, agent_bridge) -> list:
                                          "below_floor", "fully_fed", "people_poorer_half",
                                          "people_richer_half", "children") else round(v, 6))
                       for k, v in r.items()} for r in rows if r["scarce"]]
+    for r in state.regions:
+        if unknown_pre[r["region"]]:
+            # Without the pre-release sufficiency the release share is unknown,
+            # not zero (targeted relief then shares everything as market food).
+            r["relief_available"] = r["relief_to_targeted"] = None
     totals = {k: round(v, 6) for k, v in totals.items()}
+    totals["relief_unknown_regions"] = sum(1 for r in rows if r["scarce"] and unknown_pre[int(r["region"])])
     state.totals = totals
     scarce = {int(r["region"]) for r in rows if r["scarce"]}
     state.sample = [[aid, region, household, round(ration, 6), targeted]

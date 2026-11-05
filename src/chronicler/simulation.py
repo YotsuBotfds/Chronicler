@@ -2087,11 +2087,6 @@ def run_turn_result(
                     # raw-material demand (optional economy columns).
                     from chronicler.cities import with_economy_columns
                     region_input = with_economy_columns(world, region_input, snapshot)
-                if getattr(world, "livelihoods", None) is not None:
-                    # Livelihoods sprint (default off): workshop crews and
-                    # timber harvest limits; nothing is charged before finish.
-                    from chronicler.livelihoods import prepare_phase2 as _livelihoods_prepare
-                    region_input = _livelihoods_prepare(world, region_input, agent_bridge, snapshot, acc=acc)
                 trade_route_input = build_economy_trade_route_batch(
                     world, active_trade_routes=economic_routes,
                 )
@@ -2112,6 +2107,12 @@ def run_turn_result(
                 if getattr(world, "health_care", None) is not None:
                     from chronicler.health_care import prepare_health_care
                     prepare_health_care(world, agent_bridge)
+                if getattr(world, "livelihoods", None) is not None:
+                    # Livelihoods sprint (default off): workshop crews (after
+                    # this turn's health work exists) and timber harvest limits;
+                    # nothing is charged before finish.
+                    from chronicler.livelihoods import prepare_phase2 as _livelihoods_prepare
+                    region_input = _livelihoods_prepare(world, region_input, agent_bridge, snapshot, acc=acc)
                 rust_return = agent_bridge._sim.tick_economy(
                     region_input, trade_route_input,
                     season_id, is_winter, trade_friction,
@@ -2305,6 +2306,9 @@ def run_turn_result(
                 if any(requests):
                     armies = getattr(getattr(world, "war_state", None), "armies", [])
                     enlisted = sorted({int(aid) for army in armies for aid, _ in army.roster})
+                    if getattr(world, "livelihoods", None) is not None and callable(getattr(sim, "work_reservations", None)):
+                        # One work commitment per person per turn (livelihoods registry).
+                        enlisted = sorted(set(enlisted) | {row[0] for row in sim.work_reservations(world.turn)})
                     sim.prepare_teaching_work(world.turn, list(requests), enlisted)
                     native_prepared = True
                 events = _ordinary_agent_tick(*args, **kwargs)

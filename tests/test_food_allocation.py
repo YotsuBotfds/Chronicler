@@ -129,3 +129,20 @@ def test_bad_parameters_are_refused():
     F.finish_phase2(world, SimpleNamespace(food_sufficiency={"R0": 0.5}), bridge, None)
     with pytest.raises(ValueError):
         F.before_agent_tick(world, bridge, None)
+
+
+def test_unknown_pre_release_sufficiency_makes_relief_unknown_not_zero():
+    world = _world("targeted_relief")
+    sim = _Sim()
+    bridge = _Bridge([0, 0, 1], sim)
+    F.prepare_phase2(world, None, bridge, bridge._snap, None)
+    F.finish_phase2(world, SimpleNamespace(food_sufficiency={"R0": 0.5}), bridge, None)   # R1 unknown
+    F.before_agent_tick(world, bridge, None)
+    row0, row1 = _row(0, 1, 2, 1.0, 1.0, 1.0), _row(1, 1, 1, 0.4, 0.4, 0.6)
+    sim.frame = (5, 2, COLUMNS, [row0, row1], [], 0)
+    F.after_agent_tick(world, bridge)
+    state = world.livelihoods.food_allocation
+    by_region = {r["region"]: r for r in state.regions}
+    assert by_region[1]["relief_available"] is None and by_region[1]["relief_to_targeted"] is None
+    assert by_region[0]["relief_available"] == 0.0
+    assert state.totals["relief_unknown_regions"] == 1

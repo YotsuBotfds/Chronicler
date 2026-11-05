@@ -197,6 +197,9 @@ pub struct AgentPool {
     pub food_access_regions: Vec<u16>,
     /// Livelihoods L2: last allocation receipts, taken once by Python.
     pub provision_frame: Option<crate::provisioning::ProvisionFrame>,
+    /// Livelihoods: this turn's shared work reservations (one authority for
+    /// new work consumers); transient, cleared after each native tick.
+    pub work_reservations: Vec<crate::workshop_work::WorkReservation>,
     // CAREOBS_SOURCE_BEGIN: pool field
     /// Opt-in primitive care prefix; transient and absent by default.
     pub health_care_observation: Option<crate::health_care_observation::CareObservation>,
@@ -280,6 +283,7 @@ impl AgentPool {
             food_access_ids: Vec::new(),
             food_access_regions: Vec::new(),
             provision_frame: None,
+            work_reservations: Vec::new(),
             // CAREOBS_SOURCE_BEGIN: pool default
             health_care_observation: None,
             // CAREOBS_SOURCE_END: pool default
@@ -1847,4 +1851,5 @@ crate::persist_struct!(AgentPool {
     pkt_intensity, pkt_source_civ, arrived_this_turn, trip_home_region, alive, count, next_id,
     free_slots,
 } transient { health_work_loss /* CAREOBS_TRANSIENT_BEGIN */, health_care_observation /* CAREOBS_TRANSIENT_END */, teaching_plan,
-    food_allocation_config, food_access, food_access_ids, food_access_regions, provision_frame });
+    food_allocation_config, food_access, food_access_ids, food_access_regions, provision_frame,
+    work_reservations });

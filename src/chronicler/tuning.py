@@ -331,7 +331,7 @@ KNOWN_OVERRIDES: set[str] = {
     K_COMMUNITY_FULL_ANCHOR,
     # Livelihoods sprint packages (default off; chronicler.livelihoods)
     "livelihoods.food.floor", "livelihoods.food.target_share",
-    "livelihoods.timber.enforce_cap",
+    "livelihoods.timber.enforce_cap", "livelihoods.convoys.threat_scale",
     # Politics
     K_SECESSION_STABILITY_THRESHOLD, K_SECESSION_SURVEILLANCE_THRESHOLD,
     K_PROXY_WAR_SECESSION_BONUS, K_BALANCE_OF_POWER_DOMINANCE,

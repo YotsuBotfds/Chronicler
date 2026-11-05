@@ -44,6 +44,13 @@ describe("livelihoods readers", () => {
     expect(foodAllocationAt(snap({ schema_version: 1, food_allocation: open }), 3)).toBeNull();
   });
 
+  it("accepts unknown relief as null and still refuses negative relief", () => {
+    const unknown = { ...food, regions: [{ ...region, relief_available: null, relief_to_targeted: null }] };
+    expect(foodAllocationAt(snap({ schema_version: 1, food_allocation: unknown }), 3)?.regions?.[0].relief_available).toBeNull();
+    const negative = { ...food, regions: [{ ...region, relief_available: -1 }] };
+    expect(foodAllocationAt(snap({ schema_version: 1, food_allocation: negative }), 3)).toBeNull();
+  });
+
   it("keeps unobserved turns unknown, not zero", () => {
     const unobserved = { ...food, totals: null, regions: null, sample: null };
     expect(foodAllocationAt(snap({ schema_version: 1, food_allocation: unobserved }), 3)?.totals).toBeNull();

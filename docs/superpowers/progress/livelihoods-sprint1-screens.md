@@ -71,6 +71,12 @@ not rerun as a screen arm.
 
 ## Results (held cohort, run 2026-11-05)
 
+Artifacts in the repository: per-world metrics
+(`livelihoods-sprint1-screens/metrics.jsonl`, one row per arm and world), the generated summary
+(`livelihoods-sprint1-screens/report.md`) and source identity (`livelihoods-sprint1-screens/source.txt`).
+Rerun or re-summarize with `scripts/livelihoods_screens.py`. Raw bundles are not committed;
+they can be reproduced from the fixed seeds.
+
 - **Source and environment.** Source `7674aa965fbda59cb797aff7d1b061ecd64412e9`. The native extension
   (SHA-256 `f820ff2f28583a9c76e96e1bae494ce0d022dc8fc1c5f2259dfe41741e33a637`) was built from the
   same native source. Template 8 regions × 4 civs, seeds 101–106; procedural 32 × 10, seeds
@@ -138,3 +144,19 @@ effects; the divergent trajectories are total model effects, not isolated causes
 - **L4.** Capture, loss, return and escort occur naturally almost never (one loss). The risk
   mechanics are shown by the offline tests and constructed runs. Activation is limited by the
   existing reserve purchase rules: a whole-coin payment floor and the surplus rule.
+
+### Review corrections (2026-11-05)
+
+- The L4 cost-retaining risk ablation was not run in these screens. The held worlds had
+  0 captures, 1 loss and 0 escorts, so they say nothing about the risk edge. That edge is
+  shown by constructed offline tests. The ablation key `livelihoods.convoys.threat_scale`
+  is added in the review follow-up.
+- L3 Python/native parity: not applicable. Only Python owns the stock, the native economy
+  applies the cap column, and the Python oracle economy is not used on the hybrid path.
+- The L1 downstream effect on learning and repair supplies was not measured here. It moves
+  to the sprint-2 screens, which run workshops with academy services.
+- Enabled exact-resume evidence:
+  `scripts/checkpoint_identity.py run OUT --case hybrid_s42 --ks 10,17,19,21,30,45,59 --jobs 2
+  --cli-arg=--grain-reserves --cli-arg=--public-grain-shipments --cli-arg=--workshops
+  --cli-arg=--food-allocation --cli-arg=--timber-stock --cli-arg=--grain-convoys`,
+  native extension f820ff2f…, source 7674aa9: PASS at all 7 resume points.

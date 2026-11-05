@@ -14,7 +14,10 @@ unpaid arrears recorded as written off. A closed city is never readmitted.
 Crews (L1A). Each Phase 2, before the native economy tick, the native planner
 (``AgentSimulator.plan_workshop_crews``) resolves at most eight living adult
 urban farmers resident in the site's settlement and region, excluding trips,
-army rosters and existing work reservations. Each contributes the city's
+army rosters and existing work reservations, and reserves the crew in the
+shared native work registry for the turn (one work commitment per person per
+turn across workshops, later work consumers, rural health work and teaching;
+the native tick refuses to run on an overlap). Each contributes the city's
 already-diverted farming time ``d = 1 - URBAN_FARM_LABOR[rank]``; the farm
 factor is untouched, so nothing is subtracted twice and the crew's ordinary
 farm income share is unaffected (``affected_ordinary_income_share`` 0). No
@@ -182,11 +185,32 @@ def _bill(site: WorkshopSite) -> dict[str, int]:
     return bill
 
 
+def _pending_storage_bills(world) -> list[int]:
+    """Upper bound of what a pending grain-storage plan will charge each civ.
+
+    Storage budgets its work against the same projected treasury before the
+    native tick and charges after it; its plan holds no accumulator entry yet,
+    so the workshop must leave room for it (never spend the same coins twice).
+    """
+    bills = [0] * len(world.civilizations)
+    storage = getattr(getattr(world, "grain_reserves", None), "storage", None)
+    plan = getattr(storage, "_active_plan", None) if storage is not None else None
+    if plan is not None and plan.status == "pending":
+        from chronicler.grain_storage import COINS_PER_WORK
+        for row in plan.rows:
+            if row.owner >= 0 and row.request:
+                bills[row.owner] += math.ceil(row.request * COINS_PER_WORK)
+    return bills
+
+
 def _plan_funding(world, state, acc) -> list[tuple[WorkshopSite, int, str | None, dict, bool]]:
-    """Payer and bill per open site, funded against one projected budget per civ."""
+    """Payer and bill per open site, funded against one projected budget per civ
+    after any pending grain-storage bill."""
     from chronicler.mutual_aid import _treasury_budget
     index = {c.name: i for i, c in enumerate(world.civilizations)}
-    budgets = [max(0, math.floor(_treasury_budget(world, c, acc))) for c in world.civilizations]
+    storage = _pending_storage_bills(world)
+    budgets = [max(0, math.floor(_treasury_budget(world, c, acc)) - storage[i])
+               for i, c in enumerate(world.civilizations)]
     out = []
     for site in state.sites:                       # site order: deterministic priority
         controller = world.regions[site.region].controller
@@ -214,7 +238,7 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
     rows = {}
     if requests:
         for row, (site_id, _r, _s, diverted, _m) in zip(
-                sim.plan_workshop_crews(requests, _enlisted(world)), requests, strict=True):
+                sim.plan_workshop_crews(requests, _enlisted(world), world.turn), requests, strict=True):
             (site, region, settlement, resident, trip, army, assigned, eligible,
              crew, ages, work) = row
             rows[site_id] = dict(site=site, region=region, settlement_id=settlement,
@@ -273,6 +297,12 @@ def _settle(world, state, plan_site: _SitePlan, acc, turn: int) -> dict[str, int
     paid = dict(plan_site.bill)
     cost = sum(paid.values())
     civ = world.civilizations[plan_site.payer]
+    from chronicler.mutual_aid import _treasury_budget
+    if _treasury_budget(world, civ, acc) < cost:
+        # Planning left room for every other Phase 2 bill; a shortfall here
+        # means another spender was missed, so refuse rather than record an
+        # unpaid payment.
+        raise RuntimeError("workshop bill exceeds the projected treasury at settlement")
     if acc is None:
         civ.treasury -= cost
     else:

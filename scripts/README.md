@@ -46,6 +46,11 @@ world systems), `domestic_credit_probe.py`,
 `grain_reserves_probe.py`, `history_forensics.py`,
 `crisis_distribution_summary.py` and `narration_prompts.py`.
 
+`livelihoods_screens.py run OUT` reruns the livelihoods sprint's preregistered screen arms on
+fixed held seeds (hybrid; run it with the native interpreter that matches the source) and
+`livelihoods_screens.py report OUT/metrics.jsonl` summarizes them, with worlds as the units. The
+committed sprint-1 metrics are in `docs/superpowers/progress/livelihoods-sprint1-screens/`.
+
 ## Bundles and viewer fixtures
 
 `bundle_v6.py` converts, decodes and compares bundles;

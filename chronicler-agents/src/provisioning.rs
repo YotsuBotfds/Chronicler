@@ -412,6 +412,73 @@ mod tests {
         assert!((r.allocated + r.unallocated - r.rations_available).abs() < 1e-9);
     }
 
+    fn install(pool: &mut AgentPool, regions: &[RegionState], c: &ProvisionConfig) -> ProvisionFrame {
+        // As the tick does at phase 0.7.
+        let (access, ids, frame) = allocate(pool, regions, c);
+        pool.food_access_regions = pool.regions.clone();
+        pool.food_access = access;
+        pool.food_access_ids = ids;
+        frame
+    }
+
+    #[test]
+    fn marriage_merges_households_and_death_or_remarriage_splits_them() {
+        use crate::relationships::{remove_symmetric, upsert_symmetric, BondType};
+        let marriage = BondType::Marriage as u8;
+        let (mut pool, regions) = world(&[(0, 30, 100.0), (0, 30, 0.0), (0, 30, 0.0)], &[0.6]);
+        assert!(upsert_symmetric(&mut pool, 0, 1, marriage, 50, 1));
+        let f = allocate(&pool, &regions, &cfg(REGIME_FLOOR_MEANS, vec![0.6], vec![3])).2;
+        assert_eq!(f.regions[0].households, 2);
+        let (a, _, _) = allocate(&pool, &regions, &cfg(REGIME_FLOOR_MEANS, vec![0.6], vec![3]));
+        // The couple shares one household's means; the single poor adult gets less.
+        assert!((a[0] - a[1]).abs() < 1e-6 && a[0] > a[2]);
+        // Remarriage: B leaves A and marries C; A's means no longer reach B.
+        remove_symmetric(&mut pool, 0, 1, marriage);
+        assert!(upsert_symmetric(&mut pool, 1, 2, marriage, 50, 2));
+        let (a, _, f) = allocate(&pool, &regions, &cfg(REGIME_FLOOR_MEANS, vec![0.6], vec![3]));
+        assert_eq!(f.regions[0].households, 2);
+        assert!((a[1] - a[2]).abs() < 1e-6 && a[0] > a[1]);
+        // Death of a spouse leaves a household of one; nobody eats for the dead.
+        pool.kill(2);
+        let (a, _, f) = allocate(&pool, &regions, &cfg(REGIME_FLOOR_MEANS, vec![0.6], vec![3]));
+        assert_eq!((f.regions[0].alive, f.regions[0].households), (2, 2));
+        assert!(a[2].is_nan());
+        assert!((f.regions[0].allocated + f.regions[0].unallocated - f.regions[0].rations_available).abs() < 1e-9);
+    }
+
+    #[test]
+    fn migrants_newborns_and_reused_slots_read_the_regional_signal() {
+        let (mut pool, regions) = world(&[(0, 30, 0.0), (0, 30, 50.0), (1, 30, 0.0)], &[0.4, 0.9]);
+        let frame = install(&mut pool, &regions, &cfg(REGIME_FLOOR_MEANS, vec![0.4, 0.9], vec![2, 1]));
+        assert_eq!(frame.regions.len(), 2);
+        let own = food_for(&pool, 0, 0.4);
+        assert!(!own.is_nan() && own <= 1.0);
+        // A migrant after the allocation reads the region it is now in.
+        pool.regions[0] = 1;
+        assert_eq!(food_for(&pool, 0, 0.9), 0.9);
+        // A newborn in a reused slot is a different person: regional signal.
+        pool.kill(1);
+        let born = pool.spawn(0, 0, crate::agent::Occupation::Farmer, 0, 0.5, 0.5, 0.5, 0, 1, 2, 0);
+        assert_eq!(born, 1);
+        assert_eq!(food_for(&pool, born, 0.4), 0.4);
+        // With no allocation installed every consumer reads the region.
+        pool.food_access.clear();
+        assert_eq!(food_for(&pool, 2, 0.9), 0.9);
+    }
+
+    #[test]
+    fn empty_and_zero_food_regions_are_handled() {
+        let (pool, regions) = world(&[(1, 30, 0.0), (1, 5, 0.0)], &[0.3, 0.0]);
+        let (access, _, frame) = allocate(&pool, &regions, &cfg(REGIME_TARGETED_RELIEF, vec![f32::NAN, 0.0], vec![0, 2]));
+        let empty = &frame.regions[0];
+        assert_eq!((empty.alive, empty.households, empty.scarce), (0, 0, false));
+        assert_eq!((empty.allocated, empty.unallocated, empty.shortfall), (0.0, 0.0, 0.0));
+        let starving = &frame.regions[1];
+        assert!(starving.scarce && starving.allocated == 0.0 && (starving.shortfall - 2.0).abs() < 1e-9);
+        assert!(access[0] == 0.0 && access[1] == 0.0);
+        assert_eq!(starving.children, 1);
+    }
+
     #[test]
     fn invalid_configs_are_refused() {
         let mut c = cfg(REGIME_EQUAL, vec![0.5], vec![1]);

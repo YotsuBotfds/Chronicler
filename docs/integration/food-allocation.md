@@ -34,7 +34,14 @@ consumers that previously read the region's sufficiency.
      (`(sufficiency − pre-release) × N`) goes first to the poorest
      `target_share` of households, then to everyone else.
    No region allocates more than `T`. The dead's share, and anything left
-   once everyone has a full ration, is recorded as `unallocated`. Regions with sufficiency ≥ 1 keep the regional
+   once everyone has a full ration, is recorded as `unallocated`.
+   On the current turn order nobody can arrive in a region between Phase 2
+   and the allocation. If someone did, the region's withdrawal would be
+   shared among more people (never invented), and `equal` would then fall
+   below the regional signal.
+   When the pre-release sufficiency is unknown, the release share is
+   recorded as unknown (`null`), not zero. Targeted relief then treats all
+   food as market food, and `relief_unknown_regions` counts such regions. Regions with sufficiency ≥ 1 keep the regional
    signal, including its abundance.
 4. Households are derived from existing identities, not a new registry. A
    married adult is keyed by the couple's smaller id when the spouse is alive
@@ -64,4 +71,13 @@ Parameters are declared modeling choices, not calibrated:
 ## Evidence
 
 Results and scope are recorded in the sprint board and in the L2 landing
-commit.
+commit. Lifecycle cases have Rust unit tests in `provisioning.rs`:
+- deaths after Phase 2;
+- a child joining a parent's household;
+- marriage merging households, and remarriage or a spouse's death splitting
+  them;
+- a migrant after the allocation, and a newborn in a reused slot (both read
+  their current region's signal);
+- empty and zero-food regions.
+
+Python tests cover missing native data and unknown relief.

@@ -3,8 +3,10 @@ import type { TurnSnapshot } from "../types";
 /** One scarce region's allocation (``snapshot.livelihoods.food_allocation.regions``). */
 export interface FoodAllocationRegion {
   region: number; scarce: number; phase2_alive: number; alive: number; households: number;
-  sufficiency: number; rations_available: number; relief_available: number; allocated: number;
-  unallocated: number; relief_to_targeted: number; shortfall: number; below_floor: number;
+  sufficiency: number; rations_available: number;
+  /** Null: the pre-release sufficiency was unknown, so the release share is unknown (not zero). */
+  relief_available: number | null; allocated: number;
+  unallocated: number; relief_to_targeted: number | null; shortfall: number; below_floor: number;
   fully_fed: number; min_ration: number; max_ration: number; people_poorer_half: number;
   shortfall_poorer_half: number; people_richer_half: number; shortfall_richer_half: number;
   children: number; shortfall_children: number;
@@ -23,13 +25,14 @@ export interface FoodAllocationRecord {
 const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
 const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
 const REGIMES = ["equal", "floor_means", "targeted_relief"];
-const NUMBERS = ["phase2_alive", "alive", "households", "sufficiency", "rations_available", "relief_available",
-  "allocated", "unallocated", "relief_to_targeted", "shortfall", "min_ration", "max_ration",
+const NUMBERS = ["phase2_alive", "alive", "households", "sufficiency", "rations_available",
+  "allocated", "unallocated", "shortfall", "min_ration", "max_ration",
   "people_poorer_half", "shortfall_poorer_half", "people_richer_half", "shortfall_richer_half"] as const;
 
 function validRegion(x: unknown, regions: number): x is FoodAllocationRegion {
   if (!object(x) || !finite(x.region) || x.region < 0 || x.region >= regions
-    || !NUMBERS.every((key) => finite(x[key]) && (x[key] as number) >= 0)) return false;
+    || !NUMBERS.every((key) => finite(x[key]) && (x[key] as number) >= 0)
+    || !["relief_available", "relief_to_targeted"].every((key) => x[key] === null || (finite(x[key]) && (x[key] as number) >= 0))) return false;
   const r = x as unknown as FoodAllocationRegion;
   const scale = Math.max(1, r.rations_available);
   return Math.abs(r.allocated + r.unallocated - r.rations_available) <= 1e-5 * scale

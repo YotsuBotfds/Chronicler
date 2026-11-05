@@ -111,3 +111,33 @@ def test_cost_only_charges_like_operate_without_replacing_the_ceiling(tmp_path):
             assert r["craft_ceiling"] is None and r["allocated"] == 0.0 and r["realized"] == 0.0
             paid += sum((r["paid"] or {}).values())
     assert paid > 0
+
+
+def test_one_work_commitment_per_person_alongside_health_care_and_teaching(tmp_path, monkeypatch):
+    """Real path: crews are planned after this turn's health work and become
+    the turn's registry; teaching excludes registry holders; grain storage
+    spends from the same treasury; the native tick (which refuses any work
+    overlap) and workshop settlement (which refuses an unfunded bill)
+    complete every turn."""
+    from chronicler import workshops as W
+    seen = {"turns": 0, "crew": 0}
+    original = W.finish_phase2
+
+    def checked_finish(world, economy_result, agent_bridge, acc):
+        sim = agent_bridge._sim
+        plan = world.livelihoods.workshops._plan
+        crew = {aid for site_plan in plan.sites for aid in site_plan.row["crew"]}
+        held = sim.work_reservations(world.turn)
+        assert {row[0] for row in held} == crew and len(held) == len(crew)
+        assert all(category == 0 and 0.0 < fraction <= 1.0 for _, category, fraction in held)
+        assert sim.work_reservation_conflicts(world.turn) == []
+        seen["turns"] += 1
+        seen["crew"] += len(crew)
+        return original(world, economy_result, agent_bridge, acc)
+
+    monkeypatch.setattr(W, "finish_phase2", checked_finish)
+    bundle = _run(tmp_path, "--workshops", "--health-care", "--scholarship", "--techniques",
+                  "--academy-services", "--grain-reserves", "--grain-storage",
+                  "--grain-storage-policy", "maintain", "--grain-storage-work-budget", "4", turns=60)
+    assert seen["crew"] > 0 and seen["turns"] > 0
+    assert len(bundle["history"]) == 60

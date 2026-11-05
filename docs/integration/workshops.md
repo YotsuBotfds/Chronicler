@@ -24,14 +24,32 @@ The landing closes three of the five activation blockers in
    reserved by `health_work_loss` or a pending teaching plan. Selection is by
    ascending stable id, up to eight per site. Each excluded agent is counted
    under its reason. No RNG is used and the pool is not mutated.
-2. **One reservation authority.** The planner is the single allocator of
-   workshop time. It also treats existing health and teaching reservations
-   as taken. In the current model those consumers are disjoint by predicate:
-   health care is rural-only and teaching is Scholar-only. An agent can be
-   claimed by at most one site. A crew member's available time is the city's
-   already-diverted farm share, `1 - URBAN_FARM_LABOR[rank]`. The economy's
-   `farm_labor_factor` already removed that share from farming, so nothing is
-   subtracted twice.
+2. **One reservation authority.** A native per-turn work registry
+   (`AgentPool::work_reservations`, `workshop_work::reserve/conflicts`) records
+   each person's single work commitment for the turn.
+   - Crews are planned in Phase 2 after this turn's rural health work is
+     prepared, so the planner excludes patients and carers (entries with a
+     positive `health_work_loss`; the vector is slot-indexed with zero
+     placeholders). It also excludes anyone already in the registry, then
+     reserves the crew.
+   - Teaching (academy services) passes registry holders to
+     `prepare_teaching_work` as excluded ids.
+   - Later consumers (L5 learners) use `AgentSimulator.reserve_work`, which
+     refuses anyone already holding work.
+   - The native tick refuses to run if any person holds more than one
+     commitment. This guard is active only while the registry has entries for
+     the turn.
+   - Grain storage is not a per-person consumer. It draws regional work from
+     the farm share of farmer labour (`farm_labor_factor`), while crews use
+     only the diverted urban share, so the same time is never counted twice.
+   - A crew member's available time is the city's already-diverted farm share,
+     `1 - URBAN_FARM_LABOR[rank]`. The economy's `farm_labor_factor` already
+     removed that share from farming, so nothing is subtracted twice.
+
+   A review on 2026-11-05 found that the first L1A landing planned crews
+   before health work existed and had no shared registry. Exclusion then held
+   only because the consumers' predicates were disjoint. This entry describes
+   the correction.
 3. **Actual raw-input exposure (blocker 4).** `EconomyRegionResult` now
    carries `craft_input` (`RegionWorkState::craft_input`).
    `AgentSimulator.take_craft_inputs()` returns the last tick's per-good input
@@ -71,7 +89,11 @@ above; the rest are below.
   controls the site's region at Phase 2, as chosen in the plan's funding
   comparison. Each turn's bill is planned against the projected treasury
   (`_treasury_budget`), with one budget per civilization shared by all its
-  sites in site order. A bill is either one construction installment, or
+  sites in site order. That budget first subtracts any pending grain-storage
+  bill, an upper bound on what storage will charge after the tick, so the
+  two never spend the same coins. Settlement re-checks the projected
+  treasury and refuses an uncovered bill. A review found this double spend
+  when `--grain-storage` and `--workshops` ran together; it is fixed. A bill is either one construction installment, or
   upkeep plus any arrears plus any needed repair. It is charged once, as a
   `keep` treasury debit, after the native tick succeeds. A failed tick
   charges nothing (`rollback_phase2`). If the controller changes between

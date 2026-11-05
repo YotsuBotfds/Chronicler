@@ -28,8 +28,8 @@ class _Sim:
     def __init__(self, inputs=None, crew=2):
         self.inputs, self.calls, self.crew = inputs, [], crew
 
-    def plan_workshop_crews(self, requests, enlisted):
-        self.calls.append((list(requests), list(enlisted)))
+    def plan_workshop_crews(self, requests, enlisted, turn=None):
+        self.calls.append((list(requests), list(enlisted), turn))
         return [(site, region, settlement, 3, 0, 0, 0, 3, [10 + site, 20 + site][:self.crew],
                  [30, 40][:self.crew], self.crew * diverted)
                 for site, region, settlement, diverted, _ in requests]
@@ -227,3 +227,54 @@ def test_prepare_requires_native():
     world = _world([_city(1, 0)])
     with pytest.raises(RuntimeError, match="native"):
         W.prepare_phase2(world, _batch(), SimpleNamespace(_sim=object()), None, None)
+
+
+def test_storage_and_workshop_never_spend_the_same_coins():
+    """Review finding: storage budgets the same projected treasury before the
+    tick and charges first; the workshop must leave room for it."""
+    from chronicler.grain_storage import COINS_PER_WORK
+    world = _world([_city(1, 0, 2)], mode="operate", treasury=(12,))
+    plan = SimpleNamespace(status="pending", rows=[SimpleNamespace(owner=0, request=5.0)])
+    world.grain_reserves = SimpleNamespace(storage=SimpleNamespace(_active_plan=plan))
+    sim = _Sim()
+    W.prepare_phase2(world, _batch(), SimpleNamespace(_sim=sim), None, None)
+    site_plan = world.livelihoods.workshops._plan.sites[0]
+    # 12 coins minus storage's 10 leaves 2: the 10-coin installment is unfunded.
+    assert 5.0 * COINS_PER_WORK == 10 and site_plan.funded is False
+    world.civilizations[0].treasury -= 10       # storage settles first
+    W.finish_phase2(world, SimpleNamespace(craft_output={}), SimpleNamespace(_sim=sim), None)
+    receipt = world.livelihoods.workshops.frame[0]
+    assert receipt.paid == {} and world.civilizations[0].treasury == 2
+    assert world.livelihoods.workshops.sites[0].construction_paid == 0
+
+
+def test_settlement_refuses_a_bill_the_treasury_no_longer_covers():
+    world = _world([_city(1, 0, 2)], mode="operate", treasury=(10,))
+    sim = _Sim()
+    W.prepare_phase2(world, _batch(), SimpleNamespace(_sim=sim), None, None)
+    world.civilizations[0].treasury = 3          # an unplanned spender
+    with pytest.raises(RuntimeError, match="exceeds the projected treasury"):
+        W.finish_phase2(world, SimpleNamespace(craft_output={}), SimpleNamespace(_sim=sim), None)
+
+
+def test_mid_construction_state_round_trips_and_continues_identically():
+    import pickle
+    world = _world([_city(1, 2, 2)], mode="operate")
+    sim = _Sim()
+    for _ in range(3):
+        _turn(world, sim)
+    assert world.livelihoods.workshops.sites[0].construction_paid == 3 * W.INSTALLMENT
+    restored = _world([_city(1, 2, 2)], mode="operate", turn=world.turn)
+    restored.civilizations[0].treasury = world.civilizations[0].treasury
+    restored.livelihoods = pickle.loads(pickle.dumps(world.livelihoods))
+    json_restored = type(world.livelihoods.workshops).model_validate_json(world.livelihoods.workshops.model_dump_json())
+    assert json_restored.model_dump() == world.livelihoods.workshops.model_dump()
+    for _ in range(5):
+        _turn(world, sim)
+        _turn(restored, _Sim())
+    assert restored.livelihoods.workshops.model_dump() == world.livelihoods.workshops.model_dump()
+    assert restored.civilizations[0].treasury == world.civilizations[0].treasury
+    # A crew member who died or left is simply not resolved again next turn.
+    sim.crew = 1
+    _turn(world, sim)
+    assert world.livelihoods.workshops.frame[0].crew == [10]
