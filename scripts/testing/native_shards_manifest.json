@@ -184,7 +184,8 @@
       "tests/test_war_occupation.py",
       "tests/test_war_peace.py",
       "tests/test_wealth.py",
-      "tests/test_weight_cap.py"
+      "tests/test_weight_cap.py",
+      "tests/test_workshops.py"
     ],
     "1": [
       "tests/test_ablation_output.py",
@@ -356,6 +357,7 @@
       "tests/test_what_if_academy.py",
       "tests/test_what_if_process.py",
       "tests/test_what_if_transport.py",
+      "tests/test_workshops_native.py",
       "tests/test_world_gen.py",
       "tests/test_writer_cadence_diagnostic.py"
     ]

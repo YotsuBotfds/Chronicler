@@ -333,6 +333,9 @@ pub struct EconomyRegionResult {
     /// cap): what the land gave up. The ecology depletes mineral reserves by
     /// it (`RegionState::realized_extraction`).
     pub slot_output: [f32; 3],
+    /// Actual raw input of each good to this turn's craft conversion
+    /// (`RegionWorkState::craft_input`); the region's, never a site's share.
+    pub craft_input: [f32; NUM_GOODS],
     /// Grain foraged this turn by farmers without a yielding food slot
     /// (`FarmLabor::forage_labor` x `forage_yield`). With `slot_output` and
     /// `craft_output` it is all the region's production: the production
@@ -1824,6 +1827,7 @@ pub fn tick_economy_core_with_granary_work(
             craft_output: craft_output[ri],
             craft_sufficiency,
             slot_output: slot_output[ri],
+            craft_input: w.craft_input,
             forage_output: forage_output[ri],
         });
 

@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "layer": "l1a",
+  "parent": "2a8d4a14df3249bafaea6ba4beeaeb1d0cb78626",
+  "files": {
+    "chronicler-agents/src/economy.rs": {
+      "sha256": "3ce6d4e1e876214948e7c76bcd058e2f56d9eb146b24b47a12c208c4592a12c3",
+      "current_sha256": "f6f6948d7ac8dcc575d6e75c92b8bbda0f6d6c1ba55794538049848bf0f3bb29",
+      "patches": [
+        {
+          "old": "    /// cap): what the land gave up. The ecology depletes mineral reserves by\n    /// it (`RegionState::realized_extraction`).\n    pub slot_output: [f32; 3],\n    /// Grain foraged this turn by farmers without a yielding food slot\n    /// (`FarmLabor::forage_labor` x `forage_yield`). With `slot_output` and\n    /// `craft_output` it is all the region's production: the production\n",
+          "new": "    /// cap): what the land gave up. The ecology depletes mineral reserves by\n    /// it (`RegionState::realized_extraction`).\n    pub slot_output: [f32; 3],\n    /// Actual raw input of each good to this turn's craft conversion\n    /// (`RegionWorkState::craft_input`); the region's, never a site's share.\n    pub craft_input: [f32; NUM_GOODS],\n    /// Grain foraged this turn by farmers without a yielding food slot\n    /// (`FarmLabor::forage_labor` x `forage_yield`). With `slot_output` and\n    /// `craft_output` it is all the region's production: the production\n"
+        },
+        {
+          "old": "            craft_output: craft_output[ri],\n            craft_sufficiency,\n            slot_output: slot_output[ri],\n            forage_output: forage_output[ri],\n        });\n\n",
+          "new": "            craft_output: craft_output[ri],\n            craft_sufficiency,\n            slot_output: slot_output[ri],\n            craft_input: w.craft_input,\n            forage_output: forage_output[ri],\n        });\n\n"
+        }
+      ]
+    },
+    "chronicler-agents/src/ffi/mod.rs": {
+      "sha256": "21f08dfdc87c97ebfba5295d346b3d6329011c00068d2a2d1334c3d14b16e572",
+      "current_sha256": "dd9ac5e0487adcd93519c045bf530786f7d96e0f66607f2cebf93505c323fda1",
+      "patches": [
+        {
+          "old": "    /// Transient teaching receipt; not an additional persistent work account.\n    teaching_result: Option<crate::teaching_work::TeachingPlan>,\n    last_teaching_turn: Option<u32>,\n}\n\nimpl AgentSimulator {\n",
+          "new": "    /// Transient teaching receipt; not an additional persistent work account.\n    teaching_result: Option<crate::teaching_work::TeachingPlan>,\n    last_teaching_turn: Option<u32>,\n    /// Livelihoods L1A: actual per-good craft input of the last economy tick\n    /// (region order); taken once by Python, never persisted.\n    last_craft_input: Option<Vec<[f32; crate::economy::NUM_GOODS]>>,\n}\n\nimpl AgentSimulator {\n"
+        },
+        {
+          "old": "            mobility_gate_frame: None,\n            teaching_result: None,\n            last_teaching_turn: None,\n        }\n    }\n}\n",
+          "new": "            mobility_gate_frame: None,\n            teaching_result: None,\n            last_teaching_turn: None,\n            last_craft_input: None,\n        }\n    }\n}\n"
+        },
+        {
+          "old": "\n    /// Prepare a single regional teaching budget before this turn's economy.\n    /// Fractions are Scholar-equivalent work-turns; no pay is created.\n    pub fn prepare_teaching_work(&mut self, source_turn: u32, requests: Vec<f32>, excluded_ids: Vec<u32>)\n        -> PyResult<Option<(u32, Vec<(u16, f64, f64, f64, f64)>, Vec<(u32, u16, f32, f32)>, usize)>> {\n        if requests.len() != self.num_regions {\n",
+          "new": "\n    /// Prepare a single regional teaching budget before this turn's economy.\n    /// Fractions are Scholar-equivalent work-turns; no pay is created.\n    /// Livelihoods L1A: resolve workshop crews from the live pool without\n    /// mutation. Sites are (site, region, settlement id, diverted fraction,\n    /// max workers); returns per site (site, region, settlement, resident\n    /// adult farmers, excluded trip, excluded army, excluded assigned,\n    /// eligible, crew ids, crew ages, work available).\n    #[allow(clippy::type_complexity)]\n    pub fn plan_workshop_crews(&self, sites: Vec<(u16, u16, u16, f32, u8)>, enlisted_ids: Vec<u32>)\n        -> PyResult<Vec<(u16, u16, u16, u32, u32, u32, u32, u32, Vec<u32>, Vec<u16>, f32)>> {\n        if !self.initialized {\n            return Err(PyValueError::new_err(\"workshop crews require initialized agents\"));\n        }\n        let requests: Vec<crate::workshop_work::SiteRequest> = sites.into_iter().map(\n            |(site, region, settlement_id, diverted_fraction, max_workers)| crate::workshop_work::SiteRequest {\n                site, region, settlement_id, diverted_fraction, max_workers }).collect();\n        if requests.iter().any(|s| s.region as usize >= self.num_regions) {\n            return Err(PyValueError::new_err(\"workshop site region out of range\"));\n        }\n        let enlisted: std::collections::HashSet<u32> = enlisted_ids.into_iter().collect();\n        let rows = crate::workshop_work::plan_crews(&self.pool, &requests, &enlisted)\n            .map_err(PyValueError::new_err)?;\n        Ok(rows.into_iter().map(|r| (r.site, r.region, r.settlement_id, r.resident_adult_farmers,\n            r.excluded_trip, r.excluded_army, r.excluded_assigned, r.eligible, r.crew, r.crew_ages,\n            r.work_available)).collect())\n    }\n\n    /// Livelihoods L1A: the last economy tick's actual per-good craft input\n    /// by region (goods in `economy::GOOD_NAMES` order), taken once; None\n    /// before any tick or after it was taken.\n    pub fn take_craft_inputs(&mut self) -> Option<Vec<Vec<f32>>> {\n        self.last_craft_input.take().map(|rows| rows.into_iter().map(|r| r.to_vec()).collect())\n    }\n\n    pub fn prepare_teaching_work(&mut self, source_turn: u32, requests: Vec<f32>, excluded_ids: Vec<u32>)\n        -> PyResult<Option<(u32, Vec<(u16, f64, f64, f64, f64)>, Vec<(u32, u16, f32, f32)>, usize)>> {\n        if requests.len() != self.num_regions {\n"
+        },
+        {
+          "old": "                region_inputs[i].production_caps[slot] = Some(budget);\n            }\n        }\n\n        // --- Derive agent counts from live pool ---\n        // Partition by region for efficient iteration\n",
+          "new": "                region_inputs[i].production_caps[slot] = Some(budget);\n            }\n        }\n        // Livelihoods L3 (optional, default absent): a timber slot cannot\n        // yield more than the harvestable stock Python reports for it.\n        for slot in 0..3usize {\n            let name = format!(\"timber_harvest_cap_{slot}\");\n            let Some(column) = ri_rb.column_by_name(&name) else { continue };\n            use arrow::array::Array;\n            let caps = column.as_any().downcast_ref::<Float32Array>()\n                .ok_or_else(|| PyValueError::new_err(format!(\"{name} must be Float32\")))?;\n            for i in 0..n_regions {\n                if caps.is_null(i) { continue; }\n                let cap = caps.value(i);\n                if !cap.is_finite() || cap < 0.0 || region_inputs[i].resource_types[slot] != 1 {\n                    return Err(PyValueError::new_err(\"invalid timber harvest cap\"));\n                }\n                region_inputs[i].production_caps[slot] = Some(match region_inputs[i].production_caps[slot] {\n                    Some(existing) => existing.min(cap),\n                    None => cap,\n                });\n            }\n        }\n\n        // --- Derive agent counts from live pool ---\n        // Partition by region for efficient iteration\n"
+        },
+        {
+          "old": "                }\n            }\n        }\n\n        Ok((\n            PyRecordBatch::new(region_result_batch),\n",
+          "new": "                }\n            }\n        }\n        self.last_craft_input = Some(output.region_results.iter().map(|rr| rr.craft_input).collect());\n\n        Ok((\n            PyRecordBatch::new(region_result_batch),\n"
+        },
+        {
+          "old": "    movements, pending_movement_leaders, pending_promotion_memories, tick_options,\n} skip { snapshot_cache } transient {\n    health_work, transaction_receipts_limit, decision_delivery_config, decision_delivery_frame, mobility_gate_frame,\n    teaching_result, last_teaching_turn\n});\n\n#[cfg(test)]\n",
+          "new": "    movements, pending_movement_leaders, pending_promotion_memories, tick_options,\n} skip { snapshot_cache } transient {\n    health_work, transaction_receipts_limit, decision_delivery_config, decision_delivery_frame, mobility_gate_frame,\n    teaching_result, last_teaching_turn, last_craft_input\n});\n\n#[cfg(test)]\n"
+        }
+      ]
+    },
+    "chronicler-agents/src/lib.rs": {
+      "sha256": "80ea2d4d1724c1f6554f1bd8d4673021d4e2708916ef13d01735fa438f9c343a",
+      "current_sha256": "9c2f14e0b824bb210c4cc1654c4d5e9f239a2d83c5f2268cdb931595930ec704",
+      "patches": [
+        {
+          "old": "pub mod household;\npub mod health_care;\npub mod teaching_work;\n// CAREOBS_SOURCE_BEGIN: module\nmod health_care_observation;\n// CAREOBS_SOURCE_END: module\n",
+          "new": "pub mod household;\npub mod health_care;\npub mod teaching_work;\npub mod workshop_work;\n// CAREOBS_SOURCE_BEGIN: module\nmod health_care_observation;\n// CAREOBS_SOURCE_END: module\n"
+        }
+      ]
+    }
+  }
+}
