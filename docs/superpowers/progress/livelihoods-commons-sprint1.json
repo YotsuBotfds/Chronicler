@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "board_version": 2,
+  "board_version": 4,
   "title": "Livelihoods, Commons and Collective Choices - sprint 1 operational board",
   "plan": "docs/superpowers/roadmaps/livelihoods-commons-sprint1.md",
   "owner_instruction": "2026-11-05: execute the revision-5 sprint packet end to end. Scope taken as the packet's bounded sprint: L0 + L1-L4 with L10 viewer slices and L11 evidence. No merge, approval, main writes, default changes, 200-seed/procedural gates, Drive sharing changes, purchases or deployment.",
@@ -57,7 +57,7 @@
       "id": "L0",
       "status": "integrated",
       "owner": "lead",
-      "next_action": "Funding route chosen (treasury stage 1); compute budget frozen; L3/L4 handoffs dispatched from 050cfbe.",
+      "next_action": "Done.",
       "evidence": [
         "main CI 41926433490 success on 64863f1",
         "offline lane 58/58 chunks pass at 050cfbe",
@@ -68,63 +68,98 @@
     },
     {
       "id": "L1A",
-      "status": "active",
+      "status": "evaluated",
       "owner": "lead (native owner)",
       "depends_on": [
         "L0"
       ],
       "funded_operation_enabled": false,
-      "next_action": "Native crew planner + actual craft-input export; layer l1a; then release interface SHA to L2.",
-      "evidence": []
+      "next_action": "Sprint complete for this package; see plan section 9 for next-sprint candidates.",
+      "evidence": [
+        "cargo test 1207/0",
+        "offline lane 58/58",
+        "native: crew ids verified against live snapshot; input = output in 366 site-turns; observe = off trajectory",
+        "feature-off output byte-identical to baseline extension"
+      ],
+      "landing_sha": "ba3ca22cccaf762c90fe8dc8c09f7346d3eafb78",
+      "interface_version": "workshop crews v1"
     },
     {
       "id": "L1B",
-      "status": "ready",
+      "status": "evaluated",
       "owner": "lead",
       "depends_on": [
         "L1A",
         "funding route"
       ],
       "blocks_l2": false,
-      "next_action": "Treasury route selected (plan section 5); implement after L1A.",
-      "evidence": []
+      "next_action": "Sprint complete for this package; see plan section 9 for next-sprint candidates.",
+      "evidence": [
+        "offline workshop tests 11",
+        "native workshop tests 5",
+        "offline lane 58/58",
+        "seed 7 dev: operating crews' ceilings did not raise output (raw-input bound) - mixed result",
+        "held: operates 12/12 worlds; +12%/+5% site-region crafts vs cost_only; realized ~1/3 of allocated (input-bound)"
+      ],
+      "landing_sha": "e096f476e9c6b78cc8a5ed10037494d793d4ce62",
+      "funded_operation_enabled": true
     },
     {
       "id": "L2",
-      "status": "active",
+      "status": "evaluated",
       "owner": "lead (native owner)",
       "depends_on": [
         "L0"
       ],
-      "native_landing_after": "L1A",
-      "next_action": "Design native allocation module; native landing after L1A.",
-      "evidence": []
+      "native_landing_after": "L1A ba3ca22 (landed after it)",
+      "next_action": "Sprint complete for this package; see plan section 9 for next-sprint candidates.",
+      "evidence": [
+        "cargo test 1212/0",
+        "offline lane 58/58",
+        "equal regime reproduces off run snapshot for snapshot (native test)",
+        "seed 7 dev: 595 scarce region-turns natural; floor_means poorer-half mean shortfall 0.43 vs richer 0.31",
+        "feature-off byte-identical to baseline extension",
+        "held: floor_means poorer half worse 12/12; targeted_relief poorer half better 12/12"
+      ],
+      "landing_sha": "0f2b8abe33a56dfe78eeea7e97b69fc3ac6f4719"
     },
     {
       "id": "L3",
-      "status": "active",
+      "status": "evaluated",
       "owner": "ecology lane",
       "depends_on": [
         "L0"
       ],
-      "next_action": "Worker implementing in isolated worktree; lead integrates hooks and layer.",
-      "evidence": [],
+      "next_action": "Sprint complete for this package; see plan section 9 for next-sprint candidates.",
+      "evidence": [
+        "lane: offline 19, native 3, offline lane 57/57 on lane source",
+        "lead: offline lane 58/58 with layer l3 (tuning.py)",
+        "dev seeds 1-3: cover loss 10-23x extraction; natural binding rare (zero caps only); constructed boom halves output",
+        "held: cap binds 10/12 worlds; extraction -3%/-4% vs ablation; cover loss 8.6x/13.6x extraction; ablation identical to off"
+      ],
       "branch": "claude/livelihoods-l3-timber",
       "base_sha": "050cfbeb257ff7434554eb8116b23a2eb7ce9075",
-      "interface_version": "livelihoods wiring v1 (chronicler.livelihoods protocol)"
+      "interface_version": "livelihoods wiring v1 (chronicler.livelihoods protocol)",
+      "landing_sha": "afef63e (merge 0d9181b of lane 158bc2e)"
     },
     {
       "id": "L4",
-      "status": "active",
+      "status": "evaluated",
       "owner": "convoy lane",
       "depends_on": [
         "L0"
       ],
-      "next_action": "Worker implementing in isolated worktree; lead integrates hooks and layer.",
-      "evidence": [],
+      "next_action": "Sprint complete for this package; see plan section 9 for next-sprint candidates.",
+      "evidence": [
+        "lane: offline 27, native 2; checkpoint_identity hybrid_s42 30 turns 0 differences (convoys idle)",
+        "lead: witness suites 431 passed with layer l4; offline lane 58/58",
+        "dev seeds 1-3: 0 natural dispatches (surplus rule leaves no sellable foreign grain); constructed runs deliver, wasted escort shown",
+        "held: 63 natural dispatches, 61 arrived, 1 lost (ALL arm); most eligible deficits under one coin; no escorts chosen"
+      ],
       "branch": "claude/livelihoods-l4-convoys",
       "base_sha": "050cfbeb257ff7434554eb8116b23a2eb7ce9075",
-      "interface_version": "livelihoods wiring v1 (chronicler.livelihoods protocol)"
+      "interface_version": "livelihoods wiring v1 (chronicler.livelihoods protocol)",
+      "landing_sha": "3e98ff327e699978a0a3e25aef0641862014e224 (merge d445c0a of lane dbc91bd)"
     },
     {
       "id": "L5",
@@ -153,15 +188,27 @@
     },
     {
       "id": "L10",
-      "status": "proposed",
+      "status": "evaluated",
       "owner": "lead",
-      "next_action": "Per-slice inspector extensions attach to each landing."
+      "next_action": "Done.",
+      "evidence": [
+        "Livelihoods tab: workshops, food allocation, timber stock, grain convoys",
+        "viewer suite 1217 passed; lint/build clean (7674aa9)",
+        "Playwright journey on production build: desktop 1440 and phone 390; sections re-date on rewind (200->140); old bundle has no tab; 0 page overflow; 0 console errors"
+      ]
     },
     {
       "id": "L11",
-      "status": "proposed",
+      "status": "evaluated",
       "owner": "lead",
-      "next_action": "Size screens from pilot within the aggregate budget."
+      "next_action": "Hand off; large gates not run (out of scope).",
+      "evidence": [
+        "held screens: 144 runs, 0 failed, 0.53 core-hours (budget 1.5)",
+        "turn_speed_identity vs baseline tree 64863f1 + baseline extension: 9 cases, 399 files, 0 differences (switches omitted and explicit --no-*)",
+        "checkpoint_identity hybrid_s42 all switches on: PASS at 7 resume points incl. mid-construction workshops",
+        "PR CI run 41977057167 on 7674aa9: success",
+        "not run: 200-seed gate, procedural qualification gate"
+      ]
     }
   ],
   "landing_log": [
@@ -175,6 +222,51 @@
         "src/chronicler/batch_manifest.py",
         "src/chronicler/transport_contract.json",
         "tests/test_batch_manifest.py"
+      ]
+    },
+    {
+      "landing": "L1A",
+      "sha": "ba3ca22cccaf762c90fe8dc8c09f7346d3eafb78",
+      "layer": "l1a",
+      "files": [
+        "chronicler-agents/src/economy.rs",
+        "chronicler-agents/src/ffi/mod.rs",
+        "chronicler-agents/src/lib.rs"
+      ],
+      "note": "ffi/mod.rs also carries the L3 timber_harvest_cap column (native owner hook)"
+    },
+    {
+      "landing": "L2",
+      "sha": "0f2b8abe33a56dfe78eeea7e97b69fc3ac6f4719",
+      "layer": "l2",
+      "files": [
+        "chronicler-agents/src/ffi/mod.rs",
+        "chronicler-agents/src/tick.rs",
+        "chronicler-agents/src/pool.rs",
+        "chronicler-agents/src/lib.rs"
+      ]
+    },
+    {
+      "landing": "L3 integration",
+      "sha": "afef63ed",
+      "layer": "l3",
+      "files": [
+        "src/chronicler/tuning.py"
+      ]
+    },
+    {
+      "landing": "L1B",
+      "sha": "e096f476e9c6b78cc8a5ed10037494d793d4ce62",
+      "layer": null,
+      "files": []
+    },
+    {
+      "landing": "L4 integration",
+      "sha": "3e98ff327e699978a0a3e25aef0641862014e224",
+      "layer": "l4",
+      "files": [
+        "src/chronicler/grain_reserves.py",
+        "src/chronicler/grain_reserves_state.py"
       ]
     }
   ],
@@ -192,6 +284,31 @@
     "transient_disk_gib": 4,
     "dev_cohort": "template seeds 1-3",
     "held_cohort": "template 101-106; procedural 32x10 seeds 201-206; 200 turns",
-    "used_core_hours": 0.02
+    "used_core_hours": 0.6
+  },
+  "ci": {
+    "pr": 73,
+    "note": "Runs 252-256 failed only the Viewer job (transport contract test expected the new snapshot system in its current example); fixed at 7674aa9. Every Python, native and Rust job passed at bd3d2ca."
+  },
+  "native_extension": {
+    "sha256": "f820ff2f28583a9c76e96e1bae494ce0d022dc8fc1c5f2259dfe41741e33a637",
+    "built_from": "native source of 0f2b8ab (unchanged through 7674aa9)"
+  },
+  "final": {
+    "source": "see the branch head after this board commit",
+    "native_extension_sha256": "f820ff2f28583a9c76e96e1bae494ce0d022dc8fc1c5f2259dfe41741e33a637",
+    "compute_used_core_hours": 0.6,
+    "deferred": [
+      "L5",
+      "L6",
+      "L7",
+      "L8",
+      "L9",
+      "stretch"
+    ],
+    "recommendation": [
+      "L9 local budgets on L1+L2",
+      "land-use authority before L8 commons rules"
+    ]
   }
 }

@@ -68,3 +68,73 @@ not rerun as a screen arm.
 - **Stopping rules.** Every arm runs once per held world; nothing is tuned
   after held outcomes are inspected. A run that raises is recorded as
   failed, with its error, and not rerun silently.
+
+## Results (held cohort, run 2026-11-05)
+
+- **Source and environment.** Source `7674aa965fbda59cb797aff7d1b061ecd64412e9`. The native extension
+  (SHA-256 `f820ff2f28583a9c76e96e1bae494ce0d022dc8fc1c5f2259dfe41741e33a637`) was built from the
+  same native source. Template 8 regions × 4 civs, seeds 101–106; procedural 32 × 10, seeds
+  201–206. 200 turns, hybrid, base flags `--grain-reserves --public-grain-shipments`.
+- **Execution.** 144 runs (12 arms × 12 worlds), 0 failed, 699 s wall at 3 concurrent
+  processes, 0.53 core-hours. Peak RSS was 499 MiB per run, and the kept example worlds take
+  396 MB (not committed).
+- **Budget.** Together with the development pilots, about 0.6 of the frozen 1.5 core-hours
+  was used. No stratum was dropped.
+
+These are screens. Worlds are the units, and there are six per stratum, so the precision is
+low. No parameter was tuned after these results were seen.
+
+### Activation and primary outcomes
+
+| Package | Template worlds 101–106 | Procedural worlds 201–206 |
+| --- | --- | --- |
+| L1 operate | 6/6 worlds operate. Per world: 440 operating site-turns, 24 building, 2 idle. Crew work allocated 432.8, realized 129.8. Site-region craft output 259.6, against 232.6 under cost-only. Treasury paid 1752. | 6/6 operate. Per world: 488 operating site-turns, 37 building, 87 idle (unfunded). Work 496.8 allocated, 182.4 realized. Craft output 364.9 against 346.3. Paid 2316. |
+| L1 cost-only (ablation) | Builds and pays (1814 per world), but no work replaces the ceiling. Craft output 232.6. | Paid 2316. Craft output 346.3. |
+| L2 floor_means | 536 scarce region-turns per world. Mean shortfall: poorer half 0.476, richer half 0.375 (poorer worse in 6/6 worlds); children 0.462. | 1982 per world. Poorer 0.433, richer 0.328 (6/6); children 0.416. |
+| L2 targeted_relief | Relief reaching targeted households: 259 rations per world. Poorer 0.408, richer 0.441 (poorer better in 6/6 worlds). | 324 rations per world. Poorer 0.356, richer 0.380 (6/6). |
+| L3 timber stock | The cap binds in 4/6 worlds (8.5 slot-turns per world). Extraction 246.8 per world, against 254.7 in the ablation (−3%). Cover loss is 2118 per world, about 8.6× extraction. | Binds in 6/6 worlds (30 slot-turns). Extraction 1430 against 1493 (−4%). Cover loss 19,407 (13.6×). |
+| L3 ablation (accounting, no cap) | Overdraft 6.8 per world. Trajectory identical to off. | Overdraft 27.4 per world. Identical to off. |
+| L4 convoys | 247 eligible deficits; 236 under one coin; 17 without budget. 24 dispatched, 24 arrived, 245 grain delivered. 0 captured, lost or escorted. | 965 eligible; 720 under one coin; 263 without budget. 39 dispatched, 37 arrived, 342 grain. 0 captured, lost or escorted. |
+
+### Interactions
+
+- **I1, work × food allocation.** The shortfall gap under floor_means persists:
+  template 0.470 vs 0.370, procedural 0.440 vs 0.338. Workshops operate as in L1.
+- **I2, timber × workshop.** With the timber cap, workshop site-region craft output is
+  240.8 against 259.6 in the template worlds (−7%) and 348.3 against 364.9 in the procedural
+  worlds (−5%). Realized crew work is also lower. Timber is the binding input of the
+  workshop, as the L1 development run suggested.
+- **I3, convoy × targeted relief.** Relief reaches targeted households at the L2 rate
+  (239 and 297 rations per world). Convoy deliveries are unchanged (25 and 40 arrivals).
+- **All in sprint.** Every package activates, and the shortfall gap matches floor_means.
+  One convoy was lost (procedural).
+
+### Paired totals against off
+
+Final population and treasury differences (mean, with range across worlds):
+
+| Arm | Template population | Template treasury | Procedural population | Procedural treasury |
+| --- | --- | --- | --- | --- |
+| L1 operate | +4.5 [−39, +63] | +175 [−1105, +1976] | −10.5 [−173, +172] | −207 [−1341, +1338] |
+| L2 floor_means | −0.7 [−31, +30] | +455 [−795, +1899] | +29.7 [−86, +147] | +268 [−2154, +3852] |
+| L2 targeted | +1.2 [−39, +58] | +317 [−536, +2080] | +32.0 [−41, +148] | +488 [−785, +1850] |
+| L3 timber | −3.8 [−18, 0] | +217 [−201, +1505] | −31.0 [−125, +18] | −535 [−3290, +920] |
+| L4 convoys | +0.8 [−15, +30] | +158 [−340, +1333] | −19.5 [−229, +138] | +89 [−1935, +1755] |
+| All | −14.8 [−61, +16] | −293 [−1384, +545] | −9.7 [−200, +176] | +34 [−2130, +1653] |
+
+Every range includes zero. These screens support no claim about aggregate population or treasury
+effects; the divergent trajectories are total model effects, not isolated causes.
+
+### Adverse outcomes and limits
+
+- **L1.** Crew ceilings mostly exceed the region's raw inputs, so realized work is a third of
+  allocated. Construction turns zero the region's crafting. Procedural payers leave sites idle
+  for about 87 site-turns per world.
+- **L2.** The default floor_means rule worsens the poorer half's shortfall in every world.
+  This is the mechanism's intended distributional consequence, not a welfare improvement.
+- **L3.** Cover loss from clearing, cooling, wildfire and succession, not harvest, dominates
+  the timber stock. A commons rule acting only on extraction (L8) would have little leverage
+  without addressing clearing.
+- **L4.** Capture, loss, return and escort occur naturally almost never (one loss). The risk
+  mechanics are shown by the offline tests and constructed runs. Activation is limited by the
+  existing reserve purchase rules: a whole-coin payment floor and the surplus rule.

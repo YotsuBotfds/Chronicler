@@ -177,3 +177,68 @@ Final checks run on the combined final source.
 
 The earlier roadmap remains historical; this plan is the single active queue
 for sprint 1.
+
+## 9. Sprint result and handoff (2026-11-05)
+
+All packages in scope are implemented and integrated on
+`claude/livelihoods-commons-sprint1` (draft PR #73). Each is default-off and
+has its own switch. The board lists landing SHAs and inverse layers. The
+screens are in
+[livelihoods-sprint1-screens.md](../progress/livelihoods-sprint1-screens.md).
+
+| Package | Status | Switch | Notes |
+| --- | --- | --- | --- |
+| L0 | integrated | — | Wiring, layer l0, funding route, compute budget |
+| L1A | integrated | `--workshops --workshop-mode observe` | Native crews and actual craft inputs; layer l1a |
+| L1B | integrated | `--workshops` (operate) / `cost_only` | Treasury-funded public cost, asset lifecycle; Python only |
+| L2 | integrated | `--food-allocation [--food-allocation-regime …]` | Native allocation, person-level hunger; layer l2 |
+| L3 | integrated | `--timber-stock` | Renewable stock and native harvest cap; layer l3 (tuning keys) |
+| L4 | integrated | `--grain-convoys [--convoy-route-policy …]` | Multi-leg convoys; layer l4 (reserve hooks) |
+| L10 | integrated | — | Livelihoods systems tab; browser journey at 1440 px and 390 px |
+| L11 | screens done | — | 144 held runs; gates listed below |
+
+What the evidence supports, and what it does not:
+
+- **Mechanisms implemented and activating.** All four packages activate in the held worlds,
+  most in every world. L4 has few natural dispatches and almost no natural risk outcomes.
+- **Integration reliability.** Offline lane, Rust, native and viewer suites and the witness
+  chains pass on the integrated source. The PR's CI and the identity suites are recorded
+  in the board.
+- **Observed behavior.**
+  - Allocation rules produce the intended distributional differences: floor_means harms the
+    poorer half, targeted relief favors it.
+  - Workshops are bound by raw inputs, and the timber cap lowers their output.
+  - Cover loss, not harvest, drives the timber stock.
+  - None of this is a welfare or policy-efficacy claim.
+- **Scientific and default readiness.** Not established. The 200-seed and procedural
+  qualification gates were not run, and every switch stays off by default.
+
+Known limits carried forward:
+
+- The cross-version exact checkpoint is refused by source digest, as before. Old checkpoints
+  continue only with `--resume-allow-mismatch`.
+- Batch Lab and live new-world setup do not expose the four switches; the CLI and the gate
+  runner do.
+- The viewer's shared `types.ts` (pinned) is unchanged. The new records are read through
+  strict loosely typed readers.
+- Convoy payments happen after the granary pass, so transaction receipts and harvest-forecast
+  procurement do not see them.
+- L2 keeps the severe-hunger run regional.
+- L1 replaces the whole regional craft ceiling with the site's: one site per region, no
+  per-site split.
+
+### Next-sprint recommendation (design only; needs a new instruction)
+
+1. **L9, local collective budgets, on L1 and L2.** These two produce the strongest activation
+   and the clearest distributional tradeoffs: workshop upkeep against targeted relief against
+   granary maintenance, all from one treasury. Begin with one city decision point and the
+   existing service APIs.
+2. **Land-use authority before L8 commons rules.** The screens show cover loss is about 9–14×
+   harvest. A commons quota acting only on extraction would have little leverage. First make
+   the timber stock or forest cover the single authority for clearing as well as harvest, then
+   add the quota.
+
+Deferred and not started: L5 named learners, L6 payroll and household purchases, L7 costly
+relocation, L8 commons rules, L9 budgets, and the stretch items. Before more L4 work, review
+the reserve purchase rules (the one-coin floor and the surplus rule), which limit both
+shipments and convoys.

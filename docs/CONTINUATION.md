@@ -1,3 +1,43 @@
+# Current continuation — livelihoods/commons sprint 1, 2026-11-05
+
+Cleanup PRs #71 and #72 are merged (main `64863f1274e400c3898972fe0cd5df510d3bb06f`,
+main CI run 41926433490 green on all nine jobs). The "open and unmerged" note in the
+2026-11-04 section below is stale.
+
+Sprint 1 of the livelihoods/commons plan (L0 + L1–L4 with viewer and evidence) is on the
+non-main branch `claude/livelihoods-commons-sprint1`, draft PR #73, not merged. Plan:
+[livelihoods-commons-sprint1.md](superpowers/roadmaps/livelihoods-commons-sprint1.md).
+Board: [livelihoods-commons-sprint1.json](superpowers/progress/livelihoods-commons-sprint1.json).
+Screens: [livelihoods-sprint1-screens.md](superpowers/progress/livelihoods-sprint1-screens.md).
+
+- **New switches, all off by default.**
+  - `--workshops`: treasury-funded staffed public workshops. Native crew eligibility, actual
+    craft inputs, and an asset lifecycle with arrears.
+  - `--food-allocation`: native allocation of regional food to people, with person-level
+    hunger. Regimes: equal (identity control), floor_means, targeted_relief.
+  - `--timber-stock`: a renewable timber stock with a native harvest cap.
+  - `--grain-convoys`: multi-leg public grain convoys with route risk.
+- **Witnesses.** Pinned-file hooks are recorded in reviewed inverse layers l0, l1a, l2, l3
+  and l4 (`scripts/testing/livelihoods_sprint_witness.py`). Every historical witness entry
+  projects through them; no historical hash was rewritten.
+- **Checks on the integrated source.**
+  - Bounded offline lane: 58/58 chunks.
+  - `cargo test`: 1,212 passed, 0 failed.
+  - Native livelihood and reserve suites: 109 passed.
+  - Viewer: 1,217 tests, lint and build all pass.
+  - `turn_speed_identity` against the baseline tree: 9 cases, 399 files, 0 differences,
+    with the switches omitted and with them explicitly off.
+  - `checkpoint_identity` `hybrid_s42` with all switches on: PASS at 7 resume points,
+    including mid-construction workshops.
+  - Held screens: 144 runs, 0 failed.
+- **Not run.** The 200-seed and procedural qualification gates. No default was changed, and
+  no merge or deploy was done.
+
+Next sprint (design only, needs a new instruction): L9 local budgets on L1 and L2, and a
+land-use authority before L8 commons rules. The plan's section 9 has the reasons.
+
+---
+
 # Current continuation — after PR #69 merge, 2026-11-04
 
 Start new work from fetched `main`. [PR #69](https://github.com/YotsuBotfds/Chronicler/pull/69)
