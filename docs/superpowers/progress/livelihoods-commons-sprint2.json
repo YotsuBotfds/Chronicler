@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "board_version": 1,
+  "board_version": 2,
   "title": "Livelihoods, commons and collective choices - sprint 2 (L5-L9) operational board",
   "plan": "docs/superpowers/roadmaps/livelihoods-commons-sprint2.md",
   "owner_instruction": "2026-11-05: continue the entire roadmap end to end including L5-L9 with viewer, integration and evidence; sprint boundaries are checkpoints; branches and draft PRs; features default-off; no merge; no 200-seed gates without approval.",
@@ -23,7 +23,8 @@
       "unknown relief recorded as zero -> null; lifecycle tests added",
       "screen artifacts only in scratch -> committed runner + metrics",
       "L1 resume/death tests missing -> added"
-    ]
+    ],
+    "identity_after_fixes": "turn_speed_identity baseline tree vs review-fixed head 0cc6244 (+native f09bf947): 9 cases, 399 files, 0 differences"
   },
   "status_values": [
     "proposed",
@@ -38,30 +39,42 @@
     {
       "id": "L5",
       "wave": "2A",
-      "status": "ready",
+      "status": "active",
       "lane": "learners",
       "depends_on": [
         "L1 work registry",
         "academy services"
-      ]
+      ],
+      "branch": "claude/livelihoods-l5-learners",
+      "base_sha": "0cc62442564e725df6096692a9b0569da5600264",
+      "handoff": "v1 (2026-11-05)",
+      "next_action": "Worker implementing; lead integrates hooks, layers, enrollment, viewer mount."
     },
     {
       "id": "L6a",
       "wave": "2A",
-      "status": "ready",
+      "status": "active",
       "lane": "finance",
       "depends_on": [
         "L1B"
-      ]
+      ],
+      "branch": "claude/livelihoods-l6-payroll",
+      "base_sha": "0cc62442564e725df6096692a9b0569da5600264",
+      "handoff": "v1 (2026-11-05)",
+      "next_action": "Worker implementing; lead integrates hooks, layers, enrollment, viewer mount."
     },
     {
       "id": "L8",
       "wave": "2A",
-      "status": "ready",
+      "status": "active",
       "lane": "commons",
       "depends_on": [
         "L3"
-      ]
+      ],
+      "branch": "claude/livelihoods-l8-commons",
+      "base_sha": "0cc62442564e725df6096692a9b0569da5600264",
+      "handoff": "v1 (2026-11-05)",
+      "next_action": "Worker implementing; lead integrates hooks, layers, enrollment, viewer mount."
     },
     {
       "id": "L7",
