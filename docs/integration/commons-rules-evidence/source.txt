@@ -1,0 +1,12 @@
+L8 commons rules, development-cohort evidence (template seeds 1-3), 2026-11-05.
+Source: commit 3cc18d2b3b3b53008ea287a69cc7ea34526ad04e on branch claude/livelihoods-l8-commons
+  (src/ as of that commit; later commits change only docs and viewer files).
+  A first run on ddd8b111767ef42c575e52cf728dbbb92ab7bcef gave identical metrics in all 18 rows
+  (wall times aside).
+Native extension: ~/.venvs/chronicler-native, chronicler_agents.cpython-313-x86_64-linux-gnu.so
+  SHA-256 3cb5b1f93d888397652ecb01b72d9c4776fda68a4038a32bce8e3020a483d4aa
+  (built by the lead from the base native source; this lane changes no Rust).
+Interpreter: Python 3.13 (native venv), PYTHONHASHSEED=0, RAYON_NUM_THREADS=1, CHRONICLER_QUIET=1.
+Command: python docs/integration/commons-rules-evidence/driver.py run OUT --jobs 2
+Runs: 6 arms x 3 seeds, 200 turns, --agents hybrid --simulate-only; 18 runs, 0 failed, 69 s wall.
+Raw bundles are not kept; they are reproducible from the fixed seeds.
