@@ -207,6 +207,9 @@ class LiveServer:
             "preset": None,
         }
         self._session_client_config: dict[str, Any] = {}
+        # The command-line namespace a lobby ``start`` inherits (run_live sets
+        # it); its feature switches are the defaults ``features`` overrides.
+        self.feature_args: Any = None
         # Batch state
         self._batch_thread: threading.Thread | None = None
         self._batch_cancel_event = threading.Event()
@@ -383,6 +386,14 @@ class LiveServer:
         if preset is not None and preset not in _SUPPORTED_PRESETS:
             return "batch_start config 'preset' must be a supported preset name or null"
 
+        if config.get("features") is not None:
+            # Optional feature switches (chronicler.feature_catalog), checked
+            # with their dependencies before any run starts.
+            from chronicler.feature_catalog import validate_batch_features
+            error = validate_batch_features(config, self._client_defaults)
+            if error is not None:
+                return f"batch_start config 'features': {error}"
+
         return None
 
     def _update_session_client_config(self, msg: dict) -> None:
@@ -501,11 +512,27 @@ class LiveServer:
         resume_state = msg.get("resume_state")
         if resume_state is not None and not isinstance(resume_state, dict):
             return {"type": "error", "message": "Start field 'resume_state' must be an object or null"}
+        features = msg.get("features")
+        if features is not None:
+            from chronicler.feature_catalog import live_surface, validate_features
+            error = validate_features(features, live_surface(self.feature_args))
+            if error is None and features and resume_state is not None:
+                error = "applies to new worlds only, not with resume_state"
+            if error is not None:
+                return {"type": "error", "message": f"Start field 'features': {error}"}
         self._start_params = msg
         self._update_session_client_config(msg)
         self._server_state = "running"
         self.start_event.set()
         return None
+
+    def reopen_lobby(self, message: str) -> None:
+        """Return to the lobby after a start the run refused (an ``error``
+        for the viewer, which goes back to its setup), ready for another."""
+        self.start_event.clear()
+        self._start_params = None
+        self._server_state = "lobby"
+        self.status_queue.put({"type": "error", "message": message})
 
     def _handle_batch_start(self, msg: dict) -> dict | None:
         """Handle a batch_start command. Runs batch in a background thread."""
@@ -562,6 +589,10 @@ class LiveServer:
             from chronicler.expansion_features import EXPANSION_SWITCHES, EXPANSION_PREREQUISITES
             for name in (*EXPANSION_PREREQUISITES, *EXPANSION_SWITCHES):
                 setattr(args, name, config.get(name, self._client_defaults.get(name)))
+            # Requested feature switches, as the CLI parser sets them
+            # (validated in _validate_batch_config; recorded by the manifest).
+            from chronicler.feature_catalog import apply_features
+            apply_features(args, config.get("features"))
 
             try:
                 workers = config.get("workers")
@@ -1202,6 +1233,7 @@ def build_lobby_init(args: Any, scenario_dir: Path | None = None) -> dict:
     Reads scenario data directly from YAML — no world generation.
     """
     import yaml
+    from chronicler.feature_catalog import lobby_feature_catalog
 
     if scenario_dir is None:
         scenario_dir = Path("scenarios")
@@ -1242,6 +1274,8 @@ def build_lobby_init(args: Any, scenario_dir: Path | None = None) -> dict:
             "regions": 8,
             "seed": None,
         },
+        # The feature options a start or batch may request (chronicler.feature_catalog).
+        "feature_catalog": lobby_feature_catalog(args),
     }
 
 
@@ -1403,9 +1437,33 @@ def _live_world(args: Any, params: dict) -> tuple[WorldState, Any]:
         _epi = getattr(args, "epidemiology", None)
         set_epidemiology_enabled(
             world, (_EPI_DEFAULT if _epi is None else bool(_epi)) and _ledger_on(world))
+    _apply_live_prerequisites(world, args, getattr(args, "agents", "off"))
     from chronicler.expansion_features import configure_expansion_features
     configure_expansion_features(world, args, agent_mode=getattr(args, "agents", "off"))
     return world, scenario_config
+
+
+def _apply_live_prerequisites(world: WorldState, args: Any, agent_mode: str) -> None:
+    """The explicit prerequisites that ``main._configure_run`` applies
+    (academy services, grain storage, public grain shipments), applied before
+    the expansion switches so a live world can enable the switches that need
+    them (--learning-cohorts, --grain-convoys). ``execute_run`` applies the
+    same values again; each setter keeps an already applied state."""
+    services = getattr(args, "academy_services", None)
+    if services is True and (agent_mode != "hybrid" or world.scholarship is None or world.techniques is None):
+        raise ValueError("academy services require --agents hybrid, --scholarship and --techniques")
+    if services is not None:
+        from chronicler.learning_services import set_learning_services_enabled
+        set_learning_services_enabled(world, services)
+    if getattr(args, "grain_storage", None) is True:
+        if agent_mode != "hybrid":
+            raise ValueError("grain storage currently requires --agents hybrid and --grain-reserves")
+        from chronicler.grain_storage import enable_storage
+        enable_storage(world)
+    shipments = getattr(args, "public_grain_shipments", None)
+    if shipments is not None:
+        from chronicler.public_grain_shipments import set_public_grain_shipments_enabled
+        set_public_grain_shipments_enabled(world, shipments, agent_mode=agent_mode)
 
 
 def _live_clients(args: Any, server: "LiveServer") -> tuple[Any, Any, dict[str, Any]]:
@@ -1475,6 +1533,7 @@ def run_live(
     from chronicler.expansion_features import EXPANSION_SWITCHES, EXPANSION_PREREQUISITES
     for name in (*EXPANSION_PREREQUISITES, *EXPANSION_SWITCHES):
         server._client_defaults[name] = getattr(args, name, None)
+    server.feature_args = args
     output_dir = Path(args.output).parent
     view = LiveView()
     state = exact_resume.state if exact_resume is not None else None
@@ -1491,20 +1550,35 @@ def run_live(
             print(f"Also accepting viewers served from: {', '.join(extra)}")
         print("Waiting for client to launch simulation...", flush=True)
 
-        # Block until client sends start (interruptible via Ctrl+C)
-        while not server.start_event.wait(timeout=1.0):
-            pass
+        while True:
+            # Block until client sends start (interruptible via Ctrl+C)
+            while not server.start_event.wait(timeout=1.0):
+                pass
 
-        params = server._start_params
-        if params is None:
-            raise RuntimeError("start_event set but no _start_params")
+            params = server._start_params
+            if params is None:
+                raise RuntimeError("start_event set but no _start_params")
 
-        # --- Phase 2: Simulation ---
-        pause_every = getattr(args, "pause_every", None) or getattr(args, "reflection_interval", 10) or 10
-        total_turns = params.get("turns") or args.turns or 50
-        server.checkpoints = LiveCheckpoints(output_dir, server.status_queue, view,
-                                             lambda: server.speed, pause_every)
-        world, scenario_config = _live_world(args, params)
+            # --- Phase 2: Simulation ---
+            # Requested feature switches (validated by _handle_start) are set
+            # on the namespace exactly as the CLI parser sets them.
+            from chronicler.feature_catalog import apply_features
+            features = params.get("features") or {}
+            previous = apply_features(args, features)
+            pause_every = getattr(args, "pause_every", None) or getattr(args, "reflection_interval", 10) or 10
+            total_turns = params.get("turns") or args.turns or 50
+            server.checkpoints = LiveCheckpoints(output_dir, server.status_queue, view,
+                                                 lambda: server.speed, pause_every)
+            try:
+                world, scenario_config = _live_world(args, params)
+            except ValueError as exc:
+                if not features:
+                    raise
+                # The run refused the requested switches: nothing has started.
+                apply_features(args, previous)
+                server.reopen_lobby(f"Start field 'features': {exc}")
+                continue
+            break
         _record_live_world_args(args, params)
         sim_client, narrative_client, client_config = _live_clients(args, server)
     else:

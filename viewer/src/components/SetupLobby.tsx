@@ -1,10 +1,12 @@
 import { useState, useCallback, useRef } from "react";
-import type { LobbyInit, StartCommand, ScenarioInfo, WorldState, BatchConfig } from "../types";
+import type { LobbyInit, StartCommand, ScenarioInfo, WorldState, BatchConfig, FeatureSelection } from "../types";
 import type { BatchState } from "../hooks/useBatchConnection";
 import type { BatchReport } from "../types";
 import { RegionMap } from "./RegionMap";
 import { BatchPanel } from "./BatchPanel";
 import { BatchCompare } from "./BatchCompare";
+import { FeatureOptions } from "./FeatureOptions";
+import { FEATURES_NEED_NEW_WORLD, featurePayload } from "../lib/featureCatalog";
 
 interface SetupLobbyProps {
   lobbyInit: LobbyInit;
@@ -40,6 +42,7 @@ export function SetupLobby({
   const [resumeState, setResumeState] = useState<WorldState | null>(null);
   const [resumeTurn, setResumeTurn] = useState<number | null>(null);
   const [resumeError, setResumeError] = useState<string | null>(null);
+  const [features, setFeatures] = useState<FeatureSelection>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const selectedScenario: ScenarioInfo | null =
@@ -90,6 +93,8 @@ export function SetupLobby({
         ? (selectedScenario?.regions?.length || defaults.regions)
         : regions;
 
+    // Features apply to new worlds; nothing selected sends no field.
+    const requested = resumeState ? undefined : featurePayload(features);
     onLaunch({
       scenario: resumeState ? null : (scenario || null),
       turns,
@@ -100,11 +105,12 @@ export function SetupLobby({
       narrative_model: resolvedNarrativeModel,
       narrator: "local",
       resume_state: resumeState,
+      ...(requested ? { features: requested } : {}),
     });
   }, [
     scenario, seed, turns, civs, regions, simModel, narrativeModel,
     customSimModel, customNarrativeModel, resumeState, civsDisabled,
-    regionsDisabled, selectedScenario, defaults, onLaunch,
+    regionsDisabled, selectedScenario, defaults, features, onLaunch,
   ]);
 
   // Preview data
@@ -179,6 +185,7 @@ export function SetupLobby({
                 progress={batchProgress}
                 error={batchError}
                 runDefaults={batchRunDefaults}
+                featureCatalog={lobbyInit.feature_catalog}
                 onStart={onBatchStart}
                 onCancel={onBatchCancel}
                 onReset={onBatchReset}
@@ -367,6 +374,15 @@ export function SetupLobby({
               <p className="text-red-400 text-xs mt-1">{resumeError}</p>
             )}
           </div>
+
+          <FeatureOptions
+            catalog={lobbyInit.feature_catalog}
+            surface="live"
+            selection={features}
+            onSelectionChange={setFeatures}
+            disabled={starting}
+            unavailable={resumeState ? FEATURES_NEED_NEW_WORLD : null}
+          />
         </div>
         )}
 

@@ -1219,7 +1219,12 @@ export interface LobbyInit {
     regions: number;
     seed: number | null;
   };
+  /** The server's feature options, unread (lib/featureCatalog reads it); absent from older servers. */
+  feature_catalog?: unknown;
 }
+
+/** Requested feature switches by parser destination: a boolean or one of its choices. */
+export type FeatureSelection = Record<string, boolean | string>;
 
 export interface StartCommand {
   type: "start";
@@ -1232,6 +1237,8 @@ export interface StartCommand {
   narrative_model: string;
   narrator: NarratorMode;
   resume_state: WorldState | null;
+  /** Feature switches for the new world (omitted when none is selected). */
+  features?: FeatureSelection;
 }
 
 // --- M20a: Narration Pipeline v2 types ---
@@ -1438,6 +1445,8 @@ export interface BatchConfig {
   narrator?: NarratorMode;
   agents?: AgentMode;
   preset?: string | null;
+  /** Feature switches for every run (omitted when none is selected). */
+  features?: FeatureSelection;
 }
 
 export interface BatchReport {

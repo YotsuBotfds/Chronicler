@@ -345,6 +345,9 @@ CHUNKS = {
         "tests/test_health_care.py",
         "tests/test_harvest_forecasts.py",
     ],
+    "feature-options": [
+        "tests/test_feature_catalog.py",
+    ],
     "ritual-gatherings": [
         "tests/test_ritual_gatherings.py",
         "tests/test_narration_expansion_context.py",

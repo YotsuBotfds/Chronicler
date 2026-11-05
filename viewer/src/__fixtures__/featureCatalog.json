@@ -1,0 +1,554 @@
+{
+  "schema_version": 1,
+  "features": [
+    {
+      "key": "grain_reserves",
+      "flag": "--grain-reserves",
+      "label": "Grain reserves",
+      "help": "Public granaries: each ruler keeps a granary in its regions with a stock target of a few turns of the region's food demand, more where its harvests swing; it buys real surplus toward the target, at market prices from the treasury, first in its own realm and then in foreign markets the merchants may reach, with transit and storage losses, and opens the granary in dearth or famine before hunger kills; needs an agent mode (default off; saved on resume)",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "agents": [
+            "hybrid",
+            "shadow",
+            "demographics-only"
+          ],
+          "reason": "requires --agents hybrid, shadow or demographics-only"
+        }
+      ],
+      "group": "Prerequisites",
+      "experimental": false
+    },
+    {
+      "key": "public_grain_shipments",
+      "flag": "--public-grain-shipments",
+      "label": "Public grain shipments",
+      "help": "Default-off public grain: foreign direct-neighbor orders arrive next Phase10, after its opening; requires --grain-reserves and agents. Disabling drains paid cargo.",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "feature": "grain_reserves",
+          "reason": "requires --grain-reserves"
+        },
+        {
+          "agents": [
+            "hybrid",
+            "shadow",
+            "demographics-only"
+          ],
+          "reason": "requires --agents hybrid, shadow or demographics-only"
+        }
+      ],
+      "group": "Prerequisites",
+      "experimental": false
+    },
+    {
+      "key": "grain_storage",
+      "flag": "--grain-storage",
+      "label": "Grain storage",
+      "help": "Opt-in finite public storage with condition, timber/treasury costs and competing farmer work; requires hybrid granaries",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "agents": [
+            "hybrid"
+          ],
+          "reason": "requires --agents hybrid"
+        },
+        {
+          "feature": "grain_reserves",
+          "reason": "requires --grain-reserves"
+        }
+      ],
+      "group": "Prerequisites",
+      "experimental": false
+    },
+    {
+      "key": "grain_storage_policy",
+      "flag": "--grain-storage-policy",
+      "label": "Grain storage policy",
+      "help": "Apply a storage policy to every region; saved policies otherwise persist",
+      "kind": "choice",
+      "choices": [
+        "neglect",
+        "maintain",
+        "expand"
+      ],
+      "default": null,
+      "parent": "grain_storage",
+      "requires": [
+        {
+          "feature": "grain_storage",
+          "reason": "requires --grain-storage"
+        }
+      ],
+      "group": "Prerequisites",
+      "experimental": false
+    },
+    {
+      "key": "scholarship",
+      "flag": "--scholarship",
+      "label": "Scholarship",
+      "help": "Seats of learning: rulers found academies at their capitals, temples found schools and cities libraries, kept by treasury, temple offerings or civic purse; scholars gather there (and scholar agents are drawn to them); a seat speeds the invention and adoption of techniques near it and keeps copies of the chronicles; a sack, a famine, persecution of its scholars' faith or unpaid upkeep brings it down, and its scholars flee to a rival's seat with the techniques they carry (default off; saved on resume)",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [],
+      "group": "Prerequisites",
+      "experimental": false
+    },
+    {
+      "key": "academy_services",
+      "flag": "--academy-services",
+      "label": "Academy services",
+      "help": "Default-off hybrid academy teaching: buys real supplies for next-turn native Scholar work; requires scholarship and techniques. Disabling pauses and retains supplies.",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "agents": [
+            "hybrid"
+          ],
+          "reason": "requires --agents hybrid"
+        },
+        {
+          "feature": "scholarship",
+          "reason": "requires --scholarship"
+        },
+        {
+          "setting": "techniques",
+          "reason": "requires techniques (on by default for new worlds; off with --no-techniques)"
+        }
+      ],
+      "group": "Prerequisites",
+      "experimental": false
+    },
+    {
+      "key": "workshops",
+      "flag": "--workshops",
+      "label": "Workshops",
+      "help": "Staffed public workshops: up to four selected cities employ named adult urban farmers' already-diverted time; with --workshop-mode operate the controller's treasury pays construction and upkeep as a public cost (no wages) and the crew's work replaces the region's craft ceiling; requires --agents hybrid and cities (default off)",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "agents": [
+            "hybrid"
+          ],
+          "reason": "requires --agents hybrid"
+        },
+        {
+          "setting": "cities",
+          "reason": "requires cities (on by default for new worlds; off with --no-cities)"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "workshop_mode",
+      "flag": "--workshop-mode",
+      "label": "Workshop mode",
+      "help": "operate (default): treasury-funded crews replace the craft ceiling; observe: crews and native craft inputs only; cost_only: the ablation that builds and pays but keeps the legacy ceiling",
+      "kind": "choice",
+      "choices": [
+        "operate",
+        "observe",
+        "cost_only"
+      ],
+      "default": null,
+      "parent": "workshops",
+      "requires": [
+        {
+          "feature": "workshops",
+          "reason": "requires --workshops"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "food_allocation",
+      "flag": "--food-allocation",
+      "label": "Food allocation",
+      "help": "Allocate each region's available food to its people and derived households under an explicit rule; individual hunger, needs and mortality read the person's own allocation; requires --agents hybrid (default off)",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "agents": [
+            "hybrid"
+          ],
+          "reason": "requires --agents hybrid"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "food_allocation_regime",
+      "flag": "--food-allocation-regime",
+      "label": "Food allocation regime",
+      "help": "floor_means (default): an equal subsistence floor, the scarce remainder by household means; equal: equal per person (reproduces the regional signal); targeted_relief: equal market food, public granary release to the worst off",
+      "kind": "choice",
+      "choices": [
+        "floor_means",
+        "equal",
+        "targeted_relief"
+      ],
+      "default": null,
+      "parent": "food_allocation",
+      "requires": [
+        {
+          "feature": "food_allocation",
+          "reason": "requires --food-allocation"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "timber_stock",
+      "flag": "--timber-stock",
+      "label": "Timber stock",
+      "help": "Renewable harvestable timber stock: realized timber extraction debits it, regrowth takes turns under forest cover and water, harvest cannot exceed it; requires an agent-backed economy (default off)",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "agents": [
+            "hybrid",
+            "shadow",
+            "demographics-only"
+          ],
+          "reason": "requires --agents hybrid, shadow or demographics-only"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "grain_convoys",
+      "flag": "--grain-convoys",
+      "label": "Grain convoys",
+      "help": "Multi-leg public grain convoys: paid foreign purchases travel leg by leg, can be delayed, rerouted, turned back, captured or lost; requires --public-grain-shipments (default off)",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "feature": "public_grain_shipments",
+          "reason": "requires --public-grain-shipments"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "convoy_route_policy",
+      "flag": "--convoy-route-policy",
+      "label": "Convoy route policy",
+      "help": "adaptive (default), cheapest or safest route choice at dispatch",
+      "kind": "choice",
+      "choices": [
+        "adaptive",
+        "cheapest",
+        "safest"
+      ],
+      "default": null,
+      "parent": "grain_convoys",
+      "requires": [
+        {
+          "feature": "grain_convoys",
+          "reason": "requires --grain-convoys"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "commons_rules",
+      "flag": "--commons-rules",
+      "label": "Commons rules",
+      "help": "Commons rules on the timber stock: a region's controller may adopt a harvest quota with a rest period on a depleted, harvested stand, paying wardens from its treasury; partial payment leaves part of the stand open access; requires --timber-stock (default off)",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "feature": "timber_stock",
+          "reason": "requires --timber-stock"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "commons_rule_mode",
+      "flag": "--commons-rule-mode",
+      "label": "Commons rule mode",
+      "help": "enforced (default): the rule lowers the harvest cap; cost_only: the ablation that adopts and pays identically but applies no cap",
+      "kind": "choice",
+      "choices": [
+        "enforced",
+        "cost_only"
+      ],
+      "default": null,
+      "parent": "commons_rules",
+      "requires": [
+        {
+          "feature": "commons_rules",
+          "reason": "requires --commons-rules"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "learning_cohorts",
+      "flag": "--learning-cohorts",
+      "label": "Learning cohorts",
+      "help": "Named learners at academies: finite cohorts of present adults attend actual delivered academy teaching, give up part of their ordinary income, and on completion gain skill in their trade; requires --agents hybrid and --academy-services (default off)",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "agents": [
+            "hybrid"
+          ],
+          "reason": "requires --agents hybrid"
+        },
+        {
+          "feature": "academy_services",
+          "reason": "requires --academy-services"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "learning_cohort_mode",
+      "flag": "--learning-cohort-mode",
+      "label": "Learning cohort mode",
+      "help": "learn (default): completion raises the learner's trade skill; no_learning: the cost-retaining control (same attendance, cost and supplies, no skill gain)",
+      "kind": "choice",
+      "choices": [
+        "learn",
+        "no_learning"
+      ],
+      "default": null,
+      "parent": "learning_cohorts",
+      "requires": [
+        {
+          "feature": "learning_cohorts",
+          "reason": "requires --learning-cohorts"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "workshop_payroll",
+      "flag": "--workshop-payroll",
+      "label": "Workshop payroll",
+      "help": "Workshop payroll (L6a): each operating workshop becomes a debt-free firm with cash and owned wares; an academy of the region's ruler (--academy-services) buys them with real treasury money, sales fund wages that replace the crew's ordinary income share, and unpaid wages cut hours, then crew, then close the firm; requires --workshops in operate mode (default off)",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "agents": [
+            "hybrid"
+          ],
+          "reason": "requires --agents hybrid"
+        },
+        {
+          "feature": "workshops",
+          "reason": "requires --workshops"
+        },
+        {
+          "choice": "workshop_mode",
+          "values": [
+            "operate"
+          ],
+          "reason": "requires --workshop-mode operate"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "workshop_payroll_mode",
+      "flag": "--workshop-payroll-mode",
+      "label": "Workshop payroll mode",
+      "help": "paid (default); unpaid_labor: the ablation that sells and replaces the income share but pays no wage; no_customer: wages are owed but nothing is sold",
+      "kind": "choice",
+      "choices": [
+        "paid",
+        "unpaid_labor",
+        "no_customer"
+      ],
+      "default": null,
+      "parent": "workshop_payroll",
+      "requires": [
+        {
+          "feature": "workshop_payroll",
+          "reason": "requires --workshop-payroll"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "relocation_costs",
+      "flag": "--relocation-costs",
+      "label": "Relocation costs",
+      "help": "Costly voluntary relocation (L7): an ordinary household move costs a fare per person (children included) that the adult movers must hold at the household gate and pay after the move is applied; requires --agents hybrid and no household-mobility liquid requirement (default off)",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "agents": [
+            "hybrid"
+          ],
+          "reason": "requires --agents hybrid"
+        },
+        {
+          "setting": "no_household_mobility_liquid_requirement",
+          "reason": "requires no household-mobility liquid requirement (--household-mobility-liquid-requirement unset or 0)"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "relocation_mode",
+      "flag": "--relocation-mode",
+      "label": "Relocation mode",
+      "help": "paid (default); assisted: the destination's ruler funds a bounded share of the fare for households short of it; liquidity_only: the control that requires the fare but charges nothing",
+      "kind": "choice",
+      "choices": [
+        "paid",
+        "assisted",
+        "liquidity_only"
+      ],
+      "default": null,
+      "parent": "relocation_costs",
+      "requires": [
+        {
+          "feature": "relocation_costs",
+          "reason": "requires --relocation-costs"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "local_budgets",
+      "flag": "--local-budgets",
+      "label": "Local budgets",
+      "help": "Local collective budgets: each ruler commits one finite projected budget to bargained envelopes for granary relief purchases, granary works and workshop bills; those services spend only within an accepted envelope; delivered or broken promises move the city's grievance; requires --agents hybrid and --grain-reserves (default off)",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "agents": [
+            "hybrid"
+          ],
+          "reason": "requires --agents hybrid"
+        },
+        {
+          "feature": "grain_reserves",
+          "reason": "requires --grain-reserves"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "local_budget_mode",
+      "flag": "--local-budget-mode",
+      "label": "Local budget mode",
+      "help": "bargained (default): constituencies' allocations arbitrated by influence, with political response; fixed_shares: the control, the same budget split by fixed declared shares, no bargaining and no response",
+      "kind": "choice",
+      "choices": [
+        "bargained",
+        "fixed_shares"
+      ],
+      "default": null,
+      "parent": "local_budgets",
+      "requires": [
+        {
+          "feature": "local_budgets",
+          "reason": "requires --local-budgets"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    }
+  ],
+  "settings": {
+    "cities": "cities (on by default for new worlds; off with --no-cities)",
+    "techniques": "techniques (on by default for new worlds; off with --no-techniques)",
+    "no_household_mobility_liquid_requirement": "no household-mobility liquid requirement (--household-mobility-liquid-requirement unset or 0)"
+  },
+  "surfaces": {
+    "live": {
+      "agents": "hybrid",
+      "agent_modes": [
+        "hybrid"
+      ],
+      "values": {},
+      "settings": {
+        "cities": true,
+        "techniques": true,
+        "no_household_mobility_liquid_requirement": true
+      },
+      "new_worlds_only": true
+    },
+    "batch": {
+      "agents": "hybrid",
+      "agent_modes": [
+        "off",
+        "demographics-only",
+        "shadow",
+        "hybrid"
+      ],
+      "values": {},
+      "settings": {
+        "cities": true,
+        "techniques": true,
+        "no_household_mobility_liquid_requirement": true
+      },
+      "new_worlds_only": true
+    }
+  }
+}

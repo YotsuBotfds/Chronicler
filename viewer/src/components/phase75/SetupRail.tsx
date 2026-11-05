@@ -1,9 +1,11 @@
 /**
  * The setup surface's launch form in the shell's left rail: scenario, seed,
- * world size, models and a resume/fork save. Presentation only: AppShell
- * owns every value and handler and passes them in.
+ * world size, models, a resume/fork save and the server's feature options.
+ * Presentation only: AppShell owns every value and handler and passes them in.
  */
-import type { LobbyInit, WorldState } from "../../types";
+import type { FeatureSelection, LobbyInit, WorldState } from "../../types";
+import { FeatureOptions } from "../FeatureOptions";
+import { FEATURES_NEED_NEW_WORLD } from "../../lib/featureCatalog";
 
 /** The setup form's values, as AppShell holds them. */
 export type SetupState = {
@@ -26,6 +28,9 @@ export type SetupState = {
   civsDisabled: boolean;
   regionsDisabled: boolean;
   lobbyReady: boolean;
+  /** The lobby message's `feature_catalog` (absent from older servers). */
+  featureCatalog: unknown;
+  features: FeatureSelection;
 };
 
 export function SetupRail({
@@ -43,6 +48,7 @@ export function SetupRail({
   onResumeBrowse,
   onResumeDrop,
   onClearResume,
+  onFeaturesChange,
   onLaunch,
 }: {
   state: SetupState;
@@ -59,6 +65,7 @@ export function SetupRail({
   onResumeBrowse: () => void;
   onResumeDrop: (file: File) => void;
   onClearResume: () => void;
+  onFeaturesChange: (features: FeatureSelection) => void;
   onLaunch: () => void;
 }) {
   return (
@@ -204,6 +211,15 @@ export function SetupRail({
         )}
         {state.resumeError && <div className="phase75-inline-error">{state.resumeError}</div>}
       </div>
+
+      <FeatureOptions
+        catalog={state.featureCatalog}
+        surface="live"
+        selection={state.features}
+        onSelectionChange={onFeaturesChange}
+        disabled={!state.lobbyReady || state.starting}
+        unavailable={state.resumeState ? FEATURES_NEED_NEW_WORLD : null}
+      />
 
       {!state.lobbyReady && (
         <div className="phase75-empty-state">

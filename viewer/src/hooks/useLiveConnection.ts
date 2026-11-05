@@ -279,6 +279,7 @@ export function useLiveConnection(wsUrl: string, token: string | null = null): L
                 scenarios: msg.scenarios,
                 models: msg.models,
                 defaults: msg.defaults,
+                feature_catalog: msg.feature_catalog,
               });
             } else if (msg.state === "starting") {
               setServerState("starting");
