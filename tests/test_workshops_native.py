@@ -28,7 +28,7 @@ def test_crews_are_live_eligible_farmers_and_inputs_match_native_output(tmp_path
                 ("id", "age", "occupation", "settlement_id", "region")}
         rows = {cols["id"][i]: i for i in range(len(cols["id"]))}
         seen = set()
-        for row in plan.rows:
+        for row in (site_plan.row for site_plan in plan.sites):
             assert len(row["crew"]) <= 8 and row["eligible"] >= len(row["crew"])
             assert row["crew"] == sorted(row["crew"])
             for aid in row["crew"]:
@@ -73,3 +73,41 @@ def test_craft_inputs_are_taken_once_per_tick():
     assert sim.take_craft_inputs() is None
     with pytest.raises(ValueError, match="initialized"):
         sim.plan_workshop_crews([(0, 0, 1, 0.2, 8)], [])
+
+
+def test_operate_mode_pays_once_and_bounds_output_by_crew_work(tmp_path):
+    from chronicler import workshops as W
+    bundle = _run(tmp_path, "--workshops", turns=60)
+    off = _run(tmp_path / "off", turns=60)
+    operating = paid = 0
+    for snap in bundle["history"]:
+        record = snap["livelihoods"]["workshops"]
+        assert record["mode"] == "operate" and record["stage"] == "L1B"
+        for r in record["receipts"] or []:
+            assert r["realized"] <= r["allocated"] + 1e-6 and r["allocated"] <= r["work_available"] + 1e-6
+            assert r["affected_ordinary_income_share"] == 0.0
+            if r["craft_ceiling"]:                      # a funded, built site with crew operated
+                operating += 1
+                assert r["funded"]
+                assert r["craft_ceiling"] == pytest.approx(W.K_RAW_PER_WORK * r["work_available"], rel=1e-5)
+                assert r["region_craft_output"] <= r["craft_ceiling"] * (1 + 1e-5) + 1e-6
+                assert r["realized"] == pytest.approx(min(r["allocated"], r["region_craft_output"] / W.K_RAW_PER_WORK), rel=1e-5, abs=1e-7)
+            elif r["craft_ceiling"] is not None:
+                assert r["craft_ceiling"] == 0.0 and r["region_craft_output"] == pytest.approx(0.0, abs=1e-6)
+            paid += sum((r["paid"] or {}).values())
+    assert operating > 0 and paid > 0
+    final = bundle["history"][-1]["livelihoods"]["workshops"]["counters"]
+    assert final["paid_construction"] > 0
+    # The run is a real intervention: its trajectory differs from the off arm.
+    assert any({k: v for k, v in b.items() if k != "livelihoods"} != a
+               for a, b in zip(off["history"], bundle["history"]))
+
+
+def test_cost_only_charges_like_operate_without_replacing_the_ceiling(tmp_path):
+    bundle = _run(tmp_path, "--workshops", "--workshop-mode", "cost_only", turns=40)
+    paid = 0
+    for snap in bundle["history"]:
+        for r in snap["livelihoods"]["workshops"]["receipts"] or []:
+            assert r["craft_ceiling"] is None and r["allocated"] == 0.0 and r["realized"] == 0.0
+            paid += sum((r["paid"] or {}).values())
+    assert paid > 0

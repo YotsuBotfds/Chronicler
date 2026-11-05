@@ -61,7 +61,82 @@ city is never readmitted. Receipts cover the last completed Phase 2 only.
   crafting, and input equalled output in every one. A feature-off run on the
   new extension is byte-identical to the baseline extension's.
 
-## L1B: funded operation
+## L1B: funded operation (landed)
 
-Not yet landed. The selected route, the public treasury of the region's
-controller, is recorded in the plan's funding comparison.
+`--workshops` now defaults to `--workshop-mode operate`. All five blockers
+of the source audit are addressed. Blockers 1, 2 and 4 are covered by L1A
+above; the rest are below.
+
+- **Payer and settlement (blocker 3).** The payer is the civilization that
+  controls the site's region at Phase 2, as chosen in the plan's funding
+  comparison. Each turn's bill is planned against the projected treasury
+  (`_treasury_budget`), with one budget per civilization shared by all its
+  sites in site order. A bill is either one construction installment, or
+  upkeep plus any arrears plus any needed repair. It is charged once, as a
+  `keep` treasury debit, after the native tick succeeds. A failed tick
+  charges nothing (`rollback_phase2`). If the controller changes between
+  plan and settlement, settlement refuses. Every payment is a disclosed
+  public expenditure sink: no wage, no private recipient, no payroll (L6
+  stays deferred).
+- **Work and output.** A funded site that is built, in condition and has
+  crew operates. It allocates its crew's diverted time `W` and replaces the
+  region's craft ceiling with `K_RAW_PER_WORK × W` (2 raw loads per unit of
+  work); this is a replacement, not an addition. A selected site that is
+  building, unfunded, in need of repair or without crew sets the ceiling to
+  zero. Realized work is `min(allocated, region craft output / K)`. The
+  crew's ordinary income share is unaffected (0): the time was already
+  diverted from farming, which keeps its own factor.
+- **Inputs (blocker 4, with protection by phase order).** The conversion
+  uses only raw goods on hand after merchant departures, and after grain
+  storage has already taken the timber it holds. The receipts report the
+  region's actual native per-good input.
+- **Asset lifecycle (blocker 5).** The site is building until 60 treasury
+  units are paid, in installments of 10. When built, it costs 3 upkeep per
+  turn. Unpaid upkeep becomes arrears (capped at 15) and wears condition by
+  0.05. Below 0.5 condition the asset needs a repair of 20 before it
+  reopens. Arrears, construction progress and condition belong to the asset.
+  A conqueror inherits them and pays them before the site reopens; nothing
+  is rebuilt for free. If the city falls, the site closes with a dated
+  record and its arrears are written off and counted. Each site keeps a
+  bounded dated history (16 events).
+- **Ablation.** `--workshop-mode cost_only` builds and pays exactly as
+  operate mode does, but leaves the legacy ceiling in force.
+
+All parameters are declared modeling choices, not calibrated:
+`K_RAW_PER_WORK`, `CONSTRUCTION_COST`, `INSTALLMENT`, `UPKEEP`,
+`ARREARS_CAP`, `CONDITION_WEAR`, `OPERATE_CONDITION` and `REPAIR_COST`.
+
+### Evidence (L1B source)
+
+- `tests/test_workshops.py` (offline) covers:
+  - installments, then upkeep;
+  - a ceiling bounded by crew work (half crew gives half the ceiling; no
+    crew gives zero);
+  - one budget shared across sites;
+  - insufficient funds charge nothing;
+  - arrears and wear when unfunded, and a conqueror paying arrears and
+    repair before reopening;
+  - a failed tick charges nothing;
+  - cost-only keeps the legacy ceiling;
+  - a city fall writes off arrears and stops the ceiling replacement.
+- `tests/test_workshops_native.py` (real extension) covers:
+  - every operating receipt has ceiling = `K × W` and output ≤ ceiling;
+  - realized work = `min(allocated, output / K)`;
+  - every non-operating selected site has a zero ceiling and zero output;
+  - payments occur;
+  - the operate trajectory differs from off;
+  - cost-only charges without replacing the ceiling.
+- Development runs (template seed 7, 150 turns; a single world, not
+  evidence of an effect):
+
+  | Arm | Site-turns | Operating | Crew work allocated / realized | Site-region craft output | Paid (construction / upkeep / arrears) |
+  | --- | --- | --- | --- | --- | --- |
+  | observe | 492 | 0 | 0 / 0 | 237.1 | none |
+  | operate | 432 | 370 | 450.4 / 102.5 | 205.1 | 240 / 1203 / 6 |
+  | cost_only | 492 | 0 | 0 / 0 | 243.6 | 240 / 1386 / 0 |
+
+  Operating crews' ceilings (900.8 raw loads in total, against the legacy
+  433.9) did not raise output: the region's raw inputs bound it. Realized
+  work is about a quarter of allocated, and construction turns cost output.
+  This is a working mechanism with a mixed result. Timber availability (L3)
+  is the natural next constraint; the screens test that interaction.

@@ -37,7 +37,7 @@ from chronicler.livelihoods_state import LIVELIHOODS_SWITCHES, LivelihoodsState
 
 #: Non-boolean options, with their choices (first: the default when enabled).
 LIVELIHOODS_CHOICES: dict[str, tuple[str, ...]] = {
-    "workshop_mode": ("operate", "observe"),
+    "workshop_mode": ("operate", "observe", "cost_only"),
     "food_allocation_regime": ("floor_means", "equal", "targeted_relief"),
     "convoy_route_policy": ("adaptive", "cheapest", "safest"),
 }
@@ -56,7 +56,7 @@ _HELP = {
         "wages) and the crew's work replaces the region's craft ceiling; requires "
         "--agents hybrid and cities (default off)"
     ),
-    "workshop_mode": "operate (default) or observe: plan crews and report native craft inputs only",
+    "workshop_mode": "operate (default): treasury-funded crews replace the craft ceiling; observe: crews and native craft inputs only; cost_only: the ablation that builds and pays but keeps the legacy ceiling",
     "food_allocation": (
         "Allocate each region's available food to its people and derived households "
         "under an explicit rule; individual hunger, needs and mortality read the "
