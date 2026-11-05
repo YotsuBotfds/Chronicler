@@ -1,9 +1,10 @@
 """Money closure across every livelihoods claimant on the real compiled extension.
 
-Review R2 (2026-11-05). Two short hybrid worlds run with every money claimant
-on: grain reserves with storage works, shipments and convoys; L1 workshops
-with L6a payroll and academy services; L3 timber with L8 wardens; L2 food
-allocation; L5 cohorts; L7 assisted relocation; and L9 budgets. Each turn,
+Review R2 (2026-11-05). Three short hybrid worlds run with every money
+claimant on: grain reserves with storage works, shipments and convoys; L1
+workshops with L6a payroll and academy services; L3 timber with L8 wardens;
+L2 food allocation; L5 cohorts; L7 assisted relocation; and L9 budgets (off
+in the first world, where firms sell and distribute early). Each turn,
 per civilization, the checks below compare what the accumulator was actually
 told against what each service itemised in its own receipts:
 
@@ -36,9 +37,13 @@ FLAGS = ("--grain-reserves", "--grain-storage", "--public-grain-shipments", "--g
          "--scholarship", "--techniques", "--academy-services", "--workshops", "--workshop-payroll",
          "--timber-stock", "--commons-rules", "--food-allocation", "--learning-cohorts",
          "--relocation-costs", "--relocation-mode", "assisted", "--local-budgets")
-#: (seed, turns, extra): a template world in the fixed-shares control (firm
-#: sales and wardens early) and a procedural world (shipments and convoys).
-WORLDS = ((4, 80, ("--civs", "4", "--regions", "8", "--local-budget-mode", "fixed_shares")),
+#: (seed, turns, extra): a template world without L9 (firm sales from turn 43,
+#: distributions from 59, wardens), the same world in L9's fixed-shares
+#: control (storage works, the reservation check) and a procedural world
+#: (shipments, and convoys from turn 6).
+_TEMPLATE = ("--civs", "4", "--regions", "8")
+WORLDS = ((4, 80, (*_TEMPLATE, "--no-local-budgets")),
+          (4, 80, (*_TEMPLATE, "--local-budget-mode", "fixed_shares")),
           (9, 80, ("--worldgen", "procedural", "--civs", "10", "--regions", "32")))
 #: Modules whose treasury changes are itemised in their own receipts.
 CLAIMANTS = ("chronicler.workshops", "chronicler.grain_storage", "chronicler.commons_rules",
@@ -211,7 +216,7 @@ def _run(path, seed, turns, extra):
 
 @pytest.fixture(scope="module")
 def closures(tmp_path_factory):
-    return [_run(tmp_path_factory.mktemp(f"closure{seed}"), seed, turns, extra) for seed, turns, extra in WORLDS]
+    return [_run(tmp_path_factory.mktemp(f"closure{seed}_"), seed, turns, extra) for seed, turns, extra in WORLDS]
 
 
 def test_every_money_claimant_is_exercised(closures):
