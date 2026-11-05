@@ -38,7 +38,7 @@ from chronicler.world_gen import generate_world
 
 RS = ("apprenticeship", "repair_projects", "veteran_reintegration", "remittances", "clearing_protection")
 #: Packages whose lane replaced the inert RS0 stub (their own tests cover them).
-IMPLEMENTED = {"clearing_protection"}
+IMPLEMENTED = {"clearing_protection", "remittances"}
 MODE_KEYS = {"apprenticeship": "apprenticeship_mode", "repair_projects": "repair_mode",
              "veteran_reintegration": "veteran_mode", "remittances": "remittance_mode",
              "clearing_protection": "clearing_protection_mode"}
@@ -82,6 +82,8 @@ def test_switches_are_appended_in_order_with_their_choices():
         assert name in LivelihoodsState.model_fields
         for fn in (f"set_{name}_enabled", f"{name}_active", "snapshot_summary"):
             assert callable(getattr(module, fn)), (name, fn)
+        if name in IMPLEMENTED:
+            continue
         # RS0 registers no phase hook: nothing runs during a turn yet.
         for hook in ("prepare_phase2", "finish_phase2", "rollback_phase2", "before_agent_tick",
                      "after_agent_tick", "phase10_before_reserves", "phase10"):

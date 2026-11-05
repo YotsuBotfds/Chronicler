@@ -26,6 +26,10 @@
 //!   same turn (apprentice stipends, repair wages) adds its people without
 //!   replacing L6a's. Each person still has at most one paid share per turn,
 //!   within their reservations for that turn.
+//! * [`remit`] (recovery-skills RS4) is the one pairwise transfer: a
+//!   sender pays a recipient an amount plus a courier fee under the purpose
+//!   `remittance`, both parties validated before any change, with the
+//!   recipient's ceiling excess refunded, once per (turn, purpose, batch).
 //!
 //! Both are transient: the key log, a pending share and an untaken receipt
 //! are never checkpointed (exact checkpoints are taken between turns, when
@@ -131,6 +135,102 @@ pub fn transfer(pool: &mut AgentPool, turn: u32, purpose: u8, batch: u32, rows: 
     pool.wealth_transfer_log.retain(|&(t, _, _)| t >= turn);
     pool.wealth_transfer_log.push((turn, purpose, batch));
     Ok(TransferReceipt { turn, purpose, batch, rows: out })
+}
+
+/// One remittance row as applied (RS4, [`remit`]); milli-units.
+/// `sent` is what left the sender, `fee` the part of it the courier sink
+/// kept, `credited` what reached the recipient and `refunded` what the
+/// recipient's wealth ceiling refused and went back to the sender, so
+/// `sent == fee + credited + refunded` and the sender's net loss is
+/// `fee + credited`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RemitRow {
+    pub sender: u32,
+    pub recipient: u32,
+    pub sent: i64,
+    pub fee: i64,
+    pub credited: i64,
+    pub refunded: i64,
+    pub status: u8,
+}
+
+/// RS4 remittances: apply `rows` (sender id, recipient id, amount, fee in
+/// milli-units) once for `(turn, PURPOSE_REMITTANCE, batch)`, in the key log
+/// [`transfer`] uses.
+///
+/// The whole call is validated before any change: unique senders, a
+/// sender is never its own recipient, `amount > 0`, `fee >= 0` and
+/// `amount + fee` within [`MAX_ROW_MILLIS`]; a repeated or older key is
+/// refused. Each row then validates both parties before it changes
+/// anything: a party dead, unknown, or away on a merchant trip makes the
+/// row ABSENT and moves nothing. Otherwise the sender pays `amount + fee`,
+/// limited by its own wealth (never below zero); what was taken is split
+/// pro rata between the courier fee (rounded down) and the carried amount.
+/// The recipient is credited the carried amount up to `MAX_WEALTH`; any
+/// excess is refunded to the sender. A row is LIMITED when the sender could
+/// not pay in full or anything was refunded, APPLIED otherwise. Rows apply
+/// in the given order, so a recipient's earlier credit counts towards a
+/// later row it sends. Nothing is created: the sender loses exactly
+/// `fee + credited`, the recipient gains `credited`, and the fee leaves the
+/// pool (the caller discloses the sink). No random draws.
+pub fn remit(pool: &mut AgentPool, turn: u32, batch: u32, rows: &[(u32, u32, i64, i64)])
+    -> Result<Vec<RemitRow>, &'static str> {
+    let purpose = PURPOSE_REMITTANCE;
+    let mut senders = std::collections::HashSet::with_capacity(rows.len());
+    for &(sender, recipient, amount, fee) in rows {
+        if !senders.insert(sender) {
+            return Err("duplicate sender in remittance");
+        }
+        if sender == recipient {
+            return Err("a remittance sender cannot be its own recipient");
+        }
+        if amount <= 0 || fee < 0 || amount.saturating_add(fee) > MAX_ROW_MILLIS {
+            return Err("remittance amount out of range");
+        }
+    }
+    if pool.wealth_transfer_log.iter().any(|&(t, p, b)| p == purpose && b == batch && t >= turn) {
+        return Err("wealth transfer already applied for this turn, purpose and batch");
+    }
+    let slots = pool.build_id_slots();
+    let mut out = Vec::with_capacity(rows.len());
+    for &(sender, recipient, amount, fee) in rows {
+        let present = |id: u32| slots.get(id)
+            .filter(|&s| pool.is_alive(s) && pool.ids[s] == id && !pool.is_on_trip(s));
+        let (Some(from), Some(to)) = (present(sender), present(recipient)) else {
+            out.push(RemitRow { sender, recipient, sent: 0, fee: 0, credited: 0, refunded: 0, status: STATUS_ABSENT });
+            continue;
+        };
+        let asked = amount + fee;
+        let sent = asked.min(floor_millis(pool.wealth[from]));
+        // The fee's share of what was actually taken (rounded down; exact when paid in full).
+        let fee_paid = if sent == asked { fee } else { ((sent as i128 * fee as i128) / asked as i128) as i64 };
+        let carried = sent - fee_paid;
+        let credited = carried.min(floor_millis(MAX_WEALTH - pool.wealth[to]));
+        let refunded = carried - credited;
+        let net = sent - refunded;
+        if net != 0 {
+            let next = (pool.wealth[from] as f64 - net as f64 / MILLI as f64) as f32;
+            pool.wealth[from] = next.clamp(0.0, MAX_WEALTH);
+        }
+        if credited != 0 {
+            let next = (pool.wealth[to] as f64 + credited as f64 / MILLI as f64) as f32;
+            pool.wealth[to] = next.clamp(0.0, MAX_WEALTH);
+        }
+        let status = if sent == asked && refunded == 0 { STATUS_APPLIED } else { STATUS_LIMITED };
+        out.push(RemitRow { sender, recipient, sent, fee: fee_paid, credited, refunded, status });
+    }
+    pool.wealth_transfer_log.retain(|&(t, _, _)| t >= turn);
+    pool.wealth_transfer_log.push((turn, purpose, batch));
+    Ok(out)
+}
+
+/// Stable ids of the living agents away on a merchant trip (loading or in
+/// transit), ascending. Reads only.
+pub fn trip_ids(pool: &AgentPool) -> Vec<u32> {
+    let mut ids: Vec<u32> = (0..pool.capacity())
+        .filter(|&s| pool.is_alive(s) && pool.is_on_trip(s)).map(|s| pool.ids[s]).collect();
+    ids.sort_unstable();
+    ids
 }
 
 /// Arm `rows` (stable id, share of this turn's ordinary income) for the next
@@ -439,5 +539,156 @@ mod tests {
         crate::tick::wealth_tick(&mut control, &regions, &signals, &mut pct);
         assert!(paid.paid_work_receipt.is_none());
         assert!((control.wealth[0] - paid.wealth[0] - gap * decay).abs() < 1e-6);
+    }
+
+    // --- RS4 remittances (`remit`) ---------------------------------------
+
+    fn milli(pool: &AgentPool, slot: usize) -> i64 { (pool.wealth[slot] as f64 * 1000.0).round() as i64 }
+
+    #[test]
+    fn remit_pays_amount_and_fee_in_full_when_the_sender_can() {
+        let mut pool = pool_with(&[10.0, 1.0]);
+        let (a, b) = (pool.ids[0], pool.ids[1]);
+        let rows = remit(&mut pool, 9, 0, &[(a, b, 850, 150)]).unwrap();
+        assert_eq!(rows, vec![RemitRow { sender: a, recipient: b, sent: 1000, fee: 150, credited: 850, refunded: 0,
+                                         status: STATUS_APPLIED }]);
+        assert_eq!((milli(&pool, 0), milli(&pool, 1)), (9000, 1850));
+        assert_eq!(pool.wealth_transfer_log, vec![(9, PURPOSE_REMITTANCE, 0)]);
+    }
+
+    #[test]
+    fn remit_is_limited_by_the_senders_wealth_and_never_goes_negative() {
+        let mut pool = pool_with(&[0.5, 1.0, 0.0, 1.0]);
+        let (a, b, c, d) = (pool.ids[0], pool.ids[1], pool.ids[2], pool.ids[3]);
+        let rows = remit(&mut pool, 3, 0, &[(a, b, 850, 150), (c, d, 100, 20)]).unwrap();
+        // 500 taken of 1000: the fee keeps its pro-rata share, rounded down.
+        assert_eq!(rows[0], RemitRow { sender: a, recipient: b, sent: 500, fee: 75, credited: 425, refunded: 0,
+                                       status: STATUS_LIMITED });
+        // A sender with nothing sends nothing: limited, not absent.
+        assert_eq!(rows[1], RemitRow { sender: c, recipient: d, sent: 0, fee: 0, credited: 0, refunded: 0,
+                                       status: STATUS_LIMITED });
+        assert_eq!(pool.wealth[0], 0.0);
+        assert_eq!((milli(&pool, 1), milli(&pool, 2), milli(&pool, 3)), (1425, 0, 1000));
+        // Odd split: the fee rounds down and the carried amount takes the remainder.
+        let mut odd = pool_with(&[0.25, 1.0]);
+        let (e, f) = (odd.ids[0], odd.ids[1]);
+        let r = remit(&mut odd, 1, 0, &[(e, f, 850, 150)]).unwrap();
+        assert_eq!((r[0].sent, r[0].fee, r[0].credited), (250, 37, 213));
+        assert_eq!(r[0].sent, r[0].fee + r[0].credited + r[0].refunded);
+    }
+
+    #[test]
+    fn remit_refunds_what_the_recipients_ceiling_refuses() {
+        let mut pool = pool_with(&[10.0, 99.6]);
+        let (a, b) = (pool.ids[0], pool.ids[1]);
+        let r = remit(&mut pool, 4, 0, &[(a, b, 850, 150)]).unwrap();
+        let room = floor_millis(MAX_WEALTH - 99.6f32);
+        assert_eq!((r[0].sent, r[0].fee, r[0].credited, r[0].refunded, r[0].status),
+                   (1000, 150, room, 850 - room, STATUS_LIMITED));
+        assert!(pool.wealth[1] <= MAX_WEALTH && (pool.wealth[1] - MAX_WEALTH).abs() < 1e-4);
+        // The sender lost only the fee and what was credited.
+        assert_eq!(milli(&pool, 0), 10_000 - 150 - room);
+        // A recipient already at the ceiling: everything carried comes back.
+        let mut full = pool_with(&[5.0, MAX_WEALTH]);
+        let (c, d) = (full.ids[0], full.ids[1]);
+        let r = remit(&mut full, 4, 0, &[(c, d, 400, 100)]).unwrap();
+        assert_eq!((r[0].sent, r[0].fee, r[0].credited, r[0].refunded, r[0].status), (500, 100, 0, 400, STATUS_LIMITED));
+        assert_eq!((milli(&full, 0), full.wealth[1]), (4900, MAX_WEALTH));
+    }
+
+    #[test]
+    fn remit_moves_nothing_for_a_dead_unknown_or_travelling_party() {
+        let mut pool = pool_with(&[5.0, 5.0, 5.0, 5.0, 5.0, 5.0]);
+        let ids: Vec<u32> = pool.ids[..6].to_vec();
+        pool.kill(1);                                                    // dead recipient
+        pool.kill(2);                                                    // dead sender
+        pool.trip_phase[4] = crate::agent::TRIP_PHASE_TRANSIT;           // recipient on a trip
+        let before: Vec<i64> = (0..6).map(|s| milli(&pool, s)).collect();
+        let rows = remit(&mut pool, 2, 0, &[(ids[0], ids[1], 100, 10), (ids[2], ids[3], 100, 10),
+            (ids[3], 999_999, 100, 10), (ids[5], ids[4], 100, 10), (ids[0] + 1_000_000, ids[3], 100, 10)]);
+        // Duplicate-free senders: ids[0] once, ids[2], ids[3], ids[5] and an unknown one.
+        let rows = rows.unwrap();
+        assert!(rows.iter().all(|r| r.status == STATUS_ABSENT && r.sent == 0 && r.fee == 0
+                                   && r.credited == 0 && r.refunded == 0));
+        let after: Vec<i64> = (0..6).map(|s| milli(&pool, s)).collect();
+        assert_eq!(before, after);
+        // A sender on a trip is absent too, and the key is still consumed once.
+        assert!(remit(&mut pool, 2, 0, &[(ids[3], ids[5], 100, 10)]).is_err());
+        let mut trip = pool_with(&[5.0, 5.0]);
+        let (a, b) = (trip.ids[0], trip.ids[1]);
+        trip.trip_phase[0] = crate::agent::TRIP_PHASE_LOADING;
+        assert_eq!(remit(&mut trip, 1, 0, &[(a, b, 100, 0)]).unwrap()[0].status, STATUS_ABSENT);
+        assert_eq!(trip_ids(&trip), vec![a]);
+    }
+
+    #[test]
+    fn remit_names_stable_ids_not_reused_slots() {
+        let mut pool = pool_with(&[5.0, 5.0]);
+        let (a, b) = (pool.ids[0], pool.ids[1]);
+        pool.kill(1);
+        let slot = pool.spawn(0, 0, Occupation::Farmer, 30, 0.5, 0.5, 0.5, 0, 1, 2, 0);
+        assert_eq!(slot, 1);
+        pool.wealth[1] = 2.0;
+        let stranger = pool.ids[1];
+        assert_ne!(stranger, b);
+        let rows = remit(&mut pool, 6, 0, &[(a, b, 500, 0)]).unwrap();
+        assert_eq!(rows[0].status, STATUS_ABSENT);
+        assert_eq!((milli(&pool, 0), milli(&pool, 1)), (5000, 2000));
+        let rows = remit(&mut pool, 7, 0, &[(a, stranger, 500, 0)]).unwrap();
+        assert_eq!((rows[0].status, rows[0].credited), (STATUS_APPLIED, 500));
+    }
+
+    #[test]
+    fn remit_applies_each_key_once_and_refuses_bad_calls_unchanged() {
+        let mut pool = pool_with(&[5.0, 5.0, 5.0]);
+        let (a, b, c) = (pool.ids[0], pool.ids[1], pool.ids[2]);
+        for bad in [vec![(a, b, 100, 10), (a, c, 100, 10)],     // duplicate sender
+                    vec![(a, a, 100, 10)],                      // own recipient
+                    vec![(a, b, 0, 10)], vec![(a, b, -5, 10)],  // no amount
+                    vec![(a, b, 100, -1)],                      // negative fee
+                    vec![(a, b, MAX_ROW_MILLIS, 1)]] {          // out of range
+            assert!(remit(&mut pool, 5, 0, &bad).is_err());
+        }
+        assert!(pool.wealth_transfer_log.is_empty());
+        assert_eq!((milli(&pool, 0), milli(&pool, 1), milli(&pool, 2)), (5000, 5000, 5000));
+        remit(&mut pool, 5, 0, &[(a, b, 100, 0)]).unwrap();
+        assert!(remit(&mut pool, 5, 0, &[(b, c, 100, 0)]).is_err());           // the same key
+        assert!(transfer(&mut pool, 5, PURPOSE_REMITTANCE, 0, &[(c, 100)]).is_err());  // shared key log
+        assert!(remit(&mut pool, 4, 0, &[(b, c, 100, 0)]).is_err());           // an older turn
+        remit(&mut pool, 5, 1, &[(b, c, 100, 0)]).unwrap();                    // another batch
+        transfer(&mut pool, 5, PURPOSE_RELOCATION_FARE, 0, &[(c, -100)]).unwrap();  // another purpose
+        remit(&mut pool, 6, 0, &[(c, a, 100, 0)]).unwrap();                    // the next turn
+        assert_eq!((milli(&pool, 0), milli(&pool, 1), milli(&pool, 2)), (5000, 5000, 4900));
+        // An empty call consumes its key and changes nothing.
+        let mut empty = pool_with(&[1.0]);
+        assert!(remit(&mut empty, 2, 0, &[]).unwrap().is_empty());
+        assert!(remit(&mut empty, 2, 0, &[]).is_err());
+    }
+
+    #[test]
+    fn remit_rows_apply_in_order_and_conserve_wealth() {
+        let mut pool = pool_with(&[3.0, 0.0, 50.0, 99.9, 7.25]);
+        let ids: Vec<u32> = pool.ids[..5].to_vec();
+        // b receives from a, then sends on what it received; two senders share one recipient.
+        let rows = [(ids[0], ids[1], 900, 100), (ids[1], ids[2], 500, 100), (ids[2], ids[3], 800, 200),
+                    (ids[4], ids[3], 300, 60)];
+        let before: Vec<i64> = (0..5).map(|s| milli(&pool, s)).collect();
+        let out = remit(&mut pool, 8, 2, &rows).unwrap();
+        assert_eq!((out[1].sent, out[1].status), (600, STATUS_APPLIED));
+        let mut fees = 0;
+        let mut expect = before.clone();
+        for (r, (s, t, _, _)) in out.iter().zip(rows) {
+            assert_eq!(r.sent, r.fee + r.credited + r.refunded);
+            let si = ids.iter().position(|&x| x == s).unwrap();
+            let ti = ids.iter().position(|&x| x == t).unwrap();
+            expect[si] -= r.fee + r.credited;
+            expect[ti] += r.credited;
+            fees += r.fee;
+        }
+        let after: Vec<i64> = (0..5).map(|s| milli(&pool, s)).collect();
+        for i in 0..5 { assert!((after[i] - expect[i]).abs() <= 1, "{i}: {} vs {}", after[i], expect[i]); }
+        let total = |v: &[i64]| v.iter().sum::<i64>();
+        assert!((total(&before) - total(&after) - fees).abs() <= 2);
+        assert!(out[3].refunded > 0 || out[2].refunded > 0);     // the ceiling was reached
     }
 }

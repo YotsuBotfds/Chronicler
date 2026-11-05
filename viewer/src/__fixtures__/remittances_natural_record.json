@@ -1,0 +1,627 @@
+{
+ "note": "Natural record: --seed 7 --turns 60 --agents hybrid --simulate-only --remittances (template, 8 regions); snapshot 13 as written by chronicler.remittances.snapshot_summary.",
+ "turn": 13,
+ "region_count": 8,
+ "remittances": {
+  "schema_version": 1,
+  "stage": "RS4",
+  "mode": "send",
+  "source_turn": 12,
+  "funnel": {
+   "open_entries": 169,
+   "child": 38,
+   "unsettled": 89,
+   "on_trip": 5,
+   "elsewhere": 0,
+   "already_sent": 0,
+   "eligible": 37,
+   "linked": 2,
+   "no_bond": 1,
+   "recipient_away": 33,
+   "recipient_on_trip": 1,
+   "no_surplus": 0,
+   "rows": 2,
+   "applied": 2,
+   "limited": 0,
+   "absent": 0,
+   "not_sent": 0,
+   "ledger_open": 169,
+   "ledger_qualified": 0
+  },
+  "totals": {
+   "requested_milli": 35,
+   "fee_requested_milli": 5,
+   "sent_milli": 40,
+   "fee_milli": 5,
+   "credited_milli": 35,
+   "refunded_milli": 0,
+   "debited_milli": 40,
+   "not_sent_milli": 0
+  },
+  "regions": [
+   {
+    "region": 0,
+    "departures": 0,
+    "arrivals": 5,
+    "returns_home": 2,
+    "qualified_departures": 0,
+    "qualified_arrivals": 0,
+    "diaspora_out": 22,
+    "diaspora_in": 19,
+    "qualified_out": 0,
+    "qualified_in": 0,
+    "senders": 1,
+    "recipients": 0,
+    "outflow_milli": 32,
+    "fee_milli": 4,
+    "refunded_milli": 0,
+    "inflow_milli": 0
+   },
+   {
+    "region": 1,
+    "departures": 2,
+    "arrivals": 0,
+    "returns_home": 0,
+    "qualified_departures": 0,
+    "qualified_arrivals": 0,
+    "diaspora_out": 25,
+    "diaspora_in": 17,
+    "qualified_out": 0,
+    "qualified_in": 0,
+    "senders": 1,
+    "recipients": 0,
+    "outflow_milli": 8,
+    "fee_milli": 1,
+    "refunded_milli": 0,
+    "inflow_milli": 0
+   },
+   {
+    "region": 2,
+    "departures": 3,
+    "arrivals": 0,
+    "returns_home": 0,
+    "qualified_departures": 0,
+    "qualified_arrivals": 0,
+    "diaspora_out": 14,
+    "diaspora_in": 17,
+    "qualified_out": 0,
+    "qualified_in": 0,
+    "senders": 0,
+    "recipients": 0,
+    "outflow_milli": 0,
+    "fee_milli": 0,
+    "refunded_milli": 0,
+    "inflow_milli": 0
+   },
+   {
+    "region": 3,
+    "departures": 1,
+    "arrivals": 0,
+    "returns_home": 0,
+    "qualified_departures": 0,
+    "qualified_arrivals": 0,
+    "diaspora_out": 1,
+    "diaspora_in": 60,
+    "qualified_out": 0,
+    "qualified_in": 0,
+    "senders": 0,
+    "recipients": 0,
+    "outflow_milli": 0,
+    "fee_milli": 0,
+    "refunded_milli": 0,
+    "inflow_milli": 0
+   },
+   {
+    "region": 4,
+    "departures": 0,
+    "arrivals": 0,
+    "returns_home": 0,
+    "qualified_departures": 0,
+    "qualified_arrivals": 0,
+    "diaspora_out": 50,
+    "diaspora_in": 6,
+    "qualified_out": 0,
+    "qualified_in": 0,
+    "senders": 0,
+    "recipients": 2,
+    "outflow_milli": 0,
+    "fee_milli": 0,
+    "refunded_milli": 0,
+    "inflow_milli": 35
+   },
+   {
+    "region": 5,
+    "departures": 4,
+    "arrivals": 0,
+    "returns_home": 0,
+    "qualified_departures": 0,
+    "qualified_arrivals": 0,
+    "diaspora_out": 36,
+    "diaspora_in": 5,
+    "qualified_out": 0,
+    "qualified_in": 0,
+    "senders": 0,
+    "recipients": 0,
+    "outflow_milli": 0,
+    "fee_milli": 0,
+    "refunded_milli": 0,
+    "inflow_milli": 0
+   },
+   {
+    "region": 6,
+    "departures": 3,
+    "arrivals": 0,
+    "returns_home": 0,
+    "qualified_departures": 0,
+    "qualified_arrivals": 0,
+    "diaspora_out": 4,
+    "diaspora_in": 26,
+    "qualified_out": 0,
+    "qualified_in": 0,
+    "senders": 0,
+    "recipients": 0,
+    "outflow_milli": 0,
+    "fee_milli": 0,
+    "refunded_milli": 0,
+    "inflow_milli": 0
+   },
+   {
+    "region": 7,
+    "departures": 0,
+    "arrivals": 8,
+    "returns_home": 0,
+    "qualified_departures": 0,
+    "qualified_arrivals": 0,
+    "diaspora_out": 17,
+    "diaspora_in": 19,
+    "qualified_out": 0,
+    "qualified_in": 0,
+    "senders": 0,
+    "recipients": 0,
+    "outflow_milli": 0,
+    "fee_milli": 0,
+    "refunded_milli": 0,
+    "inflow_milli": 0
+   }
+  ],
+  "moves": [
+   {
+    "id": 61,
+    "from_region": 1,
+    "to_region": 0,
+    "kind": "departure",
+    "qualified": false,
+    "driver": 7
+   },
+   {
+    "id": 127,
+    "from_region": 1,
+    "to_region": 0,
+    "kind": "onward",
+    "qualified": false,
+    "driver": 7
+   },
+   {
+    "id": 6,
+    "from_region": 2,
+    "to_region": 0,
+    "kind": "return",
+    "qualified": false,
+    "driver": 6
+   },
+   {
+    "id": 220,
+    "from_region": 2,
+    "to_region": 0,
+    "kind": "departure",
+    "qualified": false,
+    "driver": 7
+   },
+   {
+    "id": 11,
+    "from_region": 2,
+    "to_region": 0,
+    "kind": "return",
+    "qualified": false,
+    "driver": 6
+   },
+   {
+    "id": 258,
+    "from_region": 3,
+    "to_region": 7,
+    "kind": "departure",
+    "qualified": false,
+    "driver": 1
+   },
+   {
+    "id": 245,
+    "from_region": 5,
+    "to_region": 7,
+    "kind": "departure",
+    "qualified": false,
+    "driver": 7
+   },
+   {
+    "id": 172,
+    "from_region": 5,
+    "to_region": 7,
+    "kind": "departure",
+    "qualified": false,
+    "driver": 7
+   },
+   {
+    "id": 239,
+    "from_region": 5,
+    "to_region": 7,
+    "kind": "onward",
+    "qualified": false,
+    "driver": 7
+   },
+   {
+    "id": 185,
+    "from_region": 5,
+    "to_region": 7,
+    "kind": "departure",
+    "qualified": false,
+    "driver": 7
+   },
+   {
+    "id": 98,
+    "from_region": 6,
+    "to_region": 7,
+    "kind": "onward",
+    "qualified": false,
+    "driver": 1
+   },
+   {
+    "id": 236,
+    "from_region": 6,
+    "to_region": 7,
+    "kind": "departure",
+    "qualified": false,
+    "driver": 1
+   },
+   {
+    "id": 85,
+    "from_region": 6,
+    "to_region": 7,
+    "kind": "onward",
+    "qualified": false,
+    "driver": 1
+   }
+  ],
+  "moves_dropped": 0,
+  "closures": [
+   {
+    "id": 6,
+    "origin": 0,
+    "destination": 2,
+    "departure_turn": 5,
+    "closed_turn": 12,
+    "reason": "return"
+   },
+   {
+    "id": 11,
+    "origin": 0,
+    "destination": 2,
+    "departure_turn": 5,
+    "closed_turn": 12,
+    "reason": "return"
+   },
+   {
+    "id": 88,
+    "origin": 4,
+    "destination": 0,
+    "departure_turn": 4,
+    "closed_turn": 12,
+    "reason": "death"
+   },
+   {
+    "id": 229,
+    "origin": 1,
+    "destination": 6,
+    "departure_turn": 9,
+    "closed_turn": 12,
+    "reason": "death"
+   }
+  ],
+  "closures_dropped": 0,
+  "receipts": [
+   {
+    "turn": 12,
+    "sender": 119,
+    "recipient": 222,
+    "bond": "kin",
+    "sentiment": 70,
+    "origin": 4,
+    "destination": 1,
+    "wealth_milli": 2082,
+    "amount": 7,
+    "fee_requested": 1,
+    "sent": 8,
+    "fee": 1,
+    "credited": 7,
+    "refunded": 0,
+    "status": "applied"
+   },
+   {
+    "turn": 12,
+    "sender": 130,
+    "recipient": 219,
+    "bond": "kin",
+    "sentiment": 50,
+    "origin": 4,
+    "destination": 0,
+    "wealth_milli": 2324,
+    "amount": 28,
+    "fee_requested": 4,
+    "sent": 32,
+    "fee": 4,
+    "credited": 28,
+    "refunded": 0,
+    "status": "applied"
+   }
+  ],
+  "receipts_dropped": 0,
+  "unmet": [
+   {
+    "id": 8,
+    "origin": 0,
+    "destination": 2,
+    "reason": "recipient_away",
+    "surplus_milli": 0
+   },
+   {
+    "id": 12,
+    "origin": 0,
+    "destination": 2,
+    "reason": "recipient_away",
+    "surplus_milli": 4800
+   },
+   {
+    "id": 19,
+    "origin": 0,
+    "destination": 2,
+    "reason": "recipient_away",
+    "surplus_milli": 553
+   },
+   {
+    "id": 23,
+    "origin": 0,
+    "destination": 1,
+    "reason": "recipient_away",
+    "surplus_milli": 82
+   },
+   {
+    "id": 35,
+    "origin": 0,
+    "destination": 2,
+    "reason": "recipient_away",
+    "surplus_milli": 325
+   },
+   {
+    "id": 38,
+    "origin": 1,
+    "destination": 2,
+    "reason": "recipient_away",
+    "surplus_milli": 960
+   },
+   {
+    "id": 41,
+    "origin": 1,
+    "destination": 2,
+    "reason": "recipient_away",
+    "surplus_milli": 1754
+   },
+   {
+    "id": 50,
+    "origin": 1,
+    "destination": 0,
+    "reason": "recipient_away",
+    "surplus_milli": 0
+   },
+   {
+    "id": 51,
+    "origin": 1,
+    "destination": 0,
+    "reason": "recipient_away",
+    "surplus_milli": 0
+   },
+   {
+    "id": 54,
+    "origin": 1,
+    "destination": 5,
+    "reason": "recipient_away",
+    "surplus_milli": 82
+   },
+   {
+    "id": 58,
+    "origin": 1,
+    "destination": 5,
+    "reason": "recipient_away",
+    "surplus_milli": 648
+   },
+   {
+    "id": 63,
+    "origin": 2,
+    "destination": 1,
+    "reason": "no_bond",
+    "surplus_milli": 1566
+   },
+   {
+    "id": 65,
+    "origin": 2,
+    "destination": 0,
+    "reason": "recipient_away",
+    "surplus_milli": 0
+   },
+   {
+    "id": 76,
+    "origin": 4,
+    "destination": 5,
+    "reason": "recipient_away",
+    "surplus_milli": 517
+   },
+   {
+    "id": 77,
+    "origin": 4,
+    "destination": 1,
+    "reason": "recipient_away",
+    "surplus_milli": 1196
+   },
+   {
+    "id": 79,
+    "origin": 4,
+    "destination": 7,
+    "reason": "recipient_away",
+    "surplus_milli": 0
+   },
+   {
+    "id": 80,
+    "origin": 4,
+    "destination": 7,
+    "reason": "recipient_away",
+    "surplus_milli": 0
+   },
+   {
+    "id": 82,
+    "origin": 4,
+    "destination": 6,
+    "reason": "recipient_away",
+    "surplus_milli": 0
+   },
+   {
+    "id": 83,
+    "origin": 4,
+    "destination": 7,
+    "reason": "recipient_away",
+    "surplus_milli": 0
+   },
+   {
+    "id": 89,
+    "origin": 4,
+    "destination": 7,
+    "reason": "recipient_away",
+    "surplus_milli": 0
+   },
+   {
+    "id": 90,
+    "origin": 4,
+    "destination": 1,
+    "reason": "recipient_away",
+    "surplus_milli": 727
+   },
+   {
+    "id": 91,
+    "origin": 4,
+    "destination": 7,
+    "reason": "recipient_away",
+    "surplus_milli": 1267
+   },
+   {
+    "id": 95,
+    "origin": 4,
+    "destination": 1,
+    "reason": "recipient_away",
+    "surplus_milli": 1115
+   },
+   {
+    "id": 100,
+    "origin": 4,
+    "destination": 1,
+    "reason": "recipient_away",
+    "surplus_milli": 879
+   },
+   {
+    "id": 104,
+    "origin": 4,
+    "destination": 0,
+    "reason": "recipient_away",
+    "surplus_milli": 1105
+   },
+   {
+    "id": 105,
+    "origin": 4,
+    "destination": 7,
+    "reason": "recipient_on_trip",
+    "surplus_milli": 292
+   },
+   {
+    "id": 107,
+    "origin": 4,
+    "destination": 6,
+    "reason": "recipient_away",
+    "surplus_milli": 0
+   },
+   {
+    "id": 115,
+    "origin": 4,
+    "destination": 1,
+    "reason": "recipient_away",
+    "surplus_milli": 82
+   },
+   {
+    "id": 116,
+    "origin": 4,
+    "destination": 0,
+    "reason": "recipient_away",
+    "surplus_milli": 0
+   },
+   {
+    "id": 118,
+    "origin": 4,
+    "destination": 0,
+    "reason": "recipient_away",
+    "surplus_milli": 1593
+   },
+   {
+    "id": 125,
+    "origin": 4,
+    "destination": 1,
+    "reason": "recipient_away",
+    "surplus_milli": 1195
+   },
+   {
+    "id": 129,
+    "origin": 4,
+    "destination": 0,
+    "reason": "recipient_away",
+    "surplus_milli": 648
+   }
+  ],
+  "unmet_dropped": 3,
+  "last_pool_reset": null,
+  "counters": {
+   "turns": 13,
+   "moves_seen": 268,
+   "departures": 195,
+   "onward_moves": 60,
+   "returns": 13,
+   "deaths": 13,
+   "sender_turns_evaluated": 1291,
+   "eligible_sender_turns": 207,
+   "linked_sender_turns": 4,
+   "unlinked_sender_turns": 203,
+   "no_surplus_sender_turns": 1,
+   "rows": 3,
+   "rows_applied": 3,
+   "requested_milli": 63,
+   "fee_requested_milli": 9,
+   "sent_milli": 72,
+   "fee_milli": 9,
+   "credited_milli": 63,
+   "refunded_milli": 0,
+   "not_sent_milli": 0
+  },
+  "parameters": {
+   "settled_turns": 5,
+   "share_permille": 100,
+   "reserve_milli": 2000,
+   "cap_milli": 1000,
+   "fee_permille": 150,
+   "min_sentiment": 20,
+   "adult_age": 20,
+   "max_entries": 2048
+  }
+ }
+}

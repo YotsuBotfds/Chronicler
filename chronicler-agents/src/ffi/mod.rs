@@ -842,6 +842,26 @@ impl AgentSimulator {
         Ok(receipt.rows.into_iter().map(|r| (r.agent_id, r.requested, r.applied, r.residual, r.status)).collect())
     }
 
+    /// RS4 remittances (`wealth_transfer::remit`): (sender, recipient,
+    /// amount, fee) milli-unit rows under the purpose `remittance`, once per
+    /// (turn, batch). Returns per row (sender, recipient, sent, fee,
+    /// credited, refunded, status: 0 applied, 1 limited, 2 absent). Refuses
+    /// a repeated key or invalid rows unchanged.
+    #[allow(clippy::type_complexity)]
+    pub fn remit_wealth(&mut self, turn: u32, batch: u32, rows: Vec<(u32, u32, i64, i64)>)
+        -> PyResult<Vec<(u32, u32, i64, i64, i64, i64, u8)>> {
+        let out = crate::wealth_transfer::remit(&mut self.pool, turn, batch, &rows).map_err(PyValueError::new_err)?;
+        if out.iter().any(|r| r.sent != 0) {
+            self.snapshot_cache = None; // the pool changed: drop the cached snapshot
+        }
+        Ok(out.into_iter().map(|r| (r.sender, r.recipient, r.sent, r.fee, r.credited, r.refunded, r.status)).collect())
+    }
+
+    /// RS4: stable ids of living agents away on a merchant trip, ascending (reads only).
+    pub fn trip_agent_ids(&self) -> Vec<u32> {
+        crate::wealth_transfer::trip_ids(&self.pool)
+    }
+
     /// Livelihoods L6a: transfer purposes in declaration order (append only).
     #[staticmethod]
     pub fn wealth_transfer_purposes() -> Vec<&'static str> {
