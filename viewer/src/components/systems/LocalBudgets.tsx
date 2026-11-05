@@ -10,7 +10,7 @@ const MODE_NOTE: Record<string, string> = {
 };
 const OUTCOME: Record<string, string> = {
   none: "Nothing fundable", uncontested: "Uncontested", commons_first: "Commons first (relief, granaries)",
-  patricians_first: "Patricians first (workshops)", compromise: "Compromise", fixed_shares: "Fixed shares",
+  patricians_first: "Patricians first (workshops, firms' sales, wardens)", compromise: "Compromise", fixed_shares: "Fixed shares",
 };
 const FUNNEL: Array<[string, string]> = [
   ["decision_civ_turns", "Ruler decisions"], ["budget_civ_turns", "With a budget"], ["proposal_civ_turns", "With proposals"],
@@ -46,7 +46,7 @@ export function LocalBudgets({ bundle, snapshot, currentTurn, onSelectRegion }: 
   return <section className="systems-section" aria-label="Local budgets">
     <h3>Local budgets · snapshot {turn}</h3>
     <p className="systems-note">Phase 10 of simulation turn {record.source_turn}: each ruler settles last turn's envelopes from the services' own receipts, then commits one projected budget to next turn's. {MODE_NOTE[record.mode]}</p>
-    <p className="systems-note">Granary purchases, granary works and workshop bills spend only within an accepted envelope; academy supplies are reserved first, not bargained.</p>
+    <p className="systems-note">Granary purchases, granary works, workshop bills and, when their switches are on, commons wardens and academies' purchases from workshop firms spend only within an accepted envelope; academies' own market purchases are reserved first, not bargained.</p>
     {record.decisions === null ? <p className="systems-note">No budget decision was recorded in simulation turn {record.source_turn}; allocations are unknown, not zero.</p> :
       <div className="systems-table-wrap"><table className="systems-table" aria-label={`Budget decisions at snapshot ${turn}`}>
         <thead><tr><th>Ruler</th><th>Budget</th><th>Commons burden</th><th>Patricians burden</th><th>Influence (commons / patricians)</th><th>Proposals</th><th>Adopted</th><th>Funded</th></tr></thead>
