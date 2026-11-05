@@ -203,3 +203,46 @@ def test_the_stub_switches_leave_a_real_operating_run_unchanged(tmp_path):
     for name in rs:
         assert saved.pop(name)["enabled"] is True
     assert saved == base_saved and ws == base_ws
+
+
+#: Every recovery-skills switch with the sprint-2 stack and the prerequisites it needs.
+ALL_SWITCHES = ["--scholarship", "--techniques", "--academy-services", "--grain-reserves", "--grain-storage",
+                "--public-grain-shipments", "--workshops", "--workshop-payroll", "--learning-cohorts",
+                "--food-allocation", "--timber-stock", "--commons-rules", "--grain-convoys", "--local-budgets",
+                "--relocation-costs", *RS_FLAGS]
+
+
+def test_an_all_switch_state_fork_closes_every_saved_id_bound_record(tmp_path):
+    """A live Fork saves a state file; ``--fork`` (handled by the CLI's main)
+    rebuilds the native pool under reused ids, so every package's saved
+    id-bound records close, dated, at the fork (``livelihoods.bind_native_pool``
+    -> ``on_pool_reset``)."""
+    import json
+    import os
+    import subprocess
+    import sys
+    from chronicler.bundle_codec import load_bundle
+    env = dict(os.environ, PYTHONHASHSEED="0", RAYON_NUM_THREADS="1", CHRONICLER_QUIET="1")
+
+    def cli(*argv):
+        p = subprocess.run([sys.executable, "-m", "chronicler.main", *argv, "--agents", "hybrid", "--simulate-only",
+                            *ALL_SWITCHES], env=env, capture_output=True, text=True, timeout=900)
+        assert p.returncode == 0, p.stderr[-2000:]
+
+    saved = tmp_path / "a" / "state.json"
+    cli("--seed", "9", "--turns", "40", "--output", str(tmp_path / "a" / "chronicle.md"), "--state", str(saved))
+    before = json.loads(saved.read_text())["livelihoods"]
+    entries = len(before["remittances"]["entries"])
+    open_veterans = [r for r in before["veteran_reintegration"]["records"] if r.get("status") != "closed"]
+    held = [q for q in before["apprenticeship"]["qualifications"] if q.get("status") == "held"]
+    assert entries > 0, "this world was expected to hold diaspora entries at turn 40"
+    cli("--fork", str(saved), "--seed", "21", "--turns", "4", "--output", str(tmp_path / "b" / "chronicle.md"),
+        "--state", str(tmp_path / "b" / "state.json"))
+    first = load_bundle(tmp_path / "b" / "chronicle_bundle.json")["history"][0]["livelihoods"]
+    rem = first["remittances"]
+    assert rem["last_pool_reset"]["turn"] == 40 and rem["last_pool_reset"]["entries_closed"] == entries
+    assert rem["counters"]["pool_resets"] == 1
+    if open_veterans:
+        assert first["veteran_reintegration"]["counters"].get("closed_pool_reset", 0) == len(open_veterans)
+    if held:
+        assert first["apprenticeship"]["counters"].get("retired_pool_reset", 0) == len(held)
