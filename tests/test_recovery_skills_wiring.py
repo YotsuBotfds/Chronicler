@@ -270,7 +270,10 @@ def test_activity_follows_prerequisite_state_at_run_time(world):
     assert CP.clearing_protection_active(world)
     world.agent_mode = "hybrid"
     world.livelihoods.workshops.mode = "cost_only"
-    assert not A.apprenticeship_active(world) and not RP.repair_projects_active(world)
+    assert not A.apprenticeship_active(world)
+    # RS2 runs with workshops in any mode (sites are repaired only in operate
+    # mode, so the cost-only lump stays in force).
+    assert RP.repair_projects_active(world) and RP.legacy_workshop_repair_allowed(world)
     assert VR.veteran_reintegration_active(world) and RM.remittances_active(world)
 
 

@@ -34,11 +34,12 @@ export interface RepairReceiptRecord {
   income_replaced: number | null;
 }
 
-/** One civilization's repair accounts (one rounding per civ and turn). */
+/** One civilization's repair accounts: whole units charged once a turn, the
+ * sub-unit remainder prepaid toward its next repair costs. */
 export interface CivLedgerRecord {
   turn: number; civ: number; projects: number; work_delivered: number; timber_used: number;
   coin_cost_milli: number; wages_due_milli: number; wages_applied_milli: number; wage_residual_milli: number;
-  charged: number; rounding_milli: number; envelope: number | null;
+  charged: number; prepaid_before_milli: number; prepaid_after_milli: number; envelope: number | null;
 }
 
 export interface UnmetNeedRecord {
@@ -54,6 +55,8 @@ export interface RepairProjectsRecord {
   ledger: CivLedgerRecord[] | null;
   unmet: UnmetNeedRecord[] | null;
   suspended: number[] | null;
+  /** civ index -> milli-units charged and not yet used (each below one unit). */
+  prepaid: Record<string, number>;
   counters: Record<string, number>;
   parameters: Record<string, number>;
 }
@@ -133,9 +136,10 @@ function validReceipt(x: unknown, regions: number, source: number, mode: string)
 function validLedger(x: unknown, civs: number, source: number): boolean {
   return object(x) && x.turn === source && count(x.civ) && x.civ < civs && count(x.projects)
     && amount(x.work_delivered) && amount(x.timber_used) && count(x.coin_cost_milli) && count(x.wages_due_milli)
-    && count(x.wages_applied_milli) && count(x.wage_residual_milli) && count(x.charged) && count(x.rounding_milli)
-    && x.rounding_milli < 1000 && maybe(count)(x.envelope)
-    && x.charged * 1000 === x.coin_cost_milli + x.wages_applied_milli + x.rounding_milli
+    && count(x.wages_applied_milli) && count(x.wage_residual_milli) && count(x.charged)
+    && count(x.prepaid_before_milli) && x.prepaid_before_milli < 1000
+    && count(x.prepaid_after_milli) && x.prepaid_after_milli < 1000 && maybe(count)(x.envelope)
+    && x.charged * 1000 + x.prepaid_before_milli === x.coin_cost_milli + x.wages_applied_milli + x.prepaid_after_milli
     && x.wages_applied_milli + x.wage_residual_milli === x.wages_due_milli
     && (x.envelope === null || x.charged <= (x.envelope as number));
 }
@@ -157,6 +161,8 @@ export function repairProjectsAt(snapshot: TurnSnapshot | null, regionCount: num
     || !x.projects.every((p) => validProject(p, regionCount, true))
     || !Array.isArray(x.closed) || x.closed.length > 16 || !x.closed.every((p) => validProject(p, regionCount, false))
     || !Array.isArray(x.damages) || x.damages.length > 32 || !x.damages.every((d) => validDamage(d, regionCount))
+    || !object(x.prepaid) || !Object.entries(x.prepaid).every(([k, v]) => /^\d+$/.test(k) && Number(k) < civCount
+      && count(v) && v > 0 && v < 1000)
     || !object(x.counters) || !Object.values(x.counters).every(finite) || !object(x.parameters)) return null;
   const projects = x.projects as RepairProjectRecord[];
   const assets = new Set(projects.map((p) => `${p.kind}:${p.asset}`));

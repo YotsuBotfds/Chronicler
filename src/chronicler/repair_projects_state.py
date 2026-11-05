@@ -150,9 +150,11 @@ class RepairReceipt(BaseModel):
 
 
 class CivLedger(BaseModel):
-    """One civilization's repair accounts in one turn. Exact closure:
-    ``charged * 1000 == coin_cost_milli + wages_applied_milli + rounding_milli``
-    with ``0 <= rounding_milli < 1000`` (one rounding per civ and turn)."""
+    """One civilization's repair accounts in one turn. The treasury pays whole
+    units, once per civ and turn; the sub-unit part of the last whole unit is
+    prepaid toward the civ's next repair costs. Exact closure:
+    ``charged * 1000 + prepaid_before_milli == coin_cost_milli +
+    wages_applied_milli + prepaid_after_milli``, both balances in [0, 1000)."""
 
     turn: int
     civ: int
@@ -164,7 +166,8 @@ class CivLedger(BaseModel):
     wages_applied_milli: int
     wage_residual_milli: int
     charged: int
-    rounding_milli: int
+    prepaid_before_milli: int
+    prepaid_after_milli: int
     envelope: int | None = None
 
 
@@ -196,6 +199,10 @@ class RepairProjectsState(BaseModel):
     #: Regions whose ordinary storage request was suspended in the frame turn.
     suspended: list[int] = Field(default_factory=list)
     last_settled_turn: int | None = None
+    #: civ index -> milli-units already charged in whole units and not yet
+    #: used (each in [0, 1000)); written off when the civ has no regions or
+    #: the switch is turned off.
+    prepaid: dict[int, int] = Field(default_factory=dict)
     #: Scalar lifetime counters (bounded: a fixed key set).
     counters: dict[str, float] = Field(default_factory=dict)
     # Transient, within one turn (Phase 2 -> Phase 10); never serialized.

@@ -91,11 +91,11 @@ export function RepairProjects({ bundle, snapshot, currentTurn, onSelectRegion }
       </table></div>}
     {record.ledger && record.ledger.length > 0 ?
       <div className="systems-table-wrap"><table className="systems-table" aria-label={`Repair accounts at snapshot ${turn}`}>
-        <thead><tr><th>Ruler</th><th>Projects</th><th>Work</th><th>Timber</th><th>Wages</th><th>Coins for work</th><th>Charged (one rounding)</th></tr></thead>
+        <thead><tr><th>Ruler</th><th>Projects</th><th>Work</th><th>Timber</th><th>Wages</th><th>Coins for work</th><th>Charged (whole units, prepaid remainder)</th></tr></thead>
         <tbody>{record.ledger.map((l) => <tr key={l.civ}>
           <td>{civ(l.civ)}</td><td>{l.projects}</td><td>{show(l.work_delivered)}</td><td>{show(l.timber_used)}</td>
           <td>{coins(l.wages_applied_milli)}</td><td>{coins(l.coin_cost_milli)}</td>
-          <td>{`${l.charged} (rounding ${coins(l.rounding_milli)})${l.envelope !== null ? ` of envelope ${l.envelope}` : ""}`}</td>
+          <td>{`${l.charged} (prepaid ${coins(l.prepaid_before_milli)} → ${coins(l.prepaid_after_milli)})${l.envelope !== null ? ` of envelope ${l.envelope}` : ""}`}</td>
         </tr>)}</tbody>
       </table></div> : null}
     {record.unmet === null ? null : record.unmet.length === 0 ? null :

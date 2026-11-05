@@ -21,15 +21,15 @@ const work = { ...crew, pid: 1, kind: "granary", asset: 0, region: 0, reasons: [
   wages_milli: 0, coin_cost_milli: 8000, condition_before: 0.5, condition_after: 0.59, remaining_after: 16,
   income_replaced: null };
 const ledger = { turn: 7, civ: 0, projects: 2, work_delivered: 4.4, timber_used: 4.4, coin_cost_milli: 8000,
-  wages_due_milli: 400, wages_applied_milli: 400, wage_residual_milli: 0, charged: 9, rounding_milli: 600,
-  envelope: null };
+  wages_due_milli: 400, wages_applied_milli: 400, wage_residual_milli: 0, charged: 9, prepaid_before_milli: 300,
+  prepaid_after_milli: 900, envelope: null };
 const record = { schema_version: 1, stage: "RS2", mode: "repair", source_turn: 7, units: { milli: 1000 },
   projects: [granary, project], closed: [{ ...granary, pid: 0, status: "completed", closed_turn: 5, delivered: 20 }],
   damages: [{ did: 4, turn: 5, kind: "workshop", asset: 0, region: 1, event: "sack", war_key: "A:B",
     war_start_turn: 3, amount: 0.25, condition_before: 0.65, condition_after: 0.4, project: 2 }],
   receipts: [work, crew], ledger: [ledger],
   unmet: [{ kind: "granary", asset: 2, region: 2, condition: 0.1, reason: "zero_capacity" }], suspended: [0],
-  counters: { opened_wear: 2, opened_war: 1, progress_turns: 3, completed: 1, damages: 1 }, parameters: { open_below: 0.75 } };
+  prepaid: { "0": 900 }, counters: { opened_wear: 2, opened_war: 1, progress_turns: 3, completed: 1, damages: 1 }, parameters: { open_below: 0.75 } };
 const snap = (repair_projects: unknown, turn = 8) =>
   ({ turn, livelihoods: { schema_version: 1, repair_projects } } as unknown as TurnSnapshot);
 
@@ -46,7 +46,9 @@ describe("repair projects reader", () => {
   it("refuses unbalanced books, work beyond the plan and double crews", () => {
     const off = (patch: object) => repairProjectsAt(snap({ ...record, ...patch }), 3, 2);
     expect(off({ ledger: [{ ...ledger, charged: 8 }] })).toBeNull();
-    expect(off({ ledger: [{ ...ledger, rounding_milli: 1600, charged: 10 }] })).toBeNull();
+    expect(off({ ledger: [{ ...ledger, prepaid_after_milli: 1900, charged: 10 }] })).toBeNull();
+    expect(off({ prepaid: { "0": 1000 } })).toBeNull();
+    expect(off({ prepaid: { "5": 10 } })).toBeNull();
     expect(off({ receipts: [{ ...work, delivered: 5, credited: 5 }, crew] })).toBeNull();
     expect(off({ receipts: [work, { ...crew, wages_milli: 300 }] })).toBeNull();
     expect(off({ receipts: [work, { ...crew, timber_returned: 1 }] })).toBeNull();
@@ -61,7 +63,7 @@ describe("repair projects reader", () => {
     expect(repairProjectsAt(snap({ ...record, mode: "cost_only" }), 3, 2)).toBeNull();
     const control = { ...record, mode: "cost_only", projects: [{ ...granary, credited: 0 }],
       closed: [], receipts: [{ ...work, credited: 0 }], ledger: [{ ...ledger, projects: 1, wages_due_milli: 0,
-        wages_applied_milli: 0, charged: 8, rounding_milli: 0 }] };
+        wages_applied_milli: 0, charged: 8, prepaid_before_milli: 0, prepaid_after_milli: 0 }], prepaid: {} };
     expect(repairProjectsAt(snap(control), 3, 2)?.mode).toBe("cost_only");
     const bad = { ...record.damages[0], condition_after: 0.5 };
     expect(repairProjectsAt(snap({ ...record, damages: [bad] }), 3, 2)).toBeNull();

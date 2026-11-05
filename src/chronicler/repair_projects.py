@@ -1,7 +1,7 @@
 """RS2 maintenance, reconstruction and repair projects (``--repair-projects``, default off).
 
-Requires ``--agents hybrid`` and ``--workshops`` in ``operate`` mode or
-``--grain-storage``. Modes (``--repair-mode``): ``repair`` (default) and the
+Requires ``--agents hybrid`` and ``--workshops`` or ``--grain-storage``;
+workshop sites are repaired only in workshop ``operate`` mode. Modes (``--repair-mode``): ``repair`` (default) and the
 cost-retaining control ``cost_only`` (projects reserve, pay and use timber
 identically, and condition does not change).
 
@@ -36,7 +36,7 @@ the native economy delivers at most the farmers' labour. Zero-capacity
 granaries get no project. Each delivered unit uses one timber and costs
 ``COINS_PER_WORK`` coins (the storage rule), charged once per civilization
 per turn (each row rounded up to the milli-unit, the civ total once to a
-whole unit), never per region.
+whole unit, its remainder prepaid toward the next turn), never per region.
 
 Workshop labour is a named crew of at most ``MAX_CREW`` adult urban farmers
 resident in the site's settlement, reserved in the shared native work
@@ -90,10 +90,13 @@ the screen ablation. Damage applies in both modes.
 Consumers are unchanged: a granary's usable capacity and extra spoilage, a
 workshop's ``OPERATE_CONDITION`` gate (and RS1 wear).
 
-Closure, every turn and civilization: ``charged x 1000 == coin costs +
-wages applied + rounding`` (rounding in [0, 1000)), timber used equals the
-work delivered times its timber rate and the timber held is used or
-returned. All parameters are declared modeling choices, not calibrated.
+Closure, every turn and civilization: the treasury pays whole units once,
+and the sub-unit remainder of the last unit is prepaid toward the civ's next
+repair costs, so rounding never accumulates: ``charged x 1000 + prepaid
+before == coin costs + wages applied + prepaid after`` (balances in [0,
+1000), written off when the civ has no regions or the switch is turned
+off). Timber used equals the work delivered times its timber rate and the
+timber held is used or returned. All parameters are declared modeling choices, not calibrated.
 """
 from __future__ import annotations
 
@@ -225,7 +228,15 @@ def set_repair_projects_enabled(world, value: bool, *, args=None, agent_mode=Non
     if not value and state.enabled:
         for project in list(state.projects):
             _close(state, project, getattr(world, "turn", 0), "abandoned", "switched_off")
+        _write_off(state, list(state.prepaid))
     state.enabled = bool(value)
+
+
+def _write_off(state, civs) -> None:
+    for civ in civs:
+        amount = state.prepaid.pop(civ, 0)
+        if amount:
+            _bump(state, "prepaid_written_off_milli", amount)
 
 
 def _grain_storage_on(world) -> bool:
@@ -239,10 +250,15 @@ def _workshops_operate(world) -> bool:
 
 
 def repair_projects_active(world) -> bool:
+    """Enabled in a hybrid run with workshops (any mode) or grain storage. The
+    workshop half acts only on operate-mode sites (:func:`_sites`); in observe
+    or cost-only workshop mode RS2 repairs granaries only and the L1 lump
+    repair stays in force."""
     state = _state(world)
     if state is None or not state.enabled or getattr(world, "agent_mode", None) != "hybrid":
         return False
-    return _workshops_operate(world) or _grain_storage_on(world)
+    from chronicler.workshops import workshops_active
+    return workshops_active(world) or _grain_storage_on(world)
 
 
 def _lane_active(world, name: str) -> bool:
@@ -891,8 +907,14 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
     for civ in sorted(ledger):
         r = ledger[civ]
         total = r["cost"] + r["applied"]
-        charged = -(-total // MILLI)
-        rounding = charged * MILLI - total
+        before = int(state.prepaid.get(civ, 0))
+        need = total - before
+        charged = max(0, -(-need // MILLI))
+        after = charged * MILLI - need
+        if after:
+            state.prepaid[civ] = after
+        else:
+            state.prepaid.pop(civ, None)
         if civ >= 0 and charged:
             target = world.civilizations[civ]
             if acc is None:
@@ -902,12 +924,13 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
         out.append(CivLedger(turn=world.turn, civ=civ, projects=r["projects"], work_delivered=r["work"],
                              timber_used=r["timber"], coin_cost_milli=r["cost"], wages_due_milli=r["due"],
                              wages_applied_milli=r["applied"], wage_residual_milli=r["residual"],
-                             charged=charged, rounding_milli=rounding, envelope=r["envelope"]))
+                             charged=charged, prepaid_before_milli=before, prepaid_after_milli=after,
+                             envelope=r["envelope"]))
         _bump(state, "charged", charged)
         _bump(state, "coin_cost_milli", r["cost"])
         _bump(state, "wages_milli", r["applied"])
         _bump(state, "wage_residual_milli", r["residual"])
-        _bump(state, "rounding_milli", rounding)
+
     for row in out:
         check_ledger(row)
         if row.envelope is not None and row.charged > row.envelope:
@@ -926,8 +949,10 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
 
 def check_ledger(row: CivLedger) -> None:
     """Exact integer closure of one civ's repair accounts in one turn."""
-    if row.charged * MILLI != row.coin_cost_milli + row.wages_applied_milli + row.rounding_milli \
-            or not 0 <= row.rounding_milli < MILLI or row.charged < 0:
+    if row.charged * MILLI + row.prepaid_before_milli \
+            != row.coin_cost_milli + row.wages_applied_milli + row.prepaid_after_milli \
+            or not 0 <= row.prepaid_before_milli < MILLI or not 0 <= row.prepaid_after_milli < MILLI \
+            or row.charged < 0:
         raise RuntimeError(f"repair accounts of civ {row.civ} do not close")
     if row.wages_applied_milli + row.wage_residual_milli != row.wages_due_milli:
         raise RuntimeError(f"repair wages of civ {row.civ} do not close")
@@ -1054,6 +1079,8 @@ def phase10_before_reserves(world, acc, economy_result, agent_bridge):
         _bump(state, f"opened_{p.cause}")
         _bump(state, f"opened_{kind}")
     state.unmet = unmet
+    _write_off(state, [civ for civ in sorted(state.prepaid)
+                       if not 0 <= civ < len(world.civilizations) or not world.civilizations[civ].regions])
     return []
 
 
@@ -1096,6 +1123,7 @@ def snapshot_summary(world) -> dict:
         "ledger": [r.model_dump() for r in state.ledger] if fresh and state.ledger is not None else None,
         "unmet": [u.model_dump() for u in state.unmet] if fresh else None,
         "suspended": list(state.suspended) if fresh else None,
+        "prepaid": {str(civ): amount for civ, amount in sorted(state.prepaid.items())},
         "counters": dict(state.counters),
         "parameters": {"open_below": OPEN_BELOW, "granary_work_per_condition": per_condition,
                        "granary_work_per_turn": per_turn, "granary_timber_per_work": timber_rate,
@@ -1114,7 +1142,7 @@ def snapshot_summary(world) -> dict:
 def budget_proposal(world, civ: int, obs) -> list[dict]:
     """One divisible ``repairs`` proposal per civ: next turn's planned work of
     its open projects at their current inputs, its cost in whole units (one
-    rounding) and the burden it relieves (commons: granary spoilage and the
+    whole-unit charge) and the burden it relieves (commons: granary spoilage and the
     reserve target worn capacity cannot hold; patricians: workshop crew work
     standing idle at a site shut for repair), from dated observations."""
     state = _state(world)
@@ -1200,7 +1228,7 @@ def budget_settlement(world, c, obs) -> dict:
     spent, delivered = int(row.charged), float(row.work_delivered)
     ratio = min(1.0, delivered / c.expected) if c.expected > EPS else 1.0
     done = all(r.remaining_after <= DONE for r in mine)
-    detail = {"projects": len(mine), "charged": spent, "rounding_milli": row.rounding_milli}
+    detail = {"projects": len(mine), "charged": spent, "prepaid_after_milli": row.prepaid_after_milli}
     if ratio >= KEPT_RATIO or spent >= KEPT_RATIO * c.amount or done:
         return {"outcome": "kept", "reason": None, "spent": spent, "delivered": delivered,
                 "ratio": 1.0 if done else ratio, "detail": detail}

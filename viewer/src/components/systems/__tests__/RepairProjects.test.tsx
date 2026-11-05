@@ -29,9 +29,9 @@ const record = { schema_version: 1, stage: "RS2", mode: "repair", source_turn: 7
     war_start_turn: 3, amount: 0.25, condition_before: 0.65, condition_after: 0.4, project: 2 }],
   receipts: [stalled, crew], ledger: [{ turn: 7, civ: 0, projects: 2, work_delivered: 0.2, timber_used: 0.2,
     coin_cost_milli: 0, wages_due_milli: 200, wages_applied_milli: 200, wage_residual_milli: 0, charged: 1,
-    rounding_milli: 800, envelope: null }],
+    prepaid_before_milli: 0, prepaid_after_milli: 800, envelope: null }],
   unmet: [{ kind: "granary", asset: 2, region: 2, condition: 0.1, reason: "zero_capacity" }], suspended: [0],
-  counters: { opened_wear: 2, opened_war: 1, progress_turns: 3, stalled_turns: 4, work_delivered: 1.2, charged: 3 },
+  prepaid: { "0": 800 }, counters: { opened_wear: 2, opened_war: 1, progress_turns: 3, stalled_turns: 4, work_delivered: 1.2, charged: 3 },
   parameters: { open_below: 0.75 } };
 
 function props(repair_projects: unknown, turn = 8) {
@@ -57,7 +57,7 @@ it("shows projects with cause, crew, funding, stalls and dated outcomes", () => 
   expect(rows[2]).toHaveTextContent("no qualified repairer");
   expect(rows[2]).toHaveTextContent("Dorrath: wages 0.2");
   const accounts = within(screen.getByRole("table", { name: "Repair accounts at snapshot 8" }));
-  expect(accounts.getAllByRole("row")[1]).toHaveTextContent("1 (rounding 0.8)");
+  expect(accounts.getAllByRole("row")[1]).toHaveTextContent("1 (prepaid 0 → 0.8)");
   expect(screen.getByText(/granary in Fen at 0.1 \(zero capacity\)/)).toBeInTheDocument();
   expect(screen.getByText(/abandoned, no controller turn 4/)).toBeInTheDocument();
   expect(within(screen.getByRole("table", { name: "Recent war damage at snapshot 8" })).getAllByRole("row")[1])

@@ -253,7 +253,7 @@ def test_granary_project_is_sized_to_the_deficit_and_owns_the_storage_channel():
     assert world.civilizations[0].treasury == treasury - 8
     assert world.regions[0].stockpile.goods["timber"] == pytest.approx(50.0 - 4.0)
     (ledger,) = _state(world).ledger
-    assert (ledger.charged, ledger.coin_cost_milli, ledger.rounding_milli) == (8, 8000, 0)
+    assert (ledger.charged, ledger.coin_cost_milli, ledger.prepaid_after_milli) == (8, 8000, 0)
     assert _state(world).projects[0].delivered == 4.0
 
 
@@ -276,7 +276,7 @@ def test_no_work_beyond_the_cap_and_completion_closes_the_project():
     assert "cap_waste" not in _state(world).counters
 
 
-def test_one_rounding_per_civ_instead_of_one_per_region():
+def test_one_whole_unit_charge_per_civ_and_the_remainder_is_prepaid():
     world = _world(granary=0.5)
     storage = world.grain_reserves.storage
     for a in storage.assets:
@@ -287,10 +287,26 @@ def test_one_rounding_per_civ_instead_of_one_per_region():
     treasury = world.civilizations[0].treasury
     _turn(world, sim, labor=1.3)      # 1.3 work each: 2.6 coins per region
     (ledger,) = _state(world).ledger
-    assert ledger.coin_cost_milli == 3 * 2600 and ledger.charged == 8 and ledger.rounding_milli == 200
+    assert ledger.coin_cost_milli == 3 * 2600 and ledger.charged == 8 and ledger.prepaid_after_milli == 200
     assert treasury - world.civilizations[0].treasury == 8         # per region: 3 x ceil(2.6) = 9
     assert all("no_labor" in r.reasons for r in _state(world).receipts)
     RP.check_ledger(ledger)
+    assert _state(world).prepaid == {0: 200}
+    # The prepaid remainder pays toward the next turn: 7.8 coins cost 7.6 more.
+    _turn(world, sim, labor=1.3)
+    (ledger,) = _state(world).ledger
+    assert (ledger.prepaid_before_milli, ledger.charged, ledger.prepaid_after_milli) == (200, 8, 400)
+    assert treasury - world.civilizations[0].treasury == 16
+    # Over many turns the charge never exceeds the cost by a whole unit.
+    for _ in range(4):
+        _turn(world, sim, labor=1.3)
+    cost = _state(world).counters["coin_cost_milli"]
+    assert cost == 6 * 7800 and _state(world).prepaid == {0: 200}
+    assert 0 <= (treasury - world.civilizations[0].treasury) * 1000 - cost < 1000
+    # A civ left without regions loses its prepaid remainder (written off).
+    world.civilizations[0].regions = []
+    RP.phase10_before_reserves(world, None, None, None)
+    assert _state(world).prepaid == {} and _state(world).counters["prepaid_written_off_milli"] > 0
 
 
 def test_zero_capacity_granaries_get_no_project_and_are_unmet():
@@ -367,7 +383,7 @@ def test_workshop_crew_is_reserved_paid_by_id_and_never_also_crew():
     site = world.livelihoods.workshops.sites[0]
     assert site.condition == pytest.approx(0.4 + work / RP.WORKSHOP_WORK_PER_CONDITION)
     (ledger,) = _state(world).ledger
-    assert (ledger.wages_applied_milli, ledger.charged, ledger.rounding_milli) == (400, 1, 600)
+    assert (ledger.wages_applied_milli, ledger.charged, ledger.prepaid_after_milli) == (400, 1, 600)
     assert treasury - world.civilizations[0].treasury == 1 + W.UPKEEP     # repair + L1 upkeep
     # No lump repair was billed and the shut site did not operate.
     receipt = world.livelihoods.workshops.frame[0]
@@ -460,8 +476,10 @@ def test_switching_off_abandons_and_pool_reset_clears_crews():
     assert p.last_crew == [100, 101, 102, 103]
     RP.on_pool_reset(world)
     assert p.last_crew == [] and p.history[-1][1] == "pool_reset"
+    assert _state(world).prepaid == {0: 600}
     RP.set_repair_projects_enabled(world, False, args=None)
     assert _state(world).projects == [] and _state(world).closed[-1].closed_reason == "switched_off"
+    assert _state(world).prepaid == {} and _state(world).counters["prepaid_written_off_milli"] == 600
     assert not RP.repair_projects_active(world) and RP.legacy_workshop_repair_allowed(world)
     assert S._repair_suspended(world) == frozenset()
 
@@ -507,10 +525,11 @@ def test_a_turn_settles_once():
 
 def test_closure_check_refuses_unbalanced_books():
     good = CivLedger(turn=1, civ=0, projects=1, work_delivered=1.0, timber_used=1.0, coin_cost_milli=2000,
-                     wages_due_milli=300, wages_applied_milli=200, wage_residual_milli=100, charged=3,
-                     rounding_milli=800)
+                     wages_due_milli=300, wages_applied_milli=200, wage_residual_milli=100, charged=2,
+                     prepaid_before_milli=500, prepaid_after_milli=300)
     RP.check_ledger(good)
-    for change in ({"charged": 2}, {"rounding_milli": 1800, "charged": 4}, {"wage_residual_milli": 0}):
+    for change in ({"charged": 3}, {"prepaid_after_milli": 1300, "charged": 3}, {"wage_residual_milli": 0},
+                   {"prepaid_before_milli": 1500, "charged": 1}):
         with pytest.raises(RuntimeError, match="do not close"):
             RP.check_ledger(good.model_copy(update=change))
 
@@ -524,7 +543,7 @@ def test_a_wage_beyond_the_ceiling_is_not_charged():
     r = _state(world).receipts[0]
     assert r.wages_milli == 330 and r.wage_residual_milli == 70
     (ledger,) = _state(world).ledger
-    assert (ledger.wages_applied_milli, ledger.charged, ledger.rounding_milli) == (330, 1, 670)
+    assert (ledger.wages_applied_milli, ledger.charged, ledger.prepaid_after_milli) == (330, 1, 670)
 
 
 # ---------------------------------------------------------------------------
@@ -693,3 +712,16 @@ def test_feature_off_storage_planning_is_unchanged():
     pa_, pb = (S.prepare_storage_work(w, [10.0] * 3, commitments={}) for w in (a, b))
     assert pa_.requests == pb.requests and pa_.suspended == pb.suspended == frozenset()
     assert W._pending_storage_bills(a) == W._pending_storage_bills(b)
+
+
+def test_workshops_outside_operate_mode_keep_the_lump_and_get_no_projects():
+    world = _world(granary=0.5, site=0.4)
+    world.livelihoods.workshops.mode = "cost_only"
+    assert RP.repair_projects_active(world) and RP.legacy_workshop_repair_allowed(world)
+    assert "repair" in W._bill(world.livelihoods.workshops.sites[0], world)
+    _open(world)
+    assert [(p.kind, p.asset) for p in _state(world).projects] == [("granary", 0)]
+    sim = _Sim(_people())
+    _turn(world, sim)
+    assert all(r.kind == "granary" for r in _state(world).receipts) and sim.transfers == []
+    assert world.livelihoods.workshops.sites[0].condition == 1.0       # the L1 lump, as before
