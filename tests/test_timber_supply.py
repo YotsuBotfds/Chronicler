@@ -602,22 +602,93 @@ def test_death_migration_enlistment_trips_and_other_work_drop_members():
     assert exp2.crew == [3, 4]
 
 
-def test_cargo_is_lost_when_the_crew_dies_out_mid_expedition():
+def _wipe(s, ids=(1, 2, 3, 4)):
+    for a in ids:
+        s.people.pop(a, None)
+
+
+@pytest.mark.parametrize("stage, turns, cut", [("outbound", 1, 0.0), ("cutting", 4, 16.0), ("returning", 6, 24.0)])
+def test_a_crew_that_dies_out_deposits_its_cargo_at_the_forest(stage, turns, cut):
+    """The whole crew dies at each stage (forest two hops away): the cargo cut
+    so far is deposited in the forest region's stockpile as commons, never lost."""
+    world = _world(forest_hops=2)
+    sim = _Sim(_people())
+    _launch(world, sim)
+    for i in range(turns):
+        _turn(world, sim, between=_wipe if i == turns - 1 else None)
+    (r,) = _ts(world).receipts
+    assert r.stage == stage
+    (exp,) = _ts(world).closed
+    assert (exp.status, exp.end_reason) == ("abandoned", "crew_lost")
+    assert exp.cut == pytest.approx(cut) and exp.abandoned == pytest.approx(cut)
+    assert exp.lost == 0.0 and exp.cargo == 0.0 and exp.delivered == 0.0
+    assert world.regions[2].stockpile.goods["timber"] == pytest.approx(cut)
+    state = _ts(world)
+    assert state.counters.get("abandoned_cargo", 0.0) == pytest.approx(cut)
+    assert state.counters.get("lost", 0.0) == 0.0
+    assert state.deposits == ([(world.turn - 1, exp.eid, 2, pytest.approx(cut))] if cut else [])
+
+
+def test_a_partly_lost_crew_goes_on_and_delivers():
     world = _world()
     sim = _Sim(_people())
     _launch(world, sim)
-    _turn(world, sim)
-    _turn(world, sim)                                       # cut 8
-
-    def wipe(s):
-        for a in (1, 2, 3, 4):
-            s.people.pop(a, None)
-
-    _turn(world, sim, between=wipe)                         # cut 8 more, then all die
+    _turn(world, sim)                                       # outbound
+    _turn(world, sim, between=lambda s: _wipe(s, (1, 2, 3)))   # cut 8, then three die
+    for _ in range(3):
+        _turn(world, sim)                                   # cut 2, cut 2, walk home
     (exp,) = _ts(world).closed
-    assert (exp.status, exp.end_reason) == ("abandoned", "crew_lost")
-    assert exp.cut == pytest.approx(16.0) and exp.lost == pytest.approx(16.0) and exp.cargo == 0.0
-    assert _ts(world).counters["lost"] == pytest.approx(16.0)
+    assert exp.status == "delivered" and exp.crew == [4]
+    assert exp.cut == pytest.approx(8.0 + 2.0 + 2.0)
+    assert exp.delivered == pytest.approx(12.0 * 0.99) and exp.abandoned == 0.0
+
+
+def test_an_unpayable_turn_recalls_the_crew_home_with_its_cargo():
+    """Old rule: the expedition was abandoned ``no_coins`` and its cargo lost."""
+    world = _world()
+    sim = _Sim(_people())
+    _launch(world, sim)
+    _turn(world, sim)                                       # outbound, paid
+    _turn(world, sim)                                       # cutting, cut 8
+    world.civilizations[0].treasury = 0
+    paid = len(sim.transfers)
+    batch, _ = _turn(world, sim)
+    # No cutting: the crew walks the hop home unpaid, still away and reserved.
+    assert batch.column("woodcut_labor").to_pylist() == [0.0, 0.0, 0.0]
+    assert batch.column("woodcut_labor_away").to_pylist() == [4.0, 0.0, 0.0]
+    (r,) = _ts(world).receipts
+    assert (r.stage, r.recalled, r.unpaid, r.cut_end, r.wages_due_milli, r.wages_milli) == \
+        ("returning", True, True, "recalled", 0, 0)
+    assert r.income_withheld == pytest.approx(12.0)         # away: ordinary income withheld, no wage
+    assert len(sim.transfers) == paid and _ts(world).ledger == []
+    (exp,) = _ts(world).closed
+    assert exp.status == "delivered" and exp.unpaid_turns == 1 and exp.recalled_turn == 8
+    assert exp.cut == pytest.approx(8.0) and exp.delivered == pytest.approx(8.0 * 0.99)
+    assert exp.abandoned == 0.0 and exp.lost == pytest.approx(8.0 * 0.01)
+    assert _ts(world).store == {0: pytest.approx(8.0 * 0.99)}
+    assert _ts(world).counters["recalls"] == 1 and _ts(world).counters["unpaid_turns"] == 1
+    assert "abandoned_no_coins" not in _ts(world).counters
+
+
+def test_a_recall_on_the_way_out_turns_back_and_one_at_a_home_forest_arrives_at_once():
+    world = _world(forest_hops=2)
+    sim = _Sim(_people())
+    _launch(world, sim)
+    _turn(world, sim)                                       # one hop out of two
+    world.civilizations[0].treasury = 0
+    _turn(world, sim)                                       # recalled: one hop back, unpaid
+    (exp,) = _ts(world).closed
+    assert (exp.status, exp.travelled, exp.return_hops, exp.unpaid_turns, exp.cut) == ("delivered", 1, 1, 1, 0.0)
+    home = _world(forest_hops=0)
+    sim2 = _Sim(_people())
+    _launch(home, sim2)
+    _turn(home, sim2)                                       # cut at home
+    home.civilizations[0].treasury = 0
+    paid = len(sim2.transfers)
+    batch, _ = _turn(home, sim2)                            # recalled where it stands
+    assert "woodcut_labor" not in batch.schema.names and len(sim2.transfers) == paid
+    (exp2,) = _ts(home).closed
+    assert exp2.status == "delivered" and exp2.delivered == pytest.approx(exp2.cut) and exp2.unpaid_turns == 0
 
 
 def test_the_asset_completing_mid_expedition_releases_the_delivery():
@@ -667,7 +738,9 @@ def test_home_controller_change_abandons_and_forest_loss_turns_the_crew_home():
     paid = len(sim2.transfers)
     _turn(world2, sim2)
     (exp2,) = [e for e in _ts(world2).closed if e.eid == 0]
-    assert (exp2.status, exp2.end_reason, exp2.lost) == ("abandoned", "home_lost", pytest.approx(8.0))
+    assert (exp2.status, exp2.end_reason, exp2.abandoned, exp2.lost) == ("abandoned", "home_lost",
+                                                                        pytest.approx(8.0), 0.0)
+    assert world2.regions[1].stockpile.goods["timber"] == pytest.approx(8.0)   # commons at the forest
     assert len(sim2.transfers) == paid
 
 
@@ -692,6 +765,21 @@ def test_pool_reset_abandons_live_expeditions_and_keeps_stores():
     state = _ts(world)
     eids = {e.eid: e for e in state.closed}
     assert eids[0].end_reason == "pool_reset" and state.counters["pool_resets"] == 1
+
+
+def test_a_pool_rebuild_after_packing_defers_the_deposit_to_phase10():
+    world = _world()
+    sim = _Sim(_people())
+    _launch(world, sim)
+    _turn(world, sim)
+    _turn(world, sim)                                       # cargo 8
+    # The rebuild is noticed in Phase 2, after the batch packed the stockpiles:
+    # a deposit then would be overwritten by the economy's write-back.
+    _turn(world, _Sim(_people()))
+    state = _ts(world)
+    (exp,) = [e for e in state.closed if e.eid == 0]
+    assert (exp.end_reason, exp.abandoned, exp.lost) == ("pool_reset", pytest.approx(8.0), 0.0)
+    assert state.pending_deposits == {} and world.regions[1].stockpile.goods["timber"] == pytest.approx(8.0)
 
 
 def test_switching_off_abandons_and_releases_every_store():

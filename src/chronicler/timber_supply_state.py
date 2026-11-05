@@ -43,11 +43,14 @@ STATUSES: tuple[str, ...] = ("live", "delivered", "abandoned")
 REFUSALS: tuple[str, ...] = ("no_forest", "too_far", "forest_depleted", "forest_busy", "no_crew", "no_coins")
 #: Why a crew member left the crew (observed in Phase 2 or after the tick).
 DROP_REASONS: tuple[str, ...] = ("died", "migrated", "enlisted", "on_trip", "other_work")
-#: Why an expedition ended before delivering (its cargo is lost).
+#: Why an expedition ended before delivering; its cargo is deposited in the
+#: forest region's stockpile as commons (``abandoned``). ``no_coins`` is no
+#: longer an ending (an unpayable turn recalls the crew) and stays declared.
 END_REASONS: tuple[str, ...] = ("crew_lost", "no_coins", "home_lost", "forest_lost", "pool_reset",
                                 "switched_off")
-#: Why the cutting stage ended (``completed``: all ``CUT_TURNS`` worked).
-CUT_ENDS: tuple[str, ...] = ("completed", "forest_depleted", "forest_lost")
+#: Why the cutting stage ended (``completed``: all ``CUT_TURNS`` worked;
+#: ``recalled``: a turn the civ could not pay).
+CUT_ENDS: tuple[str, ...] = ("completed", "forest_depleted", "forest_lost", "recalled")
 #: A region's need row: ``supplied`` (no gap worth an expedition), ``expedition``
 #: (one is already live for it), ``launched`` or ``refused``.
 NEED_STATUSES: tuple[str, ...] = ("supplied", "expedition", "launched", "refused")
@@ -60,6 +63,8 @@ COUNTERS: frozenset[str] = frozenset({
     "wages_due_milli", "wages_milli", "wage_residual_milli", "charged", "prepaid_written_off_milli",
     "income_withheld", "away_requested", "away_delivered", "crew_labor", "veterans_placed",
     "pool_resets", "launched_veterans",
+    "abandoned_cargo", "unpaid_turns", "recalls", "ended", "ended_wages_milli", "ended_person_turns",
+    "ended_away", "ended_cut", "ended_delivered", "ended_unpaid_turns",
     *(f"refused_{reason}" for reason in REFUSALS),
     *(f"abandoned_{reason}" for reason in END_REASONS),
     *(f"dropped_{reason}" for reason in DROP_REASONS),
@@ -79,9 +84,10 @@ class Expedition(BaseModel):
     first timber slot (``slot``) of ``forest`` and carrying the timber home.
 
     ``cargo`` is the timber cut and carried, before the transit decay of the
-    way home; ``cut`` the lifetime harvest. At the end ``cut == delivered +
-    lost`` (``lost``: transit decay, or the whole cargo of an expedition that
-    ended without delivering)."""
+    way home; ``cut`` the lifetime harvest. Always ``cut == cargo + delivered +
+    lost + abandoned``: ``lost`` is transit decay only; ``abandoned`` the cargo
+    of an expedition that ended without delivering, deposited in the forest
+    region's stockpile as commons."""
 
     eid: int
     civ: int
@@ -119,6 +125,11 @@ class Expedition(BaseModel):
     away_delivered: float = 0.0
     delivered: float = 0.0
     lost: float = 0.0
+    abandoned: float = 0.0
+    #: Return-leg turns walked unpaid (the civ could not pay them).
+    unpaid_turns: int = 0
+    #: The turn an unpayable turn recalled the crew (None: never recalled).
+    recalled_turn: int | None = None
     ended_turn: int | None = None
     end_reason: str | None = None
     #: (turn, stable id, reason), the last ``MAX_DROPS``.
@@ -162,6 +173,11 @@ class ExpeditionReceipt(BaseModel):
     income_withheld: float | None = None
     #: Why the cutting stage ended at the start of this turn, if it did.
     cut_end: str | None = None
+    #: The civ could not pay this turn: the crew walked home unpaid
+    #: (reserved and away, ordinary income withheld, no wage).
+    unpaid: bool = False
+    #: This turn's unpayable wages recalled the expedition.
+    recalled: bool = False
 
 
 class WageLedger(BaseModel):
@@ -236,6 +252,12 @@ class TimberSupplyState(BaseModel):
     receipts: list[ExpeditionReceipt] | None = None
     ledger: list[WageLedger] | None = None
     stores: list[StoreRow] = Field(default_factory=list)
+    #: (turn, eid, region, timber): cargo deposited as commons in the frame turn.
+    deposits: list[tuple[int, int, int, float]] = Field(default_factory=list)
+    #: region -> cargo of expeditions abandoned at a pool rebuild, deposited at
+    #: the next Phase 10 (a rebuild can happen after the economy batch packed
+    #: the stockpiles).
+    pending_deposits: dict[int, float] = Field(default_factory=dict)
     needs: list[NeedRow] = Field(default_factory=list)
     needs_dropped: int = 0
     last_settled_turn: int | None = None

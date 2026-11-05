@@ -119,7 +119,9 @@ def test_expeditions_cut_carry_deliver_and_feed_rs2_with_closed_books(tmp_path, 
         for row in record["stores"] or []:
             TSU.check_store(StoreRow.model_validate(row))
         for e in record["closed"]:
-            assert e["cut"] == pytest.approx(e["cargo"] + e["delivered"] + e["lost"], abs=1e-9)
+            # Cut timber never vanishes: only transit decay is lost.
+            assert e["cut"] == pytest.approx(e["cargo"] + e["delivered"] + e["lost"] + e["abandoned"], abs=1e-9)
+            assert e["lost"] == pytest.approx(e["delivered"] / 0.99 ** e["return_hops"] - e["delivered"], abs=1e-9)
     final = bundle["history"][-1]["livelihoods"]["timber_supply"]
     counters = final["counters"]
     assert counters["charged"] == charged > 0
@@ -127,8 +129,10 @@ def test_expeditions_cut_carry_deliver_and_feed_rs2_with_closed_books(tmp_path, 
     # Timber that arrived went to the store and RS2 held it from there.
     assert counters["store_held"] > 0
     assert counters["cut"] == pytest.approx(seen["cut"]) == pytest.approx(seen["outflow"])
-    assert counters["cut"] == pytest.approx(counters["delivered"] + counters["lost"]
+    assert counters["cut"] == pytest.approx(counters["delivered"] + counters.get("lost", 0.0)
+                                            + counters.get("abandoned_cargo", 0.0)
                                             + sum(e["cargo"] for e in final["expeditions"]), abs=1e-9)
+    assert final["per_expedition"]["ended"] == counters["ended"] > 0
     assert counters["wages_milli"] + counters["wage_residual_milli"] == counters["wages_due_milli"]
     assert counters["income_withheld"] > 0 and counters["away_delivered"] <= counters["away_requested"] + 1e-6
     assert seen["turns"] == TURNS and seen["crew"] > 0 and seen["transfers"] > 0

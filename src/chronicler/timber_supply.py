@@ -74,14 +74,23 @@ free timber ahead of the stockpile, and its holds take from the store first
 the native stockpile). Timber left in a region without an open RS2 project
 is released to the region's stockpile, and the release is recorded.
 
-Endings. Delivered; or abandoned, losing the cargo, when no crew member is
-left, a turn's wages cannot be paid, the home region changes hands, the
-forest is lost before the crew got there, the native pool is rebuilt or the
-switch is turned off.
+A turn the controller cannot pay recalls the expedition: the crew stops
+cutting and walks home with the cargo, and every return-leg turn it cannot
+pay is walked unpaid (reserved and away, its ordinary income withheld, no
+wage; ``unpaid_turns``). Lost members leave the crew; the expedition goes on
+while one remains.
+
+Endings. Delivered; or abandoned when no crew member is left, the home region
+changes hands, the forest is lost before the crew got there, the native pool
+is rebuilt or the switch is turned off. Cut timber never vanishes: an
+abandoned expedition's cargo is deposited in the forest region's stockpile as
+commons (``abandoned``; no position is tracked on the way home), and only
+transit decay is lost.
 
 Closure, every turn: per civ ``charged x 1000 + prepaid before == wages
 applied + prepaid after`` and ``wages applied + residual == wages due``; per
-expedition ``cut == cargo + delivered + lost``; per store region ``opening -
+expedition ``cut == cargo + delivered + lost + abandoned`` (``lost``: transit
+decay only); per store region ``opening -
 held + returned + delivered - released == closing``; the economy's
 ``woodcut_output`` is exactly what the crews cut, only where a crew cut.
 
@@ -158,7 +167,7 @@ class _Plan:
     """One live expedition's Phase 2 (never persisted)."""
 
     __slots__ = ("exp", "stage", "crew", "drops", "farm", "labor", "wage", "cut_end", "end", "idle",
-                 "veterans")
+                 "veterans", "unpaid", "recalled")
 
     def __init__(self, exp: Expedition):
         self.exp = exp
@@ -172,6 +181,8 @@ class _Plan:
         self.end: str | None = None
         self.idle = False        # the schedule completed without work this turn
         self.veterans: list[int] = []
+        self.unpaid = False      # the civ cannot pay this turn: walked home unpaid
+        self.recalled = False    # this turn's unpayable wages recalled the crew
 
 
 class _Turn:
@@ -239,7 +250,8 @@ def set_timber_supply_enabled(world, value: bool, *, args=None, agent_mode=None)
     if not value and state.enabled:
         turn = getattr(world, "turn", 0)
         for exp in list(state.expeditions):
-            _end(state, exp, turn, "switched_off")
+            _end(world, state, exp, turn, "switched_off")
+        _flush_deposits(world, state)
         for region, amount in sorted(state.store.items()):
             goods = world.regions[region].stockpile.goods
             goods["timber"] = goods.get("timber", 0.0) + amount
@@ -351,22 +363,44 @@ def _drop_reason(fact, home: int, aid: int, enlisted, trips) -> str | None:
     return None
 
 
-def _end(state, exp: Expedition, turn: int, reason: str) -> None:
-    """End a live expedition without delivering: its cargo is lost."""
+def _end(world, state, exp: Expedition, turn: int, reason: str, *, defer: bool = False) -> None:
+    """End a live expedition without delivering. Its cargo is deposited in the
+    forest region's stockpile as commons (``abandoned``): now, or at the next
+    Phase 10 with ``defer`` (a pool rebuild can come after the economy batch
+    packed the stockpiles, whose write-back would drop a deposit made now)."""
     if exp.cargo:
-        exp.lost += exp.cargo
-        _bump(state, "lost", exp.cargo)
-        exp.cargo = 0.0
+        amount, exp.cargo = exp.cargo, 0.0
+        exp.abandoned += amount
+        _bump(state, "abandoned_cargo", amount)
+        state.pending_deposits[exp.forest] = state.pending_deposits.get(exp.forest, 0.0) + amount
+        state.deposits.append((turn, exp.eid, exp.forest, amount))
+        if not defer:
+            _flush_deposits(world, state)
     exp.status, exp.ended_turn, exp.end_reason = "abandoned", turn, reason
     _note(exp, turn, f"abandoned_{reason}")
     _bump(state, f"abandoned_{reason}")
     _close(state, exp)
 
 
+def _flush_deposits(world, state) -> None:
+    """Add pending abandoned cargo to the forest regions' stockpiles."""
+    for region, amount in sorted(state.pending_deposits.items()):
+        goods = world.regions[region].stockpile.goods
+        goods["timber"] = goods.get("timber", 0.0) + amount
+    state.pending_deposits = {}
+
+
 def _close(state, exp: Expedition) -> None:
     state.expeditions = [e for e in state.expeditions if e is not exp]
     state.closed.append(exp)
     del state.closed[:-MAX_CLOSED]
+    _bump(state, "ended")
+    _bump(state, "ended_wages_milli", exp.wages_milli)
+    _bump(state, "ended_person_turns", exp.person_turns)
+    _bump(state, "ended_away", exp.away_delivered)
+    _bump(state, "ended_cut", exp.cut)
+    _bump(state, "ended_delivered", exp.delivered)
+    _bump(state, "ended_unpaid_turns", exp.unpaid_turns)
 
 
 def _drop(state, exp: Expedition, turn: int, aid: int, reason: str) -> None:
@@ -573,8 +607,18 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
             plan.end = "crew_lost"
             continue
         if budgets[exp.civ] * MILLI - planned[exp.civ] < len(crew) * wage:
-            plan.end = "no_coins"
-            continue
+            # A turn the civ cannot pay: the crew stops cutting and walks home
+            # with the cargo, unpaid for the turns it cannot pay.
+            plan.unpaid = True
+            if plan.stage != "returning":
+                plan.recalled = True
+                back = exp.travelled if plan.stage == "outbound" else exp.hops
+                if plan.stage == "cutting":
+                    plan.cut_end = "recalled"
+                plan.stage = "returning"
+                if back == 0:
+                    plan.idle = True          # home already: arrives this turn
+                    continue
         for aid in crew:
             if _reserve(sim, world.turn, aid):
                 plan.crew.append(aid)
@@ -583,8 +627,9 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
         if not plan.crew:
             plan.end = "crew_lost"
             continue
-        plan.wage = wage
-        planned[exp.civ] += len(plan.crew) * wage
+        if not plan.unpaid:
+            plan.wage = wage
+            planned[exp.civ] += len(plan.crew) * wage
         plan.farm = math.fsum(_farm_share(world, exp.home, facts[aid]) for aid in plan.crew)
         plan.veterans = [a for a in plan.crew if a in open_veterans]
         away[exp.home] += plan.farm
@@ -655,8 +700,14 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
         for aid, reason in p.drops:
             _drop(state, exp, turn, aid, reason)
         if p.end is not None:
-            _end(state, exp, turn, p.end)
+            _end(world, state, exp, turn, p.end)
             continue
+        if p.recalled:
+            back = exp.travelled if exp.stage == "outbound" else exp.hops
+            exp.recalled_turn = turn
+            exp.stage, exp.stage_turns, exp.return_hops = "returning", 0, back
+            _bump(state, "recalls")
+            _note(exp, turn, "recalled")
         if p.cut_end is not None:
             _bump(state, f"cut_end_{p.cut_end}")
             _note(exp, turn, f"cut_end_{p.cut_end}")
@@ -669,7 +720,8 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
         residual = sum(applied.get(a, (0, p.wage))[1] for a in p.crew)
         delivered_away = float(away_out.get(exp.home, 0.0))
         account = accounts.get((exp.forest, exp.slot)) if p.stage == "cutting" else None
-        row = ledger.setdefault(exp.civ, dict(expeditions=0, people=0, due=0, applied=0, residual=0))
+        row = ledger.setdefault(exp.civ, dict(expeditions=0, people=0, due=0, applied=0, residual=0)) \
+            if not p.unpaid else dict(expeditions=0, people=0, due=0, applied=0, residual=0)
         row["expeditions"] += 1
         row["people"] += len(p.crew)
         row["due"] += len(p.crew) * p.wage
@@ -683,6 +735,9 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
         exp.wage_residual_milli += residual
         exp.away_requested += p.farm
         exp.away_delivered += delivered_away
+        if p.unpaid:
+            exp.unpaid_turns += 1
+            _bump(state, "unpaid_turns")
         receipts.append(ExpeditionReceipt(
             turn=turn, eid=exp.eid, civ=exp.civ, home=exp.home, forest=exp.forest, slot=exp.slot,
             stage=p.stage, crew=list(p.crew), veterans=list(p.veterans), dropped=list(p.drops),
@@ -692,7 +747,7 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
             stock_after=account[1] if account is not None else None,
             capacity=account[2] if account is not None else None,
             wages_due_milli=len(p.crew) * p.wage, wages_milli=paid, wage_residual_milli=residual,
-            cut_end=p.cut_end))
+            cut_end=p.cut_end, unpaid=p.unpaid, recalled=p.recalled))
         _bump(state, "person_turns", len(p.crew))
         _bump(state, f"crew_turns_{p.stage}", len(p.crew))
         _bump(state, "cut", cut)
@@ -828,7 +883,7 @@ def on_pool_reset(world) -> None:
     if state.expeditions:
         _bump(state, "pool_resets")
     for exp in list(state.expeditions):
-        _end(state, exp, getattr(world, "turn", 0), "pool_reset")
+        _end(world, state, exp, getattr(world, "turn", 0), "pool_reset", defer=True)
 
 
 # ---------------------------------------------------------------------------
@@ -955,6 +1010,7 @@ def phase10_before_reserves(world, acc, economy_result, agent_bridge):
     snapshot = agent_bridge.get_snapshot()
     if snapshot is None:
         raise RuntimeError("timber supply requires the post-tick agent snapshot")
+    _flush_deposits(world, state)               # cargo abandoned at a pool rebuild
     enlisted = _enlisted(world)
     trips = _trips(sim)
     facts = _facts(snapshot, {a for e in state.expeditions for a in e.crew})
@@ -966,12 +1022,12 @@ def phase10_before_reserves(world, acc, economy_result, agent_bridge):
             if reason is not None:
                 _drop(state, exp, turn, aid, reason)
         if not exp.crew:
-            _end(state, exp, turn, "crew_lost")
+            _end(world, state, exp, turn, "crew_lost")
         elif exp.arrived:
             if _controller(world, exp.home) != exp.civ:
-                _end(state, exp, turn, "home_lost")
+                _end(world, state, exp, turn, "home_lost")
                 continue
-            keep = transit_keep(exp.hops)
+            keep = transit_keep(exp.return_hops)
             delivered = exp.cargo * keep
             lost = exp.cargo - delivered
             exp.delivered, exp.lost, exp.cargo = delivered, exp.lost + lost, 0.0
@@ -1099,6 +1155,7 @@ def phase10(world, acc, economy_result, agent_bridge):
         stores = [StoreRow(region=r, opening=a, closing=a) for r, a in sorted(state.store.items())]
         state.needs, state.needs_dropped = [], 0
     state.stores = stores
+    state.deposits = [d for d in state.deposits if d[0] == turn]
     state.frame_turn = turn
     state._turn = None
     return []
@@ -1110,6 +1167,19 @@ def check_store(row: StoreRow) -> None:
     scale = max(1.0, row.opening, row.held, row.delivered)
     if abs(expected - row.closing) > 1e-9 * scale or row.closing < -1e-12:
         raise RuntimeError(f"timber store of region {row.region} does not close")
+
+
+def _per_expedition(state) -> dict | None:
+    """Mean cost and yield of the expeditions that ended so far (None before
+    any ended): the control matches ``supply`` per expedition, not in total."""
+    c = state.counters
+    n = c.get("ended", 0)
+    if not n:
+        return None
+    return {"ended": n, "wages_milli": c.get("ended_wages_milli", 0) / n,
+            "person_turns": c.get("ended_person_turns", 0) / n, "farm_labor_away": c.get("ended_away", 0.0) / n,
+            "unpaid_turns": c.get("ended_unpaid_turns", 0) / n, "cut": c.get("ended_cut", 0.0) / n,
+            "delivered": c.get("ended_delivered", 0.0) / n}
 
 
 def snapshot_summary(world) -> dict:
@@ -1130,6 +1200,8 @@ def snapshot_summary(world) -> dict:
         "stores": [r.model_dump() for r in state.stores] if fresh else None,
         "needs": [r.model_dump() for r in state.needs] if fresh else None,
         "needs_dropped": state.needs_dropped if fresh else None,
+        "deposits": [list(d) for d in state.deposits if d[0] == source] if fresh else None,
+        "per_expedition": _per_expedition(state),
         "prepaid": {str(civ): amount for civ, amount in sorted(state.prepaid.items())},
         "counters": dict(state.counters),
         "parameters": {"crew_cap": CREW_CAP, "max_hops": MAX_HOPS, "cut_turns": CUT_TURNS,
