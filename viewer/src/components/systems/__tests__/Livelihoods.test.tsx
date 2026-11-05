@@ -156,3 +156,33 @@ it("says so when the livelihoods record itself is unreadable or names no known p
   render(<LivelihoodsPanel {...props(undefined)} onSeek={vi.fn()} onSelectEvent={vi.fn()} onSelectCivilization={vi.fn()} />);
   expect(screen.getByText(/No livelihoods observation is recorded at snapshot 5/)).toBeInTheDocument();
 });
+
+it("re-dates every section to the scrubbed snapshot on rewind, never keeping later values", () => {
+  // Review R3 adversarial: snapshot 7 records more workshops and a short region
+  // than snapshot 5; rewinding to 5 and then to a snapshot without a record
+  // must show only that snapshot's own values.
+  const later = { schema_version: 1,
+    workshops: { ...workshops, source_turn: 6, receipts: [{ ...receipt, turn: 6, crew: [11, 15, 19], eligible: 3 }] },
+    food_allocation: { ...food, source_turn: 6, totals: { ...food.totals, alive: 9 } } };
+  const extra = { onSeek: vi.fn(), onSelectEvent: vi.fn(), onSelectCivilization: vi.fn() };
+  const view = render(<LivelihoodsPanel {...props(later, 7)} {...extra} />);
+  expect(screen.getByRole("heading", { name: "Public workshops · snapshot 7" })).toBeInTheDocument();
+  expect(within(within(screen.getByRole("table", { name: "Workshop sites at snapshot 7" }))
+    .getAllByRole("row")[1]).getAllByRole("cell")[4]).toHaveTextContent(/^3$/);
+  expect(within(screen.getByRole("table", { name: "Food allocation totals at snapshot 7" }))
+    .getByRole("row", { name: /People in short regions/ })).toHaveTextContent("9");
+  view.rerender(<LivelihoodsPanel {...props({ schema_version: 1, workshops, food_allocation: food }, 5)} {...extra} />);
+  expect(screen.queryByText(/snapshot 7/)).not.toBeInTheDocument();
+  const crewCell = (turn: number) => within(within(screen.getByRole("table", { name: `Workshop sites at snapshot ${turn}` }))
+    .getAllByRole("row")[1]).getAllByRole("cell")[4];
+  expect(crewCell(5)).toHaveTextContent(/^2$/);
+  expect(within(screen.getByRole("table", { name: "Food allocation totals at snapshot 5" }))
+    .getByRole("row", { name: /People in short regions/ })).toHaveTextContent("4");
+  // A stale record (dated to another snapshot) is never shown as this one's.
+  view.rerender(<LivelihoodsPanel {...props(later, 6)} {...extra} />);
+  expect(screen.getByText(/Workshops are not observed or are unavailable at snapshot 6/)).toBeInTheDocument();
+  expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  view.rerender(<LivelihoodsPanel {...props(undefined, 3)} {...extra} />);
+  expect(screen.getByText(/No livelihoods observation is recorded at snapshot 3/)).toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: /Public workshops/ })).not.toBeInTheDocument();
+});
