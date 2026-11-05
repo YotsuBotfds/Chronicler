@@ -395,6 +395,41 @@ impl AgentSimulator {
         self.last_craft_input.take().map(|rows| rows.into_iter().map(|r| r.to_vec()).collect())
     }
 
+    /// Livelihoods L2: install a one-tick food allocation that the next agent
+    /// tick takes (regime 0 equal, 1 floor_means, 2 targeted_relief).
+    /// Rows are per region: food sufficiency before public release (NaN:
+    /// unknown) and the Phase 2 native alive count. Validates before mutation.
+    #[allow(clippy::too_many_arguments)]
+    pub fn set_food_allocation(&mut self, source_turn: u32, regime: u8, floor: f32, target_share: f32,
+                               pre_release: Vec<f32>, phase2_alive: Vec<u32>) -> PyResult<()> {
+        if self.pool.food_allocation_config.is_some() {
+            return Err(PyValueError::new_err("food allocation already pending"));
+        }
+        let cfg = crate::provisioning::ProvisionConfig {
+            source_turn, regime, floor, target_share, pre_release, phase2_alive };
+        crate::provisioning::validate(&cfg, self.num_regions).map_err(PyValueError::new_err)?;
+        self.pool.provision_frame = None;
+        self.pool.food_allocation_config = Some(cfg);
+        Ok(())
+    }
+
+    /// Livelihoods L2: drop an allocation the tick never took.
+    pub fn cancel_food_allocation(&mut self) -> bool {
+        self.pool.food_allocation_config.take().is_some()
+    }
+
+    /// Livelihoods L2: the last allocation's receipts, taken once: (source
+    /// turn, regime, region column names, region rows, bounded person sample
+    /// (id, region, household key, ration, targeted), sample rows dropped).
+    #[allow(clippy::type_complexity)]
+    pub fn take_food_allocation_frame(&mut self)
+        -> Option<(u32, u8, Vec<String>, Vec<Vec<f64>>, Vec<(u32, u16, u32, f32, bool)>, usize)> {
+        self.pool.provision_frame.take().map(|f| (
+            f.source_turn, f.regime,
+            crate::provisioning::REGION_COLUMNS.iter().map(|c| c.to_string()).collect(),
+            f.regions.iter().map(|r| r.row()).collect(), f.sample, f.sample_dropped))
+    }
+
     pub fn prepare_teaching_work(&mut self, source_turn: u32, requests: Vec<f32>, excluded_ids: Vec<u32>)
         -> PyResult<Option<(u32, Vec<(u16, f64, f64, f64, f64)>, Vec<(u32, u16, f32, f32)>, usize)>> {
         if requests.len() != self.num_regions {

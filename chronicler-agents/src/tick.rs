@@ -569,6 +569,20 @@ fn try_tick_agents_with_movements_observer<M: crate::decision_delivery::MoveObse
     assign_settlement_ids(pool, settlement_grids);
 
     // -----------------------------------------------------------------------
+    // 0.7 Livelihoods L2 (default off): allocate this turn's food to people.
+    // -----------------------------------------------------------------------
+    pool.food_access.clear();
+    pool.food_access_ids.clear();
+    pool.food_access_regions.clear();
+    if let Some(cfg) = pool.food_allocation_config.take() {
+        let (access, ids, frame) = crate::provisioning::allocate(pool, regions, &cfg);
+        pool.food_access_regions = pool.regions.clone();
+        pool.food_access = access;
+        pool.food_access_ids = ids;
+        pool.provision_frame = Some(frame);
+    }
+
+    // -----------------------------------------------------------------------
     // 0.75 Needs decay + restoration (M49)
     // -----------------------------------------------------------------------
     let reusable_id_slots = crate::needs::update_needs_with_reusable_id_slots(
@@ -1429,6 +1443,9 @@ fn try_tick_agents_with_movements_observer<M: crate::decision_delivery::MoveObse
             }
         }
     }
+    pool.food_access.clear();
+    pool.food_access_ids.clear();
+    pool.food_access_regions.clear();
     Ok((events, kin_bond_failures, formation_stats, demo_debug, household_stats, merchant_stats, knowledge_stats))
 }
 
@@ -1813,7 +1830,7 @@ fn update_satisfaction(
                                 persecuting_faith: region.persecuting_faith,
                                 gini_coefficient: gini,
                                 wealth_percentile: wealth_pct,
-                                food_sufficiency: region.food_sufficiency,
+                                food_sufficiency: crate::provisioning::food_for(pool_ref, slot, region.food_sufficiency),
                                 merchant_margin: region.merchant_margin,
                                 memory_score: crate::memory::compute_memory_satisfaction_score(pool_ref, slot),
                                 is_urban: pool_ref.settlement_ids[slot] != 0,
@@ -1969,6 +1986,14 @@ fn tick_region_demographics(
         let is_soldier_at_war = occ == 1 && civ_at_war;
 
         let mut mort_rate = demographics::mortality_rate(age, eco_stress, is_soldier_at_war, region.endemic_severity);
+        // Livelihoods L2: a person's own ration when an allocation ran.
+        let (hunger_dearth, hunger_famine, hunger_fertility, hungry) = if pool.food_access.is_empty() {
+            (hunger_dearth, hunger_famine, hunger_fertility, hungry)
+        } else {
+            let (d, f) = demographics::hunger_components(
+                crate::provisioning::food_for(pool, slot, region.food_sufficiency), region.food_severe_turns);
+            (d, f, demographics::hunger_fertility_multiplier(d, f), d > 0.0)
+        };
         if hungry {
             let wp = wealth_percentiles.get(slot).copied().unwrap_or(0.5);
             let fed_rate = mort_rate;

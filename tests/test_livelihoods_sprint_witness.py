@@ -48,13 +48,30 @@ def test_projection_reaches_each_layer_parent_and_the_baseline():
         assert _sha(projected) == rows[0][1]["sha256"], path
 
 
+def _at_layer(name: str, path: str) -> str:
+    """The file as it stood right after layer ``name`` (newer layers inverted)."""
+    source = (ROOT / path).read_bytes().decode("utf-8")
+    for newer in reversed(LAYERS[LAYERS.index(name) + 1:]):
+        row = json.loads(layer_fixture(newer).read_text(encoding="utf-8"))["files"].get(path)
+        if row is None:
+            continue
+        assert _sha(source) == row["current_sha256"]
+        for patch in reversed(row["patches"]):
+            source = source.replace(patch["new"], patch["old"], 1)
+        assert _sha(source) == row["sha256"]
+    return source
+
+
 def test_mutations_are_rejected_in_strict_mode_and_passed_on_otherwise():
     for name, layer in _layers():
         for path, row in layer["files"].items():
-            source = (ROOT / path).read_bytes().decode("utf-8")
+            source = _at_layer(name, path)
+            assert _sha(source) == row["current_sha256"], (name, path)
+            newest = name == [n for n, lay in _layers() if path in lay["files"]][-1]
             for changed in (source + "\n# unrelated mutation\n", source.replace("\n", "\r\n")):
-                with pytest.raises(AssertionError):
-                    before_livelihoods_sprint(changed, path, strict=True)
+                if newest:
+                    with pytest.raises(AssertionError):
+                        before_livelihoods_sprint(changed, path, strict=True)
                 # Non-strict passes unknown bytes on unchanged for the older,
                 # exact-hash historical layers to reject.
                 assert before_livelihoods_sprint(changed, path) == changed
@@ -62,8 +79,9 @@ def test_mutations_are_rejected_in_strict_mode_and_passed_on_otherwise():
                 assert source.count(patch["new"]) == 1
                 for changed in (source.replace(patch["new"], patch["old"], 1),
                                 source.replace(patch["new"], patch["new"] + " ", 1)):
-                    with pytest.raises(AssertionError):
-                        before_livelihoods_sprint(changed, path, strict=True)
+                    if newest:
+                        with pytest.raises(AssertionError):
+                            before_livelihoods_sprint(changed, path, strict=True)
 
 
 def test_unlisted_paths_pass_through_and_projection_is_idempotent():

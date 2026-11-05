@@ -348,6 +348,9 @@ pub fn restore_needs_with_bonds(
             continue;
         }
         let region = &regions[region_idx];
+        // Livelihoods L2: the person's own ration when an allocation ran;
+        // exactly the regional signal otherwise.
+        let food = crate::provisioning::food_for(pool, slot, region.food_sufficiency);
         let civ = pool.civ_affinities[slot];
         let is_urban = pool.settlement_ids[slot] != 0;
 
@@ -383,8 +386,8 @@ pub fn restore_needs_with_bonds(
             delta += agent::SAFETY_RESTORE_HEALTH * health_factor * deficit;
 
             // Food > 0.8
-            if region.food_sufficiency > 0.8 {
-                delta += agent::SAFETY_RESTORE_FOOD * region.food_sufficiency.min(1.5) * deficit;
+            if food > 0.8 {
+                delta += agent::SAFETY_RESTORE_FOOD * food.min(1.5) * deficit;
             }
 
             // Per-agent: boldness modifier on ALL Safety restoration
@@ -419,7 +422,7 @@ pub fn restore_needs_with_bonds(
 
             // Food sufficiency (per-term urban modifier)
             let mut food_contribution = agent::MATERIAL_RESTORE_FOOD
-                * region.food_sufficiency.min(1.5) * deficit;
+                * food.min(1.5) * deficit;
             if is_urban {
                 food_contribution *= agent::URBAN_FOOD_SUFFICIENCY_MULT;
             }
@@ -431,7 +434,7 @@ pub fn restore_needs_with_bonds(
             } else {
                 0.0
             };
-            let shortfall = (1.0 - region.food_sufficiency).clamp(0.0, 1.0);
+            let shortfall = (1.0 - food).clamp(0.0, 1.0);
             let mut wealth_contribution = (agent::MATERIAL_RESTORE_WEALTH
                 + agent::MATERIAL_RESTORE_WEALTH_SHORTAGE * shortfall)
                 * wp * deficit;
@@ -449,7 +452,7 @@ pub fn restore_needs_with_bonds(
             // Pressure: dearth and famine, graded as the hunger mortality
             // bands grade them (the severe run includes this turn).
             let (dearth, famine) = crate::demographics::hunger_components(
-                region.food_sufficiency,
+                food,
                 region.food_severe_turns,
             );
             delta -= agent::MATERIAL_DEARTH_PRESSURE * dearth
