@@ -170,18 +170,66 @@ same envelope mechanism as the L8 commons wardens.
 active. It is a copy, never live state, and carries:
 
 - `schema_version` 1, `units`, `mode`, `source_turn`, `completed_turn`,
-  `parameters`, `observed`;
+  `observed`;
+- `parameters`: the declared values plus the ecology's effective
+  `forest_clearing` and `forest_pop_ratio` (tuning overrides applied);
 - `receipts`, one per protected region-turn: `region_id`, `payer`, `new`,
   `cover_before`, `cover_after`, `pressure_planned`, `required`, `envelope` (the L9
   cap, null without L9), `paid_planned`, `p_planned`, `p_applied`,
   `clearing_active`, `cover_not_cleared`, `cover_would_keep`, `charged`,
   `timber_capacity_kept`, `source` (`native` or `python`);
+- `unprotected`: the same turn's controlled regions under clearing pressure at
+  planning, or whose clearing fired, that had no protection. These are the unmet
+  needs and the cover lost elsewhere. Each row has `region_id`, `controller`,
+  `reason`, `pressure_planned`, `clearing_active`, `cover_before`, `cover_after`
+  and `cleared` (the nominal clearing the tick removed, 0 when it did not fire).
+  `reason` is one of:
+  - `over_limit`: the ruler already held `MAX_REGIONS`;
+  - `unaffordable`: the first bill or its L9 envelope could not be paid;
+  - `not_forested`: cover below `MIN_COVER`;
+  - `not_planned`: no pressure at planning, yet the clearing fired.
+
+  The field was added after the first RS5 landing. A record without it reads as
+  unknown, not as none.
 - `decisions` of the source turn;
 - `protections`;
 - `counters` (the funnel).
 
 When no Phase 9 was settled in the source turn, `observed` is false and
-`receipts`/`decisions` are null, not empty.
+`receipts`, `unprotected` and `decisions` are null, not empty.
+
+**Viewer** (not mounted; the lead mounts it in `LivelihoodsPanel`). The reader
+is `viewer/src/lib/clearingProtection.ts` (`clearingProtectionAt(snapshot,
+regionCount)`). It is strict: it returns null for an absent record (an older
+bundle or the switch off), a foreign schema, a record dated to another snapshot,
+or a malformed or inconsistent one. Examples of inconsistency:
+- a bill that does not match pressure, or a payment above the bill or envelope;
+- a p that does not match the payment, or a nonzero p applied in cost_only;
+- a charge without active clearing;
+- cover kept that differs from what the payment keeps, beyond 1e-6
+  (float32 native receipts);
+- receipts that differ from the protections in force;
+- a new receipt without its adoption;
+- an unprotected row overlapping a protected region.
+
+`clearingSummary` sums the turn's cover kept, cover cleared in underfunded
+protected regions (unknown without `forest_clearing`) and cover cleared elsewhere
+(unknown without `unprotected`), plus planned, paid and charged coins.
+
+`viewer/src/components/systems/ClearingProtection.tsx` shows, for the selected
+snapshot only:
+- protected regions with payer, pressure, active clearing, p (applied, and paid
+  for in cost_only), cover before and after, cover kept, planned/paid/charged and
+  funding (full, partial, unfunded, not due);
+- cover kept against cover lost;
+- unmet needs with their reasons;
+- adoptions and endings with their reasons;
+- the protections in force;
+- the lifetime funnel. A missing counter shows as Unknown.
+
+It also states the trade-off. The reader accepted all 240 snapshots of three
+80-turn native runs (seed 3 hybrid enforced and cost_only, seed 1 native off
+mode): 413 receipts, 526 unprotected rows and 30 decisions.
 
 `timber_capacity_kept` is reported with `--timber-stock` only. It is the L3
 effective capacity that the kept cover holds on the region's timber slots
@@ -219,7 +267,8 @@ with the branch `claude/rs5-clearing` and a native extension built from it
 | --- | --- | --- |
 | Rust unit tests | `cargo test --locked --manifest-path chronicler-agents/Cargo.toml --test test_clearing_protection` | 6 passed |
 | Full Rust suite | `cargo test --locked --manifest-path chronicler-agents/Cargo.toml` | 1241 passed, 0 failed, 2 ignored |
-| Offline module (Python fallback, no extension) | `.venv/bin/python -m pytest tests/test_clearing_protection.py` | 22 passed |
+| Offline module (Python fallback, no extension) | `.venv/bin/python -m pytest tests/test_clearing_protection.py` | 23 passed |
+| Viewer reader and panel | `npm test -- --maxWorkers=2 src/lib/__tests__/clearingProtection.test.ts src/components/systems/__tests__/ClearingProtection.test.tsx` | 9 passed; full suite 128 files, 1265 passed; `npm run lint` and `npm run build` clean |
 | Native tests | `pytest tests/test_clearing_protection_parity.py` (native venv) | 21 passed |
 | Related native suites | `test_ecology_bridge`, `test_ecology_parity`, `test_production_ledger_native`, `test_commons_rules_native`, `test_local_budgets_native`, `test_timber_stock_native`, `test_livelihoods_wiring`, `test_clearing_protection` | 102 passed |
 | Bounded offline lane, every chunk run past failures (the runner's exact commands and guard) | `scripts/run_python_oracle_checks.py` chunks | 48 of 57 chunks pass. The 9 failures are source-witness pins only: `batch_manifest.py` (local registration), `ffi/mod.rs` and `simulation.py`. The RS5 module passes under the guard (22 of 22). Total 228 s, largest chunk 35 s of 110 s |
@@ -287,5 +336,5 @@ failed, 46 s.
 - **Source witnesses.** Edits to `simulation.py`, `agent_bridge.py`, `ffi/mod.rs`
   and, through the local registration, `batch_manifest.py` break their
   source-witness chains. The lead adds reviewed layers.
-- **Not done.** No viewer panel (RS6). The held screens, the 200-seed gate and the
-  procedural gates were not run.
+- **Not done.** The viewer panel is not mounted. The held screens, the 200-seed
+  gate and the procedural gates were not run.

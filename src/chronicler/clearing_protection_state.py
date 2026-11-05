@@ -22,10 +22,12 @@ COUNTER_KEYS: tuple[str, ...] = (
     "required", "paid_planned", "charged", "full_funded_turns", "partial_funded_turns",
     "zero_funded_turns", "cover_not_cleared", "cover_would_keep", "timber_capacity_kept",
     "ended_controller_changed", "ended_uncontrolled", "ended_cover_lost", "ended_idle",
-    "ended_unfunded",
+    "ended_unfunded", "unprotected_clearing_turns", "cover_cleared_unprotected",
 )
 #: Why a protection ended (counted as ``ended_<reason>``).
 END_REASONS: tuple[str, ...] = ("controller_changed", "uncontrolled", "cover_lost", "idle", "unfunded")
+#: Why a controlled region under clearing pressure (or clearing) was not protected.
+UNPROTECTED_REASONS: tuple[str, ...] = ("over_limit", "unaffordable", "not_forested", "not_planned")
 
 
 def _amount():
@@ -93,6 +95,29 @@ class ProtectionReceipt(BaseModel):
     source: Literal["native", "python"]
 
 
+class UnprotectedRegion(BaseModel):
+    """A controlled region under clearing pressure at planning, or whose
+    clearing fired, without a protection this turn: the unmet need and the
+    cover lost elsewhere.
+
+    ``reason``: ``over_limit`` (its controller already held ``MAX_REGIONS``),
+    ``unaffordable`` (the first bill could not be paid in full, or its L9
+    envelope could not), ``not_forested`` (cover below ``MIN_COVER``) or
+    ``not_planned`` (no pressure at planning, yet the tick's clearing fired).
+    ``cleared`` is the nominal ``forest_clearing`` the tick removed (0 when
+    the clearing did not fire)."""
+    model_config = ConfigDict(extra="forbid")
+
+    region_id: int = Field(ge=0)
+    controller: int = Field(ge=0)
+    reason: Literal["over_limit", "unaffordable", "not_forested", "not_planned"]
+    pressure_planned: bool
+    clearing_active: bool
+    cover_before: float = _amount()
+    cover_after: float = _amount()
+    cleared: float = _amount()
+
+
 class ClearingProtectionState(BaseModel):
     schema_version: Literal[1] = 1
     enabled: bool = True
@@ -103,6 +128,8 @@ class ClearingProtectionState(BaseModel):
     # The turn whose Phase 9 the frame records (None before the first).
     frame_turn: int | None = None
     frame: list[ProtectionReceipt] = Field(default_factory=list)
+    # The same turn's unprotected regions under pressure or clearing.
+    unprotected: list[UnprotectedRegion] = Field(default_factory=list)
     counters: dict[str, int | float] = Field(default_factory=lambda: {key: 0 for key in COUNTER_KEYS})
     # Transient, within one Phase 9 only: the plan made before the ecology
     # tick and the tick's receipts; settlement after the tick commits it. A
@@ -119,6 +146,7 @@ class ClearingProtectionState(BaseModel):
 
     def __setstate__(self, state):
         super().__setstate__(state)
+        self.__dict__.setdefault("unprotected", [])
         private = getattr(self, "__pydantic_private__", None)
         if private is None:
             object.__setattr__(self, "__pydantic_private__", {"_plan": None})

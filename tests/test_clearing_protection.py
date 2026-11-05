@@ -135,6 +135,45 @@ def test_adoption_is_bounded_by_max_regions_and_deterministic():
     assert _state(again).model_dump_json() == state.model_dump_json()
 
 
+def test_unmet_needs_and_cover_lost_elsewhere_are_recorded_by_region():
+    world = _world("--clearing-protection")
+    for rid, cover in ((1, 0.5), (2, 0.7), (3, 0.6)):
+        _press(world, rid, 0, cover)
+    _press(world, 4, 0, 0.1)                           # under pressure, not forested
+    _press(world, 5, 1, 0.6)
+    world.civilizations[1].treasury = 1                # cannot pay a first bill
+    _phase9(world)
+    state = _state(world)
+    assert [p.region_id for p in state.protections] == [2, 3]
+    rows = {u.region_id: u for u in state.unprotected}
+    assert {rid: u.reason for rid, u in rows.items()} == {1: "over_limit", 4: "not_forested", 5: "unaffordable"}
+    assert all(u.pressure_planned and u.clearing_active for u in rows.values())
+    assert rows[1].cleared == pytest.approx(CLEARING)
+    assert rows[1].cover_before == pytest.approx(0.5) and rows[1].cover_after == pytest.approx(0.5 - CLEARING)
+    assert (rows[5].controller, rows[4].controller) == (1, 0)
+    c = state.counters
+    assert c["unprotected_clearing_turns"] == 3 and c["cover_cleared_unprotected"] == pytest.approx(3 * CLEARING)
+    snap = livelihoods_snapshot_fields(world)["livelihoods"]["clearing_protection"]
+    assert [u["region_id"] for u in snap["unprotected"]] == [1, 4, 5]
+    world.turn += 1
+    assert livelihoods_snapshot_fields(world)["livelihoods"]["clearing_protection"]["unprotected"] is None
+    # A clearing the planning did not foresee is recorded as not planned.
+    world = _world("--clearing-protection")
+    world.regions[6].controller = world.civilizations[2].name
+    before_ecology(world, acc=None)
+    cp.record_clearing(world, [(rid == 6, 0.0) for rid in range(len(world.regions))], "native")
+    after_ecology(world, acc=None)
+    assert [(u.region_id, u.reason, u.pressure_planned, u.clearing_active) for u in _state(world).unprotected] == \
+        [(6, "not_planned", False, True)]
+    # An older pickle without the field restores it empty.
+    state = _state(world)
+    raw = state.__getstate__()
+    raw["__dict__"] = {k: v for k, v in raw["__dict__"].items() if k != "unprotected"}
+    back = ClearingProtectionState.__new__(ClearingProtectionState)
+    back.__setstate__(raw)
+    assert back.unprotected == []
+
+
 def test_adoption_needs_the_first_bill_in_full():
     world = _world("--clearing-protection")
     _press(world, 0, 0)
@@ -375,6 +414,7 @@ def test_snapshot_summary_is_dated_and_copied():
     snap = livelihoods_snapshot_fields(world)["livelihoods"]["clearing_protection"]
     assert (snap["schema_version"], snap["source_turn"], snap["completed_turn"], snap["observed"]) == (1, 0, 1, True)
     assert snap["parameters"]["max_regions"] == cp.MAX_REGIONS
+    assert (snap["parameters"]["forest_clearing"], snap["parameters"]["forest_pop_ratio"]) == (CLEARING, 0.5)
     assert [r["region_id"] for r in snap["receipts"]] == [0]
     assert [d["kind"] for d in snap["decisions"]] == ["adopted"]
     snap["receipts"][0]["charged"] = 999

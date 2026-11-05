@@ -67,7 +67,7 @@ import math
 
 from chronicler.clearing_protection_state import (
     COUNTER_KEYS, MAX_DECISIONS, ClearingProtectionState, Protection, ProtectionDecision,
-    ProtectionReceipt,
+    ProtectionReceipt, UnprotectedRegion,
 )
 
 #: Protections a civilization may hold at once.
@@ -99,8 +99,11 @@ class _Row:
 
 
 class _Plan:
-    def __init__(self, turn, rows, decisions, column, eligible, candidates, over_limit, unaffordable):
+    def __init__(self, turn, rows, decisions, column, eligible, candidates, over_limit, unaffordable,
+                 unmet=None):
         self.turn, self.rows, self.decisions, self.column = turn, rows, decisions, column
+        #: region -> (controller, reason, pressure at planning, cover before the tick)
+        self.unmet: dict[int, tuple[int, str, bool, float]] = unmet or {}
         self.eligible, self.candidates = eligible, candidates
         self.over_limit, self.unaffordable = over_limit, unaffordable
         self.receipts: list[tuple[bool, float]] | None = None
@@ -247,10 +250,15 @@ def before_ecology(world, acc) -> None:
     # Adoption by the controller, from the pre-tick state.
     protected = {row.protection.region_id for row in rows}
     candidates_by_civ: dict[int, list[int]] = {}
+    unmet: dict[int, tuple[int, str, bool, float]] = {}
     eligible = 0
     for rid, region in enumerate(world.regions):
         owner = _controller(world, rid)
-        if owner < 0 or region.ecology.forest_cover < MIN_COVER or not under_pressure(world, region, ratio):
+        if owner < 0 or not under_pressure(world, region, ratio):
+            continue
+        if region.ecology.forest_cover < MIN_COVER:
+            if rid not in protected:
+                unmet[rid] = (owner, "not_forested", True, float(region.ecology.forest_cover))
             continue
         eligible += 1
         if rid not in protected:
@@ -260,11 +268,14 @@ def before_ecology(world, acc) -> None:
         ranked = sorted(candidates_by_civ[owner], key=lambda r: (-world.regions[r].ecology.forest_cover, r))
         for rid in ranked:
             candidates += 1
+            cover = float(world.regions[rid].ecology.forest_cover)
             if held.get(owner, 0) >= MAX_REGIONS:
                 over_limit += 1
+                unmet[rid] = (owner, "over_limit", True, cover)
                 continue
             if payable(owner, rid) < WARDEN_COST:
                 unaffordable += 1
+                unmet[rid] = (owner, "unaffordable", True, cover)
                 continue
             protection = Protection(region_id=rid, payer=owner, adopted_turn=turn)
             rows.append(plan_row(protection, owner, True, paid=WARDEN_COST))
@@ -276,7 +287,14 @@ def before_ecology(world, acc) -> None:
     column = [0.0] * len(world.regions)
     for row in rows:
         column[row.protection.region_id] = row.p_applied
-    state._plan = _Plan(turn, rows, decisions, column, eligible, candidates, over_limit, unaffordable)
+    # Controlled regions without pressure at planning: kept so that a clearing
+    # the tick reports there anyway (``not_planned``) is still recorded.
+    planned = {row.protection.region_id for row in rows}
+    for rid, region in enumerate(world.regions):
+        owner = _controller(world, rid)
+        if owner >= 0 and rid not in planned and rid not in unmet:
+            unmet[rid] = (owner, "not_planned", False, float(region.ecology.forest_cover))
+    state._plan = _Plan(turn, rows, decisions, column, eligible, candidates, over_limit, unaffordable, unmet)
 
 
 def pending_protection(world) -> list[float] | None:
@@ -378,6 +396,20 @@ def after_ecology(world, acc) -> list:
             timber_capacity_kept=_timber_capacity_kept(world, rid, kept), source=plan.source,
         ))
 
+    protected = {row.protection.region_id for row in plan.rows}
+    unprotected: list[UnprotectedRegion] = []
+    for rid in sorted(plan.unmet):
+        if rid in protected:
+            continue
+        owner, reason, pressure, cover = plan.unmet[rid]
+        active, _ = plan.receipts[rid]
+        if not pressure and not active:
+            continue
+        unprotected.append(UnprotectedRegion(
+            region_id=rid, controller=owner, reason=reason, pressure_planned=pressure,
+            clearing_active=active, cover_before=cover,
+            cover_after=float(world.regions[rid].ecology.forest_cover), cleared=clearing if active else 0.0))
+
     # Commit: charge once, then the protections, the record and the counters.
     for owner, amount in sorted(totals.items()):
         civ = world.civilizations[owner]
@@ -423,18 +455,27 @@ def after_ecology(world, acc) -> list:
     for decision in plan.decisions:
         if decision.kind == "ended":
             _bump(counters, f"ended_{decision.reason}", 1)
+    for row in unprotected:
+        _bump(counters, "unprotected_clearing_turns", 1 if row.clearing_active else 0)
+        _bump(counters, "cover_cleared_unprotected", row.cleared)
     state.protections = sorted(protections, key=lambda p: p.region_id)
     state.decisions = (state.decisions + plan.decisions)[-MAX_DECISIONS:]
     state.frame = receipts
+    state.unprotected = unprotected
     state.frame_turn = plan.turn
     return []
 
 
 # --- Protocol: observation ------------------------------------------------------
 
-def parameters() -> dict:
-    return {"max_regions": MAX_REGIONS, "warden_cost": WARDEN_COST, "protection": PROTECTION,
-            "min_cover": MIN_COVER, "idle_limit": IDLE_LIMIT, "unfunded_limit": UNFUNDED_LIMIT}
+def parameters(world=None) -> dict:
+    """Declared parameters, plus the ecology's effective clearing rate and
+    population ratio (tuning overrides applied) when a world is given."""
+    out = {"max_regions": MAX_REGIONS, "warden_cost": WARDEN_COST, "protection": PROTECTION,
+           "min_cover": MIN_COVER, "idle_limit": IDLE_LIMIT, "unfunded_limit": UNFUNDED_LIMIT}
+    if world is not None:
+        out.update(forest_clearing=forest_clearing(world), forest_pop_ratio=forest_pop_ratio(world))
+    return out
 
 
 def snapshot_summary(world) -> dict:
@@ -451,9 +492,10 @@ def snapshot_summary(world) -> dict:
         "mode": state.mode,
         "source_turn": source_turn,
         "completed_turn": world.turn,
-        "parameters": parameters(),
+        "parameters": parameters(world),
         "observed": observed,
         "receipts": [r.model_dump() for r in state.frame] if observed else None,
+        "unprotected": [u.model_dump() for u in state.unprotected] if observed else None,
         "decisions": [d.model_dump() for d in state.decisions if d.turn == source_turn] if observed else None,
         "protections": [p.model_dump() for p in state.protections],
         "counters": dict(state.counters),
