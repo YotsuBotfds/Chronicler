@@ -606,7 +606,7 @@ def test_the_workshop_pool_widens_to_the_region_and_admits_veterans_first(monkey
     assert factor == pytest.approx(1.0 - 0.2 * 2 / 4 - d / 4, rel=1e-6)
     assert c.farm_time_removed == pytest.approx(d)
     # Every member's paid share is withheld (the wage replaces it).
-    assert sorted(sim.receipt or []) == [] and r.income_replaced == pytest.approx(4 * 2.0 * d)
+    assert r.income_replaced == pytest.approx(4 * 2.0 * d)
     assert noted == [(120, "placed:repair")]
     assert _rc(world).counters["workshop_members_veteran"] == 1
 

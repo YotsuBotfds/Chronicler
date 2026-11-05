@@ -81,8 +81,10 @@ def test_the_reservation_is_capped_at_a_share_of_the_budget_and_the_proposal_ask
     (row,) = [r for r in state.decisions if r.civ == THORNWALL]
     assert (row.planned, row.budget_before, row.cap, row.reserved) == (8, 10, 5, 5)
     assert state.counters["cap_binding"] >= 1 and state.decision_turn == world.turn
-    snap = LV.livelihoods_snapshot_fields(SimpleNamespace(**{**world.__dict__, "turn": world.turn + 1}))
-    assert snap["livelihoods"]["maintenance_obligation"]["decisions"] is not None
+    world.turn += 1                               # the next turn's snapshot shows this decision
+    snap = LV.livelihoods_snapshot_fields(world)["livelihoods"]["maintenance_obligation"]
+    assert [d["reserved"] for d in snap["decisions"] if d["civ"] == THORNWALL] == [5]
+    assert snap["uses"] is None
 
 
 def test_an_uncapped_reservation_covers_the_planned_charges_and_no_proposal_remains():
