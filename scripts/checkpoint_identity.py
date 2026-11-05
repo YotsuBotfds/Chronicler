@@ -149,6 +149,10 @@ _PER_TURN = re.compile(r"_turn_(\d+)\.json$")
 
 def _env(hash_seed: str = "0") -> dict:
     env = dict(os.environ)
+    # Runs start in their own directories: a relative PYTHONPATH entry (such
+    # as ``src``) would silently fall back to an installed ``chronicler``.
+    if env.get("PYTHONPATH"):
+        env["PYTHONPATH"] = os.pathsep.join(str(Path(p).resolve()) for p in env["PYTHONPATH"].split(os.pathsep) if p)
     env["PYTHONHASHSEED"] = hash_seed
     env["RAYON_NUM_THREADS"] = "1"
     env["CHRONICLER_QUIET"] = "1"
