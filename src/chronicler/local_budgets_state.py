@@ -21,7 +21,8 @@ from pydantic import BaseModel, Field, PrivateAttr
 #: ``--local-budget-mode`` values (first: the default when enabled).
 MODES: tuple[str, ...] = ("bargained", "fixed_shares")
 #: Built-in services in declaration order. Registered providers add their own.
-SERVICES: tuple[str, ...] = ("relief", "granary_maintain", "granary_expand", "workshop")
+SERVICES: tuple[str, ...] = ("relief", "granary_maintain", "granary_expand", "workshop",
+                              "teaching_supplies", "wardens")
 #: Existing constituencies that bargain, in declaration order (the tie-break).
 CONSTITUENCIES: tuple[str, ...] = ("commons", "patricians")
 #: Candidate allocations, in arbitration tie-break order.
@@ -31,7 +32,7 @@ OUTCOMES: tuple[str, ...] = ("kept", "deferred", "lapsed")
 #: Dated deferral reasons (append only).
 REASONS: tuple[str, ...] = (
     "treasury_shortfall", "cost_rose", "recipient_lost", "inputs_short", "work_short",
-    "no_supply", "service_off", "no_economy", "switched_off",
+    "no_supply", "service_off", "no_economy", "switched_off", "no_demand", "not_adopted",
 )
 #: Reasons a proposal was not awarded.
 REFUSALS: tuple[str, ...] = ("no_support", "budget", "incompatible", "share", "not_chosen")

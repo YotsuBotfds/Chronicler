@@ -86,8 +86,13 @@ KEPT_RATIO = 0.95          # delivered share that keeps a promise
 BROKEN_GRIEVANCE = 0.10    # city grievance per broken promise, times the undelivered share
 KEPT_GRIEVANCE = 0.03      # city grievance eased per kept promise
 RESPONSE_CAP = 0.10        # |grievance change| per city per turn
-#: fixed_shares control: budget share per service group (fixed order).
-FIXED_SHARES: dict[str, float] = {"relief": 0.4, "granary": 0.3, "workshop": 0.3}
+#: fixed_shares control: budget share per service group (fixed order). The
+#: built-in groups sum to 1; a registered group adds its weight only while its
+#: provider is active, and every share is then divided by the active total,
+#: so with only the built-in groups the split is exactly 0.4 / 0.3 / 0.3.
+FIXED_SHARES: dict[str, float] = {"relief": 0.4, "granary": 0.3, "workshop": 0.3,
+                                  "teaching": 0.15, "wardens": 0.15}
+_BUILT_IN_GROUPS = ("relief", "granary", "workshop")
 EPS = 1e-9
 
 #: Proposal providers, in declaration order (append only). Each resolves to
@@ -98,6 +103,7 @@ PROVIDERS: tuple[str, ...] = (
     "chronicler.local_budgets:GRANARY",
     "chronicler.local_budgets:WORKSHOP",
     "chronicler.local_budgets:TEACHING",
+    "chronicler.local_budgets:WARDENS",
 )
 
 
@@ -401,6 +407,11 @@ class Provider:
     services: tuple[str, ...] = ()
     group = ""
 
+    def active(self, world) -> bool:
+        """Whether the service runs this turn (its own switch); a registered
+        group takes a fixed share only while active."""
+        return True
+
     def proposals(self, world, civ: int, obs) -> list[dict]:
         return []
 
@@ -414,14 +425,18 @@ class Provider:
         return 0
 
 
-def envelope(world, civ: int, service: str, *, site: int | None = None, region: int | None = None) -> int | None:
-    """The amount a registered service may spend this turn (None: L9 inactive)."""
+def envelope(world, civ: int, service: str, *, site: int | None = None, region: int | None = None,
+             claim: str | None = None) -> int | None:
+    """The amount a registered service may spend this turn: the sum of the
+    civ's open envelopes for it (optionally one site, recipient region or
+    claim); 0 without one. None while L9 is inactive: keep the legacy rule."""
     state = _state(world)
     if state is None or not local_budgets_active(world):
         return None
     total = 0
     for c in _open_for(state, world, service):
-        if c.civ == civ and (site is None or c.site == site) and (region is None or region in c.recipients):
+        if (c.civ == civ and (site is None or c.site == site) and (region is None or region in c.recipients)
+                and (claim is None or claim in c.claims)):
             total += c.amount
     return total
 
@@ -650,8 +665,121 @@ class _Workshop(Provider):
         return {"outcome": "deferred", "reason": reason, "spent": 0, "delivered": 0.0, "ratio": 0.0, "detail": detail}
 
 
+def _payroll(world):
+    container = getattr(world, "livelihoods", None)
+    return getattr(container, "workshop_payroll", None) if container is not None else None
+
+
+def _academy_customers(world, civ: int, turn: int):
+    """The civ's academies whose supply procurement of ``turn`` was fully
+    informed, with their material inventory, in seat order (as L6a sells)."""
+    services = getattr(getattr(world, "scholarship", None), "learning_services", None)
+    if services is None or not getattr(services, "enabled", True):
+        return []
+    assets = {(a.seat_id, a.region, a.founder, a.founded_turn, a.seat_name): a
+              for a in (getattr(services, "inventories", None) or []) if not a.retired}
+    out = []
+    for r in getattr(services, "procurement_receipts", None) or []:
+        if (r.source_turn != turn or r.lord != civ or r.shortfalls or not r.craft_price or r.craft_price <= 0
+                or r.scholar_upper_bound is None or r.learner_upper_bound is None):
+            continue
+        asset = assets.get((r.seat_id, r.region, r.founder, r.founded_turn, r.seat_name))
+        if asset is not None and asset.held is not None:
+            out.append((r, asset))
+    return sorted(out, key=lambda ra: ra[0].seat_id)
+
+
 class _Teaching(Provider):
-    """Academy supplies: not cappable here (see the module docstring); reserved."""
+    """Academy supplies.
+
+    The academies' own market procurement (``learning_services``) cannot be
+    capped without editing a byte-pinned file: its dated upper bound is
+    reserved first (``obligations``). Their purchase from an L6a workshop
+    firm (``--workshop-payroll``) is the ruler's Phase 10 treasury spend in a
+    sprint module, so it is a bargained service, ``teaching_supplies``:
+    ``workshop_payroll._sell`` reads the envelope for (ruler, firm site).
+    The stake the patricians weigh is the firm crew's wages the sale's cash
+    would cover (owed wages plus next turn's bill beyond the firm's cash), in
+    crew work units; the learners have no separate voice (see the docs).
+    """
+
+    services = ("teaching_supplies",)
+    group = "teaching"
+
+    def active(self, world):
+        from chronicler.workshop_payroll import workshop_payroll_active
+        state = _payroll(world)
+        return state is not None and workshop_payroll_active(world) and state.mode != "no_customer"
+
+    def proposals(self, world, civ, obs):
+        if obs.economy is None or not self.active(world):
+            return []
+        from chronicler import workshop_payroll as P
+        from chronicler.learning_services import CRAFTS_PER_LEARNER, LEARNERS_PER_SCHOLAR
+        state = _payroll(world)
+        customers = _academy_customers(world, civ, obs.turn)
+        if not customers:
+            return []
+        need = {}
+        for r, asset in customers:
+            want = min(float(r.learner_upper_bound), r.scholar_upper_bound * LEARNERS_PER_SCHOLAR)
+            need[r.seat_id] = math.floor(max(0.0, want * CRAFTS_PER_LEARNER - asset.held) * P.MILLI)
+        name = world.civilizations[civ].name
+        out = []
+        for firm in sorted(state.firms, key=lambda f: f.site):
+            if firm.status != "open" or firm.inventory <= 0 or world.regions[firm.region].controller != name:
+                continue
+            inventory, units, quantity = firm.inventory, 0, 0
+            for r, _asset in customers:
+                if need[r.seat_id] <= 0 or inventory <= 0:
+                    continue
+                price = float(r.craft_price)
+                cap = min(inventory, need[r.seat_id])
+                u = math.floor(cap * price / P.MILLI)
+                while u > 0 and math.floor(u * P.MILLI / price) > cap:
+                    u -= 1
+                q = math.floor(u * P.MILLI / price) if u else 0
+                if u <= 0 or q <= 0:
+                    continue
+                units, quantity, inventory = units + u, quantity + q, inventory - q
+                need[r.seat_id] -= q
+            if units < 1:
+                continue
+            owed = sum(o.amount for o in firm.owed)
+            bill = P._bill(firm, firm.crew_cap, firm.hours) if state.mode != "unpaid_labor" else 0
+            covered = min(units * P.MILLI, max(0, owed + bill - firm.cash))
+            out.append(dict(service="teaching_supplies", recipients=[firm.region], site=firm.site,
+                            claims=[f"teaching:{firm.site}"], cost=units, divisible=True, unit="crafts",
+                            expected=quantity / P.MILLI,
+                            relief={"patricians": covered / P.WAGE_PER_WORK} if covered > 0 else {},
+                            detail={"inventory": firm.inventory, "cash": firm.cash, "owed": owed,
+                                    "next_bill": bill, "learners_served": round(quantity / P.MILLI, 6)}))
+        return out
+
+    def settle(self, world, c, obs):
+        from chronicler import workshop_payroll as P
+        state = _payroll(world)
+        frame = {r.site: r for r in state.frame} if state is not None and state.frame_turn == world.turn else {}
+        row = frame.get(c.site)
+        if row is None or row.controller != c.civ:
+            return {"outcome": "deferred", "reason": "recipient_lost", "spent": 0, "delivered": 0.0, "ratio": 0.0}
+        spent = row.sales // P.MILLI
+        delivered = row.sold / P.MILLI
+        ratio = min(1.0, delivered / c.expected) if c.expected > EPS else 1.0
+        remaining = math.fsum(P._remaining_need(r, asset) for r, asset in _academy_customers(world, c.civ, world.turn))
+        detail = {"customers": row.customers, "inventory_open": row.inventory_open,
+                  "remaining_need": round(remaining, 6)}
+        if spent >= KEPT_RATIO * c.amount or ratio >= KEPT_RATIO or (row.customers and remaining * P.MILLI < 1):
+            return {"outcome": "kept", "reason": None, "spent": spent, "delivered": delivered,
+                    "ratio": 1.0 if remaining * P.MILLI < 1 else ratio, "detail": detail}
+        if not row.customers:
+            reason = "no_demand"
+        elif row.inventory_open - row.sold <= 0:
+            reason = "inputs_short"
+        else:
+            reason = "treasury_shortfall"
+        return {"outcome": "deferred", "reason": reason, "spent": spent, "delivered": delivered,
+                "ratio": ratio, "detail": detail}
 
     def obligations(self, world, civ, obs):
         from chronicler.learning_services import LEARNERS_PER_SCHOLAR, learning_services_active
@@ -670,7 +798,115 @@ class _Teaching(Provider):
         return total
 
 
-RELIEF, GRANARY, WORKSHOP, TEACHING = _Relief(), _Granary(), _Workshop(), _Teaching()
+def _commons(world):
+    container = getattr(world, "livelihoods", None)
+    return getattr(container, "commons_rules", None) if container is not None else None
+
+
+class _Wardens(Provider):
+    """L8 commons enforcement: a ruler's warden bills for its timber rules
+    (``--commons-rules``). ``commons_rules.prepare_phase2`` pays each rule's
+    bill (and adopts a new rule) only within the envelope for
+    ``wardens:<region>:<slot>``. Proposals read the timber account the next
+    planning will read (settled in this turn's Phase 2): rules that would
+    continue (no repeal reason), and adoption candidates by L8's own rule.
+    The stake is the stand's growth the wardens keep from open access over
+    ``HORIZON`` turns, as the crew work its raw loads could supply the towns'
+    crafts (``workshops.K_RAW_PER_WORK``): the patricians'. The commons, whose
+    timber access the rule restricts, gain nothing from it; the rule's own
+    grievance channel already carries their side of the conflict."""
+
+    services = ("wardens",)
+    group = "wardens"
+
+    def active(self, world):
+        from chronicler.commons_rules import commons_rules_active
+        return commons_rules_active(world)
+
+    def _observations(self, world, turn):
+        from chronicler.commons_rules_state import StockObservation
+        from chronicler.timber_stock import _state as timber_state
+        stock = timber_state(world)
+        if stock is None or stock.ledger_turn != turn:
+            return {}
+        return {(row.region_id, row.slot): StockObservation(
+                    turn=stock.ledger_turn, stock=row.stock, capacity=row.capacity,
+                    extraction=row.extraction, water_gate_open=row.water_gate_open)
+                for row in stock.ledger if row.removed == 0.0}
+
+    def proposals(self, world, civ, obs):
+        if obs.economy is None or not self.active(world):
+            return []
+        from chronicler import commons_rules as R
+        from chronicler.timber_stock import regrowth, timber_slots
+        from chronicler.workshops import K_RAW_PER_WORK
+        state = _commons(world)
+        name = world.civilizations[civ].name
+        observations = self._observations(world, obs.turn)
+        slots = set(timber_slots(world))
+        bill = R.bill_for(R.institution_share(world, world.civilizations[civ]))
+        if bill < 1:
+            return []
+        horizon = _parameters(world)["horizon"]
+
+        def item(rid, slot, observation, new):
+            grown = regrowth(observation.stock, observation.capacity, observation.water_gate_open)
+            stake = horizon * grown / K_RAW_PER_WORK
+            return dict(service="wardens", recipients=[rid], claims=[f"wardens:{rid}:{slot}"], cost=bill,
+                        divisible=not new, unit="coverage", expected=1.0,
+                        relief={"patricians": stake} if stake > EPS else {},
+                        detail={"slot": slot, "new": int(new), "stock": round(observation.stock, 6),
+                                "capacity": round(observation.capacity, 6),
+                                "extraction": round(observation.extraction, 6)})
+
+        out, held = [], set()
+        for rule in state.rules:
+            key = (rule.region_id, rule.slot)
+            if rule.owner != civ or key not in slots or world.regions[rule.region_id].controller != name:
+                continue
+            held.add(key)
+            observation = observations.get(key, rule.observation)
+            if observation is None or R._repeal_reason(world, rule, observation) is not None:
+                continue
+            out.append(item(rule.region_id, rule.slot, observation, False))
+        cooling = {(c.region_id, c.slot) for c in state.cooldowns if c.until > obs.turn + 1}
+        for key in sorted(observations):
+            rid, slot = key
+            o = observations[key]
+            if (key not in slots or key in held or key in cooling or world.regions[rid].controller != name
+                    or o.extraction <= 0.0 or o.capacity <= 0.0 or o.stock >= R.ADOPT_BELOW * o.capacity):
+                continue
+            out.append(item(rid, slot, o, True))
+        return out
+
+    def settle(self, world, c, obs):
+        state = _commons(world)
+        rid, slot = c.recipients[0], int(c.claims[0].rsplit(":", 1)[1])
+        receipts = {(r.region_id, r.slot): r for r in state.frame} if state.frame_turn == world.turn else {}
+        receipt = receipts.get((rid, slot))
+        if receipt is None:
+            decision = next((d for d in state.decisions if d.turn == world.turn and d.region_id == rid
+                             and d.slot == slot), None)
+            if decision is not None and decision.kind == "repealed" and decision.reason == "recovered":
+                return {"outcome": "kept", "reason": None, "spent": 0, "delivered": 0.0, "ratio": 1.0,
+                        "detail": {"ended": "recovered"}}
+            reason = ("recipient_lost" if decision is not None and decision.kind == "lapsed"
+                      else "service_off" if decision is not None else "not_adopted")
+            return {"outcome": "deferred", "reason": reason, "spent": 0, "delivered": 0.0, "ratio": 0.0,
+                    "detail": {"decision": None if decision is None else f"{decision.kind}:{decision.reason}"}}
+        if receipt.owner != c.civ:
+            return {"outcome": "deferred", "reason": "recipient_lost", "spent": 0, "delivered": 0.0, "ratio": 0.0}
+        due = min(c.amount, receipt.bill)
+        detail = {"bill": receipt.bill, "coverage": round(receipt.coverage, 6), "status": receipt.status}
+        ratio = min(1.0, receipt.paid / due) if due else 1.0
+        if receipt.paid >= due:
+            return {"outcome": "kept", "reason": None, "spent": receipt.paid, "delivered": receipt.coverage,
+                    "ratio": 1.0, "detail": detail}
+        return {"outcome": "deferred", "reason": "cost_rose" if receipt.bill > c.amount else "treasury_shortfall",
+                "spent": receipt.paid, "delivered": receipt.coverage, "ratio": ratio, "detail": detail}
+
+
+RELIEF, GRANARY, WORKSHOP, TEACHING, WARDENS = _Relief(), _Granary(), _Workshop(), _Teaching(), _Wardens()
 
 
 def _providers() -> list[Provider]:
@@ -825,11 +1061,12 @@ def _classify(decision: Decision) -> str:
     return f"{full[0]}_first" if len(full) == 1 else "compromise"
 
 
-def _fixed_shares(decision: Decision, items: list[Proposal], groups: dict[str, str]):
+def _fixed_shares(decision: Decision, items: list[Proposal], groups: dict[str, str], scale: float = 1.0):
     awards, refused = [], {}
     for group in sorted({groups[p.service] for p in items}, key=lambda g: (list(FIXED_SHARES).index(g)
                                                                            if g in FIXED_SHARES else len(FIXED_SHARES), g)):
-        share = int(math.floor(FIXED_SHARES.get(group, 0.0) * decision.budget + EPS))
+        weight = FIXED_SHARES.get(group, 0.0)
+        share = int(math.floor((weight if scale == 1.0 else weight / scale) * decision.budget + EPS))
         members = sorted((p for p in items if groups[p.service] == group), key=_order)
         got, why = _greedy(members, share, lambda p: 1.0, per_coin=False)
         awards.extend(got)
@@ -992,6 +1229,8 @@ def _decide(world, state: LocalBudgetState, obs, providers, acc) -> None:
     params = _parameters(world)
     projected = _projections(world, acc)
     groups = {s: p.group for p in providers for s in p.services}
+    scale = 1.0 + math.fsum(FIXED_SHARES.get(p.group, 0.0) for p in providers
+                            if p.services and p.group not in _BUILT_IN_GROUPS and p.active(world))
     decisions, new = [], {id(p): [] for p in providers}
     owner = {s: p for p in providers for s in p.services}
     for ci, civ in enumerate(world.civilizations):
@@ -1027,7 +1266,7 @@ def _decide(world, state: LocalBudgetState, obs, providers, acc) -> None:
         if state.mode == "bargained":
             awards, refused, sponsors = _bargain(decision, items)
         else:
-            awards, refused, sponsors = _fixed_shares(decision, items, groups)
+            awards, refused, sponsors = _fixed_shares(decision, items, groups, scale)
         if sum(amount for _, amount in awards) > budget:
             raise RuntimeError("local budget awards exceed the committed budget")
         claims = [claim for p, _ in awards for claim in p.claims]
