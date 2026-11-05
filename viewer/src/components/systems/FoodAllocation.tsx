@@ -24,13 +24,14 @@ export function FoodAllocation({ bundle, snapshot, currentTurn, onSelectRegion }
     <p className="systems-note">Simulation turn {record.source_turn}. {REGIME_NOTE[record.regime]} Amounts are rations (1 = a person's food demand). The region's withdrawal is unchanged; the share of anyone who died after Phase 2 is unallocated.</p>
     {!t || !record.regions ? <p className="systems-note">No allocation ran in simulation turn {record.source_turn}; rations are unknown, not zero.</p> : <>
       <div className="systems-table-wrap"><table className="systems-table" aria-label={`Food allocation totals at snapshot ${turn}`}><tbody>
-        {([["Short regions", String(t.scarce_regions ?? 0)], ["People in short regions", String(t.alive ?? 0)],
+        {([["Short regions", String(t.scarce_regions)], ["People in short regions", String(t.alive)],
           ["Rations allocated", show(t.allocated)], ["Unallocated", show(t.unallocated)],
           ["Shortfall (person-rations)", show(t.shortfall)],
           ["Mean shortfall, poorer half of households", show(meanShortfall(t.shortfall_poorer_half, t.people_poorer_half))],
           ["Mean shortfall, richer half of households", show(meanShortfall(t.shortfall_richer_half, t.people_richer_half))],
           ["Mean shortfall, children", show(meanShortfall(t.shortfall_children, t.children))],
-          ["Relief to targeted households", show(t.relief_to_targeted)]] as Array<[string, string]>).map(([label, value]) =>
+          ["Relief to targeted households", show(t.relief_to_targeted) + ((t.relief_unknown_regions ?? 0) > 0
+            ? ` (known regions only; unknown in ${t.relief_unknown_regions} region${t.relief_unknown_regions === 1 ? "" : "s"})` : "")]] as Array<[string, string]>).map(([label, value]) =>
           <tr key={label}><th scope="row">{label}</th><td>{value}</td></tr>)}
       </tbody></table></div>
       {record.regions.length === 0 ? <p className="systems-note">No region was short of food.</p> :

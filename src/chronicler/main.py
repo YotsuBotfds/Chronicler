@@ -2523,6 +2523,8 @@ def _adopt_checkpoint_args(parser: argparse.ArgumentParser, args: argparse.Names
         conflicts.append("--harvest-report-delay conflicts with the checkpoint; use a declared state fork")
     elif effective_delay:
         args.harvest_report_delay = effective_delay
+    from chronicler.livelihoods import livelihoods_resume_conflicts
+    conflicts.extend(livelihoods_resume_conflicts(state.world, args, saved))
     for key, value in saved.items():
         if key in _RESUME_FREE_ARGS:
             continue

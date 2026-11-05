@@ -283,7 +283,9 @@ Seeds 2 and 3:
   the held screens count it. Charging right after the tick would close the
   gap, but the after-tick hook has no accumulator, so it is left as a declared
   limitation. With `--local-budgets`, L9 reserves the assistance ceiling as an
-  obligation before any envelope, so its envelopes cannot claim the same coins.
+  obligation before any envelope, and the next gate installs at most that
+  reservation (`local_budgets.reserved`; the cap was added after review R2 on
+  2026-11-05), so its envelopes cannot claim the same coins.
 - The receiving-pressure record reports crowding and food. Work, care and
   learning are what the existing consumers already apply to everyone; there
   is no separate arrival metric for them.

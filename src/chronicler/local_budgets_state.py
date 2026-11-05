@@ -77,6 +77,10 @@ class Decision(BaseModel):
     projected: int
     floor: int
     obligations: int
+    #: ``obligations`` by provider group (nonzero only): coins reserved for
+    #: spending L9 cannot cap; a service reads its own back next turn
+    #: (``local_budgets.reserved``) and spends no more.
+    reserved: dict[str, int] = Field(default_factory=dict)
     committed: int
     budget: int
     influence: dict[str, float] = Field(default_factory=dict)

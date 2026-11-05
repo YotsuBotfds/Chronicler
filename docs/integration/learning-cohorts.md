@@ -154,7 +154,12 @@ adoption.
 
 No randomness is drawn. The native attendance plan is transient, never
 checkpointed, and taken once after the tick; Python state holds no pending
-work across a turn boundary.
+work across a turn boundary. If the agent tick (or a livelihoods before-tick
+hook) raises, `livelihoods.wrap_agent_tick` calls each package's
+`rollback_agent_tick`: the unconsumed attendance and its registry rows are
+cancelled, as academy services cancel their teaching reservation, and the
+paid-work share, fare policy and food allocation are disarmed. A failed
+kernel is still not rolled back (added after the R1 review on 2026-11-05).
 
 All parameters are declared modeling choices, not calibrated:
 `ATTENDANCE_FRACTION`, `SESSIONS_TO_COMPLETE`, `COMPLETION_GAIN`,

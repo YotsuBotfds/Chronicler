@@ -448,6 +448,20 @@ def envelope(world, civ: int, service: str, *, site: int | None = None, region: 
     return total
 
 
+def reserved(world, civ: int, group: str) -> int | None:
+    """Coins the last decision reserved for ``group``'s uncapped spending this
+    turn (its provider's ``obligations``, reserved before any envelope); the
+    service spends no more. 0 for a civ that made no decision. None while L9
+    is inactive or made no decision for this turn: keep the service's rule."""
+    state = _state(world)
+    if state is None or not local_budgets_active(world) or state.decision_turn != world.turn - 1:
+        return None
+    for d in state.decisions:
+        if d.civ == civ:
+            return int(d.reserved.get(group, 0))
+    return 0
+
+
 def record_execution(world, commitment_cid: int, service: str, **fields) -> None:
     state = _state(world)
     if state is not None:
@@ -949,7 +963,13 @@ class _RelocationAssistance(Provider):
     """L7 assisted relocation: the destination ruler's fare assistance is
     Phase 10 treasury spending L9 cannot cap (it depends on next turn's
     moves), so its ceiling is reserved as an obligation before any envelope.
-    Added after a lead review on 2026-11-05 found it outside the one budget."""
+    Added after a lead review on 2026-11-05 found it outside the one budget.
+    The gate installs at most this reservation next turn
+    (``relocation_costs.assistance_budgets`` reads :func:`reserved`): review
+    R2 (2026-11-05) found the ceiling recomputed on next turn's larger
+    treasury, beyond what was reserved."""
+
+    group = "relocation"
 
     def obligations(self, world, civ, obs):
         container = getattr(world, "livelihoods", None)
@@ -1295,7 +1315,13 @@ def _decide(world, state: LocalBudgetState, obs, providers, acc) -> None:
         if not civ.regions:
             continue
         _bump(state, "decision_civ_turns")
-        obligations = sum(int(p.obligations(world, ci, obs)) for p in providers)
+        reserved: dict[str, int] = {}
+        for p in providers:
+            amount = int(p.obligations(world, ci, obs))
+            if amount:
+                key = p.group or type(p).__name__
+                reserved[key] = reserved.get(key, 0) + amount
+        obligations = sum(reserved.values())
         committed = sum(c.amount for c in state.open if c.civ == ci)
         disposable = max(0, int(projected[ci]) - int(params["floor"]) - obligations - committed)
         budget = int(math.floor(params["envelope_share"] * disposable + EPS))
@@ -1313,7 +1339,7 @@ def _decide(world, state: LocalBudgetState, obs, providers, acc) -> None:
         items.sort(key=lambda p: p.pid)
         decision = Decision(turn=obs.turn, civ=ci, mode=state.mode, seat=_seat(world, ci),
                             projected=int(projected[ci]), floor=int(params["floor"]), obligations=obligations,
-                            committed=committed, budget=budget, influence=_influence(civ),
+                            reserved=reserved, committed=committed, budget=budget, influence=_influence(civ),
                             burdens=_burdens(world, ci, obs), proposals=items, dropped=dropped)
         _bump(state, "proposals", len(items))
         _bump(state, "proposals_dropped", dropped)

@@ -117,8 +117,10 @@ def _select_recruits_columnar(ctx, civ, civ_idx, taken, dist, count, ids, regs, 
 def select_recruits(ctx: WarContext, civ: "Civilization", staging: str, count: int) -> list[tuple[int, int]]:
     """Pick ``count`` native agents of the civ: soldiers first, nearest first.
 
-    Named characters and agents already enlisted are excluded. Returns
-    ``(agent_id, region_index)`` pairs ordered by priority.
+    Named characters and agents already enlisted are excluded, and so (with
+    the livelihoods sprint) is anyone holding this turn's work commitment in
+    the shared native registry: one work commitment per person per turn.
+    Returns ``(agent_id, region_index)`` pairs ordered by priority.
     """
     if count <= 0 or ctx.bridge is None:
         return []
@@ -132,6 +134,10 @@ def select_recruits(ctx: WarContext, civ: "Civilization", staging: str, count: i
     civ_idx = civ_index(ctx.world, civ.name)
     taken = {aid for army in ctx.world.war_state.armies for aid, _ in army.roster}
     taken.update(getattr(ctx.bridge, "named_agents", {}) or {})
+    sim = getattr(ctx.bridge, "_sim", None)
+    if getattr(ctx.world, "livelihoods", None) is not None and callable(getattr(sim, "work_reservations", None)):
+        # Workshop crews are reserved in Phase 2, before campaigns draft.
+        taken.update(int(row[0]) for row in sim.work_reservations(ctx.world.turn))
     dist = distances_from(ctx, staging)
     regions = ctx.world.regions
     arrays = batch_arrays(snap, ("id", "region", "occupation", "civ_affinity"))

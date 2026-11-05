@@ -31,9 +31,10 @@ MODES: tuple[str, ...] = ("learn", "no_learning")
 #: Why a member's enrolment ended without completion.
 EXIT_REASONS: tuple[str, ...] = (
     "died", "migrated", "occupation_changed", "absent", "academy_lost", "stalled", "disabled",
+    "pool_reset",
 )
 #: Why a cohort closed.
-CLOSE_REASONS: tuple[str, ...] = ("finished", "academy_lost", "stalled", "disabled")
+CLOSE_REASONS: tuple[str, ...] = ("finished", "academy_lost", "stalled", "disabled", "pool_reset")
 #: A member's availability this turn, by native planner status code.
 MEMBER_STATUSES: tuple[str, ...] = (
     "available", "dead", "elsewhere", "on_trip", "enlisted", "assigned", "not_eligible",
@@ -60,6 +61,7 @@ COUNTERS: tuple[str, ...] = (
     "exit_died", "exit_migrated", "exit_occupation_changed", "exit_absent", "exit_academy_lost",
     "exit_stalled", "exit_disabled",
     "cohorts_finished", "cohorts_academy_lost", "cohorts_stalled", "cohorts_disabled",
+    "exit_pool_reset", "cohorts_pool_reset",
 )
 
 

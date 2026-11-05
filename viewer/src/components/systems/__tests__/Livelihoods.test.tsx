@@ -115,3 +115,74 @@ it("mounts commons rules when the snapshot recorded them", () => {
   expect(screen.getByRole("heading", { name: /Commons rules/ })).toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: /Food allocation/ })).not.toBeInTheDocument();
 });
+
+it("refuses malformed food allocation totals and samples visibly instead of crashing or showing zero", () => {
+  // Review R3 2026-11-05: totals were checked only as an object, so a missing
+  // amount threw in toLocaleString and a missing count rendered as 0.
+  const without = (key: string) => Object.fromEntries(Object.entries(food.totals).filter(([k]) => k !== key));
+  const noAllocated = without("allocated");
+  const noScarce = without("scarce_regions");
+  for (const bad of [
+    { ...food, totals: noAllocated }, { ...food, totals: noScarce },
+    { ...food, totals: { ...food.totals, shortfall: "1.2" } }, { ...food, totals: { ...food.totals, alive: -1 } },
+    { ...food, sample: [{ id: 11 }] }, { ...food, sample: [[11, 9, 11, 0.5, false]] },
+    { ...food, sample: [[11, 1, 11, null, false]] },
+  ]) {
+    render(<FoodAllocation {...props({ schema_version: 1, food_allocation: bad })} />);
+    expect(screen.getByText(/not observed or is unavailable at snapshot 5/)).toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    cleanup();
+  }
+});
+
+it("marks the relief total as partial when some regions' relief share is unknown", () => {
+  const partial = { ...food, totals: { ...food.totals, relief_to_targeted: 0.4, relief_unknown_regions: 2 } };
+  render(<FoodAllocation {...props({ schema_version: 1, food_allocation: partial })} />);
+  const totals = within(screen.getByRole("table", { name: "Food allocation totals at snapshot 5" }));
+  expect(totals.getByRole("row", { name: /Relief to targeted/ })).toHaveTextContent(/unknown in 2 regions/);
+});
+
+it("says so when the livelihoods record itself is unreadable or names no known package", () => {
+  // Review R3 2026-11-05: a malformed top-level record left an empty tab.
+  for (const bad of ["garbage", [1, 2], { schema_version: 2, food_allocation: food }, { food_allocation: food }]) {
+    render(<LivelihoodsPanel {...props(bad)} onSeek={vi.fn()} onSelectEvent={vi.fn()} onSelectCivilization={vi.fn()} />);
+    expect(screen.getByText(/livelihoods record at snapshot 5 is unreadable/)).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /Food allocation/ })).not.toBeInTheDocument();
+    cleanup();
+  }
+  render(<LivelihoodsPanel {...props({ schema_version: 1, household_purchases: {} })} onSeek={vi.fn()} onSelectEvent={vi.fn()} onSelectCivilization={vi.fn()} />);
+  expect(screen.getByText(/names no package this viewer reads/)).toBeInTheDocument();
+  cleanup();
+  render(<LivelihoodsPanel {...props(undefined)} onSeek={vi.fn()} onSelectEvent={vi.fn()} onSelectCivilization={vi.fn()} />);
+  expect(screen.getByText(/No livelihoods observation is recorded at snapshot 5/)).toBeInTheDocument();
+});
+
+it("re-dates every section to the scrubbed snapshot on rewind, never keeping later values", () => {
+  // Review R3 adversarial: snapshot 7 records more workshops and a short region
+  // than snapshot 5; rewinding to 5 and then to a snapshot without a record
+  // must show only that snapshot's own values.
+  const later = { schema_version: 1,
+    workshops: { ...workshops, source_turn: 6, receipts: [{ ...receipt, turn: 6, crew: [11, 15, 19], eligible: 3 }] },
+    food_allocation: { ...food, source_turn: 6, totals: { ...food.totals, alive: 9 } } };
+  const extra = { onSeek: vi.fn(), onSelectEvent: vi.fn(), onSelectCivilization: vi.fn() };
+  const view = render(<LivelihoodsPanel {...props(later, 7)} {...extra} />);
+  expect(screen.getByRole("heading", { name: "Public workshops · snapshot 7" })).toBeInTheDocument();
+  expect(within(within(screen.getByRole("table", { name: "Workshop sites at snapshot 7" }))
+    .getAllByRole("row")[1]).getAllByRole("cell")[4]).toHaveTextContent(/^3$/);
+  expect(within(screen.getByRole("table", { name: "Food allocation totals at snapshot 7" }))
+    .getByRole("row", { name: /People in short regions/ })).toHaveTextContent("9");
+  view.rerender(<LivelihoodsPanel {...props({ schema_version: 1, workshops, food_allocation: food }, 5)} {...extra} />);
+  expect(screen.queryByText(/snapshot 7/)).not.toBeInTheDocument();
+  const crewCell = (turn: number) => within(within(screen.getByRole("table", { name: `Workshop sites at snapshot ${turn}` }))
+    .getAllByRole("row")[1]).getAllByRole("cell")[4];
+  expect(crewCell(5)).toHaveTextContent(/^2$/);
+  expect(within(screen.getByRole("table", { name: "Food allocation totals at snapshot 5" }))
+    .getByRole("row", { name: /People in short regions/ })).toHaveTextContent("4");
+  // A stale record (dated to another snapshot) is never shown as this one's.
+  view.rerender(<LivelihoodsPanel {...props(later, 6)} {...extra} />);
+  expect(screen.getByText(/Workshops are not observed or are unavailable at snapshot 6/)).toBeInTheDocument();
+  expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  view.rerender(<LivelihoodsPanel {...props(undefined, 3)} {...extra} />);
+  expect(screen.getByText(/No livelihoods observation is recorded at snapshot 3/)).toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: /Public workshops/ })).not.toBeInTheDocument();
+});

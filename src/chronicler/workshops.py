@@ -319,12 +319,16 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
                 for s in state.sites]
     _before_crews(world, sim, requests)
     rows = {}
+    # Observe mode employs nobody: its crews are available, not employed, so
+    # they hold no work commitment in the shared registry (L5 learners and
+    # teaching would otherwise treat them as already working).
+    reserve_turn = None if state.mode == "observe" else world.turn
     if requests:
         priority = _crew_priority(world, state)
         if priority:
-            planned = sim.plan_workshop_crews(requests, _enlisted(world), world.turn, priority_ids=priority)
+            planned = sim.plan_workshop_crews(requests, _enlisted(world), reserve_turn, priority_ids=priority)
         else:
-            planned = sim.plan_workshop_crews(requests, _enlisted(world), world.turn)
+            planned = sim.plan_workshop_crews(requests, _enlisted(world), reserve_turn)
         for row, (site_id, _r, _s, diverted, _m) in zip(planned, requests, strict=True):
             (site, region, settlement, resident, trip, army, assigned, eligible,
              crew, ages, work) = row

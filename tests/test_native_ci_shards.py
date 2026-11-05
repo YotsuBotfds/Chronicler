@@ -257,10 +257,15 @@ def test_checked_in_partition_preserves_historical_assignment_with_explicit_new_
         'tests/test_workshops.py': '0',
         'tests/test_livelihoods_wiring.py': '0',
         'tests/test_livelihoods_sprint_witness.py': '0',
+        'tests/test_livelihoods_work_authority.py': '0',
+        'tests/test_livelihoods_work_authority_native.py': '1',
+        'tests/test_livelihoods_shared_treasury.py': '0',
+        'tests/test_livelihoods_pool_binding.py': '0',
+        'tests/test_livelihoods_closure_native.py': '1',
         'tests/test_recovery_skills_native.py': '1',
         'tests/test_recovery_skills_wiring.py': '0',
     }
-    assert len(owners) == 370
+    assert len(owners) == 375
     assert {name: owners[name] for name in additions} == additions
     old_owners = {name: shard for name, shard in owners.items() if name not in additions}
     assert len(old_owners) == 300

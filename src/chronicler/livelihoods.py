@@ -43,6 +43,8 @@ Package module protocol (each function optional unless noted):
 the region batch, ``finish_phase2(world, economy_result, agent_bridge, acc)``,
 ``rollback_phase2(world)``, ``before_agent_tick(world, agent_bridge,
 economy_result)``, ``after_agent_tick(world, agent_bridge)``,
+``on_pool_reset(world)`` (see :func:`bind_native_pool`), ``rollback_agent_tick(world, agent_bridge)`` (the before hooks or the agent
+tick raised: release what is still pending natively, charge nothing),
 ``phase10_before_reserves(world, acc, economy_result, agent_bridge)`` and
 ``phase10(world, acc, economy_result, agent_bridge)``; event-returning hooks
 return a list.
@@ -367,6 +369,49 @@ def _present(world: Any):
             yield name, _module(name)
 
 
+#: Each option of ``LIVELIHOODS_CHOICES``: its switch and the sub-state field holding it.
+_CHOICE_FIELDS: dict[str, tuple[str, str]] = {
+    "workshop_mode": ("workshops", "mode"),
+    "food_allocation_regime": ("food_allocation", "regime"),
+    "convoy_route_policy": ("grain_convoys", "route_policy"),
+    "commons_rule_mode": ("commons_rules", "mode"),
+    "learning_cohort_mode": ("learning_cohorts", "mode"),
+    "workshop_payroll_mode": ("workshop_payroll", "mode"),
+    "relocation_mode": ("relocation_costs", "mode"),
+    "local_budget_mode": ("local_budgets", "mode"),
+}
+
+
+def livelihoods_resume_conflicts(world: Any, args: Any, recorded: dict) -> list[str]:
+    """Explicit options an exact resume of ``world`` cannot honour.
+
+    ``batch_manifest.simulation_config`` omits options that were never
+    given, so the generic checkpoint adoption never sees them; the retained
+    state is authoritative. Options the checkpoint recorded (``recorded``)
+    are left to that adoption. Never changes ``world`` or ``args``."""
+    state = livelihoods_state(world)
+    conflicts = []
+    for name in LIVELIHOODS_SWITCHES:
+        given = getattr(args, name, None)
+        if given is None or name in recorded:
+            continue
+        sub = getattr(state, name, None) if state is not None else None
+        effective = sub is not None and bool(sub.enabled)
+        if given != effective:
+            conflicts.append(f"--{name.replace('_', '-')} {given!r} conflicts with the checkpoint "
+                             f"(saved: {effective!r})")
+    for key, (name, field) in _CHOICE_FIELDS.items():
+        given = getattr(args, key, None)
+        if given is None or key in recorded:
+            continue
+        sub = getattr(state, name, None) if state is not None else None
+        saved = getattr(sub, field) if sub is not None else None
+        if given != saved:
+            conflicts.append(f"--{key.replace('_', '-')} {given!r} conflicts with the checkpoint "
+                             f"(saved: {saved!r})")
+    return conflicts
+
+
 def livelihoods_feature_flags(world: Any) -> dict[str, bool]:
     """Checkpoint header flags, only for switches this world ever enabled."""
     return {name: bool(getattr(module, f"{name}_active")(world)) for name, module in _present(world)}
@@ -388,8 +433,35 @@ def _hooks(world: Any, hook: str):
             yield fn
 
 
+def bind_native_pool(world, agent_bridge, *, reset: bool = True) -> None:
+    """Bind saved stable ids to the native pool they name.
+
+    Native agent ids are scoped to one pool. A run that rebuilds the pool
+    (a legacy state-file resume spawns new people from region populations
+    under reused ids) must not hand saved id-bound progress to strangers, as
+    the war rosters already re-draft for the same reason. The first hook of
+    a turn against a simulator other than the bound one calls each present
+    package's optional ``on_pool_reset(world)``, which closes its id-bound
+    records with a dated reason (a no-op when it holds none, as in a fresh
+    run). An exact checkpoint load restores the same pool and re-binds
+    without a reset (``reset=False``).
+    """
+    state = livelihoods_state(world)
+    sim = getattr(agent_bridge, "_sim", None) if agent_bridge is not None else None
+    if state is None or sim is None or state._pool_sim == id(sim):
+        return
+    state._pool_sim = id(sim)
+    if not reset:
+        return
+    for _name, module in _present(world):
+        fn = getattr(module, "on_pool_reset", None)
+        if fn is not None:
+            fn(world)
+
+
 def prepare_phase2(world, region_input, agent_bridge, snapshot, *, acc=None):
     """Before the native economy tick: may replace columns; charges nothing."""
+    bind_native_pool(world, agent_bridge)
     for fn in _hooks(world, "prepare_phase2"):
         region_input = fn(world, region_input, agent_bridge, snapshot, acc)
     return region_input
@@ -415,13 +487,25 @@ def wrap_agent_tick(world, agent_bridge, tick_agents, economy_result):
     """Wrap the native agent tick with the active packages' before/after hooks."""
     before = list(_hooks(world, "before_agent_tick"))
     after = list(_hooks(world, "after_agent_tick"))
+    release = list(_hooks(world, "rollback_agent_tick"))
     if (not before and not after) or tick_agents is None:
         return tick_agents
 
     def _tick(*args, **kwargs):
-        for fn in before:
-            fn(world, agent_bridge, economy_result)
-        events = tick_agents(*args, **kwargs)
+        bind_native_pool(world, agent_bridge)
+        try:
+            for fn in before:
+                fn(world, agent_bridge, economy_result)
+            events = tick_agents(*args, **kwargs)
+        except BaseException as exc:
+            # A failed kernel is not rolled back: release only reservations and
+            # one-tick installs that remain pending (the teaching precedent).
+            for fn in reversed(release):
+                try:
+                    fn(world, agent_bridge)
+                except Exception as error:
+                    exc.add_note(f"livelihoods release also failed: {error!r}")
+            raise
         for fn in after:
             events = list(events or []) + list(fn(world, agent_bridge) or [])
         return events
@@ -430,6 +514,7 @@ def wrap_agent_tick(world, agent_bridge, tick_agents, economy_result):
 
 
 def phase10_before_reserves(world, *, acc=None, economy_result=None, agent_bridge=None) -> list:
+    bind_native_pool(world, agent_bridge)
     events: list = []
     for fn in _hooks(world, "phase10_before_reserves"):
         events.extend(fn(world, acc, economy_result, agent_bridge) or [])

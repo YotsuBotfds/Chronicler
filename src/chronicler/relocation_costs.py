@@ -25,7 +25,8 @@ Modes (``--relocation-mode``):
   a household short of the fare is offered ``ASSIST_MILLI`` per person
   (never more than the fare) from that ruler's budget for the turn,
   ``ASSIST_SHARE`` of its projected treasury after other pending livelihoods
-  bills, reserved in the gate's order. With it, some short households move;
+  bills (with ``--local-budgets``, at most what L9's last decision reserved
+  for it), reserved in the gate's order. With it, some short households move;
   they pay the rest;
 * ``liquidity_only``: the control. The same gate requires the fare, nothing
   is paid and nobody is assisted (a liquidity restriction alone).
@@ -122,11 +123,16 @@ def assistance_budgets(world, state) -> list[int]:
     if state.mode != "assisted":
         return [0] * len(world.civilizations)
     from chronicler.commons_rules import pending_phase2_bills
+    from chronicler.local_budgets import reserved   # L9's reservation (None: this rule alone)
     bills = pending_phase2_bills(world)
     out = []
     for i, civ in enumerate(world.civilizations):
         projected = max(0, int(civ.treasury) - int(bills[i] if i < len(bills) else 0))
-        out.append(int(math.floor(ASSIST_SHARE * projected)) * 1000)
+        ceiling = int(math.floor(ASSIST_SHARE * projected))
+        cap = reserved(world, i, "relocation")
+        if cap is not None:
+            ceiling = min(ceiling, cap)
+        out.append(ceiling * 1000)
     return out
 
 
@@ -186,6 +192,24 @@ def _region_rows(world, receipt_groups, before, after, food) -> list[RegionPress
         origin.departures += len(g.members)
         origin.departure_households += 1
     return [rows[r] for r in sorted(rows)]
+
+
+def on_pool_reset(world) -> None:
+    """A rebuilt native pool (``livelihoods.bind_native_pool``): tracked
+    arrivals and their origins name other people now and are dropped."""
+    state = _state(world)
+    if state is None or not (state.tracked or state.origins):
+        return
+    state.tracked, state.tracked_turn, state.origins = [], None, {}
+    _bump(state, "pool_resets")
+
+
+def rollback_agent_tick(world, agent_bridge) -> None:
+    """The agent tick raised: drop an untaken fare policy; nothing is charged."""
+    state = _state(world)
+    if getattr(state, "_pending", None) is not None:
+        state._pending = None
+        agent_bridge._sim.cancel_relocation_policy()
 
 
 def after_agent_tick(world, agent_bridge) -> list:

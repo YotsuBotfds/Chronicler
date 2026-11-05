@@ -50,6 +50,19 @@ The landing closes three of the five activation blockers in
    before health work existed and had no shared registry. Exclusion then held
    only because the consumers' predicates were disjoint. This entry describes
    the correction.
+
+   A second review on 2026-11-05 (R1, work authority) corrected two gaps:
+   - Observe mode employs nobody, so its crews are planned without a
+     registry entry. Before, they were reserved, so with `--learning-cohorts`
+     observe mode removed urban farmers from L5 and changed the trajectory.
+   - Army drafts (`war.armies.select_recruits`, Phase 5 and campaigns) skip
+     anyone holding this turn's registry entry. Crews are reserved in
+     Phase 2, before armies are raised, so a crew member could otherwise be
+     drafted in the turn of their paid work. Rural health work is not in the
+     registry and is still not checked by drafts (pre-existing).
+   In operate and cost-only modes a selected site that does not operate
+   (building, unfunded, needing repair) still reserves its crew although it
+   allocates no work; this is recorded, not changed.
 3. **Actual raw-input exposure (blocker 4).** `EconomyRegionResult` now
    carries `craft_input` (`RegionWorkState::craft_input`).
    `AgentSimulator.take_craft_inputs()` returns the last tick's per-good input
