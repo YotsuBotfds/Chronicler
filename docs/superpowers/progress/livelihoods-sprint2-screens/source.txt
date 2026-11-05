@@ -1,0 +1,6 @@
+source aea7972fccc6d2909dc9af6dd2e2484337243dad
+native 70587268a128b5a51a10b37c68e4c203bce0fa3eb492a66b21be86e851ea6677
+interpreter: CPython 3.13 (native venv), PYTHONHASHSEED=0, RAYON_NUM_THREADS=1, CHRONICLER_QUIET=1
+run: 2026-11-05 09:24-09:48 UTC, 252 runs, 3 concurrent, 1.08 core-hours (budget 2.0), 668 MB transient
+command: python scripts/livelihoods_screens.py run OUT --sprint 2 --jobs 3
+report: python scripts/livelihoods_screens.py report OUT/metrics.jsonl --sprint 2

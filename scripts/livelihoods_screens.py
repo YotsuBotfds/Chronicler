@@ -116,6 +116,63 @@ def _yaml(tree: dict, indent: int = 0) -> str:
     return "".join(out)
 
 
+def _get(r, *path, default=None):
+    x = r
+    for p in path:
+        if not isinstance(x, dict) or p not in x:
+            return default
+        x = x[p]
+    return x
+
+
+def paired_table(rows, outcomes) -> list[str]:
+    """Per-world paired differences (arm minus control, or the arm alone)."""
+    by = {(r["arm"], r["stratum"], r["seed"]): r for r in rows if r["rc"] == 0}
+    out = ["| Outcome | Stratum | Worlds | Mean diff [min, max] | Worlds >0 / <0 |", "| --- | --- | --- | --- | --- |"]
+    for label, arm, ctl, f in outcomes:
+        for s in ("t", "p"):
+            d = []
+            for seed in sorted({k[2] for k in by if k[1] == s}):
+                a, c = by.get((arm, s, seed)), (by.get((ctl, s, seed)) if ctl else None)
+                if a is None or (ctl and c is None):
+                    continue
+                va, vc = f(a), (f(c) if ctl else 0.0)
+                if va is None or vc is None:
+                    continue
+                d.append(va - vc)
+            if d:
+                out.append(f"| {label} | {s} | {len(d)} | {mean(d):+.4g} [{min(d):+.4g}, {max(d):+.4g}] "
+                           f"| {sum(x > 0 for x in d)} / {sum(x < 0 for x in d)} |")
+    return out
+
+
+#: Sprint-2 preregistered primary outcomes as per-world paired differences.
+PAIRED2 = [
+ ("D1 academy supplies purchased", "D1_workshops", "off", lambda r: _get(r, "academy", "purchased")),
+ ("D1 teaching work delivered", "D1_workshops", "off", lambda r: _get(r, "academy", "work_delivered")),
+ ("L5 completions (learn - no_learning)", "L5_learn", "L5_no_learning", lambda r: _get(r, "counters", "learning_cohorts", "completions", default=0)),
+ ("L5 capability changes (learn - no_learning)", "L5_learn", "L5_no_learning", lambda r: _get(r, "counters", "learning_cohorts", "capability_changes", default=0)),
+ ("L5 learner-turns attended (learn)", "L5_learn", None, lambda r: _get(r, "counters", "learning_cohorts", "learner_turns_attended", default=0)),
+ ("L6 crew net income (paid - unpaid_labor)", "L6_paid", "L6_unpaid_labor", lambda r: (_get(r, "counters", "workshop_payroll", "wages_paid", default=0) / 1000 - _get(r, "counters", "workshop_payroll", "income_replaced", default=0))),
+ ("L6 site-region craft output (paid - D1)", "L6_paid", "D1_workshops", lambda r: _get(r, "workshops", "out")),
+ ("L6 insolvent closures (no_customer)", "L6_no_customer", None, lambda r: _get(r, "counters", "workshop_payroll", "closed_insolvent", default=0)),
+ ("L8 extraction (enforced - cost_only)", "L8_enforced", "L8_cost_only", lambda r: _get(r, "timber", "extraction")),
+ ("L8 closing stock (enforced - cost_only)", "L8_enforced", "L8_cost_only", lambda r: _get(r, "timber", "stock_end")),
+ ("L8 regrowth (enforced - cost_only)", "L8_enforced", "L8_cost_only", lambda r: _get(r, "timber", "regrowth")),
+ ("I commons x work: site craft output", "I_commons_work", "I_timber_work", lambda r: _get(r, "workshops", "out")),
+ ("I commons x work: extraction", "I_commons_work", "I_timber_work", lambda r: _get(r, "timber", "extraction")),
+ ("L9 poorer-half shortfall per person (bargained - W)", "L9_bargained", "W_services", lambda r: (_get(r, "food", "sp") / _get(r, "food", "pp")) if _get(r, "food", "pp") else None),
+ ("L9 relief to targeted (bargained - W)", "L9_bargained", "W_services", lambda r: _get(r, "food", "relief_t")),
+ ("L9 site craft output (bargained - W)", "L9_bargained", "W_services", lambda r: _get(r, "workshops", "out")),
+ ("L9 site craft output (fixed - W)", "L9_fixed_shares", "W_services", lambda r: _get(r, "workshops", "out")),
+ ("L9 poorer-half shortfall (fixed - W)", "L9_fixed_shares", "W_services", lambda r: (_get(r, "food", "sp") / _get(r, "food", "pp")) if _get(r, "food", "pp") else None),
+ ("L7 persons moved (paid - liquidity_only)", "L7_paid", "L7_liquidity_only", lambda r: _get(r, "counters", "relocation_costs", "persons_applied", default=0)),
+ ("L7 persons moved (assisted - liquidity_only)", "L7_assisted", "L7_liquidity_only", lambda r: _get(r, "counters", "relocation_costs", "persons_applied", default=0)),
+ ("L7 groups short (assisted - paid)", "L7_assisted", "L7_paid", lambda r: _get(r, "counters", "relocation_costs", "groups_short", default=0)),
+ ("L5xL6 completions (I_learn_pay - L5_learn)", "I_learn_pay", "L5_learn", lambda r: _get(r, "counters", "learning_cohorts", "completions", default=0)),
+]
+
+
 def metrics(bundle_path: Path) -> dict:
     sys.path.insert(0, f"{REPO}/src")
     from chronicler.bundle_codec import load_bundle
@@ -263,7 +320,7 @@ def report_main(argv):
     ap = argparse.ArgumentParser(prog="livelihoods_screens.py report")
     ap.add_argument("metrics"); ap.add_argument("--sprint", type=int, choices=sorted(SPRINTS), default=1)
     a = ap.parse_args(argv)
-    sprint = SPRINTS[a.sprint]
+    sprint_no, sprint = a.sprint, SPRINTS[a.sprint]
     rows = [json.loads(l) for l in open(a.metrics)]
 
     by = {(r["arm"], r["stratum"], r["seed"]): r for r in rows}
@@ -296,6 +353,9 @@ def report_main(argv):
                     dp.append(a["population"] - o["population"]); dt.append(a["treasury"] - o["treasury"])
             out.append(f"| {arm} | {control} | {s} | {len(dp)} | {rng(dp)} | {rng(dt)} |")
 
+    if sprint_no == 2:
+        out.append("\n### Preregistered primary outcomes: per-world paired differences\n")
+        out.extend(paired_table(rows, PAIRED2))
     out.append("\n### Activation funnels and primary outcomes (sum or mean per world)\n")
     for s in strata:
         out.append(f"\n**{strata[s]}**\n")

@@ -104,6 +104,104 @@ The L2 `equal` regime and feature-off identity are tested elsewhere (native test
 - **No significance claims.** With six worlds per stratum, results are reported as means,
   ranges and the number of worlds with the same sign.
 
+## Results (held cohort, run 2026-11-05)
+
+Artifacts in the repository:
+- per-world metrics: `livelihoods-sprint2-screens/metrics.jsonl`, one row per arm and world;
+- the generated report, including the paired table: `livelihoods-sprint2-screens/report.md`;
+- source identity: `livelihoods-sprint2-screens/source.txt`.
+
+Re-summarize with `scripts/livelihoods_screens.py report ... --sprint 2`. Raw bundles are not
+committed; the fixed seeds reproduce them.
+
+- **Run.**
+  - Source `aea7972f`, native extension `70587268…`, built from the same native source.
+  - 252 runs, 0 failed; 1.08 of the 2.0 core-hours.
+  - Every arm ran once per held world. Nothing was tuned or rerun.
+- **Units.** Six worlds per stratum: t = template 8×4, p = procedural 32×10. Results are means
+  over worlds with their range and the number of worlds with each sign. These are screens, not
+  significance tests.
+
+### Findings by package
+
+- **L1 downstream supplies (D1 against off).** Mixed by stratum.
+  - Workshops raised academy supplies purchased in 5 of 6 template worlds (+22 per world,
+    range −7 to +66) but lowered them in 5 of 6 procedural worlds (−16, range −146 to +98).
+    Teaching delivered followed the same pattern.
+  - There is no consistent downstream supply effect.
+- **L5 learners.** Cohorts form, but few learners complete.
+  - Per world: 5.2 cohorts (t) and 7.3 (p), and 28 and 36 learners enrolled.
+  - Learners went without a seat in 98 (t) and 154 (p) learner-turns, against 17 and 15 turns
+    attended. The binding constraint is delivered teaching, not supplies or learners.
+  - Capability changes (learn against no_learning) occurred in 2 of 6 worlds per stratum: +1.3
+    (t) and +0.5 (p) per world. Population and treasury differences are indistinguishable
+    from the no-learning control.
+  - Adverse: attendance cost 8.7–8.8 income per world, mostly without completion.
+- **L5 × L6 (I_learn_pay against L5_learn).** Payroll-backed academy purchases raised
+  completions in template worlds: +4.2 per world, 4 of 6 up (5.7 against 1.5 per world).
+  Procedural worlds showed almost no change (+0.17).
+- **L6 workshop payroll.**
+  - Paid crews gained relative to unpaid labour in every template world (+57.8 wealth units
+    per world, range +7.8 to +89.0). In procedural worlds the gain was +22.2: 4 worlds
+    positive and 2 worlds with no firm.
+  - Payroll lowered site-region craft output in 5 of 6 template worlds (−61 per world): unpaid
+    wages cut hours, then crews, then closed firms. Procedural worlds moved the other way
+    (+18; 3 up, 1 down).
+  - Without a customer, firms closed insolvent in 6 of 6 template worlds (2.3 per world) and
+    4 of 6 procedural worlds.
+  - Adverse: even paid firms closed insolvent (2.7 per world, t) and wrote off wages
+    (1.7 units per world).
+- **L8 commons rules.**
+  - Enforced rules cut extraction against cost_only in 5 of 6 worlds in each stratum: −16
+    (t) and −91 (p) per world. Closing stock was usually higher (t 3 up / 1 down; p 4 / 2),
+    as was regrowth.
+  - Cover loss (about 3,050 (t) and 13,500 (p) per world) stays 10–20 times extraction, so
+    harvest rules cannot protect a forest from clearing.
+  - With workshops competing for timber (I_commons_work against I_timber_work), extraction
+    fell in 6 of 6 template and 5 of 6 procedural worlds. Site craft output fell in 4 of 6
+    template (−26) and 3 of 6 procedural worlds (−14): the predicted production cost.
+  - City grievance added: 0.09 (t) and 1.7 (p) per world.
+- **L9 local budgets.** Bargaining shifted the treasury from workshops to relief.
+  - Site craft output fell in 12 of 12 worlds against W_services: −136 (t) and −285 (p) per
+    world. In template worlds, idle site-turns rose from 2 to 88.
+  - Relief reaching targeted households rose in 9 of 12 worlds (+24 (t), +35 (p) per world).
+  - The poorer half's shortfall barely changed (−0.005 and −0.0004 rations per person; lower
+    in 4 of 6 worlds each). This is the production-first against relief-first trade-off; the
+    relief side delivers little.
+  - Contested decisions were rare. Per world, the patricians' allocation won 3.8 (t) and
+    8.8 (p) times and the commons' 1 and 0.3 times; most decisions were uncontested or
+    empty. Grievance was raised 5 (t) and 37 (p) times and eased 20 and 67 times.
+  - Fixed shares also cut workshops (11 of 12 worlds) and deferred far more: 35 against 8.5
+    (t) and 124 against 46 (p), mostly `work_short`.
+- **L7 relocation costs.**
+  - Paying the fare (paid against liquidity_only) changed persons moved by −189 (t; 4 of 6
+    lower) and −143 (p; 3 lower, 3 higher).
+  - Assistance reduced households blocked short against paid in 11 of 12 worlds: −249 (t)
+    and −611 (p).
+  - Against liquidity_only, assistance moved fewer people in template worlds (−232, 6 of 6)
+    and more in procedural worlds (+352, 4 of 6). The trajectories diverge, so this is not
+    a per-household effect.
+  - Arrivals were fed less than residents in every arm (mean ration 0.49–0.61 against
+    0.54–0.67). Destinations became more crowded by about +0.10 and origins less by about
+    −0.07 to −0.09 people per unit of capacity, per region-turn.
+  - Fare residuals: about 1.4% of the fares due.
+- **All switches (ALL against off).** Population +14.5 [+4, +24] (t, 6 of 6 positive) and
+  +43.7 [−24, +110] (p). Treasury ranges span zero. This is one cohort, and no causal claim
+  is made for the combination.
+- **Uninformative outcome.** Granary storage condition ends at 0 in every arm, including off,
+  because the base storage policy maintains nothing. The preregistered end-condition outcome
+  therefore cannot discriminate. L9's granary works appear only in its envelope counters.
+- **Shared outcomes.** Per arm, the paired population and treasury differences are listed in
+  `report.md`. Most ranges span zero.
+
+### What the screens do not show
+
+- No package is qualified: the 200-seed and procedural gates were not run.
+- L6b household purchases were left open and were not screened.
+- The L5 capability changes are few. The template advantage of L5 × L6, the L7 assistance
+  pattern and the D1 sign all differ by stratum. Each would need a larger cohort before any
+  claim.
+
 ## Amendments
 
 **2026-11-05, before any held run (independent review of the integrated source).**
