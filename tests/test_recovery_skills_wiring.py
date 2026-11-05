@@ -38,7 +38,7 @@ from chronicler.world_gen import generate_world
 
 RS = ("apprenticeship", "repair_projects", "veteran_reintegration", "remittances", "clearing_protection")
 #: Packages whose lane replaced the inert RS0 stub (their own tests cover them).
-IMPLEMENTED = {"clearing_protection", "remittances"}
+IMPLEMENTED = {"clearing_protection", "remittances", "veteran_reintegration"}
 MODE_KEYS = {"apprenticeship": "apprenticeship_mode", "repair_projects": "repair_mode",
              "veteran_reintegration": "veteran_mode", "remittances": "remittance_mode",
              "clearing_protection": "clearing_protection_mode"}
@@ -318,7 +318,7 @@ def test_cross_lane_stubs_are_inert(world):
         VR.note_outcome(world, 7, "placed:army", turn=3)
     assert world.model_dump_json() == before
     assert OUTCOMES == ("placed:crew", "placed:apprentice", "placed:repair", "waiting", "remobilised",
-                        "died", "migrated", "control_lost", "expired")
+                        "died", "migrated", "control_lost", "expired", "pool_reset")
 
 
 # --- workshops.py seams -----------------------------------------------------------
