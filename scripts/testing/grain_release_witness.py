@@ -92,6 +92,8 @@ K_GRAIN_RESERVES_FULL_MEAL_RELEASE = "grain_reserves.full_meal_release"
 
 
 def before_grain_release(source: str, path: str) -> str:
+    from scripts.testing.livelihoods_sprint_witness import before_livelihoods_sprint
+    source = before_livelihoods_sprint(source, path)
     from scripts.testing.food_accounting_witness import before_food_accounting
     row = _LAYERS.get(path)
     if row is None:

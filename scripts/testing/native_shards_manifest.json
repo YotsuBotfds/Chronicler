@@ -96,6 +96,8 @@
       "tests/test_live.py",
       "tests/test_live_checkpoints.py",
       "tests/test_live_checkpoints_native.py",
+      "tests/test_livelihoods_sprint_witness.py",
+      "tests/test_livelihoods_wiring.py",
       "tests/test_llm.py",
       "tests/test_m15_integration.py",
       "tests/test_m35b_disease.py",

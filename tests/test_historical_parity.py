@@ -237,7 +237,8 @@ class TestTransportContract:
         for snap in bundle["history"]:
             assert "food_accounting" not in snap  # fixture predates these exports
             assert "household_mobility" not in snap
-            assert set(SNAPSHOT_SYSTEMS) - {"food_accounting", "household_mobility"} <= set(snap)
+            assert "livelihoods" not in snap
+            assert set(SNAPSHOT_SYSTEMS) - {"food_accounting", "household_mobility", "livelihoods"} <= set(snap)
         assert set(BUNDLE_SYSTEMS + BUNDLE_CARRIERS) <= set(bundle)
 
     def test_batch_lab_and_reconnect_keep_every_system(self):
@@ -275,7 +276,7 @@ class TestTransportContract:
         assert not any(k in row for row in init["history"] for k in TURN_MESSAGE_KEYS)
         for key in BUNDLE_SYSTEMS:
             assert init[key] == static[key]
-        assert all(set(SNAPSHOT_SYSTEMS) - {"food_accounting", "household_mobility"} <= set(row) for row in init["history"])
+        assert all(set(SNAPSHOT_SYSTEMS) - {"food_accounting", "household_mobility", "livelihoods"} <= set(row) for row in init["history"])
 
     def test_food_accounting_survives_batch_reconnect_and_streaming(self):
         from chronicler.bundle_codec import encode_bundle, load_bundle

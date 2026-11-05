@@ -58,6 +58,8 @@ def add_expansion_arguments(parser: argparse.ArgumentParser, *, forwarding: bool
             help=(f"Forward {flag}/{flag.replace('--', '--no-', 1)} to every run. "
                   if forwarding else "") + _HELP[name],
         )
+    from chronicler.livelihoods import add_livelihoods_arguments
+    add_livelihoods_arguments(parser, forwarding=forwarding)
 
 
 def expansion_arguments(args: Any) -> list[str]:
@@ -69,7 +71,8 @@ def expansion_arguments(args: Any) -> list[str]:
             if not isinstance(value, bool):
                 raise ValueError(f"{name} must be a boolean or None")
             flags.append("--" + ("" if value else "no-") + name.replace("_", "-"))
-    return flags
+    from chronicler.livelihoods import livelihoods_arguments
+    return flags + livelihoods_arguments(args)
 
 
 def configure_expansion_features(world: Any, args: Any, *, agent_mode: str) -> None:
@@ -120,6 +123,10 @@ def configure_expansion_features(world: Any, args: Any, *, agent_mode: str) -> N
     if research is not None:
         from chronicler.scientific_research import set_research_agendas_enabled
         set_research_agendas_enabled(world, research)
+    # Livelihoods sprint switches (chronicler.livelihoods): independent,
+    # default off; a world that never enabled one is untouched.
+    from chronicler.livelihoods import configure_livelihoods
+    configure_livelihoods(world, args, agent_mode=agent_mode)
 
 
 def expansion_feature_flags(world: Any) -> dict[str, bool]:
@@ -128,6 +135,9 @@ def expansion_feature_flags(world: Any) -> dict[str, bool]:
     plan = state.research_agendas if state is not None else None
     if plan is not None:
         flags["scientific_research_agendas"] = plan.enabled
+    if getattr(world, "livelihoods", None) is not None:
+        from chronicler.livelihoods import livelihoods_feature_flags
+        flags.update(livelihoods_feature_flags(world))
     return flags
 
 
@@ -140,4 +150,7 @@ def expansion_snapshot_fields(world: Any) -> dict:
         module = import_module("chronicler." + name)
         if getattr(module, f"{name}_active")(world):
             fields[name] = module.snapshot_summary(world)
+    if getattr(world, "livelihoods", None) is not None:
+        from chronicler.livelihoods import livelihoods_snapshot_fields
+        fields.update(livelihoods_snapshot_fields(world))
     return fields

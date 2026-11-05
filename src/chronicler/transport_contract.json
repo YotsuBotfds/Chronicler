@@ -59,7 +59,8 @@
     "migration",
     "regional_population",
     "food_accounting",
-    "household_mobility"
+    "household_mobility",
+    "livelihoods"
   ],
   "bundle_systems": [
     "historiography",

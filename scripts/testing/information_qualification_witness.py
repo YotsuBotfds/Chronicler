@@ -17,6 +17,8 @@ def before_forecast_walkthrough(source: str, path: str, *, allow_parent: bool = 
     Whole-file admission and the final parent digest prevent this projection
     from accepting partial edits or unrelated simulation changes.
     """
+    from scripts.testing.livelihoods_sprint_witness import before_livelihoods_sprint
+    source = before_livelihoods_sprint(source, path)
     row = json.loads(WALKTHROUGH_WITNESS.read_text(encoding="utf-8"))["files"].get(path)
     if row is None:
         return source
@@ -32,6 +34,8 @@ def before_forecast_walkthrough(source: str, path: str, *, allow_parent: bool = 
 
 
 def before_information_qualification(source: str, path: str, *, allow_parent: bool = False) -> str:
+    from scripts.testing.livelihoods_sprint_witness import before_livelihoods_sprint
+    source = before_livelihoods_sprint(source, path)
     row = json.loads(WITNESS.read_text(encoding="utf-8"))["files"].get(path)
     if row is None:
         return source

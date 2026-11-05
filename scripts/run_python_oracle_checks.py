@@ -326,6 +326,10 @@ CHUNKS = {
         "tests/test_grain_reserves.py",
         "tests/test_grain_release_policy.py",
     ],
+    "livelihoods": [
+        "tests/test_livelihoods_sprint_witness.py",
+        "tests/test_livelihoods_wiring.py",
+    ],
     "expansion-wiring": [
         "tests/test_expansion_feature_wiring.py",
         "tests/test_expansion_experiment.py",

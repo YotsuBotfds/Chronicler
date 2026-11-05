@@ -16,6 +16,8 @@ WITNESS = ROOT / "tests/fixtures/regional_population_source_inverse.json"
 
 
 def before_regional_population(source: str, path: str) -> str:
+    from scripts.testing.livelihoods_sprint_witness import before_livelihoods_sprint
+    source = before_livelihoods_sprint(source, path)
     from scripts.testing.food_accounting_witness import before_food_accounting
     witness = json.loads(WITNESS.read_text(encoding="utf-8"))
     row = witness["files"].get(path)
