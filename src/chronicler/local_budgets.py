@@ -239,6 +239,7 @@ class _Obs:
         self.hunger_source = None
         self.trace: dict = {}
         self.graph = None
+        self.own_need = None
         self.held: dict = {}
         if economy is None:
             return
@@ -286,18 +287,45 @@ class _Obs:
         self.hunger_source = "regional"
 
 
+def _own_needs(world, obs) -> dict[int, float]:
+    """Each ruler's own granary deficits (net of grain on the road)."""
+    inbound = _inbound(world)
+    need: dict[int, float] = {}
+    for rid, (region, g) in enumerate(zip(world.regions, world.grain_reserves.granaries)):
+        if g.owner >= 0 and obs.index.get(region.controller) == g.owner and obs.demand[rid] > 0:
+            need[g.owner] = need.get(g.owner, 0.0) + max(0.0, g.target - g.grain - inbound[rid])
+    return need
+
+
+def _expected_short(world, rid: int, obs) -> float:
+    """Food the region's own harvest record (the granary's yearly harvest
+    mean, counted up to the need) expects it to lack over ``HORIZON`` turns."""
+    granary = world.grain_reserves.granaries[rid]
+    if granary.observed <= 0:
+        return 0.0
+    return _parameters(world)["horizon"] * max(0.0, 1.0 - granary.harvest_mean) * obs.demand[rid]
+
+
 def _purchase_estimate(world, name: str, deficits: dict[int, float], obs):
     """What the granary purchase rule could buy for these deficits from the
     observed surpluses with an unlimited envelope: its own realm within
     ``MAX_HOPS`` of the route graph (nearest, then cheapest), then one step
-    abroad (cheapest); whole coins per purchase (one below a coin buys
-    nothing); transit loss off the granary's own market. Returns (grain
-    received, coins, grain by granary)."""
+    abroad (cheapest), where every ruler first buys for its own granaries,
+    so a foreign market sells only beyond its own ruler's granary deficits;
+    whole coins per purchase (one below a coin buys nothing); transit loss
+    off the granary's own market. Returns (grain received, coins, grain by
+    granary)."""
     from chronicler.grain_reserves import MAX_HOPS, _realm_hops, _transit_loss
     if obs.graph is None:
         obs.graph = _route_graph(world)
+    if obs.own_need is None:
+        obs.own_need = _own_needs(world, obs)
     loss = _transit_loss()
     surplus = list(obs.surplus)
+    for src, region in enumerate(world.regions):
+        ruler = obs.index.get(region.controller)
+        if region.controller != name and ruler is not None:
+            surplus[src] = max(0.0, surplus[src] - obs.own_need.get(ruler, 0.0))
     grain, coins, bought = 0.0, 0, {}
     for rid in sorted(deficits):
         hops = _realm_hops(world, obs.graph, rid, name)
@@ -431,12 +459,16 @@ class _Relief(Provider):
         if any(obs.hunger[r] is None for r in deficits):
             relieved = None
         else:
-            relieved = math.fsum(min(bought.get(r, 0.0), obs.hunger[r]) for r in deficits)
+            # The shortfall seen now plus the reserve gap: the harvest shortfall
+            # the granary's own harvest record expects over the horizon.
+            relieved = math.fsum(min(bought.get(r, 0.0), obs.hunger[r] + _expected_short(world, r, obs))
+                                 for r in deficits)
         return [dict(service="relief", recipients=sorted(deficits), claims=[f"procurement:{civ}"],
                      cost=cost, divisible=True, unit="grain", expected=grain,
                      relief={} if relieved is None else {"commons": relieved},
                      detail={"price": round(price, 6), "deficit": round(need, 6), "share": round(share, 6),
-                             "hunger": None if relieved is None else round(math.fsum(obs.hunger[r] for r in deficits), 6)})]
+                             "hunger": None if relieved is None else round(math.fsum(obs.hunger[r] for r in deficits), 6),
+                             "expected_short": round(math.fsum(_expected_short(world, r, obs) for r in deficits), 6)})]
 
     def settle(self, world, c, obs):
         trace = obs.trace.get(("relief", c.cid))
@@ -449,13 +481,24 @@ class _Relief(Provider):
         state = world.grain_reserves
         grain = math.fsum(f.amount for f in state.flows if state.flows_turn == world.turn
                           and f.buyer == c.civ and f.kind in (BOUGHT, DISPATCHED))
+        # L4 convoys buy after the granary pass from what the envelope left;
+        # their escort fees are a separate sink outside the envelope.
+        convoys = getattr(getattr(world, "livelihoods", None), "grain_convoys", None)
+        escort = 0
+        if convoys is not None and convoys.frame_turn == world.turn:
+            for row in convoys.frame:
+                if row.operation == "dispatched" and row.buyer == c.civ and row.turn == world.turn:
+                    spent += int(row.paid or 0)
+                    escort += int(row.escort_fee or 0)
+                    grain += row.cargo
         inbound = _inbound(world)
         name = world.civilizations[c.civ].name
         open_need = math.fsum(max(0.0, g.target - g.grain - inbound[rid])
                               for rid, (r, g) in enumerate(zip(world.regions, state.granaries))
                               if g.owner == c.civ and r.controller == name)
         ratio = min(1.0, grain / c.expected) if c.expected > EPS else 1.0
-        detail = {"cap": trace["cap"], "available": trace["available"], "open_need": round(open_need, 6)}
+        detail = {"cap": trace["cap"], "available": trace["available"], "open_need": round(open_need, 6),
+                  "escort_fees_outside": escort}
         if ratio >= KEPT_RATIO or spent >= KEPT_RATIO * c.amount or open_need <= EPS:
             return {"outcome": "kept", "reason": None, "spent": spent, "delivered": grain,
                     "ratio": 1.0 if open_need <= EPS else ratio, "detail": detail}
@@ -656,6 +699,12 @@ def _burdens(world, civ: int, obs) -> dict[str, float | None]:
     regions = [rid for rid, r in enumerate(world.regions) if r.controller == name]
     hunger = [obs.hunger[r] for r in regions]
     commons = None if any(h is None for h in hunger) else math.fsum(hunger)
+    if commons is not None and _reserves_on(world) and obs.economy is not None:
+        granaries = world.grain_reserves.granaries
+        for rid in regions:
+            g = granaries[rid] if rid < len(granaries) else None
+            if g is not None and g.owner == civ:
+                commons += min(max(0.0, g.target - g.grain), _expected_short(world, rid, obs))
     storage = _storage(world)
     if commons is not None and storage is not None and storage.receipt_turn == obs.turn:
         from chronicler.grain_storage import EXTRA_SPOILAGE

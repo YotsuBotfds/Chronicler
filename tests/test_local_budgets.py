@@ -64,6 +64,8 @@ def _world(*, budget=10, commons=0.6, patricians=0.1, mode="bargained", food=Tru
     verdant, thornwood = world.grain_reserves.granaries[VERDANT], world.grain_reserves.granaries[THORNWOOD]
     verdant.grain, verdant.target, verdant.observed = 18.0, 18.0, 50
     thornwood.grain, thornwood.target, thornwood.observed = 0.0, 20.0, 50
+    for g in (verdant, thornwood):                 # harvests that usually cover the need
+        g.harvest_mean = g.harvest_sq = 1.0
     storage = enable_storage(world)
     storage.assets[VERDANT] = StorageAsset(capacity=40.0, condition=0.5, owner=THORNWALL)
     storage.assets[THORNWOOD] = StorageAsset(capacity=100.0, condition=1.0, owner=THORNWALL)
@@ -204,6 +206,43 @@ def test_proposals_have_costs_recipients_and_dated_benefits():
     assert all(p.source_turn == 30 for p in d.proposals)
     assert d.burdens["commons"] == pytest.approx(3.0 + 10 * 0.07 * 0.5 * 18 + 10.0)
     assert d.burdens["patricians"] == pytest.approx(0.6)
+
+
+def test_relief_counts_the_reserve_gap_the_harvest_record_expects():
+    world = _world()
+    world.grain_reserves.granaries[THORNWOOD].harvest_mean = 0.8     # a fifth of the need short on average
+    _decide(world)
+    d = _decision(world)
+    relief = next(p for p in d.proposals if p.service == "relief")
+    demand = 0.5 * world.regions[THORNWOOD].population
+    expected = LB.HORIZON * 0.2 * demand
+    assert relief.detail["expected_short"] == pytest.approx(expected)
+    assert relief.relief["commons"] == pytest.approx(min(relief.expected, 3.0 + expected))
+    assert d.burdens["commons"] == pytest.approx(3.0 + 10 * 0.07 * 0.5 * 18 + 10.0 + min(20.0, expected))
+
+
+def test_a_foreign_market_sells_only_beyond_its_own_rulers_granary_deficits():
+    ASHARA, SELURIAN = 3, 3
+    world = _world()
+    world.regions[VERDANT].stockpile.goods = {"timber": 10.0}           # no surplus at home
+    world.regions[ASHARA].stockpile.goods = {"grain": 300.0}             # abroad, next to Verdant
+    selurian = world.grain_reserves.granaries[ASHARA]
+    selurian.target, selurian.grain, selurian.observed = 200.0, 0.0, 50
+    selurian.harvest_mean = selurian.harvest_sq = 1.0
+    res = _economy(world)
+    res.market_supply["Ashara Desert"] = (300.0, 0.0, 0.0, 0.0)
+    _decide(world, res)
+    # Selurian's own granary takes what Ashara sells before any foreign buyer.
+    assert not [p for p in _decision(world).proposals if p.service == "relief"]
+    world = _world()
+    world.regions[VERDANT].stockpile.goods = {"timber": 10.0}
+    world.regions[ASHARA].stockpile.goods = {"grain": 300.0}
+    world.grain_reserves.granaries[ASHARA].target = 0.0
+    res = _economy(world)
+    res.market_supply["Ashara Desert"] = (300.0, 0.0, 0.0, 0.0)
+    _decide(world, res)
+    relief = next(p for p in _decision(world).proposals if p.service == "relief")
+    assert relief.recipients == [THORNWOOD] and relief.expected > 0
 
 
 def test_constituencies_prefer_different_feasible_allocations_and_influence_decides():
@@ -434,7 +473,12 @@ def test_off_switch_keeps_the_legacy_purchase_and_funding():
             LB.set_local_budgets_enabled(world, False)
             world.livelihoods.local_budgets = None
         world.turn += 1
-        G.tick_grain_reserves(world, None, _economy(world))
+        original = G._observe
+        try:
+            G._observe = lambda *a: None                 # keep the targets set above
+            G.tick_grain_reserves(world, None, _economy(world))
+        finally:
+            G._observe = original
         return [(f.kind, f.region, f.cost) for f in world.grain_reserves.flows], world.civilizations[THORNWALL].treasury
     legacy, unfunded = run(False), run(True)
     assert legacy[0] and not unfunded[0]          # without an envelope, L9 buys nothing
