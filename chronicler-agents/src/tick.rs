@@ -1492,6 +1492,9 @@ pub fn wealth_tick(
     // The Python-authoritative health builder supplies exactly one turn.
     // Stable-id guards prevent deductions reaching a reused slot.
     let health_loss = std::mem::take(&mut pool.health_work_loss);
+    // Livelihoods L6a: the armed paid-work share is consumed here, once.
+    let paid_work = pool.paid_work.take();
+    let mut paid_work_rows = Vec::new();
     let mut teaching_plan = pool.teaching_plan.take().filter(|plan| !plan.consumed);
     let teaching_by_slot = teaching_plan.as_ref().map(|plan| {
         let mut index = vec![None; pool.capacity()];
@@ -1568,6 +1571,10 @@ pub fn wealth_tick(
                 } else { income }
             } else { income }
         } else { income };
+        // Livelihoods L6a: paid workshop time replaces this share of the
+        // ordinary income (wages are paid separately, never on top).
+        let income = crate::wealth_transfer::paid_work_income(
+            &paid_work, &mut paid_work_rows, pool.ids[slot], slot, income);
         // CAREOBS_SOURCE_BEGIN: actual pre-health base income
         if let Some(observation) = &mut health_care_observation { observation.wealth_value(slot, 1, income); }
         // CAREOBS_SOURCE_END: actual pre-health base income
@@ -1598,6 +1605,10 @@ pub fn wealth_tick(
     if let Some(mut plan) = teaching_plan {
         plan.consumed = true;
         pool.teaching_plan = Some(plan);
+    }
+    if let Some(plan) = paid_work {
+        pool.paid_work_receipt = Some(crate::wealth_transfer::PaidWorkReceipt {
+            turn: plan.turn, rows: paid_work_rows });
     }
 
     // CAREOBS_SOURCE_BEGIN: finish wealth copies

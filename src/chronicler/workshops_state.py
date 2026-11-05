@@ -18,7 +18,7 @@ MAX_CREW = 8
 MAX_CLOSED = 8
 MAX_HISTORY = 16
 #: Site closure reasons, in declaration order (append only).
-CLOSE_REASONS: tuple[str, ...] = ("city_fell", "city_missing", "region_changed")
+CLOSE_REASONS: tuple[str, ...] = ("city_fell", "city_missing", "region_changed", "insolvent")
 #: Asset statuses (L1B). ``building``: construction installments outstanding;
 #: ``open``: built and in condition; ``idle``: built but unfunded or in need of
 #: repair this turn; ``closed``: the city is gone.

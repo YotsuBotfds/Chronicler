@@ -6,7 +6,8 @@ Four independent switches share one persisted container,
 * ``--workshops`` (L1): staffed public workshops in selected cities;
 * ``--food-allocation`` (L2): explicit allocation of regional food to people;
 * ``--timber-stock`` (L3): a renewable harvestable timber stock;
-* ``--grain-convoys`` (L4): multi-leg public grain convoys under risk.
+* ``--grain-convoys`` (L4): multi-leg public grain convoys under risk;
+* ``--workshop-payroll`` (L6a): customers and payroll around the workshops.
 
 This module owns only CLI forwarding, validation of prerequisites and the
 fan-out of phase hooks to each package's module ``chronicler.<switch>``.
@@ -40,11 +41,12 @@ LIVELIHOODS_CHOICES: dict[str, tuple[str, ...]] = {
     "workshop_mode": ("operate", "observe", "cost_only"),
     "food_allocation_regime": ("floor_means", "equal", "targeted_relief"),
     "convoy_route_policy": ("adaptive", "cheapest", "safest"),
+    "workshop_payroll_mode": ("paid", "unpaid_labor", "no_customer"),
 }
 #: All parser destinations owned here (``batch_manifest.SIMULATION_ARG_KEYS``).
 LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     "workshops", "workshop_mode", "food_allocation", "food_allocation_regime",
-    "timber_stock", "grain_convoys", "convoy_route_policy",
+    "timber_stock", "grain_convoys", "convoy_route_policy", "workshop_payroll", "workshop_payroll_mode",
 )
 _AGENT_ECONOMY = ("hybrid", "shadow", "demographics-only")
 
@@ -78,6 +80,17 @@ _HELP = {
         "--public-grain-shipments (default off)"
     ),
     "convoy_route_policy": "adaptive (default), cheapest or safest route choice at dispatch",
+    "workshop_payroll": (
+        "Workshop payroll (L6a): each operating workshop becomes a debt-free firm with cash and "
+        "owned wares; an academy of the region's ruler (--academy-services) buys them with real "
+        "treasury money, sales fund wages that replace the crew's ordinary income share, and "
+        "unpaid wages cut hours, then crew, then close the firm; requires --workshops in operate "
+        "mode (default off)"
+    ),
+    "workshop_payroll_mode": (
+        "paid (default); unpaid_labor: the ablation that sells and replaces the income share "
+        "but pays no wage; no_customer: wages are owed but nothing is sold"
+    ),
 }
 
 
@@ -123,7 +136,7 @@ def _module(name: str):
     return import_module("chronicler." + name)
 
 
-def _check_prerequisites(world: Any, values: dict, agent_mode: str) -> None:
+def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = None) -> None:
     if values["workshops"] is True:
         if agent_mode != "hybrid":
             raise ValueError("--workshops requires --agents hybrid")
@@ -137,6 +150,12 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str) -> None:
         reserves = getattr(world, "grain_reserves", None)
         if reserves is None or getattr(reserves, "shipments", None) is None:
             raise ValueError("--grain-convoys requires --public-grain-shipments")
+    if values["workshop_payroll"] is True:
+        saved = getattr(livelihoods_state(world), "workshops", None)
+        on = values["workshops"] is True or (values["workshops"] is None and saved is not None and saved.enabled)
+        mode = getattr(args, "workshop_mode", None) or (saved.mode if saved is not None else "operate")
+        if not on or mode != "operate" or agent_mode != "hybrid":
+            raise ValueError("--workshop-payroll requires --workshops in operate mode (--agents hybrid)")
 
 
 def configure_livelihoods(world: Any, args: Any, *, agent_mode: str) -> None:
@@ -149,7 +168,7 @@ def configure_livelihoods(world: Any, args: Any, *, agent_mode: str) -> None:
         value = getattr(args, name, None)
         if value is not None and value not in choices:
             raise ValueError(f"{name} must be one of {choices}")
-    _check_prerequisites(world, values, agent_mode)
+    _check_prerequisites(world, values, agent_mode, args)
     state = livelihoods_state(world)
     for name, value in values.items():
         if value is None:
