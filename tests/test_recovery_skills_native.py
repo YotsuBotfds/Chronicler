@@ -17,6 +17,8 @@ pytestmark = pytest.mark.native
 
 RS_FLAGS = ["--apprenticeship", "--repair-projects", "--veteran-reintegration", "--remittances",
             "--clearing-protection"]
+#: Still-inert stub switches (RS1 apprenticeship landed: tests/test_apprenticeship_native.py).
+STUB_FLAGS = [flag for flag in RS_FLAGS if flag != "--apprenticeship"]
 
 
 def test_the_extension_is_the_compiled_build_with_the_rs0_methods():
@@ -175,8 +177,8 @@ def test_priority_ids_reach_the_native_planner_through_the_workshop_seam(tmp_pat
 
 def test_the_stub_switches_leave_a_real_operating_run_unchanged(tmp_path):
     base = _run(tmp_path / "base", "--workshops", turns=40)
-    stubs = _run(tmp_path / "stubs", "--workshops", *RS_FLAGS, turns=40)
-    rs = ("apprenticeship", "repair_projects", "veteran_reintegration", "remittances", "clearing_protection")
+    stubs = _run(tmp_path / "stubs", "--workshops", *STUB_FLAGS, turns=40)
+    rs = ("repair_projects", "veteran_reintegration", "remittances", "clearing_protection")
     assert len(base["history"]) == len(stubs["history"])
     for a, b in zip(base["history"], stubs["history"], strict=True):
         b = dict(b)

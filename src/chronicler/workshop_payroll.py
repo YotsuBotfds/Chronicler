@@ -99,7 +99,10 @@ RESERVE_TURNS = 4
 PURPOSE_WORKSHOP_WAGE = 0
 _FULL_CREW = 8
 
-_TOTAL_KEYS = ("sales", "wages", "distributed", "written_off", "titled", "delivered", "worn", "returned")
+# ``stipends`` (RS1 apprentice stipends, :func:`pay_from_firm`) is absent from
+# every firm unless apprenticeship paid one, so it reads as 0 otherwise.
+_TOTAL_KEYS = ("sales", "wages", "distributed", "written_off", "titled", "delivered", "worn", "returned",
+               "stipends")
 
 
 class _Work:
@@ -225,7 +228,8 @@ def _budget(world, civ: int, acc) -> int:
 def check_firm(firm: WorkshopFirm) -> None:
     """Exact integer closure of the firm's cash and inventory accounts."""
     t = {k: firm.totals.get(k, 0) for k in _TOTAL_KEYS}
-    if firm.cash != t["sales"] - t["wages"] - t["distributed"] - t["written_off"] or firm.cash < 0:
+    if firm.cash != (t["sales"] - t["wages"] - t["distributed"] - t["written_off"] - t["stipends"]) \
+            or firm.cash < 0:
         raise RuntimeError(f"workshop firm {firm.site} cash does not close")
     if firm.inventory != t["titled"] - t["delivered"] - t["worn"] - t["returned"] or firm.inventory < 0:
         raise RuntimeError(f"workshop firm {firm.site} inventory does not close")
@@ -724,6 +728,64 @@ def phase10(world, acc, economy_result, agent_bridge):
     state._turn = None
     _bump(state, "payroll_turns")
     return []
+
+
+def pay_from_firm(world, sim, site: int, due: dict[int, int], *, purpose: int,
+                  kind: str = "stipend") -> dict[int, tuple[int, int, int]] | None:
+    """Recovery-skills helper (RS1 apprentice stipends): pay ``due``
+    (milli-units by stable id) from the cash of ``site``'s open firm, in Phase
+    10 after this turn's payroll pass (wages first), once per ``(turn,
+    purpose, site)`` through ``AgentSimulator.transfer_wealth``.
+
+    Returns None when the site has no open firm (nothing is paid), otherwise
+    ``{id: (offered, applied, status)}`` with the native status (0 applied, 1
+    limited by the wealth ceiling, 2 absent). Short cash is shared pro rata
+    (largest remainder, ties by id, as wages); what is not offered is not
+    owed. Only applied amounts leave the cash: what a ceiling refuses or an
+    absent id cannot take stays. Each payment is a typed ``stipend``
+    :class:`MoneyTransfer`, the firm's ``totals["stipends"]`` (subtracted by
+    :func:`check_firm`) and this turn's receipt (``stipends``, ``cash_close``),
+    so the firm's cash closure stays exact."""
+    if kind != "stipend":
+        raise ValueError(f"unknown firm payment kind {kind!r}")
+    state = _state(world)
+    if state is None or state.last_payroll_turn != world.turn or state.frame_turn != world.turn:
+        raise RuntimeError("firm payments follow this turn's payroll pass")
+    firm = _firm(state, site)
+    if firm is None:
+        return None
+    due = {int(aid): int(amount) for aid, amount in due.items()}
+    if any(amount < 0 for amount in due.values()):
+        raise ValueError("firm payments must be non-negative")
+    pay = _pro_rata(firm.cash, due)
+    rows = [(aid, amount) for aid, amount in sorted(pay.items()) if amount > 0]
+    result = {aid: (pay[aid], 0, 0) for aid in due}
+    if rows:
+        for aid, requested, applied, residual, status in sim.transfer_wealth(world.turn, purpose, site, rows):
+            if int(requested) != pay[int(aid)] or int(applied) + int(residual) != int(requested):
+                raise RuntimeError("firm payment transfer does not match its rows")
+            result[int(aid)] = (pay[int(aid)], int(applied), int(status))
+    paid = 0
+    for aid in sorted(due):
+        offered, applied, status = result[aid]
+        paid += applied
+        if offered:
+            state.money.append(MoneyTransfer(
+                id=f"wp:{world.turn}:{kind}:{site}:{aid}", turn=world.turn, phase="phase10", kind=kind,
+                payer=("workshop_cash", site), payee=("agent_wealth", aid), amount=offered, applied=applied,
+                residual=offered - applied,
+                status=("absent" if status == 2 else "limited" if applied != offered else "applied")))
+    del state.money[:-MAX_TRANSFERS]
+    if paid:
+        firm.cash -= paid
+        _total(firm, "stipends", paid)
+        _bump(state, "stipends_paid", paid)
+    receipt = next((r for r in state.frame if r.site == site), None)
+    if receipt is not None:
+        receipt.stipends = (receipt.stipends or 0) + paid
+        receipt.cash_close = firm.cash
+    check_firm(firm)
+    return result
 
 
 def snapshot_summary(world) -> dict:

@@ -346,6 +346,7 @@ CHUNKS = {
     ],
     "recovery-skills": [
         "tests/test_recovery_skills_wiring.py",
+        "tests/test_apprenticeship.py",
     ],
     "expansion-wiring": [
         "tests/test_expansion_feature_wiring.py",

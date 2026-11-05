@@ -49,11 +49,16 @@ native per-good craft input. Region totals are never split into site shares.
 Recovery-skills seams (RS0; each is inert unless its switch is active, so a
 world without those switches runs exactly the code above): before the crew
 planner, ``apprenticeship.before_crews`` (RS1 seats); the planner's
-``priority_ids`` from ``veteran_reintegration.priority_ids`` per site region
-(RS3; omitted from the native call when empty); in ``_bill``, the lump repair
-only while ``repair_projects.legacy_workshop_repair_allowed`` (RS2); and at
-settlement, ``apprenticeship.operating_wear`` of a funded operating site
-(RS1; condition is untouched when it is 0).
+``priority_ids``, this turn's workshop-qualified ids first
+(``apprenticeship.crew_priority_ids``, RS1) and then
+``veteran_reintegration.priority_ids`` per site region (RS3), omitted from
+the native call when empty; for an operating site, the crew time its
+qualified members spend on upkeep and teaching
+(``apprenticeship.crew_maintenance``, RS1) comes out of the craft work
+allocated and so out of the ceiling; in ``_bill``, the lump repair only while
+``repair_projects.legacy_workshop_repair_allowed`` (RS2); and at settlement,
+``apprenticeship.operating_wear`` of a funded operating site (RS1; condition
+is untouched when it is 0).
 """
 from __future__ import annotations
 
@@ -79,12 +84,14 @@ REPAIR_COST = 20
 
 
 class _SitePlan:
-    __slots__ = ("site", "payer", "controller", "bill", "funded", "operating", "ceiling", "row")
+    __slots__ = ("site", "payer", "controller", "bill", "funded", "operating", "ceiling", "row", "work")
 
-    def __init__(self, site, payer, controller, bill, funded, operating, ceiling, row):
+    def __init__(self, site, payer, controller, bill, funded, operating, ceiling, row, work=0.0):
         self.site, self.payer, self.controller = site, payer, controller
         self.bill, self.funded, self.operating = bill, funded, operating
-        self.ceiling, self.row = ceiling, row
+        # ``work``: the crew time allocated to crafting when operating (the
+        # crew's diverted time less any RS1 upkeep and teaching time).
+        self.ceiling, self.row, self.work = ceiling, row, work
 
 
 class _Plan:
@@ -222,21 +229,40 @@ def _before_crews(world, sim, requests: list) -> None:
 
 
 def _crew_priority(world, state: WorkshopState) -> list[int]:
-    """RS0 seam (RS3): one priority list for the native planner, each open
-    site's ``veteran_reintegration.priority_ids`` in site order, deduplicated;
-    [] while veteran reintegration is inactive."""
-    if not _lane_active(world, "veteran_reintegration"):
-        return []
-    from chronicler.veteran_reintegration import priority_ids
+    """RS0 seam (RS3, RS1): one priority list for the native planner,
+    deduplicated: while apprenticeship is active, this turn's living
+    workshop-qualified ids first (``apprenticeship.crew_priority_ids``, RS1),
+    then each open site's ``veteran_reintegration.priority_ids`` in site order
+    (RS3); [] while both are inactive."""
     out: list[int] = []
     seen: set[int] = set()
-    for site in state.sites:
-        for aid in priority_ids(world, site.region):
+    lists = []
+    if _lane_active(world, "apprenticeship"):
+        from chronicler.apprenticeship import crew_priority_ids
+        lists.append(crew_priority_ids(world))
+    if _lane_active(world, "veteran_reintegration"):
+        from chronicler.veteran_reintegration import priority_ids
+        lists.extend(priority_ids(world, site.region) for site in state.sites)
+    for ids in lists:
+        for aid in ids:
             aid = int(aid)
             if aid not in seen:
                 seen.add(aid)
                 out.append(aid)
     return out
+
+
+def _crew_maintenance(world, site: WorkshopSite, row: dict) -> float:
+    """RS1 seam: the crew time (person-turns) an operating site's qualified crew
+    spends on upkeep and teaching this turn, taken out of the craft work
+    allocated; 0.0 unless apprenticeship is active."""
+    if not _lane_active(world, "apprenticeship"):
+        return 0.0
+    from chronicler.apprenticeship import crew_maintenance
+    used = float(crew_maintenance(world, site, row))
+    if not (math.isfinite(used) and 0.0 <= used <= row["work_available"]):
+        raise ValueError("crew maintenance time must be finite and within the crew's work")
+    return used
 
 
 def _operating_wear(world, site: WorkshopSite) -> float:
@@ -354,9 +380,14 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
                          and row["work_available"] > 0.0
                          and (site.condition >= OPERATE_CONDITION or "repair" in bill))
             ceiling = None
+            work = row["work_available"]
+            if operating:
+                used = _crew_maintenance(world, site, row)    # RS1 seam: 0.0 when inactive
+                if used:
+                    work = work - used
             if state.mode == "operate":
-                ceiling = K_RAW_PER_WORK * row["work_available"] if operating else 0.0
-            plans.append(_SitePlan(site, payer, controller, bill, funded, operating, ceiling, row))
+                ceiling = K_RAW_PER_WORK * work if operating else 0.0
+            plans.append(_SitePlan(site, payer, controller, bill, funded, operating, ceiling, row, work))
         caps = {p.site.region: p.ceiling for p in plans if p.ceiling is not None}
         if caps:
             if legacy_col is None:
@@ -453,7 +484,7 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
             if "construction" in paid:
                 state.counters["paid_construction"] = (state.counters.get("paid_construction", 0)
                                                        + paid["construction"])
-            allocated = row["work_available"] if p.operating else 0.0
+            allocated = p.work if p.operating else 0.0
             realized = 0.0
             if p.operating and output is not None:
                 realized = min(allocated, output / K_RAW_PER_WORK)
