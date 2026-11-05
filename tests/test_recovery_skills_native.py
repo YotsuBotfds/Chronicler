@@ -174,9 +174,11 @@ def test_priority_ids_reach_the_native_planner_through_the_workshop_seam(tmp_pat
 
 
 def test_the_stub_switches_leave_a_real_operating_run_unchanged(tmp_path):
+    # RS2 (repair projects) has landed its mechanism; tests/test_repair_projects_native.py covers it.
     base = _run(tmp_path / "base", "--workshops", turns=40)
-    stubs = _run(tmp_path / "stubs", "--workshops", *RS_FLAGS, turns=40)
-    rs = ("apprenticeship", "repair_projects", "veteran_reintegration", "remittances", "clearing_protection")
+    stubs = _run(tmp_path / "stubs", "--workshops", *(f for f in RS_FLAGS if f != "--repair-projects"),
+                 turns=40)
+    rs = ("apprenticeship", "veteran_reintegration", "remittances", "clearing_protection")
     assert len(base["history"]) == len(stubs["history"])
     for a, b in zip(base["history"], stubs["history"], strict=True):
         b = dict(b)
