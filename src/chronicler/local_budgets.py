@@ -631,7 +631,7 @@ class _Workshop(Provider):
                 continue
             receipt = frame.get(site.site)
             work = float(receipt.work_available) if receipt is not None else 0.0
-            bill = W._bill(site)
+            bill = W._bill(site, world)      # the RS2 legacy-repair gate, as the workshop plans it
             cost = int(sum(bill.values()))
             if cost < 1:
                 continue

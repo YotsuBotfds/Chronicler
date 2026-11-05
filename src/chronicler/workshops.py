@@ -45,10 +45,20 @@ unfunded, in need of repair or without crew replaces the ceiling with zero.
 After the tick, ``realized = craft_output / K_RAW_PER_WORK`` (at most W) is
 the work the region's actual conversion used; inputs are the region's actual
 native per-good craft input. Region totals are never split into site shares.
+
+Recovery-skills seams (RS0; each is inert unless its switch is active, so a
+world without those switches runs exactly the code above): before the crew
+planner, ``apprenticeship.before_crews`` (RS1 seats); the planner's
+``priority_ids`` from ``veteran_reintegration.priority_ids`` per site region
+(RS3; omitted from the native call when empty); in ``_bill``, the lump repair
+only while ``repair_projects.legacy_workshop_repair_allowed`` (RS2); and at
+settlement, ``apprenticeship.operating_wear`` of a funded operating site
+(RS1; condition is untouched when it is 0).
 """
 from __future__ import annotations
 
 import math
+from importlib import import_module
 
 from chronicler.workshops_state import (
     MAX_CLOSED, MAX_CREW, MAX_HISTORY, MAX_SITES, WorkshopReceipt, WorkshopSite, WorkshopState,
@@ -188,14 +198,68 @@ def _column(region_input, name: str):
     return region_input.column(names.index(name)).to_pylist()
 
 
-def _bill(site: WorkshopSite) -> dict[str, int]:
-    """What this turn's planned operation of a built or building asset costs."""
+def _lane_active(world, name: str) -> bool:
+    """RS0: a recovery-skills switch is present and active (never imports its
+    module for a world that never enabled it)."""
+    if getattr(getattr(world, "livelihoods", None), name, None) is None:
+        return False
+    return bool(getattr(import_module("chronicler." + name), f"{name}_active")(world))
+
+
+def _legacy_repair_allowed(world) -> bool:
+    """RS0 seam (RS2): whether the L1 lump repair may be billed."""
+    if world is None or not _lane_active(world, "repair_projects"):
+        return True
+    from chronicler.repair_projects import legacy_workshop_repair_allowed
+    return bool(legacy_workshop_repair_allowed(world))
+
+
+def _before_crews(world, sim, requests: list) -> None:
+    """RS0 seam (RS1): runs before the native crew planner while apprenticeship is active."""
+    if _lane_active(world, "apprenticeship"):
+        from chronicler.apprenticeship import before_crews
+        before_crews(world, sim, requests)
+
+
+def _crew_priority(world, state: WorkshopState) -> list[int]:
+    """RS0 seam (RS3): one priority list for the native planner, each open
+    site's ``veteran_reintegration.priority_ids`` in site order, deduplicated;
+    [] while veteran reintegration is inactive."""
+    if not _lane_active(world, "veteran_reintegration"):
+        return []
+    from chronicler.veteran_reintegration import priority_ids
+    out: list[int] = []
+    seen: set[int] = set()
+    for site in state.sites:
+        for aid in priority_ids(world, site.region):
+            aid = int(aid)
+            if aid not in seen:
+                seen.add(aid)
+                out.append(aid)
+    return out
+
+
+def _operating_wear(world, site: WorkshopSite) -> float:
+    """RS0 seam (RS1): this turn's wear of a funded operating site; 0.0 unless
+    apprenticeship is active."""
+    if not _lane_active(world, "apprenticeship"):
+        return 0.0
+    from chronicler.apprenticeship import operating_wear
+    wear = float(operating_wear(world, site))
+    if not (math.isfinite(wear) and 0.0 <= wear <= 1.0):
+        raise ValueError("operating wear must be finite and in [0, 1]")
+    return wear
+
+
+def _bill(site: WorkshopSite, world=None) -> dict[str, int]:
+    """What this turn's planned operation of a built or building asset costs.
+    With ``world``, the lump repair also needs the RS2 legacy-repair gate."""
     if site.asset == "building" or site.construction_paid < CONSTRUCTION_COST:
         return {"construction": min(INSTALLMENT, CONSTRUCTION_COST - site.construction_paid)}
     bill = {"upkeep": UPKEEP}
     if site.arrears:
         bill["arrears"] = site.arrears
-    if site.condition < OPERATE_CONDITION:
+    if site.condition < OPERATE_CONDITION and _legacy_repair_allowed(world):
         bill["repair"] = REPAIR_COST
     return bill
 
@@ -231,7 +295,7 @@ def _plan_funding(world, state, acc) -> list[tuple[WorkshopSite, int, str | None
     for site in state.sites:                       # site order: deterministic priority
         controller = world.regions[site.region].controller
         payer = index.get(controller, -1)
-        bill = _bill(site)
+        bill = _bill(site, world)
         cost = sum(bill.values())
         funded = workshop_funded(world, payer, site, cost, payer >= 0 and budgets[payer] >= cost)
         if funded:
@@ -253,10 +317,15 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
     requests = [(s.site, s.region, s.settlement_id,
                  float(_diverted(int(cities[s.site].rank)) * terms[s.site][1]), terms[s.site][0])
                 for s in state.sites]
+    _before_crews(world, sim, requests)
     rows = {}
     if requests:
-        for row, (site_id, _r, _s, diverted, _m) in zip(
-                sim.plan_workshop_crews(requests, _enlisted(world), world.turn), requests, strict=True):
+        priority = _crew_priority(world, state)
+        if priority:
+            planned = sim.plan_workshop_crews(requests, _enlisted(world), world.turn, priority_ids=priority)
+        else:
+            planned = sim.plan_workshop_crews(requests, _enlisted(world), world.turn)
+        for row, (site_id, _r, _s, diverted, _m) in zip(planned, requests, strict=True):
             (site, region, settlement, resident, trip, army, assigned, eligible,
              crew, ages, work) = row
             rows[site_id] = dict(site=site, region=region, settlement_id=settlement,
@@ -274,8 +343,12 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
         for site, payer, controller, bill, funded in _plan_funding(world, state, acc):
             row = rows[site.site]
             builds = "construction" in bill
+            # A worn site operates only once repaired. While the L1 lump is
+            # allowed, a built site below OPERATE_CONDITION always carries the
+            # repair in its bill, so this adds no condition (RS0 seam for RS2).
             operating = (funded and not builds and state.mode == "operate"
-                         and row["work_available"] > 0.0)
+                         and row["work_available"] > 0.0
+                         and (site.condition >= OPERATE_CONDITION or "repair" in bill))
             ceiling = None
             if state.mode == "operate":
                 ceiling = K_RAW_PER_WORK * row["work_available"] if operating else 0.0
@@ -343,6 +416,10 @@ def _settle(world, state, plan_site: _SitePlan, acc, turn: int) -> dict[str, int
     if site.asset != "open":
         _note(site, turn, "reopened", plan_site.payer)
     site.asset = "open"
+    if plan_site.operating:
+        wear = _operating_wear(world, site)
+        if wear:
+            site.condition = max(0.0, site.condition - wear)
     for kind, amount in paid.items():
         state.counters[f"paid_{kind}"] = state.counters.get(f"paid_{kind}", 0) + amount
     return paid

@@ -14,6 +14,20 @@ Independent switches share one persisted container,
 * ``--local-budgets`` (L9): one finite, bargained budget per ruler for relief,
   granary works and workshops.
 
+The recovery-skills phase appends five more (RS0 groundwork: registered with
+inert stub modules; their lanes add the mechanisms):
+
+* ``--apprenticeship`` (RS1): named mentors and apprentices at operating
+  workshop sites, and a workshop qualification by stable id;
+* ``--repair-projects`` (RS2): paid repair projects for workshops and
+  granaries;
+* ``--veteran-reintegration`` (RS3): veterans captured at real roster
+  releases, with priority access to work openings;
+* ``--remittances`` (RS4): a diaspora ledger and bounded remittances along
+  Marriage/Kin bonds;
+* ``--clearing-protection`` (RS5): controller-funded protection of forest
+  cover from clearing.
+
 This module owns only CLI forwarding, validation of prerequisites and the
 fan-out of phase hooks to each package's module ``chronicler.<switch>``.
 State, decisions and accounting belong to those modules. An omitted switch
@@ -51,6 +65,11 @@ LIVELIHOODS_CHOICES: dict[str, tuple[str, ...]] = {
     "workshop_payroll_mode": ("paid", "unpaid_labor", "no_customer"),
     "relocation_mode": ("paid", "assisted", "liquidity_only"),
     "local_budget_mode": ("bargained", "fixed_shares"),
+    "apprenticeship_mode": ("train", "no_qualification"),
+    "repair_mode": ("repair", "cost_only"),
+    "veteran_mode": ("priority", "record_only"),
+    "remittance_mode": ("send", "record_only"),
+    "clearing_protection_mode": ("enforced", "cost_only"),
 }
 #: All parser destinations owned here (``batch_manifest.SIMULATION_ARG_KEYS``).
 LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
@@ -60,6 +79,11 @@ LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     "workshop_payroll", "workshop_payroll_mode",
     "relocation_costs", "relocation_mode",
     "local_budgets", "local_budget_mode",
+    "apprenticeship", "apprenticeship_mode",
+    "repair_projects", "repair_mode",
+    "veteran_reintegration", "veteran_mode",
+    "remittances", "remittance_mode",
+    "clearing_protection", "clearing_protection_mode",
 )
 _AGENT_ECONOMY = ("hybrid", "shadow", "demographics-only")
 
@@ -141,6 +165,55 @@ _HELP = {
         "with political response; fixed_shares: the control, the same budget split "
         "by fixed declared shares, no bargaining and no response"
     ),
+    "apprenticeship": (
+        "Apprenticeship and skill continuity (RS1): qualified crew members mentor named "
+        "apprentices at operating workshop sites; apprentices give up part of their ordinary "
+        "income (a stipend with --workshop-payroll) and on completion earn a workshop "
+        "qualification by stable id, kept for life; qualified people perform upkeep against "
+        "site wear; requires --workshops in operate mode (--agents hybrid) (default off)"
+    ),
+    "apprenticeship_mode": (
+        "train (default): completion grants the qualification; no_qualification: the "
+        "cost-retaining control (same wear, attendance and costs, no new qualifications)"
+    ),
+    "repair_projects": (
+        "Repair projects (RS2): paid projects rebuild workshop sites and granaries from their "
+        "real condition and war damage, with named workers, timber and the controller's coins; "
+        "they replace the L1 lump repair; requires --agents hybrid and --workshops in operate "
+        "mode or --grain-storage (default off)"
+    ),
+    "repair_mode": (
+        "repair (default): delivered work restores condition; cost_only: the cost-retaining "
+        "control (reserves, pays and uses timber identically, condition unchanged)"
+    ),
+    "veteran_reintegration": (
+        "Veteran reintegration (RS3): soldiers released from real armies are recorded by stable "
+        "id and get priority, among otherwise eligible candidates, for workshop crew, "
+        "apprenticeship and repair openings; nothing is guaranteed or created; requires "
+        "--agents hybrid and one of --workshops, --apprenticeship or --repair-projects "
+        "(default off)"
+    ),
+    "veteran_mode": (
+        "priority (default): eligible veterans come first for openings; record_only: the "
+        "control that captures and tracks veterans without priority"
+    ),
+    "remittances": (
+        "Remittances (RS4): a diaspora ledger of applied migrations; settled migrants send a "
+        "bounded share of their wealth along Marriage/Kin bonds to the region they left, with "
+        "a courier fee and exactly-once receipts; requires --agents hybrid (default off)"
+    ),
+    "remittance_mode": (
+        "send (default); record_only: the control that keeps the ledger and sends nothing"
+    ),
+    "clearing_protection": (
+        "Funded clearing protection (RS5): a region's controller pays wardens to protect "
+        "forest cover from clearing in a bounded number of regions; protection freezes cover "
+        "and forgoes the succession bonus; works in every ecology path (default off)"
+    ),
+    "clearing_protection_mode": (
+        "enforced (default): protection lowers clearing; cost_only: the cost-retaining "
+        "control (adopts and pays identically, no cap)"
+    ),
 }
 
 
@@ -186,6 +259,25 @@ def _module(name: str):
     return import_module("chronicler." + name)
 
 
+def _on(world: Any, values: dict, name: str) -> bool:
+    """Requested on, or omitted with a saved enabled state."""
+    saved = getattr(livelihoods_state(world), name, None)
+    return values[name] is True or (values[name] is None and saved is not None and bool(saved.enabled))
+
+
+def _workshops_operate(world: Any, values: dict, args: Any) -> bool:
+    """``--workshops`` on in operate mode (explicit or saved), as L6a checks it."""
+    saved = getattr(livelihoods_state(world), "workshops", None)
+    mode = getattr(args, "workshop_mode", None) or (saved.mode if saved is not None else "operate")
+    return _on(world, values, "workshops") and mode == "operate"
+
+
+def _grain_storage_on(world: Any) -> bool:
+    """Grain storage assets enabled (``main`` applies ``--grain-storage`` first)."""
+    from chronicler.grain_reserves_state import grain_reserves_on
+    return grain_reserves_on(world) and getattr(world.grain_reserves, "storage", None) is not None
+
+
 def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = None) -> None:
     if values["workshops"] is True:
         if agent_mode != "hybrid":
@@ -227,6 +319,21 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
         from chronicler.grain_reserves_state import grain_reserves_on
         if agent_mode != "hybrid" or not grain_reserves_on(world):
             raise ValueError("--local-budgets requires --agents hybrid and --grain-reserves")
+    if values["apprenticeship"] is True:
+        if agent_mode != "hybrid" or not _workshops_operate(world, values, args):
+            raise ValueError("--apprenticeship requires --workshops in operate mode (--agents hybrid)")
+    if values["repair_projects"] is True:
+        if agent_mode != "hybrid" or not (_workshops_operate(world, values, args) or _grain_storage_on(world)):
+            raise ValueError("--repair-projects requires --agents hybrid and --workshops in operate "
+                             "mode or --grain-storage")
+    if values["veteran_reintegration"] is True:
+        if agent_mode != "hybrid" or not any(_on(world, values, name) for name in
+                                             ("workshops", "apprenticeship", "repair_projects")):
+            raise ValueError("--veteran-reintegration requires --agents hybrid and one of --workshops, "
+                             "--apprenticeship or --repair-projects")
+    if values["remittances"] is True and agent_mode != "hybrid":
+        raise ValueError("--remittances requires --agents hybrid")
+    # --clearing-protection has no prerequisite (it works in every ecology path).
 
 
 def configure_livelihoods(world: Any, args: Any, *, agent_mode: str) -> None:
