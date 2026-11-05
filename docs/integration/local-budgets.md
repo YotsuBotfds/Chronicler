@@ -137,9 +137,9 @@ across constituencies.
     candidate must meet L8's own adoption test: harvested, depleted, not cooling. Adoption
     is indivisible, because L8 adopts only with the full first bill; continuation is
     divisible, because a partial payment gives partial coverage.
-  - The cost is the full bill (`ADMIN_COST`). L8 reads Commons Management's share at
-    planning, before that turn's institution funding runs later in Phase 2, so the share
-    it will apply is not known at the decision (see Limits).
+  - The cost is the full bill (`ADMIN_COST`). L8 applies Commons Management's share
+    from the last settled funding ratio when it plans next turn, but the institution's
+    legitimacy can change before then, so the full bill is promised (see Limits).
   - The patricians' stake is the timber the rule keeps from open access over `HORIZON`
     turns: the L3 reference crew's harvest above the quota, bounded by the standing stock
     and its regrowth, as the crew work its raw loads could supply the towns' crafts
@@ -570,12 +570,24 @@ What these runs show:
   already uses it for the commons through the movements precedent. Counting it twice would
   double that faction. So in bargained mode teaching wins support only through the firm
   crew's wages. L4 escort fees are paid inside the relief envelope and itemised.
-- Wardens: the full bill is promised. L8 reads Commons Management's share
-  (`institution_share`) in Phase 2 planning, before that turn's institution funding.
-  `fund_institutions_phase2` runs in `apply_automatic_effects`, after the economy block,
-  so at planning `funding_turn` is still the previous turn and the share is 0. This is
-  why L8's unit test sets `funding_turn` by hand. It is an L8 finding, reported to the
-  lead and left unchanged here.
+- Wardens: the full bill is promised. Since lead commit 957f47c9, L8 reads Commons
+  Management's share (`institution_share`) from the last settled funding ratio, because
+  rules are planned before that turn's institutions are funded. The share is therefore
+  known at the decision except for changes in the institution's legitimacy before
+  planning. Promising the full bill never under-commits: when the institution covers part
+  of the bill, at most 2 coins per rule per turn stay unspent inside the envelope.
+- A workshop envelope whose site sent no receipt is deferred as `recipient_lost` only if
+  the site has closed; otherwise it is `no_economy` (no Phase 2 economy tick) or
+  `service_off` (corrected after a lead review on 2026-11-05).
+- L7 assisted relocation: the destination ruler's fare assistance depends on next turn's
+  moves and is charged in Phase 10, so L9 cannot cap it. Its ceiling
+  (`relocation_costs.ASSIST_SHARE` of the treasury) is reserved as an obligation before any
+  envelope while relocation runs in assisted mode, so the two never claim the same coins
+  (added after a lead review on 2026-11-05; other relocation modes reserve nothing).
+- A region's controller cannot change between L9's decision (the last Phase 10 hook) and the
+  next Phase 2: control changes in Phase 10 politics, which run before the decision, and in
+  Phase 5 conquest, after the storage plan. A granary-works policy is therefore paid by the
+  ruler it was promised to (checked against `simulation.py` in the same review).
 - L9 replaces the `--grain-storage-policy` setting while active. Its last policies remain
   if it is switched off. Switching it off lapses open envelopes.
 - The political response reaches only cities: a civ without a city has no venue.

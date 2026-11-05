@@ -336,3 +336,7 @@ mechanism; it is not a natural-world result.
   patron through academy services. The learner's cost is forgone income.
 - Batch Lab and live new-world setup do not expose the switch; the CLI and
   the gate runner do.
+- The opt-in health-care observation's "pre-health base income" is copied
+  after the attendance deduction (as it already is after teaching income), so
+  with `--learning-cohorts` or `--workshop-payroll` it reports income net of
+  those work commitments.

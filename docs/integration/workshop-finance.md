@@ -105,6 +105,10 @@ turn. Then:
 - **Wealth ceiling.** What the ceiling refuses stays in the firm's cash. The receipt
   records it; it is not owed.
 - **Death.** A worker who died receives nothing, and the claim lapses (`owed_lapsed`).
+  Dead workers' claims lapse before cash is shared, so scarce cash is split pro rata among
+  the living only (the living set is read once per turn from the native snapshot after
+  the tick). A lead review on 2026-11-05 found the first landing shared cash with the
+  dead and left a dead claim with a zero share owed; corrected with a regression test.
   Wages already paid are ordinary wealth and pass through native inheritance like
   any other wealth. No claim survives into an estate: estates of claims are not
   modeled.

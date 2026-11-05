@@ -773,3 +773,37 @@ def test_fixed_shares_scale_only_while_a_registered_group_is_active():
     awards, _, _ = LB._fixed_shares(d, items, groups, 1.3)
     assert {p.service: a for p, a in awards} == {"relief": 30, "granary_maintain": 23, "workshop": 23,
                                                  "teaching_supplies": 11, "wardens": 11}
+
+
+def test_workshop_envelope_without_a_receipt_names_the_actual_reason():
+    """Lead review 2026-11-05: a missing receipt is recipient_lost only when the
+    site has closed; an open site in a turn without an economy tick is
+    no_economy, and one that simply was not planned is service_off."""
+    from types import SimpleNamespace as NS
+    from chronicler.local_budgets import _Workshop
+
+    turn = 9
+    workshops = NS(frame=[], frame_turn=turn - 1, sites=[NS(site=0)])
+    world = NS(turn=turn, livelihoods=NS(workshops=workshops))
+    c = NS(cid=3, civ=0, site=0, amount=5, expected=1.0)
+    settle = _Workshop().settle
+    assert settle(world, c, NS(trace={}, economy=None))["reason"] == "no_economy"
+    assert settle(world, c, NS(trace={}, economy=object()))["reason"] == "service_off"
+    closed = NS(cid=4, civ=0, site=1, amount=5, expected=1.0)
+    assert settle(world, closed, NS(trace={}, economy=None))["reason"] == "recipient_lost"
+
+
+def test_assisted_relocation_is_reserved_inside_the_one_budget():
+    """Lead review 2026-11-05: L7 fare assistance is Phase 10 treasury spending
+    L9 cannot cap, so its ceiling is an obligation; other modes reserve nothing."""
+    from types import SimpleNamespace as NS
+    from chronicler.local_budgets import RELOCATION
+    from chronicler.relocation_costs import ASSIST_SHARE
+
+    reloc = NS(enabled=True, mode="assisted")
+    world = NS(livelihoods=NS(relocation_costs=reloc), civilizations=[NS(treasury=400)])
+    assert RELOCATION.obligations(world, 0, None) == math.floor(ASSIST_SHARE * 400)
+    reloc.mode = "paid"
+    assert RELOCATION.obligations(world, 0, None) == 0
+    world.livelihoods.relocation_costs = None
+    assert RELOCATION.obligations(world, 0, None) == 0

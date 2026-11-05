@@ -110,6 +110,7 @@ PROVIDERS: tuple[str, ...] = (
     "chronicler.local_budgets:WORKSHOP",
     "chronicler.local_budgets:TEACHING",
     "chronicler.local_budgets:WARDENS",
+    "chronicler.local_budgets:RELOCATION",
 )
 
 
@@ -655,8 +656,14 @@ class _Workshop(Provider):
         trace = obs.trace.get(("workshop", c.cid))
         if state is None:
             return {"outcome": "deferred", "reason": "service_off", "spent": 0, "delivered": 0.0, "ratio": 0.0}
-        if receipt is None:                              # the site closed (its city fell or changed)
-            return {"outcome": "deferred", "reason": "recipient_lost", "spent": 0, "delivered": 0.0, "ratio": 0.0}
+        if receipt is None:
+            # Closed site (its city fell or changed) versus a turn without an
+            # economy tick or without planning: only the first lost its recipient.
+            if all(site.site != c.site for site in state.sites):
+                reason = "recipient_lost"
+            else:
+                reason = "no_economy" if obs.economy is None else "service_off"
+            return {"outcome": "deferred", "reason": reason, "spent": 0, "delivered": 0.0, "ratio": 0.0}
         if trace is None:
             return {"outcome": "deferred", "reason": "service_off", "spent": 0, "delivered": 0.0, "ratio": 0.0}
         detail = {"cost": trace["cost"], "asset": receipt.asset, "arrears_after": receipt.arrears_after}
@@ -864,10 +871,12 @@ class _Wardens(Provider):
         name = world.civilizations[civ].name
         observations = self._observations(world, obs.turn)
         slots = set(timber_slots(world))
-        # L8 reads Commons Management's share when it plans, before this
-        # turn's institution funding runs later in Phase 2, so the share it
-        # can apply is not known here: the full bill is promised (a smaller
-        # actual bill simply spends less).
+        # The full warden bill is promised. L8 applies Commons Management's
+        # share from the last settled funding ratio when it plans next turn;
+        # the institution's legitimacy can still change before then, so
+        # promising the full bill never under-commits. When the institution
+        # covers part of it, at most 2 coins per rule per turn stay unspent
+        # inside the envelope (settlement spends min(envelope, actual bill)).
         bill = R.bill_for(0.0)
         horizon = _parameters(world)["horizon"]
 
@@ -936,7 +945,23 @@ class _Wardens(Provider):
                 "spent": receipt.paid, "delivered": receipt.coverage, "ratio": ratio, "detail": detail}
 
 
+class _RelocationAssistance(Provider):
+    """L7 assisted relocation: the destination ruler's fare assistance is
+    Phase 10 treasury spending L9 cannot cap (it depends on next turn's
+    moves), so its ceiling is reserved as an obligation before any envelope.
+    Added after a lead review on 2026-11-05 found it outside the one budget."""
+
+    def obligations(self, world, civ, obs):
+        container = getattr(world, "livelihoods", None)
+        state = getattr(container, "relocation_costs", None) if container is not None else None
+        if state is None or not getattr(state, "enabled", False) or state.mode != "assisted":
+            return 0
+        from chronicler.relocation_costs import ASSIST_SHARE
+        return int(math.floor(ASSIST_SHARE * max(0, int(world.civilizations[civ].treasury))))
+
+
 RELIEF, GRANARY, WORKSHOP, TEACHING, WARDENS = _Relief(), _Granary(), _Workshop(), _Teaching(), _Wardens()
+RELOCATION = _RelocationAssistance()
 
 
 def _providers() -> list[Provider]:

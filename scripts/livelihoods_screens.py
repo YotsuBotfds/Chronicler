@@ -80,7 +80,7 @@ SPRINTS = {1: {"arms": ARMS, "strata": STRATA,
            2: {"arms": ARMS2, "strata": STRATA2,
                "labels": {"t": "template 8x4 (seeds 301-306)", "p": "procedural 32x10 (seeds 401-406)"}}}
 #: Sprint-2 packages whose lifetime counters are copied from the last snapshot.
-COUNTED = ("learning_cohorts", "workshop_payroll", "commons_rules", "local_budgets", "relocation")
+COUNTED = ("learning_cohorts", "workshop_payroll", "commons_rules", "local_budgets", "relocation_costs")
 #: Funnel counters reported per package (None: every counter the records hold).
 FUNNEL_KEYS = {
     "learning_cohorts": ("academy_turns", "cohorts_formed", "learners_enrolled", "sessions", "learner_turns_attended",
@@ -92,10 +92,18 @@ FUNNEL_KEYS = {
     "commons_rules": ("eligible_slot_turns", "adoption_candidates", "adopted", "rule_slot_turns", "paid",
                       "tightened_turns", "binding_turns", "excess", "extraction_under_rule", "grievance_added",
                       "repealed_recovered", "repealed_unfunded"),
-    "local_budgets": ("decision_civ_turns", "budget_civ_turns", "proposals", "awards", "envelope_coins",
-                      "spent_coins", "kept", "deferred", "outcome_uncontested", "grievance_raised", "grievance_eased"),
-    "relocation": None,
+    "local_budgets": None,
+    "relocation_costs": None,
 }
+
+
+def check_counted() -> None:
+    """Every counted package is a real livelihoods switch (its snapshot key)."""
+    sys.path.insert(0, f"{REPO}/src")
+    from chronicler.livelihoods_state import LIVELIHOODS_SWITCHES
+    missing = [name for name in COUNTED if name not in LIVELIHOODS_SWITCHES]
+    if missing or set(FUNNEL_KEYS) != set(COUNTED):
+        raise SystemExit(f"screen packages are not livelihoods switches: {missing or sorted(FUNNEL_KEYS)}")
 
 
 def _yaml(tree: dict, indent: int = 0) -> str:
@@ -164,6 +172,34 @@ def metrics(bundle_path: Path) -> dict:
         m["academy"] = {"founded": (last["scholarship"].get("counters") or {}).get("founded", 0),
                         "purchased": t.get("purchased", 0.0), "used": t.get("used", 0.0), "lost": t.get("lost", 0.0),
                         "teaching_receipts": len(seen), "work_delivered": work, "learners_delivered": learners}
+    # L7 receiving pressure and service receipts, each source turn once.
+    seen_turns, rel = set(), {"region_turns": 0, "dest_turns": 0, "dest_worse": 0, "dest_delta": 0.0,
+                              "origin_turns": 0, "origin_relieved": 0, "origin_delta": 0.0, "arrivals": 0,
+                              "departures": 0, "arr_rationed": 0, "arr_ration": 0.0, "res_rationed": 0,
+                              "res_ration": 0.0}
+    for snap in hist:
+        rc = (snap.get("livelihoods") or {}).get("relocation_costs")
+        if not rc or rc.get("source_turn") in seen_turns:
+            continue
+        seen_turns.add(rc.get("source_turn"))
+        for r in rc.get("regions") or []:
+            delta = r["pressure_after"] - r["pressure_before"]
+            rel["region_turns"] += 1; rel["arrivals"] += r["arrivals"]; rel["departures"] += r["departures"]
+            if r["arrivals"] > r["departures"]:
+                rel["dest_turns"] += 1; rel["dest_delta"] += delta; rel["dest_worse"] += delta > 0
+            elif r["departures"] > r["arrivals"]:
+                rel["origin_turns"] += 1; rel["origin_delta"] += delta; rel["origin_relieved"] += delta < 0
+        for v in rc.get("services") or []:
+            if v.get("arrivals_mean_ration") is not None and v.get("residents_mean_ration") is not None:
+                rel["arr_rationed"] += v["arrivals_rationed"]; rel["arr_ration"] += v["arrivals_mean_ration"] * v["arrivals_rationed"]
+                rel["res_rationed"] += v["residents_rationed"]; rel["res_ration"] += v["residents_mean_ration"] * v["residents_rationed"]
+    if seen_turns:
+        m["relocation_pressure"] = rel
+    storage = ((b["world_state"].get("grain_reserves") or {}).get("storage") or {})
+    assets = [a for a in storage.get("assets") or [] if a and a.get("capacity", 0) > 0]
+    if storage:
+        m["storage_end"] = {"assets": len(assets), "capacity": sum(a["capacity"] for a in assets),
+                            "mean_condition": (mean(a["condition"] for a in assets) if assets else None)}
     for name in COUNTED:
         record = (last.get("livelihoods") or {}).get(name)
         if record and isinstance(record.get("counters"), dict):
@@ -203,6 +239,7 @@ def run_main(argv):
     a = ap.parse_args(argv)
     sprint = SPRINTS[a.sprint]
     arms, all_strata = sprint["arms"], sprint["strata"]
+    check_counted()
     chosen = a.arms.split(",") if a.arms else list(arms)
     unknown = [arm for arm in chosen if arm not in arms]
     if unknown:
@@ -298,6 +335,30 @@ def report_main(argv):
                 parts.append("academy supplies (mean/world): " + ", ".join(
                     f"{k} {mean(x[k] for x in a):.4g}" for k in ("founded", "purchased", "used", "lost",
                                                                  "teaching_receipts", "work_delivered", "learners_delivered")))
+            pays = [r["counters"]["workshop_payroll"] for r in rs if "workshop_payroll" in r.get("counters", {})]
+            if pays:   # wages are milli-units; replaced income is in wealth units
+                net = [c.get("wages_paid", 0) / 1000 - c.get("income_replaced", 0) for c in pays]
+                parts.append(f"payroll crew net income (wages paid - income replaced, wealth units): "
+                             f"mean/world {mean(net):+.3f} [{min(net):+.3f}, {max(net):+.3f}]")
+            rel = [r["relocation_pressure"] for r in rs if "relocation_pressure" in r]
+            if rel:
+                arr = sum(x["arr_ration"] for x in rel) / max(1, sum(x["arr_rationed"] for x in rel))
+                res = sum(x["res_ration"] for x in rel) / max(1, sum(x["res_rationed"] for x in rel))
+                parts.append("relocation pressure (sum over worlds): "
+                             f"destination region-turns {sum(x['dest_turns'] for x in rel)} (more crowded "
+                             f"{sum(x['dest_worse'] for x in rel)}, mean change "
+                             f"{sum(x['dest_delta'] for x in rel) / max(1, sum(x['dest_turns'] for x in rel)):+.4f}), "
+                             f"origin region-turns {sum(x['origin_turns'] for x in rel)} (relieved "
+                             f"{sum(x['origin_relieved'] for x in rel)}, mean change "
+                             f"{sum(x['origin_delta'] for x in rel) / max(1, sum(x['origin_turns'] for x in rel)):+.4f}); "
+                             f"arrivals' mean ration {arr:.3f} vs residents' {res:.3f}"
+                             + ("" if sum(x["arr_rationed"] for x in rel) else " (no rationed arrivals: unknown)"))
+            st = [r["storage_end"] for r in rs if "storage_end" in r]
+            if st:
+                cond = [x["mean_condition"] for x in st if x["mean_condition"] is not None]
+                parts.append(f"granary storage at end (mean/world): assets {mean(x['assets'] for x in st):.2f}, "
+                             f"capacity {mean(x['capacity'] for x in st):.1f}, condition "
+                             + (f"{mean(cond):.3f} ({len(cond)} worlds with assets)" if cond else "unknown (no assets)"))
             for name, keys in FUNNEL_KEYS.items():
                 cs = [r["counters"][name] for r in rs if name in r.get("counters", {})]
                 if cs:

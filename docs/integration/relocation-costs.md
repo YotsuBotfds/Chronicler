@@ -282,7 +282,8 @@ Seeds 2 and 3:
   all-switches procedural development world (2 units refused over 200 turns);
   the held screens count it. Charging right after the tick would close the
   gap, but the after-tick hook has no accumulator, so it is left as a declared
-  limitation.
+  limitation. With `--local-budgets`, L9 reserves the assistance ceiling as an
+  obligation before any envelope, so its envelopes cannot claim the same coins.
 - The receiving-pressure record reports crowding and food. Work, care and
   learning are what the existing consumers already apply to everyone; there
   is no separate arrival metric for them.

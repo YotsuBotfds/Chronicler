@@ -106,4 +106,26 @@ The L2 `equal` regime and feature-off identity are tested elsewhere (native test
 
 ## Amendments
 
-None yet.
+**2026-11-05, before any held run (independent review of the integrated source).**
+No arm, control, cohort, budget or primary outcome changed. Outcome extraction and the
+source changed:
+
+- The runner looked for L7 under `relocation`; its snapshot key is `relocation_costs`, so
+  L7's funnel would have been silently dropped. Corrected, with a test that every counted
+  package is a livelihoods switch.
+- Added extraction for outcomes this file already named:
+  - L7 receiving pressure, each source turn once: destination and origin region-turns and
+    their crowding change;
+  - arrivals' against residents' rations;
+  - L9 granary storage at the end (assets, capacity, mean condition);
+  - L6 crew net income in consistent units (wages are milli-units, replaced income is in
+    wealth units).
+- Source fixes after the review, each with a regression test that fails on the previous
+  code:
+  - L6a wages are shared only among living workers; dead workers' claims lapse first.
+  - L9 reserves L7 assisted-relocation assistance as an obligation inside the one budget.
+  - L9 names a workshop deferral `recipient_lost` only when the site closed.
+  - L8 now reads Commons Management's last settled funding ratio, found earlier the same
+    day.
+- The held runs use the source with these fixes; its commit and extension are recorded with
+  the results.

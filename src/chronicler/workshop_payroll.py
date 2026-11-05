@@ -121,6 +121,7 @@ class _Turn:
         self.money: list[MoneyTransfer] = []
         self.materials: list[MaterialTransfer] = []
         self.rows: dict[int, dict] = {}
+        self.alive: set[int] | None = None       # living ids after the tick, read once
 
 
 # ---------------------------------------------------------------------------
@@ -249,10 +250,31 @@ def _pro_rata(cash: int, due: dict[int, int]) -> dict[int, int]:
     return pay
 
 
+def _living(t: _Turn) -> set[int]:
+    """Stable ids alive after this turn's tick (deaths happen only in the tick),
+    from the native snapshot of the living pool, read once per payroll turn."""
+    if t.sim is None:
+        raise RuntimeError("workshop wages require the native simulator")
+    if t.alive is None:
+        t.alive = {int(a) for a in t.sim.get_snapshot().column("id").to_pylist()}
+    return t.alive
+
+
 def _pay(world, state, firm: WorkshopFirm, t: _Turn, due: dict[int, int], phase: str) -> dict:
-    """Pay ``due`` (milli-units by stable id) from cash once; update owed."""
+    """Pay ``due`` (milli-units by stable id) from cash once; update owed.
+
+    Dead workers' claims lapse first, so scarce cash is shared only among the
+    living (a lead review on 2026-11-05 found the first landing shared it with
+    the dead, kept their share in cash and left a dead claim with a zero share
+    owed)."""
     row = _row(t, firm)
     since = {o.agent_id: o.since_turn for o in firm.owed}
+    if due:
+        living = _living(t)
+        for aid in sorted(a for a in due if a not in living):
+            _add(row, "owed_lapsed", due[aid])
+            _bump(state, "owed_lapsed", due[aid])
+        due = {aid: amount for aid, amount in due.items() if aid in living}
     pay = _pro_rata(firm.cash, due)
     rows = [(aid, amount) for aid, amount in sorted(pay.items()) if amount > 0]
     result = {}
@@ -265,7 +287,7 @@ def _pay(world, state, firm: WorkshopFirm, t: _Turn, due: dict[int, int], phase:
     owed = []
     for aid in sorted(due):
         applied, residual, status = result.get(aid, (0, 0, 0))
-        if status == 2:                       # absent: the worker died; the claim lapses
+        if status == 2:                       # absent (defensive: the living set was read first)
             _add(row, "owed_lapsed", due[aid])
             _bump(state, "owed_lapsed", due[aid])
             residual = 0

@@ -91,6 +91,9 @@ class FakeSim:
         out, self.receipt = self.receipt, None
         return out
 
+    def get_snapshot(self):
+        return pa.record_batch({"id": pa.array(sorted(a for a in self.wealth if a not in self.dead), pa.uint32())})
+
     def transfer_wealth(self, turn, purpose, batch, rows):
         if any(p == purpose and b == batch and t >= turn for t, p, b in self.keys):
             raise ValueError("wealth transfer already applied for this turn, purpose and batch")
@@ -539,3 +542,23 @@ def test_prerequisites_and_modes():
     assert P.workshop_payroll_active(world)
     configure_livelihoods(world, parse(["--no-workshop-payroll"]), agent_mode="hybrid")
     assert not P.workshop_payroll_active(world) and P.crew_terms(world, 0) == (8, 1.0)
+
+
+def test_scarce_cash_goes_to_the_living_and_dead_claims_lapse_first():
+    """Regression (lead review 2026-11-05): cash 500 against 500 owed to a
+    living and 500 to a dead worker pays the living worker in full and lapses
+    the dead claim; a dead claim with no cash at all lapses too."""
+    world = _world()
+    sim = FakeSim(crew=(10, 20), wealth=10.0)
+    state = world.livelihoods.workshop_payroll
+    firm = P.WorkshopFirm(site=0, region=0, settlement_id=7, city_name="A", opened_turn=1, status="open", cash=500)
+    t = P._Turn(world.turn, sim)
+    sim.dead.add(20)
+    P._pay(world, state, firm, t, {10: 500, 20: 500}, "phase10")
+    assert firm.cash == 0 and firm.owed == []
+    assert sim.wealth[10] == pytest.approx(10.5)
+    assert state.counters["owed_lapsed"] == 500
+    # No cash: the dead claim still lapses instead of staying owed.
+    firm2 = P.WorkshopFirm(site=1, region=0, settlement_id=8, city_name="B", opened_turn=1, status="open", cash=0)
+    P._pay(world, state, firm2, t, {20: 300}, "phase10")
+    assert firm2.owed == [] and state.counters["owed_lapsed"] == 800

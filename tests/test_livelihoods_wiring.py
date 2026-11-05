@@ -69,3 +69,21 @@ def test_container_pickle_backfills_missing_switches():
     back.__setstate__(raw)
     assert all(getattr(back, name) is None for name in LIVELIHOODS_SWITCHES)
     assert pickle.loads(pickle.dumps(back)).model_dump_json() == state.model_dump_json()
+
+
+def test_screen_runner_counts_only_real_livelihoods_switches():
+    """Lead review 2026-11-05: the sprint-2 screen runner keyed L7 as
+    'relocation' while its snapshot key is 'relocation_costs', so its outcomes
+    would have been silently dropped. Every counted package must be a switch."""
+    import importlib.util
+    from pathlib import Path
+    from chronicler.livelihoods_state import LIVELIHOODS_SWITCHES
+    path = Path(__file__).resolve().parents[1] / "scripts" / "livelihoods_screens.py"
+    spec = importlib.util.spec_from_file_location("livelihoods_screens_under_test", path)
+    screens = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(screens)
+    assert set(screens.COUNTED) <= set(LIVELIHOODS_SWITCHES)
+    assert set(screens.FUNNEL_KEYS) == set(screens.COUNTED)
+    screens.check_counted()
+    for name, (flags, control, _tuning) in screens.ARMS2.items():
+        assert control is None or control in screens.ARMS2, name
