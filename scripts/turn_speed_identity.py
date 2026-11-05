@@ -106,10 +106,19 @@ def run(out: Path, cases: list[str], source_root: Path | None, native_root: Path
         extra: list[str] | None = None) -> int:
     env = _env(source_root, native_root)
     # Record which source tree and native build the runs used.
+    if source_root and not (source_root / "src" / "chronicler" / "__init__.py").is_file():
+        # The checkout root is wanted (``src`` is appended); a wrong path would
+        # silently fall back to whatever ``chronicler`` the interpreter installs.
+        raise SystemExit(f"--source-root {source_root} has no src/chronicler: pass the checkout root")
     which = subprocess.run([sys.executable, "-c", _WHICH], env=env, cwd=str(out),
                            capture_output=True, text=True)
     (out / "which.txt").write_text(which.stdout + which.stderr)
     print(which.stdout.strip(), flush=True)
+    imported = next((line.split(" ", 1)[1] for line in which.stdout.splitlines() if line.startswith("chronicler ")),
+                    None)
+    if source_root and (imported is None or not Path(imported).resolve().is_relative_to(
+            (source_root / "src").resolve())):
+        raise SystemExit(f"runs would import chronicler from {imported}, not from {source_root / 'src'}")
     status = 0
     for name in cases:
         cli, target = CASES[name]
