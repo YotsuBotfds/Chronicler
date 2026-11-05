@@ -1,7 +1,7 @@
 # Phase 6+7 Progress — Living Society + Depth Track
 
 Current source, gates and onboarding: [recovery index](../../RECOVERY.md) and
-[continuation ledger](../../CONTINUATION.md) (main after PR #69, 2026-11-04).
+[continuation ledger](../../CONTINUATION.md) (main after PRs #73 and #74, 2026-11-05).
 The [2026-11-03 integration handoff](../../integration/development-lead.md) and the
 dated source-scoped records below remain historical evidence.
 
@@ -41,7 +41,7 @@ dated source-scoped records below remain historical evidence.
 
 ---
 
-## Livelihoods/commons sprint 2 (2026-11-05, `claude/livelihoods-sprint2`, draft PR #74)
+## Livelihoods/commons sprint 2 (2026-11-05, `claude/livelihoods-sprint2`, PR #74, merged at `ee4c7ac2` with the stack review fixes)
 
 L5–L9 on top of sprint 1. Plan, board, screens and handoff are under `docs/superpowers/`
 (`livelihoods-commons-sprint2.*`, `livelihoods-sprint2-screens.md`). Five default-off switches
@@ -82,7 +82,7 @@ passes. No qualification gate was run.
 
 ---
 
-## Livelihoods/commons sprint 1 (2026-11-05, `claude/livelihoods-commons-sprint1`, draft PR #73)
+## Livelihoods/commons sprint 1 (2026-11-05, `claude/livelihoods-commons-sprint1`, PR #73, merged at `7001d649`)
 
 Bounded sprint L0 + L1–L4, based on main `64863f1`. Plan, board and screens are under
 `docs/superpowers/` (`livelihoods-commons-sprint1.*`, `livelihoods-sprint1-screens.md`).

@@ -15,6 +15,14 @@
     "repo": "YotsuBotfds/Chronicler",
     "note": "Cloud session: this file on the pushed integration branch is the authoritative board copy."
   },
+  "merge": {
+    "pr": 73,
+    "merged_at": "7001d649346c52d967cb07c6d8c6906bb9e842a4",
+    "reviewed_head": "3b23d769",
+    "premerge_ci": "Tests run 41983859855, all nine jobs green on the head",
+    "main_ci": "Tests run 42048286408 (push, attempt 1): success",
+    "review": "Stack review R1-R3 (2026-11-05) found no blocker in sprint-1 code; its sprint-1 should-fix items were fixed in PR #74"
+  },
   "source_baseline": {
     "main": "64863f1274e400c3898972fe0cd5df510d3bb06f",
     "tree": "1b0cd0dcb5e5433af6aa4429a65e5dae2ec4e89e",
