@@ -172,5 +172,12 @@ switch omitted and `--no-grain-convoys` each reproduce all 45 output files of
 the baseline source `050cfbe` (seeds 1–3, 60 turns, hybrid, reserves,
 shipments, validation sidecar). `scripts/checkpoint_identity.py` (`hybrid_s42`,
 30 turns, switch on, resumes at 5, 10, 15, 20, 25, 29) passes, with convoys
-idle there. Not run: full offline/native suites, hosted CI, the 200-seed and
-procedural gates, held cohorts, calibration or performance qualification.
+idle there. Every chunk of the bounded offline lane (57, each under the
+offline guard, continued past failures) ran: 6,024 passed, 69 skipped and 5
+failed, the five being the source-witness tests of the pinned reserve files
+(expected until the reviewed inverse layer lands). The new offline module
+passes under the guard on its own (27 tests, no native module loaded); it is
+not yet enrolled in a chunk or native shard. The viewer reader accepts all
+450 records of three constructed native runs (19 with transitions). Not run:
+full offline/native suites, hosted CI, the 200-seed and procedural gates,
+held cohorts, calibration or performance qualification.
