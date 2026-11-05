@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "layer": "s2r",
+  "parent": "d716e9768fe4c8ba965bf73b037c86483c3d8d86",
+  "files": {
+    "src/chronicler/run_checkpoint.py": {
+      "sha256": "35b2c58b4e316778c27e2403ed681a750c362b194fd4f029e55dffd6328c089e",
+      "current_sha256": "23191e8fea80d6a9607665731ec70759926d2ca57bf4f2b3c366a22aeccb557f",
+      "patches": [
+        {
+          "old": "def _rebind_markers(state: RunState) -> None:\n    if state.markers.get(\"war_roster_bound\") and state.agent_bridge is not None:\n        state.world._war_roster_sim = id(state.agent_bridge._sim)\n\n\ndef _upgrade_faiths(state: RunState) -> None:\n",
+          "new": "def _rebind_markers(state: RunState) -> None:\n    if state.markers.get(\"war_roster_bound\") and state.agent_bridge is not None:\n        state.world._war_roster_sim = id(state.agent_bridge._sim)\n    if getattr(state.world, \"livelihoods\", None) is not None and state.agent_bridge is not None:\n        # The exact load restored the same pool: its saved ids stay bound.\n        from chronicler.livelihoods import bind_native_pool\n        bind_native_pool(state.world, state.agent_bridge, reset=False)\n\n\ndef _upgrade_faiths(state: RunState) -> None:\n"
+        }
+      ]
+    }
+  }
+}
