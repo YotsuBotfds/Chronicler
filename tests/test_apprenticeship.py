@@ -437,6 +437,12 @@ def test_veterans_come_first_and_their_placement_is_reported(quick, monkeypatch)
     from chronicler import veteran_reintegration as VR
     world, sim = _world(), FakeSim(range(1, 13))
     VR.set_veteran_reintegration_enabled(world, True, args=None)
+    # Only the cross-lane seam (priority_ids, note_outcome) is under test: RS3's
+    # own turn hooks need a native snapshot (tests/test_veteran_reintegration*.py).
+    for hook in ("prepare_phase2", "finish_phase2", "rollback_phase2", "rollback_agent_tick", "phase10",
+                 "on_pool_reset"):
+        if hasattr(VR, hook):
+            monkeypatch.delattr(VR, hook)
     monkeypatch.setattr(VR, "priority_ids", lambda w, region: [11, 4] if region == SITE_REGION else [])
     notes = []
     monkeypatch.setattr(VR, "note_outcome", lambda w, aid, kind, *, turn, detail=None: notes.append((aid, kind, turn)))
