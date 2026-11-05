@@ -58,6 +58,7 @@
       "tests/test_experiment_sessions.py",
       "tests/test_experiment_workflow_integration.py",
       "tests/test_exploration.py",
+      "tests/test_feature_catalog.py",
       "tests/test_ffi_constants.py",
       "tests/test_fisheries_mutual_aid_promotion.py",
       "tests/test_fishery_recovery_validation.py",

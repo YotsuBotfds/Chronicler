@@ -15,7 +15,8 @@ import type {
 } from "../../types";
 import { isLegacyBundle } from "../../types";
 import { isObservationEventType, observationEventKnown } from "../../lib/observedSystems";
-import type { BatchConfig } from "../../types";
+import type { BatchConfig, FeatureSelection } from "../../types";
+import { featurePayload } from "../../lib/featureCatalog";
 import type { BatchState } from "../../hooks/useBatchConnection";
 import { ERA_LABELS } from "../../lib/format";
 import {
@@ -515,6 +516,7 @@ type LeftRailProps = {
   onResumeBrowse: () => void;
   onResumeDrop: (file: File) => void;
   onClearResume: () => void;
+  onFeaturesChange: (features: FeatureSelection) => void;
   onLaunch: () => void;
   batchState: BatchState;
   batchReport: BatchReport | null;
@@ -626,6 +628,7 @@ export function AppShell({
   const [resumeState, setResumeState] = useState<WorldState | null>(null);
   const [resumeTurn, setResumeTurn] = useState<number | null>(null);
   const [resumeError, setResumeError] = useState<string | null>(null);
+  const [features, setFeatures] = useState<FeatureSelection>({});
   const syncSetupDefaults = useEffectEvent(() => {
     setTurns(defaults.turns);
     setCivs(defaults.civs);
@@ -886,6 +889,8 @@ export function AppShell({
       : regionsDisabled
         ? (selectedScenario?.regions?.length || defaults.regions)
         : regions;
+    // Features apply to new worlds; nothing selected sends no field.
+    const requested = resumeState ? undefined : featurePayload(features);
     onLaunch({
       scenario: resumeState ? null : (scenario || null),
       turns,
@@ -896,6 +901,7 @@ export function AppShell({
       narrative_model: resolvedNarrativeModel,
       narrator: "local",
       resume_state: resumeState,
+      ...(requested ? { features: requested } : {}),
     });
   };
 
@@ -1183,7 +1189,10 @@ export function AppShell({
             civsDisabled,
             regionsDisabled,
             lobbyReady: !!lobbyInit,
+            featureCatalog: lobbyInit?.feature_catalog,
+            features,
           }}
+          onFeaturesChange={setFeatures}
           onScenarioChange={setScenario}
           onSeedChange={setSeed}
           onTurnsChange={setTurns}
@@ -1476,6 +1485,7 @@ function LeftRail({
   onResumeBrowse,
   onResumeDrop,
   onClearResume,
+  onFeaturesChange,
   onLaunch,
   batchState,
   batchReport,
@@ -1581,6 +1591,7 @@ function LeftRail({
             onResumeBrowse={onResumeBrowse}
             onResumeDrop={onResumeDrop}
             onClearResume={onClearResume}
+            onFeaturesChange={onFeaturesChange}
             onLaunch={onLaunch}
           />
         )}
@@ -1671,6 +1682,7 @@ function LeftRail({
                 progress={batchProgress}
                 error={batchError}
                 runDefaults={batchRunDefaults}
+                featureCatalog={setupState.featureCatalog}
                 onStart={onBatchStart}
                 onCancel={onBatchCancel}
                 onReset={onBatchReset}

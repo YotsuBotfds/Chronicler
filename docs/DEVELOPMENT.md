@@ -154,6 +154,15 @@ interactive cases (`live_*`, `interactive_*`), and
 `viewer/scripts/qa-live-checkpoint.mjs` is an opt-in browser check of the
 pause panel's Save checkpoint and `--live --resume`.
 
+The lobby message carries `feature_catalog`, which lists the experimental
+livelihoods switches, their prerequisites and their dependencies. Batch Lab
+and the setup form use it to offer them, with nothing selected by default.
+The server refuses an invalid `features` request (`start` or
+`batch_start.config`) before anything starts. When adding a livelihoods
+switch, declare its requirements in `feature_catalog.REQUIREMENTS`;
+`tests/test_feature_catalog.py` checks them against the run's own checks.
+See `docs/integration/feature-options.md`.
+
 ## Native and full qualification
 
 For native development, build into the native venv rather than `.venv`, with
