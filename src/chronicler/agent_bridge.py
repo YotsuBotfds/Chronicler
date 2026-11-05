@@ -790,6 +790,15 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
         # that defaulted on them, recomputed from persisted state for every
         # batch; without the column Rust reads 0 (no penalty).
         columns["creditor_grievance"] = pa.array(grievance, type=pa.float32())
+    if getattr(world, "livelihoods", None) is not None:
+        from chronicler.clearing_protection import pending_protection
+        protection = pending_protection(world)
+        if protection is not None:
+            # --clearing-protection (RS5): the share of this turn's
+            # population-driven clearing a funded protection suspends, only
+            # while a plan awaits the ecology tick; without the column Rust
+            # clears in full.
+            columns["clearing_protection"] = pa.array(protection, type=pa.float32())
     return pa.record_batch(columns)
 
 

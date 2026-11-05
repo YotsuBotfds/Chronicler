@@ -31,7 +31,9 @@ the region batch, ``finish_phase2(world, economy_result, agent_bridge, acc)``,
 economy_result)``, ``after_agent_tick(world, agent_bridge)``,
 ``phase10_before_reserves(world, acc, economy_result, agent_bridge)`` and
 ``phase10(world, acc, economy_result, agent_bridge)``; event-returning hooks
-return a list.
+return a list. ``before_ecology(world, acc)`` and ``after_ecology(world,
+acc)`` (event-returning) run immediately before the Phase 9 region sync and
+after the ecology tick, in every agent mode.
 """
 from __future__ import annotations
 
@@ -320,6 +322,20 @@ def wrap_agent_tick(world, agent_bridge, tick_agents, economy_result):
         return events
 
     return _tick
+
+
+def before_ecology(world, *, acc=None) -> None:
+    """Before the Phase 9 region sync and ecology tick: plans; charges nothing."""
+    for fn in _hooks(world, "before_ecology"):
+        fn(world, acc)
+
+
+def after_ecology(world, *, acc=None) -> list:
+    """After a successful Phase 9 ecology tick."""
+    events: list = []
+    for fn in _hooks(world, "after_ecology"):
+        events.extend(fn(world, acc) or [])
+    return events
 
 
 def phase10_before_reserves(world, *, acc=None, economy_result=None, agent_bridge=None) -> list:
