@@ -209,6 +209,9 @@ regrowth).
 - `tests/test_timber_stock_native.py`: 3 passed on the native venv above.
 - Viewer: the two test files, 7 passed; `npm run lint` and `npm run build`
   pass.
+- Bounded offline lane (`scripts/run_python_oracle_checks.py`) on this source:
+  PASS, 57 of 57 chunks, 6,034 passed, 69 skipped, 242 s. The timber modules
+  are not yet in a chunk (lead enrollment).
 
 Not run: the 200-seed gate, procedural or held cohorts, shadow and
 demographics-only modes, other platforms.
