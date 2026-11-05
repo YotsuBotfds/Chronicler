@@ -1,13 +1,16 @@
 """Livelihoods sprint screens: run the preregistered arms and summarize them.
 
-    python scripts/livelihoods_screens.py run OUT_DIR [--seeds template|procedural|all] [--jobs 3] [--arms a,b]
-    python scripts/livelihoods_screens.py report OUT_DIR/metrics.jsonl
+    python scripts/livelihoods_screens.py run OUT_DIR [--sprint 1|2] [--seeds template|procedural|all] [--jobs 3] [--arms a,b]
+    python scripts/livelihoods_screens.py report OUT_DIR/metrics.jsonl [--sprint 1|2]
 
 Run with the native interpreter whose extension matches the source under test
 (the arms are hybrid). Arms, cohorts and outcomes are preregistered in
-docs/superpowers/progress/livelihoods-sprint1-screens.md; worlds are the units.
-Each run's raw output is deleted after extraction, except the first seed of
-each stratum (kept as an example world). Metrics go to OUT_DIR/metrics.jsonl.
+docs/superpowers/progress/livelihoods-sprint1-screens.md (sprint 1) and
+docs/superpowers/progress/livelihoods-sprint2-screens.md (sprint 2); worlds are
+the units. Every arm is compared with its declared control arm on the same
+world. Each run's raw output is deleted after extraction, except the first
+seed of each stratum (kept as an example world). Metrics go to
+OUT_DIR/metrics.jsonl.
 """
 import argparse, json, os, shutil, subprocess, sys, time
 from statistics import mean
@@ -17,22 +20,37 @@ from pathlib import Path
 PY = sys.executable
 REPO = str(Path(__file__).resolve().parents[1])
 BASE = ["--turns", "200", "--agents", "hybrid", "--simulate-only", "--grain-reserves", "--public-grain-shipments"]
+# Arm -> (flags, control arm, tuning overrides). Sprint 1 is frozen as run.
+NO_CAP = {"livelihoods": {"timber": {"enforce_cap": 0}}}
 ARMS = {
-    "off": [],
-    "L1_operate": ["--workshops"],
-    "L1_cost_only": ["--workshops", "--workshop-mode", "cost_only"],
-    "L2_floor_means": ["--food-allocation"],
-    "L2_targeted": ["--food-allocation", "--food-allocation-regime", "targeted_relief"],
-    "L3_timber": ["--timber-stock"],
-    "L3_ablation": ["--timber-stock", "TUNING_NO_CAP"],
-    "L4_convoys": ["--grain-convoys"],
-    "I1_work_food": ["--workshops", "--food-allocation"],
-    "I2_timber_work": ["--workshops", "--timber-stock"],
-    "I3_convoy_relief": ["--grain-convoys", "--food-allocation", "--food-allocation-regime", "targeted_relief"],
-    "ALL": ["--workshops", "--food-allocation", "--timber-stock", "--grain-convoys"],
+    "off": ([], None, None),
+    "L1_operate": (["--workshops"], "off", None),
+    "L1_cost_only": (["--workshops", "--workshop-mode", "cost_only"], "off", None),
+    "L2_floor_means": (["--food-allocation"], "off", None),
+    "L2_targeted": (["--food-allocation", "--food-allocation-regime", "targeted_relief"], "off", None),
+    "L3_timber": (["--timber-stock"], "off", None),
+    "L3_ablation": (["--timber-stock"], "off", NO_CAP),
+    "L4_convoys": (["--grain-convoys"], "off", None),
+    "I1_work_food": (["--workshops", "--food-allocation"], "off", None),
+    "I2_timber_work": (["--workshops", "--timber-stock"], "off", None),
+    "I3_convoy_relief": (["--grain-convoys", "--food-allocation", "--food-allocation-regime", "targeted_relief"], "off", None),
+    "ALL": (["--workshops", "--food-allocation", "--timber-stock", "--grain-convoys"], "off", None),
 }
+PROCEDURAL = ["--worldgen", "procedural", "--regions", "32", "--civs", "10"]
 STRATA = {"template": [("t", s, []) for s in range(101, 107)],
-          "procedural": [("p", s, ["--worldgen", "procedural", "--regions", "32", "--civs", "10"]) for s in range(201, 207)]}
+          "procedural": [("p", s, PROCEDURAL) for s in range(201, 207)]}
+SPRINTS = {1: {"arms": ARMS, "strata": STRATA,
+               "labels": {"t": "template 8x4 (seeds 101-106)", "p": "procedural 32x10 (seeds 201-206)"}}}
+
+
+def _yaml(tree: dict, indent: int = 0) -> str:
+    out = []
+    for key, value in tree.items():
+        if isinstance(value, dict):
+            out.append(" " * indent + f"{key}:\n" + _yaml(value, indent + 2))
+        else:
+            out.append(" " * indent + f"{key}: {value}\n")
+    return "".join(out)
 
 
 def metrics(bundle_path: Path) -> dict:
@@ -49,7 +67,7 @@ def metrics(bundle_path: Path) -> dict:
     m["crafts_stock_end"] = sum(r.get("stockpile", {}).get("goods", {}).get("crafts", 0.0) for r in regions)
     m["timber_goods_end"] = sum(r.get("stockpile", {}).get("goods", {}).get("timber", 0.0) for r in regions)
     w = {"site_turns": 0, "operating": 0, "building": 0, "idle": 0, "alloc": 0.0, "real": 0.0, "out": 0.0, "paid": 0}
-    f = {"scarce": 0, "short": 0.0, "sp": 0.0, "pp": 0, "sr": 0.0, "pr": 0, "sc": 0.0, "pc": 0, "relief_t": 0.0, "unalloc": 0.0}
+    f = {"scarce": 0, "short": 0.0, "sp": 0.0, "pp": 0, "sr": 0.0, "pr": 0, "sc": 0.0, "pc": 0, "relief_t": 0.0, "relief_unknown": 0, "unalloc": 0.0}
     t = {"extraction": 0.0, "regrowth": 0.0, "cleared": 0.0, "overdraft": 0.0, "capped": 0, "stock_end": None, "cap_end": None}
     for s in hist:
         liv = s.get("livelihoods") or {}
@@ -64,7 +82,11 @@ def metrics(bundle_path: Path) -> dict:
         for r in (fa or {}).get("regions") or []:
             f["scarce"] += 1; f["short"] += r["shortfall"]; f["sp"] += r["shortfall_poorer_half"]; f["pp"] += r["people_poorer_half"]
             f["sr"] += r["shortfall_richer_half"]; f["pr"] += r["people_richer_half"]; f["sc"] += r["shortfall_children"]
-            f["pc"] += r["children"]; f["relief_t"] += r["relief_to_targeted"]; f["unalloc"] += r["unallocated"]
+            f["pc"] += r["children"]; f["unalloc"] += r["unallocated"]
+            if r.get("relief_to_targeted") is None:
+                f["relief_unknown"] += 1  # unknown pre-release sufficiency: not zero
+            else:
+                f["relief_t"] += r["relief_to_targeted"]
         ts = liv.get("timber_stock")
         if ts and ts.get("totals"):
             tt = ts["totals"]
@@ -78,14 +100,14 @@ def metrics(bundle_path: Path) -> dict:
     return m
 
 
-def run(out: Path, arm: str, stratum: str, seed: int, extra: list[str], keep: bool) -> dict:
+def run(out: Path, arms: dict, arm: str, stratum: str, seed: int, extra: list[str], keep: bool) -> dict:
     d = (out / "runs" / f"{arm}-{stratum}{seed}").resolve()
     if d.exists(): shutil.rmtree(d)
     d.mkdir(parents=True)
-    flags = list(ARMS[arm])
-    if "TUNING_NO_CAP" in flags:
-        flags.remove("TUNING_NO_CAP")
-        (d / "tuning.yaml").write_text("livelihoods:\n  timber:\n    enforce_cap: 0\n")
+    flags, _control, tuning = arms[arm]
+    flags = list(flags)
+    if tuning:
+        (d / "tuning.yaml").write_text(_yaml(tuning))
         flags += ["--tuning", str(d / "tuning.yaml")]
     cmd = [PY, "-m", "chronicler.main", "--seed", str(seed), *BASE, *extra, *flags,
            "--output", str(d / "chronicle.md"), "--state", str(d / "state.json")]
@@ -105,15 +127,22 @@ def run(out: Path, arm: str, stratum: str, seed: int, extra: list[str], keep: bo
 def run_main(argv):
     ap = argparse.ArgumentParser(prog="livelihoods_screens.py run")
     ap.add_argument("out"); ap.add_argument("--seeds", default="all"); ap.add_argument("--jobs", type=int, default=3)
-    ap.add_argument("--arms", default=",".join(ARMS))
+    ap.add_argument("--sprint", type=int, choices=sorted(SPRINTS), default=1)
+    ap.add_argument("--arms", default=None)
     a = ap.parse_args(argv)
+    sprint = SPRINTS[a.sprint]
+    arms, all_strata = sprint["arms"], sprint["strata"]
+    chosen = a.arms.split(",") if a.arms else list(arms)
+    unknown = [arm for arm in chosen if arm not in arms]
+    if unknown:
+        raise SystemExit(f"unknown arms for sprint {a.sprint}: {unknown}")
     out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
-    strata = list(STRATA) if a.seeds == "all" else [a.seeds]
+    strata = list(all_strata) if a.seeds == "all" else [a.seeds]
     jobs = []
     for name in strata:
-        for i, (tag, seed, extra) in enumerate(STRATA[name]):
-            for arm in a.arms.split(","):
-                jobs.append((arm, tag, seed, extra, i == 0))
+        for i, (tag, seed, extra) in enumerate(all_strata[name]):
+            for arm in chosen:
+                jobs.append((arms, arm, tag, seed, extra, i == 0))
     t0 = time.time()
     with open(out / "metrics.jsonl", "a") as fh, ThreadPoolExecutor(a.jobs) as ex:
         for row in ex.map(lambda j: run(out, *j), jobs):
@@ -123,11 +152,15 @@ def run_main(argv):
 
 
 def report_main(argv):
-    rows = [json.loads(l) for l in open(argv[0])]
+    ap = argparse.ArgumentParser(prog="livelihoods_screens.py report")
+    ap.add_argument("metrics"); ap.add_argument("--sprint", type=int, choices=sorted(SPRINTS), default=1)
+    a = ap.parse_args(argv)
+    sprint = SPRINTS[a.sprint]
+    rows = [json.loads(l) for l in open(a.metrics)]
 
     by = {(r["arm"], r["stratum"], r["seed"]): r for r in rows}
     arms = list(dict.fromkeys(r["arm"] for r in rows))
-    strata = {"t": "template 8x4 (seeds 101-106)", "p": "procedural 32x10 (seeds 201-206)"}
+    strata = sprint["labels"]
     fails = [r for r in rows if r["rc"] != 0]
     out = []
     out.append(f"Runs: {len(rows)}; failed: {len(fails)}; wall seconds total {sum(r['wall_s'] for r in rows):.0f}")
@@ -139,20 +172,21 @@ def report_main(argv):
         return f"{mean(vals):+.1f} [{min(vals):+.0f}, {max(vals):+.0f}]" if vals else "n/a"
 
 
-    out.append("\n### Paired differences vs off (mean [min, max] over worlds)\n")
-    out.append("| Arm | Stratum | Worlds | Population | Treasury |")
-    out.append("| --- | --- | --- | --- | --- |")
+    out.append("\n### Paired differences vs each arm's control (mean [min, max] over worlds)\n")
+    out.append("| Arm | Control | Stratum | Worlds | Population | Treasury |")
+    out.append("| --- | --- | --- | --- | --- | --- |")
     for arm in arms:
-        if arm == "off":
+        control = sprint["arms"].get(arm, (None, None, None))[1]
+        if control is None:
             continue
         for s in strata:
             seeds = sorted({r["seed"] for r in rows if r["stratum"] == s})
             dp, dt = [], []
             for seed in seeds:
-                a, o = by.get((arm, s, seed)), by.get(("off", s, seed))
+                a, o = by.get((arm, s, seed)), by.get((control, s, seed))
                 if a and o and a["rc"] == 0 and o["rc"] == 0:
                     dp.append(a["population"] - o["population"]); dt.append(a["treasury"] - o["treasury"])
-            out.append(f"| {arm} | {s} | {len(dp)} | {rng(dp)} | {rng(dt)} |")
+            out.append(f"| {arm} | {control} | {s} | {len(dp)} | {rng(dp)} | {rng(dt)} |")
 
     out.append("\n### Activation funnels and primary outcomes (sum or mean per world)\n")
     for s in strata:
@@ -176,7 +210,8 @@ def report_main(argv):
                 sc = sum(x["sc"] for x in f) / max(1, sum(x["pc"] for x in f))
                 poorer_worse = sum(1 for x in f if x["pp"] and x["pr"] and x["sp"] / x["pp"] > x["sr"] / x["pr"])
                 parts.append(f"food: scarce region-turns/world {mean(x['scarce'] for x in f):.0f}, mean shortfall poorer {sp:.3f} vs richer {sr:.3f} "
-                             f"(poorer worse in {poorer_worse}/{len(f)} worlds), children {sc:.3f}, relief to targeted/world {mean(x['relief_t'] for x in f):.2f}, "
+                             f"(poorer worse in {poorer_worse}/{len(f)} worlds), children {sc:.3f}, relief to targeted/world {mean(x['relief_t'] for x in f):.2f} "
+                             f"(unknown region-turns {sum(x.get('relief_unknown', 0) for x in f)}), "
                              f"unallocated/world {mean(x['unalloc'] for x in f):.1f}")
             if any("timber" in r for r in rs):
                 t = [r["timber"] for r in rs]
@@ -194,9 +229,9 @@ def report_main(argv):
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
-    if not argv or argv[0] not in ("run", "report") or argv[1:2] in (["-h"], ["--help"]) and argv[0] == "report":
+    if not argv or argv[0] not in ("run", "report"):
         print(__doc__)
-        return 0 if argv[1:2] in (["-h"], ["--help"]) or not argv else 2
+        return 0 if not argv else 2
     if argv[0] == "run":
         run_main(argv[1:])
     else:
