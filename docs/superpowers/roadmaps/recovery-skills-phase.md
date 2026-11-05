@@ -341,3 +341,44 @@ in its handoff; the lead integrates it and records the witness layer.
 - Infrastructure repair (only an `active` flag exists today) is outside the bounded
   asset set.
 - The 200-seed and procedural qualification gates are not run.
+
+## 8. Status and handoff (2026-11-05)
+
+Every package below is integrated on `claude/recovery-skills`. Each switch is off by
+default and none is promoted. Merging does not qualify the code scientifically.
+
+| Package | Switch (modes) | Lane commit | Integration page |
+| --- | --- | --- | --- |
+| RS0 groundwork | none | lead | this plan, section 4 |
+| RS1 apprenticeship | `--apprenticeship` (`train`, `no_qualification`) | `7b0b2e5c` | `docs/integration/apprenticeship.md` |
+| RS2 repair projects | `--repair-projects` (`repair`, `cost_only`) | `e7d72f76` | `docs/integration/repair-projects.md` |
+| RS3 veterans | `--veteran-reintegration` (`priority`, `record_only`) | `6a5801e2` | `docs/integration/veteran-reintegration.md` |
+| RS4 remittances | `--remittances` (`send`, `record_only`) | `c7730cc9` | `docs/integration/remittances.md` |
+| RS5 clearing protection | `--clearing-protection` (`enforced`, `cost_only`) | `e0cb49e6` | `docs/integration/clearing-protection.md` |
+| RS6 feature options | none (Batch Lab, live setup) | `e3de7f3b` | `docs/integration/feature-options.md` |
+| RS7 evidence | none | lead | `docs/superpowers/progress/recovery-skills-screens.md` |
+
+**Independent review.** Three reviewers worked from the code, not from the lanes'
+reports:
+- A: RS1 and RS3.
+- B: RS4 and RS5.
+- C: RS2.
+
+There were no blockers. Every confirmed defect was fixed with a regression test that
+fails on the previous code; the list is in the board's `review_fixes`
+(`docs/superpowers/progress/recovery-skills.json`). Two of the defects matter beyond
+this phase:
+- Phase 10 read wealth from before the livelihoods after-hooks had run. This was
+  already on `main` and affected L6a and L7.
+- The #74 feature-off identity evidence had compared the same Python tree twice. The
+  correct rerun passes, and the tool now refuses that mistake.
+
+**Verification of the final source.**
+- The bounded offline lane passes.
+- Native suites: 130 passed, 1 skipped.
+- Feature-off `turn_speed_identity` against `main` `9f950cb4`: 9 cases, 399 files, 0
+  differences.
+- All-switch `checkpoint_identity` `hybrid_s42_long`, every livelihoods and
+  recovery-skills switch on: PASS at 19 resume points.
+- Viewer: 139 test files and 1,346 tests, lint and build. The browser QA
+  (`viewer/scripts/qa-recovery-skills.mjs`) passed 470 checks at desktop and phone.
