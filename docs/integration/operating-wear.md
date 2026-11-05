@@ -160,8 +160,19 @@ turns. Nothing was tuned.
 
 ### Development worlds
 
-See [the RS1 version-2 measurement](apprenticeship.md#development-worlds-pl2), which
-reports `W_operate`, `W_wear`, NQ and TR side by side on 12 development worlds.
+Measured over 200 turns on 12 development worlds (sums over 6 template and 6 procedural
+worlds, D2's base flags). The figures are evidence about the mechanism, not of an
+effect:
+
+| Arm | Lump repairs (template / procedural) | Mean condition | Operating site-turns |
+| --- | --- | --- | --- |
+| `W_operate` | 3 / 18 | 0.956 / 0.912 | 2554 / 3139 |
+| `W_wear` | 96 / 121 | 0.766 / 0.732 | 2531 / 3169 |
+
+The maintenance assumption alone adds 93 / 103 repairs. Under the same wear, RS1 v2
+needs 67 / 93 (train) and 71 / 97 (`no_qualification`).
+[The RS1 version-2 measurement](apprenticeship.md#development-worlds-pl2) has every arm
+and the identity checks.
 
 ## Limits
 

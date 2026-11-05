@@ -612,7 +612,116 @@ site-turns covered by a qualified member, TR against NQ under the shared wear.
 
 ### Development worlds (PL2)
 
-DEV_WORLDS_PLACEHOLDER
+200 turns on 12 development worlds (template 3, 7, 9, 11, 23 and 42; procedural 32 × 10
+worlds 7, 11, 13, 17, 21 and 31: the D2 set), one run per arm and world. The base
+flags, as in D2, are `--grain-reserves --public-grain-shipments --scholarship
+--techniques --academy-services --grain-storage --workshops`. Run with
+`PYTHONHASHSEED=0 RAYON_NUM_THREADS=1` on native extension `6c675042…` and source
+`6b32fd26` plus this documentation.
+
+The version-1 arms (NQ v1, TR v1) run this source with a version-1 state (the rules a
+pre-PL2 checkpoint resumes under). Its results equal D2's on `main`: TR v1 has 538 and
+464 enrolments with 15 and 5 completions, exactly D2's figures. These are development
+worlds, so they are evidence about the mechanism, not of an effect. Sums over the six
+worlds of each stratum.
+
+| Arm | Stratum | Operating site-turns | Lump repairs | Mean condition | Covered by a qualified member | Graduate crew-turns | Site-turns with a graduate aboard | Completions (granted) | Qualified by service / apprenticeship | Upkeep offset / wear | Full-offset site-turns |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| W_operate | template | 2554 | 3 | 0.956 | — | — | — | — | — | 0 / 0 | — |
+| W_wear | template | 2531 | 96 | 0.766 | 0 | — | — | — | — | 0 / 50.6 | 0 |
+| NQ v2 | template | 2441 | 71 | 0.763 | 728 (29.8%) | 336 | 279 (11.4%) | 72 (0) | 208 / 0 | 9.8 / 48.8 | 209 |
+| TR v2 | template | 2472 | 67 | 0.769 | 818 (33.1%) | 328 | 282 (11.4%) | 80 (80) | 166 / 80 | 11.3 / 49.4 | 252 |
+| NQ v1 | template | 2504 | 75 | 0.757 | 703 (28.1%) | 13 | 13 (0.5%) | 7 (0) | 162 / 0 | 9.4 / 50.1 | — |
+| TR v1 | template | 2534 | 73 | 0.757 | 771 (30.4%) | 114 | 106 (4.2%) | 15 (15) | 156 / 15 | 10.4 / 50.7 | — |
+| W_operate | procedural | 3139 | 18 | 0.912 | — | — | — | — | — | 0 / 0 | — |
+| W_wear | procedural | 3169 | 121 | 0.732 | 0 | — | — | — | — | 0 / 63.4 | 0 |
+| NQ v2 | procedural | 2939 | 97 | 0.727 | 673 (22.9%) | 132 | 117 (4.0%) | 43 (0) | 200 / 0 | 9.6 / 58.8 | 197 |
+| TR v2 | procedural | 3156 | 93 | 0.735 | 936 (29.7%) | 363 | 275 (8.7%) | 81 (81) | 204 / 81 | 14.4 / 63.1 | 393 |
+| NQ v1 | procedural | 3395 | 113 | 0.722 | 679 (20.0%) | 57 | 51 (1.5%) | 8 (0) | 172 / 0 | 9.1 / 67.9 | — |
+| TR v1 | procedural | 3278 | 111 | 0.719 | 568 (17.3%) | 40 | 31 (0.9%) | 5 (5) | 158 / 5 | 7.6 / 65.6 | — |
+
+Notes on the columns:
+
+- *Graduate crew-turns* are crew-turns on operating sites by people who completed an
+  apprenticeship in an earlier turn, granted or not.
+- *Full-offset* site-turns are recorded only by version 2; the version-1 cells are not
+  measured.
+- **Upkeep offset by route** (version 2): TR v2 apprenticeship qualifications delivered
+  3.1 / 3.0 (template / procedural) of 11.3 / 14.4. NQ v2 graduates delivered 1.4 / 0.4,
+  after qualifying by service.
+
+Endings of every apprenticeship enrolled, by reason, and attended turns at the end
+(still open at turn 200 included):
+
+| Arm | Stratum | Enrolled | Completed | Long absence | Migrated | Departed | Dropout | Died | Occupation changed | Service qualified | Other | Open | Attended 1–2 | 3–5 | 6–9 | 10 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| NQ v2 | template | 350 | 20.6% | 24.0% | — | — | — | 9.1% | 25.1% | 12.3% | 0.6% | 8.3% | 28.6% | 34.3% | 15.1% | 20.6% |
+| TR v2 | template | 382 | 20.9% | 20.9% | — | — | — | 10.5% | 24.3% | 11.5% | 0.0% | 11.8% | 29.3% | 28.8% | 19.1% | 20.9% |
+| NQ v1 | template | 512 | 1.4% | — | 45.1% | 20.5% | 8.2% | 9.2% | 8.4% | 3.1% | 0.6% | 3.5% | 64.8% | 23.6% | 7.2% | 1.4% |
+| TR v1 | template | 538 | 2.8% | — | 42.4% | 22.3% | 7.1% | 10.2% | 8.2% | 3.2% | 0.6% | 3.3% | 61.5% | 24.5% | 8.6% | 2.8% |
+| NQ v2 | procedural | 370 | 11.6% | 37.6% | — | — | — | 15.7% | 15.1% | 11.4% | 0.8% | 7.8% | 41.4% | 27.3% | 18.1% | 11.6% |
+| TR v2 | procedural | 485 | 16.7% | 37.3% | — | — | — | 14.2% | 17.1% | 8.2% | 0.2% | 6.2% | 34.0% | 27.4% | 20.2% | 16.7% |
+| NQ v1 | procedural | 512 | 1.6% | — | 38.7% | 26.0% | 7.4% | 9.6% | 9.2% | 3.3% | 1.2% | 3.1% | 63.1% | 23.8% | 6.1% | 1.6% |
+| TR v1 | procedural | 464 | 1.1% | — | 37.9% | 25.2% | 7.1% | 11.6% | 9.3% | 3.9% | 1.5% | 2.4% | 65.1% | 22.6% | 4.1% | 1.1% |
+
+In the table above:
+
+- "Other" is `site_closed` and `remobilised`.
+- 1–7% of records ended with 0 attended turns (death in the first tick); they are
+  omitted from the attended columns.
+- **Transfers between sites** (version 2): 201 / 240 template and 85 / 97 procedural
+  (NQ / TR).
+- **Attended turns on the crew / attached**: NQ v2 731 / 978 and TR v2 768 / 1141
+  (template); NQ v2 708 / 821 and TR v2 1011 / 1269 (procedural).
+
+What this shows (development worlds; a held screen is the evidence):
+
+- **The maintenance assumption is most of the repairs.** `W_wear` − `W_operate` is
+  +93 / +103 lump repairs and −0.19 / −0.18 mean condition.
+- **Training against the control.** Under the shared wear, TR v2 needs 4 / 4 fewer
+  repairs than NQ v2. This is the comparison training is judged by.
+- **Region attendance and portable progress retain apprentices.** Completions rise
+  from 1–3% of enrolments (version 1) to 12–21% (version 2), and endings after 1–2
+  attended turns fall from 62–65% to 29–41%. The `migrated` and `departed` endings
+  (63–66% in version 1) are replaced by the long absence, at 21–24% template and 37%
+  procedural.
+- **Graduates do more useful work in version 2.** In TR v2 they are aboard 11.4% /
+  8.7% of operating site-turns (TR v1: 4.2% / 0.9%), with 328 / 363 graduate crew-turns
+  (TR v1: 114 / 40).
+- **The primary measure against NQ v2 under the shared wear.** Covered site-turns are
+  33.1% against 29.8% (template) and 29.7% against 22.9% (procedural). Graduate
+  crew-turns are 328 against 336 (template) and 363 against 132 (procedural).
+  - In template worlds NQ graduates stay on the crew about as often but cannot keep the
+    site.
+  - Full-offset site-turns are 252 / 393 against 209 / 197.
+  - **Crowding out.** Service qualifications fall from 208 to 166 (template) as
+    graduates qualify by apprenticeship instead; procedural service qualifications are
+    unchanged (200 / 204).
+- **Occupation change is now the largest single ending in template worlds** (24–25%).
+  The native occupation model moves farmers to other trades, and both arms show it.
+  Nothing was tuned.
+
+Reproduce one arm (any directory; drop `--apprenticeship …` for `W_operate`, add
+`--operating-wear` alone for `W_wear`):
+
+```sh
+PYTHONHASHSEED=0 RAYON_NUM_THREADS=1 python -m chronicler.main --seed 7 --turns 200 \
+  --agents hybrid --simulate-only --grain-reserves --public-grain-shipments --scholarship \
+  --techniques --academy-services --grain-storage --workshops --apprenticeship \
+  [--apprenticeship-mode no_qualification] --output out/chronicle.md --state out/state.json
+```
+
+Feature-off and version-1 identity (`6b32fd26` against the phase head `bec63b5b`,
+each importing its own `src`, native `6c675042…`):
+
+- 7 cases, 82 files, 0 differences (bundles compared without `metadata.generated_at`):
+  - template seeds 7 and 11 with no switch;
+  - seed 7 with `--workshops`;
+  - seed 7 with `--workshops --workshop-payroll --scholarship --techniques
+    --academy-services`;
+  - procedural seed 21 with the base flags and `--workshops`;
+  - RS1 version 1 on template 7 (90 turns, against the base's RS1);
+  - RS1 version 1 on procedural 21 (`no_qualification` with payroll).
 
 ### Limits (version 2)
 
