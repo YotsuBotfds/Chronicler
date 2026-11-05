@@ -3152,7 +3152,7 @@ impl AgentSimulator {
             Float32Builder, UInt8Builder, UInt16Builder, BooleanBuilder,
         };
         use crate::economy::{
-            EconomyRegionInput, RegionAgentCounts, TradeRouteInput, tick_economy_core_with_granary_work,
+            EconomyRegionInput, RegionAgentCounts, TradeRouteInput, tick_economy_core_with_retail,
         };
 
         let _ = season_id; // reserved for future seasonal modifiers
@@ -3397,6 +3397,51 @@ impl AgentSimulator {
                 });
             }
         }
+        // Livelihoods L6b household retail (optional, default absent): the
+        // title share θ (null: not a pilot region) and the owned food stock
+        // at opening, all six Float32 columns or none; hybrid economy only.
+        let retail_names: Vec<String> = std::iter::once("retail_title_share".to_string())
+            .chain(crate::economy::RETAIL_FOOD_SLOTS.iter().map(|&g| format!("retail_owned_{}", GOOD_NAMES[g])))
+            .collect();
+        let retail_cols: Vec<Option<&Float32Array>> = retail_names.iter().map(|name| {
+            ri_rb.column_by_name(name).map(|c| c.as_any().downcast_ref::<Float32Array>()
+                .ok_or_else(|| PyValueError::new_err(format!("{name} must be Float32")))).transpose()
+        }).collect::<PyResult<_>>()?;
+        let retail_inputs: Option<Vec<Option<crate::economy::RetailRegionInput>>> = if retail_cols.iter().all(Option::is_none) {
+            None
+        } else if retail_cols.iter().any(Option::is_none) {
+            return Err(PyValueError::new_err("household retail needs all six retail_* Float32 columns"));
+        } else if !self.hybrid_economy_mode {
+            return Err(PyValueError::new_err("household retail requires the hybrid economy"));
+        } else {
+            let mut rows = Vec::with_capacity(n_regions);
+            for i in 0..n_regions {
+                let theta = retail_cols[0].unwrap();
+                let owned = &retail_cols[1..];
+                if theta.is_null(i) {
+                    // Not a pilot region: no owned stock may be reported.
+                    if owned.iter().any(|c| !c.unwrap().is_null(i) && c.unwrap().value(i) != 0.0) {
+                        return Err(PyValueError::new_err("owned food in a region without a retail title share"));
+                    }
+                    rows.push(None);
+                    continue;
+                }
+                let share = theta.value(i);
+                if !share.is_finite() || !(0.0..=1.0).contains(&share) {
+                    return Err(PyValueError::new_err("retail_title_share must be in [0, 1]"));
+                }
+                let mut row = crate::economy::RetailRegionInput { title_share: share, owned: [0.0; crate::economy::NUM_GOODS] };
+                for (k, &g) in crate::economy::RETAIL_FOOD_SLOTS.iter().enumerate() {
+                    let col = owned[k].unwrap();
+                    if col.is_null(i) || !col.value(i).is_finite() || col.value(i) < 0.0 {
+                        return Err(PyValueError::new_err("retail owned food must be finite and nonnegative in a pilot region"));
+                    }
+                    row.owned[g] = col.value(i);
+                }
+                rows.push(Some(row));
+            }
+            Some(rows)
+        };
 
         // --- Derive agent counts from live pool ---
         // Partition by region for efficient iteration
@@ -3553,7 +3598,7 @@ impl AgentSimulator {
             .collect();
 
         // --- Call the core ---
-        let output = tick_economy_core_with_granary_work(
+        let output = tick_economy_core_with_retail(
             &region_inputs,
             &agent_counts,
             &routes,
@@ -3566,6 +3611,7 @@ impl AgentSimulator {
             is_winter,
             hybrid_delivery.as_ref(),
             &granary_work_requested,
+            retail_inputs.as_deref(),
         );
 
         // M58b: Write transit decay diagnostics back to delivery buffer before clearing.
@@ -3690,6 +3736,31 @@ impl AgentSimulator {
             Arc::new(economy_region_result_schema()),
             rr_columns,
         ).map_err(arrow_err)?;
+        // Livelihoods L6b household retail: owned-stock columns appended only
+        // when the retail inputs were present (null for non-pilot regions).
+        let region_result_batch = if let Some(retail) = &output.retail {
+            let mut fields: Vec<Field> = region_result_batch.schema().fields().iter().map(|f| f.as_ref().clone()).collect();
+            let mut columns: Vec<arrow::array::ArrayRef> = region_result_batch.columns().to_vec();
+            type Pick = fn(&crate::economy::RetailRegionResult) -> &[f32; crate::economy::NUM_GOODS];
+            let kinds: [(&str, Pick); 4] = [("titled", |r| &r.titled), ("owned_close", |r| &r.owned_close),
+                ("owned_decay", |r| &r.owned_decay), ("owned_overflow", |r| &r.owned_overflow)];
+            for (kind, pick) in kinds {
+                for &g in &crate::economy::RETAIL_FOOD_SLOTS {
+                    fields.push(Field::new(format!("retail_{kind}_{}", GOOD_NAMES[g]), DataType::Float32, true));
+                    columns.push(Arc::new(Float32Array::from(
+                        retail.iter().map(|r| r.as_ref().map(|r| pick(r)[g])).collect::<Vec<_>>())));
+                }
+            }
+            fields.push(Field::new("commons_consumed", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(
+                retail.iter().map(|r| r.as_ref().map(|r| r.commons_consumed)).collect::<Vec<_>>())));
+            fields.push(Field::new("commons_sufficiency", DataType::Float32, true));
+            columns.push(Arc::new(Float32Array::from(
+                retail.iter().map(|r| r.as_ref().map(|r| r.commons_sufficiency)).collect::<Vec<_>>())));
+            RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(arrow_err)?
+        } else {
+            region_result_batch
+        };
 
         // 2. Civ result batch
         let n_civ_out = active_civ_ids.len();

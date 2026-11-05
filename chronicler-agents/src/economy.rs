@@ -417,6 +417,39 @@ pub struct EconomyOutput {
     /// M58b: Per-region per-good transit decay totals from arrival processing.
     /// Only populated in hybrid mode. Written back to DeliveryBuffer diagnostics by FFI layer.
     pub transit_decay_by_region: Option<Vec<[f32; NUM_GOODS]>>,
+    /// Livelihoods L6b household retail: per region (input order) the owned
+    /// stock's flows, `Some` for pilot regions. `None` without retail inputs.
+    pub retail: Option<Vec<Option<RetailRegionResult>>>,
+}
+
+/// Livelihoods L6b household retail: the food good slots, in goods order
+/// (the `retail_*_<good>` columns); exactly the slots of `IS_FOOD`.
+pub const RETAIL_FOOD_SLOTS: [usize; 5] = [SLOT_GRAIN, SLOT_FISH, SLOT_SALT, SLOT_BOTANICALS, SLOT_EXOTIC];
+
+/// Livelihoods L6b household retail (option R), one pilot region's Phase 2
+/// input: the titled share θ of this turn's food production and the owned
+/// food stock at opening (goods units, food slots only; non-food slots 0).
+/// Owned food counts in availability, prices and sufficiency, decays and is
+/// capped with the commons (`stockpile`), and is never drawn down here.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RetailRegionInput {
+    pub title_share: f32,
+    pub owned: [f32; NUM_GOODS],
+}
+
+/// One pilot region's owned-stock flows (goods units, food slots only):
+/// `owned_close = owned_open + titled - owned_decay - owned_overflow`.
+/// `commons_consumed` is the draw-down (all of it from the commons, equal to
+/// `food_ledger[6]`); `commons_sufficiency` is the pre-consumption commons
+/// over demand, clamped 0..2 like `food_sufficiency`.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct RetailRegionResult {
+    pub titled: [f32; NUM_GOODS],
+    pub owned_close: [f32; NUM_GOODS],
+    pub owned_decay: [f32; NUM_GOODS],
+    pub owned_overflow: [f32; NUM_GOODS],
+    pub commons_consumed: f64,
+    pub commons_sufficiency: f32,
 }
 
 // ---------------------------------------------------------------------------
@@ -1015,6 +1048,38 @@ pub fn tick_economy_core_with_granary_work(
     hybrid_delivery: Option<&HybridDeliveryInput>,
     granary_work_requested: &[f32],
 ) -> EconomyOutput {
+    tick_economy_core_with_retail(region_inputs, agent_counts, routes, civ_merchant_wealth,
+        civ_priest_count, n_civs, region_civ_owner, config, trade_friction, is_winter,
+        hybrid_delivery, granary_work_requested, None)
+}
+
+/// Livelihoods L6b household retail: `retail` (per region in input order,
+/// `Some` for a pilot region) splits each pilot region's food production
+/// into the titled share θ (owned stock) and the commons, counts owned stock
+/// in availability, prices and sufficiency, draws consumption from the
+/// commons only, and applies decay and the per-good cap to both pools
+/// (overflow pro rata). `None`, or `None` for a region, executes none of that
+/// arithmetic. Hybrid economy only: the abstract path is refused.
+#[allow(clippy::too_many_arguments)]
+pub fn tick_economy_core_with_retail(
+    region_inputs: &[EconomyRegionInput],
+    agent_counts: &[RegionAgentCounts],
+    routes: &[TradeRouteInput],
+    civ_merchant_wealth: &[f32],
+    civ_priest_count: &[u32],
+    n_civs: usize,
+    region_civ_owner: &[u8],
+    config: &EconomyConfig,
+    trade_friction: f32,
+    is_winter: bool,
+    hybrid_delivery: Option<&HybridDeliveryInput>,
+    granary_work_requested: &[f32],
+    retail: Option<&[Option<RetailRegionInput>]>,
+) -> EconomyOutput {
+    assert!(retail.is_none_or(|r| r.len() == region_inputs.len()), "retail rows must match the regions");
+    assert!(retail.is_none() || hybrid_delivery.is_some(), "household retail requires the hybrid economy");
+    let retail_at = |i: usize| retail.and_then(|r| r[i]);
+    let mut retail_results: Option<Vec<Option<RetailRegionResult>>> = retail.map(|r| Vec::with_capacity(r.len()));
     assert!(granary_work_requested.is_empty() || granary_work_requested.len() == region_inputs.len());
     assert!(granary_work_requested.iter().all(|v| v.is_finite() && *v >= 0.0));
     let n_regions = region_inputs.len();
@@ -1113,6 +1178,12 @@ pub fn tick_economy_core_with_granary_work(
         let mut available = production;
         for g in 0..NUM_GOODS {
             available[GOOD_CATEGORY[g]] += inp.stockpile[g];
+        }
+        // L6b retail: owned food on hand is supply too (prices see all food).
+        if let Some(rt) = retail_at(i) {
+            for g in 0..NUM_GOODS {
+                if IS_FOOD[g] { available[GOOD_CATEGORY[g]] += rt.owned[g]; }
+            }
         }
 
         // Crafts (2026-10): the city crafts work raw materials on hand (stock
@@ -1537,6 +1608,12 @@ pub fn tick_economy_core_with_granary_work(
 
                 // Step 1: stockpile + production - exports + imports.
                 let mut shadow_stockpile = region_inputs[ri].stockpile;
+                // L6b retail: the shadow's food on hand includes owned stock.
+                if let Some(rt) = retail_at(ri) {
+                    for g in 0..NUM_GOODS {
+                        if IS_FOOD[g] { shadow_stockpile[g] += rt.owned[g]; }
+                    }
+                }
                 for g in 0..NUM_GOODS {
                     let new_val = shadow_stockpile[g] + sw.per_good_production[g]
                         - oracle_per_good_exports[ri][g] + oracle_per_good_imports[ri][g] - sw.craft_input[g];
@@ -1587,6 +1664,20 @@ pub fn tick_economy_core_with_granary_work(
         // Abstract: old + production - exports + imports
         let mut stockpile = w.stockpile;
         let mut food_ledger = [0.0f64; 10];
+        // L6b retail (pilot region): the titled share θ of food production
+        // goes to owned stock; the commons accumulate the rest.
+        let pilot = retail_at(ri);
+        let mut retail_row = pilot.map(|rt| {
+            let mut row = RetailRegionResult::default();
+            for g in 0..NUM_GOODS {
+                if IS_FOOD[g] { row.titled[g] = w.per_good_production[g] * rt.title_share; }
+            }
+            row
+        });
+        let commons_production = match &retail_row {
+            Some(row) => std::array::from_fn(|g| w.per_good_production[g] - row.titled[g]),
+            None => w.per_good_production,
+        };
         for g in 0..NUM_GOODS {
             if IS_FOOD[g] {
                 food_ledger[0] += stockpile[g] as f64;
@@ -1599,9 +1690,9 @@ pub fn tick_economy_core_with_granary_work(
                 food_ledger[3] += w.craft_input[g] as f64;
             }
             let new_val = if hybrid_delivery.is_some() {
-                stockpile[g] + w.per_good_production[g] + per_good_net_mobility[ri][g] - w.craft_input[g]
+                stockpile[g] + commons_production[g] + per_good_net_mobility[ri][g] - w.craft_input[g]
             } else {
-                stockpile[g] + w.per_good_production[g] - per_good_exports[ri][g]
+                stockpile[g] + commons_production[g] - per_good_exports[ri][g]
                     + per_good_imports[ri][g] - w.craft_input[g]
             };
             if new_val < 0.0 {
@@ -1612,6 +1703,16 @@ pub fn tick_economy_core_with_granary_work(
                 stockpile[g] = new_val;
             }
         }
+        // L6b retail: owned stock at opening plus this turn's title.
+        let mut owned = [0.0f32; NUM_GOODS];
+        if let (Some(rt), Some(row)) = (pilot, &retail_row) {
+            for g in 0..NUM_GOODS {
+                if IS_FOOD[g] {
+                    owned[g] = rt.owned[g] + row.titled[g];
+                    food_ledger[0] += rt.owned[g] as f64;
+                }
+            }
+        }
 
         // Step 2: Derive food_sufficiency from pre-consumption stockpile.
         let food_demand = w.demand[CAT_FOOD];
@@ -1619,9 +1720,19 @@ pub fn tick_economy_core_with_granary_work(
             .filter(|&g| IS_FOOD[g])
             .map(|g| stockpile[g])
             .sum();
-        food_ledger[5] = total_food_stock as f64;
+        // L6b retail: sufficiency is availability (commons and owned food);
+        // the draw-down below takes the commons only.
+        let available_food = if pilot.is_some() {
+            total_food_stock + (0..NUM_GOODS).filter(|&g| IS_FOOD[g]).map(|g| owned[g]).sum::<f32>()
+        } else {
+            total_food_stock
+        };
+        food_ledger[5] = available_food as f64;
         let food_suff_denom = food_demand.max(SUPPLY_FLOOR);
-        let food_sufficiency = (total_food_stock / food_suff_denom).clamp(0.0, 2.0);
+        let food_sufficiency = (available_food / food_suff_denom).clamp(0.0, 2.0);
+        if let Some(row) = retail_row.as_mut() {
+            row.commons_sufficiency = (total_food_stock / food_suff_denom).clamp(0.0, 2.0);
+        }
 
         // Step 3: Consume from stockpile (proportional drawdown from food goods).
         if total_food_stock > 0.0 && food_demand > 0.0 {
@@ -1641,6 +1752,7 @@ pub fn tick_economy_core_with_granary_work(
                 food_ledger[6] += consumed as f64;
             }
         }
+        if let Some(row) = retail_row.as_mut() { row.commons_consumed = food_ledger[6]; }
 
         // Step 3b (crafts): the people use wares up to their demand.
         let craft_demand = w.demand[CAT_CRAFT];
@@ -1662,6 +1774,13 @@ pub fn tick_economy_core_with_granary_work(
                 .map(|g| stockpile[g])
                 .sum();
             let salt_amount = stockpile[SLOT_SALT];
+            // L6b retail: salt preserves the region's food on hand, both pools.
+            let (total_food_excl_salt, salt_amount) = if pilot.is_some() {
+                (total_food_excl_salt + (0..NUM_GOODS).filter(|&g| IS_FOOD[g] && g != SLOT_SALT)
+                    .map(|g| owned[g]).sum::<f32>(), salt_amount + owned[SLOT_SALT])
+            } else {
+                (total_food_excl_salt, salt_amount)
+            };
             let salt_ratio = salt_amount / total_food_excl_salt.max(0.1);
             let preservation = (salt_ratio * config.salt_preservation_factor)
                 .min(config.max_preservation);
@@ -1683,11 +1802,37 @@ pub fn tick_economy_core_with_granary_work(
                 stockpile[g] *= 1.0 - effective_rate;
                 conservation.storage_loss += (old - stockpile[g]) as f64;
                 if IS_FOOD[g] { food_ledger[7] += (old - stockpile[g]) as f64; }
+                if let (Some(row), true) = (retail_row.as_mut(), IS_FOOD[g]) {
+                    // L6b retail: owned stock decays at the same effective rate.
+                    let held = owned[g];
+                    owned[g] *= 1.0 - effective_rate;
+                    row.owned_decay[g] = held - owned[g];
+                    conservation.storage_loss += row.owned_decay[g] as f64;
+                    food_ledger[7] += row.owned_decay[g] as f64;
+                }
             }
         }
 
         // Step 5: Cap stockpile.
         let cap = config.per_good_cap_factor * inp.storage_population as f32;
+        if let Some(row) = retail_row.as_mut() {
+            // L6b retail: the cap holds commons and owned food together; the
+            // overflow is split pro rata (owned keeps its share of the cap).
+            for g in 0..NUM_GOODS {
+                let total = stockpile[g] + owned[g];
+                if !IS_FOOD[g] || total <= cap {
+                    continue;
+                }
+                let owned_keep = (owned[g] * (cap / total)).clamp(0.0, owned[g]);
+                let commons_keep = (cap - owned_keep).clamp(0.0, stockpile[g]);
+                row.owned_overflow[g] = owned[g] - owned_keep;
+                let commons_overflow = stockpile[g] - commons_keep;
+                conservation.cap_overflow += commons_overflow as f64 + row.owned_overflow[g] as f64;
+                food_ledger[8] += commons_overflow as f64 + row.owned_overflow[g] as f64;
+                owned[g] = owned_keep;
+                stockpile[g] = commons_keep;
+            }
+        }
         for g in 0..NUM_GOODS {
             if stockpile[g] > cap {
                 conservation.cap_overflow += (stockpile[g] - cap) as f64;
@@ -1698,6 +1843,15 @@ pub fn tick_economy_core_with_granary_work(
 
         for g in 0..NUM_GOODS {
             if IS_FOOD[g] { food_ledger[9] += stockpile[g] as f64; }
+        }
+        if let Some(results) = retail_results.as_mut() {
+            results.push(retail_row.map(|mut row| {
+                for g in 0..NUM_GOODS {
+                    if IS_FOOD[g] { food_ledger[9] += owned[g] as f64; }
+                }
+                row.owned_close = owned;
+                row
+            }));
         }
 
         // Step 6: Derive signals.
@@ -1937,6 +2091,7 @@ pub fn tick_economy_core_with_granary_work(
         oracle_margins,
         oracle_food_sufficiency,
         transit_decay_by_region,
+        retail: retail_results,
     }
 }
 
