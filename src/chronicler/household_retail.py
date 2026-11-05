@@ -239,6 +239,7 @@ class _Book:
     commons: dict[str, int] = field(default_factory=dict)
     price_milli: int | None = None
     free_rations: float | None = None
+    commons_consumed: float | None = None           # native f32, exact
     phase2: dict | None = None
     provisioning: dict | None = None
     would_be: dict | None = None
@@ -693,6 +694,7 @@ def _title_region(world, state, t: _Turn, reg: RetailRegion, row: dict) -> None:
     rid = reg.region
     book = _book(state, world, reg)
     book.phase2 = {k: round(float(row[k]), 6) for k in PHASE2_COLUMNS}
+    book.commons_consumed = float(row["commons_consumed"])
     opening = list(reg.goods)
     titled = [to_milli(row[f"retail_titled_{good}"]) for good in RETAIL_GOODS]
     # Native identity per good (f32): close = open + titled - decay - overflow.
@@ -819,10 +821,13 @@ def before_agent_tick(world, agent_bridge, economy_result) -> None:
                 _log(state, RetailRecord(turn=int(world.turn), region=rid, kind="war_loss", milli=total,
                                          note=f"{before} -> {now}"))
     # Declared limit: occupation and siege requisitions do not reach owned stock.
-    from chronicler.cities import _besieged, _occupied
+    armies = getattr(getattr(world, "war_state", None), "armies", [])
     for reg in state.regions:
         region = world.regions[reg.region]
-        if sum(reg.goods) and (_occupied(region) or _besieged(world, region)):
+        occupied = region.occupied_by is not None and region.occupied_by != region.controller
+        besieged = any(a.phase == "sieging" and a.region == region.name and a.civ != region.controller
+                       for a in armies)
+        if sum(reg.goods) and (occupied or besieged):
             _bump(state, "requisition_exempt_region_turns")
     # Spouses of every owner, before the tick (inheritance after it).
     owners = sorted({aid for reg in state.regions for aid in reg.claims})
@@ -850,7 +855,7 @@ def before_agent_tick(world, agent_bridge, economy_result) -> None:
     for rid in p2.pilots:
         book = t.books[rid]
         price = 0 if state.mode == "free_exchange" else price_milli(world, economy_result, rid)
-        free = (float(book.phase2["commons_consumed"]) + released.get(rid, 0.0)) / ration
+        free = (book.commons_consumed + released.get(rid, 0.0)) / ration
         book.price_milli, book.free_rations = price, free
         regions[rid] = (price, free)
         rows.append((rid, price, free))
@@ -1041,7 +1046,7 @@ def _settle_deaths(world, state, t: _Turn, sim) -> None:
             spouse = t.spouses[aid]
             heirs = [spouse] if spouse is not None and spouse in alive else children.get((aid, reg.region), [])
             shares = largest_remainder(amount, [(h, 1) for h in heirs]) if heirs else {}
-            held = state.claims_count()
+            held = state.claims_count() - 1          # the deceased's entry closes either way
             given: dict[int, int] = {}
             for heir, share in shares.items():
                 if heir in reg.claims or held < MAX_CLAIMS:

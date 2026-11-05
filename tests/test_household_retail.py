@@ -1128,3 +1128,59 @@ def test_counters_are_bounded_and_the_log_rolls():
         HR._bump(state, "not_a_counter")
     assert MAX_CLAIMS == 4096
     assert RetailRegion(region=0, opened_turn=0, reason="capital").goods == [0, 0, 0, 0, 0]
+
+
+def test_an_heir_beyond_the_claims_cap_is_refused_and_the_share_escheats(monkeypatch):
+    h = Harness()
+    _people(h, VERDANT, (1, 2), wealth=0.0)
+    h.sim.add(30, VERDANT, occupation=2, age=10, parents=(1, 0))
+    h.sim.add(31, VERDANT, occupation=2, age=11, parents=(1, 0))
+    h.turn({VERDANT: {"grain": 20.0}})
+    monkeypatch.setattr(HR, "MAX_CLAIMS", 2)                      # 1 and 2 hold the only entries
+    h.sim.die_after = {1}
+    h.turn()
+    claims = _owners(h, VERDANT)
+    assert set(claims) == {2, 30}                                 # 1's entry frees one slot: 30 only
+    escheat = [r for r in h.state.log if r.kind == "escheat" and r.owner == 1]
+    assert escheat and escheat[0].note == "claims cap" and h.state.counters["claims_refused"] == 1
+    inherited = [r for r in h.state.log if r.kind == "inherited" and r.owner == 1]
+    assert [(r.other, r.note) for r in inherited] == [(30, "child")]
+    assert abs(inherited[0].milli - escheat[0].milli) <= 1        # the equal shares of 30 and 31
+
+
+def test_occupation_and_siege_do_not_reach_owned_stock_but_are_counted():
+    h = Harness()
+    _people(h, VERDANT, (1, 2), wealth=0.0)
+    h.turn({VERDANT: {"grain": 8.0}})
+    h.world.regions[VERDANT].occupied_by = "Kethani Empire"
+    goods = sum(h.state.region(VERDANT).goods)
+    h.turn()
+    frame = h.frame(VERDANT)
+    assert h.state.counters["requisition_exempt_region_turns"] == 1
+    assert "war_loss" not in frame.flows and frame.open_milli == goods
+
+
+def test_a_failing_second_install_cancels_the_first():
+    h = Harness()
+    _people(h, VERDANT, (1, 2))
+    h.turn({VERDANT: {"grain": 3.0}})
+
+    def refuse(turn, regions):
+        raise ValueError("retail income refused")
+    h.sim.install_retail_income = refuse
+    with pytest.raises(ValueError, match="retail income refused"):
+        h.turn({VERDANT: {"grain": 3.0}})
+    assert ("cancel_household_retail",) in h.sim.calls and ("cancel_retail_income",) not in h.sim.calls
+    assert h.sim.pending_retail is None
+
+
+def test_paid_work_includes_regions_of_paid_repair_crews():
+    from types import SimpleNamespace
+    h = Harness("--household-retail-boundary", "paid_work")
+    h.world.livelihoods.repair_projects = SimpleNamespace(
+        enabled=True, receipts=[SimpleNamespace(region=FROST, wages_milli=250),
+                                SimpleNamespace(region=AMBER, wages_milli=0)])
+    assert HR._paid_work_regions(h.world) == [(FROST, "paid_work")]
+    h.world.livelihoods.repair_projects = None
+    h.state.boundary = "paid_work"
+    assert HR._paid_work_regions(h.world) == []
