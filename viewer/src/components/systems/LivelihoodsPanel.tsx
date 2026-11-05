@@ -1,4 +1,5 @@
 import type { SystemPanelProps } from "../../lib/systems";
+import { CommonsRules } from "./CommonsRules";
 import { FoodAllocation } from "./FoodAllocation";
 import { GrainConvoys } from "./GrainConvoys";
 import { TimberStock } from "./TimberStock";
@@ -18,6 +19,7 @@ export function LivelihoodsPanel({ bundle, snapshot, currentTurn, onSelectRegion
     {record?.timber_stock != null ? <TimberStock {...props} /> : null}
     {record?.grain_convoys != null
       ? <section className="systems-section"><GrainConvoys snapshot={snapshot} bundle={bundle} /></section> : null}
+    {record?.commons_rules != null ? <CommonsRules {...props} /> : null}
     {record == null ? <p className="systems-note">No livelihoods observation is recorded at snapshot {snapshot?.turn ?? currentTurn}.</p> : null}
   </div>;
 }

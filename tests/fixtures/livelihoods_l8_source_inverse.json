@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "layer": "l8",
+  "parent": "7be842efb3516f1bb3b9faa4d90e384719810f43",
+  "files": {
+    "src/chronicler/batch_manifest.py": {
+      "sha256": "5c75331c36a7098e6346647ddc77e6013c394a33a2bdff38e6db39cf07ffe7ca",
+      "current_sha256": "707012fa53505a7f9fbd3db290d17ec34e222ef0d29d66964ce2e4ebb858ce04",
+      "patches": [
+        {
+          "old": "    \"timber_stock\",\n    \"grain_convoys\",\n    \"convoy_route_policy\",\n    \"tuning\",\n    \"preset\",\n    \"aggression_bias\",\n",
+          "new": "    \"timber_stock\",\n    \"grain_convoys\",\n    \"convoy_route_policy\",\n    \"commons_rules\",\n    \"commons_rule_mode\",\n    \"tuning\",\n    \"preset\",\n    \"aggression_bias\",\n"
+        },
+        {
+          "old": "    when unspecified so legacy manifests/checkpoints keep their exact shape.\"\"\"\n    config = {key: _json_value(getattr(args, key, None)) for key in SIMULATION_ARG_KEYS\n              if key not in (\"scientific_research_agendas\", \"public_grain_shipments\", \"grain_storage\", \"grain_storage_policy\", \"grain_storage_work_budget\", \"household_mobility_liquid_requirement\", \"academy_services\", \"harvest_report_delay\",\n                             \"workshops\", \"workshop_mode\", \"food_allocation\", \"food_allocation_regime\", \"timber_stock\", \"grain_convoys\", \"convoy_route_policy\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n    config[\"tuning_overrides\"] = _json_value(overrides or {})\n",
+          "new": "    when unspecified so legacy manifests/checkpoints keep their exact shape.\"\"\"\n    config = {key: _json_value(getattr(args, key, None)) for key in SIMULATION_ARG_KEYS\n              if key not in (\"scientific_research_agendas\", \"public_grain_shipments\", \"grain_storage\", \"grain_storage_policy\", \"grain_storage_work_budget\", \"household_mobility_liquid_requirement\", \"academy_services\", \"harvest_report_delay\",\n                             \"workshops\", \"workshop_mode\", \"food_allocation\", \"food_allocation_regime\", \"timber_stock\", \"grain_convoys\", \"convoy_route_policy\",\n                             \"commons_rules\", \"commons_rule_mode\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n    config[\"tuning_overrides\"] = _json_value(overrides or {})\n"
+        }
+      ]
+    },
+    "tests/test_batch_manifest.py": {
+      "sha256": "64c280ffc400cce7781717176f8a13db022abbb5dad337bdc56c55fdc33b31ff",
+      "current_sha256": "7a08ca9abdea69f4b820a9876c5ff5d01cac1a8485caa9983a0ee1ca9f8a045a",
+      "patches": [
+        {
+          "old": "    assert manifest[\"seeds\"] == [42, 43, 44] and manifest[\"turns\"] == 3\n    simulation = manifest[\"simulation\"]\n    assert set(simulation) == (set(SIMULATION_ARG_KEYS) - {\"scientific_research_agendas\", \"public_grain_shipments\", \"grain_storage\", \"grain_storage_policy\", \"grain_storage_work_budget\", \"household_mobility_liquid_requirement\", \"academy_services\", \"harvest_report_delay\",\n                                                           \"workshops\", \"workshop_mode\", \"food_allocation\", \"food_allocation_regime\", \"timber_stock\", \"grain_convoys\", \"convoy_route_policy\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n    assert manifest[\"outputs\"][\"simulate_only\"] is True\n    environment = manifest[\"environment\"]\n",
+          "new": "    assert manifest[\"seeds\"] == [42, 43, 44] and manifest[\"turns\"] == 3\n    simulation = manifest[\"simulation\"]\n    assert set(simulation) == (set(SIMULATION_ARG_KEYS) - {\"scientific_research_agendas\", \"public_grain_shipments\", \"grain_storage\", \"grain_storage_policy\", \"grain_storage_work_budget\", \"household_mobility_liquid_requirement\", \"academy_services\", \"harvest_report_delay\",\n                                                           \"workshops\", \"workshop_mode\", \"food_allocation\", \"food_allocation_regime\", \"timber_stock\", \"grain_convoys\", \"convoy_route_policy\",\n                                                           \"commons_rules\", \"commons_rule_mode\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n    assert manifest[\"outputs\"][\"simulate_only\"] is True\n    environment = manifest[\"environment\"]\n"
+        }
+      ]
+    }
+  }
+}

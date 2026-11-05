@@ -4,6 +4,7 @@ import type { Bundle, TurnSnapshot } from "../../../types";
 import { FoodAllocation } from "../FoodAllocation";
 import { LivelihoodsPanel } from "../LivelihoodsPanel";
 import { Workshops } from "../Workshops";
+import { record as commonsRecord } from "../../../lib/__tests__/commonsRulesFixture";
 afterEach(cleanup);
 
 /** Constructed observations to test rendering; not a simulation run. */
@@ -71,4 +72,12 @@ it("composes only the packages a snapshot recorded", () => {
   expect(screen.getByRole("heading", { name: /Food allocation/ })).toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: /Public workshops/ })).not.toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: /Timber stock/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: /Commons rules/ })).not.toBeInTheDocument();
+});
+
+it("mounts commons rules when the snapshot recorded them", () => {
+  const p = props({ schema_version: 1, commons_rules: commonsRecord() });
+  render(<LivelihoodsPanel {...p} onSeek={vi.fn()} onSelectEvent={vi.fn()} onSelectCivilization={vi.fn()} />);
+  expect(screen.getByRole("heading", { name: /Commons rules/ })).toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: /Food allocation/ })).not.toBeInTheDocument();
 });

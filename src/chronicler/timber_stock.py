@@ -266,6 +266,48 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
     return region_input
 
 
+def offered_caps(world) -> dict | None:
+    """A copy of what this turn's prepare offered: ``{(region, slot): (cap,
+    harvest possible)}`` (cap None under the ablation); None outside Phase 2."""
+    state = _state(world)
+    offered = getattr(state, "_offered", None) if state is not None else None
+    return dict(offered) if offered is not None else None
+
+
+def tighten_harvest_caps(world, region_input, limits: dict):
+    """Lower this turn's ``timber_harvest_cap_{slot}`` to external rule limits.
+
+    The interface for rules that restrict the harvest (L8,
+    :mod:`chronicler.commons_rules`). Call after :func:`prepare_phase2` in the
+    same Phase 2. ``limits`` maps a timber slot offered this turn, (region
+    index, slot), to a finite non-negative limit; its column value becomes the
+    float32 floor of ``min(value, limit)`` (a null value, no stock cap under
+    the ablation, becomes the limit). Never raises a cap and changes no state:
+    the stock's account still records and checks the stock cap it offered, and
+    the caller checks its own limit after the tick.
+    """
+    import pyarrow as pa
+
+    offered = offered_caps(world)
+    if offered is None:
+        raise RuntimeError("tighten_harvest_caps requires this turn's prepared timber caps")
+    names = region_input.schema.names
+    for slot, name in enumerate(CAP_COLUMNS):
+        targets = {rid: limit for (rid, s), limit in limits.items() if s == slot}
+        if not targets:
+            continue
+        values = region_input.column(names.index(name)).to_pylist()
+        for rid, limit in targets.items():
+            if (rid, slot) not in offered:
+                raise ValueError(f"region {rid} slot {slot} is not a timber slot offered this turn")
+            if not isinstance(limit, (int, float)) or not math.isfinite(limit) or limit < 0.0:
+                raise ValueError(f"invalid timber harvest limit {limit!r}")
+            floor = _f32_floor(float(limit))
+            values[rid] = floor if values[rid] is None else min(values[rid], floor)
+        region_input = region_input.set_column(names.index(name), name, pa.array(values, type=pa.float32()))
+    return region_input
+
+
 def rollback_phase2(world) -> None:
     """A failed Phase 2 charged nothing; forget what prepare offered."""
     state = _state(world)
