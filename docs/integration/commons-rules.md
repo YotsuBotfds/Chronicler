@@ -261,6 +261,11 @@ instruction it was **not built**. Proposal:
 5. **Evidence.** The same funnel, plus cover and capacity retained in protected regions against
    cost_only.
 
+2026-11-05: RS5 built a funded variant of this proposal as its own switch,
+`--clearing-protection` ([clearing-protection.md](clearing-protection.md)). It uses a Float32
+protection share instead of a Boolean flag, declares a warden cost per region-turn of active
+clearing, and keeps the switch independent of commons rules.
+
 ## 10. Evidence (development cohort only)
 
 **Setup.**

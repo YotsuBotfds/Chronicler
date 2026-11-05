@@ -1,0 +1,8 @@
+RS5 clearing protection development runs (2026-11-05)
+platform: Linux container (4 shared cores), Python 3.13, PYTHONHASHSEED=0, RAYON_NUM_THREADS=1
+source: branch claude/rs5-clearing at b8688665 (simulation source; the driver was added after)
+native extension: built from that source with maturin develop --release --locked
+  /root/.venvs/native-rs5 chronicler_agents.cpython-313-x86_64-linux-gnu.so
+  SHA-256 7e44f019e115c4c55f97a98ef50ce8159eb07de787155d9181980c6fffb7c635
+command: PYTHONHASHSEED=0 RAYON_NUM_THREADS=1 PYTHONPATH=src python docs/integration/clearing-protection-evidence/driver.py OUT --turns 100
+runs: template seeds 1-3 x agents hybrid, off (native EcologySimulator) x arms off, enforced, cost_only; 18 runs, 0 failed, 46 s wall, one process
