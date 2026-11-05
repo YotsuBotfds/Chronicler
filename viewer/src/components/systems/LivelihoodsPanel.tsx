@@ -3,6 +3,7 @@ import { CommonsRules } from "./CommonsRules";
 import { FoodAllocation } from "./FoodAllocation";
 import { GrainConvoys } from "./GrainConvoys";
 import { LearningCohorts } from "./LearningCohorts";
+import { LocalBudgets } from "./LocalBudgets";
 import { TimberStock } from "./TimberStock";
 import { WorkshopFinance } from "./WorkshopFinance";
 import { Workshops } from "./Workshops";
@@ -24,6 +25,7 @@ export function LivelihoodsPanel({ bundle, snapshot, currentTurn, onSelectRegion
       ? <section className="systems-section"><GrainConvoys snapshot={snapshot} bundle={bundle} /></section> : null}
     {record?.commons_rules != null ? <CommonsRules {...props} /> : null}
     {record?.learning_cohorts != null ? <LearningCohorts {...props} /> : null}
+    {record?.local_budgets != null ? <LocalBudgets {...props} /> : null}
     {record == null ? <p className="systems-note">No livelihoods observation is recorded at snapshot {snapshot?.turn ?? currentTurn}.</p> : null}
   </div>;
 }

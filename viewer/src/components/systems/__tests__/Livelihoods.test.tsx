@@ -6,6 +6,7 @@ import { LivelihoodsPanel } from "../LivelihoodsPanel";
 import { Workshops } from "../Workshops";
 import { record as commonsRecord } from "../../../lib/__tests__/commonsRulesFixture";
 import { payroll } from "../../../lib/__tests__/workshopFinanceFixture";
+import { localBudgetsRecord } from "../../../lib/__tests__/localBudgetsFixture";
 afterEach(cleanup);
 
 /** Constructed observations to test rendering; not a simulation run. */
@@ -33,7 +34,7 @@ const food = { schema_version: 1, stage: "L2", regime: "floor_means", source_tur
 function props(livelihoods: unknown, turn = 5) {
   const snapshot = { turn, livelihoods } as unknown as TurnSnapshot;
   return { bundle: { world_state: { regions: [{ name: "Oldmere" }, { name: "Ashford Vale" }, { name: "Third" }],
-    civilizations: [{ name: "Selurian" }] } } as unknown as Bundle,
+    civilizations: [{ name: "Selurian" }, { name: "Varn" }] } } as unknown as Bundle,
   snapshot, currentTurn: turn, onSelectRegion: vi.fn() };
 }
 
@@ -76,6 +77,13 @@ it("composes only the packages a snapshot recorded", () => {
   expect(screen.queryByRole("heading", { name: /Commons rules/ })).not.toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: /Academy learners/ })).not.toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: /Workshop payroll/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: /Local budgets/ })).not.toBeInTheDocument();
+});
+
+it("mounts local budgets when the snapshot recorded them", () => {
+  const p = props({ schema_version: 1, local_budgets: localBudgetsRecord() }, 31);
+  render(<LivelihoodsPanel {...p} onSeek={vi.fn()} onSelectEvent={vi.fn()} onSelectCivilization={vi.fn()} />);
+  expect(screen.getByRole("heading", { name: /Local budgets · snapshot 31/ })).toBeInTheDocument();
 });
 
 it("mounts workshop payroll beside its workshops when recorded", () => {

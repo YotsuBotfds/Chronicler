@@ -9,7 +9,9 @@ Independent switches share one persisted container,
 * ``--grain-convoys`` (L4): multi-leg public grain convoys under risk;
 * ``--commons-rules`` (L8): a paid, enforced harvest rule on the timber stock;
 * ``--learning-cohorts`` (L5): named learners attending delivered academy teaching;
-* ``--workshop-payroll`` (L6a): customers and payroll around the workshops.
+* ``--workshop-payroll`` (L6a): customers and payroll around the workshops;
+* ``--local-budgets`` (L9): one finite, bargained budget per ruler for relief,
+  granary works and workshops.
 
 This module owns only CLI forwarding, validation of prerequisites and the
 fan-out of phase hooks to each package's module ``chronicler.<switch>``.
@@ -46,6 +48,7 @@ LIVELIHOODS_CHOICES: dict[str, tuple[str, ...]] = {
     "commons_rule_mode": ("enforced", "cost_only"),
     "learning_cohort_mode": ("learn", "no_learning"),
     "workshop_payroll_mode": ("paid", "unpaid_labor", "no_customer"),
+    "local_budget_mode": ("bargained", "fixed_shares"),
 }
 #: All parser destinations owned here (``batch_manifest.SIMULATION_ARG_KEYS``).
 LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
@@ -53,6 +56,7 @@ LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     "timber_stock", "grain_convoys", "convoy_route_policy", "commons_rules", "commons_rule_mode",
     "learning_cohorts", "learning_cohort_mode",
     "workshop_payroll", "workshop_payroll_mode",
+    "local_budgets", "local_budget_mode",
 )
 _AGENT_ECONOMY = ("hybrid", "shadow", "demographics-only")
 
@@ -110,6 +114,18 @@ _HELP = {
     "workshop_payroll_mode": (
         "paid (default); unpaid_labor: the ablation that sells and replaces the income share "
         "but pays no wage; no_customer: wages are owed but nothing is sold"
+    ),
+    "local_budgets": (
+        "Local collective budgets: each ruler commits one finite projected budget "
+        "to bargained envelopes for granary relief purchases, granary works and "
+        "workshop bills; those services spend only within an accepted envelope; "
+        "delivered or broken promises move the city's grievance; requires "
+        "--agents hybrid and --grain-reserves (default off)"
+    ),
+    "local_budget_mode": (
+        "bargained (default): constituencies' allocations arbitrated by influence, "
+        "with political response; fixed_shares: the control, the same budget split "
+        "by fixed declared shares, no bargaining and no response"
     ),
 }
 
@@ -187,6 +203,10 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
         mode = getattr(args, "workshop_mode", None) or (saved.mode if saved is not None else "operate")
         if not on or mode != "operate" or agent_mode != "hybrid":
             raise ValueError("--workshop-payroll requires --workshops in operate mode (--agents hybrid)")
+    if values["local_budgets"] is True:
+        from chronicler.grain_reserves_state import grain_reserves_on
+        if agent_mode != "hybrid" or not grain_reserves_on(world):
+            raise ValueError("--local-budgets requires --agents hybrid and --grain-reserves")
 
 
 def configure_livelihoods(world: Any, args: Any, *, agent_mode: str) -> None:

@@ -53,7 +53,10 @@ link to these by path, so keep their names stable.
   [household food allocation](integration/food-allocation.md),
   [timber stock](integration/timber-stock.md),
   [grain convoys](integration/grain-convoys.md),
-  [commons rules](integration/commons-rules.md); plans in
+  [commons rules](integration/commons-rules.md),
+  [learning cohorts](integration/learning-cohorts.md),
+  [workshop finance and payroll](integration/workshop-finance.md),
+  [local budgets](integration/local-budgets.md); plans in
   [sprint 1](superpowers/roadmaps/livelihoods-commons-sprint1.md) and
   [sprint 2](superpowers/roadmaps/livelihoods-commons-sprint2.md).
 - **World generation:** [geography 2.0](integration/geography-2.md),
