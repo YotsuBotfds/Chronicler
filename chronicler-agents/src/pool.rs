@@ -200,6 +200,18 @@ pub struct AgentPool {
     /// Livelihoods: this turn's shared work reservations (one authority for
     /// new work consumers); transient, cleared after each native tick.
     pub work_reservations: Vec<crate::workshop_work::WorkReservation>,
+    /// Livelihoods L5: one-turn learner attendance, taken by the wealth
+    /// phase and then by Python; transient, never checkpointed.
+    pub learning_attendance: Option<crate::learning_work::AttendancePlan>,
+    /// Livelihoods L6a: armed paid-work income share, its receipt (taken once)
+    /// and the applied wealth-transfer keys; transient, never checkpointed.
+    pub paid_work: Option<crate::wealth_transfer::PaidWork>,
+    pub paid_work_receipt: Option<crate::wealth_transfer::PaidWorkReceipt>,
+    pub wealth_transfer_log: Vec<(u32, u8, u32)>,
+    /// Livelihoods L7: one-turn relocation fare policy and its receipt
+    /// (taken once by Python); transient, never checkpointed.
+    pub relocation_policy: Option<crate::relocation::RelocationPolicy>,
+    pub relocation_receipt: Option<crate::relocation::RelocationReceipt>,
     // CAREOBS_SOURCE_BEGIN: pool field
     /// Opt-in primitive care prefix; transient and absent by default.
     pub health_care_observation: Option<crate::health_care_observation::CareObservation>,
@@ -284,6 +296,12 @@ impl AgentPool {
             food_access_regions: Vec::new(),
             provision_frame: None,
             work_reservations: Vec::new(),
+            learning_attendance: None,
+            paid_work: None,
+            paid_work_receipt: None,
+            wealth_transfer_log: Vec::new(),
+            relocation_policy: None,
+            relocation_receipt: None,
             // CAREOBS_SOURCE_BEGIN: pool default
             health_care_observation: None,
             // CAREOBS_SOURCE_END: pool default
@@ -1852,4 +1870,5 @@ crate::persist_struct!(AgentPool {
     free_slots,
 } transient { health_work_loss /* CAREOBS_TRANSIENT_BEGIN */, health_care_observation /* CAREOBS_TRANSIENT_END */, teaching_plan,
     food_allocation_config, food_access, food_access_ids, food_access_regions, provision_frame,
-    work_reservations });
+    work_reservations, learning_attendance, paid_work, paid_work_receipt, wealth_transfer_log,
+    relocation_policy, relocation_receipt });

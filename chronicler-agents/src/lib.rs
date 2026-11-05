@@ -25,6 +25,9 @@ pub mod household;
 pub mod health_care;
 pub mod teaching_work;
 pub mod workshop_work;
+pub mod learning_work;
+pub mod wealth_transfer;
+pub mod relocation;
 pub mod provisioning;
 // CAREOBS_SOURCE_BEGIN: module
 mod health_care_observation;

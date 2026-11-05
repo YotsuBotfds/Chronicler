@@ -1,12 +1,18 @@
 """Wiring and phase hooks for the livelihoods/commons sprint (default off).
 
-Four independent switches share one persisted container,
+Independent switches share one persisted container,
 ``WorldState.livelihoods`` (:mod:`chronicler.livelihoods_state`):
 
 * ``--workshops`` (L1): staffed public workshops in selected cities;
 * ``--food-allocation`` (L2): explicit allocation of regional food to people;
 * ``--timber-stock`` (L3): a renewable harvestable timber stock;
-* ``--grain-convoys`` (L4): multi-leg public grain convoys under risk.
+* ``--grain-convoys`` (L4): multi-leg public grain convoys under risk;
+* ``--commons-rules`` (L8): a paid, enforced harvest rule on the timber stock;
+* ``--learning-cohorts`` (L5): named learners attending delivered academy teaching;
+* ``--workshop-payroll`` (L6a): customers and payroll around the workshops;
+* ``--relocation-costs`` (L7): a fare paid for ordinary household moves;
+* ``--local-budgets`` (L9): one finite, bargained budget per ruler for relief,
+  granary works and workshops.
 
 This module owns only CLI forwarding, validation of prerequisites and the
 fan-out of phase hooks to each package's module ``chronicler.<switch>``.
@@ -23,6 +29,8 @@ Package module protocol (each function optional unless noted):
 the region batch, ``finish_phase2(world, economy_result, agent_bridge, acc)``,
 ``rollback_phase2(world)``, ``before_agent_tick(world, agent_bridge,
 economy_result)``, ``after_agent_tick(world, agent_bridge)``,
+``on_pool_reset(world)`` (see :func:`bind_native_pool`), ``rollback_agent_tick(world, agent_bridge)`` (the before hooks or the agent
+tick raised: release what is still pending natively, charge nothing),
 ``phase10_before_reserves(world, acc, economy_result, agent_bridge)`` and
 ``phase10(world, acc, economy_result, agent_bridge)``; event-returning hooks
 return a list.
@@ -40,11 +48,20 @@ LIVELIHOODS_CHOICES: dict[str, tuple[str, ...]] = {
     "workshop_mode": ("operate", "observe", "cost_only"),
     "food_allocation_regime": ("floor_means", "equal", "targeted_relief"),
     "convoy_route_policy": ("adaptive", "cheapest", "safest"),
+    "commons_rule_mode": ("enforced", "cost_only"),
+    "learning_cohort_mode": ("learn", "no_learning"),
+    "workshop_payroll_mode": ("paid", "unpaid_labor", "no_customer"),
+    "relocation_mode": ("paid", "assisted", "liquidity_only"),
+    "local_budget_mode": ("bargained", "fixed_shares"),
 }
 #: All parser destinations owned here (``batch_manifest.SIMULATION_ARG_KEYS``).
 LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     "workshops", "workshop_mode", "food_allocation", "food_allocation_regime",
-    "timber_stock", "grain_convoys", "convoy_route_policy",
+    "timber_stock", "grain_convoys", "convoy_route_policy", "commons_rules", "commons_rule_mode",
+    "learning_cohorts", "learning_cohort_mode",
+    "workshop_payroll", "workshop_payroll_mode",
+    "relocation_costs", "relocation_mode",
+    "local_budgets", "local_budget_mode",
 )
 _AGENT_ECONOMY = ("hybrid", "shadow", "demographics-only")
 
@@ -78,6 +95,54 @@ _HELP = {
         "--public-grain-shipments (default off)"
     ),
     "convoy_route_policy": "adaptive (default), cheapest or safest route choice at dispatch",
+    "commons_rules": (
+        "Commons rules on the timber stock: a region's controller may adopt a harvest "
+        "quota with a rest period on a depleted, harvested stand, paying wardens from its "
+        "treasury; partial payment leaves part of the stand open access; requires "
+        "--timber-stock (default off)"
+    ),
+    "commons_rule_mode": "enforced (default): the rule lowers the harvest cap; cost_only: the ablation that adopts and pays identically but applies no cap",
+    "learning_cohorts": (
+        "Named learners at academies: finite cohorts of present adults attend actual "
+        "delivered academy teaching, give up part of their ordinary income, and on "
+        "completion gain skill in their trade; requires --agents hybrid and "
+        "--academy-services (default off)"
+    ),
+    "learning_cohort_mode": "learn (default): completion raises the learner's trade skill; no_learning: the cost-retaining control (same attendance, cost and supplies, no skill gain)",
+    "workshop_payroll": (
+        "Workshop payroll (L6a): each operating workshop becomes a debt-free firm with cash and "
+        "owned wares; an academy of the region's ruler (--academy-services) buys them with real "
+        "treasury money, sales fund wages that replace the crew's ordinary income share, and "
+        "unpaid wages cut hours, then crew, then close the firm; requires --workshops in operate "
+        "mode (default off)"
+    ),
+    "workshop_payroll_mode": (
+        "paid (default); unpaid_labor: the ablation that sells and replaces the income share "
+        "but pays no wage; no_customer: wages are owed but nothing is sold"
+    ),
+    "relocation_costs": (
+        "Costly voluntary relocation (L7): an ordinary household move costs a fare per person "
+        "(children included) that the adult movers must hold at the household gate and pay "
+        "after the move is applied; requires --agents hybrid and no household-mobility liquid "
+        "requirement (default off)"
+    ),
+    "relocation_mode": (
+        "paid (default); assisted: the destination's ruler funds a bounded share of the fare "
+        "for households short of it; liquidity_only: the control that requires the fare but "
+        "charges nothing"
+    ),
+    "local_budgets": (
+        "Local collective budgets: each ruler commits one finite projected budget "
+        "to bargained envelopes for granary relief purchases, granary works and "
+        "workshop bills; those services spend only within an accepted envelope; "
+        "delivered or broken promises move the city's grievance; requires "
+        "--agents hybrid and --grain-reserves (default off)"
+    ),
+    "local_budget_mode": (
+        "bargained (default): constituencies' allocations arbitrated by influence, "
+        "with political response; fixed_shares: the control, the same budget split "
+        "by fixed declared shares, no bargaining and no response"
+    ),
 }
 
 
@@ -123,7 +188,7 @@ def _module(name: str):
     return import_module("chronicler." + name)
 
 
-def _check_prerequisites(world: Any, values: dict, agent_mode: str) -> None:
+def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = None) -> None:
     if values["workshops"] is True:
         if agent_mode != "hybrid":
             raise ValueError("--workshops requires --agents hybrid")
@@ -137,6 +202,33 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str) -> None:
         reserves = getattr(world, "grain_reserves", None)
         if reserves is None or getattr(reserves, "shipments", None) is None:
             raise ValueError("--grain-convoys requires --public-grain-shipments")
+    if values["commons_rules"] is True:
+        saved = getattr(livelihoods_state(world), "timber_stock", None)
+        if values["timber_stock"] is False or (values["timber_stock"] is None
+                                               and not getattr(saved, "enabled", False)):
+            raise ValueError("--commons-rules requires --timber-stock")
+    if values["learning_cohorts"] is True:
+        if agent_mode != "hybrid":
+            raise ValueError("--learning-cohorts requires --agents hybrid")
+        services = getattr(getattr(world, "scholarship", None), "learning_services", None)
+        if services is None or not getattr(services, "enabled", True):
+            raise ValueError("--learning-cohorts requires --academy-services")
+    if values["workshop_payroll"] is True:
+        saved = getattr(livelihoods_state(world), "workshops", None)
+        on = values["workshops"] is True or (values["workshops"] is None and saved is not None and saved.enabled)
+        mode = getattr(args, "workshop_mode", None) or (saved.mode if saved is not None else "operate")
+        if not on or mode != "operate" or agent_mode != "hybrid":
+            raise ValueError("--workshop-payroll requires --workshops in operate mode (--agents hybrid)")
+    if values["relocation_costs"] is True:
+        if agent_mode != "hybrid":
+            raise ValueError("--relocation-costs requires --agents hybrid")
+        from chronicler.household_mobility_state import liquid_requirement
+        if liquid_requirement(world) > 0:
+            raise ValueError("--relocation-costs cannot run with a household-mobility liquid requirement")
+    if values["local_budgets"] is True:
+        from chronicler.grain_reserves_state import grain_reserves_on
+        if agent_mode != "hybrid" or not grain_reserves_on(world):
+            raise ValueError("--local-budgets requires --agents hybrid and --grain-reserves")
 
 
 def configure_livelihoods(world: Any, args: Any, *, agent_mode: str) -> None:
@@ -149,7 +241,7 @@ def configure_livelihoods(world: Any, args: Any, *, agent_mode: str) -> None:
         value = getattr(args, name, None)
         if value is not None and value not in choices:
             raise ValueError(f"{name} must be one of {choices}")
-    _check_prerequisites(world, values, agent_mode)
+    _check_prerequisites(world, values, agent_mode, args)
     state = livelihoods_state(world)
     for name, value in values.items():
         if value is None:
@@ -168,6 +260,49 @@ def _present(world: Any):
     for name in LIVELIHOODS_SWITCHES:
         if getattr(state, name) is not None:
             yield name, _module(name)
+
+
+#: Each option of ``LIVELIHOODS_CHOICES``: its switch and the sub-state field holding it.
+_CHOICE_FIELDS: dict[str, tuple[str, str]] = {
+    "workshop_mode": ("workshops", "mode"),
+    "food_allocation_regime": ("food_allocation", "regime"),
+    "convoy_route_policy": ("grain_convoys", "route_policy"),
+    "commons_rule_mode": ("commons_rules", "mode"),
+    "learning_cohort_mode": ("learning_cohorts", "mode"),
+    "workshop_payroll_mode": ("workshop_payroll", "mode"),
+    "relocation_mode": ("relocation_costs", "mode"),
+    "local_budget_mode": ("local_budgets", "mode"),
+}
+
+
+def livelihoods_resume_conflicts(world: Any, args: Any, recorded: dict) -> list[str]:
+    """Explicit options an exact resume of ``world`` cannot honour.
+
+    ``batch_manifest.simulation_config`` omits options that were never
+    given, so the generic checkpoint adoption never sees them; the retained
+    state is authoritative. Options the checkpoint recorded (``recorded``)
+    are left to that adoption. Never changes ``world`` or ``args``."""
+    state = livelihoods_state(world)
+    conflicts = []
+    for name in LIVELIHOODS_SWITCHES:
+        given = getattr(args, name, None)
+        if given is None or name in recorded:
+            continue
+        sub = getattr(state, name, None) if state is not None else None
+        effective = sub is not None and bool(sub.enabled)
+        if given != effective:
+            conflicts.append(f"--{name.replace('_', '-')} {given!r} conflicts with the checkpoint "
+                             f"(saved: {effective!r})")
+    for key, (name, field) in _CHOICE_FIELDS.items():
+        given = getattr(args, key, None)
+        if given is None or key in recorded:
+            continue
+        sub = getattr(state, name, None) if state is not None else None
+        saved = getattr(sub, field) if sub is not None else None
+        if given != saved:
+            conflicts.append(f"--{key.replace('_', '-')} {given!r} conflicts with the checkpoint "
+                             f"(saved: {saved!r})")
+    return conflicts
 
 
 def livelihoods_feature_flags(world: Any) -> dict[str, bool]:
@@ -191,8 +326,35 @@ def _hooks(world: Any, hook: str):
             yield fn
 
 
+def bind_native_pool(world, agent_bridge, *, reset: bool = True) -> None:
+    """Bind saved stable ids to the native pool they name.
+
+    Native agent ids are scoped to one pool. A run that rebuilds the pool
+    (a legacy state-file resume spawns new people from region populations
+    under reused ids) must not hand saved id-bound progress to strangers, as
+    the war rosters already re-draft for the same reason. The first hook of
+    a turn against a simulator other than the bound one calls each present
+    package's optional ``on_pool_reset(world)``, which closes its id-bound
+    records with a dated reason (a no-op when it holds none, as in a fresh
+    run). An exact checkpoint load restores the same pool and re-binds
+    without a reset (``reset=False``).
+    """
+    state = livelihoods_state(world)
+    sim = getattr(agent_bridge, "_sim", None) if agent_bridge is not None else None
+    if state is None or sim is None or state._pool_sim == id(sim):
+        return
+    state._pool_sim = id(sim)
+    if not reset:
+        return
+    for _name, module in _present(world):
+        fn = getattr(module, "on_pool_reset", None)
+        if fn is not None:
+            fn(world)
+
+
 def prepare_phase2(world, region_input, agent_bridge, snapshot, *, acc=None):
     """Before the native economy tick: may replace columns; charges nothing."""
+    bind_native_pool(world, agent_bridge)
     for fn in _hooks(world, "prepare_phase2"):
         region_input = fn(world, region_input, agent_bridge, snapshot, acc)
     return region_input
@@ -218,13 +380,25 @@ def wrap_agent_tick(world, agent_bridge, tick_agents, economy_result):
     """Wrap the native agent tick with the active packages' before/after hooks."""
     before = list(_hooks(world, "before_agent_tick"))
     after = list(_hooks(world, "after_agent_tick"))
+    release = list(_hooks(world, "rollback_agent_tick"))
     if (not before and not after) or tick_agents is None:
         return tick_agents
 
     def _tick(*args, **kwargs):
-        for fn in before:
-            fn(world, agent_bridge, economy_result)
-        events = tick_agents(*args, **kwargs)
+        bind_native_pool(world, agent_bridge)
+        try:
+            for fn in before:
+                fn(world, agent_bridge, economy_result)
+            events = tick_agents(*args, **kwargs)
+        except BaseException as exc:
+            # A failed kernel is not rolled back: release only reservations and
+            # one-tick installs that remain pending (the teaching precedent).
+            for fn in reversed(release):
+                try:
+                    fn(world, agent_bridge)
+                except Exception as error:
+                    exc.add_note(f"livelihoods release also failed: {error!r}")
+            raise
         for fn in after:
             events = list(events or []) + list(fn(world, agent_bridge) or [])
         return events
@@ -233,6 +407,7 @@ def wrap_agent_tick(world, agent_bridge, tick_agents, economy_result):
 
 
 def phase10_before_reserves(world, *, acc=None, economy_result=None, agent_bridge=None) -> list:
+    bind_native_pool(world, agent_bridge)
     events: list = []
     for fn in _hooks(world, "phase10_before_reserves"):
         events.extend(fn(world, acc, economy_result, agent_bridge) or [])

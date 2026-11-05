@@ -161,6 +161,21 @@ def refresh_sites(world, state: WorkshopState) -> dict[int, object]:
     return {s.site: cities[s.settlement_id] for s in state.sites}
 
 
+def _crew_terms(world, site: int) -> tuple[int, float]:
+    """(crew cap, hours) an L6a payroll firm set for the site (``workshop_payroll``);
+    (MAX_CREW, 1.0) without payroll. Hours scale each member's diverted time."""
+    if getattr(getattr(world, "livelihoods", None), "workshop_payroll", None) is None:
+        return MAX_CREW, 1.0
+    from chronicler.workshop_payroll import crew_terms
+    return crew_terms(world, site)
+
+
+def close_site(world, site: int, reason: str) -> None:
+    """Close an open site for ``reason`` (L6a: an insolvent payroll firm)."""
+    state = _state(world)
+    _close(state, next(s for s in state.sites if s.site == site), world.turn, reason)
+
+
 def _enlisted(world) -> list[int]:
     armies = getattr(getattr(world, "war_state", None), "armies", [])
     return sorted({int(aid) for army in armies for aid, _ in army.roster})
@@ -207,6 +222,7 @@ def _plan_funding(world, state, acc) -> list[tuple[WorkshopSite, int, str | None
     """Payer and bill per open site, funded against one projected budget per civ
     after any pending grain-storage bill."""
     from chronicler.mutual_aid import _treasury_budget
+    from chronicler.local_budgets import workshop_funded   # L9 envelope gate (identity when off)
     index = {c.name: i for i, c in enumerate(world.civilizations)}
     storage = _pending_storage_bills(world)
     budgets = [max(0, math.floor(_treasury_budget(world, c, acc)) - storage[i])
@@ -217,7 +233,7 @@ def _plan_funding(world, state, acc) -> list[tuple[WorkshopSite, int, str | None
         payer = index.get(controller, -1)
         bill = _bill(site)
         cost = sum(bill.values())
-        funded = payer >= 0 and budgets[payer] >= cost
+        funded = workshop_funded(world, payer, site, cost, payer >= 0 and budgets[payer] >= cost)
         if funded:
             budgets[payer] -= cost
         out.append((site, payer, controller, bill, funded))
@@ -233,12 +249,18 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
             or not callable(getattr(sim, "take_craft_inputs", None)):
         raise RuntimeError("workshops require a fresh native build with workshop crews")
     cities = refresh_sites(world, state)
-    requests = [(s.site, s.region, s.settlement_id, float(_diverted(int(cities[s.site].rank))), MAX_CREW)
+    terms = {s.site: _crew_terms(world, s.site) for s in state.sites}
+    requests = [(s.site, s.region, s.settlement_id,
+                 float(_diverted(int(cities[s.site].rank)) * terms[s.site][1]), terms[s.site][0])
                 for s in state.sites]
     rows = {}
+    # Observe mode employs nobody: its crews are available, not employed, so
+    # they hold no work commitment in the shared registry (L5 learners and
+    # teaching would otherwise treat them as already working).
+    reserve_turn = None if state.mode == "observe" else world.turn
     if requests:
         for row, (site_id, _r, _s, diverted, _m) in zip(
-                sim.plan_workshop_crews(requests, _enlisted(world), world.turn), requests, strict=True):
+                sim.plan_workshop_crews(requests, _enlisted(world), reserve_turn), requests, strict=True):
             (site, region, settlement, resident, trip, army, assigned, eligible,
              crew, ages, work) = row
             rows[site_id] = dict(site=site, region=region, settlement_id=settlement,

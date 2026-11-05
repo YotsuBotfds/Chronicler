@@ -48,6 +48,19 @@ link to these by path, so keep their names stable.
   [permanent faiths](integration/permanent-faiths.md),
   [ritual gatherings](integration/ritual-gatherings.md),
   [causal provenance](integration/causal-provenance.md).
+- **Livelihoods and commons (experimental, every switch default off):**
+  [staffed public workshops](integration/workshops.md),
+  [household food allocation](integration/food-allocation.md),
+  [timber stock](integration/timber-stock.md),
+  [grain convoys](integration/grain-convoys.md),
+  [commons rules](integration/commons-rules.md),
+  [learning cohorts](integration/learning-cohorts.md),
+  [workshop finance and payroll](integration/workshop-finance.md),
+  [relocation costs](integration/relocation-costs.md),
+  [household purchases (design, left open)](integration/household-purchases-design.md),
+  [local budgets](integration/local-budgets.md); plans in
+  [sprint 1](superpowers/roadmaps/livelihoods-commons-sprint1.md) and
+  [sprint 2](superpowers/roadmaps/livelihoods-commons-sprint2.md).
 - **World generation:** [geography 2.0](integration/geography-2.md),
   [procedural gates](integration/procedural-gates.md).
 

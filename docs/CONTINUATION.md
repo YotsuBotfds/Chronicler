@@ -1,3 +1,51 @@
+# Current continuation — livelihoods/commons sprint 2, 2026-11-05
+
+Sprint 2 (L5–L9 with viewer and evidence) is on the non-main branch
+`claude/livelihoods-sprint2`, draft PR #74, stacked on sprint 1 (`claude/livelihoods-commons-sprint1`,
+draft PR #73). Neither is merged. Plan and handoff:
+[livelihoods-commons-sprint2.md](superpowers/roadmaps/livelihoods-commons-sprint2.md). Board:
+[livelihoods-commons-sprint2.json](superpowers/progress/livelihoods-commons-sprint2.json).
+Screens: [livelihoods-sprint2-screens.md](superpowers/progress/livelihoods-sprint2-screens.md).
+
+- **New switches, all off by default.**
+  - `--learning-cohorts` (L5): named learners attend delivered academy teaching, pay the
+    attended share of income, and gain trade skill on completion. Mode `no_learning` is the
+    control.
+  - `--workshop-payroll` (L6a): debt-free workshop firms sell to their ruler's academy and
+    pay wages that replace the crew's income share, through a native wealth-transfer seam.
+    Modes `unpaid_labor` and `no_customer` are the controls.
+  - `--relocation-costs` (L7): a fare per person on applied household moves. Mode
+    `assisted` adds receiving-ruler assistance; `liquidity_only` is the control.
+  - `--commons-rules` (L8): a paid, enforced timber quota with a rest period. Mode
+    `cost_only` is the control.
+  - `--local-budgets` (L9): one bargained budget per ruler with envelopes for relief, granary
+    works, workshops, wardens and teaching supplies. Mode `fixed_shares` is the control.
+  - L6b household purchases are left open (design note).
+- **Witnesses.** Pinned-file hooks are recorded in the reviewed inverse layers l8, l5, l6, l9
+  and l7, after sprint 1's layers. No historical hash was rewritten.
+- **Checks on the final source `aea7972f`** (native extension `70587268…`).
+  - Feature-off `turn_speed_identity` against pre-sprint main: 0 differences across 9 cases
+    and 399 files.
+  - All-switch `checkpoint_identity`: PASS.
+  - Bounded offline lane: PASS.
+  - `cargo test`: 1,235 passed.
+  - Viewer: 1,256 tests, lint and build pass.
+  - Browser journey at desktop and phone widths.
+  - Held screens: 252 runs, 0 failed, 1.08 of 2.0 core-hours.
+- **Review fixes before the held cohort.** Each has a regression test.
+  - L9 counted convoy spending twice.
+  - L8 read institution funding before it was set.
+  - L6a shared wages with dead workers.
+  - L7 assistance sat outside L9's budget.
+  - The screen runner used the wrong snapshot key.
+- **Not run.** The 200-seed and procedural qualification gates. No default was changed, and
+  no merge or deploy was done.
+
+Next (needs a new owner instruction): two recommended candidates, apprenticeship in
+workshops and postwar reconstruction; the plan's handoff gives the reasons.
+
+---
+
 # Current continuation — livelihoods/commons sprint 1, 2026-11-05
 
 Cleanup PRs #71 and #72 are merged (main `64863f1274e400c3898972fe0cd5df510d3bb06f`,

@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "layer": "r3",
+  "parent": "92ea3bf417f7fdad665903e255f7db738ffa8738",
+  "files": {
+    "src/chronicler/main.py": {
+      "sha256": "bec057e2c36603770ebffa7160a1f1b9c845374ab47f4fbcd004dc8eeda98d58",
+      "current_sha256": "752a17b602014151ebbb7cc778249cf75c3b126938a840f084dbed5433d22989",
+      "patches": [
+        {
+          "old": "        conflicts.append(\"--harvest-report-delay conflicts with the checkpoint; use a declared state fork\")\n    elif effective_delay:\n        args.harvest_report_delay = effective_delay\n    for key, value in saved.items():\n        if key in _RESUME_FREE_ARGS:\n            continue\n",
+          "new": "        conflicts.append(\"--harvest-report-delay conflicts with the checkpoint; use a declared state fork\")\n    elif effective_delay:\n        args.harvest_report_delay = effective_delay\n    from chronicler.livelihoods import livelihoods_resume_conflicts\n    conflicts.extend(livelihoods_resume_conflicts(state.world, args, saved))\n    for key, value in saved.items():\n        if key in _RESUME_FREE_ARGS:\n            continue\n"
+        }
+      ]
+    }
+  }
+}

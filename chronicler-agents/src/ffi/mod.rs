@@ -412,6 +412,67 @@ impl AgentSimulator {
         crate::workshop_work::conflicts(&self.pool, turn)
     }
 
+    /// Livelihoods L5: per cohort (region, active member ids, recruits
+    /// wanted, max current-occupation skill) return the members' (id, status,
+    /// occupation, skill), the recruits (id, occupation, skill, age) and the
+    /// counts (resident adults, excluded scholar, member, trip, army,
+    /// assigned, skilled, eligible). Read-only.
+    #[allow(clippy::type_complexity)]
+    pub fn plan_learners(&self, turn: u32, cohorts: Vec<(u16, Vec<u32>, u8, f32)>, enlisted_ids: Vec<u32>)
+        -> PyResult<Vec<(Vec<(u32, u8, u8, f32)>, Vec<(u32, u8, f32, u16)>, Vec<u32>)>> {
+        if !self.initialized {
+            return Err(PyValueError::new_err("learning cohorts require initialized agents"));
+        }
+        let requests: Vec<crate::learning_work::CohortRequest> = cohorts.into_iter().map(
+            |(region, members, recruit, max_skill)| crate::learning_work::CohortRequest {
+                region, members, recruit, max_skill }).collect();
+        let enlisted: std::collections::HashSet<u32> = enlisted_ids.into_iter().collect();
+        let rows = crate::learning_work::plan(&self.pool, turn, &requests, &enlisted, self.num_regions)
+            .map_err(PyValueError::new_err)?;
+        Ok(rows.into_iter().map(|r| (r.members, r.recruits, vec![r.resident_adults, r.excluded_scholar,
+            r.excluded_member, r.excluded_trip, r.excluded_army, r.excluded_assigned, r.excluded_skilled,
+            r.eligible])).collect())
+    }
+
+    /// Livelihoods L5: reserve (id, region, attended fraction) learners in the
+    /// work registry (category learning) and install this turn's attendance;
+    /// the wealth phase seats them from actual teaching. All or none.
+    pub fn reserve_learning_attendance(&mut self, turn: u32, learners_per_teacher: f32,
+                                       rows: Vec<(u32, u16, f32)>) -> PyResult<()> {
+        crate::learning_work::reserve(&mut self.pool, turn, learners_per_teacher, &rows, self.num_regions)
+            .map_err(PyValueError::new_err)
+    }
+
+    /// Livelihoods L5: the consumed attendance of `turn`, taken once: per
+    /// region (delivered Scholar work, seats) and per learner (id, region,
+    /// fraction, outcome, ordinary income, income withheld).
+    #[allow(clippy::type_complexity)]
+    pub fn take_learning_attendance(&mut self, turn: u32)
+        -> Option<(Vec<(f64, u32)>, Vec<(u32, u16, f32, u8, f32, f32)>)> {
+        crate::learning_work::take(&mut self.pool, turn).map(|plan| (
+            plan.delivered.iter().copied().zip(plan.seats.iter().copied()).collect(),
+            plan.rows.iter().map(|r| (r.agent_id, r.region, r.fraction, r.outcome, r.income, r.charged)).collect()))
+    }
+
+    /// Livelihoods L5: drop an unconsumed attendance of `turn`.
+    pub fn cancel_learning_attendance(&mut self, turn: u32) -> bool {
+        crate::learning_work::cancel(&mut self.pool, turn)
+    }
+
+    pub fn has_pending_learning_attendance(&self) -> bool {
+        self.pool.learning_attendance.as_ref().is_some_and(|p| !p.consumed)
+    }
+
+    /// Livelihoods L5: raise (gain > 0) or read (gain 0) graduates' skill in
+    /// the learned occupation; returns (id, occupation, alive, before, after).
+    pub fn grant_learning_skill(&mut self, rows: Vec<(u32, u8, f32)>) -> PyResult<Vec<(u32, u8, bool, f32, f32)>> {
+        let out = crate::learning_work::grant(&mut self.pool, &rows).map_err(PyValueError::new_err)?;
+        if out.iter().any(|r| r.2 && r.3 != r.4) {
+            self.snapshot_cache = None; // skills changed: drop the cached snapshot
+        }
+        Ok(out)
+    }
+
     /// Livelihoods L1A: the last economy tick's actual per-good craft input
     /// by region (goods in `economy::GOOD_NAMES` order), taken once; None
     /// before any tick or after it was taken.
@@ -727,6 +788,79 @@ impl AgentSimulator {
         }
         self.snapshot_cache = None; // the pool changes: drop the cached snapshot
         Ok(crate::credit::apply_merchant_transfers(&mut self.pool, self.regions.len(), &region_ids, &amounts))
+    }
+
+    /// Livelihoods L7: install this turn's relocation fare policy: fare and
+    /// assistance per person (milli-units), per region the civilization that
+    /// assists arrivals (-1 none), per civilization its assistance budget,
+    /// and last turn's arrivals whose rations to observe. Validates first.
+    pub fn set_relocation_policy(&mut self, turn: u32, fare_milli: i64, assist_milli: i64,
+        region_payer: Vec<i16>, budget_milli: Vec<i64>, track_ids: Vec<u32>) -> PyResult<()> {
+        crate::relocation::install(&mut self.pool, turn, fare_milli, assist_milli, region_payer,
+            budget_milli, track_ids, self.num_regions).map_err(PyValueError::new_err)
+    }
+
+    /// Livelihoods L7: drop a policy the tick never took.
+    pub fn cancel_relocation_policy(&mut self) -> bool {
+        self.pool.relocation_policy.take().is_some()
+    }
+
+    /// Livelihoods L7: the tick's relocation receipt, taken once: groups as
+    /// ((lead, from, to, reason, applied), (member ids, adults (id, liquid
+    /// milli), children), (liquid, fare, assistance milli, payer)), alive
+    /// counts by region before the gate and after the moves, remaining
+    /// budgets, and per region (arrivals, their ration sum, residents, their
+    /// ration sum) when an allocation ran.
+    #[allow(clippy::type_complexity)]
+    pub fn take_relocation_receipt(&mut self, turn: u32) -> Option<(
+        Vec<((u32, u16, u16, u8, bool), (Vec<u32>, Vec<(u32, i64)>, u32), (i64, i64, i64, i16))>,
+        Vec<u32>, Vec<u32>, Vec<i64>, Option<Vec<(u16, u32, f64, u32, f64)>>)> {
+        crate::relocation::take(&mut self.pool, turn).map(|r| (
+            r.groups.into_iter().map(|g| ((g.lead, g.from, g.to, g.reason, g.applied),
+                (g.members.iter().map(|m| m.0).collect(), g.adults, g.children),
+                (g.liquid_milli, g.fare_milli, g.grant_milli, g.payer))).collect(),
+            r.before, r.after, r.budget_milli, r.rations))
+    }
+
+    /// Livelihoods L6a wealth transfer (shared seam, `wealth_transfer.rs`):
+    /// credit (positive) or debit (negative) stable ids by whole milli-units
+    /// (1000 = one wealth unit), once per (turn, purpose, batch). Returns per
+    /// row (id, requested, applied, residual, status: 0 applied, 1 limited by
+    /// the wealth ceiling or floor, 2 absent). Refuses a repeated key, an
+    /// unknown purpose, duplicate ids or an out-of-range amount unchanged.
+    pub fn transfer_wealth(&mut self, turn: u32, purpose: u8, batch: u32, rows: Vec<(u32, i64)>)
+        -> PyResult<Vec<(u32, i64, i64, i64, u8)>> {
+        let receipt = crate::wealth_transfer::transfer(&mut self.pool, turn, purpose, batch, &rows)
+            .map_err(PyValueError::new_err)?;
+        if receipt.rows.iter().any(|r| r.applied != 0) {
+            self.snapshot_cache = None; // the pool changed: drop the cached snapshot
+        }
+        Ok(receipt.rows.into_iter().map(|r| (r.agent_id, r.requested, r.applied, r.residual, r.status)).collect())
+    }
+
+    /// Livelihoods L6a: transfer purposes in declaration order (append only).
+    #[staticmethod]
+    pub fn wealth_transfer_purposes() -> Vec<&'static str> {
+        crate::wealth_transfer::PURPOSES.to_vec()
+    }
+
+    /// Livelihoods L6a: arm a one-tick deduction of ordinary income for paid
+    /// work, (stable id, share) rows each within the person's work
+    /// reservation for `turn`; the next wealth phase consumes it once.
+    pub fn install_paid_work(&mut self, turn: u32, rows: Vec<(u32, f32)>) -> PyResult<()> {
+        crate::wealth_transfer::install_paid_work(&mut self.pool, turn, &rows).map_err(PyValueError::new_err)
+    }
+
+    /// Livelihoods L6a: drop an armed paid-work share the tick never took.
+    pub fn cancel_paid_work(&mut self) -> bool {
+        self.pool.paid_work.take().is_some()
+    }
+
+    /// Livelihoods L6a: the last wealth phase's paid-work deductions, taken
+    /// once: (turn, [(id, share, ordinary income, deducted)]).
+    #[allow(clippy::type_complexity)]
+    pub fn take_paid_work_receipt(&mut self) -> Option<(u32, Vec<(u32, f32, f32, f32)>)> {
+        self.pool.paid_work_receipt.take().map(|r| (r.turn, r.rows))
     }
 
     /// Profiling only: when on, later ticks at 100,000 agents or more also
@@ -1486,6 +1620,11 @@ impl AgentSimulator {
             if plan.source_turn != turn || plan.consumed {
                 return Err(PyValueError::new_err("teaching work must be prepared for this tick"));
             }
+        }
+        crate::learning_work::check_tick(&self.pool, turn).map_err(PyValueError::new_err)?;
+        crate::relocation::check_tick(&self.pool, turn, liquid_requirement).map_err(PyValueError::new_err)?;
+        if self.pool.paid_work.as_ref().is_some_and(|p| p.turn != turn) {
+            return Err(PyValueError::new_err("paid work must be armed for this tick"));
         }
         if self.pool.work_reservations.iter().any(|r| r.turn == turn) {
             // Livelihoods: one person, one work commitment per turn.

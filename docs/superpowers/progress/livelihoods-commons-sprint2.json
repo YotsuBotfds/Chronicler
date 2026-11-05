@@ -1,0 +1,183 @@
+{
+  "schema_version": 3,
+  "board_version": 5,
+  "title": "Livelihoods, commons and collective choices - sprint 2 (L5-L9) operational board",
+  "plan": "docs/superpowers/roadmaps/livelihoods-commons-sprint2.md",
+  "owner_instruction": "2026-11-05: continue the entire roadmap end to end including L5-L9 with viewer, integration and evidence; sprint boundaries are checkpoints; branches and draft PRs; features default-off; no merge; no 200-seed gates without approval.",
+  "durable_location": {
+    "branch": "claude/livelihoods-sprint2",
+    "stacked_on": "claude/livelihoods-commons-sprint1"
+  },
+  "base": {
+    "sprint1_head": "3b23d769",
+    "main": "64863f1274e400c3898972fe0cd5df510d3bb06f",
+    "sprint1_ci": "run 41979324402 success on 1ed0ac0; run 41983859855 success on review-fixed head 3b23d769 (PR #73); run 41983905789 success on sprint-2 plan 0cc62442 (PR #74)"
+  },
+  "sprint1_review": {
+    "reviewer": "independent agent, code-anchored",
+    "gaps_fixed_in": "25252337 (layer s1r) and fad0aee",
+    "findings": [
+      "work reservations disjoint-by-predicate only -> native registry authority",
+      "storage+workshop double spend -> fixed",
+      "no convoy risk ablation -> threat_scale key + delay-only release test",
+      "unknown relief recorded as zero -> null; lifecycle tests added",
+      "screen artifacts only in scratch -> committed runner + metrics",
+      "L1 resume/death tests missing -> added"
+    ],
+    "identity_after_fixes": "turn_speed_identity baseline tree vs review-fixed head 0cc6244 (+native f09bf947): 9 cases, 399 files, 0 differences"
+  },
+  "status_values": [
+    "proposed",
+    "ready",
+    "active",
+    "blocked",
+    "integrated",
+    "evaluated",
+    "deferred"
+  ],
+  "packages": [
+    {
+      "id": "L5",
+      "wave": "2A",
+      "status": "evaluated",
+      "lane": "learners",
+      "depends_on": [
+        "L1 work registry",
+        "academy services"
+      ],
+      "branch": "claude/livelihoods-l5-learners",
+      "base_sha": "0cc62442564e725df6096692a9b0569da5600264",
+      "handoff": "v1 (2026-11-05)",
+      "next_action": "Held screens (L5_learn vs L5_no_learning, I_learn_pay). Development finding: natural cohorts are rare because academies deliver little teaching; workshops/payroll raise activation. Held screens done (livelihoods-sprint2-screens.md).",
+      "integration_commit": "a26954e5",
+      "layer": "l5",
+      "lane_head": "0075103d"
+    },
+    {
+      "id": "L6a",
+      "wave": "2A",
+      "status": "evaluated",
+      "lane": "finance",
+      "depends_on": [
+        "L1B"
+      ],
+      "branch": "claude/livelihoods-l6-payroll",
+      "base_sha": "0cc62442564e725df6096692a9b0569da5600264",
+      "handoff": "v1 (2026-11-05)",
+      "next_action": "Held screens (L6_paid, L6_unpaid_labor, L6_no_customer). Provides the native wealth-transfer seam reused by L7. Held screens done (livelihoods-sprint2-screens.md).",
+      "integration_commit": "e555b0db",
+      "layer": "l6",
+      "lane_head": "c3356f16"
+    },
+    {
+      "id": "L8",
+      "wave": "2A",
+      "status": "evaluated",
+      "lane": "commons",
+      "depends_on": [
+        "L3"
+      ],
+      "branch": "claude/livelihoods-l8-commons",
+      "base_sha": "0cc62442564e725df6096692a9b0569da5600264",
+      "handoff": "v1 (2026-11-05)",
+      "next_action": "Held screens (L8_enforced, L8_cost_only, I_commons_work). Clearing moratorium proposal recorded as a design note (needs Python and native ecology changes and a declared cost). Held screens done (livelihoods-sprint2-screens.md).",
+      "integration_commit": "727ed5dc",
+      "layer": "l8",
+      "lane_head": "494460d7"
+    },
+    {
+      "id": "L7",
+      "wave": "2B",
+      "status": "evaluated",
+      "lane": "learners",
+      "depends_on": [
+        "L2",
+        "L6a wealth transfer"
+      ],
+      "integration_commit": "83e21af5",
+      "layer": "l7",
+      "lane_head": "13c3ad3e",
+      "next_action": "Held screens (L7_liquidity_only, L7_paid, L7_assisted). Declared limitation: assistance reserved before the tick, charged in Phase 10 (refusals recorded). Held screens done (livelihoods-sprint2-screens.md)."
+    },
+    {
+      "id": "L9",
+      "wave": "2B",
+      "status": "evaluated",
+      "lane": "commons",
+      "depends_on": [
+        "L1",
+        "L2",
+        "L5/L6/L8 services"
+      ],
+      "branch": "claude/livelihoods-l9-budgets",
+      "base_sha": "bd22f70dfd9cc779e5bcdbaf039253578072b985",
+      "handoff": "v1 (2026-11-05)",
+      "next_action": "Lead fix e7d18444 (convoy relief spending counted twice, found by the screen pilot). Part 2 (L8 warden bills and L6a academy purchases as bargained services) in review on claude/livelihoods-l9b-providers. Held screens done (livelihoods-sprint2-screens.md).",
+      "integration_commit": "60b63f25, 2441edb5 (part 2: wardens and teaching supplies)",
+      "layer": "l9",
+      "lane_head": "591b0350"
+    },
+    {
+      "id": "L6b",
+      "wave": "2B",
+      "status": "deferred",
+      "lane": "finance",
+      "depends_on": [
+        "L2",
+        "L6a",
+        "inventory title"
+      ],
+      "branch": "claude/livelihoods-l6b-purchases",
+      "design": "docs/integration/household-purchases-design.md",
+      "next_action": "Left open (roadmap-permitted): real retail needs producer title, per-agent inventories and income replacement in the native economy; the bounded granary-only fallback covers ~1-5% of shortfall. Not replaced by a wealth threshold."
+    },
+    {
+      "id": "L10-s2",
+      "status": "evaluated",
+      "lane": "lead",
+      "next_action": "All panels mounted; viewer 126 files / 1,256 tests, lint and build pass on aea7972f; browser journey (desktop+phone, every panel, rewind re-dating, no overflow, no console errors, tab absent for feature-off bundles)."
+    },
+    {
+      "id": "L11-s2",
+      "status": "evaluated",
+      "lane": "lead",
+      "next_action": "Held screens 252 runs, 0 failed, 1.08/2.0 core-hours on aea7972f; feature-off identity 0 differences (9 cases, 399 files); all-switch checkpoint_identity PASS; offline lane PASS; cargo 1235 passed. 200-seed and procedural gates not run (need owner approval)."
+    }
+  ],
+  "compute_budget": {
+    "core_hours": 2.0,
+    "concurrency": 3,
+    "transient_disk_gib": 6,
+    "dev_cohort": "template 1-3",
+    "held_cohort": "template 301-306; procedural 32x10 401-406; 200 turns",
+    "used_core_hours": 0.0
+  },
+  "landing_log": [],
+  "layers": [
+    "l0",
+    "l1a",
+    "l2",
+    "l3",
+    "l4",
+    "s1r",
+    "l8",
+    "l5",
+    "l6",
+    "l9",
+    "l7"
+  ],
+  "native_extension": {
+    "source_commit": "83e21af5",
+    "sha256": "70587268a128b5a51a10b37c68e4c203bce0fa3eb492a66b21be86e851ea6677"
+  },
+  "review_fixes": [
+    "e7d18444 L9 counted L4 convoy spending twice (found by the timing pilot)",
+    "957f47c9 L8 read Commons Management funding before it was set each turn",
+    "aea7972f screen runner L7 key; L6a wages shared with dead workers; L7 assistance outside L9 budget; L9 workshop deferral reason"
+  ],
+  "final_source": {
+    "commit": "aea7972f",
+    "native_sha256": "70587268a128b5a51a10b37c68e4c203bce0fa3eb492a66b21be86e851ea6677"
+  },
+  "next": "Sprint complete pending owner review. Recommended next candidates (need a new owner instruction): apprenticeship in workshops; postwar reconstruction and veteran reintegration. See the plan handoff."
+}

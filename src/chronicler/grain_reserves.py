@@ -565,6 +565,9 @@ def tick_grain_reserves(world: "WorldState", acc=None, economy_result: "EconomyR
     projected = _projections(world, acc)
     budget = [int(BUDGET_SHARE * max(0, projected[i] - TREASURY_FLOOR)) if civs[i].regions else 0
               for i in range(len(civs))]
+    if getattr(world, "livelihoods", None) is not None:
+        from chronicler.local_budgets import procurement_budget
+        budget = procurement_budget(world, budget, projected)  # L9 relief envelopes, when active
     opening_budget = tuple(budget)
     loss = _transit_loss()
     flows = _flows(world, state)

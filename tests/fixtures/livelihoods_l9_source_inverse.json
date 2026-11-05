@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "layer": "l9",
+  "parent": "e555b0db2828dccadd7ce390ea705503a5f415a2",
+  "files": {
+    "src/chronicler/batch_manifest.py": {
+      "sha256": "f31366aed6eb56126bcffb62848deb8353e49a2c24c1340a0fb7a15957a2d0a7",
+      "current_sha256": "ac332ae4eccd218886cc8d39070535f3549cb57014eac5af047b829dcb56490e",
+      "patches": [
+        {
+          "old": "    \"learning_cohort_mode\",\n    \"workshop_payroll\",\n    \"workshop_payroll_mode\",\n    \"tuning\",\n    \"preset\",\n    \"aggression_bias\",\n",
+          "new": "    \"learning_cohort_mode\",\n    \"workshop_payroll\",\n    \"workshop_payroll_mode\",\n    \"local_budgets\",\n    \"local_budget_mode\",\n    \"tuning\",\n    \"preset\",\n    \"aggression_bias\",\n"
+        },
+        {
+          "old": "              if key not in (\"scientific_research_agendas\", \"public_grain_shipments\", \"grain_storage\", \"grain_storage_policy\", \"grain_storage_work_budget\", \"household_mobility_liquid_requirement\", \"academy_services\", \"harvest_report_delay\",\n                             \"workshops\", \"workshop_mode\", \"food_allocation\", \"food_allocation_regime\", \"timber_stock\", \"grain_convoys\", \"convoy_route_policy\",\n                             \"commons_rules\", \"commons_rule_mode\", \"learning_cohorts\", \"learning_cohort_mode\",\n                             \"workshop_payroll\", \"workshop_payroll_mode\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n    config[\"tuning_overrides\"] = _json_value(overrides or {})\n",
+          "new": "              if key not in (\"scientific_research_agendas\", \"public_grain_shipments\", \"grain_storage\", \"grain_storage_policy\", \"grain_storage_work_budget\", \"household_mobility_liquid_requirement\", \"academy_services\", \"harvest_report_delay\",\n                             \"workshops\", \"workshop_mode\", \"food_allocation\", \"food_allocation_regime\", \"timber_stock\", \"grain_convoys\", \"convoy_route_policy\",\n                             \"commons_rules\", \"commons_rule_mode\", \"learning_cohorts\", \"learning_cohort_mode\",\n                             \"workshop_payroll\", \"workshop_payroll_mode\", \"local_budgets\", \"local_budget_mode\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n    config[\"tuning_overrides\"] = _json_value(overrides or {})\n"
+        }
+      ]
+    },
+    "src/chronicler/grain_reserves.py": {
+      "sha256": "95b0132b86739e9fc9a6cb16e69f89ca97f479cdf7bd659b8ea2182bc10288d9",
+      "current_sha256": "637252f0f69231e5c6e22547c314907f28423a1381d1b49ab16ae5ba39d6995c",
+      "patches": [
+        {
+          "old": "    projected = _projections(world, acc)\n    budget = [int(BUDGET_SHARE * max(0, projected[i] - TREASURY_FLOOR)) if civs[i].regions else 0\n              for i in range(len(civs))]\n    opening_budget = tuple(budget)\n    loss = _transit_loss()\n    flows = _flows(world, state)\n",
+          "new": "    projected = _projections(world, acc)\n    budget = [int(BUDGET_SHARE * max(0, projected[i] - TREASURY_FLOOR)) if civs[i].regions else 0\n              for i in range(len(civs))]\n    if getattr(world, \"livelihoods\", None) is not None:\n        from chronicler.local_budgets import procurement_budget\n        budget = procurement_budget(world, budget, projected)  # L9 relief envelopes, when active\n    opening_budget = tuple(budget)\n    loss = _transit_loss()\n    flows = _flows(world, state)\n"
+        }
+      ]
+    },
+    "src/chronicler/tuning.py": {
+      "sha256": "1e16d7be48470c36dcfb39c5501fb01768007b9736a24de4e1705ce1c0772fef",
+      "current_sha256": "50107f3702163e476f9d5736b5683e7b2173bc0ceb3c593743687c40b86618fc",
+      "patches": [
+        {
+          "old": "    # Livelihoods sprint packages (default off; chronicler.livelihoods)\n    \"livelihoods.food.floor\", \"livelihoods.food.target_share\",\n    \"livelihoods.timber.enforce_cap\", \"livelihoods.convoys.threat_scale\",\n    # Politics\n    K_SECESSION_STABILITY_THRESHOLD, K_SECESSION_SURVEILLANCE_THRESHOLD,\n    K_PROXY_WAR_SECESSION_BONUS, K_BALANCE_OF_POWER_DOMINANCE,\n",
+          "new": "    # Livelihoods sprint packages (default off; chronicler.livelihoods)\n    \"livelihoods.food.floor\", \"livelihoods.food.target_share\",\n    \"livelihoods.timber.enforce_cap\", \"livelihoods.convoys.threat_scale\",\n    \"livelihoods.budgets.envelope_share\", \"livelihoods.budgets.floor\", \"livelihoods.budgets.horizon\",\n    \"livelihoods.budgets.broken_grievance\", \"livelihoods.budgets.kept_grievance\",\n    \"livelihoods.budgets.response_cap\",\n    # Politics\n    K_SECESSION_STABILITY_THRESHOLD, K_SECESSION_SURVEILLANCE_THRESHOLD,\n    K_PROXY_WAR_SECESSION_BONUS, K_BALANCE_OF_POWER_DOMINANCE,\n"
+        }
+      ]
+    },
+    "tests/test_batch_manifest.py": {
+      "sha256": "93f352153d355d23ee44844946d0f1e2db0be77839abf0277033ed7c145fb352",
+      "current_sha256": "55a837aa5b870c7fdd5b4558a1583b3a2dbcf238d62551fedaba1fe00345f7d1",
+      "patches": [
+        {
+          "old": "    assert set(simulation) == (set(SIMULATION_ARG_KEYS) - {\"scientific_research_agendas\", \"public_grain_shipments\", \"grain_storage\", \"grain_storage_policy\", \"grain_storage_work_budget\", \"household_mobility_liquid_requirement\", \"academy_services\", \"harvest_report_delay\",\n                                                           \"workshops\", \"workshop_mode\", \"food_allocation\", \"food_allocation_regime\", \"timber_stock\", \"grain_convoys\", \"convoy_route_policy\",\n                                                           \"commons_rules\", \"commons_rule_mode\", \"learning_cohorts\", \"learning_cohort_mode\",\n                                                           \"workshop_payroll\", \"workshop_payroll_mode\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n    assert manifest[\"outputs\"][\"simulate_only\"] is True\n    environment = manifest[\"environment\"]\n",
+          "new": "    assert set(simulation) == (set(SIMULATION_ARG_KEYS) - {\"scientific_research_agendas\", \"public_grain_shipments\", \"grain_storage\", \"grain_storage_policy\", \"grain_storage_work_budget\", \"household_mobility_liquid_requirement\", \"academy_services\", \"harvest_report_delay\",\n                                                           \"workshops\", \"workshop_mode\", \"food_allocation\", \"food_allocation_regime\", \"timber_stock\", \"grain_convoys\", \"convoy_route_policy\",\n                                                           \"commons_rules\", \"commons_rule_mode\", \"learning_cohorts\", \"learning_cohort_mode\",\n                                                           \"workshop_payroll\", \"workshop_payroll_mode\", \"local_budgets\", \"local_budget_mode\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n    assert manifest[\"outputs\"][\"simulate_only\"] is True\n    environment = manifest[\"environment\"]\n"
+        }
+      ]
+    }
+  }
+}

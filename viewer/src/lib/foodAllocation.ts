@@ -26,8 +26,24 @@ const object = (x: unknown): x is Record<string, unknown> => x !== null && typeo
 const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
 const REGIMES = ["equal", "floor_means", "targeted_relief"];
 const NUMBERS = ["phase2_alive", "alive", "households", "sufficiency", "rations_available",
-  "allocated", "unallocated", "shortfall", "min_ration", "max_ration",
+  "allocated", "unallocated", "shortfall", "below_floor", "min_ration", "max_ration",
   "people_poorer_half", "shortfall_poorer_half", "people_richer_half", "shortfall_richer_half"] as const;
+const count = (x: unknown): x is number => finite(x) && Number.isInteger(x) && x >= 0;
+const amount = (x: unknown): x is number => finite(x) && x >= 0;
+/** Totals the panel shows; each must be present (missing is unknown, never zero). */
+const TOTAL_COUNTS = ["scarce_regions", "alive", "people_poorer_half", "people_richer_half", "children"] as const;
+const TOTAL_AMOUNTS = ["allocated", "unallocated", "shortfall", "shortfall_poorer_half",
+  "shortfall_richer_half", "shortfall_children", "relief_to_targeted"] as const;
+
+function validTotals(x: unknown): boolean {
+  return object(x) && TOTAL_COUNTS.every((key) => count(x[key])) && TOTAL_AMOUNTS.every((key) => amount(x[key]))
+    && (x.relief_unknown_regions === undefined || count(x.relief_unknown_regions));
+}
+
+function validSample(x: unknown, regions: number): boolean {
+  return Array.isArray(x) && x.length === 5 && count(x[0]) && count(x[1]) && x[1] < regions && count(x[2])
+    && amount(x[3]) && x[3] <= 1 + 1e-6 && typeof x[4] === "boolean";
+}
 
 function validRegion(x: unknown, regions: number): x is FoodAllocationRegion {
   if (!object(x) || !finite(x.region) || x.region < 0 || x.region >= regions
@@ -48,8 +64,9 @@ export function foodAllocationAt(snapshot: TurnSnapshot | null, regionCount: num
   if (!object(x) || x.schema_version !== 1 || !REGIMES.includes(x.regime as string) || !finite(x.source_turn)
     || x.source_turn + 1 !== snapshot?.turn || !object(x.counters)) return null;
   if (x.totals === null) return x.regions === null && x.sample === null ? x as unknown as FoodAllocationRecord : null;
-  if (!object(x.totals) || !Array.isArray(x.regions) || !Array.isArray(x.sample)
-    || !x.regions.every((r) => validRegion(r, regionCount))) return null;
+  if (!validTotals(x.totals) || !Array.isArray(x.regions) || !Array.isArray(x.sample)
+    || !x.regions.every((r) => validRegion(r, regionCount))
+    || !x.sample.every((s) => validSample(s, regionCount))) return null;
   return x as unknown as FoodAllocationRecord;
 }
 

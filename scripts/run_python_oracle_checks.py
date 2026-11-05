@@ -327,12 +327,22 @@ CHUNKS = {
         "tests/test_grain_release_policy.py",
     ],
     "livelihoods": [
+        "tests/test_relocation_costs.py",
+        "tests/test_local_budgets.py",
+        "tests/test_workshop_payroll.py",
+        "tests/test_learning_cohorts.py",
+        "tests/test_commons_rules.py",
         "tests/test_grain_convoys.py",
         "tests/test_timber_stock.py",
         "tests/test_food_allocation.py",
         "tests/test_workshops.py",
         "tests/test_livelihoods_sprint_witness.py",
         "tests/test_livelihoods_wiring.py",
+        "tests/test_livelihoods_shared_treasury.py",
+    ],
+    "livelihoods-work-authority": [
+        "tests/test_livelihoods_work_authority.py",
+        "tests/test_livelihoods_pool_binding.py",
     ],
     "expansion-wiring": [
         "tests/test_expansion_feature_wiring.py",
