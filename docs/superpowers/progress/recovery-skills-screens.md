@@ -174,3 +174,116 @@ that fails on the previous code.
   - The same commit makes the granary resource-ledger check (layer `rv3`) use
     the spoilage rate recorded at spoilage. That is check-only, with no
     outcome change.
+
+## Results (held cohort, run 2026-11-05)
+
+Artifacts in the repository:
+- per-world metrics: `recovery-skills-screens/metrics.jsonl`, one row per arm and world;
+- the generated report, with every world's value for each preregistered outcome:
+  `recovery-skills-screens/report.md`;
+- source identity: `recovery-skills-screens/source.txt`.
+
+Re-summarize with `scripts/livelihoods_screens.py report ... --sprint 3`. The fixed seeds
+reproduce the raw bundles.
+
+- **Run.**
+  - Source `a4adfde6` and native extension `6c675042…`.
+  - 228 runs, 0 failed, and every outcome extracted (no rc 3). That took 0.86 of the 2.0
+    core-hours, 20 minutes of wall time.
+  - Every arm ran once per held world. Nothing was tuned or rerun.
+- **Units.** Six worlds per stratum: t = template 8×4 (501–506) and p = procedural 32×10
+  (601–606). Results are the mean over worlds, the range, and the counts of worlds above,
+  below and at zero. These are screens, not significance tests.
+- **Shared outcomes.** Population and treasury differences between arms (report, first
+  table) are wide and of mixed sign in almost every comparison. Trajectories diverge
+  once any switch acts, so these differences are not attributed to a mechanism.
+  - Exactly zero differences confirm the controls: RS4_record_only = off, RS3_record_only
+    = W_operate, and RS3_priority = RS3_record_only in all 12 worlds.
+
+### Findings by package
+
+- **RS1 apprenticeship.** It activates everywhere, but few apprentices finish, and the
+  package's own wear makes workshops worse.
+  - Per world: 88 apprentices enrolled in each stratum (6/6 worlds), about 210–220
+    apprentice-turns attended, and 11 units of income forgone.
+  - Completions, which equal new qualifications (train against no_qualification): 3.3 per
+    world in t (3/6 worlds, range 0–14) and 0.8 in p (2/6, range 0–3).
+  - Upkeep offset and end condition against no_qualification: near zero, and 0 in 4/6
+    worlds per stratum. In p the end condition is lower in 2 worlds (−0.12, −0.23).
+  - **Adverse:**
+    - Against W_operate, operating wear added 10.5 lump repairs per world in t and 13.5 in
+      p (6/6 each).
+    - Mean workshop condition at the end fell by 0.35 in t (6/6) and 0.15 in p (5/6).
+    - The income forgone mostly bought no completion.
+  - Endings are dominated by migration (35 and 40 per world).
+- **RS2 repair projects.** Granaries recover a little, timber is the binding constraint,
+  and workshop repair is mixed.
+  - Granary condition at the end, repair against cost_only: +0.030 in t (4/6 above, 2 at
+    zero) and +0.079 in p (6/6). The same values hold against W_operate (the legacy
+    maintain request).
+  - Granary capacity at the end: no difference (0 in 12/12).
+  - Workshop condition at the end: −0.08 in t (one world −0.46, five at zero) and +0.19 in
+    p (5/6 above).
+  - Operating site-turns: −87 in t (2 worlds −358 and −230) and +128 in p (5/6 above).
+  - Coins charged: 181 per world in t and 708 in p. Timber used: 90 and 354.
+  - **Stalls:** 963 project-turns per world in t and 1,938 in p, with 99% for want of
+    timber.
+  - War damage records (repair against no_war_damage): +1.8 in t and +5.2 in p. Removing
+    them barely changes granary condition (−0.010 in t, −0.016 in p, mixed).
+  - Named repair crews are rare without RS1: 0.2 person-turns per world in t and 38 in p.
+- **RS3 veteran reintegration.** Veterans are captured in quantity, but priority changes
+  almost nothing. This is a null.
+  - Captured per world: 29 in t and 113 in p.
+  - Waiting veteran-turns: 244 in t and 848 in p, mostly with no workshop site in their
+    region.
+  - People placed, priority against record_only: +0.5 in t (one world, +3) and +0.17 in p
+    (one world, +1). Population and treasury are identical between the two modes in every
+    world.
+- **RS4 remittances.** It moves real money every turn along about 14–21% of eligible links,
+  and a sixth of it leaves the economy as fees.
+  - Credited to recipients at home, send against record_only: 926 wealth units per world
+    in t and 1,161 in p (6/6 each).
+  - **Adverse:** courier fees leaving the economy were 163 and 204 per world.
+  - The linked share of eligible sender-turns was 0.21 in t and 0.14 in p. Most eligible
+    senders had no partner left at home.
+  - Rows: 99.8% applied; a few were limited by the recipient's ceiling; none were absent.
+- **RS5 clearing protection.** Protected regions keep more forest, at a stated cost.
+  - Mean forest cover at the end, enforced against cost_only: +0.025 in t and +0.057 in p
+    (5/6 above in each stratum).
+  - Against off: +0.013 in t (3/3 split) and +0.052 in p (5/6 above).
+  - Coins charged, enforced against cost_only: 468 per world in t and 1,305 in p. This is
+    expected, because cost_only pays only while clearing is active and clearing differs
+    once protection holds cover.
+  - Cover not cleared: 5.7 in t and 17.7 in p. Adoptions: 9.5 and 29 per world.
+- **Interactions.**
+  - *Apprenticeship × repair*, against RS2_repair:
+    - qualified repair-crew turns: +2.2 in t and +0.3 in p (mostly zero);
+    - workshop condition at the end: −0.44 in t (6/6 below) and −0.32 in p (5/6 below).
+      RS1's wear outruns timber-limited repair.
+  - *Veterans × apprenticeship*: veterans enrolled +1.3 in p (3/6) and 0 in t; apprentice
+    placements recorded +2.0 in p (3/6).
+  - *Repair × budgets*:
+    - granary condition is unchanged (−0.005 in t, −0.004 in p, mixed);
+    - 1,129 (t) and 2,374 (p) project-turns per world were stalled for want of an L9
+      repairs envelope. Under the bargained budget, repairs rarely win.
+  - *Clearing × commons*, against T_commons:
+    - forest cover +0.026 in t (3/3 split) and +0.040 in p (5/6 above);
+    - timber extraction +215 in t and +1,107 in p (6/6 each), because more standing
+      forest is cut under the commons rule.
+- **ALL3 against off.**
+  - Population: +0.2 in t and +39 in p, mixed.
+  - Treasury: −545 in t and −387 in p, mixed.
+  - Every package activated in every world, except RS1 completions, which were 0 in t and
+    0.3 in p.
+
+### What this does and does not show
+
+- The mechanisms run, account exactly and behave as declared on fresh worlds.
+- In these short, bounded screens:
+  - RS2 and RS5 move their primary physical outcomes, granary condition and forest cover,
+    in the expected direction in most worlds.
+  - RS4 moves real support to kin and costs a disclosed fee.
+  - RS1 and RS3 are mostly nulls. RS1 also has a consistent adverse cost from its added
+    operating wear.
+- Nothing here qualifies any switch for default use.
+- No parameter was tuned on these worlds. The constants remain declared and uncalibrated.

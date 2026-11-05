@@ -1,0 +1,7 @@
+source a4adfde6988419d28582912675c0c57babda2071 (claude/recovery-skills; clean)
+chronicler /home/user/wt/final/src/chronicler/__init__.py (a worktree of that commit)
+native chronicler_agents 6c675042caa9e37895a3d9d813124d1fa89d5ad2557d2bd7a514e59e3e331e2a (built from c7957733; no Rust change since)
+interpreter: CPython 3.13 (native venv), PYTHONHASHSEED=0, RAYON_NUM_THREADS=1, CHRONICLER_QUIET=1
+run: 2026-11-05, 228 runs, 3 concurrent, 0 failed, 3082 s of run time = 0.86 core-hours (budget 2.0), 20 min wall, 596 MB transient
+command: python scripts/livelihoods_screens.py run OUT --sprint 3 --jobs 3
+report: python scripts/livelihoods_screens.py report OUT/metrics.jsonl --sprint 3
