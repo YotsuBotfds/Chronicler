@@ -667,6 +667,11 @@ class _Workshop(Provider):
                 stake = 0.0                                  # cost_only: funding never puts the crew to work
             elif "construction" in bill:
                 stake = work * bill["construction"] / W.CONSTRUCTION_COST
+            elif site.condition < W.OPERATE_CONDITION and "repair" not in bill:
+                # Shut for repair with the lump disabled (RS2 owns the repair):
+                # paying upkeep puts nobody to work, and RS2's own ``repairs``
+                # proposal claims that idle work (review C 2026-11-05).
+                stake = 0.0
             else:
                 stake = work
             out.append(dict(service="workshop", recipients=[site.region], site=site.site,

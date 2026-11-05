@@ -126,6 +126,9 @@ PURPOSE_REPAIR_WAGE = 3
 CATEGORY_REPAIR = 3
 TUNING_WAR_DAMAGE = "repair_projects.war_damage"
 EPS = 1e-9
+#: Least work an L9 ``repairs`` proposal may promise (work units); a residue
+#: below it is no proposal (review C: 1 coin was asked for about 3e-8 work).
+MIN_PROPOSAL_WORK = 1e-3
 #: Remaining work below this is delivered (the f32 resolution of native work requests).
 DONE = 1e-6
 
@@ -323,6 +326,19 @@ def _diverted(world, site) -> float:
     return float(diverted(int(city.rank) if city is not None else 1))
 
 
+def _timber_workers(remaining: float, available: float, per: float) -> int:
+    """Named repairers whose whole turn of work the region's free timber
+    supports (``available`` work units), or every worker the project's
+    ``remaining`` work needs when the timber covers all of it. A residue too
+    small for one worker's turn hires and pays nobody (review C 2026-11-05: a
+    1e-8 timber stock reserved and paid a full wage for 1e-8 work)."""
+    if remaining <= DONE or per <= 0:
+        return 0
+    if available + EPS >= remaining:
+        return math.ceil(remaining / per - EPS)
+    return max(0, math.floor(available / per + EPS))
+
+
 def _wage(share: float) -> int:
     return math.floor(share * WAGE_PER_WORK + 0.5)
 
@@ -489,7 +505,18 @@ def before_crews(world, sim, requests: list, acc=None) -> None:
     commitments = _commitments(world, sim)
     turn = world.turn
     held = {aid for aid, _cat, _f in sim.work_reservations(turn)}
+    if _lane_active(world, "apprenticeship"):
+        # The mentors RS1 seated apprentices on are not taken to repair.
+        from chronicler.apprenticeship import seated_mentors
+        held |= seated_mentors(world)
     priority, qualified, veterans = _priority(world, [sites[p.asset].region for p in projects])
+    # Veterans on a crew are reported to RS3 by open record (both RS3 modes),
+    # not only those its priority list offered (review C 2026-11-05).
+    if _lane_active(world, "veteran_reintegration"):
+        from chronicler.veteran_reintegration import open_record_ids
+        open_veterans = open_record_ids(world)
+    else:
+        open_veterans = frozenset()
     asks = [(sites[p.asset].site, sites[p.asset].region, sites[p.asset].settlement_id,
              float(_diverted(world, sites[p.asset])), 8) for p in projects]
     if priority:
@@ -511,8 +538,7 @@ def before_crews(world, sim, requests: list, acc=None) -> None:
         free = _free_timber(world, site.region, commitments, t.holds.get(site.region, 0.0))
         limits = {
             "no_labor": len(candidates),
-            "no_timber": math.ceil(min(remaining, free / WORKSHOP_TIMBER_PER_WORK) / per - EPS)
-            if free > EPS else 0,
+            "no_timber": _timber_workers(remaining, free / WORKSHOP_TIMBER_PER_WORK, per),
             "no_coins": max(0, budgets[payer] * MILLI - milli[payer]) // wage if wage > 0 else MAX_CREW,
         }
         env = _envelope(world, payer)
@@ -525,7 +551,7 @@ def before_crews(world, sim, requests: list, acc=None) -> None:
             w.reasons.append("unqualified")
         w.rate, w.share, w.wage = rate, d, wage
         w.qualified = [a for a in candidates[:n] if a in qualified]
-        w.veterans = [a for a in candidates[:n] if a in veterans]
+        w.veterans = [a for a in candidates[:n] if a in open_veterans]
         if n <= 0:
             continue
         crew = candidates[:n]
@@ -539,11 +565,13 @@ def before_crews(world, sim, requests: list, acc=None) -> None:
         milli[payer] += w.planned_milli
 
 
-def granary_seized(world, region) -> None:
+def granary_seized(world, region, taken: float) -> None:
     """``war.occupation._requisition`` hook: an occupying or besieging army
-    seized grain from the region's granary (no-op unless active)."""
+    seized ``taken`` (> 0) grain from the region's granary (no-op unless
+    active). Review C 2026-11-05: a requisition that took nothing (an empty
+    granary) is not a seizure and records no damage."""
     state = _state(world)
-    if state is None or not repair_projects_active(world):
+    if state is None or not repair_projects_active(world) or not taken > 0:
         return
     rid = _region_index(world, region)
     if rid is None:
@@ -1174,7 +1202,7 @@ def budget_proposal(world, civ: int, obs) -> list[dict]:
         if p.kind == "granary":
             asset = storage.assets[p.asset]
             amount = min(per_turn, remaining, free / timber_rate)
-            if amount <= EPS or asset.capacity <= 0:
+            if amount < MIN_PROPOSAL_WORK or asset.capacity <= 0:
                 continue
             milli += _coin_milli(amount)
             gain = amount / per_condition
@@ -1188,10 +1216,11 @@ def budget_proposal(world, civ: int, obs) -> list[dict]:
             site = _sites(world)[p.asset]
             d = _diverted(world, site)
             per = d * UNQUALIFIED_RATE
-            amount = min(MAX_CREW * per, remaining, free / WORKSHOP_TIMBER_PER_WORK)
-            if amount <= EPS:
+            n = min(MAX_CREW, _timber_workers(remaining, free / WORKSHOP_TIMBER_PER_WORK, per))
+            amount = min(n * per, remaining)
+            if n <= 0 or amount < MIN_PROPOSAL_WORK:
                 continue
-            milli += math.ceil(amount / per - EPS) * _wage(d)
+            milli += n * _wage(d)
             receipt = frame.get(site.site)
             if receipt is not None and cond < OPERATE_CONDITION:
                 idle = max(0.0, float(receipt.work_available) - float(receipt.allocated))
@@ -1201,7 +1230,7 @@ def budget_proposal(world, civ: int, obs) -> list[dict]:
         work += amount
         regions.add(p.region)
     cost = -(-milli // MILLI)
-    if cost < 1 or work <= EPS:
+    if cost < 1 or work < MIN_PROPOSAL_WORK:
         return []
     relief = {}
     if commons > EPS:
@@ -1228,7 +1257,9 @@ def budget_settlement(world, c, obs) -> dict:
     if row is None or not mine:
         return {"outcome": "deferred", "reason": "recipient_lost", "spent": 0, "delivered": 0.0, "ratio": 0.0}
     spent, delivered = int(row.charged), float(row.work_delivered)
-    ratio = min(1.0, delivered / c.expected) if c.expected > EPS else 1.0
+    # Nothing expected is never kept by default (review C: a 0-work envelope
+    # read as ratio 1.0).
+    ratio = min(1.0, delivered / c.expected) if c.expected > EPS else 0.0
     done = all(r.remaining_after <= DONE for r in mine)
     detail = {"projects": len(mine), "charged": spent, "prepaid_after_milli": row.prepaid_after_milli}
     if ratio >= KEPT_RATIO or spent >= KEPT_RATIO * c.amount or done:

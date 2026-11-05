@@ -181,7 +181,7 @@ War damage is recorded only at existing real events. There is no new combat.
 | --- | --- | --- |
 | Region conquest | `action_engine.apply_region_conquest` | the region's granary and workshop site |
 | City sack (a real plunder, after the cooldown) | `cities._sack` | the city's workshop site and its region's granary |
-| Granary seizure by an occupying or besieging army | `war.occupation._requisition` (start of occupation, every siege turn) | the granary |
+| Granary seizure by an occupying or besieging army | `war.occupation._requisition` (start of occupation, every siege turn), only when `seize_granary` actually took grain | the granary |
 
 - Each hook is guarded by `world.livelihoods` and is a no-op unless RS2 is
   active. `grain_reserves.seize_granary` is not edited, so a conquest (which
@@ -270,11 +270,37 @@ These fields are copied completed-turn observations, dated by `source_turn`:
 - `suspended` (the regions whose storage request was suspended), `prepaid`,
   `counters` and `parameters`.
 
-Each receipt names its project, asset, cause, scope, status, reasons, crew,
-qualified and veteran members, share and rate, timber, wages, coins,
-envelope, condition before and after, the remaining scope and the income
-withheld. The strict viewer reader is `viewer/src/lib/repairProjects.ts`. The
-panel `viewer/src/components/systems/RepairProjects.tsx` is not mounted.
+Each receipt names its project, kind, asset, region, payer, status, reasons,
+crew, qualified and veteran members (veterans by open RS3 record), share and
+rate, timber held, used and returned, wages, coins, envelope, condition before
+and after, the remaining scope and the income withheld; a project's cause and
+scope are on the project record. The strict viewer reader is
+`viewer/src/lib/repairProjects.ts`; the panel
+`viewer/src/components/systems/RepairProjects.tsx` is mounted in the
+Livelihoods tab.
+
+## Review corrections (2026-11-05)
+
+An independent review of the integrated branch found these, each fixed with a
+regression test that fails on the previous code:
+
+- **Seizure without grain.** Every siege turn damaged the granary even when
+  nothing was seized (an empty granary went from 1.0 to 0.0 in four turns);
+  seizure damage now needs `seize_granary` to have taken grain.
+- **Timber residue.** A ~1e-8 timber stock reserved and paid a full wage for
+  ~1e-8 work. A repairer is hired only for a whole turn of work the free timber
+  supports, or for all of a project's remaining work (`_timber_workers`); an
+  L9 proposal must promise at least `MIN_PROPOSAL_WORK` (0.001), and an
+  envelope that expected nothing never settles as kept.
+- **Veteran placements.** Repairers holding an open RS3 record are noted
+  `placed:repair` in both RS3 modes (`veteran_reintegration.open_record_ids`),
+  not only those the priority list offered.
+- **Shut sites under L9.** A built site below `OPERATE_CONDITION` whose lump
+  repair RS2 owns puts nobody to work by paying upkeep, so L9's workshop
+  proposal for it claims no crew work (stake 0); RS2's `repairs` proposal
+  alone claims that idle work.
+- **Mentors.** Mentors RS1 seated apprentices on this turn
+  (`apprenticeship.seated_mentors`) are left off repair crews.
 
 ## Files and seams
 
@@ -478,7 +504,8 @@ site later closed.
   to workshop repair only, because the storage channel has no identities.
 - With L9, workshop projects above `OPERATE_CONDITION` relieve no
   constituency (no crew work is idle), so they rarely receive an envelope.
-- `livelihoods_resume_conflicts` (lead-owned) does not list `repair_mode`
-  among the checked choices.
+- The prepaid sub-unit remainder (under one coin per civ) is written off when
+  a civ has no repair costs left (no regions) or the switch is turned off: a
+  disclosed sink that closes exactly, not a refund.
 - Infrastructure repair, other assets and any new combat generator are out of
   scope. Nothing here was run on held seeds or through the 200-seed gate.

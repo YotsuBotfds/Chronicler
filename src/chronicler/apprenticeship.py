@@ -335,6 +335,23 @@ def qualified_ids(world, region: int) -> list[int]:
     return sorted(q.agent_id for q in state.qualifications if q.seen_region == region)
 
 
+def seated_mentors(world) -> frozenset[int]:
+    """This turn's predicted mentors that seated apprentices rely on: per site,
+    the first ``ceil(seats / PER_MENTOR)`` of its predicted mentors (empty
+    before ``before_crews`` or while inactive). RS2 leaves them off its repair
+    crews, so a mentor counted on to teach is not taken away to repair after
+    the seats were reserved (review C 2026-11-05)."""
+    state = _state(world)
+    p = getattr(state, "_pending", None) if state is not None else None
+    if p is None or p.turn != world.turn:
+        return frozenset()
+    out: set[int] = set()
+    for st in p.sites.values():
+        if st.seats:
+            out.update(st.mentors_pred[:math.ceil(len(st.seats) / PER_MENTOR)])
+    return frozenset(out)
+
+
 def crew_priority_ids(world) -> list[int]:
     """This turn's living qualified ids, ascending: the crew planner lists them
     first (``workshops._crew_priority``). Requires :func:`before_crews`."""

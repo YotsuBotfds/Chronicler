@@ -284,3 +284,37 @@ def test_rebuilt_pool_clears_saved_crews():
         assert b.livelihoods.repair_projects.projects[0].last_crew == [1, 2]
     finally:
         bridge.close()
+
+
+def test_repair_crews_never_take_a_mentor_seated_apprentices_rely_on(tmp_path, monkeypatch):
+    """Review C 2026-11-05 (minor): RS2's seam ran after RS1 had seated
+    apprentices on predicted mentors and could reserve such a mentor for
+    repair, so the apprentices missed the turn (no_mentor) and the site lost its
+    upkeep offset (procedural 32x10 seed 43, turn 48 site 1). With both real
+    packages, no repair crew holds a mentor the turn's seats rely on."""
+    from chronicler import apprenticeship as A
+    from chronicler import repair_projects as RP
+    from chronicler.main import _build_parser, execute_run
+    seen = {"turns_with_seats": 0, "turns_with_crews": 0, "overlap": []}
+    module = RP
+    original = module.before_crews
+
+    def checked(world, sim, requests, acc):
+        mentors = A.seated_mentors(world)
+        result = original(world, sim, requests, acc)
+        t = module._state(world)._turn
+        crews = {a for w in (t.work.values() if t is not None else []) for a in (getattr(w, "crew", None) or [])}
+        seen["turns_with_seats"] += bool(mentors)
+        seen["turns_with_crews"] += bool(crews)
+        if mentors & crews:
+            seen["overlap"].append((world.turn, sorted(mentors & crews)))
+        return result
+
+    monkeypatch.setattr(module, "before_crews", checked)
+    execute_run(_build_parser().parse_args([
+        "--seed", "43", "--turns", "60", "--worldgen", "procedural", "--civs", "10", "--regions", "32",
+        "--agents", "hybrid", "--simulate-only", "--workshops", "--grain-reserves", "--grain-storage",
+        "--apprenticeship", "--repair-projects", "--veteran-reintegration",
+        "--output", str(tmp_path / "chronicle.md"), "--state", str(tmp_path / "state.json")]))
+    assert seen["turns_with_seats"] > 0 and seen["turns_with_crews"] > 0, seen
+    assert seen["overlap"] == []

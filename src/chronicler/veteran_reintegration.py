@@ -643,6 +643,16 @@ def snapshot_summary(world) -> dict:
 # Cross-lane API
 # ---------------------------------------------------------------------------
 
+def open_record_ids(world) -> frozenset[int]:
+    """Stable ids holding an open veteran record (eligible or not), whom other
+    packages report placements for (``note_outcome``); empty while inactive.
+    Unlike :func:`priority_ids` it is the same in ``record_only``."""
+    state = _state(world)
+    if state is None or not veteran_reintegration_active(world):
+        return frozenset()
+    return frozenset(r.agent_id for r in state.records if r.status != "closed")
+
+
 def priority_ids(world, region: int) -> list[int]:
     """Stable ids of eligible veterans resident in ``region`` (an index in
     ``world.regions``), earliest release first, then id; ``[]`` in the

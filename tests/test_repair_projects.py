@@ -390,6 +390,30 @@ def test_workshop_crew_is_reserved_paid_by_id_and_never_also_crew():
     assert "repair" not in receipt.paid and receipt.allocated == 0.0
 
 
+@pytest.mark.parametrize("residue", ["1e-8 timber", "half a worker-turn"])
+def test_a_timber_residue_too_small_for_one_turn_hires_nobody(residue):
+    """Review C 2026-11-05 (major): a 1e-8 timber stock passed the EPS check, so
+    a named repairer was reserved, paid a full wage and taken off the L1 crew
+    for 1e-8 work. A worker is hired only for a whole turn the timber supports
+    (or the project's whole remaining work)."""
+    d = 1.0 - 0.8
+    per = d * RP.UNQUALIFIED_RATE
+    timber = 1e-8 if residue == "1e-8 timber" else 0.5 * per * RP.WORKSHOP_TIMBER_PER_WORK
+    world = _world(granary=1.0, site=0.4, timber=timber)
+    _open(world)
+    sim = _Sim(_people())
+    _turn(world, sim)
+    r = _state(world).receipts[0]
+    assert r.crew == [] and "no_timber" in r.reasons and r.wages_milli == 0
+    assert not sim.transfers and r.delivered == 0.0
+    # Nobody was taken off the L1 crew for it.
+    crew = world.livelihoods.workshops.frame[0].crew
+    assert crew == sorted(crew) and crew[0] == 100
+    # The L9 proposal asks for nothing it cannot deliver (no granary needs work here).
+    obs = SimpleNamespace(economy=object(), turn=world.turn, held={})
+    assert RP.budget_proposal(world, 0, obs) == []
+
+
 def test_qualified_people_and_veterans_come_first_and_veterans_are_noted(monkeypatch):
     world = _world(granary=1.0, site=0.4)
     A.set_apprenticeship_enabled(world, True, args=None)
@@ -408,6 +432,7 @@ def test_qualified_people_and_veterans_come_first_and_veterans_are_noted(monkeyp
                 monkeypatch.delattr(module, hook)
     monkeypatch.setattr(A, "qualified_ids", lambda w, region: [104, 105] if region == 1 else [])
     monkeypatch.setattr(VR, "priority_ids", lambda w, region: [103, 105] if region == 1 else [])
+    monkeypatch.setattr(VR, "open_record_ids", lambda w: frozenset({103, 105}))
     noted = []
     monkeypatch.setattr(VR, "note_outcome", lambda w, aid, kind, *, turn, detail=None: noted.append((aid, kind, turn)))
     _open(world)
@@ -419,6 +444,46 @@ def test_qualified_people_and_veterans_come_first_and_veterans_are_noted(monkeyp
     assert r.crew[:3] == [105, 104, 103] and r.rate == 1.0 and "unqualified" not in r.reasons
     assert r.qualified == [105, 104] and r.veterans == [105, 103]
     assert noted == [(105, "placed:repair", 5), (103, "placed:repair", 5)]
+
+
+def test_a_veteran_on_a_repair_crew_is_noted_although_priority_offered_nobody(monkeypatch):
+    """Review C 2026-11-05 (major): veterans were noted only from priority_ids,
+    which is empty in RS3's record_only control (and for ineligible open
+    records), so the control never recorded placed:repair. Every crew member
+    holding an open veteran record is noted, in either mode."""
+    world = _world(granary=1.0, site=0.4)
+    VR.set_veteran_reintegration_enabled(world, True, args=None)
+    for module in (VR,):
+        for hook in ("prepare_phase2", "finish_phase2", "rollback_phase2", "rollback_agent_tick", "phase10",
+                     "on_pool_reset"):
+            if hasattr(module, hook):
+                monkeypatch.delattr(module, hook)
+    monkeypatch.setattr(VR, "priority_ids", lambda w, region: [])            # record_only: nobody offered
+    monkeypatch.setattr(VR, "open_record_ids", lambda w: frozenset({101}))
+    noted = []
+    monkeypatch.setattr(VR, "note_outcome", lambda w, aid, kind, *, turn, detail=None: noted.append((aid, kind)))
+    _open(world)
+    _turn(world, _Sim(_people()))
+    r = _state(world).receipts[0]
+    assert 101 in r.crew and r.veterans == [101]
+    assert noted == [(101, "placed:repair")] and _state(world).counters["veterans_placed"] == 1
+
+
+def test_l9_promises_no_crew_work_at_a_site_shut_for_repair():
+    """Review C 2026-11-05 (major): with RS2 owning repair, a built site below
+    the operating condition is billed upkeep only and puts nobody to work, yet
+    L9's workshop proposal still claimed its whole crew work as patrician relief
+    (settled kept with nothing delivered, and RS2's repairs proposal claimed the
+    same idle work). Its stake is now zero, as in cost-only mode."""
+    from chronicler.local_budgets import _Workshop
+    world = _world(granary=1.0, site=0.4)
+    _open(world)
+    _turn(world, _Sim(_people()))
+    ws = world.livelihoods.workshops
+    receipt = ws.frame[0]
+    assert receipt.work_available > 0 and receipt.allocated == 0      # crew present, shut for repair
+    (prop,) = _Workshop().proposals(world, 0, SimpleNamespace(turn=ws.frame_turn))
+    assert prop["cost"] == W.UPKEEP and prop["expected"] == 0.0 and prop["relief"] == {"patricians": 0.0}
 
 
 def test_cost_only_reserves_pays_and_uses_timber_identically_without_condition():
@@ -593,25 +658,41 @@ def test_seizure_damages_the_granary_with_the_occupation_war():
     world.war_state.wars.append(WarRecord(war_key="A:B", attacker="A", defender="B", start_turn=2))
     world.war_state.occupations.append(Occupation(region=region.name, owner="B", occupier="A",
                                                   war_key="A:B", since_turn=4))
-    RP.granary_seized(world, region)
+    RP.granary_seized(world, region, 1.0)
     (d,) = _state(world).damages
     assert (d.kind, d.asset, d.event, d.war_key, d.war_start_turn) == ("granary", 2, "seizure", "A:B", 2)
+
+
+def test_a_requisition_that_takes_no_grain_is_no_seizure():
+    """Review C 2026-11-05 (major): every siege turn damaged the granary even
+    when it held no grain (four turns took an empty granary from 1.0 to 0.0).
+    Only a requisition that actually takes grain records seizure damage."""
+    from chronicler.war.occupation import _requisition
+    world = _world(granary=1.0)
+    granaries, assets = world.grain_reserves.granaries, world.grain_reserves.storage.assets
+    granaries[0].grain = 0.0
+    for _ in range(4):
+        _requisition(world.regions[0], 0.75, world)
+    assert _state(world).damages == [] and assets[0].condition == 1.0
+    _requisition(world.regions[1], 0.75, world)                    # 20 grain: 5 taken
+    (d,) = _state(world).damages
+    assert (d.asset, d.event) == (1, "seizure") and assets[1].condition == pytest.approx(1.0 - RP.WAR_DAMAGE)
 
 
 def test_the_ablation_key_scales_or_disables_damage_and_inactive_is_a_no_op():
     world = _world(granary=1.0)
     world.tuning_overrides = {RP.TUNING_WAR_DAMAGE: 0.0}
-    RP.granary_seized(world, world.regions[0])
+    RP.granary_seized(world, world.regions[0], 1.0)
     assert _state(world).damages == [] and world.grain_reserves.storage.assets[0].condition == 1.0
     world.tuning_overrides = {RP.TUNING_WAR_DAMAGE: 2.0}
-    RP.granary_seized(world, world.regions[0])
+    RP.granary_seized(world, world.regions[0], 1.0)
     assert world.grain_reserves.storage.assets[0].condition == pytest.approx(0.5)
     world.tuning_overrides = {RP.TUNING_WAR_DAMAGE: -1.0}
     with pytest.raises(ValueError):
-        RP.granary_seized(world, world.regions[1])
+        RP.granary_seized(world, world.regions[1], 1.0)
     world.tuning_overrides = {}
     RP.set_repair_projects_enabled(world, False, args=None)
-    RP.granary_seized(world, world.regions[1])
+    RP.granary_seized(world, world.regions[1], 1.0)
     assert world.grain_reserves.storage.assets[1].condition == 1.0
 
 
