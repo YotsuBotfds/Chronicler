@@ -1,0 +1,155 @@
+{
+  "schema_version": 1,
+  "layer": "rs5",
+  "parent": "82d0f2b2707e5921cfebc63acfc7fac5d8bc4e41",
+  "files": {
+    "chronicler-agents/src/ecology.rs": {
+      "sha256": "765585286797f1bae5058938337cb579ea0dd9922c5ee2112ff1f0d01e399064",
+      "current_sha256": "c7b94699bba3b38511d2f06fd581d640594d944b97ee769a921763e380c658a4",
+      "patches": [
+        {
+          "old": "    /// capacity before this tick's soil change); 0 without output. The\n    /// mines' soil charge is `proxy_mine_soil` times this ratio.\n    pub mine_crew_ratio: f32,\n}\n\n/// Relative shortfall below the base yield that counts as degradation (the\n",
+          "new": "    /// capacity before this tick's soil change); 0 without output. The\n    /// mines' soil charge is `proxy_mine_soil` times this ratio.\n    pub mine_crew_ratio: f32,\n    /// Clearing protection (RS5): the region's batch carried a\n    /// `clearing_protection` value this tick (`RegionState::clearing_protection`\n    /// was `Some`). Only then are the two receipts below returned\n    /// (`ffi::batch::build_ecology_batches`).\n    pub protection_input: bool,\n    /// Population-driven clearing fired this tick: a controlled region whose\n    /// population was above `forest_pop_ratio` of its carrying capacity.\n    pub clearing_active: bool,\n    /// Forest cover the protection kept from that clearing this tick:\n    /// `forest_clearing x p` (nominal, before the tick's clamp); 0 when the\n    /// clearing did not fire or p is 0.\n    pub cover_not_cleared: f32,\n}\n\n/// Relative shortfall below the base yield that counts as degradation (the\n"
+        },
+        {
+          "old": "    }\n}\n\nfn tick_forest_controlled(\n    region: &mut RegionState,\n    config: &EcologyConfig,\n    climate_phase: u8,\n) {\n    let pop_threshold = region.carrying_capacity as f32 * config.forest_pop_ratio;\n\n    if region.population as f32 > pop_threshold {\n        region.forest_cover -= config.forest_clearing;\n    }\n\n    if climate_phase == CLIMATE_COOLING {\n",
+          "new": "    }\n}\n\n/// The controlled forest step without a protection column (unit tests).\n#[cfg(test)]\nfn tick_forest_controlled(\n    region: &mut RegionState,\n    config: &EcologyConfig,\n    climate_phase: u8,\n) {\n    tick_forest_controlled_protected(region, config, climate_phase, None);\n}\n\n/// Clearing receipt of one controlled forest step: (clearing fired, cover\n/// the protection kept from it).\n#[derive(Clone, Copy, Debug, Default, PartialEq)]\npub struct ClearingReceipt {\n    pub active: bool,\n    pub cover_not_cleared: f32,\n}\n\n/// [`tick_forest_controlled`] under a clearing protection p in [0, 1]\n/// (RS5, `--clearing-protection`): the authoritative clearing decision\n/// removes `forest_clearing x (1 - p)` instead of `forest_clearing`. `None`\n/// (no column) is the unchanged flat loss, bit for bit. Cooling and regrowth\n/// are untouched: regrowth stays blocked while the population is above the\n/// threshold, so a full protection freezes cover against clearing; it never\n/// restores cover.\npub fn tick_forest_controlled_protected(\n    region: &mut RegionState,\n    config: &EcologyConfig,\n    climate_phase: u8,\n    protection: Option<f32>,\n) -> ClearingReceipt {\n    let pop_threshold = region.carrying_capacity as f32 * config.forest_pop_ratio;\n    let mut receipt = ClearingReceipt::default();\n\n    if region.population as f32 > pop_threshold {\n        receipt.active = true;\n        match protection {\n            None => region.forest_cover -= config.forest_clearing,\n            Some(p) => {\n                region.forest_cover -= config.forest_clearing * (1.0 - p);\n                receipt.cover_not_cleared = config.forest_clearing * p;\n            }\n        }\n    }\n\n    if climate_phase == CLIMATE_COOLING {\n"
+        },
+        {
+          "old": "        let rate = config.forest_regrowth * pressure_multiplier(region, config);\n        region.forest_cover += rate;\n    }\n}\n\nfn tick_forest_uncontrolled(\n",
+          "new": "        let rate = config.forest_regrowth * pressure_multiplier(region, config);\n        region.forest_cover += rate;\n    }\n    receipt\n}\n\nfn tick_forest_uncontrolled(\n"
+        },
+        {
+          "old": "        let controlled = region.controller_civ != UNCONTROLLED;\n        let ledger = &mut ledgers[i];\n        ledger.realized = region.realized_extraction.is_some();\n\n        // Step 1: Disease (both controlled and uncontrolled)\n        tick_disease(region, config, pandemic, army, season_id);\n",
+          "new": "        let controlled = region.controller_civ != UNCONTROLLED;\n        let ledger = &mut ledgers[i];\n        ledger.realized = region.realized_extraction.is_some();\n        // RS5: the batch's clearing protection is consumed by this tick.\n        let protection = region.clearing_protection.take();\n        ledger.protection_input = protection.is_some();\n\n        // Step 1: Disease (both controlled and uncontrolled)\n        tick_disease(region, config, pandemic, army, season_id);\n"
+        },
+        {
+          "old": "            // Step 3: Soil/water/forest (controlled path)\n            tick_soil_controlled_ledger(region, config, soil_mult, ledger);\n            tick_water_controlled(region, config, climate_phase);\n            tick_forest_controlled(region, config, climate_phase);\n        } else {\n            // Step 3: Soil/water/forest (uncontrolled — natural recovery only)\n            tick_soil_uncontrolled(region, config);\n",
+          "new": "            // Step 3: Soil/water/forest (controlled path)\n            tick_soil_controlled_ledger(region, config, soil_mult, ledger);\n            tick_water_controlled(region, config, climate_phase);\n            let clearing = tick_forest_controlled_protected(region, config, climate_phase, protection);\n            ledger.clearing_active = clearing.active;\n            ledger.cover_not_cleared = clearing.cover_not_cleared;\n        } else {\n            // Step 3: Soil/water/forest (uncontrolled — natural recovery only)\n            tick_soil_uncontrolled(region, config);\n"
+        }
+      ]
+    },
+    "chronicler-agents/src/ffi/batch.rs": {
+      "sha256": "6b15f240533113c7ab85c116aed933bf72f2e6461aa6925f6cb573f8d73af78f",
+      "current_sha256": "7e40546c818e4d67f3ed4da7ff98905289025bcf30098d9fdf73cb8e3aa5fd36",
+      "patches": [
+        {
+          "old": "        y2.append_value(ys[2]);\n    }\n\n    let region_batch = RecordBatch::try_new(\n        Arc::new(ecology_region_schema()),\n        vec![\n            Arc::new(region_ids.finish()) as _,\n            Arc::new(soils.finish()) as _,\n",
+          "new": "        y2.append_value(ys[2]);\n    }\n\n    // RS5: the clearing receipts are returned only when the input batch\n    // carried a `clearing_protection` column (the switch on), so a run\n    // without it keeps the exact schema of `ecology_region_schema`.\n    let protected = ledgers.iter().any(|l| l.protection_input);\n    let schema = if protected {\n        let mut fields: Vec<arrow::datatypes::Field> =\n            ecology_region_schema().fields().iter().map(|f| f.as_ref().clone()).collect();\n        fields.extend(clearing_receipt_fields());\n        arrow::datatypes::Schema::new(fields)\n    } else {\n        ecology_region_schema()\n    };\n    let region_batch = RecordBatch::try_new(\n        Arc::new(schema),\n        vec![\n            Arc::new(region_ids.finish()) as _,\n            Arc::new(soils.finish()) as _,\n"
+        },
+        {
+          "old": "        ]\n        .into_iter()\n        .chain(ecology_ledger_columns(n, ledgers))\n        .collect(),\n    )?;\n\n",
+          "new": "        ]\n        .into_iter()\n        .chain(ecology_ledger_columns(n, ledgers))\n        .chain(if protected { clearing_receipt_columns(n, ledgers) } else { Vec::new() })\n        .collect(),\n    )?;\n\n"
+        },
+        {
+          "old": "        columns.push(Arc::new(builder.finish()));\n    }\n    columns\n}\n\n/// Parse a post-pass patch batch and apply it to regions.\n",
+          "new": "        columns.push(Arc::new(builder.finish()));\n    }\n    columns\n}\n\n/// RS5 clearing receipts appended to the ecology region batch when the\n/// input carried `clearing_protection`: whether population-driven clearing\n/// fired and the cover the protection kept from it (`ExtractionLedger`).\npub(crate) fn clearing_receipt_fields() -> Vec<arrow::datatypes::Field> {\n    use arrow::datatypes::{DataType, Field};\n    vec![\n        Field::new(\"clearing_active\", DataType::Boolean, false),\n        Field::new(\"cover_not_cleared\", DataType::Float32, false),\n    ]\n}\n\nfn clearing_receipt_columns(\n    n: usize,\n    ledgers: &[crate::ecology::ExtractionLedger],\n) -> Vec<Arc<dyn arrow::array::Array>> {\n    use arrow::array::{BooleanBuilder, Float32Builder};\n    let default = crate::ecology::ExtractionLedger::default();\n    let mut active = BooleanBuilder::with_capacity(n);\n    let mut kept = Float32Builder::with_capacity(n);\n    for i in 0..n {\n        let l = ledgers.get(i).unwrap_or(&default);\n        active.append_value(l.clearing_active);\n        kept.append_value(l.cover_not_cleared);\n    }\n    vec![Arc::new(active.finish()), Arc::new(kept.finish())]\n}\n\n/// RS5: the optional `clearing_protection` region-batch column (Float32,\n/// p in [0, 1], no nulls). `Ok(None)` when absent; an error for any other\n/// type, a null, a non-finite value or one outside [0, 1], so a malformed\n/// protection is refused before any region state changes.\npub(crate) fn clearing_protection_column(\n    rb: &RecordBatch,\n) -> Result<Option<&arrow::array::Float32Array>, String> {\n    use arrow::array::Array;\n    let Some(column) = rb.column_by_name(\"clearing_protection\") else {\n        return Ok(None);\n    };\n    let arr = column\n        .as_any()\n        .downcast_ref::<arrow::array::Float32Array>()\n        .ok_or_else(|| \"column clearing_protection not Float32\".to_string())?;\n    if arr.null_count() > 0 {\n        return Err(\"column clearing_protection has nulls\".to_string());\n    }\n    for i in 0..arr.len() {\n        let p = arr.value(i);\n        if !p.is_finite() || !(0.0..=1.0).contains(&p) {\n            return Err(format!(\"invalid clearing protection {p} in row {i}\"));\n        }\n    }\n    Ok(Some(arr))\n}\n\n/// Parse a post-pass patch batch and apply it to regions.\n"
+        }
+      ]
+    },
+    "chronicler-agents/src/ffi/ecology_sim.rs": {
+      "sha256": "9763e499e344aee23a96ea694e41d7a94dfbf8d743eb98aa8c1fe8ac602d1fbd",
+      "current_sha256": "94f1296f28765ea9c28f80d4a3f7384415fd5a79104d20cf5a9b5d970e7520a9",
+      "patches": [
+        {
+          "old": "        let harvest_shock_col = rb\n            .column_by_name(\"harvest_shock\")\n            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());\n\n        if self.regions.is_empty() {\n            // First call: initialize regions.\n",
+          "new": "        let harvest_shock_col = rb\n            .column_by_name(\"harvest_shock\")\n            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());\n        // RS5 (`--clearing-protection`): validated before any state changes.\n        let clearing_protection_col =\n            super::batch::clearing_protection_column(&rb).map_err(PyValueError::new_err)?;\n\n        if self.regions.is_empty() {\n            // First call: initialize regions.\n"
+        },
+        {
+          "old": "                    r.temple_prestige = temple_prestige_col.map_or(0.0, |arr| arr.value(i));\n                    r.climate_exposure = climate_exposure_col.map_or(1.0, |arr| arr.value(i));\n                    r.harvest_shock = harvest_shock_col.map_or(0.0, |arr| arr.value(i));\n                    r\n                })\n                .collect();\n",
+          "new": "                    r.temple_prestige = temple_prestige_col.map_or(0.0, |arr| arr.value(i));\n                    r.climate_exposure = climate_exposure_col.map_or(1.0, |arr| arr.value(i));\n                    r.harvest_shock = harvest_shock_col.map_or(0.0, |arr| arr.value(i));\n                    r.clearing_protection = clearing_protection_col.map(|arr| arr.value(i));\n                    r\n                })\n                .collect();\n"
+        },
+        {
+          "old": "                r.temple_prestige = temple_prestige_col.map_or(0.0, |arr| arr.value(i));\n                r.climate_exposure = climate_exposure_col.map_or(1.0, |arr| arr.value(i));\n                r.harvest_shock = harvest_shock_col.map_or(0.0, |arr| arr.value(i));\n            }\n        }\n        Ok(())\n",
+          "new": "                r.temple_prestige = temple_prestige_col.map_or(0.0, |arr| arr.value(i));\n                r.climate_exposure = climate_exposure_col.map_or(1.0, |arr| arr.value(i));\n                r.harvest_shock = harvest_shock_col.map_or(0.0, |arr| arr.value(i));\n                r.clearing_protection = clearing_protection_col.map(|arr| arr.value(i));\n            }\n        }\n        Ok(())\n"
+        }
+      ]
+    },
+    "chronicler-agents/src/ffi/mod.rs": {
+      "sha256": "576c249a25aa39b65340f92b90ccc31a197f71101be787c5b1cd5e2df7feec97",
+      "current_sha256": "180bfd77a67cfbe316170da98a44eec422b3c42d7abed42ff4af6585bf31358f",
+      "patches": [
+        {
+          "old": "        let harvest_shock_col = rb\n            .column_by_name(\"harvest_shock\")\n            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());\n\n        // M54a: Ecology schema columns\n        let disease_baseline_col = rb\n",
+          "new": "        let harvest_shock_col = rb\n            .column_by_name(\"harvest_shock\")\n            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());\n        // RS5 (`--clearing-protection`): validated here, before any mutation.\n        let clearing_protection_col =\n            batch::clearing_protection_column(&rb).map_err(PyValueError::new_err)?;\n\n        // M54a: Ecology schema columns\n        let disease_baseline_col = rb\n"
+        },
+        {
+          "old": "                    temple_prestige: temple_prestige_col.map_or(0.0, |arr| arr.value(i)),\n                    climate_exposure: climate_exposure_col.map_or(1.0, |arr| arr.value(i)),\n                    harvest_shock: harvest_shock_col.map_or(0.0, |arr| arr.value(i)),\n                    city_pull: city_pull_col.map_or(0.0, |arr| arr.value(i)),\n                    seat_pull: seat_pull_col.map_or(0.0, |arr| arr.value(i)),\n                    seat_flight: seat_flight_col.map_or(false, |arr| arr.value(i)),\n",
+          "new": "                    temple_prestige: temple_prestige_col.map_or(0.0, |arr| arr.value(i)),\n                    climate_exposure: climate_exposure_col.map_or(1.0, |arr| arr.value(i)),\n                    harvest_shock: harvest_shock_col.map_or(0.0, |arr| arr.value(i)),\n                    clearing_protection: clearing_protection_col.map(|arr| arr.value(i)),\n                    city_pull: city_pull_col.map_or(0.0, |arr| arr.value(i)),\n                    seat_pull: seat_pull_col.map_or(0.0, |arr| arr.value(i)),\n                    seat_flight: seat_flight_col.map_or(false, |arr| arr.value(i)),\n"
+        },
+        {
+          "old": "                r.temple_prestige = temple_prestige_col.map_or(0.0, |arr| arr.value(i));\n                r.climate_exposure = climate_exposure_col.map_or(1.0, |arr| arr.value(i));\n                r.harvest_shock = harvest_shock_col.map_or(0.0, |arr| arr.value(i));\n                r.city_pull = city_pull_col.map_or(0.0, |arr| arr.value(i));\n                r.seat_pull = seat_pull_col.map_or(0.0, |arr| arr.value(i));\n                r.seat_flight = seat_flight_col.map_or(false, |arr| arr.value(i));\n",
+          "new": "                r.temple_prestige = temple_prestige_col.map_or(0.0, |arr| arr.value(i));\n                r.climate_exposure = climate_exposure_col.map_or(1.0, |arr| arr.value(i));\n                r.harvest_shock = harvest_shock_col.map_or(0.0, |arr| arr.value(i));\n                r.clearing_protection = clearing_protection_col.map(|arr| arr.value(i));\n                r.city_pull = city_pull_col.map_or(0.0, |arr| arr.value(i));\n                r.seat_pull = seat_pull_col.map_or(0.0, |arr| arr.value(i));\n                r.seat_flight = seat_flight_col.map_or(false, |arr| arr.value(i));\n"
+        }
+      ]
+    },
+    "chronicler-agents/src/region.rs": {
+      "sha256": "2dd02f481616874709899224aebe25630b17cb0727fa1176e14a87f6ef453941",
+      "current_sha256": "e3db1df3f3072d18afa2fc5484e81f1c8756f7ea87254f698612ab7316493866",
+      "patches": [
+        {
+          "old": "    /// cap. 0 when the batch carries no `creditor_grievance` column (the\n    /// switch off).\n    pub creditor_grievance: f32,\n}\n\n/// Decode a legacy u32 bitmask into the ascending id list it denotes.\n",
+          "new": "    /// cap. 0 when the batch carries no `creditor_grievance` column (the\n    /// switch off).\n    pub creditor_grievance: f32,\n    /// Clearing protection (`--clearing-protection`, RS5): the share p in\n    /// [0, 1] of this turn's population-driven forest clearing that a funded\n    /// protection suspends (`ecology::tick_forest_controlled` removes\n    /// `forest_clearing x (1 - p)`). `None` when the batch carries no\n    /// `clearing_protection` column (the switch off): the clearing is the\n    /// unchanged flat loss. A transient input: every `set_region_state`\n    /// resets it from the batch, the ecology tick consumes (takes) it, and it\n    /// is never checkpointed.\n    pub clearing_protection: Option<f32>,\n}\n\n/// Decode a legacy u32 bitmask into the ascending id list it denotes.\n"
+        },
+        {
+          "old": "            harsh_rule: 0.0,\n            raided_this_turn: false,\n            creditor_grievance: 0.0,\n        }\n    }\n}\n",
+          "new": "            harsh_rule: 0.0,\n            raided_this_turn: false,\n            creditor_grievance: 0.0,\n            clearing_protection: None,\n        }\n    }\n}\n"
+        },
+        {
+          "old": "    stockpile, climate_exposure, harvest_shock, city_pull, seat_pull, seat_flight,\n    movement_news, movement_news_intensity, market_demand, market_supply, craft_sufficiency,\n    food_severe_turns, harsh_rule, raided_this_turn, creditor_grievance,\n});\n",
+          "new": "    stockpile, climate_exposure, harvest_shock, city_pull, seat_pull, seat_flight,\n    movement_news, movement_news_intensity, market_demand, market_supply, craft_sufficiency,\n    food_severe_turns, harsh_rule, raided_this_turn, creditor_grievance,\n} transient {\n    // RS5: a per-batch input consumed by the ecology tick (absent from the\n    // payload and the schema fingerprint).\n    clearing_protection,\n});\n"
+        }
+      ]
+    },
+    "src/chronicler/agent_bridge.py": {
+      "sha256": "782abcfd2eafd079a4be1b4eab91324eba3d6a73db8b508a85097286e6a0a782",
+      "current_sha256": "04c1d68862634729ef6380f2fae3b134dd7dc8abf3bfc219d27bc76d39bfdc6d",
+      "patches": [
+        {
+          "old": "        # that defaulted on them, recomputed from persisted state for every\n        # batch; without the column Rust reads 0 (no penalty).\n        columns[\"creditor_grievance\"] = pa.array(grievance, type=pa.float32())\n    return pa.record_batch(columns)\n\n\n",
+          "new": "        # that defaulted on them, recomputed from persisted state for every\n        # batch; without the column Rust reads 0 (no penalty).\n        columns[\"creditor_grievance\"] = pa.array(grievance, type=pa.float32())\n    if getattr(world, \"livelihoods\", None) is not None:\n        from chronicler.clearing_protection import pending_protection\n        protection = pending_protection(world)\n        if protection is not None:\n            # --clearing-protection (RS5): the share of this turn's\n            # population-driven clearing a funded protection suspends, only\n            # while a plan awaits the ecology tick; without the column Rust\n            # clears in full.\n            columns[\"clearing_protection\"] = pa.array(protection, type=pa.float32())\n    return pa.record_batch(columns)\n\n\n"
+        }
+      ]
+    },
+    "src/chronicler/ecology.py": {
+      "sha256": "9461e81aeebaf44da16d7a3d4028b6e335150ccdc8c20141ff43683aa0dcbac3",
+      "current_sha256": "2f204f8841d9eabd17f44955bbeb42b84235f79e9e2a433afe3af6091fcdf659",
+      "patches": [
+        {
+          "old": "        region.ecology.water += bonus\n\n\ndef _tick_forest(region: Region, civ, climate_phase: ClimatePhase, world: WorldState) -> None:\n    forest_pop_ratio = get_override(world, K_FOREST_POP_RATIO, 0.5)\n    if region.population > region.carrying_capacity * forest_pop_ratio:\n        rate = get_override(world, K_FOREST_CLEARING, 0.02)\n        region.ecology.forest_cover -= rate\n\n    if climate_phase == ClimatePhase.COOLING:\n        region.ecology.forest_cover -= (\n",
+          "new": "        region.ecology.water += bonus\n\n\ndef _tick_forest(region: Region, civ, climate_phase: ClimatePhase, world: WorldState,\n                 protection: float | None = None) -> tuple[bool, float]:\n    \"\"\"Controlled forest step; returns (clearing fired, cover kept from it).\n\n    ``protection`` (RS5 ``--clearing-protection``, p in [0, 1]) is applied at\n    the clearing decision: ``forest_clearing x (1 - p)`` is removed (native\n    ``ecology::tick_forest_controlled_protected``). None is the flat loss.\"\"\"\n    forest_pop_ratio = get_override(world, K_FOREST_POP_RATIO, 0.5)\n    active, kept = False, 0.0\n    if region.population > region.carrying_capacity * forest_pop_ratio:\n        rate = get_override(world, K_FOREST_CLEARING, 0.02)\n        active = True\n        if protection is None:\n            region.ecology.forest_cover -= rate\n        else:\n            region.ecology.forest_cover -= rate * (1.0 - protection)\n            kept = rate * protection\n\n    if climate_phase == ClimatePhase.COOLING:\n        region.ecology.forest_cover -= (\n"
+        },
+        {
+          "old": "        rate = get_override(world, K_FOREST_REGROWTH, 0.01)\n        rate *= _pressure_multiplier(region)\n        region.ecology.forest_cover += rate\n\n\ndef _apply_cross_effects(region: Region, world: \"WorldState | None\" = None) -> None:\n",
+          "new": "        rate = get_override(world, K_FOREST_REGROWTH, 0.01)\n        rate *= _pressure_multiplier(region)\n        region.ecology.forest_cover += rate\n    return active, kept\n\n\ndef _apply_cross_effects(region: Region, world: \"WorldState | None\" = None) -> None:\n"
+        },
+        {
+          "old": "    from chronicler.resources import get_season_id as _get_season_id_fn\n    current_season_id = _get_season_id_fn(world.turn)\n    m35b_events: list[Event] = []\n\n    for region in world.regions:\n        if region.controller is None:\n            continue\n        civ = next((c for c in world.civilizations if c.name == region.controller), None)\n",
+          "new": "    from chronicler.resources import get_season_id as _get_season_id_fn\n    current_season_id = _get_season_id_fn(world.turn)\n    m35b_events: list[Event] = []\n    # RS5 (--clearing-protection): this turn's protection column, if planned.\n    protection = None\n    if getattr(world, \"livelihoods\", None) is not None:\n        from chronicler.clearing_protection import pending_protection\n        protection = pending_protection(world)\n    clearing = [(False, 0.0)] * len(world.regions) if protection is not None else None\n\n    for rid, region in enumerate(world.regions):\n        if region.controller is None:\n            continue\n        civ = next((c for c in world.civilizations if c.name == region.controller), None)\n"
+        },
+        {
+          "old": "\n        _tick_soil(region, civ, climate_phase, world, degradation_mult=soil_mult)\n        _tick_water(region, civ, climate_phase, world)\n        _tick_forest(region, civ, climate_phase, world)\n        _apply_cross_effects(region, world)\n        clamp_ecology(region)\n\n        if region.famine_cooldown > 0:\n            region.famine_cooldown -= 1\n\n    # Uncontrolled regions: natural recovery + climate effects only (no civ bonuses)\n    for region in world.regions:\n",
+          "new": "\n        _tick_soil(region, civ, climate_phase, world, degradation_mult=soil_mult)\n        _tick_water(region, civ, climate_phase, world)\n        if clearing is None:\n            _tick_forest(region, civ, climate_phase, world)\n        else:\n            clearing[rid] = _tick_forest(region, civ, climate_phase, world, protection=protection[rid])\n        _apply_cross_effects(region, world)\n        clamp_ecology(region)\n\n        if region.famine_cooldown > 0:\n            region.famine_cooldown -= 1\n    if clearing is not None:\n        from chronicler.clearing_protection import record_clearing\n        record_clearing(world, clearing, \"python\")\n\n    # Uncontrolled regions: natural recovery + climate effects only (no civ bonuses)\n    for region in world.regions:\n"
+        },
+        {
+          "old": "    region_yields = _write_back_ecology(world, region_batch)\n    if ledger is not None:\n        ledger.observe_native(region_batch)\n\n    from chronicler.experimental.fisheries import apply_fishery_feedback, fishery_stock_events\n    apply_fishery_feedback(world, region_yields, economy_result)\n",
+          "new": "    region_yields = _write_back_ecology(world, region_batch)\n    if ledger is not None:\n        ledger.observe_native(region_batch)\n    if getattr(world, \"livelihoods\", None) is not None:\n        # RS5 (--clearing-protection): the native clearing receipts.\n        from chronicler.clearing_protection import observe_native as _observe_clearing\n        _observe_clearing(world, region_batch)\n\n    from chronicler.experimental.fisheries import apply_fishery_feedback, fishery_stock_events\n    apply_fishery_feedback(world, region_yields, economy_result)\n"
+        }
+      ]
+    },
+    "src/chronicler/simulation.py": {
+      "sha256": "c6f1d8657c4839ead2f062f6576ed472304f329bdeccf940c4c63d873679b12a",
+      "current_sha256": "ef2d0073c334daf0715ca3aa9f1b3fbfff841f9e84bd8d2a3ef0e3a19c635da9",
+      "patches": [
+        {
+          "old": "    from chronicler.ecology import tick_ecology\n    from chronicler.climate import get_climate_phase\n    climate_phase = get_climate_phase(world.turn, world.climate_config)\n\n    # Determine the ecology runtime for this turn.\n    # In agent modes, use the AgentSimulator via the split bridge.\n",
+          "new": "    from chronicler.ecology import tick_ecology\n    from chronicler.climate import get_climate_phase\n    climate_phase = get_climate_phase(world.turn, world.climate_config)\n    if getattr(world, \"livelihoods\", None) is not None:\n        # Livelihoods: plans against this turn's ecology (clearing protection).\n        from chronicler.livelihoods import before_ecology as _livelihoods_before_ecology\n        _livelihoods_before_ecology(world, acc=acc)\n\n    # Determine the ecology runtime for this turn.\n    # In agent modes, use the AgentSimulator via the split bridge.\n"
+        },
+        {
+          "old": "    ))\n    finish_turn_ledger(world, _resource_ledger, agent_bridge)\n    del _resource_ledger\n\n    artifacts.conquered_civ_ids = getattr(world, '_conquered_this_turn', set())\n    world._conquered_this_turn = set()  # clear immediately before bridge consumption\n",
+          "new": "    ))\n    finish_turn_ledger(world, _resource_ledger, agent_bridge)\n    del _resource_ledger\n    if getattr(world, \"livelihoods\", None) is not None:\n        from chronicler.livelihoods import after_ecology as _livelihoods_after_ecology\n        _emit(_livelihoods_after_ecology(world, acc=acc))\n\n    artifacts.conquered_civ_ids = getattr(world, '_conquered_this_turn', set())\n    world._conquered_this_turn = set()  # clear immediately before bridge consumption\n"
+        }
+      ]
+    }
+  }
+}
