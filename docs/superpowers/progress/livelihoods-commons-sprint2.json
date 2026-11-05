@@ -8,6 +8,14 @@
     "branch": "claude/livelihoods-sprint2",
     "stacked_on": "claude/livelihoods-commons-sprint1"
   },
+  "merge": {
+    "pr": 74,
+    "merged_at": "ee4c7ac235528253a711e4ec78d2ffc3d9197694",
+    "reviewed_head": "da514a5e",
+    "premerge_ci": "Tests run 42048381693, all nine jobs green on the head",
+    "main_ci": "Tests run 42050133720 (push, attempt 1): success, all nine jobs (optional cache steps skipped, no job skipped)",
+    "review": "Stack review R1-R3 (2026-11-05): no blocker; should-fix items fixed with regression tests (layers r3, s2r); held screens ran on aea7972f before the fixes and were not rerun"
+  },
   "base": {
     "sprint1_head": "3b23d769",
     "main": "64863f1274e400c3898972fe0cd5df510d3bb06f",

@@ -1,8 +1,57 @@
-# Current continuation — livelihoods/commons sprint 2, 2026-11-05
+# Current continuation — livelihoods stack merged; recovery-skills phase, 2026-11-05
 
-Sprint 2 (L5–L9 with viewer and evidence) is on the non-main branch
-`claude/livelihoods-sprint2`, draft PR #74, stacked on sprint 1 (`claude/livelihoods-commons-sprint1`,
-draft PR #73). Neither is merged. Plan and handoff:
+## Stack review and merge (2026-11-05)
+
+Owner instruction, 2026-11-05: review, fix and merge #73 and then #74, then build the
+next phase, "Recovery, skills and resilient local economies".
+
+- **#73 (sprint 1)** merged at `7001d649`, at its reviewed, CI-green head `3b23d769`.
+  - Main Tests run 42048286408 succeeded.
+- **#74 (sprint 2 plus the review fixes)** merged at `ee4c7ac2`, at its reviewed head
+  `da514a5e`.
+  - Premerge Tests run 42048381693 passed all nine jobs.
+  - Main Tests run 42050133720: success, all nine jobs (optional cache steps skipped, no job skipped).
+- **Independent review.** Three reviewers worked from the contracts on `456492e6`:
+  - R1: work authority and lifecycle.
+  - R2: money closure, shared treasury and phase ordering.
+  - R3: witnesses, enrollment, persistence and viewer.
+
+  None of the findings was a blocker. These were fixed in #74, each with a regression test
+  that fails on the previous code:
+  - L6a Phase 10 wages shared scarce cash with workers who died in the tick.
+  - Army drafts took people who already held registry work.
+  - `observe`-mode crews held reservations.
+  - A failed agent tick left installs armed. Fixed by the `rollback_agent_tick` hook.
+  - A legacy state-file resume bound saved id progress to the rebuilt pool's people.
+    Fixed by `livelihoods.bind_native_pool` and `on_pool_reset`.
+  - L7 assisted relocation could exceed L9's reservation.
+  - An exact resume ignored livelihoods options that conflicted with the checkpoint.
+  - Viewer readers were lax.
+- **Recorded limits, not fixed:**
+  - A mode given without its switch is ignored.
+  - `--public-grain-shipments` has the same silent resume gap on `main`.
+  - Academy procurement is reserved as an "upper bound" that is not a bound; the docs were
+    corrected.
+- **Evidence on `da514a5e`.**
+  - Feature-off `turn_speed_identity` against `64863f12`, each with its own extension
+    (`9e0434fd…` / `70587268…`): 9 cases, 399 files, 0 differences.
+  - All-switch `checkpoint_identity` `hybrid_s42_long`: PASS at 19 resume points.
+  - Witness layers `r3` and `s2r` were added; no historical fixture was rewritten.
+  - The sprint-2 held screens ran on `aea7972f`, before the review fixes, and were not
+    rerun. The fixes can change feature-on trajectories in three cases: L6a liquidation
+    with deaths, drafts of registry holders, and L7 assisted relocation with L9.
+  - The rebuilt extension is bit-identical to the held runs' `70587268…`, and the
+    committed sprint-2 report regenerates byte-identically from its metrics.
+- **Next phase:**
+  - Branch `claude/recovery-skills`.
+  - Plan and ownership map: `superpowers/roadmaps/recovery-skills-phase.md` (on that branch
+    until its PR merges).
+
+## Livelihoods/commons sprint 2 record
+
+Sprint 2 (L5–L9 with viewer and evidence) was developed on `claude/livelihoods-sprint2`
+(PR #74), stacked on sprint 1 (`claude/livelihoods-commons-sprint1`, PR #73). Both are now
+merged (see above). Plan and handoff:
 [livelihoods-commons-sprint2.md](superpowers/roadmaps/livelihoods-commons-sprint2.md). Board:
 [livelihoods-commons-sprint2.json](superpowers/progress/livelihoods-commons-sprint2.json).
 Screens: [livelihoods-sprint2-screens.md](superpowers/progress/livelihoods-sprint2-screens.md).
