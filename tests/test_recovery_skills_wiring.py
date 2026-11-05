@@ -548,3 +548,86 @@ def test_exact_resume_refuses_a_recovery_skills_mode_the_checkpoint_never_record
         conflicts = _adopt_checkpoint_args(parser, parser.parse_args([flag, other]), on)
         assert len(conflicts) == 1 and flag in conflicts[0], flag
     assert world.model_dump_json() == before
+
+
+# --- RS7 screen extractor ---------------------------------------------------------
+
+
+def _screens():
+    import importlib.util
+    from pathlib import Path
+    path = Path(__file__).resolve().parents[1] / "scripts" / "livelihoods_screens.py"
+    spec = importlib.util.spec_from_file_location("livelihoods_screens_sprint3_under_test", path)
+    screens = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(screens)
+    return screens
+
+
+def _bundle(livelihoods: dict, *, turn: int = 200, cover=(0.4, 0.2), sites=None) -> dict:
+    """A constructed bundle (not a simulation run) with one last snapshot."""
+    ws = {"regions": [{"ecology": {"forest_cover": c}} for c in cover]}
+    if sites is not None:
+        ws["livelihoods"] = {"workshops": {"sites": sites}}
+    return {"history": [{"turn": turn, "livelihoods": livelihoods}], "world_state": ws}
+
+
+def _rec(mode: str, counters: dict, *, source_turn: int = 199) -> dict:
+    return {"schema_version": 1, "mode": mode, "source_turn": source_turn, "counters": counters}
+
+
+def test_screen_extractor_reads_only_declared_counters_and_fails_missing_outcomes_visibly():
+    """RS7: a sprint-3 outcome that is missing, stale, in the wrong mode, renamed
+    or leaked from a switch the arm leaves off fails the run (never reads as 0)."""
+    screens = _screens()
+    screens.check_extractor3()
+    declared = screens.declared_counters3()
+    flags = screens.ARMS3["RS4_send"][0]
+    assert screens.expected_packages3(flags) == {"remittances": "send"}
+    assert screens.expected_packages3(screens.ARMS3["RS1_no_qualification"][0]) == \
+        {"apprenticeship": "no_qualification"}
+    good = _bundle({"remittances": _rec("send", {"rows": 3, "credited_milli": 1700})})
+    out, problems = screens.extract3(good, flags, declared)
+    assert problems == []
+    assert out["rs"]["remittances"]["credited_milli"] == 1700
+    assert out["rs"]["remittances"]["fee_milli"] == 0          # never incremented: 0
+    assert out["forest_end"] == pytest.approx(0.3)
+    cases = {
+        "no record": _bundle({}),
+        "wrong mode": _bundle({"remittances": _rec("record_only", {})}),
+        "stale frame": _bundle({"remittances": _rec("send", {}, source_turn=150)}),
+        "renamed counter": _bundle({"remittances": _rec("send", {"credited": 5})}),
+        "leaked package": _bundle({"remittances": _rec("send", {}),
+                                   "clearing_protection": _rec("enforced", {})}),
+        "no forest": _bundle({"remittances": _rec("send", {})}, cover=(0.4, None)),
+    }
+    for label, bundle in cases.items():
+        _out, problems = screens.extract3(bundle, flags, declared)
+        assert problems, label
+    # Workshop arms: the final sites are required; no built site is unknown, not zero.
+    wflags = screens.ARMS3["W_operate"][0]
+    _out, problems = screens.extract3(_bundle({}), wflags, declared)
+    assert problems and "workshop sites" in problems[0]
+    out, problems = screens.extract3(_bundle({}, sites=[{"status": "open", "asset": "building", "condition": 0.0}]),
+                                     wflags, declared)
+    assert problems == [] and out["workshop_condition_end"] is None and out["lump_repairs"] == 0
+
+
+def test_screen_extractor_refuses_an_outcome_its_package_does_not_declare(monkeypatch):
+    screens = _screens()
+    monkeypatch.setitem(screens.OUTCOMES3, "remittances", ("credited",))
+    with pytest.raises(SystemExit, match="remittances.credited is not a declared counter"):
+        screens.check_extractor3()
+
+
+def test_every_sprint3_arm_parses_and_the_held_seeds_are_fresh():
+    screens = _screens()
+    parser = _build_parser()
+    for arm, (flags, control, _tuning) in screens.ARMS3.items():
+        parser.parse_args([*screens.BASE, *screens.BASE2, *flags])          # every flag exists
+        assert control is None or control in screens.ARMS3, arm
+    held = {seed for rows in screens.STRATA3.values() for _t, seed, _x in rows}
+    assert held == set(range(501, 507)) | set(range(601, 607))
+    earlier = {seed for sprint in (1, 2) for rows in screens.SPRINTS[sprint]["strata"].values()
+               for _t, seed, _x in rows}
+    pilot = {seed for rows in screens.PILOT3.values() for _t, seed, _x in rows}
+    assert not held & (earlier | pilot)
