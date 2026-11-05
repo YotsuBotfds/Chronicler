@@ -496,14 +496,15 @@ class _Relief(Provider):
         state = world.grain_reserves
         grain = math.fsum(f.amount for f in state.flows if state.flows_turn == world.turn
                           and f.buyer == c.civ and f.kind in (BOUGHT, DISPATCHED))
-        # L4 convoys buy after the granary pass from what the envelope left;
-        # their escort fees are a separate sink outside the envelope.
+        # L4 convoys buy after the granary pass from what the envelope left
+        # and deduct their purchase and escort fee from the same procurement
+        # budget, so ``opening - remaining`` already counts both: the fees are
+        # spent inside the envelope and are only itemised here.
         convoys = getattr(getattr(world, "livelihoods", None), "grain_convoys", None)
         escort = 0
         if convoys is not None and convoys.frame_turn == world.turn:
             for row in convoys.frame:
                 if row.operation == "dispatched" and row.buyer == c.civ and row.turn == world.turn:
-                    spent += int(row.paid or 0)
                     escort += int(row.escort_fee or 0)
                     grain += row.cargo
         inbound = _inbound(world)
@@ -513,7 +514,7 @@ class _Relief(Provider):
                               if g.owner == c.civ and r.controller == name)
         ratio = min(1.0, grain / c.expected) if c.expected > EPS else 1.0
         detail = {"cap": trace["cap"], "available": trace["available"], "open_need": round(open_need, 6),
-                  "escort_fees_outside": escort}
+                  "escort_fees": escort}
         if ratio >= KEPT_RATIO or spent >= KEPT_RATIO * c.amount or open_need <= EPS:
             return {"outcome": "kept", "reason": None, "spent": spent, "delivered": grain,
                     "ratio": 1.0 if open_need <= EPS else ratio, "detail": detail}

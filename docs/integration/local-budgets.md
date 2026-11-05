@@ -154,8 +154,10 @@ At the next Phase 10 each envelope is settled from the service's own receipts.
   convoy purchases from the remaining envelope. It is kept at 95% of the expected grain or
   coins, or once every granary deficit of the civ is closed. Otherwise it is deferred:
   `treasury_shortfall` when the treasury above the floor capped the envelope, else
-  `no_supply`. Convoy escort fees are a separate sink outside the envelope; they are
-  recorded per settlement.
+  `no_supply`. Convoys deduct both their purchase and their escort fee from the same
+  procurement budget, so escort fees are spent inside the envelope; they are itemised per
+  settlement. (A lead review on 2026-11-05 found the first landing counted convoy
+  purchases twice, which raised in a procedural world; corrected with a regression test.)
 - **Granary works:** the storage receipt's delivered work against the promised work. A
   shortfall is classed as follows: `treasury_shortfall` when the treasury at the storage
   plan could not cover it, `inputs_short` (timber or remaining batch), `work_short` (native
@@ -398,8 +400,8 @@ are the CLI flags above, plus `--seed N --turns 200`.
 - Relief is supply-bound in the development worlds. Their markets rarely hold grain beyond
   the reserve rule's four turns of demand, so relief is rarely executable whatever the
   budget. The surplus and one-coin purchase rules are unchanged.
-- Teaching is reserved, not bargained (see above). L4 escort fees sit outside envelopes and
-  are recorded.
+- Teaching is reserved, not bargained (see above). L4 escort fees are paid inside the relief
+  envelope and itemised.
 - L9 replaces the `--grain-storage-policy` setting while active. Its last policies remain
   if it is switched off. Switching it off lapses open envelopes.
 - The political response reaches only cities: a civ without a city has no venue.
