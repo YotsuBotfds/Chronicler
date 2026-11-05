@@ -41,12 +41,15 @@ PROJECT_STATUSES: tuple[str, ...] = ("open", "completed", "abandoned")
 #: Why a project ended before its scope was delivered.
 ABANDON_REASONS: tuple[str, ...] = ("asset_closed", "no_controller", "switched_off")
 #: What limited or stopped a project's work in a turn (``unqualified``: the
-#: workshop crew had no qualified member and worked at ``UNQUALIFIED_RATE``).
-REASONS: tuple[str, ...] = ("no_timber", "no_coins", "no_labor", "no_envelope", "unqualified")
+#: workshop crew had no qualified member and worked at ``UNQUALIFIED_RATE``;
+#: ``no_people``: PL3 correction, a granary project suspended while its
+#: region has no farm labour, asking for nothing).
+REASONS: tuple[str, ...] = ("no_timber", "no_coins", "no_labor", "no_envelope", "unqualified", "no_people")
 #: The real war events that record damage.
 DAMAGE_EVENTS: tuple[str, ...] = ("conquest", "sack", "seizure")
-#: Why an asset below the opening threshold has no project.
-UNMET_REASONS: tuple[str, ...] = ("no_controller", "zero_capacity", "building")
+#: Why an asset below the opening threshold has no project (``no_people``:
+#: PL3 correction, a granary whose region has no farm labour).
+UNMET_REASONS: tuple[str, ...] = ("no_controller", "zero_capacity", "building", "no_people")
 
 #: Every lifetime counter name (``RepairProjectsState.counters``), composed from the
 #: tuples above; ``repair_projects._bump`` refuses any other name, so a renamed
@@ -56,7 +59,7 @@ COUNTERS: frozenset[str] = frozenset({
     "work_delivered", "work_credited", "timber_used", "crew_person_turns", "qualified_crew_turns",
     "unqualified_crew_turns", "charged", "coin_cost_milli", "wages_milli", "wage_residual_milli",
     "veterans_placed", "income_replaced", "crews_pool_reset", "inherited", "settled_turns",
-    "completed",
+    "completed", "suspensions", "resumptions",
     *(f"{status}_{reason}" for status in PROJECT_STATUSES for reason in ABANDON_REASONS),
     *(f"damages_{event}" for event in DAMAGE_EVENTS), *(f"damage_{kind}" for kind in KINDS),
     *(f"{stage}_{reason}" for stage in ("stalled", "limited") for reason in REASONS),
@@ -223,12 +226,15 @@ class RepairProjectsState(BaseModel):
     counters: dict[str, float] = Field(default_factory=dict)
     # Transient, within one turn (Phase 2 -> Phase 10); never serialized.
     _turn: object | None = PrivateAttr(default=None)
+    # Transient, within one Phase 10: (turn, farmers per region) observed
+    # after the agent tick, read by the same Phase 10's L9 proposal.
+    _labour: object | None = PrivateAttr(default=None)
 
     def __getstate__(self):
         state = super().__getstate__()
         private = state.get("__pydantic_private__")
-        if private and private.get("_turn") is not None:
-            state = {**state, "__pydantic_private__": {**private, "_turn": None}}
+        if private and (private.get("_turn") is not None or private.get("_labour") is not None):
+            state = {**state, "__pydantic_private__": {**private, "_turn": None, "_labour": None}}
         return state
 
     def __setstate__(self, state):
@@ -238,6 +244,7 @@ class RepairProjectsState(BaseModel):
             if name not in self.__dict__:
                 self.__dict__[name] = field.get_default(call_default_factory=True)
         if getattr(self, "__pydantic_private__", None) is None:
-            object.__setattr__(self, "__pydantic_private__", {"_turn": None})
+            object.__setattr__(self, "__pydantic_private__", {"_turn": None, "_labour": None})
         else:
             self.__pydantic_private__.setdefault("_turn", None)
+            self.__pydantic_private__.setdefault("_labour", None)

@@ -352,6 +352,10 @@ CHUNKS = {
         "tests/test_apprenticeship.py",
         "tests/test_repair_projects.py",
     ],
+    "productive-recovery-pl3": [
+        "tests/test_recovery_crews.py",
+        "tests/test_maintenance_obligation.py",
+    ],
     "expansion-wiring": [
         "tests/test_expansion_feature_wiring.py",
         "tests/test_expansion_experiment.py",
