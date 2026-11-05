@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "board_version": 2,
+  "board_version": 3,
   "title": "Livelihoods, commons and collective choices - sprint 2 (L5-L9) operational board",
   "plan": "docs/superpowers/roadmaps/livelihoods-commons-sprint2.md",
   "owner_instruction": "2026-11-05: continue the entire roadmap end to end including L5-L9 with viewer, integration and evidence; sprint boundaries are checkpoints; branches and draft PRs; features default-off; no merge; no 200-seed gates without approval.",
@@ -11,7 +11,7 @@
   "base": {
     "sprint1_head": "3b23d769",
     "main": "64863f1274e400c3898972fe0cd5df510d3bb06f",
-    "sprint1_ci": "run 41979324402 success on 1ed0ac0; review fixes 25252337 + L4 ablation merge 3b23d769 pending CI"
+    "sprint1_ci": "run 41979324402 success on 1ed0ac0; run 41983859855 success on review-fixed head 3b23d769 (PR #73); run 41983905789 success on sprint-2 plan 0cc62442 (PR #74)"
   },
   "sprint1_review": {
     "reviewer": "independent agent, code-anchored",
@@ -89,13 +89,17 @@
     {
       "id": "L9",
       "wave": "2B",
-      "status": "proposed",
+      "status": "active",
       "lane": "commons",
       "depends_on": [
         "L1",
         "L2",
         "L5/L6/L8 services"
-      ]
+      ],
+      "branch": "claude/livelihoods-l9-budgets",
+      "base_sha": "bd22f70dfd9cc779e5bcdbaf039253578072b985",
+      "handoff": "v1 (2026-11-05)",
+      "next_action": "Dispatched early (Python-only lane): the roadmap says L9 starts from L1, L2 and granary maintenance and must not block on optional subsystems; L5/L6/L8 register later through its proposal-provider interface."
     },
     {
       "id": "L6b",
