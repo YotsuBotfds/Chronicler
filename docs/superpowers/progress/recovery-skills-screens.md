@@ -28,7 +28,7 @@ as a dated amendment with its reason, and only before the first held run.
     8.8) and procedural 20.9 s (max 23.5).
   - That projects the 228 held runs at about 0.90 core-hours.
   - The pilot found no defect. One development-world observation is recorded because it
-    explains a likely null; it changed nothing. In template seed 2, RS2 opened 7 projects,
+    explains a likely null; it changed nothing. In template seed 2, RS2 opened 5 granary projects (3 after war damage, 2 for wear),
     but every one of its 938 stalled project-turns was stalled for want of timber (the
     region's stockpile), so no repair work was delivered. The RS2 lane measured the same
     (89–100% of stalls).
