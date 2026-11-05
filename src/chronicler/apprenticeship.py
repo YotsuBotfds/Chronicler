@@ -668,10 +668,14 @@ def _commit(world, state: ApprenticeshipState, p: _Pending, after: dict, receipt
                 _bump(state, "enrolled")
                 if veteran:
                     _bump(state, "veterans_enrolled")
-                    from chronicler.veteran_reintegration import note_outcome
-                    note_outcome(world, aid, "placed:apprentice", turn=turn,
-                                 detail={"site": st.site, "region": st.region})
             record = active[aid]
+            if aid in seated and aid in after:
+                # RS3: every seat reserved this turn is a dated training placement
+                # of whoever holds an open veteran record (other ids are ignored),
+                # in either RS3 mode and whether or not priority seated them.
+                from chronicler.veteran_reintegration import note_outcome
+                note_outcome(world, aid, "placed:apprentice", turn=turn,
+                             detail={"site": st.site, "region": st.region, "attended": aid in st.attending})
             p.records[aid] = record
             seat = Seat(agent_id=aid, new=new, veteran=record.veteran, outcome="missed",
                         share=APPRENTICE_FRACTION if aid in seated else 0.0)

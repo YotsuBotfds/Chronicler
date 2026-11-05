@@ -88,9 +88,15 @@ The qualification gates real upkeep work against real wear.
   settlement and region, not on a merchant trip or an army roster, not holding
   other work this turn (registry, rural health care, teaching plan) and not
   qualified. That is the crew pool's predicate with the planner's own exclusions.
-  Veterans come first (`veteran_reintegration.priority_ids`, an RS3 stub that
-  returns `[]` today), then ascending id. A seated veteran is reported with
-  `note_outcome(world, id, "placed:apprentice", turn=...)`.
+  Veterans come first (`veteran_reintegration.priority_ids`: RS3's eligible
+  open veterans in priority mode, none in its `record_only` control), then
+  ascending id. Every seat reserved in a turn is reported with
+  `note_outcome(world, id, "placed:apprentice", turn=..., detail={site, region,
+  attended})`, whether or not priority seated the person; RS3 keeps only ids
+  with an open veteran record, so a veteran apprentice is placed (one spell over
+  consecutive seated turns, never "waiting") in either RS3 mode. Review A,
+  2026-11-05: before this, only a new seat flagged through priority was
+  reported.
 - **Seats.** Each predicted mentor teaches up to `PER_MENTOR`; a site holds at most
   `PER_SITE` open apprenticeships, including apprentices away or unavailable this
   turn. Continuing apprentices keep their seats first, in enrolment order; new
@@ -387,7 +393,10 @@ PYTHONHASHSEED=0 RAYON_NUM_THREADS=1 python -m chronicler.main --seed 21 --turns
   presence in the city flickers. Region-level continuity and the `away`
   interruption absorb this, but crews still churn.
 - **No new combat damage.** War damage to sites is RS2's (`repair_projects`).
-- **Veteran priority** is wired, but the RS3 stub returns no veterans yet.
+- **Veteran priority is weak in practice.** Qualified people come first on
+  workshop crews (`_crew_priority`), so the planner sees veterans only after
+  every living qualified id; at most a few veterans per world were enrolled in
+  the development worlds.
 - **Stipends need a firm.** In the measured worlds no academy order opened a firm,
   so stipends were never paid naturally; only the constructed test pays them.
 - **Not run:** the RS7 held screens, and the 200-seed and procedural qualification

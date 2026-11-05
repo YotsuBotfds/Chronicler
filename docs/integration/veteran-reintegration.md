@@ -186,9 +186,10 @@ veterans, veterans_omitted, closed, counters, parameters}`. `frame` is the
 completed turn (`frame.turn == source_turn`) or `null` when no turn was
 committed (unknown, not zero): `captured` rows `{agent_id, civ, army_id,
 war_key, war_start, cause, region}`, `captured_total`, `captured_by_cause`,
-`offered` (`[region, ids]` per workshop site region; the lists the planner
-received, or would have received in the control; `null` without an observed
-Phase 2), `placed`, `waiting` (with reasons), this turn's `outcomes`, `counts`
+`offered` (`[region, ids]` per workshop site region: the veterans this package
+offered, or would have offered in the control; with `--apprenticeship` the
+planner also receives every living workshop-qualified id ahead of them, see
+`workshops._crew_priority`; `null` without an observed Phase 2), `placed`, `waiting` (with reasons), this turn's `outcomes`, `counts`
 and `priority_applied`. `veterans` are open records (copies), `closed` those
 closed in the source turn.
 
@@ -219,7 +220,8 @@ control, half a war identity, unbalanced cause counts, undated order).
   32×10 seed 302): an independent oracle (roster difference around each
   campaign tick, plus drafts within it, minus queued war deaths) equals the
   captures every turn; placements are on worked crews, once per person; the
-  native planner's crews put the offered veterans first in the offered order;
+  native planner's crews put the offered veterans first in the offered order
+  (without `--apprenticeship`; with it, qualified people precede them);
   `record_only` leaves the whole trajectory identical to the run without the
   switch, and `--no-veteran-reintegration` equals never enabled; exact
   checkpoint resume at turn 30 with open, placed records is byte identical; a

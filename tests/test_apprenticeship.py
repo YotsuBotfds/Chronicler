@@ -892,3 +892,58 @@ def test_feature_off_worlds_have_no_state_and_workshops_run_unchanged():
         assert r.allocated == r.work_available
     on, _ = run(True)
     assert _site(off).condition == 1.0 and _site(on).condition < 1.0
+
+
+@pytest.mark.parametrize("mode", ["priority", "record_only"])
+def test_a_seated_veteran_is_placed_each_turn_in_either_rs3_mode(mode, monkeypatch):
+    """Review A 2026-11-05 (major): RS1 reported ``placed:apprentice`` only for a
+    new seat that priority had marked as a veteran, so with the real RS3 hooks a
+    veteran attending every turn became ``waiting`` (and unmet) after the first
+    turn, and the record_only control never recorded the placement. Every seat
+    reserved this turn is now reported; RS3 keeps one spell and no waiting row."""
+    from chronicler import veteran_reintegration as VR
+    from chronicler.veteran_reintegration_state import VeteranRecord
+    monkeypatch.setattr(A, "SERVICE_TURNS", 3)
+    monkeypatch.setattr(A, "COMPLETION_TURNS", 3)
+
+    class Bridge:
+        def __init__(self, sim):
+            self._sim = sim
+
+        def get_snapshot(self):
+            return self._sim.get_snapshot()
+
+    def turn(world, sim):
+        bridge = Bridge(sim)
+        econ = SimpleNamespace(craft_output={r.name: 0.0 for r in world.regions})
+        L.prepare_phase2(world, _batch(len(world.regions)), bridge, sim.get_snapshot(), acc=None)
+        sim.inputs = [[0.0] * 9 for _ in world.regions]
+        L.finish_phase2(world, econ, bridge, acc=None)
+        L.wrap_agent_tick(world, bridge, sim.tick, econ)()
+        L.phase10_before_reserves(world, acc=None, economy_result=econ, agent_bridge=bridge)
+        L.phase10(world, acc=None, economy_result=econ, agent_bridge=bridge)
+        world.turn += 1
+
+    world, sim = _world(), FakeSim(range(1, 13))
+    world.civ_index_map = {c.name: i for i, c in enumerate(world.civilizations)}
+    world.war_state = SimpleNamespace(armies=[], wars=[], ended_wars=[])
+    VR.set_veteran_reintegration_enabled(world, True, args=SimpleNamespace(veteran_mode=mode))
+    for _ in range(W.CONSTRUCTION_COST // W.INSTALLMENT):
+        turn(world, sim)
+    _qualify(world, sim, [12])
+    vs = world.livelihoods.veteran_reintegration
+    vs.records.append(VeteranRecord(record_id=0, agent_id=1, civ=0, army_id="army-x", cause="demobilised",
+                                    released_turn=world.turn - 1, released_region=SITE_REGION,
+                                    region=SITE_REGION, age=30, status="waiting"))
+    vs.next_record_id, vs.last_settled_turn = 1, world.turn - 1
+    for _ in range(3):
+        turn(world, sim)
+        seat = next(s for s in world.livelihoods.apprenticeship.frame[0].seats if s.agent_id == 1)
+        assert seat.outcome == "attended" and seat.veteran == (mode == "priority")
+        assert [p.kind for p in vs.frame.placed if p.agent_id == 1] == ["placed:apprentice"]
+        assert not [w for w in vs.frame.waiting if w.agent_id == 1]
+        assert vs.records[0].status == "placed"
+    c = vs.counters
+    assert (c["placement_turns"], c["placements"], c["placements_apprentice"], c["people_placed"]) == (3, 1, 1, 1)
+    assert c.get("waiting_turns", 0) == 0 and not any(k.startswith("unmet_") for k in c)
+    assert c.get("placed_prioritised", 0) == (1 if mode == "priority" else 0)
