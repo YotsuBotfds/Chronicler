@@ -512,3 +512,124 @@ def test_cli_policy_prerequisites_and_drain_wiring(monkeypatch):
     bare = generate_world(seed=42)
     with pytest.raises(ValueError, match="public-grain-shipments"):
         L.configure_livelihoods(bare, parse(["--grain-convoys"]), agent_mode="hybrid")
+
+
+# --- Cost-retaining risk ablation (livelihoods.convoys.threat_scale) -------
+
+def _comparable(world) -> dict:
+    data = json.loads(world.model_dump_json())
+    data.pop("tuning_overrides", None)
+    return data
+
+
+@pytest.mark.parametrize("policy", ["safest", "adaptive"])
+def test_threat_scale_zero_keeps_every_cost_but_draws_no_capture(monkeypatch, policy):
+    """CONSTRUCTED: Selurian (Ashara Desert, beside Verdant Plains) is at war
+    with the buyer, so only the convoy's last edge is exposed; the risk arm
+    meets an unrepelled threat there."""
+    real_draws = C._draws
+    arms = {}
+    random.seed(7)
+    before_rng = random.getstate()
+    for arm in ("risk", "explicit_one", "ablation"):
+        world = build(monkeypatch, policy=policy, draws=None)
+        world.active_wars.append(("Thornwall Confederacy", "Selurian Republic"))
+        if arm == "ablation":
+            world.tuning_overrides[C.K_THREAT_SCALE] = 0.0
+            monkeypatch.setattr(C, "_draws", real_draws)  # the real namespaced stream
+        else:
+            if arm == "explicit_one":
+                world.tuning_overrides[C.K_THREAT_SCALE] = 1.0
+            monkeypatch.setattr(C, "_draws", lambda world, c, forward:
+                                THREAT_UNREPELLED if c.leg == 1 else NO_THREAT)
+        step(world)
+        no_more_orders(world)
+        trace, frames = [_comparable(world)], [list(state(world).frame)]
+        for _ in range(4):
+            step(world)
+            trace.append(_comparable(world))
+            frames.append(list(state(world).frame))
+        assert random.getstate() == before_rng  # no draw touches any other stream
+        arms[arm] = (world, trace, frames)
+    risk, risk_trace, risk_frames = arms["risk"]
+    ablation, ablation_trace, ablation_frames = arms["ablation"]
+    assert arms["explicit_one"][1] == risk_trace  # 1.0 is the default
+    # Identical decision, route, fees, muster and movement up to the threat:
+    # trace[i] and frames[i] hold the state after simulation turn 30 + i.
+    upto = next(i for i, frame in enumerate(risk_frames) if any(row.operation == "captured" for row in frame))
+    assert upto >= 2 and ablation_trace[:upto] == risk_trace[:upto]
+    captured = next(row for row in risk_frames[upto] if row.operation == "captured")
+    arrival = next(row for row in ablation_frames[upto] if row.operation == "arrived")
+    assert (arrival.route, arrival.leg, arrival.escorted) == (captured.route, captured.leg + 1, captured.escorted)
+    assert captured.threat == "frontier" and arrival.threat is None
+    r, a = state(risk).counters, state(ablation).counters
+    for key in ("dispatched", "sent", "paid", "escorted", "escort_paid", "waits", "reroutes", "turned_back"):
+        assert a[key] == r[key]
+    assert r["escorted"] == (policy == "safest") and r["escort_paid"] == 2 * r["escorted"]
+    assert (r["threats"], r["captured"], r["arrived"]) == (1, 1, 0)
+    assert (a["threats"], a["captured"], a["lost"], a["arrived"]) == (0, 0, 0, 1)
+    assert a["legs"] == r["legs"] + 1  # the risk arm stopped one edge short
+    assert a["delivered"] == pytest.approx(r["captured_grain"])
+    assert a["escort_wasted"] == a["escorted"]  # protection paid, no threat drawn
+    assert_closes(risk)
+    assert_closes(ablation)
+
+
+def test_threat_scale_scales_the_drawn_chance_not_the_dispatch_exposure(monkeypatch):
+    world = build(monkeypatch, draws=(0.0, 0.99))
+    world.active_wars.append(("Thornwall Confederacy", "Selurian Republic"))
+    world.tuning_overrides[C.K_THREAT_SCALE] = 0.5
+    step(world)
+    convoy = state(world).convoys[0]
+    assert convoy.exposed_risk == pytest.approx(C.FRONTIER_THREAT)  # unscaled at dispatch
+    no_more_orders(world)
+    step(world)
+    step(world)
+    row = state(world).frame[0]
+    assert row.operation == "captured" and row.threat_risk == pytest.approx(0.5 * C.FRONTIER_THREAT)
+
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), -0.1, 1.5, True, None])
+def test_invalid_threat_scale_refuses_before_any_movement(monkeypatch, bad):
+    world = build(monkeypatch)
+    step(world)
+    world.tuning_overrides[C.K_THREAT_SCALE] = bad
+    before = world.model_dump_json()
+    with pytest.raises(ValueError, match="threat_scale"):
+        L.phase10_before_reserves(world, economy_result=economy(world))
+    assert world.model_dump_json() == before
+
+
+def test_delay_alone_changes_the_actual_release_of_the_same_grain(monkeypatch):
+    """CONSTRUCTED pair: the same paid cargo, once carried by a two-edge
+    convoy (risk ablated) and once delivered to the same granary at the end
+    of its dispatch turn. Only the arrival time differs."""
+    carried = build(monkeypatch)
+    carried.tuning_overrides[C.K_THREAT_SCALE] = 0.0
+    step(carried)
+    no_more_orders(carried)
+    convoy = state(carried).convoys[0]
+    direct = deepcopy(carried)
+    st = state(direct)
+    st.convoys.clear()  # counterfactual: delivered at once, same grain, same payment
+    st.counters["arrived"] += 1
+    st.counters["delivered"] += convoy.cargo
+    direct.grain_reserves.granaries[DEST].grain += convoy.cargo
+    rows = []
+    for _ in range(4):
+        late, _ = step(carried, sufficiency=0.2)
+        early, _ = step(direct, sufficiency=0.2)
+        rows.append((late, early, carried.grain_reserves.counters["released"],
+                     direct.grain_reserves.counters["released"]))
+        assert [c.treasury for c in carried.civilizations] == [c.treasury for c in direct.civilizations]
+    # Turns 31 and 32: the convoy is on the road (it arrives in turn 32's
+    # Phase 10), so only the undelayed grain feeds people.
+    for late, early, _, _ in rows[:2]:
+        assert late == 0.2 and early > 0.2
+    assert rows[2][0] > 0.2  # turn 33: the convoy's grain is released at last
+    assert rows[1][2] == 0.0 and rows[1][3] > 0.0
+    arrived = [f.amount for f in carried.grain_reserves.flows if f.kind == CONVOY_ARRIVED]
+    assert state(carried).counters["delivered"] == pytest.approx(convoy.cargo) == state(direct).counters["delivered"]
+    assert arrived == [] or arrived == [pytest.approx(convoy.cargo)]
+    assert_closes(carried)
+    assert_closes(direct)

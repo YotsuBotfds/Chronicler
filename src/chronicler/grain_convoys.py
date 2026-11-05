@@ -44,7 +44,9 @@ Movement (Phase 10 of each later turn, before the granary pass)
     takes the grain to one of its markets (captured); pirates or brigands
     destroy it (lost). Draws come from ``random.Random(stable_hash_int(
     "grain_convoys", seed, convoy, dispatch turn, turn, leg, direction))``,
-    never the global stream.
+    never the global stream. The declared tuning key
+    ``livelihoods.convoys.threat_scale`` (default 1, within [0, 1]) scales
+    the drawn threat chance only; at 0 it is a cost-retaining risk ablation.
 
 Outcomes (each cargo enters exactly one named destination, once)
     ``arrived``: the destination granary, whoever keeps it (keeper recorded;
@@ -85,6 +87,12 @@ BRIGAND_THREAT = 0.02         # an edge ending outside the buyer's own land
 MAX_THREAT = 0.9              # cap of an edge's combined threat
 RNG_NAMESPACE = "grain_convoys"
 EPS = 1e-9
+#: Declared tuning key (cost-retaining risk ablation): the threat
+#: probabilities drawn on open edges are multiplied by it, in [0, 1]. At 0 no
+#: capture or loss is drawn, while every route, leg, wait, reroute, escort
+#: decision, escort fee and muster turn stays as with risk (route and escort
+#: choices read the unscaled exposure). Default 1.0.
+K_THREAT_SCALE = "livelihoods.convoys.threat_scale"
 
 #: Event types (each with a readable line).
 EVENT_TYPES: tuple[str, ...] = (
@@ -133,6 +141,15 @@ def grain_convoys_active(world) -> bool:
         return False
     return bool(state.enabled or state.convoys
                 or (state.frame and state.frame_turn is not None and state.frame_turn >= world.turn - 1))
+
+
+def threat_scale(world) -> float:
+    """The validated ``livelihoods.convoys.threat_scale`` override (1.0 when unset)."""
+    from chronicler.tuning import get_override
+    value = get_override(world, K_THREAT_SCALE, 1.0)
+    if (type(value) not in (int, float) or not math.isfinite(value) or not 0.0 <= value <= 1.0):
+        raise ValueError(f"{K_THREAT_SCALE} must be a finite number in [0, 1]")
+    return float(value)
 
 
 def _ready(world, economy_result) -> bool:
@@ -542,7 +559,7 @@ def _finish(world, facts, move: _Move, outcome: str, at: int, *, sink: str | Non
                                   sink_region=sink_region, captor=captor, **fields)
 
 
-def _advance(world, facts: _Facts, c) -> _Move:
+def _advance(world, facts: _Facts, c, scale: float = 1.0) -> _Move:
     move = _Move(c)
     forward = c.status != "returning"
     rerouted = False
@@ -591,8 +608,9 @@ def _advance(world, facts: _Facts, c) -> _Move:
             move.events.append(_event(world, c, "turned_back", line, region=a, importance=2))
             move.transition = _transition(world, c, "turned_back", at=a, closure=closure, rerouted=rerouted)
             return move
-        # Open edge: one threat draw as the convoy takes it.
-        risk = _combine(p for p, *_ in parts)
+        # Open edge: one threat draw as the convoy takes it. The ablation
+        # scale applies to the drawn chance only, never to route choice.
+        risk = scale * _combine(p for p, *_ in parts)
         u, v = _draws(world, c, forward)
         if parts and u < risk:
             p, kind, captor, near = _pick(parts, risk, u)
@@ -665,6 +683,7 @@ def phase10_before_reserves(world, acc=None, economy_result=None, agent_bridge=N
     if state is None:
         return []
     validate_convoys(world)
+    scale = threat_scale(world)
     if not _ready(world, economy_result) or state.moved_turn == world.turn:
         return []
     from chronicler import grain_reserves as G
@@ -680,7 +699,7 @@ def phase10_before_reserves(world, acc=None, economy_result=None, agent_bridge=N
         buyer_facts = facts.get(convoy.buyer)
         if buyer_facts is None:
             buyer_facts = facts[convoy.buyer] = _Facts(world, convoy.buyer, out)
-        moves.append(_advance(world, buyer_facts, convoy.model_copy(deep=True)))
+        moves.append(_advance(world, buyer_facts, convoy.model_copy(deep=True), scale))
     # Validate every write before making any.
     reserves = world.grain_reserves
     granary_after: dict[int, float] = {}

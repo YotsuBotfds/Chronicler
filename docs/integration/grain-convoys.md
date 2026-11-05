@@ -79,6 +79,19 @@ turn, turn, leg, direction))`; the global `random` stream and every existing
 RNG are untouched. Entering a region that an enemy took while the convoy was
 mid-edge also ends in capture.
 
+### Risk ablation (`livelihoods.convoys.threat_scale`)
+
+A declared tuning key (default 1.0, finite, within [0, 1]; anything else is
+refused before the movement pass changes anything) multiplies the threat
+chance drawn on an open edge. It does not touch the exposure that route and
+escort choices read, so dispatch decisions, routes, legs, waits, reroutes,
+turn-backs, escort fees and muster turns stay exactly as with risk. At 0 no
+capture or loss is drawn: a cost-retaining risk ablation (escorts are still
+paid and are all counted as wasted). The capture of a convoy entering a region
+an enemy took while it was mid-edge is a fact of the turn, not a draw, and is
+not scaled. The key is read with `chronicler.tuning.get_override`; its
+declaration in `KNOWN_OVERRIDES` belongs to `tuning.py`.
+
 ## Where the grain goes (each cargo once)
 
 | Outcome | Destination | Counter |
@@ -140,6 +153,8 @@ mounts it). Event types: `grain_convoy_dispatched`, `_turned_back`,
 - Removing granaries (`--no-grain-reserves`) while convoys are on the road is
   refused at the next convoy pass (the paid cargo has nowhere to go).
 - The risk numbers above are uncalibrated development parameters.
+- Natural worlds give the risk edge almost no exercise (see the held screens
+  below); its behavior is shown by constructed tests.
 
 ## Evidence (2026-11-05, Linux, CPython 3.13.18, native extension SHA-256 `9e0434fd…5fe0`)
 
@@ -181,3 +196,37 @@ not yet enrolled in a chunk or native shard. The viewer reader accepts all
 450 records of three constructed native runs (19 with transitions). Not run:
 full offline/native suites, hosted CI, the 200-seed and procedural gates,
 held cohorts, calibration or performance qualification.
+
+### Addendum: held screens and the risk ablation (2026-11-05, after integration)
+
+The lead's held screens (`docs/superpowers/progress/livelihoods-sprint1-screens.md`;
+template worlds 101–106 and procedural worlds 201–206, 200 turns) dispatched
+24 and 39 convoys, of which 24 and 37 arrived, with 0 captures and 0 escorts
+in the L4 arm; the all-in-sprint arm lost one convoy (procedural). Across the
+12 held worlds the risk edge therefore produced essentially no natural
+outcome: 0 captures, 1 loss, 0 escorts. Its behavior is shown only by the
+constructed offline tests (capture, loss, escort repelled and wasted,
+turn-back, reroute) and the constructed native tests, not by natural
+trajectories.
+
+Two constructed offline tests were added with the ablation key:
+
+- `test_threat_scale_zero_keeps_every_cost_but_draws_no_capture` (policies
+  `safest` and `adaptive`): with a war making only the last edge exposed, the
+  risk arm's convoy is captured on it; at `threat_scale` 0 (drawing from the
+  real namespaced stream) the same convoy has a byte-identical world, apart
+  from the override, at every turn before that edge, with the same route,
+  dispatch plans, escort fee and muster turn. It then arrives, and the global
+  `random` state is unchanged in every arm. An explicit 1.0 reproduces the
+  unset default exactly, and 0.5 halves the drawn chance while leaving the
+  dispatch exposure unscaled.
+- `test_delay_alone_changes_the_actual_release_of_the_same_grain`: the same
+  paid 17.1 grain, once carried by a two-edge convoy (risk ablated) and once
+  put into the same granary at the end of its dispatch turn, with the shortage
+  held at 0.2 of need and treasuries equal throughout. Through the real
+  `open_granaries` release, the undelayed granary lifts food to 0.6 of need in
+  turns 31 and 32 (4.0 grain released per turn), while the convoy's
+  destination stays at 0.2 until its grain is first released in turn 33.
+  The grain released by turn 34 is 8.0 against 16.0.
+
+The convoy module is now enrolled by the lead (offline chunk `livelihoods`).
