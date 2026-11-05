@@ -162,3 +162,11 @@ All parameters are declared modeling choices, not calibrated:
   work is about a quarter of allocated, and construction turns cost output.
   This is a working mechanism with a mixed result. Timber availability (L3)
   is the natural next constraint; the screens test that interaction.
+
+## L6a: payroll around the workshop
+
+`--workshop-payroll` (default off) adds a debt-free firm with cash, owned wares, an
+academy customer and wages that replace the crew's ordinary income share; see
+[workshop finance](workshop-finance.md). It changes this package only by the firm's
+hours and crew cap reaching the crew request (`_crew_terms`) and by the closure
+reason `insolvent` (`close_site`). Without payroll the requests are unchanged.

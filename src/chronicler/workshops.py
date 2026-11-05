@@ -161,6 +161,21 @@ def refresh_sites(world, state: WorkshopState) -> dict[int, object]:
     return {s.site: cities[s.settlement_id] for s in state.sites}
 
 
+def _crew_terms(world, site: int) -> tuple[int, float]:
+    """(crew cap, hours) an L6a payroll firm set for the site (``workshop_payroll``);
+    (MAX_CREW, 1.0) without payroll. Hours scale each member's diverted time."""
+    if getattr(getattr(world, "livelihoods", None), "workshop_payroll", None) is None:
+        return MAX_CREW, 1.0
+    from chronicler.workshop_payroll import crew_terms
+    return crew_terms(world, site)
+
+
+def close_site(world, site: int, reason: str) -> None:
+    """Close an open site for ``reason`` (L6a: an insolvent payroll firm)."""
+    state = _state(world)
+    _close(state, next(s for s in state.sites if s.site == site), world.turn, reason)
+
+
 def _enlisted(world) -> list[int]:
     armies = getattr(getattr(world, "war_state", None), "armies", [])
     return sorted({int(aid) for army in armies for aid, _ in army.roster})
@@ -233,7 +248,9 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
             or not callable(getattr(sim, "take_craft_inputs", None)):
         raise RuntimeError("workshops require a fresh native build with workshop crews")
     cities = refresh_sites(world, state)
-    requests = [(s.site, s.region, s.settlement_id, float(_diverted(int(cities[s.site].rank))), MAX_CREW)
+    terms = {s.site: _crew_terms(world, s.site) for s in state.sites}
+    requests = [(s.site, s.region, s.settlement_id,
+                 float(_diverted(int(cities[s.site].rank)) * terms[s.site][1]), terms[s.site][0])
                 for s in state.sites]
     rows = {}
     if requests:

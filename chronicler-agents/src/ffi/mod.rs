@@ -790,6 +790,47 @@ impl AgentSimulator {
         Ok(crate::credit::apply_merchant_transfers(&mut self.pool, self.regions.len(), &region_ids, &amounts))
     }
 
+    /// Livelihoods L6a wealth transfer (shared seam, `wealth_transfer.rs`):
+    /// credit (positive) or debit (negative) stable ids by whole milli-units
+    /// (1000 = one wealth unit), once per (turn, purpose, batch). Returns per
+    /// row (id, requested, applied, residual, status: 0 applied, 1 limited by
+    /// the wealth ceiling or floor, 2 absent). Refuses a repeated key, an
+    /// unknown purpose, duplicate ids or an out-of-range amount unchanged.
+    pub fn transfer_wealth(&mut self, turn: u32, purpose: u8, batch: u32, rows: Vec<(u32, i64)>)
+        -> PyResult<Vec<(u32, i64, i64, i64, u8)>> {
+        let receipt = crate::wealth_transfer::transfer(&mut self.pool, turn, purpose, batch, &rows)
+            .map_err(PyValueError::new_err)?;
+        if receipt.rows.iter().any(|r| r.applied != 0) {
+            self.snapshot_cache = None; // the pool changed: drop the cached snapshot
+        }
+        Ok(receipt.rows.into_iter().map(|r| (r.agent_id, r.requested, r.applied, r.residual, r.status)).collect())
+    }
+
+    /// Livelihoods L6a: transfer purposes in declaration order (append only).
+    #[staticmethod]
+    pub fn wealth_transfer_purposes() -> Vec<&'static str> {
+        crate::wealth_transfer::PURPOSES.to_vec()
+    }
+
+    /// Livelihoods L6a: arm a one-tick deduction of ordinary income for paid
+    /// work, (stable id, share) rows each within the person's work
+    /// reservation for `turn`; the next wealth phase consumes it once.
+    pub fn install_paid_work(&mut self, turn: u32, rows: Vec<(u32, f32)>) -> PyResult<()> {
+        crate::wealth_transfer::install_paid_work(&mut self.pool, turn, &rows).map_err(PyValueError::new_err)
+    }
+
+    /// Livelihoods L6a: drop an armed paid-work share the tick never took.
+    pub fn cancel_paid_work(&mut self) -> bool {
+        self.pool.paid_work.take().is_some()
+    }
+
+    /// Livelihoods L6a: the last wealth phase's paid-work deductions, taken
+    /// once: (turn, [(id, share, ordinary income, deducted)]).
+    #[allow(clippy::type_complexity)]
+    pub fn take_paid_work_receipt(&mut self) -> Option<(u32, Vec<(u32, f32, f32, f32)>)> {
+        self.pool.paid_work_receipt.take().map(|r| (r.turn, r.rows))
+    }
+
     /// Profiling only: when on, later ticks at 100,000 agents or more also
     /// time the (unused) Morton sort of the spatial step and report it as
     /// `get_spatial_diagnostics()["sort_time_us"]`. Off by default (the
@@ -1549,6 +1590,9 @@ impl AgentSimulator {
             }
         }
         crate::learning_work::check_tick(&self.pool, turn).map_err(PyValueError::new_err)?;
+        if self.pool.paid_work.as_ref().is_some_and(|p| p.turn != turn) {
+            return Err(PyValueError::new_err("paid work must be armed for this tick"));
+        }
         if self.pool.work_reservations.iter().any(|r| r.turn == turn) {
             // Livelihoods: one person, one work commitment per turn.
             let clash = crate::workshop_work::conflicts(&self.pool, turn);

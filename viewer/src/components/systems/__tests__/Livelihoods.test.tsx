@@ -5,6 +5,7 @@ import { FoodAllocation } from "../FoodAllocation";
 import { LivelihoodsPanel } from "../LivelihoodsPanel";
 import { Workshops } from "../Workshops";
 import { record as commonsRecord } from "../../../lib/__tests__/commonsRulesFixture";
+import { payroll } from "../../../lib/__tests__/workshopFinanceFixture";
 afterEach(cleanup);
 
 /** Constructed observations to test rendering; not a simulation run. */
@@ -74,6 +75,13 @@ it("composes only the packages a snapshot recorded", () => {
   expect(screen.queryByRole("heading", { name: /Timber stock/ })).not.toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: /Commons rules/ })).not.toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: /Academy learners/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: /Workshop payroll/ })).not.toBeInTheDocument();
+});
+
+it("mounts workshop payroll beside its workshops when recorded", () => {
+  const p = props({ schema_version: 1, workshop_payroll: payroll });
+  render(<LivelihoodsPanel {...p} onSeek={vi.fn()} onSelectEvent={vi.fn()} onSelectCivilization={vi.fn()} />);
+  expect(screen.getByRole("heading", { name: /Workshop payroll · snapshot 5/ })).toBeInTheDocument();
 });
 
 it("mounts academy learners when the snapshot recorded them", () => {

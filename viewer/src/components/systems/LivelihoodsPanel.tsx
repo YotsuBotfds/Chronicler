@@ -4,6 +4,7 @@ import { FoodAllocation } from "./FoodAllocation";
 import { GrainConvoys } from "./GrainConvoys";
 import { LearningCohorts } from "./LearningCohorts";
 import { TimberStock } from "./TimberStock";
+import { WorkshopFinance } from "./WorkshopFinance";
 import { Workshops } from "./Workshops";
 
 /**
@@ -16,6 +17,7 @@ export function LivelihoodsPanel({ bundle, snapshot, currentTurn, onSelectRegion
   const props = { bundle, snapshot, currentTurn, onSelectRegion };
   return <div className="systems-body">
     {record?.workshops != null ? <Workshops {...props} /> : null}
+    {record?.workshop_payroll != null ? <WorkshopFinance {...props} /> : null}
     {record?.food_allocation != null ? <FoodAllocation {...props} /> : null}
     {record?.timber_stock != null ? <TimberStock {...props} /> : null}
     {record?.grain_convoys != null
