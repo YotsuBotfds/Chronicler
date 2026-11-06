@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "layer": "cwb2",
+  "parent": "8286804cba473ccb8cd278b95e34faf3b4759ee8",
+  "files": {
+    "src/chronicler/agent_bridge.py": {
+      "sha256": "45cd70981603735aa2c6b4c052afb136990cbe2e4d391e4c2c6b8bd05ddf8285",
+      "current_sha256": "874f81c682478594585e7f1cc3744778478459e31784cf3fe88ef5427aaaadc9",
+      "patches": [
+        {
+          "old": "\n    # --- Ecology config (tuning YAML → Rust EcologyConfig) ---\n    # Each field falls back to the same default as Rust EcologyConfig::default().\n    simulator.set_ecology_config(\n        soil_degradation=get_override(world, \"ecology.soil_degradation_rate\", 0.005),\n        soil_recovery=get_override(world, \"ecology.soil_recovery_rate\", 0.05),\n        mine_soil_degradation=get_override(world, \"ecology.mine_soil_degradation_rate\", 0.03),\n",
+          "new": "\n    # --- Ecology config (tuning YAML → Rust EcologyConfig) ---\n    # Each field falls back to the same default as Rust EcologyConfig::default().\n    config = dict(\n        soil_degradation=get_override(world, \"ecology.soil_degradation_rate\", 0.005),\n        soil_recovery=get_override(world, \"ecology.soil_recovery_rate\", 0.05),\n        mine_soil_degradation=get_override(world, \"ecology.mine_soil_degradation_rate\", 0.03),\n"
+        },
+        {
+          "old": "        deforestation_threshold=get_override(world, \"ecology.deforestation_threshold\", 0.2),\n        deforestation_water_loss=get_override(world, \"ecology.deforestation_water_loss\", 0.05),\n    )\n    # Regional climate (2026-10): the trend share and the water a harvest\n    # shock takes. Not sent at share 1.0 (the native defaults: global schedule).\n    from chronicler.climate import climate_trend_share, harvest_shock_water_loss\n    trend = climate_trend_share(world)\n    if trend < 1.0:\n        simulator.set_climate_config(trend, harvest_shock_water_loss(world, trend))\n    # Production ledger (2026-10): the extraction rules. The native defaults\n    # are the corrections; sent only when a tuning key restores an old rule.\n    rules = extraction_rules(world)\n",
+          "new": "        deforestation_threshold=get_override(world, \"ecology.deforestation_threshold\", 0.2),\n        deforestation_water_loss=get_override(world, \"ecology.deforestation_water_loss\", 0.05),\n    )\n    # --watershed-mode flow replaces the native water terms (chronicler.watershed:\n    # empty, and None, unless that mode is on).\n    from chronicler.watershed import native_overrides\n    replaced, shock_water = native_overrides(world)\n    config.update(replaced)\n    simulator.set_ecology_config(**config)\n    # Regional climate (2026-10): the trend share and the water a harvest\n    # shock takes. Not sent at share 1.0 (the native defaults: global schedule).\n    from chronicler.climate import climate_trend_share, harvest_shock_water_loss\n    trend = climate_trend_share(world)\n    if trend < 1.0:\n        simulator.set_climate_config(\n            trend, harvest_shock_water_loss(world, trend) if shock_water is None else shock_water)\n    # Production ledger (2026-10): the extraction rules. The native defaults\n    # are the corrections; sent only when a tuning key restores an old rule.\n    rules = extraction_rules(world)\n"
+        }
+      ]
+    }
+  }
+}
