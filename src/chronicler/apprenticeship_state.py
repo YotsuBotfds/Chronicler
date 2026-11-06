@@ -73,6 +73,8 @@ END_REASONS: tuple[str, ...] = (
     # v2: more than ``MAX_GAP`` consecutive turns absent (no open site with room
     # in the region the apprentice lives in).
     "long_absence",
+    # v2: more than ``MAX_PAUSE`` consecutive missed turns of any reason.
+    "stalled",
 )
 #: Why an open apprenticeship missed a turn (an interruption).
 MISS_REASONS: tuple[str, ...] = (
@@ -113,6 +115,7 @@ COUNTERS: tuple[str, ...] = (
     "qualified_crew_turns", "graduate_crew_turns", "graduates", "graduates_died", "graduates_refused_cap",
     "covered_site_turns", "full_offset_site_turns",
     "upkeep_offset_apprenticeship", "upkeep_offset_service", "upkeep_offset_graduates",
+    "end_stalled",
 )
 
 
@@ -352,6 +355,11 @@ class ApprenticeshipState(_Record):
     @property
     def rules_version(self) -> int:
         return int(self.schema_version)
+
+    @property
+    def rules(self) -> str:
+        """The rules version as the ``--apprenticeship-rules`` choice ("2" or "1")."""
+        return str(self.schema_version)
 
     @model_validator(mode="after")
     def _rules_fields(self):

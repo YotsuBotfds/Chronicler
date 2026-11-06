@@ -220,3 +220,40 @@ def _same_but_record(a, b):
     a, b = json.loads(json.dumps(a)), json.loads(json.dumps(b))
     b.get("livelihoods", {}).pop("operating_wear", None)
     return a == b
+
+
+def test_rules_option_1_reproduces_a_version_1_run_and_a_conflicting_resume_is_refused(tmp_path, monkeypatch,
+                                                                                         capsys):
+    """Review B (2026-11-06): ``--apprenticeship-rules 1`` reproduces a version-1
+    run byte for byte (history, world state, ``state.json``) on template seed 7, and
+    an exact resume with a conflicting rules value is refused visibly."""
+    import chronicler.main as main_mod
+    from chronicler import apprenticeship as A
+    from chronicler.bundle_codec import load_bundle
+
+    def cli(folder, *argv):
+        monkeypatch.setattr(sys, "argv", ["chronicler", *argv, "--output", str(folder / "chronicle.md"),
+                                          "--state", str(folder / "state.json")])
+        main_mod.main()
+
+    run = ["--seed", "7", "--turns", "60", *BASE, "--workshops", "--apprenticeship"]
+    cli(tmp_path / "option", *run, "--apprenticeship-rules", "1", "--checkpoint-turns", "50")
+    with monkeypatch.context() as m:
+        m.setattr(A, "RULES_VERSION", 1)                      # a version-1 state, as before PL2
+        cli(tmp_path / "pinned", *run)
+    a, b = (load_bundle(tmp_path / name / "chronicle_bundle.json") for name in ("option", "pinned"))
+    assert a["history"][-1]["livelihoods"]["apprenticeship"]["schema_version"] == 1
+    assert a["history"] == b["history"] and a["world_state"] == b["world_state"]
+    assert (tmp_path / "option" / "state.json").read_bytes() == (tmp_path / "pinned" / "state.json").read_bytes()
+    # The checkpoint recorded the given value: resuming it under rules 2 is refused.
+    ckpt = tmp_path / "option" / "checkpoint_turn_50.ckpt"
+    with pytest.raises(SystemExit) as exit_info:
+        cli(tmp_path / "conflict", "--resume", str(ckpt), "--apprenticeship-rules", "2")
+    assert exit_info.value.code == 2 and "--apprenticeship-rules '2' conflicts" in capsys.readouterr().err
+    # A checkpoint of a run that left the option unset is refused through the saved state.
+    cli(tmp_path / "default", "--seed", "7", "--turns", "30", *BASE, "--workshops", "--apprenticeship",
+        "--checkpoint-turns", "25")
+    with pytest.raises(SystemExit) as exit_info:
+        cli(tmp_path / "conflict2", "--resume", str(tmp_path / "default" / "checkpoint_turn_25.ckpt"),
+            "--apprenticeship-rules", "1")
+    assert exit_info.value.code == 2 and "(saved: '2')" in capsys.readouterr().err
