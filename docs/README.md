@@ -69,6 +69,7 @@ link to these by path, so keep their names stable.
   [workshop operating wear](integration/operating-wear.md),
   [timber supply (woodcutting expeditions)](integration/timber-supply.md),
   [household food retail](integration/household-retail.md) ([design](integration/household-retail-design.md)),
+  [wealth accounting (observation-only ledger, connected-world A1)](integration/wealth-accounting.md),
   [the recovery chain view](integration/recovery-chain-view.md),
   [feature options in Batch Lab and live setup](integration/feature-options.md); plans in
   [sprint 1](superpowers/roadmaps/livelihoods-commons-sprint1.md),
