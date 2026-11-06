@@ -19,6 +19,7 @@ import { RecoveryCrews } from "./RecoveryCrews";
 import { Relocation } from "./Relocation";
 import { TimberStock } from "./TimberStock";
 import { TimberSupply } from "./TimberSupply";
+import { WealthAccounting } from "./WealthAccounting";
 import { WorkshopEconomics } from "./WorkshopEconomics";
 import { WorkshopFinance } from "./WorkshopFinance";
 import { Workshops } from "./Workshops";
@@ -30,7 +31,7 @@ import { Workshops } from "./Workshops";
 const PACKAGES = ["workshops", "workshop_payroll", "food_allocation", "timber_stock", "grain_convoys",
   "commons_rules", "learning_cohorts", "relocation_costs", "local_budgets", "clearing_protection",
   "remittances", "apprenticeship", "veteran_reintegration", "repair_projects", "operating_wear", "timber_supply",
-  "recovery_crews", "maintenance_obligation", "household_retail", "workshop_economics"];
+  "recovery_crews", "maintenance_obligation", "household_retail", "workshop_economics", "wealth_accounting"];
 
 export function LivelihoodsPanel(panelProps: SystemPanelProps) {
   const { bundle, snapshot, currentTurn, onSelectRegion } = panelProps;
@@ -68,6 +69,7 @@ export function LivelihoodsPanel(panelProps: SystemPanelProps) {
     {record?.timber_supply != null ? <TimberSupply {...props} /> : null}
     {record?.maintenance_obligation != null ? <MaintenanceObligation {...props} /> : null}
     {record?.remittances != null ? <Remittances {...props} /> : null}
+    {record?.wealth_accounting != null ? <WealthAccounting {...props} /> : null}
     {raw === null ? <p className="systems-note">No livelihoods observation is recorded at snapshot {at}.</p> : null}
   </div>;
 }

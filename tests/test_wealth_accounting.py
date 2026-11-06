@@ -20,7 +20,8 @@ from chronicler.feature_catalog import REQUIREMENTS
 from chronicler.livelihoods_state import LIVELIHOODS_SWITCHES
 from chronicler.main import _build_parser
 from chronicler.wealth_accounting_state import (
-    CHANNEL_NAMES, COUNTERS, LIFETIME, MAX_LOG, WITHHELD_PACKAGES, WealthAccountingState,
+    CHANNEL_NAMES, COUNTERS, LIFETIME, MAX_LOG, WEALTH_WRITER_METHODS, WEALTH_WRITERS, WITHHELD_OTHER,
+    WITHHELD_PACKAGES, WealthAccountingState,
 )
 from chronicler.world_gen import generate_world
 
@@ -390,7 +391,8 @@ def test_typed_flows_and_their_closures_per_purpose(monkeypatch):
     assert tr["charged"] == {"repair_projects": 3, "timber_supply": 1, "relocation_assistance": 1}
     assert tr["sinks_milli"] == {"repair_coins": 0, "granary_wage_residual": 0, "remittance_fee": 15,
                                  "relocation_fare": 500, "relocation_assistance": 1000, "procurement_residual": 100}
-    assert tr["created"] == {"treasury_tax": 0, "tithe_offered": 0, "tithe_collected": None}
+    assert tr["created"] == {"treasury_tax": 0}
+    assert tr["tithe"] == {"potential": 0, "at_threshold_after_tick": 0, "approximate": True, "collected": None}
     civ = {row["civ"]: row for row in tr["by_civ"]}
     assert civ[0] == {"civ": 0, "charged": 3, "to_households_milli": 2400}
     assert civ[1] == {"civ": 1, "charged": 2, "firm_distributions_milli": 1000, "firm_sales_milli": 1000,
@@ -464,6 +466,7 @@ def test_every_paid_work_row_is_attributed_once_and_pl3_splits_granary_from_work
     assert all(r["matches"] in (True, None) for r in wh["packages"])
     assert by["repair_projects"]["matches"] is True                  # RS2's counter covers PL3's workshop crews
     assert (wh["rows"], wh["unattributed_rows"], wh["conflicts"]) == (8, 0, 0)
+    assert wh["paid_work_active"] and wh["retail_active"] and wh["unattributed_pl3_dropped_rows"] == 0
     assert wh["deducted"] == pytest.approx(sum(v[2] for v in rows.values()))
     split = wh["recovery_crews"]
     assert split["granary"] == pytest.approx(0.25) and split["workshop"] == pytest.approx(0.15)
@@ -489,7 +492,8 @@ def test_an_unknown_row_and_a_doubly_named_person_are_counted_and_logged(monkeyp
     assert next(r for r in wh["packages"] if r["package"] == "workshop_payroll")["rows"] == 1
     state = _state(world)
     assert state.counters["unattributed_rows"] == 1 and state.counters["attribution_conflicts"] == 1
-    assert state.log[-1].kind == "attribution" and state.log[-1].detail == {"unattributed": 1, "conflicts": 1}
+    assert state.log[-1].kind == "attribution"
+    assert state.log[-1].detail == {"unattributed": 1, "pl3_dropped": 0, "conflicts": 1}
 
 
 def test_no_paid_work_package_is_not_a_recorded_zero():
@@ -498,23 +502,143 @@ def test_no_paid_work_package_is_not_a_recorded_zero():
     assert frame["withheld"] is None and frame["typed"] == [] and frame["closures"] == []
 
 
+def test_retail_replaced_income_is_shown_without_a_paid_work_package(monkeypatch):
+    """Review m4: L6b's replaced farm income is withheld income too; with no
+    paid-work package the paid-work fields are unknown (None), not zero."""
+    pk = _Packages(monkeypatch)
+    world = _world()
+
+    def retail(replaced):
+        def install():
+            pk.subs["household_retail"] = SimpleNamespace(frame_turn=world.turn, frame=[], money={},
+                                                          income={"replaced": replaced} if replaced else {})
+        return install
+    wh = _turn(world, {1: (0, 1.0)}, {1: (0, 1.0)}, between=retail(0.75))["withheld"]
+    assert wh["paid_work_active"] is False and wh["retail_active"] is True
+    assert wh["retail_income_replaced"] == 0.75
+    assert all(wh[k] is None for k in ("rows", "deducted", "packages", "unattributed_rows", "conflicts",
+                                       "recovery_crews", "unattributed_pl3_dropped_rows", "unattributed_deducted"))
+    assert _state(world).lifetime["withheld_retail"] == 0.75 and "withheld_rows" not in _state(world).counters
+    wh = _turn(world, {1: (0, 1.0)}, {1: (0, 1.0)}, between=retail(None))["withheld"]
+    assert wh["retail_active"] is True and wh["retail_income_replaced"] is None     # not observed: unknown
+
+
+def test_a_workshop_crew_of_a_dropped_pl3_receipt_is_unattributed_not_credited_to_rs2(monkeypatch):
+    """Review m3: while PL3 is active every RS2 workshop crew is a PL3 workshop
+    crew; a member only RS2 names was on a receipt PL3's 64-row cap dropped."""
+    pk = _Packages(monkeypatch)
+    world = _world()
+    people = {i: (0, 1.0) for i in range(30, 62)}
+
+    def install():
+        _every_payer(pk, world.turn)
+        pk.subs["recovery_crews"].receipts = [r for r in pk.subs["recovery_crews"].receipts if r.kind == "granary"]
+        pk.counters[("recovery_crews", "rows_dropped")] = pk.counters.get(("recovery_crews", "rows_dropped"), 0) + 1
+        pk.counters[("recovery_crews", "income_replaced")] = pk.counters.get(("recovery_crews", "income_replaced"), 0) + 0.4
+        pk.counters[("repair_projects", "income_replaced")] = pk.counters.get(("repair_projects", "income_replaced"), 0) + 0.15
+        world.livelihoods._paid_receipt = (world.turn, {40: (0.2, 0.5, 0.1), 41: (0.2, 0.25, 0.05),
+                                                        50: (0.5, 0.5, 0.25)})
+    wh = _turn(world, people, people, between=install)["withheld"]
+    by = {r["package"]: r for r in wh["packages"]}
+    assert by["repair_projects"]["rows"] == 0 and by["recovery_crews_workshop"]["rows"] == 0
+    assert (wh["unattributed_rows"], wh["unattributed_pl3_dropped_rows"], wh["conflicts"]) == (2, 2, 0)
+    assert wh["unattributed_deducted"] == pytest.approx(0.15)
+    assert by["repair_projects"]["matches"] is False                  # RS2's own counter saw them
+    split = wh["recovery_crews"]
+    assert split["rows_dropped"] == 1 and not split["closes"] and split["granary"] == pytest.approx(0.25)
+    state = _state(world)
+    assert state.counters["unattributed_pl3_dropped_rows"] == 2
+    assert state.log[-1].kind == "attribution" and state.log[-1].detail["pl3_dropped"] == 2
+
+
+def test_domestic_credit_is_recorded_in_whole_milli_units(monkeypatch):
+    pk = _Packages(monkeypatch)
+    world = _world()
+    people = {1: (0, 1.0)}
+    pk.credit = SimpleNamespace(merchant_sent=0.0, merchant_applied=10.0)
+
+    def lend(amount):
+        def step():
+            pk.credit = SimpleNamespace(merchant_sent=0.0, merchant_applied=pk.credit.merchant_applied + amount)
+        return step
+    for amount, expected in ((2.5004, (2500, 0)), (-0.0123456, (0, 12)), (0.0004, (0, 0))):
+        frame = _turn(world, people, people, between=lend(amount))
+        row = next(r for r in frame["typed"] if r["channel"] == "domestic_credit")
+        assert (row["in_milli"], row["out_milli"]) == expected
+        assert all(isinstance(row[k], int) for k in ("in_milli", "out_milli", "unlocated_in_milli"))
+    life = _state(world).lifetime
+    assert (life["domestic_credit_in_milli"], life["domestic_credit_out_milli"]) == (2500, 12)
+
+
+# --- the payer registry (review m1) -----------------------------------------------
+
+def _writer_call_sites():
+    import ast
+    from pathlib import Path
+    root = Path(WA.__file__).resolve().parent
+    found = {}
+    for path in sorted(root.rglob("*.py")):
+        module = ".".join(path.relative_to(root).with_suffix("").parts)
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) \
+                    and node.func.attr in WEALTH_WRITER_METHODS:
+                found.setdefault((module, node.func.attr), []).append(node.lineno)
+    return found
+
+
+def test_every_wealth_writing_call_site_is_registered_with_a_ledger_channel():
+    """A payer added without a ledger channel would vanish into the native-model
+    residual while ``typed_complete`` stayed true: every Python call site of a
+    wealth-writing native method must be in ``WEALTH_WRITERS`` (add one row and
+    a channel there), and every row must still name a live call site."""
+    found = _writer_call_sites()
+    unregistered = {key: lines for key, lines in found.items() if key not in WEALTH_WRITERS}
+    assert not unregistered, f"wealth-writing call sites without a ledger channel: {unregistered}"
+    stale = set(WEALTH_WRITERS) - set(found)
+    assert not stale, f"WEALTH_WRITERS rows naming no call site: {stale}"
+    known = set(CHANNEL_NAMES) | set(WITHHELD_PACKAGES) | set(WITHHELD_OTHER)
+    for key, channels in WEALTH_WRITERS.items():
+        assert channels and set(channels) <= known, key
+    covered = {c for channels in WEALTH_WRITERS.values() for c in channels}
+    # Every typed channel but domestic credit's own books and every withheld package has a call site.
+    assert set(CHANNEL_NAMES) <= covered and set(WITHHELD_PACKAGES) <= covered
+
+
+def test_the_registry_guard_fails_on_an_unregistered_payer(tmp_path, monkeypatch):
+    """The guard itself: a module that calls transfer_wealth without a row is caught."""
+    import ast
+    source = "def pay(sim):\n    return sim.transfer_wealth(1, 0, 0, [(1, 5)])\n"
+    calls = [n.func.attr for n in ast.walk(ast.parse(source))
+             if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+             and n.func.attr in WEALTH_WRITER_METHODS]
+    assert calls == ["transfer_wealth"] and ("money", "transfer_wealth") not in WEALTH_WRITERS
+
+
 # --- treasury side -------------------------------------------------------------
 
-def test_the_treasury_tax_is_reproduced_from_the_carry_read_at_the_opening():
+def test_the_treasury_tax_is_reproduced_and_the_tithe_is_a_potential_not_created_money():
+    from chronicler.models import FactionType
     world = _world()
     world._treasury_tax_carry = {0: 0.75, 1: 0.5}
     world.civilizations[0].last_income = 30           # not in the economy's tithe base: the fallback
+    world.civilizations[1].last_income = 50
     economy = SimpleNamespace(treasury_tax={0: 1.5, 1: 0.25, 9: 4.0}, tithe_base={})
 
     def taxed():
         world._treasury_tax_carry = {0: 0.25, 1: 0.75}  # what the economy's tax step leaves
+        world.civilizations[0].factions.influence[FactionType.CLERGY] = 0.2    # at the threshold
+        world.civilizations[1].factions.influence[FactionType.CLERGY] = 0.1    # below it
     frame = _turn(world, {1: (0, 1.0)}, {1: (0, 1.0)}, between=taxed, economy=economy, acc=object())
-    created = frame["treasury"]["created"]
-    assert created == {"treasury_tax": 2, "tithe_offered": 3, "tithe_collected": None}
-    assert {r["civ"]: r for r in frame["treasury"]["by_civ"]}[0] == {"civ": 0, "tithe_offered": 3,
-                                                                    "treasury_tax": 2}
+    tr = frame["treasury"]
+    assert tr["created"] == {"treasury_tax": 2}                     # the tithe is not in "created"
+    assert tr["tithe"] == {"potential": 8, "at_threshold_after_tick": 3, "approximate": True, "collected": None}
+    civ = {r["civ"]: r for r in tr["by_civ"]}
+    assert civ[0] == {"civ": 0, "tithe_at_threshold_after_tick": 3, "tithe_potential": 3, "treasury_tax": 2}
+    assert civ[1] == {"civ": 1, "tithe_potential": 5}
     state = _state(world)
-    assert state.lifetime["treasury_tax_created"] == 2 and state.lifetime["tithe_offered"] == 3
+    assert state.lifetime["treasury_tax_created"] == 2 and state.lifetime["tithe_potential"] == 8
+    assert state.lifetime["tithe_at_threshold_after_tick"] == 3 and "tithe_offered" not in LIFETIME
+    assert "NOT created money" in WA.LABELS["tithe"]
 
 
 # --- the record and its readers ---------------------------------------------------

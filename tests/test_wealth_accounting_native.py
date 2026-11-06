@@ -153,6 +153,9 @@ def test_typed_flows_close_per_purpose_and_every_paid_work_row_is_attributed(tmp
         assert f["turn"] == 0 or f["continuity"]["status"] == "exact", (f["turn"], f["continuity"])
         wh = f["withheld"]
         assert wh["unattributed_rows"] == 0 and wh["conflicts"] == 0, (f["turn"], wh)
+        assert wh["unattributed_pl3_dropped_rows"] == 0 and wh["paid_work_active"] and wh["retail_active"]
+        assert wh["retail_income_replaced"] is not None
+        assert f["treasury"]["tithe"]["at_threshold_after_tick"] <= f["treasury"]["tithe"]["potential"]
         assert all(p["matches"] in (True, None) for p in wh["packages"]), (f["turn"], wh["packages"])
         split = wh["recovery_crews"]
         assert split["closes"] and split["rows_dropped"] == 0, (f["turn"], split)
@@ -187,8 +190,10 @@ def test_typed_flows_close_per_purpose_and_every_paid_work_row_is_attributed(tmp
     assert life["workshop_wage_in_milli"] == counters["workshop_payroll"].get("wages_paid", 0)
     assert life["apprentice_stipend_in_milli"] == counters["apprenticeship"].get("stipends_paid", 0)
     credit = bundle["world_state"]["domestic_credit"]
+    # Whole milli-units per turn: at most half a milli of rounding a turn.
+    assert isinstance(life["domestic_credit_in_milli"], int) and isinstance(life["domestic_credit_out_milli"], int)
     assert life["domestic_credit_in_milli"] - life["domestic_credit_out_milli"] == pytest.approx(
-        credit["merchant_applied"] * 1000, abs=1e-3)
+        credit["merchant_applied"] * 1000, abs=0.5 * len(frames))
     pl3 = counters["recovery_crews"]["income_replaced"]
     assert life["withheld_recovery_crews_granary"] + life["withheld_recovery_crews_workshop"] == pytest.approx(pl3)
     assert life["withheld_recovery_crews_workshop"] > 0 and life["withheld_recovery_crews_granary"] > 0
@@ -281,3 +286,56 @@ def test_resource_checks_pass_on_an_all_switch_procedural_run(tmp_path, monkeypa
         assert f["turn"] == 0 or f["continuity"]["status"] == "exact"
         assert f["withheld"]["unattributed_rows"] == 0 and f["withheld"]["conflicts"] == 0
         assert f["typed_complete"]
+
+
+def test_the_extension_has_no_transfer_purpose_the_ledger_does_not_know():
+    """A purpose added natively without a ledger channel fails here (review m1)."""
+    from chronicler_agents import AgentSimulator
+    from chronicler.wealth_accounting_state import KNOWN_PURPOSES
+    assert tuple(AgentSimulator.wealth_transfer_purposes()) == KNOWN_PURPOSES
+
+
+def test_apprentice_stipends_reach_the_ledger_constructed(tmp_path, monkeypatch):
+    """Review m7, constructed exactly as ``test_apprenticeship_native``'s stipend
+    case (template seed 7, RS1 rules version 1, 60 turns): firms open without an
+    academy order and get a test-only cash top-up booked as sales before each
+    turn's receipt opens; no customer buys. Native stipends then move firm cash
+    to apprentices, and the ledger's ``apprentice_stipend`` channel must equal
+    RS1's own seat records turn by turn and its lifetime counter."""
+    from chronicler import apprenticeship as A
+    from chronicler import workshop_payroll as P
+    monkeypatch.setattr(A, "RULES_VERSION", 1)
+    monkeypatch.setattr(P, "_open_orders", lambda world: {i: 0 for i in range(len(world.civilizations))})
+    monkeypatch.setattr(P, "_customers", lambda world: [])
+    prepare = P.prepare_phase2
+
+    def seeded_prepare(world, region_input, agent_bridge, snapshot, acc):
+        for firm in world.livelihoods.workshop_payroll.firms:      # before the turn's receipt opens
+            top = max(0, 3000 - firm.cash)
+            firm.cash += top
+            firm.totals["sales"] = firm.totals.get("sales", 0) + top
+        return prepare(world, region_input, agent_bridge, snapshot, acc)
+
+    monkeypatch.setattr(P, "prepare_phase2", seeded_prepare)
+    _cli(monkeypatch, tmp_path, "--seed", "7", "--turns", "60", "--civs", "4", "--regions", "8", *HYBRID,
+         "--workshops", "--workshop-payroll", "--workshop-payroll-mode", "paid", "--apprenticeship", *LEDGER)
+    bundle = _bundle(tmp_path)
+    paid_turns = withheld_turns = 0
+    for snap in bundle["history"]:
+        lv = snap["livelihoods"]
+        f = lv["wealth_accounting"]["frame"]
+        assert all(c["closes"] for c in f["closures"]), f["turn"]
+        seats = sum(s["stipend_paid"] for r in lv["apprenticeship"]["receipts"] or [] for s in r["seats"])
+        stipend = next(r for r in f["typed"] if r["channel"] == "apprentice_stipend")
+        assert stipend["in_milli"] == seats and stipend["unlocated_in_milli"] == 0, f["turn"]
+        paid_turns += seats > 0
+        wh = f["withheld"]
+        assert wh["unattributed_rows"] == 0 and wh["conflicts"] == 0
+        rs1 = next(p for p in wh["packages"] if p["package"] == "apprenticeship")
+        assert rs1["matches"] is True, (f["turn"], rs1)
+        withheld_turns += rs1["rows"] > 0
+    counters = bundle["history"][-1]["livelihoods"]["apprenticeship"]["counters"]
+    life = bundle["history"][-1]["livelihoods"]["wealth_accounting"]["lifetime"]
+    assert life["apprentice_stipend_in_milli"] == counters["stipends_paid"] > 0
+    assert paid_turns > 0 and withheld_turns > 0
+    assert life["withheld_apprenticeship"] == pytest.approx(counters["income_forgone"])

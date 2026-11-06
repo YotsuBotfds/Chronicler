@@ -9,7 +9,9 @@ indices in ``world.civilizations``; people are native stable ids, but no id is
 persisted here (the closing balance is kept as a digest and per-region sums).
 Units: native wealth units (f32 balances summed in f64) for balances and the
 native model residual; whole milli-units (1000 = one wealth unit = one
-treasury unit) for typed flows, as the native wealth transfer counts them;
+treasury unit) for typed flows, as the native wealth transfer counts them
+(domestic credit, applied as an f32 change, is rounded to the nearest milli;
+the sub-milli rest stays in the residual);
 whole treasury units for treasury charges and created treasury income.
 
 Everything is bounded: one completed-turn frame (one row per region, one per
@@ -53,6 +55,43 @@ WITHHELD_PACKAGES: tuple[str, ...] = (
     "repair_projects", "timber_supply",
 )
 
+#: Withheld channels that are not paid work (no money moves): L6b replaces a
+#: pilot farmer's farm income by sales.
+WITHHELD_OTHER: tuple[str, ...] = ("withheld_retail",)
+
+#: The one registry of Python call sites of native methods that write agent
+#: wealth or withhold ordinary income: ``(module under chronicler, method) ->``
+#: what the ledger reads it as (typed channels, withheld packages or
+#: ``WITHHELD_OTHER``). ``tests/test_wealth_accounting.py`` walks ``src/`` and
+#: fails on a call site missing here, so a new payer cannot vanish into the
+#: native-model residual: add its row and its channel (append only).
+WEALTH_WRITER_METHODS: tuple[str, ...] = (
+    "transfer_wealth", "remit_wealth", "apply_merchant_transfers", "set_household_retail",
+    "install_paid_work", "extend_paid_work", "install_retail_income",
+)
+WEALTH_WRITERS: dict[tuple[str, str], tuple[str, ...]] = {
+    ("workshop_payroll", "transfer_wealth"): ("workshop_wage", "apprentice_stipend"),
+    ("workshop_payroll", "install_paid_work"): ("workshop_payroll",),
+    ("apprenticeship", "extend_paid_work"): ("apprenticeship",),
+    ("repair_projects", "transfer_wealth"): ("repair_wage",),
+    ("repair_projects", "extend_paid_work"): ("repair_projects", "recovery_crews_granary", "recovery_crews_workshop"),
+    ("recovery_crews", "transfer_wealth"): ("granary_crew_wage",),
+    ("timber_supply", "transfer_wealth"): ("woodcut_wage",),
+    ("timber_supply", "extend_paid_work"): ("timber_supply",),
+    ("household_retail", "set_household_retail"): ("food_purchase",),
+    ("household_retail", "install_retail_income"): ("withheld_retail",),
+    ("household_retail", "transfer_wealth"): ("food_procurement",),
+    ("remittances", "remit_wealth"): ("remittance",),
+    ("relocation_costs", "transfer_wealth"): ("relocation_fare",),
+    ("domestic_credit", "apply_merchant_transfers"): ("domestic_credit",),
+}
+#: Native ``AgentSimulator.wealth_transfer_purposes()`` this ledger knows
+#: (append only; a native test fails when the extension grows past it).
+KNOWN_PURPOSES: tuple[str, ...] = (
+    "workshop_wage", "relocation_fare", "apprentice_stipend", "repair_wage", "remittance", "food_purchase",
+    "food_procurement",
+)
+
 #: Continuity of an opening with the previous closing.
 CONTINUITY: tuple[str, ...] = ("exact", "broken", "unchecked")
 #: Why a continuity check could not run.
@@ -74,15 +113,16 @@ LIFETIME: tuple[str, ...] = (
     *(f"{name}_{side}_milli" for name in CHANNEL_NAMES for side in ("in", "out")),
     "delta", "native_model", "discontinuity",
     *(f"withheld_{name}" for name in WITHHELD_PACKAGES), "withheld_unattributed",
-    "treasury_tax_created", "tithe_offered", "treasury_to_households_milli",
+    "treasury_tax_created", "tithe_potential", "treasury_to_households_milli",
     "treasury_to_firm_cash_milli", "firm_cash_to_treasury_milli", "treasury_charged",
+    "tithe_at_threshold_after_tick", "withheld_retail",
 )
 
 #: Lifetime counters (declaration order; append only).
 COUNTERS: tuple[str, ...] = (
     "turns_observed", "turns_unobserved", "continuity_exact", "continuity_broken", "continuity_unchecked",
     "pool_resets", "switched_on", "switched_off", "withheld_rows", "unattributed_rows",
-    "attribution_conflicts", "typed_incomplete_turns", "closures_failed",
+    "attribution_conflicts", "typed_incomplete_turns", "closures_failed", "unattributed_pl3_dropped_rows",
 )
 
 
