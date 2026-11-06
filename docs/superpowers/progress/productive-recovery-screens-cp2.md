@@ -326,10 +326,14 @@ choose arms, outcomes or parameters.
 - **2026-11-06, after the held run (no change to the held source).** Reviewer D's last check
   found that the opening storage cap read the commons before this tick's merchant
   departures, so in a constructed case departures could drive the cut commons negative and
-  the clamp would create food. It never fired in development runs. It is fixed on the
-  branch after the held run; whether held results stand for the fixed source is recorded
-  below once the byte-identity check of fixed against frozen source on development worlds
-  is complete.
+  the clamp would create food. It is fixed after the held run (`478f2dca`, native
+  `101a4cd5…`): the combined cap counts the commons net of departures. On three development
+  worlds (template 7 retail; procedural 11 boundary `all`; template 42 with every
+  interaction flag; 120 turns) the frozen and the fixed sources give **byte-identical**
+  `state.json` and bundle histories; the defect never fired (0 pilot region-goods where
+  departures exceeded the cut commons; the cap bound 1, 114 and 10 times, never together
+  with food departures). The held results therefore stand for the fixed source; the held
+  run itself used the frozen extension `b1910b94…`.
 
 ## Lead decisions (2026-11-06, before freezing)
 
