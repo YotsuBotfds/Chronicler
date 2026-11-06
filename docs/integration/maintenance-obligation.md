@@ -213,6 +213,25 @@ granary condition is 0.325 / 0.408, and 0.700 / 0.798 with ample timber.
   `reserve_only` matches L9 alone (ghost 0.586 / 0.708), so the benefit in
   `reserve` is the reservation spent on repairs, not a side effect.
 
+**Rerun after the pro-rata split (review C, 2026-11-06).** The table above was
+measured with the first, reservation-first rule. L9 alone and `reserve`
+were rerun on the fixed source (phase branch with PL1 and PL2 off, extension
+`fdcb0ca0…`, the same 12 worlds and flags):
+
+| Measure (template / procedural) | `l9` | `reserve` | ghost `l9` | ghost `reserve` |
+| --- | --- | --- | --- | --- |
+| Repairs envelopes settled: kept / deferred | 321 / 23; 1,151 / 56 | 16 / 0; 83 / 1 | 636 / 475; 1,342 / 535 | 61 / 1; 240 / 19 |
+| Reserved; used; returned (coins) | - | 1,097; 717; 380 / 3,137; 2,239; 898 | - | 6,353; 4,707; 1,646 / 12,037; 9,723; 2,314 |
+| RS2 charged (coins) | 481 / 2,562 | 761 / 2,438 | 4,565 / 10,262 | 4,946 / 10,713 |
+| Granary stalls, primary `no_envelope` | 214 / 497 | 31 / 92 | 1,978 / 3,424 | 299 / 749 |
+| Mean granary condition | 0.275 / 0.348 | 0.311 / 0.373 | 0.590 / 0.710 | 0.695 / 0.782 |
+
+The conclusions above hold. Envelope stalls fall by 85% / 81% naturally and
+85% / 78% with ample timber. With the split, `reserve`'s few promises are
+deferred at 0% / 1% (ghost 2% / 7%), against 7% / 5% (ghost 43% / 29%) for
+L9 alone. Under the first rule the procedural ghost `reserve` arm deferred
+16% (41 of 254).
+
 ## Limits
 
 - The reservation follows RS2's planned charges at the decision's free
