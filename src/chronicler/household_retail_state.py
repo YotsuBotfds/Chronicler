@@ -80,6 +80,7 @@ COUNTERS: tuple[str, ...] = (
     "procurement_flows", "procurement_credited_milli", "procurement_residual_milli",
     "procurement_unpaid_milli", "requisition_exempt_region_turns",
     "priced_out_persons", "offer_short_persons", "income_replaced_rows",
+    "crew_farm_time_person_turns", "crew_farm_time_micro",
 )
 
 

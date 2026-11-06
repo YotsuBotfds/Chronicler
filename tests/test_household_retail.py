@@ -54,7 +54,9 @@ class Column:
 
 class Snapshot:
     def __init__(self, rows, names):
+        from types import SimpleNamespace
         self.rows, self.names = rows, names
+        self.schema = SimpleNamespace(names=list(names))
 
     def column(self, name):
         return Column([r[name] for r in self.rows])
@@ -413,13 +415,20 @@ class Harness:
                 res.household_retail[rid] = row
         return res
 
-    def turn(self, production=None, *, imports=None, between=None, granaries=None):
+    def turn(self, production=None, *, imports=None, between=None, granaries=None, batch=None, economy=None):
         world, bridge = self.world, self.bridge
         snapshot = self.sim.get_snapshot()
         region_input = build_economy_region_input_batch(world)
+        from chronicler.cities import cities_on, with_economy_columns
+        if cities_on(world):
+            region_input = with_economy_columns(world, region_input, snapshot)   # as Phase 2 does
+        if batch is not None:
+            region_input = batch(region_input)              # earlier Phase 2 planners (PL3 removal)
         region_input = LV.prepare_phase2(world, region_input, bridge, snapshot)
         self.region_inputs.append(region_input)
         res = self.economy(region_input, production, imports)
+        if economy is not None:
+            economy(res)                                    # native outputs of other packages
         self.results.append(res)
         LV.finish_phase2(world, res, bridge)
         from chronicler.grain_reserves import grain_reserves_active, open_granaries
@@ -1300,4 +1309,109 @@ def test_paid_work_includes_regions_of_paid_repair_crews():
     assert HR._paid_work_regions(h.world) == [(FROST, "paid_work")]
     h.world.livelihoods.repair_projects = None
     h.state.boundary = "paid_work"
+    assert HR._paid_work_regions(h.world) == []
+
+
+# --- named crews' farm time (review E) ----------------------------------------------
+
+def _crews(h, *, wood=(), granary=(), workshop=(), wood_delivered=None, granary_delivered=None):
+    """An ``economy`` callback staging this turn's PL1 and PL3 receipts as their
+    own Phase 2 does (after the economy tick, before this package's finish; the
+    packages themselves are off: only their turn frames are read), with the
+    native woodcut and storage deliveries."""
+    from types import SimpleNamespace as NS
+    from chronicler.recovery_crews_state import RecoveryCrewsState
+    from chronicler.timber_supply_state import TimberSupplyState
+
+    def stage(res):
+        lv = h.world.livelihoods
+        lv.timber_supply = lv.timber_supply or TimberSupplyState(enabled=False)
+        lv.recovery_crews = lv.recovery_crews or RecoveryCrewsState(enabled=False)
+        turn = h.world.turn
+        lv.timber_supply._turn = NS(turn=turn, receipts=[NS(home=home, crew=list(crew), away_requested=req)
+                                                         for home, crew, req in wood])
+        lv.recovery_crews._turn = NS(turn=turn, receipts=[
+            *(NS(region=r, kind="granary", members=[NS(agent_id=a, farm_time=f) for a, f in members])
+              for r, members in granary),
+            *(NS(region=r, kind="workshop", members=[NS(agent_id=a, farm_time=f) for a, f in members])
+              for r, members in workshop)])
+        if wood_delivered is not None:
+            res.woodcut_labor_away_delivered = wood_delivered
+        if granary_delivered is not None:
+            res.granary_work_delivered = granary_delivered
+    return stage
+
+
+def _lowered(rid, amount, farmers):
+    """PL3's workshop removal: ``farm_labor_factor`` lowered by amount / farmers."""
+    def batch(region_input):
+        names = list(region_input.schema.names)
+        factor = (region_input.column(names.index("farm_labor_factor")).to_pylist()
+                  if "farm_labor_factor" in names else [1.0] * region_input.num_rows)
+        factor[rid] = factor[rid] - amount / farmers
+        column = pa.array(factor, type=pa.float32())
+        if "farm_labor_factor" in names:
+            return region_input.set_column(names.index("farm_labor_factor"), "farm_labor_factor", column)
+        return region_input.append_column("farm_labor_factor", column)
+    return batch
+
+
+def test_named_crews_farm_time_is_paid_not_titled():
+    """w_i = max(0, u_i (1 - h_i) - r_i): a woodcutter away all turn, a granary
+    crew member for half of it and a workshop crew member for a quarter get
+    that much less title; their weights sum to the economy's farm labour."""
+    h = Harness()
+    _people(h, VERDANT, (1, 2, 3, 4), wealth=0.0)
+    stage = _crews(h, wood=[(VERDANT, [1], 1.0)], granary=[(VERDANT, [(2, 0.5)])],
+                   workshop=[(VERDANT, [(3, 0.25)])], wood_delivered={VERDANT: 1.0},
+                   granary_delivered={VERDANT: 0.5})
+    seen = {}
+    h.turn({VERDANT: {"salt": 10.0}}, batch=_lowered(VERDANT, 0.25, 4), economy=stage,
+           between=lambda: seen.update(h.state.region(VERDANT).claims))
+    assert seen == HR.largest_remainder(9000, [(2, 500_000), (3, 750_000), (4, 1_000_000)])
+    assert 1 not in seen
+    assert h.state.counters["crew_farm_time_person_turns"] == 3
+    assert h.state.counters["crew_farm_time_micro"] == 1_750_000
+
+
+def test_a_partly_delivered_woodcut_request_scales_the_crews_farm_time():
+    h = Harness()
+    _people(h, VERDANT, (1, 2, 3), wealth=0.0)
+    seen = {}
+    h.turn({VERDANT: {"salt": 10.0}}, economy=_crews(h, wood=[(VERDANT, [1, 2], 2.0)],
+                                                     wood_delivered={VERDANT: 1.0}),
+           between=lambda: seen.update(h.state.region(VERDANT).claims))
+    assert seen == HR.largest_remainder(9000, [(1, 1), (2, 1), (3, 2)])   # each crew member gave half
+
+
+@pytest.mark.parametrize("case", ["workshop_not_removed", "woodcut_share", "granary_not_delivered"])
+def test_crew_farm_time_that_the_economy_did_not_remove_is_refused(case):
+    h = Harness()
+    _people(h, VERDANT, (1, 2, 3, 4), wealth=0.0)
+    if case == "workshop_not_removed":                      # the receipt says so, the batch disagrees
+        stage = _crews(h, workshop=[(VERDANT, [(3, 0.25)])])
+    elif case == "woodcut_share":                           # a request that is not the crew's farm share
+        stage = _crews(h, wood=[(VERDANT, [1], 0.5)], wood_delivered={VERDANT: 0.5})
+    else:                                                    # granary work the economy never delivered
+        stage = _crews(h, granary=[(VERDANT, [(2, 0.5)])], granary_delivered={VERDANT: 0.0})
+    with pytest.raises(HR.RetailAccountingError):
+        h.turn({VERDANT: {"salt": 1.0}}, economy=stage)
+
+
+def test_paid_work_includes_paid_granary_crews_and_woodcutters_home_regions():
+    from chronicler.recovery_crews_state import CrewReceipt, RecoveryCrewsState
+    from chronicler.timber_supply_state import ExpeditionReceipt, TimberSupplyState
+    h = Harness("--household-retail-boundary", "paid_work")
+    lv = h.world.livelihoods
+    lv.recovery_crews = RecoveryCrewsState(receipts=[
+        CrewReceipt(turn=9, pid=0, kind="granary", region=FROST, payer=1, eligible=3, wages_milli=400),
+        CrewReceipt(turn=9, pid=1, kind="granary", region=AMBER, payer=1, eligible=3, wages_milli=0),
+        CrewReceipt(turn=9, pid=2, kind="workshop", region=OBSIDIAN, payer=0, eligible=3, wages_milli=900)])
+    lv.timber_supply = TimberSupplyState(receipts=[
+        ExpeditionReceipt(turn=9, eid=0, civ=2, home=THORNWOOD, forest=VERDANT, slot=1, stage="outbound",
+                          crew=[1], wages_milli=150),
+        ExpeditionReceipt(turn=9, eid=1, civ=3, home=ASHARA, forest=VERDANT, slot=1, stage="returning",
+                          crew=[2], wages_milli=0, unpaid=True)])
+    assert HR._paid_work_regions(h.world) == [(FROST, "paid_work"), (THORNWOOD, "paid_work")]
+    lv.recovery_crews.enabled = lv.timber_supply.enabled = False
     assert HR._paid_work_regions(h.world) == []

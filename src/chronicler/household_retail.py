@@ -250,7 +250,15 @@ class _Phase2:
     turn: int
     pilots: list[int]
     theta: float
-    farmers: dict[int, list[tuple[int, int]]]      # region -> [(id, micro-weight)], ascending id
+    #: region -> [(id, u, h)]: each Phase 2 farmer's urban farm-labour factor and
+    #: health work loss, ascending id.
+    work: dict[int, list[tuple[int, float, float]]]
+    #: region -> the economy batch's final ``farm_labor_factor`` (after every
+    #: earlier Phase 2 planner; 1 without the column).
+    factor: dict[int, float] = field(default_factory=dict)
+    #: region -> [(id, micro-weight)] after the named crews' farm time
+    #: (``finish_phase2``), ascending id.
+    farmers: dict[int, list[tuple[int, int]]] = field(default_factory=dict)
     controllers: dict[int, str | None] = field(default_factory=dict)
     titled: bool = False
 
@@ -437,8 +445,10 @@ def _capital_regions(world) -> list[tuple[int, str]]:
 
 
 def _paid_work_regions(world) -> list[tuple[int, str]]:
-    """Regions with an open L6a firm, or a paid RS2 repair crew in RS2's last
-    frame (PL3's paid recovery crews pay through RS2's receipts)."""
+    """Regions where paid work has been done, from each lane's last committed
+    frame: an open L6a firm; a repair crew paid in RS2's receipts; a PL3
+    granary crew paid in ``recovery_crews.receipts``; the home region of a
+    PL1 woodcutting crew paid in ``timber_supply.receipts``."""
     out = set()
     lv = getattr(world, "livelihoods", None)
     payroll = getattr(lv, "workshop_payroll", None)
@@ -447,6 +457,12 @@ def _paid_work_regions(world) -> list[tuple[int, str]]:
     repair = getattr(lv, "repair_projects", None)
     if repair is not None and repair.enabled and repair.receipts:
         out.update(r.region for r in repair.receipts if r.wages_milli > 0)
+    crews = getattr(lv, "recovery_crews", None)
+    if crews is not None and crews.enabled and crews.receipts:
+        out.update(r.region for r in crews.receipts if r.kind == "granary" and r.wages_milli > 0)
+    timber = getattr(lv, "timber_supply", None)
+    if timber is not None and timber.enabled and timber.receipts:
+        out.update(r.home for r in timber.receipts if r.wages_milli > 0)
     return [(rid, "paid_work") for rid in sorted(out)]
 
 
@@ -524,9 +540,9 @@ def _health_losses(world, people: dict[int, tuple]) -> dict[int, float]:
     return loss
 
 
-def title_weights(world, snapshot, regions) -> dict[int, list[tuple[int, int]]]:
-    """Each pilot region's Phase 2 farmers and their food work
-    ``u_i x (1 - h_i)`` in integer micro-units, ascending id."""
+def title_inputs(world, snapshot, regions) -> dict[int, list[tuple[int, float, float]]]:
+    """Each pilot region's Phase 2 farmers with ``u_i`` (the urban farm-labour
+    factor) and ``h_i`` (health work loss), ascending id."""
     wanted = set(regions)
     if not wanted:
         return {}
@@ -538,16 +554,103 @@ def title_weights(world, snapshot, regions) -> dict[int, list[tuple[int, int]]]:
     cities = getattr(getattr(world, "cities", None), "cities", None) or []
     rank = {(int(c.region), int(c.settlement_id)): int(c.rank) for c in cities if c.settlement_id > 0}
     losses = _health_losses(world, people)
-    out: dict[int, list[tuple[int, int]]] = {rid: [] for rid in sorted(wanted)}
+    out: dict[int, list[tuple[int, float, float]]] = {rid: [] for rid in sorted(wanted)}
     for aid in sorted(people):
         region, occupation, _age, settlement = people[aid]
         if region not in wanted or occupation != FARMER:
             continue
         city = rank.get((region, settlement))
-        u = URBAN_FARM_LABOR[city] if city is not None else 1.0
+        u = float(URBAN_FARM_LABOR[city]) if city is not None else 1.0
         h = 0.0 if city is not None else min(1.0, max(0.0, losses.get(aid, 0.0)))
-        out[region].append((aid, int(round(u * (1.0 - h) * 1_000_000))))
+        out[region].append((aid, u, h))
     return out
+
+
+def weights_after_crews(work, removed=None) -> dict[int, list[tuple[int, int]]]:
+    """Food-work weights ``w_i = max(0, u_i (1 - h_i) - r_i)`` in integer
+    micro-units, where ``r_i`` is the farm time person ``i`` gave a named crew
+    this turn (``removed``; the time is paid as a wage, never also titled)."""
+    removed = removed or {}
+    return {rid: [(aid, int(round(max(0.0, u * (1.0 - h) - removed.get(aid, 0.0)) * 1_000_000)))
+                  for aid, u, h in rows] for rid, rows in work.items()}
+
+
+def title_weights(world, snapshot, regions, removed=None) -> dict[int, list[tuple[int, int]]]:
+    """Each pilot region's Phase 2 farmers and their food work after crews."""
+    return weights_after_crews(title_inputs(world, snapshot, regions), removed)
+
+
+def crew_farm_time(world, p2: "_Phase2", economy_result) -> tuple[dict[int, float], dict[int, float]]:
+    """This turn's farm time given to named crews by pilot farmers, by id, and
+    the named granary crews' farm time by region:
+
+    * PL1 woodcutters (``timber_supply``): each crew member's farm share
+      (``u_i``), scaled by the native ``woodcut_labor_away`` delivered over the
+      expeditions' requests from that home region;
+    * PL3 granary crews (``recovery_crews``): each member's worked share of
+      the delivered storage work (``granary_shares``);
+    * PL3 workshop crews: each member's farm time removed through
+      ``farm_labor_factor``.
+
+    The crews are planned earlier in Phase 2 and their receipts staged by the
+    packages' own ``finish_phase2`` before this one (switch order)."""
+    turn = int(world.turn)
+    lv = getattr(world, "livelihoods", None)
+    u_of = {aid: u for rows in p2.work.values() for aid, u, _h in rows}
+    removed: dict[int, float] = {}
+    granary: dict[int, float] = {}
+    ts = getattr(lv, "timber_supply", None)
+    tt = getattr(ts, "_turn", None) if ts is not None else None
+    if tt is not None and tt.turn == turn:
+        delivered = getattr(economy_result, "woodcut_labor_away_delivered", None) or {}
+        by_home: dict[int, list] = {}
+        for rec in tt.receipts:
+            if rec.home in p2.work and rec.crew:
+                by_home.setdefault(rec.home, []).append(rec)
+        for home, recs in sorted(by_home.items()):
+            requested = math.fsum(r.away_requested for r in recs)
+            crew = [a for r in recs for a in r.crew]
+            if abs(math.fsum(u_of.get(a, 0.0) for a in crew) - requested) > 1e-4 * max(1, len(crew)):
+                raise RetailAccountingError(f"region {home}: woodcut crews' farm shares differ from their request")
+            got = float(delivered.get(home, 0.0))
+            scale = min(1.0, got / requested) if requested > 0 else 0.0
+            for a in crew:
+                if a in u_of:
+                    removed[a] = removed.get(a, 0.0) + u_of[a] * scale
+    rc = getattr(lv, "recovery_crews", None)
+    rt = getattr(rc, "_turn", None) if rc is not None else None
+    if rt is not None and rt.turn == turn:
+        for rec in rt.receipts:
+            if rec.region not in p2.work:
+                continue
+            for m in rec.members:
+                if m.farm_time > 0:
+                    removed[m.agent_id] = removed.get(m.agent_id, 0.0) + float(m.farm_time)
+                    if rec.kind == "granary":
+                        granary[rec.region] = granary.get(rec.region, 0.0) + float(m.farm_time)
+    return removed, granary
+
+
+def check_farm_labour(world, p2: "_Phase2", economy_result, removed, granary) -> None:
+    """Sum of title weights == the economy's farm labour after the crews' farm
+    time, per pilot region: ``sum(u_i (1 - h_i) - r_i)`` against ``farmers x
+    farm_labor_factor - health loss - named granary work - woodcut labour
+    away`` (anonymous storage work shrinks every title equally and is not a
+    person's)."""
+    wood = getattr(economy_result, "woodcut_labor_away_delivered", None) or {}
+    storage = getattr(economy_result, "granary_work_delivered", None) or {}
+    for rid, named in sorted(granary.items()):
+        if named > float(storage.get(rid, 0.0)) + 1e-4:
+            raise RetailAccountingError(
+                f"region {rid}: granary crews' farm time {named:.6f} exceeds the storage work delivered")
+    for rid, rows in p2.work.items():
+        got = math.fsum(u * (1.0 - h) - removed.get(aid, 0.0) for aid, u, h in rows)
+        health = math.fsum(h for _aid, _u, h in rows)
+        expect = (len(rows) * p2.factor.get(rid, 1.0) - health - granary.get(rid, 0.0)
+                  - float(wood.get(rid, 0.0)))
+        if abs(got - expect) > 1e-3 + 1e-5 * len(rows):
+            raise RetailAccountingError(
+                f"region {rid}: title weights {got:.6f} differ from the farm labour after crews {expect:.6f}")
 
 
 def _ration(world) -> float:
@@ -590,8 +693,12 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
         t.touched.clear()
     pilots = [r.region for r in state.regions]
     theta = 1.0 if state.mode == "no_relief" else THETA
+    names = list(region_input.schema.names)
+    factors = (region_input.column(names.index("farm_labor_factor")).to_pylist()
+               if "farm_labor_factor" in names else None)
     t.phase2 = _Phase2(turn=int(world.turn), pilots=pilots, theta=theta,
-                       farmers=title_weights(world, snapshot, pilots))
+                       work=title_inputs(world, snapshot, pilots),
+                       factor={rid: float(factors[rid]) if factors is not None else 1.0 for rid in pilots})
     _check(state, world)
     if not pilots or state.mode == "record_only":
         return region_input
@@ -670,6 +777,13 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
         p2.controllers[rid] = world.regions[rid].controller
     if not p2.pilots:
         return []
+    # Named crews' farm time is paid as a wage, never also titled (design 3.1).
+    removed, granary = crew_farm_time(world, p2, economy_result)
+    check_farm_labour(world, p2, economy_result, removed, granary)
+    p2.farmers = weights_after_crews(p2.work, removed)
+    crew = [aid for rows in p2.work.values() for aid, _u, _h in rows if removed.get(aid, 0.0) > 0]
+    _bump(state, "crew_farm_time_person_turns", len(crew))
+    _bump(state, "crew_farm_time_micro", int(round(math.fsum(removed.get(a, 0.0) for a in crew) * 1_000_000)))
     if state.mode == "record_only":
         for rid in p2.pilots:
             titled = _would_be_title(world, economy_result, rid, p2.theta)
