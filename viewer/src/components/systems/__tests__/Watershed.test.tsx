@@ -31,7 +31,7 @@ it("shows the turn's account, each region's indices, a flood with its causes and
   expect(floods).toHaveLength(2);
   expect(screen.getByText(/No region is in a declared drought this turn \(recorded: none\)/)).toBeInTheDocument();
   expect(within(screen.getByRole("table", { name: "Water account since turn 0" }))
-    .getByRole("row", { name: /Storage at opening → now/ })).toBeInTheDocument();
+    .getByRole("row", { name: /Storage, opening → now/ })).toBeInTheDocument();
   fireEvent.click(within(screen.getByRole("table", { name: "Watershed regions at snapshot 1" })).getAllByRole("button")[2]);
   expect(p.onSelectRegion).toHaveBeenCalledWith(natural.regions[2]);
 });

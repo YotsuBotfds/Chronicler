@@ -8,21 +8,22 @@ const show = (value: number | null | undefined, digits = 3) =>
 /** A signed difference at display precision ("0", never "-0"). */
 const signed = (value: number) => Math.abs(value) < 0.0005 ? "0" : `${value > 0 ? "+" : ""}${show(value)}`;
 
+// Short row names (the label column does not wrap on a phone); the note under the header explains them.
 const TOTALS: Array<[keyof NonNullable<WatershedRecord["totals"]>, string]> = [
-  ["precipitation", "Precipitation (and tundra melt)"],
-  ["external_in", "External inflow (index raised between ticks, e.g. a coastal flood)"],
-  ["external_out", "External outflow (index lowered between ticks)"],
-  ["evaporation", "Evaporation and transpiration"],
-  ["withdrawal", "Irrigation withdrawal (consumed)"],
+  ["precipitation", "Precipitation"],
+  ["external_in", "External inflow"],
+  ["external_out", "External outflow"],
+  ["evaporation", "Evaporation"],
+  ["withdrawal", "Irrigation withdrawal"],
   ["to_sea", "Outflow to the sea"],
-  ["to_sink", "Lost in closed basins (sinks)"],
-  ["transfer", "Passed downstream between regions (internal)"],
+  ["to_sink", "Closed-basin loss"],
+  ["transfer", "Passed downstream"],
 ];
 const COUNTERS: Array<[string, string]> = [
-  ["settled_turns", "Settled turns"], ["abandoned_plans", "Plans dropped after a failed tick"],
+  ["settled_turns", "Settled turns"], ["abandoned_plans", "Dropped plans (failed tick)"],
   ["flood_region_turns", "Flooded region-turns"], ["drought_region_turns", "Region-turns in drought"],
   ["droughts_declared", "Droughts declared"], ["droughts_ended", "Droughts ended"],
-  ["external_out_unmet_turns", "Turns with an index drop larger than storage"],
+  ["external_out_unmet_turns", "Turns with unmet outflow"],
 ];
 
 /** Completed-turn watershed accounts only; never reads final-world state. */
@@ -39,6 +40,7 @@ export function Watershed({ bundle, snapshot, currentTurn, onSelectRegion }: {
   const header = <>
     <h3>Watershed account · snapshot {at}</h3>
     <p className="systems-note">Record only: a conserved water account on the drainage graph of this procedural world runs beside the water index the simulation uses and changes nothing. Its constants are declared and uncalibrated, so a gap between the index it would derive and the index used is a calibration observation, not an effect. Water in water units (wu: one region's storage capacity without forest cover is 1).</p>
+    <p className="systems-note">Precipitation includes tundra melt; evaporation includes transpiration; irrigation withdrawal is consumed. External inflow and outflow are changes of the water index between ticks made by other writers (a coastal flood), recorded as such. A closed basin (sink) loses what reaches it; water passed downstream stays in the account.</p>
   </>;
   if (reading.status !== "ok" && reading.status !== "unobserved") {
     const text = reading.status === "disabled" ? "The watershed account is off in this run (--watershed not recorded)."
@@ -55,9 +57,9 @@ export function Watershed({ bundle, snapshot, currentTurn, onSelectRegion }: {
       ? <p className="systems-note">No Phase 9 account was settled in simulation turn {record.source_turn}; this turn's flows, floods and droughts are unknown, not zero.</p>
       : <Settled record={record} names={names} regionLink={regionLink} />}
     <div className="systems-table-wrap"><table className="systems-table" aria-label={`Water account since turn ${record.opened_turn}`}><tbody>
-      <tr><th scope="row">Storage at opening → now (wu)</th><td>{show(cumulative.opening_storage)} → {show(cumulative.storage)}</td></tr>
+      <tr><th scope="row">Storage, opening → now</th><td>{show(cumulative.opening_storage)} → {show(cumulative.storage)}</td></tr>
       {TOTALS.map(([key, label]) => <tr key={key}><th scope="row">{label}</th><td>{show(cumulative[key])}</td></tr>)}
-      <tr><th scope="row">Closure residual since opening (wu)</th><td>{cumulative.closure_residual?.toExponential(1) ?? "Unknown"}</td></tr>
+      <tr><th scope="row">Closure residual</th><td>{cumulative.closure_residual?.toExponential(1) ?? "Unknown"}</td></tr>
     </tbody></table></div>
     <div className="systems-table-wrap"><table className="systems-table" aria-label={`Watershed counters to snapshot ${at}`}><tbody>
       {COUNTERS.map(([key, label]) => <tr key={key}><th scope="row">{label}</th><td>{show(record.counters[key])}</td></tr>)}
@@ -79,9 +81,9 @@ function Settled({ record, names, regionLink }: {
     <p className="systems-note">Phase 9 of simulation turn {record.source_turn}, climate phase {record.phase}.</p>
     <div className="systems-table-wrap"><table className="systems-table" aria-label={`Water account at snapshot ${turn}`}><tbody>
       {TOTALS.map(([key, label]) => <tr key={key}><th scope="row">{label}</th><td>{show(t[key])}</td></tr>)}
-      <tr><th scope="row">Storage open → close (wu)</th><td>{show(t.storage_open)} → {show(t.storage_close)}</td></tr>
-      <tr><th scope="row">Closure residual (wu)</th><td>{t.closure_residual.toExponential(1)}</td></tr>
-      {t.external_out_unmet > 0 ? <tr><th scope="row">Index drop larger than storage (recorded, not taken)</th><td>{show(t.external_out_unmet)}</td></tr> : null}
+      <tr><th scope="row">Storage, open → close</th><td>{show(t.storage_open)} → {show(t.storage_close)}</td></tr>
+      <tr><th scope="row">Closure residual</th><td>{t.closure_residual.toExponential(1)}</td></tr>
+      {t.external_out_unmet > 0 ? <tr><th scope="row">Unmet external outflow</th><td>{show(t.external_out_unmet)}</td></tr> : null}
     </tbody></table></div>
     <div className="systems-table-wrap"><table className="systems-table" aria-label={`Watershed regions at snapshot ${turn}`}>
       <thead><tr><th>Region</th><th>Drains to</th><th>Storage / capacity</th><th>Index used</th><th>Index derived</th>
