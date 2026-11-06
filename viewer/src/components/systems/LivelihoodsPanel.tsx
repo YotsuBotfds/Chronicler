@@ -7,6 +7,7 @@ import { RepairProjects } from "./RepairProjects";
 import { CommonsRules } from "./CommonsRules";
 import { FoodAllocation } from "./FoodAllocation";
 import { GrainConvoys } from "./GrainConvoys";
+import { HouseholdRetail } from "./HouseholdRetail";
 import { LearningCohorts } from "./LearningCohorts";
 import { LocalBudgets } from "./LocalBudgets";
 import { MaintenanceObligation } from "./MaintenanceObligation";
@@ -25,7 +26,7 @@ import { Workshops } from "./Workshops";
 const PACKAGES = ["workshops", "workshop_payroll", "food_allocation", "timber_stock", "grain_convoys",
   "commons_rules", "learning_cohorts", "relocation_costs", "local_budgets", "clearing_protection",
   "remittances", "apprenticeship", "veteran_reintegration", "repair_projects", "operating_wear", "timber_supply",
-  "recovery_crews", "maintenance_obligation"];
+  "recovery_crews", "maintenance_obligation", "household_retail"];
 
 export function LivelihoodsPanel({ bundle, snapshot, currentTurn, onSelectRegion }: SystemPanelProps) {
   const row = snapshot as unknown as Record<string, unknown> | null;
@@ -41,6 +42,7 @@ export function LivelihoodsPanel({ bundle, snapshot, currentTurn, onSelectRegion
     {record?.workshops != null ? <Workshops {...props} /> : null}
     {record?.workshop_payroll != null ? <WorkshopFinance {...props} /> : null}
     {record?.food_allocation != null ? <FoodAllocation {...props} /> : null}
+    {record?.household_retail != null ? <HouseholdRetail {...props} /> : null}
     {record?.timber_stock != null ? <TimberStock {...props} /> : null}
     {record?.grain_convoys != null
       ? <section className="systems-section"><GrainConvoys snapshot={snapshot} bundle={bundle} /></section> : null}
