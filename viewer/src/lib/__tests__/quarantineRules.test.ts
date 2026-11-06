@@ -15,6 +15,7 @@ describe("readQuarantineRules", () => {
       expect(reading.record.closures.map((c) => c.id)).toEqual([1, 2, 3]);
       expect(reading.record.receipt?.merchant_edges_removed).toBe(4);
       expect(reading.record.receipt?.leaked_deliveries).toBe(0);
+      expect(reading.record.receipt?.closed_last_tick.length).toBeGreaterThan(0);
       expect(totalOf(reading.record.receipt!.forgone_income)).toBe(4);
     }
     const aggregate = readQuarantineRules({ quarantine_rules: AGGREGATE_CLOSURE_RECORD });

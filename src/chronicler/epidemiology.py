@@ -249,6 +249,12 @@ def set_epidemiology_enabled(world: "WorldState", enabled: bool) -> None:
         if world.epidemics is None:
             world.epidemics = EpidemicState()
     else:
+        if getattr(world.epidemics, "quarantine_rules", None) is not None:
+            # Saved --quarantine-mode rules would be dropped silently.
+            from chronicler.quarantine_rules import saved_rules_error
+            problem = saved_rules_error(world, "--no-epidemiology")
+            if problem is not None:
+                raise ValueError(problem)
         world.epidemics = None
 
 

@@ -41,9 +41,13 @@ Where the entries come from:
 - **Public health.** `PUBLIC_HEALTH` lists top-level choices with no boolean
   switch: `quarantine_mode` ([quarantine rules](quarantine-rules.md)), whose
   first choice (`legacy`) is the run's rule when unset. It declares
-  `REQUIREMENTS` like a switch (the `epidemiology` setting: epidemiology with
-  the contact ledger), and `test_public_health_choices_agree_with_the_run`
-  checks every value against the real configuration path.
+  `REQUIREMENTS` like a switch (the `epidemiology` setting, epidemiology with
+  the contact ledger, or the value `legacy`, which needs nothing). The live
+  surface reports the setting from the server's `--epidemiology` and
+  `--contact-ledger`; the batch surface from the batch's `contact_ledger`
+  (its config, else the server's). `test_public_health_choices_agree_with_the_run`
+  and its batch-surface twin check every value against the real
+  configuration path.
 - **Flags, help and choices.** These are read from the CLI parser itself.
 
 Each requirement is an object with a `reason`. It is one of:

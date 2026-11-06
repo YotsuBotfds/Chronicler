@@ -360,6 +360,47 @@ def test_public_health_choices_agree_with_the_run(tmp_path, sentinel_runtimes, a
     assert problems == []
 
 
+@pytest.mark.parametrize("default_ledger", [None, False, True])
+@pytest.mark.parametrize("config_ledger", ["absent", False, True])
+def test_public_health_choices_agree_with_the_run_on_the_batch_surface(
+        tmp_path, sentinel_runtimes, monkeypatch, default_ledger, config_ledger):
+    """Batch Lab: the server's --contact-ledger and the batch config's contact_ledger reach
+    every run, so the catalog's epidemiology setting must follow them (review M1)."""
+    from chronicler import main
+    from chronicler.live import LiveServer
+    from chronicler.world_gen import generate_world
+
+    output = tmp_path / "chronicle.md"
+    template = generate_world(seed=42, num_regions=8, num_civs=4)
+    problems = []
+    for key in fc.PUBLIC_HEALTH:
+        for value in fc._by_key()[key]["choices"]:
+            server = LiveServer()
+            server._client_defaults.update(agents="hybrid", contact_ledger=default_ledger)
+            config = {} if config_ledger == "absent" else {"contact_ledger": config_ledger}
+            catalog = fc.validate_batch_features({**config, "features": {key: value}}, server._client_defaults)
+            # The run: the batch worker's own namespace (captured), with the feature applied.
+            error, received = _capture_batch(monkeypatch, server, dict(config))
+            assert error is None and len(received) == 1
+            args = received[0]
+            fc.apply_features(args, {key: value})
+            try:
+                main._configure_run(args, template.model_copy(deep=True), True, output)
+                refusal = "configuration finished without reaching the runtimes"
+            except _Accepted:
+                refusal = None
+            except ValueError as exc:
+                refusal = str(exc)
+            if (catalog is None) != (refusal is None):
+                problems.append(f"defaults {default_ledger!r} config {config_ledger!r} {key}={value}: "
+                                f"catalog {catalog!r}, run {refusal!r}")
+    assert problems == []
+    server = LiveServer()
+    server._client_defaults["contact_ledger"] = False
+    assert fc.batch_surface(server._client_defaults)["settings"]["epidemiology"] is False
+    assert fc.batch_surface(server._client_defaults, {"contact_ledger": True})["settings"]["epidemiology"] is True
+
+
 def test_agreement_check_detects_wrong_declarations(tmp_path, sentinel_runtimes, fresh_catalog, monkeypatch):
     # A missing requirement (workshops without cities) and an invented one.
     monkeypatch.setitem(fc.REQUIREMENTS, "workshops", (fc._HYBRID,))

@@ -35,12 +35,15 @@ charge would stack on the route income the closure really costs.
 | `closure` | targeted closures | enforcement cost; real route income and trade losses emerge | trade (below) | none |
 
 `legacy` is listed as a choice so the feature catalog's convention holds (the first choice is the
-run's rule when unset); an explicit `legacy` keeps no rules state and writes the same world as the
-option omitted (`test_explicit_legacy_is_the_omitted_option`).
+run's rule when unset). An explicit `legacy` is the option omitted: it installs nothing, needs
+neither epidemiology nor the ledger (so a screen can forward it to an epidemics-off control arm)
+and writes the same world as omitting it, with epidemics on or off
+(`test_an_explicit_mode_needs_epidemiology_and_the_ledger`). Its one difference: on a world that
+already carries rules of another mode it is a conflicting request and is refused.
 
-- Requires epidemiology and the contact ledger. Epidemics are on by default for new worlds with
-  the ledger; an explicit mode with `--no-epidemiology` or `--no-contact-ledger` (or on a world
-  without them) raises `ValueError`.
+- `none`, `cost_only` and `closure` require epidemiology and the contact ledger. Epidemics are on
+  by default for new worlds with the ledger; one of these modes with `--no-epidemiology` or
+  `--no-contact-ledger` (or on a world without them) raises `ValueError`.
 - Valid in every agent mode (`off`, `demographics-only`, `shadow`, `hybrid`): the closure is
   Python-side.
 - Saved on the world: `EpidemicState.quarantine_rules` (omitted from `state.json` and the bundle
@@ -58,7 +61,9 @@ is the legacy one, so the change of mechanism is isolated from any change in the
 
 closes against **each polity controlling such a region** (targeted, not "all foreign": the
 lead's decision). An outbreak in an uncontrolled region has no route to close and opens no
-closure. A closure decided at T applies to the journeys of T (the Phase 2 routes, the TRADE
+closure. A closure follows polities, not territory: if a closed target's sick region changes
+hands during the turn, the new controller's border stays open until the next decision (a one-turn
+lag). A closure decided at T applies to the journeys of T (the Phase 2 routes, the TRADE
 action and the agent tick of T), is **renewed** at T+1 while the trigger still holds and
 **lapses** otherwise. `state.quarantine` (closing civ indices) stays filled in every mode, so the
 existing viewer chips and `quarantine_turns` analytics keep working; in `none` it is empty.
@@ -154,7 +159,8 @@ the index in `world.civilizations`.
 | `enforcement` | Phase 1 | (civ, treasury paid) |
 | `phase2_observed`, `routes_removed`, `forgone_income` | Phase 2 (`closure`) | the routes the closure removed from the authoritative route set and the route income both sides forwent |
 | `merchant_edges_removed` | agent tick (`closure`) | directed merchant edges cut; None without an agent merchant graph (aggregate) |
-| `leaked_deliveries`, `leaked_quantity` | Phase 2 of the next tick's reading (`closure`, agent modes) | merchant deliveries of the previous tick whose origin and destination polities form a `continued` pair: journeys that crossed before the closure, or went round through a third polity; None when no delivery record was read |
+| `closed_last_tick` | Phase 1 (`closure`) | polity pairs closed at the previous decision: closed during the agent tick whose deliveries this turn's Phase 2 reads |
+| `leaked_deliveries`, `leaked_quantity` | Phase 2 (`closure`, agent modes) | merchant deliveries of the previous tick whose origin and destination polities form a `closed_last_tick` pair, a closure's last tick included: journeys that crossed before the closure, or went round through a third polity; None when no delivery record was read. Controllers are read at this reading, so an ownership change between the delivery and the reading can misattribute one |
 
 Completed receipts fold into `totals` at the next decision. Merchant disruption counters
 (replans, unwinds, stalled trips) stay where they already are, per tick and world-wide: the
@@ -166,10 +172,10 @@ bundle's `merchant_trip_stats` and, with `--transaction-receipts`, the `replanne
 | CLI | `--quarantine-mode {legacy,none,cost_only,closure}` (default unset = legacy) |
 | World field | `EpidemicState.quarantine_rules: QuarantineRulesState \| None` (presence = a new mode) |
 | Snapshot | `history[n].epidemics.quarantine_rules` (schema 1: mode, channels, exempt, closures, receipt, totals with the current receipt folded in); absent under the legacy rule |
-| Analytics | `extract_epidemic_metrics(...)["by_seed"][i]["quarantine_rules"]` under a new mode |
+| Analytics | `extract_epidemic_metrics(...)["by_seed"][i]["quarantine_rules"]` under a new mode (`turns_with_decision` and `closed_pair_turns` count declared quarantines under `cost_only`) |
 | Batch manifest | `quarantine_mode` in `SIMULATION_ARG_KEYS`, omitted when unset |
 | Forwarding | `expansion_features.expansion_arguments` (batch children, the gate runner `m53b_run_validation.py`) |
-| Feature catalog | group "Public health": a top-level choice requiring the `epidemiology` setting (epidemiology with the contact ledger) |
+| Feature catalog | group "Public health": a top-level choice requiring the `epidemiology` setting (epidemiology with the contact ledger) or the value `legacy`; the Batch Lab surface reports the setting from the batch's own `contact_ledger` (config, else the server's) |
 | Viewer | the Epidemics panel's "Quarantine rule" section (`viewer/src/lib/quarantineRules.ts`); Batch Lab and live setup offer the mode under "Public health" |
 
 **Resume.** A world keeps its rules for its run:
@@ -180,7 +186,10 @@ bundle's `merchant_trip_stats` and, with `--transaction-receipts`, the `replanne
   `livelihoods_resume_conflicts` (`quarantine_resume_conflicts`): a different explicit mode,
   including a new mode on a legacy world, is refused.
 - A JSON state file (`--resume state.json`, not exact) keeps its saved rules when the option is
-  omitted. A different explicit mode is refused once the world's epidemic model has ticked
+  omitted, and `--no-epidemiology` or `--no-contact-ledger` on a world with saved rules is refused
+  (the setters refuse, as the exact path's adoption does), instead of dropping the rules or
+  leaving them dormant (`test_a_json_resume_cannot_switch_off_what_saved_rules_need`). A
+  different explicit mode is refused once the world's epidemic model has ticked
   (`last_tick_turn >= 0`); a world whose epidemics never ran (a new or supplied world before its
   first turn) takes the requested mode. A legacy state file therefore continues the legacy rule,
   and `--quarantine-mode closure` on it is refused with a clear message
@@ -213,13 +222,15 @@ Native extension used for every native step: the shared build, SHA-256
   | Worlds | Runs | Turns with a closure (range) | Closures opened | Closed pair-turns | Route-turns removed | Route income forgone | Merchant edges cut | Deliveries still crossing |
   | --- | --- | --- | --- | --- | --- | --- | --- | --- |
   | template, aggregate | 7 | 18-62 | 101 | 484 | 342 | 1,348 | n/a | n/a |
-  | template, hybrid | 7 | 2-84 | 234 | 826 | 402 | 1,376 | 1,314 | 16 |
+  | template, hybrid | 7 | 2-84 | 234 | 826 | 402 | 1,376 | 1,314 | 21 |
   | procedural, aggregate | 6 | 28-89 | 1,126 | 3,493 | 1,632 | 5,196 | n/a | n/a |
-  | procedural, hybrid | 6 | 45-88 | 1,351 | 4,760 | 2,569 | 8,528 | 10,172 | 338 |
+  | procedural, hybrid | 6 | 45-88 | 1,351 | 4,760 | 2,569 | 8,528 | 10,172 | 454 |
 
   Most closures are short (opened and lapsed within a few turns as reports come and go). The
-  hybrid leak count is small against the edges cut but not zero, mostly in the larger procedural
-  worlds where a third polity's open border offers a way round.
+  hybrid leak count (deliveries made during any closed tick of a pair, its last included; counted
+  after the review fix m2, which raised it from 16 and 338) is small against the edges cut but not
+  zero, mostly in the larger procedural worlds where a third polity's open border offers a way
+  round. Every other column is unchanged by that fix (a receipt-only correction).
 
 Tests: `tests/test_quarantine_rules.py` (offline, oracle chunk `connected-world-c`) and
 `tests/test_quarantine_rules_native.py` (real extension), both on native shard 0. The legacy

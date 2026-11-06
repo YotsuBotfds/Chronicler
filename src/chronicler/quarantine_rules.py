@@ -87,14 +87,14 @@ EXEMPT: dict[str, str] = {
 }
 
 _HELP = (
-    "Quarantine rules (connected-world C1): legacy (default, the same as omitting it): the "
-    "abstract import multiplier and a flat charge; none: no quarantine; cost_only: the same "
-    "decisions and enforcement cost as closure, nothing restricted; closure: trade routes and "
-    "agent merchant edges between a closing polity and each polity with a reported outbreak "
-    "it is in contact with are closed while the outbreak is reported, at a declared enforcement "
-    "cost, with no import multiplier (relief grain, armies, hostages and migrants stay open); "
-    "requires epidemiology and the contact ledger; saved on the world "
-    "(docs/integration/quarantine-rules.md)"
+    "Quarantine rules (connected-world C1): legacy (default, the same as omitting it, needs "
+    "nothing): the abstract import multiplier and a flat charge; none: no quarantine; cost_only: "
+    "the same decisions and enforcement cost as closure, nothing restricted; closure: trade "
+    "routes and agent merchant edges between a closing polity and each polity with a reported "
+    "outbreak it is in contact with are closed while the outbreak is reported, at a declared "
+    "enforcement cost, with no import multiplier (relief grain, armies, hostages and migrants "
+    "stay open); none, cost_only and closure require epidemiology and the contact ledger; saved "
+    "on the world (docs/integration/quarantine-rules.md)"
 )
 
 
@@ -126,8 +126,12 @@ class QuarantineReceipt(BaseModel):
     #: ``closure``; declared but not restricted in ``cost_only``).
     decided: list[tuple[int, int]] = Field(default_factory=list)
     #: Polity pairs (low index first) closed at the previous turn's decision
-    #: and again at this one, by either side: closed during the last agent tick.
+    #: and again at this one, by either side.
     continued: list[tuple[int, int]] = Field(default_factory=list)
+    #: Polity pairs (low index first) closed at the previous turn's decision
+    #: (``closure``): closed during the agent tick whose deliveries Phase 2 of
+    #: this turn reads, whether or not they are still closed now.
+    closed_last_tick: list[tuple[int, int]] = Field(default_factory=list)
     opened: list[int] = Field(default_factory=list)    # closure ids opened
     renewed: list[int] = Field(default_factory=list)   # closure ids renewed
     lapsed: list[int] = Field(default_factory=list)    # closure ids that lapsed
@@ -140,10 +144,11 @@ class QuarantineReceipt(BaseModel):
     #: None while no agent merchant graph was built this turn.
     merchant_edges_removed: int | None = Field(default=None, exclude_if=_is_none)
     #: Phase 2 (``closure``, agent modes): merchant deliveries of the previous
-    #: agent tick whose origin and destination polities form a ``continued``
-    #: pair (closed during that tick and still closed now): journeys that
-    #: crossed before the closure, or that reached the destination through a
-    #: third polity whose borders are open. None while no delivery record was read.
+    #: agent tick whose origin and destination polities form a pair closed
+    #: during that tick (``closed_last_tick``, a closure's last tick included):
+    #: journeys that crossed before the closure, or that reached the
+    #: destination through a third polity whose borders are open. Controllers
+    #: are read at this reading. None while no delivery record was read.
     leaked_deliveries: int | None = Field(default=None, exclude_if=_is_none)
     leaked_quantity: float | None = Field(default=None, exclude_if=_is_none)
 
@@ -306,8 +311,9 @@ def observe_deliveries(world: Any, rows) -> None:
     """Phase 2 (agent modes): count deliveries of the last tick across closed pairs.
 
     ``rows`` are the native ``(source_region, dest_region, qty)`` arrival
-    records the contact ledger reads. Only this turn's ``continued`` pairs
-    count: closed during the tick that made the deliveries and still closed."""
+    records the contact ledger reads. A pair counts when it was closed during
+    the tick that made the deliveries (``closed_last_tick``), including the
+    last tick of a closure that has since lapsed."""
     rules = rules_of(world)
     if rules is None or rules.mode != "closure":
         return
@@ -316,7 +322,7 @@ def observe_deliveries(world: Any, rows) -> None:
         return
     civs = world.civilizations
     pairs = set()
-    for x, y in receipt.continued:
+    for x, y in receipt.closed_last_tick:
         if 0 <= x < len(civs) and 0 <= y < len(civs):
             a, b = civs[x].name, civs[y].name
             pairs.add((a, b) if a < b else (b, a))
@@ -439,6 +445,8 @@ def decide(world: Any, state: Any, rules: QuarantineRulesState, reports: dict, a
         def undirected(pairs):
             return {(min(p), max(p)) for p in pairs}
         receipt.continued = sorted(undirected(previous.decided) & undirected(decided))
+        if rules.mode == "closure":
+            receipt.closed_last_tick = sorted(undirected(previous.decided))
     changed = set(before) != set(decided)
     rules.closures = sorted(kept, key=lambda c: c.id)
     state.quarantine = closing
@@ -486,6 +494,7 @@ def snapshot_summary(world: Any) -> dict | None:
             "turn": receipt.turn,
             "decided": [[name(a), name(b)] for a, b in receipt.decided],
             "continued": [[name(a), name(b)] for a, b in receipt.continued],
+            "closed_last_tick": [[name(a), name(b)] for a, b in receipt.closed_last_tick],
             "opened": list(receipt.opened),
             "renewed": list(receipt.renewed),
             "lapsed": list(receipt.lapsed),
@@ -507,8 +516,10 @@ def extract_metrics(series: list[dict]) -> dict | None:
     if not records:
         return None
     last = records[-1]
-    turns_with_closure = sum(1 for r in records if r.get("closures"))
-    return {"mode": last.get("mode"), "turns_with_closure": turns_with_closure, **last.get("totals", {})}
+    # Turns with an open closure (closure) or a declared quarantine (cost_only);
+    # likewise closed_pair_turns counts declared pairs under cost_only.
+    turns_with_decision = sum(1 for r in records if r.get("closures"))
+    return {"mode": last.get("mode"), "turns_with_decision": turns_with_decision, **last.get("totals", {})}
 
 
 # ---------------------------------------------------------------------------
@@ -530,6 +541,18 @@ def quarantine_arguments(args: Any) -> list[str]:
     return [f"--quarantine-mode={value}"]
 
 
+def saved_rules_error(world: Any, switch: str) -> str | None:
+    """Why ``switch`` (--no-epidemiology, --no-contact-ledger) cannot be applied:
+    the world carries saved quarantine rules that need it (a JSON resume is
+    refused as an exact resume is). None when it has none."""
+    rules = rules_of(world)
+    if rules is None:
+        return None
+    return (f"{switch} conflicts with this world's saved quarantine rules (--quarantine-mode "
+            f"{rules.mode}), which need epidemiology and the contact ledger; a world keeps its "
+            "quarantine rules for its whole run")
+
+
 def _requirement_error(world: Any) -> str | None:
     from chronicler.contact_ledger import ledger_enabled
     from chronicler.epidemiology import epidemiology_enabled
@@ -543,16 +566,27 @@ def configure_quarantine(world: Any, args: Any, *, agent_mode: str | None = None
     """Apply an explicit ``--quarantine-mode`` after epidemiology and the ledger are set.
 
     Valid in every agent mode. Omitted keeps the world's saved rules (or the
-    legacy rule). An explicit mode needs epidemiology and the ledger. A
-    world whose epidemic model already ran keeps its rules for the rest of
-    its run: a different mode is refused (the saved mode of a world without
-    rules is ``legacy``); a world whose epidemics never ticked (new, or
-    supplied before its first turn) takes the requested mode."""
+    legacy rule). An explicit ``legacy`` is the option omitted: it installs
+    nothing and needs neither epidemiology nor the ledger (so it can be
+    forwarded to an epidemics-off arm); it only conflicts with saved rules of
+    another mode. Any other mode needs epidemiology and the ledger. A world
+    whose epidemic model already ran keeps its rules for the rest of its run:
+    a different mode is refused (the saved mode of a world without rules is
+    ``legacy``); a world whose epidemics never ticked (new, or supplied
+    before its first turn) takes the requested mode."""
     mode = getattr(args, "quarantine_mode", None)
     if mode is None:
         return
     if mode not in QUARANTINE_MODES:
         raise ValueError(f"quarantine_mode must be one of {QUARANTINE_MODES}")
+    if mode == "legacy":
+        rules = rules_of(world)
+        if rules is not None and world.epidemics.last_tick_turn >= 0:
+            raise ValueError(f"--quarantine-mode legacy conflicts with the saved world (saved: "
+                             f"{rules.mode}); a world keeps its quarantine rules for its whole run")
+        if rules is not None:
+            world.epidemics.quarantine_rules = None
+        return
     problem = _requirement_error(world)
     if problem is not None:
         raise ValueError(problem)
@@ -578,6 +612,8 @@ def quarantine_resume_conflicts(world: Any, args: Any, recorded: dict) -> list[s
         return []
     saved = effective_mode(world)
     if saved is None:
+        if given == "legacy":
+            return []   # the option omitted: nothing to honour
         return [f"--quarantine-mode {given!r} conflicts with the checkpoint (saved: epidemiology off)"]
     if given != saved:
         return [f"--quarantine-mode {given!r} conflicts with the checkpoint (saved: {saved!r})"]

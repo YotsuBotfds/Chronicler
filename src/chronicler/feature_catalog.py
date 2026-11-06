@@ -128,7 +128,8 @@ REQUIREMENTS: dict[str, tuple[dict, ...]] = {
     "recovery_crews": (_HYBRID, _feature("repair_projects")),
     "maintenance_obligation": (_feature("local_budgets"), _feature("repair_projects")),
     "household_retail": (_HYBRID, _feature("food_allocation")),
-    "quarantine_mode": (_setting("epidemiology"),),
+    # An explicit legacy is the option omitted: it needs nothing (lead decision m4).
+    "quarantine_mode": (_any(_setting("epidemiology"), _choice("quarantine_mode", "legacy")),),
 }
 
 
@@ -300,8 +301,10 @@ def batch_surface(client_defaults: Mapping[str, Any], config: Mapping[str, Any] 
             "cities": _cities_default(),
             "techniques": _techniques_default() if techniques is None else bool(techniques),
             "no_household_mobility_liquid_requirement": True,
-            # Batch Lab runs are not given --epidemiology or --contact-ledger.
-            "epidemiology": _epidemiology_setting(),
+            # Batch Lab runs are not given --epidemiology; --contact-ledger is an
+            # expansion prerequisite the batch config or the server forwards.
+            "epidemiology": _epidemiology_setting(
+                None, _batch_value("contact_ledger", client_defaults, config)),
         },
         "new_worlds_only": True,
     }

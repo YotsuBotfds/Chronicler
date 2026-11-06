@@ -72,6 +72,16 @@ export const HYBRID_CLOSURE_RECORD = {
         "Ashkari Nomads"
       ]
     ],
+    "closed_last_tick": [
+      [
+        "Selurian Republic",
+        "Dorrathi Clans"
+      ],
+      [
+        "Selurian Republic",
+        "Ashkari Nomads"
+      ]
+    ],
     "opened": [
       3
     ],
@@ -160,6 +170,16 @@ export const AGGREGATE_CLOSURE_RECORD = {
       ]
     ],
     "continued": [
+      [
+        "Selurian Republic",
+        "Ashkari Nomads"
+      ],
+      [
+        "Dorrathi Clans",
+        "Ashkari Nomads"
+      ]
+    ],
+    "closed_last_tick": [
       [
         "Selurian Republic",
         "Ashkari Nomads"

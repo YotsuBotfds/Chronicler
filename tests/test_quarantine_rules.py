@@ -514,6 +514,31 @@ def test_ids_are_stable_and_a_lapse_then_reclosure_gets_a_new_id_across_a_save(t
     assert (totals.receipts, totals.closures_opened, totals.closures_lapsed) == (3, 1, 1)
 
 
+def test_leaked_deliveries_count_every_tick_a_pair_was_closed_including_the_last():
+    """Deliveries read at T were made in the tick of T-1: a pair closed then counts even
+    when its closure lapsed at T (review m2)."""
+    world, a, b, ia, ib = _closing_world("closure")
+    ep.tick_epidemics(world)                                   # closure opens at T
+    pair = tuple(sorted((ia, ib)))
+    world.turn += 1
+    world.epidemics.rows = []
+    ep.tick_epidemics(world)                                   # the trigger is gone: lapses at T+1
+    receipt = world.epidemics.quarantine_rules.receipt
+    assert receipt.lapsed == [1] and receipt.continued == [] and receipt.closed_last_tick == [pair]
+    other = next(j for j, r in enumerate(world.regions) if r.controller not in (
+        None, world.regions[a].controller, world.regions[b].controller))
+    qr.observe_deliveries(world, [(a, b, 2.0), (b, a, 0.5), (a, a, 9.0), (other, b, 3.0), (a, b, 0.0)])
+    assert receipt.leaked_deliveries == 2 and receipt.leaked_quantity == 2.5
+    # Not closure: nothing is counted (cost_only closes nothing).
+    cost, a2, b2, *_ = _closing_world("cost_only")
+    ep.tick_epidemics(cost)
+    cost.turn += 1
+    ep.tick_epidemics(cost)
+    qr.observe_deliveries(cost, [(a2, b2, 2.0)])
+    assert cost.epidemics.quarantine_rules.receipt.leaked_deliveries is None
+    assert cost.epidemics.quarantine_rules.receipt.closed_last_tick == []
+
+
 def test_json_save_mid_closure_continues_identically(tmp_path):
     world = _world("closure", seed=7)
     for _ in range(40):
@@ -624,15 +649,65 @@ def test_legacy_json_resume_is_defined(tmp_path, pure_python_runtimes):
 ])
 @pytest.mark.parametrize("mode", qr.QUARANTINE_MODES)
 def test_an_explicit_mode_needs_epidemiology_and_the_ledger(tmp_path, pure_python_runtimes, flags, ok, mode):
+    """none, cost_only and closure need both; an explicit legacy needs nothing (lead decision m4)."""
     from chronicler.main import execute_run
-    args = _cli_args(tmp_path, 2, quarantine_mode=mode, **flags)
-    if ok:
+    args = _cli_args(tmp_path / "given", 2, quarantine_mode=mode, **flags)
+    if flags.get("epidemiology") is True and flags.get("contact_ledger") is False:
+        # Epidemiology's own requirement refuses first, the option given or not.
+        for given in (args, _cli_args(tmp_path / "omitted", 2, **flags)):
+            with pytest.raises(ValueError, match="Epidemiology spreads along the contact ledger"):
+                execute_run(given)
+    elif ok or mode == "legacy":
         execute_run(args)
-        saved = json.loads((tmp_path / "state.json").read_text())["epidemics"]
-        assert saved.get("quarantine_rules", {}).get("mode", "legacy") == mode
+        saved = json.loads((tmp_path / "given/state.json").read_text()).get("epidemics")
+        assert (saved or {}).get("quarantine_rules", {}).get("mode", "legacy") == mode
+        if mode == "legacy":
+            # Exactly the option omitted, with epidemics on or off.
+            execute_run(_cli_args(tmp_path / "omitted", 2, **flags))
+            assert (tmp_path / "given/state.json").read_bytes() == (tmp_path / "omitted/state.json").read_bytes()
     else:
-        with pytest.raises(ValueError, match="epidemiology|contact ledger"):
+        with pytest.raises(ValueError, match="epidemiology and the contact ledger"):
             execute_run(args)
+
+
+def test_a_json_resume_cannot_switch_off_what_saved_rules_need(tmp_path, pure_python_runtimes):
+    """Refused explicitly, as the exact-checkpoint path refuses (review m1)."""
+    from chronicler.main import execute_run
+    closure = tmp_path / "closure"
+    execute_run(_cli_args(closure, 6, quarantine_mode="closure"))
+    for flag, field in (("--no-epidemiology", "epidemiology"), ("--no-contact-ledger", "contact_ledger")):
+        args = _cli_args(tmp_path / field, 10, resume=str(closure / "state.json"), **{field: False})
+        with pytest.raises(ValueError, match=rf"{flag} conflicts with this world's saved quarantine rules "
+                                             r"\(--quarantine-mode closure\)"):
+            execute_run(args)
+        assert not (tmp_path / field / "state.json").exists()
+    # Explicit legacy is no escape hatch on a world with other saved rules.
+    with pytest.raises(ValueError, match=r"--quarantine-mode legacy conflicts with the saved world \(saved: closure\)"):
+        execute_run(_cli_args(tmp_path / "legacy", 10, resume=str(closure / "state.json"), quarantine_mode="legacy"))
+    # A legacy world keeps its old freedom: the ledger may be switched off on resume.
+    legacy = tmp_path / "plain"
+    execute_run(_cli_args(legacy, 4))
+    execute_run(_cli_args(tmp_path / "plain_off", 8, resume=str(legacy / "state.json"), contact_ledger=False))
+    # The setters themselves refuse (the guard lives below every entry point).
+    world = WorldState.load(closure / "state.json")
+    with pytest.raises(ValueError, match="--no-epidemiology"):
+        ep.set_epidemiology_enabled(world, False)
+    with pytest.raises(ValueError, match="--no-contact-ledger"):
+        cl.set_contact_ledger_enabled(world, False)
+    assert world.epidemics.quarantine_rules.mode == "closure" and world.contact_ledger is not None
+
+
+def test_exact_resume_accepts_explicit_legacy_on_an_epidemics_off_checkpoint(tmp_path, pure_python_runtimes):
+    import chronicler.run_checkpoint as rc
+    from chronicler.main import _adopt_checkpoint_args, _build_parser, execute_run
+    off = tmp_path / "off"
+    execute_run(_cli_args(off, 6, epidemiology=False, checkpoint_every=3, checkpoint=str(off / "c{turn}.ckpt")))
+    parser = _build_parser()
+    legacy = parser.parse_args(["--resume", str(off / "c3.ckpt"), "--quarantine-mode", "legacy"])
+    assert _adopt_checkpoint_args(parser, legacy, rc.read_checkpoint(off / "c3.ckpt")) == []
+    closure = parser.parse_args(["--resume", str(off / "c3.ckpt"), "--quarantine-mode", "closure"])
+    assert any("saved: epidemiology off" in line
+               for line in _adopt_checkpoint_args(parser, closure, rc.read_checkpoint(off / "c3.ckpt")))
 
 
 @pytest.mark.parametrize("agents", ["off", "demographics-only", "shadow", "hybrid"])
@@ -667,7 +742,9 @@ def test_all_enabled_selection_with_closure_is_valid_in_the_catalog():
     surface = fc.live_surface(_build_parser().parse_args(["--agents", "hybrid"]))
     assert fc.validate_features(selection, surface) is None
     off = fc.live_surface(_build_parser().parse_args(["--agents", "hybrid", "--no-epidemiology"]))
-    assert "requires epidemiology" in fc.validate_features({"quarantine_mode": "closure"}, off)
+    assert "epidemiology with the contact ledger" in fc.validate_features({"quarantine_mode": "closure"}, off)
+    # An explicit legacy is the option omitted: valid without epidemiology (m4).
+    assert fc.validate_features({"quarantine_mode": "legacy"}, off) is None
 
 
 def test_forwarding_and_manifest_record_an_explicit_mode_only():
@@ -708,7 +785,7 @@ def test_bundle_snapshot_and_analytics_carry_the_receipts(tmp_path, pure_python_
     assert sorted(records[-1]["exempt"]) == sorted(qr.EXEMPT)
     metrics = ep.extract_epidemic_metrics([closure])["by_seed"][0]["quarantine_rules"]
     assert metrics["mode"] == "closure" and metrics["closed_pair_turns"] == records[-1]["totals"]["closed_pair_turns"]
-    assert metrics["turns_with_closure"] == len(closed)
+    assert metrics["turns_with_decision"] == len(closed)
     assert "quarantine_rules" not in ep.extract_epidemic_metrics([legacy])["by_seed"][0]
     state = json.loads((tmp_path / "closure/state.json").read_text())["epidemics"]["quarantine_rules"]
     assert state["next_closure_id"] == records[-1]["totals"]["closures_opened"] + 1

@@ -24,6 +24,8 @@ export interface QuarantineReceiptRecord {
   turn: number;
   decided: [string, string][];
   continued: [string, string][];
+  /** Pairs closed during the agent tick whose deliveries this receipt reads. */
+  closed_last_tick: [string, string][];
   opened: number[];
   renewed: number[];
   lapsed: number[];
@@ -33,7 +35,7 @@ export interface QuarantineReceiptRecord {
   forgone_income: Record<string, number>;
   /** Directed agent-merchant edges cut; null: no agent merchant graph that turn. */
   merchant_edges_removed: number | null;
-  /** Deliveries that still crossed a continued closure; null: none read that turn. */
+  /** Deliveries of the last tick across a pair closed during it; null: none read that turn. */
   leaked_deliveries: number | null;
   leaked_quantity: number | null;
 }
@@ -146,6 +148,7 @@ function readReceipt(raw: unknown): QuarantineReceiptRecord | null {
     turn: int(raw.turn, "receipt.turn"),
     decided: pairs(raw.decided, "receipt.decided"),
     continued: pairs(raw.continued ?? [], "receipt.continued"),
+    closed_last_tick: pairs(raw.closed_last_tick ?? [], "receipt.closed_last_tick"),
     opened: ints(raw.opened, "receipt.opened"),
     renewed: ints(raw.renewed, "receipt.renewed"),
     lapsed: ints(raw.lapsed, "receipt.lapsed"),

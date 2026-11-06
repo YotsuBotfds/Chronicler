@@ -57,7 +57,9 @@ export function QuarantineRules({ epidemics, at }: { epidemics: unknown; at: num
             detail={closure && receipt.merchant_edges_removed === null ? "no agent merchant graph this turn" : undefined} />
           <StatTile label="Deliveries still crossing"
             value={closure ? (receipt.leaked_deliveries ?? "not recorded") : "none (not restricted)"}
-            detail={closure && receipt.leaked_deliveries !== null ? "crossed before closing or via a third state" : undefined} />
+            detail={closure && receipt.leaked_deliveries !== null
+              ? `made last tick across ${receipt.closed_last_tick.length} pair(s) closed then: crossed earlier or via a third state`
+              : undefined} />
         </div>
       </>
     )}

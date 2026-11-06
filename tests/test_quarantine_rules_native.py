@@ -186,12 +186,12 @@ def test_hybrid_closure_blocks_deliveries_from_tick_t_and_the_ledger_from_t_plus
     leaked = blocked = 0
     for t in range(first + 1, turns):
         receipt = closed_receipts[t]
-        # The receipt's leak count is the observed deliveries across pairs closed in tick t-1 and now.
-        still = _pairs(closed, receipt.decided) & _pairs(closed, closed_receipts[t - 1].decided)
-        assert receipt.leaked_deliveries == len(_across(closed_obs[t], still))
+        # The receipt's leak count is the observed deliveries (made in tick t-1) across every
+        # pair closed during tick t-1, whether or not it is still closed at t.
+        during = _pairs(closed, closed_receipts[t - 1].decided)
+        assert receipt.leaked_deliveries == len(_across(closed_obs[t], during))
         leaked += receipt.leaked_deliveries
-        both = _pairs(cost, cost_receipts[t].decided) & _pairs(cost, cost_receipts[t - 1].decided)
-        blocked += len(_across(cost_obs[t], both))
+        blocked += len(_across(cost_obs[t], _pairs(cost, cost_receipts[t - 1].decided)))
     # Under cost_only the same kind of pairs keep exchanging deliveries; closed borders carry
     # only the few journeys that crossed before the closure or went round through a third polity.
     assert blocked > 0

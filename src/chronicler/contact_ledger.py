@@ -201,6 +201,13 @@ def set_contact_ledger_enabled(world: "WorldState", enabled: bool) -> None:
         if world.contact_ledger is None:
             world.contact_ledger = ContactLedgerState()
     else:
+        if world.contact_ledger is not None and getattr(
+                getattr(world, "epidemics", None), "quarantine_rules", None) is not None:
+            # Saved --quarantine-mode rules need the ledger (chronicler.quarantine_rules).
+            from chronicler.quarantine_rules import saved_rules_error
+            problem = saved_rules_error(world, "--no-contact-ledger")
+            if problem is not None:
+                raise ValueError(problem)
         world.contact_ledger = None
 
 
