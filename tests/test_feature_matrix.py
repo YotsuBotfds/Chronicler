@@ -102,7 +102,7 @@ def test_existing_catalog_output_is_byte_identical():
     grouped = {k for switches in fc.FEATURE_GROUPS.values() for key, options in switches.items()
                for k in (key, *options)}
     assert not grouped & set(REFERENCE_KEYS)
-    assert fc.FEATURE_GROUPS["Public health"] == {"quarantine_mode": ()}
+    assert fc.FEATURE_GROUPS["Public health"] == {"quarantine_mode": (), "quarantine_channels": ()}
     _assert_reference_catalog_unchanged()
     # Additions are additions: the 8abc1acb entries keep their relative order, and every
     # 8abc1acb setting is still offered on both surfaces.
@@ -256,9 +256,14 @@ def test_matrix_of_the_catalog(M):
         assert reference == expected, world
     assert all(e["refusal"] is None for by in m["all_enabled"].values() for e in by.values())
     # Top-level choices join every all-enabled selection at their last choice.
-    assert M.top_level_choices() == ["quarantine_mode"]
+    assert M.top_level_choices() == ["quarantine_mode", "quarantine_channels"]
     assert all(e["selection"]["quarantine_mode"] == "closure" for by in m["all_enabled"].values()
                for e in by.values())
+    # C1b: the migration channel joins every agent mode's selection (native
+    # migration); --agents off has no migrants, so the catalog drops it there.
+    for mode, by in m["all_enabled"].items():
+        for e in by.values():
+            assert e["selection"].get("quarantine_channels") == (None if mode == "off" else "trade,migration")
 
 
 def test_a_world_dependent_switch_is_reported_as_such(M):

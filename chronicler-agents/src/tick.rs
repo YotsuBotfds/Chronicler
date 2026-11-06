@@ -789,8 +789,10 @@ fn try_tick_agents_with_movements_observer<M: crate::decision_delivery::MoveObse
     // those primary actions if the later household gate cancels their move.
     // Livelihoods L7: a relocation fare policy prices the same household groups.
     let mut relocation = pool.relocation_policy.take().filter(|p| p.turn == turn && gate.is_none());
+    // Connected-world C1b: a quarantine's migration closure for this tick.
+    let closure = pool.migration_closure.take().filter(|c| c.turn == turn);
     let grouped = gate.is_some() || relocation.is_some();
-    let original_actions = grouped.then(|| pending_decisions.iter()
+    let original_actions = (grouped || closure.is_some()).then(|| pending_decisions.iter()
         .map(|pd| (pd.rebellions.clone(), pd.occupation_switches.clone())).collect::<Vec<_>>());
     let mut gate_groups = grouped.then(|| (0..pending_decisions.len())
         .map(|_| std::collections::BTreeMap::new()).collect::<Vec<_>>());
@@ -805,6 +807,17 @@ fn try_tick_agents_with_movements_observer<M: crate::decision_delivery::MoveObse
         move_observer,
         gate_groups.as_deref_mut(),
     );
+
+    // C1b: consolidated moves across a closed pair are refused before any
+    // household is priced or gated (`migration_closure`); unchanged without one.
+    if let Some(closure) = closure.as_ref() {
+        let (blocked, rows) = crate::migration_closure::gate(closure, &mut pending_decisions);
+        if let Some(original) = original_actions.as_ref() {
+            restore_blocked_primary_actions(&mut pending_decisions, &blocked, original);
+        }
+        pool.migration_closure_receipt =
+            Some(crate::migration_closure::MigrationClosureReceipt { turn, blocked: rows });
+    }
 
     if let Some((requirement, frame)) = gate {
         let blocked = crate::household::gate_household_mobility(pool, &mut pending_decisions, regions, requirement, frame, gate_groups.as_deref().unwrap());
@@ -2790,6 +2803,136 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// C1b: two crowded regions of one polity, each next to one empty
+    /// region: region 0 borders region 1, ruled by the polity the crowded
+    /// regions' ruler is closed against; region 3 borders region 2, ruled by a
+    /// third (open) polity. `reverse` swaps the closed pair's rulers, so the
+    /// closed crossing runs the other way.
+    fn migration_closure_world(reverse: bool) -> (Vec<RegionState>, AgentPool, [u8; 4]) {
+        let civs: [u8; 4] = if reverse { [1, 0, 2, 1] } else { [0, 1, 2, 0] };
+        let mut regions: Vec<RegionState> = (0..4u16).map(|i| {
+            let mut r = make_healthy_region(i);
+            r.controller_civ = civs[i as usize];
+            r
+        }).collect();
+        regions[0].adjacency = vec![1];
+        regions[1].adjacency = vec![0];
+        regions[2].adjacency = vec![3];
+        regions[3].adjacency = vec![2];
+        let mut pool = AgentPool::new(0);
+        for crowded in [0usize, 3] {
+            let c = &mut regions[crowded];
+            c.carrying_capacity = 5;
+            c.soil = 0.05;
+            c.water = 0.1;
+            c.population = 150;
+            for k in 0..150 {
+                pool.spawn(crowded as u16, civs[0], Occupation::Farmer, 20 + (k % 20) as u16, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+            }
+        }
+        (regions, pool, civs)
+    }
+
+    fn migration_moves(events: &[AgentEvent]) -> Vec<(u32, u16, u16)> {
+        events.iter().filter(|e| e.event_type == 2).map(|e| (e.agent_id, e.region, e.target_region)).collect()
+    }
+
+    fn closure_tick(pool: &mut AgentPool, regions: &[RegionState], turn: u32) -> Vec<AgentEvent> {
+        let signals = make_default_signals(3, regions.len());
+        let mut pct = vec![0.0f32; pool.capacity()];
+        tick_agents(pool, regions, &signals, [93u8; 32], turn, &mut pct, &mut Vec::new(), &[],
+            &mut crate::spatial::SpatialDiagnostics::default(), &[], None).0
+    }
+
+    /// A closed pair refuses new moves in both directions; the open
+    /// neighbour's moves are the very ones made without a closure, and the
+    /// receipt counts exactly the moves refused.
+    #[test]
+    fn test_migration_closure_blocks_a_closed_pair_both_ways_and_leaves_open_moves() {
+        for reverse in [false, true] {
+            let (regions, mut open_pool, civs) = migration_closure_world(reverse);
+            let open = migration_moves(&closure_tick(&mut open_pool, &regions, 0));
+            assert!(open.iter().any(|m| m.2 == 1) && open.iter().any(|m| m.2 == 2),
+                "both empty regions must draw migrants without a closure: {open:?}");
+            assert!(open_pool.migration_closure_receipt.is_none());
+
+            let (regions, mut pool, _) = migration_closure_world(reverse);
+            crate::migration_closure::install(&mut pool, 0, civs.to_vec(), vec![(civs[1], civs[0])], 4).unwrap();
+            let closed = migration_moves(&closure_tick(&mut pool, &regions, 0));
+            assert!(pool.migration_closure.is_none(), "the tick takes its closure");
+            let expected: Vec<_> = open.iter().copied().filter(|m| m.2 != 1).collect();
+            assert_eq!(closed, expected);
+            let receipt = crate::migration_closure::take(&mut pool, 0).unwrap();
+            assert!(receipt.blocked.iter().all(|r| (r.0, r.1) == (0, 1)), "{:?}", receipt.blocked);
+            let refused: u32 = receipt.blocked.iter().map(|r| r.3).sum();
+            assert_eq!(refused as usize, open.iter().filter(|m| m.2 == 1).count());
+            assert!((0..pool.capacity()).all(|s| !pool.is_alive(s) || pool.regions[s] != 1));
+        }
+    }
+
+    /// Moves applied before the closure's first tick stay applied (no journey
+    /// is in flight); during the closure nobody crosses the pair either way.
+    #[test]
+    fn test_migration_closure_keeps_completed_moves_and_refuses_new_ones() {
+        let (regions, mut pool, civs) = migration_closure_world(false);
+        let first = migration_moves(&closure_tick(&mut pool, &regions, 0));
+        let arrived: Vec<u32> = first.iter().filter(|m| m.2 == 1).map(|m| m.0).collect();
+        assert!(!arrived.is_empty());
+        for turn in 1..4 {
+            crate::migration_closure::install(&mut pool, turn, civs.to_vec(), vec![(0, 1)], 4).unwrap();
+            let moves = migration_moves(&closure_tick(&mut pool, &regions, turn));
+            assert!(moves.iter().all(|m| !matches!((m.1, m.2), (0, 1) | (1, 0))), "turn {turn}: {moves:?}");
+            assert!(crate::migration_closure::take(&mut pool, turn).is_some());
+        }
+        for id in arrived {
+            if let Some(slot) = (0..pool.capacity()).find(|&s| pool.is_alive(s) && pool.ids[s] == id) {
+                assert_eq!(pool.regions[slot], 1, "a completed move is never reversed");
+            }
+        }
+    }
+
+    /// A closure installed for another turn is dropped unused by the tick
+    /// (the FFI refuses such a tick before it starts).
+    #[test]
+    fn test_migration_closure_for_another_turn_is_not_applied() {
+        let (regions, mut open_pool, _) = migration_closure_world(false);
+        let open = migration_moves(&closure_tick(&mut open_pool, &regions, 0));
+        let (regions, mut pool, civs) = migration_closure_world(false);
+        crate::migration_closure::install(&mut pool, 5, civs.to_vec(), vec![(0, 1)], 4).unwrap();
+        assert!(crate::migration_closure::check_tick(&pool, 0).is_err());
+        assert_eq!(migration_moves(&closure_tick(&mut pool, &regions, 0)), open);
+        assert!(pool.migration_closure.is_none() && pool.migration_closure_receipt.is_none());
+    }
+
+    /// The household is refused as a unit and a follower whose own
+    /// occupation switch the consolidator replaced gets it back.
+    #[test]
+    fn test_migration_closure_refuses_the_household_and_restores_the_followers_action() {
+        let mut pool = AgentPool::new(2);
+        let lead = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+        let spouse = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+        assert!(crate::relationships::upsert_symmetric(&mut pool, lead, spouse,
+            crate::relationships::BondType::Marriage as u8, 50, 1));
+        let mut pd = crate::behavior::PendingDecisions::new();
+        pd.migrations = vec![(lead, 0, 1)];
+        pd.migration_dominant = vec![(lead, crate::migration_drivers::TERM_FAMINE_MEMORY as u8)];
+        pd.occupation_switches = vec![(spouse, 2)];
+        let mut pending = vec![pd];
+        let original: Vec<_> = pending.iter().map(|p| (p.rebellions.clone(), p.occupation_switches.clone())).collect();
+        let regions = vec![RegionState::new(0), RegionState::new(1)];
+        let mut stats = crate::household::HouseholdStats::default();
+        crate::household::consolidate_household_migrations(&pool, &mut pending, &regions, &[false; 2],
+            &pool.build_id_slots(), &mut stats);
+        assert_eq!(pending[0].migrations.len(), 2, "the spouse follows the lead");
+        assert!(pending[0].occupation_switches.is_empty());
+        let closure = crate::migration_closure::MigrationClosure { turn: 0, region_civ: vec![0, 1], pairs: vec![(0, 1)] };
+        let (blocked, rows) = crate::migration_closure::gate(&closure, &mut pending);
+        restore_blocked_primary_actions(&mut pending, &blocked, &original);
+        assert!(pending[0].migrations.is_empty());
+        assert_eq!(pending[0].occupation_switches, vec![(spouse, 2)]);
+        assert_eq!(rows, vec![(0, 1, crate::migration_drivers::TERM_FAMINE_MEMORY as u8, 2)]);
     }
 
     /// Geography 2.0: adjacency lists let agents migrate between regions with

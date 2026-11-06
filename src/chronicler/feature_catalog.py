@@ -14,8 +14,9 @@ drift. It lists:
   name -> {switch: its choice keys}), listed after the livelihoods group in
   declaration order. A group key may also be a top-level choice with no
   boolean switch (``Public health``: ``--quarantine-mode``, whose first choice,
-  ``legacy``, is the run's rule when unset); it declares ``REQUIREMENTS`` as a
-  switch does.
+  ``legacy``, is the run's rule when unset, and ``--quarantine-channels``,
+  whose first choice ``trade`` is C1's closure); it declares ``REQUIREMENTS``
+  as a switch does.
 
 Each entry's key is the CLI parser destination; flag, help text and choices
 are read from the CLI parser itself. Nothing here is on by default: an absent
@@ -75,7 +76,7 @@ PREREQUISITES: dict[str, tuple[str, ...]] = {
 #: that is itself a choice (``quarantine_mode``) is a top-level choice: no
 #: switch, its own ``REQUIREMENTS``, its first choice the run's rule when unset.
 FEATURE_GROUPS: dict[str, dict[str, tuple[str, ...]]] = {
-    "Public health": {"quarantine_mode": ()},
+    "Public health": {"quarantine_mode": (), "quarantine_channels": ()},
 }
 
 #: Server settings a request cannot change: what each means when true.
@@ -155,6 +156,10 @@ REQUIREMENTS: dict[str, tuple[dict, ...]] = {
     "watershed": (_setting("procedural_world"),),
     # An explicit legacy is the option omitted: it needs nothing (lead decision m4).
     "quarantine_mode": (_any(_setting("epidemiology"), _choice("quarantine_mode", "legacy")),),
+    # C1b: an explicit trade is the option omitted; trade,migration closes native
+    # migration, so it needs the closure mode and an agent mode.
+    "quarantine_channels": (_any(_choice("quarantine_channels", "trade"), _choice("quarantine_mode", "closure")),
+                            _any(_choice("quarantine_channels", "trade"), _ECONOMY)),
 }
 
 

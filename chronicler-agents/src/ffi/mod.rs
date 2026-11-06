@@ -890,6 +890,34 @@ impl AgentSimulator {
             r.before, r.after, r.budget_milli, r.rations))
     }
 
+    /// Connected-world C1b: install this tick's quarantine migration closure:
+    /// per region the controlling civilization index (255 none) and the
+    /// closed civilization pairs (each closed in both directions). Validates
+    /// first; refuses a pending closure. Transient, never checkpointed.
+    pub fn set_migration_closure(&mut self, turn: u32, region_civ: Vec<u8>, pairs: Vec<(u8, u8)>)
+        -> PyResult<()> {
+        crate::migration_closure::install(&mut self.pool, turn, region_civ, pairs, self.num_regions)
+            .map_err(PyValueError::new_err)
+    }
+
+    /// C1b: drop a closure the tick never took and any untaken receipt.
+    pub fn cancel_migration_closure(&mut self) -> bool {
+        let pending = self.pool.migration_closure.take().is_some();
+        self.pool.migration_closure_receipt = None;
+        pending
+    }
+
+    /// C1b: the tick's refused moves, taken once: (origin, destination,
+    /// driver name (`get_migration_driver_stats` term names; "unattributed"
+    /// without one), persons), sorted by origin, destination and driver code.
+    pub fn take_migration_closure_receipt(&mut self, turn: u32) -> Option<Vec<(u16, u16, String, u32)>> {
+        crate::migration_closure::take(&mut self.pool, turn).map(|r| r.blocked.into_iter()
+            .map(|(from, to, driver, persons)| (from, to,
+                crate::migration_drivers::MIGRATION_TERM_NAMES.get(driver as usize)
+                    .map_or_else(|| "unattributed".to_string(), |name| name.to_string()), persons))
+            .collect())
+    }
+
     /// Livelihoods L6a wealth transfer (shared seam, `wealth_transfer.rs`):
     /// credit (positive) or debit (negative) stable ids by whole milli-units
     /// (1000 = one wealth unit), once per (turn, purpose, batch). Returns per
@@ -1723,6 +1751,7 @@ impl AgentSimulator {
         }
         crate::learning_work::check_tick(&self.pool, turn).map_err(PyValueError::new_err)?;
         crate::relocation::check_tick(&self.pool, turn, liquid_requirement).map_err(PyValueError::new_err)?;
+        crate::migration_closure::check_tick(&self.pool, turn).map_err(PyValueError::new_err)?;
         if self.pool.paid_work.as_ref().is_some_and(|p| p.turn != turn) {
             return Err(PyValueError::new_err("paid work must be armed for this tick"));
         }

@@ -1,5 +1,6 @@
 import {
-  EXEMPT_LABEL, QUARANTINE_MODE_LABEL, QUARANTINE_MODE_NOTE, readQuarantineRules, totalOf,
+  EXEMPT_LABEL, MIGRATION_CLOSURE_NOTE, QUARANTINE_MODE_LABEL, QUARANTINE_MODE_NOTE, migrationClosed,
+  quarantineModeLabel, readQuarantineRules, totalOf,
 } from "../../lib/quarantineRules";
 import { StatTile } from "./SystemParts";
 
@@ -7,7 +8,10 @@ import { StatTile } from "./SystemParts";
  * The quarantine rule at a snapshot (`--quarantine-mode`): unknown (no
  * epidemiology record), the legacy multiplier, a malformed record, or the
  * recorded mode with its closures and receipt. A recorded zero is shown as 0;
- * a value the run did not record is named as such, never shown as 0.
+ * a value the run did not record is named as such, never shown as 0. With the
+ * migration channel (C1b) the refused migrants are shown with the same care:
+ * not restricted (trade only), not observed (no native receipt that turn), a
+ * recorded zero, or the persons refused and by which closure.
  */
 export function QuarantineRules({ epidemics, at }: { epidemics: unknown; at: number }) {
   const reading = readQuarantineRules(epidemics);
@@ -35,10 +39,13 @@ export function QuarantineRules({ epidemics, at }: { epidemics: unknown; at: num
   const receipt = record.receipt;
   const closure = record.mode === "closure";
   const deciding = record.mode !== "none";
+  const migration = migrationClosed(record);
+  const refusals = receipt?.migration_refusals ?? [];
   return <section className="systems-section" aria-label={title}>
     <h3>{title}</h3>
-    <p><strong>{QUARANTINE_MODE_LABEL[record.mode]}</strong></p>
+    <p><strong>{quarantineModeLabel(record)}</strong></p>
     <p className="systems-note">{QUARANTINE_MODE_NOTE[record.mode]}</p>
+    {migration && <p className="systems-note">{MIGRATION_CLOSURE_NOTE}</p>}
     {receipt === null ? (
       <p className="systems-note">No quarantine decision has been recorded yet.</p>
     ) : (
@@ -60,8 +67,26 @@ export function QuarantineRules({ epidemics, at }: { epidemics: unknown; at: num
             detail={closure && receipt.leaked_deliveries !== null
               ? `made last tick across ${receipt.closed_last_tick.length} pair(s) closed then: crossed earlier or via a third state`
               : undefined} />
+          <StatTile label="Migrants refused"
+            value={!closure ? "none (not restricted)" : !migration ? "not restricted (trade only)"
+              : (receipt.migrants_blocked ?? "not observed")}
+            detail={migration
+              ? (receipt.migrants_blocked === null ? "no native migration receipt this turn"
+                : `persons, of whom ${receipt.migrants_blocked_flight ?? 0} fleeing war, famine or persecution`)
+              : undefined} />
         </div>
       </>
+    )}
+    {migration && refusals.length > 0 && (
+      <div className="systems-table-wrap">
+        <table className="systems-table" aria-label={`Migrants refused at turn ${at}`}>
+          <thead><tr><th>Closure</th><th>From</th><th>To</th><th>Driver</th><th>Persons</th></tr></thead>
+          <tbody>{refusals.map((r) => (
+            <tr key={`${r.closure}-${r.from}-${r.to}-${r.driver}`}><td>{r.closure}</td><td>{r.from}</td><td>{r.to}</td>
+              <td>{r.driver.replace(/_/g, " ")}</td><td>{r.persons}</td></tr>
+          ))}</tbody>
+        </table>
+      </div>
     )}
     {record.closures.length > 0 && (
       <div className="systems-table-wrap">
@@ -78,6 +103,9 @@ export function QuarantineRules({ epidemics, at }: { epidemics: unknown; at: num
         ? "no closure (recorded zero)."
         : `${record.totals.closed_pair_turns} closed pair-turns, ${record.totals.route_turns_removed} route-turns closed, `
           + `${record.totals.forgone_income} treasury of route income forgone, ${record.totals.enforcement_paid} paid in enforcement.`}
+      {migration && record.totals.migrants_blocked !== null
+        ? ` Migrants refused: ${record.totals.migrants_blocked} (${record.totals.migrants_blocked_flight ?? 0} fleeing war, famine or persecution).`
+        : ""}
       {" "}Never restricted: {record.exempt.map((key) => EXEMPT_LABEL[key] ?? key).join(", ")}.
     </p>
   </section>;
