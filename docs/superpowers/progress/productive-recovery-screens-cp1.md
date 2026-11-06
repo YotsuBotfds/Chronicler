@@ -114,6 +114,10 @@ secondary. The executable list is `PAIRED` in the runner.
 - **Counters** are lifetime counters of the last snapshot's package record. A declared
   counter absent from an enabled package's record was never incremented and is 0, since
   every record starts empty when its switch is enabled (the sprint-3 rule).
+- **Stalled project-turns for a reason** (`repair_projects.stalled_no_timber`,
+  `stalled_no_envelope`, …) count the stalled project-turns whose reasons include that
+  reason; one stall can carry several (`repair_projects.py`, the receipt loop). They
+  are not the primary-reason counts the PL3 page tabulates.
 - **Structural zero.** Where an outcome sums wage channels (CH − RP) or the control
   lacks the package (timber delivered in RP), a package the arm's flags leave off counts
   0; the extractor has verified that such a package wrote no record. A missing record of
@@ -263,8 +267,10 @@ that the labour cost is zero.
 - If the budget runs out, or a process is killed (a container restart), the unfinished
   arms and worlds are reported as **incomplete** (`report` lists each `not run`; `check
   --metrics` fails), never silently dropped. Finishing them later on the same frozen
-  source and extension, appending to the same `metrics.jsonl`, is allowed only if no
-  report of the held outcomes has been read; the restart is recorded as an amendment.
+  source and extension is allowed only if no report of the held outcomes has been read:
+  `run --resume` in the same output directory runs only the arms and worlds without a
+  row, refuses another source commit, `chronicler` path, extension or interpreter, and
+  never repeats a recorded run. The restart is recorded as an amendment.
 - A run that raises or fails extraction is recorded as failed with its error and is not
   rerun silently. A failure in the held runs is a finding, investigated and reported; a
   fix would need a new held cohort to be evaluated.
@@ -276,7 +282,31 @@ One run of every arm on the two pilot worlds (template 5, procedural 19), at mos
 concurrent processes, to set the budget and find defects. Its outcomes are not used to
 choose arms, outcomes or parameters.
 
-*(Results below are filled in by the pilot; see the next section.)*
+- **Run** 2026-11-06 by PL6a on `3124421a` (`src` identical to the phase head
+  `8f7a6718`; later commits change only the runner's resume and timing bookkeeping),
+  native extension `fdcb0ca0…` (`~/.venvs/native-pl1`, built from the Rust of
+  `7c16e9ce`; no Rust file changed since), CPython 3.13, 2 concurrent processes on a
+  shared 4-core machine. The pilot's metrics are kept outside the repository.
+- **All 28 runs succeeded and every outcome extracted** (no rc 3; `check --metrics
+  --cohort pilot` passes). The cost-retaining controls behave as declared on both
+  worlds: `TS_cost` cut and delivered nothing, `RC_unpaid` paid no granary wages and
+  sank the same order of coins, `MO_ro` used none of its reservation and returned all
+  of it, and `W_wear`'s lump repairs equal `operating_wear.repairs`.
+- **Seconds per run** (simulation): template 7.1 on average (5.9–9.4), procedural 19.1
+  (17.7–21.5); 367 s in total, 227 s of wall time. Extraction runs in the runner process
+  and was timed separately on development worlds: 1.2–1.3 s (template), 3.6 s
+  (procedural).
+- **Projection for the held cohort** (168 runs): 0.61 core-hours of simulation plus
+  0.11 of extraction, about **0.73 core-hours** of the 2.0 proposed, roughly 15–20
+  minutes of wall time at 3 concurrent processes. Transient disk is under 30 MB per
+  procedural run (8 MB template), well under 1 GiB at 3 concurrent.
+- **Defects found:** none in the runner, the extractor or the simulation. Two
+  definitional points were found while checking the funnels and are recorded under
+  open questions, not changed: RS2's `stalled_<reason>` counters count every reason of
+  a stalled turn (not only the primary reason the PL3 page tabulates), and RC's veteran
+  outcome is structurally 0 without RS3.
+- The lane read the pilot report while checking for defects and changed no arm,
+  outcome, parameter or budget in response.
 
 ## Amendments
 
@@ -288,6 +318,14 @@ first held run.
 
 - Primary condition measures use the run mean; sprint 3 used the end-of-run value. Both
   are reported; confirm which is primary before freezing.
-- RC carries no `--veteran-reintegration`, so its veteran outcome is structurally 0. Add
-  RS3 to RC and RC_unpaid, or drop that outcome.
+- RC carries no `--veteran-reintegration`, so its veteran outcome is structurally 0
+  (0 in both pilot worlds, as expected). Add RS3 to RC and RC_unpaid, or drop that
+  outcome; veterans are measured in CH − CH_rec either way.
+- `no_envelope` and `no_timber` stalls are any-reason counts (above). If the
+  primary-reason count is wanted for comparison with the PL3 page, it can be derived
+  from the dated RS2 receipts; decide before freezing.
 - The food-cost outcome (above) is this lane's proposal.
+- A held run interrupted by a container restart can be finished with `run --resume` on
+  the same source and extension (the incomplete-run rule above); confirm that rule.
+- The held run should use an extension built from the frozen commit's Rust; the pilot
+  used `fdcb0ca0…` (PL1's build). Any later Rust change needs a fresh build.
