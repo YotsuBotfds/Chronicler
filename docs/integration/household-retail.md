@@ -835,3 +835,13 @@ cancellation. Batch Lab runs consecutive seeds from its start seed and stops onl
 between seeds; no two template development seeds are consecutive, so the QA cancels a
 one-seed batch (template 7) and records the manifest's status (`complete`) rather than
 requiring `cancelled`.
+
+Run on 2026-11-06 (production build of this branch, extension `b8a09339…`), with the
+seven development bundles of the fixture's runs as `--bundle` and two old bundles
+(template 7 with `--food-allocation`, one written by `main` `573f14e5` and one by this
+branch without the switch): bundles 713/713, old 194/194, live 71/71, batch 15/15
+checks, no console or page errors. The live world (template 7, boundary `all`) had seven
+pilot regions at turn 5; the resumed session matched the paused one there. The fork
+(`--seed 9`) rebuilt the native pool, and its panel shows the dated `pool_reset` records
+of turn 5. The batch manifest recorded `food_allocation`, `household_retail`,
+`free_exchange` and `paid_work` for seed 7 only, status `complete`.
