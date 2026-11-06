@@ -41,6 +41,13 @@ The productive-recovery phase appends:
 * ``--household-retail`` (PL4, L6b): producer title of new harvest, owned
   food, paid provisioning, income replacement and relief in pilot regions.
 
+The connected-world program appends:
+
+* ``--wealth-accounting`` (A1): an observation-only ledger of agent wealth per
+  region and turn (opening, typed flows from the packages' receipts, closing,
+  the labelled native-model residual); appended last so its Phase 2 and Phase 10
+  hooks run after every other package's. It changes nothing it observes.
+
 This module owns only CLI forwarding, validation of prerequisites and the
 fan-out of phase hooks to each package's module ``chronicler.<switch>``.
 State, decisions and accounting belong to those modules. An omitted switch
@@ -117,6 +124,7 @@ LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     "recovery_crews", "recovery_crew_mode",
     "maintenance_obligation", "maintenance_obligation_mode",
     "household_retail", "household_retail_mode", "household_retail_boundary",
+    "wealth_accounting",
 )
 _AGENT_ECONOMY = ("hybrid", "shadow", "demographics-only")
 
@@ -312,6 +320,14 @@ _HELP = {
         "been done (an open workshop firm, a paid repair or granary crew, or the home of a paid "
         "woodcutting crew), sticky; all: every controlled region (stress)"
     ),
+    "wealth_accounting": (
+        "Wealth accounting (A1): an observation-only ledger of agent wealth; each turn and region it "
+        "reads the balance at the Phase 2 opening (checked bit for bit against the last closing) and "
+        "after every payer, records the typed flows from the packages' receipts (wages, stipends, "
+        "purchases, procurement, remittances, fares, domestic credit), the paid-work income each "
+        "package withheld and the treasury side, and labels the rest as unitemized native model "
+        "flows; changes nothing; requires --agents hybrid (default off)"
+    ),
 }
 
 
@@ -451,6 +467,12 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
             saved = values["timber_supply"] is not True
             raise ValueError("--timber-supply requires --agents hybrid, --repair-projects and --timber-stock"
                              + ("; this world has it on: pass --no-timber-supply to end it" if saved else ""))
+    if _on(world, values, "wealth_accounting") and agent_mode != "hybrid":
+        # Also when only saved: the ledger reads the hybrid agent pool; a resume
+        # outside hybrid is refused until the switch is ended (dated).
+        saved = values["wealth_accounting"] is not True
+        raise ValueError("--wealth-accounting requires --agents hybrid"
+                         + ("; this world has it on: pass --no-wealth-accounting to end it" if saved else ""))
     if _on(world, values, "household_retail"):
         # Also when only saved: a resume that turns L2 off (or leaves hybrid)
         # would otherwise keep the claims, the owned food and the pilot regions

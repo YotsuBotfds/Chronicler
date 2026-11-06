@@ -498,9 +498,12 @@ def test_switch_registry_cli_and_prerequisites():
     from chronicler.batch_manifest import SIMULATION_ARG_KEYS, simulation_config
     from chronicler.feature_catalog import REQUIREMENTS
     from chronicler.livelihoods_state import LIVELIHOODS_SWITCHES
-    assert LIVELIHOODS_SWITCHES[-1] == "household_retail"
+    # PL4 was appended after PL3; later programs append after it (A1: wealth_accounting).
+    assert LIVELIHOODS_SWITCHES.index("household_retail") == LIVELIHOODS_SWITCHES.index("maintenance_obligation") + 1
     assert LIVELIHOODS_SWITCHES.index("food_allocation") < LIVELIHOODS_SWITCHES.index("household_retail")
-    assert LV.LIVELIHOODS_ARG_KEYS[-3:] == ("household_retail", "household_retail_mode", "household_retail_boundary")
+    start = LV.LIVELIHOODS_ARG_KEYS.index("household_retail")
+    assert LV.LIVELIHOODS_ARG_KEYS[start:start + 3] == ("household_retail", "household_retail_mode",
+                                                        "household_retail_boundary")
     assert LV.LIVELIHOODS_CHOICES["household_retail_mode"] == MODES
     assert LV.LIVELIHOODS_CHOICES["household_retail_boundary"] == ("market", "paid_work", "all")
     assert {"household_retail", "household_retail_mode", "household_retail_boundary"} <= set(SIMULATION_ARG_KEYS)
