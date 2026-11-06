@@ -137,9 +137,14 @@ def test_economy_retail_columns_title_and_close_and_absent_inputs_keep_every_bit
     owned_close = sum(_value(out, f"retail_owned_close_{g}", r) for g in FOOD)
     assert ledger["closing"] == pytest.approx(commons_close + owned_close, abs=1e-4)
     assert _value(out, "commons_consumed", r) == ledger["consumed"]
-    # Owned food is supply and availability.
+    # Owned food is supply and availability: the carried stock after its
+    # opening decay and cap (this turn's title is not in Phase A's supply).
+    carried = sum(_value(out, f"retail_owned_close_{g}", r) - _value(out, f"retail_titled_{g}", r) for g in FOOD)
+    assert carried == pytest.approx(sum(owned.values()) - sum(
+        _value(out, f"retail_owned_decay_{g}", r) + _value(out, f"retail_owned_overflow_{g}", r) for g in FOOD), abs=1e-5)
+    assert 0 < carried < sum(owned.values())
     assert _value(out, "market_supply_food", r) == pytest.approx(
-        _value(base[0], "market_supply_food", r) + sum(owned.values()), abs=1e-4)
+        _value(base[0], "market_supply_food", r) + carried, abs=1e-4)
     assert _value(out, "food_sufficiency", r) >= _value(base[0], "food_sufficiency", r)
     assert all(v is None for i, v in enumerate(out.column("retail_titled_grain").to_pylist()) if i != r)
     others = [name for name in base_names if name.startswith(("stockpile_", "food_"))]
@@ -375,4 +380,46 @@ def test_an_owner_dead_after_phase2_keeps_the_claim_whole_for_the_heirs():
     assert row["offered_milli"] == 3500 and row["sold_milli"] == 500 and row["own_eaten_milli"] == 0
     assert row["own_eaten_milli"] + row["sold_milli"] == row["offered_milli"] - row["unsold_milli"]
     assert row["paid_milli"] == row["credited_milli"] + row["refunded_milli"] > 0
-    assert row["priced_out_persons"] + row["offer_short_persons"] > 0
+    # The hungry with cash are short because the dead owner's food was
+    # withheld: classified withheld_dead (status 3), never offer_short.
+    assert row["withheld_dead_persons"] > 0 and row["offer_short_persons"] == 0
+    assert row["deficit"] == pytest.approx(row["priced_out_deficit"] + row["withheld_dead_deficit"])
+    assert {s[5] for s in _sample} <= {0, 1, 3} and 3 in {s[5] for s in _sample}
+
+
+def test_on_a_development_world_the_fair_share_is_always_on_offer(tmp_path, monkeypatch):
+    """Template development seed 7, every controlled region a pilot, 30 turns
+    through the real package: in every short pilot region-turn with nothing
+    withheld, the free food and the owned food on offer cover the fair share
+    for everyone alive, and nobody is short for want of an offer (review D's
+    B1: Phase 2 counted the owned stock before its decay)."""
+    from chronicler import household_retail as HR
+    from chronicler.main import _build_parser, execute_run
+    frames, states = [], []
+    settle = HR._settle_frame
+
+    def spy(world, state, t, installed, frame, receipt, *rest):
+        frames.append((int(world.turn), frame))
+        states.append(state)
+        return settle(world, state, t, installed, frame, receipt, *rest)
+    monkeypatch.setattr(HR, "_settle_frame", spy)
+    args = _build_parser().parse_args([
+        "--seed", "7", "--turns", "30", "--civs", "4", "--regions", "8", "--agents", "hybrid", "--simulate-only",
+        "--food-allocation", "--household-retail", "--household-retail-boundary", "all",
+        "--output", str(tmp_path / "chronicle.md"), "--state", str(tmp_path / "state.json")])
+    execute_run(args)
+    assert frames and states[-1].counters.get("claims_refused", 0) == 0
+    tolerance = 20 / MILLI_PER_RATION        # Python's whole-milli claims against native f32 stock
+    short = 0
+    for turn, (_source, columns, rows, *_rest) in frames:
+        for values in rows:
+            row = dict(zip(columns, values, strict=True))
+            if row["sufficiency"] >= 1.0 or row["persons"] == 0 or row["withheld_dead_milli"] > 0:
+                continue
+            short += 1
+            need = row["fair_share"] * row["persons"]
+            on_offer = row["free_living"] + row["offered_milli"] / row["milli_food_per_ration"]
+            assert on_offer >= need - tolerance, (turn, row["region"], on_offer, need)
+            assert row["offer_short_deficit"] <= tolerance, (turn, row)
+            assert row["withheld_dead_persons"] == 0
+    assert short >= 10, "the run must exercise short pilot regions"
