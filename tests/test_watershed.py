@@ -479,9 +479,9 @@ def test_the_snapshot_record_is_dated_copied_and_distinguishes_unobserved():
     json.dumps(record)
     record["regions"]["storage"][0] = -1.0           # a copy, never live state
     assert _state(world).frame.columns["storage"][0] >= 0.0
-    _phase9(world)                                   # the static part is recorded once, at the opening turn
+    _phase9(world)                                   # every record carries the static part (review N2)
     later = livelihoods_snapshot_fields(world)["livelihoods"]["watershed"]
-    assert later["observed"] and not {"units", "parameters", "graph"} & set(later)
+    assert later["observed"] and later["graph"] == record["graph"] and later["parameters"] == record["parameters"]
     world.turn += 1                                  # a later snapshot without a settled turn
     assert livelihoods_snapshot_fields(world)["livelihoods"]["watershed"]["observed"] is False
 
@@ -639,25 +639,90 @@ def test_the_run_accepts_every_agent_mode_on_a_procedural_world(tmp_path, sentin
         main._configure_run(args, template, True, tmp_path / "c.md")
 
 
-def test_a_server_started_with_the_watershed_keeps_it_on_live_starts(tmp_path, sentinel_runtimes):
-    """Review m1: a live start must not silently switch the server's --watershed off; it is
-    honoured on a procedural world and refused explicitly by the run on a template world."""
+class _Stop(Exception):
+    pass
+
+
+def _lobby(starts):
+    """A LiveServer without sockets whose viewer sends ``starts`` in turn (the
+    next one when the lobby reopens); replies and reopenings are recorded."""
+    from chronicler.live import LiveServer
+
+    class Server(LiveServer):
+        def __init__(self):
+            super().__init__(port=0)
+            self.starts, self.replies, self.reopened = list(starts), [], []
+
+        def _send_next(self):
+            # A refused start leaves the lobby open: the viewer then sends the next one.
+            while self.starts:
+                reply = self._handle_start({"type": "start", **self.starts.pop(0)})
+                self.replies.append(reply)
+                if reply is None:
+                    return
+
+        def start(self):
+            self._actual_port = 0
+            self._send_next()
+
+        def stop(self):
+            pass
+
+        def reopen_lobby(self, message):
+            super().reopen_lobby(message)
+            self.reopened.append(message)
+            self._send_next()
+
+    return Server()
+
+
+def test_a_live_lobby_refuses_a_template_start_and_keeps_running(tmp_path, monkeypatch):
+    """Review N1: a server started with --watershed. The viewer names the inherited,
+    world-dependent switch in a start's features, so a template start is refused with
+    the reason and the lobby reopens (the process keeps running); a procedural start
+    then runs with the account."""
     from chronicler import feature_catalog as fc
     from chronicler import live, main
-    plain = fc.live_surface(_build_parser().parse_args(["--live", "--agents", "hybrid"]))
-    assert plain["settings"]["procedural_world"] is False
-    assert fc.validate_features({"watershed": True}, plain).startswith("'watershed' (--watershed) requires")
+    assert fc.live_surface(_build_parser().parse_args(["--agents", "hybrid"]))["settings"]["procedural_world"] is False
+    seen = {}
+
+    def execute_run(args, **kwargs):
+        seen["world"] = kwargs["world"]
+        raise _Stop
+
+    monkeypatch.setattr(main, "execute_run", execute_run)
+    monkeypatch.setattr(live, "_get_available_models", lambda args: [""])
+    template = {"turns": 3, "civs": 4, "regions": 8, "seed": 11, "features": {"watershed": True}}
+    resumed = {"turns": 3, "civs": 4, "regions": 8, "features": {"watershed": True}, "resume_state": {"turn": 4}}
+    procedural = {"turns": 3, "civs": 4, "regions": 16, "seed": 11, "features": {"watershed": True}}
+    server = _lobby([template, resumed, procedural])
     args = _build_parser().parse_args(["--live", "--agents", "off", "--watershed", "--simulate-only",
-                                       "--output", str(tmp_path / "c.md")])
+                                       "--output", str(tmp_path / "chronicle.md")])
     surface = fc.live_surface(args)
     assert surface["values"]["watershed"] is True and surface["settings"]["procedural_world"] is True
-    assert fc.validate_features({}, surface) is None                   # the viewer sends no explicit false
-    world, _ = live._live_world(args, {"seed": 11, "regions": 16, "civs": 4})   # procedural (auto, > 12)
-    assert world.livelihoods.watershed is not None
-    with pytest.raises(sentinel_runtimes):
-        main._configure_run(args, world, False, tmp_path / "c.md")
+    with pytest.raises(_Stop):
+        live.run_live(args, server=server)
+    assert len(server.reopened) == 1 and server.reopened[0].startswith(
+        "Start field 'features': --watershed requires a procedural world")
+    assert server.replies[0] is None                 # accepted by the catalog, refused by the run
+    assert server.replies[1] == {"type": "error",   # a saved state cannot take it: refused, lobby kept
+                                 "message": "Start field 'features': applies to new worlds only, not with resume_state"}
+    assert server.replies[2] is None and seen["world"].livelihoods.watershed is not None
+
+
+def test_a_live_start_without_features_ends_the_session_as_before(tmp_path, monkeypatch):
+    """The documented limit (``live.py`` is pinned): a client that sends no features
+    while the server's own --watershed meets a template world ends the session, as any
+    refused server-level switch does (``test_a_refusal_without_features_still_fails_the_run``).
+    The viewer always names the switch, so it is refused and the lobby reopens instead."""
+    from chronicler import live
+    monkeypatch.setattr(live, "_get_available_models", lambda args: [""])
+    server = _lobby([{"turns": 3, "civs": 4, "regions": 8, "seed": 11}])
+    args = _build_parser().parse_args(["--live", "--agents", "off", "--watershed", "--simulate-only",
+                                       "--output", str(tmp_path / "chronicle.md")])
     with pytest.raises(ValueError, match="requires a procedural world"):
-        live._live_world(args, {"seed": 11, "regions": 8, "civs": 4})   # a template start: refused explicitly
+        live.run_live(args, server=server)
+    assert server.reopened == []
 
 
 # --- End to end (CLI, Python fallback): exact resume ---------------------------------------

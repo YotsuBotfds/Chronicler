@@ -45,11 +45,17 @@ chronicler ... --watershed --watershed-mode record_only                         
     the viewer recomputes the setting from the regions it will send
     (`viewer/src/lib/featureWorld.ts`), so a batch of more than 12 regions can enable the watershed.
   - **Live start**: the client's start message chooses the world and the static live surface cannot
-    see it. A server started with `--watershed` reports the setting true, so the viewer keeps the
-    operator's switch on every live start (it never sends an explicit `false`); a start that asks for
-    12 regions or fewer is then refused explicitly by the run ("`--watershed requires a procedural
-    world ...`", the lobby reopens with it). A server started without it cannot be asked for it on a
-    live start.
+    see it, so on a live lobby (`--live`) the setting is true and the run checks the world. A start
+    that names the switch in its `features` and asks for a template world (12 regions or fewer) is
+    refused with the reason ("`--watershed requires a procedural world ...`") and the lobby reopens;
+    nothing has started. The viewer names a world-dependent switch the server's command line already
+    turns on (`liveStartFeatures`, `viewer/src/lib/featureWorld.ts`), so a server started with
+    `--watershed` refuses a template start this way and runs a procedural one. A saved state
+    (`resume_state`) takes no features: the viewer names the switch only when that world has no
+    account, and the server then refuses the start ("applies to new worlds only") with the lobby
+    open. A client that sends no `features` at all while the server's own `--watershed` meets a
+    template world ends the session, as any refused server-level switch does (`live.py`, pinned,
+    re-raises a refusal of an unrequested switch; tested).
 
 ## 2. The drainage graph
 
@@ -282,9 +288,9 @@ Observations (development only):
 - every record: `source_turn` (the completed turn, snapshot turn − 1), `completed_turn`,
   `opened_turn`, `observed`, `cumulative` (flows since opening, the opening storage, the storage now and
   the cumulative residual) and `counters`;
-- **once**, in the record of the opening turn (`source_turn == opened_turn`): the static part,
-  `units`, `parameters` and the graph (`down`, `sea` −1, `sink` −2, `lake` −3, `river_steps`). Later
-  records leave these keys out; readers take them from the run's opening record;
+- the static part, `units`, `parameters` and the graph (`down`, `sea` −1, `sink` −2, `lake` −3,
+  `river_steps`), in every record, so any segment of a history reads on its own (a state-file resume
+  or a fork begins after the opening turn); the bundle's deltas write it once;
 - when observed: the climate `phase`, `stale_baseline`, per-region columns (`storage_open`,
   `precipitation`, `external_in`, `external_out`, `inflow`, `evaporation`, `withdrawal`, `storage`,
   `capacity`, `index_observed`, `index_derived`, `flood_excess`, `drought_turns`), `external` (flows by
@@ -299,21 +305,28 @@ Observations (development only):
 Values are rounded to 6 decimals; the full-precision frame (outflow and full drought conditions
 included) stays in the state. Growth of the encoded bundle (version-6 deltas, after review m7): a
 60-turn hybrid 32-region run (procedural 11) +141 KB, **+4.25%** (was +5.52%); a 150-turn agents-off
-32-region run (procedural 31) **+5.79%** (the reviewer measured +8.5% before). The static part was
-already elided by the bundle's deltas; the savings come from dropping the repeated storage list, the
-derived outflow column and the repeated drought conditions.
+32-region run (procedural 31) **+5.79%** (the reviewer measured +8.5% before). The static part costs
+nothing in the encoded bundle (its deltas elide unchanged values), so it stays in every record; the
+savings come from dropping the repeated storage list, the derived outflow column and the repeated
+drought conditions.
 
 Viewer (types in `viewer/src/watershedTypes.ts`; `types.ts` is pinned and unchanged):
 
-- `readWatershedRun(history)` finds the run's static part once; `readWatershed(snapshot, regions,
-  run)` is strict and keeps five states apart: **disabled** (no snapshot of the run carries the
-  record), **absent** (on in the run, missing at this snapshot), **malformed** (with the reason: a null
-  record or a non-object livelihoods container, schema, dating, a static part outside the opening
-  record or a missing opening record, graph range and cycles, the exact counter, cumulative and total
+- `readWatershed(snapshot, regions, run)` is strict and keeps five states apart: **disabled** (no
+  snapshot of the run carries the record, `readWatershedRun`), **absent** (on in the run, missing at
+  this snapshot), **malformed** (with the reason: a null record or a non-object livelihoods container,
+  schema, dating, the record's graph (range, cycles) and parameters, the exact counter, cumulative and total
   key sets, the cumulative and turn closure, outflows routed to the sea, sinks, lakes and downstream
   matching the totals, tributary inflows, external flows by source adding up, flood arithmetic, drought
   dating), **unobserved** (no settled account this turn: unknown, not zero) and **ok** (a zero is a
   recorded zero).
+- Its identities allow for the record's rounding exactly: the account closes in Python to relative
+  1e-9 (`CLOSURE_TOLERANCE`), and each recorded value carries at most 5e-7 of rounding
+  (`HALF_DIGIT`), so a check over *n* recorded values allows `n x 5e-7` plus the closure tolerance of
+  its magnitude (a derived outflow combines 8 values; a routed total over *k* regions 8k + 1). This
+  is a bound by construction, not a margin. On whole development histories the worst use of an
+  allowance was 0.44 (procedural 11, 60 turns), 0.22 (its resumed and forked segments) and 0.67
+  (procedural 13, 150 regions, 200 turns; all 200 snapshots read ok).
 - The Livelihoods tab mounts a **Watershed** panel whenever the run records it: the turn's account,
   external flows by source, a stale-baseline note, each region's destination, storage/capacity, index
   used against index derived, inflow, derived outflow, irrigation, flood excess and dry turns; floods
@@ -364,7 +377,7 @@ First pass (source `0779587`) and, after the independent review's findings, agai
 | Item | Class | Disposition |
 | --- | --- | --- |
 | Template worlds have no watershed | intentional boundary | refused at startup and on a state-file resume (tested) |
-| A live start cannot be checked against its requested world by the catalog (static surface; `live.py` is pinned) | intentional boundary of the catalog surface | a server started with `--watershed` keeps it on every live start and the run refuses a template start explicitly; without it, a live start cannot ask for it; Batch Lab above 12 regions and the CLI can |
+| A live start cannot be checked against its requested world by the catalog (static surface; `live.py` is pinned) | intentional boundary of the catalog surface | on a live lobby the run checks it: a start naming the switch on a template world is refused and the lobby reopens (the viewer names an inherited one); a client that names nothing while the server's `--watershed` meets a template world ends the session (tested, documented) |
 | Constants uncalibrated; storage drifts down over two cycles | evidence gap | development calibration report (section 7); `flow` needs calibration first |
 | Floods and droughts have no consequence | intentional (record only) | `flow` (later) applies them through existing authorities |
 | Irrigation service is 1.0 for every active work | missing capability | infrastructure condition (B3) scales it |

@@ -8,9 +8,9 @@ import {
  * Strict reader of the watershed record (B1, `--watershed record_only`).
  * Disabled (off in the run), absent (on, missing at this snapshot), malformed
  * (with the reason), unobserved (no settled account this turn) and recorded
- * values (a zero is a recorded zero) stay distinct. The static part (graph,
- * parameters, units) is recorded once, in the opening turn's record, and read
- * from the run's history. Never reads final state.
+ * values (a zero is a recorded zero) stay distinct. Every record carries its
+ * static part (graph, parameters, units), so any segment of a history (a
+ * state-file resume or a fork) reads on its own. Never reads final state.
  */
 
 const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
@@ -28,9 +28,30 @@ const COUNTER_KEYS = ["planned_turns", "settled_turns", "abandoned_plans", "floo
 const SEA = -1;
 const SINK = -2;
 const LAKE = -3;
-/** Record values are rounded to 6 decimals: identities hold to this relative tolerance. */
-const TOLERANCE = 1e-5;
-const close = (a: number, b: number, scale: number) => Math.abs(a - b) <= TOLERANCE * Math.max(1, scale);
+/**
+ * Tolerances. The account closes in Python to `CLOSURE_TOLERANCE` (relative
+ * 1e-9 of the gross terms, `chronicler.watershed`); the record rounds every
+ * value to 6 decimals, so each carries at most `HALF_DIGIT` of rounding. An
+ * identity over `terms` recorded values therefore holds to
+ * `terms x HALF_DIGIT` plus the closure tolerance of its magnitude: the
+ * allowance grows with the number of rounded values a check combines (a
+ * derived outflow combines 8; a total over n regions 8n + 1), never with
+ * an arbitrary margin.
+ */
+export const HALF_DIGIT = 5e-7;
+export const CLOSURE_TOLERANCE = 1e-9;
+
+/** Worst use of the allowance across the checks of one reading (diagnostics and tests). */
+export interface WatershedAudit { worst: number; check: string }
+
+function nearWith(audit: WatershedAudit | undefined) {
+  return (check: string, a: number, b: number, terms: number, scale = 0): boolean => {
+    const allowance = terms * HALF_DIGIT * (1 + 1e-9) + CLOSURE_TOLERANCE * Math.max(1, Math.abs(scale));
+    const used = Math.abs(a - b) / allowance;
+    if (audit && used > audit.worst) { audit.worst = used; audit.check = check; }
+    return used <= 1;
+  };
+}
 const sum = (values: number[]) => values.reduce((a, b) => a + b, 0);
 const sameKeys = (x: Record<string, unknown>, keys: string[]) =>
   Object.keys(x).length === keys.length && keys.every((k) => k in x);
@@ -62,30 +83,14 @@ function graphProblem(graph: unknown, regions: number): string | null {
   return null;
 }
 
-/** The run's reading context: on or off, and the static part of its opening record. */
+/** The run's reading context: whether any snapshot of the run carries the record. */
 export interface WatershedRun {
   on: boolean;
-  statics: WatershedStatic | null;
-  /** Why the static part is unavailable (when on and `statics` is null). */
-  problem: string | null;
 }
 
 /** Read once per run (history order does not matter). */
-export function readWatershedRun(history: readonly TurnSnapshot[] | null | undefined, regionCount: number): WatershedRun {
-  if (!watershedOn(history)) return { on: false, statics: null, problem: null };
-  for (const snapshot of history!) {
-    if (!carriesWatershed(snapshot)) continue;
-    const x = (snapshot as unknown as { livelihoods: Record<string, unknown> }).livelihoods.watershed;
-    if (!object(x) || !("graph" in x)) continue;
-    if (!count(x.opened_turn) || x.source_turn !== x.opened_turn)
-      return { on: true, statics: null, problem: "the graph is recorded outside the opening turn" };
-    const why = graphProblem(x.graph, regionCount);
-    if (why) return { on: true, statics: null, problem: why };
-    if (!object(x.parameters) || !object(x.units)) return { on: true, statics: null, problem: "malformed parameters" };
-    return { on: true, problem: null, statics: { opened_turn: x.opened_turn, graph: x.graph as unknown as WatershedGraph,
-      parameters: x.parameters as WatershedStatic["parameters"], units: x.units as Record<string, string> } };
-  }
-  return { on: true, statics: null, problem: "the run's opening record (graph, parameters) is not in this history" };
+export function readWatershedRun(history: readonly TurnSnapshot[] | null | undefined): WatershedRun {
+  return { on: watershedOn(history) };
 }
 
 /** Each region's outflow, derived (it is the residual of its account by construction). */
@@ -96,23 +101,27 @@ export function watershedOutflow(record: WatershedRecord): number[] | null {
     + c.inflow[i] - c.evaporation[i] - c.withdrawal[i] - storage);
 }
 
-function floodProblem(x: unknown, regions: number, down: number[], outflow: number[], turn: number): string | null {
+type Near = ReturnType<typeof nearWith>;
+
+function floodProblem(x: unknown, regions: number, down: number[], outflow: number[], turn: number, near: Near): string | null {
   if (!object(x) || x.turn !== turn || !count(x.region) || x.region >= regions
     || ![x.excess, x.arrivals, x.channel, x.precipitation, x.inflow, x.external_in, x.storage_open, x.capacity].every(amount)
     || !(x.upstream_cover === null || amount(x.upstream_cover)) || !count(x.upstream_deforested)
     || !Array.isArray(x.tributaries)) return "malformed flood record";
   const f = x as unknown as WatershedFlood;
   if (!(f.excess > 0)) return "a flood record without an excess";
-  if (!close(f.arrivals, f.precipitation + f.inflow + f.external_in, f.arrivals)) return "a flood's arrivals do not add up";
-  if (!close(f.excess, f.arrivals - f.channel, f.arrivals)) return "a flood's excess is not arrivals minus channel";
+  if (!near("flood arrivals", f.arrivals, f.precipitation + f.inflow + f.external_in, 4, f.arrivals))
+    return "a flood's arrivals do not add up";
+  if (!near("flood excess", f.excess, f.arrivals - f.channel, 3, f.arrivals)) return "a flood's excess is not arrivals minus channel";
   let total = 0;
   for (const t of f.tributaries) {
     if (!Array.isArray(t) || t.length !== 2 || !count(t[0]) || t[0] >= regions || !amount(t[1]) || down[t[0]] !== f.region)
       return "a flood names a tributary that does not drain into it";
-    if (!close(t[1], outflow[t[0]], t[1])) return "a flood's tributary outflow differs from the account";
+    if (!near("flood tributary", t[1], outflow[t[0]], 9, t[1])) return "a flood's tributary outflow differs from the account";
     total += t[1];
   }
-  return close(total, f.inflow, f.inflow) ? null : "a flood's tributaries do not add up to its inflow";
+  return near("flood inflow", total, f.inflow, f.tributaries.length + 1, f.inflow)
+    ? null : "a flood's tributaries do not add up to its inflow";
 }
 
 function droughtProblem(x: unknown, regions: number, turn: number, kind: "declared" | "ended"): string | null {
@@ -135,9 +144,11 @@ function openDroughtProblem(x: unknown, regions: number, turn: number): string |
   return x.start_turn > turn || x.declared_turn > turn || x.declared_turn < x.start_turn ? "a misdated drought" : null;
 }
 
-/** One snapshot's reading against its run (`readWatershedRun`). */
-export function readWatershed(snapshot: TurnSnapshot | null | undefined, regionCount: number, run: WatershedRun): WatershedReading {
+/** One snapshot's reading against its run (`readWatershedRun`). `audit` records the worst use of a tolerance. */
+export function readWatershed(snapshot: TurnSnapshot | null | undefined, regionCount: number, run: WatershedRun,
+  audit?: WatershedAudit): WatershedReading {
   const bad = (reason: string): WatershedReading => ({ status: "malformed", reason });
+  const near = nearWith(audit);
   const livelihoods = (snapshot as unknown as Record<string, unknown> | null | undefined)?.livelihoods;
   if (livelihoods !== undefined && livelihoods !== null && !object(livelihoods)) return bad("malformed livelihoods record");
   if (!carriesWatershed(snapshot)) return run.on ? { status: "absent" } : { status: "disabled" };
@@ -149,12 +160,11 @@ export function readWatershed(snapshot: TurnSnapshot | null | undefined, regionC
   const turn = snapshot!.turn;
   if (!count(x.source_turn) || x.source_turn + 1 !== turn || x.completed_turn !== turn) return bad("misdated observation");
   if (!count(x.opened_turn) || x.opened_turn > x.source_turn) return bad("misdated opening");
-  const opening = x.source_turn === x.opened_turn;
-  if (opening !== ("graph" in x) || opening !== ("parameters" in x) || opening !== ("units" in x))
-    return bad(opening ? "the opening record lacks its graph and parameters" : "a static part outside the opening record");
-  const statics = run.statics;
-  if (!statics) return bad(run.problem ?? "the run's opening record is not in this history");
-  if (statics.opened_turn !== x.opened_turn) return bad("the record names another opening turn");
+  const why = graphProblem(x.graph, regionCount);
+  if (why) return bad(why);
+  if (!object(x.parameters) || !object(x.units)) return bad("malformed parameters");
+  const statics: WatershedStatic = { opened_turn: x.opened_turn, graph: x.graph as unknown as WatershedGraph,
+    parameters: x.parameters as WatershedStatic["parameters"], units: x.units as Record<string, string> };
   const down = statics.graph.down;
   if (!object(x.counters) || !sameKeys(x.counters, COUNTER_KEYS) || !Object.values(x.counters).every(count))
     return bad("malformed counters");
@@ -162,11 +172,13 @@ export function readWatershed(snapshot: TurnSnapshot | null | undefined, regionC
   if (!object(cum) || !sameKeys(cum, CUMULATIVE_KEYS) || !Object.values(cum).every(finite)) return bad("malformed cumulative totals");
   const k = cum as Record<string, number>;
   const cumNet = k.precipitation + k.external_in - k.external_out - k.evaporation - k.withdrawal - k.to_sea - k.to_sink - k.to_lake;
-  if (!close(k.storage - k.opening_storage, cumNet, k.opening_storage + k.precipitation)) return bad("the cumulative account does not close");
+  if (!near("cumulative closure", k.storage - k.opening_storage, cumNet, 10, k.opening_storage + k.precipitation))
+    return bad("the cumulative account does not close");
   if (typeof x.observed !== "boolean") return bad("malformed observation flag");
   if (!x.observed) {
     if (!Array.isArray(x.storage) || x.storage.length !== regionCount || !x.storage.every(amount)) return bad("malformed storage");
-    if (!close(sum(x.storage as number[]), k.storage, k.storage)) return bad("storage differs from the cumulative account");
+    if (!near("unobserved storage", sum(x.storage as number[]), k.storage, regionCount + 1, k.storage))
+      return bad("storage differs from the cumulative account");
     return x.regions === null && x.floods === null && x.droughts === null && x.totals === null && x.external === null
       && x.phase === null && x.stale_baseline === null
       ? { status: "unobserved", record: x as unknown as WatershedRecord, statics } : bad("an unobserved turn with values");
@@ -187,27 +199,32 @@ export function readWatershed(snapshot: TurnSnapshot | null | undefined, regionC
   const outflow = watershedOutflow(record)!;
   for (let i = 0; i < regionCount; i += 1) {
     if (c.index_observed[i] > 1 || c.index_derived[i] > 1) return bad("a water index above 1");
-    if (c.storage[i] > c.capacity[i] + TOLERANCE) return bad("storage above capacity");
-    if (c.external_out[i] > c.storage_open[i] + TOLERANCE) return bad("external outflow above storage");
+    if (c.storage[i] > c.capacity[i] && !near("storage bound", c.storage[i], c.capacity[i], 2)) return bad("storage above capacity");
+    if (c.external_out[i] > c.storage_open[i] && !near("external bound", c.external_out[i], c.storage_open[i], 2))
+      return bad("external outflow above storage");
     const scale = c.storage_open[i] + c.precipitation[i] + c.external_in[i] + c.inflow[i];
-    if (outflow[i] < -TOLERANCE * Math.max(1, scale)) return bad("a region's account leaves a negative outflow");
+    if (outflow[i] < 0 && !near("outflow sign", outflow[i], 0, 8, scale)) return bad("a region's account leaves a negative outflow");
     let tributaries = 0;
-    for (let u = 0; u < regionCount; u += 1) if (down[u] === i) tributaries += outflow[u];
-    if (!close(tributaries, c.inflow[i], c.inflow[i])) return bad("an inflow is not the sum of its tributaries' outflows");
+    let feeding = 0;
+    for (let u = 0; u < regionCount; u += 1) if (down[u] === i) { tributaries += outflow[u]; feeding += 1; }
+    if (!near("tributary inflow", tributaries, c.inflow[i], 8 * feeding + 1, c.inflow[i]))
+      return bad("an inflow is not the sum of its tributaries' outflows");
   }
   const t = x.totals;
   if (!object(t) || !sameKeys(t, TOTAL_KEYS) || !Object.values(t).every(finite)) return bad("malformed totals");
   const totals = t as Record<string, number>;
-  const routed = (test: (d: number) => boolean) => sum(outflow.filter((_, i) => test(down[i])));
   for (const [key, test] of [["to_sea", (d: number) => d === SEA], ["to_sink", (d: number) => d === SINK],
     ["to_lake", (d: number) => d === LAKE], ["transfer", (d: number) => d >= 0]] as const) {
-    if (!close(totals[key], routed(test), totals[key])) return bad(`the turn's ${key} differs from the regions' outflows`);
+    const members = outflow.filter((_, i) => test(down[i]));
+    if (!near(key, totals[key], sum(members), 8 * members.length + 1, totals[key]))
+      return bad(`the turn's ${key} differs from the regions' outflows`);
   }
   const net = totals.precipitation + totals.external_in - totals.external_out - totals.evaporation - totals.withdrawal
     - totals.to_sea - totals.to_sink - totals.to_lake;
-  if (!close(totals.storage_close - totals.storage_open, net, totals.storage_open + totals.precipitation))
+  if (!near("turn closure", totals.storage_close - totals.storage_open, net, 10, totals.storage_open + totals.precipitation))
     return bad("the turn's account does not close");
-  if (!close(totals.storage_close, sum(c.storage), totals.storage_close) || !close(k.storage, totals.storage_close, k.storage))
+  if (!near("turn storage", totals.storage_close, sum(c.storage), regionCount + 1, totals.storage_close)
+    || !near("cumulative storage", k.storage, totals.storage_close, 2, k.storage))
     return bad("the turn's storage differs from its regions");
   if (!Array.isArray(x.external)) return bad("malformed external flows");
   const byRegion = { in: new Array<number>(regionCount).fill(0), out: new Array<number>(regionCount).fill(0) };
@@ -221,16 +238,19 @@ export function readWatershed(snapshot: TurnSnapshot | null | undefined, regionC
     bySource[`${e.direction}_${e.source}`] += e.amount;
   }
   for (let i = 0; i < regionCount; i += 1) {
-    if (!close(byRegion.in[i], c.external_in[i], c.external_in[i]) || !close(byRegion.out[i], c.external_out[i], c.external_out[i]))
+    // A region has at most two flows a direction (the flood's share and an unattributed remainder).
+    if (!near("external in", byRegion.in[i], c.external_in[i], 3, c.external_in[i])
+      || !near("external out", byRegion.out[i], c.external_out[i], 2, c.external_out[i]))
       return bad("external flows by source do not add up to the region's external flows");
   }
   if (x.stale_baseline && bySource.in_coastal_flood > 0) return bad("a stale baseline with attributed flows");
   for (const key of Object.keys(bySource)) {
-    if (!close(bySource[key], totals[`external_${key}`], totals[`external_${key}`])) return bad("external totals by source do not add up");
+    if (!near("external by source", bySource[key], totals[`external_${key}`], x.external.length + 1, totals[`external_${key}`]))
+      return bad("external totals by source do not add up");
   }
   if (!Array.isArray(x.floods)) return bad("malformed floods");
   for (const f of x.floods) {
-    const problem = floodProblem(f, regionCount, down, outflow, x.source_turn);
+    const problem = floodProblem(f, regionCount, down, outflow, x.source_turn, near);
     if (problem) return bad(problem);
   }
   const d = x.droughts;

@@ -94,3 +94,12 @@ it("mounts in the livelihoods panel whenever the run records the account", () =>
   render(<LivelihoodsPanel bundle={bundle} snapshot={at(60)} currentTurn={60} onSelectRegion={vi.fn()} {...extra} />);
   expect(screen.queryByText(/names no package this viewer reads/)).toBeNull();
 });
+
+it("reads a resumed history that does not begin at the opening turn (review N2)", () => {
+  const segments = natural.segments as unknown as { regions: string[]; resumed: TurnSnapshot[] };
+  const resumed = { world_state: { regions: segments.regions.map((name) => ({ name })) }, history: segments.resumed } as unknown as Bundle;
+  render(<Watershed {...props(segments.resumed[0], resumed)} />);
+  expect(screen.getByRole("heading", { name: "Watershed account · snapshot 21" })).toBeInTheDocument();
+  expect(screen.getByRole("table", { name: "Watershed regions at snapshot 21" })).toBeInTheDocument();
+  expect(screen.queryByText(/malformed/)).toBeNull();
+});

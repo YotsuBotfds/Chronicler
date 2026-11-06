@@ -1023,7 +1023,7 @@
       "requires": [
         {
           "setting": "procedural_world",
-          "reason": "requires a procedural world (template worlds have no elevation): in Batch Lab, a batch of more than 12 regions; on a live start, only when the server was started with --watershed (a start asking for 12 regions or fewer is then refused by the run)"
+          "reason": "requires a procedural world (template worlds have no elevation): in Batch Lab, a batch of more than 12 regions; on a live start, the run checks the requested world and refuses a template world (12 regions or fewer), reopening the lobby with the reason"
         }
       ],
       "group": "Livelihoods",
@@ -1054,7 +1054,7 @@
     "cities": "cities (on by default for new worlds; off with --no-cities)",
     "techniques": "techniques (on by default for new worlds; off with --no-techniques)",
     "no_household_mobility_liquid_requirement": "no household-mobility liquid requirement (--household-mobility-liquid-requirement unset or 0)",
-    "procedural_world": "a procedural world (template worlds have no elevation): in Batch Lab, a batch of more than 12 regions; on a live start, only when the server was started with --watershed (a start asking for 12 regions or fewer is then refused by the run)"
+    "procedural_world": "a procedural world (template worlds have no elevation): in Batch Lab, a batch of more than 12 regions; on a live start, the run checks the requested world and refuses a template world (12 regions or fewer), reopening the lobby with the reason"
   },
   "surfaces": {
     "live": {
@@ -1067,7 +1067,7 @@
         "cities": true,
         "techniques": true,
         "no_household_mobility_liquid_requirement": true,
-        "procedural_world": false
+        "procedural_world": true
       },
       "new_worlds_only": true
     },

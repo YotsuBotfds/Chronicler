@@ -34,7 +34,7 @@ export function Watershed({ bundle, snapshot, currentTurn, onSelectRegion }: {
 }) {
   const regions = bundle.world_state.regions ?? [];
   const names = regions.map((region) => region.name);
-  const run = useMemo(() => readWatershedRun(bundle.history, regions.length), [bundle, regions.length]);
+  const run = useMemo(() => readWatershedRun(bundle.history), [bundle]);
   const reading = readWatershed(snapshot, regions.length, run);
   const at = snapshot?.turn ?? currentTurn;
   const regionLink = (rid: number) => <button type="button" className="systems-link"

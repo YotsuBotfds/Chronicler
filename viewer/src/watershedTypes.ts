@@ -91,7 +91,7 @@ export interface WatershedTotals {
 /** down[i]: the region index i drains to, `sea` (-1), `sink` (-2) or `lake` (-3). */
 export interface WatershedGraph { down: number[]; sea: -1; sink: -2; lake: -3; river_steps: number }
 
-/** The static part, recorded once in the snapshot of the opening turn. */
+/** The static part of a record (graph, parameters, units). */
 export interface WatershedStatic {
   opened_turn: number;
   units: Record<string, string>;
@@ -106,10 +106,10 @@ export interface WatershedRecord {
   source_turn: number;
   completed_turn: number;
   opened_turn: number;
-  /** Present only in the opening turn's record. */
-  units?: Record<string, string>;
-  parameters?: Record<string, number | Record<string, number>>;
-  graph?: WatershedGraph;
+  /** The static part, in every record (a history segment reads on its own). */
+  units: Record<string, string>;
+  parameters: Record<string, number | Record<string, number>>;
+  graph: WatershedGraph;
   observed: boolean;
   phase: string | null;
   /** The baseline index was not observed after the previous tick: external flows unattributed. */

@@ -66,8 +66,8 @@ SETTINGS: dict[str, str] = {
         "no household-mobility liquid requirement (--household-mobility-liquid-requirement unset or 0)"),
     "procedural_world": (
         "a procedural world (template worlds have no elevation): in Batch Lab, a batch of more than "
-        "12 regions; on a live start, only when the server was started with --watershed (a start "
-        "asking for 12 regions or fewer is then refused by the run)"),
+        "12 regions; on a live start, the run checks the requested world and refuses a template "
+        "world (12 regions or fewer), reopening the lobby with the reason"),
 }
 
 
@@ -249,10 +249,11 @@ def live_surface(args: Any = None) -> dict:
             "techniques": _techniques_default() if techniques is None else bool(techniques),
             "no_household_mobility_liquid_requirement": not mobility > 0,
             # The client's start message chooses the world, which this static
-            # surface cannot see. A server started with --watershed keeps it on
-            # every live start (the run refuses a template world explicitly);
-            # otherwise a live start cannot ask for it.
-            "procedural_world": getattr(args, "watershed", None) is True,
+            # surface cannot see: on a live lobby the run checks it, and a
+            # start that names the switch in its features is refused with the
+            # reason and the lobby reopens (the viewer always names a
+            # world-dependent switch it inherits from the server).
+            "procedural_world": getattr(args, "live", None) is True,
         },
         "new_worlds_only": True,
     }

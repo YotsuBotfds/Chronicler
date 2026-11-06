@@ -693,9 +693,10 @@ def snapshot_summary(world) -> dict:
     """Copied record of the completed turn (values rounded to 6 decimals;
     the full-precision account stays in the state); never live state.
 
-    The static part (``units``, ``parameters``, ``graph``) is recorded once,
-    in the snapshot of the opening turn (``source_turn == opened_turn``);
-    later records leave those keys out. ``observed`` is False (``regions``,
+    Every record carries the static part (``units``, ``parameters``,
+    ``graph``), so any segment of a history (a state-file resume or a fork
+    starts after the opening turn) reads on its own; the bundle's deltas
+    write it once anyway. ``observed`` is False (``regions``,
     ``floods``, ``droughts``, ``external`` and ``totals`` None, not empty)
     when no Phase 9 was settled in the completed turn; ``storage`` (the
     account's current storage) is recorded only then, since a settled
@@ -714,14 +715,13 @@ def snapshot_summary(world) -> dict:
         "completed_turn": world.turn,
         "opened_turn": state.opened_turn,
     }
-    if source_turn == state.opened_turn:
-        record.update({
-            "units": {"water": "wu (one region's storage capacity without forest cover is 1)",
-                      "index": "ecology.water (the 0-1 water index)"},
-            "parameters": parameters(),
-            "graph": {"down": list(state.graph.down), "sea": SEA, "sink": SINK, "lake": LAKE,
-                      "river_steps": state.graph.river_steps},
-        })
+    record.update({
+        "units": {"water": "wu (one region's storage capacity without forest cover is 1)",
+                  "index": "ecology.water (the 0-1 water index)"},
+        "parameters": parameters(),
+        "graph": {"down": list(state.graph.down), "sea": SEA, "sink": SINK, "lake": LAKE,
+                  "river_steps": state.graph.river_steps},
+    })
     record.update({
         "observed": observed,
         "phase": frame.phase if observed else None,

@@ -75,7 +75,7 @@ export function inspectRegionHistory(
   bundle: Bundle, regionName: string, metric: RegionMetric, start: number, end: number,
 ): { rows: RegionHistoryRow[]; unrecordedTurns: number } {
   const regionKey = pointer(regionName);
-  const watershed = metric.kind === "watershed" ? readWatershedRun(bundle.history, bundle.world_state.regions.length) : null;
+  const watershed = metric.kind === "watershed" ? readWatershedRun(bundle.history) : null;
   const rows: RegionHistoryRow[] = bundle.history.flatMap((snapshot, index) => {
     if (snapshot.turn < start || snapshot.turn > end) return [];
     const regionIndex = bundle.world_state.regions.findIndex((region) => region.name === regionName);

@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import natural from "../../__fixtures__/watershed_records.json";
+import large from "../../__fixtures__/watershed_large_records.json";
 import type { Bundle, TurnSnapshot } from "../../types";
 import {
   carriesWatershed, drainsTo, readWatershed, readWatershedRun, watershedOn, watershedOutflow, watershedRegionValue,
+  type WatershedAudit,
 } from "../watershed";
 import { inspectRegionHistory, regionMetrics } from "../regionHistory";
 
@@ -12,7 +14,7 @@ const regions = natural.regions.length;
 const copy = (turn: number) => structuredClone(snapshots.find((s) => s.turn === turn)!) as unknown as TurnSnapshot;
 const history = () => snapshots.map((s) => structuredClone(s)) as unknown as TurnSnapshot[];
 const record = (s: TurnSnapshot) => (s as unknown as { livelihoods: { watershed: Record<string, unknown> } }).livelihoods.watershed;
-const RUN = readWatershedRun(snapshots, regions);
+const RUN = readWatershedRun(snapshots);
 const read = (s: TurnSnapshot | null | undefined, run = RUN) => readWatershed(s, regions, run);
 const reason = (s: TurnSnapshot, run = RUN) => { const r = read(s, run); return r.status === "malformed" ? r.reason : r.status; };
 const unobserve = (s: TurnSnapshot) => {
@@ -22,12 +24,10 @@ const unobserve = (s: TurnSnapshot) => {
 };
 
 describe("readWatershed", () => {
-  it("reads the run's static part once and accepts the natural records, recorded zeros included", () => {
+  it("accepts the natural records, each with its own static part, recorded zeros included", () => {
     expect(RUN.on).toBe(true);
-    expect(RUN.statics?.opened_turn).toBe(0);
-    expect(RUN.statics?.graph.down).toHaveLength(regions);
     for (const s of snapshots) expect(read(s).status).toBe("ok");
-    expect("graph" in record(copy(60))).toBe(false);              // later records carry no static part
+    expect((record(copy(60)).graph as { down: number[] }).down).toHaveLength(regions);
     const first = read(copy(1));
     if (first.status !== "ok") throw new Error("expected ok");
     expect(first.record.floods).toHaveLength(1);
@@ -43,8 +43,8 @@ describe("readWatershed", () => {
 
   it("tells disabled, absent, malformed and unobserved apart", () => {
     const none = { turn: 5, livelihoods: { schema_version: 1 } } as unknown as TurnSnapshot;
-    const off = readWatershedRun([none], regions);
-    expect(off).toEqual({ on: false, statics: null, problem: null });
+    const off = readWatershedRun([none]);
+    expect(off).toEqual({ on: false });
     expect(read(none, off)).toEqual({ status: "disabled" });
     expect(read(none)).toEqual({ status: "absent" });
     expect(read(null)).toEqual({ status: "absent" });
@@ -75,7 +75,8 @@ describe("readWatershed", () => {
       [(r) => { r.cumulative = {}; }, "malformed cumulative totals"],
       [(r) => { (r.cumulative as Record<string, number>).precipitation += 5; }, "the cumulative account does not close"],
       [(r) => { r.storage = (r.regions as { storage: number[] }).storage; }, "a settled turn repeats its storage outside its columns"],
-      [(r) => { r.graph = RUN.statics!.graph; }, "a static part outside the opening record"],
+      [(r) => { delete r.graph; }, "malformed drainage graph"],
+      [(r) => { delete r.parameters; }, "malformed parameters"],
       [(r) => { r.stale_baseline = "no"; }, "malformed stale-baseline flag"],
       [(r) => { delete (r.regions as Record<string, unknown>).capacity; }, "malformed region columns"],
     ];
@@ -101,19 +102,27 @@ describe("readWatershed", () => {
     expect(reason(unknownSchema)).toBe("unknown livelihoods schema");
   });
 
-  it("refuses every record of a run whose opening record is missing or malformed", () => {
-    const withoutOpening = history().filter((s) => s.turn !== 1);
-    const missing = readWatershedRun(withoutOpening, regions);
-    expect(missing.statics).toBeNull();
-    expect(reason(copy(60), missing)).toBe("the run's opening record (graph, parameters) is not in this history");
-    const cyclic = history();
-    const down = (record(cyclic[0]).graph as { down: number[] }).down;
+  it("reads a state-file-resumed and a forked history on its own (review N2)", () => {
+    const segments = natural.segments as unknown as { regions: string[]; resumed: TurnSnapshot[]; fork: TurnSnapshot[] };
+    for (const part of [segments.resumed, segments.fork]) {
+      expect(part[0].turn).toBe(21);                               // neither begins at the opening turn
+      const run = readWatershedRun(part);
+      for (const s of part) expect(readWatershed(s, segments.regions.length, run).status).toBe("ok");
+    }
+    const cyclic = copy(60);
+    const down = (record(cyclic).graph as { down: number[] }).down;
     const a = down.findIndex((d) => d >= 0);
     down[down[a]] = a;
-    expect(reason(copy(60), readWatershedRun(cyclic, regions))).toBe("the drainage graph has a cycle");
-    const stripped = history();
-    delete record(stripped[0]).graph;
-    expect(reason(stripped[0], readWatershedRun(stripped, regions))).toBe("the opening record lacks its graph and parameters");
+    expect(reason(cyclic)).toBe("the drainage graph has a cycle");
+  });
+
+  it("keeps rounding within its allowance on a long, large development run (review N3)", () => {
+    const history = large.snapshots as unknown as TurnSnapshot[];
+    const audit: WatershedAudit = { worst: 0, check: "" };
+    for (const s of history) expect(readWatershed(s, large.regions, readWatershedRun(history), audit).status).toBe("ok");
+    // The allowance is a bound by construction (each rounded value carries at most HALF_DIGIT).
+    expect(audit.worst).toBeLessThanOrEqual(1);
+    expect(audit.worst).toBeGreaterThan(0);
   });
 
   it("names where a region drains", () => {
@@ -153,11 +162,11 @@ describe("watershed region history", () => {
     const good = inspectRegionHistory(bundle, name, metric, 0, 100).rows;
     expect(good[0].value).toBe((record(bundle.history[0]).regions as Record<string, number[]>).index_derived[0]);
     expect(good[0].source).toBe("/history/0/livelihoods/watershed/regions/index_derived/0");
-    const run = readWatershedRun(h, regions);
+    const run = readWatershedRun(h);
     const storage = watershedRegionValue(h[3], 0, regions, "storage", run);
     expect(storage.value).toBe((record(h[3]).storage as number[])[0]);
     expect(storage.path).toBe("/livelihoods/watershed/storage/0");
     expect(watershedRegionValue({ turn: 3, livelihoods: { schema_version: 1 } } as unknown as TurnSnapshot, 0, regions,
-      "storage", readWatershedRun([], regions)).missing).toBe("Watershed off in this run (--watershed not recorded)");
+      "storage", readWatershedRun([])).missing).toBe("Watershed off in this run (--watershed not recorded)");
   });
 });
