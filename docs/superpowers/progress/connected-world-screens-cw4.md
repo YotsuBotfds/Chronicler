@@ -294,7 +294,8 @@ slower than the legacy multiplier).
   selections and are not effects.
 - Cost effect (QC - Q0): world death rate +0.49 [0, +1.28], 4/0/2, 8 of 64 / -0.81 [-5.09,
   +1.20], 3/3/0; world arrivals +2.5 / -3.7; world treasury +81 / -150: no consistent cost
-  effect (on template 761 and 762 the declared quarantines changed no outcome but treasury).
+  effect (on template 761 the declared quarantines changed only the treasury, and on 762 no
+  recorded outcome at all).
 - Legacy comparison (QR - QL, the negative of QL - QR): world arrivals +12.8 [0, +21], 5/0/1,
   4 of 64 / +8.5 [-64, +75], 5/1/0, 34 of 64; world death rate +0.53, 4/2/0 / -0.70, 2/4/0.
   Descriptively, the legacy multiplier world had fewer recorded cross-polity arrivals than the
