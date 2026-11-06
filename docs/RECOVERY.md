@@ -1,6 +1,6 @@
 # Source, recovery and archive index
 
-Updated 2026-11-06 after PRs #73, #74, #76, #78, #80, #81 and #83. This is the starting map for future agents;
+Updated 2026-11-06 after PRs #73, #74, #76, #78, #80, #81, #83 and #84. This is the starting map for future agents;
 dated reports keep their original source, platform and qualification limits.
 
 ## Current source and evidence
@@ -64,6 +64,14 @@ Use fetched `main` for new work.
   - Premerge Tests run 42274171595 on that head passed all nine jobs.
   - [Main Tests run 42275935233](https://github.com/YotsuBotfds/Chronicler/actions/runs/42275935233)
     tested the merge SHA on `push`, attempt 1: success, all nine jobs.
+
+- [PR #84](https://github.com/YotsuBotfds/Chronicler/pull/84) (connected-world B1: `--watershed`
+  record_only, the drainage graph and conserved water account; no effect on the simulation) merged
+  on 2026-11-06 at `13340446c06efe5cbef829f699be573d46d80341`.
+  - Its tree, `51b7a7cd`, equals the tree of the reviewed head `dfdd772a`.
+  - Premerge Tests run 42280073920 on that head passed all nine jobs.
+  - [Main Tests run 42281625835](https://github.com/YotsuBotfds/Chronicler/actions/runs/42281625835)
+    tested the merge SHA on `push`, attempt 1: success.
 
 Every livelihoods, recovery-skills and productive-recovery switch is off by default. These merges do not complete the 200-seed or
 procedural qualification gates. What landed, the review and the evidence are in the
