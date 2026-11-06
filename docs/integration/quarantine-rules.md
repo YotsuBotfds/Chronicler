@@ -403,29 +403,33 @@ included, before it was refused).
   `state.json` and history after turn 15 equal `main`'s straight run byte for byte.
 - **Enabled exact resume** (`scripts/checkpoint_identity.py`, `--quarantine-mode closure
   --quarantine-channels trade,migration`, every resume turn): `hybrid_s42` with
-  `--transaction-receipts` 59 points PASS (refusals on 22 of its 60 turns: 185 refusals of 123
-  persons); `proc32_hybrid_s11` with `--transaction-receipts` 39 PASS (12 turns, 275 refusals of
-  215 persons); `demographics_s42` 39 PASS (3 refusals of 1 person); the all-enabled compatible
-  case (every catalog switch with retail in every region, relocation fares included, plus
-  `--transaction-receipts`) on `hybrid_s42` 59 PASS (35 turns, 440 refusals of 170 persons).
+  `--transaction-receipts` 59 points PASS (refusals on 22 of its 60 turns: 185 refusals in 155
+  spells); `proc32_hybrid_s11` with `--transaction-receipts` 39 PASS (12 turns, 275 refusals,
+  259 spells); `demographics_s42` 39 PASS (3 refusals); the all-enabled compatible case (every
+  catalog switch with retail in every region, relocation fares included, plus
+  `--transaction-receipts`) on `hybrid_s42` 59 PASS (35 turns, 440 refusals, 338 spells). Rerun
+  on `ea8a4657` (the bounded refusal memory), with the feature-off identity against `8abc1acb`
+  and `8286804c` and the default-channel closure against `8286804c`: all as above (0
+  differences, every point PASS).
 - **Natural activation on development worlds (development-only, not a screen).** 100 turns,
   hybrid, template worlds 1, 3, 7, 9, 11, 23, 42 and procedural worlds 7, 11, 13, 17, 21, 31 (32
   regions, 10 polities), `closure` with trade only (QR) and with `trade,migration` (QM); one run
   per world and arm, so no inference. Migrants were refused in all 13 QM runs (3 to 2,775
-  refusals, 3 to 876 distinct persons per run), every QM receipt was observed (0 null), no
+  refusals, 3 to 2,282 refusal spells per run), every QM receipt was observed (0 null), no
   extractor problem.
 
-  | Worlds | Arm | Turns with a closure (range) | Closures opened | Closed pair-turns | Refusals (person-ticks) | Distinct persons | of the refusals: flight | hunger-driven | Turns with refusals | Cross-polity arrivals | Epidemic deaths |
+  | Worlds | Arm | Turns with a closure (range) | Closures opened | Closed pair-turns | Refusals (person-ticks) | Refusal spells | of the refusals: flight | hunger-driven | Turns with refusals | Cross-polity arrivals | Epidemic deaths |
   | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
   | template | QR | 2-84 | 234 | 826 | n/a | n/a | n/a | n/a | n/a | 145 | 592 |
-  | template | QM | 2-96 | 195 | 756 | 3,027 | 1,063 | 2,302 | 524 | 249 | 89 | 395 |
+  | template | QM | 2-96 | 195 | 756 | 3,027 | 2,540 | 2,302 | 524 | 249 | 89 | 395 |
   | procedural | QR | 45-88 | 1,351 | 4,760 | n/a | n/a | n/a | n/a | n/a | 733 | 2,670 |
-  | procedural | QM | 47-93 | 1,559 | 6,663 | 9,877 | 3,969 | 6,789 | 1,707 | 456 | 512 | 2,049 |
+  | procedural | QM | 47-93 | 1,559 | 6,663 | 9,877 | 8,334 | 6,789 | 1,707 | 456 | 512 | 2,049 |
 
   Cross-polity epidemic arrivals (CW4's world count) were lower under QM in 10 of 13 worlds
-  (equal in 1) and epidemic deaths lower in 10 of 13 (equal in 1). The 12,904 refusals were of
-  5,032 distinct persons (a refused agent is refused again on later ticks while its best target
-  stays closed). Of the refusals, 70% were flight (famine memory 58%, persecution memory 7%,
+  (equal in 1) and epidemic deaths lower in 10 of 13 (equal in 1). The 12,904 refusals formed
+  10,874 refusal spells (a refused agent is refused again on later ticks while its best target
+  stays closed; the first version's exact count, which kept every refused id, found 5,032
+  distinct persons on the same runs, so many agents were refused in more than one spell). Of the refusals, 70% were flight (famine memory 58%, persecution memory 7%,
   persecution 4%) and 17% hunger-driven (food opportunity 14%, material need 3%): the harms the
   channel imposes. These are development worlds and single trajectories; the effect is for a
   preregistered held screen to measure, with migration, hunger and food harms alongside.
