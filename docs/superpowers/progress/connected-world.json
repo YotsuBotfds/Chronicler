@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "board_version": 1,
+  "board_version": 2,
   "title": "Connected-world program (A livelihoods and trade, B watersheds and infrastructure, C public health, D institutions and war, E stories and evidence) operational board",
   "plan": "docs/superpowers/roadmaps/connected-world-program.md",
   "owner_instruction": "2026-11-06 (after #82): own the A-E program end to end with parallel workers, integrating and evaluating each slice and continuing across slice boundaries; merges of this program authorized after independent review, green premerge Tests on the reviewed head and verified main CI; new systems opt-in and off by default; no default promotion; full 200-seed and procedural qualification gates restricted; bounded held screens (procedural included) authorized; no purchases, paid credits, paid narration APIs, deployments, credential or sharing changes. Amendment (same day): tiers sequence work and are not stopping points; failures block the affected merge, not the program; pin 8abc1acb as the original reference; default-path changes behind a switch or rules version.",
@@ -13,28 +13,297 @@
     "branch": "claude/connected-world",
     "base": "main at 8abc1acb (#82)"
   },
-  "status_values": ["proposed", "ready", "active", "blocked", "integrated", "evaluated", "merged", "deferred"],
-  "machine": {"cores": 4, "memory_gb": 15, "writable_disk_gb": 30},
+  "status_values": [
+    "proposed",
+    "ready",
+    "active",
+    "blocked",
+    "integrated",
+    "evaluated",
+    "merged",
+    "deferred"
+  ],
+  "machine": {
+    "cores": 4,
+    "memory_gb": 15,
+    "writable_disk_gb": 30
+  },
   "slices": [
-    {"id": "S0", "status": "active", "summary": "Baseline verification, board, dependency map, seed registry, contract audits (A1-A2, B, C, D with A5/D4, E)."},
-    {"id": "S1", "status": "proposed", "summary": "A1 accounting, A2 wage vs paid_work enrollment with fixed cohorts, recorded-limit dispositions needing no new mechanism."},
-    {"id": "S2", "status": "proposed", "summary": "A3 workshop economics, A5 owned-stock lifecycle."},
-    {"id": "S3", "status": "proposed", "summary": "B1-B3 initial watershed and infrastructure slice, C1 quarantine."},
-    {"id": "S4", "status": "proposed", "summary": "A4 merchants and owned cargo, B4 forest and water, B5 viewer, C2 care and sanitation, D2 attribution, D4 requisition and reconstruction."},
-    {"id": "S5", "status": "proposed", "summary": "A6 adaptive decisions, D1 cross-border organization, D3 war's human consequences, C4 public-health choices."}
+    {
+      "id": "S0",
+      "status": "active",
+      "summary": "Baseline verification, board, dependency map, seed registry, contract audits (A1-A2, B, C, D with A5/D4, E)."
+    },
+    {
+      "id": "S1",
+      "status": "proposed",
+      "summary": "A1 accounting, A2 wage vs paid_work enrollment with fixed cohorts, recorded-limit dispositions needing no new mechanism."
+    },
+    {
+      "id": "S2",
+      "status": "proposed",
+      "summary": "A3 workshop economics, A5 owned-stock lifecycle."
+    },
+    {
+      "id": "S3",
+      "status": "proposed",
+      "summary": "B1-B3 initial watershed and infrastructure slice, C1 quarantine."
+    },
+    {
+      "id": "S4",
+      "status": "proposed",
+      "summary": "A4 merchants and owned cargo, B4 forest and water, B5 viewer, C2 care and sanitation, D2 attribution, D4 requisition and reconstruction."
+    },
+    {
+      "id": "S5",
+      "status": "proposed",
+      "summary": "A6 adaptive decisions, D1 cross-border organization, D3 war's human consequences, C4 public-health choices."
+    }
   ],
-  "lanes": [],
+  "lanes": [
+    {
+      "id": "E1",
+      "branch": "claude/cw-e1-tooling",
+      "scope": "seed registry, generic screen runner, compatibility matrix, RL8 viewer readers",
+      "status": "active"
+    },
+    {
+      "id": "A5",
+      "branch": "claude/cw-a5-owned-stock",
+      "scope": "retail rules v2: war reaches owned stock once per event; RL1-RL3 dispositions",
+      "status": "active"
+    }
+  ],
   "recorded_limits": [
-    {"id": "RL1", "limit": "two conquests in one turn destroy owned stock once", "class": "pending", "slice": "S2"},
-    {"id": "RL2", "limit": "occupation and siege do not requisition owned stock", "class": "missing capability", "slice": "S2/S4"},
-    {"id": "RL3", "limit": "legacy JSON state-file resume runs neither L2 nor retail hooks", "class": "pending", "slice": "S2"},
-    {"id": "RL4", "limit": "pilot region can exceed the storage cap by up to one turn's harvest between close and next opening", "class": "pending", "slice": "S1/S2"},
-    {"id": "RL5", "limit": "purchases by person not in the snapshot", "class": "evidence gap", "slice": "S1"},
-    {"id": "RL6", "limit": "expedition labour cost not separated from a no-expedition arm", "class": "evidence gap", "slice": "S1"},
-    {"id": "RL7", "limit": "PL3 withheld income does not split granary from workshop crews", "class": "evidence gap", "slice": "S1"},
-    {"id": "RL8", "limit": "five viewer readers return null for both absent and malformed records", "class": "defect", "slice": "S1"}
+    {
+      "id": "RL1",
+      "limit": "two conquests in one turn destroy owned stock once",
+      "class": "pending",
+      "slice": "S2"
+    },
+    {
+      "id": "RL2",
+      "limit": "occupation and siege do not requisition owned stock",
+      "class": "missing capability",
+      "slice": "S2/S4"
+    },
+    {
+      "id": "RL3",
+      "limit": "legacy JSON state-file resume runs neither L2 nor retail hooks",
+      "class": "pending",
+      "slice": "S2"
+    },
+    {
+      "id": "RL4",
+      "limit": "pilot region can exceed the storage cap by up to one turn's harvest between close and next opening",
+      "class": "pending",
+      "slice": "S1/S2"
+    },
+    {
+      "id": "RL5",
+      "limit": "purchases by person not in the snapshot",
+      "class": "evidence gap",
+      "slice": "S1"
+    },
+    {
+      "id": "RL6",
+      "limit": "expedition labour cost not separated from a no-expedition arm",
+      "class": "evidence gap",
+      "slice": "S1"
+    },
+    {
+      "id": "RL7",
+      "limit": "PL3 withheld income does not split granary from workshop crews",
+      "class": "evidence gap",
+      "slice": "S1"
+    },
+    {
+      "id": "RL8",
+      "limit": "five viewer readers return null for both absent and malformed records",
+      "class": "defect",
+      "slice": "S1"
+    }
   ],
-  "seeds": {"status": "pending audit E registry check"},
+  "seeds": {
+    "development": {
+      "template": [
+        1,
+        3,
+        7,
+        9,
+        11,
+        23,
+        42
+      ],
+      "procedural": [
+        7,
+        11,
+        13,
+        17,
+        21,
+        31,
+        302,
+        303
+      ]
+    },
+    "viewer_qa": {
+      "template": [
+        12,
+        13,
+        14
+      ]
+    },
+    "pilot": {
+      "template": [
+        5
+      ],
+      "procedural": [
+        19
+      ]
+    },
+    "held": {
+      "CW1": {
+        "template": [
+          731,
+          732,
+          733,
+          734,
+          735,
+          736
+        ],
+        "procedural": [
+          831,
+          832,
+          833,
+          834,
+          835,
+          836
+        ]
+      },
+      "CW2": {
+        "template": [
+          741,
+          742,
+          743,
+          744,
+          745,
+          746
+        ],
+        "procedural": [
+          841,
+          842,
+          843,
+          844,
+          845,
+          846
+        ]
+      },
+      "CW3": {
+        "template": [
+          751,
+          752,
+          753,
+          754,
+          755,
+          756
+        ],
+        "procedural": [
+          851,
+          852,
+          853,
+          854,
+          855,
+          856
+        ],
+        "note": "procedural stratum only (watershed refuses template worlds)"
+      },
+      "CW4": {
+        "template": [
+          761,
+          762,
+          763,
+          764,
+          765,
+          766
+        ],
+        "procedural": [
+          861,
+          862,
+          863,
+          864,
+          865,
+          866
+        ]
+      },
+      "CW5": {
+        "template": [
+          771,
+          772,
+          773,
+          774,
+          775,
+          776
+        ],
+        "procedural": [
+          871,
+          872,
+          873,
+          874,
+          875,
+          876
+        ]
+      },
+      "CW6": {
+        "template": [
+          781,
+          782,
+          783,
+          784,
+          785,
+          786
+        ],
+        "procedural": [
+          881,
+          882,
+          883,
+          884,
+          885,
+          886
+        ]
+      },
+      "reserve": {
+        "template": [
+          791,
+          792,
+          793,
+          794,
+          795,
+          796
+        ],
+        "procedural": [
+          891,
+          892,
+          893,
+          894,
+          895,
+          896
+        ]
+      }
+    },
+    "status": "reserved 2026-11-06 against the audit E registry (none run)"
+  },
   "merges": [],
-  "next": "S0: integrate the five contract audits into the plan (sections 3-6), reserve seed cohorts against the full registry, then start S1."
+  "next": "S0: integrate the A1-A2 audit into plan section 5.1 and start the S1 accounting lane; review and integrate lanes E1 (PR 1) and A5 as they report.",
+  "baseline": {
+    "oracle_lane": "PASS, 63 chunks, 295.5 s, slowest 32.4 s of 110 s",
+    "native_check": "check_python_env --expect native PASS (101a4cd5)",
+    "feature_off_reference": "turn_speed_identity run, 9 cases, 74 s; rerun compare 9 cases 399 files 0 differences; outputs kept outside the repository"
+  },
+  "audits": {
+    "B": "docs/superpowers/audits/connected-world/audit-b-watershed-infrastructure.md",
+    "C": "docs/superpowers/audits/connected-world/audit-c-public-health.md",
+    "D": "docs/superpowers/audits/connected-world/audit-d-institutions-war-owned-stock.md",
+    "E": "docs/superpowers/audits/connected-world/audit-e-verification-playbook.md",
+    "A1-A2": "pending"
+  }
 }

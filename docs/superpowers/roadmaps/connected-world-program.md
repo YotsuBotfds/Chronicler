@@ -105,9 +105,102 @@ cohorts and a separate enrollment analysis.
 
 ## 5. Contract audits (S0)
 
-Filled in from the audit lanes: A1–A2 income and wealth; B watershed and infrastructure; C public
-health; D institutions, war, attribution and the owned-stock lifecycle; E verification playbook,
-seed registry and observability.
+Full audits (2026-11-06, source identical to `8abc1acb`) are under
+[`docs/superpowers/audits/connected-world/`](../audits/connected-world/). Each was written from the
+code with file and line evidence; unverified items are marked there. The lead's decisions on their
+open questions follow each summary.
+
+### 5.1 A1–A2 income and wealth
+
+Pending (critical path; its accounting design governs every payer added later).
+
+### 5.2 B watershed and infrastructure ([audit](../audits/connected-world/audit-b-watershed-infrastructure.md))
+
+- Rivers barely exist in screening worlds: none in template worlds; 5 of 8 procedural 32×10
+  development worlds have none and the rest one short river. Everything keyed to rivers (the
+  deforestation cascade, river floods, trade discounts, the migration bonus, the settlement
+  attractor) is nearly inert there.
+- A complete drainage graph (each inland region drains to its lowest lower neighbour, coastal
+  regions to the sea) rebuilt from saved procedural geography reproduces every saved river step on
+  10 of 10 worlds checked and gives 8–11 multi-region basins per 32×10 world.
+- Water is a bounded per-region index driven by climate rates; nothing is conserved. The cascade
+  (−0.05 per deforested upstream region against +0.03 recovery) can pin downstream regions near the
+  floor; a tributary's cascade stops at its confluence (under-count, no double count).
+- No infrastructure has condition, upkeep or repair; roads give no transport discount (a marked
+  placeholder); maritime ignores ports; the river-flood event text claims damage that never happens.
+- **Decisions:** the watershed is procedural-only (template worlds have no elevation; `--watershed`
+  refuses them clearly) and its screen uses the procedural stratum; `record_only` (a conserved water
+  account on the drainage graph with closure checks, no effect) lands first to calibrate, then `flow`
+  replaces — not stacks on — the native water climate terms, the irrigation bonus and the cascade,
+  deriving the old index from storage (its one pinned `agent_bridge.py` edit carries a reviewed
+  layer; a switch change on resume is refused). Irrigation and road condition live in their own
+  record keyed by infrastructure stable id (RS2's schema and viewer stay unchanged), repaired with
+  the same crews, timber store and L9 envelope, so no budget is spent twice. Ports are deferred.
+
+### 5.3 C public health ([audit](../audits/connected-world/audit-c-public-health.md))
+
+- Epidemics are **on by default** for new worlds, so today's quarantine is default behaviour: any
+  change needs a new opt-in rules switch, and identity is checked with epidemics on and with
+  `--no-epidemiology`. The "Default: off" section of `docs/integration/epidemiology.md` is stale.
+- Quarantine moves nothing: it multiplies foreign import pressure on all four channels (trade,
+  migrants, soldiers, pilgrims) by 1 − efficacy and charges a flat 2 treasury that stands in for lost
+  commerce. Two double-count traps: routing plus the multiplier, and the flat charge stacked on real
+  route income loss.
+- Trade closure is possible without Rust (route filtering in Python; native merchants already replan
+  or unwind with RETURNED receipts when an edge disappears); migration closure needs a small native
+  input. In the two pilot bundles migrants carried most hybrid cross-polity arrivals (direction only).
+- The contact ledger is a decaying stock, not dated contacts; information is instant and omniscient
+  today; nothing exists for disease care (health care covers rural injury only).
+- **Decisions:** `--quarantine-mode none|cost_only|closure` (omitted = legacy); closure removes the
+  multiplier for closed channels and replaces the flat charge with an enforcement cost; imports keep
+  reading the decayed contact stock (closure stops new contacts — the lag is a real effect to
+  measure); closures target only polities with reported outbreaks (information available at the
+  time); relief grain convoys are exempt, with the exemption recorded; migration closure (C1b) is a
+  separate, later native slice; care (C2) lowers the epidemic's own fatality, never a second
+  mortality authority.
+
+### 5.4 D institutions, war, attribution and the owned-stock lifecycle ([audit](../audits/connected-world/audit-d-institutions-war-owned-stock.md))
+
+- RL1 is a defect (owned stock is destroyed once per turn because retail infers conquests from an
+  integer turn; the war-loss record names the later controller), reachable only with
+  `--no-campaigns`. RL2 is a missing capability (today's commons "requisition" destroys food; plunder
+  is minted treasury). RL3 was not reproduced as stated: with `--agents hybrid` both hooks run; without
+  it a saved retail world fails with an uncaught traceback and a saved L2-only world runs silently in
+  aggregate mode.
+- Soldiers never move natively: they eat at home, levies farm at home and are titled for it, and
+  army rations are minted on top. There are two war-death authorities (campaign casualties and the
+  native ×2 Soldier mortality at war). An inexact resume can keep a roster whose ids now name
+  strangers (code path, not reproduced).
+- No person pays tax; at least six channels already turn grievance into influence; a restored civ
+  reuses the dead civ's index and name.
+- **Decisions:** owned stock follows the commons once per war event (retail rules version 2,
+  `--household-retail-rules 1` reproduces checkpoints 2–3; the CLI key lands now with a lead-owned
+  layer); treaty cessions keep conquest handling and are recorded as a D4 requisition question; a
+  region without a controller confiscating claims to the commons is an intentional boundary; the
+  timber store untouched by war is an intentional boundary until B/A4; soldiers' double-counted food
+  is a documented boundary until D4, and D3's soldier-movement work waits for D4; new grievances must
+  replace a proxy, not stack; the stale `agent_mode` after an agents-off legacy resume is recorded as
+  an open default-path item, not changed.
+
+### 5.5 E verification playbook, seed registry and observability ([audit](../audits/connected-world/audit-e-verification-playbook.md))
+
+- The per-slice playbook (V0–V13) is the audit's Part 1: lane clone and venvs, preflight,
+  enrollment, offline lane, native, feature-off identity against both references, enabled exact
+  resume, catalog matrix, viewer and browser journeys, narration audit, held screens, profiling,
+  PR/CI/merge, ledgers.
+- Traps: the shared native venv's editable install points at the shared checkout (every lane exports
+  `PYTHONPATH=$WT/src`); `checkpoint_identity.py` records no source or extension identity (lanes
+  record it); every new switch edits pinned `batch_manifest.py` and its test.
+- Pinned commonly edited files: `simulation.py`, `main.py`, `models.py`, `agent_bridge.py`,
+  `ecology.py`, `batch_manifest.py`, `ffi/mod.rs`, `economy.rs`, `viewer/src/types.ts` and others;
+  not pinned: `feature_catalog.py`, `household_retail.py`, `epidemiology.py`, `infrastructure.py`.
+- The five null-only viewer readers are `repairProjectsAt`, `timberStockAt`, `remittancesAt`,
+  `foodAllocationAt` and `granaryStorageAt`. Narration citations are checked for the snapshot, not
+  the record.
+- **Decisions:** lanes may build a provisional witness layer on their own branch; the lead
+  regenerates one integrated layer per slice at integration. A new generic screen runner and a
+  data seed registry (lane E1) replace copying the frozen productive-recovery runner. Feature-off
+  identity uses `turn_speed_identity.py` with each side's own `git archive` tree and extension.
 
 ## 6. Turn-order table
 
@@ -118,9 +211,32 @@ Maintained as slices land.
 Development worlds (inspected freely) are unchanged: template 1, 3, 7, 9, 11, 23, 42;
 procedural 7, 11, 13, 17, 21, 31, 302, 303; viewer QA batches template 12, 13, 14. Every cohort
 below is reserved before any program run and checked disjoint from the full historical registry
-(section 5, audit E) by the program screen runner before each run.
+(audit E section 5.3: every earlier held, pilot and development cohort, the restricted gate ranges
+template 42–241 and procedural 42–141, and probes up to 1000–1999) by the program screen runner
+before each run.
 
-## 8. Recovery
+| Use | Template (8 × 4) | Procedural (32 × 10) |
+| --- | --- | --- |
+| Timing pilot (shared with productive recovery; never held) | 5 | 19 |
+| CW1: S1 accounting and wages | 731–736 | 831–836 |
+| CW2: S2 workshop economics and owned-stock lifecycle | 741–746 | 841–846 |
+| CW3: S3 watershed and infrastructure (procedural stratum; template refused) | 751–756 | 851–856 |
+| CW4: S3 quarantine and public health | 761–766 | 861–866 |
+| CW5: S4 trade, forest and water, care, attribution, requisition | 771–776 | 871–876 |
+| CW6: S5 adaptive decisions, cross-border organization, war; the integrated evaluation | 781–786 | 881–886 |
+| Reserve (a held-run failure needs a new cohort) | 791–796 | 891–896 |
+
+## 8. Baseline (S0, 2026-11-06)
+
+- `main` = `8abc1acb3adf978ea212a570fb1dfbbfe9723ec3`; native extension built fresh from it
+  (`maturin develop --release --locked`, 3 min 14 s on 4 cores): SHA-256 `101a4cd5…`, identical to
+  the checkpoint-2/3 extension; `check_python_env.py --expect native` PASS.
+- Offline oracle lane: PASS, 63 chunks in 295.5 s; slowest chunk 32.4 s of 110 s (under concurrent
+  audit load).
+- Feature-off reference outputs (`turn_speed_identity.py run`, 9 cases): 74 s; a second run compared
+  against the first: 9 cases, 399 files, 0 differences.
+
+## 9. Recovery
 
 A reclaimed container does not restart itself. To resume: clone `main` (or fetch), read this
 plan and the board's `next` field, check out the branches the board lists under `lanes`, rebuild
