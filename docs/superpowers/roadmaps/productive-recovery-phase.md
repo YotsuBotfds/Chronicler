@@ -353,3 +353,19 @@ handoff, and the lead records the witness layers.
 
 Not in this phase: the 200-seed and procedural qualification gates, default
 promotion, infrastructure repair, new combat events, and cross-civ timber trade.
+
+## 6. Status (2026-11-06): checkpoint 1
+
+PL0–PL3 are integrated on `claude/productive-recovery` with witness layers `pl2`, `pl1`,
+`pl3` and `pl2b`; the checkpoint-1 viewer (PL5a) is merged; PL4 waits for checkpoint 2.
+
+| Package | Switch (modes) | Lane, then review fixes | Page |
+| --- | --- | --- | --- |
+| PL1 timber supply | `--timber-supply` (`supply`, `cost_only`) | `claude/pl1-timber`, `claude/pl1-fixes` | `docs/integration/timber-supply.md` |
+| PL2 wear and RS1 v2 | `--operating-wear`; `--apprenticeship-rules` (`2`, `1`) | `claude/pl2-apprenticeship`, `claude/pl2-fixes` | `docs/integration/operating-wear.md`, `apprenticeship.md` |
+| PL3 crews and funding | `--recovery-crews` (`paid`, `unpaid`); `--maintenance-obligation` (`reserve`, `reserve_only`) | `claude/pl3-crews`, `claude/pl3-fixes` | `docs/integration/recovery-crews.md`, `maintenance-obligation.md` |
+| PL5a viewer | none (panels, readers, options) | `claude/pl5a-viewer` | `docs/integration/feature-options.md` |
+| PL6a screens | none | `claude/pl6a-screens` | `docs/superpowers/progress/productive-recovery-screens-cp1.md` |
+
+Review, verification and held results are summarized in `docs/CONTINUATION.md` and the
+screens page. Merging does not qualify any of it scientifically.
