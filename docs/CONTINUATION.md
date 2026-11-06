@@ -1,4 +1,34 @@
-# Current continuation — productive recovery, checkpoint 3 (the integrated chain), 2026-11-06
+# Current continuation — connected-world program (A–E), 2026-11-06
+
+## Connected-world program: slice S0 (plan, audits, tooling) and the first lanes
+
+- **Owner instruction** (2026-11-06, after #82) and amendment: own the A–E program end to end
+  (livelihoods and trade, watersheds and infrastructure, public health, institutions and war,
+  stories and evidence) with parallel lanes, independent review, gated merges and honest
+  evaluation; tiers sequence work and are not stopping points; failures block the affected merge,
+  not the program. Plan: [connected-world-program.md](superpowers/roadmaps/connected-world-program.md).
+  Board: [connected-world.json](superpowers/progress/connected-world.json).
+- **Baseline** `main` = `8abc1acb` (#82): native `101a4cd5…` rebuilt identically; offline lane PASS
+  (63 chunks, 295.5 s); feature-off reference outputs reproducible (9 cases, 399 files, 0
+  differences on a rerun).
+- **Audits** (code, file:line): A1–A2 income and wealth, A3 workshop economics, B watershed and
+  infrastructure, C public health, D institutions/war/owned stock, E verification playbook and seed
+  registry, under `superpowers/audits/connected-world/`; lead decisions in plan section 5.
+- **Headline development-world finding (A2, not yet held):** with retail enrollment fixed, the
+  paid crews' wage raised money credited to households in 5 of 5 worlds; checkpoint 3's fall came
+  from wider `paid_work` enrollment replacing more farm income. The CW1 held screen tests it.
+- **PR 1** (`claude/cw-pr1-tooling`): plan, board, audits and lane E1 — seed registry, generic
+  screen runner, compatibility matrix, RL8 viewer readers. No simulation change.
+- **Lanes in flight** (each on its own branch, provisional witness layers regenerated at
+  integration): A5 retail rules v2, war reaches owned stock once per event (RL1–RL3; review
+  merge-ready); A1 `--wealth-accounting` observation ledger (RL7; review fixes); B1 `--watershed
+  record_only` (review fixes); A2R schedule boundary, opening map, household-group cohorts (RL4,
+  RL5); C1 `--quarantine-mode`; A3 `--workshop-economics`.
+- **Next:** merge PR 1; integrate S1 (A5 + A1 + A2R) with one regenerated layer, the CW1
+  preregistration and held screen; then B1/C1 (S3) and A3 (S2).
+
+# 2026-11-06 — productive recovery, checkpoint 3 (the integrated chain), merged (PR #81)
+
 
 ## Productive recovery and household livelihoods: checkpoint 3 and the phase handoff
 

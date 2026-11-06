@@ -38,6 +38,16 @@ def fresh_catalog():
     fc._features.cache_clear()
 
 
+#: Keys of the groups after livelihoods (``FEATURE_GROUPS``), in catalog order,
+#: and which of them are top-level choices (a group key with no boolean switch).
+GROUP_KEYS = [k for switches in fc.FEATURE_GROUPS.values() for key, options in switches.items()
+              for k in (key, *options)]
+TOP_CHOICES = [key for switches in fc.FEATURE_GROUPS.values() for key in switches
+               if fc._parser_actions()[key].choices is not None]
+GROUP_OF = {k: group for group, switches in fc.FEATURE_GROUPS.items() for key, options in switches.items()
+            for k in (key, *options)}
+
+
 # --- catalog generation -----------------------------------------------------
 
 def test_catalog_is_generated_from_the_registry_and_the_cli_parser():
@@ -45,7 +55,8 @@ def test_catalog_is_generated_from_the_registry_and_the_cli_parser():
     keys = [entry["key"] for entry in entries]
     assert len(keys) == len(set(keys))
     prerequisites = [k for k, options in fc.PREREQUISITES.items() for k in (k, *options)]
-    assert keys == prerequisites + list(LIVELIHOODS_ARG_KEYS) + list(fc.PUBLIC_HEALTH)
+    assert keys == prerequisites + list(LIVELIHOODS_ARG_KEYS) + GROUP_KEYS
+    assert "quarantine_mode" in TOP_CHOICES
     actions = {action.dest: action for action in _parser()._actions}
     parent = None
     for entry in entries:
@@ -57,9 +68,9 @@ def test_catalog_is_generated_from_the_registry_and_the_cli_parser():
         if key in LIVELIHOODS_ARG_KEYS:
             assert entry["group"] == fc.LIVELIHOODS_GROUP and entry["experimental"] is True
             assert entry["help"] == _HELP[key] == action.help
-        elif key in fc.PUBLIC_HEALTH:
+        elif key in TOP_CHOICES:
             # A top-level choice: no switch; unset keeps the run's rule (its first choice).
-            assert entry["group"] == fc.PUBLIC_HEALTH_GROUP and entry["experimental"] is True
+            assert entry["group"] == GROUP_OF[key] and entry["experimental"] is True
             assert entry["help"] == action.help and entry["kind"] == "choice" and entry["parent"] is None
             assert entry["requires"] == [fc._with_reasons(c) for c in fc.REQUIREMENTS[key]]
             continue
@@ -87,11 +98,11 @@ def test_every_boolean_feature_declares_requirements_over_known_terms():
     entries = {entry["key"]: entry for entry in fc.feature_entries()}
     bools = {key for key, entry in entries.items() if entry["kind"] == "bool"}
     # A registry switch added without declared requirements fails here.
-    assert set(fc.REQUIREMENTS) == bools | set(fc.PUBLIC_HEALTH)
+    assert set(fc.REQUIREMENTS) == bools | set(TOP_CHOICES)
 
     def walk(condition):
         assert condition["reason"].startswith("requires ")
-        kinds = [k for k in ("agents", "feature", "choice", "setting", "any") if k in condition]
+        kinds = [k for k in ("agents", "feature", "choice", "setting", "any", "not") if k in condition]
         assert len(kinds) == 1
         if "agents" in condition:
             assert condition["agents"] and set(condition["agents"]) <= set(fc.AGENT_MODES)
@@ -101,6 +112,8 @@ def test_every_boolean_feature_declares_requirements_over_known_terms():
             assert set(condition["values"]) <= set(entries[condition["choice"]]["choices"])
         elif "setting" in condition:
             assert condition["setting"] in fc.SETTINGS
+        elif "not" in condition:
+            walk(condition["not"])
         else:
             for part in condition["any"]:
                 walk(part)
@@ -335,7 +348,7 @@ def test_public_health_choices_agree_with_the_run(tmp_path, sentinel_runtimes, a
     template = generate_world(seed=42, num_regions=8, num_civs=4)
     output = tmp_path / "chronicle.md"
     problems = []
-    for key in fc.PUBLIC_HEALTH:
+    for key in TOP_CHOICES:
         for value in fc._by_key()[key]["choices"]:
             for setting in ((), ("--no-epidemiology",), ("--no-contact-ledger",)):
                 base = ["--agents", agents, *setting]
@@ -373,7 +386,7 @@ def test_public_health_choices_agree_with_the_run_on_the_batch_surface(
     output = tmp_path / "chronicle.md"
     template = generate_world(seed=42, num_regions=8, num_civs=4)
     problems = []
-    for key in fc.PUBLIC_HEALTH:
+    for key in TOP_CHOICES:
         for value in fc._by_key()[key]["choices"]:
             server = LiveServer()
             server._client_defaults.update(agents="hybrid", contact_ledger=default_ledger)

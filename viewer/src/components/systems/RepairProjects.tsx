@@ -1,6 +1,7 @@
 import type { Bundle, TurnSnapshot } from "../../types";
+import { readRepairProjects } from "../../lib/recordReading";
 import {
-  progress, repairFunnel, repairProjectsAt, type RepairProjectRecord, type RepairReceiptRecord,
+  progress, repairFunnel, type RepairProjectRecord, type RepairReceiptRecord,
 } from "../../lib/repairProjects";
 
 const show = (value: number | null | undefined) =>
@@ -23,10 +24,11 @@ export function RepairProjects({ bundle, snapshot, currentTurn, onSelectRegion }
 }) {
   const regions = bundle.world_state.regions ?? [];
   const civs = bundle.world_state.civilizations ?? [];
-  const record = repairProjectsAt(snapshot, regions.length, civs.length);
-  if (!record) return <section className="systems-section" aria-label="Repair projects">
-    <h3>Repair projects</h3><p className="systems-note">Repair projects are not observed or are unavailable at snapshot {snapshot?.turn ?? currentTurn}.</p>
+  const reading = readRepairProjects(bundle, snapshot, currentTurn);
+  if (reading.record === null) return <section className="systems-section" aria-label="Repair projects">
+    <h3>Repair projects</h3><p className="systems-note">{reading.note}</p>
   </section>;
+  const record = reading.record;
   const turn = record.source_turn + 1;
   const region = (index: number) => regions[index]?.name ?? `Region ${index}`;
   const civ = (index: number) => civs[index]?.name ?? `Civ ${index}`;
@@ -64,6 +66,7 @@ export function RepairProjects({ bundle, snapshot, currentTurn, onSelectRegion }
   return <section className="systems-section" aria-label="Repair projects">
     <h3>Repair projects · snapshot {turn}</h3>
     <p className="systems-note">Simulation turn {record.source_turn}. {MODE_NOTE[record.mode]}</p>
+    {reading.state === "recorded_zero" ? <p className="systems-note">{reading.note}</p> : null}
     <p className="systems-note">Workshop sites and public granaries only. A project opens when an asset's condition falls below {show(record.parameters.open_below)} or after recorded war damage, and is sized to the actual deficit. Workshop repairs are done by named residents reserved for the turn and paid a wage that replaces part of their income; granary repairs use farm labour, timber and coins. Opening a project does not by itself repair anything.</p>
     <div className="systems-table-wrap"><table className="systems-table" aria-label={`Repair funnel at snapshot ${turn}`}>
       <thead><tr><th>Stage (lifetime)</th><th>Count</th></tr></thead>

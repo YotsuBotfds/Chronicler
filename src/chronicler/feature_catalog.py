@@ -10,9 +10,12 @@ drift. It lists:
   and ``LIVELIHOODS_CHOICES``; the parser's help is ``livelihoods._HELP``); a
   choice key belongs to the switch declared before it;
 * the expansion prerequisites those switches depend on (``PREREQUISITES``);
-* public-health options (``PUBLIC_HEALTH``): top-level choices with no
-  boolean switch (``--quarantine-mode``), each declaring ``REQUIREMENTS``;
-  unset, the run keeps its rule (the first choice, ``legacy``).
+* switches of later programs in their own groups (``FEATURE_GROUPS``: group
+  name -> {switch: its choice keys}), listed after the livelihoods group in
+  declaration order. A group key may also be a top-level choice with no
+  boolean switch (``Public health``: ``--quarantine-mode``, whose first choice,
+  ``legacy``, is the run's rule when unset); it declares ``REQUIREMENTS`` as a
+  switch does.
 
 Each entry's key is the CLI parser destination; flag, help text and choices
 are read from the CLI parser itself. Nothing here is on by default: an absent
@@ -33,7 +36,12 @@ Requirement conditions (JSON objects, each with a human ``reason``):
   unset) is one of these values;
 * ``{"setting": name}``: a server setting this surface cannot change is true
   (``SETTINGS``; each surface reports its values);
-* ``{"any": [conditions]}``: at least one condition holds.
+* ``{"any": [conditions]}``: at least one condition holds;
+* ``{"not": condition}``: the condition does not hold. Two mutually exclusive
+  switches each declare ``_excludes(other)`` (``{"not": {"feature": other}}``,
+  reason "requires --other off"); a one-sided exclusion is a declaration error
+  (``exclusion_problems``). No switch declares one yet, so the served catalog
+  is unchanged.
 """
 from __future__ import annotations
 
@@ -47,7 +55,6 @@ from chronicler.livelihoods_state import LIVELIHOODS_SWITCHES
 CATALOG_SCHEMA_VERSION = 1
 LIVELIHOODS_GROUP = "Livelihoods"
 PREREQUISITES_GROUP = "Prerequisites"
-PUBLIC_HEALTH_GROUP = "Public health"
 #: ``--agents`` modes, in the CLI's order of increasing agent detail.
 AGENT_MODES: tuple[str, ...] = ("off", "demographics-only", "shadow", "hybrid")
 _AGENT_ECONOMY: tuple[str, ...] = ("hybrid", "shadow", "demographics-only")
@@ -62,10 +69,14 @@ PREREQUISITES: dict[str, tuple[str, ...]] = {
     "academy_services": (),
 }
 
-#: Public-health choices (connected-world program C), listed after the
-#: livelihoods group: top-level choices whose first choice is the run's rule
-#: when unset.
-PUBLIC_HEALTH: tuple[str, ...] = ("quarantine_mode",)
+#: Switch groups after the livelihoods group (B, C and D programs), in display
+#: order: group name -> {switch key: its choice keys (parser destinations)}.
+#: Every switch needs ``REQUIREMENTS``, as a livelihoods switch does. A key
+#: that is itself a choice (``quarantine_mode``) is a top-level choice: no
+#: switch, its own ``REQUIREMENTS``, its first choice the run's rule when unset.
+FEATURE_GROUPS: dict[str, dict[str, tuple[str, ...]]] = {
+    "Public health": {"quarantine_mode": ()},
+}
 
 #: Server settings a request cannot change: what each means when true.
 SETTINGS: dict[str, str] = {
@@ -96,6 +107,15 @@ def _setting(name: str) -> dict:
 
 def _any(*conditions: dict) -> dict:
     return {"any": list(conditions)}
+
+
+def _not(condition: dict) -> dict:
+    return {"not": condition}
+
+
+def _excludes(key: str) -> dict:
+    """Mutual exclusion: declared by each of the two switches about the other."""
+    return _not(_feature(key))
 
 
 _HYBRID = _agents("hybrid")
@@ -154,6 +174,9 @@ def _describe(condition: Mapping[str, Any]) -> str:
         return f"{_flag(condition['choice'])} {_join(list(condition['values']))}"
     if "setting" in condition:
         return SETTINGS[condition["setting"]]
+    if "not" in condition:
+        part = condition["not"]
+        return f"{_flag(part['feature'])} off" if "feature" in part else f"not ({_describe(part)})"
     return "one of: " + "; ".join(_describe(part) for part in condition["any"])
 
 
@@ -161,6 +184,8 @@ def _with_reasons(condition: Mapping[str, Any]) -> dict:
     result = dict(condition)
     if "any" in result:
         result["any"] = [_with_reasons(part) for part in result["any"]]
+    if "not" in result:
+        result["not"] = _with_reasons(result["not"])
     result["reason"] = "requires " + _describe(condition)
     return result
 
@@ -213,13 +238,31 @@ def _features() -> tuple[dict, ...]:
         if not is_switch and entry["choices"] != list(LIVELIHOODS_CHOICES[key]):
             raise ValueError(f"{key} parser choices differ from LIVELIHOODS_CHOICES")
         entries.append(entry)
-    for key in PUBLIC_HEALTH:
-        entries.append(_entry(key, actions, group=PUBLIC_HEALTH_GROUP, experimental=True, parent=None))
+    seen = {entry["key"] for entry in entries}
+    for group, switches in FEATURE_GROUPS.items():
+        if group in (PREREQUISITES_GROUP, LIVELIHOODS_GROUP):
+            raise ValueError(f"feature group {group!r} is reserved")
+        for key, options in switches.items():
+            for option in (key, *options):
+                if option in seen:
+                    raise ValueError(f"feature {option!r} is listed twice")
+                seen.add(option)
+                entries.append(_entry(option, actions, group=group, experimental=True,
+                                      parent=None if option == key else key))
     return tuple(entries)
 
 
+def exclusion_problems() -> list[str]:
+    """Exclusions (``{"not": {"feature": k}}``) not declared by both switches."""
+    excluded = {(key, c["not"]["feature"]) for key, conditions in REQUIREMENTS.items()
+                for c in conditions if "not" in c and "feature" in c["not"]}
+    return [f"{a!r} excludes {b!r} but {b!r} does not exclude {a!r}"
+            for a, b in sorted(excluded) if (b, a) not in excluded]
+
+
 def feature_entries() -> list[dict]:
-    """The catalog's entries (copies): prerequisites, livelihoods, public health."""
+    """The catalog's entries (copies), prerequisites first, then livelihoods,
+    then the ``FEATURE_GROUPS`` in order."""
     return copy.deepcopy(list(_features()))
 
 
@@ -336,6 +379,8 @@ def _satisfied(condition: Mapping[str, Any], effective: Mapping[str, Any], surfa
         return (entries[key]["choices"][0] if value is None else value) in condition["values"]
     if "setting" in condition:
         return surface.get("settings", {}).get(condition["setting"]) is True
+    if "not" in condition:
+        return not _satisfied(condition["not"], effective, surface, entries)
     return any(_satisfied(part, effective, surface, entries) for part in condition["any"])
 
 
