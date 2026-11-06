@@ -2,6 +2,10 @@
 
 ## Productive recovery and household livelihoods: checkpoint 3 and the phase handoff
 
+- **Merged** as [PR #81](https://github.com/YotsuBotfds/Chronicler/pull/81) at `c4c17c98`
+  on 2026-11-06, completing the phase. The merge tree `6f9af7a2` equals the tree of the
+  reviewed head `b36c1ef8`. Premerge Tests run 42174674039 passed all nine jobs; main Tests
+  run 42176103870 on the merge SHA (`push`, attempt 1): success, all nine jobs.
 - **Branch** `claude/productive-recovery-cp3` from `main` `96c20439` (#80). It integrates the
   chain screen and chain examples (`claude/pl6d-chain`) and the recovery chain view
   (`claude/pl5c-chain-viewer`). **No simulation or Rust change**: `src/` and
