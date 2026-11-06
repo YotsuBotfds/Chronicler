@@ -446,6 +446,7 @@ CHUNKS = {
     ],
     "connected-world-c": [
         "tests/test_quarantine_rules.py",
+        "tests/test_cw4_screen.py",
     ],
 }
 TESTS = [node for nodes in CHUNKS.values() for node in nodes]

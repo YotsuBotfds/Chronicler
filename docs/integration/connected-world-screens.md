@@ -9,7 +9,7 @@ whose served output is byte-identical (section 5).
 | --- | --- |
 | `scripts/seed_registry.json` | Every recorded use of a seed number, per stratum, and the program's reservations |
 | `scripts/screen_runner.py` | The generic run/report/check/`--resume` runner, parametrized by a `Screen` |
-| `scripts/connected_world_screens.py` | CW1-CW6 (stubs: cohorts only) and the development-only `DEV` smoke screen |
+| `scripts/connected_world_screens.py` | CW1-CW6 (stubs: cohorts only, except CW4, declared by slice C1: [quarantine rules](quarantine-rules.md), preregistration `docs/superpowers/progress/connected-world-screens-cw4.md`) and the development-only `DEV` smoke screen |
 | `scripts/feature_matrix.py` | The switch compatibility matrix, generated from `feature_catalog` |
 | `viewer/src/lib/recordReading.ts` | The RL8 fix: absent, malformed, disabled and recorded-zero records told apart |
 | `tests/test_screen_runner.py`, `tests/test_feature_matrix.py` | Offline tests (oracle chunk `connected-world-e`, native shard 0) |

@@ -243,7 +243,10 @@ quarantine tests in `tests/test_epidemiology.py` pass unchanged.
 
 - C1.2 border guards (labour cost through the farm-labour seam), C1b migration closure (native),
   pilgrim restriction, convoy closure: out of C1 by decision.
-- No held screen (the QL/Q0/QC/QR comparison of AUDIT-C section 7 test 7 needs the lead's
-  preregistered cohort).
+- No held screen yet. The QL/Q0/QC/QR comparison of AUDIT-C section 7 test 7 is declared as
+  screen CW4 in `scripts/connected_world_screens.py` (extractors `cw4_extract` and
+  `cw4_activation`, tests in `tests/test_cw4_screen.py`); its preregistration is
+  `docs/superpowers/progress/connected-world-screens-cw4.md`, and the held cohort waits for the
+  lead's review.
 - No dated outbreak reports (C4): a polity still learns of a foreign outbreak the tick it is
   reported, as under the legacy rule.
