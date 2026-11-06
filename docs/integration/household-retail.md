@@ -60,12 +60,12 @@ Owned food is never in `region.stockpile`: that is the commons.
 
 | Where | Hook | What Python does |
 | --- | --- | --- |
-| Phase 2, before the economy | `prepare_phase2` | Boundary update: a pilot region without a controller closes (holdings to the commons, `pilot_closed`); newly qualifying regions open. Commons written after the region batch was built (closure, pool reset) are patched into its `stockpile_<good>` columns. Title weights from the Phase 2 snapshot. Unless `record_only`, and only when a pilot region exists, appends `retail_title_share` (θ; null outside the pilot) and `retail_owned_<good>` (owned stock / 1000). |
-| Phase 2, after the economy | `finish_phase2` | Title, once per turn: each good's `retail_titled_<good>` (to the nearest milli-food) split over the region's Phase 2 farmers by largest remainder, ties by ascending id. Then the native owned decay and overflow per good, applied to claims pro rata. Untitled and refused shares decay with the pool and then go to the commons. Records each pilot region's controller. |
-| Before the agent tick | `before_agent_tick` | Conquest loss for a pilot region whose controller changed since Phase 2. Spouse of every owner (`get_agent_relationships`, one call per owner). Installs `set_household_retail(turn, mode, regions, claims)` and, except in `free_exchange`, `install_retail_income(turn, regions)`. |
+| Phase 2, before the economy | `prepare_phase2` | Boundary update: a pilot region without a controller closes (holdings to the commons, `pilot_closed`); newly qualifying regions open. A conquest since the last agent tick takes its share of owned stock. Commons written after the region batch was built (closure, pool reset) are patched into its `stockpile_<good>` columns. Title weights from the Phase 2 snapshot. Unless `record_only`, and only when a pilot region exists, appends `retail_title_share` (θ; null outside the pilot) and `retail_owned_<good>` (owned stock / 1000). |
+| Phase 2, after the economy | `finish_phase2` | Checks the pilot region's native food ledger and the title weights against the farm labour after named crews. Title, once per turn: each good's `retail_titled_<good>` (to the nearest milli-food) split over the region's Phase 2 farmers by largest remainder, ties by ascending id. Then the native owned decay and overflow per good, applied to claims pro rata. Untitled and refused shares decay with the pool and then go to the commons. Records each pilot region's controller. |
+| Before the agent tick | `before_agent_tick` | Conquest loss for a pilot region conquered since Phase 2. Spouse of every owner (`get_agent_relationships`, one call per owner). Installs `set_household_retail(turn, mode, regions, claims)` and, except in `free_exchange`, `install_retail_income(turn, regions)`. |
 | After the agent tick | `after_agent_tick` | Takes the frame and income receipt once, refuses a stale, repeated or partial pair, checks the frame, debits own-eaten and sold food from the claims, records money, then settles dead owners' claims. |
 | Phase 10 | (seam in `tick_grain_reserves`) | Owners' grain sold to their ruler's granaries is debited from claims as it is bought. |
-| Phase 10 | `phase10` | Credits those owners once (`transfer_wealth`, purpose 6), then closes the turn's frame. |
+| Phase 10 | `phase10` | Credits those owners once (`transfer_wealth`, purpose 6), records merchant food departures and the owned food merchants could not load, then closes the turn's frame. |
 | Failure | `rollback_phase2`, `rollback_agent_tick` | Drops the Phase 2 plan; cancels the retail and income installs the tick never took. |
 | Rebuilt pool | `on_pool_reset` | Closes every claim to its region's commons, dated (the regions stay in the pilot). |
 
@@ -81,20 +81,41 @@ configuration, recorded `switch_off`).
 
 - `market`: each ruling civilization's `capital_region`, when the civ controls it, from
   the turn it first qualifies.
-- `paid_work`: regions with an open L6a firm (`workshop_payroll.firms`) or a repair crew
-  paid in RS2's last frame (`repair_projects.receipts` with `wages_milli > 0`; PL3's paid
-  recovery crews pay through those receipts).
+- `paid_work`: regions where paid work has been done, read from each lane's last
+  committed frame:
+  - an open L6a firm (`workshop_payroll.firms`);
+  - a repair crew paid in RS2's receipts (`repair_projects.receipts`, `wages_milli > 0`);
+  - a paid PL3 granary crew (`recovery_crews.receipts`, `kind == "granary"`,
+    `wages_milli > 0`);
+  - the home region of a paid PL1 woodcutting crew (`timber_supply.receipts`,
+    `wages_milli > 0`).
 - `all`: every region whose controller rules at least one region.
 
 ### Title weights
 
 For an alive farmer (`occupation == 0`) of a pilot region in the Phase 2 snapshot:
-`w = u × (1 − h)` in integer micro-units. `u` is `cities.URBAN_FARM_LABOR[rank]` when
-the farmer's settlement is a city of that region, else 1. `h` is this turn's health work
-loss from the health plan (`world.health_care._prepared`, prepared just before):
-the impairment for an eligible patient (adult rural farmer, not enlisted), the care
-fraction for a caregiver. Children hold their own title. Opening stock, merchant
-imports, convoy and granary grain stay commons.
+`w = max(0, u × (1 − h) − r)` in integer micro-units.
+
+- `u` is `cities.URBAN_FARM_LABOR[rank]` when the farmer's settlement is a city of that
+  region, else 1.
+- `h` is this turn's health work loss from the health plan (`world.health_care._prepared`,
+  prepared just before): the impairment for an eligible patient (adult rural farmer, not
+  enlisted), the care fraction for a caregiver.
+- `r` is the farm time the person gave a named crew this turn. It is paid as a wage, so
+  it is never also titled. It is read from the packages' staged receipts:
+  - a PL1 woodcutter: their farm share `u`, scaled by the woodcut labour the economy
+    actually removed from that home region;
+  - a PL3 granary crew member: their worked share of the delivered storage work;
+  - a PL3 workshop crew member: the farm time removed through `farm_labor_factor`.
+
+Every turn, per pilot region, `Σ (u (1 − h) − r)` must equal `farmers ×
+farm_labor_factor − health loss − named granary work − woodcut labour removed`. Named
+woodcut requests must equal the crews' farm shares, and named granary time may not
+exceed the storage work delivered. Anything else is refused. Anonymous storage work (RS2
+without crews, grain storage) shrinks every title equally.
+
+Children hold their own title. Opening stock, merchant imports, convoy and granary grain
+stay commons.
 
 ### Price and free rations
 
@@ -127,15 +148,23 @@ imports, convoy and granary grain stay commons.
 - **Household split, rejoin, remarriage.** Claims are personal; households are never
   stored, so nothing is created or lost.
 - **Conquest.** `v − floor(v × CONQUEST_STOCKPILE_SURVIVAL)` of each owned good is
-  destroyed (`war_loss`), claims pro rata. Occupation and siege requisitions do not
+  destroyed (`war_loss`), claims pro rata, once per conquest event. The event is the
+  region's `last_conquered_turn`, set by `action_engine.apply_region_conquest` (the path
+  that destroys market stock, annexed occupations included), when it is newer than the
+  last loss applied. It is checked before the economy and before the agent tick, so a
+  conquest in any phase is applied before the next sale. A change of controller without
+  a conquest (peaceful transfer, abandonment) destroys nothing. Occupation and siege requisitions do not
   reach owned stock (declared limit, counted in `requisition_exempt_region_turns`).
 - **Pool reset.** Every claim to the commons, dated.
 
 ### Merchants, procurement and the controls
 
 - **Merchants** load only commons (lead decision 7). Owned food is never in
-  `region.stockpile`, so no merchant carries or pays for it; Python records no separate
-  count of the exports foregone.
+  `region.stockpile`, so no merchant carries or pays for it. Each pilot region-turn
+  records `merchant_food_departing` (the food merchants committed to loads and departures
+  from the commons, from the native commitments procurement reads) and
+  `owned_food_unloadable_milli` (the owned food they could not load). The foregone
+  departures are at most the latter.
 - **Foreign purchases and public grain shipments** buy commons only. Owners' grain is
   sold only to their own ruler's granaries. A foreign buyer pays the seller's ruler as
   before (`finance.transfer`); owners neither lose grain nor are paid.
@@ -150,7 +179,9 @@ imports, convoy and granary grain stay commons.
 - A pilot market's sellable surplus counts commons plus owned grain (only grain: owned
   fish, salt, botanicals and exotic do not count towards the market's keep).
 - The owned part of that surplus is sold only to the owners' own ruler. A domestic
-  purchase takes it first, pro rata to claims, in whole milli-food rounded up. A
+  purchase takes it first, pro rata to claims, in whole milli-food rounded up. Exactly
+  that milli-food leaves the owned pool: the purchase takes it, and a sub-milli excess
+  over the purchase goes into the market's commons, so nothing is lost or made. A
   foreign purchase or public grain shipment takes only the commons part.
 - The treasury pays as before. In Phase 10 each such flow's owners' share,
   `floor(cost × 1000 × owned sent / sent)`, is credited to them by id in one
@@ -195,7 +226,9 @@ for every installed claim.
 
 `livelihoods.household_retail` (stage `L6b`) for the completed turn: per pilot region
 `open_milli`, `close_milli`, `goods_close`, owners, flows, commons by reason, price,
-free rations, the native Phase 2 columns and provisioning row, plus money, income,
+free rations, the native Phase 2 columns and provisioning row, income replaced (and
+rows) for its farmers, merchant food departing and owned food unloadable, plus money,
+income,
 the sample, the log, counters and parameters. A turn without a frame reads `None`
 (unknown, not zero).
 
@@ -218,6 +251,13 @@ Raised on failure (`RetailAccountingError`, a `RuntimeError`):
 - **Native Phase 2**, per good: `owned_close = owned_open + titled − decay − overflow`
   (f32 tolerance). Python's owned stock agrees with the native close within 3 milli
   plus 2·10⁻⁵ relative.
+- **Native food ledger**, per pilot region:
+  - `closing = opening + produced + transport_net − craft_input + clamp − consumed −
+    storage_loss − cap_overflow`;
+  - `opening` equals the commons sent plus the owned stock sent;
+  - `closing` equals the commons returned plus the owned close;
+  - all within 10⁻⁵ relative; skipped when the extension exports no ledger.
+- **Title weights**: equal to the farm labour after named crews (see Title weights).
 - **Provisioning**, per region:
   - `free_given + free_unallocated = free_rations`, and `free_rations` equals the
     install;
@@ -232,7 +272,9 @@ Raised on failure (`RetailAccountingError`, a `RuntimeError`):
   exceed it.
 - **Money.** Per row, `paid`, `credited` and `refunded` are nonnegative and `refunded ≤
   paid`. `Σ paid = Σ credited + Σ refunded`, per region and over the rows, and the two
-  totals agree. `free_exchange` moves no money.
+  totals agree. `free_exchange` moves no money. Per region, `sold × price ≤ paid ×
+  ration ≤ sold × price + buying_households × ration`: each buying household pays
+  `ceil(bought × price / ration)`.
 - **Income.** The receipt is of this turn, with unique ids and finite, nonnegative
   amounts.
 - **Procurement.** Each recorded take matches a `BOUGHT` flow of its source with
