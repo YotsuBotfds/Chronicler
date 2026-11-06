@@ -67,11 +67,13 @@ repairer; and :func:`_pending_storage_bills` includes the repair work planned
 but not yet charged (``repair_projects.pending_bills``), so the L1 funding and
 every later planner leave room for it.
 
-A3 seam (``--workshop-economics``; inert unless active):
+A3 seams (``--workshop-economics``; inert unless active):
 :func:`_firm_input_cap` bounds an operate-mode site's ceiling by the raw
-inputs its workshop firm can pay for (``workshop_economics.input_capacity``);
+inputs its workshop firm pays for (``workshop_economics.input_capacity``);
 a site whose firm can pay for none, or that has no firm, does not operate
-this turn (no free-input production under A3).
+this turn (no production from unpaid inputs under A3); and
+:func:`_never_readmit` keeps every city whose A3 firm closed out of
+:func:`refresh_sites` for good.
 """
 from __future__ import annotations
 
@@ -171,7 +173,7 @@ def refresh_sites(world, state: WorkshopState) -> dict[int, object]:
         elif city.region != site.region:
             _close(state, site, world.turn, "region_changed")
     taken = {s.region for s in state.sites}
-    closed_ids = {s.settlement_id for s in state.closed}
+    closed_ids = {s.settlement_id for s in state.closed} | _never_readmit(world)
     candidates = sorted((c for c in cities.values()
                          if c.rank >= 1 and c.region not in taken and c.settlement_id not in closed_ids),
                         key=lambda c: (-c.rank, -c.size, c.settlement_id))
@@ -189,6 +191,15 @@ def refresh_sites(world, state: WorkshopState) -> dict[int, object]:
         taken.add(city.region)
         state.counters["selected"] = state.counters.get("selected", 0) + 1
     return {s.site: cities[s.settlement_id] for s in state.sites}
+
+
+def _never_readmit(world) -> set[int]:
+    """A3 seam: settlement ids of cities whose workshop firm closed, kept by
+    workshop economics without L1's eight-entry bound (so none is readmitted
+    with fresh capital); empty while A3 is inactive (the L1 rule, unchanged)."""
+    if not _lane_active(world, "workshop_economics"):
+        return set()
+    return set(world.livelihoods.workshop_economics.closed_settlements)
 
 
 def _crew_terms(world, site: int) -> tuple[int, float]:

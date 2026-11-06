@@ -16,39 +16,47 @@ payroll call it through guarded seams (``workshops._firm_input_cap``,
 opening seams), so its effects run at payroll's position. No random draws.
 
 Modes (``--workshop-economics-mode``): ``market`` (default); the cost control
-``free_inputs`` (inputs are planned and recorded but not charged, and do not
-bound production); the demand control ``academy_only`` (no household
-customers). Any payroll mode is accepted: ``no_customer`` is the constructed
-demand collapse (nothing is sold to anyone).
+``free_inputs`` (every rule as ``market``, budget, plan, crew sizing and the
+ceiling included, except that the input charge is recorded and not taken);
+the demand control ``academy_only`` (no household customers). Any payroll
+mode is accepted: ``no_customer`` is the constructed demand collapse
+(nothing is sold to anyone).
 
 Who pays whom (milli-units; 1000 = one treasury unit = one wealth unit):
 
 * **Starting capital.** An open, built, funded L1 site with an eligible crew
-  and no firm opens one in Phase 10 when its region's ruler can pay the
-  declared constant ``CAPITAL`` (whole units) from its projected treasury
-  (refused otherwise, and retried on a later turn). Paid once per firm, never
-  again: there is **no rescue**. A firm's closure closes its site for good
-  (the city is never readmitted), so a new firm cannot reopen there with
-  fresh capital.
-* **Inputs.** The region's ruler owns the commons the raw timber and ore come
-  from. Price rule: the region's post-trade price of raw materials **as the
-  native economy computes it in the tick of the purchase** (the tick that
-  converts them, so it includes the firm's own demand; never clamped or
-  invented; rounded up to whole milli-units per load). Each Phase 2 the firm
-  reserves its ``budget`` (cash less wages owed, this turn's wage bill and a
-  2-milli slack) and plans its ceiling at the last positive raw price the
-  economy computed for the region: ``min(K x W, floor(budget x 1000 /
-  planning price))``, with the crew request sized to what those inputs
-  occupy; before any positive price has been seen in the region (the region
-  had no raw demand) the full crew's ceiling is planned (price discovery).
-  After the successful tick the inputs actually used (native ``craft_input``
-  timber + ore) cost ``ceil(used x price)``; the firm pays that from firm
-  cash to the ruler's treasury (sub-unit amounts carried, ``money``), or, when
-  it exceeds the reservation, pays the whole reservation and takes title only
-  to that paid share of the output: the unpaid share stays in the commons it
-  was made from (recorded as ``unpaid_conversion_milli``). A failed tick
-  charges nothing. A site with no firm, or whose firm has no budget left,
-  does not operate: **no free-input production under this switch**.
+  and no firm opens one in Phase 10 when an input price exists for it (below)
+  and its region's ruler can pay the declared constant ``CAPITAL`` (whole
+  units) from its projected treasury (refused otherwise, with the reason, and
+  retried on a later turn). Paid once per firm, never again: there is **no
+  rescue**. A firm's closure closes its site, and A3 keeps the closed city's
+  settlement id in its own persisted ``closed_settlements`` (not L1's
+  eight-entry display list): L1 never readmits that city while A3 is active
+  and A3 refuses an opening there (``closed_city``), so no city receives a
+  second firm or a second capital.
+* **Inputs: the plan price.** The region's ruler owns the commons the raw
+  timber and ore come from. The price is the **most recent positive post-trade
+  raw-material price the native economy computed for the firm's region in an
+  earlier tick** (timber and ore share the ``raw_material`` category), dated;
+  if the region never had one, the most recent positive one among the regions
+  of the region's ruler (latest turn, then lowest region index); if none
+  exists, the firm cannot buy (``price_unknown``) and a site cannot open
+  (``no_input_price``). Never the price of the purchase's own tick (which
+  includes the purchase's demand); it is recorded beside each purchase as a
+  diagnostic only. Rounded up to whole milli-units per load; never clamped.
+* **Inputs: paid before they are converted.** Each Phase 2 the firm reserves
+  its ``budget`` (cash less wages owed, this turn's wage bill and a 2-milli
+  slack); the budget buys ``floor(budget x 1000 / plan price)`` milli-loads and
+  the region's craft ceiling becomes ``min(K x W, that)``, with the crew
+  request sized to the workers those inputs occupy. The native conversion
+  never exceeds the ceiling, so **the firm converts only inputs it pays for**:
+  after the successful tick it pays ``ceil(used x plan price)`` (always within
+  the reservation) from firm cash to the ruler's treasury (sub-unit amounts
+  carried, ``money``). Raw stock it cannot pay for stays in the commons and is
+  never converted (``unbought_need_milli`` records the crew's need it could not
+  pay for). A failed tick charges nothing. A site with no firm, or whose firm
+  has no budget or no price, does not operate: no production from unpaid
+  inputs under this switch.
 * **Asset.** The ruler keeps building, maintaining and repairing the L1
   asset as before (a public expenditure sink); A3 records it per site as an
   ``asset subsidy`` the firm's books exclude.
@@ -68,9 +76,10 @@ Who pays whom (milli-units; 1000 = one treasury unit = one wealth unit):
   consumes paid wares rather than stacking a free one on top). What
   households do not buy stays unsold.
 * **Payroll, arrears, insolvency** as L6a; distributions keep a reserve of
-  ``RESERVE_TURNS`` full wage and input bills. A firm that could not buy
-  inputs and sold nothing for ``IDLE_CLOSE_AFTER`` turns in a row closes
-  ``idle`` (L6a liquidation: owed wages paid from cash where it can, the rest
+  ``RESERVE_TURNS`` full wage and input bills. A firm that could not operate
+  for a reason in ``IDLE_REASONS`` (no budget, no price, an unfunded asset or
+  no eligible crew) and sold nothing for ``IDLE_CLOSE_AFTER`` turns in a row
+  closes ``idle`` (L6a liquidation: owed wages paid from cash where it can, the rest
   written off, inventory returned to the commons, cash to the ruler).
 
 Declared limits of this slice (A3-1): the same tick's craft output still
@@ -97,11 +106,10 @@ MILLI = 1000
 CAPITAL = 20_000
 #: Idle turns in a row (no input bought, nothing sold) that close a firm.
 IDLE_CLOSE_AFTER = 6
-#: Why a firm could not buy inputs that counts as idle: it cannot pay (or the
-#: price is unknown), or its owner no longer funds the asset. A worn site or
-#: one without an eligible crew waits without counting (repair and hiring are
-#: other systems' work).
-IDLE_REASONS = ("budget_exhausted", "not_funded")
+#: Why a firm could not operate that counts as idle: it cannot pay, no input
+#: price exists, its owner no longer funds the asset, or its city has no
+#: eligible crew. A worn site waits without counting (repair is RS2's work).
+IDLE_REASONS = ("budget_exhausted", "price_unknown", "not_funded", "no_crew")
 #: Milli-units kept back from the input budget for the f32 ceiling's rounding.
 INPUT_SLACK = 2
 #: Wares each resident wants a turn, milli-loads (``cities.CRAFT_DEMAND_PER_CAPITA``).
@@ -116,11 +124,11 @@ _RAW = ("timber", "ore")
 
 class _Plan:
     __slots__ = ("site", "firm", "region", "price", "budget", "capacity", "reason", "crew", "share",
-                 "wage", "bill", "cash", "owed", "settle")
+                 "wage", "bill", "cash", "owed", "need")
 
     def __init__(self, site, firm, region):
         self.site, self.firm, self.region = site, firm, region
-        self.price = self.budget = self.capacity = self.reason = self.settle = None
+        self.price = self.budget = self.capacity = self.reason = self.need = None
         self.crew = 0
         self.share = self.wage = self.bill = self.cash = self.owed = 0
 
@@ -229,14 +237,14 @@ def _to_milli(price) -> int | None:
 
 
 def observe_prices(world, economy_result) -> None:
-    """Record this turn's post-trade raw-material and craft prices of every
-    open site's region (payroll's finish seam, after the economy tick)."""
+    """Record this tick's post-trade raw-material and craft prices of every
+    region (payroll's finish seam, after the economy tick), keeping each
+    region's most recent positive raw price and its turn (the plan price of
+    later purchases)."""
     state = _state(world)
-    ws = world.livelihoods.workshops
     prices = getattr(economy_result, "market_prices", None) if economy_result is not None else None
-    regions = sorted({s.region for s in ws.sites})
-    kept = {p.region: p for p in state.prices if p.region in regions}
-    for region in regions:
+    kept = {p.region: p for p in state.prices if 0 <= p.region < len(world.regions)}
+    for region in range(len(world.regions)):
         name = world.regions[region].name
         row = prices.get(name) if isinstance(prices, dict) else None
         raw = row.get("raw_material") if isinstance(row, dict) else None
@@ -250,6 +258,8 @@ def observe_prices(world, economy_result) -> None:
             obs.plan_raw_milli, obs.plan_turn = obs.raw_milli, world.turn
         elif before is not None:
             obs.plan_raw_milli, obs.plan_turn = before.plan_raw_milli, before.plan_turn
+        if obs.plan_raw_milli is None and obs.craft_milli is None and before is None:
+            continue                          # nothing to remember about this region
         kept[region] = obs
     state.prices = [kept[r] for r in sorted(kept)]
 
@@ -257,7 +267,7 @@ def observe_prices(world, economy_result) -> None:
 def tick_price(world, economy_result, region: int, category: str) -> int | None:
     """This tick's post-trade price of ``category`` in ``region`` as the native
     economy computed it, milli-units per load rounded up; None when absent or
-    not positive."""
+    not positive. A diagnostic beside each purchase: never what is charged."""
     prices = getattr(economy_result, "market_prices", None) if economy_result is not None else None
     row = prices.get(world.regions[region].name) if isinstance(prices, dict) else None
     value = row.get(category) if isinstance(row, dict) else None
@@ -269,6 +279,31 @@ def _price(state, region: int, turn: int | None = None) -> PriceObservation | No
     if obs is None or (turn is not None and obs.turn != turn):
         return None
     return obs
+
+
+def plan_price(world, region: int) -> dict | None:
+    """The plan price of raw inputs for a firm in ``region``, from earlier
+    ticks only: the region's most recent positive post-trade raw price, dated;
+    else the most recent positive one among the regions of the region's ruler
+    (latest turn, then lowest region index); None when neither exists.
+    ``{"price_milli", "turn", "region", "source": "region" | "realm"}``."""
+    state = _state(world)
+    obs = _price(state, region)
+    if obs is not None and obs.plan_raw_milli is not None:
+        return {"price_milli": obs.plan_raw_milli, "turn": obs.plan_turn, "region": region, "source": "region"}
+    ruler = world.regions[region].controller
+    if ruler is None:
+        return None
+    best = None
+    for p in state.prices:
+        if p.plan_raw_milli is None or not 0 <= p.region < len(world.regions) \
+                or world.regions[p.region].controller != ruler:
+            continue
+        if best is None or p.plan_turn > best.plan_turn:
+            best = p
+    if best is None:
+        return None
+    return {"price_milli": best.plan_raw_milli, "turn": best.plan_turn, "region": best.region, "source": "realm"}
 
 
 # ---------------------------------------------------------------------------
@@ -287,40 +322,40 @@ def _capacity(budget: int, price_milli: int) -> int:
 
 def crew_terms(world, site: int, cap: int, hours: float) -> tuple[int, float]:
     """(crew cap, hours) for this turn's request: an A3 firm asks for the crew
-    its affordable inputs occupy (at least one: the native planner's floor; a
-    firm that can buy nothing does not operate, ``input_capacity``). A site
-    without a firm asks for one person (it cannot operate under A3)."""
-    state = _state(world)
+    its affordable inputs occupy at the plan price (at least one: the native
+    planner's floor; a firm that can buy nothing does not operate,
+    ``input_capacity``), in every mode. A site without a firm asks for one
+    person (it cannot operate under A3)."""
     from chronicler.workshop_payroll import _firm
     from chronicler.workshops import K_RAW_PER_WORK
     firm = _firm(_payroll(world), site)
     if firm is None:
         return 1, 1.0
-    if state.mode == "free_inputs":
-        return cap, hours
-    obs = _price(state, firm.region)
-    if obs is None or obs.plan_raw_milli is None:
-        return cap, hours                     # price discovery: the full crew's ceiling
+    price = plan_price(world, firm.region)
+    if price is None:
+        return 1, hours                        # no price: the site will not operate
     ws_site = next(s for s in world.livelihoods.workshops.sites if s.site == site)
     share = _diverted_of(world, ws_site) * hours
     if share <= 0.0:
         return 1, hours
     per_worker = K_RAW_PER_WORK * share * MILLI          # milli-loads one worker converts
     for n in range(cap, 0, -1):
-        need = math.ceil(_capacity(_budget(firm, n, share), obs.plan_raw_milli) / per_worker)
+        need = math.ceil(_capacity(_budget(firm, n, share), price["price_milli"]) / per_worker)
         if need >= n:
             return n, hours
     return 1, hours
 
 
 def input_capacity(world, site, row: dict, *, operating: bool, funded: bool, building: bool) -> float:
-    """Raw loads this turn's firm can pay for (the ceiling's bound); 0.0 when
-    the site cannot operate under A3 (no firm, no affordable input, or an L1
-    reason). Records the plan for the finish seam."""
+    """Raw loads this turn's firm pays for (the ceiling's bound: it converts
+    nothing it has not paid for); 0.0 when the site cannot operate under A3 (no
+    firm, no budget, no price, or an L1 reason). The same in every mode: the
+    ``free_inputs`` control differs only in the charge. Records the plan for
+    the finish seam."""
     state = _state(world)
     t = _turn(state, world)
     from chronicler.workshop_payroll import _firm
-    from chronicler.workshops import OPERATE_CONDITION
+    from chronicler.workshops import K_RAW_PER_WORK, OPERATE_CONDITION
     firm = _firm(_payroll(world), site.site)
     plan = t.plans[site.site] = _Plan(site.site, firm.site if firm is not None else None, site.region)
     if firm is None:
@@ -332,33 +367,27 @@ def input_capacity(world, site, row: dict, *, operating: bool, funded: bool, bui
     plan.crew, plan.share, plan.wage = crew, share, _wage(share)
     plan.bill = crew * plan.wage
     plan.cash, plan.owed = firm.cash, sum(o.amount for o in firm.owed)
+    plan.need = math.floor(K_RAW_PER_WORK * firm.crew_cap * share * MILLI)
     if not operating:
         plan.reason = ("not_built" if building else "not_funded" if not funded
-                       else "no_crew" if not crew else "worn" if site.condition < OPERATE_CONDITION
-                       else "not_funded")
+                       else "no_crew" if not crew or not row.get("work_available")
+                       else "worn" if site.condition < OPERATE_CONDITION else "not_operating")
         plan.capacity = 0
         return 0.0
-    obs = _price(state, firm.region)
-    plan.price = obs.plan_raw_milli if obs is not None else None
-    if state.mode == "free_inputs":
-        plan.capacity = None                 # unbounded: the cost control
-        return math.inf
+    plan.price = plan_price(world, firm.region)
     plan.budget = _budget(firm, crew, share)
-    if plan.budget <= 0:
-        plan.reason, plan.capacity = "budget_exhausted", 0
+    if plan.price is None:
+        plan.reason, plan.capacity = "price_unknown", 0
+        _bump(state, "price_unknown_turns")
         _bump(state, "input_capacity_zero_turns")
         return 0.0
-    if plan.price is None:
-        # No positive raw price was ever computed here (no raw demand): plan
-        # the full crew's ceiling; the tick's own price settles it.
-        plan.reason, plan.capacity = "price_discovery", None
-        _bump(state, "price_unknown_turns")
-        return math.inf
-    plan.capacity = _capacity(plan.budget, plan.price)
+    plan.capacity = _capacity(plan.budget, plan.price["price_milli"])
     if plan.capacity <= 0:
         plan.reason = "budget_exhausted"
         _bump(state, "input_capacity_zero_turns")
         return 0.0
+    if plan.price["source"] == "realm":
+        _bump(state, "plan_price_realm_turns")
     return plan.capacity / MILLI
 
 
@@ -386,45 +415,10 @@ def _used(receipt) -> tuple[float, float]:
     return float((used or {}).get("timber", 0.0)), float((used or {}).get("ore", 0.0))
 
 
-def settle_inputs(world, receipt, economy_result) -> int | None:
-    """Payroll's title seam (before title, nothing moves): price this tick's
-    inputs at the region's post-trade raw price the economy computed in this
-    tick and decide what the firm pays. Returns the most output (milli-loads)
-    the firm may title: None (no bound) when it pays in full or inputs are
-    free; the paid share of the output when the cost exceeds its reservation."""
-    state = _state(world)
-    t = _turn(state, world)
-    plan = t.plans.get(receipt.site)
-    if plan is None or plan.firm is None:
-        return None
-    timber, ore = _used(receipt)
-    loads = timber + ore
-    price = tick_price(world, economy_result, receipt.region, "raw_material")
-    output = math.floor(float(receipt.region_craft_output or 0.0) * MILLI)
-    settle = plan.settle = {"tick_price_milli": price, "cost_milli": 0, "pay_milli": 0, "title_cap_milli": None,
-                            "unpaid_conversion_milli": 0}
-    if loads <= 0.0:
-        return None
-    if price is None:
-        raise RuntimeError("workshop economics requires the native post-trade raw price for inputs it used")
-    cost = math.ceil(loads * price - 1e-9)
-    settle["cost_milli"] = cost
-    if state.mode == "free_inputs":
-        return None
-    budget = max(0, int(plan.budget or 0))
-    if cost <= budget:
-        settle["pay_milli"] = cost
-        return None
-    settle["pay_milli"] = budget
-    cap = (output * budget) // cost
-    settle["title_cap_milli"] = cap
-    settle["unpaid_conversion_milli"] = output - cap
-    return cap
-
-
 def charge_inputs(world, pt, acc, economy_result) -> None:
-    """After payroll's title: pay each operating firm's inputs as settled,
-    record the asset subsidy and observe this turn's prices."""
+    """After payroll's title: pay each operating firm's inputs at the plan
+    price (always within its reservation, so every converted load was paid
+    for), record the asset subsidy and observe this tick's prices."""
     state = _state(world)
     t = _turn(state, world)
     payroll = _payroll(world)
@@ -446,16 +440,20 @@ def charge_inputs(world, pt, acc, economy_result) -> None:
         if spend:
             _bump(state, "asset_subsidy_firm_units", spend)
         work = pt.work.get(site)
-        settle = plan.settle or {}
-        inputs = {"plan_price_milli": plan.price, "budget_milli": plan.budget, "capacity_milli": plan.capacity,
-                  "crew": plan.crew, "wage_bill_milli": plan.bill,
+        price = plan.price or {}
+        inputs = {"plan_price_milli": price.get("price_milli"), "plan_price_turn": price.get("turn"),
+                  "plan_price_region": price.get("region"), "plan_price_source": price.get("source"),
+                  "tick_price_milli": tick_price(world, economy_result, firm.region, "raw_material"),
+                  "budget_milli": plan.budget, "capacity_milli": plan.capacity, "need_milli": plan.need,
+                  "unbought_need_milli": 0, "crew": plan.crew, "wage_bill_milli": plan.bill,
                   "no_input_reason": None if work is not None else plan.reason,
-                  "price_discovery": work is not None and plan.reason == "price_discovery",
-                  "price_milli": settle.get("tick_price_milli"), "used_timber_milli": 0, "used_ore_milli": 0,
-                  "used_milli": 0, "cost_milli": settle.get("cost_milli", 0), "charged_milli": 0,
-                  "not_charged_milli": 0, "unpaid_conversion_milli": settle.get("unpaid_conversion_milli", 0),
-                  "title_cap_milli": settle.get("title_cap_milli"), "payee": None, "treasury_units": 0}
+                  "used_timber_milli": 0, "used_ore_milli": 0, "used_milli": 0, "cost_milli": 0,
+                  "charged_milli": 0, "not_charged_milli": 0, "converted_unpaid_milli": 0,
+                  "payee": None, "treasury_units": 0}
         row["inputs"] = inputs
+        if plan.need is not None:
+            inputs["unbought_need_milli"] = max(0, plan.need - (plan.capacity or 0)) if work is not None \
+                else plan.need
         if work is None:
             continue
         row["operating"] = True
@@ -464,40 +462,48 @@ def charge_inputs(world, pt, acc, economy_result) -> None:
             terms.last_operating_turn = world.turn
         _bump(state, "operating_firm_turns")
         timber, ore = _used(receipt)
+        loads = timber + ore
         inputs.update(used_timber_milli=math.floor(timber * MILLI), used_ore_milli=math.floor(ore * MILLI),
-                      used_milli=math.floor((timber + ore) * MILLI))
+                      used_milli=math.floor(loads * MILLI))
         output = work.output or 0.0
         row["produced"] = math.floor(output * MILLI)
         row["titled"] = int(work.titled)
-        row["free_use_upper_bound"] = max(0, row["produced"] - int(work.titled) - inputs["unpaid_conversion_milli"])
+        row["free_use_upper_bound"] = max(0, row["produced"] - int(work.titled))
         _bump(state, "free_use_upper_bound", row["free_use_upper_bound"])
         _bump(state, "inputs_used", inputs["used_milli"])
-        _bump(state, "unpaid_conversion", inputs["unpaid_conversion_milli"])
-        if state.mode == "free_inputs":
-            inputs["not_charged_milli"] = inputs["cost_milli"]
-            _bump(state, "inputs_not_charged", inputs["cost_milli"])
+        _bump(state, "unbought_need", inputs["unbought_need_milli"])
+        if loads <= 0.0:
             continue
-        charge = int(settle.get("pay_milli", 0))
-        if charge <= 0:
-            continue
-        if charge > int(plan.budget or 0):
+        if plan.price is None or plan.capacity is None:
+            raise RuntimeError(f"workshop firm {site} converted inputs it never planned to buy")
+        # Paid before converted: the conversion never exceeds the ceiling, the
+        # ceiling never what the reservation buys at the plan price.
+        if loads * MILLI > plan.capacity + 1e-3:
+            raise RuntimeError(f"workshop firm {site} converted more raw input than it paid for")
+        cost = math.ceil(loads * plan.price["price_milli"] - 1e-9)
+        if cost > plan.budget + INPUT_SLACK:
             raise RuntimeError(f"workshop firm {site} input charge exceeds its reservation")
+        inputs["cost_milli"] = cost
+        if state.mode == "free_inputs":           # the cost control: recorded, not taken
+            inputs["not_charged_milli"] = cost
+            _bump(state, "inputs_not_charged", cost)
+            continue
         owner = _controller(world, firm.region)
         payee = money.treasury(owner) if owner is not None else money.sink("unowned_commons")
         bill = money.Bill(purpose="firm_input_purchase", batch=site, phase="phase2",
-                          payer=money.firm_cash(site), lines=((payee, charge),))
+                          payer=money.firm_cash(site), lines=((payee, cost),))
         got = money.pay(world, bill, turn=world.turn, book=state.book, acc=acc, firms=firms)
         if not got.ok:
             raise RuntimeError(f"workshop firm {site} could not pay its reserved inputs: {got.reason}")
-        inputs.update(charged_milli=charge, payee=[payee.kind, payee.ident], treasury_units=got.treasury_units)
-        _total(firm, "inputs", charge)
-        _add(payroll_row(pt, firm), "inputs", charge)
-        _bump(state, "inputs_charged", charge)
+        inputs.update(charged_milli=cost, payee=[payee.kind, payee.ident], treasury_units=got.treasury_units)
+        _total(firm, "inputs", cost)
+        _add(payroll_row(pt, firm), "inputs", cost)
+        _bump(state, "inputs_charged", cost)
         _bump(state, "input_treasury_units", got.treasury_units)
         _money_transfer(pt, firm, "input_purchase", ("workshop_cash", site),
-                        (payee.kind, payee.ident if owner is not None else 0), charge, "phase2")
+                        (payee.kind, payee.ident if owner is not None else 0), cost, "phase2")
         if terms is not None:
-            terms.totals["inputs"] = terms.totals.get("inputs", 0) + charge
+            terms.totals["inputs"] = terms.totals.get("inputs", 0) + cost
     observe_prices(world, economy_result)
 
 
@@ -703,15 +709,14 @@ def idle_close(world, firm, pt) -> bool:
 
 
 def input_reserve(world, firm) -> int:
-    """Milli-units of ``RESERVE_TURNS`` full-crew input bills at the last
-    observed raw price (kept before distribution); 0 when unknown."""
+    """Milli-units of ``RESERVE_TURNS`` full-crew input bills at the plan
+    price (kept before distribution); 0 when no price exists."""
     from chronicler.workshop_payroll import _FULL_CREW, RESERVE_TURNS
     from chronicler.workshops import K_RAW_PER_WORK
-    state = _state(world)
-    obs = _price(state, firm.region)
-    if obs is None or obs.plan_raw_milli is None:
+    price = plan_price(world, firm.region)
+    if price is None:
         return 0
-    return RESERVE_TURNS * math.ceil(K_RAW_PER_WORK * _FULL_CREW * firm.diverted * obs.plan_raw_milli)
+    return RESERVE_TURNS * math.ceil(K_RAW_PER_WORK * _FULL_CREW * firm.diverted * price["price_milli"])
 
 
 def on_closed(world, firm, reason: str, turn: int) -> None:
@@ -720,6 +725,9 @@ def on_closed(world, firm, reason: str, turn: int) -> None:
     if terms is None:
         return
     terms.status, terms.closed_turn, terms.closed_reason = "closed", turn, reason
+    settlement = firm.settlement_id
+    if settlement not in state.closed_settlements:
+        state.closed_settlements = sorted([*state.closed_settlements, int(settlement)])
     state.firms.remove(terms)
     state.closed.append(terms)
     del state.closed[:-8]
@@ -753,10 +761,15 @@ def open_firms(world, pt, acc) -> None:
         refused = None
         owner = _controller(world, site.region)
         d = _diverted_of(world, site)
-        if not receipt.eligible or d <= 0.0:
+        price = plan_price(world, site.region)
+        if site.settlement_id in state.closed_settlements:
+            refused = "closed_city"           # never a second firm or capital at a closed firm's city
+        elif not receipt.eligible or d <= 0.0:
             refused = "no_crew"
         elif owner is None:
             refused = "no_controller"
+        elif price is None:
+            refused = "no_input_price"
         capital = CAPITAL
         if refused is None:
             firm = WorkshopFirm(site=site.site, region=site.region, settlement_id=site.settlement_id,
@@ -780,15 +793,13 @@ def open_firms(world, pt, acc) -> None:
         payroll_bump(payroll, "firms_opened")
         _money_transfer(pt, firm, "capital", ("civ_treasury", owner), ("workshop_cash", site.site), capital,
                         "phase10")
-        terms = FirmTerms(firm=site.site, region=site.region, opened_turn=world.turn, capital=capital,
-                          capital_payer=owner)
+        terms = FirmTerms(firm=site.site, region=site.region, opened_turn=world.turn,
+                          settlement_id=site.settlement_id, capital=capital, capital_payer=owner)
         terms.totals["capital"] = capital
         state.firms.append(terms)
         _bump(state, "firms_opened")
         _bump(state, "capital_paid", capital)
-        obs = _price(state, site.region)
-        _log(state, world.turn, "opened", site.site, capital=capital, payer=owner,
-             plan_price_milli=obs.plan_raw_milli if obs is not None else None)
+        _log(state, world.turn, "opened", site.site, capital=capital, payer=owner, plan_price=price)
         row = _row(t, firm)
         row["capital_in"] = capital
         row["event"] = "opened"
@@ -865,7 +876,11 @@ def snapshot_summary(world) -> dict:
                   "milli": MILLI},
         "firms": [f.model_dump() for f in state.firms],
         "closed": [f.model_dump() for f in state.closed],
-        "prices": [p.model_dump() for p in state.prices],
+        # The observations a reader needs: open sites' regions (the full set, kept
+        # for the realm fallback, can be every region).
+        "prices": [p.model_dump() for p in state.prices
+                   if p.region in {s.region for s in world.livelihoods.workshops.sites}],
+        "closed_settlements": list(state.closed_settlements),
         # None: no completed A3 pass for the source turn (unknown, not zero).
         "receipts": [r.model_dump() for r in state.frame] if fresh else None,
         "flows": ([f.model_dump() for f in state.book.flows] if fresh and state.book.flows_turn == source

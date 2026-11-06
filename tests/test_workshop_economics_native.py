@@ -1,10 +1,11 @@
 """A3 workshop economics on the real compiled extension (template seed 1).
 
-Development world only (template seed 1): with the academy flags, firms open
-with owner capital from about turn 34, buy inputs, sell to households and
-close ``idle`` at turns 117 and 118; a city falls at turn 121. Without the
-academy flags, with payroll ``no_customer`` and ``free_inputs``, a firm owes
-wages from turn 74 and closes insolvent at turn 79.
+Development world only (template seed 1, with the academy flags): firms open
+with owner capital at turns 34, 47 and 72, buy inputs at the plan price, sell
+to households, a city falls at turn 91 and firms close ``idle`` at turns 100
+and 129. Under ``free_inputs`` the same firms open at 34 and 47 and trade.
+Natural wage arrears cannot occur under A3 (a firm reserves this turn's wages
+before it buys inputs); arrears are covered offline with constructed claims.
 """
 from __future__ import annotations
 
@@ -98,12 +99,17 @@ def test_firms_buy_inputs_sell_to_households_and_close_their_books(tmp_path, mon
                 w = sites[r["firm"]]
                 used = w["region_craft_input"]["timber"] + w["region_craft_input"]["ore"]
                 assert used <= w["craft_ceiling"] + 1e-6
-                if inputs["capacity_milli"] is not None:
-                    assert w["craft_ceiling"] * 1000 <= inputs["capacity_milli"] + 1
+                # Paid before converted: the conversion within the ceiling, the ceiling within
+                # what the reservation buys at the plan price (an earlier tick's price).
+                assert w["craft_ceiling"] * 1000 <= inputs["capacity_milli"] + 1
+                assert used * 1000 <= inputs["capacity_milli"] + 1e-3
+                assert inputs["plan_price_turn"] < snap["turn"] - 1 or inputs["plan_price_turn"] is None
                 if used > 0:
-                    assert inputs["cost_milli"] == math.ceil(used * inputs["price_milli"] - 1e-9)
-                    assert inputs["charged_milli"] == min(inputs["cost_milli"], inputs["budget_milli"])
-                    assert inputs["charged_milli"] <= inputs["budget_milli"]
+                    assert inputs["cost_milli"] == math.ceil(used * inputs["plan_price_milli"] - 1e-9)
+                    assert inputs["charged_milli"] == inputs["cost_milli"]
+                    assert inputs["charged_milli"] <= inputs["budget_milli"] + 2
+                assert inputs["converted_unpaid_milli"] == 0
+                assert r["titled"] + r["free_use_upper_bound"] == r["produced"]
                 charged += inputs["charged_milli"]
             h = r["households"]
             if h:
@@ -136,18 +142,19 @@ def _resume_identical(tmp_path, monkeypatch, flags, turns, k):
     return a
 
 
-def test_exact_resume_before_idle_closures_and_a_city_fall(tmp_path, monkeypatch):
-    a = _resume_identical(tmp_path, monkeypatch, [*BASE, *ACADEMY, "--wealth-accounting"], 122, 116)
-    econ = a["history"][116]["livelihoods"]["workshop_economics"]
-    assert econ["firms"] and max(f["idle_run"] for f in econ["firms"]) >= 4      # live idle runs at the checkpoint
+def test_exact_resume_inside_an_idle_run_before_an_idle_closure(tmp_path, monkeypatch):
+    a = _resume_identical(tmp_path, monkeypatch, [*BASE, *ACADEMY, "--wealth-accounting"], 102, 98)
+    econ = a["history"][98]["livelihoods"]["workshop_economics"]
+    assert econ["firms"] and max(f["idle_run"] for f in econ["firms"]) >= 4      # a live idle run at the checkpoint
     reasons = [f["closed_reason"] for f in a["history"][-1]["livelihoods"]["workshop_economics"]["closed"]]
-    assert reasons.count("idle") == 2 and "city_fell" in reasons
+    assert "idle" in reasons and "city_fell" in reasons
 
 
-def test_exact_resume_inside_wage_arrears_before_an_insolvent_closure(tmp_path, monkeypatch):
-    flags = [*BASE, "--workshop-payroll-mode", "no_customer", "--workshop-economics-mode", "free_inputs"]
-    a = _resume_identical(tmp_path, monkeypatch, flags, 82, 76)
-    firms = a["history"][76]["livelihoods"]["workshop_payroll"]["firms"]
-    assert any(f["owed"] for f in firms)                                     # arrears live at the checkpoint
-    closed = a["history"][-1]["livelihoods"]["workshop_economics"]["closed"]
-    assert any(f["closed_reason"] == "insolvent" for f in closed)
+def test_exact_resume_at_live_trading_firms_under_the_cost_control(tmp_path, monkeypatch):
+    flags = [*BASE, *ACADEMY, "--workshop-economics-mode", "free_inputs", "--wealth-accounting"]
+    a = _resume_identical(tmp_path, monkeypatch, flags, 64, 60)
+    econ = a["history"][60]["livelihoods"]["workshop_economics"]
+    receipts = econ["receipts"]
+    assert len(econ["firms"]) == 2 and any(r["operating"] for r in receipts)
+    assert any((r["households"] or {}).get("paid_milli") for r in receipts)    # households buying at the checkpoint
+    assert all(r["inputs"]["charged_milli"] == 0 for r in receipts if r["inputs"])

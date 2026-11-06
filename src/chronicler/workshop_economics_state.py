@@ -35,7 +35,7 @@ MODES: tuple[str, ...] = ("market", "free_inputs", "academy_only")
 #: Why a firm-turn bought no inputs (append only).
 NO_INPUT_REASONS: tuple[str, ...] = (
     "price_unknown", "budget_exhausted", "not_funded", "no_crew", "not_built", "worn", "no_firm",
-    "price_discovery",
+    "price_discovery", "not_operating",
 )
 #: Why a firm-turn sold to nobody (append only): ``no_inventory``,
 #: ``no_controller``; academies: ``no_academy`` (no fully informed purchaser of
@@ -49,7 +49,8 @@ ABSENCE_REASONS: tuple[str, ...] = (
     "households_cannot_pay", "depopulated", "price_unknown", "academy_only_mode", "no_customer_mode",
 )
 #: Why an operating site without a firm did not open one (append only).
-OPENING_REFUSALS: tuple[str, ...] = ("treasury_short", "price_unknown", "no_controller", "no_crew")
+OPENING_REFUSALS: tuple[str, ...] = ("treasury_short", "price_unknown", "no_controller", "no_crew",
+                                     "no_input_price", "closed_city")
 #: Dated log kinds (append only).
 LOG_KINDS: tuple[str, ...] = ("switched_on", "switched_off", "opened", "opening_refused", "closed")
 MAX_LOG = 64
@@ -67,6 +68,7 @@ COUNTERS: tuple[str, ...] = (
     "free_use_upper_bound", "idle_firm_turns", "closed_idle", "closed_insolvent", "closed_other",
     "sites_without_firm_turns", "asset_subsidy_firm_units", "asset_subsidy_idle_units",
     "demand_absent_firm_turns", "unpaid_conversion",
+    "unbought_need", "plan_price_realm_turns", "opening_refused_no_input_price", "opening_refused_closed_city",
 )
 
 
@@ -94,6 +96,7 @@ class FirmTerms(BaseModel):
     firm: int
     region: int
     opened_turn: int
+    settlement_id: int | None = None
     capital: int = 0                    # milli-units received once at opening
     capital_payer: int | None = None    # civ index
     status: Literal["open", "closed"] = "open"
@@ -166,6 +169,9 @@ class WorkshopEconomicsState(BaseModel):
     firms: list[FirmTerms] = Field(default_factory=list)
     closed: list[FirmTerms] = Field(default_factory=list)
     prices: list[PriceObservation] = Field(default_factory=list)
+    #: Settlement ids of every city whose A3 firm closed (sorted, never pruned):
+    #: L1 never readmits them while A3 is active and no opening happens there.
+    closed_settlements: list[int] = Field(default_factory=list)
     #: Residents of each firm region over the last turns: ``[turn, region, residents]``.
     population: list[tuple[int, int, int]] = Field(default_factory=list)
     frame_turn: int | None = None

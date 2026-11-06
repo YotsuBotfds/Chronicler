@@ -296,36 +296,6 @@ def test_a_firm_opens_with_capital_once_and_its_books_close_every_turn():
     assert _receipt(world).owner_asset_spend == W.UPKEEP
 
 
-def test_no_free_inputs_in_market_mode():
-    world = _world()
-    world.prices = {"raw_material": 0.8, "craft": 2.0}
-    sim = FakeSim()
-    _build(world, sim)
-    state = _econ(world)
-    for _ in range(6):
-        cash_before = _firm(world).cash
-        owed_before = sum(o.amount for o in _firm(world).owed)
-        _turn(world, sim)
-        _check_turn(world)
-        r = _receipt(world)
-        inputs = r.inputs
-        if r.operating:
-            # Production never exceeds the ceiling, the ceiling never what the firm could pay for.
-            assert world.last_output <= world.last_ceiling + 1e-6
-            assert world.last_ceiling * 1000 <= inputs["capacity_milli"] + 1e-3
-            assert inputs["capacity_milli"] == (max(0, cash_before - owed_before - inputs["wage_bill_milli"]
-                                                    - E.INPUT_SLACK) * 1000) // inputs["plan_price_milli"]
-            used = world.last_output
-            # Charged at the tick's own post-trade raw price, in full (within the reservation).
-            assert inputs["charged_milli"] == inputs["cost_milli"] == math.ceil(used * inputs["price_milli"] - 1e-9) > 0
-            assert inputs["payee"] == ["civ_treasury", 0] and inputs["price_milli"] == 800
-            assert inputs["unpaid_conversion_milli"] == 0 and inputs["title_cap_milli"] is None
-    flows = [f for f in state.book.flows if f.purpose == "firm_input_purchase"]
-    assert all(f.payer == ("firm_cash", 0) and f.payee == ("civ_treasury", 0) for f in flows)
-    assert state.counters["inputs_charged"] == _firm(world).totals["inputs"] > 0
-    assert state.counters.get("inputs_not_charged", 0) == 0
-
-
 def test_a_site_without_a_firm_produces_nothing():
     # The ruler cannot pay the capital: the site is built and funded but never operates.
     world = _world(treasury=(60 + 19, 1000))
@@ -341,23 +311,6 @@ def test_a_site_without_a_firm_produces_nothing():
     assert not world.livelihoods.workshop_payroll.firms and state.counters["opening_refused_treasury_short"] >= 3
     assert sim.paid is None and not [k for k in sim.keys if k[1] == 0]          # nobody employed or paid
     assert state.log[-1].kind == "opening_refused" and state.log[-1].detail["reason"] == "treasury_short"
-
-
-def test_free_inputs_control_records_but_does_not_charge():
-    world = _world(mode="free_inputs")
-    sim = FakeSim()
-    _build(world, sim)
-    for _ in range(4):
-        _turn(world, sim)
-        _check_turn(world)
-    state, firm = _econ(world), _firm(world)
-    r = _receipt(world)
-    assert r.operating and r.inputs["charged_milli"] == 0 and r.inputs["not_charged_milli"] > 0
-    assert r.inputs["capacity_milli"] is None
-    # The ceiling is the full crew's L1 ceiling: K x crew x d.
-    assert world.last_ceiling == pytest.approx(W.K_RAW_PER_WORK * 2 * 0.3, rel=1e-6)
-    assert firm.totals.get("inputs", 0) == 0 and state.counters["inputs_not_charged"] > 0
-    assert not [f for f in state.book.flows if f.purpose == "firm_input_purchase"]
 
 
 def test_households_buy_by_id_from_adults_and_credit_the_firm():
@@ -391,7 +344,8 @@ def test_households_buy_by_id_from_adults_and_credit_the_firm():
         for aid, amount in debited.items():
             assert before[aid] * 1000 >= amount          # never more than the payer held
         # The households' debits are the firm's credit.
-        assert sum(debited.values()) == h["paid_milli"] == h["paid_milli"]
+        assert sum(debited.values()) == h["paid_milli"] == sum(f.applied for f in _econ(world).book.flows
+                                                                if f.purpose == "wares_purchase")
         assert firm.cash == (cash + h["paid_milli"] + r.academy_sales - r.inputs["charged_milli"] - r.wages_paid
                              - r.distributed)
         flows = [f for f in state.book.flows if f.purpose == "wares_purchase"]
@@ -463,36 +417,6 @@ def test_input_price_spike_leaves_the_firm_idle_then_closes_it_and_the_site_for_
     assert state.counters["capital_paid"] == capital and not payroll.firms
 
 
-@pytest.mark.parametrize("mode, reason", [("free_inputs", "insolvent"), ("market", "idle")])
-def test_no_customers_close_the_firm_insolvent_or_idle(mode, reason):
-    """No customer at all (payroll ``no_customer``). Under ``free_inputs`` the
-    full crew is employed whatever the cash: wages run into arrears and the
-    firm closes insolvent. Under ``market`` the firm reserves this turn's wages
-    before it buys inputs, so its crew shrinks with its cash and it closes idle
-    once it can buy nothing."""
-    world = _world(mode=mode, payroll="no_customer", treasury=(400, 1000))
-    world.prices = {"raw_material": 3.0, "craft": 2.0}
-    sim = FakeSim(crew=tuple(range(10, 18)))
-    _build(world, sim)
-    state, payroll = _econ(world), world.livelihoods.workshop_payroll
-    assert payroll.firms
-    insolvent = []
-    for _ in range(40):
-        _turn(world, sim)
-        _check_turn(world)
-        if payroll.frame:
-            insolvent.append(payroll.frame[0].insolvent)
-            assert "no_customer_mode" in _receipt(world).customer_absent
-        if not payroll.firms:
-            break
-    assert not payroll.firms and payroll.closed[-1].closed_reason == reason
-    assert state.counters[f"closed_{reason}"] == 1
-    if reason == "insolvent":
-        assert any(insolvent) and payroll.counters["owed_written_off"] > 0
-    else:
-        assert not any(insolvent) and payroll.counters.get("owed_written_off", 0) == 0
-
-
 def test_depopulation_collapses_household_demand_and_is_recorded():
     world = _world()
     many = tuple(range(100, 160))
@@ -509,8 +433,13 @@ def test_depopulation_collapses_household_demand_and_is_recorded():
     after = _receipt(world).households
     assert after["residents"] == 22 and after["demand_milli"] == 220
     assert after["depopulated"] is True
-    if not after["bought_milli"]:
-        assert "depopulated" in _receipt(world).customer_absent
+    assert after["bought_milli"] <= after["gap_milli"] <= 220 < before["demand_milli"]   # sales fall with demand
+    # When the commons then covers the smaller demand, nobody buys and both reasons are recorded.
+    world.regions[SITE].stockpile.goods["crafts"] = 50.0
+    _turn(world, sim)
+    r = _receipt(world)
+    assert r.households["bought_milli"] == 0 and r.households["depopulated"] is True
+    assert {"commons_covers", "depopulated"} <= set(r.customer_absent)
 
 
 def test_conquest_moves_the_input_payee_and_city_fall_liquidates_once():
@@ -640,57 +569,6 @@ def test_an_owner_who_stops_funding_the_asset_leaves_the_firm_idle_until_it_clos
     assert closed.cash == 0 and closed.totals["distributed"] + closed.totals.get("written_off", 0) > 0
 
 
-def test_a_tick_price_above_the_reservation_buys_only_the_paid_share_of_the_output():
-    """The plan uses the last positive raw price; the tick's own price settles.
-    When the tick prices the inputs above what the firm reserved, it pays the
-    whole reservation and titles only that share of the output; the rest of the
-    conversion stays in the commons it was made from (no free input)."""
-    world = _world()
-    sim = FakeSim(adults=(), children=())
-    _build(world, sim)
-    _turn(world, sim)                                  # plan price 0.5 observed
-    world.prices = {"raw_material": 40.0, "craft": 2.0}     # the tick prices raw at 40 a load
-    firm = _firm(world)
-    cash = firm.cash
-    stock = world.regions[SITE].stockpile.goods["crafts"]
-    _turn(world, sim)
-    _check_turn(world)
-    r = _receipt(world)
-    inputs = r.inputs
-    assert r.operating and inputs["plan_price_milli"] == 500 and inputs["price_milli"] == 40_000
-    assert inputs["cost_milli"] > inputs["budget_milli"] == inputs["charged_milli"] > 0
-    cap = (r.produced * inputs["budget_milli"]) // inputs["cost_milli"]
-    assert inputs["title_cap_milli"] == cap and r.titled <= cap
-    assert inputs["unpaid_conversion_milli"] == r.produced - cap > 0
-    # The unpaid share stayed in the commons (the people drew their demand first).
-    residents = _residents(sim)
-    assert world.regions[SITE].stockpile.goods["crafts"] == pytest.approx(
-        max(0.0, stock + world.last_output - 0.01 * residents) - r.titled / 1000)
-    assert firm.cash == cash - inputs["charged_milli"] - r.wages_paid - r.distributed + r.academy_sales \
-        + (r.households or {}).get("paid_milli", 0)
-
-
-def test_price_discovery_plans_the_full_ceiling_when_no_positive_price_was_seen():
-    world = _world()
-    world.prices = {"raw_material": 0.0, "craft": 2.0}      # no raw demand anywhere yet: price 0
-    sim = FakeSim(adults=(), children=())
-    _build(world, sim)
-    assert _econ(world).firms                          # capital needs no price
-    world.prices = {"raw_material": 0.5, "craft": 2.0}      # the firm's own demand prices raw
-    _turn(world, sim)
-    _check_turn(world)
-    r = _receipt(world)
-    assert r.operating and r.inputs["price_discovery"] and r.inputs["plan_price_milli"] is None
-    assert world.last_ceiling == pytest.approx(W.K_RAW_PER_WORK * 2 * 0.3, rel=1e-6)
-    assert r.inputs["charged_milli"] == math.ceil(world.last_output * 500 - 1e-9)
-    # The next plan uses the price just computed.
-    assert _econ(world).prices[0].plan_raw_milli == 500
-    world.prices = {"raw_material": 0.0, "craft": 2.0}      # a turn without raw use keeps the last positive price
-    world.raw = 0.0
-    _turn(world, sim)
-    assert _econ(world).prices[0].plan_raw_milli == 500 and _econ(world).prices[0].raw_milli is None
-
-
 def test_the_wealth_ledger_records_the_new_channels_and_its_identity_holds():
     from chronicler.wealth_accounting_state import WealthAccountingState
     world = _world()
@@ -729,3 +607,237 @@ def test_the_wealth_ledger_records_the_new_channels_and_its_identity_holds():
     assert life["wares_purchase_out_milli"] == sum(
         r["out_milli"] for f in frames for r in f["typed"] if r["channel"] == "wares_purchase")
     assert life["firm_inputs_to_treasury_milli"] > 0 and life["asset_subsidy_units"] >= 8 * W.UPKEEP
+
+
+def test_the_ledger_counts_every_household_purchase_beyond_the_flow_list_bound(monkeypatch):
+    """m2: the seam's flow list keeps MAX_FLOWS lines; the ledger reads the
+    exact per-turn totals, so a turn with more paying households is counted in
+    full and every closure still holds (the drop is recorded)."""
+    from chronicler.wealth_accounting_state import WealthAccountingState
+    monkeypatch.setattr(M, "MAX_FLOWS", 3)
+    world = _world()
+    for civ in world.civilizations:
+        civ.regions = []
+    sim = FakeSim(adults=tuple(range(30, 60)), children=(), wealth=2.0)
+    _build(world, sim)
+    world.livelihoods.wealth_accounting = WealthAccountingState()
+    dropped = 0
+    for _ in range(5):
+        _turn(world, sim)
+        frame = world.livelihoods.wealth_accounting.frame
+        if frame is None:
+            continue
+        assert all(c["closes"] for c in frame["closures"]), frame["closures"]
+        h = _econ(world).frame[0].households or {}
+        wares = next(r for r in frame["typed"] if r["channel"] == "wares_purchase")
+        assert wares["out_milli"] == h.get("paid_milli", 0)
+        dropped += frame["treasury"]["firm_economics"]["flows_dropped"]
+        w = frame["world"]
+        assert w["close"] - w["open"] == pytest.approx(w["typed_net_milli"] / 1000 + w["native_model"], abs=1e-6)
+    assert dropped > 0
+
+
+def test_inputs_are_paid_at_the_plan_price_before_they_are_converted():
+    """Market mode: the ceiling is what the reservation buys at the plan price
+    (the region's most recent positive raw price from an earlier tick), the
+    native conversion never exceeds it, and the charge is ``ceil(used x plan
+    price)`` within the reservation. The tick's own price is only recorded."""
+    world = _world()
+    world.prices = {"raw_material": 0.8, "craft": 2.0}
+    sim = FakeSim()
+    _build(world, sim)
+    state = _econ(world)
+    seen = 0
+    for turn in range(6):
+        if turn == 3:
+            world.prices = {"raw_material": 40.0, "craft": 2.0}      # this tick prices raw at 40
+        cash_before = _firm(world).cash
+        owed_before = sum(o.amount for o in _firm(world).owed)
+        plan_turn = world.turn - 1
+        _turn(world, sim)
+        _check_turn(world)
+        r = _receipt(world)
+        inputs = r.inputs
+        if not r.operating:
+            continue
+        seen += 1
+        # The plan price is last tick's (0.8 before turn 3, 40 after it): never this tick's.
+        expected_plan = 40_000 if turn > 3 else 800
+        assert inputs["plan_price_milli"] == expected_plan and inputs["plan_price_turn"] == plan_turn
+        assert inputs["plan_price_source"] == "region" and inputs["plan_price_region"] == SITE
+        assert inputs["tick_price_milli"] == (40_000 if turn >= 3 else 800)
+        assert inputs["capacity_milli"] == (max(0, cash_before - owed_before - inputs["wage_bill_milli"]
+                                                - E.INPUT_SLACK) * 1000) // inputs["plan_price_milli"]
+        assert world.last_output <= world.last_ceiling + 1e-6
+        assert world.last_ceiling * 1000 <= inputs["capacity_milli"] + 1e-3
+        used = world.last_output
+        assert inputs["charged_milli"] == inputs["cost_milli"] == math.ceil(used * expected_plan - 1e-9) > 0
+        assert inputs["charged_milli"] <= inputs["budget_milli"] + E.INPUT_SLACK
+        assert inputs["converted_unpaid_milli"] == 0 and inputs["payee"] == ["civ_treasury", 0]
+        # Everything converted was paid for; what the firm does not title is only the
+        # same tick's free use of its output (the declared A3-1 limit).
+        assert r.titled + r.free_use_upper_bound == r.produced
+    assert seen >= 4
+    flows = [f for f in state.book.flows if f.purpose == "firm_input_purchase"]
+    assert all(f.payer == ("firm_cash", 0) and f.payee == ("civ_treasury", 0) for f in flows)
+    assert state.counters["inputs_charged"] == _firm(world).totals["inputs"] > 0
+
+
+def test_a_firm_that_cannot_pay_its_full_need_converts_only_what_it_paid_for():
+    world = _world()
+    world.prices = {"raw_material": 5.0, "craft": 2.0}
+    sim = FakeSim(crew=tuple(range(10, 18)))
+    _build(world, sim)
+    firm = _firm(world)
+    stock = world.raw = 100.0                  # far more raw stock than the firm can pay for
+    _turn(world, sim)
+    r = _receipt(world)
+    inputs = r.inputs
+    assert r.operating and inputs["capacity_milli"] < inputs["need_milli"]
+    assert inputs["unbought_need_milli"] == inputs["need_milli"] - inputs["capacity_milli"] > 0
+    assert world.last_output * 1000 <= inputs["capacity_milli"] + 1e-3 < stock * 1000
+    # The crew request was sized down to the workers the paid inputs occupy.
+    assert len(r_crew := world.livelihoods.workshop_payroll.frame[0].crew) < 8 and r_crew
+    assert inputs["charged_milli"] == math.ceil(world.last_output * 5000 - 1e-9)
+    assert firm.cash >= 0 and inputs["converted_unpaid_milli"] == 0
+
+
+def test_free_inputs_differs_from_market_only_in_the_charge():
+    """M2: the same budget, plan, crew sizing and ceiling; the charge is
+    recorded and not taken."""
+    worlds = {}
+    for mode in ("market", "free_inputs"):
+        world = _world(mode=mode)
+        world.prices = {"raw_material": 3.0, "craft": 2.0}
+        sim = FakeSim(crew=tuple(range(10, 18)), adults=(), children=())
+        _build(world, sim)
+        _turn(world, sim)
+        worlds[mode] = (world, sim)
+    (m, msim), (f, fsim) = worlds["market"], worlds["free_inputs"]
+    rm, rf = _receipt(m), _receipt(f)
+    for key in ("plan_price_milli", "budget_milli", "capacity_milli", "crew", "wage_bill_milli", "used_milli",
+                "cost_milli"):
+        assert rm.inputs[key] == rf.inputs[key], key
+    assert msim.requests[-1] == fsim.requests[-1] and m.last_ceiling == f.last_ceiling
+    assert rm.inputs["charged_milli"] == rf.inputs["not_charged_milli"] > 0
+    assert rf.inputs["charged_milli"] == 0 and rm.inputs["not_charged_milli"] == 0
+    assert _firm(f).totals.get("inputs", 0) == 0
+    assert _firm(f).cash - _firm(m).cash == rm.inputs["charged_milli"]
+    assert not [x for x in _econ(f).book.flows if x.purpose == "firm_input_purchase"]
+
+
+def test_a_region_without_a_price_uses_the_rulers_most_recent_price_and_none_refuses_opening():
+    world = _world()
+    world.prices = {"raw_material": 0.0, "craft": 2.0}       # no raw demand anywhere: no positive price
+    sim = FakeSim(adults=(), children=())
+    _build(world, sim)
+    state = _econ(world)
+    assert not world.livelihoods.workshop_payroll.firms
+    assert state.counters["opening_refused_no_input_price"] >= 1
+    assert state.log[-1].kind == "opening_refused" and state.log[-1].detail["reason"] == "no_input_price"
+    # Another region of the same ruler gets a raw price: the realm fallback opens the firm.
+    economy_prices = {f"R{i}": {"raw_material": 0.0, "craft": 2.0} for i in range(4)}
+    economy_prices["R1"] = {"raw_material": 0.7, "craft": 2.0}
+    E.observe_prices(world, SimpleNamespace(market_prices=economy_prices))
+    found = E.plan_price(world, SITE)
+    assert found == {"price_milli": 700, "turn": world.turn, "region": 1, "source": "realm"}
+    world.regions[1].controller = "Civ1"                    # another ruler's region does not count
+    assert E.plan_price(world, SITE) is None
+    world.regions[1].controller = "Civ0"
+    world.prices = {"raw_material": 0.0, "craft": 2.0}
+    _turn(world, sim)
+    assert world.livelihoods.workshop_payroll.firms and state.log[-1].kind == "opened"
+    assert state.log[-1].detail["plan_price"]["source"] == "realm"
+
+
+def test_wage_arrears_that_cash_cannot_cover_close_the_firm_insolvent():
+    world = _world(payroll="no_customer")
+    sim = FakeSim(adults=(), children=())
+    _build(world, sim)
+    firm = _firm(world)
+    debt = firm.cash + 5000                       # constructed arrears beyond the firm's cash
+    firm.owed.append(P.OwedWage(agent_id=10, amount=debt, since_turn=world.turn - 1))
+    insolvent = []
+    for _ in range(12):
+        _turn(world, sim)
+        payroll = world.livelihoods.workshop_payroll
+        if payroll.frame:
+            insolvent.append(payroll.frame[0].insolvent)
+            r = _receipt(world)
+            assert not r.operating and r.inputs["no_input_reason"] == "budget_exhausted"
+        if not payroll.firms:
+            break
+    payroll = world.livelihoods.workshop_payroll
+    assert not payroll.firms and payroll.closed[-1].closed_reason == "insolvent" and all(insolvent)
+    assert _econ(world).counters["closed_insolvent"] == 1 and payroll.counters["owed_written_off"] > 0
+
+
+@pytest.mark.parametrize("mode", ["market", "free_inputs"])
+def test_no_customers_close_the_firm_idle_in_both_modes(mode):
+    """No customer at all (payroll ``no_customer``): the firm reserves this
+    turn's wages before it buys inputs in both modes, so its crew shrinks with
+    its cash and it closes idle once it can buy nothing (free_inputs pays no
+    inputs, so it lasts longer)."""
+    world = _world(mode=mode, payroll="no_customer", treasury=(400, 1000))
+    world.prices = {"raw_material": 3.0, "craft": 2.0}
+    sim = FakeSim(crew=tuple(range(10, 18)))
+    _build(world, sim)
+    state, payroll = _econ(world), world.livelihoods.workshop_payroll
+    turns = 0
+    for _ in range(80):
+        _turn(world, sim)
+        _check_turn(world)
+        turns += 1
+        if payroll.frame:
+            assert "no_customer_mode" in _receipt(world).customer_absent
+        if not payroll.firms:
+            break
+    assert not payroll.firms and payroll.closed[-1].closed_reason == "idle"
+    assert state.counters["closed_idle"] == 1 and payroll.counters.get("owed_written_off", 0) == 0
+    world.closing_turns = turns
+
+
+def test_a_firm_whose_city_has_no_crew_counts_idle_and_closes():
+    world = _world()
+    sim = FakeSim(adults=(), children=())
+    _build(world, sim)
+    sim.dead |= set(sim.crew)                     # every eligible farmer dies
+    for _ in range(E.IDLE_CLOSE_AFTER + 2):
+        _turn(world, sim)
+        if not world.livelihoods.workshop_payroll.firms:
+            break
+    payroll = world.livelihoods.workshop_payroll
+    assert payroll.closed[-1].closed_reason == "idle"
+    assert _econ(world).log[-1].kind in ("closed", "opening_refused")
+
+
+def test_a_closed_firms_city_is_never_readmitted_beyond_l1s_closed_list():
+    """M1: L1 keeps only eight closed sites; A3 keeps every closed firm's city
+    and L1 never readmits it while A3 is active (no second capital there)."""
+    from chronicler.workshops_state import WorkshopSite
+    world = _world()
+    world.prices = {"raw_material": 1e6, "craft": 2.0}
+    sim = FakeSim(adults=(), children=())
+    _build(world, sim)
+    state, ws = _econ(world), world.livelihoods.workshops
+    for _ in range(E.IDLE_CLOSE_AFTER + 2):
+        _turn(world, sim)
+        if not world.livelihoods.workshop_payroll.firms:
+            break
+    assert state.closed_settlements == [1] and ws.closed[-1].closed_reason == "idle"
+    capital = state.counters["capital_paid"]
+    # Eight more closures rotate the city out of L1's own closed list.
+    for i in range(8):
+        ws.closed.append(WorkshopSite(site=100 + i, region=3, settlement_id=200 + i, city_name=f"X{i}",
+                                      selected_turn=1, status="closed", closed_turn=world.turn,
+                                      closed_reason="city_fell"))
+        del ws.closed[:-W.MAX_CLOSED]
+    assert all(site.settlement_id != 1 for site in ws.closed)
+    for _ in range(3):
+        _turn(world, sim)
+    assert not ws.sites and state.counters["capital_paid"] == capital
+    assert not world.livelihoods.workshop_payroll.firms
+    # Without A3 the same L1 state readmits the city (the L1 rule is unchanged).
+    world.livelihoods.workshop_economics.enabled = False
+    W.refresh_sites(world, ws)
+    assert [s.settlement_id for s in ws.sites] == [1]

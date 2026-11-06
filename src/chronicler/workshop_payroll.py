@@ -473,10 +473,6 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
             stock = float(region.stockpile.goods.get("crafts", 0.0))
             basis = max(0.0, stock - float(commitments.get(region.name, {}).get("crafts", 0.0)))
             titled = max(0, min(math.floor(output * MILLI), math.floor(basis * MILLI), INVENTORY_CAP - held))
-        if economics is not None:                 # A3: title only the output share the firm pays for
-            cap = economics.settle_inputs(world, receipt, economy_result)
-            if cap is not None:
-                titled = min(titled, cap)
         plans.append((receipt, share, output, basis, titled, order))
         rows.extend((aid, share) for aid in receipt.crew)
     if rows:
