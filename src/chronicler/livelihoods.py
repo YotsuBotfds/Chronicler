@@ -308,8 +308,9 @@ _HELP = {
         "record_only: the control that computes the pilot and the would-be title and changes nothing"
     ),
     "household_retail_boundary": (
-        "market (default): each ruler's capital region, sticky; paid_work: regions that have had an "
-        "open workshop firm or a paid repair crew, sticky; all: every controlled region (stress)"
+        "market (default): each ruler's capital region, sticky; paid_work: regions where paid work has "
+        "been done (an open workshop firm, a paid repair or granary crew, or the home of a paid "
+        "woodcutting crew), sticky; all: every controlled region (stress)"
     ),
 }
 
