@@ -1,7 +1,12 @@
-"""B1 (S1-A): a conserved water account on the drainage graph (``--watershed``, default off).
+"""A conserved water account on the drainage graph (``--watershed``, default off).
 
-``--watershed`` with ``--watershed-mode record_only`` (the only mode of this
-slice; see :mod:`chronicler.livelihoods`). docs/integration/watershed.md.
+``--watershed-mode record_only`` (B1, S1-A, the default) records the account
+beside the water index and changes nothing; ``--watershed-mode flow`` (B2)
+makes the derived index the index the simulation uses, replacing (never
+stacking on) the native water climate terms, the irrigation water bonus and
+the downstream deforestation cascade, and lets the account's floods act
+(native ecology only). See :mod:`chronicler.livelihoods` and
+docs/integration/watershed.md.
 
 Graph. Built once at enable from the world's saved procedural geography
 (``world.geography``, ``Region.geo``): a coastal region drains to the sea

@@ -1,4 +1,4 @@
-"""B1 (S1-A) watershed account (``--watershed``, mode ``record_only``), offline.
+"""Watershed account (``--watershed``): B1 (S1-A) ``record_only`` and B2 ``flow``, offline.
 
 docs/integration/watershed.md. The pure-Python ecology fallback runs the
 tick here (no extension). Acceptance cases from the program-B audit's S1-A
@@ -11,7 +11,12 @@ upstream/downstream trade-off), floods and droughts with their recorded
 conditions, record_only changing nothing outside its state and drawing no
 randomness, a turn settling once, the transient plan's reset, the dated
 record, registry and catalog entries, refusals of a switch change on resume
-and an exact checkpoint resume equal to the straight run.
+and an exact checkpoint resume equal to the straight run. B2 (``flow``): the
+replaced native terms switched off once through the seam, refusals (no native
+ecology, the Python fallback, a stale baseline, a mode change on resume), the
+derived index written and floods acting through existing fields, the river
+flood superseded with its draws kept, and the untouched state of the
+replaced terms.
 """
 from __future__ import annotations
 

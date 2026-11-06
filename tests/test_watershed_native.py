@@ -7,8 +7,8 @@ config (harvest-shock water), must leave it as it is: the index observed after
 the tick equals the derived one up to the native rounding (4 decimals), in
 both native paths (``AgentSimulator`` with ``--agents hybrid``,
 ``EcologySimulator`` with ``--agents off``), while ``record_only`` shows the
-old terms acting. A flow run resumes exactly from a checkpoint.
-docs/integration/watershed.md.
+old terms acting. A flow run resumes exactly from a checkpoint. See
+docs/integration/watershed.md, section 4.
 """
 from __future__ import annotations
 
