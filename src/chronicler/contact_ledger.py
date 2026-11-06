@@ -288,11 +288,13 @@ def observe_phase2(world, routes: list[tuple[str, str]], agent_bridge=None) -> N
             return
         batch = sim.get_pending_arrivals()
         if batch.num_rows == 0:
+            _quarantine_deliveries(world, ())
             return
         cols = [batch.column(c).to_pylist() for c in ("source_region", "dest_region", "qty")]
         for src, dst, qty in zip(*cols):
             if 0 <= src < n_regions and 0 <= dst < n_regions and src != dst and qty > 0:
                 pending.append((int(src), int(dst), TRADE, float(qty)))
+        _quarantine_deliveries(world, zip(*cols))
         return
 
     from chronicler.maritime import ledger_trade_adjuster
@@ -304,6 +306,14 @@ def observe_phase2(world, routes: list[tuple[str, str]], agent_bridge=None) -> N
             if value <= 0:
                 continue
         pending.append((src, dst, TRADE, value))
+
+
+def _quarantine_deliveries(world, rows) -> None:
+    """--quarantine-mode: count deliveries that still crossed a closed pair
+    (chronicler.quarantine_rules; nothing without such rules)."""
+    if getattr(getattr(world, "epidemics", None), "quarantine_rules", None) is not None:
+        from chronicler.quarantine_rules import observe_deliveries
+        observe_deliveries(world, rows)
 
 
 def off_mode_trade_rows(world, routes: list[tuple[str, str]]) -> list[tuple[int, int, float]]:

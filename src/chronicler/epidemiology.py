@@ -35,7 +35,8 @@ Second-order effects
     in agent modes with the depth and duration of the food shortage, in the
     aggregate model while a famine report's cooldown runs;
     states facing a foreign epidemic close their borders (quarantine cuts
-    foreign imports and costs treasury); epidemic deaths leave a decaying
+    foreign imports and costs treasury; ``--quarantine-mode`` instead closes
+    the trade it restricts, ``chronicler.quarantine_rules``); epidemic deaths leave a decaying
     labour scarcity that eases popular immiseration in the governance PSI.
     A civ whose regions fall sick suffers a ``plague`` outbreak exactly as the
     hazard plague did (stability, ``plague`` condition, hazard cascade).
@@ -52,6 +53,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
+
+from chronicler.quarantine_rules import QuarantineRulesState, _is_none as _no_rules
 
 if TYPE_CHECKING:  # pragma: no cover
     from chronicler.models import Event, WorldState
@@ -226,6 +229,9 @@ class EpidemicState(BaseModel):
     scarcity: list[tuple[int, float]] = Field(default_factory=list)  # (civ index, decayed share)
     last_deaths: list[tuple[int, int, int]] = Field(default_factory=list)  # (region, pathogen, deaths)
     deaths_total: int = 0
+    # --quarantine-mode (chronicler.quarantine_rules); None = the legacy rule.
+    # Omitted from output while None; read with getattr (older pickles lack it).
+    quarantine_rules: QuarantineRulesState | None = Field(default=None, exclude_if=_no_rules)
 
 
 # ---------------------------------------------------------------------------
@@ -607,7 +613,12 @@ def _introduce(world, state: EpidemicState, rows: dict, mods: list) -> None:
     regions = world.regions
     n_regions = len(regions)
     homelands = set(state.homelands)
-    quarantined = {world.civilizations[c].name for c in state.quarantine if c < len(world.civilizations)}
+    # The legacy rule multiplies foreign pressure into quarantined states. Under
+    # --quarantine-mode (quarantine_rules) no multiplier applies: a closure acts
+    # only through the contacts it stops (no second cut on the same exposure).
+    legacy = getattr(state, "quarantine_rules", None) is None
+    quarantined = {world.civilizations[c].name for c in state.quarantine
+                   if c < len(world.civilizations)} if legacy else set()
     from chronicler.techniques_state import techniques_on
     efficacy = {name: QUARANTINE_EFFICACY for name in quarantined}
     if techniques_on(world):
@@ -1005,6 +1016,11 @@ def _decide_quarantine(world, state: EpidemicState, reports: dict, acc) -> list[
     from chronicler.models import Event
     from chronicler.utils import civ_index
 
+    rules = getattr(state, "quarantine_rules", None)
+    if rules is not None:
+        # --quarantine-mode: targeted, dated closures of this turn's journeys.
+        from chronicler.quarantine_rules import decide
+        return decide(world, state, rules, reports, acc)
     events: list[Event] = []
     regions = world.regions
     if not cl.ledger_enabled(world):
@@ -1081,7 +1097,23 @@ def snapshot_summary(world) -> dict:
                        if c < len(world.civilizations)],
         "strains": {p.name: state.strains[k] for k, p in enumerate(PATHOGENS)
                     if k < len(state.strains) and state.strains[k]},
+        # --quarantine-mode only (absent under the legacy rule).
+        **_quarantine_rules_summary(world),
     }
+
+
+def _quarantine_rules_summary(world) -> dict:
+    if getattr(world.epidemics, "quarantine_rules", None) is None:
+        return {}
+    from chronicler.quarantine_rules import snapshot_summary as quarantine_summary
+    return {"quarantine_rules": quarantine_summary(world)}
+
+
+def _quarantine_rules_metrics(series: list[dict]) -> dict:
+    """--quarantine-mode runs: closure counters (nothing for legacy runs)."""
+    from chronicler.quarantine_rules import extract_metrics
+    metrics = extract_metrics(series)
+    return {} if metrics is None else {"quarantine_rules": metrics}
 
 
 def extract_epidemic_metrics(bundles: list[dict]) -> dict:
@@ -1114,6 +1146,7 @@ def extract_epidemic_metrics(bundles: list[dict]) -> dict:
             "peak_prevalence": round(peak, 4),
             "regions_affected": len(regions),
             "quarantine_turns": sum(len(s["quarantine"]) for s in series),
+            **_quarantine_rules_metrics(series),
         })
     if not runs:
         return {}
