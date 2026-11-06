@@ -203,12 +203,10 @@ that the labour cost is zero.
 - **Primary:** granary-crew wages paid to named members (`recovery_crews.granary_wages_milli`,
   coins).
 - Granary coins sunk; RS2 workshop-crew wages (paid in both modes); mean granary
-  condition (run mean and at end; expected nearly unchanged); veterans placed on
-  recovery crews.
+  condition (run mean and at end; expected nearly unchanged).
 - RC_unpaid − RP: granary and workshop condition (the named crews' labour limit and the
   wider workshop pool).
-- Note: RC has no `--veteran-reintegration`, so veterans placed on its crews are
-  structurally 0; veterans are measured in CH − CH_rec.
+- RC carries no `--veteran-reintegration`; veterans are measured only in CH − CH_rec.
 
 ### MO − MO_ro: the maintenance obligation
 
@@ -314,18 +312,17 @@ None yet. Any change to the arms, outcomes, analysis or budget after the lead fr
 this file is recorded here as a dated amendment with its reason, and only before the
 first held run.
 
-## Open questions for the lead
+## Lead decisions (2026-11-06, before freezing)
 
-- Primary condition measures use the run mean; sprint 3 used the end-of-run value. Both
-  are reported; confirm which is primary before freezing.
-- RC carries no `--veteran-reintegration`, so its veteran outcome is structurally 0
-  (0 in both pilot worlds, as expected). Add RS3 to RC and RC_unpaid, or drop that
-  outcome; veterans are measured in CH − CH_rec either way.
-- `no_envelope` and `no_timber` stalls are any-reason counts (above). If the
-  primary-reason count is wanted for comparison with the PL3 page, it can be derived
-  from the dated RS2 receipts; decide before freezing.
-- The food-cost outcome (above) is this lane's proposal.
-- A held run interrupted by a container restart can be finished with `run --resume` on
-  the same source and extension (the incomplete-run rule above); confirm that rule.
-- The held run should use an extension built from the frozen commit's Rust; the pilot
-  used `fdcb0ca0…` (PL1's build). Any later Rust change needs a fresh build.
+- **Condition primaries use the run mean** over all 200 turns; the end-of-run value is
+  reported beside it. A single end-of-run snapshot of a repair sawtooth is noisy (D2).
+- **RC's veteran outcome is dropped**: RC carries no RS3. Veterans are measured in
+  CH − CH_rec.
+- **Stall counts are any-reason counts**, as the counters define them; a stalled turn
+  that carries several reasons counts under each. No primary-reason count is derived.
+- **Food cost**: the lane's proposal (above) is adopted, with its stated limits.
+- **Incomplete runs**: a held run interrupted by a restart is finished with
+  `run --resume` on the same source and extension (checked by `source.txt`); strata
+  still incomplete when the budget is spent are reported as incomplete.
+- **Extension**: the held run uses an extension whose Rust equals the frozen commit's
+  Rust, verified by the source identity recorded in `source.txt`.

@@ -638,7 +638,6 @@ PAIRED = [
  ("RC RS2 workshop-crew wages, coins (RC - RC_unpaid)", "RC", "RC_unpaid", lambda r: _coins(_c(r, "repair_projects", "wages_milli"))),
  ("RC granary mean condition, run mean (RC - RC_unpaid; expected near zero)", "RC", "RC_unpaid", _GR),
  ("RC granary mean condition at end (RC - RC_unpaid)", "RC", "RC_unpaid", _GE),
- ("RC veterans placed on recovery crews (RC - RC_unpaid; structurally 0 without RS3)", "RC", "RC_unpaid", lambda r: _c(r, "recovery_crews", "veterans_placed")),
  ("RC_unpaid granary mean condition, run mean (RC_unpaid - RP; named crews' labour limit)", "RC_unpaid", "RP", _GR),
  ("RC_unpaid workshop mean condition, run mean (RC_unpaid - RP; the wider workshop pool)", "RC_unpaid", "RP", _WR),
  # MO - MO_ro: the maintenance obligation against its crowding-out control.
