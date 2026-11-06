@@ -5,6 +5,7 @@ import {
 } from "../../lib/systems";
 import { StatTile, StripLegend, SystemEventList, TurnStrip } from "./SystemParts";
 import { HealthCare } from "./HealthCare";
+import { QuarantineRules } from "./QuarantineRules";
 import { observationEventKnown } from "../../lib/observedSystems";
 
 export function EpidemicsPanel({
@@ -19,6 +20,7 @@ export function EpidemicsPanel({
   const at = snapshot?.turn ?? currentTurn;
   const events = eventsOfTypes(bundle.events_timeline, SYSTEM_EVENT_TYPES.epidemics, currentTurn)
     .filter((event) => observationEventKnown(event, at - 1));
+  const epidemicsRecorded = useMemo(() => history.some((entry) => entry.epidemics !== undefined), [history]);
 
   return (
     <div className="systems-panel-body" aria-label="Epidemics">
@@ -34,6 +36,7 @@ export function EpidemicsPanel({
       ) : (
         <div className="phase75-empty-state">No epidemiology record at turn {at}.</div>
       )}
+      {epidemicsRecorded && <QuarantineRules epidemics={epidemics} at={at} />}
 
       <div className="systems-columns">
         <div className="systems-stack">

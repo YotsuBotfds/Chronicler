@@ -95,6 +95,21 @@ describe("EpidemicsPanel", () => {
     render(<EpidemicsPanel {...props(fixture, at(1))} />);
     expect(screen.getByText("No reportable outbreak at turn 1.")).toBeInTheDocument();
   });
+
+  it("labels a run without quarantine rules as the legacy multiplier and a missing record as unknown", () => {
+    render(<EpidemicsPanel {...props()} />);
+    expect(within(screen.getByRole("region", { name: "Quarantine rule at turn 120" }))
+      .getByText("Legacy multiplier")).toBeInTheDocument();
+    cleanup();
+    const gap: TurnSnapshot = { ...LAST };
+    delete gap.epidemics;
+    render(<EpidemicsPanel {...props(fixture, gap)} />);
+    expect(within(screen.getByRole("region", { name: "Quarantine rule at turn 120" }))
+      .getByText(/Unknown: there is no epidemiology record/)).toBeInTheDocument();
+    cleanup();
+    render(<EpidemicsPanel {...props(without(fixture, "epidemics"), null)} />);
+    expect(screen.queryByRole("region", { name: /Quarantine rule/ })).toBeNull();
+  });
 });
 
 describe("FinancePanel", () => {
