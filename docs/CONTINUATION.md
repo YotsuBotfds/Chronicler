@@ -28,7 +28,11 @@
   fixed: resume run header, set sizes and coverage reported, rc-3 wording, RS2 workshop wages
   dropped by the examples under PL3, link-3 cause, drawdown label, a vacuous test, a sample
   double count); the results write-up (numbers exact; overstated readings corrected); the
-  viewer (below).
+  chain view (no blocker; fixed with tests: a store attribution claimed when the store held
+  nothing, PL3 workshop crews' farm time left out, unknown receipts or provisioning counted
+  as recorded, totals not marked "at least", empty crews shown as paid rows, members counted
+  as paid with a zero wage, the turn order of wages and purchases, and an unguarded QA
+  output delete).
 - **Held screens** (cohort 3, template 721–726, procedural 821–826, frozen at `5dd03207`
   before running): 72 runs, 0 failed, 0.33 core-hours.
   - **Timber matters in procedural worlds**: `CH − CH_cut` granary run mean +0.028 t (4/0/2,
