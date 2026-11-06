@@ -87,6 +87,26 @@ def _assert_frames_close(records) -> None:
             assert f["open_milli"] + signed == f["close_milli"] == sum(f["goods_close"])
 
 
+def test_a_refusal_in_an_asyncio_task_reaches_its_caller(monkeypatch):
+    """Review A5, finding 4: ``asyncio.run`` raises the refusal to its caller
+    as the ``ValueError`` it is (a ``SystemExit`` would be taken for a shutdown).
+    Here, not offline: an event loop needs a socket pair."""
+    import asyncio
+    from chronicler.livelihoods import LivelihoodsRefusal, configure_livelihoods
+    from chronicler.main import _build_parser
+    from tests.test_household_retail import VERDANT, Harness, _people
+    monkeypatch.setattr(sys, "excepthook", sys.__excepthook__)
+    h = Harness(retail=False)
+    _people(h, VERDANT, (1, 2), wealth=0.0)
+    h.turn({VERDANT: {"grain": 6.0}})
+
+    async def configure():
+        configure_livelihoods(h.world, _build_parser().parse_args([]), agent_mode="off")
+    with pytest.raises(LivelihoodsRefusal) as refused:
+        asyncio.run(configure())
+    assert isinstance(refused.value, ValueError) and not isinstance(refused.value, SystemExit)
+
+
 if READY:
 
     def test_a_legacy_state_file_resume_with_hybrid_settles_every_resumed_turn(tmp_path, monkeypatch):

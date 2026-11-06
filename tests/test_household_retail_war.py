@@ -701,10 +701,11 @@ def test_a_legacy_resume_of_a_saved_retail_world_without_hybrid_exits_without_a_
     assert err.startswith("Traceback") and err.rstrip().endswith("ValueError: another")
 
 
-def test_a_refusal_in_a_thread_or_task_is_an_ordinary_error(monkeypatch):
+def test_a_refusal_in_a_thread_or_coroutine_is_an_ordinary_error(monkeypatch):
     """Review A5, finding 4: a thread reports the refusal (a ``SystemExit``
-    would end it silently) and asyncio raises it to its caller."""
-    import asyncio
+    would end it silently) and a coroutine raises it to whoever drives it.
+    (An asyncio event loop needs a socket pair, which the offline guard
+    forbids: ``test_household_retail_war_native.py`` runs ``asyncio.run``.)"""
     import threading
     monkeypatch.setattr(sys, "excepthook", sys.__excepthook__)
     h = Harness(retail=False)
@@ -719,8 +720,10 @@ def test_a_refusal_in_a_thread_or_task_is_an_ordinary_error(monkeypatch):
 
     async def configure():
         configure_livelihoods(h.world, parse([]), agent_mode="off")
-    with pytest.raises(LivelihoodsRefusal):
-        asyncio.run(configure())
+    task = configure()
+    with pytest.raises(LivelihoodsRefusal) as refused:
+        task.send(None)
+    assert not isinstance(refused.value, SystemExit)
 
 
 def test_a_live_lobby_resume_refused_by_a_saved_switch_reopens_the_lobby(tmp_path, monkeypatch):
