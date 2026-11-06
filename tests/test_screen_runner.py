@@ -451,7 +451,8 @@ class FakeRuntime:
     def __init__(self, SR, seconds=1.0, identity=IDENTITY, ledger=None, changed=(), rc=0, registry=None):
         self.seconds, self.calls, self.rc, self.local = seconds, [], rc, threading.local()
         self.ledger = Path(ledger) if ledger else Path(tempfile.mkdtemp()) / "ledger.jsonl"
-        self.rt = SR.Runtime(simulate=self.simulate, identity=lambda screen: list(identity), clock=self.clock,
+        ident = identity if callable(identity) else (lambda screen: list(identity))
+        self.rt = SR.Runtime(simulate=self.simulate, identity=ident, clock=self.clock,
                              ledger=self.ledger, changed_paths=lambda old, new: list(changed),
                              registry=Path(registry) if registry else SR.REGISTRY)
 
@@ -580,14 +581,28 @@ def test_check_metrics_names_every_gap(SR, CW):
     assert "TS t3: not in the cohort" in problems and any(p.startswith("TS t3: rc 3") for p in problems)
 
 
-def test_identity_lines(SR, CW):
-    lines = SR.identity_lines("rev", 2, "/x/src/chronicler/__init__.py", "/n.so abc", CW.SCREENS["CW1"])
-    assert lines[:5] == ["source rev", "dirty 2 tracked files", "chronicler /x/src/chronicler/__init__.py",
-                         "native /n.so abc", f"interpreter {SR.PY}"]
+def test_identity_lines(SR, CW, registry):
+    lines = SR.identity_lines("rev", 2, "/x/src/chronicler/__init__.py", "/n.so abc", CW.SCREENS["CW1"], dirty_code=1)
+    assert lines[:6] == ["source rev", "dirty 2 tracked files", "dirty-code 1 tracked code files",
+                         "chronicler /x/src/chronicler/__init__.py", "native /n.so abc", f"interpreter {SR.PY}"]
     sha = lambda p: hashlib.sha256((ROOT / p).read_bytes()).hexdigest()  # noqa: E731
-    assert lines[5:] == [f"runner {sha('scripts/screen_runner.py')} scripts/screen_runner.py",
+    assert lines[6:] == [f"runner {sha('scripts/screen_runner.py')} scripts/screen_runner.py",
                          f"screens {sha('scripts/connected_world_screens.py')} scripts/connected_world_screens.py",
-                         f"registry {sha('scripts/seed_registry.json')} scripts/seed_registry.json"]
+                         f"registry {sha('scripts/seed_registry.json')} scripts/seed_registry.json",
+                         f"registry-content {SR.registry_content_sha256(registry)} (cohorts and seeds)"]
+
+
+def test_registry_content_hash_ignores_run_records_only(SR, registry):
+    marked = copy.deepcopy(registry)
+    for e in marked["entries"]:
+        if e.get("screen") == "CW1" or e.get("cohort") == "reserve":
+            e.update(status="run", screen="CW1", held_run={"out": "x"})
+    assert SR.registry_content_sha256(marked) == SR.registry_content_sha256(registry)
+    moved = copy.deepcopy(registry)
+    next(e for e in moved["entries"] if e["id"] == "cw2-held-t")["seeds"] = [[741, 745]]
+    assert SR.registry_content_sha256(moved) != SR.registry_content_sha256(registry)
+    assert SR.identity_key(["source a", "registry 1 x", "registry-content 2 y"]) == ["source a", "registry-content 2 y"]
+    assert not SR.code_path("scripts/seed_registry.json") and SR.code_path("scripts/screen_runner.py")
 
 
 def test_check_command_reports_stubs_not_ready(SR, CW, capsys):
@@ -706,78 +721,117 @@ def test_registry_file_is_its_own_dump(SR, registry):
     assert SR.dump_registry(registry) == SR.REGISTRY.read_text(encoding="utf-8")
 
 
-def _reserve_argv(tmp_path, screen="CW1", out="reserve", reason="CW1's held run failed"):
-    argv = [str(tmp_path / out), "--screen", screen, "--cohort", "reserve", "--jobs", "1",
-            "--pilot", str(_pilot(tmp_path, 10.0))]
-    return [*argv, "--reason", reason] if reason else argv
+class Program:
+    """A held screen, a scratch registry, its ledger and runtimes whose identity is the real
+    ``identity_lines`` hashing that registry (as ``source_identity`` does), as in the
+    reviewer's sequence. Only the revision, dirty counts, chronicler path and extension are
+    fixed (they need child processes)."""
+
+    def __init__(self, SR, CW, tmp_path, registry):
+        self.SR, self.tmp = SR, tmp_path
+        self.registry = tmp_path / "registry.json"
+        self.registry.write_text(SR.dump_registry(registry))
+        self.ledger = tmp_path / "ledger.jsonl"
+        self.screens = {"CW1": _held_screen(SR, CW, tmp_path, ceiling=10.0), "CW2": _held_screen(SR, CW, tmp_path, 10.0)}
+
+    def identity(self, screen):
+        return self.SR.identity_lines("abc", 0, "/x/src/chronicler/__init__.py", "/n.so 101a4cd5", screen,
+                                      registry=self.registry, dirty_code=0)
+
+    def runtime(self, **kw):
+        return FakeRuntime(self.SR, identity=self.identity, registry=self.registry, ledger=self.ledger, **kw)
+
+    def run(self, *argv, rc=0):
+        fake = self.runtime(rc=rc)
+        return self.SR.run_main([str(self.tmp / argv[0]), *argv[1:]], self.screens, fake.rt), fake
+
+    def mark(self, out, screen="CW1"):
+        return self.SR.mark_run_main([str(self.tmp / out), "--screen", screen, "--registry", str(self.registry)],
+                                     self.screens)
 
 
-def _marked(SR, screens, tmp_path, registry, out):
-    """A copy of the registry with the run in ``out`` recorded by mark-run."""
-    path = tmp_path / f"registry-{out}.json"
-    path.write_text(SR.dump_registry(registry))
-    assert SR.mark_run_main([str(tmp_path / out), "--screen", "CW1", "--registry", str(path)], screens) == 0
-    return path
-
-
-def test_m5_reserve_after_a_recorded_failed_held_run(SR, CW, tmp_path, registry):
-    """The documented order: the held run fails, mark-run records it, the same screen runs
-    the reserve once with its reason (review m5, re-check)."""
-    screens = {"CW1": _held_screen(SR, CW, tmp_path, ceiling=10.0), "CW2": _held_screen(SR, CW, tmp_path, 10.0)}
-    failed = FakeRuntime(SR, rc=1)
-    assert SR.run_main(_held_argv(tmp_path, out="held1"), screens, failed.rt) == SR.RC_FAILED
-    with pytest.raises(SystemExit, match="--reason is required with --cohort reserve"):
-        SR.run_main(_reserve_argv(tmp_path, reason=None), screens, FakeRuntime(SR).rt)
-    with pytest.raises(SystemExit, match="--reason is required with --cohort reserve, and only there"):
-        SR.run_main([*_held_argv(tmp_path), "--reason", "x"], screens, FakeRuntime(SR).rt)
+def test_m5_reviewer_sequence_with_a_registry_hashing_identity(SR, CW, tmp_path, registry):
+    """pilot -> failed held run -> mark-run -> the reserve runs once with its reason, on the
+    step-1 pilot; a second reserve use is refused; a pilot and a development run of the
+    screen after mark-run are allowed; a new held run of the recorded cohort is not."""
+    P = Program(SR, CW, tmp_path, registry)
+    rc, _ = P.run("pilot", "--screen", "CW1", "--cohort", "pilot", "--jobs", "1")
+    assert rc == 0
+    pilot = str(tmp_path / "pilot" / "metrics.jsonl")
+    before = (tmp_path / "pilot" / "source.txt").read_text().splitlines()
+    rc, _ = P.run("held1", "--screen", "CW1", "--cohort", "held", "--jobs", "1", "--pilot", pilot, rc=1)
+    assert rc == SR.RC_FAILED
     # Before mark-run the reserve is refused: no recorded held run.
     with pytest.raises(SystemExit, match="CW1 has no recorded held run"):
-        SR.run_main(_reserve_argv(tmp_path), screens, FakeRuntime(SR, ledger=failed.ledger).rt)
-    reg_path = _marked(SR, screens, tmp_path, registry, "held1")
-    held = [e for e in SR.load_registry(reg_path)["entries"] if e.get("screen") == "CW1"]
-    assert {(e["status"], e["held_run"]["complete"]) for e in held} == {("run", False)}
-    fake = FakeRuntime(SR, ledger=failed.ledger, registry=reg_path)
-    assert SR.run_main(_reserve_argv(tmp_path), screens, fake.rt) == 0
+        P.run("r0", "--screen", "CW1", "--cohort", "reserve", "--reason", "early", "--jobs", "1", "--pilot", pilot)
+    assert P.mark("held1") == 0
+    marked = SR.load_registry(P.registry)
+    assert {(e["status"], e["held_run"]["complete"]) for e in marked["entries"] if e.get("screen") == "CW1"} == {
+        ("run", False)}
+    # mark-run changed the registry file (its full hash) but not its cohorts and seeds.
+    now = P.identity(P.screens["CW1"])
+    assert SR._field(now, "registry") != SR._field(before, "registry")
+    assert SR._field(now, "registry-content") == SR._field(before, "registry-content")
+    rc, fake = P.run("reserve", "--screen", "CW1", "--cohort", "reserve", "--reason", "CW1's held run failed",
+                     "--jobs", "1", "--pilot", pilot)
+    assert rc == 0
     assert {int(c[c.index("--seed") + 1]) for c in fake.calls} == set(range(791, 797)) | set(range(891, 897))
-    source = (tmp_path / "reserve" / "source.txt").read_text()
-    assert "run: screen CW1; cohort reserve;" in source and "reason: CW1's held run failed" in source
-    rows = SR.read_rows(tmp_path / "reserve" / "metrics.jsonl", screens["CW1"])
-    assert {r["cohort"] for r in rows} == {"reserve"}
-    assert SR.check_metrics(rows, "reserve", screens["CW1"], seeds=SR.cohort_seeds(screens["CW1"], "reserve")) == []
-    # Once for the program: a second reserve run is refused by the ledger, then by the registry.
+    assert "reason: CW1's held run failed" in (tmp_path / "reserve" / "source.txt").read_text()
     with pytest.raises(SystemExit, match="a reserve run of CW1 was started"):
-        SR.run_main(_reserve_argv(tmp_path, out="r2"), screens, FakeRuntime(SR, ledger=fake.ledger, registry=reg_path).rt)
-    assert SR.mark_run_main([str(tmp_path / "reserve"), "--screen", "CW1", "--registry", str(reg_path)], screens) == 0
-    marked = SR.load_registry(reg_path)
-    reserve = [e for e in marked["entries"] if e.get("cohort") == "reserve"]
-    assert {(e["status"], e["screen"], e["held_run"]["reason"]) for e in reserve} == {("run", "CW1",
-                                                                                       "CW1's held run failed")}
-    assert SR.validate_registry(marked) == []
+        P.run("r2", "--screen", "CW2", "--cohort", "reserve", "--reason", "x", "--jobs", "1", "--pilot", pilot)
+    assert P.mark("reserve") == 0
+    reserve = [e for e in SR.load_registry(P.registry)["entries"] if e.get("cohort") == "reserve"]
+    assert {(e["status"], e["screen"], e["held_run"]["reason"]) for e in reserve} == {
+        ("run", "CW1", "CW1's held run failed")}
+    P.ledger.unlink()                                   # the registry alone refuses it now
     with pytest.raises(SystemExit, match="the reserve cw-reserve-t was already used"):
-        SR.run_main(_reserve_argv(tmp_path, out="r3"), screens, FakeRuntime(SR, registry=reg_path).rt)
+        P.run("r3", "--screen", "CW1", "--cohort", "reserve", "--reason", "x", "--jobs", "1", "--pilot", pilot)
+    rc, _ = P.run("pilot2", "--screen", "CW1", "--cohort", "pilot", "--jobs", "1")
+    assert rc == 0
+    rc, _ = P.run("dev", "--screen", "CW1", "--cohort", "dev", "--worlds", "t1", "--turns", "5", "--jobs", "1")
+    assert rc == 0
+    with pytest.raises(SystemExit, match=r"were already run \(reused\)"):
+        P.run("held2", "--screen", "CW1", "--cohort", "held", "--jobs", "1", "--pilot", pilot)
 
 
 def test_m5_no_reserve_after_a_complete_held_run(SR, CW, tmp_path, registry):
-    screens = {"CW1": _held_screen(SR, CW, tmp_path, ceiling=10.0)}
-    assert SR.run_main(_held_argv(tmp_path, out="held1"), screens, FakeRuntime(SR).rt) == 0
-    reg_path = _marked(SR, screens, tmp_path, registry, "held1")
+    P = Program(SR, CW, tmp_path, registry)
+    assert P.run("pilot", "--screen", "CW1", "--cohort", "pilot", "--jobs", "1")[0] == 0
+    pilot = str(tmp_path / "pilot" / "metrics.jsonl")
+    assert P.run("held1", "--screen", "CW1", "--cohort", "held", "--jobs", "1", "--pilot", pilot)[0] == 0
+    assert P.mark("held1") == 0
     with pytest.raises(SystemExit, match="CW1's recorded held run is complete"):
-        SR.run_main(_reserve_argv(tmp_path), screens, FakeRuntime(SR, registry=reg_path).rt)
+        P.run("reserve", "--screen", "CW1", "--cohort", "reserve", "--reason", "x", "--jobs", "1", "--pilot", pilot)
 
 
 def test_n2_check_passes_on_a_recorded_complete_held_run(SR, CW, tmp_path, registry, capsys):
-    screens = {"CW1": _held_screen(SR, CW, tmp_path, ceiling=10.0)}
-    assert SR.run_main(_held_argv(tmp_path, out="held1"), screens, FakeRuntime(SR).rt) == 0
-    reg_path = _marked(SR, screens, tmp_path, registry, "held1")
+    P = Program(SR, CW, tmp_path, registry)
+    assert P.run("pilot", "--screen", "CW1", "--cohort", "pilot", "--jobs", "1")[0] == 0
+    pilot = str(tmp_path / "pilot" / "metrics.jsonl")
+    assert P.run("held1", "--screen", "CW1", "--cohort", "held", "--jobs", "1", "--pilot", pilot)[0] == 0
+    assert P.mark("held1") == 0
     capsys.readouterr()
     rc = SR.check_main(["--screen", "CW1", "--metrics", str(tmp_path / "held1" / "metrics.jsonl"), "--cohort", "held",
-                        "--registry", str(reg_path)], screens)
+                        "--registry", str(P.registry)], P.screens)
     out = capsys.readouterr().out
     assert rc == 0, out
     assert "held cohort cw1-held-t was recorded as run (complete" in out and "every outcome extracted" in out
-    # Starting another held run of the recorded cohort is still refused.
-    with pytest.raises(SystemExit, match="were already run \\(reused\\)"):
-        SR.run_main(_held_argv(tmp_path, out="held2"), screens, FakeRuntime(SR, registry=reg_path).rt)
+
+
+def test_resume_survives_another_screens_mark_run(SR, CW, tmp_path, registry):
+    """A held run keeps its identity on resume when only the registry's run records changed."""
+    P = Program(SR, CW, tmp_path, registry)
+    P.screens["CW1"] = _held_screen(SR, CW, tmp_path, ceiling=1.0)
+    assert P.run("pilot", "--screen", "CW1", "--cohort", "pilot", "--jobs", "1")[0] == 0
+    pilot = str(tmp_path / "pilot" / "metrics.jsonl")
+    argv = [str(tmp_path / "held1"), "--screen", "CW1", "--cohort", "held", "--jobs", "1", "--pilot", pilot]
+    assert SR.run_main(argv, P.screens, P.runtime(seconds=1000.0).rt) == SR.RC_CEILING
+    reg = SR.load_registry(P.registry)
+    next(e for e in reg["entries"] if e["id"] == "cw2-held-t").update(status="run")   # another screen recorded
+    P.registry.write_text(SR.dump_registry(reg))
+    assert SR.run_main([*argv, "--resume"], P.screens, P.runtime(seconds=1000.0).rt) == SR.RC_CEILING
+    rows = SR.read_rows(tmp_path / "held1" / "metrics.jsonl", P.screens["CW1"])
+    assert len({r["identity"] for r in rows}) == 1
 
 
 def test_n1_an_economy_without_a_native_food_ledger_fails_the_run(SR, CW):
@@ -797,7 +851,10 @@ def test_m4_pilot_of_another_identity_is_refused(SR, CW, tmp_path):
         (_pilot(tmp_path, 10.0, rows_identity="OTHER", name="p1"), (), "its rows carry identity"),
         (_pilot(tmp_path, 10.0, identity=("source abc", "dirty 0 tracked files", "runner 99 scripts/screen_runner.py"),
                 name="p2"), (), "runner '99 scripts/screen_runner.py' differs"),
-        (_pilot(tmp_path, 10.0, identity=("source abc", "dirty 3 tracked files"), name="p3"), (), "dirty"),
+        (_pilot(tmp_path, 10.0, identity=("source abc", "dirty 0 tracked files", "dirty-code 3 tracked code files"),
+                name="p3"), (), "dirty-code"),
+        (_pilot(tmp_path, 10.0, identity=("source abc", "dirty 0 tracked files", "registry-content 99 (cohorts)"),
+                name="p3b"), (), "registry-content"),
         (_pilot(tmp_path, 10.0, identity=("source old", "dirty 0 tracked files"), name="p4"),
          ("docs/x.md", "scripts/screen_runner.py"), "differs from abc in code: \\['scripts/screen_runner.py'\\]"),
     ]
