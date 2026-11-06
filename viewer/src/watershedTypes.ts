@@ -1,6 +1,7 @@
 /**
- * The watershed record (`snapshot.livelihoods.watershed`, schema 1; stage B1
- * for mode `record_only`, B2 for mode `flow`):
+ * The watershed record (`snapshot.livelihoods.watershed`, schema 1; stage B1:
+ * mode `record_only`, the B1 shape; stage B2: mode `record_only` or `flow`,
+ * with flood events and terrain cap changes):
  * a conserved water account on the drainage graph of a procedural world,
  * written by `chronicler.watershed.snapshot_summary`. Values are rounded to
  * six decimals in the record; the full-precision account stays in the saved
@@ -20,23 +21,50 @@ export type WatershedColumn = typeof WATERSHED_COLUMNS[number];
 
 export type WatershedRegions = Record<WatershedColumn, number[]> & { drought_turns: number[] };
 
+/** B1: a region-turn above its channel. B2: a flood event's onset (arrivals cross the channel from below). */
 export interface WatershedFlood {
   turn: number;
   region: number;
   excess: number;
+  /** B2: precipitation + inflow; B1: precipitation + inflow + external_in. */
   arrivals: number;
   channel: number;
   precipitation: number;
   inflow: number;
-  external_in: number;
+  /** B1 only. */
+  external_in?: number;
   storage_open: number;
   capacity: number;
   /** [tributary region index, outflow it sent this turn]. */
   tributaries: Array<[number, number]>;
   upstream_cover: number | null;
   upstream_deforested: number;
-  /** Flow mode only: what the flood did through the existing fields. */
+  /** Flow mode only: what the flood did through the existing fields (absent when withheld). */
   consequence?: WatershedFloodConsequence;
+  /** Flow mode only: the disaster cooldowns the region held at onset, for which the consequence was withheld. */
+  withheld_by?: string[];
+}
+
+/** B2: an open flood event (it stays open while arrivals exceed the recession threshold). */
+export interface WatershedFloodEvent {
+  region: number;
+  start_turn: number;
+  turns: number;
+  peak_excess: number;
+  /** Ended events only. */
+  end_turn?: number;
+}
+
+/** B2: a terrain transition of the Phase 9 post-pass that changed the region's water-index cap. */
+export interface WatershedCapChange {
+  region: number;
+  source: "terrain_cap_change";
+  terrain_before: string;
+  terrain_after: string;
+  cap_before: number;
+  cap_after: number;
+  /** Flow only: the index the clamp removed (an outflow of the index, not of storage). */
+  index_out?: number;
 }
 
 export interface WatershedFloodConsequence {
@@ -133,6 +161,10 @@ export interface WatershedRecord {
   stale_baseline: boolean | null;
   regions: WatershedRegions | null;
   floods: WatershedFlood[] | null;
+  /** B2: open flood events and those that ended this turn. */
+  flood_events?: { open: WatershedFloodEvent[]; ended: WatershedFloodEvent[] } | null;
+  /** B2: terrain cap changes of this turn's post-pass. */
+  cap_changes?: WatershedCapChange[] | null;
   droughts: { declared: WatershedDrought[]; open: WatershedOpenDrought[]; ended: WatershedDrought[] } | null;
   external: WatershedExternal[] | null;
   totals: WatershedTotals | null;

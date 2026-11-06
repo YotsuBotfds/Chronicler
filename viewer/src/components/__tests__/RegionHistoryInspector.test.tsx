@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import fixture from "../../__fixtures__/region_inspection_bundle.json";
-import flowRecords from "../../__fixtures__/watershed_flow_records.json";
+import b2Records from "../../__fixtures__/watershed_b2_records.json";
 import type { Bundle } from "../../types";
 import { RegionHistoryInspector } from "../RegionHistoryInspector";
 
@@ -61,9 +61,9 @@ describe("RegionHistoryInspector", () => {
 
   it("explains the watershed history by the run's mode: in flow the derived index is the index used", () => {
     const flow = structuredClone(bundle);
-    flow.history = flowRecords.snapshots.map((s) => ({ ...structuredClone(bundle.history[0]), ...structuredClone(s),
+    flow.history = b2Records.flow.map((s) => ({ ...structuredClone(bundle.history[0]), ...structuredClone(s),
       region_control: {} })) as unknown as Bundle["history"];
-    flow.world_state.regions = flowRecords.regions.map((name) => ({ ...bundle.world_state.regions[0], name }));
+    flow.world_state.regions = b2Records.regions.map((name) => ({ ...bundle.world_state.regions[0], name }));
     flow.world_state.turn = 200;
     flow.metadata.total_turns = 200;
     render(<RegionHistoryInspector bundle={flow} currentTurn={1} onSeek={() => {}} />);

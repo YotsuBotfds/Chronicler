@@ -5,7 +5,9 @@ import {
 } from "../watershedTypes";
 
 /**
- * Strict reader of the watershed record (B1, `--watershed record_only`).
+ * Strict reader of the watershed record (`--watershed`): stage B1 (mode
+ * `record_only`, the B1 shape) and stage B2 (mode `record_only` or `flow`,
+ * with flood events and terrain cap changes).
  * Disabled (off in the run), absent (on, missing at this snapshot), malformed
  * (with the reason), unobserved (no settled account this turn) and recorded
  * values (a zero is a recorded zero) stay distinct. Every record carries its
@@ -23,8 +25,10 @@ const FLOW_KEYS = ["precipitation", "external_in", "external_out", "evaporation"
 const CUMULATIVE_KEYS = [...FLOW_KEYS, "opening_storage", "storage", "closure_residual"];
 const TOTAL_KEYS = [...FLOW_KEYS, "external_out_unmet", "external_in_coastal_flood", "external_in_unattributed",
   "external_out_unattributed", "storage_open", "storage_close", "closure_residual"];
+/** Counters of the B2 record (both modes). */
+const EVENT_COUNTER_KEYS = ["floods_started", "floods_ended", "terrain_cap_changes"];
 /** Counters of flow mode only. */
-const FLOW_COUNTER_KEYS = ["flood_consequences", "superseded_river_floods"];
+const FLOW_COUNTER_KEYS = ["flood_consequences", "flood_consequences_withheld", "superseded_river_floods"];
 /** In flow mode the native write-back rounds the index the account wrote to 4 decimals. */
 export const NATIVE_ROUNDING = 5e-5;
 const COUNTER_KEYS = ["planned_turns", "settled_turns", "abandoned_plans", "flood_region_turns", "drought_region_turns",
@@ -129,16 +133,26 @@ function consequenceProblem(x: unknown): string | null {
 }
 
 function floodProblem(x: unknown, regions: number, down: number[], outflow: number[], turn: number, near: Near,
-  flow: boolean): string | null {
-  if (object(x) && flow !== ("consequence" in x)) return flow ? "a flow flood without its consequence" : "a record-only flood with a consequence";
-  if (flow) { const why = consequenceProblem((x as Record<string, unknown>).consequence); if (why) return why; }
+  flow: boolean, b2: boolean): string | null {
+  if (object(x)) {
+    const acted = "consequence" in x;
+    const withheld = "withheld_by" in x;
+    if (!flow && (acted || withheld)) return "a record-only flood with a consequence";
+    if (flow && acted === withheld) return "a flow flood without its consequence";
+    if (acted) { const why = consequenceProblem(x.consequence); if (why) return why; }
+    if (withheld && (!Array.isArray(x.withheld_by) || x.withheld_by.length === 0
+      || !x.withheld_by.every((k) => typeof k === "string" && k.length > 0))) return "malformed withheld flood";
+    if (b2 === ("external_in" in x)) return "a flood record of another stage";
+  }
   if (!object(x) || x.turn !== turn || !count(x.region) || x.region >= regions
-    || ![x.excess, x.arrivals, x.channel, x.precipitation, x.inflow, x.external_in, x.storage_open, x.capacity].every(amount)
+    || ![x.excess, x.arrivals, x.channel, x.precipitation, x.inflow, x.storage_open, x.capacity].every(amount)
+    || (!b2 && !amount(x.external_in))
     || !(x.upstream_cover === null || amount(x.upstream_cover)) || !count(x.upstream_deforested)
     || !Array.isArray(x.tributaries)) return "malformed flood record";
   const f = x as unknown as WatershedFlood;
   if (!(f.excess > 0)) return "a flood record without an excess";
-  if (!near("flood arrivals", f.arrivals, f.precipitation + f.inflow + f.external_in, 4, f.arrivals))
+  // B2 (AUDIT-B 7.2): arrivals are channel flow, rain and inflow; B1 also counted the external inflow.
+  if (!near("flood arrivals", f.arrivals, f.precipitation + f.inflow + (b2 ? 0 : f.external_in!), b2 ? 3 : 4, f.arrivals))
     return "a flood's arrivals do not add up";
   if (!near("flood excess", f.excess, f.arrivals - f.channel, 3, f.arrivals)) return "a flood's excess is not arrivals minus channel";
   let total = 0;
@@ -150,6 +164,33 @@ function floodProblem(x: unknown, regions: number, down: number[], outflow: numb
   }
   return near("flood inflow", total, f.inflow, f.tributaries.length + 1, f.inflow)
     ? null : "a flood's tributaries do not add up to its inflow";
+}
+
+function floodEventsProblem(x: unknown, onsets: Array<{ region: number }>, regions: number, turn: number): string | null {
+  if (!object(x) || !sameKeys(x, ["open", "ended"]) || !Array.isArray(x.open) || !Array.isArray(x.ended))
+    return "malformed flood events";
+  const open = new Map<number, Record<string, unknown>>();
+  for (const e of x.open) {
+    if (!object(e) || !sameKeys(e, ["region", "start_turn", "turns", "peak_excess"]) || !count(e.region) || e.region >= regions
+      || !count(e.start_turn) || !count(e.turns) || e.turns < 1 || !amount(e.peak_excess)) return "malformed flood event";
+    if (e.start_turn > turn || e.turns > turn - e.start_turn + 1) return "a misdated flood event";
+    if (open.has(e.region)) return "a region has two open flood events";
+    open.set(e.region, e);
+  }
+  const ended = new Set<number>();
+  for (const e of x.ended) {
+    if (!object(e) || !sameKeys(e, ["region", "start_turn", "turns", "peak_excess", "end_turn"]) || !count(e.region)
+      || e.region >= regions || !count(e.start_turn) || !count(e.turns) || e.turns < 1 || !amount(e.peak_excess)
+      || e.end_turn !== turn) return "malformed ended flood event";
+    if (e.start_turn >= turn || e.turns > turn - e.start_turn) return "a misdated flood event";
+    if (ended.has(e.region) || open.has(e.region)) return "a flood event both open and ended";
+    ended.add(e.region);
+  }
+  for (const f of onsets) {
+    const e = open.get(f.region);
+    if (!e || e.start_turn !== turn || e.turns !== 1) return "a flood onset without its open event";
+  }
+  return null;
 }
 
 function droughtProblem(x: unknown, regions: number, turn: number, kind: "declared" | "ended"): string | null {
@@ -185,9 +226,11 @@ export function readWatershed(snapshot: TurnSnapshot | null | undefined, regionC
   const x = container.watershed;
   if (x === null) return bad("a null watershed record");
   if (!object(x) || x.schema_version !== 1
-    || !((x.stage === "B1" && x.mode === "record_only") || (x.stage === "B2" && x.mode === "flow")))
+    || !((x.stage === "B1" && x.mode === "record_only") || (x.stage === "B2" && (x.mode === "record_only" || x.mode === "flow"))))
     return bad("unknown watershed schema");
   const flow = x.mode === "flow";
+  const b2 = x.stage === "B2";
+  if (b2 !== ("flood_events" in x) || b2 !== ("cap_changes" in x)) return bad("a record of another stage");
   if (flow !== ("superseded" in x)) return bad(flow ? "a flow record without its superseded floods" : "a record-only record with superseded floods");
   const turn = snapshot!.turn;
   if (!count(x.source_turn) || x.source_turn + 1 !== turn || x.completed_turn !== turn) return bad("misdated observation");
@@ -198,7 +241,8 @@ export function readWatershed(snapshot: TurnSnapshot | null | undefined, regionC
   const statics: WatershedStatic = { opened_turn: x.opened_turn, graph: x.graph as unknown as WatershedGraph,
     parameters: x.parameters as WatershedStatic["parameters"], units: x.units as Record<string, string> };
   const down = statics.graph.down;
-  if (!object(x.counters) || !sameKeys(x.counters, flow ? [...COUNTER_KEYS, ...FLOW_COUNTER_KEYS] : COUNTER_KEYS)
+  const counterKeys = [...COUNTER_KEYS, ...(b2 ? EVENT_COUNTER_KEYS : []), ...(flow ? FLOW_COUNTER_KEYS : [])];
+  if (!object(x.counters) || !sameKeys(x.counters, counterKeys)
     || !Object.values(x.counters).every(count))
     return bad("malformed counters");
   const cum = x.cumulative;
@@ -214,6 +258,7 @@ export function readWatershed(snapshot: TurnSnapshot | null | undefined, regionC
       return bad("storage differs from the cumulative account");
     return x.regions === null && x.floods === null && x.droughts === null && x.totals === null && x.external === null
       && x.phase === null && x.stale_baseline === null && (!flow || x.superseded === null)
+      && (!b2 || (x.flood_events === null && x.cap_changes === null))
       ? { status: "unobserved", record: x as unknown as WatershedRecord, statics } : bad("an unobserved turn with values");
   }
   if (x.storage !== null) return bad("a settled turn repeats its storage outside its columns");
@@ -283,8 +328,22 @@ export function readWatershed(snapshot: TurnSnapshot | null | undefined, regionC
   }
   if (!Array.isArray(x.floods)) return bad("malformed floods");
   for (const f of x.floods) {
-    const problem = floodProblem(f, regionCount, down, outflow, x.source_turn, near, flow);
+    const problem = floodProblem(f, regionCount, down, outflow, x.source_turn, near, flow, b2);
     if (problem) return bad(problem);
+  }
+  const capped = new Map<number, Record<string, unknown>>();
+  if (b2) {
+    const why = floodEventsProblem(x.flood_events, x.floods as Array<{ region: number }>, regionCount, x.source_turn);
+    if (why) return bad(why);
+    if (!Array.isArray(x.cap_changes)) return bad("malformed terrain cap changes");
+    for (const e of x.cap_changes) {
+      if (!object(e) || !sameKeys(e, ["region", "source", "terrain_before", "terrain_after", "cap_before", "cap_after",
+        ...(flow ? ["index_out"] : [])]) || !count(e.region) || e.region >= regionCount || e.source !== "terrain_cap_change"
+        || typeof e.terrain_before !== "string" || typeof e.terrain_after !== "string" || e.terrain_before === e.terrain_after
+        || !amount(e.cap_before) || !amount(e.cap_after) || e.cap_after > 1 || (flow && !amount(e.index_out))
+        || capped.has(e.region)) return bad("malformed terrain cap change");
+      capped.set(e.region, e);
+    }
   }
   if (flow) {
     if (!Array.isArray(x.superseded)) return bad("malformed superseded floods");
@@ -293,9 +352,16 @@ export function readWatershed(snapshot: TurnSnapshot | null | undefined, regionC
         || e.region >= regionCount || !count(e.duration) || e.duration < 1) return bad("malformed superseded flood");
     }
     for (let i = 0; i < regionCount; i += 1) {
-      // The index the simulation used is the one the account wrote, up to the native rounding.
-      if (!near("flow index", c.index_observed[i], c.index_derived[i], 2 + NATIVE_ROUNDING / HALF_DIGIT))
-        return bad("in flow the index used differs from the derived index");
+      // The index the simulation used is the one the account wrote, up to the native rounding;
+      // a terrain transition in the post-pass clamps it to the new cap (recorded: min(derived, cap)).
+      const change = capped.get(i);
+      const expected = change ? Math.min(c.index_derived[i], change.cap_after as number) : c.index_derived[i];
+      if (!near("flow index", c.index_observed[i], expected, 3 + NATIVE_ROUNDING / HALF_DIGIT))
+        return bad(change ? "in flow the index used is not the derived index capped at the new terrain's cap"
+          : "in flow the index used differs from the derived index");
+      if (change && !near("cap change outflow", change.index_out as number,
+        Math.max(0, c.index_derived[i] - (change.cap_after as number)), 3))
+        return bad("a terrain cap change's index outflow does not match the derived index");
     }
   }
   const d = x.droughts;

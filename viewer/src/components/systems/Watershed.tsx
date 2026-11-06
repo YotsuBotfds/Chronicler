@@ -22,11 +22,14 @@ const TOTALS: Array<[keyof NonNullable<WatershedRecord["totals"]>, string]> = [
 ];
 const COUNTERS: Array<[string, string]> = [
   ["settled_turns", "Settled turns"], ["abandoned_plans", "Dropped plans (failed tick)"],
-  ["flood_region_turns", "Flooded region-turns"], ["drought_region_turns", "Region-turns in drought"],
+  ["flood_region_turns", "Region-turns above the channel"], ["floods_started", "Flood events started"],
+  ["floods_ended", "Flood events ended"], ["drought_region_turns", "Region-turns in drought"],
   ["droughts_declared", "Droughts declared"], ["droughts_ended", "Droughts ended"],
   ["external_out_unmet_turns", "Turns with unmet outflow"],
   ["stale_baseline_turns", "Turns with a stale baseline"],
+  ["terrain_cap_changes", "Terrain cap changes"],
   ["flood_consequences", "Floods that acted (flow)"],
+  ["flood_consequences_withheld", "Floods withheld: region under a cooldown (flow)"],
   ["superseded_river_floods", "River floods superseded (flow)"],
 ];
 
@@ -45,7 +48,7 @@ export function Watershed({ bundle, snapshot, currentTurn, onSelectRegion }: {
   const header = <>
     <h3>Watershed account · snapshot {at}</h3>
     {mode === "flow"
-      ? <p className="systems-note">Flow: the account's derived index is the water index the simulation used. The native climate water terms, the irrigation water bonus and the downstream deforestation cascade are switched off; upstream irrigation withdrawals reduce the water downstream, and the account's floods act on the capacity modifier, the soil and the flood cooldown. The old river flood still draws from the shared environment stream, but its effect is superseded (listed below). Water in water units (wu: one region's storage capacity without forest cover is 1).</p>
+      ? <p className="systems-note">Flow: the account's derived index is the water index the simulation used. The native climate water terms, the irrigation water bonus and the downstream deforestation cascade are switched off; upstream irrigation withdrawals reduce the water downstream, and each flood event acts once, at its start, on the capacity modifier, the soil and the flood cooldown. Where a terrain transition lowers a region's cap, the index used is the derived index capped (listed below). The old river flood still draws from the shared environment stream, but its effect is superseded (listed below). Water in water units (wu: one region's storage capacity without forest cover is 1).</p>
       : <p className="systems-note">{mode === "record_only" ? "Record only: a" : "A"} conserved water account on the drainage graph of this procedural world {mode === "record_only" ? "runs beside the water index the simulation uses and changes nothing" : "(record only or flow)"}. Its constants are fitted to the old index's cycle on development worlds; in record only, a gap between the index it would derive and the index used is a calibration observation, not an effect. Water in water units (wu: one region's storage capacity without forest cover is 1).</p>}
     <p className="systems-note">Precipitation includes tundra melt; evaporation includes transpiration; irrigation withdrawal is consumed. External inflow and outflow are changes of the water index between ticks made by other writers, attributed to a coastal flood where one struck and otherwise left unattributed. A closed basin (sink) or a lake loses what reaches it; water passed downstream stays in the account. Each region's outflow is the residual of its account, so closure holds by construction: the residual shows the routing and arithmetic are intact, not that the model is right.</p>
   </>;
@@ -84,6 +87,8 @@ function Settled({ record, statics, names, regionLink }: {
   const outflow = watershedOutflow(record)!;
   const turn = record.completed_turn;
   const flow = record.mode === "flow";
+  const b2 = record.stage === "B2";
+  const events = record.flood_events;
   const declared = new Set(record.droughts!.declared.map((d) => d.region));
   const droughts: Array<[WatershedDrought, string]> = [
     ...record.droughts!.declared.map((d): [WatershedDrought, string] => [d, "Declared this turn"]),
@@ -117,15 +122,34 @@ function Settled({ record, statics, names, regionLink }: {
         <td>{show(c.flood_excess[rid])}</td><td>{c.drought_turns[rid]}</td>
       </tr>)}</tbody>
     </table></div>
-    {record.floods!.length === 0 ? <p className="systems-note">No region's arrivals exceeded its channel this turn (recorded: no flood).</p>
-      : <div className="systems-table-wrap"><table className="systems-table" aria-label={`Floods at snapshot ${turn}`}>
-        <thead><tr><th>Region</th><th>Excess</th><th>Arrivals = rain + inflow + external</th><th>Channel</th><th>Tributaries (outflow)</th><th>Upstream cover</th>{flow ? <th>What it did</th> : null}</tr></thead>
+    {record.floods!.length === 0
+      ? <p className="systems-note">{b2 ? "No flood event started this turn (recorded: none)." : "No region's arrivals exceeded its channel this turn (recorded: no flood)."}</p>
+      : <div className="systems-table-wrap"><table className="systems-table" aria-label={`${b2 ? "Flood events started" : "Floods"} at snapshot ${turn}`}>
+        <thead><tr><th>Region</th><th>Excess</th><th>{b2 ? "Arrivals = rain + inflow" : "Arrivals = rain + inflow + external"}</th><th>Channel</th><th>Tributaries (outflow)</th><th>Upstream cover</th>{flow ? <th>What it did</th> : null}</tr></thead>
         <tbody>{record.floods!.map((f) => <tr key={f.region}>
           <td>{regionLink(f.region)}</td><td>{show(f.excess)}</td>
-          <td>{show(f.arrivals)} = {show(f.precipitation)} + {show(f.inflow)} + {show(f.external_in)}</td><td>{show(f.channel)}</td>
+          <td>{show(f.arrivals)} = {show(f.precipitation)} + {show(f.inflow)}{b2 ? null : <> + {show(f.external_in)}</>}</td><td>{show(f.channel)}</td>
           <td>{f.tributaries.length === 0 ? "None (headwater)" : f.tributaries.map(([u, q]) => `${names[u]} ${show(q)}`).join("; ")}</td>
           <td>{f.upstream_cover === null ? "No upstream region" : `${show(f.upstream_cover)} mean; ${f.upstream_deforested} deforested`}</td>
-          {flow ? <td>{f.consequence ? `capacity ×${show(f.consequence.capacity_modifier)}; cooldown ${f.consequence.cooldown} turns; soil ${show(f.consequence.soil_before)} → ${show(f.consequence.soil_after)}` : "Unknown"}</td> : null}
+          {flow ? <td>{f.consequence ? `capacity ×${show(f.consequence.capacity_modifier)}; cooldown ${f.consequence.cooldown} turns; soil ${show(f.consequence.soil_before)} → ${show(f.consequence.soil_after)}`
+            : `withheld: the region held a ${f.withheld_by!.join(", ")} cooldown`}</td> : null}
+        </tr>)}</tbody>
+      </table></div>}
+    {events && (events.open.length > 0 || events.ended.length > 0)
+      && <div className="systems-table-wrap"><table className="systems-table" aria-label={`Flood events at snapshot ${turn}`}>
+        <thead><tr><th>Region</th><th>Status</th><th>Since turn</th><th>Turns</th><th>Peak excess</th></tr></thead>
+        <tbody>{[...events.open.map((e) => [e, "Open"] as const), ...events.ended.map((e) => [e, `Ended at turn ${e.end_turn}`] as const)]
+          .map(([e, status]) => <tr key={`${e.region}:${status}`}>
+            <td>{regionLink(e.region)}</td><td>{status}</td><td>{e.start_turn}</td><td>{e.turns}</td><td>{show(e.peak_excess)}</td>
+          </tr>)}</tbody>
+      </table></div>}
+    {b2 && <p className="systems-note">A flood event starts when a region's arrivals cross its channel from below and stays open until they fall to {show(Number(statics.parameters.flood_recession ?? 0) * 100, 0)}% of it{flow ? "; it acts once, at its start, unless the region already holds a disaster cooldown" : ""}.</p>}
+    {record.cap_changes && record.cap_changes.length > 0
+      && <div className="systems-table-wrap"><table className="systems-table" aria-label={`Terrain cap changes at snapshot ${turn}`}>
+        <thead><tr><th>Region</th><th>Terrain</th><th>Water-index cap</th>{flow ? <th>Index removed (used = min(derived, cap))</th> : null}</tr></thead>
+        <tbody>{record.cap_changes.map((e) => <tr key={e.region}>
+          <td>{regionLink(e.region)}</td><td>{e.terrain_before} → {e.terrain_after}</td><td>{show(e.cap_before)} → {show(e.cap_after)}</td>
+          {flow ? <td>{show(e.index_out)}</td> : null}
         </tr>)}</tbody>
       </table></div>}
     {flow && (record.superseded!.length === 0
