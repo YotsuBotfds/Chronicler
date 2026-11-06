@@ -43,6 +43,12 @@ COUNTER_KEYS: tuple[str, ...] = (
     "drought_region_turns", "droughts_declared", "droughts_ended", "external_out_unmet_turns",
     "stale_baseline_turns",
 )
+#: Counters of ``flow`` mode only (added when the account opens in flow mode).
+FLOW_COUNTER_KEYS: tuple[str, ...] = ("flood_consequences", "superseded_river_floods")
+
+
+def _empty(value) -> bool:
+    return not value
 
 
 def _amount():
@@ -75,6 +81,30 @@ class ExternalFlow(BaseModel):
     amount: float = Field(gt=0.0, allow_inf_nan=False)
 
 
+class FloodConsequence(BaseModel):
+    """What a flood did in ``flow`` mode, through the existing fields (applied
+    before the Phase 9 sync): the capacity modifier it set (never raising a
+    lower one), the ``disaster_cooldowns["flood"]`` it set (never shortening a
+    longer one) and the silt it added to the soil (capped at the terrain's)."""
+    model_config = ConfigDict(extra="forbid")
+
+    capacity_modifier: float = Field(gt=0.0, le=1.0)
+    cooldown: int = Field(ge=1)
+    soil_before: float = _amount()
+    soil_after: float = _amount()
+
+
+class SupersededFlood(BaseModel):
+    """A river flood ``emergence._check_flood`` drew in ``flow`` mode: its draws
+    were kept (the shared environment stream does not shift) and its effect
+    suppressed, superseded by the account's own floods."""
+    model_config = ConfigDict(extra="forbid")
+
+    turn: int = Field(ge=0)
+    region: int = Field(ge=0)
+    duration: int = Field(ge=1)
+
+
 class FloodRecord(BaseModel):
     """Arrivals above a region's channel capacity in one settled turn, with the
     conditions that caused them. ``arrivals = precipitation + inflow +
@@ -98,6 +128,12 @@ class FloodRecord(BaseModel):
     tributaries: list[tuple[int, float]] = Field(default_factory=list)
     upstream_cover: float | None = None
     upstream_deforested: int = Field(default=0, ge=0)
+    #: ``flow`` mode only: what the flood did (absent in ``record_only``).
+    consequence: FloodConsequence | None = Field(default=None, exclude_if=lambda v: v is None)
+
+    def __setstate__(self, state):
+        super().__setstate__(state)
+        self.__dict__.setdefault("consequence", None)          # a B1 checkpoint
 
 
 class DroughtSpell(BaseModel):
@@ -145,17 +181,23 @@ class WatershedFrame(BaseModel):
     #: unsettled index changes and are all unattributed. ``flow`` mode must
     #: refuse or reconcile such a turn.
     stale_baseline: bool = False
+    #: ``flow`` mode only: river floods superseded in this turn.
+    superseded: list[SupersededFlood] = Field(default_factory=list, exclude_if=_empty)
     totals: dict[str, float]
     storage_open: float = _amount()
     storage_close: float = _amount()
     #: ``storage_close - storage_open`` minus the net of the flows (water units).
     closure_residual: float = Field(allow_inf_nan=False)
 
+    def __setstate__(self, state):
+        super().__setstate__(state)
+        self.__dict__.setdefault("superseded", [])             # a B1 checkpoint
+
 
 class WatershedState(BaseModel):
     schema_version: Literal[1] = 1
     enabled: bool = True
-    mode: Literal["record_only"] = "record_only"
+    mode: Literal["record_only", "flow"] = "record_only"
     opened_turn: int = Field(ge=0)
     graph: WatershedGraph
     #: Water units per region after the last settled turn (or at opening).
@@ -170,6 +212,9 @@ class WatershedState(BaseModel):
     frame: WatershedFrame | None = None
     cumulative: dict[str, float] = Field(default_factory=lambda: {key: 0.0 for key in FLOW_KEYS})
     counters: dict[str, int] = Field(default_factory=lambda: {key: 0 for key in COUNTER_KEYS})
+    #: ``flow`` mode: river floods superseded since this turn's Phase 1, moved
+    #: into the frame when the turn settles (empty between turns).
+    pending_superseded: list[SupersededFlood] = Field(default_factory=list, exclude_if=_empty)
     # Transient, within one Phase 9 only: the account computed before the
     # ecology tick, committed after it. A plan left by a failed tick is
     # dropped at the next planning (nothing was settled). Never serialized.
@@ -184,6 +229,8 @@ class WatershedState(BaseModel):
 
     def __setstate__(self, state):
         super().__setstate__(state)
+        # A B1 (record_only) checkpoint predates the flow fields.
+        self.__dict__.setdefault("pending_superseded", [])
         private = getattr(self, "__pydantic_private__", None)
         if private is None:
             object.__setattr__(self, "__pydantic_private__", {"_plan": None})

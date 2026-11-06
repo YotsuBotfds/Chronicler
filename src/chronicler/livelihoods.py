@@ -43,8 +43,9 @@ The productive-recovery phase appends:
 
 The connected-world program appends:
 
-* ``--watershed`` (B1): a conserved water account on the drainage graph of a
-  procedural world; mode ``record_only`` changes nothing outside its record.
+* ``--watershed`` (B1, B2): a conserved water account on the drainage graph of a
+  procedural world; mode ``record_only`` changes nothing outside its record,
+  mode ``flow`` makes the account's derived index the water index.
 
 This module owns only CLI forwarding, validation of prerequisites and the
 fan-out of phase hooks to each package's module ``chronicler.<switch>``.
@@ -100,7 +101,7 @@ LIVELIHOODS_CHOICES: dict[str, tuple[str, ...]] = {
     "apprenticeship_rules": ("2", "1"),
     "household_retail_mode": ("retail", "no_relief", "free_exchange", "record_only"),
     "household_retail_boundary": ("market", "paid_work", "all"),
-    "watershed_mode": ("record_only",),
+    "watershed_mode": ("record_only", "flow"),
 }
 #: All parser destinations owned here (``batch_manifest.SIMULATION_ARG_KEYS``).
 LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
@@ -328,8 +329,11 @@ _HELP = {
         "worlds have no elevation); opens with a new world (default off)"
     ),
     "watershed_mode": (
-        "record_only (default, the only mode of this slice): the account runs beside the existing "
-        "water index and changes nothing outside its own record"
+        "record_only (default): the account runs beside the existing water index and changes nothing "
+        "outside its own record; flow: the account's derived index replaces the native water terms "
+        "(climate terms, irrigation bonus, downstream deforestation cascade), upstream withdrawals reduce "
+        "downstream water, and the account's floods act on capacity and soil while the old river flood is "
+        "superseded; flow requires the native ecology"
     ),
 }
 

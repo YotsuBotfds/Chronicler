@@ -917,6 +917,12 @@ def _check_locust(region: Region, world: WorldState, rng) -> Event | None:
     )
 
 
+#: A check that fired but whose effect a replacing system suppressed: it ends
+#: the region's checks this turn as a fired one would (the draws stay aligned)
+#: and adds no event.
+SUPERSEDED = object()
+
+
 def _check_flood(region: Region, world: WorldState, rng) -> Event | None:
     """Flood: river region, spring, water > 0.8."""
     from chronicler.ecology import TERRAIN_ECOLOGY_CAPS
@@ -932,6 +938,13 @@ def _check_flood(region: Region, world: WorldState, rng) -> Event | None:
     if rng.random() >= prob:
         return None
     duration = rng.randint(1, 2)
+    if getattr(world, "livelihoods", None) is not None:
+        # --watershed-mode flow: the account's floods replace this one. Its
+        # draws are kept, so the shared stream does not shift; its effect is
+        # suppressed and recorded as superseded.
+        from chronicler.watershed import supersede_river_flood
+        if supersede_river_flood(world, region, duration):
+            return SUPERSEDED
     region.disaster_cooldowns["flood"] = duration
     region.capacity_modifier = 0.85
     region._capacity_modifier_source = "flood"
@@ -1063,7 +1076,8 @@ def check_environmental_events(world: WorldState, rng) -> list[Event]:
         for event_check in [_check_locust, _check_flood, _check_collapse, _check_drought]:
             result = event_check(region, world, rng)
             if result is not None:
-                events.append(result)
+                if result is not SUPERSEDED:
+                    events.append(result)
                 fired = True
                 break
         if not fired:

@@ -77,13 +77,28 @@ from functools import lru_cache
 from typing import NamedTuple
 
 from chronicler.watershed_state import (
-    COUNTER_KEYS, FLOW_KEYS, FRAME_COLUMNS, LAKE, SEA, SINK, DroughtSpell, ExternalFlow, FloodRecord,
-    WatershedFrame, WatershedGraph, WatershedState,
+    COUNTER_KEYS, FLOW_COUNTER_KEYS, FLOW_KEYS, FRAME_COLUMNS, LAKE, SEA, SINK, DroughtSpell, ExternalFlow,
+    FloodConsequence, FloodRecord, SupersededFlood, WatershedFrame, WatershedGraph, WatershedState,
 )
 
-MODES = ("record_only",)
+#: The native ecology terms ``flow`` replaces, switched off exactly once, in the
+#: native ``EcologyConfig`` (``agent_bridge.configure_ecology_runtime``): the
+#: climate water terms, the irrigation water bonus and its drought multiplier,
+#: and the downstream deforestation cascade. The harvest shock's water loss is
+#: switched off through the climate config (the crops keep the trend share).
+FLOW_REPLACED_TERMS: dict[str, float] = {
+    "water_drought": 0.0, "water_recovery": 0.0, "cooling_water_loss": 0.0, "warming_tundra_water_gain": 0.0,
+    "irrigation_water_bonus": 0.0, "irrigation_drought_mult": 1.0, "deforestation_water_loss": 0.0,
+}
+FLOW_NATIVE_REFUSAL = (
+    "--watershed-mode flow requires the native ecology (the compiled chronicler_agents extension): it "
+    "replaces the native water terms, and the pure-Python fallback's terms cannot be replaced")
+
+MODES = ("record_only", "flow")
 SCHEMA_VERSION = 1
-STAGE = "B1"
+#: The slice that defined each mode's record.
+STAGES = {"record_only": "B1", "flow": "B2"}
+STAGE = STAGES["record_only"]
 
 
 @dataclass(frozen=True)
@@ -131,6 +146,12 @@ class Parameters:
     index_floor: float = 0.10
     #: Relative closure tolerance of every per-turn and cumulative check.
     closure_tolerance: float = 1e-9
+    #: ``flow`` mode: a flood's capacity modifier (the old river flood's), ...
+    flood_capacity_modifier: float = 0.85
+    #: ... the silt it adds to the soil (the old river flood's), ...
+    flood_silt: float = 0.15
+    #: ... and the excess (wu) from which it lasts two turns instead of one.
+    flood_long_excess: float = 0.1
 
     def as_dict(self) -> dict:
         return {f.name: (dict(v) if isinstance(v := getattr(self, f.name), dict) else v) for f in fields(self)}
@@ -190,6 +211,7 @@ class _Plan:
         self.turn, self.phase, self.columns, self.routed = turn, phase, columns, routed
         self.contributions, self.normal, self.cover, self.unmet = contributions, normal, cover, unmet
         self.channel, self.residual, self.external, self.stale = channel, residual, external, stale
+        self.consequences: dict[int, FloodConsequence] = {}
 
 
 # --- State and switch -----------------------------------------------------------------
@@ -202,6 +224,32 @@ def _state(world) -> WatershedState | None:
 def watershed_active(world) -> bool:
     state = _state(world)
     return state is not None and state.enabled
+
+
+def flow_active(world) -> bool:
+    state = _state(world)
+    return state is not None and state.enabled and state.mode == "flow"
+
+
+def native_available() -> bool:
+    """Whether the compiled extension (the native ecology) can be imported."""
+    import importlib.util
+    try:
+        return importlib.util.find_spec("chronicler_agents") is not None
+    except (ImportError, ValueError):
+        return False
+
+
+def native_overrides(world) -> tuple[dict[str, float], float | None]:
+    """The native ``EcologyConfig`` fields and the harvest shock's water loss
+    that ``flow`` switches off (``FLOW_REPLACED_TERMS``); ``({}, None)``
+    otherwise, so the configuration is exactly as before. Read by the one
+    pinned seam, ``agent_bridge.configure_ecology_runtime``. The native config
+    is checkpointed with the run, which is why a mode change on resume is
+    refused."""
+    if not flow_active(world):
+        return {}, None
+    return dict(FLOW_REPLACED_TERMS), 0.0
 
 
 def check_request(world, value: bool | None, args=None) -> None:
@@ -224,6 +272,8 @@ def check_request(world, value: bool | None, args=None) -> None:
             raise ValueError(
                 f"--watershed opens its account with a new world (turn 0); this world is at turn {world.turn}: "
                 "a switch change on resume is refused")
+        if (mode or MODES[0]) == "flow" and not native_available():
+            raise ValueError(FLOW_NATIVE_REFUSAL)
         return
     if value is False:
         raise ValueError("--no-watershed: this world keeps a watershed account; a switch change on resume is "
@@ -231,6 +281,8 @@ def check_request(world, value: bool | None, args=None) -> None:
     if mode is not None and mode != state.mode:
         raise ValueError(f"--watershed-mode {mode} conflicts with this world's watershed account (mode "
                          f"{state.mode}); a switch change on resume is refused")
+    if state.mode == "flow" and not native_available():
+        raise ValueError(FLOW_NATIVE_REFUSAL)
     if build_graph(world).down != state.graph.down:
         raise ValueError("this world's geography no longer gives its saved drainage graph")
 
@@ -393,8 +445,11 @@ def open_account(world, graph: WatershedGraph, mode: str = "record_only") -> Wat
         fill = min(1.0, max(0.0, (water - INDEX_FLOOR) / _span(region)))
         storage.append(cap * fill)
         index.append(water)
-    return WatershedState(mode=mode, opened_turn=int(world.turn), graph=graph, storage=storage,
-                          last_index=index, opening_storage=math.fsum(storage))
+    state = WatershedState(mode=mode, opened_turn=int(world.turn), graph=graph, storage=storage,
+                           last_index=index, opening_storage=math.fsum(storage))
+    if mode == "flow":
+        state.counters.update({key: 0 for key in FLOW_COUNTER_KEYS})
+    return state
 
 
 # --- The account ----------------------------------------------------------------------
@@ -608,9 +663,61 @@ def before_ecology(world, acc, *, native: bool | None = None) -> None:
     # tick: a dropped plan or a missing turn makes it stale (recorded; the
     # external flows are then all unattributed).
     expected = state.frame.turn + 1 if state.frame is not None else state.opened_turn
-    plan = _compute(world, state, stale=dropped or int(world.turn) != expected)
+    stale = dropped or int(world.turn) != expected
+    if state.mode == "flow":
+        if native is False:
+            raise RuntimeError(FLOW_NATIVE_REFUSAL)
+        if stale:
+            # flow writes the index: an unsettled tick's change would be applied
+            # as if it were another writer's, so the account refuses to go on.
+            raise RuntimeError("watershed flow: the baseline index is stale (a tick did not settle or a turn "
+                               "is missing); refusing to apply the account")
+    plan = _compute(world, state, stale=stale)
+    if state.mode == "flow":
+        plan.consequences = _apply_flow(world, plan)
     state._plan = plan
     state.counters["planned_turns"] = state.counters.get("planned_turns", 0) + 1
+
+
+def _apply_flow(world, plan: _Plan) -> dict[int, FloodConsequence]:
+    """``flow``: the derived index becomes the index the simulation uses, and
+    each flood acts through the existing fields, before the Phase 9 sync so
+    the native tick sees both. Deterministic; no RNG."""
+    from chronicler.ecology import TERRAIN_ECOLOGY_CAPS
+    params = PARAMETERS
+    consequences: dict[int, FloodConsequence] = {}
+    for r, region in enumerate(world.regions):
+        region.ecology.water = plan.columns["index_derived"][r]
+        excess = plan.columns["flood_excess"][r]
+        if excess <= 0.0:
+            continue
+        days = 2 if excess >= params.flood_long_excess else 1
+        # Applied in Phase 9, one turn later than the old Phase-1 river flood:
+        # the cooldown covers this turn's tick and the next ``days`` turns.
+        cooldown = max(days + 1, int(region.disaster_cooldowns.get("flood", 0)))
+        modifier = min(float(region.capacity_modifier), params.flood_capacity_modifier)
+        cap = TERRAIN_ECOLOGY_CAPS.get(region.terrain, TERRAIN_ECOLOGY_CAPS["plains"])["soil"]
+        before = float(region.ecology.soil)
+        after = min(float(cap), before + params.flood_silt)
+        region.disaster_cooldowns["flood"] = cooldown
+        region.capacity_modifier = modifier
+        region.ecology.soil = max(before, after)
+        consequences[r] = FloodConsequence(capacity_modifier=modifier, cooldown=cooldown,
+                                           soil_before=before, soil_after=max(before, after))
+    return consequences
+
+
+def supersede_river_flood(world, region, duration: int) -> bool:
+    """``flow``: ``emergence._check_flood`` drew a river flood (its draws are
+    kept, so the shared environment stream does not shift); its effect is
+    suppressed and recorded here as superseded by the account's floods.
+    Returns False (the flood acts as before) unless ``flow`` is active."""
+    if not flow_active(world):
+        return False
+    state = _state(world)
+    index = next(i for i, r in enumerate(world.regions) if r is region or r.name == region.name)
+    state.pending_superseded.append(SupersededFlood(turn=int(world.turn), region=index, duration=int(duration)))
+    return True
 
 
 def after_ecology(world, acc) -> list:
@@ -639,7 +746,8 @@ def after_ecology(world, acc) -> list:
                 external_in=cols["external_in"][r], storage_open=cols["storage_open"][r],
                 capacity=cols["capacity"][r], tributaries=list(plan.contributions[r]),
                 upstream_cover=mean_cover(r),
-                upstream_deforested=sum(1 for u in up[r] if plan.cover[u] < DEFORESTED_COVER)))
+                upstream_deforested=sum(1 for u in up[r] if plan.cover[u] < DEFORESTED_COVER),
+                consequence=plan.consequences.get(r)))
 
     running = {spell.region: spell for spell in state.spells}
     spells: list[DroughtSpell] = []
@@ -692,7 +800,8 @@ def after_ecology(world, acc) -> list:
     frame = WatershedFrame(turn=plan.turn, phase=plan.phase, columns=cols, floods=floods, droughts_ended=ended,
                            totals=totals, storage_open=storage_open, storage_close=storage_close,
                            closure_residual=plan.residual, drought_turns=drought_turns,
-                           external=plan.external, stale_baseline=plan.stale)
+                           external=plan.external, stale_baseline=plan.stale,
+                           superseded=[f for f in state.pending_superseded if f.turn == plan.turn])
 
     # Commit: storage, the observed index, the spells, the frame and the totals.
     state.storage = list(cols["storage"])
@@ -710,6 +819,12 @@ def after_ecology(world, acc) -> list:
     counters["droughts_ended"] += ended_count
     counters["external_out_unmet_turns"] += 1 if unmet > 0.0 else 0
     counters["stale_baseline_turns"] += 1 if plan.stale else 0
+    if state.mode == "flow":
+        for key in FLOW_COUNTER_KEYS:
+            counters.setdefault(key, 0)
+        counters["flood_consequences"] += len(plan.consequences)
+        counters["superseded_river_floods"] += len(frame.superseded)
+    state.pending_superseded = []
     return []
 
 
@@ -742,6 +857,8 @@ def _flood(flood: FloodRecord) -> dict:
     out["tributaries"] = [[int(u), _r(q)] for u, q in flood.tributaries]
     if out["upstream_cover"] is not None:
         out["upstream_cover"] = _r(out["upstream_cover"])
+    if "consequence" in out:
+        out["consequence"] = {key: (_r(v) if isinstance(v, float) else v) for key, v in out["consequence"].items()}
     return out
 
 
@@ -779,7 +896,7 @@ def snapshot_summary(world) -> dict:
     storage_now = math.fsum(state.storage)
     record = {
         "schema_version": SCHEMA_VERSION,
-        "stage": STAGE,
+        "stage": STAGES[state.mode],
         "mode": state.mode,
         "source_turn": source_turn,
         "completed_turn": world.turn,
@@ -823,4 +940,6 @@ def snapshot_summary(world) -> dict:
         record["totals"] = {**{key: _r(value) for key, value in frame.totals.items()},
                             "storage_open": _r(frame.storage_open), "storage_close": _r(frame.storage_close),
                             "closure_residual": frame.closure_residual}
+    if state.mode == "flow":
+        record["superseded"] = ([f.model_dump() for f in frame.superseded] if observed else None)
     return record
