@@ -342,11 +342,14 @@ _HELP = {
         "keeps its version; a conflicting value is refused"
     ),
     "household_retail_schedule": (
-        "With --household-retail-boundary schedule (command line only; the help above predates it): a JSON "
-        "file {region index: opening turn}; each region "
-        "enters the pilot from its turn while it has a controller (a frozen enrollment, e.g. one arm's "
-        "openings replayed in another: scripts/retail_schedule.py extracts them from a bundle). The "
-        "schedule and its SHA-256 are saved with the state; a resume keeps it and refuses a different one"
+        "With --household-retail-boundary schedule (command line only): a JSON file of exact pilot "
+        "intervals {region index: [[open, close], ..., [open, null]]}, as scripts/retail_schedule.py "
+        "writes them from a bundle's recorded intervals; a region is in the pilot on the turns open <= "
+        "turn < close while it has a controller and leaves when its interval ends, even with a "
+        "controller (a frozen enrollment, e.g. one arm's replayed in another). The first-turn format "
+        "{region index: opening turn} (in the pilot from that turn on while it has a controller) is "
+        "approximate: it cannot replay a region the source closed. The schedule and its SHA-256 are "
+        "saved with the state; a resume keeps it and refuses a different one"
     ),
     "watershed": (
         "Watershed account (B1): a conserved water account on the drainage graph rebuilt from the "
