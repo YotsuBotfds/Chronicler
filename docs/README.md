@@ -77,7 +77,8 @@ link to these by path, so keep their names stable.
   [productive-recovery phase](superpowers/roadmaps/productive-recovery-phase.md)
   ([board](superpowers/progress/productive-recovery.json),
   [checkpoint-1 screens](superpowers/progress/productive-recovery-screens-cp1.md),
-  [checkpoint-1 examples](superpowers/progress/productive-recovery-examples.md)).
+  [checkpoint-1 examples](superpowers/progress/productive-recovery-examples.md),
+  [checkpoint-2 screens, draft](superpowers/progress/productive-recovery-screens-cp2.md)).
 - **World generation:** [geography 2.0](integration/geography-2.md),
   [procedural gates](integration/procedural-gates.md).
 
