@@ -368,6 +368,9 @@ CHUNKS = {
         "tests/test_productive_recovery_screens_cp2.py",
         "tests/test_productive_recovery_screens_cp3.py",
     ],
+    "connected-world-a": [
+        "tests/test_wealth_accounting.py",
+    ],
     "expansion-wiring": [
         "tests/test_expansion_feature_wiring.py",
         "tests/test_expansion_experiment.py",
