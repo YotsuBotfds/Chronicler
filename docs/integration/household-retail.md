@@ -323,18 +323,22 @@ Python cannot see, and leaves to the native lane:
 
 ### Build identity
 
-- Source: `claude/hr-native-review` at `4ae0ca8a` (review D's fixes on top of
-  `claude/household-retail` `30dc547f`). The Rust tree is unchanged after that commit
-  (later commits touch Python, tests and this page).
+- Source: `claude/hr-native-cap` at `3ed75f22` (the combined opening cap on top of
+  `claude/household-retail` `4fac1537`). The Rust tree is unchanged after that commit
+  (later commits touch tests and this page).
 - Extension built with `/home/user/wt/tools/build_native.sh` into `~/.venvs/native-hrn`
   (CPython 3.13, release, `--locked`), checked by `check_python_env.py --expect
   native`: compiled submodule, real `AgentSimulator`, `EcologySimulator`,
   `PoliticsSimulator`.
 - `chronicler_agents.cpython-313-x86_64-linux-gnu.so` SHA-256
-  `b8a0933919e54e9d584c5c87bbd6fbe83254c866606514ad89a9d29024de50bb`.
-- Earlier builds: `claude/hr-native-fix` `6a4fe37e` (`66cd5a7e…`, owned stock decayed
-  after sufficiency); the merge `2a962374` (`220f8421…`, dead owners' food sold); the
-  lane branch at `81d9743b` (`eda66ae8…`) and `a7436b65` (`3f248402…`).
+  `b1910b948b07c3ab6bec8387552e99fbc72615b5fa31a0289c8698d8c85f9c6c`.
+- Earlier builds:
+  - `claude/hr-native-review` `4ae0ca8a` (`b8a09339…`): only the carried owned stock was
+    cut at opening, so owned plus commons could exceed the cap;
+  - `claude/hr-native-fix` `6a4fe37e` (`66cd5a7e…`): owned stock decayed after
+    sufficiency;
+  - the merge `2a962374` (`220f8421…`): dead owners' food sold;
+  - the lane branch at `81d9743b` (`eda66ae8…`) and `a7436b65` (`3f248402…`).
 
 ### Deviations from the written contract
 
@@ -400,20 +404,29 @@ after the L3 timber-cap columns, before any simulator mutation.
 **Arithmetic in a pilot region** (`tick_economy_core_with_retail`; non-pilot regions
 and absent inputs execute none of it):
 
-- Opening (review D, B1): the owned stock carried into the turn (`owned_open`, last
-  turn's unsold) decays and takes its share of the storage cap **before** sufficiency
-  (`retail_carried_owned`).
+- Opening (review D, B1): **before** sufficiency, the owned stock carried into the turn
+  (`owned_open`, last turn's unsold) decays, and the per-good storage cap
+  (`2.5 × storage_population`) is enforced once on both pools together
+  (`RetailOpening`).
   - Salt preserves at the effective rate of the food on hand at opening (commons plus
     owned).
-  - The carried owned stock keeps its pro-rata share of the per-good cap
-    (`2.5 × storage_population`) against the commons on hand,
-    `carried × cap / (commons + carried)`. The commons are capped at close, as in every
-    region.
+  - Where the commons plus the carried owned stock of a food good exceed the cap, both
+    are cut pro rata to it: each keeps `pool × cap / (commons + carried)`.
+    - The owned share of the overflow is `retail_owned_overflow_<good>`.
+    - The commons share is in the ledger's cap-overflow term.
+    - This applies in a pilot region even with nothing owned, so commons above the cap
+      at opening are cut before consumption there, where a region without retail cuts
+      them at close.
+  - The commons are capped again at close, alone, as in every region.
   - This turn's title is not decayed or capped before it can be eaten. Like the commons,
     which decay only on what is left after consumption, owned food decays only on what
     was left unsold.
-- Phase A: the carried owned stock (after its decay and cap) is added to food
-  `available`, so pre- and post-trade prices, `market_supply_food` and the farmer income
+  - The cap therefore holds both pools together **at opening**. Between Phase 2 close
+    and the next opening, a pilot region may hold up to one turn's harvest above the
+    cap: this turn's title, plus the commons' growth since the opening cut (themselves
+    capped at close). Phase 10 procurement or a conquest can reach that stock.
+- Phase A: the commons and the carried owned stock after the opening (decay and cap)
+  are food `available`, so pre- and post-trade prices, `market_supply_food` and the farmer income
   modifier see all food on hand. The oracle shadow's food on hand also includes it.
 - Step 1: `titled[g] = production[g] × θ` for each food good. The commons accumulate
   `production − titled` (plus net mobility, minus craft input, clamped as before).
@@ -427,10 +440,10 @@ and absent inputs execute none of it):
   and are capped, exactly as in a region without retail. Owned stock is not touched
   again this turn.
 - Food ledger: opening and closing include owned stock. Storage loss and cap overflow
-  include the owned decay and overflow. The ten-term balance still closes. The owned
-  decay and overflow precede `food_pre_consumption`, so in a pilot region
+  include the owned decay and both opening overflows. The ten-term balance still closes.
+  The opening losses precede `food_pre_consumption`, so in a pilot region
   `pre_consumption = opening + produced + transport − craft + clamp − owned decay −
-  owned overflow`.
+  owned overflow − commons opening overflow`.
 - With nothing withheld, the free food and the owned food on offer cover `cf` for
   everyone alive (`free_living + offered ÷ ration ≥ cf × persons`, within Python's
   whole-milli rounding).
@@ -444,7 +457,7 @@ null for non-pilot rows):
 | `retail_titled_<good>` | Float32 | θ × this turn's production of the good |
 | `retail_owned_close_<good>` | Float32 | owned stock after decay and cap |
 | `retail_owned_decay_<good>` | Float32 | storage decay of the carried owned stock, at opening (before sufficiency) |
-| `retail_owned_overflow_<good>` | Float32 | the carried owned stock's cap overflow, at opening |
+| `retail_owned_overflow_<good>` | Float32 | the carried owned stock's share of the combined cap overflow at opening (the commons share is in the ledger's cap term) |
 | `commons_consumed` | Float64 | the draw-down, all from the commons (= `food_consumed`) |
 | `commons_sufficiency` | Float32 | pre-consumption commons ÷ demand, clamped 0–2 |
 
@@ -607,13 +620,13 @@ field, no schema-string change and no checkpoint change.
 
 | Command | Result |
 | --- | --- |
-| `native_slot.sh env CARGO_TARGET_DIR=…/target-r-test CARGO_BUILD_JOBS=2 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_INCREMENTAL=0 cargo test --locked --manifest-path chronicler-agents/Cargo.toml` | 1,302 passed, 0 failed, 2 ignored (pre-existing), 40 suites, 0 warnings (on `claude/hr-native-review`) |
-| … `--test test_household_retail_economy` (N1) | 9 passed: absent and all-null inputs keep every output's bits, non-pilot regions untouched, θ = 1 commons-only draw-down, carried owned stock in sufficiency, supply, price and oracle, opening decay (title never decayed) and the cap share, ledger and world conservation, zero-production and empty regions, woodcut crews with retail, abstract path refused |
+| `native_slot.sh env CARGO_TARGET_DIR=…/target-r-test CARGO_BUILD_JOBS=2 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_INCREMENTAL=0 cargo test --locked --manifest-path chronicler-agents/Cargo.toml` | 1,303 passed, 0 failed, 2 ignored (pre-existing), 40 suites, 0 warnings (on `claude/hr-native-cap`) |
+| … `--test test_household_retail_economy` (N1) | 10 passed: absent and all-null inputs keep every output's bits, non-pilot regions untouched, θ = 1 commons-only draw-down, carried owned stock in sufficiency, supply, price and oracle, opening decay (title never decayed) and the combined opening cap on both pools, review D's cap case over ten turns (every opening holds at most the cap; fails on `4fac1537`, where turn 1 opens at 10.94 against 10), ledger and world conservation, zero-production and empty regions, woodcut crews with retail, abstract path refused |
 | … `--lib provisioning` (N2) | 26 passed (8 L2, 18 retail): adds review D's abundance case (a 0.9993 ration reads the signal), a household selling in the fair round and buying in the open round, cash and offer binding together (priced out), the withheld_dead status, the retail refusal on a consumed key, the tick checks of the key and the income regions |
 | … `--lib wealth_transfer` | 23 passed: adds settlement once per turn and the post-health income receipt |
 | … `--test test_household_retail_tick` | 4 passed: adds the `cf` invariant from the real Phase 2 split over six cases (fails on `30dc547f`: 36.98 rations on offer against a need of 38.0), and two consecutive retail ticks |
 | `PYTHONPATH=src ~/.venvs/native-hrn/bin/python -m pytest tests/test_household_retail_native_ffi.py` | 6 passed; adds a 30-turn template seed 7 run, every controlled region a pilot: 98 short pilot region-turns (1,810 person-rows), none offer short, smallest margin −0.0023 rations (Python's whole-milli rounding) |
-| `CHRONICLER_REQUIRE_RETAIL_NATIVE=1 … pytest tests/test_household_retail*.py` (`native-hrn`) | 72 passed, 0 failed |
+| `CHRONICLER_REQUIRE_RETAIL_NATIVE=1 … pytest tests/test_household_retail*.py` (`native-hrn`) | 91 passed, 0 failed (including the `cf` invariant on the development world and the offline opening-cap test of `_title_region`) |
 | `python scripts/run_python_oracle_checks.py` (offline lane) | FAIL at chunk 6 `academy-service-contracts`: the academy witness test below (first five chunks pass); expected until the lead's witness layers |
 | `pytest tests/test_native_ci_shards.py` (offline) | 210 passed, with the new module enrolled in shard 1 |
 
