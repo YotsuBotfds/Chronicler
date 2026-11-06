@@ -249,23 +249,24 @@ def test_jobs_cover_exactly_the_cohort(S):
 
 
 def test_a_held_run_is_refused_until_its_preregistration_is_frozen(S, tmp_path, monkeypatch):
-    # The committed checkpoint-2 preregistration is a draft; checkpoint 1's freeze does not count.
-    assert not S.preregistration_frozen(S.CP2.PREREGISTRATION)
+    # Both committed preregistrations were frozen before their held runs.
+    assert S.preregistration_frozen(S.CP2.PREREGISTRATION)
     assert S.preregistration_frozen(S.PREREGISTRATION)
+    assert "FROZEN" in next(line for line in S.CP2.PREREGISTRATION.read_text().splitlines()
+                            if line.startswith("Status:"))
+    # A draft refuses a held run, and the refusal reads checkpoint 2's own file.
+    draft = tmp_path / "draft.md"
+    draft.write_text("# x\n\nStatus: **DRAFT, not frozen**.\n")
+    assert not S.preregistration_frozen(draft)
+    real = S.preregistration_frozen
+    seen = []
+    monkeypatch.setattr(S, "preregistration_frozen", lambda path: seen.append(path) or real(draft))
     called = []
     monkeypatch.setattr(S, "simulate", lambda cmd: called.append(cmd))
     with pytest.raises(SystemExit, match="held run refused: docs/superpowers/progress/"
                                          "productive-recovery-screens-cp2.md is not marked FROZEN"):
         S.main(["run", str(tmp_path / "out"), "--checkpoint", "2", "--cohort", "held", "--arms", "L2"])
-    assert called == [] and not (tmp_path / "out").exists()
-    # The refusal reads checkpoint 2's own file, whose status line decides.
-    seen = []
-    monkeypatch.setattr(S, "preregistration_frozen", lambda path: seen.append(path) or False)
-    with pytest.raises(SystemExit, match="held run refused"):
-        S.main(["run", str(tmp_path / "out"), "--checkpoint", "2", "--cohort", "held", "--arms", "L2"])
-    assert seen == [S.CP2.PREREGISTRATION] and called == []
-    assert "DRAFT" in next(line for line in S.CP2.PREREGISTRATION.read_text().splitlines()
-                           if line.startswith("Status:"))
+    assert seen == [S.CP2.PREREGISTRATION] and called == [] and not (tmp_path / "out").exists()
 
 
 # --- Extractor validation -------------------------------------------------------------
