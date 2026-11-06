@@ -288,6 +288,9 @@ def test_main_prints_each_kind_from_a_written_bundle(E, tmp_path, capsys):
 # --- Checkpoint 3: the chain mode (PL6d, ``--chain``) -----------------------------------
 
 CHAIN_TURNS = 10
+DRAWDOWN = ("tradeoff: the forest stand drawn down by a cut (the largest one-turn harvest fall while cutting: "
+            "the stand within capacity before minus after, i.e. extraction net of regrowth; L3's whole change, "
+            "cover loss included, beside it)")
 
 
 def _chain_bundle():
@@ -420,11 +423,12 @@ def test_a_missing_link_is_named_and_a_shared_store_is_traced_by_region(E):
          "wages_milli": 0})
     l3 = E.find_chain(bundle)["chain"]["instance"]["links"][2]
     assert l3["by"].startswith("region") and l3["other_projects_holding_timber"] == [9]
-    # Without the store hold the chain stops at link 2, with the reason.
+    # Without the store rows the chain stops at link 2, with the reason.
     for T in (7, 8):
         hist[T - 1]["livelihoods"]["timber_supply"]["stores"] = []
     inst = E.find_chain(bundle)["chain"]["instance"]
-    assert inst["depth"] == 2 and inst["missing"].startswith("the delivered timber was not used by this project")
+    assert inst["depth"] == 2
+    assert inst["missing"] == "the delivered timber was not used by this project: no store row after the delivery"
     # Without the delivery it stops at link 1.
     for snap in hist:
         snap["livelihoods"]["timber_supply"]["closed"] = []
@@ -432,14 +436,63 @@ def test_a_missing_link_is_named_and_a_shared_store_is_traced_by_region(E):
     assert inst["depth"] == 1 and inst["missing"].startswith("no expedition from the region delivered")
 
 
+def _unused_delivery(bundle, stores):
+    """Project 0 holds and uses no timber at snapshots 7-8 (stalled no_labor); the
+    region's store rows from snapshot 7 on are ``stores`` (snapshot -> row)."""
+    hist = bundle["history"]
+    for T in (7, 8):
+        rx = hist[T - 1]["livelihoods"]["repair_projects"]["receipts"][0]
+        rx.update(status="stalled", reasons=["no_labor"], timber_held=0.0, timber_used=0.0)
+    for T in range(7, CHAIN_TURNS + 1):
+        hist[T - 1]["livelihoods"]["timber_supply"]["stores"] = [stores[T]] if T in stores else []
+    return bundle
+
+
+def _store(opening, closing, held=0.0, released=0.0):
+    return {"region": 1, "opening": opening, "held": held, "delivered": 0.0, "released": released,
+            "returned": 0.0, "closing": closing}
+
+
+def test_an_unused_delivery_states_what_became_of_it(E):
+    # Still in the store at the end of the run.
+    bundle = _unused_delivery(_chain_bundle(), {T: _store(4.0, 4.0) for T in range(7, CHAIN_TURNS + 1)})
+    inst = E.find_chain(bundle)["chain"]["instance"]
+    assert inst["depth"] == 2
+    assert inst["missing"] == ("the delivered timber was not used by this project: 4 still in the store, unused, "
+                               "when the run ended")
+    window = inst["link3_window"]
+    assert (window["snapshots"], window["ended_by"], window["left_in_store"]) == ([7, 10], "the run ended", 4.0)
+    assert window["project_receipts"] == {"stalled: no_labor": 2}
+    assert window["project_closed"] == {"status": "completed", "closed_turn": 8}
+    # Released to the stockpile.
+    bundle = _unused_delivery(_chain_bundle(), {7: _store(4.0, 0.0, released=4.0)})
+    inst = E.find_chain(bundle)["chain"]["instance"]
+    assert inst["missing"] == ("the delivered timber was not used by this project: 4 released to the region's "
+                               "stockpile (no open project)")
+    assert inst["link3_window"]["ended_by"] == "the store emptied"
+    # Held while another project held timber.
+    bundle = _unused_delivery(_chain_bundle(), {7: _store(4.0, 2.0, held=2.0), 8: _store(2.0, 0.0, held=2.0)})
+    for T in (7, 8):
+        bundle["history"][T - 1]["livelihoods"]["repair_projects"]["receipts"].append(
+            {"turn": T - 1, "pid": 9, "kind": "workshop", "asset": 1, "region": 1, "status": "progress", "reasons": [],
+             "condition_before": 0.4, "condition_after": 0.5, "timber_held": 2.0, "timber_used": 2.0, "crew": [],
+             "wages_milli": 0})
+    inst = E.find_chain(bundle)["chain"]["instance"]
+    assert inst["missing"] == ("the delivered timber was not used by this project: 4 held from the store while other "
+                               "projects [9] held timber and this one used none")
+    assert inst["link3_window"]["other_holders"] == [9]
+
+
 def test_the_chain_tradeoffs_are_found_with_their_ids(E):
     trade = E.find_chain(_chain_bundle())["tradeoffs"]
     turn, away = trade["tradeoff: crew farm labour away while the home region was short of food (first with home "
                        "pilot persons priced out that turn, else the first short)"]
     assert (turn, away["eid"], away["crew"], away["home_shortfall"]) == (4, 5, [10, 11], pytest.approx(2.0))
-    turn, cut = trade["tradeoff: the forest stand drawn down by a cut (the largest one-turn fall of the L3 stock "
-                      "while cutting)"]
-    assert (turn, cut["eid"], cut["stock_fall"], cut["l3_row"]["extraction"]) == (5, 5, 1.5, 2.05)
+    turn, cut = trade[DRAWDOWN]
+    # The receipt's fall (99.0 -> 97.5) is the harvest net of regrowth; L3's own change
+    # that turn (opening 100 -> 98.45) has no cover loss, so extraction drives it.
+    assert (turn, cut["eid"], cut["harvest_fall"], cut["l3_row"]["extraction"]) == (5, 5, 1.5, 2.05)
+    assert (cut["l3_fall"], cut["l3_fall_driven_by"]) == (pytest.approx(1.55), "extraction net of regrowth")
     assert trade["tradeoff: the guard ended a cutting stage (forest_depleted)"] is None
     turn, family = trade["tradeoff: a family priced out after its crew member's wages ended"]
     assert (turn, family["crew_member"], family["who"], family["priced_out_person"]) == (9, 21, "household", 30)
@@ -447,8 +500,70 @@ def test_the_chain_tradeoffs_are_found_with_their_ids(E):
     assert family["wage_regions"] == [1]
     assert (family["last_wage_snapshot"], family["turns_since_last_wage"], family["paid_again_later"]) == (8, 1, False)
     assert trade["counts"] == {"away crew-turns": 1, "away crew-turns with the home region short": 1,
-                               "cutting turns": 2, "cutting turns whose L3 stock fell": 2,
+                               "cutting turns": 2, "cutting turns whose stand fell by harvest net of regrowth": 2,
+                               "cutting turns whose L3 stock fell in all (cover loss included)": 2,
                                "priced-out sample rows after a crew member's wages ended": 1}
+
+
+def test_a_drawdown_under_cover_loss_names_what_drove_l3s_change(E):
+    bundle = _chain_bundle()
+    # Snapshot 5: the stand loses 5.5 of cover as well; the receipt's harvest fall is
+    # unchanged (1.5) but L3's whole change is 7.0, driven by the cover loss.
+    bundle["history"][4]["livelihoods"]["timber_stock"]["regions"] = [
+        {"region_id": 2, "slot": 0, "opening": 104.5, "cleared": 5.5, "extraction": 2.05, "regrowth": 0.55,
+         "stock": 97.5, "capacity": 100.0}]
+    turn, cut = E.find_chain(bundle)["tradeoffs"][DRAWDOWN]
+    assert (turn, cut["harvest_fall"], cut["l3_fall"], cut["l3_fall_driven_by"]) == \
+        (5, 1.5, pytest.approx(7.0), "cover loss (cleared)")
+
+
+def _with_workshop_crew(bundle):
+    """Snapshot 9: RS2 workshop project 7 (region 1) pays its PL3-widened crew 21 and 40
+    (400 milli on the RS2 receipt); PL3's receipt of the same project lists them with
+    wage 0, as recovery_crews does for every workshop crew. Snapshot 10: 40 is priced out."""
+    hist = bundle["history"]
+    hist[8]["livelihoods"]["repair_projects"]["receipts"].append(
+        {"turn": 8, "pid": 7, "kind": "workshop", "asset": 2, "region": 1, "status": "progress", "reasons": [],
+         "condition_before": 0.4, "condition_after": 0.45, "timber_held": 0.2, "timber_used": 0.2,
+         "crew": [21, 40], "wages_milli": 400})
+    _put(hist, 9, "recovery_crews", receipts=[
+        {"turn": 8, "pid": 7, "kind": "workshop", "region": 1,
+         "members": [{"agent_id": 21, "origin": "rural_farmer", "wage_milli": 0},
+                     {"agent_id": 40, "origin": "veteran", "wage_milli": 0}]}])
+    _put(hist, 10, "household_retail", sample=[[40, 1, 40, 0.4, 0.7, 1]])
+    return bundle
+
+
+def test_rs2_workshop_wages_of_a_pl3_widened_crew_are_counted_once(E):
+    bundle = _with_workshop_crew(_chain_bundle())
+    paid = E._wage_snapshots(E._chain_index(bundle["history"]))
+    assert paid[21] == {7: [1500, ["pl3_granary"], [1]], 8: [1500, ["pl3_granary"], [1]],
+                        9: [200, ["rs2_workshop"], [1]]}
+    assert paid[40] == {9: [200, ["rs2_workshop"], [1]]}
+    # 21 was still paid (as a workshop repairer) at snapshot 9, so the household keyed by
+    # 21 priced out there is not "after the wages ended"; 40 priced out at 10 is.
+    trade = E.find_chain(bundle)["tradeoffs"]
+    turn, family = trade["tradeoff: a family priced out after its crew member's wages ended"]
+    assert (turn, family["crew_member"], family["who"], family["wage_sources"]) == (10, 40, "self", ["rs2_workshop"])
+    assert (family["wage_snapshots"], family["wages_milli"], family["paid_again_later"]) == ([9], 200, False)
+    # A PL3 receipt that does carry wages is counted, and its RS2 receipt then is not.
+    bundle["history"][8]["livelihoods"]["recovery_crews"]["receipts"][-1]["members"][1]["wage_milli"] = 200
+    paid = E._wage_snapshots(E._chain_index(bundle["history"]))
+    assert paid[40] == {9: [200, ["pl3_workshop"], [1]]} and 9 not in paid[21]
+
+
+def test_a_sample_row_of_two_paid_workers_counts_once(E):
+    bundle = _chain_bundle()
+    # Snapshot 10: person 21, whose household is keyed by 20, both of the repair crew.
+    _put(bundle["history"], 10, "household_retail", sample=[[21, 1, 20, 1.0, 1.0, 0]])
+    l5 = E.find_chain(bundle)["chain"]["instance"]["links"][4]
+    rows = [(h["snapshot"], h["agent_id"], h["who"], h["crew_members"]) for h in l5["sample"]]
+    assert rows == [(9, 20, "self", [20]), (10, 21, "self", [21, 20]), (9, 30, "household", [21])]
+    assert l5["sample_hits"] == 3 and l5["repair_crew_sample_hits_in_region"] == 3
+    # A priced-out row of two former workers is one tradeoff row too.
+    _put(bundle["history"], 10, "household_retail", sample=[[20, 1, 21, 0.5, 0.8, 1]])
+    counts = E.find_chain(bundle)["tradeoffs"]["counts"]
+    assert counts["priced-out sample rows after a crew member's wages ended"] == 2      # snapshots 9 and 10
 
 
 def test_the_chain_mode_says_what_a_run_does_not_record(E):
@@ -459,10 +574,22 @@ def test_the_chain_mode_says_what_a_run_does_not_record(E):
         == "not applicable (no household_retail person sample)"
     found = E.find_chain({"history": _history(["recovery_crews"])})
     assert found["tradeoffs"] == "not recorded in this run (no timber_supply record)"
-    # Only dated records are read: a final state holding a chain changes nothing.
+    # Only dated records are read. A final state shaped like a snapshot that holds a
+    # delivery, its store and another stall would change the result if it were read.
     bundle = _chain_bundle()
-    bundle["world_state"] = {"livelihoods": {"timber_supply": {"closed": []}, "repair_projects": {"receipts": []}}}
-    assert E.find_chain(bundle)["chain"]["instance"]["depth"] == 5
+    hist = bundle["history"]
+    delivery = hist[-1]["livelihoods"]["timber_supply"]["closed"]
+    for snap in hist:
+        snap["livelihoods"]["timber_supply"]["closed"] = []
+    bundle["world_state"] = {"turn": CHAIN_TURNS + 1, "livelihoods": {
+        "timber_supply": {"closed": delivery, "stores": [{"region": 1, "opening": 4.0, "held": 4.0, "delivered": 0.0,
+                                                          "released": 0.0, "closing": 0.0}]},
+        "repair_projects": {"receipts": [{"turn": CHAIN_TURNS, "pid": 50, "kind": "granary", "asset": 9,
+                                          "region": 3, "status": "stalled", "reasons": ["no_timber"],
+                                          "condition_before": 0.5, "condition_after": 0.5, "timber_held": 0.0,
+                                          "timber_used": 0.0, "crew": [], "wages_milli": 0}]}}}
+    chain = E.find_chain(bundle)["chain"]
+    assert chain["instance"]["depth"] == 1 and chain["funnel"]["projects stalled no_timber"] == 3
 
 
 def test_main_prints_the_chain_from_a_written_bundle(E, tmp_path, capsys):

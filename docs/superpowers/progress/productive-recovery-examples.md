@@ -285,17 +285,22 @@ Funnel over every project that stalled `no_timber` (the finder's `chain funnel`)
 Where the chain breaks, it breaks at link 2: most stalled projects never got a delivery from
 an expedition of their region while they were open (the finder does not say why per
 project; the checkpoint-1 refusal examples above show the usual reasons). Once timber
-arrived, the remaining links followed in every chain but one: P7's project 36 (region 27),
-whose delivery from expedition 11 it did not use (released, or held by another project).
+arrived, the remaining links followed in every chain but one: P7's granary project 36
+(region 27). Expedition 11 delivered 3.22 timber to region 27's store at snapshot 86, and it
+stayed there unused until the run ended (snapshots 87–200: nothing held, returned or
+released, and no other project in the region held timber). The project stalled
+`no_timber` with `no_labor` on 3 of those snapshots, then `no_people` (suspended, nobody
+farming in the region) on the other 111, and never closed. The finder states this cause
+from the store rows and the project's receipts rather than assuming one.
 
 ### Natural tradeoffs
 
 | Tradeoff | World, snapshot | What happened |
 | --- | --- | --- |
 | Crew farm labour away while the home region was short of food | P31, 84 | Expedition 26's crew (502, 503, 568, 702; outbound) took 2.0 farmer-turns from region 28 while its sufficiency after relief was 0.57 (a shortfall of 8.0 of 18.5 food), and 3 of region 28's 37 pilot persons were priced out that turn. Many away crew-turns fell on short home regions: T23 57 of 89, P7 87 of 160, P21 66 of 105, P31 104 of 276. These are coincidences in time, by id (expedition, crew) and region (food); the cost of the labour itself is not separable in one run (checkpoint 1's limit). |
-| The forest stock drawn down by a cut | T23, 143 | Expedition 14 (crew 26, 29, 77, 141) cut 5.22 at forest 6, and the stand's L3 extraction that turn was exactly 5.22 with no regrowth (it was at capacity): the stock fell from 2,009.3 to 2,004.1. In P7 (snapshot 28, expedition 0) the crew's 8.82 cut against 1.94 regrowth lowered the stand by 6.88. The stock fell on 17 of 65, 27 of 106, 20 of 93 and 66 of 177 cutting turns; on the rest regrowth outweighed the cut. Every such fall was under 0.4% of the stand. |
+| The forest stand drawn down by a cut | P7, 28 | The finder ranks the receipt's harvest fall: the stand within this turn's capacity before the cut minus after it, which is extraction net of regrowth; L3's whole change adds the cover lost that turn and is reported beside it. In P7 expedition 0 (crew 78, 79, 81, 82) cut 8.82 at forest 12 against 1.94 of regrowth, with no cover loss: the stand fell 6.88 (2,123.0 to 2,116.1, 97.5% to 97.2% of capacity), all of it the harvest. P31's largest (snapshot 28, expedition 4, forest 30) is the same kind: an 8.19 fall, 12.16 extracted (the crew's 8.46 cut and the residents') against 3.97 regrowth, no cover loss. In T23 (snapshot 143, expedition 14, forest 6) the crew's 5.22 cut was the whole extraction and the harvest fall, but L3's stock fell 28.05 that turn (2,032.1 to 2,004.1), **mostly cover loss** (22.83 cleared); P21's largest (snapshot 34, forest 19) likewise fell 56.46 in L3, 51.00 of it cover loss against 5.63 extracted. The harvest lowered the stand on 17 of 65, 27 of 106, 20 of 93 and 66 of 177 cutting turns (T23, P7, P21, P31); counting cover loss, L3's stock fell on 19, 28, 29 and 69. Every harvest fall was under 0.4% of the stand. |
 | The guard ended a cutting stage | T23, 35 | Expedition 4's cutting at forest 5 ended `forest_depleted`, but **not because of the crew**: the crew cut 0.004 timber, while L3 recorded 126.4 cleared (cover lost) over snapshots 33–35 and the stand's capacity fell to 0. It is D1's depletion cause (clearing), seen under a crew. No guard ending occurred in P7, P21 or P31. |
-| A family priced out after its crew member's wages ended | P31, 83 | Person 1071, paid once as a PL3 granary-crew member in region 19 (0.38 coins at snapshot 66), is in the sample at snapshot 83 **priced out** in region 28 (ration 0.536 against a fair share of 0.589; household keyed 1035, the smaller id of the couple), 17 turns after that wage and never paid again: traced by id. The person had moved regions in between, so the household priced out is not in the region where the wage was earned. This was the only kind of instance found: 4 priced-out sample rows in P31 and **none in T23, P7 or P21**. A crew member's family whose key is the spouse's id is found only if the crew member is in the sample too, so the search can miss families; with only 24 sampled persons a turn, a null here is not evidence that no family was priced out. |
+| A family priced out after its crew member's wages ended | P31, 83 | The search counts every `repair_wage` once, from the record that carries it: PL3 granary-crew members' own wages, RS2 receipts for workshop crews (PL3 lists the crews it widened but pays them nothing itself), and PL1 receipts; a sample row belonging to two former workers counts once. Person 1071, paid once as a PL3 granary-crew member in region 19 (0.38 coins at snapshot 66), is in the sample at snapshot 83 **priced out** in region 28 (ration 0.536 against a fair share of 0.589; household keyed 1035, the smaller id of the couple), 17 turns after that wage and never paid again: traced by id. The person had moved regions in between, so the household priced out is not in the region where the wage was earned. This was the only kind of instance found: 4 priced-out sample rows in P31 and **none in T23, P7 or P21**. A crew member's family whose key is the spouse's id is found only if the crew member is in the sample too, so the search can miss families; with only 24 sampled persons a turn, a null here is not evidence that no family was priced out. |
 
 ### Not traced, or not found
 
@@ -309,13 +314,32 @@ whose delivery from expedition 11 it did not use (released, or held by another p
 - **A family priced out after wages ended** did not occur in T23, P7 or P21.
 - **A crew drawdown to the guard** did not occur: the one guard ending (T23) was clearing.
 
+### Limits of the trace
+
+These are possible in principle and were not observed; they are recorded, not changed.
+
+- Link 3 sums the store's per-turn `held` over the turns the project used timber. Timber
+  RS2 returned to the store and held again in a later turn would be counted twice; `returned`
+  was 0 in every store row of the CH bundles checked.
+- Link 3 credits the uses to the expedition traced even if a second delivery to the region
+  arrived before the first use (the window stops at a new delivery only once a use is
+  found).
+- Only the earliest delivered expedition after the stall is traced per project; a later
+  delivery to the same project is not.
+- RS2 and PL1 receipts carry a crew's wages in total. The finder splits them equally (RS2
+  pays every repairer of a site the same wage, PL1 every member the same rate), which is
+  exact unless the wealth ceiling refused one member's wage; the receipt does not say whose.
+
 ### Constructed
 
 `tests/test_productive_recovery_examples.py` (offline, oracle chunk `timber-supply`) builds
 a chain on purpose and checks every link's snapshot, ids and "by id" or "by region" label,
 the funnel, near misses (a project with no expedition, a stall after the launch, a
 price-out in the very turn the wage was paid, a store shared with another project), each
-missing link's stated reason, the tradeoffs with their ids, and that only dated records are
-read. `check_fields()` also checks every field, reason, status and stage the chain mode
+missing link's stated reason (no store row; timber released, held by another project, or
+still in the store at the end of the run), the tradeoffs with their ids (a drawdown under
+cover loss included), RS2 workshop wages of a PL3-widened crew counted once, a sample row of
+two paid workers counted once, and that only dated records are read: a final state shaped
+like a snapshot that holds a delivery and another stall changes nothing. `check_fields()` also checks every field, reason, status and stage the chain mode
 reads, the retail sample's columns and the native provisioning columns against this
 checkout.
