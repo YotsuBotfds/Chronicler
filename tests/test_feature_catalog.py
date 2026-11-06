@@ -85,7 +85,7 @@ def test_every_boolean_feature_declares_requirements_over_known_terms():
 
     def walk(condition):
         assert condition["reason"].startswith("requires ")
-        kinds = [k for k in ("agents", "feature", "choice", "setting", "any") if k in condition]
+        kinds = [k for k in ("agents", "feature", "choice", "setting", "any", "not") if k in condition]
         assert len(kinds) == 1
         if "agents" in condition:
             assert condition["agents"] and set(condition["agents"]) <= set(fc.AGENT_MODES)
@@ -95,6 +95,8 @@ def test_every_boolean_feature_declares_requirements_over_known_terms():
             assert set(condition["values"]) <= set(entries[condition["choice"]]["choices"])
         elif "setting" in condition:
             assert condition["setting"] in fc.SETTINGS
+        elif "not" in condition:
+            walk(condition["not"])
         else:
             for part in condition["any"]:
                 walk(part)

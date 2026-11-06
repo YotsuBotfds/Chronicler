@@ -1,8 +1,9 @@
 """Connected-world program screens (CW1-CW6): run, report and check them.
 
-    python scripts/connected_world_screens.py run OUT_DIR --screen CW1 --cohort pilot|held|dev [...]
+    python scripts/connected_world_screens.py run OUT_DIR --screen CW1 --cohort pilot|held|reserve|dev [...]
     python scripts/connected_world_screens.py report OUT_DIR/metrics.jsonl --screen CW1
     python scripts/connected_world_screens.py check --screen CW1|all [--metrics ... --cohort ...]
+    python scripts/connected_world_screens.py mark-run OUT_DIR --screen CW1
     python scripts/connected_world_screens.py registry
 
 The generic runner, the seed rules, the fixed harm panel, activation, the compute

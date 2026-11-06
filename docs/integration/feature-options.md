@@ -66,7 +66,12 @@ catalog of every existing switch is byte-identical to 8abc1acb
 (`tests/test_feature_matrix.py::test_existing_catalog_output_is_byte_identical`),
 and `CATALOG_SCHEMA_VERSION` stays 1. When the first group switch lands,
 `test_catalog_is_generated_from_the_registry_and_the_cli_parser` (which lists
-the prerequisite and livelihoods keys) needs its group keys added.
+the prerequisite and livelihoods keys) needs its group keys added; the
+requirement-term walk of
+`test_every_boolean_feature_declares_requirements_over_known_terms` already
+accepts `not`. Viewers built before the `not` kind refuse a catalog that
+contains one: consider bumping `CATALOG_SCHEMA_VERSION` (and the version the
+viewer accepts) when the first exclusion lands.
 
 **Compatibility matrix.** `scripts/feature_matrix.py [--json OUT] [--markdown
 OUT]` generates it from the catalog: each switch's minimal selection and agent

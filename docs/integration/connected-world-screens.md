@@ -58,8 +58,24 @@ are used. Template 5, the shared pilot, was also in the M-AF1 and M58b developme
 `check` prints that as a note (a timing pilot is never held), not a refusal.
 
 `python scripts/connected_world_screens.py registry` validates the registry and prints the
-used, never-run-again, development and reserved sets per stratum. After a held run, change its
-reservation's status to `run`; a later held run of the same cohort is then refused as reuse.
+used, never-run-again, development and reserved sets per stratum.
+
+**Recording a held run.** A held (or reserve) run is recorded at its start in its
+`OUT/held-run.json` and in the clone's ledger `output/held-runs/ledger.jsonl` (git ignores
+`output/`); while it is recorded, a new run of that cohort is refused in that clone (resume the
+recorded one with `--resume`). When the run is finished or abandoned, `mark-run OUT --screen CWn`
+sets the cohort's registry entries to `run` with a `held_run` record (output folder, identity
+digest, start, rows, whether complete, reason); commit the registry with the results. From then
+on every clone refuses the cohort as reused, and a resume is refused too.
+
+**The reserve.** When a screen's held run must be repeated (a failed run, a fixed extractor),
+the lead runs the same screen on the reserve: `run OUT --screen CWn --cohort reserve --reason
+"<why>" --pilot PILOT/metrics.jsonl`. It needs what a held run needs (frozen preregistration,
+ceiling, pilot); the reason goes into `source.txt`, `held-run.json` and, through `mark-run`, the
+registry, which also names the screen on the reserve entries. The reserve serves one screen once.
+
+**The shared pilot** reservation (template 5, procedural 19) stays `reserved` after use: a
+timing pilot is never evidence, and every screen's pilot uses it. Never mark it `run`.
 
 ## 2. The runner
 
@@ -72,6 +88,7 @@ $PY scripts/connected_world_screens.py report OUT/metrics.jsonl --screen CW1    
 $PY scripts/connected_world_screens.py run HELD --screen CW1 --cohort held --pilot OUT/metrics.jsonl --jobs 3
 $PY scripts/connected_world_screens.py report HELD/metrics.jsonl --screen CW1 > HELD/report.md
 $PY scripts/connected_world_screens.py check --screen CW1 --metrics HELD/metrics.jsonl --cohort held
+$PY scripts/connected_world_screens.py mark-run HELD --screen CW1      # then commit scripts/seed_registry.json
 # development worlds only (never evidence), e.g. to validate an extractor:
 $PY scripts/connected_world_screens.py run DEV_OUT --screen CW1 --cohort dev --worlds t23,p31 --turns 20
 ```
@@ -92,23 +109,35 @@ of their preregistrations; the runner imports neither and is not tied to
   real parser and accepted by the feature catalog, an activation rule, declared counters for
   every package counter it reads, and 2-3 primary outcomes whose controls lie on the arm's
   control chain.
-- **Preregistration** (held runs): a `Status:` line reading FROZEN (not DRAFT), exactly one
-  `Compute ceiling: X core-hours` line and one `Primary outcomes: id1, id2[, id3]` line naming
-  exactly the screen's primaries.
-- **Compute ceiling** (held runs): `--pilot` gives the pilot's metrics; the run is refused when
-  the projection (mean pilot seconds per arm and stratum times the held worlds) times 1.5
-  exceeds the ceiling. During the run no new run starts once the finished runs reach the
-  ceiling; the rest are listed in `source.txt`, reported as `not run`, and the exit code is 4.
-- **Packages**: an enabled package records a dated record (`source_turn` = turn - 1) in its
-  mode with declared, numeric counters; a package the arm does not enable records nothing.
+- **Preregistration** (held and reserve runs): a `Status:` line reading FROZEN (not DRAFT),
+  exactly one `Compute ceiling: X core-hours` line and one `Primary outcomes: id1, id2[, id3]`
+  line naming exactly the screen's primaries.
+- **Pilot** (held and reserve runs): `--pilot` gives the pilot's `metrics.jsonl`; its sibling
+  `source.txt` must show the same extension, runner, screen module, registry and dirty count,
+  its rows that identity, and its source revision may differ from this run's only outside the
+  code (`src/`, `chronicler-agents/`, `scripts/`, `pyproject.toml`, `uv.lock`), as the freeze
+  commit does.
+- **Compute ceiling** (held and reserve runs): the run is refused when the projection (mean
+  pilot seconds per arm and stratum times the cohort's worlds) times 1.5 exceeds the ceiling.
+  During the run a run starts only while the seconds used, the expected seconds of the runs in
+  flight and its own expected seconds fit under the ceiling; a run's expected seconds are the
+  larger of the pilot mean for its arm and stratum and the finished runs' mean for its stratum.
+  The runs not started are listed in `source.txt` with the estimate that stopped them,
+  reported as `not run`, and the exit code is 4.
+- **Packages**: in every snapshot that carries it, an enabled package's record is an object,
+  dated (`source_turn` = turn - 1), in its mode, with declared, numeric counters; a package the
+  arm does not enable records nothing.
 - **Failures**: a missing or malformed outcome or harm makes the run rc 3 with the reasons;
-  nothing missing reads as zero. Exit codes: 1 a simulation failed, 3 a missing outcome, 4
-  stopped at the ceiling.
+  nothing missing reads as zero. A failed run's output folder is kept for diagnosis. Exit
+  codes: 1 a simulation failed, 3 a missing outcome, 4 stopped at the ceiling.
 
 **Identity.** `source.txt` starts with `source <rev>`, `dirty <n> tracked files`, the imported
 `chronicler`, the native extension path and SHA-256, the interpreter, and the SHA-256 of the
-runner (the extractor), of the screen module and of the registry; then one header per run or
-resume and, for a held run, the pilot file's SHA-256, its projection and the ceiling. Every
+runner, of the screen module and of the registry, and for a held or reserve run of the
+preregistration; then one header per run or resume and, for those runs, the reason, the pilot
+file's SHA-256, its projection, the ceiling and the expected seconds per arm and stratum. The
+extractors live in the screen module, so its SHA-256 identifies them; a helper kept in another
+file is neither hashed nor counted as dirty when untracked. Every
 row carries the SHA-256 of those identity lines and the schema versions it read (bundle,
 livelihoods container, each package record, each dated snapshot record). `--resume` runs only
 the missing arm-world pairs and refuses any change of those lines, screen or cohort.
@@ -116,12 +145,14 @@ the missing arm-world pairs and refuses any change of those lines, screen or coh
 **Report.** Runs and failures, `INCOMPLETE ... not run` for every missing arm-world pair, the
 identity digests and schema versions, then **activation per world before any effect**
 (`activated`, `not activated`, `unknown`, `failed`, `not run`), then primary and secondary
-outcomes world by world, then the harm panel beside every declared comparison, then run time
-per arm. A world where the arm did not act is shown as `not activated`, never as a zero, and is
-left out of the summaries. Uncertainty is descriptive only: per stratum mean, min/max, sign
-counts and the exact paired sign-flip distribution (all 2^n sign assignments of the per-world
-differences; with 6 worlds, 64): how many assignments give a mean at least as far from zero as
-the observed one, and the range of those means. It is not a significance test.
+outcomes world by world, then the harm panel beside every arm against its declared control
+(and any other comparison an outcome declares), then run time per arm. A world where the arm
+did not act is shown as `not activated`, never as a zero, and is left out of the summaries.
+Uncertainty is descriptive only: per stratum mean, min/max, sign counts and, for an outcome
+with a control, an exact enumeration of the paired sign flips (all 2^n sign assignments of the
+per-world differences; with 6 worlds, 64), summarized by how many give a mean at least as far
+from zero as the observed one and the range of those means. It is not a significance test; an
+outcome of one arm alone shows `n/a (no control)`.
 
 ## 3. The fixed harm panel
 
@@ -132,15 +163,15 @@ recorded" means the system that records it is off in the run; it is never read a
 | --- | --- | --- | --- |
 | `population` | population at the end, summed over civilizations | `history[-1].civ_stats[*].population` | malformed |
 | `treasury` | treasury at the end, summed | `history[-1].civ_stats[*].treasury` | malformed |
-| `food_shortfall` | food shortfall after relief over the run: demand x max(0, 1 - min(1, sufficiency after relief)) per region and turn | `history[*].food_accounting.regions[*]` | not recorded |
+| `food_shortfall` | food shortfall after relief over the run: demand x max(0, 1 - min(1, sufficiency after relief)) per region and turn | `history[*].food_accounting.regions[*]` | not recorded (no record, or no native ledger in some turn: unknown, not zero) |
 | `priced_out_persons` | priced-out person-turns | `livelihoods.household_retail.regions[*].provisioning`, checked against the `priced_out_persons` counter | not recorded (retail off) |
 | `priced_out_children` | priced-out child-turns | the same frames | not recorded (retail off) |
 | `deaths_famine` | deaths by the famine authority | none: deaths are not recorded by cause | **requires slice extractor** (the slice that records deaths by authority) |
 | `deaths_epidemic` | deaths by the epidemic authority | `history[*].epidemics.deaths_total` (last) | not recorded (epidemiology off) |
 | `deaths_war` | deaths by the casualty authority | none outside the campaign layer | **requires slice extractor** (D3) |
 | `out_migration` | agents moving between regions over the run | `history[*].migration` rows `[from, to, agents]` | not recorded (no agent pool) |
-| `wealth_gini` | mean wealth Gini of living civilizations at the end | `history[-1].civ_stats[*].gini` | not recorded (no living civilization) |
-| `forest_stand` | standing timber over capacity at the end (a stock, not cover) | `livelihoods.timber_stock.totals` | not recorded (timber stock off) |
+| `wealth_gini` | mean wealth Gini of living civilizations at the end | `history[-1].civ_stats[*].gini` | not recorded (no agent pool, where civ_stats holds a placeholder 0, or no living civilization) |
+| `forest_stand` | standing timber over capacity at the end (a stock, not cover) | the last snapshot's `livelihoods.timber_stock.totals` | not recorded (timber stock off, no record at the end, or the last turn unobserved) |
 
 A slice that adds the missing record supplies the extractor for its harm (a function from a
 bundle to `{state, value, note}`) in `HARM_PANEL`; it does not drop or reorder harms.
@@ -161,9 +192,10 @@ bundle to `{state, value, note}`) in `HARM_PANEL`; it does not drop or reorder h
 3. Add tests with constructed bundles for the extractor and activation; validate on development
    worlds with `--cohort dev`; run `check --screen CWn`.
 4. Run the pilot, report the projection, have the lead freeze the preregistration, run the held
-   cohort with `--pilot`, then `report` and `check --metrics`. Retain `metrics.jsonl`,
-   `report.md` and `source.txt` under `docs/superpowers/progress/connected-world-screens-cwN/`
-   and set the reservation's status to `run` in the registry.
+   cohort with `--pilot`, then `report`, `check --metrics` and `mark-run`. Retain
+   `metrics.jsonl`, `report.md`, `source.txt` and `held-run.json` under
+   `docs/superpowers/progress/connected-world-screens-cwN/` and commit the registry `mark-run`
+   changed in the same commit.
 
 ## 5. The compatibility matrix
 
@@ -200,7 +232,9 @@ zero), `recorded_zero` or `recorded`, each with a note. The repair projects, tim
 remittances, food allocation and granary storage panels show the note and say "recorded,
 nothing happened this turn" for a recorded zero; the livelihoods panel mounts its four
 whenever the run records their package, so an absent record is reported instead of hidden.
-Tests: every state for the five readers (`recordReading.test.ts`) and the five panels
+L2 leaves out the regions household retail provisioned, so when the snapshot records retail
+an empty food-allocation frame reads "no region outside household retail's regions was short
+of food", never "no region was short of food". Tests: every state for the five readers (`recordReading.test.ts`) and the five panels
 (`RecordStates.test.tsx`).
 
 The granary storage panel `GranaryStorage.tsx` is pinned whole by the crisis-candidate source
@@ -211,12 +245,14 @@ livelihoods layer `cwe1` (`tests/fixtures/livelihoods_cwe1_source_inverse.json`,
 
 ## 7. Verification (2026-11-06, branch `claude/cw-e1-tooling`)
 
-- `tests/test_screen_runner.py` (95) and `tests/test_feature_matrix.py` (16) pass under the
+- `tests/test_screen_runner.py` (112) and `tests/test_feature_matrix.py` (17) pass under the
   offline guard; `tests/test_feature_catalog.py` and `tests/test_native_ci_shards.py` pass.
 - A `DEV` smoke run on development world template 1 (10 turns, both arms, the reference native
   extension `101a4cd5...`) wrote identities, rows, activation and the harm panel; `report` and
   `check --metrics` passed.
-- Viewer: `npm test -- --maxWorkers=2` (148 files, 1520 passed, 2 skipped), `npm run lint`,
+- Viewer: `npm test -- --maxWorkers=2` (148 files, 1522 passed, 2 skipped), `npm run lint`,
   `npm run build` pass.
+- After the independent review (2026-11-06): its findings M1, m1-m8 and n1, n3, n4-n7 are fixed
+  with tests; a second `DEV` smoke run (template 1, 10 turns, 2 jobs) passed `check --metrics`.
 - Not run: any pilot or held screen (every CW screen is a stub), native or Rust suites (no
   native change).

@@ -3,11 +3,12 @@
 A program script declares its screens and hands them to :func:`main`
 (``scripts/connected_world_screens.py`` does this for CW1-CW6):
 
-    python scripts/<program>_screens.py run OUT_DIR --screen S --cohort pilot|held|dev [--jobs 3] [--arms a,b]
-        [--seeds all|template|procedural] [--pilot PILOT_DIR/metrics.jsonl] [--worlds t1,p7] [--turns N]
-        [--keep-first] [--resume]
+    python scripts/<program>_screens.py run OUT_DIR --screen S --cohort pilot|held|reserve|dev [--jobs 3]
+        [--arms a,b] [--seeds all|template|procedural] [--pilot PILOT_DIR/metrics.jsonl] [--reason TEXT]
+        [--worlds t1,p7] [--turns N] [--keep-first] [--resume]
     python scripts/<program>_screens.py report OUT_DIR/metrics.jsonl --screen S
     python scripts/<program>_screens.py check --screen S|all [--metrics OUT_DIR/metrics.jsonl --cohort C]
+    python scripts/<program>_screens.py mark-run OUT_DIR --screen S
     python scripts/<program>_screens.py registry
 
 The skeleton (run/report/check, ``--resume``, the run environment and the source
@@ -31,10 +32,20 @@ What the runner enforces for every screen:
   the preregistration's ``Status:`` line to read FROZEN, a machine-read
   ``Compute ceiling: X core-hours`` line and a ``Primary outcomes: a, b`` line
   naming exactly the screen's primaries.
-* **Compute ceiling**: a held run needs ``--pilot`` (the pilot's metrics); it
-  refuses when the pilot projection times 1.5 exceeds the ceiling, and stops
-  starting runs once the finished runs reach the ceiling (the rest are reported
-  as not run; exit code 4).
+* **Compute ceiling**: a held run needs ``--pilot`` (the pilot's metrics and its
+  ``source.txt``: same extension, runner, screen module, registry and dirty
+  count, and a source revision that differs at most outside the code); it
+  refuses when the pilot projection times 1.5 exceeds the ceiling, and starts a
+  run only while the seconds used, the expected seconds of the runs in flight
+  and the run's own expected seconds fit under the ceiling (expected: the larger
+  of the pilot mean for the arm and stratum and the finished runs' mean for the
+  stratum). The runs not started are reported as not run; exit code 4.
+* **Evidence runs** (``held``, or ``reserve`` with ``--reason`` for a named screen
+  whose held run must be repeated) are recorded at their start in
+  ``OUT_DIR/held-run.json`` and the clone's ledger (``output/held-runs/``); a new
+  run of the same cohort is refused while one is recorded (resume it instead).
+  ``mark-run`` then records the run in the registry (status ``run`` with a
+  ``held_run`` record), which refuses the cohort in every clone.
 * **Harm panel** (``HARM_PANEL``): the same harms are extracted for every run and
   shown beside every comparison. A harm whose system is off reads "not
   recorded", one without a bundle field reads "requires slice extractor";
@@ -44,11 +55,14 @@ What the runner enforces for every screen:
   and is left out of the effect summaries.
 * **Identity**: ``source.txt`` records the source revision and dirty count, the
   imported ``chronicler``, the native extension's SHA-256, the interpreter, the
-  SHA-256 of this runner, of the screen module and of the registry; every row
-  carries the identity digest and the schema versions it read. ``--resume``
-  refuses any change.
+  SHA-256 of this runner, of the screen module (extractors live there), of the
+  registry and, for evidence runs, of the preregistration; every row carries the
+  identity digest and the schema versions it read. ``--resume`` refuses any
+  change.
 * **Uncertainty**, descriptive only: per stratum mean, min/max, sign counts and
-  the exact paired sign-flip distribution of the mean over the worlds.
+  an exact enumeration of the paired sign flips of the mean over the worlds (for
+  an outcome with a control; the harm panel is shown beside every arm against
+  its control).
 
 A missing or malformed outcome (or harm) makes the run a visible failure
 (rc 3, the reasons named); nothing missing reads as zero.
@@ -88,7 +102,13 @@ CEILING_MARGIN = 1.5
 REGISTRY_STATUSES = ("run", "never_run", "reserved", "restricted_gate", "development")
 REGISTRY_COHORTS = ("held", "pilot", "reserve")
 ENTRY_KEYS = ("id", "source", "use", "stratum", "world", "seeds", "turns", "status")
-OPTIONAL_ENTRY_KEYS = ("program", "cohort", "screen")
+OPTIONAL_ENTRY_KEYS = ("program", "cohort", "screen", "held_run")
+HELD_RUN_KEYS = ("out", "identity", "started", "rows", "complete", "recorded")
+#: Cohorts that are evidence: a frozen preregistration, the compute ceiling, the ledger.
+EVIDENCE_COHORTS = ("held", "reserve")
+#: Every evidence run's start, per clone (``output/`` is ignored by git); ``mark-run``
+#: records the run in the registry, which every clone reads.
+LEDGER = REPO / "output" / "held-runs" / "ledger.jsonl"
 #: Exit codes: a simulation failed (1), an outcome is missing or malformed (3), the
 #: compute ceiling stopped the run (4).
 RC_FAILED, RC_MISSING, RC_CEILING = 1, 3, 4
@@ -161,16 +181,27 @@ class Screen:
 @dataclass
 class Runtime:
     """What touches the machine, replaceable in tests (the offline guard forbids
-    child processes): one simulation, the source identity and the clock."""
+    child processes): one simulation, the source identity, the clock, the evidence-run
+    ledger and the paths that differ between two source revisions."""
     simulate: Callable[[list[str]], Any] = None  # type: ignore[assignment]
     identity: Callable[[Screen], list[str]] = None  # type: ignore[assignment]
     clock: Callable[[], float] = time.time
+    ledger: Path = LEDGER
+    changed_paths: Callable[[str, str], list[str] | None] = None  # type: ignore[assignment]
 
     def __post_init__(self):
         if self.simulate is None:
             self.simulate = simulate
         if self.identity is None:
             self.identity = source_identity
+        if self.changed_paths is None:
+            self.changed_paths = changed_paths
+
+
+def changed_paths(old: str, new: str) -> list[str] | None:
+    """Paths that differ between two revisions (None when git cannot tell)."""
+    p = subprocess.run(["git", "-C", str(REPO), "diff", "--name-only", old, new], capture_output=True, text=True)
+    return p.stdout.split() if p.returncode == 0 else None
 
 
 # --- Seed registry -----------------------------------------------------------------
@@ -257,6 +288,11 @@ def validate_registry(reg: Mapping) -> list[str]:
                 problems.append(f"{where}: a reservation names its program and cohort")
             if cohort == "held" and not e.get("screen"):
                 problems.append(f"{where}: a held reservation names its screen")
+        if "held_run" in e:
+            run = e["held_run"]
+            if e["status"] != "run" or not isinstance(run, dict) or not set(HELD_RUN_KEYS) <= set(run) \
+                    or not set(run) <= set(HELD_RUN_KEYS) | {"reason"}:
+                problems.append(f"{where}: held_run is a {list(HELD_RUN_KEYS)} record on a run entry")
         if e["stratum"] in STRATA and _seed_items_ok(e["seeds"]):
             good.append(e)
     for stratum in STRATA:
@@ -310,6 +346,8 @@ def seed_sets(reg: Mapping, stratum: str) -> dict[str, set[int]]:
 def check_seeds(screen: Screen, reg: Mapping) -> tuple[list[str], list[str]]:
     """(problems, notes) for the screen's pilot and held cohorts against the registry."""
     problems, notes = validate_registry(reg), []
+    if problems:
+        return problems, notes          # a malformed registry is refused, never half-read
     for stratum in STRATA:
         entries = [e for e in reg["entries"] if e["stratum"] == stratum]
         development = set().union(*(expand(e["seeds"]) for e in entries if e["status"] == "development"))
@@ -604,34 +642,50 @@ def package_problems(screen: Screen, bundle: dict, flags: Sequence[str]) -> tupl
         if not carrying:
             problems.append(f"{p.name}: enabled but never recorded")
             continue
-        misdated = [s.get("turn") for s in carrying if isinstance(_get(s, p.path), dict)
-                    and "source_turn" in _get(s, p.path) and _get(s, p.path)["source_turn"] != s.get("turn", 0) - 1]
+        mode = expected[p.name]
+        declared = None
+        if p.counters:
+            _src()
+            declared = set(getattr(import_module(p.counters_module), "COUNTERS"))
+        # Every snapshot's record is checked, not only the last one's.
+        not_object, misdated, modes, no_counters = [], [], {}, []
+        undeclared, non_numeric = set(), set()
+        for snap in carrying:
+            rec, turn = _get(snap, p.path), snap.get("turn")
+            if not isinstance(rec, dict):
+                not_object.append(turn)
+                continue
+            if "source_turn" in rec and rec["source_turn"] != snap.get("turn", 0) - 1:
+                misdated.append(turn)
+            if mode is not None and rec.get("mode") != mode:
+                modes.setdefault(repr(rec.get("mode")), []).append(turn)
+            if declared is not None:
+                counters = rec.get("counters")
+                if not isinstance(counters, dict):
+                    no_counters.append(turn)
+                    continue
+                undeclared |= set(counters) - declared
+                non_numeric |= {k for k, v in counters.items() if not _num(v)}
+        if not_object:
+            problems.append(f"{p.name}: records that are not objects at turns {not_object[:5]}")
         if misdated:
             problems.append(f"{p.name}: misdated records at turns {misdated[:5]}")
+        for got, turns in modes.items():
+            problems.append(f"{p.name}: mode {got}, expected {mode!r} at turns {turns[:5]}")
+        if no_counters:
+            problems.append(f"{p.name}: counters missing at turns {no_counters[:5]}")
+        if undeclared:
+            problems.append(f"{p.name}: undeclared counters {sorted(undeclared)[:5]}")
+        if non_numeric:
+            problems.append(f"{p.name}: non-numeric counters {sorted(non_numeric)[:5]}")
         rec = _get(hist[-1], p.path)
         if not isinstance(rec, dict):
             problems.append(f"{p.name}: no record in the last snapshot")
             continue
-        mode = expected[p.name]
-        if mode is not None and rec.get("mode") != mode:
-            problems.append(f"{p.name}: mode {rec.get('mode')!r}, expected {mode!r}")
-        if not p.counters:
-            continue
-        counters = rec.get("counters")
-        if not isinstance(counters, dict):
-            problems.append(f"{p.name}: counters missing")
-            continue
-        _src()
-        declared = set(getattr(import_module(p.counters_module), "COUNTERS"))
-        unknown = sorted(set(counters) - declared)
-        if unknown:
-            problems.append(f"{p.name}: undeclared counters {unknown[:5]}")
-        bad = sorted(k for k, v in counters.items() if not _num(v))
-        if bad:
-            problems.append(f"{p.name}: non-numeric counters {bad[:5]}")
-        # A declared counter absent from the record was never incremented: every
-        # record starts empty when its switch is enabled (the sprint-3 rule).
-        out[p.name] = {k: counters.get(k, 0) for k in p.counters}
+        if declared is not None and isinstance(rec.get("counters"), dict):
+            # A declared counter absent from the record was never incremented: every
+            # record starts empty when its switch is enabled (the sprint-3 rule).
+            out[p.name] = {k: rec["counters"].get(k, 0) for k in p.counters}
     return out, problems
 
 
@@ -673,17 +727,19 @@ def harm_food_shortfall(bundle: dict) -> dict:
     n = len((bundle.get("world_state") or {}).get("regions") or [])
     if not any(s.get("food_accounting") is not None for s in hist):
         return _harm(NOT_RECORDED, note="food accounting is not recorded in this run")
-    total, bad = 0.0, []
+    total, bad, unobserved = 0.0, [], []
     for snap in hist:
         fa = snap.get("food_accounting") or {}
         rows = fa.get("regions")
-        if fa.get("source_turn") != snap.get("turn", 0) - 1 or not isinstance(rows, list) or len(rows) != n:
+        if fa.get("source_turn") != snap.get("turn", 0) - 1 or not isinstance(rows, list) or len(rows) != n \
+                or not all(isinstance(row, dict) for row in rows):
             bad.append(snap.get("turn"))
             continue
+        natives = [row.get("native") is not None for row in rows]
+        if rows and not any(natives):
+            unobserved.append(snap.get("turn"))     # no native economy tick: no ledger this turn
+            continue
         for i, row in enumerate(rows):
-            if not isinstance(row, dict):
-                bad.append(snap.get("turn"))
-                break
             d, s = (row.get("native") or {}).get("demand"), row.get("sufficiency_after_relief")
             if row.get("region_id") != i or not _num(d) or not _num(s):
                 bad.append(snap.get("turn"))
@@ -691,6 +747,10 @@ def harm_food_shortfall(bundle: dict) -> dict:
             total += d * max(0.0, 1.0 - min(1.0, s))
     if bad:
         return _harm(MALFORMED, note=f"food accounting missing or incomplete at turns {bad[:5]}")
+    if unobserved:
+        return _harm(NOT_RECORDED, note=(
+            "no native food ledger in this run (no agent economy)" if len(unobserved) == len(hist) else
+            f"no native food ledger at turns {unobserved[:5]}: the run total is unknown, not zero"))
     return _harm(RECORDED, total)
 
 
@@ -774,7 +834,12 @@ def harm_out_migration(bundle: dict) -> dict:
 
 
 def harm_wealth_gini(bundle: dict) -> dict:
+    """Mean wealth Gini of the living civilizations at the end. The Gini comes from the
+    agent pool; without one (no snapshot records agent migrations) civ_stats holds a
+    placeholder 0, which is not a recorded value."""
     hist = bundle.get("history") or []
+    if not any(s.get("migration") is not None for s in hist):
+        return _harm(NOT_RECORDED, note="no agent pool in this run: the wealth Gini is not computed")
     civs = [c for c in (_civs(hist[-1]) if hist else []) if (c.get("population") or 0) > 0]
     if not civs:
         return _harm(NOT_RECORDED, note="no living civilization in the last snapshot")
@@ -784,17 +849,21 @@ def harm_wealth_gini(bundle: dict) -> dict:
 
 
 def harm_forest_stand(bundle: dict) -> dict:
-    """Standing timber as a share of its capacity at the end (L3's timber stock
-    totals; a stock, not forest cover)."""
+    """Standing timber as a share of its capacity at the end: the last snapshot's L3
+    timber stock totals (a stock, not forest cover)."""
     hist = bundle.get("history") or []
     recs = [_get(s, ("livelihoods", "timber_stock")) for s in hist]
     if not any(r is not None for r in recs):
         return _harm(NOT_RECORDED, note="the timber stock is off in this run (no stand record)")
-    observed = [r for r in recs if isinstance(r, dict) and r.get("observed") and isinstance(r.get("totals"), dict)]
-    if not observed:
-        return _harm(MALFORMED, note="no observed timber stock totals")
-    totals = observed[-1]["totals"]
-    if not _num(totals.get("stock")) or not _num(totals.get("capacity")):
+    rec = recs[-1]
+    if rec is None:
+        return _harm(NOT_RECORDED, note="no timber stock record in the last snapshot: unknown, not zero")
+    if not isinstance(rec, dict):
+        return _harm(MALFORMED, note="the last timber stock record is not an object")
+    if not rec.get("observed"):
+        return _harm(NOT_RECORDED, note="the last timber account was not observed: unknown, not zero")
+    totals = rec.get("totals")
+    if not isinstance(totals, dict) or not _num(totals.get("stock")) or not _num(totals.get("capacity")):
         return _harm(MALFORMED, note="timber stock totals missing stock or capacity")
     if totals["capacity"] <= 0:
         return _harm(NOT_RECORDED, note="no timber capacity at the end (no slot)")
@@ -921,7 +990,8 @@ def identity_digest(lines: Sequence[str]) -> str:
 
 
 def jobs_for(screen: Screen, cohort: str, seeds: str, arms: Sequence[str],
-             worlds: Sequence[tuple[str, int]] = ()) -> list[tuple[str, str, int, bool]]:
+             worlds: Sequence[tuple[str, int]] = (),
+             cohort_map: Mapping[str, Sequence[int]] | None = None) -> list[tuple[str, str, int, bool]]:
     """(arm, stratum tag, seed, first world of its stratum) per run; procedural first."""
     out = []
     if cohort == "dev":
@@ -931,9 +1001,10 @@ def jobs_for(screen: Screen, cohort: str, seeds: str, arms: Sequence[str],
                 out.append((arm, tag, seed, tag not in firsts))
             firsts.add(tag)
         return out
+    cohort_map = screen.cohort(cohort) if cohort_map is None else cohort_map
     strata = ["procedural", "template"] if seeds == "all" else [seeds]
     for stratum in strata:
-        for i, seed in enumerate(screen.cohort(cohort).get(stratum, ())):
+        for i, seed in enumerate(cohort_map.get(stratum, ())):
             for arm in arms:
                 out.append((arm, TAGS[stratum], seed, i == 0))
     return out
@@ -961,7 +1032,8 @@ def run_one(screen: Screen, rt: Runtime, out: Path, cohort: str, arm: str, tag: 
         except Exception as error:  # an unreadable bundle is a missing outcome, never zero
             row["rc"], row["error"] = RC_MISSING, f"missing or malformed outcomes: {type(error).__name__}: {error}"
         row["extract_s"] = round(rt.clock() - t1, 1)
-    if not keep:
+    # A failed run's output is kept for diagnosis; a passing one only when asked.
+    if not keep and row["rc"] == 0:
         shutil.rmtree(d)
     return row
 
@@ -1019,20 +1091,144 @@ def read_rows(path, screen: Screen) -> list[dict]:
     return rows
 
 
-def projected_held_core_hours(rows, screen: Screen) -> float | None:
-    """Pilot run time (simulation and extraction) per arm and stratum times the held
-    worlds per stratum, in core-hours (None if a pilot arm or stratum is missing)."""
+def pilot_means(rows) -> dict[tuple[str, str], float]:
+    """Mean seconds of the passing pilot runs per (arm, stratum tag)."""
+    out: dict[tuple[str, str], list[float]] = {}
+    for r in rows:
+        if r["rc"] == 0:
+            out.setdefault((r["arm"], r["stratum"]), []).append(run_seconds(r))
+    return {k: mean(v) for k, v in out.items()}
+
+
+def projected_core_hours(rows, screen: Screen, cohort_map: Mapping[str, Sequence[int]]) -> float | None:
+    """Pilot run time (simulation and extraction) per arm and stratum times the worlds of
+    the cohort per stratum, in core-hours (None if a pilot arm or stratum is missing)."""
+    means = pilot_means(rows)
     total = 0.0
     for arm in screen.arms:
         for stratum, tag in TAGS.items():
-            held = screen.held.get(stratum, ())
-            if not held:
+            worlds = cohort_map.get(stratum, ())
+            if not worlds:
                 continue
-            walls = [run_seconds(r) for r in rows if r["arm"] == arm and r["stratum"] == tag and r["rc"] == 0]
-            if not walls:
+            if (arm, tag) not in means:
                 return None
-            total += mean(walls) * len(held)
+            total += means[(arm, tag)] * len(worlds)
     return total / 3600
+
+
+def projected_held_core_hours(rows, screen: Screen) -> float | None:
+    return projected_core_hours(rows, screen, screen.held)
+
+
+def _field(lines: Sequence[str], key: str) -> str | None:
+    for line in lines:
+        if line.startswith(key + " "):
+            return line[len(key) + 1:]
+    return None
+
+
+def identity_of(source_text: str) -> list[str]:
+    """The identity lines a run directory's ``source.txt`` starts with."""
+    lines = []
+    for line in source_text.splitlines():
+        if line.startswith(("run: ", "resumed: ")):
+            break
+        lines.append(line)
+    return lines
+
+
+#: Paths whose change between the pilot's and the held run's source revision makes the
+#: pilot timing another program's.
+CODE_PATHS = ("src/", "chronicler-agents/", "scripts/", "pyproject.toml", "uv.lock")
+
+
+def load_pilot(path, screen: Screen, identity: Sequence[str], rt: Runtime) -> tuple[list[dict], list[str]]:
+    """The pilot rows a projection may use, and the reasons to refuse them: rows of
+    another identity than their ``source.txt``, or a pilot of another extension,
+    runner, screen module, registry, dirty count, or a source revision that differs
+    in code."""
+    path = Path(path)
+    rows = [r for r in read_rows(path, screen) if r.get("cohort") == "pilot"]
+    source = path.parent / "source.txt"
+    if not source.exists():
+        return rows, [f"pilot refused: {source} is missing (its identity cannot be checked)"]
+    pilot = identity_of(source.read_text(encoding="utf-8"))
+    problems = []
+    digests = sorted({str(r.get("identity")) for r in rows})
+    if digests != [identity_digest(pilot)]:
+        problems.append(f"pilot refused: its rows carry identity {digests}, not the identity of {source}")
+    for key in ("native", "runner", "screens", "registry", "dirty"):
+        if _field(pilot, key) != _field(identity, key):
+            problems.append(f"pilot refused: {key} {_field(pilot, key)!r} differs from this run's "
+                            f"{_field(identity, key)!r}")
+    old, new = _field(pilot, "source"), _field(identity, "source")
+    if old != new:
+        changed = rt.changed_paths(old or "", new or "")
+        if changed is None:
+            problems.append(f"pilot refused: cannot compare source {old} with {new}")
+        else:
+            code = [p for p in changed if p.startswith(CODE_PATHS)]
+            if code:
+                problems.append(f"pilot refused: source {old} differs from {new} in code: {code[:6]}")
+    return rows, problems
+
+
+def preregistration_line(screen: Screen) -> str:
+    return f"preregistration {sha256_file(screen.preregistration)} {_shown(screen.preregistration)}"
+
+
+# --- The evidence-run ledger -----------------------------------------------------------
+
+def ledger_entries(path: Path) -> list[dict]:
+    try:
+        text = Path(path).read_text(encoding="utf-8")
+    except OSError:
+        return []
+    return [json.loads(line) for line in text.splitlines() if line.strip()]
+
+
+def ledger_conflicts(path: Path, screen: Screen, cohort: str) -> list[str]:
+    """A recorded start of the same evidence cohort: the screen's held cohort, or the
+    program's reserve (whichever screen used it). A new run of it is refused."""
+    out = []
+    for e in ledger_entries(path):
+        same = (e.get("cohort") == "reserve") if cohort == "reserve" else \
+            (e.get("cohort") == "held" and e.get("screen") == screen.name)
+        if same:
+            out.append(f"a {e.get('cohort')} run of {e.get('screen')} was started at {e.get('started')} into "
+                       f"{e.get('out')} (identity {str(e.get('identity'))[:12]}): resume it there with --resume, "
+                       f"or record it with mark-run; a new run of that cohort is refused")
+    return out
+
+
+def cohort_seeds(screen: Screen, cohort: str, reg: Mapping | None = None) -> dict[str, tuple[int, ...]]:
+    """The seeds of a cohort per stratum: the screen's pilot or held cohort, or the
+    program's reserve (registry entries of cohort ``reserve`` free or used by the screen)."""
+    if cohort in ("pilot", "held"):
+        return {s: tuple(v) for s, v in screen.cohort(cohort).items() if v}
+    if cohort != "reserve":
+        return {}
+    reg = load_registry() if reg is None else reg
+    out: dict[str, set[int]] = {}
+    for e in reg["entries"]:
+        if e.get("cohort") == "reserve" and e.get("screen") in (None, screen.name):
+            out.setdefault(e["stratum"], set()).update(expand(e["seeds"]))
+    return {s: tuple(sorted(v)) for s, v in out.items()}
+
+
+def check_reserve(screen: Screen, reg: Mapping) -> list[str]:
+    """The reserve is free (every entry reserved, assigned to no other screen)."""
+    entries = [e for e in reg["entries"] if e.get("cohort") == "reserve"]
+    if not entries:
+        return ["the registry has no reserve cohort"]
+    problems = []
+    for e in entries:
+        if e.get("screen") not in (None, screen.name):
+            problems.append(f"the reserve {e['id']} is assigned to {e['screen']}")
+        if e["status"] != "reserved":
+            problems.append(f"the reserve {e['id']} was already used ({e['status']}"
+                            f"{', by ' + e['screen'] if e.get('screen') else ''})")
+    return problems
 
 
 _RUN_HEADER = re.compile(r"^run: screen (\S+); cohort (\w+);")
@@ -1072,11 +1268,12 @@ def run_main(argv, screens: Mapping[str, Screen], rt: Runtime | None = None, pro
     ap = argparse.ArgumentParser(prog=f"{prog} run")
     ap.add_argument("out")
     ap.add_argument("--screen", required=True)
-    ap.add_argument("--cohort", choices=("pilot", "held", "dev"), required=True)
+    ap.add_argument("--cohort", choices=("pilot", "held", "reserve", "dev"), required=True)
+    ap.add_argument("--reason", default=None, help="reserve: why the screen needs the reserve cohort (recorded)")
     ap.add_argument("--jobs", type=int, default=3)
     ap.add_argument("--arms", default=None)
     ap.add_argument("--seeds", choices=("all", "template", "procedural"), default="all")
-    ap.add_argument("--pilot", default=None, help="held: the pilot's metrics.jsonl (the compute projection)")
+    ap.add_argument("--pilot", default=None, help="held or reserve: the pilot's metrics.jsonl (the compute projection)")
     ap.add_argument("--worlds", default=None, help="dev: development worlds, e.g. t1,p7")
     ap.add_argument("--turns", type=int, default=None, help="dev only: override the base's --turns")
     ap.add_argument("--keep-first", action="store_true", help="keep the first world of each stratum")
@@ -1086,32 +1283,49 @@ def run_main(argv, screens: Mapping[str, Screen], rt: Runtime | None = None, pro
     if not screen.ready:
         raise SystemExit(f"run refused: {screen.name} is not ready ({screen.not_ready or 'a stub'})")
     reg = load_registry()
-    if a.cohort != "dev" and not any(screen.cohort(a.cohort).values()):
+    evidence = a.cohort in EVIDENCE_COHORTS
+    seeds_by = cohort_seeds(screen, a.cohort, reg)
+    if a.cohort != "dev" and not any(seeds_by.values()):
         raise SystemExit(f"run refused: {screen.name} has no {a.cohort} cohort")
     if a.turns is not None and a.cohort != "dev":
         raise SystemExit("--turns is for development runs only; pilot and held runs use the screen's turns")
+    reason = (a.reason or "").strip()
+    if (a.cohort == "reserve") != bool(reason):
+        raise SystemExit("--reason is required with --cohort reserve, and only there")
     problems, notes = check_seeds(screen, reg)
+    if a.cohort == "reserve":
+        problems += check_reserve(screen, reg)
     problems += check_screen(screen)
-    if a.cohort == "held":
+    if evidence:
         problems += check_preregistration(screen, held=True)
+        if not a.resume:
+            problems += ledger_conflicts(rt.ledger, screen, a.cohort)
     if problems:
         raise SystemExit("run refused: " + "; ".join(problems))
     worlds = _dev_worlds(a.worlds, reg) if a.cohort == "dev" else []
-    ceiling = None
-    pilot_note = ""
-    if a.cohort == "held":
+    identity = rt.identity(screen)
+    if evidence:
+        identity = [*identity, preregistration_line(screen)]
+    digest = identity_digest(identity)
+    ceiling, means, pilot_note = None, {}, ""
+    if evidence:
         ceiling = compute_ceiling(preregistration_text(screen))
         if not a.pilot:
-            raise SystemExit("held run refused: --pilot PILOT_DIR/metrics.jsonl gives the compute projection")
-        pilot_rows = [r for r in read_rows(a.pilot, screen) if r.get("cohort") == "pilot"]
-        hours = projected_held_core_hours(pilot_rows, screen)
+            raise SystemExit(f"{a.cohort} run refused: --pilot PILOT_DIR/metrics.jsonl gives the compute projection")
+        pilot_rows, pilot_problems = load_pilot(a.pilot, screen, identity, rt)
+        if pilot_problems:
+            raise SystemExit(f"{a.cohort} run refused: " + "; ".join(pilot_problems))
+        hours = projected_core_hours(pilot_rows, screen, seeds_by)
         if hours is None:
-            raise SystemExit(f"held run refused: {a.pilot} lacks a passing pilot run of some arm and stratum")
+            raise SystemExit(f"{a.cohort} run refused: {a.pilot} lacks a passing pilot run of some arm and stratum")
         if hours * CEILING_MARGIN > ceiling:
-            raise SystemExit(f"held run refused: the pilot projects {hours:.3f} core-hours; x{CEILING_MARGIN} = "
+            raise SystemExit(f"{a.cohort} run refused: the pilot projects {hours:.3f} core-hours; x{CEILING_MARGIN} = "
                              f"{hours * CEILING_MARGIN:.3f} exceeds the ceiling of {ceiling} core-hours")
-        pilot_note = f"pilot {a.pilot} sha256 {sha256_file(Path(a.pilot))}; projected {hours:.3f} core-hours; " \
-                     f"ceiling {ceiling} core-hours\n"
+        means = pilot_means(pilot_rows)
+        pilot_note = (f"pilot {a.pilot} sha256 {sha256_file(Path(a.pilot))}; projected {hours:.3f} core-hours; "
+                      f"ceiling {ceiling} core-hours; expected seconds per run: max of the pilot mean per arm and "
+                      f"stratum ({', '.join(f'{arm} {tag} {s:.1f}' for (arm, tag), s in sorted(means.items()))}) "
+                      f"and the finished runs' mean per stratum\n")
     chosen = a.arms.split(",") if a.arms else list(screen.arms)
     unknown = [arm for arm in chosen if arm not in screen.arms]
     if unknown:
@@ -1124,8 +1338,6 @@ def run_main(argv, screens: Mapping[str, Screen], rt: Runtime | None = None, pro
     prior_rows: list[dict] = []
     if metrics.exists() and not a.resume:
         raise SystemExit(f"{metrics} exists: pass --resume to continue it, or choose a new OUT_DIR")
-    identity = rt.identity(screen)
-    digest = identity_digest(identity)
     if a.resume:
         if not metrics.exists() or not source.exists():
             raise SystemExit(f"nothing to resume in {out}")
@@ -1133,45 +1345,70 @@ def run_main(argv, screens: Mapping[str, Screen], rt: Runtime | None = None, pro
         started = recorded_run(recorded)
         if started != (screen.name, a.cohort):
             raise SystemExit(f"resume refused: {out} was started as {started}, not ({screen.name!r}, {a.cohort!r})")
-        if recorded.splitlines()[:len(identity)] != identity:
+        if identity_of(recorded) != identity:
             raise SystemExit("resume refused: the source, dirty count, chronicler path, extension, interpreter, "
-                             "runner, screen module or registry changed:\n" + "\n".join(identity))
+                             "runner, screen module, registry or preregistration changed:\n" + "\n".join(identity))
+        if evidence and not any(e.get("out") == str(out.resolve()) and e.get("identity") == digest
+                                for e in ledger_entries(rt.ledger)):
+            raise SystemExit(f"resume refused: the ledger {rt.ledger} records no {a.cohort} run in {out}")
         for r in read_rows(metrics, screen):
             if r.get("cohort") != a.cohort or r.get("identity") != digest:
                 raise SystemExit(f"{metrics} holds a row of cohort {r.get('cohort')} or another identity")
             prior_rows.append(r)
             done.add((r["arm"], r["stratum"], r["seed"]))
     out.mkdir(parents=True, exist_ok=True)
+    stamp = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
     with open(source, "a" if a.resume else "w", encoding="utf-8") as fh:
         if not a.resume:
             fh.write("\n".join(identity) + "\n")
         fh.write(f"{'resumed' if a.resume else 'run'}: screen {screen.name}; cohort {a.cohort}; seeds {a.seeds}; "
                  f"arms {','.join(chosen)}; jobs {a.jobs}; worlds {a.worlds or '-'}; turns {a.turns or '-'}; "
-                 f"rows already written {len(done)}\n{pilot_note}"
-                 f"started {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}\n")
+                 f"rows already written {len(done)}\n{f'reason: {reason}' + chr(10) if reason else ''}{pilot_note}"
+                 f"started {stamp}\n")
+    if evidence and not a.resume:
+        entry = {"screen": screen.name, "cohort": a.cohort, "out": str(out.resolve()), "identity": digest,
+                 "preregistration": _field(identity, "preregistration"), "started": stamp,
+                 "seeds": {s: list(v) for s, v in seeds_by.items()}, "reason": reason or None}
+        (out / "held-run.json").write_text(json.dumps(entry, indent=1) + "\n", encoding="utf-8")
+        Path(rt.ledger).parent.mkdir(parents=True, exist_ok=True)
+        with open(rt.ledger, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(entry) + "\n")
     print("\n".join(identity), flush=True)
     for note in notes:
         print("note:", note, flush=True)
-    jobs = [j for j in jobs_for(screen, a.cohort, a.seeds, chosen, worlds) if (j[0], j[1], j[2]) not in done]
+    pending = [j for j in jobs_for(screen, a.cohort, a.seeds, chosen, worlds, seeds_by) if (j[0], j[1], j[2]) not in done]
+    rows: list[dict] = []
     used = sum(run_seconds(r) for r in prior_rows)
-    rows, t0, stopped = [], rt.clock(), False
-    pending = list(jobs)
+    t0 = rt.clock()
+
+    def expected(arm: str, tag: str) -> float:
+        # Never below the pilot; once runs of the stratum finished, never below their mean.
+        finished = [run_seconds(r) for r in (*prior_rows, *rows) if r["stratum"] == tag]
+        return max(means.get((arm, tag), 0.0), mean(finished) if finished else 0.0)
+
+    refused_at = None
     with open(metrics, "a", encoding="utf-8") as fh, ThreadPoolExecutor(a.jobs) as ex:
-        running = set()
-        while pending or running:
+        running: dict = {}
+        while True:
             while pending and len(running) < a.jobs:
-                if ceiling is not None and used >= ceiling * 3600:
-                    stopped = True
-                    break
-                arm, tag, seed, first = pending.pop(0)
-                running.add(ex.submit(run_one, screen, rt, out, a.cohort, arm, tag, seed,
-                                      a.keep_first and first, digest, a.turns))
+                arm, tag, seed, first = pending[0]
+                if ceiling is not None:
+                    in_flight = sum(expected(r_arm, r_tag) for r_arm, r_tag in running.values())
+                    cost = expected(arm, tag)
+                    if used + in_flight + cost > ceiling * 3600:
+                        refused_at = (used, in_flight, cost)
+                        break
+                pending.pop(0)
+                future = ex.submit(run_one, screen, rt, out, a.cohort, arm, tag, seed, a.keep_first and first,
+                                   digest, a.turns)
+                running[future] = (arm, tag)
             if not running:
                 break
-            finished, running = wait(running, return_when=FIRST_COMPLETED)
+            finished, _ = wait(set(running), return_when=FIRST_COMPLETED)
             for future in finished:
                 # Each row is written as soon as its run finishes, so a killed run
                 # loses only the runs in flight (``--resume`` runs those).
+                running.pop(future)
                 row = future.result()
                 rows.append(row)
                 used += run_seconds(row)
@@ -1179,21 +1416,100 @@ def run_main(argv, screens: Mapping[str, Screen], rt: Runtime | None = None, pro
                 fh.flush()
                 note = f" FAILED: {row.get('error', '')[-300:]}" if row["rc"] else ""
                 print(row["arm"], f"{row['stratum']}{row['seed']}", row["rc"], row["wall_s"], note, flush=True)
+    stopped = bool(pending)
     wall = round(rt.clock() - t0, 1)
     with open(source, "a", encoding="utf-8") as fh:
         if stopped:
-            fh.write(f"stopped at the compute ceiling ({ceiling} core-hours, {used / 3600:.3f} used): "
-                     f"{len(pending)} runs not started: "
-                     + ", ".join(f"{arm} {tag}{seed}" for arm, tag, seed, _f in pending) + "\n")
+            u, f, c = refused_at
+            fh.write(f"stopped at the compute ceiling ({ceiling} core-hours): {u / 3600:.3f} used, "
+                     f"{f / 3600:.3f} expected in flight, the next run expected {c:.1f} s; {len(pending)} runs not "
+                     f"started: " + ", ".join(f"{arm} {tag}{seed}" for arm, tag, seed, _f in pending) + "\n")
         fh.write(f"finished {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}: {len(rows)} runs, "
                  f"{sum(r['rc'] != 0 for r in rows)} failed, {sum(run_seconds(r) for r in rows):.0f} s of "
-                 f"simulation and extraction, {wall} s wall\n")
+                 f"simulation and extraction ({used / 3600:.3f} core-hours in all), {wall} s wall\n")
     if stopped:
         print(f"STOPPED at the compute ceiling: {len(pending)} runs not started (reported as not run)")
     for r in rows:
         if r["rc"]:
             print(f"FAILED run {r['arm']} {r['stratum']}{r['seed']} (rc {r['rc']}): {r.get('error', '')[-500:]}")
+    if evidence:
+        print(f"Record this {a.cohort} run in the registry (commit it with the results): "
+              f"python scripts/{prog} mark-run {out} --screen {screen.name}")
     return exit_code(rows, stopped)
+
+
+# --- mark-run: record an evidence run in the registry ----------------------------------
+
+def dump_registry(reg: Mapping) -> str:
+    """The registry file's text: one header field and one entry per line."""
+    lines = ["{"]
+    for key, value in reg.items():
+        if key != "entries":
+            lines.append(f" {json.dumps(key)}: {json.dumps(value)},")
+    lines.append(' "entries": [')
+    entries = reg["entries"]
+    lines += ["  " + json.dumps(e) + ("," if i < len(entries) - 1 else "") for i, e in enumerate(entries)]
+    lines += [" ]", "}"]
+    return "\n".join(lines) + "\n"
+
+
+def mark_run(reg: dict, screen: Screen, rows: list[dict], ledger: Mapping) -> list[str]:
+    """Set the run cohort's registry entries to ``run`` with a ``held_run`` record; the
+    names of the entries changed. Refuses an entry that is not ``reserved``."""
+    cohort = ledger["cohort"]
+    if cohort == "held":
+        entries = [e for e in reg["entries"] if e.get("screen") == screen.name and e.get("cohort") == "held"]
+    else:
+        entries = [e for e in reg["entries"] if e.get("cohort") == "reserve" and e.get("screen") in (None, screen.name)]
+    if not entries:
+        raise SystemExit(f"mark-run refused: no {cohort} registry entry for {screen.name}")
+    bad = [f"{e['id']} is {e['status']}" for e in entries if e["status"] != "reserved"]
+    if bad:
+        raise SystemExit("mark-run refused: " + "; ".join(bad))
+    seeds = {s: tuple(v) for s, v in ledger["seeds"].items()}
+    complete = check_metrics(rows, cohort, screen, seeds=seeds) == []
+    record = {"out": ledger["out"], "identity": ledger["identity"], "started": ledger["started"],
+              "rows": len(rows), "complete": complete,
+              "recorded": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}
+    if ledger.get("reason"):
+        record["reason"] = ledger["reason"]
+    for e in entries:
+        e["status"] = "run"
+        e["screen"] = screen.name
+        e["held_run"] = dict(record)
+    return [e["id"] for e in entries]
+
+
+def mark_run_main(argv, screens: Mapping[str, Screen], prog: str = "screens") -> int:
+    ap = argparse.ArgumentParser(prog=f"{prog} mark-run")
+    ap.add_argument("out", help="the held or reserve run's OUT_DIR")
+    ap.add_argument("--screen", required=True)
+    ap.add_argument("--registry", default=str(REGISTRY))
+    a = ap.parse_args(argv)
+    screen = _screen_arg(screens, a.screen)
+    out = Path(a.out)
+    try:
+        ledger = json.loads((out / "held-run.json").read_text(encoding="utf-8"))
+    except OSError:
+        raise SystemExit(f"mark-run refused: {out / 'held-run.json'} is missing") from None
+    if ledger.get("screen") != screen.name or ledger.get("cohort") not in EVIDENCE_COHORTS:
+        raise SystemExit(f"mark-run refused: {out} holds a {ledger.get('cohort')} run of {ledger.get('screen')}")
+    metrics = out / "metrics.jsonl"
+    rows = read_rows(metrics, screen) if metrics.exists() else []
+    if any(r.get("identity") != ledger["identity"] or r.get("cohort") != ledger["cohort"] for r in rows):
+        raise SystemExit(f"mark-run refused: {metrics} holds rows of another identity or cohort")
+    path = Path(a.registry)
+    reg = load_registry(path)
+    problems = validate_registry(reg)
+    if problems:
+        raise SystemExit("mark-run refused: the registry is invalid: " + "; ".join(problems))
+    changed = mark_run(reg, screen, rows, ledger)
+    problems = validate_registry(reg)
+    if problems:
+        raise SystemExit("mark-run refused: the result would be invalid: " + "; ".join(problems))
+    path.write_text(dump_registry(reg), encoding="utf-8")
+    print(f"marked {', '.join(changed)} as run ({len(rows)} rows); commit {path.name} with the results")
+    return 0
 
 
 # --- Uncertainty (descriptive) -----------------------------------------------------
@@ -1208,9 +1524,10 @@ def describe(values: Sequence[float]) -> dict | None:
 
 
 def sign_flip(diffs: Sequence[float]) -> dict | None:
-    """The exact paired sign-flip distribution of the mean difference over the worlds:
-    every assignment of signs to the per-world differences (2^n, equally weighted).
-    Descriptive only: the observed mean's place among them, not a significance test."""
+    """The exact paired sign-flip enumeration of the mean difference over the worlds:
+    every assignment of signs to the per-world differences (2^n, equally weighted),
+    summarized by how many are at least as far from zero as the observed mean and
+    their range. Descriptive only, not a significance test."""
     n = len(diffs)
     if n == 0 or n > SIGN_FLIP_MAX_WORLDS:
         return None
@@ -1224,10 +1541,6 @@ def sign_flip(diffs: Sequence[float]) -> dict | None:
 
 # --- Report ------------------------------------------------------------------------
 
-def _fmt(v, f="{:+.4g}") -> str:
-    return "n/a" if v is None else f.format(v)
-
-
 def _activation_cell(row) -> str:
     if row is None:
         return "not run"
@@ -1237,11 +1550,10 @@ def _activation_cell(row) -> str:
     return {True: "activated", False: "not activated", None: "unknown"}[act]
 
 
-def _strata_seen(rows, screen: Screen, cohort: str) -> dict[str, list[int]]:
+def _strata_seen(rows, cohort_map: Mapping[str, Sequence[int]]) -> dict[str, list[int]]:
     out = {}
     for stratum, tag in TAGS.items():
-        seeds = set(screen.cohort(cohort).get(stratum, ())) if cohort in ("pilot", "held") else set()
-        seeds |= {r["seed"] for r in rows if r["stratum"] == tag}
+        seeds = set(cohort_map.get(stratum, ())) | {r["seed"] for r in rows if r["stratum"] == tag}
         if seeds:
             out[tag] = sorted(seeds)
     return out
@@ -1275,12 +1587,12 @@ def paired_values(rows, screen: Screen, arm: str, control: str | None, read, tag
     return cells, values
 
 
-def _summary_cells(values) -> tuple[str, str, str]:
+def _summary_cells(values, paired: bool = True) -> tuple[str, str, str]:
     d = describe(values)
-    flip = sign_flip(values)
     if d is None:
         return "n/a", "0 / 0 / 0", "n/a"
-    flip_text = ("n/a" if flip is None else
+    flip = sign_flip(values) if paired else None
+    flip_text = ("n/a (no control)" if not paired else "n/a" if flip is None else
                  f"{flip['at_least_as_extreme']}/{flip['assignments']} as extreme; means "
                  f"[{flip['min']:+.4g}, {flip['max']:+.4g}]")
     return (f"{d['mean']:+.4g} [{d['min']:+.4g}, {d['max']:+.4g}]",
@@ -1301,10 +1613,22 @@ def _harm_state(rows, key) -> str:
     return ", ".join(states) + (f" ({'; '.join(notes)})" if notes else "")
 
 
-def report_lines(rows, screen: Screen) -> list[str]:
+def harm_pairs(screen: Screen) -> list[tuple[str, str]]:
+    """Every non-root arm against its declared control, then any other comparison an
+    outcome declares: the harm panel is shown beside each."""
+    pairs = [(arm, control) for arm, (_flags, control) in screen.arms.items() if control is not None]
+    for o in screen.outcomes:
+        if o.control is not None and (o.arm, o.control) not in pairs:
+            pairs.append((o.arm, o.control))
+    return pairs
+
+
+def report_lines(rows, screen: Screen, cohort_map: Mapping[str, Sequence[int]] | None = None) -> list[str]:
     cohorts = sorted({r.get("cohort") for r in rows})
     cohort = cohorts[0] if len(cohorts) == 1 else "mixed"
-    strata = _strata_seen(rows, screen, cohort)
+    if cohort_map is None:
+        cohort_map = cohort_seeds(screen, cohort) if cohort in ("pilot", "held") else {}
+    strata = _strata_seen(rows, cohort_map)
     fails = [r for r in rows if r["rc"] != 0]
     seconds = sum(run_seconds(r) for r in rows)
     out = [f"# {screen.name}: {screen.title}", "",
@@ -1345,17 +1669,14 @@ def report_lines(rows, screen: Screen) -> list[str]:
         for o in outcomes:
             for tag, seeds in strata.items():
                 cells, values = paired_values(rows, screen, o.arm, o.control, o.read, tag, seeds)
-                summary, signs, flip = _summary_cells(values)
+                summary, signs, flip = _summary_cells(values, paired=o.control is not None)
                 out.append(f"| {o.id}: {o.label} | {tag} | {'; '.join(cells)} | {summary} | {signs} | {flip} |")
 
-    pairs = []
-    for o in screen.outcomes:
-        if o.control is not None and (o.arm, o.control) not in pairs:
-            pairs.append((o.arm, o.control))
-    out.append("\n## Harm panel beside every comparison (arm minus control; non-activated worlds excluded)\n")
+    out.append("\n## Harm panel beside every comparison (each arm minus its control; non-activated worlds "
+               "excluded)\n")
     out.append("| Comparison | Harm | Stratum | Per world | Mean [min, max] | >0 / <0 / =0 | Sign-flip | States |")
     out.append("| --- | --- | --- | --- | --- | --- | --- | --- |")
-    for arm, control in pairs:
+    for arm, control in harm_pairs(screen):
         for h in HARM_PANEL:
             for tag, seeds in strata.items():
                 cohort_rows = [r for r in rows if r["stratum"] == tag and r["arm"] in (arm, control)]
@@ -1390,8 +1711,10 @@ def report_main(argv, screens: Mapping[str, Screen], prog: str = "screens") -> i
     a = ap.parse_args(argv)
     screen = _screen_arg(screens, a.screen)
     rows = read_rows(a.metrics, screen)
-    lines = report_lines(rows, screen)
-    if rows and all(r.get("cohort") == "pilot" for r in rows):
+    cohorts = {r.get("cohort") for r in rows}
+    cohort_map = cohort_seeds(screen, next(iter(cohorts))) if len(cohorts) == 1 else {}
+    lines = report_lines(rows, screen, cohort_map)
+    if rows and cohorts == {"pilot"}:
         hours = projected_held_core_hours(rows, screen)
         lines.insert(3, "Projected held run time from this pilot: " + (
             f"{hours:.3f} core-hours (x{CEILING_MARGIN} = {hours * CEILING_MARGIN:.3f}) for "
@@ -1403,7 +1726,8 @@ def report_main(argv, screens: Mapping[str, Screen], prog: str = "screens") -> i
 
 # --- Check -------------------------------------------------------------------------
 
-def check_metrics(rows, cohort: str, screen: Screen, worlds: Sequence[tuple[str, int]] = ()) -> list[str]:
+def check_metrics(rows, cohort: str, screen: Screen, worlds: Sequence[tuple[str, int]] = (),
+                  seeds: Mapping[str, Sequence[int]] | None = None) -> list[str]:
     """Every arm and world of the cohort has exactly one row of the screen, none failed,
     and every row carries the same identity."""
     problems = [f"{r['arm']} {r['stratum']}{r['seed']}: row of screen {r.get('screen')}"
@@ -1418,8 +1742,11 @@ def check_metrics(rows, cohort: str, screen: Screen, worlds: Sequence[tuple[str,
             problems.append(f"{r['arm']} {r['stratum']}{r['seed']}: rc {r['rc']}: {r.get('error', '')[-300:]}")
     if len({r.get("identity") for r in rows}) > 1:
         problems.append("rows carry more than one identity digest")
-    expected = ([(tag, seed) for tag, seed in worlds] if cohort == "dev" else
-                [(TAGS[s], seed) for s in STRATA for seed in screen.cohort(cohort).get(s, ())])
+    if cohort == "dev":
+        expected = [(tag, seed) for tag, seed in worlds]
+    else:
+        seeds = cohort_seeds(screen, cohort) if seeds is None else seeds
+        expected = [(TAGS[s], seed) for s in STRATA for seed in seeds.get(s, ())]
     for tag, seed in expected:
         for arm in screen.arms:
             n = seen.get((arm, tag, seed), 0)
@@ -1434,7 +1761,7 @@ def check_main(argv, screens: Mapping[str, Screen], prog: str = "screens") -> in
     ap = argparse.ArgumentParser(prog=f"{prog} check")
     ap.add_argument("--screen", required=True, help="a screen, a comma-separated list or 'all'")
     ap.add_argument("--metrics", default=None)
-    ap.add_argument("--cohort", choices=("pilot", "held", "dev"), default=None)
+    ap.add_argument("--cohort", choices=("pilot", "held", "reserve", "dev"), default=None)
     ap.add_argument("--worlds", default=None, help="dev metrics: the development worlds run")
     a = ap.parse_args(argv)
     names = list(screens) if a.screen == "all" else a.screen.split(",")
@@ -1470,7 +1797,7 @@ def check_main(argv, screens: Mapping[str, Screen], prog: str = "screens") -> in
         screen = _screen_arg(screens, names[0])
         rows = read_rows(a.metrics, screen)
         worlds = _dev_worlds(a.worlds, reg) if a.cohort == "dev" else []
-        problems = check_metrics(rows, a.cohort, screen, worlds)
+        problems = check_metrics(rows, a.cohort, screen, worlds, cohort_seeds(screen, a.cohort, reg))
         for p in problems:
             print("FAILED", p)
         if any(r["rc"] == RC_MISSING for r in rows):
@@ -1512,7 +1839,8 @@ def main(argv=None, screens: Mapping[str, Screen] | None = None, prog: str = "sc
     commands = {"run": lambda args: run_main(args, screens, rt, prog),
                 "report": lambda args: report_main(args, screens, prog),
                 "check": lambda args: check_main(args, screens, prog),
-                "registry": lambda args: registry_main(args, screens, prog)}
+                "registry": lambda args: registry_main(args, screens, prog),
+                "mark-run": lambda args: mark_run_main(args, screens, prog)}
     if not argv or argv[0] not in commands:
         print(__doc__)
         return 0 if not argv else 2

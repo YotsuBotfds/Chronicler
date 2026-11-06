@@ -280,3 +280,13 @@ def test_cli_writes_json_and_markdown(M, tmp_path, capsys):
     assert text.startswith("# Switch compatibility matrix (catalog schema 1)")
     assert "## All enabled, per agent mode" in text and "- hybrid: accepted; --grain-reserves" in text
     assert "0 accepted" in capsys.readouterr().out
+
+
+def test_m7_the_catalog_term_walk_accepts_exclusions(monkeypatch, fresh_catalog):
+    """tests/test_feature_catalog.py's requirement walk accepts a switch declaring a
+    mutual exclusion (review m7), so the first exclusion does not fail it."""
+    import tests.test_feature_catalog as catalog_tests          # its import fills the catalog cache
+    _exclusive(monkeypatch)
+    fc._features.cache_clear()
+    assert any("not" in c for e in fc.feature_entries() for c in e["requires"])
+    catalog_tests.test_every_boolean_feature_declares_requirements_over_known_terms()
