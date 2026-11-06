@@ -558,7 +558,8 @@ def cw1_extract(bundle: dict, flags) -> tuple[dict, list[str]]:
                     groups[g]["persons"] += sum(ps)
                 else:
                     groups[g]["unknown_frames"] += 1
-        if SR._num(replaced) and abs(frame_income - replaced) > 1e-6 * max(1.0, abs(replaced)):
+        # Each frame's and the world's income replaced are rounded to 1e-6 apiece.
+        if SR._num(replaced) and abs(frame_income - replaced) > 1e-6 * (len(frames or ()) + 1):
             bad("retail frames' income replaced differs from the ledger's", turn)
         # The ledger locates every typed inflow but procurement and domestic credit by region;
         # a region's inflow less its retail sales is its wages and remittances received.
