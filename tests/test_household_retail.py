@@ -100,6 +100,8 @@ class FakeSim:
         self.moves: dict[int, int] = {}
         self.skip_retail = False
         self.columns = HR.FRAME_COLUMNS
+        self.loads: dict[tuple[int, str], float] = {}
+        self.regions = 8
 
     def add(self, aid, region, *, occupation=0, age=30, wealth=5.0, settlement=0, parents=(0, 0)):
         self.people[aid] = {"id": aid, "region": region, "origin_region": region, "occupation": occupation,
@@ -117,6 +119,16 @@ class FakeSim:
         names = ["id", "region", "origin_region", "occupation", "age", "settlement_id",
                  "parent_id_0", "parent_id_1", "wealth", "displacement_turn"]
         return Snapshot([dict(self.people[i]) for i in sorted(self.people)], names)
+
+    def get_stockpile_commitments(self):
+        """Merchant loads and departures per region and good (``self.loads``)."""
+        from chronicler.economy import FIXED_GOODS
+        rows = [(r, slot, float(self.loads.get((r, good), 0.0)), 0.0)
+                for r in range(self.regions) for slot, good in enumerate(FIXED_GOODS)]
+        return pa.record_batch({"region_id": pa.array([r[0] for r in rows], type=pa.uint16()),
+                                "good_slot": pa.array([r[1] for r in rows], type=pa.uint8()),
+                                "reserved": pa.array([r[2] for r in rows], type=pa.float32()),
+                                "pending_departure": pa.array([r[3] for r in rows], type=pa.float32())})
 
     def get_agent_relationships(self, aid):
         self.calls.append(("get_agent_relationships", aid))
@@ -294,7 +306,7 @@ class FakeSim:
                 if buy <= 0:
                     continue
                 split = _split(buy, offer)
-                cost = buy * price // 500
+                cost = -(-buy * price // 500)              # native: ceil(bought x price / ration)
                 for o, v in split.items():
                     remaining[(o, rid)] -= v
                     used[(o, rid)][1] += v
@@ -368,6 +380,7 @@ class Harness:
             commons = [float(cols[f"stockpile_{g}"][rid]) for g in RETAIL_GOODS]
             theta = cols["retail_title_share"][rid] if retail else None
             owned = [float(cols[f"retail_owned_{g}"][rid]) for g in RETAIL_GOODS] if retail else [0.0] * 5
+            opening = sum(commons) + sum(owned)
             titled = [float(f32(theta * p)) if theta is not None else 0.0 for p in prod]
             owned = [o + t for o, t in zip(owned, titled)]
             commons = [c + p - t + i for c, p, t, i in zip(commons, prod, titled, imp)]
@@ -383,11 +396,13 @@ class Harness:
             owned = [o - d for o, d in zip(owned, odec)]
             cap = 2.5 * region.population
             oover = []
+            covered = 0.0
             for g in range(5):
                 both = commons[g] + owned[g]
                 over = max(0.0, both - cap)
                 share_o = over * owned[g] / both if both > 0 else 0.0
                 commons[g] -= over - share_o
+                covered += over - share_o
                 oover.append(float(f32(share_o)))
                 owned[g] -= share_o
             for g, name in enumerate(RETAIL_GOODS):
@@ -413,6 +428,12 @@ class Harness:
                 row["commons_consumed"] = float(f32(draw))
                 row["commons_sufficiency"] = float(f32(1.0 if demand <= 0 else min(2.0, ctotal / demand)))
                 res.household_retail[rid] = row
+            # The native food ledger (food units; owned stock in opening and closing).
+            closing = (sum(float(region.stockpile.goods.get(g, 0.0)) for g in RETAIL_GOODS)
+                       + sum(float(f32(o)) for o in owned))
+            res.food_ledger[rid] = (opening, sum(prod), sum(imp), 0.0, 0.0, opening + sum(prod) + sum(imp),
+                                    draw, sum(cdec) + sum(odec), covered + sum(oover), closing,
+                                    demand, res.food_sufficiency[name])
         return res
 
     def turn(self, production=None, *, imports=None, between=None, granaries=None, batch=None, economy=None):
@@ -1463,3 +1484,92 @@ def test_paid_work_includes_paid_granary_crews_and_woodcutters_home_regions():
     assert HR._paid_work_regions(h.world) == [(FROST, "paid_work"), (THORNWOOD, "paid_work")]
     lv.recovery_crews.enabled = lv.timber_supply.enabled = False
     assert HR._paid_work_regions(h.world) == []
+
+
+def test_procurement_moves_exactly_the_milli_food_debited_from_owners(monkeypatch):
+    """Owners give exactly the whole milli-food debited from their claims: the
+    purchase takes it, and a sub-milli excess over the purchase goes into the
+    market's commons (nothing lost, nothing made)."""
+    h = Harness()
+    _surplus_market(h)
+    G, _ = _granary_world(h, monkeypatch)
+    h.turn({VERDANT: {"grain": 150.0}})
+    seen = {}
+
+    def buy(res):
+        seen["before"] = h.world.regions[VERDANT].stockpile.goods.get("grain", 0.0)
+        G.tick_grain_reserves(h.world, None, res, None)
+        seen["after"] = h.world.regions[VERDANT].stockpile.goods.get("grain", 0.0)
+        seen["owned"] = HR.owned_grain_sold(h.world).get(VERDANT, 0.0)
+    h.turn({}, granaries=buy)
+    bought = [f for f in h.world.grain_reserves.flows if f.kind == BOUGHT and f.source == VERDANT]
+    sent = math.fsum(f.sent for f in bought)
+    procured = h.frame(VERDANT).flows["procured"]
+    assert bought and seen["owned"] == procured / 1000                        # exactly the debit
+    assert seen["before"] - seen["after"] + seen["owned"] == pytest.approx(sent, abs=1e-9)
+    assert 0.0 <= seen["owned"] - min(sent, seen["owned"]) < 1e-3              # at most a sub-milli excess
+
+
+# --- records and section-10 identities (review E) -------------------------------------
+
+def test_departures_and_income_replaced_are_recorded_per_pilot_region():
+    h = Harness()
+    _people(h, VERDANT, (1, 2), wealth=0.0)
+    _people(h, AMBER, (4,), wealth=0.0)
+    h.sim.loads = {(VERDANT, "grain"): 2.5, (VERDANT, "fish"): 0.5, (VERDANT, "timber"): 9.0}
+    h.turn({VERDANT: {"grain": 6.0}, AMBER: {"grain": 2.0}})
+    verdant, amber = h.frame(VERDANT), h.frame(AMBER)
+    assert verdant.merchant_food_departing == 3.0 and amber.merchant_food_departing == 0.0
+    assert verdant.owned_food_unloadable_milli == verdant.close_milli > 0
+    assert (verdant.income_rows, amber.income_rows) == (2, 1)
+    assert verdant.income_replaced == pytest.approx(0.5) and amber.income_replaced == pytest.approx(0.25)
+    assert h.state.income["unattributed"] == 0.0
+
+
+@pytest.mark.parametrize("delta", [-1, "households"])
+def test_payments_beyond_sold_times_price_are_refused(delta):
+    h = Harness()
+    _people(h, VERDANT, (1, 2), wealth=0.0)
+    h.sim.add(5, VERDANT, occupation=2, wealth=30.0)
+    h.turn({VERDANT: {"grain": 4.0}})
+
+    def change(row, cols):
+        if row[cols.index("sold_milli")] <= 0:
+            return
+        step = -1 if delta == -1 else 500 * (row[cols.index("persons")] + 1)
+        for name in ("paid_milli", "credited_milli"):
+            row[cols.index(name)] += step
+    _corrupt(h, change)
+    original = h.sim._retail
+
+    def money(install):                                     # keep the money rows equal to the region rows
+        frame = list(original(install))
+        cols = list(frame[1])
+        (row,) = [r for r in frame[2] if r[cols.index("region")] == VERDANT]
+        diff = int(row[cols.index("paid_milli")]) - sum(m[1] for m in frame[4])
+        rows = [list(m) for m in frame[4]]
+        next(m for m in rows if m[1] > 0)[1] += diff        # a buyer's debit
+        next(m for m in rows if m[2] > 0)[2] += diff        # a seller's credit
+        frame[4] = [tuple(m) for m in rows]
+        return tuple(frame)
+    h.sim._retail = money
+    with pytest.raises(HR.RetailAccountingError, match="per-household rounding"):
+        h.turn()
+
+
+@pytest.mark.parametrize("field, message", [("closing", "does not close"), ("opening", "opening is not")])
+def test_a_pilot_food_ledger_that_does_not_close_is_refused(field, message):
+    from chronicler.food_accounting import FOOD_LEDGER_FIELDS
+    h = Harness()
+    _people(h, VERDANT, (1, 2), wealth=0.0)
+    h.turn({VERDANT: {"grain": 4.0}})
+
+    def skew(res):
+        row = list(res.food_ledger[VERDANT])
+        i = FOOD_LEDGER_FIELDS.index(field)
+        row[i] += 0.5
+        if field == "opening":                               # the ledger still closes: only its opening is wrong
+            row[FOOD_LEDGER_FIELDS.index("closing")] += 0.5
+        res.food_ledger[VERDANT] = tuple(row)
+    with pytest.raises(HR.RetailAccountingError, match=message):
+        h.turn({VERDANT: {"grain": 4.0}}, economy=skew)

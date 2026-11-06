@@ -150,6 +150,13 @@ class RegionFrame(_Backfilled):
     #: record_only: what retail would have done this turn (title, price,
     #: free rations); None in every other mode.
     would_be: dict[str, float] | None = None
+    #: Ordinary farm income replaced this turn for the region's farmers, and rows.
+    income_replaced: float | None = None
+    income_rows: int | None = None
+    #: Lead decision 7: food merchants committed from the commons this turn,
+    #: and the owned food (milli-food) they could not load (foregone at most).
+    merchant_food_departing: float | None = None
+    owned_food_unloadable_milli: int | None = None
 
 
 class HouseholdRetailState(BaseModel):

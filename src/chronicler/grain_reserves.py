@@ -676,7 +676,7 @@ def tick_grain_reserves(world: "WorldState", acc=None, economy_result: "EconomyR
                     if owned_part is not None and not foreign and owned_part[src] > 0.0:
                         from chronicler.household_retail import take_procured
                         from_owned = take_procured(world, src, min(owned_part[src], sent), len(flows))
-                        owned_part[src] -= from_owned
+                        owned_part[src] = max(0.0, owned_part[src] - from_owned)
                     goods[GRAIN] = goods.get(GRAIN, 0.0) - (sent - from_owned)
                     surplus[src] -= sent
                     budget[ci] -= cost
