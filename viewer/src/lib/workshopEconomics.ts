@@ -17,11 +17,20 @@ import type { TurnSnapshot } from "../types";
  */
 export type WorkshopEconomicsStatus = "absent" | "disabled" | "malformed" | "unobserved" | "observed";
 
+/**
+ * One firm-turn's inputs. The plan price is the most recent positive raw price the
+ * economy computed in an earlier tick (the firm's region, else its ruler's
+ * realm), dated; the firm converts only what its reservation buys at that price
+ * (``converted_unpaid_milli`` is always 0); the tick's own price is a diagnostic.
+ */
 export interface EconomicsInputs {
-  price_milli: number | null; budget_milli: number | null; capacity_milli: number | null; crew: number;
-  wage_bill_milli: number; no_input_reason: string | null; used_timber_milli: number; used_ore_milli: number;
-  used_milli: number; charged_milli: number; not_charged_milli: number; payee: [string, number | string] | null;
-  treasury_units: number;
+  plan_price_milli: number | null; plan_price_turn: number | null; plan_price_region: number | null;
+  plan_price_source: "region" | "realm" | null; tick_price_milli: number | null;
+  budget_milli: number | null; capacity_milli: number | null; need_milli: number | null;
+  unbought_need_milli: number; crew: number; wage_bill_milli: number; no_input_reason: string | null;
+  used_timber_milli: number; used_ore_milli: number; used_milli: number; cost_milli: number;
+  charged_milli: number; not_charged_milli: number; converted_unpaid_milli: number;
+  payee: [string, number | string] | null; treasury_units: number;
 }
 
 export interface EconomicsHouseholds {
@@ -74,13 +83,22 @@ function validTerms(x: unknown, regions: number): boolean {
 function validInputs(x: unknown): boolean {
   if (x === null) return true;
   if (!object(x)) return false;
-  const ints = ["crew", "wage_bill_milli", "used_timber_milli", "used_ore_milli", "used_milli", "charged_milli",
-    "not_charged_milli"];
+  const ints = ["crew", "wage_bill_milli", "used_timber_milli", "used_ore_milli", "used_milli", "cost_milli",
+    "charged_milli", "not_charged_milli", "converted_unpaid_milli", "unbought_need_milli"];
   if (!ints.every((k) => count(x[k]))) return false;
-  for (const k of ["price_milli", "capacity_milli"]) if (x[k] !== null && !count(x[k])) return false;
+  for (const k of ["plan_price_milli", "plan_price_turn", "plan_price_region", "tick_price_milli", "capacity_milli",
+    "need_milli"]) if (x[k] !== null && !count(x[k])) return false;
+  if (x.plan_price_source !== null && x.plan_price_source !== "region" && x.plan_price_source !== "realm") return false;
   if (x.budget_milli !== null && !(finite(x.budget_milli) && Number.isInteger(x.budget_milli))) return false;
-  // Paid inputs never exceed what the firm reserved for them.
-  if (x.charged_milli as number > 0 && (x.capacity_milli === null || x.price_milli === null)) return false;
+  const n = (k: string) => x[k] as number;
+  // Nothing is converted unpaid; whatever is used was within what the plan price bought.
+  if (n("converted_unpaid_milli") !== 0) return false;
+  if (n("used_milli") > 0 && (x.plan_price_milli === null || x.capacity_milli === null
+    || n("used_milli") > n("capacity_milli"))) return false;
+  // The charge (or, in the cost control, the uncharged cost) is the cost at the plan price.
+  if (n("charged_milli") + n("not_charged_milli") !== n("cost_milli") || n("charged_milli") * n("not_charged_milli") !== 0) {
+    return false;
+  }
   return true;
 }
 
@@ -149,6 +167,7 @@ export const units = (milli: number) => milli / 1000;
 
 export interface EconomicsFunnel {
   firmsOpened: number; capitalPaid: number; operatingFirmTurns: number; inputsCharged: number;
+  unboughtNeed: number; realmPriceTurns: number; openingRefusedClosedCity: number; openingRefusedNoPrice: number;
   inputsNotCharged: number; academySales: number; householdSales: number; householdDelivered: number;
   pricedOutHouseholds: number; freeUseUpperBound: number; closedIdle: number; closedInsolvent: number;
   closedOther: number; assetSubsidyFirmUnits: number; sitesWithoutFirmTurns: number;
@@ -163,6 +182,8 @@ export function economicsFunnel(record: WorkshopEconomicsRecord): EconomicsFunne
   return {
     firmsOpened: c("firms_opened"), capitalPaid: units(c("capital_paid")), operatingFirmTurns: c("operating_firm_turns"),
     inputsCharged: units(c("inputs_charged")), inputsNotCharged: units(c("inputs_not_charged")),
+    unboughtNeed: units(c("unbought_need")), realmPriceTurns: c("plan_price_realm_turns"),
+    openingRefusedClosedCity: c("opening_refused_closed_city"), openingRefusedNoPrice: c("opening_refused_no_input_price"),
     academySales: academy, householdSales: households, householdDelivered: units(c("household_delivered")),
     pricedOutHouseholds: c("priced_out_households"), freeUseUpperBound: units(c("free_use_upper_bound")),
     closedIdle: c("closed_idle"), closedInsolvent: c("closed_insolvent"), closedOther: c("closed_other"),

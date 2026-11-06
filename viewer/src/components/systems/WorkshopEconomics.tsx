@@ -5,8 +5,8 @@ const show = (value: number | null | undefined) =>
   value === null || value === undefined ? "Unknown" : value.toLocaleString(undefined, { maximumFractionDigits: 3 });
 const money = (milli: number | null | undefined) => (milli === null || milli === undefined ? "Unknown" : show(units(milli)));
 const MODE_NOTE: Record<string, string> = {
-  market: "Market mode: each firm pays its region's ruler for the raw timber and ore it uses at the region's market price, and sells wares to academies and to the region's households.",
-  free_inputs: "Free-inputs control: inputs are planned and recorded but not charged, so the firm's cost of materials is removed.",
+  market: "Market mode: each firm pays its region's ruler for the raw timber and ore it converts, at the raw price the economy computed in an earlier tick, and sells wares to academies and to the region's households.",
+  free_inputs: "Free-inputs control: every rule as in market mode (budget, crew and how much it may convert) except that the input charge is recorded and not taken.",
   academy_only: "Academy-only control: firms sell only to academies; households buy nothing from them.",
 };
 const ABSENT: Record<string, string> = {
@@ -39,10 +39,10 @@ export function WorkshopEconomics({ bundle, snapshot, currentTurn, onSelectRegio
   return <section className="systems-section" aria-label="Workshop economics">
     {title}
     <p className="systems-note">Simulation turn {record.source_turn}. {MODE_NOTE[record.mode]}</p>
-    <p className="systems-note">Amounts are treasury units (one unit is also one unit of a person's wealth); wares and inputs are loads. A firm opens once with its ruler's capital and is never rescued; a site without a firm produces nothing. The ruler's spending on the workshop building is shown as a subsidy outside the firm's books.</p>
+    <p className="systems-note">Amounts are treasury units (one unit is also one unit of a person's wealth); wares and inputs are loads. A firm receives its ruler's capital once; a city whose firm closed never gets another firm. A firm converts only the raw inputs it paid for; a site without a firm produces nothing. The ruler's spending on the workshop building is shown as a subsidy outside the firm's books.</p>
     {receipts === null ? <p className="systems-note">No workshop economics pass was recorded in simulation turn {record.source_turn}; inputs, sales and wages are unknown, not zero.</p> : receipts.length === 0 ? <p className="systems-note">No firm was open in simulation turn {record.source_turn} (a recorded zero).</p> :
       <div className="systems-table-wrap"><table className="systems-table" aria-label={`Workshop firms' economics at snapshot ${record.source_turn + 1}`}>
-        <thead><tr><th>Region</th><th>Ruler</th><th>Status</th><th>Cash</th><th>Inputs bought (used · paid)</th><th>Academy sales</th><th>Household sales (bought · priced out)</th><th>Wages paid / due</th><th>Owed</th><th>Unsold wares</th><th>Building subsidy</th><th>No sale because</th></tr></thead>
+        <thead><tr><th>Region</th><th>Ruler</th><th>Status</th><th>Cash</th><th>Inputs (used · paid · plan price)</th><th>Need not bought (stayed in the commons)</th><th>Academy sales</th><th>Household sales (bought · priced out)</th><th>Wages paid / due</th><th>Owed</th><th>Unsold wares</th><th>Building subsidy</th><th>No sale because</th></tr></thead>
         <tbody>{receipts.map((r) => {
           const terms = [...record.firms, ...record.closed].find((t) => t.firm === r.firm);
           const h = r.households;
@@ -52,7 +52,8 @@ export function WorkshopEconomics({ bundle, snapshot, currentTurn, onSelectRegio
             <td>{civ(r.owner)}</td>
             <td>{closed}</td>
             <td>{money(r.cash_close)}{r.capital_in ? ` (capital ${money(r.capital_in)})` : ""}</td>
-            <td>{r.inputs === null ? "Not planned" : `${money(r.inputs.used_milli)} · ${money(r.inputs.charged_milli)}${r.inputs.not_charged_milli ? ` (not charged ${money(r.inputs.not_charged_milli)})` : ""}`}</td>
+            <td>{r.inputs === null ? "Not planned" : `${money(r.inputs.used_milli)} · ${money(r.inputs.charged_milli)}${r.inputs.not_charged_milli ? ` (not charged ${money(r.inputs.not_charged_milli)})` : ""} · ${r.inputs.plan_price_milli === null ? "no price" : `${show(units(r.inputs.plan_price_milli))} (turn ${r.inputs.plan_price_turn}, ${r.inputs.plan_price_source === "realm" ? `realm, ${region(r.inputs.plan_price_region ?? 0)}` : "region"})`}`}</td>
+            <td>{r.inputs === null ? "Not planned" : money(r.inputs.unbought_need_milli)}</td>
             <td>{money(r.academy_sales)}</td>
             <td>{h === null ? "No household round" : `${money(h.paid_milli)} (${money(h.bought_milli)} · ${show(h.priced_out_households)})`}</td>
             <td>{`${money(r.wages_paid)} / ${money(r.wages_due)}`}</td>
@@ -68,6 +69,8 @@ export function WorkshopEconomics({ bundle, snapshot, currentTurn, onSelectRegio
         <tr><th scope="row">Firms opened (capital paid)</th><td>{`${show(f.firmsOpened)} (${show(f.capitalPaid)})`}</td></tr>
         <tr><th scope="row">Operating firm-turns</th><td>{show(f.operatingFirmTurns)}</td></tr>
         <tr><th scope="row">Inputs paid to rulers / not charged (control)</th><td>{`${show(f.inputsCharged)} / ${show(f.inputsNotCharged)}`}</td></tr>
+        <tr><th scope="row">Input need not bought (never converted) · turns priced from the realm</th><td>{`${show(f.unboughtNeed)} · ${show(f.realmPriceTurns)}`}</td></tr>
+        <tr><th scope="row">Openings refused: closed city / no input price</th><td>{`${show(f.openingRefusedClosedCity)} / ${show(f.openingRefusedNoPrice)}`}</td></tr>
         <tr><th scope="row">Sales to academies / households</th><td>{`${show(f.academySales)} / ${show(f.householdSales)}`}</td></tr>
         <tr><th scope="row">Household share of sales</th><td>{f.householdShareOfSales === null ? "No sales" : show(f.householdShareOfSales)}</td></tr>
         <tr><th scope="row">Wares delivered to households · households priced out</th><td>{`${show(f.householdDelivered)} · ${show(f.pricedOutHouseholds)}`}</td></tr>

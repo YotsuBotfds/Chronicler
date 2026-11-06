@@ -21,12 +21,14 @@ it("shows each firm's cash, inputs, customers, payroll, arrears, unsold wares an
   const row = within(screen.getByRole("table", { name: "Workshop firms' economics at snapshot 5" })).getAllByRole("row")[1];
   expect(row).toHaveTextContent("Selurian");
   expect(row).toHaveTextContent("operating");
-  expect(row).toHaveTextContent("0.6 · 0.48");          // inputs used · paid
+  expect(row).toHaveTextContent("0.6 · 0.48 · 0.8 (turn 3, region)");   // inputs used · paid · plan price
   expect(row).toHaveTextContent("0.14 (0.07 · 1)");     // household sales (bought · priced out)
   expect(row).toHaveTextContent("0.615");               // unsold wares
   expect(row).toHaveTextContent("no academy customer");
   const funnel = within(screen.getByRole("table", { name: "Workshop economics funnel to snapshot 5" }));
-  expect(funnel.getByRole("row", { name: /Firms opened/ })).toHaveTextContent("1 (11)");
+  expect(funnel.getByRole("row", { name: /Firms opened/ })).toHaveTextContent("1 (20)");
+  expect(screen.getByText(/converts only the raw inputs it paid for/)).toBeInTheDocument();
+  expect(screen.queryByText(/never rescued/)).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Ashford Vale" }));
   expect(p.onSelectRegion).toHaveBeenCalledWith("Ashford Vale");
 });
@@ -52,7 +54,7 @@ it("names closed firms and their reason", () => {
   const closed = { ...terms, status: "closed", closed_turn: 4, closed_reason: "idle" };
   const closedReceipt = { ...receipt, status: "closed", event: "closed_idle" };
   render(<WorkshopEconomics {...props(a3({ ...economics, firms: [], closed: [closed], receipts: [closedReceipt] }))} />);
-  expect(screen.getByText(/Ashford Vale \(turn 4, idle, capital 11\)/)).toBeInTheDocument();
+  expect(screen.getByText(/Ashford Vale \(turn 4, idle, capital 20\)/)).toBeInTheDocument();
   const row = within(screen.getByRole("table", { name: "Workshop firms' economics at snapshot 5" })).getAllByRole("row")[1];
   expect(row).toHaveTextContent("closed (idle)");
 });

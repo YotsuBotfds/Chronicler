@@ -44,6 +44,11 @@ describe("workshop economics reader", () => {
       { ...receipt, households: { ...households, bought_milli: 80 } },              // bought beyond the offer
       { ...receipt, households: { ...households, gap_milli: 60, offered_milli: 60, bought_milli: 60 } },
       { ...receipt, inputs: { ...inputs, capacity_milli: null } },                  // paid without a reservation
+      { ...receipt, inputs: { ...inputs, capacity_milli: 500 } },                   // converted beyond what it paid for
+      { ...receipt, inputs: { ...inputs, converted_unpaid_milli: 10 } },            // nothing is converted unpaid
+      { ...receipt, inputs: { ...inputs, plan_price_milli: null } },                // used without a plan price
+      { ...receipt, inputs: { ...inputs, charged_milli: 479 } },                    // not the cost at the plan price
+      { ...receipt, inputs: { ...inputs, plan_price_source: "tick" } },
       { ...receipt, customer_absent: ["bad_luck"] },
       { ...receipt, region: 7 },
     ]) expect(workshopEconomicsAt(with3({ ...economics, receipts: [bad] }), 3).status).toBe("malformed");
@@ -51,9 +56,22 @@ describe("workshop economics reader", () => {
       .toBe("malformed");
   });
 
+  it("reads a turn without a price or a budget, and the cost control, as observed", () => {
+    const idle = { ...receipt, operating: false, produced: 0, titled: 0, free_use_upper_bound: 0, households,
+      inputs: { ...inputs, plan_price_milli: null, plan_price_turn: null, plan_price_region: null, plan_price_source: null,
+        capacity_milli: 0, used_timber_milli: 0, used_ore_milli: 0, used_milli: 0, cost_milli: 0, charged_milli: 0,
+        no_input_reason: "price_unknown", unbought_need_milli: 4800 },
+      cash_close: receipt.cash_close + 480, inventory_close: receipt.inventory_close - 590,
+      unsold_inventory: receipt.inventory_close - 590 };
+    expect(workshopEconomicsAt(with3({ ...economics, receipts: [idle] }), 3).status).toBe("observed");
+    const control = { ...receipt, inputs: { ...inputs, charged_milli: 0, not_charged_milli: 480 },
+      cash_close: receipt.cash_close + 480 };
+    expect(workshopEconomicsAt(with3({ ...economics, mode: "free_inputs", receipts: [control] }), 3).status).toBe("observed");
+  });
+
   it("derives the funnel in units", () => {
     const f = economicsFunnel(workshopEconomicsAt(with3(economics), 3).record!);
-    expect(f.capitalPaid).toBe(11);
+    expect(f.capitalPaid).toBe(20);
     expect(f.inputsCharged).toBe(0.48);
     expect(f.householdSales).toBe(0.14);
     expect(f.householdShareOfSales).toBe(1);
