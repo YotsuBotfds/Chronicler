@@ -690,10 +690,10 @@ def _id_links(t: dict) -> int:
     return int(by3) + int(t.get("id_to_food_in_region", False)) + int(t.get("repair_crew_to_food_in_region", False))
 
 
-def _chain(hist) -> dict:
-    """The best natural chain instance (the deepest, then traced to food by id, then the
-    earliest stall), and a funnel over every project that stalled ``no_timber``."""
-    ix = _chain_index(hist)
+def _chain(hist, ix=None) -> dict:
+    """The best natural chain instance (the deepest, then the most links joined by id,
+    then the earliest stall), and a funnel over every project that stalled ``no_timber``."""
+    ix = ix or _chain_index(hist)
     traces = [_trace(ix, pid) for pid in sorted(ix["stall"], key=lambda p: (ix["stall"][p][0], p))]
     funnel = {"projects stalled no_timber": len(traces)}
     for depth, label in ((2, "an expedition from the region delivered after the stall"),
@@ -893,7 +893,7 @@ def find_chain(bundle: dict) -> dict:
     hist = bundle.get("history") or []
     missing = [name for name in CHAIN_NEEDS if not _has(hist, name)]
     ix = _chain_index(hist)
-    out = {"chain": f"not recorded in this run (no {', '.join(missing)} record)" if missing else _chain(hist)}
+    out = {"chain": f"not recorded in this run (no {', '.join(missing)} record)" if missing else _chain(hist, ix)}
     out["tradeoffs"] = (_tradeoffs(hist, ix) if _has(hist, "timber_supply")
                         else "not recorded in this run (no timber_supply record)")
     return out

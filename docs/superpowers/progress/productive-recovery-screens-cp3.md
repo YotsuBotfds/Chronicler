@@ -292,7 +292,7 @@ choose arms, outcomes or parameters.
 
 - **Run** 2026-11-06 (04:36:33–04:38:08 UTC) by PL6d on `ad0e4dcf` (`src` and
   `chronicler-agents` identical to `claude/household-retail` `12ad9a1e`; later commits change
-  only the examples finder, tests and this file), native extension `101a4cd5…`
+  only the examples finder, tests and documentation, not the runner), native extension `101a4cd5…`
   (`~/.venvs/native-hrn2`, matching this branch's Rust), CPython 3.13, 2 concurrent processes
   on a shared 4-core machine. The pilot's metrics and report are kept outside the repository.
 - **All 12 runs succeeded and every outcome extracted** (no rc 3; `check --checkpoint 3
