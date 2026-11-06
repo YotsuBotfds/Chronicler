@@ -371,13 +371,20 @@ Tests: `tests/test_quarantine_migration.py` (offline, oracle chunk `connected-wo
 `tests/test_quarantine_migration_native.py` (real extension), both on native shard 0; Rust unit
 tests in `migration_closure.rs` and `tick.rs` (a closed pair blocks both directions while the
 open pair's moves are exactly the unclosed run's; completed moves stay; a closure for another
-turn is not applied; the household is refused as a unit with its follower's action restored).
+turn is not applied; the household is refused as a unit with its follower's action restored; at
+tick level, a married household refused under the closure alone gets the follower's replaced
+occupation switch back, which fails if the tick stops snapshotting primary actions for a
+closure, and the liquid-reserve gate then sees no refused household). The offline tests include
+states pickled with `main`'s classes and the release of the install when the tick raises.
 
 ### Evidence (2026-11-06, this branch, Linux container, Python 3.13.18)
 
-Source commit `a212ba1f`; native extension built from it into the lane's own venv, SHA-256
-`6c461a0bb5879d1e8f591890e6eb30295b8bf877ff8debb4354c117dfee28103` (the comparison side of
-`main` used the shared build `101a4cd5...`, equal to `main`'s Rust).
+After the review fixes: source commit `51cd3167` (the fixes `6b9fb6e8` and the rebuilt `cwc1b`
+layer); native extension built from it into the lane's own venv, SHA-256
+`e724072d7888888ede86acccb8db745c219c445fd47644ec9abe8ed5493e865b` (the comparison side of
+`main` used the shared build `101a4cd5...`, equal to `main`'s Rust). The first version
+(`a212ba1f`, extension `6c461a0b...`) passed the same identity and resume checks (shadow
+included, before it was refused).
 
 - **Feature-off identity** (`scripts/turn_speed_identity.py`, 9 cases, each side with its own
   source tree and extension): head against `8abc1acb` 9 cases, 399 files, 0 differences; against
@@ -386,32 +393,38 @@ Source commit `a212ba1f`; native extension built from it into the lane's own ven
 - **C1 unchanged** (`--quarantine-mode closure`, default channels, every case): head against
   `main` `8286804c` 9 cases, 399 files, 0 differences. The development table's trade-only rows
   below also equal C1's table above.
+- **Checkpoints written by `main`** (`main` source and extension, 30 turns, a checkpoint every 5
+  turns; `turn_0015.ckpt` resumed on this branch with `--resume-allow-mismatch`): hybrid
+  `closure`, aggregate `none` and aggregate `cost_only` all resume, and each continuation's
+  `state.json` and history after turn 15 equal `main`'s straight run byte for byte.
 - **Enabled exact resume** (`scripts/checkpoint_identity.py`, `--quarantine-mode closure
   --quarantine-channels trade,migration`, every resume turn): `hybrid_s42` with
-  `--transaction-receipts` 59 points PASS (migrants refused on 22 of its 60 turns);
-  `proc32_hybrid_s11` with `--transaction-receipts` 39 PASS (12 turns with refusals);
-  `shadow_s42` 39 PASS; `demographics_s42` 39 PASS; the all-enabled compatible case (every
-  catalog switch with retail in every region, relocation fares included, plus
-  `--transaction-receipts`) on `hybrid_s42` 59 PASS (refusals on 35 turns).
+  `--transaction-receipts` 59 points PASS (refusals on 22 of its 60 turns: 185 refusals of 123
+  persons); `proc32_hybrid_s11` with `--transaction-receipts` 39 PASS (12 turns, 275 refusals of
+  215 persons); `demographics_s42` 39 PASS (3 refusals of 1 person); the all-enabled compatible
+  case (every catalog switch with retail in every region, relocation fares included, plus
+  `--transaction-receipts`) on `hybrid_s42` 59 PASS (35 turns, 440 refusals of 170 persons).
 - **Natural activation on development worlds (development-only, not a screen).** 100 turns,
   hybrid, template worlds 1, 3, 7, 9, 11, 23, 42 and procedural worlds 7, 11, 13, 17, 21, 31 (32
   regions, 10 polities), `closure` with trade only (QR) and with `trade,migration` (QM); one run
-  per world and arm, so no inference. Migrants were refused in all 13 QM runs (3 to 2,775 per
-  run), every QM receipt was observed (0 null), no extractor problem.
+  per world and arm, so no inference. Migrants were refused in all 13 QM runs (3 to 2,775
+  refusals, 3 to 876 distinct persons per run), every QM receipt was observed (0 null), no
+  extractor problem.
 
-  | Worlds | Arm | Turns with a closure (range) | Closures opened | Closed pair-turns | Migrants refused | of whom flight | Turns with refusals | Cross-polity arrivals | Epidemic deaths |
-  | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-  | template | QR | 2-84 | 234 | 826 | n/a | n/a | n/a | 145 | 592 |
-  | template | QM | 2-96 | 195 | 756 | 3,027 | 2,302 | 249 | 89 | 395 |
-  | procedural | QR | 45-88 | 1,351 | 4,760 | n/a | n/a | n/a | 733 | 2,670 |
-  | procedural | QM | 47-93 | 1,559 | 6,663 | 9,877 | 6,789 | 456 | 512 | 2,049 |
+  | Worlds | Arm | Turns with a closure (range) | Closures opened | Closed pair-turns | Refusals (person-ticks) | Distinct persons | of the refusals: flight | hunger-driven | Turns with refusals | Cross-polity arrivals | Epidemic deaths |
+  | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+  | template | QR | 2-84 | 234 | 826 | n/a | n/a | n/a | n/a | n/a | 145 | 592 |
+  | template | QM | 2-96 | 195 | 756 | 3,027 | 1,063 | 2,302 | 524 | 249 | 89 | 395 |
+  | procedural | QR | 45-88 | 1,351 | 4,760 | n/a | n/a | n/a | n/a | n/a | 733 | 2,670 |
+  | procedural | QM | 47-93 | 1,559 | 6,663 | 9,877 | 3,969 | 6,789 | 1,707 | 456 | 512 | 2,049 |
 
   Cross-polity epidemic arrivals (CW4's world count) were lower under QM in 10 of 13 worlds
-  (equal in 1) and epidemic deaths lower in 10 of 13 (equal in 1). Most refusals are flight
-  (of 12,904 refused persons, famine memory 58%, persecution memory 7%, persecution 4%; food
-  opportunity 14%): the harm the channel imposes. These are development worlds and single
-  trajectories; the effect is for a preregistered held screen to measure, with migration, hunger
-  and food harms alongside.
+  (equal in 1) and epidemic deaths lower in 10 of 13 (equal in 1). The 12,904 refusals were of
+  5,032 distinct persons (a refused agent is refused again on later ticks while its best target
+  stays closed). Of the refusals, 70% were flight (famine memory 58%, persecution memory 7%,
+  persecution 4%) and 17% hunger-driven (food opportunity 14%, material need 3%): the harms the
+  channel imposes. These are development worlds and single trajectories; the effect is for a
+  preregistered held screen to measure, with migration, hunger and food harms alongside.
 
 Evidence and runners: `/home/user/evidence/c1b/` (outside the repository).
 
