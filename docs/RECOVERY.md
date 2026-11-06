@@ -1,6 +1,6 @@
 # Source, recovery and archive index
 
-Updated 2026-11-06 after PRs #73, #74, #76 and #78. This is the starting map for future agents;
+Updated 2026-11-06 after PRs #73, #74, #76, #78 and #80. This is the starting map for future agents;
 dated reports keep their original source, platform and qualification limits.
 
 ## Current source and evidence
@@ -36,6 +36,15 @@ Use fetched `main` for new work.
   - Its tree, `8a2ffc12`, equals the tree of the reviewed head `005880b6`.
   - Premerge Tests run 42147761904 on that head passed all nine jobs.
   - [Main Tests run 42149350923](https://github.com/YotsuBotfds/Chronicler/actions/runs/42149350923)
+    tested the merge SHA on `push`, attempt 1: success.
+
+- [PR #80](https://github.com/YotsuBotfds/Chronicler/pull/80) (productive recovery,
+  checkpoint 2: household food retail, `--household-retail`) merged on 2026-11-06 at
+  `96c204392847622b9086be638ca5970ce6072bae`, after the checkpoint-1 merge record
+  (PR #79, `573f14e5`).
+  - Its tree, `014ad8c2`, equals the tree of the reviewed head `12ad9a1e`.
+  - Premerge Tests run 42161536601 on that head passed all nine jobs.
+  - [Main Tests run 42162966710](https://github.com/YotsuBotfds/Chronicler/actions/runs/42162966710)
     tested the merge SHA on `push`, attempt 1: success.
 
 Every livelihoods, recovery-skills and productive-recovery switch is off by default. These merges do not complete the 200-seed or

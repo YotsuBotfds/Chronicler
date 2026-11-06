@@ -3,8 +3,9 @@
 Read [current source and recovery/archive index](docs/RECOVERY.md),
 `docs/CONTINUATION.md` and `docs/DEVELOPMENT.md` before changing code;
 [docs/README.md](docs/README.md) maps the rest of the documentation.
-Start new work from fetched `main`; PR #78 (productive recovery, checkpoint 1)
-merged on 2026-11-06 at `dde5c004`, after PR #76 (recovery skills) at `c4e259b6`. The
+Start new work from fetched `main`; PR #80 (productive recovery, checkpoint 2,
+household retail) merged on 2026-11-06 at `96c20439`, after PR #78 (checkpoint 1) at
+`dde5c004` and PR #76 (recovery skills) at `c4e259b6`. The
 default-off livelihoods, recovery-skills and productive-recovery packages and their
 boards are under `docs/superpowers/` (`livelihoods-*`, `recovery-skills*`,
 `productive-recovery*`).
