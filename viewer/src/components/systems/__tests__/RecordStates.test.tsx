@@ -149,6 +149,19 @@ describe("food allocation zero with and without household retail (review m6)", (
     expect(screen.queryByText("No region was short of food.")).not.toBeInTheDocument();
   });
 
+  it.each([
+    ["record-only retail (nothing provisioned)", (r: Rec) => {
+      r.mode = "record_only";
+      r.regions = r.regions.map((row: Rec) => ({ ...row, would_be: row.provisioning, provisioning: null }));
+    }],
+    ["a retail turn that provisioned no region", (r: Rec) => { r.regions = []; }],
+  ])("says no region was short with %s (constructed)", (_name, edit) => {
+    view(FoodAllocation, chainBundle((s) => { if (s.turn === AT) { empty(s); edit(s.livelihoods.household_retail); } }));
+    expect(screen.getByText("Food allocation: recorded, nothing happened this turn (no region was short of food).")).toBeInTheDocument();
+    expect(screen.getByText("No region was short of food.")).toBeInTheDocument();
+    expect(screen.queryByText(/Household retail provisioned/)).not.toBeInTheDocument();
+  });
+
   it("says no region was short when the run has no household retail", () => {
     view(FoodAllocation, chainBundle((s) => { delete s.livelihoods.household_retail; if (s.turn === AT) empty(s); }));
     expect(screen.getByText("Food allocation: recorded, nothing happened this turn (no region was short of food).")).toBeInTheDocument();
