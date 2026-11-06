@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "layer": "cwa3",
+  "parent": "5108f8b98120e93e669201c711286519bd9f8ea6",
+  "files": {
+    "src/chronicler/batch_manifest.py": {
+      "sha256": "6aa97ac9f35d53123b7b26623f8b81419c85b49fd80f99f5969de5bb09dd637c",
+      "current_sha256": "e780e5b0165617e951dada61c1f2087adb6e538d926230238f7a7105804ee74d",
+      "patches": [
+        {
+          "old": "    \"watershed\",\n    \"watershed_mode\",\n    \"quarantine_mode\",\n    \"wealth_accounting\",\n    \"tuning\",\n    \"preset\",\n",
+          "new": "    \"watershed\",\n    \"watershed_mode\",\n    \"quarantine_mode\",\n    \"workshop_economics\",\n    \"workshop_economics_mode\",\n    \"wealth_accounting\",\n    \"tuning\",\n    \"preset\",\n"
+        },
+        {
+          "old": "                             \"maintenance_obligation_mode\", \"apprenticeship_rules\",\n                             \"household_retail\", \"household_retail_mode\", \"household_retail_boundary\",\n                             \"household_retail_rules\", \"household_retail_schedule\", \"watershed\", \"watershed_mode\",\n                             \"quarantine_mode\", \"wealth_accounting\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n    config[\"tuning_overrides\"] = _json_value(overrides or {})\n",
+          "new": "                             \"maintenance_obligation_mode\", \"apprenticeship_rules\",\n                             \"household_retail\", \"household_retail_mode\", \"household_retail_boundary\",\n                             \"household_retail_rules\", \"household_retail_schedule\", \"watershed\", \"watershed_mode\",\n                             \"quarantine_mode\", \"workshop_economics\", \"workshop_economics_mode\",\n                             \"wealth_accounting\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n    config[\"tuning_overrides\"] = _json_value(overrides or {})\n"
+        }
+      ]
+    },
+    "tests/test_batch_manifest.py": {
+      "sha256": "eec65be55963b0d328aeaa75707b9cb4b471bd62067a460ff7bdc7e4183ecf98",
+      "current_sha256": "bd94773c5d13fb3c2221cf90119c7ed0eb500a02631595f79c114b58e99ddc22",
+      "patches": [
+        {
+          "old": "                                                           \"household_retail\", \"household_retail_mode\", \"household_retail_boundary\",\n                                                           \"household_retail_rules\", \"household_retail_schedule\",\n                                                           \"watershed\", \"watershed_mode\",\n                                                           \"quarantine_mode\", \"wealth_accounting\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n    assert manifest[\"outputs\"][\"simulate_only\"] is True\n    environment = manifest[\"environment\"]\n",
+          "new": "                                                           \"household_retail\", \"household_retail_mode\", \"household_retail_boundary\",\n                                                           \"household_retail_rules\", \"household_retail_schedule\",\n                                                           \"watershed\", \"watershed_mode\",\n                                                           \"quarantine_mode\", \"workshop_economics\", \"workshop_economics_mode\",\n                                                           \"wealth_accounting\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n    assert manifest[\"outputs\"][\"simulate_only\"] is True\n    environment = manifest[\"environment\"]\n"
+        }
+      ]
+    }
+  }
+}
