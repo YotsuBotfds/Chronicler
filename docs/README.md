@@ -81,6 +81,9 @@ link to these by path, so keep their names stable.
   [examples, checkpoints 1 and 3](superpowers/progress/productive-recovery-examples.md),
   [checkpoint-2 screens](superpowers/progress/productive-recovery-screens-cp2.md),
   [checkpoint-3 screens, draft](superpowers/progress/productive-recovery-screens-cp3.md)).
+- **Connected-world program (experimental, every switch default off):**
+  [watershed account (B1, record only)](integration/watershed.md); plan in
+  [connected-world program](superpowers/roadmaps/connected-world-program.md).
 - **World generation:** [geography 2.0](integration/geography-2.md),
   [procedural gates](integration/procedural-gates.md).
 

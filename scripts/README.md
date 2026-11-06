@@ -52,6 +52,11 @@ source). `livelihoods_screens.py report OUT/metrics.jsonl --sprint N` summarizes
 worlds as the units and each arm paired with its declared control arm. `--sprint` defaults
 to 1. The committed sprint-1 metrics are in `docs/superpowers/progress/livelihoods-sprint1-screens/`.
 
+`watershed_calibration.py BUNDLE [BUNDLE ...] [--json OUT]` compares the index the watershed
+account (`--watershed`, record only) would derive with the index the simulation used, on
+procedural development worlds only (it refuses other seeds); see
+[docs/integration/watershed.md](../docs/integration/watershed.md), section 7.
+
 ## Bundles and viewer fixtures
 
 `bundle_v6.py` converts, decodes and compares bundles;
