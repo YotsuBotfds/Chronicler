@@ -151,6 +151,8 @@
       "tests/test_productive_recovery_screens_cp2.py",
       "tests/test_productive_recovery_screens_cp3.py",
       "tests/test_public_grain_shipments.py",
+      "tests/test_quarantine_rules.py",
+      "tests/test_quarantine_rules_native.py",
       "tests/test_recovery_crews.py",
       "tests/test_recovery_gini_numerics.py",
       "tests/test_recovery_skills_wiring.py",

@@ -440,6 +440,9 @@ CHUNKS = {
     "paired-context-benchmark-contracts": [
         "tests/paired_context_benchmark_contract_cases.py",
     ],
+    "connected-world-c": [
+        "tests/test_quarantine_rules.py",
+    ],
 }
 TESTS = [node for nodes in CHUNKS.values() for node in nodes]
 if len(set(TESTS)) != len(TESTS):
