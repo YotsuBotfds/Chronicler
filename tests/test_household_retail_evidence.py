@@ -249,7 +249,8 @@ def test_replaying_a_paid_work_arms_openings_reproduces_its_pilot_region_turns(t
     history = []
     a = _paid_work_run(history=history, monkeypatch=monkeypatch)
     found = HR.extract_schedule({"history": history})
-    assert found["schedule"] == {VERDANT: 10, THORNWOOD: 12, FROST: 13} and found["source"] == "opened_turn"
+    assert found["schedule"] == {VERDANT: [[10, None]], THORNWOOD: [[12, None]], FROST: [[13, None]]}
+    assert (found["source"], found["exact"]) == ("intervals", True)
     assert found["closures"] == [] and found["regions_closed"] == 0
     path = tmp_path / "S_A.json"
     assert HR.write_schedule(path, found["schedule"]) == found["sha256"] == hashlib.sha256(path.read_bytes()).hexdigest()
@@ -273,18 +274,26 @@ def test_replaying_a_paid_work_arms_openings_reproduces_its_pilot_region_turns(t
 def test_a_version_1_bundle_yields_its_schedule_from_the_frames_and_closures_are_named(tmp_path, monkeypatch):
     history = []
     h = _paid_work_run("--household-retail-boundary", "paid_work", *V1, history=history, monkeypatch=monkeypatch)
-    assert "opened_turn" not in history[-1]["livelihoods"]["household_retail"]
+    assert not {"opened_turn", "intervals"} & set(history[-1]["livelihoods"]["household_retail"])
     found = HR.extract_schedule({"history": history})
-    assert found["source"] == "frames" and found["schedule"] == {VERDANT: 10, THORNWOOD: 12, FROST: 13}
-    # A closure is named (a replay may reopen the region at another turn).
+    assert (found["source"], found["exact"]) == ("frames", False)
+    assert found["schedule"] == {VERDANT: [[10, None]], THORNWOOD: [[12, None]], FROST: [[13, None]]}
+    # A closure: the frame of the closing turn shows the holdings leaving, so the
+    # implied interval ends there; the closure is named.
     h.world.regions[FROST].controller = None
     h.turn()
     _history(h, history)
-    assert HR.extract_schedule({"history": history})["closures"] == [[16, FROST]]
-    # opened_turn and the frames must agree.
+    found = HR.extract_schedule({"history": history})
+    assert found["schedule"][FROST] == [[13, 16]] and found["closures"] == [[16, FROST]]
+    # opened_turn and the schedule must agree.
     bad = json.loads(json.dumps(history))
     bad[-1]["livelihoods"]["household_retail"]["opened_turn"] = {str(VERDANT): 11}
-    with pytest.raises(ValueError, match="disagrees with the frames for regions"):
+    with pytest.raises(ValueError, match="opened_turn disagrees with the schedule for regions"):
+        HR.extract_schedule({"history": bad})
+    # Recorded intervals must agree with the frames.
+    bad = json.loads(json.dumps(history))
+    bad[-1]["livelihoods"]["household_retail"]["intervals"] = {str(VERDANT): [[12, None]]}
+    with pytest.raises(ValueError, match="recorded intervals disagree with the frames"):
         HR.extract_schedule({"history": bad})
     with pytest.raises(ValueError, match="no household retail record"):
         HR.extract_schedule({"history": [{"turn": 1}]})
@@ -302,8 +311,9 @@ def test_the_schedule_script_writes_the_canonical_file(tmp_path, capsys, monkeyp
     assert script.main([str(bundle), "--output", str(out)]) == 0
     report = json.loads(capsys.readouterr().out)
     assert (FROST, VERDANT, THORNWOOD) == (0, 2, 4)
-    assert out.read_bytes() == b'{"0":13,"2":10,"4":12}'                 # canonical: compact, ascending region
-    assert report["sha256"] == hashlib.sha256(out.read_bytes()).hexdigest() and report["source"] == "opened_turn"
+    assert out.read_bytes() == b'{"0":[[13,null]],"2":[[10,null]],"4":[[12,null]]}'   # canonical, ascending region
+    assert report["sha256"] == hashlib.sha256(out.read_bytes()).hexdigest()
+    assert (report["source"], report["exact"]) == ("intervals", True)
     assert HR.load_schedule(out, 8)[1] == report["sha256"]
     bundle.write_text(json.dumps({"history": []}), encoding="utf-8")
     assert script.main([str(bundle), "--output", str(out)]) == 1
@@ -632,7 +642,190 @@ def test_the_cap_of_a_turn_without_phase2_comes_from_the_population(monkeypatch)
     _granary_world(h, monkeypatch)
     owned = h.state.region(VERDANT).goods[0]
     commons = h.world.regions[VERDANT].stockpile.goods.get("grain", 0.0)
-    assert HR._cap_room_milli(h.world, VERDANT, None) == math.floor((30.0 - commons) * 1000 + 1e-6) < owned
+    assert HR._storage_cap(h.world, VERDANT, None) == 30.0 and owned / 1000 + commons > 30.0
     h.state._turn = None
     HR.phase10_before_reserves(h.world, None, None, None)            # a turn whose Phase 2 recorded no cap
-    assert h.state.region(VERDANT).goods[0] == HR._cap_room_milli(h.world, VERDANT, None)
+    assert h.state.region(VERDANT).goods[0] == math.floor(owned * 30.0 / (owned / 1000 + commons) + 1e-9)
+
+
+# --- S1 (A2R review): exact interval schedules -----------------------------------------
+
+@pytest.mark.parametrize("value, message", [
+    ([], "intervals of region 1 are empty"),
+    ([[3]], "is not \\[open, close > open\\]"),
+    ([[3, 3]], "is not \\[open, close > open\\]"),
+    ([[3, 2]], "is not \\[open, close > open\\]"),
+    ([[-1, 4]], "is not \\[open, close > open\\]"),
+    ([[1.0, 4]], "is not \\[open, close > open\\]"),
+    ([[1, None], [5, 7]], "only the last interval may stay open"),
+    ([[1, 6], [5, 7]], "intervals overlap or are out of order"),
+    ([[5, 7], [1, 3]], "intervals overlap or are out of order"),
+])
+def test_an_invalid_interval_schedule_is_refused(value, message):
+    with pytest.raises(ValueError, match=message):
+        HR.parse_schedule({"1": value}, 8)
+
+
+def test_interval_schedules_are_canonical_and_the_first_turn_format_keeps_its_bytes(tmp_path):
+    schedule = HR.parse_schedule({"4": [[12, 14], [16, None]], "2": 10}, 8)
+    assert schedule == {2: 10, 4: [[12, 14], [16, None]]}
+    assert HR.canonical_schedule(schedule) == b'{"2":10,"4":[[12,14],[16,null]]}'
+    assert HR.canonical_schedule({2: 10, 4: 12}) == b'{"2":10,"4":12}'          # A2R's digests unchanged
+    assert [HR.scheduled(schedule[4], t) for t in range(11, 18)] == [False, True, True, False, False, True, True]
+    assert [HR.scheduled(10, t) for t in (9, 10, 99)] == [False, True, True]
+    path = tmp_path / "bom.json"
+    path.write_bytes(b"\xef\xbb\xbf" + b'{"4": [[12, 14]]}')                    # a UTF-8 byte order mark is read
+    assert HR.load_schedule(path, 8)[0] == {4: [[12, 14]]}
+
+
+def _closing_run(monkeypatch, *flags, paid=None, turns=8):
+    """The A2R reviewer's world: a paid_work arm whose Thornwood closes at turn
+    14 (no controller) and is ruled again from turn 15; ``paid`` adds paid work."""
+    paid = {**PAID, **(paid or {})}
+    monkeypatch.setattr(HR, "_paid_work_regions",
+                        lambda world: [(r, "paid_work") for r in sorted(paid.get(int(world.turn) - 1, []))])
+    h = Harness(*(flags or ("--household-retail-boundary", "paid_work")))
+    for rid in (VERDANT, THORNWOOD, FROST, AMBER):
+        _people(h, rid, (rid * 10 + 1, rid * 10 + 2, rid * 10 + 3), wealth=0.5)
+    owner = h.world.regions[THORNWOOD].controller
+    history = []
+    for _ in range(turns):
+        if h.world.turn == 14:
+            h.world.regions[THORNWOOD].controller = None
+        if h.world.turn == 15:
+            h.world.regions[THORNWOOD].controller = owner
+        h.turn({rid: {"grain": 4.0} for rid in (VERDANT, THORNWOOD, FROST, AMBER)})
+        _history(h, history)
+    return h, history
+
+
+@pytest.mark.parametrize("paid, thornwood", [
+    (None, [12, 13, 14]),                                       # closed, never reopened by paid work
+    ({15: [THORNWOOD]}, [12, 13, 14, 16, 17]),                  # closed, then reopened by new paid work
+])
+def test_an_interval_schedule_replays_closures_and_reopenings_exactly(monkeypatch, tmp_path, paid, thornwood):
+    """A2R review 1: the recorded intervals replay enrollment exactly, closures
+    and reopenings included; the first-turn format (A2R's) does not."""
+    a, ha = _closing_run(monkeypatch, paid=paid)
+    assert _pilot_turns(ha)[THORNWOOD] == thornwood
+    found = HR.extract_schedule({"history": ha})
+    assert found["exact"] and found["schedule"][THORNWOOD] == ([[12, 14]] if paid is None else [[12, 14], [16, None]])
+    assert ha[-1]["livelihoods"]["household_retail"]["intervals"][str(THORNWOOD)] == found["schedule"][THORNWOOD]
+    exact = tmp_path / "S.json"
+    HR.write_schedule(exact, found["schedule"])
+    _b, hb = _closing_run(monkeypatch, "--household-retail-boundary", "schedule", "--household-retail-schedule",
+                          str(exact), paid=paid)
+    assert _pilot_turns(hb) == _pilot_turns(ha)
+    log = [(r["turn"], r["region"], r["note"]) for r in hb[-1]["livelihoods"]["household_retail"]["log"]
+           if r["kind"] == "pilot_closed" and r["region"] == THORNWOOD]
+    assert log == [(14, THORNWOOD, "no controller")]            # the controller filter closes it first
+    approximate = tmp_path / "S_first_turn.json"
+    HR.write_schedule(approximate, {rid: v[0][0] for rid, v in found["schedule"].items()})
+    _c, hc = _closing_run(monkeypatch, "--household-retail-boundary", "schedule", "--household-retail-schedule",
+                          str(approximate), paid=paid)
+    if paid is None:
+        assert _pilot_turns(hc)[THORNWOOD] == [12, 13, 14, 15, 16, 17]   # reopens as soon as it is ruled again
+
+
+def test_a_schedule_interval_that_ends_closes_a_ruled_region(monkeypatch, tmp_path):
+    """The replaying world keeps its controller where the source lost it: the
+    interval's end closes the region all the same, holdings to its commons."""
+    path = _schedule_file(tmp_path, {THORNWOOD: [[10, 12]], VERDANT: [[10, None]]})
+    h = Harness("--household-retail-boundary", "schedule", "--household-retail-schedule", str(path))
+    _people(h, THORNWOOD, (41, 42), wealth=0.0)
+    for _ in range(3):
+        h.turn({THORNWOOD: {"grain": 4.0}})
+    assert HR.pilot_regions(h.world) == [VERDANT]
+    (closed,) = [r for r in h.state.log if r.kind == "pilot_closed"]
+    assert (closed.turn, closed.region, closed.note) == (12, THORNWOOD, "schedule interval ended")
+    assert h.state.intervals[THORNWOOD] == [[10, 12]] and h.frame(THORNWOOD).commons.get("pilot_closed", 0) > 0
+
+
+# --- S1 (A2R review): the RL4 cut is pro rata between the pools ------------------------
+
+def test_the_rl4_cut_splits_the_excess_pro_rata_and_runs_once_a_turn(monkeypatch):
+    """A2R review 2: with the commons above the cap at Phase 10 (a convoy's
+    cargo, say), the excess is split as the native cap splits it, not charged
+    to the owners alone; a second call in the turn cuts nothing."""
+    h = Harness()
+    _above_cap_market(h)
+    h.turn({VERDANT: {"grain": 60.0}})                               # no granaries yet: nothing cut
+    _granary_world(h, monkeypatch)
+    owned = h.state.region(VERDANT).goods[0]
+    goods = h.world.regions[VERDANT].stockpile.goods
+    goods["grain"] = 35.0                                            # above the cap of 30 on its own
+    h.state._turn = None
+    HR.phase10_before_reserves(h.world, None, None, None)
+    total = owned / 1000 + 35.0
+    keep = math.floor(owned * 30.0 / total + 1e-9)
+    assert h.state.region(VERDANT).goods[0] == keep > 0              # A2R's owners-first cut kept nothing
+    assert goods["grain"] == pytest.approx(30.0 - keep / 1000) and goods["grain"] == pytest.approx(35.0 * 30.0 / total, abs=1e-3)
+    cut = h.state._turn.books[VERDANT].cap_cut
+    assert cut == {"owned_milli": owned - keep, "commons_milli": round((35.0 - goods["grain"]) * 1000)}
+    assert h.state.counters["owned_grain_above_cap_milli"] == owned - keep
+    assert h.state.counters["commons_grain_above_cap_milli"] == cut["commons_milli"]
+    before = (h.state.region(VERDANT).goods[0], goods["grain"])
+    HR.phase10_before_reserves(h.world, None, None, None)            # the same turn again
+    assert (h.state.region(VERDANT).goods[0], goods["grain"]) == before
+
+
+def test_a_convoy_returned_into_a_pilot_market_before_retails_hook_is_cut_pro_rata(monkeypatch):
+    """A2R review 2 (c): with --grain-convoys a convoy turned back by a closed
+    road returns its cargo to its origin's market in grain_convoys'
+    phase10_before_reserves, which runs before retail's (switch order). The
+    retail cut then sees the commons with the cargo and splits the excess pro
+    rata, so the owners keep their share instead of losing all of it."""
+    from chronicler import grain_convoys as C
+    from chronicler import grain_reserves as G
+    from chronicler import public_grain_shipments as S
+    from chronicler.models import Disposition
+    from tests.test_household_retail import OBSIDIAN
+    monkeypatch.setenv("CHRONICLER_CHECK_RESOURCES", "1")
+    monkeypatch.setattr(G, "_observe", lambda *a: None)
+    monkeypatch.setattr(C, "_draws", lambda world, convoy, forward: (0.99, 0.0))   # no threat on the road
+    h = Harness()
+    world = h.world
+    for row in world.relationships.values():
+        for rel in row.values():
+            rel.disposition = Disposition.NEUTRAL
+    G.set_grain_reserves_enabled(world, True)
+    G._ensure(world)
+    for civ in world.civilizations:
+        civ.treasury = 0
+    world.civilizations[2].treasury = 200                            # Thornwall buys for its granary
+    granary = world.grain_reserves.granaries[VERDANT]
+    granary.owner, granary.observed, granary.target = 2, 24, 40.0
+    S.set_public_grain_shipments_enabled(world, True)
+    C.set_grain_convoys_enabled(world, True, args=NS(convoy_route_policy=None), agent_mode="hybrid")
+    _people(h, OBSIDIAN, (71, 72, 73), wealth=0.0)                   # the Ashkari capital, a market pilot
+    _people(h, VERDANT, (21, 22), occupation=2, wealth=0.0)
+    world.regions[OBSIDIAN].population = 20                          # storage cap 50 a good
+    world.regions[OBSIDIAN].stockpile.goods["grain"] = 1000.0
+
+    def tick(res):
+        G.tick_grain_reserves(world, None, res, None)
+    h.turn({}, granaries=tick)
+    convoys = world.livelihoods.grain_convoys
+    (convoy,) = convoys.convoys
+    assert (convoy.source, convoy.dest) == (OBSIDIAN, VERDANT)
+    for civ in world.civilizations:
+        civ.treasury = 0                                             # no further orders
+    world.regions[OBSIDIAN].route_suspensions["trade_route"] = 9     # every road out of the origin
+    seen = {}
+    original = HR.phase10_before_reserves
+
+    def watch(w, acc, economy_result, agent_bridge):
+        seen[w.turn] = ([(r.operation, r.at) for r in convoys.frame], h.state.region(OBSIDIAN).goods[0],
+                        float(w.regions[OBSIDIAN].stockpile.goods.get("grain", 0.0)))
+        return original(w, acc, economy_result, agent_bridge)
+    monkeypatch.setattr(HR, "phase10_before_reserves", watch)
+    for _ in range(3):
+        h.turn({OBSIDIAN: {"grain": 60.0}}, granaries=tick)
+    frame_ops, owned, commons = seen[world.turn - 1]
+    assert frame_ops == [("returned", OBSIDIAN)] and commons > convoy.net   # the cargo is in the market
+    cut = h.frame(OBSIDIAN).cap_cut
+    keep = math.floor(owned * 50.0 / (owned / 1000 + commons) + 1e-9)
+    assert h.state.region(OBSIDIAN).goods[0] == keep == owned - cut["owned_milli"] > 0
+    after = float(world.regions[OBSIDIAN].stockpile.goods["grain"])
+    assert after == pytest.approx(50.0 - keep / 1000) and cut["commons_milli"] == round((commons - after) * 1000)
+    assert h.frame(OBSIDIAN).flows["cap_overflow"] == cut["owned_milli"]

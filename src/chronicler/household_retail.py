@@ -186,7 +186,7 @@ def set_household_retail_enabled(world, value: bool, *, args=None, agent_mode=No
         version = int(rules) if rules is not None else RULES_VERSION
         world.livelihoods.household_retail = state = HouseholdRetailState(
             mode=mode or MODES[0], boundary=boundary or BOUNDARIES[0], rules_version=version,
-            **({"opened_turn": {}} if version >= 2 else {}))
+            **({"opened_turn": {}, "intervals": {}} if version >= 2 else {}))
     else:
         if mode is not None:
             state.mode = mode
@@ -213,35 +213,74 @@ def rules_conflict(rules, state: HouseholdRetailState) -> str:
 _INDEX = re.compile(r"(0|[1-9][0-9]*)")
 
 
-def canonical_schedule(schedule: dict[int, int]) -> bytes:
-    """A schedule's canonical JSON: ``{"<region index>": <opening turn>}``,
-    compact, ascending region. Its SHA-256 is the schedule's digest, and the
-    file :func:`write_schedule` writes holds exactly these bytes."""
-    return json.dumps({str(int(rid)): int(turn) for rid, turn in sorted(schedule.items())},
+def canonical_schedule(schedule: dict) -> bytes:
+    """A schedule's canonical JSON: ``{"<region index>": <opening turn or
+    intervals>}``, compact, ascending region (an interval's open end is
+    ``null``). Its SHA-256 is the schedule's digest, and the file
+    :func:`write_schedule` writes holds exactly these bytes."""
+    def value(v):
+        return int(v) if isinstance(v, int) else [[int(a), None if b is None else int(b)] for a, b in v]
+    return json.dumps({str(int(rid)): value(v) for rid, v in sorted(schedule.items())},
                       separators=(",", ":")).encode("ascii")
 
 
-def schedule_digest(schedule: dict[int, int]) -> str:
+def schedule_digest(schedule: dict) -> str:
     return hashlib.sha256(canonical_schedule(schedule)).hexdigest()
 
 
-def parse_schedule(data, n_regions: int) -> dict[int, int]:
-    """Validate ``{region index: opening turn}`` (JSON object keys are the
-    decimal region indices, values non-negative integers); ascending region."""
+def _turn_value(value) -> bool:
+    return type(value) is int and value >= 0
+
+
+def parse_schedule(data, n_regions: int) -> dict:
+    """Validate a schedule: a JSON object keyed by decimal region indices whose
+    values are either an opening turn (a non-negative integer: the region is
+    eligible from that turn on, the approximate first-turn format) or exact
+    intervals ``[[open, close], ..., [open, null]]`` (ascending, non-overlapping,
+    ``open < close``, only the last may stay open: the region is eligible on the
+    turns ``open <= turn < close``). Ascending region."""
     if not isinstance(data, dict):
-        raise ValueError("a retail schedule is a JSON object {region index: opening turn}")
-    out: dict[int, int] = {}
-    for key, turn in data.items():
+        raise ValueError("a retail schedule is a JSON object {region index: opening turn or intervals}")
+    out: dict = {}
+    for key, value in data.items():
         if not isinstance(key, str) or _INDEX.fullmatch(key) is None:
             raise ValueError(f"retail schedule key {key!r} is not a region index")
         rid = int(key)
         if rid >= n_regions:
             raise ValueError(f"retail schedule names region {rid}; this world has regions 0-{n_regions - 1}")
-        if type(turn) is not int or turn < 0:
+        if isinstance(value, list):
+            out[rid] = _parse_intervals(rid, value)
+            continue
+        if not _turn_value(value):
             raise ValueError(f"retail schedule opening turn of region {rid} must be a non-negative integer, "
-                             f"not {turn!r}")
-        out[rid] = turn
+                             f"not {value!r}")
+        out[rid] = value
     return dict(sorted(out.items()))
+
+
+def _parse_intervals(rid: int, value: list) -> list[list[int | None]]:
+    if not value:
+        raise ValueError(f"retail schedule intervals of region {rid} are empty")
+    out: list[list[int | None]] = []
+    for i, pair in enumerate(value):
+        if not (isinstance(pair, list) and len(pair) == 2 and _turn_value(pair[0])
+                and (pair[1] is None or (_turn_value(pair[1]) and pair[1] > pair[0]))):
+            raise ValueError(f"retail schedule interval {pair!r} of region {rid} is not [open, close > open] "
+                             "or [open, null]")
+        if pair[1] is None and i != len(value) - 1:
+            raise ValueError(f"retail schedule region {rid}: only the last interval may stay open")
+        if out and pair[0] < out[-1][1]:
+            raise ValueError(f"retail schedule region {rid}: intervals overlap or are out of order")
+        out.append([pair[0], pair[1]])
+    return out
+
+
+def scheduled(value, turn: int) -> bool:
+    """Whether a schedule entry (an opening turn or intervals) makes its region
+    eligible on ``turn``."""
+    if isinstance(value, int):
+        return value <= turn
+    return any(start <= turn and (end is None or turn < end) for start, end in value)
 
 
 def _pairs_once(pairs):
@@ -253,7 +292,7 @@ def _pairs_once(pairs):
     return seen
 
 
-def load_schedule(path, n_regions: int) -> tuple[dict[int, int], str]:
+def load_schedule(path, n_regions: int) -> tuple[dict, str]:
     """Read and validate a ``--household-retail-schedule`` file; returns the
     schedule and its digest. Refused (``ValueError``) when unreadable, not
     JSON, a repeated key, an unknown region or a negative or non-integer turn."""
@@ -262,7 +301,7 @@ def load_schedule(path, n_regions: int) -> tuple[dict[int, int], str]:
     except OSError as exc:
         raise ValueError(f"--household-retail-schedule {path}: {exc.strerror or exc}") from None
     try:
-        data = json.loads(raw.decode("utf-8"), object_pairs_hook=_pairs_once)
+        data = json.loads(raw.decode("utf-8-sig"), object_pairs_hook=_pairs_once)
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ValueError(f"--household-retail-schedule {path} is not JSON: {exc}") from None
     try:
@@ -322,40 +361,82 @@ def schedule_summary(state: HouseholdRetailState) -> dict | None:
     return {"sha256": state.schedule_sha256, "turns": {str(k): v for k, v in sorted(state.schedule.items())}}
 
 
+def _frame_intervals(records) -> tuple[dict[int, list[list[int | None]]], dict[int, list[int]]]:
+    """Pilot intervals read from the completed-turn frames (approximate, for
+    bundles without recorded intervals), and each region's framed turns. A run
+    of consecutive framed turns ends at its last turn when that frame shows the
+    region leaving the pilot (holdings to the commons as ``pilot_closed`` or
+    ``switch_off``), else at the next turn; a run reaching the last record stays
+    open. A closure with nothing held leaves no frame row, so it reads as a
+    close one turn later at most."""
+    last = int(records[-1]["source_turn"])
+    turns: dict[int, list[int]] = {}
+    closing: set[tuple[int, int]] = set()
+    for record in records:
+        turn = int(record["source_turn"])
+        for frame in record.get("regions") or ():
+            rid = int(frame["region"])
+            turns.setdefault(rid, []).append(turn)
+            commons = frame.get("commons") or {}
+            if commons.get("pilot_closed") or commons.get("switch_off"):
+                closing.add((rid, turn))
+    out: dict[int, list[list[int | None]]] = {}
+    for rid, ts in sorted(turns.items()):
+        ts = sorted(set(ts))
+        runs, first, prev = [], ts[0], ts[0]
+        for turn in ts[1:]:
+            if turn == prev + 1 and (rid, prev) not in closing:
+                prev = turn
+                continue
+            runs.append((first, prev))
+            first = prev = turn
+        runs.append((first, prev))
+        out[rid] = [[a, b if (rid, b) in closing else (None if b >= last else b + 1)] for a, b in runs]
+        turns[rid] = ts
+    return out, turns
+
+
 def extract_schedule(bundle) -> dict:
-    """The pilot opening schedule a bundle records, for
-    ``--household-retail-schedule``: ``{"schedule": {region: first opening
-    turn}, "source": ..., "closures": [...]}``. Read from the last retail
-    record's ``opened_turn`` (rules version 2) when there is one, else from
-    the first turn each region appears in a completed-turn frame; when both
-    exist they must agree. ``closures`` lists (turn, region) pilot closures the
-    log shows: a region that closed may reopen at another turn in a replay
-    (the schedule reopens a region as soon as it has a controller again)."""
+    """The pilot schedule a bundle records, for ``--household-retail-schedule``:
+    ``{"schedule": {region: [[open, close or None], ...]}, "source", "exact",
+    "closures", "sha256", "regions_closed"}``. Exact (``source`` ``intervals``)
+    from the last retail record's ``intervals`` (rules version 2 since S1),
+    checked against the completed-turn frames; otherwise (``frames``) the
+    intervals the frames imply, approximate (see :func:`_frame_intervals`).
+    When ``opened_turn`` is present, each region's first interval must open
+    on it. ``closures`` lists the (turn, region) pilot closures the logs show."""
     records = [s["livelihoods"]["household_retail"] for s in bundle.get("history") or []
                if isinstance(s, dict) and ((s.get("livelihoods") or {}).get("household_retail"))]
     if not records:
         raise ValueError("the bundle has no household retail record")
-    framed: dict[int, int] = {}
-    for record in records:
-        for frame in record.get("regions") or ():
-            framed.setdefault(int(frame["region"]), int(record["source_turn"]))
+    derived, framed = _frame_intervals(records)
     closures = sorted({(int(r["turn"]), int(r["region"])) for record in records for r in record.get("log") or ()
                        if r.get("kind") in ("pilot_closed", "switch_off")})
+    recorded = records[-1].get("intervals")
+    if recorded is not None:
+        schedule = {int(k): [[int(a), None if b is None else int(b)] for a, b in v] for k, v in recorded.items()}
+        source = "intervals"
+
+        def inside(rid: int, turn: int) -> bool:
+            return any(a <= turn and (b is None or turn <= b) for a, b in schedule.get(rid, ()))
+        disagree = sorted(rid for rid, ts in framed.items() if not all(inside(rid, t) for t in ts))
+        if disagree:
+            raise ValueError(f"the recorded intervals disagree with the frames for regions {disagree}")
+    else:
+        schedule, source = derived, "frames"
     opened = records[-1].get("opened_turn")
     if opened is not None:
-        schedule = {int(k): int(v) for k, v in opened.items()}
-        disagree = sorted(rid for rid, turn in framed.items() if schedule.get(rid) != turn)
+        disagree = sorted(int(k) for k, v in opened.items() if not schedule.get(int(k)) or
+                          schedule[int(k)][0][0] != int(v))
         if disagree:
-            raise ValueError(f"opened_turn disagrees with the frames for regions {disagree}")
-        source = "opened_turn"
-    else:
-        schedule, source = framed, "frames"
-    return {"schedule": dict(sorted(schedule.items())), "source": source, "closures": [list(c) for c in closures],
-            "sha256": schedule_digest(schedule), "regions_closed": int(records[-1].get("counters", {})
-                                                                        .get("regions_closed", 0))}
+            raise ValueError(f"opened_turn disagrees with the schedule for regions {disagree}")
+    schedule = dict(sorted(schedule.items()))
+    return {"schedule": schedule, "source": source, "exact": source == "intervals",
+            "closures": [list(c) for c in closures], "sha256": schedule_digest(schedule),
+            "regions_closed": int(records[-1].get("counters", {}).get("regions_closed", 0))}
 
 
-def write_schedule(path, schedule: dict[int, int]) -> str:
+def write_schedule(path, schedule: dict) -> str:
     """Write a schedule's canonical JSON to ``path``; returns its digest."""
     Path(path).write_bytes(canonical_schedule(schedule))
     return schedule_digest(schedule)
@@ -449,6 +530,7 @@ class _Book:
     merchant_food_departing: float | None = None
     owned_food_unloadable: int | None = None
     cohorts: dict | None = None
+    cap_cut: dict | None = None
 
 
 @dataclass
@@ -497,6 +579,8 @@ class _Procured:
 @dataclass
 class _Turn:
     turn: int
+    #: RL4: this turn's storage-cap cut before procurement was applied (once).
+    cap_cut_done: bool = False
     books: dict[int, _Book] = field(default_factory=dict)
     touched: set[int] = field(default_factory=set)  # commons written this turn
     phase2: _Phase2 | None = None
@@ -640,6 +724,8 @@ def _close_region(world, state, reg: RetailRegion, reason: str, *, note: str | N
         reg.goods = [0] * len(RETAIL_GOODS)
         reg.claims = {}
     state.regions = [r for r in state.regions if r is not reg]
+    if state.intervals is not None and state.intervals.get(reg.region) and state.intervals[reg.region][-1][1] is None:
+        state.intervals[reg.region][-1][1] = int(world.turn)
     _bump(state, "regions_closed")
     _log(state, RetailRecord(turn=int(world.turn), region=reg.region,
                              kind="pilot_closed" if reason != "switch_off" else "switch_off",
@@ -681,11 +767,12 @@ def _paid_work_regions(world) -> list[tuple[int, str]]:
 
 
 def _scheduled_regions(world, state) -> list[tuple[int, str]]:
-    """The ``schedule`` boundary: every region of the frozen schedule whose
-    opening turn has come (the controller filter, sticky closure and
-    reopening are the other boundaries')."""
+    """The ``schedule`` boundary: every region of the frozen schedule eligible
+    this turn (its opening turn has come, or this turn lies in one of its
+    intervals); the controller filter and the closure of a region without a
+    controller are the other boundaries'."""
     turn = int(world.turn)
-    return [(rid, "schedule") for rid, start in sorted((state.schedule or {}).items()) if start <= turn]
+    return [(rid, "schedule") for rid, value in sorted((state.schedule or {}).items()) if scheduled(value, turn)]
 
 
 def _qualifying(world, state) -> list[tuple[int, str]]:
@@ -882,9 +969,19 @@ def _update_boundary(world, state) -> None:
     if _v2(state) and state.opened_turn is None:
         # A version-2 state saved before A2R: start the map from its open regions.
         state.opened_turn = {r.region: r.opened_turn for r in sorted(state.regions, key=lambda r: r.region)}
+    if _v2(state) and state.intervals is None:
+        # Saved before the intervals: each open region's current interval only.
+        state.intervals = {r.region: [[r.opened_turn, None]] for r in sorted(state.regions, key=lambda r: r.region)}
     for reg in list(state.regions):
         if world.regions[reg.region].controller is None:
             _close_region(world, state, reg, "pilot_closed", note="no controller")
+    if state.boundary == "schedule" and state.schedule:
+        # Interval schedules close a region when its interval ends (exact
+        # replay); a region the schedule does not name stays (sticky).
+        for reg in list(state.regions):
+            value = state.schedule.get(reg.region)
+            if value is not None and not scheduled(value, int(world.turn)):
+                _close_region(world, state, reg, "pilot_closed", note="schedule interval ended")
     opened = False
     for rid, reason in _qualifying(world, state):
         reg = RetailRegion(region=rid, opened_turn=int(world.turn), reason=reason,
@@ -895,8 +992,14 @@ def _update_boundary(world, state) -> None:
         if state.opened_turn is not None and rid not in state.opened_turn:
             state.opened_turn[rid] = int(world.turn)
             opened = True
+        if state.intervals is not None:
+            state.intervals.setdefault(rid, []).append([int(world.turn), None])
+            opened = True
     if opened:
-        state.opened_turn = dict(sorted(state.opened_turn.items()))
+        if state.opened_turn is not None:
+            state.opened_turn = dict(sorted(state.opened_turn.items()))
+        if state.intervals is not None:
+            state.intervals = dict(sorted(state.intervals.items()))
     state.regions.sort(key=lambda r: r.region)
     for reg in state.regions:
         _book(state, world, reg)
@@ -2006,22 +2109,26 @@ def procurement_owned_grain(world) -> list[float] | None:
 
 
 def phase10_before_reserves(world, acc, economy_result, agent_bridge) -> list:
-    """RL4, rules version 2 with granaries on: before Phase 10 procurement,
-    owned grain a pilot market holds above this turn's storage cap, beyond
-    ``max(0, cap - commons grain)``, is lost to storage overflow (claims pro
-    rata), as a market without retail loses its commons above the cap at
-    Phase 2 close.
+    """RL4, rules version 2 with granaries on: before Phase 10 procurement, a
+    pilot market holding owned grain whose grain (commons plus owned) exceeds
+    this turn's storage cap loses the excess, split pro rata between the two
+    pools as the native opening cap splits it (each keeps ``pool x cap /
+    (commons + owned)``; owned in whole milli, rounded down), once per turn.
 
     This turn's title is on offer whole at phase 0.7 and the native caps the
     two pools together only at the next opening; between the tick and that
     opening a granary could otherwise buy grain the cap destroys (grain is
     fungible: any purchase from a pool above the cap shrinks the later cut by
     as much), so a pilot market could sell more than its storage holds. The
-    commons met the cap alone at close, so the excess is owned title; the
-    loss is the frame's ``cap_overflow`` flow and the counter
-    ``owned_grain_above_cap_milli`` (``overflow`` stays the native opening's).
-    Version 1, ``record_only`` and runs without granaries (nothing can buy
-    it) leave the cut to the next opening, as at checkpoints 2-3."""
+    owned loss is the frame's ``cap_overflow`` flow and the counter
+    ``owned_grain_above_cap_milli``; the commons' share leaves
+    ``region.stockpile`` and is counted in ``commons_grain_above_cap_milli``;
+    both are on the frame's ``cap_cut``. The cut comes before the next
+    opening's decay (the native decays the carried stock first, then caps),
+    and fires whether or not a granary then buys there. Version 1,
+    ``record_only``, runs without granaries (nothing can buy it) and markets
+    without owned grain leave the cut to the next opening, as at checkpoints
+    2-3."""
     state = _state(world)
     if state is None or not _v2(state) or state.mode == "record_only" or not state.regions:
         return []
@@ -2029,34 +2136,47 @@ def phase10_before_reserves(world, acc, economy_result, agent_bridge) -> list:
     if not grain_reserves_active(world):
         return []
     t = _turn(state, world)
+    if t.cap_cut_done:
+        return []
+    t.cap_cut_done = True
     caps = t.phase2.cap if t.phase2 is not None and t.phase2.turn == world.turn else {}
     for reg in state.regions:
-        grain = reg.goods[GRAIN]
-        if not grain:
+        owned = reg.goods[GRAIN]
+        if not owned:
             continue
-        over = grain - min(grain, _cap_room_milli(world, reg.region, caps.get(reg.region)))
-        if over <= 0:
+        cap = _storage_cap(world, reg.region, caps.get(reg.region))
+        goods = world.regions[reg.region].stockpile.goods
+        commons = float(goods.get("grain", 0.0))
+        total = owned / MILLI + commons
+        if total <= cap + 1e-9:
             continue
-        per_good = [over] + [0] * (len(RETAIL_GOODS) - 1)
-        _debit(state, world, reg, "cap_overflow", _pro_rata(over, reg.claims), per_good)
-        _bump(state, "owned_grain_above_cap_milli", over)
+        keep_owned = min(owned, math.floor(owned * cap / total + 1e-9))
+        keep_commons = min(commons, max(0.0, cap - keep_owned / MILLI))
+        owned_cut, commons_cut = owned - keep_owned, commons - keep_commons
+        if owned_cut:
+            per_good = [owned_cut] + [0] * (len(RETAIL_GOODS) - 1)
+            _debit(state, world, reg, "cap_overflow", _pro_rata(owned_cut, reg.claims), per_good)
+            _bump(state, "owned_grain_above_cap_milli", owned_cut)
+        commons_milli = int(round(commons_cut * MILLI))
+        if commons_cut > 0:
+            goods["grain"] = keep_commons
+            _bump(state, "commons_grain_above_cap_milli", commons_milli)
+        if owned_cut or commons_milli:
+            _book(state, world, reg).cap_cut = {"owned_milli": owned_cut, "commons_milli": commons_milli}
     _check(state, world)
     return []
 
 
-def _cap_room_milli(world, rid: int, cap: float | None) -> int:
-    """Whole milli-food of grain the region may hold beyond its commons under
-    this turn's storage cap (``cap``; from the region's population when this
-    turn's Phase 2 recorded none)."""
-    region = world.regions[rid]
-    if cap is None:
-        from numpy import float32
-        from chronicler.economy import PER_GOOD_CAP_FACTOR
-        from chronicler.tuning import get_override
-        cap = float(float32(get_override(world, "economy.per_good_cap_factor", PER_GOOD_CAP_FACTOR))
-                    * float32(region.population))
-    commons = float(region.stockpile.goods.get("grain", 0.0))
-    return max(0, math.floor((cap - commons) * MILLI + 1e-6))
+def _storage_cap(world, rid: int, cap: float | None) -> float:
+    """This turn's per-good storage cap of a region (``cap``; from the region's
+    population when this turn's Phase 2 recorded none), food units."""
+    if cap is not None:
+        return cap
+    from numpy import float32
+    from chronicler.economy import PER_GOOD_CAP_FACTOR
+    from chronicler.tuning import get_override
+    return float(float32(get_override(world, "economy.per_good_cap_factor", PER_GOOD_CAP_FACTOR))
+                 * float32(world.regions[rid].population))
 
 
 def take_procured(world, rid: int, amount: float, flow_index: int) -> float:
@@ -2186,7 +2306,8 @@ def phase10(world, acc, economy_result, agent_bridge) -> list:
             phase2=book.phase2, provisioning=book.provisioning, would_be=book.would_be,
             income_replaced=book.income_replaced, income_rows=book.income_rows,
             merchant_food_departing=book.merchant_food_departing,
-            owned_food_unloadable_milli=book.owned_food_unloadable, cohorts=book.cohorts))
+            owned_food_unloadable_milli=book.owned_food_unloadable, cohorts=book.cohorts,
+            cap_cut=book.cap_cut))
     _bump(state, "pilot_region_turns", len(state.regions))
     state.frame_turn = int(world.turn)
     state.frame = frames
@@ -2230,6 +2351,8 @@ def snapshot_summary(world) -> dict:
         **({"rules_version": state.rules_version} if _v2(state) else {}),
         **({"opened_turn": {str(k): v for k, v in sorted(state.opened_turn.items())}}
            if _v2(state) and state.opened_turn is not None else {}),
+        **({"intervals": {str(k): [list(i) for i in v] for k, v in sorted(state.intervals.items())}}
+           if _v2(state) and state.intervals is not None else {}),
         "source_turn": source,
         "regions": [f.model_dump() for f in state.frame] if observed else None,
         "money": dict(state.money) if observed else None,

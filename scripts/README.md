@@ -46,10 +46,11 @@ world systems), `domestic_credit_probe.py`,
 `grain_reserves_probe.py`, `history_forensics.py`,
 `crisis_distribution_summary.py` and `narration_prompts.py`.
 
-`retail_schedule.py BUNDLE --output S.json` extracts a household retail run's pilot opening
-schedule (`opened_turn`, or the frames of a version-1 bundle) as the canonical JSON that
-`--household-retail-boundary schedule --household-retail-schedule S.json` replays; `--strict`
-refuses a bundle with pilot closures (see `docs/integration/household-retail.md`).
+`retail_schedule.py BUNDLE --output S.json` extracts a household retail run's pilot schedule
+(its recorded open/close `intervals`, exact; or the intervals a bundle without them implies from
+its frames, approximate) as the canonical JSON that `--household-retail-boundary schedule
+--household-retail-schedule S.json` replays; `--strict` refuses an approximate one (see
+`docs/integration/household-retail.md`).
 
 `livelihoods_screens.py run OUT --sprint N` reruns a livelihoods sprint's preregistered screen
 arms on its fixed held seeds (hybrid; run it with the native interpreter that matches the

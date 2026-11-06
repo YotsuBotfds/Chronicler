@@ -148,7 +148,7 @@ if READY:
         template 23 the reverse direction (``CH`` at ``U``'s openings) too."""
         paid = _run(tmp_path / "CH_pw", _argv(world, *PAID_WORK, *CH))
         found = HR.extract_schedule(paid)
-        assert found["source"] == "opened_turn" and found["schedule"] and found["closures"] == []
+        assert found["source"] == "intervals" and found["exact"] and found["schedule"] and found["closures"] == []
         s_a = tmp_path / "S_A.json"
         HR.write_schedule(s_a, found["schedule"])
         unpaid_at_a = _run(tmp_path / "U_sA", _argv(world, *_schedule(s_a), *U))

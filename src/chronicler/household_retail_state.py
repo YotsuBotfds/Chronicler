@@ -31,11 +31,12 @@ the field and every version-2 field, so its JSON keeps its bytes; pickles
 written before A5 restore with the version-2 fields at their defaults.
 
 A2R (connected-world lane, all opt-in): the ``schedule`` boundary
-(``--household-retail-schedule PATH``) stores its frozen ``{region: opening
-turn}`` map and the SHA-256 of its canonical JSON, both omitted while unset;
-version 2 also keeps ``opened_turn`` (each region's first pilot turn, never
-removed on closure) and writes the turn's household-group cohorts (RL5) into
-the frame. A version-1 state writes neither, so its bytes stay checkpoint-3's.
+(``--household-retail-schedule PATH``) stores its frozen schedule (``{region:
+opening turn}``, or exact ``{region: [[open, close], ...]}`` intervals) and the
+SHA-256 of its canonical JSON, both omitted while unset; version 2 also keeps
+``opened_turn`` (each region's first pilot turn) and ``intervals`` (every
+open/close interval), and writes the turn's household-group cohorts (RL5) and
+any storage-cap cut (RL4) into the frame. A version-1 state writes neither, so its bytes stay checkpoint-3's.
 
 Tuple orders below are declaration orders: append new values at the end,
 never reorder.
@@ -116,6 +117,8 @@ COUNTERS: tuple[str, ...] = (
     # Rules version 2 (A2R, RL4): owned grain above this turn's storage cap
     # lost before Phase 10 procurement (the ``cap_overflow`` flow).
     "owned_grain_above_cap_milli",
+    # (S1, A2R review 2): the commons' pro-rata share of that cut, milli-food rounded.
+    "commons_grain_above_cap_milli",
 )
 #: RL5 (version 2): household groups of the people provisioned in a pilot
 #: region, in this order (a partition; ``household_retail.cohort_groups``).
@@ -220,6 +223,10 @@ class RegionFrame(_Backfilled):
     #: provisioned here this turn (``household_retail.cohorts``); omitted in a
     #: version-1 state and in a region without a provisioning row.
     cohorts: dict | None = Field(default=None, exclude_if=_is_none)
+    #: Version 2 (RL4): this turn's storage-cap cut before Phase 10 procurement,
+    #: ``{"owned_milli", "commons_milli"}`` (pro rata, as the native cap);
+    #: omitted when nothing was cut.
+    cap_cut: dict[str, int] | None = Field(default=None, exclude_if=_is_none)
 
 
 class HouseholdRetailState(BaseModel):
@@ -233,13 +240,17 @@ class HouseholdRetailState(BaseModel):
     #: The ``schedule`` boundary (A2R): region index -> opening turn, ascending
     #: region, and the SHA-256 of its canonical JSON (compact, ascending
     #: region); fixed for the state's life, omitted while unset.
-    schedule: dict[int, int] | None = Field(default=None, exclude_if=_is_none)
+    schedule: dict[int, int | list[list[int | None]]] | None = Field(default=None, exclude_if=_is_none)
     schedule_sha256: str | None = Field(default=None, exclude_if=_is_none)
     #: Version 2 (A2R): each region's first pilot turn (region index -> turn),
     #: kept after a closure, so a bundle names every opening. A version-2
     #: state saved before A2R starts it from its open regions. Omitted in a
     #: version-1 state.
     opened_turn: dict[int, int] | None = Field(default=None, exclude_if=_is_none)
+    #: Version 2 (S1, A2R review 1): each region's pilot intervals, region index ->
+    #: ``[[open turn, close turn or None while open], ...]`` (the close turn is the
+    #: turn whose Phase 2 closed it), so a schedule replays enrollment exactly.
+    intervals: dict[int, list[list[int | None]]] | None = Field(default=None, exclude_if=_is_none)
     #: Open pilot regions, ascending region index.
     regions: list[RetailRegion] = Field(default_factory=list)
     #: Exactly-once guards (persisted): the last turn whose harvest was
