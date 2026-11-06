@@ -49,6 +49,9 @@ export interface WealthTypedRow {
 
 export interface WealthClosure { channel: string; check: string; lhs: number; rhs: number; closes: boolean }
 
+/** The closures of an observed frame that did not hold (a failure is shown, never read as malformed). */
+export const failedClosures = (frame: WealthFrame) => frame.closures.filter((c) => !c.closes);
+
 export interface WithheldPackageRow {
   package: string; rows: number; deducted: number; ordinary: number;
   /** The package's own counter for the turn; null when it keeps none. */
@@ -111,6 +114,9 @@ const finite = (x: unknown): x is number => typeof x === "number" && Number.isFi
 const count = (x: unknown): x is number => finite(x) && Number.isInteger(x) && x >= 0;
 const amount = (x: unknown): x is number => finite(x) && x >= 0;
 const milli = (x: unknown): x is number => count(x);
+/** Unlocated flows are a package's total minus what it located by region: negative when a
+ * package's rows exceed its own total, which the ledger records as a failed closure (still observed). */
+const signedMilli = (x: unknown): x is number => finite(x) && Number.isInteger(x);
 const near = (a: number, b: number) => Math.abs(a - b) <= 1e-6 * Math.max(1, Math.abs(a), Math.abs(b));
 const STATUSES: readonly ContinuityStatus[] = ["exact", "broken", "unchecked"];
 const WORLD_COUNTS = ["agents_open", "agents_close", "births", "deaths", "moved", "unplaced_agents"] as const;
@@ -121,7 +127,7 @@ const REGION_AMOUNTS = ["open", "close", "migration_in", "migration_out", "birth
 function worldProblem(w: unknown): string | null {
   if (!object(w) || !WORLD_COUNTS.every((k) => count(w[k])) || !WORLD_AMOUNTS.every((k) => amount(w[k]))
     || ![w.delta, w.native_model].every(finite) || !milli(w.typed_in_milli) || !milli(w.typed_out_milli)
-    || !finite(w.typed_net_milli) || !milli(w.unlocated_in_milli) || !milli(w.unlocated_out_milli))
+    || !finite(w.typed_net_milli) || !signedMilli(w.unlocated_in_milli) || !signedMilli(w.unlocated_out_milli))
     return "malformed world row";
   const r = w as unknown as WealthWorldRow;
   if (!near(r.close - r.open, r.delta)) return "the world change is not close minus open";
@@ -143,7 +149,7 @@ function regionProblem(x: unknown, regions: number): string | null {
 function typedProblem(x: unknown): string | null {
   if (!object(x) || typeof x.channel !== "string" || typeof x.payer !== "string"
     || !(x.package === null || typeof x.package === "string") || typeof x.observed !== "boolean"
-    || ![x.in_milli, x.out_milli, x.unlocated_in_milli, x.unlocated_out_milli].every(milli))
+    || ![x.in_milli, x.out_milli].every(milli) || ![x.unlocated_in_milli, x.unlocated_out_milli].every(signedMilli))
     return "malformed typed flow";
   const r = x as unknown as WealthTypedRow;
   if (r.unlocated_in_milli > r.in_milli || r.unlocated_out_milli > r.out_milli) return "unlocated flows exceed their total";

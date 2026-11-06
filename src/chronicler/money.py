@@ -233,8 +233,14 @@ def _validate_shape(bill: Bill) -> None:
             raise MoneyError("a collection's lines are paying agents")
     if bill.payer is not None and bill.payer.kind == "civ_treasury" and any(a % MILLI for _, a in bill.lines):
         raise MoneyError("a treasury pays whole units")
-    if PURPOSES[bill.purpose] is None and any(a.kind == "agent_wealth" for a, _ in bill.lines):
-        raise MoneyError(f"purpose {bill.purpose!r} has no native code and cannot move agent wealth")
+    if any(a.kind == "agent_wealth" for a, _ in bill.lines):
+        if PURPOSES[bill.purpose] is None:
+            raise MoneyError(f"purpose {bill.purpose!r} has no native code and cannot move agent wealth")
+        from chronicler.wealth_accounting_state import MONEY_PURPOSE_CHANNELS
+        if bill.purpose not in MONEY_PURPOSE_CHANNELS:
+            # Fail closed: an agent-wealth payment through the seam needs a ledger channel.
+            raise MoneyError(f"purpose {bill.purpose!r} has no ledger channel "
+                             "(wealth_accounting_state.MONEY_PURPOSE_CHANNELS)")
 
 
 def _settled(book: MoneyBook, turn: int, purpose: str, batch: int) -> bool:
@@ -287,6 +293,14 @@ def quote(world, bill: Bill, *, turn: int, book: MoneyBook, acc=None, sim=None,
     return Quote(True, None, total, None)
 
 
+def _native_transfer(sim, turn: int, purpose: str, batch: int, rows):
+    """The seam's one native call: keyed rows for ``purpose`` and ``batch``.
+    A declared router of the ledger's payer registry
+    (``wealth_accounting_state.WEALTH_ROUTERS``); ``pay`` is its only caller."""
+    code = _native_code(sim, purpose)
+    return sim.transfer_wealth(turn, code, batch, rows)
+
+
 def _native_code(sim, purpose: str) -> int:
     code = PURPOSES[purpose]
     names = list(sim.wealth_transfer_purposes()) if callable(getattr(sim, "wealth_transfer_purposes", None)) else []
@@ -333,7 +347,6 @@ def pay(world, bill: Bill, *, turn: int, book: MoneyBook, acc=None, sim=None,
     q = quote(world, bill, turn=turn, book=book, acc=acc, sim=sim, firms=firms)
     if not q.ok:
         return Receipt(False, q.reason, total=q.total)
-    code = PURPOSES[bill.purpose]
     flows: list[MoneyFlow] = []
     regions = bill.regions or (None,) * len(bill.lines)
     order = sorted(range(len(bill.lines)), key=lambda i: bill.lines[i][0].key())
@@ -343,9 +356,8 @@ def pay(world, bill: Bill, *, turn: int, book: MoneyBook, acc=None, sim=None,
         native = {}
         rows = [(int(a.ident), amount) for a, amount in bill.lines if a.kind == "agent_wealth"]
         if rows:
-            code = _native_code(sim, bill.purpose)
-            for aid, requested, applied, residual, status in sim.transfer_wealth(turn, code, bill.batch,
-                                                                                sorted(rows)):
+            for aid, requested, applied, residual, status in _native_transfer(sim, turn, bill.purpose, bill.batch,
+                                                                              sorted(rows)):
                 if int(applied) + int(residual) != int(requested):
                     raise MoneyError("native transfer rows do not close")
                 native[int(aid)] = (int(applied), int(status))
@@ -396,10 +408,9 @@ def pay(world, bill: Bill, *, turn: int, book: MoneyBook, acc=None, sim=None,
                 raise MoneyError("firm cash went negative")
     else:
         payee = bill.payee
-        code = _native_code(sim, bill.purpose)
         rows = sorted((int(a.ident), -amount) for a, amount in bill.lines)
         got = {}
-        for aid, requested, applied, residual, status in sim.transfer_wealth(turn, code, bill.batch, rows):
+        for aid, requested, applied, residual, status in _native_transfer(sim, turn, bill.purpose, bill.batch, rows):
             if int(applied) != int(requested):
                 raise MoneyError("a collection line was not applied in full (stale wealth read)")
             got[int(aid)] = -int(applied)

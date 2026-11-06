@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import type { TurnSnapshot } from "../../types";
-import { readWealthAccounting } from "../wealthAccounting";
+import { failedClosures, readWealthAccounting } from "../wealthAccounting";
 import { frame, record } from "./wealthAccountingFixture";
 
 const at = (livelihoods: unknown, turn = 10) => ({ turn, livelihoods }) as unknown as TurnSnapshot;
@@ -57,4 +57,23 @@ it("reads paid-work fields as unknown without a paid-work package and retail sep
   const reading = read(withFrame({ withheld }));
   expect(reading.status).toBe("observed");
   if (reading.status === "observed") expect(reading.frame.withheld?.rows).toBeNull();
+});
+
+it("reads a frame with a failed closure as observed, like the Python reference", () => {
+  // A package located more than its own total: unlocated is negative and the ledger failed a closure.
+  const typed = [frame.typed[0], frame.typed[1], { ...frame.typed[2], unlocated_in_milli: -115 }];
+  const closures = [...frame.closures, { channel: "remittance", check: "located flows do not exceed the package's total",
+    lhs: 1115, rhs: 1500, closes: false }];
+  const world = { ...frame.world, unlocated_in_milli: 385 };
+  const reading = read(withFrame({ typed, closures, world }));
+  expect(reading.status).toBe("observed");
+  if (reading.status === "observed") {
+    expect(failedClosures(reading.frame).map((c) => c.check)).toEqual(["located flows do not exceed the package's total"]);
+  }
+  // A failed package closure of any kind is shown too.
+  const failed = read(withFrame({ closures: [{ ...frame.closures[0], lhs: 2000, rhs: 1999, closes: false }] }));
+  expect(failed.status).toBe("observed");
+  // Located beyond zero is impossible (a negative located flow): still malformed.
+  expect(read(withFrame({ typed: [{ ...frame.typed[1], unlocated_in_milli: 900 }, frame.typed[0], frame.typed[2]] })))
+    .toEqual({ status: "malformed", reason: "unlocated flows exceed their total" });
 });

@@ -44,9 +44,12 @@ Seams (Python only; no edit to any payer):
    and workshop crews (recorded limit RL7); the treasury side (wages paid from
    treasuries and firm cash beside the treasury tax created this turn, and the
    clergy tithe's potential and its approximate collected part); then the
-   closing. Every Python call site of a wealth-writing native method must be
-   in ``WEALTH_WRITERS`` (a test walks ``src/``), so ``typed_complete`` means
-   "every known channel of an active package had this turn's record".
+   closing. Every payer path (module, function, writer or routing helper,
+   purpose and batch, with its number of call sites) must be in
+   ``WEALTH_WRITERS``, and every other reference to a writer's name in
+   ``WEALTH_WRITER_REFERENCES`` (a test walks ``src/`` and fails closed), so
+   ``typed_complete`` means "every known channel of an active package had
+   this turn's record".
 3. ``on_pool_reset``: a rebuilt pool drops the closing with a dated record;
    the next opening is unchecked (balances are never carried across pools).
 
@@ -85,10 +88,12 @@ LABELS: dict[str, str] = {
         "while unlocated flows are non-zero"),
     "typed": "conserved or declared transfers through keyed native wealth transfers (payer debited)",
     "typed_complete": ("every known channel of an active package had this turn's record (WEALTH_WRITERS "
-                       "registers every Python call site of a wealth-writing native method)"),
+                       "registers every payer path - module, function, writer or router, purpose and batch - "
+                       "with its call sites; a test fails on an unregistered one)"),
     "migration": "closing balances of people whose region changed during the turn (they carry them)",
     "withheld": ("ordinary income the native wealth phase withheld for paid work, and farm income L6b "
-                 "replaced by sales (no money moves)"),
+                 "replaced by sales (no money moves); L5 learning attendance, academy teaching and rural "
+                 "health work also withhold income: registered, not itemized in slice 1 (in native_model)"),
     "treasury_tax": "the 5% treasury tax on merchant wealth: credited to the treasury, debited from nobody",
     "tithe": ("potential: TITHE_RATE x the economy's tithe base per civilization with regions, an upper "
               "bound, NOT created money; at_threshold_after_tick: the part of civilizations whose clergy "

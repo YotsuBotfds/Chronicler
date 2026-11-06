@@ -423,6 +423,31 @@ def test_unpaid_granary_crews_sink_the_coins_and_a_broken_book_is_flagged(monkey
     assert _state(world).counters["closures_failed"] == 1
 
 
+def test_located_flows_beyond_a_packages_total_fail_a_closure_and_the_frame_is_still_observed(monkeypatch):
+    """Re-check N3: a package whose per-region rows exceed its own total leaves
+    a negative unlocated flow and a failed closure; readers must show the
+    failure on an observed frame, not reject the record."""
+    pk = _Packages(monkeypatch)
+    world = _world()
+    people = {1: (0, 1.0), 2: (2, 1.0)}
+
+    def inconsistent():
+        pk.subs["remittances"] = SimpleNamespace(frame_turn=world.turn, totals={
+            "credited_milli": 85, "debited_milli": 100, "fee_milli": 15, "sent_milli": 100, "refunded_milli": 0},
+            regions=[SimpleNamespace(region=2, inflow_milli=200, outflow_milli=0),
+                     SimpleNamespace(region=0, inflow_milli=0, outflow_milli=100)])
+    frame = _turn(world, people, people, between=inconsistent)
+    row = next(r for r in frame["typed"] if r["channel"] == "remittance")
+    assert (row["in_milli"], row["unlocated_in_milli"]) == (85, -115)
+    failed = [c for c in frame["closures"] if not c["closes"]]
+    assert [(c["channel"], c["check"]) for c in failed] == [
+        ("remittance", "located flows do not exceed the package's total")]
+    assert _state(world).counters["closures_failed"] == 1
+    record = WA.snapshot_summary(world)
+    status, observed = WA.record_status({"livelihoods": {"wealth_accounting": record}})
+    assert status == "observed" and observed["world"]["unlocated_in_milli"] == -115
+
+
 def test_a_package_without_this_turns_frame_is_unobserved_and_the_turn_incomplete(monkeypatch):
     pk = _Packages(monkeypatch)
     world = _world()
@@ -570,51 +595,6 @@ def test_domestic_credit_is_recorded_in_whole_milli_units(monkeypatch):
     assert (life["domestic_credit_in_milli"], life["domestic_credit_out_milli"]) == (2500, 12)
 
 
-# --- the payer registry (review m1) -----------------------------------------------
-
-def _writer_call_sites():
-    import ast
-    from pathlib import Path
-    root = Path(WA.__file__).resolve().parent
-    found = {}
-    for path in sorted(root.rglob("*.py")):
-        module = ".".join(path.relative_to(root).with_suffix("").parts)
-        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
-            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) \
-                    and node.func.attr in WEALTH_WRITER_METHODS:
-                found.setdefault((module, node.func.attr), []).append(node.lineno)
-    return found
-
-
-def test_every_wealth_writing_call_site_is_registered_with_a_ledger_channel():
-    """A payer added without a ledger channel would vanish into the native-model
-    residual while ``typed_complete`` stayed true: every Python call site of a
-    wealth-writing native method must be in ``WEALTH_WRITERS`` (add one row and
-    a channel there), and every row must still name a live call site."""
-    found = _writer_call_sites()
-    unregistered = {key: lines for key, lines in found.items() if key not in WEALTH_WRITERS}
-    assert not unregistered, f"wealth-writing call sites without a ledger channel: {unregistered}"
-    stale = set(WEALTH_WRITERS) - set(found)
-    assert not stale, f"WEALTH_WRITERS rows naming no call site: {stale}"
-    known = set(CHANNEL_NAMES) | set(WITHHELD_PACKAGES) | set(WITHHELD_OTHER)
-    for key, channels in WEALTH_WRITERS.items():
-        assert channels and set(channels) <= known, key
-    covered = {c for channels in WEALTH_WRITERS.values() for c in channels}
-    # Every typed channel but domestic credit's own books and every withheld package has a call site.
-    assert set(CHANNEL_NAMES) <= covered and set(WITHHELD_PACKAGES) <= covered
-
-
-def test_the_registry_guard_fails_on_an_unregistered_payer(tmp_path, monkeypatch):
-    """The guard itself: a module that calls transfer_wealth without a row is caught."""
-    import ast
-    source = "def pay(sim):\n    return sim.transfer_wealth(1, 0, 0, [(1, 5)])\n"
-    calls = [n.func.attr for n in ast.walk(ast.parse(source))
-             if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
-             and n.func.attr in WEALTH_WRITER_METHODS]
-    # (A3 registered the real payment seam ``money``; the hypothetical payer is another module.)
-    assert calls == ["transfer_wealth"] and ("unregistered_payer", "transfer_wealth") not in WEALTH_WRITERS
-
-
 # --- treasury side -------------------------------------------------------------
 
 def test_the_treasury_tax_is_reproduced_and_the_tithe_is_a_potential_not_created_money():
@@ -681,3 +661,135 @@ def test_the_log_is_bounded_and_counts_what_it_dropped():
         WA._bump(state, "undeclared")
     with pytest.raises(KeyError):
         WA._total(state, "undeclared", 1)
+
+
+# --- the payer registry (review m1, re-check N1/N2) --------------------------------
+
+def scan_wealth_writers(root):
+    """Every payer path and every other reference to a writer or router name
+    under ``root`` (a ``chronicler`` package tree). Returns ``(paths,
+    references, problems)``: ``paths`` counts ``(module, function, name,
+    identifying args)`` call sites; ``references`` counts non-call uses of a
+    name (attributes, bare names, string constants other than docstrings);
+    ``problems`` are calls missing an identifying argument and writer calls
+    that take their purpose or batch from a parameter of a non-router."""
+    import ast
+    from collections import Counter
+    from pathlib import Path
+    from chronicler.wealth_accounting_state import WEALTH_PATH_ARGS, WEALTH_ROUTERS
+    names = set(WEALTH_WRITER_METHODS) | set(WEALTH_ROUTERS)
+    paths, references, problems = Counter(), Counter(), []
+    for path in sorted(Path(root).rglob("*.py")):
+        module = ".".join(path.relative_to(root).with_suffix("").parts)
+        if module in ("wealth_accounting", "wealth_accounting_state"):     # the registry itself
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        docs = {id(n.body[0].value) for n in ast.walk(tree)
+                if isinstance(n, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)) and n.body
+                and isinstance(n.body[0], ast.Expr) and isinstance(n.body[0].value, ast.Constant)}
+        called: set[int] = set()
+
+        def visit(node, scope, params):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                inner = node.name if scope == "<module>" else f"{scope}.{node.name}"
+                if not isinstance(node, ast.ClassDef):
+                    a = node.args
+                    params = {x.arg for x in a.posonlyargs + a.args + a.kwonlyargs}
+                for child in ast.iter_child_nodes(node):
+                    visit(child, inner, params)
+                return
+            if isinstance(node, ast.Call):
+                f = node.func
+                name = f.attr if isinstance(f, ast.Attribute) else f.id if isinstance(f, ast.Name) else None
+                if name in names and (isinstance(f, ast.Attribute) or name in WEALTH_ROUTERS):
+                    called.add(id(f))
+                    parts = []
+                    for pos, kw in WEALTH_PATH_ARGS.get(name, ()):
+                        arg = node.args[pos] if pos is not None and len(node.args) > pos else next(
+                            (k.value for k in node.keywords if k.arg == kw), None)
+                        if arg is None:
+                            problems.append(f"{module}:{node.lineno}: {name} without its {kw} argument")
+                            continue
+                        parts.append(f"{kw}={ast.unparse(arg)}")
+                        if isinstance(arg, ast.Name) and arg.id in params and scope.split(".")[-1] not in WEALTH_ROUTERS:
+                            problems.append(f"{module}:{node.lineno}: {name} takes its {kw} from a parameter of "
+                                            f"{scope}, which is not a declared router (WEALTH_ROUTERS)")
+                    paths[(module, scope, name, ",".join(parts))] += 1
+            if isinstance(node, ast.Attribute) and node.attr in names and id(node) not in called:
+                references[(module, scope, node.attr)] += 1
+            if isinstance(node, ast.Name) and node.id in names and id(node) not in called:
+                references[(module, scope, node.id)] += 1
+            if isinstance(node, ast.Constant) and isinstance(node.value, str) and node.value in names \
+                    and id(node) not in docs:
+                references[(module, scope, node.value)] += 1
+            for child in ast.iter_child_nodes(node):
+                visit(child, scope, params)
+
+        visit(tree, "<module>", set())
+    return paths, references, problems
+
+
+def _source_root():
+    from pathlib import Path
+    return Path(WA.__file__).resolve().parent
+
+
+def test_every_payer_path_is_registered_with_its_call_sites_and_a_ledger_channel():
+    """A payer added without a ledger channel would vanish into the native-model
+    residual while ``typed_complete`` stayed true. Every payer path - module,
+    enclosing function, writer or router, purpose and batch - must be in
+    ``WEALTH_WRITERS`` with its number of call sites, every other reference to a
+    writer name in ``WEALTH_WRITER_REFERENCES``, and no row may be stale."""
+    from chronicler.wealth_accounting_state import WEALTH_ROUTERS, WEALTH_WRITER_REFERENCES
+    paths, references, problems = scan_wealth_writers(_source_root())
+    assert not problems, problems
+    registered = {key: n for key, (n, _channels) in WEALTH_WRITERS.items()}
+    assert dict(paths) == registered, {
+        "unregistered or recounted": {k: v for k, v in paths.items() if registered.get(k) != v},
+        "stale": {k: v for k, v in registered.items() if k not in paths}}
+    assert dict(references) == WEALTH_WRITER_REFERENCES, {
+        "unrecognized references (fail closed)": {k: v for k, v in references.items()
+                                                  if WEALTH_WRITER_REFERENCES.get(k) != v},
+        "stale": {k: v for k, v in WEALTH_WRITER_REFERENCES.items() if k not in references}}
+    known = set(CHANNEL_NAMES) | set(WITHHELD_PACKAGES) | set(WITHHELD_OTHER)
+    for key, (n, channels) in WEALTH_WRITERS.items():
+        assert n > 0 and channels and set(channels) <= known, key
+        if key[2] in WEALTH_ROUTERS:            # a router's callers carry only its declared channels
+            assert set(channels) <= set(WEALTH_ROUTERS[key[2]]), key
+        if key[1].split(".")[-1] in WEALTH_ROUTERS:
+            assert set(channels) == set(WEALTH_ROUTERS[key[1].split(".")[-1]]), key
+    covered = {c for _n, channels in WEALTH_WRITERS.values() for c in channels}
+    assert set(CHANNEL_NAMES) <= covered and set(WITHHELD_PACKAGES) <= covered and set(WITHHELD_OTHER) <= covered
+
+
+GUARD_FIXTURE = {
+    "registered.py": "def pay(sim, world):\n    sim.transfer_wealth(world.turn, PURPOSE_X, 0, [])\n",
+    "second.py": ("def pay(sim, world):\n    sim.transfer_wealth(world.turn, PURPOSE_X, 0, [])\n"
+                  "    sim.transfer_wealth(world.turn, 9, 0, [])\n"),
+    "alias.py": "def pay(sim):\n    send = getattr(sim, 'transfer_wealth')\n    return send(1, 2, 3, [])\n",
+    "bound.py": "def pay(sim):\n    send = sim.remit_wealth\n    return send(1, 2, [])\n",
+    "helper.py": ("def route(sim, purpose, rows):\n    return sim.transfer_wealth(1, purpose, 0, rows)\n"
+                  "def via(sim):\n    return pay_from_firm(None, sim, 0, {}, purpose=PURPOSE_NEW)\n"),
+    "nested/kw.py": "class A:\n    def go(self, sim):\n        sim.transfer_wealth(1, batch=4, purpose=P, rows=[])\n",
+}
+
+
+def test_the_guard_counts_call_sites_and_fails_closed_on_dynamic_references(tmp_path):
+    """The scanner itself, over a constructed package tree: a second payment
+    in a registered function is a new path, ``getattr`` and bound-method
+    aliases are references, a helper taking a purpose from its parameter is
+    a problem unless declared a router, and routed calls carry their purpose."""
+    for name, source in GUARD_FIXTURE.items():
+        (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / name).write_text(source, encoding="utf-8")
+    paths, references, problems = scan_wealth_writers(tmp_path)
+    assert paths[("registered", "pay", "transfer_wealth", "purpose=PURPOSE_X,batch=0")] == 1
+    assert paths[("second", "pay", "transfer_wealth", "purpose=PURPOSE_X,batch=0")] == 1
+    assert paths[("second", "pay", "transfer_wealth", "purpose=9,batch=0")] == 1          # a new purpose: a new path
+    assert paths[("nested.kw", "A.go", "transfer_wealth", "purpose=P,batch=4")] == 1      # keywords, methods
+    assert paths[("helper", "via", "pay_from_firm", "purpose=PURPOSE_NEW")] == 1          # a routed caller
+    assert references[("alias", "pay", "transfer_wealth")] == 1                          # getattr by name
+    assert references[("bound", "pay", "remit_wealth")] == 1                             # a bound-method alias
+    assert problems == ["helper:2: transfer_wealth takes its purpose from a parameter of route, "
+                        "which is not a declared router (WEALTH_ROUTERS)"]
+    assert not any(key in WEALTH_WRITERS for key in paths)

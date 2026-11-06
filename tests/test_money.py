@@ -174,7 +174,22 @@ def test_treasury_credits_carry_sub_unit_amounts_and_create_nothing():
     M.check_book(book)
 
 
-def test_refused_credits_return_to_the_payer_unless_a_sink_is_declared():
+def test_an_agent_wealth_purpose_without_a_ledger_channel_is_refused():
+    """Fail closed: the seam moves agent wealth only for purposes the ledger
+    reads (``MONEY_PURPOSE_CHANNELS``), so a new payer cannot vanish into the
+    native-model residual."""
+    world, book = _world(), M.MoneyBook()
+    sim = FakeSim({1: 1.0})
+    bill = M.Bill(purpose="workshop_wage", batch=1, phase="phase10", payer=M.firm_cash(1), lines=((M.agent(1), 10),))
+    with pytest.raises(M.MoneyError, match="no ledger channel"):
+        M.pay(world, bill, turn=2, book=book, sim=sim, firms={1: _firm(100)})
+    assert sim.calls == 0 and book.settled == []
+
+
+def test_refused_credits_return_to_the_payer_unless_a_sink_is_declared(monkeypatch):
+    from chronicler import wealth_accounting_state as WAS
+    # A constructed credit purpose for the seam's own contract (no package pays wages through it).
+    monkeypatch.setitem(WAS.MONEY_PURPOSE_CHANNELS, "workshop_wage", "workshop_wage")
     world = _world()
     sim = FakeSim({1: MAX_WEALTH - 0.25, 2: 1.0})
     firms = {1: _firm(5000), 2: _firm(5000)}

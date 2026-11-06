@@ -56,39 +56,105 @@ WITHHELD_PACKAGES: tuple[str, ...] = (
     "repair_projects", "timber_supply",
 )
 
-#: Withheld channels that are not paid work (no money moves): L6b replaces a
-#: pilot farmer's farm income by sales.
-WITHHELD_OTHER: tuple[str, ...] = ("withheld_retail",)
+#: Withheld channels that are not paid work (no money moves). ``withheld_retail``:
+#: L6b replaces a pilot farmer's farm income by sales (recorded in the frame).
+#: ``withheld_learning`` (L5 attendance), ``withheld_teaching`` (academy
+#: services) and ``withheld_health`` (rural health work): registered, NOT
+#: itemized in slice 1 - their withheld shares stay in the native-model residual.
+WITHHELD_OTHER: tuple[str, ...] = ("withheld_retail", "withheld_learning", "withheld_teaching", "withheld_health")
 
-#: The one registry of Python call sites of native methods that write agent
-#: wealth or withhold ordinary income: ``(module under chronicler, method) ->``
-#: what the ledger reads it as (typed channels, withheld packages or
-#: ``WITHHELD_OTHER``). ``tests/test_wealth_accounting.py`` walks ``src/`` and
-#: fails on a call site missing here, so a new payer cannot vanish into the
-#: native-model residual: add its row and its channel (append only).
+#: Native methods that move agent wealth or withhold ordinary income.
 WEALTH_WRITER_METHODS: tuple[str, ...] = (
     "transfer_wealth", "remit_wealth", "apply_merchant_transfers", "set_household_retail",
     "install_paid_work", "extend_paid_work", "install_retail_income",
+    "reserve_learning_attendance", "prepare_teaching_work", "prepare_health_work",
 )
-WEALTH_WRITERS: dict[tuple[str, str], tuple[str, ...]] = {
-    ("workshop_payroll", "transfer_wealth"): ("workshop_wage", "apprentice_stipend"),
-    ("workshop_payroll", "install_paid_work"): ("workshop_payroll",),
-    ("apprenticeship", "extend_paid_work"): ("apprenticeship",),
-    ("repair_projects", "transfer_wealth"): ("repair_wage",),
-    ("repair_projects", "extend_paid_work"): ("repair_projects", "recovery_crews_granary", "recovery_crews_workshop"),
-    ("recovery_crews", "transfer_wealth"): ("granary_crew_wage",),
-    ("timber_supply", "transfer_wealth"): ("woodcut_wage",),
-    ("timber_supply", "extend_paid_work"): ("timber_supply",),
-    ("household_retail", "set_household_retail"): ("food_purchase",),
-    ("household_retail", "install_retail_income"): ("withheld_retail",),
-    ("household_retail", "transfer_wealth"): ("food_procurement",),
-    ("remittances", "remit_wealth"): ("remittance",),
-    ("relocation_costs", "transfer_wealth"): ("relocation_fare",),
-    ("domestic_credit", "apply_merchant_transfers"): ("domestic_credit",),
-    # The shared payment seam (connected-world A3): households' wares purchases
-    # (``money.flows_for_turn``); its treasury <-> firm-cash flows are Python
-    # accounts, read on the treasury side (``frame.treasury.firm_economics``).
-    ("money", "transfer_wealth"): ("wares_purchase",),
+#: Python helpers that route a payment to a writer for a caller-chosen purpose,
+#: with the channels they may carry. Every call of a router is a payer path of
+#: its own (registered below with its purpose); a writer call that takes a
+#: purpose or batch from a parameter of a function that is not a router fails
+#: the guard. A new helper (A3's ``money.py``) is declared here.
+WEALTH_ROUTERS: dict[str, tuple[str, ...]] = {
+    "pay_from_firm": ("apprentice_stipend",),
+    # The shared payment seam (connected-world A3): ``money.pay`` routes every
+    # agent-wealth line of a bill through ``money._native_transfer``; the
+    # purposes it may carry are ``MONEY_PURPOSE_CHANNELS``.
+    "_native_transfer": ("wares_purchase",),
+}
+#: The arguments that identify a payer path, ``(position, keyword)``.
+WEALTH_PATH_ARGS: dict[str, tuple[tuple[int | None, str], ...]] = {
+    "transfer_wealth": ((1, "purpose"), (2, "batch")),
+    "remit_wealth": ((1, "batch"),),
+    "pay_from_firm": ((None, "purpose"),),
+    "_native_transfer": ((2, "purpose"),),
+}
+#: The one registry of payer paths: ``(module under chronicler, enclosing
+#: function, writer or router, identifying arguments as written) -> (call
+#: sites, channels the ledger reads it as)``. ``tests/test_wealth_accounting.py``
+#: walks ``src/`` and fails on a path that is not here, a different number of
+#: call sites, or a stale row, so a payer cannot vanish into the native-model
+#: residual. A new payer path adds one row (and its channel). Append only.
+WEALTH_WRITERS: dict[tuple[str, str, str, str], tuple[int, tuple[str, ...]]] = {
+    ("workshop_payroll", "finish_phase2", "install_paid_work", ""): (1, ("workshop_payroll",)),
+    ("workshop_payroll", "_pay", "transfer_wealth", "purpose=PURPOSE_WORKSHOP_WAGE,batch=firm.site"):
+        (1, ("workshop_wage",)),
+    ("workshop_payroll", "pay_from_firm", "transfer_wealth", "purpose=purpose,batch=site"):
+        (1, ("apprentice_stipend",)),
+    ("apprenticeship", "finish_phase2", "extend_paid_work", ""): (1, ("apprenticeship",)),
+    ("apprenticeship", "phase10", "pay_from_firm", "purpose=PURPOSE_APPRENTICE_STIPEND"):
+        (1, ("apprentice_stipend",)),
+    ("repair_projects", "finish_phase2", "extend_paid_work", ""):
+        (1, ("repair_projects", "recovery_crews_granary", "recovery_crews_workshop")),
+    ("repair_projects", "finish_phase2", "transfer_wealth", "purpose=PURPOSE_REPAIR_WAGE,batch=0"):
+        (1, ("repair_wage",)),
+    ("recovery_crews", "pay_granary_crews", "transfer_wealth",
+     "purpose=PURPOSE_REPAIR_WAGE,batch=GRANARY_WAGE_BATCH"): (1, ("granary_crew_wage",)),
+    ("timber_supply", "finish_phase2", "extend_paid_work", ""): (1, ("timber_supply",)),
+    ("timber_supply", "finish_phase2", "transfer_wealth", "purpose=PURPOSE_REPAIR_WAGE,batch=WAGE_BATCH"):
+        (1, ("woodcut_wage",)),
+    ("household_retail", "before_agent_tick", "set_household_retail", ""): (1, ("food_purchase",)),
+    ("household_retail", "before_agent_tick", "install_retail_income", ""): (1, ("withheld_retail",)),
+    ("household_retail", "_credit_procurement", "transfer_wealth",
+     "purpose=PURPOSE_FOOD_PROCUREMENT,batch=PROCUREMENT_BATCH"): (1, ("food_procurement",)),
+    ("remittances", "after_agent_tick", "remit_wealth", "batch=REMIT_BATCH"): (1, ("remittance",)),
+    ("relocation_costs", "after_agent_tick", "transfer_wealth", "purpose=PURPOSE_RELOCATION_FARE,batch=FARE_BATCH"):
+        (1, ("relocation_fare",)),
+    ("domestic_credit", "Tick.finish", "apply_merchant_transfers", ""): (1, ("domestic_credit",)),
+    ("learning_cohorts", "before_agent_tick", "reserve_learning_attendance", ""): (1, ("withheld_learning",)),
+    ("simulation", "run_turn_result.tick_agents", "prepare_teaching_work", ""): (1, ("withheld_teaching",)),
+    ("health_care", "prepare_health_care", "prepare_health_work", ""): (2, ("withheld_health",)),
+    # A3 (the payment seam): the router's one native call, and its two callers in
+    # ``money.pay`` (a payment's agent credits, a collection's agent debits).
+    ("money", "_native_transfer", "transfer_wealth", "purpose=code,batch=batch"): (1, ("wares_purchase",)),
+    ("money", "pay", "_native_transfer", "purpose=bill.purpose"): (2, ("wares_purchase",)),
+}
+#: Purposes ``money.pay`` may move agent wealth for, with the ledger channel
+#: each is read as (``money.flows_for_turn``); ``money`` refuses any other
+#: agent-wealth purpose at run time, so a new payer through the seam must add
+#: its row here (and its channel). Append only.
+MONEY_PURPOSE_CHANNELS: dict[str, str] = {
+    "wares_purchase": "wares_purchase",
+}
+#: Every reference to a writer or router name that is not a call: the name
+#: strings packages use to check the extension has a method
+#: (``callable(getattr(sim, name, None))``). ``(module, enclosing function,
+#: name) -> occurrences``. Any other reference - an alias, a ``getattr`` that
+#: could call a writer, a name in a string - fails the guard (fail closed).
+WEALTH_WRITER_REFERENCES: dict[tuple[str, str, str], int] = {
+    ("workshop_payroll", "_native", "transfer_wealth"): 1,
+    ("workshop_payroll", "_native", "install_paid_work"): 1,
+    ("apprenticeship", "<module>", "extend_paid_work"): 1,
+    ("repair_projects", "<module>", "extend_paid_work"): 1,
+    ("repair_projects", "<module>", "transfer_wealth"): 1,
+    ("timber_supply", "<module>", "extend_paid_work"): 1,
+    ("timber_supply", "<module>", "transfer_wealth"): 1,
+    ("household_retail", "<module>", "set_household_retail"): 1,
+    ("household_retail", "<module>", "install_retail_income"): 1,
+    ("remittances", "<module>", "remit_wealth"): 1,
+    ("relocation_costs", "<module>", "transfer_wealth"): 1,
+    ("learning_cohorts", "<module>", "reserve_learning_attendance"): 1,
+    ("simulation", "run_turn_result", "prepare_teaching_work"): 1,
+    ("health_care", "prepare_health_care", "prepare_health_work"): 1,
 }
 #: Native ``AgentSimulator.wealth_transfer_purposes()`` this ledger knows
 #: (append only; a native test fails when the extension grows past it).
@@ -118,6 +184,8 @@ LIFETIME: tuple[str, ...] = (
     *(f"{name}_{side}_milli" for name in CHANNEL_NAMES[:10] for side in ("in", "out")),
     "delta", "native_model", "discontinuity",
     *(f"withheld_{name}" for name in WITHHELD_PACKAGES), "withheld_unattributed",
+    # tithe_potential replaced tithe_offered in place once, before the first
+    # landing (no saved state carried it); append only from here.
     "treasury_tax_created", "tithe_potential", "treasury_to_households_milli",
     "treasury_to_firm_cash_milli", "firm_cash_to_treasury_milli", "treasury_charged",
     "tithe_at_threshold_after_tick", "withheld_retail",
