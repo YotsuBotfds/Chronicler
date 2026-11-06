@@ -9,12 +9,14 @@ graph of a procedural world.
 - `flow` (B2, section 4) makes the account the owner of the water index. It **replaces, never
   stacks on**, the native water climate terms, the irrigation water bonus and the downstream
   deforestation cascade (switched off once, through one pinned seam), writes the index derived from
-  storage as the index the simulation uses, and lets the account's floods act through the existing
+  storage as the index the simulation uses, and lets each flood event act once, at its onset, through the existing
   fields. The old river-flood check keeps its draws; its effect is suppressed and recorded as
   superseded. Native ecology only.
 
-The constants were recalibrated for B2 on the procedural development worlds (section 8); `flow`'s
-effects are described by a development-only activation report (section 9), not by a screen.
+The constants were refit after review (three fitted, the rest fixed with stated reasons; leave-two-out
+cross-validated on the procedural development worlds, with a 64x16 transfer check; section 8), and the
+remaining mismatch with the old index is stated there. `flow`'s effects are described by a
+development-only activation report (section 9), not by a screen.
 Design source: the program-B contract audit
 (`docs/superpowers/audits/connected-world/audit-b-watershed-infrastructure.md`, sections 1, 2,
 5-8, 7.1-7.2) and the lead's decisions (`docs/superpowers/roadmaps/connected-world-program.md`,
@@ -50,6 +52,9 @@ chronicler ... --watershed --watershed-mode flow                                
   fallback cannot do, so it is refused at startup and on a state-file resume when the extension is
   not importable ("`--watershed-mode flow requires the native ecology ...`", `check_request`), and at
   planning if a turn would take the fallback path (`before_ecology`, `RuntimeError`).
+- `--watershed-mode` without `--watershed` on a world without an account is refused
+  ("`--watershed-mode flow requires --watershed ...`"), so a run cannot look like a `flow` run that
+  did nothing (review n1). On a resumed world with an account, the mode alone is checked against it.
 - **Procedural worlds only.** Template worlds have no elevation, so no drainage can be derived:
   `--watershed` on a template world is refused at startup and on a state-file resume with
   "`--watershed requires a procedural world ...`". This is an intentional, documented boundary; the
@@ -191,11 +196,17 @@ Q   -> I of the destination | to_sea | to_sink (a closed basin loses it) | to_la
 
 ### Floods and droughts
 
-- **Flood**: a settled turn whose arrivals `P + I + X_in` exceed the region's channel capacity
-  (`CHANNEL_CAPACITY`, x `RIVER_CHANNEL_FACTOR` on a named river region). The record keeps the
-  turn, excess, arrivals by source (precipitation, inflow, external), the channel, opening storage
-  and capacity, every tributary with the outflow it sent, the mean forest cover of all regions
-  upstream and how many are below 0.2.
+- **Flood event** (B2): it starts on a settled turn whose arrivals `P + I` exceed the region's
+  channel capacity (`CHANNEL_CAPACITY`, x `RIVER_CHANNEL_FACTOR` on a named river region) while no
+  event is open there, and stays open while arrivals exceed `FLOOD_RECESSION` (0.75) of the channel
+  (hysteresis); so an onset always crosses the channel from below. Arrivals are channel flow, as in
+  AUDIT-B 7.2 (`flood = max(0, I + P − channel)`): an external inflow (a coastal flood's surge)
+  enters storage but is not counted (B1 counted it). The onset record keeps the turn, excess,
+  arrivals by source, the channel, opening storage and capacity, every tributary with the outflow it
+  sent, the mean forest cover of all regions upstream and how many are below 0.2; open events are
+  recorded compactly (region, start, turns, peak excess) and an event that ends with its end turn.
+  The per-region `flood_excess` column and `flood_region_turns` still count every turn above the
+  channel.
 - **Drought**: a run of at least `DROUGHT_TURNS` settled turns with `S'/C < DROUGHT_FRACTION`. Its
   record keeps the start, declaration and end turns, the lowest fill, and over the run the
   precipitation against the normal precipitation (the forcing deficit), inflow, evaporation, the
@@ -203,8 +214,9 @@ Q   -> I of the destination | to_sea | to_sink (a closed basin loses it) | to_la
   Shorter runs are not recorded; the per-region `drought_turns` column shows them.
 - Neither has any consequence in `record_only`. The existing river flood
   (`emergence._check_flood`), drought intensification and civ drought hazard are untouched.
-- In `flow` a flood acts (section 4) and a drought acts through the index itself: the derived index
-  is the index drought intensification, the civ drought hazard, yields and capacity read.
+- In `flow` a flood event acts once, at its onset (section 4), and a drought acts through the index
+  itself: the derived index is the index drought intensification, the civ drought hazard, yields and
+  capacity read.
 
 ### Order, state and resume
 
@@ -214,9 +226,9 @@ Q   -> I of the destination | to_sea | to_sink (a closed basin loses it) | to_la
   flood and drought records, commit storage, `last_index`, spells, the frame and the totals.
 - A plan left by a failed tick is dropped at the next planning (`abandoned_plans`); nothing was
   settled, so a turn settles once. `after_ecology` without a plan for this turn raises.
-- Persisted: the graph, storage, `last_index`, the opening storage, running drought spells, the last
-  settled frame (full precision), cumulative totals and counters (about 11.5 KB of JSON at 32
-  regions). Exact checkpoints and state files carry it; no native state changes, so the checkpoint
+- Persisted: the graph, storage, `last_index`, the opening storage, running drought spells, open
+  flood events, `flow`'s pending flood modifiers, the last settled frame (full precision),
+  cumulative totals and counters (about 11.5 KB of JSON at 32 regions). Exact checkpoints and state files carry it; no native state changes, so the checkpoint
   schema fingerprint is unchanged.
 
 ## 4. Flow mode (B2)
@@ -229,14 +241,24 @@ Per turn, in Phase 9:
 
 1. `before_ecology` computes and checks the plan from the pre-tick world, as in `record_only`.
 2. `_apply_flow` writes each region's derived index into `ecology.water` and lets each of this
-   turn's floods act (below), **before the Phase 9 region sync**, so the native tick sees both.
+   turn's flood onsets act (below), **before the Phase 9 region sync**, so the native tick sees both.
 3. The native tick runs with the replaced terms switched off and leaves the index as written (its
    clamp is a no-op: the derived index lies between the floor and the terrain cap). Its write-back
    rounds the index to 4 decimals (f32), so the index observed after the tick equals the derived
-   one within 5e-5; verified in both native paths with irrigated regions in play
-   (`tests/test_watershed_native.py`), while in `record_only` the old terms move the index by more
-   than 0.01 on their own.
-4. `after_ecology` records and commits as in `record_only`. The next turn's external flows are
+   one within 5e-5; verified in both native paths over a whole climate cycle (every phase) with
+   irrigated regions in play (`tests/test_watershed_native.py`), while in `record_only` the old
+   terms move the index by more than 0.01 on their own.
+4. **Terrain transitions.** The Phase 9 post-pass (`emergence.tick_terrain_succession`) can turn a
+   forest into plains, and `clamp_ecology` then cuts the index to the plains cap (0.80 → 0.70). The
+   index used that turn is `min(index_derived, cap_after)`. `after_ecology` records each transition
+   as a **cap change** (`cap_changes`: region, terrain and cap before and after, and in `flow`
+   `index_out = max(0, index_derived − cap_after)`, an attributed outflow of the index). It is not a
+   storage flow: the storage is unchanged, and from the next turn the account derives the index from
+   the same storage under the new cap (taking the clamp from storage as well would count the cap
+   change twice). The next turn's external flow is measured from the clamped index, so it is zero.
+   The review found such turns in every development `flow` run (1-4 per 200 turns; gaps up to 0.1)
+   that the viewer then refused; it now checks `observed = min(derived, cap_after)` there.
+5. `after_ecology` records and commits as in `record_only`. The next turn's external flows are
    measured from the observed (rounded) index, so the rounding never enters storage.
 
 **Replaced, never stacked: switched off exactly once.** `watershed.native_overrides(world)` returns
@@ -261,34 +283,51 @@ no Rust changed. Tests show the replacement happens once and nothing else moves:
 seam with a recording simulator, each configuration is set once; without `flow` (off or
 `record_only`) it is identical to the feature-off one; with `flow` exactly the fields above differ,
 the trend share the crops read is kept and the shock water loss is 0. With the real extension, the
-observed index equals the derived one in every region over 30 turns, irrigated regions included, so
-no bonus or cascade acted (native test above). The replaced terms' own state is untouched: a world
-before and after planning differs only in the water index and, in flooded regions, the three flood
-fields; irrigation works, rivers and the river topology are as they were.
+observed index equals the derived one in every region and phase over 80 turns (a whole cycle),
+irrigated regions included, except the recorded cap changes, so no climate term, bonus or cascade
+acted (native test above). The replaced terms' own state is untouched: a world before and after
+planning differs only in the water index and, in regions where a flood event starts, the three flood
+fields; irrigation works, rivers and the river topology are as they were. Tuning overrides of the
+replaced keys (`ecology.water_recovery`, `ecology.deforestation_water_loss`, ...) have no effect in
+`flow` (the overrides are applied after them).
 
 **Upstream withdrawal reduces downstream inflow** on the graph: an irrigated tributary sends its
 withdrawal nowhere, so the confluence's inflow falls by the same amount (tested offline; in `flow`
 that lower inflow is the downstream region's index).
 
-**Floods act, through the old river flood's own effects** (deterministic, no RNG; `Parameters`
-`flood_*`). For a region with flood excess `e > 0` this turn:
+**Flood events act once, at their onset, through the old river flood's own effects**
+(deterministic, no RNG; `Parameters` `flood_*`). The first B2 draft re-applied them on every turn
+above the channel, which made 1-2 coastal confluences per world chronic flood sites (15-42 turn
+runs, the capacity modifier held for a third of a run, the region's environment checks skipped for
+the whole spell; review M2). Now, on the onset turn of an event with excess `e` (section 3):
 
 ```
-days                       = 2 if e >= FLOOD_LONG_EXCESS (0.1 wu) else 1     the old flood drew 1-2
-disaster_cooldowns["flood"] = max(days + 1, the cooldown it has)              never shortened
+days                        = 2 if e >= FLOOD_LONG_EXCESS (0.1 wu) else 1     the old flood drew 1-2
+disaster_cooldowns["flood"] = days + 1
 capacity_modifier           = min(current, FLOOD_CAPACITY_MODIFIER 0.85)       never raises a lower one
-soil                        = max(soil, min(terrain soil cap, soil + FLOOD_SILT 0.15))
+soil                        = max(soil, min(terrain soil cap, soil + FLOOD_SILT 0.15))   silt once
 ```
 
-The cooldown has one turn more than the old flood's because it is set in Phase 9, after that turn's
-Phase 1 decrement, so it covers this turn's tick and the next `days` turns; the existing rule
-restores the capacity modifier to 1.0 when the region has no cooldown left (`simulation.py`), and the
-cooldown skips the region's coastal flood and emergence checks while it lasts, as the old flood's
-did. Each flood records what it did (`consequence`: capacity modifier, cooldown, soil before and
-after) and `flood_consequences` counts it, so every consequence is traceable to the recorded
-condition (excess, arrivals by source, tributaries, upstream cover). A drought acts through the index
-itself: the derived index is what drought intensification, the civ drought hazard, yields and
-capacity read.
+- **Withheld on a region under a cooldown.** As the old river flood never fired on a region holding
+  any disaster cooldown, an onset on such a region acts not at all; the onset record says so
+  (`withheld_by`: the cooldowns it held) and `flood_consequences_withheld` counts it. This counts a
+  coastal flood's storm once (its cooldown is set in Phase 1 of the same turn; its surge is not
+  channel flow either; review m2).
+- **The modifier lasts its recorded cooldown.** The cooldown has one turn more than the old flood's
+  because it is set in Phase 9, after that turn's Phase 1 decrement, so it covers this turn's tick and
+  the next `days` turns. `simulation.py` restores the capacity modifier in Phase 1 only when every
+  cooldown is gone, so a disaster that begins during the flood's cooldown would hold 0.85 longer; the
+  account then restores its own value at its next Phase 9 (`active_consequences`), unless another
+  system changed the modifier since (review m3). The flood cooldown skips the region's coastal flood
+  and emergence checks for those `days` turns only, as the old flood's did; the rest of a long event
+  leaves them alone.
+- **A chronicle event per flood that acted** (`event_type` `flood`, "Swollen waters overflow the
+  channels of ..."), so the chronicle, provenance and era-crisis counts see the consequence the
+  simulation applied, in place of the superseded river flood's event (review m4). A withheld onset
+  emits none (the coastal flood already did).
+- Each onset records what it did (`consequence`: capacity modifier, cooldown, soil before and after)
+  and `flood_consequences` counts it, so every consequence is traceable to the recorded condition
+  (excess, arrivals by source, tributaries, upstream cover).
 
 **The old river flood is superseded, its draws kept.** `emergence._check_flood` runs unchanged up to
 and including its draws on the shared environment stream (`rng.random()` against the flood
@@ -326,110 +365,172 @@ pure-Python fallback are refused, not approximated.
 | Effect | Owner without the account | `record_only` (B1) | `flow` (B2, implemented) |
 | --- | --- | --- | --- |
 | Water climate terms (drought, cooling, temperate recovery, tundra melt, harvest-shock water) | native ecology tick / Python fallback | unchanged; mirrored as forcing in the account | **replaced** by the account's forcing (native rates 0 via `EcologyConfig`, harvest-shock water 0 via the climate config) |
-| Water index value | ecology tick | unchanged; derived index recorded beside it | **the derived index**, written before the tick, left by it |
+| Water index value | ecology tick | unchanged; derived index recorded beside it | **the derived index**, written before the tick, left by it (capped at a new terrain's cap where the post-pass changes terrain: a recorded cap change) |
 | Deforestation cascade (−0.05 per deforested upstream region) | native `deforestation_water_loss` | unchanged | **replaced** by cover-dependent capacity and transpiration on the graph |
 | River +0.15 water bonus | world generation | inside the opening storage, once | the same |
 | River presence effects (capacity x1.2, fish, trade discount, barge cap, migration bonus, attractor) | world generation, economy, merchant, behavior, spatial | unchanged | unchanged |
 | Irrigation water bonus and drought x1.5 | native through `has_irrigation` | unchanged; a recorded withdrawal in the account | **replaced** by the withdrawal (bonus 0, multiplier 1.0) |
 | Irrigation arable ceiling, irrigation technique | economy, techniques | unchanged | unchanged (condition scaling is B3) |
 | Coastal flood +0.1 water, ports off | `climate.check_disasters` | unchanged; its index change is a recorded external inflow | the same external inflow, now into the index's storage |
-| River flood (water > 0.8, spring) | `emergence._check_flood` | unchanged; the account records its own floods | **superseded**: draws kept, effect suppressed and recorded; the account's floods act with the same effects |
+| River flood (water > 0.8, spring) | `emergence._check_flood` | unchanged; the account records its own flood events | **superseded**: draws kept, effect suppressed and recorded; each account flood event acts once with the same effects and its own chronicle event |
 | Drought intensification, civ drought hazard, disease flares, yields, capacity, satisfaction, mortality stress | existing | unchanged | unchanged code, reading the derived index |
 | Deaths | demographics, epidemics, famine | unchanged | unchanged: no new mortality authority |
 
 ## 7. Declared constants
 
-`watershed.PARAMETERS` holds the constants in force (calibrated for B2, section 8) and
+`watershed.PARAMETERS` holds the constants in force (the refit after review, section 8) and
 `B1_PARAMETERS` the B1 declared constants, kept for comparison. Both modes use `PARAMETERS`; each
-record carries them (`parameters`).
+record carries them (`parameters`). Only three constants are fitted; every other one is fixed and
+the table says why.
 
-| Constant | B1 (declared) | In force (calibrated) | Meaning |
-| --- | --- | --- | --- |
-| `STORAGE_BASE` | 1.0 wu | 1.0 wu | storage capacity without forest cover |
-| `FOREST_RETENTION` | 0.5 | **0.25** | capacity x (1 + retention x cover) |
-| `PRECIPITATION_BASE` | 0.1 wu/turn | **0.13** | at (0.2 + moisture) = 1 |
-| `PHASE_PRECIPITATION` | temperate 1.0, warming 0.85, drought 0.3, cooling 0.6 | **temperate 1.0, warming 1.2, drought −0.9, cooling −0.5** | factor `max(0, 1 - (1 - f) x exposure x trend)` |
-| `SHOCK_PRECIPITATION` | 1.0 | **1.25** | a bad year of depth h cuts precipitation by 1.25 h |
-| `TUNDRA_MELT` | 0.05 wu/turn | 0.05 | tundra, warming phase |
-| `EVAPORATION_BASE` | 0.03 wu/turn | **0.02** | potential evapotranspiration |
-| `PHASE_EVAPORATION` | temperate 1.0, warming 1.3, drought 1.6, cooling 0.7 | **temperate 1.0, warming 1.05, drought 2.8, cooling 1.35** | scaled by exposure x trend |
-| `TERRAIN_EVAPORATION` | desert 1.6, steppe 1.25, tundra 0.5, others 1.0 | the same | |
-| `TRANSPIRATION` | 0.3 | 0.3 | evaporation x (1 + 0.3 x cover) |
-| `BASEFLOW` | 0.05 | **0.009** | share of storage released downstream a turn |
-| `IRRIGATION_DEMAND` | 0.02 wu/turn | 0.02 | consumptive use with an active irrigation work (service 1.0) |
-| `IRRIGATION_WETTING` | 1.0 | 1.0 | the derived index counts applied water W/C |
-| `CHANNEL_CAPACITY`, `RIVER_CHANNEL_FACTOR` | 0.25 wu/turn, x2 on a river region | **0.35**, x2 | flood threshold |
-| `DROUGHT_FRACTION`, `DROUGHT_TURNS` | 0.2, 3 | the same | drought definition |
-| `FLOOD_CAPACITY_MODIFIER`, `FLOOD_SILT`, `FLOOD_LONG_EXCESS` | (none) | 0.85, 0.15, 0.1 wu | `flow` flood effects (the old river flood's modifier and silt) |
-| `INDEX_FLOOR` | 0.10 | 0.10 | the ecology's water floor |
-| `CLOSURE_TOLERANCE` | 1e-9 | 1e-9 | relative |
+| Constant | B1 (declared) | First B2 fit (superseded) | In force | Status |
+| --- | --- | --- | --- | --- |
+| `STORAGE_BASE` | 1.0 wu | 1.0 | 1.0 | unit (capacity without forest cover) |
+| `PRECIPITATION_BASE` | 0.1 wu/turn | 0.13 | **0.3488** | **fitted** (at (0.2 + moisture) = 1) |
+| `EVAPORATION_BASE` | 0.03 wu/turn | 0.02 | 0.03 | fixed (B1): only the precipitation/evaporation ratio is identified |
+| `BASEFLOW` | 0.05 | 0.009 | **0.0644** | **fitted** (share of storage released downstream a turn) |
+| `PHASE_PRECIPITATION` warming | 0.85 | 1.2 (at its range's top) | 1.0 | fixed: the old index has no warming-phase water term besides tundra melt |
+| `PHASE_PRECIPITATION` drought | 0.3 | −0.9 | −1.0 | fixed at its physical limit: every drop of rain lost at the largest exposure x trend share (0.5); every freer fit went there |
+| `PHASE_PRECIPITATION` cooling | 0.6 | −0.5 | **−0.3936** | **fitted** |
+| `PHASE_EVAPORATION` warming | 1.3 | 1.05 | 1.0 | fixed (as warming precipitation) |
+| `PHASE_EVAPORATION` drought | 1.6 | 2.8 | 4.0 | fixed at its declared limit (potential evaporation x2.5 at the largest exposure x trend); every freer fit went there |
+| `PHASE_EVAPORATION` cooling | 0.7 | 1.35 | 1.0 | fixed: collinear with cooling precipitation (only their net is identified) |
+| `SHOCK_PRECIPITATION` | 1.0 | 1.25 | 1.0 | fixed at its declared meaning (a bad year of depth h is a precipitation deficit of h); refits ranged 0-0.5 |
+| `FOREST_RETENTION` | 0.5 | 0.25 (at its range's floor) | 0.5 | fixed (B1): the old index has no forest storage, so it cannot identify the forest linkage; refits ran to 0 |
+| `TRANSPIRATION` | 0.3 | 0.3 | 0.3 | fixed (B1), for the same reason; refits ranged 0.02-0.55 |
+| `TUNDRA_MELT` | 0.05 wu/turn | 0.05 | 0.05 | declared |
+| `TERRAIN_EVAPORATION` | desert 1.6, steppe 1.25, tundra 0.5, others 1.0 | the same | the same | declared |
+| `IRRIGATION_DEMAND`, `IRRIGATION_WETTING` | 0.02 wu/turn, 1.0 | the same | the same | declared |
+| Channel | `CHANNEL_CAPACITY` 0.25 wu/turn, x2 on a river region | 0.35, x2 | `CHANNEL_RATIO` 1.0 | declared, not fitted: a channel carries its drainage basin's normal precipitation (the region's and every region's upstream, phase factor 1, no shock) |
+| `FLOOD_RECESSION` | (none) | (none) | 0.75 | declared: a flood event stays open while arrivals exceed 75% of the channel |
+| `DROUGHT_FRACTION`, `DROUGHT_TURNS` | 0.2, 3 | the same | the same | declared drought definition |
+| `FLOOD_CAPACITY_MODIFIER`, `FLOOD_SILT`, `FLOOD_LONG_EXCESS` | (none) | 0.85, 0.15, 0.1 wu | the same | `flow` flood effects (the old river flood's modifier and silt) |
+| `INDEX_FLOOR`, `CLOSURE_TOLERANCE` | 0.10, 1e-9 | the same | the same | the ecology's floor; relative |
 
 ## 8. Calibration (B2, development worlds only)
 
-**Method.** In `record_only` the account changes nothing, so the index the simulation uses and every
-input the account reads are the same whatever its constants. `scripts/watershed_replay.py capture`
-ran the procedural development worlds 7, 11, 13, 17, 21, 31, 302 and 303 once (32 regions, 10 civs,
-`--agents hybrid`, 200 turns: two and a half climate cycles of 75 turns) and saved each turn's
-inputs (`watershed.region_inputs`) and observed index; `replay` runs the pure `account_step` on them
-under other constants. A replay of a capture equals an actual run with the same constants bit for
-bit (checked). The tool refuses any other seed; no held or evaluation world was used. Metrics
-(the first cycle, a spin-up from the world-generation index, is left out of all but drift):
+**Why it was redone.** The review (M3) found that the first B2 fit (twelve constants fitted on
+eight 200-turn worlds) did not hold out of sample: at 64x16 the downstream wet bias doubled, over
+turns 200-399 storage kept falling in three of four worlds, fold refits changed the sign of
+constants, and four constants sat on their search bounds. The report above it also overstated fit
+and stationarity. This section replaces it.
 
-- **drift**: the relative change of the world's storage between the same climate phases one cycle
-  apart after the first cycle (turns 150-199 against 75-124); the observed index's own drift over
-  the same windows is reported beside it;
-- **level**: mean (derived − observed) index, all regions, headwater regions and regions with
-  upstream inflow;
-- **amplitude**: the derived index's climate-phase amplitude over the observed index's;
-- **correlation**: the median per-region correlation of the two series;
-- **droughts**: the share of region-turns in a drought, against the same rule (fill below 0.2 for 3
-  turns) applied to the observed index's fill;
-- **floods**: flood region-turns per world.
+**Method** (`scripts/watershed_replay.py`; development worlds only, any other seed refused; no held
+or evaluation world was used or targeted).
 
-`search` (coordinate descent over a grid) and `search --refine` (a deterministic local search within
-physically ordered ranges: warming evaporates at least as much as temperate, cooling no more than
-1.5x, forests keep capacity and transpiration effects) minimised a declared score (stationarity
-first, then level, amplitude and drought share); the result was rounded. Flood frequency is not in
-the score: `CHANNEL_CAPACITY` was then chosen so that account floods are about as frequent as the
-coastal floods of the same worlds (24.0 per world over 200 turns): a sweep gave 51.1 flood
-region-turns per world at 0.30, **24.4 at 0.35** and 5.5 at 0.45.
+- Captures: the procedural development worlds 7, 11, 13, 17, 21, 31, 302 and 303, each at 32x10 and
+  at 64x16, `--agents hybrid`, `record_only`, **400 turns** (five climate cycles of 75): each turn's
+  inputs and observed index, the opening index and cover. In `record_only` the account changes
+  nothing, so a replay under any constants sees the same world.
+- Replay: `simulate`, a transcription of `account_step` (storage, derived index, flood excess); it
+  equals `account_step` exactly on every capture (`check`, max difference 0). The opening storage is
+  recomputed under the replayed constants (review m1: the first fit replayed from an opening computed
+  under the capture's constants, which spilled at turn 0 and inflated its flood counts).
+- Objective (`score`, lower is better): the **mean over worlds** of each world's weighted absolute
+  errors, so errors in two worlds cannot cancel: 4 x |long-run storage drift| (whole cycle 2,
+  turns 75-149, to cycle 5, turns 300-374) + 4 x |level, all regions| + |level, headwater| +
+  |level, with upstream| + |amplitude ratio − 1| + 2 x |drought share − the same rule on the old
+  index|. Turns 0-74 (spin-up from the world-generation index) are left out of all but the drift.
+- Parameterizations: `full` (the first fit's twelve constants), `reduced` (six: precipitation,
+  evaporation, baseflow, drought and cooling precipitation, drought evaporation), `minimal` (four:
+  `reduced` with the drought phase fixed at the limits every freer fit reached) and `core` (three:
+  `minimal` with evaporation fixed, since only the precipitation/evaporation ratio is identified).
+  Bounds are physical: a phase factor f gives `max(0, 1 − (1 − f) x exposure x trend)`, and
+  f ≥ −1 means at most all precipitation is lost at the largest exposure x trend share (0.5).
+- Search: bounded Powell from three declared starting points (the declared values, and 25% and 75%
+  of each range), the best kept; deterministic. A single start stopped in different local optima
+  per fold (the `reduced` and `minimal` single-start runs below).
+- Cross-validation: hold out two seeds, fit on the other six at 32x10, score the held two at 32x10
+  and at 64x16 (the same seeds as larger worlds: a transfer check). Four disjoint folds compare the
+  parameterizations; the chosen one is run over all 28 seed pairs (leave-two-out).
 
-| Pooled over 8 worlds | B1 constants | Calibrated |
-| --- | --- | --- |
-| Storage drift after the first cycle (observed index: +9.0%) | −15.5% (worst world 30.7%) | **−3.1%** (worst world 11.3%) |
-| Level, derived − observed: all / headwater / with upstream | −0.193 / −0.248 / −0.098 | **+0.004 / −0.021 / +0.048** |
-| Phase amplitude ratio | 0.29 | **0.99** |
-| Median per-region correlation | 0.55 | **0.72** |
-| Drought share (old index, same rule: 0.107) | 0.324 | **0.128** |
-| Flood region-turns per world | 11.4 | **24.4** |
+**Parameterizations, four disjoint folds** (held pairs {7, 11}, {13, 17}, {21, 31}, {302, 303};
+scores are means over the folds; lower is better):
 
-| World | Drift (observed) | Level | Amplitude | Correlation | Drought share (old rule) | Floods | Storage opening → turn 200 |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| procedural 7 | +11.3% (+34.0%) | +0.005 | 0.95 | 0.67 | 0.266 (0.198) | 33 | 32.9 → 12.7 |
-| procedural 11 | −7.7% (+0.5%) | +0.038 | 0.99 | 0.74 | 0.086 (0.105) | 1 | 34.6 → 26.6 |
-| procedural 13 | −4.7% (+2.1%) | +0.009 | 0.96 | 0.80 | 0.110 (0.118) | 1 | 35.3 → 25.8 |
-| procedural 17 | −5.9% (+4.0%) | −0.049 | 1.06 | 0.69 | 0.084 (0.023) | 3 | 34.2 → 23.5 |
-| procedural 21 | −3.3% (+4.5%) | +0.029 | 0.90 | 0.69 | 0.103 (0.111) | 44 | 34.5 → 26.6 |
-| procedural 31 | −6.5% (+13.7%) | +0.030 | 0.90 | 0.65 | 0.104 (0.105) | 95 | 33.2 → 24.6 |
-| procedural 302 | −11.2% (+1.1%) | −0.043 | 0.95 | 0.79 | 0.173 (0.106) | 1 | 32.4 → 22.5 |
-| procedural 303 | +3.5% (+12.0%) | +0.012 | 1.21 | 0.74 | 0.099 (0.094) | 17 | 34.3 → 26.6 |
+| Parameterization | Free | Train | Held, 32x10 | Held, 64x16 | Constants at a bound | Spread across folds |
+| --- | --- | --- | --- | --- | --- | --- |
+| `full` (single start) | 12 | 0.367 | 0.419 | 0.562 | warming precipitation 1.5 (top) and warming evaporation 1.0 (floor) in 4/4, drought evaporation 4.0 (top) 4/4, forest retention → 0 in 4/4 | shock 0.09-0.44, transpiration 0.02-0.55, cooling evaporation 0.54-0.78 |
+| `reduced` (single start) | 6 | 0.525 | 0.624 | 0.725 | drought precipitation −1 (floor) and drought evaporation 4 (top) in 4/4 | stuck in local optima (cooling −0.06 to +1.0) |
+| `minimal` (three starts; 3 of 4 folds) | 4 | 0.351 | 0.427 | 0.468 | precipitation at its 0.3 top in 1/3 | baseflow 0.036-0.080, cooling −0.23 to +0.64 |
+| **`core` (three starts)** | **3** | **0.335** | **0.366** | **0.435** | none | precipitation 0.33-0.35, baseflow 0.062-0.070, cooling −0.36 to −0.38 |
+| First B2 fit (fixed constants; fitted on these seeds at 200 turns) | — | — | 0.612 | 0.731 | | |
+| B1 declared (fixed) | — | — | 3.00 | 3.46 | | |
 
-Reading (development only):
+`core` is chosen: the fewest free constants, the best held-out scores at both sizes, no constant at a
+bound and the same constants in every fold.
 
-- Storage is close to stationary after the first cycle (pooled −3.1%; the observed index itself
-  moves +9% over the same windows); the first cycle's fall from the opening (about 33-35 wu, the
-  world-generation index near its caps) to 22-27 wu is spin-up. Procedural 7 is the outlier (a dry
-  world: storage 12.7 wu, drought share 0.27 against 0.20).
-- The derived index tracks the old index's level (within 0.05 in every world and group) and its
-  seasonal amplitude (0.90-1.21), where B1's constants smoothed the cycle to 0.29 and ran 0.19 drier.
-- Drought frequency is plausible (0.128 against 0.107 by the same rule in the old index); floods
-  are concentrated: in `flow` runs each flooding world floods in one or two coastal confluences
-  (regions draining to the sea with two tributaries), and four of eight worlds flood at most three
-  times in 200 turns.
-- **Caveats.** The phase factors are fitted to reproduce the old index's cycle, not physical rates:
-  drought −0.9 and cooling −0.5 make precipitation fall to zero at high exposure, and warming 1.2 sits
-  at the top of its search range. Fitted on the same eight worlds the activation report uses; no
-  held-out check exists yet. The B1 report below is kept for comparison.
+**Leave-two-out over all 28 seed pairs** (`core`; fit on six seeds at 32x10, score the held two):
+
+| | Train | Held, 32x10 | Held, 64x16 |
+| --- | --- | --- | --- |
+| Mean score (range over folds) | 0.334 (0.293-0.376) | 0.371 (0.232-0.482) | 0.440 (0.264-0.644) |
+| Ratio to train | 1 | 1.11 (held worse in 17 of 28 folds) | 1.32 |
+| Fitted constants across folds | precipitation 0.315-0.398 (median 0.339), baseflow 0.052-0.074 (0.066), cooling precipitation −0.50 to −0.27 (−0.37); none at a bound | | |
+
+Per held seed (mean over its 7 folds): score at 32x10 / 64x16 — procedural 7 0.50 / 0.70, 11 0.53 /
+0.44, 13 0.38 / 0.51, 17 0.35 / 0.37, 21 0.21 / 0.19, 31 0.33 / 0.63, 302 0.36 / 0.37, 303 0.31 /
+0.32. The held-out error is 11% above the training error at the fitted size and 32% above it at
+64x16, where the downstream bias is larger (below).
+
+**The constants in force** (`core` fitted on all eight seeds at 32x10; train score 0.340), replayed
+over 400 turns:
+
+| | 32x10 (fitted) | 64x16 (transfer) | First B2 fit, 32x10 / 64x16 |
+| --- | --- | --- | --- |
+| Score | 0.340 | 0.434 | 0.612 / 0.731 |
+| Level, all / headwater / with upstream | +0.007 / −0.020 / +0.053 | +0.028 / −0.021 / +0.083 | −0.021 / −0.050 / +0.028; −0.003 / −0.059 / +0.062 |
+| Largest per-world level, with upstream | +0.148 (p11) | +0.152 (p7) | +0.125; +0.129 |
+| Amplitude ratio; median correlation | 0.99; 0.71 | 1.00; 0.70 | 1.03, 0.70; 1.03, 0.67 |
+| Drought share (old rule) | 0.122 (0.111) | 0.123 (0.152) | 0.153 (0.111); 0.168 (0.152) |
+| Storage drift, cycle 2 → 5 (old index) | +0.7%, worst 6.8% (+12.3%) | −2.2%, worst 6.1% (+13.6%) | −2.6%, worst 17.1%; −10.4%, worst 16.2% |
+| Storage drift over 200-399, cycle 4 → 5 (old index) | −1.2% (+3.4%) | −1.4% (+1.7%) | +0.1%; −0.2% |
+| Flood events per world, 400 turns (regions; median / longest event) | 24.8 (5.9; 15 / 31) | 39.8 (10.9; 15 / 43) | (fixed channel) |
+
+Per world, 32x10 (fitted) and 64x16 (transfer):
+
+| World | Score 32 / 64 | Level with upstream 32 / 64 | Drought share 32 (old rule) | Drought share 64 (old rule) | Drift cycle 4 → 5, 32 (old index) |
+| --- | --- | --- | --- | --- | --- |
+| procedural 7 | 0.45 / 0.71 | +0.039 / +0.152 | 0.160 (0.126) | 0.134 (0.219) | +2.7% (+9.4%) |
+| procedural 11 | 0.50 / 0.46 | +0.148 / +0.102 | 0.108 (0.145) | 0.119 (0.162) | +10.8% (+9.8%) |
+| procedural 13 | 0.37 / 0.49 | +0.085 / +0.073 | 0.127 (0.149) | 0.121 (0.141) | +3.2% (+22.8%) |
+| procedural 17 | 0.33 / 0.37 | +0.007 / +0.055 | 0.119 (0.067) | 0.131 (0.124) | −4.1% (−4.5%) |
+| procedural 21 | 0.18 / 0.16 | +0.022 / +0.062 | 0.112 (0.097) | 0.128 (0.129) | −0.4% (+1.6%) |
+| procedural 31 | 0.31 / 0.60 | +0.037 / +0.085 | 0.123 (0.116) | 0.124 (0.164) | −1.0% (+2.0%) |
+| procedural 302 | 0.31 / 0.36 | +0.004 / +0.057 | 0.110 (0.079) | 0.096 (0.124) | −20.4% (−12.8%) |
+| procedural 303 | 0.26 / 0.33 | +0.084 / +0.079 | 0.119 (0.110) | 0.134 (0.155) | −0.3% (−1.1%) |
+
+**The remaining mismatch, plainly** (development worlds only):
+
+- **Downstream wet bias.** Regions with upstream inflow run wetter than the old index: +0.05 on
+  average at 32x10 and +0.08 at 64x16, up to +0.15 in single worlds. The account passes water
+  downstream, which the old index has no term for; the bias grows with basin size. Headwater regions
+  are within −0.05 of the old index in every world.
+- **Drought frequency differs by world.** The account's drought share is 0.11-0.16 at 32x10 and
+  0.10-0.13 at 64x16; the old rule's ranges 0.07-0.15 and 0.12-0.22. The account is more uniform
+  across worlds than the old index: it has more drought than the old rule in six worlds at 32x10 (by
+  up to 0.05) and less in six at 64x16 (by up to 0.09, procedural 7).
+- **The drought phase is at its physical limits** (no rain at the largest exposure, evaporation
+  x2.5): the account cannot dry as fast as the old index's drought term where exposure is highest.
+- **Correlation 0.67-0.78** (median per region): the derived index follows the climate cycle, not
+  the old index's turn-to-turn moves.
+- **Stationarity.** Over whole cycles storage moves −6% to +7% from cycle 2 to cycle 5 while the old
+  index itself moves −1% to +34% over the same cycles; within cycles 4 → 5 storage follows the old
+  index's own movement (−20% in procedural 302 where the old index falls 13%; +11% in procedural 11
+  where it rises 10%), which comes from the forcing, not from a loss in the account.
+- **Floods are mostly snowmelt.** The channel is the basin's normal precipitation, which leaves out
+  tundra melt; a tundra region in the warming phase receives the melt (0.05 wu/turn) above it, so it
+  floods once a cycle. In the development `flow` runs 105 of 112 flood events are tundra regions in
+  warming (79 headwaters, 26 confluences); 7 are other confluences after wet turns. Whether melt
+  should count as a channel's normal flow is a design question for review; no constant was tuned to
+  set the flood frequency.
+- **Identifiability.** The old index identifies three constants (the precipitation/evaporation
+  ratio, baseflow and the cooling-phase cut); everything else is fixed by declaration. The fitted
+  three are stable across folds. The fit is still to the old index's behaviour on eight development
+  worlds; no held-out world was used and none was targeted.
+
+`flow`'s documented claims rest on this: the derived index matches the old index's level and cycle
+in headwater regions and on average, runs wetter downstream (more so in larger worlds), and holds
+storage close to stationary over 400 turns on these worlds.
 
 ### B1 report (declared constants, superseded)
 
@@ -477,11 +578,12 @@ Observations (development only):
 
 **Development-only evidence, not a screen and not an effect estimate.** `scripts/watershed_activation.py
 FLOW_DIR:RECORD_DIR ...` compares, per procedural development world, a `flow` run with a
-`record_only` run of the same seed: 32 regions, 10 civs, `--agents hybrid`, 200 turns, source
-`c25a4113`, native extension `101a4cd5…`. `record_only` changes nothing (section 11), so it is the
-world without the account. One run per world: a trajectory diverges chaotically from the first turn
-the index differs, so per-world differences in food, capacity and population include that
-divergence. It refuses any other seed; no held screen was run (CW3 is preregistered after review).
+`record_only` run of the same seed: 32 regions, 10 civs, `--agents hybrid`, 200 turns, the constants
+in force (section 7), source `9960f9ba` (the merge that follows changes no watershed code), native
+extension `101a4cd5…`. `record_only` changes nothing (section 11), so it is the world without the
+account. One run per world: a trajectory diverges chaotically from the first turn the index
+differs, so per-world differences in food, capacity and population include that divergence. It
+refuses any other seed; no held screen was run (CW3 is preregistered after review).
 
 Means over the 200 snapshots, `flow` / `record_only` (capacity and population: the final state; the
 water factor is the capacity term `min(1, water / 0.5)`; food is the mean sufficiency and the share of
@@ -489,56 +591,71 @@ region-turns below 1):
 
 | World | Index, all | Headwater | With upstream | Water factor | Food sufficiency | Shortfall share | Effective capacity, end | Population, end | Famine events |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| procedural 7 | 0.522 / 0.508 | 0.460 / 0.480 | 0.626 / 0.556 | 0.776 / 0.786 | 1.11 / 1.11 | 0.463 / 0.475 | 698 / 1002 | 414 / 414 | 135 / 130 |
-| procedural 11 | 0.632 / 0.586 | 0.635 / 0.625 | 0.626 / 0.511 | 0.910 / 0.849 | 1.44 / 1.33 | 0.289 / 0.351 | 1170 / 961 | 503 / 677 | 36 / 60 |
-| procedural 13 | 0.619 / 0.595 | 0.607 / 0.605 | 0.641 / 0.574 | 0.889 / 0.857 | 1.30 / 1.33 | 0.367 / 0.351 | 1373 / 1195 | 854 / 606 | 121 / 94 |
-| procedural 17 | 0.630 / 0.636 | 0.611 / 0.638 | 0.667 / 0.631 | 0.905 / 0.916 | 1.24 / 1.21 | 0.383 / 0.409 | 1028 / 970 | 660 / 597 | 97 / 98 |
-| procedural 21 | 0.632 / 0.606 | 0.607 / 0.589 | 0.667 / 0.631 | 0.890 / 0.867 | 1.13 / 1.09 | 0.472 / 0.475 | 1157 / 1157 | 423 / 487 | 104 / 132 |
-| procedural 31 | 0.627 / 0.584 | 0.619 / 0.565 | 0.638 / 0.612 | 0.893 / 0.856 | 1.10 / 1.20 | 0.475 / 0.415 | 1130 / 1041 | 624 / 732 | 114 / 112 |
-| procedural 302 | 0.590 / 0.607 | 0.541 / 0.577 | 0.653 / 0.645 | 0.843 / 0.868 | 1.11 / 1.18 | 0.459 / 0.431 | 1056 / 1075 | 517 / 464 | 119 / 101 |
-| procedural 303 | 0.645 / 0.604 | 0.633 / 0.622 | 0.666 / 0.569 | 0.907 / 0.863 | 1.03 / 0.94 | 0.544 / 0.614 | 1021 / 938 | 509 / 367 | 132 / 146 |
+| procedural 7 | 0.525 / 0.508 | 0.467 / 0.480 | 0.623 / 0.556 | 0.792 / 0.786 | 1.19 / 1.11 | 0.420 / 0.475 | 1001 / 1002 | 406 / 414 | 101 / 130 |
+| procedural 11 | 0.621 / 0.586 | 0.612 / 0.625 | 0.640 / 0.511 | 0.900 / 0.849 | 1.34 / 1.33 | 0.321 / 0.351 | 968 / 961 | 535 / 677 | 55 / 60 |
+| procedural 13 | 0.613 / 0.595 | 0.591 / 0.605 | 0.654 / 0.574 | 0.883 / 0.857 | 1.43 / 1.33 | 0.298 / 0.351 | 1085 / 1195 | 616 / 606 | 77 / 94 |
+| procedural 17 | 0.623 / 0.636 | 0.606 / 0.638 | 0.655 / 0.631 | 0.897 / 0.916 | 1.27 / 1.21 | 0.367 / 0.409 | 933 / 970 | 641 / 597 | 91 / 98 |
+| procedural 21 | 0.630 / 0.606 | 0.606 / 0.589 | 0.665 / 0.631 | 0.891 / 0.867 | 1.21 / 1.09 | 0.424 / 0.475 | 942 / 1157 | 568 / 487 | 138 / 132 |
+| procedural 31 | 0.617 / 0.584 | 0.597 / 0.565 | 0.645 / 0.612 | 0.891 / 0.856 | 1.12 / 1.20 | 0.471 / 0.415 | 983 / 1041 | 771 / 732 | 111 / 112 |
+| procedural 302 | 0.609 / 0.607 | 0.575 / 0.577 | 0.652 / 0.645 | 0.869 / 0.868 | 1.16 / 1.18 | 0.438 / 0.431 | 915 / 1075 | 539 / 464 | 117 / 101 |
+| procedural 303 | 0.624 / 0.604 | 0.614 / 0.622 | 0.644 / 0.569 | 0.891 / 0.863 | 1.10 / 0.94 | 0.497 / 0.614 | 832 / 938 | 382 / 367 | 117 / 146 |
 
-| World | Droughts declared (flow / record-only account) | Floods that acted (flow) | Superseded river floods (flow) | River floods (record only) | Coastal floods (flow / record only) | Index with / without upstream irrigation (flow) |
+| World | Droughts (flow / record-only account) | Flood events that acted (flow) | Superseded river floods | River floods (record only) | Coastal floods (flow / record only) | Index with / without upstream irrigation (flow) |
 | --- | --- | --- | --- | --- | --- | --- |
-| procedural 7 | 59 / 60 | 31 | 0 | 0 | 4 / 4 | 0.639 / 0.606 |
-| procedural 11 | 30 / 29 | 0 | 0 | 0 | 22 / 22 | 0.601 / 0.688 |
-| procedural 13 | 33 / 32 | 0 | 6 | 1 | 22 / 22 | 0.624 / 0.681 |
-| procedural 17 | 28 / 27 | 0 | 0 | 0 | 32 / 32 | 0.708 / 0.636 |
-| procedural 21 | 30 / 26 | 44 | 0 | 0 | 25 / 25 | 0.682 / 0.650 |
-| procedural 31 | 29 / 32 | 94 | 0 | 0 | 36 / 36 | 0.648 / 0.627 |
-| procedural 302 | 41 / 40 | 0 | 0 | 0 | 34 / 34 | 0.665 / 0.629 |
-| procedural 303 | 25 / 27 | 15 | 12 | 1 | 17 / 17 | 0.652 / 0.691 |
+| procedural 7 | 82 / 84 | 13 | 0 | 0 | 4 / 4 | 0.650 / 0.591 |
+| procedural 11 | 48 / 45 | 16 | 0 | 0 | 22 / 22 | 0.636 / 0.649 |
+| procedural 13 | 54 / 53 | 14 | 7 | 1 | 22 / 22 | 0.659 / 0.640 |
+| procedural 17 | 48 / 50 | 17 | 0 | 0 | 32 / 32 | 0.721 / 0.606 |
+| procedural 21 | 47 / 42 | 11 | 0 | 0 | 25 / 25 | 0.687 / 0.633 |
+| procedural 31 | 49 / 51 | 14 | 0 | 0 | 36 / 36 | 0.682 / 0.623 |
+| procedural 302 | 51 / 53 | 9 | 0 | 0 | 34 / 34 | 0.648 / 0.656 |
+| procedural 303 | 48 / 50 | 18 | 12 | 1 | 17 / 17 | 0.635 / 0.664 |
+
+**Flood spells before and after the event fix** (review M2; `flow`, 200 turns). Before: the first B2
+draft's runs, where every turn above the fixed channel re-applied the consequences (spells are runs
+of consecutive flood turns). After: the runs above (events with hysteresis, the basin channel, one
+consequence per event):
+
+| World | Before: spells, longest, consequences applied | After: events, median / longest turns, consequences applied (withheld) |
+| --- | --- | --- |
+| procedural 7 | 2, 27, 31 | 13, 15 / 15, 13 (0) |
+| procedural 11 | 0, 0, 0 | 16, 15 / 45, 16 (0) |
+| procedural 13 | 0, 0, 0 | 14, 15 / 15, 14 (0) |
+| procedural 17 | 0, 0, 0 | 17, 15 / 15, 17 (0) |
+| procedural 21 | 5, 15, 44 | 11, 15 / 31, 11 (0) |
+| procedural 31 | 5, 42, 94 | 14, 15 / 15, 14 (0) |
+| procedural 302 | 0, 0, 0 | 9, 15 / 45, 9 (0) |
+| procedural 303 | 1, 15, 15 | 18, 15 / 45, 18 (0) |
 
 Observations (development only):
 
 - **Water.** Regions with upstream inflow are wetter under `flow` in all eight worlds (+0.01 to
-  +0.12): the account passes baseflow downstream, which the old index had no term for (it only had
-  the cascade's loss). Headwater regions move both ways (−0.04 to +0.05). The world mean is higher in
-  six of eight worlds; the water factor of capacity is higher in five (+0.02 to +0.06) and lower in
-  three (−0.01 to −0.03). Soil is unchanged within 0.005 (silt is local to floods).
-- **Food and carrying capacity: no consistent direction.** Mean sufficiency is higher in five worlds
-  and lower in three; the shortfall share follows; final effective capacity is higher in five, equal
-  in one, and lower in two (procedural 7: 698 against 1002, a dry world whose headwaters run drier and
-  whose one flooding region keeps the 0.85 modifier); final population and famine counts move both
-  ways. Eight single runs cannot separate these from trajectory divergence.
-- **Droughts** are as frequent as the record-only account finds in the world without it (25-59
-  against 26-60 declared per world), now acting through the index.
-- **Floods act where the account floods.** 15-94 consequences in four worlds, each in one or two
-  coastal confluences (a region draining to the sea with two tributaries, not a named river);
-  none in the other four. Every consequence is recorded with its flood's conditions.
+  +0.13): the account passes baseflow downstream, which the old index has no term for (section 8's
+  downstream bias). Headwater regions move both ways (−0.03 to +0.03). The world mean and the water
+  factor of capacity are higher in seven of eight worlds; soil is unchanged within 0.006.
+- **Food, carrying capacity and population: no consistent direction.** Mean sufficiency is higher in
+  six worlds and lower in two, the shortfall share follows; final effective capacity is lower in six
+  (a single end-of-run snapshot, at a phase where the derived index's drought cut is at its limit),
+  final population higher in six. Eight single runs cannot separate these from trajectory divergence.
+- **Floods are events now.** Every world has 9-18 flood events in 200 turns; most last 15 turns (the
+  warming phase of a tundra region, whose melt exceeds its channel: 105 of 112 events; section 8), the
+  longest 31-45; each acted once at its onset and none was withheld. Before the fix, four worlds had no flood at all and three had chronic sites
+  re-applying the consequences on every flood turn (31-94 times).
+- **Droughts** are as frequent as the record-only account finds in the world without it (47-82
+  against 42-84 declared per world), now acting through the index.
 - **Superseded river floods.** The old check, reading the derived index, draws a river flood more
-  often (6 and 12 in procedural 13 and 303, against 1 each without the account): spring storage on
-  river regions sits above 0.8 more often. All were superseded; none acted. Coastal floods are
-  identical in both modes.
-- **Downstream.** The last column compares different regions (those whose upstream irrigates
-  against those whose upstream does not), so it is confounded by where irrigation is built and is
-  mixed (lower in three worlds). The controlled evidence that upstream withdrawal reduces downstream
-  inflow is the offline test (section 4).
+  often (7 and 12 in procedural 13 and 303, against 1 each without the account); all were superseded.
+  Coastal floods are identical in both modes.
+- **Downstream.** The last column of the second table compares different regions (whose upstream
+  does or does not irrigate), so it is confounded by where irrigation is built (mixed: lower in three
+  worlds). The controlled evidence that upstream withdrawal reduces downstream inflow is the offline
+  test (section 4).
 
 ## 10. Record and viewer
 
-`snapshot.livelihoods.watershed` (schema 1; stage `B1` with mode `record_only`, stage `B2` with mode
-`flow`; a record_only record keeps exactly the B1 shape):
+`snapshot.livelihoods.watershed` (schema 1). This code writes stage `B2` records in both modes (flood
+events, terrain cap changes, the B2 constants; review n2: a `record_only` record no longer carries
+stage `B1` beside B2 constants). Stage `B1` records (`record_only`, earlier bundles) are still read:
 
 - every record: `source_turn` (the completed turn, snapshot turn − 1), `completed_turn`,
   `opened_turn`, `observed`, `cumulative` (flows since opening, the opening storage, the storage now and
@@ -554,13 +671,20 @@ Observations (development only):
   is each region's residual by construction, and readers derive it. `droughts` holds the spells
   `declared` this turn and those `ended` this turn in full (with their conditions), and every `open`
   spell compactly (region, start, declaration, turns, lowest fill);
+- B2, when observed: `floods` holds the flood events that **started** this turn (onset records,
+  arrivals = precipitation + inflow; B1 listed every region-turn above the channel, with the
+  external inflow in its arrivals), `flood_events` the `open` events (region, start, turns, peak
+  excess) and those `ended` this turn (with their end turn), and `cap_changes` the terrain
+  transitions of the post-pass (region, terrain and cap before and after; `flow`: `index_out`); the
+  counters add `floods_started`, `floods_ended` and `terrain_cap_changes`;
 - when not observed: the per-turn fields are `null`, never empty, and `storage` holds the account's
   storage (a settled turn's `regions.storage` is the same list, so it is not repeated).
-- `flow` only: each flood's `consequence` (`capacity_modifier`, `cooldown`, `soil_before`,
-  `soil_after`), the record's `superseded` list (this turn's superseded river floods: `turn`,
-  `region`, `duration`; `null` when unobserved) and the counters `flood_consequences` and
+- `flow` only: each onset's `consequence` (`capacity_modifier`, `cooldown`, `soil_before`,
+  `soil_after`) or, when withheld, `withheld_by` (the cooldowns the region held), the record's
+  `superseded` list (this turn's superseded river floods: `turn`, `region`, `duration`; `null` when
+  unobserved) and the counters `flood_consequences`, `flood_consequences_withheld` and
   `superseded_river_floods`. `regions.index_observed` equals `index_derived` within the native
-  rounding.
+  rounding, or `min(index_derived, cap_after)` for a region with a cap change.
 
 Values are rounded to 6 decimals; the full-precision frame (outflow and full drought conditions
 included) stays in the state. Growth of the encoded bundle (version-6 deltas, after review m7): a
@@ -572,10 +696,13 @@ drought conditions.
 
 Viewer (types in `viewer/src/watershedTypes.ts`; `types.ts` is pinned and unchanged):
 
-- `readWatershed(snapshot, regions, run)` is strict and keeps five states apart (both modes; a
-  record mixing them, a stage that does not match its mode, a flow record without its superseded
-  list or a flood without its consequence, a record-only record with either, or a flow index used
-  that differs from the derived one by more than the native rounding (5e-5) is malformed): **disabled** (no
+- `readWatershed(snapshot, regions, run)` is strict and keeps five states apart (stage B1
+  `record_only` and stage B2 in both modes; a record with another stage's fields, a flow record
+  without its superseded list, a flow onset with neither or both of a consequence and a withheld
+  list, a record-only flood with either, an onset without its open event, an event both open and
+  ended, a malformed cap change, or a flow index used that differs from the derived one, or from
+  the derived one capped at a recorded cap change, by more than the native rounding (5e-5) is
+  malformed): **disabled** (no
   snapshot of the run carries the record, `readWatershedRun`), **absent** (on in the run, missing at
   this snapshot), **malformed** (with the reason: a null record or a non-object livelihoods container,
   schema, dating, the record's graph (range, cycles) and parameters, the exact counter, cumulative and total
@@ -596,10 +723,12 @@ Viewer (types in `viewer/src/watershedTypes.ts`; `types.ts` is pinned and unchan
   with arrivals by source and tributaries; droughts declared and ended with their conditions and the
   open ones compactly; cumulative totals and closure (labelled as a routing check, not a validation);
   counters.
+- For a B2 record the panel lists the flood events that started (onset conditions), the open and
+  ended events (start, turns, peak excess) and the terrain cap changes, and explains the event rule.
 - In `flow` the panel says that the derived index is the index the simulation used and which terms
-  were switched off, adds a "What it did" column to the floods (capacity modifier, cooldown, soil
-  before → after) and a "Superseded river floods" table (region, duration), and shows the flow
-  counters.
+  were switched off, adds a "What it did" column to the onsets (capacity modifier, cooldown, soil
+  before → after, or "withheld: the region held a ... cooldown"), shows the index the clamp removed
+  at a cap change, a "Superseded river floods" table (region, duration) and the flow counters.
 - Region history offers "Water index the simulation used", the derived index and "Watershed storage"
   when the run records the account, labelled by the run's mode (`watershedRunMode`): "Water index
   the watershed account would derive (record only)" or "... derived (flow: the index used)", with a
@@ -610,34 +739,42 @@ Viewer (types in `viewer/src/watershedTypes.ts`; `types.ts` is pinned and unchan
 
 ## 11. Verification (2026-11-06, extension `101a4cd5…`)
 
-### B2 (`flow`, recalibrated constants; source `c25a4113` and this documentation commit)
+### B2 after review (source `caa51f46`, the merge of `main` `5108f8b9`, and this documentation commit)
 
-Native runs used the shared extension (SHA-256 `101a4cd5…`, no Rust change) with
-`PYTHONPATH` set to this worktree's `src`, the source identity checked before each run.
+Native runs used the shared extension (SHA-256 `101a4cd5…`, no Rust change) with `PYTHONPATH` set to
+this worktree's `src`; the identity runs used a `git archive` of the committed tree.
 
-- Offline: `tests/test_watershed.py`, 53 cases (41 in B1), in the oracle chunk `connected-world-b`
-  (3.4 s of 110 s). Bounded offline lane with the `cwb2` layer in place: PASS, 66 chunks in
-  259.9 s, slowest `systems-2` 33.7 s of 110 s. Witness tests of the playbook after merging `main`
-  (`8286804c`) and building `cwb2` over `cwc1`: 509 passed.
-- Native: `tests/test_watershed_native.py` (shard 0; the manifest lists 408 modules), 3 passed: in
-  `--agents hybrid` and `--agents off` the observed index equals the derived one within the native
-  rounding over 30 turns with irrigated regions in play, while `record_only` shows the old terms
-  moving it by more than 0.01; a `flow` run resumes exactly from a checkpoint.
-- Feature-off identity (`turn_speed_identity.py`, each side its own `git archive` tree and copied
-  extension) against `8abc1acb`: 9 cases, 399 files, 0 differences.
-- `record_only` unchanged: against off (procedural 11 and 31, hybrid, 200 turns), and against
-  `main`'s B1 `record_only` (the old constants), outputs compared after removing only the watershed
-  record: 16 files each, 0 differences.
+- Offline: `tests/test_watershed.py`, 59 cases, in the oracle chunk `connected-world-b` (2.9 s of
+  110 s). Bounded offline lane (`cwb2` last: `..., "cwc1", "cws1", "cwb2"`): PASS, 69 chunks in
+  249.1 s, slowest `systems-2` 29.3 s of 110 s. Witness tests of the playbook: 509 passed.
+- Native: `tests/test_watershed_native.py` (shard 0; 415 modules), 3 passed in 22 s: in
+  `--agents hybrid` and `--agents off` over 80 turns (every climate phase) the observed index equals
+  the derived one within the native rounding, or the derived one capped at a recorded cap change,
+  with irrigated regions in play; `record_only` shows the old terms moving it by more than 0.01; a
+  `flow` run resumes exactly from a checkpoint.
+- Feature-off identity (`turn_speed_identity.py`) against `8abc1acb`: 9 cases, 399 files,
+  0 differences.
+- `record_only` against off (procedural 11 and 31, hybrid, 200 turns), outputs compared after
+  removing only the watershed record: 16 files each, 0 differences.
 - `flow` exact resume, `checkpoint_identity.py run --case proc32_hybrid_s11` with
   `--watershed --watershed-mode=flow`: PASS, 39 resume points, 0 differences; checkpointing changes
-  nothing (40 files). A procedural-303 hybrid resume inside a flood spell (checkpoint at turn 33) to
-  turn 60: 16 files, 0 differences.
-- Calibration replay: a replay of the captured inputs equals an actual run with the same constants
-  bit for bit.
-- Viewer: 1560 tests passed, 2 skipped (153 files), lint and production build; desktop 1440x900 and
-  phone 390x844 browser check of a procedural-303 `flow` run (200 turns): the panel at snapshots 1
-  (a superseded river flood), 31 (a flood with what it did) and 200, and the region history of the
-  derived index labelled for `flow`: 47/47 checks, no console errors, no page overflow on the phone.
+  nothing (40 files). Procedural 13, hybrid, resumed at turn 35 with three flood events open (since
+  turn 30) to turn 60: 16 files, 0 differences.
+- Calibration replay: `simulate` equals `account_step` exactly on all 16 captures (max difference 0).
+- Viewer: every snapshot of the 16 development runs (8 `flow`, 8 `record_only`, 200 turns each) reads
+  ok with the real reader (3200 snapshots; the review had found 5 refused in two first-draft runs);
+  1583 tests passed, 2 skipped (157 files), lint and production build; desktop 1440x900 and phone
+  390x844 browser check of the procedural-13 `flow` run (a superseded river flood at snapshot 2,
+  flood events that acted at 31, a terrain cap change at 73, the last snapshot, and the region
+  history labelled for `flow`): 62/62 checks, no console errors, no page overflow on the phone.
+
+### B2 first draft (superseded constants and flood rule; source `c25a4113`)
+
+The same checks passed on the first draft: offline lane PASS (66 chunks, 259.9 s), native tests 3
+passed (30 turns), feature-off identity 9 cases / 399 files / 0 differences, `record_only` against
+off 0 differences, `checkpoint_identity` with `flow` PASS (39 resume points), a mid-flood resume
+16 files / 0 differences, viewer 1560 tests with lint and build and a 47/47 browser check. The review
+then found the defects corrected above (M1-M3, m1-m5).
 
 ### B1 (`record_only`, declared constants)
 
@@ -677,16 +814,21 @@ First pass (source `0779587`) and, after the independent review's findings, agai
 | --- | --- | --- |
 | Template worlds have no watershed | intentional boundary | refused at startup and on a state-file resume (tested) |
 | A live start cannot be checked against its requested world by the catalog (static surface; `live.py` is pinned) | intentional boundary of the catalog surface | on a live lobby the run checks it: a start naming the switch on a template world is refused and the lobby reopens; a lobby whose command line holds `--watershed` is refused at startup (tested) |
-| Constants fitted on the eight development worlds to the old index's cycle (B1's drifted down) | evidence gap | calibration report (section 8): the phase factors are fitted, not physical rates (drought and cooling precipitation can reach zero; warming 1.2 at its range's top); no held-out check yet; the activation report uses the same worlds |
+| Three constants fitted to the old index on the eight development worlds; the rest fixed by declaration | evidence gap (review M3) | calibration (section 8): leave-two-out CV and a 64x16 transfer check; remaining mismatch stated there (downstream wet bias +0.05 at 32x10, +0.08 at 64x16; drought frequency more uniform than the old index's; drought phase at its physical limits). No held world used; the activation report uses the same worlds |
+| Flood events at 32x10: about 25 per world per 400 turns in about 6 regions, median 15 turns long; 105 of 112 in the development flow runs are tundra snowmelt floods in the warming phase | declared (channel = basin normal precipitation, without melt), not fitted; open design question | section 8; consequences act once per event (section 4) |
 | `flow`'s effects on food, carrying capacity and population | evidence gap | development activation report (section 9): no consistent direction over eight single runs; CW3, preregistered after review, is the test |
 | `record_only` floods and droughts have no consequence | intentional (record only) | `flow` applies them through the existing fields and the index (section 4) |
 | `flow` requires the native ecology | intentional boundary | the pure-Python fallback cannot switch native terms off: refused at startup, on a state-file resume and at planning (tested) |
 | `flow` floods act in Phase 9, a turn after the old Phase 1 river flood would | intentional | the cooldown is one turn longer so it covers the same turns (section 4) |
+| A flood modifier held past its cooldown by a later disaster's cooldown | corrected (review m3) | the account restores it at its next Phase 9 (up to Phases 1-8 of one turn late) unless another system changed it (tested) |
+| A terrain transition clamps the index to a new cap in the Phase 9 post-pass | corrected (review M1) | recorded as a cap change; the viewer reads `min(derived, cap)` there (section 4) |
+| `--watershed-mode` without `--watershed` on a new world | refused (review n1) | `--watershed-mode ... requires --watershed` (tested) |
+| `--agents off` flow when the extension imports but `EcologySimulator` cannot be built | intentional (review n4) | refused at turn 0's planning, not at startup (the native flag is known only then) |
 | The native write-back rounds the index to 4 decimals | intentional (native, unchanged) | observed within 5e-5 of the derived index; never enters storage (the next external flow is measured from the observed index) |
 | A superseded river flood sets no cooldown | intentional | its draws and that turn's control flow are kept; the region's checks run in later turns, as any `flow` change can alter them |
 | `agent_bridge.configure_ecology_runtime` is pinned | reviewed provisional witness layer `cwb2` | the one seam, over `cwc1`; consolidated by the lead at merge |
 | Irrigation service is 1.0 for every active work | missing capability | infrastructure condition (B3) scales it |
-| The account reads pre-tick terrain for the index cap; a same-turn succession changes the cap only from the next turn | intentional | documented |
+| The account reads pre-tick terrain for the index cap; a same-turn succession changes the cap only from the next turn | intentional | recorded as a cap change (B2) |
 | Lake shores | corrected (review m8) | a shore on lakes only drains to the lake (`to_lake`), never to the sea; no development world has a lake (a constructed one is tested) |
 | External flows other than the coastal flood are unattributed | evidence gap | recorded with an explicit `unattributed` remainder; a stale baseline is flagged in `record_only` and refused in `flow` (tested) |
 | Closure checks are construction invariants | documented (review m2) | they guard routing and bounds; the model itself is a calibration question |
