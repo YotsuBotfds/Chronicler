@@ -67,7 +67,7 @@ it("shows unequal shortfall by household means and keeps unknown turns unknown",
   expect(screen.getByText(/rations are unknown, not zero/)).toBeInTheDocument();
   cleanup();
   render(<FoodAllocation {...props({ schema_version: 1, food_allocation: food }, 7)} />);
-  expect(screen.getByText(/not observed or is unavailable at snapshot 7/)).toBeInTheDocument();
+  expect(screen.getByText(/Food allocation: the record at snapshot 7 was rejected as malformed/)).toBeInTheDocument();
 });
 
 it("composes only the packages a snapshot recorded", () => {
@@ -125,7 +125,7 @@ it("mounts repair projects only when the snapshot recorded them", () => {
   // A record of another stage is unreadable: the panel mounts and says so.
   const p = props({ schema_version: 1, repair_projects: { schema_version: 1, stage: "RS0" } }, 5);
   render(<LivelihoodsPanel {...p} onSeek={vi.fn()} onSelectEvent={vi.fn()} onSelectCivilization={vi.fn()} />);
-  expect(screen.getByText(/Repair projects are not observed or are unavailable at snapshot 5/)).toBeInTheDocument();
+  expect(screen.getByText(/Repair projects: the record at snapshot 5 was rejected as malformed/)).toBeInTheDocument();
   expect(screen.queryByText(/names no package this viewer reads/)).not.toBeInTheDocument();
   cleanup();
   render(<LivelihoodsPanel {...props({ schema_version: 1, workshops }, 5)} onSeek={vi.fn()} onSelectEvent={vi.fn()}
@@ -183,7 +183,7 @@ it("refuses malformed food allocation totals and samples visibly instead of cras
     { ...food, sample: [[11, 1, 11, null, false]] },
   ]) {
     render(<FoodAllocation {...props({ schema_version: 1, food_allocation: bad })} />);
-    expect(screen.getByText(/not observed or is unavailable at snapshot 5/)).toBeInTheDocument();
+    expect(screen.getByText(/Food allocation: the record at snapshot 5 was rejected as malformed/)).toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
     cleanup();
   }

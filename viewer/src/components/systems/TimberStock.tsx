@@ -1,5 +1,6 @@
 import type { Bundle, TurnSnapshot } from "../../types";
-import { timberStockAt, type TimberStockRow } from "../../lib/timberStock";
+import { readTimberStock } from "../../lib/recordReading";
+import type { TimberStockRow } from "../../lib/timberStock";
 
 const show = (value: number) => value.toLocaleString(undefined, { maximumFractionDigits: 3 });
 const binding = (row: TimberStockRow) => row.capped === null ? "Not observable" : row.capped ? "Yes" : "No";
@@ -9,16 +10,18 @@ export function TimberStock({ bundle, snapshot, currentTurn, onSelectRegion }: {
   bundle: Bundle; snapshot: TurnSnapshot | null; currentTurn: number; onSelectRegion: (name: string) => void;
 }) {
   const regions = bundle.world_state.regions ?? [];
-  const record = timberStockAt(snapshot, regions.length);
-  if (!record) return <section className="systems-section" aria-label="Timber stock">
-    <h3>Timber stock</h3><p className="systems-note">The timber stock is not observed or is unavailable at snapshot {snapshot?.turn ?? currentTurn}.</p>
+  const reading = readTimberStock(bundle, snapshot, currentTurn);
+  if (reading.record === null) return <section className="systems-section" aria-label="Timber stock">
+    <h3>Timber stock</h3><p className="systems-note">{reading.note}</p>
   </section>;
+  const record = reading.record;
   const totals = record.totals;
   return <section className="systems-section" aria-label="Timber stock">
     <h3>Timber stock · snapshot {record.completed_turn}</h3>
     <p className="systems-note">Phase 2 of simulation turn {record.source_turn}. Amounts are timber goods, the units of the economy&apos;s slot output. {record.enforce_cap
       ? "The standing stock capped each timber slot's harvest."
       : "Ablation: the stock is accounted but no harvest cap was applied; overdraft is harvest beyond the stock."}</p>
+    {reading.state === "recorded_zero" ? <p className="systems-note">{reading.note}</p> : null}
     <p className="systems-note">Cleared timber stood on forest cover lost before the harvest (clearing, cooling, wildfire or succession); it is not extraction. Regrowth is logistic toward the cover-scaled capacity and stops while water is below the forest regrowth gate.</p>
     {!record.observed || !totals || !record.regions ? <p className="systems-note">No timber account was settled in simulation turn {record.source_turn}; flows are unknown, not zero.</p> : <>
       <div className="systems-table-wrap"><table className="systems-table" aria-label={`Timber totals at snapshot ${record.completed_turn}`}><tbody>
