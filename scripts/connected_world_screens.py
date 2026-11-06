@@ -592,10 +592,11 @@ def cw1_extract(bundle: dict, flags) -> tuple[dict, list[str]]:
     # P2 (and the world comparisons): wages + remittances credited + procurement credited
     # - farm income replaced, every turn, the whole world (the ledger's typed channels).
     m["money_world"] = (totals["wages"] + totals["remittance"] + totals["procurement"]) / _MILLI - income_world
-    # P1: the same over the arm's region set: located wages and remittances in the set,
-    # procurement (credited to owners of grain in pilot regions, all in the set), less
-    # the set's replaced farm income.
-    m["money_set"] = (totals["located_set"] + totals["procurement"]) / _MILLI - income_set
+    # P1 (Amendment 1): over the arm's region set, the wages and remittances the ledger
+    # locates in the set less the set's replaced farm income. Procurement credits are left
+    # out: the ledger does not locate them, and owners who moved away keep their claims,
+    # so some credits reach households outside the set (procurement_world is a secondary).
+    m["money_set"] = totals["located_set"] / _MILLI - income_set
     m["priced_out_set"] = priced
     m["persons_set"] = persons
     m["priced_out_rate_set"] = (priced / persons) if persons > 0 else None
@@ -687,8 +688,8 @@ def _cw1_outcomes() -> tuple[SR.Outcome, ...]:
     O = SR.Outcome
     rate = "Priced-out person-turns per pilot person-turn"
     out = [
-        O("cw1_p1_wage_money", "Money credited to households over S_A, wealth units: wages + remittances + "
-          "procurement - farm income replaced (A - C: the wage at A's enrollment)", "A", "C", _m("money_set"),
+        O("cw1_p1_wage_money", "Money credited to households over S_A, wealth units: wages + remittances "
+          "- farm income replaced (A - C: the wage at A's enrollment)", "A", "C", _m("money_set"),
           primary=True),
         O("cw1_p2_enrollment_money", "Money credited to households, world, wealth units (C - B: A's enrollment "
           "against B's, no wage)", "C", "B", _m("money_world"), primary=True),

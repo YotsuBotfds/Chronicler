@@ -183,9 +183,10 @@ def test_cw1_extract_formulas(SR, CW):
     m = paid["m"]
     # Per turn: wages 1.0 + 0.5, remittance 0.3, procurement 0.2; income replaced 2 x 0.5.
     assert m["money_world"] == pytest.approx(4 * (1.0 + 0.5 + 0.3 + 0.2 - 1.0))
-    # Over the set {0, 1}: the granary wage (region 0) and procurement; the woodcut wage
-    # (region 2) and the remittance (region 3) are outside it.
-    assert m["region_set"] == [0, 1] and m["money_set"] == pytest.approx(4 * (1.0 + 0.2 - 1.0))
+    # Over the set {0, 1}: the granary wage (region 0); the woodcut wage (region 2) and the
+    # remittance (region 3) are outside it, and procurement (unlocated) is left out (Amendment 1).
+    assert m["region_set"] == [0, 1] and m["money_set"] == pytest.approx(4 * (1.0 - 1.0))
+    assert m["procurement_world"] == pytest.approx(0.8)
     assert (m["wages_world"], m["granary_crew_wages"], m["woodcut_wages"]) == (6.0, 4.0, 2.0)
     assert m["priced_out_set"] == 4 and m["persons_set"] == 80 and m["priced_out_rate_set"] == pytest.approx(0.05)
     assert m["ration_mean_set"] == pytest.approx(0.8) and m["coverage"] == pytest.approx(0.5)
@@ -196,7 +197,7 @@ def test_cw1_extract_formulas(SR, CW):
                                                                  "wages 4.000 (paid arm)"}
     unpaid = SR.extract_bundle(s, "B", cw1_bundle(_flags(CW, "B")), _flags(CW, "B"))
     assert unpaid["m"]["money_world"] == pytest.approx(4 * (0.5 + 0.3 + 0.2 - 1.0))
-    assert unpaid["m"]["money_set"] == pytest.approx(4 * (0.2 - 1.0))
+    assert unpaid["m"]["money_set"] == pytest.approx(4 * (0.0 - 1.0))
     assert unpaid["activation"]["evidence"] == "root arm"
     # Without the timber supply (CH_noTS): no woodcut wage, no timber supply record.
     nots = SR.extract_bundle(s, "CH_noTS", cw1_bundle(_flags(CW, "CH_noTS")), _flags(CW, "CH_noTS"))
