@@ -37,7 +37,7 @@ import shutil
 import subprocess
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from statistics import mean
 
@@ -821,7 +821,11 @@ def run_main(argv) -> int:
     jobs = [j for j in jobs_for(a.cohort, a.seeds, chosen) if (j[0], j[1], j[2]) not in done]
     rows, t0 = [], time.time()
     with open(metrics, "a", encoding="utf-8") as fh, ThreadPoolExecutor(a.jobs) as ex:
-        for row in ex.map(lambda j: run_one(out, a.cohort, j[0], j[1], j[2], j[3], a.keep_first and j[4]), jobs):
+        # Each row is written as soon as its run finishes, so a killed run loses only
+        # the runs still in flight (``--resume`` runs those).
+        futures = [ex.submit(run_one, out, a.cohort, j[0], j[1], j[2], j[3], a.keep_first and j[4]) for j in jobs]
+        for future in as_completed(futures):
+            row = future.result()
             rows.append(row)
             fh.write(json.dumps(row) + "\n")
             fh.flush()
