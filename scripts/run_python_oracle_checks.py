@@ -368,6 +368,12 @@ CHUNKS = {
         "tests/test_productive_recovery_screens_cp2.py",
         "tests/test_productive_recovery_screens_cp3.py",
     ],
+    "household-retail-war": [
+        "tests/test_household_retail_war.py",
+    ],
+    "household-retail-evidence": [
+        "tests/test_household_retail_evidence.py",
+    ],
     "connected-world-a": [
         "tests/test_wealth_accounting.py",
         "tests/test_money.py",
@@ -381,6 +387,14 @@ CHUNKS = {
     ],
     "feature-options": [
         "tests/test_feature_catalog.py",
+    ],
+    "connected-world-e": [
+        "tests/test_screen_runner.py",
+        "tests/test_feature_matrix.py",
+        "tests/test_cw1_screen.py",
+    ],
+    "connected-world-b": [
+        "tests/test_watershed.py",
     ],
     "ritual-gatherings": [
         "tests/test_ritual_gatherings.py",
@@ -445,6 +459,10 @@ CHUNKS = {
     "paired-context-benchmark-contracts": [
         "tests/paired_context_benchmark_contract_cases.py",
     ],
+    "connected-world-c": [
+        "tests/test_quarantine_rules.py",
+        "tests/test_cw4_screen.py",
+    ],
 }
 TESTS = [node for nodes in CHUNKS.values() for node in nodes]
 if len(set(TESTS)) != len(TESTS):
@@ -479,7 +497,9 @@ for selected in TESTS:
     sources[str(path.relative_to(ROOT))] = hashlib.sha256(path.read_bytes()).hexdigest()
 for helper in ("scripts/native_release_cache.py", "scripts/ci_artifact_intake.py",
                "scripts/capture_kin_root_exposure.py", "scripts/ci_critical_path.py",
-               "scripts/benchmark_named_context.py", "scripts/paired_context_benchmark.py"):
+               "scripts/benchmark_named_context.py", "scripts/paired_context_benchmark.py",
+               "scripts/screen_runner.py", "scripts/connected_world_screens.py", "scripts/seed_registry.json",
+               "scripts/feature_matrix.py"):
     sources[helper] = hashlib.sha256((ROOT / helper).read_bytes()).hexdigest()
 git = ["git", "-c", f"safe.directory={ROOT.as_posix()}", "-C", str(ROOT)]
 head = subprocess.check_output(git + ["rev-parse", "HEAD"], timeout=10).decode().strip()

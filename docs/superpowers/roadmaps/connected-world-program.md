@@ -89,11 +89,11 @@ a documented, tested disposition in the slice named.
 
 | Limit (checkpoints 2–3) | Class | Slice | Disposition |
 | --- | --- | --- | --- |
-| Two conquests in one turn destroy owned stock once (same-turn conquest vs duplicate processing) | pending audit D | S2 | — |
-| Occupation and siege do not requisition owned stock | missing capability | S2 (A5), S4 (D4) | — |
-| A legacy JSON state-file resume runs neither L2 nor retail hooks | pending audit D/E | S2 | — |
-| A pilot region can hold up to one turn's harvest above the storage cap between close and the next opening (storage-cap timing) | pending audit A | S1/S2 | — |
-| Purchases by person are not in the snapshot (person-level purchase evidence) | evidence gap | S1 | — |
+| Two conquests in one turn destroy owned stock once (same-turn conquest vs duplicate processing) | defect (reachable with `--no-campaigns`) | S2 (A5-1) | Retail rules version 2 (default of a new state; `--household-retail-rules 1` keeps checkpoints 2–3): `apply_region_conquest` calls `household_retail.on_conquest` at each conquest, with actor and victim, so two conquests take the share twice like the commons; the turn-inferred path became a "conquest not observed" check. Tests: `test_household_retail_war.py::test_two_conquests_in_one_turn_take_the_conquest_share_twice_like_the_commons`, `::test_one_conquest_seen_at_phase2_and_before_the_tick_is_applied_once`, `::test_a_conquest_the_hook_did_not_see_is_refused`, `::test_rules_1_keeps_the_once_per_turn_conquest_of_checkpoints_2_and_3` |
+| Occupation and siege do not requisition owned stock | missing capability | S2 (A5-1), S4 (D4) | Rules version 2: `war.occupation._requisition` (each siege turn 0.85, occupation start 0.8) calls `household_retail.on_war_loss` with cause and actor, once per event, as destruction like the commons; transfer to army rations and restitution stay D4; treaty cessions and annexations keep the commons' handling (open D4 question); the timber store and a controller-less region's confiscation are intentional boundaries. Tests: `test_household_retail_war.py::test_a_requisition_takes_the_commons_share_of_owned_stock_once_per_call`, `::test_siege_turns_and_an_occupation_start_reach_owned_stock_through_the_war_path`; natural sieges, occupation and cession resumed exactly in `test_household_retail_war_native.py` |
+| A legacy JSON state-file resume runs neither L2 nor retail hooks | evidence gap (with `--agents hybrid` both run) + defect (a saved L2 outside hybrid ran silently inert; a saved retail world raised a traceback) + intentional boundary (an inexact resume closes id-bound claims) | S2 (A5-1) | A saved L2 outside hybrid is refused with a `--no-food-allocation` hint; both saved-switch refusals exit cleanly (`LivelihoodsRefusal`, no traceback). Open item for the lead: the stale `world.agent_mode` on the default path. Tests: `test_household_retail_war.py::test_a_saved_food_allocation_outside_hybrid_is_refused_cleanly_with_its_hint`, `::test_a_legacy_resume_of_a_saved_retail_world_without_hybrid_exits_without_a_traceback`; `test_household_retail_war_native.py::test_a_legacy_state_file_resume_with_hybrid_settles_every_resumed_turn` |
+| A pilot region can hold up to one turn's harvest above the storage cap between close and the next opening (storage-cap timing) | defect (narrow: Phase 10 granary procurement bought owned grain above the cap that the next opening destroys); the title on offer whole at phase 0.7, before the cap, is an intentional boundary | S1 (A2R) | Reproduced on development worlds (template 7 and 42, procedural 13 and 21, retail everywhere, 200 turns): granaries bought 25.0, 17.6, 305.2 and 42.1 food units of owned grain from above the cap, 36-54% of the owned grain they bought. Rules version 2 with granaries on: `household_retail.phase10_before_reserves` cuts a pilot market's grain above this turn's storage cap before Phase 10 procurement, split pro rata between the commons net of merchants' committed grain (never cut) and owned stock as the native opening cap splits it (owned: flow `cap_overflow`, counter `owned_grain_above_cap_milli`; commons: `commons_grain_above_cap_milli`; once per turn, also when a convoy dumped cargo there first), so no grain above the cap is bought; it runs before the next opening's decay; resource checks PASS on four worlds (measured with the owners-only cut; one world, procedural 13, rerun by the S1 review under the pro-rata rule); version 1 unchanged. War losses come at Phase 5/5b, before the title is eaten, so they reach no cap-doomed stock. Residual boundaries, as without retail: a population that falls between Phase 2 and Phase 10, and commons raised above the cap by an escheat after the tick (pinned `grain_reserves.py` seam). Tests: `test_household_retail_evidence.py::test_owned_grain_above_the_cap_is_lost_before_the_granaries_buy`, `::test_without_granaries_or_within_the_cap_nothing_is_cut`, `::test_the_rl4_cut_splits_the_excess_pro_rata_and_runs_once_a_turn`, `::test_a_convoy_returned_into_a_pilot_market_before_retails_hook_is_cut_pro_rata` |
+| Purchases by person are not in the snapshot (person-level purchase evidence) | evidence gap | S1 (A2R) | Rules version 2: household-group cohorts per provisioned pilot region-turn (crew members, their co-resident children, children without a co-resident adult, non-farm adults, other farm households; persons, priced out, paid, refunded, credited, income replaced, crew wages), computed at settlement from the money rows, income receipt, native sample, crew receipts and the Phase 2 roster; aggregates only, each field exact or null with its reason, never an estimate (paid, refunded, credited and income replaced are checked against the region's totals, persons by count; crew wages are exact by construction from the applied receipts and have no total to check). With the `schedule` boundary the wage can be compared at a frozen enrollment: an arm replays another's recorded pilot intervals exactly, closures and reopenings included, subject to the replaying world's controller filter (the first-turn schedule format is approximate once the source closes a region); first-turn replays matched exactly on template 7 and 23 and procedural 7, where no region closed. Tests: `test_household_retail_evidence.py::test_cohorts_partition_the_provisioned_people_and_sum_to_the_region_totals` and its unknown cases, `test_household_retail_evidence_native.py::test_cohorts_on_a_natural_paid_work_run_are_exact_or_marked_unknown`, `::test_replaying_the_paid_arms_openings_in_the_unpaid_arm_reproduces_its_enrollment`; viewer `householdRetailEvidence.test.ts` |
 | The labour cost of expeditions is not separated from a no-expedition arm (expedition labour controls) | evidence gap | S1 | — |
 | PL3's withheld income does not split granary from workshop crews | evidence gap | S1 | — |
 | Five viewer readers return null for both an absent and a malformed record | defect (viewer) | S1 | — |
@@ -110,9 +110,53 @@ Full audits (2026-11-06, source identical to `8abc1acb`) are under
 code with file and line evidence; unverified items are marked there. The lead's decisions on their
 open questions follow each summary.
 
-### 5.1 A1–A2 income and wealth
+### 5.1 A1–A2 income and wealth ([audit](../audits/connected-world/audit-a1-a2-income-wealth.md))
 
-Pending (critical path; its accounting design governs every payer added later).
+- Agent `wealth` (native f32, checkpointed) is not conserved cash. On development worlds over 200
+  turns, real transfers into households (wages and procurement, net of courier fees) are 2–12% of
+  inflows; the rest is occupational income the model creates (about 3,700–15,700 coins per world),
+  mostly removed by the 2% per-turn decay; each birth adds 0.5. The treasury tax (5% of merchant
+  wealth) and the tithe pay the treasury and priests without debiting anyone, so part of the
+  treasury that pays wages is itself created. No per-turn check covers agent wealth as a whole.
+- Every package payment (wages, food purchases, procurement, remittances, fares, credit) is keyed,
+  debits its payer and closes within its package. Defects and issues: estates without heirs are
+  destroyed uncounted; income refused at the wealth ceiling is unrecorded; tax and tithe are
+  labelled transfers but act as sources; milli-unit transfers applied to an f32 balance leave small
+  rounding differences; each package handles ceiling-refused wage residuals its own way; in the
+  checkpoint-3 screen design, payment decided which regions were enrolled. No double payment or lost
+  refund was found.
+- **A2 (exploratory, development worlds only, 40 runs, 0.25 core-hours):** paid and unpaid arms each
+  replayed the other's recorded opening schedule (reproduced exactly 10 of 10). With enrollment
+  fixed, the wage **raised** money credited to households in 5 of 5 worlds under both schedules;
+  enrollment growth alone lowered it in 4 of 5 (about 1,700–2,100 more coins of farm income
+  replaced per procedural world). Checkpoint 3's fall in household money comes from enrollment, not
+  from the wage. The paid arm's wider enrollment raised priced-out person-turns in 5 of 5; the
+  wage's own effect on being priced out was lower in 5 of 5 at the smaller schedule, mixed at the
+  larger, lower in 4 of 5 at `all`. 76% of the priced-out are non-farm adults (merchants, soldiers,
+  scholars, priests) and children with no parent in the region; paid crew members are 5% and sell
+  about twice what they buy. These are development-world observations, to be tested on the CW1
+  held cohort.
+- **Decisions:**
+  - `wealth` stays the one spendable balance; no second balance now (it would double purchasing
+    power unless every reader were re-pointed, a default-path change). Model income is replaced by
+    paid flows one source at a time, each behind its own switch, with the ledger showing the
+    remaining model share.
+  - `--wealth-accounting` (opt-in, hybrid-only, appended last among livelihoods switches) observes
+    only: with it on, every output except its own record equals it off. Slice A1-1 is Python-only
+    (opening/closing snapshots, typed flows from existing receipts, the no-hidden-writer check, the
+    PL3 granary/workshop split — RL7); slice A1-2 is a transient native observer itemizing income,
+    decay, the ceiling, births and estates (witness layers for the pinned Rust files).
+  - New payers (A3, A4, B3, C2, D4) pay through one helper (`chronicler/money.py`) that validates the
+    whole bill before moving anything and resolves refused credits by **returning them to the
+    payer** unless a named sink is declared and recorded. Existing packages are not refactored
+    onto it.
+  - The wage question is screened on fixed cohorts: `--household-retail-boundary schedule` replays a
+    frozen opening map, plus `all`/`market` with household-group cohorts; `paid_work` remains the
+    enrollment story itself. These retail-side additions land after A5 (same files).
+  - Recorded for later, with evidence from the ledger first: whether decay should be offset by food
+    spending under retail (pilot households arguably pay for food twice); whether the treasury tax
+    and tithe should debit their payers (a rules version, with A4's merchant work); relief for
+    non-farm adults and for children living apart from parents.
 
 ### 5.2 B watershed and infrastructure ([audit](../audits/connected-world/audit-b-watershed-infrastructure.md))
 
@@ -136,6 +180,10 @@ Pending (critical path; its accounting design governs every payer added later).
   layer; a switch change on resume is refused). Irrigation and road condition live in their own
   record keyed by infrastructure stable id (RS2's schema and viewer stay unchanged), repaired with
   the same crews, timber store and L9 envelope, so no budget is spent twice. Ports are deferred.
+  In `flow` mode the old river-flood check keeps drawing from the shared environment stream but its
+  effect is suppressed and recorded as superseded, so enabling the watershed does not shift other
+  systems' draws. Roads gain service-gated range only; a transport discount would be a new bonus
+  with its own mode. Constants are calibrated from `record_only` on development worlds only.
 
 ### 5.3 C public health ([audit](../audits/connected-world/audit-c-public-health.md))
 
@@ -157,7 +205,9 @@ Pending (critical path; its accounting design governs every payer added later).
   measure); closures target only polities with reported outbreaks (information available at the
   time); relief grain convoys are exempt, with the exemption recorded; migration closure (C1b) is a
   separate, later native slice; care (C2) lowers the epidemic's own fatality, never a second
-  mortality authority.
+  mortality authority. Armies and hostages are not restricted by a closure (intentional boundary);
+  the legacy multiplier stays the default reference until an owner promotion decision; C2's
+  funding authority and C1b's gate placement are decided when those slices start.
 
 ### 5.4 D institutions, war, attribution and the owned-stock lifecycle ([audit](../audits/connected-world/audit-d-institutions-war-owned-stock.md))
 
@@ -201,6 +251,42 @@ Pending (critical path; its accounting design governs every payer added later).
   regenerates one integrated layer per slice at integration. A new generic screen runner and a
   data seed registry (lane E1) replace copying the frozen productive-recovery runner. Feature-off
   identity uses `turn_speed_identity.py` with each side's own `git archive` tree and extension.
+
+### 5.6 A3 workshop economics ([audit](../audits/connected-world/audit-a3-workshop-economics.md))
+
+- A workshop today is a state-owned asset (the ruler pays build and upkeep into a declared sink)
+  with a crew of up to 8 named city farmers; workshop payroll adds a firm by stable site id with
+  cash, arrears and closure after 6 insolvent turns, whose only customer is academies paid from the
+  treasury. Free or model-created parts: raw timber and ore are never paid for; 47.5% of the firm
+  region's output is used free before the firm takes title; sites without a firm still produce with
+  free inputs; the asset subsidy is off the firm's books. No money is minted into firm cash.
+- Non-academy demand exists (0.01 wares per head per turn) but is drawn free from the shared stock.
+- Central risk (development world): the wares price beat the raw-material price in only 12.6% of
+  operating turns at firm cities; paid inputs will close most firms unless A4 opens scarce markets.
+  This is reported as found, not tuned away.
+- **Decisions:** `--workshop-economics` (requires `--workshop-payroll`; modes `market`,
+  `free_inputs`, `academy_only`) with the shared `money.py` payment seam; inputs priced at the
+  region's existing market price for the raw good and paid to the ruler as owner of the shared stock
+  (producers as sellers later); the ruler keeps carrying asset build and upkeep, recorded as a
+  subsidy in the ledger; one-off starting capital from the ruler, no rescue; households buy by id
+  from adults' wealth; the module runs before `wealth_accounting`; A3-1 appends one native transfer
+  purpose (`wares_purchase`); A3-2's native column that keeps firm output out of the shared stock is
+  batched with A4's merchant payment operation into one later native build. CW2 runs after A3-2.
+
+### 5.7 A4 merchants and owned cargo ([audit](../audits/connected-world/audit-a4-merchants-owned-cargo.md))
+- Merchants carry only commons stock; merchant_trade_income is model-created and paid to every merchant in a region regardless of carriage (economy.rs:2082-2129, tick.rs:1566); under retail owned food never loads and imports become free rations; retail at `all` stopped food trade on a development world (0 food delivered in 200 turns vs ~400) despite profitable gaps in 160/200 turns. Timber-poor worlds lack production as well as access (RS2 timber need never enters market demand; timber shares a price category with ore; usable timber within two hops covers ≤29% of the gap). Correction to A3: A3-2's owned-output column does not let native merchants carry owned goods. Defect recorded: merchant income computed by origin but paid by current region.
+- Decisions: A4-1 `--titled-trade` (food, between retail pilot regions first) with Python-held title/custody per shipment by stable id (grain-convoy/PL1 pattern); merchants buy only owners' surplus above their fair-share reserve, pro rata, at the local retail price, paying owners directly; delivered cargo becomes the merchant's retail claim sold through existing settlement; the carrier's model income is withheld while on a shipment (exact receipt) so margins replace it; every event has one declared outcome (A4-1: conquest of destination returns the shipment to origin; carrier death escheats cargo to the commons of the region of death, recorded; A4-2 replaces these with requisition/seizure via A5/D4/C1 hooks); no tolls; timber orders/escrow decided at A4-3; purpose codes appended in landing order (cargo_purchase, cargo_sale, then D4 restitution); A4's native parts (settle_pairs, trade work reservation, merchant planner skip, FFI) batched with A3-2's firm-output column into one native build. A4-1 starts after S1 and A3 merge.
+
+### 5.8 Evidence so far (held screens)
+
+- **CW4** (C1 quarantine, PR #85): both primaries null in both strata — a trade-only closure did not
+  cut cross-polity epidemic arrivals or the epidemic death rate in hybrid worlds; harms in forgone
+  route income, merchant unwinds, food shortfall after relief and migration. Motivated C1b.
+- **CW1** (S1 wages and enrollment): at fixed enrollment the wage raised money credited to households
+  in every activated world (template 4/1, procedural 6/0); wider `paid_work` enrollment alone lowered
+  it in every activated world (0/5, 0/6), mostly through replaced farm income (59% template, 86%
+  procedural) and partly lower remittances; the wage's effect on the priced-out rate was null.
+  Checkpoint 3's fall in household money came from enrollment, not the wage.
 
 ## 6. Turn-order table
 

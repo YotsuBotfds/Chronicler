@@ -13,7 +13,10 @@ import type { TurnSnapshot } from "../types";
 
 export const RETAIL_GOODS = ["grain", "fish", "salt", "botanicals", "exotic"] as const;
 export const RETAIL_MODES = ["retail", "no_relief", "free_exchange", "record_only"] as const;
-export const RETAIL_BOUNDARIES = ["market", "paid_work", "all"] as const;
+/** ``schedule`` (A2R): a frozen schedule (``--household-retail-schedule``): exact intervals
+ * ``{region: [[open, close], ..., [open, null]]}`` (S1), or the approximate first-turn
+ * ``{region: opening turn}`` map. */
+export const RETAIL_BOUNDARIES = ["market", "paid_work", "all", "schedule"] as const;
 export type RetailMode = typeof RETAIL_MODES[number];
 export type RetailBoundary = typeof RETAIL_BOUNDARIES[number];
 /** The modes, plainly. */
@@ -27,6 +30,8 @@ export const RETAIL_MODE_LABEL: Record<RetailMode, string> = {
 export const FLOW_SIGNS = {
   titled: 1, own_eaten: -1, sold: -1, procured: -1, decay: -1, overflow: -1, war_loss: -1, to_commons: -1,
   inherited_in: 1, inherited_out: -1,
+  /** Rules version 2 (A2R, RL4): owned grain above the storage cap, lost before Phase 10 procurement. */
+  cap_overflow: -1,
 } as const;
 export type FlowKind = keyof typeof FLOW_SIGNS;
 const FLOW_KINDS = Object.keys(FLOW_SIGNS) as FlowKind[];

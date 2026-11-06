@@ -617,10 +617,14 @@ def apply_region_conquest(
     contested,
     world: WorldState,
     seed: int,
+    *,
+    via: str = "war",
 ) -> None:
     """Transfer ``contested`` from defender to attacker with every conquest side effect.
 
-    Shared by aggregate WAR resolution and campaign annexation (M60b).
+    Shared by aggregate WAR resolution and campaign annexation (M60b). ``via``
+    names the path for records (``war``; an annexation passes its reason:
+    ``treaty``, ``consolidated``, ``owner_gone``); it changes nothing else.
     """
     contested.controller = attacker.name
     contested.pending_build = None
@@ -640,6 +644,11 @@ def apply_region_conquest(
         # and workshop site (a no-op unless active).
         from chronicler.repair_projects import region_conquered
         region_conquered(world, contested, attacker.name, defender.name)
+        # --household-retail rules version 2 (A5-1): the same conquest share of
+        # the region's owned stock, once per call, with actor and victim (a
+        # no-op unless active in version 2).
+        from chronicler.household_retail import on_conquest
+        on_conquest(world, contested, attacker, defender, via=via)
     contested.last_conquered_turn = world.turn
     attacker.regions.append(contested.name)
     defender.regions = [r for r in defender.regions if r != contested.name]

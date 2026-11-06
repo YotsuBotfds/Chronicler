@@ -43,6 +43,8 @@ The productive-recovery phase appends:
 
 The connected-world program appends:
 
+* ``--watershed`` (B1): a conserved water account on the drainage graph of a
+  procedural world; mode ``record_only`` changes nothing outside its record.
 * ``--workshop-economics`` (A3): an L6a workshop firm buys its raw inputs from
   the commons owner, starts with owner capital and sells to households as
   well as academies; inserted before the ledger and without hooks of its own
@@ -80,7 +82,9 @@ after the ecology tick, in every agent mode.
 from __future__ import annotations
 
 import argparse
+import sys
 from importlib import import_module
+from pathlib import Path
 from typing import Any
 
 from chronicler.livelihoods_state import LIVELIHOODS_SWITCHES, LivelihoodsState
@@ -105,7 +109,9 @@ LIVELIHOODS_CHOICES: dict[str, tuple[str, ...]] = {
     "maintenance_obligation_mode": ("reserve", "reserve_only"),
     "apprenticeship_rules": ("2", "1"),
     "household_retail_mode": ("retail", "no_relief", "free_exchange", "record_only"),
-    "household_retail_boundary": ("market", "paid_work", "all"),
+    "household_retail_boundary": ("market", "paid_work", "all", "schedule"),
+    "household_retail_rules": ("2", "1"),
+    "watershed_mode": ("record_only",),
     "workshop_economics_mode": ("market", "free_inputs", "academy_only"),
 }
 #: All parser destinations owned here (``batch_manifest.SIMULATION_ARG_KEYS``).
@@ -129,9 +135,17 @@ LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     "recovery_crews", "recovery_crew_mode",
     "maintenance_obligation", "maintenance_obligation_mode",
     "household_retail", "household_retail_mode", "household_retail_boundary",
+    "household_retail_rules",
+    "watershed", "watershed_mode",
     "workshop_economics", "workshop_economics_mode",
     "wealth_accounting",
 )
+#: Options that take a file path (A2R), parser destinations owned here too
+#: (``batch_manifest.SIMULATION_ARG_KEYS``). Command line only: the feature
+#: catalog serves switches and choices, and a browser cannot hand the server
+#: a file, so the choices that need one are not served either
+#: (``feature_catalog.CLI_ONLY_CHOICES``).
+LIVELIHOODS_PATH_KEYS: tuple[str, ...] = ("household_retail_schedule",)
 _AGENT_ECONOMY = ("hybrid", "shadow", "demographics-only")
 
 _HELP = {
@@ -326,17 +340,46 @@ _HELP = {
         "been done (an open workshop firm, a paid repair or granary crew, or the home of a paid "
         "woodcutting crew), sticky; all: every controlled region (stress)"
     ),
+    "household_retail_rules": (
+        "Retail rules version of a new retail state: 2 (default): each conquest, siege turn and "
+        "occupation start destroys the share of pilot regions' owned food it destroys of their commons, "
+        "once per event, recorded with its cause, actor and victim; 1: checkpoints 2-3 exactly (the "
+        "conquest share once per turn, siege and occupation leave owned food alone). A saved state "
+        "keeps its version; a conflicting value is refused"
+    ),
+    "household_retail_schedule": (
+        "With --household-retail-boundary schedule (command line only): a JSON file of exact pilot "
+        "intervals {region index: [[open, close], ..., [open, null]]}, as scripts/retail_schedule.py "
+        "writes them from a bundle's recorded intervals; a region is in the pilot on the turns open <= "
+        "turn < close while it has a controller and leaves when its interval ends, even with a "
+        "controller (a frozen enrollment, e.g. one arm's replayed in another). The first-turn format "
+        "{region index: opening turn} (in the pilot from that turn on while it has a controller) is "
+        "approximate: it cannot replay a region the source closed. The schedule and its SHA-256 are "
+        "saved with the state; a resume keeps it and refuses a different one"
+    ),
+    "watershed": (
+        "Watershed account (B1): a conserved water account on the drainage graph rebuilt from the "
+        "world's saved procedural elevation (precipitation, storage, evaporation, irrigation "
+        "withdrawal, downstream transfer, outflow to the sea), with closure checked every turn, "
+        "floods and droughts recorded with their conditions, and the water index the account would "
+        "derive recorded beside the one the simulation uses; requires a procedural world (template "
+        "worlds have no elevation); opens with a new world (default off)"
+    ),
+    "watershed_mode": (
+        "record_only (default, the only mode of this slice): the account runs beside the existing "
+        "water index and changes nothing outside its own record"
+    ),
     "workshop_economics": (
-        "Workshop economics (A3): each L6a workshop firm opens with a one-time capital payment from "
-        "its region's ruler (no rescue), pays for the raw timber and ore it uses at the region's market "
-        "price to the ruler who owns the commons, and sells wares to academies and, by stable id, to "
-        "the region's households (adults pay); a site without a firm, or a firm that cannot pay for "
-        "inputs, produces nothing; firms close when insolvent or idle; requires --workshop-payroll "
-        "(default off)"
+        "Workshop economics (A3): each L6a workshop firm opens once with a capital payment from its "
+        "region's ruler (no second firm at a closed firm's city), pays the ruler who owns the commons "
+        "for the raw timber and ore it converts, before converting them, at the raw price the economy "
+        "computed in an earlier tick, and sells wares to academies and, by stable id, to the region's "
+        "households (adults pay); a site without a firm, or a firm that cannot pay for inputs, "
+        "produces nothing; firms close when insolvent or idle; requires --workshop-payroll (default off)"
     ),
     "workshop_economics_mode": (
-        "market (default); free_inputs: the cost control that plans and records inputs but charges "
-        "nothing; academy_only: the demand control with no household customers"
+        "market (default); free_inputs: the cost control, every rule as market except that the input "
+        "charge is recorded and not taken; academy_only: the demand control with no household customers"
     ),
     "wealth_accounting": (
         "Wealth accounting (A1): an observation-only ledger of agent wealth; each turn and region it "
@@ -359,6 +402,10 @@ def add_livelihoods_arguments(parser: argparse.ArgumentParser, *, forwarding: bo
         else:
             parser.add_argument(flag, action=argparse.BooleanOptionalAction, default=None,
                                 help=prefix + _HELP[name])
+    for name in LIVELIHOODS_PATH_KEYS:
+        flag = "--" + name.replace("_", "-")
+        prefix = f"Forward {flag} to every run. " if forwarding else ""
+        parser.add_argument(flag, metavar="PATH", default=None, help=prefix + _HELP[name])
 
 
 def livelihoods_arguments(args: Any) -> list[str]:
@@ -377,7 +424,54 @@ def livelihoods_arguments(args: Any) -> list[str]:
             flags.append("--" + ("" if value else "no-") + flag)
         else:
             raise ValueError(f"{name} must be a boolean or None")
+    for name in LIVELIHOODS_PATH_KEYS:
+        value = getattr(args, name, None)
+        if value is None:
+            continue
+        if not isinstance(value, (str, Path)) or not str(value):
+            raise ValueError(f"{name} must be a path or None")
+        # Absolute, so a child run reads the same file from any directory.
+        flags.append(f"--{name.replace('_', '-')}={Path(value).resolve()}")
     return flags
+
+
+class LivelihoodsRefusal(ValueError):
+    """A refused resume of a saved livelihoods switch (RL3): the run cannot
+    honour the saved state and names the option that ends it.
+
+    A plain ``ValueError`` to every caller (tests, library callers, the live
+    lobby, which reports it and reopens, batch workers, threads and asyncio
+    tasks). Only at the command line, where nothing catches it, it is shown
+    as one line: constructing one installs :func:`_refusal_excepthook`, so an
+    uncaught refusal prints ``Error: <message>`` without a traceback and the
+    interpreter exits with status 1, as ``main``'s own refusals do (``main.py``
+    is pinned, so the clean refusal lives here). ``code`` holds that line.
+    (A5's first version also subclassed ``SystemExit``, which a thread
+    swallows and asyncio takes for a shutdown; review A5, finding 4.)"""
+
+    def __init__(self, message: str):
+        super().__init__(message)
+        self.code = f"Error: {message}"
+        _install_refusal_excepthook()
+
+
+def _refusal_excepthook(previous):
+    def hook(kind, value, traceback):
+        if isinstance(value, LivelihoodsRefusal):
+            print(value.code, file=sys.stderr)          # the interpreter then exits with status 1
+            return
+        previous(kind, value, traceback)
+    hook.livelihoods_refusal = True
+    return hook
+
+
+def _install_refusal_excepthook() -> None:
+    """Show an uncaught :class:`LivelihoodsRefusal` as its one-line message
+    (every other exception goes to the hook that was installed before);
+    idempotent. Installed when a refusal is first constructed, so a process
+    that never refuses anything keeps its hook untouched."""
+    if not getattr(sys.excepthook, "livelihoods_refusal", False):
+        sys.excepthook = _refusal_excepthook(sys.excepthook)
 
 
 def livelihoods_state(world: Any) -> LivelihoodsState | None:
@@ -411,6 +505,11 @@ def _grain_storage_on(world: Any) -> bool:
 
 
 def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = None) -> None:
+    if values["watershed"] is not None or getattr(livelihoods_state(world), "watershed", None) is not None:
+        # Procedural geography; opens with a new world; a resume cannot end it
+        # or change its mode (chronicler.watershed.check_request).
+        from chronicler.watershed import check_request
+        check_request(world, values["watershed"], args)
     if values["workshops"] is True:
         if agent_mode != "hybrid":
             raise ValueError("--workshops requires --agents hybrid")
@@ -506,9 +605,26 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
         # unseen; --no-household-retail closes every claim to the commons, dated.
         if agent_mode != "hybrid" or not _on(world, values, "food_allocation"):
             saved = values["household_retail"] is not True
-            raise ValueError("--household-retail requires --agents hybrid and --food-allocation"
-                             + ("; this world has it on: pass --no-household-retail to end it (every claim "
-                                "returns to its region's commons, dated)" if saved else ""))
+            message = ("--household-retail requires --agents hybrid and --food-allocation"
+                       + ("; this world has it on: pass --no-household-retail to end it (every claim "
+                          "returns to its region's commons, dated)" if saved else ""))
+            raise (LivelihoodsRefusal if saved else ValueError)(message)
+    rules = getattr(args, "household_retail_rules", None) if args is not None else None
+    retail = getattr(livelihoods_state(world), "household_retail", None)
+    if rules is not None and retail is not None and str(rules) != retail.rules:
+        # A saved state keeps the rules it recorded (refused before any change).
+        from chronicler.household_retail import rules_conflict
+        raise ValueError(rules_conflict(rules, retail))
+    if getattr(args, "household_retail_schedule", None) is not None or (
+            getattr(args, "household_retail_boundary", None) == "schedule"):
+        # A2R: the schedule boundary's file, validated before any change.
+        from chronicler.household_retail import check_schedule_request
+        check_schedule_request(world, args, on=_on(world, values, "household_retail"), saved=retail)
+    if agent_mode != "hybrid" and values["food_allocation"] is None and _on(world, values, "food_allocation"):
+        # RL3: a saved L2 outside hybrid would otherwise run silently inert (no
+        # bridge, no hooks) while the world still says it is on.
+        raise LivelihoodsRefusal("--food-allocation requires --agents hybrid; this world has it on: resume with "
+                                 "--agents hybrid, or pass --no-food-allocation to end it")
 
 
 def configure_livelihoods(world: Any, args: Any, *, agent_mode: str) -> None:
@@ -563,6 +679,8 @@ _CHOICE_FIELDS: dict[str, tuple[str, str]] = {
     "apprenticeship_rules": ("apprenticeship", "rules"),
     "household_retail_mode": ("household_retail", "mode"),
     "household_retail_boundary": ("household_retail", "boundary"),
+    "household_retail_rules": ("household_retail", "rules"),
+    "watershed_mode": ("watershed", "mode"),
     "workshop_economics_mode": ("workshop_economics", "mode"),
 }
 
@@ -573,7 +691,9 @@ def livelihoods_resume_conflicts(world: Any, args: Any, recorded: dict) -> list[
     ``batch_manifest.simulation_config`` omits options that were never
     given, so the generic checkpoint adoption never sees them; the retained
     state is authoritative. Options the checkpoint recorded (``recorded``)
-    are left to that adoption. Never changes ``world`` or ``args``."""
+    are left to that adoption, except ``--household-retail-schedule``, which
+    is compared by its schedule's digest (see below). Never changes ``world``
+    or ``args``."""
     state = livelihoods_state(world)
     conflicts = []
     for name in LIVELIHOODS_SWITCHES:
@@ -594,6 +714,23 @@ def livelihoods_resume_conflicts(world: Any, args: Any, recorded: dict) -> list[
         if given != saved:
             conflicts.append(f"--{key.replace('_', '-')} {given!r} conflicts with the checkpoint "
                              f"(saved: {saved!r})")
+    schedule = getattr(args, "household_retail_schedule", None)
+    if schedule is not None:
+        # A2R: the retained schedule is authoritative and is identified by its
+        # digest, so the same schedule read from another path is no conflict:
+        # the recorded path is dropped from the generic comparison (the one
+        # change this function makes, to ``recorded``).
+        from chronicler.household_retail import schedule_resume_conflict
+        sub = getattr(state, "household_retail", None) if state is not None else None
+        problem = schedule_resume_conflict(world, schedule, sub)
+        if problem is not None:
+            conflicts.append(problem)
+        else:
+            recorded.pop("household_retail_schedule", None)
+    # --quarantine-mode shares this resume seam; its rules live on the epidemic
+    # state (chronicler.quarantine_rules), not on LivelihoodsState.
+    from chronicler.quarantine_rules import quarantine_resume_conflicts
+    conflicts.extend(quarantine_resume_conflicts(world, args, recorded))
     return conflicts
 
 

@@ -1,10 +1,11 @@
 import type { Bundle } from "../types";
 import { readRegionalPopulation } from "./regionalPopulation";
+import { readWatershedRun, watershedOn, watershedRegionValue, type WatershedRegionKey } from "./watershed";
 
 export interface RegionMetric {
   id: string;
   label: string;
-  kind: "ecology" | "stockpile" | "population" | "nativePopulation" | "food";
+  kind: "ecology" | "stockpile" | "population" | "nativePopulation" | "food" | "watershed";
   key: string;
 }
 
@@ -48,11 +49,19 @@ export function regionMetrics(bundle: Bundle): RegionMetric[] {
     { id: "ecology:soil", label: "Soil", kind: "ecology", key: "soil" },
     { id: "ecology:water", label: "Water", kind: "ecology", key: "water" },
     { id: "ecology:forest_cover", label: "Forest cover", kind: "ecology", key: "forest_cover" },
+    // Offered only when the run records the watershed account (--watershed, record only).
+    ...(watershedOn(bundle.history) ? WATERSHED_METRICS : []),
     ...goods.map((good): RegionMetric => ({
       id: `stockpile:${good}`, label: `Stockpile: ${good} (final state only)`, kind: "stockpile", key: good,
     })),
   ];
 }
+
+const WATERSHED_METRICS: RegionMetric[] = [
+  { id: "watershed:index_observed", label: "Water index the simulation used (watershed record)", kind: "watershed", key: "index_observed" },
+  { id: "watershed:index_derived", label: "Water index the watershed account would derive (record only)", kind: "watershed", key: "index_derived" },
+  { id: "watershed:storage", label: "Watershed storage (water units)", kind: "watershed", key: "storage" },
+];
 
 export function recordedTurnBounds(bundle: Bundle): [number, number] {
   const turns = [bundle.world_state.turn, ...bundle.history.map((snapshot) => snapshot.turn),
@@ -66,9 +75,16 @@ export function inspectRegionHistory(
   bundle: Bundle, regionName: string, metric: RegionMetric, start: number, end: number,
 ): { rows: RegionHistoryRow[]; unrecordedTurns: number } {
   const regionKey = pointer(regionName);
+  const watershed = metric.kind === "watershed" ? readWatershedRun(bundle.history) : null;
   const rows: RegionHistoryRow[] = bundle.history.flatMap((snapshot, index) => {
     if (snapshot.turn < start || snapshot.turn > end) return [];
     const regionIndex = bundle.world_state.regions.findIndex((region) => region.name === regionName);
+    if (metric.kind === "watershed") {
+      const reading = watershedRegionValue(snapshot, regionIndex, bundle.world_state.regions.length,
+        metric.key as WatershedRegionKey, watershed!);
+      return [{ turn: snapshot.turn, controller: snapshot.region_control[regionName], value: reading.value,
+        missing: reading.missing, source: `/history/${index}${reading.path}` }];
+    }
     const population = readRegionalPopulation(bundle, snapshot);
     const populationMetric = metric.kind === "population" || metric.kind === "nativePopulation";
     const source = populationMetric ? `/history/${index}/regional_population/${metric.key}/${regionIndex}`

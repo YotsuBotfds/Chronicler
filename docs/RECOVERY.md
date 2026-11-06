@@ -1,6 +1,6 @@
 # Source, recovery and archive index
 
-Updated 2026-11-06 after PRs #73, #74, #76, #78, #80 and #81. This is the starting map for future agents;
+Updated 2026-11-06 after PRs #73, #74, #76, #78, #80, #81, #83, #84 and #85. This is the starting map for future agents;
 dated reports keep their original source, platform and qualification limits.
 
 ## Current source and evidence
@@ -55,6 +55,31 @@ Use fetched `main` for new work.
   - Premerge Tests run 42174674039 on that head passed all nine jobs.
   - [Main Tests run 42176103870](https://github.com/YotsuBotfds/Chronicler/actions/runs/42176103870)
     tested the merge SHA on `push`, attempt 1: success, all nine jobs.
+
+- [PR #83](https://github.com/YotsuBotfds/Chronicler/pull/83) (connected-world program S0: the
+  program plan, board and contract audits, and lane E1 — seed registry, generic screen runner,
+  compatibility matrix and the RL8 viewer readers; no simulation change) merged on 2026-11-06 at
+  `1d4141d787929d9cf1143b27e9745fcf8685d2c9`.
+  - Its tree, `cd0eb07b`, equals the tree of the reviewed head `7faebe73`.
+  - Premerge Tests run 42274171595 on that head passed all nine jobs.
+  - [Main Tests run 42275935233](https://github.com/YotsuBotfds/Chronicler/actions/runs/42275935233)
+    tested the merge SHA on `push`, attempt 1: success, all nine jobs.
+
+- [PR #84](https://github.com/YotsuBotfds/Chronicler/pull/84) (connected-world B1: `--watershed`
+  record_only, the drainage graph and conserved water account; no effect on the simulation) merged
+  on 2026-11-06 at `13340446c06efe5cbef829f699be573d46d80341`.
+  - Its tree, `51b7a7cd`, equals the tree of the reviewed head `dfdd772a`.
+  - Premerge Tests run 42280073920 on that head passed all nine jobs.
+  - [Main Tests run 42281625835](https://github.com/YotsuBotfds/Chronicler/actions/runs/42281625835)
+    tested the merge SHA on `push`, attempt 1: success.
+
+- [PR #85](https://github.com/YotsuBotfds/Chronicler/pull/85) (connected-world C1: quarantine modes
+  with dated trade closure and its cost, and the CW4 held screen) merged on 2026-11-06 at
+  `8286804cba473ccb8cd278b95e34faf3b4759ee8`.
+  - Its tree, `0c738587`, equals the tree of the reviewed head `020b27b7`.
+  - Premerge Tests run 42286466762 on that head passed all nine jobs.
+  - [Main Tests run 42288620571](https://github.com/YotsuBotfds/Chronicler/actions/runs/42288620571)
+    tested the merge SHA on `push`, attempt 1: success.
 
 Every livelihoods, recovery-skills and productive-recovery switch is off by default. These merges do not complete the 200-seed or
 procedural qualification gates. What landed, the review and the evidence are in the

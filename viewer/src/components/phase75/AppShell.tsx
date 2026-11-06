@@ -16,7 +16,7 @@ import type {
 import { isLegacyBundle } from "../../types";
 import { isObservationEventType, observationEventKnown } from "../../lib/observedSystems";
 import type { BatchConfig, FeatureSelection } from "../../types";
-import { featurePayload } from "../../lib/featureCatalog";
+import { liveStartFeatures } from "../../lib/featureWorld";
 import type { BatchState } from "../../hooks/useBatchConnection";
 import { ERA_LABELS } from "../../lib/format";
 import {
@@ -889,8 +889,9 @@ export function AppShell({
       : regionsDisabled
         ? (selectedScenario?.regions?.length || defaults.regions)
         : regions;
-    // Features apply to new worlds; nothing selected sends no field.
-    const requested = resumeState ? undefined : featurePayload(features);
+    // Features apply to new worlds; nothing selected sends no field. A switch the server
+    // turns on whose requirements depend on the world is named (liveStartFeatures).
+    const requested = liveStartFeatures(lobbyInit?.feature_catalog, features, resumeState);
     onLaunch({
       scenario: resumeState ? null : (scenario || null),
       turns,

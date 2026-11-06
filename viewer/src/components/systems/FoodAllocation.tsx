@@ -1,5 +1,6 @@
 import type { Bundle, TurnSnapshot } from "../../types";
-import { foodAllocationAt, meanShortfall } from "../../lib/foodAllocation";
+import { meanShortfall } from "../../lib/foodAllocation";
+import { readFoodAllocation, retailProvisioned } from "../../lib/recordReading";
 
 const show = (value: number | null) => value === null ? "No one" : value.toLocaleString(undefined, { maximumFractionDigits: 3 });
 const REGIME_NOTE: Record<string, string> = {
@@ -13,15 +14,18 @@ export function FoodAllocation({ bundle, snapshot, currentTurn, onSelectRegion }
   bundle: Bundle; snapshot: TurnSnapshot | null; currentTurn: number; onSelectRegion: (name: string) => void;
 }) {
   const regions = bundle.world_state.regions ?? [];
-  const record = foodAllocationAt(snapshot, regions.length);
-  if (!record) return <section className="systems-section" aria-label="Food allocation">
-    <h3>Food allocation</h3><p className="systems-note">Food allocation is not observed or is unavailable at snapshot {snapshot?.turn ?? currentTurn}.</p>
+  const reading = readFoodAllocation(bundle, snapshot, currentTurn);
+  if (reading.record === null) return <section className="systems-section" aria-label="Food allocation">
+    <h3>Food allocation</h3><p className="systems-note">{reading.note}</p>
   </section>;
+  const record = reading.record;
+  const retail = snapshot !== null && retailProvisioned(snapshot);
   const turn = record.source_turn + 1;
   const t = record.totals;
   return <section className="systems-section" aria-label="Food allocation">
     <h3>Food allocation · snapshot {turn}</h3>
     <p className="systems-note">Simulation turn {record.source_turn}. {REGIME_NOTE[record.regime]} Amounts are rations (1 = a person's food demand). The region's withdrawal is unchanged; the share of anyone who died after Phase 2 is unallocated.</p>
+    {reading.state === "recorded_zero" ? <p className="systems-note">{reading.note}</p> : null}
     {!t || !record.regions ? <p className="systems-note">No allocation ran in simulation turn {record.source_turn}; rations are unknown, not zero.</p> : <>
       <div className="systems-table-wrap"><table className="systems-table" aria-label={`Food allocation totals at snapshot ${turn}`}><tbody>
         {([["Short regions", String(t.scarce_regions)], ["People in short regions", String(t.alive)],
@@ -34,7 +38,8 @@ export function FoodAllocation({ bundle, snapshot, currentTurn, onSelectRegion }
             ? ` (known regions only; unknown in ${t.relief_unknown_regions} region${t.relief_unknown_regions === 1 ? "" : "s"})` : "")]] as Array<[string, string]>).map(([label, value]) =>
           <tr key={label}><th scope="row">{label}</th><td>{value}</td></tr>)}
       </tbody></table></div>
-      {record.regions.length === 0 ? <p className="systems-note">No region was short of food.</p> :
+      {retail ? <p className="systems-note">Household retail provisioned its own regions this turn; they are not in this allocation (see Household retail).</p> : null}
+      {record.regions.length === 0 ? <p className="systems-note">{retail ? "No region outside household retail's regions was short of food." : "No region was short of food."}</p> :
         <div className="systems-table-wrap"><table className="systems-table" aria-label={`Short regions at snapshot ${turn}`}>
           <thead><tr><th>Region</th><th>Sufficiency</th><th>People</th><th>Households</th><th>Lowest ration</th><th>Highest ration</th><th>Below floor</th><th>Poorer-half shortfall</th><th>Richer-half shortfall</th></tr></thead>
           <tbody>{record.regions.map((r) => <tr key={r.region}>

@@ -66,7 +66,7 @@ it("names senders and recipients, amounts, fees, the diaspora and the unmet", ()
 
 it("says so when the record is missing or the turn was not observed", () => {
   render(<Remittances {...props(record, 9)} />);
-  expect(screen.getByText(/not observed or are unavailable at snapshot 9/)).toBeInTheDocument();
+  expect(screen.getByText(/Remittances: the record at snapshot 9 was rejected as malformed/)).toBeInTheDocument();
   cleanup();
   const blank = { ...record, mode: "record_only", funnel: null, totals: null, regions: null, moves: null,
     moves_dropped: null, closures: null, closures_dropped: null, receipts: null, receipts_dropped: null,

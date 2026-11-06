@@ -125,6 +125,10 @@ PACKAGES: dict[str, tuple[str, str | None, str | None]] = {
 OPTIONS: dict[str, tuple[tuple[str, str, str], ...]] = {}
 #: Packages whose mode is recorded under another attribute than ``mode``.
 MODE_KEYS: dict[str, str] = {}
+#: Rules versions a checkpoint ran, by switch: switch -> (option, value). Each run
+#: passes them explicitly (after its outputs), so a rerun at a later source keeps the
+#: checkpoint's rules; the extractor counts them as checked. Checkpoint 1 has none.
+RULES: dict[str, tuple[str, str]] = {}
 
 # --- Seeds (per stratum; procedural 32x10 seed numbers are separate worlds) --------
 
@@ -254,7 +258,14 @@ def _known_flags(cp=None) -> set[str]:
             known.add(mode_flag)
     for options in cp.OPTIONS.values():
         known.update(option for option, _attr, _default in options)
+    known.update(option for option, _value in cp.RULES.values())
     return known
+
+
+def rules_flags(flags, cp=None) -> list[str]:
+    """The ``RULES`` options of the packages ``flags`` (the full command line) enable."""
+    cp = _cp(cp)
+    return [part for flag, (option, value) in cp.RULES.items() if flag in flags for part in (option, value)]
 
 
 def check_seeds(cp=None) -> None:
@@ -366,7 +377,8 @@ def check_arm_flags(cp=None) -> None:
     problems = []
     for arm, (flags, _control) in cp.ARMS.items():
         for extra in ([], cp.PROCEDURAL):
-            args = parser.parse_args(["--seed", "1", *cp.BASE, *extra, *flags])
+            args = parser.parse_args(["--seed", "1", *cp.BASE, *extra, *flags,
+                                      *rules_flags([*cp.BASE, *extra, *flags], cp)])
             world = generate_world(seed=11, num_regions=6, num_civs=2)
             world.cities = CityState()
             world.agent_mode = "hybrid"
@@ -390,6 +402,11 @@ def check_arm_flags(cp=None) -> None:
                 got = {attr: getattr(sub, attr, None) for attr in attrs}
                 if got != attrs:
                     problems.append(f"arm {arm}: {name} configures {got}, expected {attrs}")
+            for flag, (option, value) in cp.RULES.items():
+                name = cp.PACKAGES[flag][0]
+                sub = getattr(state, name, None) if state is not None and flag in [*cp.BASE, *flags] else None
+                if sub is not None and getattr(sub, "rules", None) != value:
+                    problems.append(f"arm {arm}: {name} runs rules {getattr(sub, 'rules', None)!r}, expected {value!r}")
     if problems:
         raise SystemExit("arm flags do not configure as declared: " + "; ".join(problems))
 
@@ -884,6 +901,8 @@ def source_problems_cp2() -> list[str]:
     for flag, (name, mode_flag, _default) in CP2.PACKAGES.items():
         covered = {mode_flag[2:].replace("-", "_")} if mode_flag else set()
         covered |= {option[2:].replace("-", "_") for option, _a, _d in CP2.OPTIONS.get(flag, ())}
+        if flag in CP2.RULES:
+            covered.add(CP2.RULES[flag][0][2:].replace("-", "_"))
         extra = sorted(k for k in LIVELIHOODS_CHOICES if k.startswith(name + "_") and k not in covered)
         if extra:
             problems.append(f"{name} has registered choices the screen does not check: {extra}")
@@ -1330,6 +1349,9 @@ class CP2:
     }
     OPTIONS = {"--household-retail": (("--household-retail-boundary", "boundary", "market"),)}
     MODE_KEYS = {"food_allocation": "regime"}
+    #: Retail's rules at this checkpoint: version 1 (named so by A5-1, which made 2 the
+    #: default of a new state); a rerun passes it explicitly.
+    RULES = {"--household-retail": ("--household-retail-rules", "1")}
     # Seeds (per stratum). The pilot is the phase's timing pilot, shared with checkpoint 1.
     PILOT = {"template": (5,), "procedural": (19,)}
     HELD = {"template": tuple(range(711, 717)), "procedural": tuple(range(811, 817))}
@@ -1456,6 +1478,8 @@ def source_problems_cp3() -> list[str]:
                                 f"{CP3.MODE_KEYS.get(name, 'mode')!r}")
             continue
         attrs = {option[2:].replace("-", "_"): attr for option, attr, _d in CP3.OPTIONS.get(flag, ())}
+        if flag in CP3.RULES and key == CP3.RULES[flag][0][2:].replace("-", "_"):
+            continue
         if key not in attrs:
             problems.append(f"{name} has a registered choice the screen does not check: {key}")
         elif attrs[key] != field:
@@ -1788,6 +1812,9 @@ class CP3:
     }
     OPTIONS = {"--household-retail": (("--household-retail-boundary", "boundary", "market"),)}
     MODE_KEYS = {"food_allocation": "regime"}
+    #: Retail's rules at this checkpoint: version 1 (named so by A5-1, which made 2 the
+    #: default of a new state); a rerun passes it explicitly.
+    RULES = {"--household-retail": ("--household-retail-rules", "1")}
     # Seeds (per stratum). The pilot is the phase's timing pilot (checkpoints 1 and 2).
     PILOT = {"template": (5,), "procedural": (19,)}
     HELD = {"template": tuple(range(721, 727)), "procedural": tuple(range(821, 827))}
@@ -1875,7 +1902,8 @@ def run_one(out: Path, cohort: str, arm: str, stratum: str, seed: int, extra: li
     d.mkdir(parents=True)
     flags = list(cp.ARMS[arm][0])
     cmd = [PY, "-m", "chronicler.main", "--seed", str(seed), *cp.BASE, *extra, *flags,
-           "--output", str(d / "chronicle.md"), "--state", str(d / "state.json")]
+           "--output", str(d / "chronicle.md"), "--state", str(d / "state.json"),
+           *rules_flags([*cp.BASE, *extra, *flags], cp)]
     t0 = time.time()
     p = simulate(cmd)
     row = {"cohort": cohort, "arm": arm, "stratum": stratum, "seed": seed, "rc": p.returncode,

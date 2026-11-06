@@ -39,7 +39,7 @@ link to these by path, so keep their names stable.
   [population entities](integration/population-entities.md),
   [healthy migration](integration/healthy-migration.md),
   [refugee routing](integration/refugee-routing.md),
-  [epidemiology](integration/epidemiology.md),
+  [epidemiology](integration/epidemiology.md) ([quarantine rules](integration/quarantine-rules.md)),
   [health care](integration/health-care.md).
 - **Culture and knowledge:** [techniques](integration/techniques.md),
   [languages](integration/languages.md),
@@ -83,6 +83,11 @@ link to these by path, so keep their names stable.
   [examples, checkpoints 1 and 3](superpowers/progress/productive-recovery-examples.md),
   [checkpoint-2 screens](superpowers/progress/productive-recovery-screens-cp2.md),
   [checkpoint-3 screens, draft](superpowers/progress/productive-recovery-screens-cp3.md)).
+- **Connected-world program (experimental, every switch default off):**
+  [plan](superpowers/roadmaps/connected-world-program.md)
+  ([board](superpowers/progress/connected-world.json));
+  [screens, seed registry, harm panel and compatibility matrix](integration/connected-world-screens.md);
+  [watershed account (B1, record only)](integration/watershed.md).
 - **World generation:** [geography 2.0](integration/geography-2.md),
   [procedural gates](integration/procedural-gates.md).
 

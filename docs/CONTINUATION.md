@@ -1,4 +1,62 @@
-# Current continuation — productive recovery, checkpoint 3 (the integrated chain), 2026-11-06
+# Current continuation — connected-world program (A–E), 2026-11-06
+
+## Connected-world program: slice S0 (plan, audits, tooling) and the first lanes
+
+- **Owner instruction** (2026-11-06, after #82) and amendment: own the A–E program end to end
+  (livelihoods and trade, watersheds and infrastructure, public health, institutions and war,
+  stories and evidence) with parallel lanes, independent review, gated merges and honest
+  evaluation; tiers sequence work and are not stopping points; failures block the affected merge,
+  not the program. Plan: [connected-world-program.md](superpowers/roadmaps/connected-world-program.md).
+  Board: [connected-world.json](superpowers/progress/connected-world.json).
+- **Baseline** `main` = `8abc1acb` (#82): native `101a4cd5…` rebuilt identically; offline lane PASS
+  (63 chunks, 295.5 s); feature-off reference outputs reproducible (9 cases, 399 files, 0
+  differences on a rerun).
+- **Audits** (code, file:line): A1–A2 income and wealth, A3 workshop economics, B watershed and
+  infrastructure, C public health, D institutions/war/owned stock, E verification playbook and seed
+  registry, under `superpowers/audits/connected-world/`; lead decisions in plan section 5.
+- **Headline development-world finding (A2, not yet held):** with retail enrollment fixed, the
+  paid crews' wage raised money credited to households in 5 of 5 worlds; checkpoint 3's fall came
+  from wider `paid_work` enrollment replacing more farm income. The CW1 held screen tests it.
+- **PR #83 merged** at `1d4141d7` (tree `cd0eb07b` = reviewed head `7faebe73`; premerge Tests
+  42274171595 and main Tests 42275935233 green on all nine jobs): plan, board, audits and lane E1 —
+  seed registry, generic screen runner, compatibility matrix, RL8 viewer readers. No simulation
+  change.
+- **PR #84 merged** at `13340446` (tree `51b7a7cd` = reviewed head `dfdd772a`; premerge Tests
+  42280073920 and main Tests 42281625835 green): lane B1, `--watershed` mode `record_only` — drainage graph
+  rebuilt from procedural elevation (reproduces every saved river step), a conserved per-region
+  water account with closure checks, flood and drought records, a viewer panel; procedural worlds
+  only; no effect on the simulation (record_only identity holds on the full RS/PL stack). The
+  development calibration shows the declared constants lose water (storage 34 → 10–14 wu), to be
+  recalibrated before `flow` mode.
+- **PR #85 merged** at `8286804c` (tree `0c738587` = reviewed head `020b27b7`; premerge Tests
+  42286466762 and main Tests 42288620571 green): lane C1 `--quarantine-mode legacy|none|cost_only|closure`
+  (omitted = legacy, byte-identical; new modes close trade routes and the merchant graph to polities
+  with reported outbreaks, no import multiplier, an enforcement cost instead of the flat charge;
+  relief convoys, armies and hostages exempt) and the **CW4 held screen** (template 761–766,
+  procedural 861–866, frozen before running, one amendment before any held run): 48 runs, 0 failed,
+  0.153 core-hours. **Both primaries null** in both strata (whole-run world cross-polity arrivals and
+  epidemic death rate, closure against cost-only). Harms: forgone route income, more merchant
+  unwinds, more food shortfall after relief (procedural 5 of 6), more migration. A trade-only closure
+  does not cut arrivals in hybrid worlds, where migrants carry most cross-polity contact; migration
+  closure (C1b) is the next public-health slice.
+- **S1 PR** (`claude/cw-s1-accounting`): A5 retail rules v2 (war reaches owned stock once per event;
+  RL1–RL3), A2R (interval schedule boundary replayed exactly, persistent opening intervals,
+  household-group cohorts RL5, storage-cap cut RL4 pro rata), A1 `--wealth-accounting` (observation-
+  only ledger; RL7), one layer `cws1`; and the **CW1 held screen** (template 731–736, procedural
+  831–836; 108 runs, 0 failed, 0.584 core-hours): at fixed enrollment the wage **raised** money
+  credited to households in every activated world; wider `paid_work` enrollment alone **lowered**
+  it in every activated world (mostly replaced farm income, partly lower remittances); the wage's
+  effect on the priced-out rate was null.
+- **Lanes in flight** (each on its own branch, provisional witness layers regenerated at
+  integration): A5 retail rules v2, war reaches owned stock once per event (RL1–RL3; review
+  merge-ready); A1 `--wealth-accounting` observation ledger (RL7; review fixes); B1 `--watershed
+  record_only` (review fixes); A2R schedule boundary, opening map, household-group cohorts (RL4,
+  RL5); C1 `--quarantine-mode`; A3 `--workshop-economics`.
+- **Next:** merge PR 1; integrate S1 (A5 + A1 + A2R) with one regenerated layer, the CW1
+  preregistration and held screen; then B1/C1 (S3) and A3 (S2).
+
+# 2026-11-06 — productive recovery, checkpoint 3 (the integrated chain), merged (PR #81)
+
 
 ## Productive recovery and household livelihoods: checkpoint 3 and the phase handoff
 

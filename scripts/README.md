@@ -46,11 +46,28 @@ world systems), `domestic_credit_probe.py`,
 `grain_reserves_probe.py`, `history_forensics.py`,
 `crisis_distribution_summary.py` and `narration_prompts.py`.
 
+`retail_schedule.py BUNDLE --output S.json` extracts a household retail run's pilot schedule
+(its recorded open/close `intervals`, exact; or the intervals a bundle without them implies from
+its frames, approximate) as the canonical JSON that `--household-retail-boundary schedule
+--household-retail-schedule S.json` replays; `--strict` refuses an approximate one (see
+`docs/integration/household-retail.md`).
+
 `livelihoods_screens.py run OUT --sprint N` reruns a livelihoods sprint's preregistered screen
 arms on its fixed held seeds (hybrid; run it with the native interpreter that matches the
 source). `livelihoods_screens.py report OUT/metrics.jsonl --sprint N` summarizes them, with
 worlds as the units and each arm paired with its declared control arm. `--sprint` defaults
 to 1. The committed sprint-1 metrics are in `docs/superpowers/progress/livelihoods-sprint1-screens/`.
+
+`connected_world_screens.py run|report|check|registry` runs the connected-world program's
+screens through the generic `screen_runner.py` (seeds checked against `seed_registry.json`,
+2-3 primaries, a frozen preregistration with a machine-read compute ceiling, the fixed harm
+panel, activation before effects, identities); CW1-CW6 are stubs until their slices fill them
+in. `feature_matrix.py` generates the switch compatibility matrix from the feature catalog.
+See [connected-world screens](../docs/integration/connected-world-screens.md).
+`watershed_calibration.py BUNDLE [BUNDLE ...] [--json OUT]` compares the index the watershed
+account (`--watershed`, record only) would derive with the index the simulation used, on
+procedural development worlds only (it refuses other seeds); see
+[docs/integration/watershed.md](../docs/integration/watershed.md), section 7.
 
 ## Bundles and viewer fixtures
 
