@@ -513,6 +513,413 @@
       ],
       "group": "Livelihoods",
       "experimental": true
+    },
+    {
+      "key": "apprenticeship",
+      "flag": "--apprenticeship",
+      "label": "Apprenticeship",
+      "help": "Apprenticeship and skill continuity (RS1): qualified crew members mentor named apprentices at operating workshop sites; apprentices give up part of their ordinary income (a stipend with --workshop-payroll) and on completion earn a workshop qualification by stable id, kept for life; qualified people perform upkeep against site wear; requires --workshops in operate mode (--agents hybrid) (default off)",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "agents": [
+            "hybrid"
+          ],
+          "reason": "requires --agents hybrid"
+        },
+        {
+          "feature": "workshops",
+          "reason": "requires --workshops"
+        },
+        {
+          "choice": "workshop_mode",
+          "values": [
+            "operate"
+          ],
+          "reason": "requires --workshop-mode operate"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "apprenticeship_mode",
+      "flag": "--apprenticeship-mode",
+      "label": "Apprenticeship mode",
+      "help": "train (default): completion grants the qualification; no_qualification: the cost-retaining control (same wear, attendance and costs, no new qualifications)",
+      "kind": "choice",
+      "choices": [
+        "train",
+        "no_qualification"
+      ],
+      "default": null,
+      "parent": "apprenticeship",
+      "requires": [
+        {
+          "feature": "apprenticeship",
+          "reason": "requires --apprenticeship"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "repair_projects",
+      "flag": "--repair-projects",
+      "label": "Repair projects",
+      "help": "Repair projects (RS2): paid projects rebuild workshop sites and granaries from their real condition and war damage, with named workers, timber and the controller's coins; they replace the L1 lump repair; requires --agents hybrid and --workshops or --grain-storage (default off)",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "agents": [
+            "hybrid"
+          ],
+          "reason": "requires --agents hybrid"
+        },
+        {
+          "any": [
+            {
+              "feature": "workshops",
+              "reason": "requires --workshops"
+            },
+            {
+              "feature": "grain_storage",
+              "reason": "requires --grain-storage"
+            }
+          ],
+          "reason": "requires one of: --workshops; --grain-storage"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "repair_mode",
+      "flag": "--repair-mode",
+      "label": "Repair mode",
+      "help": "repair (default): delivered work restores condition; cost_only: the cost-retaining control (reserves, pays and uses timber identically, condition unchanged)",
+      "kind": "choice",
+      "choices": [
+        "repair",
+        "cost_only"
+      ],
+      "default": null,
+      "parent": "repair_projects",
+      "requires": [
+        {
+          "feature": "repair_projects",
+          "reason": "requires --repair-projects"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "veteran_reintegration",
+      "flag": "--veteran-reintegration",
+      "label": "Veteran reintegration",
+      "help": "Veteran reintegration (RS3): soldiers released from real armies are recorded by stable id and get priority, among otherwise eligible candidates, for workshop crew, apprenticeship and repair openings; nothing is guaranteed or created; requires --agents hybrid and one of --workshops, --apprenticeship or --repair-projects (default off)",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "agents": [
+            "hybrid"
+          ],
+          "reason": "requires --agents hybrid"
+        },
+        {
+          "any": [
+            {
+              "feature": "workshops",
+              "reason": "requires --workshops"
+            },
+            {
+              "feature": "apprenticeship",
+              "reason": "requires --apprenticeship"
+            },
+            {
+              "feature": "repair_projects",
+              "reason": "requires --repair-projects"
+            }
+          ],
+          "reason": "requires one of: --workshops; --apprenticeship; --repair-projects"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "veteran_mode",
+      "flag": "--veteran-mode",
+      "label": "Veteran mode",
+      "help": "priority (default): eligible veterans come first for openings; record_only: the control that captures and tracks veterans without priority",
+      "kind": "choice",
+      "choices": [
+        "priority",
+        "record_only"
+      ],
+      "default": null,
+      "parent": "veteran_reintegration",
+      "requires": [
+        {
+          "feature": "veteran_reintegration",
+          "reason": "requires --veteran-reintegration"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "remittances",
+      "flag": "--remittances",
+      "label": "Remittances",
+      "help": "Remittances (RS4): a diaspora ledger of applied migrations; settled migrants send a bounded share of their wealth along Marriage/Kin bonds to the region they left, with a courier fee and exactly-once receipts; requires --agents hybrid (default off)",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "agents": [
+            "hybrid"
+          ],
+          "reason": "requires --agents hybrid"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "remittance_mode",
+      "flag": "--remittance-mode",
+      "label": "Remittance mode",
+      "help": "send (default); record_only: the control that keeps the ledger and sends nothing",
+      "kind": "choice",
+      "choices": [
+        "send",
+        "record_only"
+      ],
+      "default": null,
+      "parent": "remittances",
+      "requires": [
+        {
+          "feature": "remittances",
+          "reason": "requires --remittances"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "clearing_protection",
+      "flag": "--clearing-protection",
+      "label": "Clearing protection",
+      "help": "Funded clearing protection: a region's controller may protect up to two forested regions under population-driven clearing, paying wardens from its treasury for each turn the clearing is active; the paid share of the clearing is suspended at the ecology's clearing decision (native and Python); works in every agent mode (default off)",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "clearing_protection_mode",
+      "flag": "--clearing-protection-mode",
+      "label": "Clearing protection mode",
+      "help": "enforced (default): the paid protection suspends clearing; cost_only: the control that adopts and pays identically but leaves the clearing unchanged",
+      "kind": "choice",
+      "choices": [
+        "enforced",
+        "cost_only"
+      ],
+      "default": null,
+      "parent": "clearing_protection",
+      "requires": [
+        {
+          "feature": "clearing_protection",
+          "reason": "requires --clearing-protection"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "operating_wear",
+      "flag": "--operating-wear",
+      "label": "Operating wear",
+      "help": "Workshop operating wear (PL2): each funded operating workshop site loses 0.02 condition a turn, offset only by the upkeep of qualified crew members (--apprenticeship); a worn site stops until repaired. --apprenticeship implies it; --workshops --operating-wear is the reference arm with the same maintenance assumption; requires --workshops in operate mode (--agents hybrid) (default off)",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "agents": [
+            "hybrid"
+          ],
+          "reason": "requires --agents hybrid"
+        },
+        {
+          "feature": "workshops",
+          "reason": "requires --workshops"
+        },
+        {
+          "choice": "workshop_mode",
+          "values": [
+            "operate"
+          ],
+          "reason": "requires --workshop-mode operate"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "timber_supply",
+      "flag": "--timber-supply",
+      "label": "Timber supply",
+      "help": "Timber supply (PL1): when RS2 repair projects lack timber, a named, paid crew of adults from the needing region (veterans first) walks to a forest of its civ or of nobody within two hops, cuts for a season and carries the timber home to the projects; their farm labour leaves the home economy, the harvest is debited from the L3 stock, wages come from the controller's treasury; requires --agents hybrid, --repair-projects and --timber-stock (default off)",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "agents": [
+            "hybrid"
+          ],
+          "reason": "requires --agents hybrid"
+        },
+        {
+          "feature": "repair_projects",
+          "reason": "requires --repair-projects"
+        },
+        {
+          "feature": "timber_stock",
+          "reason": "requires --timber-stock"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "timber_supply_mode",
+      "flag": "--timber-supply-mode",
+      "label": "Timber supply mode",
+      "help": "supply (default); cost_only: the cost-retaining control (the same expeditions, crews, travel, wages and home labour removal, no cutting: no timber and no stock debit)",
+      "kind": "choice",
+      "choices": [
+        "supply",
+        "cost_only"
+      ],
+      "default": null,
+      "parent": "timber_supply",
+      "requires": [
+        {
+          "feature": "timber_supply",
+          "reason": "requires --timber-supply"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "recovery_crews",
+      "flag": "--recovery-crews",
+      "label": "Recovery crews",
+      "help": "Recovery crews (PL3): granary repair work is done by a named crew of adult farmers resident in the granary's region, reserved for the turn and paid the granary's existing coins per work as wages by stable id (no new money); workshop repair crews draw on the site's whole region and admit eligible veterans of any non-enlisted occupation, their paid share withheld from ordinary income; requires --agents hybrid and --repair-projects (default off)",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "agents": [
+            "hybrid"
+          ],
+          "reason": "requires --agents hybrid"
+        },
+        {
+          "feature": "repair_projects",
+          "reason": "requires --repair-projects"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "recovery_crew_mode",
+      "flag": "--recovery-crew-mode",
+      "label": "Recovery crew mode",
+      "help": "paid (default): the granary coins go to the crew as wages; unpaid: the control with the same crews, income withheld and the same charge, the coins leaving the economy as before",
+      "kind": "choice",
+      "choices": [
+        "paid",
+        "unpaid"
+      ],
+      "default": null,
+      "parent": "recovery_crews",
+      "requires": [
+        {
+          "feature": "recovery_crews",
+          "reason": "requires --recovery-crews"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "maintenance_obligation",
+      "flag": "--maintenance-obligation",
+      "label": "Maintenance obligation",
+      "help": "Maintenance obligation (PL3): before the L9 budget is bargained each ruler reserves its repair projects' planned per-turn charges, capped at a declared share of the budget; requires --local-budgets and --repair-projects (default off)",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "feature": "local_budgets",
+          "reason": "requires --local-budgets"
+        },
+        {
+          "feature": "repair_projects",
+          "reason": "requires --repair-projects"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "maintenance_obligation_mode",
+      "flag": "--maintenance-obligation-mode",
+      "label": "Maintenance obligation mode",
+      "help": "reserve (default): repairs may spend the reservation beyond their bargained envelope; reserve_only: the crowding-out control that reserves the same amount but keeps repairs to their envelope and returns the reservation unspent",
+      "kind": "choice",
+      "choices": [
+        "reserve",
+        "reserve_only"
+      ],
+      "default": null,
+      "parent": "maintenance_obligation",
+      "requires": [
+        {
+          "feature": "maintenance_obligation",
+          "reason": "requires --maintenance-obligation"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
     }
   ],
   "settings": {
