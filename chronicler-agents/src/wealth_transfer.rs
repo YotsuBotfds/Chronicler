@@ -51,9 +51,11 @@ pub const MILLI: i64 = 1000;
 /// appended by the recovery-skills groundwork (RS0) for apprentice stipends
 /// (RS1), repair wages (RS2) and remittances (RS4); 5-6 by household retail
 /// (L6b) for household food purchases (settled in the tick) and granary
-/// procurement from owners (paid by Python through [`transfer`]).
-pub const PURPOSES: [&str; 7] = ["workshop_wage", "relocation_fare", "apprentice_stipend", "repair_wage", "remittance",
-                                 "food_purchase", "food_procurement"];
+/// procurement from owners (paid by Python through [`transfer`]); 7 by
+/// workshop economics (A3) for households buying a firm's wares (debit rows
+/// of [`transfer`]; the firm's cash is a Python account).
+pub const PURPOSES: [&str; 8] = ["workshop_wage", "relocation_fare", "apprentice_stipend", "repair_wage", "remittance",
+                                 "food_purchase", "food_procurement", "wares_purchase"];
 pub const PURPOSE_WORKSHOP_WAGE: u8 = 0;
 pub const PURPOSE_RELOCATION_FARE: u8 = 1;
 pub const PURPOSE_APPRENTICE_STIPEND: u8 = 2;
@@ -61,6 +63,7 @@ pub const PURPOSE_REPAIR_WAGE: u8 = 3;
 pub const PURPOSE_REMITTANCE: u8 = 4;
 pub const PURPOSE_FOOD_PURCHASE: u8 = 5;
 pub const PURPOSE_FOOD_PROCUREMENT: u8 = 6;
+pub const PURPOSE_WARES_PURCHASE: u8 = 7;
 /// Largest magnitude accepted for one row (10^12 milli-units).
 pub const MAX_ROW_MILLIS: i64 = 1_000_000_000_000;
 /// Row statuses, in declaration order (append only).
@@ -618,17 +621,32 @@ mod tests {
     #[test]
     fn appended_purposes_keep_the_old_codes() {
         assert_eq!(PURPOSES, ["workshop_wage", "relocation_fare", "apprentice_stipend", "repair_wage", "remittance",
-                              "food_purchase", "food_procurement"]);
+                              "food_purchase", "food_procurement", "wares_purchase"]);
         assert_eq!((PURPOSE_APPRENTICE_STIPEND, PURPOSE_REPAIR_WAGE, PURPOSE_REMITTANCE), (2, 3, 4));
-        assert_eq!((PURPOSE_FOOD_PURCHASE, PURPOSE_FOOD_PROCUREMENT), (5, 6));
+        assert_eq!((PURPOSE_FOOD_PURCHASE, PURPOSE_FOOD_PROCUREMENT, PURPOSE_WARES_PURCHASE), (5, 6, 7));
         let mut pool = pool_with(&[1.0]);
         let a = pool.ids[0];
         for purpose in [PURPOSE_APPRENTICE_STIPEND, PURPOSE_REPAIR_WAGE, PURPOSE_REMITTANCE,
-                        PURPOSE_FOOD_PURCHASE, PURPOSE_FOOD_PROCUREMENT] {
+                        PURPOSE_FOOD_PURCHASE, PURPOSE_FOOD_PROCUREMENT, PURPOSE_WARES_PURCHASE] {
             transfer(&mut pool, 2, purpose, 0, &[(a, 100)]).unwrap();
         }
-        assert!(transfer(&mut pool, 2, 7, 0, &[(a, 100)]).is_err());
+        assert!(transfer(&mut pool, 2, 8, 0, &[(a, 100)]).is_err());
         assert!((pool.wealth[0] - 1.5).abs() < 1e-5);
+    }
+
+    #[test]
+    fn wares_purchases_are_debit_rows_settled_once_per_firm_and_turn() {
+        // A3: households pay a firm by debit rows (the firm's cash is Python's).
+        let mut pool = pool_with(&[2.0, 0.25]);
+        let (a, b) = (pool.ids[0], pool.ids[1]);
+        let got = transfer(&mut pool, 9, PURPOSE_WARES_PURCHASE, 3, &[(a, -1500), (b, -400)]).unwrap();
+        assert_eq!(got.rows[0], TransferRow { agent_id: a, requested: -1500, applied: -1500, residual: 0,
+                                              status: STATUS_APPLIED });
+        assert_eq!((got.rows[1].applied, got.rows[1].residual, got.rows[1].status), (-250, -150, STATUS_LIMITED));
+        assert!((pool.wealth[0] - 0.5).abs() < 1e-6 && pool.wealth[1] == 0.0);
+        // The same firm (batch) and turn settles once; another firm the same turn is its own key.
+        assert!(transfer(&mut pool, 9, PURPOSE_WARES_PURCHASE, 3, &[(a, -10)]).is_err());
+        assert!(transfer(&mut pool, 9, PURPOSE_WARES_PURCHASE, 4, &[(a, -10)]).is_ok());
     }
 
     #[test]
