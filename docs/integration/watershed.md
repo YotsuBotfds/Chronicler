@@ -271,10 +271,14 @@ Viewer (types in `viewer/src/watershedTypes.ts`; `types.ts` is pinned and unchan
   derive (record only)" and "Watershed storage" when the run records the account, with absent,
   malformed and unobserved turns reading as missing with their reason.
 
-## 9. Verification (2026-11-06, source `0779587`/`56ebe8c`, extension `101a4cd5…`)
+## 9. Verification (2026-11-06, source `0779587` (`src` unchanged since), extension `101a4cd5…`)
 
-- Offline: `tests/test_watershed.py`, 36 cases, in the new oracle chunk `connected-world-b`; native
-  shard 0. Bounded offline lane: see the slice's report (section 10).
+- Offline: `tests/test_watershed.py`, 36 cases, in the new oracle chunk `connected-world-b` (2.8 s of
+  110 s); native shard 0. Bounded offline lane (`scripts/run_python_oracle_checks.py`, with the
+  `cwb1` witness layer in place): PASS, 64 chunks in 241.5 s, slowest `systems-2` 32.5 s of 110 s.
+  The witness tests of the playbook (sprint, restoration, scenarios, information, academy,
+  household mobility, crisis, food accounting, grain release, public grain shipments, regional
+  population, health care, practice observer, native shards, preflight): 509 passed.
 - Feature-off identity (`turn_speed_identity.py`, each side its own `git archive` tree and copied
   extension) against `8abc1acb` (also the preceding integrated `main`): 9 cases, 399 files,
   0 differences; with an explicit `--no-watershed` on `hybrid_s42` and `proc48_hybrid_s42`: 203 files,
