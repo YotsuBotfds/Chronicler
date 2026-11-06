@@ -11,6 +11,8 @@ import dataclasses
 import hashlib
 import importlib.util
 import json
+import tempfile
+import threading
 import types
 from pathlib import Path
 
@@ -371,7 +373,7 @@ def test_package_counters_are_declared_dated_and_in_mode(SR, CW):
     pk, problems = SR.package_problems(screen, bundle, ["--household-retail"])
     assert problems == [] and pk == {"household_retail": {"priced_out_persons": 6.0}}
     _pk, problems = SR.package_problems(screen, bundle, ["--household-retail", "--household-retail-mode", "no_relief"])
-    assert problems == ["household_retail: mode 'retail', expected 'no_relief'"]
+    assert problems == ["household_retail: mode 'retail', expected 'no_relief' at turns [1, 2, 3]"]
     bundle["history"][-1]["livelihoods"]["household_retail"]["counters"]["invented"] = 1
     bundle["history"][0]["livelihoods"]["household_retail"]["source_turn"] = 5
     _pk, problems = SR.package_problems(screen, bundle, ["--household-retail"])
@@ -419,7 +421,7 @@ def test_report_shows_activation_first_and_never_reads_non_activation_as_zero(SR
     assert "| TS | t | 1: activated; 3: not activated; 7: failed; 9: not run | 1 of 4 |" in text
     stand = next(line for line in text.splitlines() if line.startswith("| dev_stand"))
     assert "1: +0.5" in stand and "3: not activated" in stand and "7: failed" in stand and "9: not run" in stand
-    assert "+0.5 [+0.5, +0.5] | 1 / 0 / 0 | 2/2 as extreme" in stand
+    assert "+0.5 [+0.5, +0.5] | 1 / 0 / 0 | n/a (no control)" in stand
     assert "- INCOMPLETE TS t9: not run" in text and "- FAILED TS t7 (rc 1)" in text
     assert "| TS - W | Deaths by war (the casualty authority) | t | requires slice extractor |" in text
     retail = next(line for line in text.splitlines() if "| TS - W | Priced-out person-turns" in line)
@@ -437,22 +439,29 @@ def test_pilot_projection(SR, CW):
 
 # --- Running with a fake runtime --------------------------------------------------------
 
-class FakeRuntime:
-    """Writes a constructed bundle for each command; each simulation takes ``seconds``."""
+IDENTITY = ("source abc", "dirty 0 tracked files")
 
-    def __init__(self, SR, seconds=1.0, identity=("source abc", "dirty 0 tracked files")):
-        self.now, self.seconds, self.calls = 0.0, seconds, []
-        self.rt = SR.Runtime(simulate=self.simulate, identity=lambda screen: list(identity), clock=self.clock)
+
+class FakeRuntime:
+    """Writes a constructed bundle for each command; each simulation takes ``seconds`` on
+    its own thread's clock (so concurrent runs are timed alike). The ledger lives in a
+    temporary directory; ``changed`` lists the paths between two revisions."""
+
+    def __init__(self, SR, seconds=1.0, identity=IDENTITY, ledger=None, changed=(), rc=0):
+        self.seconds, self.calls, self.rc, self.local = seconds, [], rc, threading.local()
+        self.ledger = Path(ledger) if ledger else Path(tempfile.mkdtemp()) / "ledger.jsonl"
+        self.rt = SR.Runtime(simulate=self.simulate, identity=lambda screen: list(identity), clock=self.clock,
+                             ledger=self.ledger, changed_paths=lambda old, new: list(changed))
 
     def clock(self):
-        return self.now
+        return getattr(self.local, "now", 0.0)
 
     def simulate(self, cmd):
         self.calls.append(cmd)
         out = Path(cmd[cmd.index("--output") + 1]).parent
         (out / "chronicle_bundle.json").write_text(json.dumps(make_bundle(timber="--timber-stock" in cmd)))
-        self.now += self.seconds
-        return types.SimpleNamespace(returncode=0, stderr="")
+        self.local.now = self.clock() + self.seconds
+        return types.SimpleNamespace(returncode=self.rc, stderr="failed" if self.rc else "")
 
 
 @pytest.mark.parametrize("cohort", ["held", "pilot"])
@@ -514,10 +523,15 @@ def _held_screen(SR, CW, tmp_path, ceiling=1.0):
                                outcomes=dev.outcomes, activation=dev.activation, ready=True, preregistration=prereg)
 
 
-def _pilot(tmp_path, seconds):
-    path = tmp_path / "pilot.jsonl"
+def _pilot(tmp_path, seconds, identity=IDENTITY, rows_identity=None, name="pilot"):
+    """A pilot directory: source.txt with its identity lines and metrics.jsonl."""
+    folder = tmp_path / name
+    folder.mkdir(exist_ok=True)
+    (folder / "source.txt").write_text("\n".join(identity) + "\nrun: screen CW1; cohort pilot; x\n")
+    digest = rows_identity or hashlib.sha256("\n".join(identity).encode()).hexdigest()
+    path = folder / "metrics.jsonl"
     path.write_text("".join(json.dumps({"screen": "CW1", "cohort": "pilot", "arm": arm, "stratum": tag, "seed": seed,
-                                        "rc": 0, "wall_s": seconds, "extract_s": 0.0}) + "\n"
+                                        "rc": 0, "wall_s": seconds, "extract_s": 0.0, "identity": digest}) + "\n"
                             for arm in ("W", "TS") for tag, seed in (("t", 5), ("p", 19))))
     return path
 
@@ -594,3 +608,223 @@ def test_arm_command_lines_are_checked_by_the_parser_and_catalog(SR, CW):
     assert any("does not parse" in p for p in SR.check_screen(typo))
     orphan = dataclasses.replace(dev, arms={"W": ((), None), "TS": (("--timber-stock",), "X")})
     assert any("do not lead to the root" in p for p in SR.check_screen(orphan))
+
+
+# --- Review findings (M1, m1-m5, m8, n1, n3, n7) ------------------------------------------
+
+def _held_argv(tmp_path, out="out", jobs="1", pilot=None, extra=()):
+    return [str(tmp_path / out), "--screen", "CW1", "--cohort", "held", "--jobs", jobs,
+            "--pilot", str(pilot or _pilot(tmp_path, 10.0)), *extra]
+
+
+def test_m1_ceiling_counts_the_runs_in_flight(SR, CW, tmp_path):
+    """Runs take 100x the pilot: after the first batch of three, no run starts whose cost,
+    with the runs in flight, would pass the ceiling (before, six started: 1.67 core-hours)."""
+    screens = {"CW1": _held_screen(SR, CW, tmp_path, ceiling=1.0)}
+    fake = FakeRuntime(SR, seconds=1000.0)
+    rc = SR.run_main(_held_argv(tmp_path, jobs="3"), screens, fake.rt)
+    assert rc == SR.RC_CEILING and len(fake.calls) == 3
+    rows = SR.read_rows(tmp_path / "out" / "metrics.jsonl", screens["CW1"])
+    assert sum(SR.run_seconds(r) for r in rows) == 3000.0 <= 3600
+    source = (tmp_path / "out" / "source.txt").read_text()
+    assert "stopped at the compute ceiling (1.0 core-hours): 0.833 used, 0.000 expected in flight, " \
+           "the next run expected 1000.0 s; 21 runs not started" in source
+    assert "expected seconds per run: max of the pilot mean per arm and stratum (TS p 10.0" in source
+
+
+def test_m1_runs_that_fit_with_the_runs_in_flight_still_start(SR, CW, tmp_path):
+    screens = {"CW1": _held_screen(SR, CW, tmp_path, ceiling=1.0)}
+    fake = FakeRuntime(SR, seconds=100.0)            # 24 runs x 100 s = 0.67 core-hours: all fit
+    assert SR.run_main(_held_argv(tmp_path, jobs="3"), screens, fake.rt) == 0 and len(fake.calls) == 24
+
+
+def test_m1_held_identity_and_ledger(SR, CW, tmp_path):
+    screens = {"CW1": _held_screen(SR, CW, tmp_path, ceiling=10.0)}
+    fake = FakeRuntime(SR)
+    assert SR.run_main(_held_argv(tmp_path), screens, fake.rt) == 0
+    source = (tmp_path / "out" / "source.txt").read_text()
+    prereg = screens["CW1"].preregistration
+    line = f"preregistration {hashlib.sha256(prereg.read_bytes()).hexdigest()} {prereg.resolve()}"
+    assert source.splitlines()[:3] == [*IDENTITY, line]                      # m4: the preregistration's hash
+    rows = SR.read_rows(tmp_path / "out" / "metrics.jsonl", screens["CW1"])
+    assert {r["identity"] for r in rows} == {hashlib.sha256("\n".join([*IDENTITY, line]).encode()).hexdigest()}
+    held = json.loads((tmp_path / "out" / "held-run.json").read_text())
+    assert held["cohort"] == "held" and held["out"] == str((tmp_path / "out").resolve())
+    assert held["seeds"] == {"template": list(range(731, 737)), "procedural": list(range(831, 837))}
+    assert SR.ledger_entries(fake.ledger) == [held]
+
+
+def test_m1_m4_a_changed_preregistration_refuses_the_resume(SR, CW, tmp_path):
+    screens = {"CW1": _held_screen(SR, CW, tmp_path, ceiling=1.0)}
+    fake = FakeRuntime(SR, seconds=1000.0)
+    assert SR.run_main(_held_argv(tmp_path), screens, fake.rt) == SR.RC_CEILING
+    prereg = screens["CW1"].preregistration
+    prereg.write_text(prereg.read_text() + "\nA definition changed after the run started.\n")
+    with pytest.raises(SystemExit, match="resume refused: .*preregistration changed"):
+        SR.run_main([*_held_argv(tmp_path), "--resume"], screens, FakeRuntime(SR, ledger=fake.ledger).rt)
+
+
+def test_m1_a_second_held_run_is_refused_while_the_first_is_recorded(SR, CW, tmp_path, registry):
+    screens = {"CW1": _held_screen(SR, CW, tmp_path, ceiling=10.0)}
+    fake = FakeRuntime(SR)
+    assert SR.run_main(_held_argv(tmp_path, out="held1"), screens, fake.rt) == 0
+    # A fresh held run into another folder is refused on the ledger, before any run.
+    again = FakeRuntime(SR, ledger=fake.ledger)
+    with pytest.raises(SystemExit, match=r"a held run of CW1 was started at .* into .*held1 .*resume it there"):
+        SR.run_main(_held_argv(tmp_path, out="held2"), screens, again.rt)
+    assert again.calls == []
+    # The recorded run itself resumes (nothing left to run); without its ledger entry it does not.
+    assert SR.run_main([*_held_argv(tmp_path, out="held1"), "--resume"], screens, again.rt) == 0
+    with pytest.raises(SystemExit, match="the ledger .* records no held run"):
+        SR.run_main([*_held_argv(tmp_path, out="held1"), "--resume"], screens, FakeRuntime(SR).rt)
+    # mark-run records it in the registry: every clone then refuses the cohort as reused.
+    reg_path = tmp_path / "registry.json"
+    reg_path.write_text(SR.dump_registry(registry))
+    assert SR.mark_run_main([str(tmp_path / "held1"), "--screen", "CW1", "--registry", str(reg_path)], screens) == 0
+    marked = SR.load_registry(reg_path)
+    assert SR.validate_registry(marked) == []
+    entries = [e for e in marked["entries"] if e.get("screen") == "CW1"]
+    assert {e["status"] for e in entries} == {"run"}
+    assert {e["held_run"]["complete"] for e in entries} == {True} and {e["held_run"]["rows"] for e in entries} == {24}
+    problems, _ = SR.check_seeds(screens["CW1"], marked)
+    assert any("were already run (reused)" in p for p in problems)
+    with pytest.raises(SystemExit, match="mark-run refused: cw1-held-t is run"):
+        SR.mark_run_main([str(tmp_path / "held1"), "--screen", "CW1", "--registry", str(reg_path)], screens)
+
+
+def test_registry_file_is_its_own_dump(SR, registry):
+    assert SR.dump_registry(registry) == SR.REGISTRY.read_text(encoding="utf-8")
+
+
+def test_m5_reserve_cohort_for_a_named_screen(SR, CW, tmp_path, registry):
+    screens = {"CW1": _held_screen(SR, CW, tmp_path, ceiling=10.0), "CW2": _held_screen(SR, CW, tmp_path, 10.0)}
+    argv = [str(tmp_path / "reserve"), "--screen", "CW1", "--cohort", "reserve", "--jobs", "1",
+            "--pilot", str(_pilot(tmp_path, 10.0))]
+    with pytest.raises(SystemExit, match="--reason is required with --cohort reserve"):
+        SR.run_main(argv, screens, FakeRuntime(SR).rt)
+    with pytest.raises(SystemExit, match="--reason is required with --cohort reserve, and only there"):
+        SR.run_main([*_held_argv(tmp_path), "--reason", "x"], screens, FakeRuntime(SR).rt)
+    fake = FakeRuntime(SR)
+    reason = "CW1's held run failed at a fixed extractor bug"
+    assert SR.run_main([*argv, "--reason", reason], screens, fake.rt) == 0
+    seeds = {int(c[c.index("--seed") + 1]) for c in fake.calls}
+    assert seeds == set(range(791, 797)) | set(range(891, 897))
+    source = (tmp_path / "reserve" / "source.txt").read_text()
+    assert "run: screen CW1; cohort reserve;" in source and f"reason: {reason}" in source
+    rows = SR.read_rows(tmp_path / "reserve" / "metrics.jsonl", screens["CW1"])
+    assert {r["cohort"] for r in rows} == {"reserve"}
+    assert SR.check_metrics(rows, "reserve", screens["CW1"], seeds=SR.cohort_seeds(screens["CW1"], "reserve")) == []
+    # The reserve is used once by the whole program.
+    with pytest.raises(SystemExit, match="a reserve run of CW1 was started"):
+        SR.run_main([str(tmp_path / "r2"), "--screen", "CW2", "--cohort", "reserve", "--reason", "x", "--pilot",
+                     str(_pilot(tmp_path, 10.0))], screens, FakeRuntime(SR, ledger=fake.ledger).rt)
+    reg_path = tmp_path / "registry.json"
+    reg_path.write_text(SR.dump_registry(registry))
+    assert SR.mark_run_main([str(tmp_path / "reserve"), "--screen", "CW1", "--registry", str(reg_path)], screens) == 0
+    marked = SR.load_registry(reg_path)
+    reserve = [e for e in marked["entries"] if e.get("cohort") == "reserve"]
+    assert {(e["status"], e["screen"], e["held_run"]["reason"]) for e in reserve} == {("run", "CW1", reason)}
+    assert SR.validate_registry(marked) == []
+    assert any("was already used (run, by CW1)" in p for p in SR.check_reserve(screens["CW2"], marked))
+
+
+def test_m4_pilot_of_another_identity_is_refused(SR, CW, tmp_path):
+    screens = {"CW1": _held_screen(SR, CW, tmp_path, ceiling=10.0)}
+    cases = [
+        (_pilot(tmp_path, 10.0, rows_identity="OTHER", name="p1"), (), "its rows carry identity"),
+        (_pilot(tmp_path, 10.0, identity=("source abc", "dirty 0 tracked files", "runner 99 scripts/screen_runner.py"),
+                name="p2"), (), "runner '99 scripts/screen_runner.py' differs"),
+        (_pilot(tmp_path, 10.0, identity=("source abc", "dirty 3 tracked files"), name="p3"), (), "dirty"),
+        (_pilot(tmp_path, 10.0, identity=("source old", "dirty 0 tracked files"), name="p4"),
+         ("docs/x.md", "scripts/screen_runner.py"), "differs from abc in code: \\['scripts/screen_runner.py'\\]"),
+    ]
+    for pilot, changed, message in cases:
+        with pytest.raises(SystemExit, match=message):
+            SR.run_main(_held_argv(tmp_path, pilot=pilot), screens, FakeRuntime(SR, changed=changed).rt)
+    missing = tmp_path / "p5"
+    missing.mkdir()
+    (missing / "metrics.jsonl").write_text(_pilot(tmp_path, 10.0, name="p6").read_text())
+    with pytest.raises(SystemExit, match="source.txt is missing"):
+        SR.run_main(_held_argv(tmp_path, pilot=missing / "metrics.jsonl"), screens, FakeRuntime(SR).rt)
+    # A revision that differs only outside the code (the freeze commit) is accepted.
+    docs_only = _pilot(tmp_path, 10.0, identity=("source old", "dirty 0 tracked files"), name="p7")
+    assert SR.run_main(_held_argv(tmp_path, pilot=docs_only), screens, FakeRuntime(SR, changed=("docs/x.md",)).rt) == 0
+
+
+def test_m2_harm_panel_for_every_arm(SR, CW):
+    dev = CW.SCREENS["DEV"]
+    screen = dataclasses.replace(dev, arms={**dev.arms, "TS2": (("--timber-stock",), "TS")},
+                                 outcomes=tuple(o for o in dev.outcomes if o.control is None) + (
+                                     _outcome(SR, 8, arm="TS", control="W"),))
+    assert SR.harm_pairs(screen) == [("TS", "W"), ("TS2", "TS")]
+    only_alone = dataclasses.replace(dev, outcomes=tuple(o for o in dev.outcomes if o.control is None))
+    assert SR.harm_pairs(only_alone) == [("TS", "W")]
+    rows = [_row(SR, CW, "W", "t", 1, make_bundle()), _row(SR, CW, "TS", "t", 1, make_bundle(timber=True))]
+    rows.append({**_row(SR, CW, "TS", "t", 1, make_bundle(timber=True)), "arm": "TS2"})
+    text = "\n".join(SR.report_lines(rows, screen))
+    assert "| TS2 - TS | Population at the end (sum over civilizations) | t | 1: +0 |" in text
+    assert "| TS - W | Timber stand share of capacity at the end | t | 1: not recorded |" in text
+
+
+def test_m3_harms_without_an_agent_economy_are_not_recorded(SR):
+    bundle = make_bundle(migration=False)
+    for snap in bundle["history"]:
+        for row in snap["food_accounting"]["regions"]:
+            row["native"], row["sufficiency_after_relief"] = None, None
+    harm, problems = SR.harm_panel(bundle)
+    assert problems == []
+    assert harm["wealth_gini"]["state"] == "not_recorded" and "no agent pool" in harm["wealth_gini"]["note"]
+    assert harm["food_shortfall"] == {"state": "not_recorded", "value": None,
+                                      "note": "no native food ledger in this run (no agent economy)"}
+    partly = make_bundle()
+    for row in partly["history"][0]["food_accounting"]["regions"]:
+        row["native"] = None
+    assert SR.harm_food_shortfall(partly)["note"] == "no native food ledger at turns [1]: the run total is unknown, not zero"
+    mixed = make_bundle()
+    mixed["history"][0]["food_accounting"]["regions"][0]["native"] = None
+    assert SR.harm_food_shortfall(mixed)["state"] == "malformed"
+
+
+@pytest.mark.parametrize("edit, state, note", [
+    (lambda h: h[-1]["livelihoods"]["timber_stock"].update(observed=False, totals=None, regions=None),
+     "not_recorded", "the last timber account was not observed: unknown, not zero"),
+    (lambda h: h[-1]["livelihoods"].pop("timber_stock"), "not_recorded", "no timber stock record in the last snapshot"),
+    (lambda h: h[0]["livelihoods"]["timber_stock"].update(observed=False, totals=None), "recorded", ""),
+    (lambda h: h[-1]["livelihoods"].update(timber_stock="x"), "malformed", "not an object"),
+])
+def test_m3_forest_stand_reads_the_last_snapshot(SR, edit, state, note):
+    bundle = make_bundle(timber=True)
+    edit(bundle["history"])
+    harm = SR.harm_forest_stand(bundle)
+    assert harm["state"] == state and note in harm["note"]
+
+
+def test_m8_records_before_the_last_snapshot_are_checked(SR, CW):
+    bundle = make_bundle(timber=True)
+    bundle["history"][0]["livelihoods"]["timber_stock"] = ["not", "a", "record"]
+    _pk, problems = SR.package_problems(CW.SCREENS["DEV"], bundle, ["--timber-stock"])
+    assert problems == ["timber_stock: records that are not objects at turns [1]"]
+    retail = SR.Package("--household-retail", ("livelihoods", "household_retail"),
+                        counters_module="chronicler.household_retail_state", counters=("priced_out_persons",))
+    screen = dataclasses.replace(CW.SCREENS["DEV"], packages=(retail,))
+    bundle = make_bundle(retail=True)
+    bundle["history"][0]["livelihoods"]["household_retail"]["counters"]["priced_out_persons"] = "2"
+    bundle["history"][1]["livelihoods"]["household_retail"]["counters"] = None
+    _pk, problems = SR.package_problems(screen, bundle, ["--household-retail"])
+    assert problems == ["household_retail: counters missing at turns [2]",
+                        "household_retail: non-numeric counters ['priced_out_persons']"]
+
+
+def test_n1_a_malformed_registry_is_refused_not_crashing(SR, CW, registry):
+    reg = copy.deepcopy(registry)
+    reg["entries"][0]["seeds"] = [[10]]
+    del reg["entries"][1]["stratum"]
+    problems, _notes = SR.check_seeds(CW.SCREENS["CW1"], reg)
+    assert problems and all("CW1" not in p for p in problems)
+
+
+def test_n7_a_failed_run_keeps_its_output(SR, CW, tmp_path):
+    fake = FakeRuntime(SR, rc=1)
+    argv = [str(tmp_path / "out"), "--screen", "DEV", "--cohort", "dev", "--worlds", "t1", "--jobs", "1"]
+    assert SR.run_main(argv, CW.SCREENS, fake.rt) == SR.RC_FAILED
+    assert (tmp_path / "out" / "runs" / "W-t1" / "chronicle_bundle.json").exists()
