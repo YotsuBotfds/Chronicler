@@ -446,7 +446,8 @@ def test_the_controls_extract_with_structural_zeros(short):
 
 @pytest.mark.parametrize("label, arm, kwargs, match", [
     ("missing package", "CH", {"drop": "remittances"}, "packages .* recorded, expected exactly"),
-    ("leaked retail", "CH_L2", {"leak": True}, "household_retail: recorded at turns \\[1, 2, 3\\] in an arm without it"),
+    ("leaked retail", "CH_L2", {"leak": True},
+     "household_retail: recorded at turns \\[1, 2, 3\\] in an arm without it"),
     ("renamed counter", "CH", {"rename": ("remittances", "remitted_milli")},
      "remittances: undeclared counters \\['remitted_milli'\\]"),
     ("no L2 frame", "CH", {"drop": "food_allocation"}, "food_allocation: frame missing or malformed"),
@@ -639,8 +640,8 @@ def test_a_failed_control_leaves_its_pair_unknown(short, tmp_path, monkeypatch):
     by = {r["arm"]: r for r in rows}
     assert by["CH"]["pair"]["CH|CH_unpaid"] is None
     text = "\n".join(S.report_lines(rows, S.CP3))
-    assert "| [primary] CH priced-out person-turns in the pilot regions of either arm (CH - CH_unpaid) | t | 5: failed" \
-        in text
+    label = "[primary] CH priced-out person-turns in the pilot regions of either arm (CH - CH_unpaid)"
+    assert f"| {label} | t | 5: failed" in text
 
 
 def test_rows_of_another_checkpoint_are_refused(short, tmp_path, monkeypatch):

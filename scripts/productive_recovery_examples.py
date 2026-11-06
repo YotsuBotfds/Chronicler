@@ -492,34 +492,36 @@ def _l3(ix, T, r) -> dict | None:
 
 
 def _wage_snapshots(ix) -> dict[int, dict[int, list]]:
-    """Stable id -> {snapshot: [repair_wage milli, [sources]]} for every named repair
-    worker paid: PL3 crew members (``pl3_granary`` / ``pl3_workshop``, by member), RS2
-    workshop crews (``rs2_workshop``, the receipt's wages split evenly) and PL1
-    woodcutting crews (``pl1_woodcut``, likewise; one rate per person-turn)."""
+    """Stable id -> {snapshot: [repair_wage milli, [sources], [regions]]} for every named
+    repair worker paid: PL3 crew members (``pl3_granary`` / ``pl3_workshop``, by member,
+    in the project's region), RS2 workshop crews (``rs2_workshop``, the receipt's wages
+    split evenly) and PL1 woodcutting crews (``pl1_woodcut``, likewise, in the home
+    region; one rate per person-turn)."""
     paid: dict[int, dict[int, list]] = {}
 
-    def add(aid, T, milli, source):
+    def add(aid, T, milli, source, region):
         if milli > 0:
-            cell = paid.setdefault(aid, {}).setdefault(T, [0, []])
+            cell = paid.setdefault(aid, {}).setdefault(T, [0, [], []])
             cell[0] += milli
             cell[1].append(source)
+            cell[2].append(region)
 
     pl3 = set()
     for T, r in ix["crew_list"]:
         for m in _rows(r, "members"):
-            add(m["agent_id"], T, m.get("wage_milli") or 0, f"pl3_{r.get('kind')}")
+            add(m["agent_id"], T, m.get("wage_milli") or 0, f"pl3_{r.get('kind')}", r.get("region"))
             pl3.add((T, r["pid"]))
     for T, r in ix["rs2_list"]:
         # PL3 lists the RS2 workshop crews it widened; count each wage once.
         if (T, r["pid"]) not in pl3 and r.get("crew") and (r.get("wages_milli") or 0) > 0:
             each, rest = divmod(r["wages_milli"], len(r["crew"]))
             for i, aid in enumerate(r["crew"]):
-                add(aid, T, each + (1 if i < rest else 0), "rs2_workshop")
+                add(aid, T, each + (1 if i < rest else 0), "rs2_workshop", r.get("region"))
     for T, r in ix["ts_list"]:
         if r.get("crew") and (r.get("wages_milli") or 0) > 0:
             each, rest = divmod(r["wages_milli"], len(r["crew"]))
             for i, aid in enumerate(r["crew"]):
-                add(aid, T, each + (1 if i < rest else 0), "pl1_woodcut")
+                add(aid, T, each + (1 if i < rest else 0), "pl1_woodcut", r.get("home"))
     return paid
 
 
@@ -649,6 +651,9 @@ def _trace(ix, pid: int) -> dict:
               if rid == R and T > paid_from and ((f.get("provisioning") or {}).get("paid_milli") or 0) > 0]
     hits = sorted(_sample_hits(ix, people), key=lambda h: (h["region"] != R, h["who"] != "self", h["snapshot"]))
     here = [h for h in hits if h["region"] == R]
+    # The repair crew in the chain's region after their repair wage (the strict reading
+    # of "those households"; the expedition crew's wages came earlier).
+    repairers = [h for h in _sample_hits(ix, {aid: v["first_snapshot"] for aid, v in crew.items()}, R)]
     opened = ix["opened"].get(R)
     if not bought and not hits:
         out["missing"] = "the region's households bought no food after the wages, and no crew member is in the sample"
@@ -668,11 +673,21 @@ def _trace(ix, pid: int) -> dict:
                       "snapshot": first[0], "price_milli": first[1].get("price_milli"),
                       **_pick(first[1]["provisioning"], *PROVISIONING_READ)},
                   "sample_hits": len(hits), "sample_hits_in_region": len(here), "sample_statuses": statuses,
-                  "sample": hits[:MAX_HITS]})
+                  "sample": hits[:MAX_HITS], "repair_crew_sample_hits_in_region": len(repairers),
+                  "repair_crew_sample": repairers[:MAX_HITS]})
     out["depth"] = 5
     out["id_to_food"] = bool(hits)
     out["id_to_food_in_region"] = bool(here)
+    out["repair_crew_to_food_in_region"] = bool(repairers)
     return out
+
+
+def _id_links(t: dict) -> int:
+    """How many of the links that can be joined by id were: the store link (the project
+    was the region's only holder), a paid worker in the sample in the chain's region, and
+    the repair crew there after its repair wage."""
+    by3 = len(t["links"]) >= 3 and t["links"][2]["by"].startswith("id")
+    return int(by3) + int(t.get("id_to_food_in_region", False)) + int(t.get("repair_crew_to_food_in_region", False))
 
 
 def _chain(hist) -> dict:
@@ -688,8 +703,11 @@ def _chain(hist) -> dict:
     funnel["a paid crew member or their household in the retail sample later"] = sum(1 for t in traces
                                                                                      if t["id_to_food"])
     funnel["... in the chain's region"] = sum(1 for t in traces if t.get("id_to_food_in_region"))
-    best = max(traces, key=lambda t: (t["depth"], t.get("id_to_food_in_region", False), t["id_to_food"]),
-               default=None)
+    funnel["... the repair crew there after its repair wage"] = sum(1 for t in traces
+                                                                  if t.get("repair_crew_to_food_in_region"))
+    funnel["the store link joined by id (the project the region's only holder)"] = sum(
+        1 for t in traces if len(t["links"]) >= 3 and t["links"][2]["by"].startswith("id"))
+    best = max(traces, key=lambda t: (t["depth"], _id_links(t), t["id_to_food"]), default=None)
     return {"instance": best, "funnel": funnel}
 
 
@@ -714,7 +732,8 @@ def _tradeoffs(hist, ix=None) -> dict:
         hit = (T, {**_pick(r, "eid", "home", "forest", "stage", "crew", "away_delivered"),
                    "home_demand": demand, "home_sufficiency_after_relief": s,
                    "home_shortfall": round(demand * (1 - s), 6),
-                   "home_priced_out_persons": prov.get("priced_out_persons"), "home_pilot_persons": prov.get("persons")})
+                   "home_priced_out_persons": prov.get("priced_out_persons"),
+                   "home_pilot_persons": prov.get("persons")})
         short = short or hit
         if away is None and (prov.get("priced_out_persons") or 0) > 0:
             away = hit
@@ -771,6 +790,7 @@ def _tradeoffs(hist, ix=None) -> dict:
                                           "ration": row.get("ration"), "fair_share": row.get("fair_share"),
                                           "wage_snapshots": sorted(prior),
                                           "wage_sources": sorted({x for w in prior for x in wages[w][1]}),
+                                          "wage_regions": sorted({x for w in prior for x in wages[w][2]}),
                                           "wages_milli": sum(wages[w][0] for w in prior),
                                           "last_wage_snapshot": last, "turns_since_last_wage": T - last,
                                           "paid_again_later": any(w > T for w in wages)})

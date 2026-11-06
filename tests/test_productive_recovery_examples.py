@@ -354,12 +354,14 @@ def _chain_bundle():
         put(T, "repair_projects", receipts=[rs2(T, 0, 1, "progress", [], used=2.0)])
         members = [{"agent_id": 20, "origin": "rural_farmer", "wage_milli": 2000},
                    {"agent_id": 21, "origin": "rural_farmer", "wage_milli": 1500}]
-        put(T, "recovery_crews", receipts=[{"turn": T - 1, "pid": 0, "kind": "granary", "members": members}])
+        put(T, "recovery_crews", receipts=[{"turn": T - 1, "pid": 0, "kind": "granary", "region": 1,
+                                            "members": members}])
     put(9, "repair_projects", receipts=[rs2(9, 2, 1, "stalled", ["no_timber"])],
         closed=[{"pid": 0, "region": 1, "status": "completed", "closed_turn": 8}])
     put(10, "repair_projects", closed=[{"pid": 0, "region": 1, "status": "completed", "closed_turn": 8}])
     for T in (7, 8, 9):
-        prov = {"persons": 20.0, "priced_out_persons": 1.0, "sold_milli": 3000.0, "paid_milli": 0.0 if T == 7 else 3000.0}
+        prov = {"persons": 20.0, "priced_out_persons": 1.0, "sold_milli": 3000.0,
+                "paid_milli": 0.0 if T == 7 else 3000.0}
         put(T, "household_retail", regions=[{"region": 1, "price_milli": 400, "provisioning": prov}])
     put(7, "household_retail", sample=[[21, 1, 21, 0.5, 0.8, 1]])                  # paid that same turn: no hit
     put(9, "household_retail", sample=[[20, 1, 20, 1.0, 1.0, 0], [30, 1, 21, 0.5, 0.8, 1]])
@@ -400,7 +402,12 @@ def test_the_chain_is_traced_link_by_link_with_ids_and_regions(E):
                                "the repair used the delivered timber": 1, "named workers paid": 1,
                                "the region's households bought food later": 1,
                                "a paid crew member or their household in the retail sample later": 1,
-                               "... in the chain's region": 1}
+                               "... in the chain's region": 1, "... the repair crew there after its repair wage": 1,
+                               "the store link joined by id (the project the region's only holder)": 1}
+    # The repair crew (paid from snapshot 7) is in the sample at snapshot 9: 20 itself
+    # and the household keyed by 21.
+    assert l5["repair_crew_sample_hits_in_region"] == 2 and inst["repair_crew_to_food_in_region"]
+    assert E._id_links(inst) == 3
 
 
 def test_a_missing_link_is_named_and_a_shared_store_is_traced_by_region(E):
@@ -437,6 +444,7 @@ def test_the_chain_tradeoffs_are_found_with_their_ids(E):
     turn, family = trade["tradeoff: a family priced out after its crew member's wages ended"]
     assert (turn, family["crew_member"], family["who"], family["priced_out_person"]) == (9, 21, "household", 30)
     assert (family["wage_snapshots"], family["wage_sources"], family["wages_milli"]) == ([7, 8], ["pl3_granary"], 3000)
+    assert family["wage_regions"] == [1]
     assert (family["last_wage_snapshot"], family["turns_since_last_wage"], family["paid_again_later"]) == (8, 1, False)
     assert trade["counts"] == {"away crew-turns": 1, "away crew-turns with the home region short": 1,
                                "cutting turns": 2, "cutting turns whose L3 stock fell": 2,
