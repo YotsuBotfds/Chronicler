@@ -97,15 +97,26 @@ a death without heirs). Slice 2 (a native observer) will itemize it.
 
 Every typed amount is a whole milli-unit. `typed_complete` means **every known
 channel** of an active package had this turn's record. A payer this module
-does not know cannot pass unnoticed: `wealth_accounting_state.WEALTH_WRITERS`
-registers every Python call site of a native method that writes wealth or
-withholds income (`transfer_wealth`, `remit_wealth`,
-`apply_merchant_transfers`, `set_household_retail`, `install_paid_work`,
-`extend_paid_work`, `install_retail_income`) with the channel the ledger reads
-it as, and `tests/test_wealth_accounting.py` walks `src/` and fails on an
-unregistered call site (or a stale row). A new payer (for example A3's
-`money.py`) adds one row and its channel. A native test also fails when
-`AgentSimulator.wealth_transfer_purposes()` grows past `KNOWN_PURPOSES`.
+does not know cannot pass unnoticed. `wealth_accounting_state.WEALTH_WRITERS`
+registers every **payer path** - module, enclosing function, native writer
+(`transfer_wealth`, `remit_wealth`, `apply_merchant_transfers`,
+`set_household_retail`, `install_paid_work`, `extend_paid_work`,
+`install_retail_income`, `reserve_learning_attendance`,
+`prepare_teaching_work`, `prepare_health_work`) or routing helper, and the
+purpose and batch arguments as written - with its number of call sites and the
+channel the ledger reads it as. `WEALTH_ROUTERS` declares helpers that route a
+payment for a caller-chosen purpose (`workshop_payroll.pay_from_firm`; A3's
+`money.py` goes here) with the channels they may carry; each call of a router
+is a path of its own, and a writer call that takes its purpose or batch from a
+parameter of an undeclared function fails. `WEALTH_WRITER_REFERENCES` lists the
+only other references to a writer's name (the name strings packages use to
+check the extension has a method). `tests/test_wealth_accounting.py` walks
+`src/` and fails closed: an unregistered path, a changed call-site count, a
+new purpose or batch, a `getattr` or bound-method alias, or a name in a string
+fails, as does a stale row. A new payer path adds one row (and its channel). A
+native test also fails when `AgentSimulator.wealth_transfer_purposes()` grows
+past `KNOWN_PURPOSES`. Not seen by the walk: a writer name assembled from
+pieces at run time.
 
 Created or destroyed, recorded beside the typed flows (`frame.treasury`):
 
@@ -144,7 +155,10 @@ and `conflicts` are 0 on every world checked. `retail_income_replaced` is
 L6b's replaced farm income (also no money), shown whenever retail is active,
 with or without a paid-work package (`paid_work_active` false: the paid-work
 fields are null, not zero; `retail_income_replaced` null: retail off or not
-observed this turn).
+observed this turn). L5 learning attendance, academy teaching and rural health
+work withhold income too; they are registered (`withheld_learning`,
+`withheld_teaching`, `withheld_health`) but not itemized in slice 1, so their
+shares stay in `native_model`.
 
 ## Recorded limit RL7: separate granary and workshop income withholding
 
@@ -216,6 +230,9 @@ reference for viewer and analysis readers):
   paid-work fields are null when no paid-work package is active (not zero), a
   typed row with `observed: false` is an active package without this turn's
   frame (`typed_complete` is then false), and `tithe.collected` is always null.
+  A failed closure (including "located flows do not exceed the package's
+  total", whose unlocated flow is then negative) is shown on an observed
+  frame, never read as malformed.
 
 The viewer reads the record in `viewer/src/lib/wealthAccounting.ts`
 (`readWealthAccounting`: absent, malformed with its reason, unobserved,
