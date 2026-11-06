@@ -514,7 +514,8 @@ pub struct RetailRegionResult {
 /// L6b retail, a pilot region at opening: the owned stock carried into the
 /// turn (last turn's unsold) after its storage decay, and the per-good storage
 /// cap enforced once, on the commons and the carried owned stock together,
-/// pro rata (both pools keep `pool x cap / (commons + owned)`). This is done
+/// pro rata (both pools keep `pool x cap / (commons + owned)`, the commons
+/// counted net of this tick's merchant departures). This is done
 /// before sufficiency; this turn's title is not decayed or capped before it can
 /// be eaten, so sufficiency counts exactly the food offered at phase 0.7. (The
 /// commons are capped again at close, as in every region.)
@@ -524,15 +525,20 @@ struct RetailOpening {
     decay: [f32; NUM_GOODS],
     /// Owned share of the opening cap overflow.
     overflow: [f32; NUM_GOODS],
-    /// The commons on hand after the opening cap (non-food goods as given).
+    /// The commons on hand after the opening cap, before this tick's
+    /// departures are taken (non-food goods as given).
     commons: [f32; NUM_GOODS],
-    /// Commons share of the opening cap overflow.
+    /// Commons share of the opening cap overflow, of the commons net of
+    /// departures (at most that net, so the departures still fit).
     commons_overflow: [f32; NUM_GOODS],
 }
 
 /// Salt preserves at the effective rate of the food on hand at opening
-/// (commons and owned); see [`RetailOpening`].
-fn retail_opening(inp: &EconomyRegionInput, rt: &RetailRegionInput, config: &EconomyConfig) -> RetailOpening {
+/// (commons and owned); see [`RetailOpening`]. The cap reads the commons net
+/// of this tick's merchant departures (`departures`, as the crafts' on-hand
+/// does), so the departures can never drive the cut commons negative.
+fn retail_opening(inp: &EconomyRegionInput, rt: &RetailRegionInput, config: &EconomyConfig,
+                  departures: Option<&[f32; NUM_GOODS]>) -> RetailOpening {
     let mut owned = [0.0f32; NUM_GOODS];
     for g in 0..NUM_GOODS {
         if IS_FOOD[g] { owned[g] = rt.owned[g]; }
@@ -553,15 +559,16 @@ fn retail_opening(inp: &EconomyRegionInput, rt: &RetailRegionInput, config: &Eco
             out.owned[g] *= 1.0 - STORAGE_DECAY[g] * (1.0 - preservation);
             out.decay[g] = held - out.owned[g];
         }
-        let total = out.commons[g] + out.owned[g];
+        let net = (out.commons[g] - departures.map_or(0.0, |d| d[g])).max(0.0);
+        let total = net + out.owned[g];
         if total > cap {
             let share = cap / total;
             let owned_keep = (out.owned[g] * share).clamp(0.0, out.owned[g]);
-            let commons_keep = (out.commons[g] * share).clamp(0.0, out.commons[g]);
+            let net_keep = (net * share).clamp(0.0, net);
             out.overflow[g] = out.owned[g] - owned_keep;
-            out.commons_overflow[g] = out.commons[g] - commons_keep;
+            out.commons_overflow[g] = net - net_keep;
             out.owned[g] = owned_keep;
-            out.commons[g] = commons_keep;
+            out.commons[g] -= out.commons_overflow[g];
         }
     }
     out
@@ -1247,7 +1254,8 @@ pub fn tick_economy_core_with_inputs(
     // L6b retail: each pilot region's opening (carried owned stock decayed;
     // commons and owned capped together).
     let retail_carried: Vec<Option<RetailOpening>> =
-        (0..region_inputs.len()).map(|i| retail_at(i).map(|rt| retail_opening(&region_inputs[i], &rt, config)))
+        (0..region_inputs.len()).map(|i| retail_at(i).map(|rt| retail_opening(&region_inputs[i], &rt, config,
+            hybrid_delivery.and_then(|d| d.departure_debits.get(i)))))
             .collect();
     let mut retail_results: Option<Vec<Option<RetailRegionResult>>> = retail.map(|r| Vec::with_capacity(r.len()));
     assert!(granary_work_requested.is_empty() || granary_work_requested.len() == region_inputs.len());
