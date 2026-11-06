@@ -26,7 +26,7 @@ const BOUNDARY_NOTE: Record<string, string> = {
   market: "market: each ruling civilization's capital region, from the turn it first qualifies",
   paid_work: "paid_work: regions where paid work has been done (an open workshop firm, a paid repair or granary crew, or the home of a paid woodcutting crew)",
   all: "all: every controlled region (a stress setting)",
-  schedule: "schedule: the regions of a frozen schedule (another run's recorded openings, for example), each from its opening turn",
+  schedule: "schedule: the regions of a frozen schedule (another run's recorded enrollment, for example)",
 };
 const CAUSE_LABEL: Record<string, string> = { conquest: "conquest", siege: "siege turn", occupation: "occupation start" };
 const ACTOR_ROLE: Record<string, string> = { conquest: "conqueror", siege: "besieger", occupation: "occupier" };
@@ -153,7 +153,15 @@ export function HouseholdRetail({ bundle, snapshot, currentTurn, onSelectRegion 
   const aboveCap = !("opened_turn" in keys) ? "not recorded (written before the storage-cap cut)"
     : `${food(c("owned_grain_above_cap_milli"))} · ${"intervals" in keys ? food(c("commons_grain_above_cap_milli")) : "not recorded (written before the pro-rata cut)"}`;
   const capCut = (r: RetailRegionFrame) => (r as unknown as { cap_cut?: { owned_milli: number; commons_milli: number } }).cap_cut ?? null;
-  const schedule = (record as unknown as { schedule?: { sha256: string; turns: Record<string, number> } }).schedule;
+  const schedule = (record as unknown as { schedule?: { sha256: string; turns: Record<string, number | [number, number | null][]> } }).schedule;
+  /** S1: exact intervals (a region also leaves when its interval ends) or the first-turn format
+   * (each region from its opening turn), which cannot replay a region its source closed. */
+  const intervalSchedule = schedule ? Object.values(schedule.turns).some((v) => Array.isArray(v)) : false;
+  const scheduleNote = !schedule ? "" : ` (${intervalSchedule
+    ? "exact intervals: each region only within its intervals"
+    : "first-turn schedule, each region from its opening turn: approximate, it cannot replay a region its source closed"}; ${plural(Object.keys(schedule.turns).length, "region")}, schedule sha256 ${schedule.sha256.slice(0, 12)})`;
+  const leaves = intervalSchedule ? "a region leaves when it has no controller or its schedule interval ends"
+    : "a region leaves only when it has no controller";
   const cohorts = cohortTotals(record);
   const cell = (v: number | null, f: CohortField) => v === null ? "Unknown"
     : f === "persons" || f === "priced_out" ? number(v) : f === "income_replaced" ? number(v) : coins(v);
@@ -205,7 +213,7 @@ export function HouseholdRetail({ bundle, snapshot, currentTurn, onSelectRegion 
   return <section className="systems-section" aria-label="Household retail">
     <h3>Household retail · snapshot {turn}</h3>
     <p className="systems-note">Simulation turn {record.source_turn}. {MODE_NOTE[record.mode]}</p>
-    <p className="systems-note">Mode: {RETAIL_MODE_LABEL[record.mode]}. Pilot boundary: {BOUNDARY_NOTE[record.boundary]}{schedule ? ` (${plural(Object.keys(schedule.turns).length, "region")}, schedule sha256 ${schedule.sha256.slice(0, 12)})` : ""}; a region leaves only when it has no controller, and its owned food then returns to its commons. Title share θ = {number(theta)}: {number((1 - theta) * 100, 1)}% of each pilot harvest stays commons. The price is the market food price clamped to {number(p.price_floor)}–{number(p.price_cap)}, times the ration. At most {number(p.max_claims)} claims are held; a farmer or heir beyond that is refused and the share stays commons. Food in food units (two rations each), money in wealth units, deficits in rations. Retail rules version {v2 ? "2: each conquest, siege turn and occupation start reaches owned food once, recorded with its cause, actor and victim" : "1 (checkpoints 2–3): a conquest's share once per turn; sieges and occupations leave owned food alone"}.</p>
+    <p className="systems-note">Mode: {RETAIL_MODE_LABEL[record.mode]}. Pilot boundary: {BOUNDARY_NOTE[record.boundary]}{scheduleNote}; {leaves}, and its owned food then returns to its commons. Title share θ = {number(theta)}: {number((1 - theta) * 100, 1)}% of each pilot harvest stays commons. The price is the market food price clamped to {number(p.price_floor)}–{number(p.price_cap)}, times the ration. At most {number(p.max_claims)} claims are held; a farmer or heir beyond that is refused and the share stays commons. Food in food units (two rations each), money in wealth units, deficits in rations. Retail rules version {v2 ? "2: each conquest, siege turn and occupation start reaches owned food once, recorded with its cause, actor and victim" : "1 (checkpoints 2–3): a conquest's share once per turn; sieges and occupations leave owned food alone"}.</p>
     {frames === null ? <p className="systems-note">The retail frame of simulation turn {record.source_turn} was not recorded: who ate, sold and paid, and who fell below their fair share, are unknown, not zero.</p>
       : frames.length === 0 ? <p className="systems-note">No region is in the pilot at simulation turn {record.source_turn}.</p> : <>
         {control ? <p className="systems-note">Nobody is provisioned by retail in this control; the food allocation section shows what people ate.</p> : <>

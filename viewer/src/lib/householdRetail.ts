@@ -13,7 +13,9 @@ import type { TurnSnapshot } from "../types";
 
 export const RETAIL_GOODS = ["grain", "fish", "salt", "botanicals", "exotic"] as const;
 export const RETAIL_MODES = ["retail", "no_relief", "free_exchange", "record_only"] as const;
-/** ``schedule`` (A2R): a frozen ``{region: opening turn}`` map (``--household-retail-schedule``). */
+/** ``schedule`` (A2R): a frozen schedule (``--household-retail-schedule``): exact intervals
+ * ``{region: [[open, close], ..., [open, null]]}`` (S1), or the approximate first-turn
+ * ``{region: opening turn}`` map. */
 export const RETAIL_BOUNDARIES = ["market", "paid_work", "all", "schedule"] as const;
 export type RetailMode = typeof RETAIL_MODES[number];
 export type RetailBoundary = typeof RETAIL_BOUNDARIES[number];

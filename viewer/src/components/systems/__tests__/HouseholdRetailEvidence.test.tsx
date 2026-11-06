@@ -71,9 +71,20 @@ describe("household retail panel: rules version 2 evidence", () => {
     const p = props("sched7");
     render(<HouseholdRetail {...p} />);
     const sha = SNAPSHOTS.find((n) => n.run === "sched7")!.livelihoods.household_retail.schedule.sha256 as string;
-    expect(note(new RegExp(`Pilot boundary: schedule: the regions of a frozen schedule .* \\(14 regions, schedule sha256 ${sha.slice(0, 12)}\\)`)))
+    expect(note(new RegExp(`Pilot boundary: schedule: the regions of a frozen schedule .* \\(first-turn schedule, each region from its opening turn: approximate, it cannot replay a region its source closed; 14 regions, schedule sha256 ${sha.slice(0, 12)}\\); a region leaves only when it has no controller`)))
       .toBeInTheDocument();
     expect(lifetime(/^Grain above the storage cap, lost before granaries buy/)).toBeInTheDocument();
+  });
+
+  it("says an interval schedule enrolls each region only within its intervals, and that an interval's end closes it", () => {
+    // Constructed (labelled): the fixture's first-turn schedule rewritten as exact intervals.
+    render(<HouseholdRetail {...props("sched7", (x) => {
+      x.schedule.turns = Object.fromEntries(Object.entries(x.schedule.turns as Record<string, number>)
+        .map(([r, t], i) => [r, i === 0 ? [[t, t + 5], [t + 9, null]] : [[t, null]]]));
+    })} />);
+    expect(note(/\(exact intervals: each region only within its intervals; 14 regions, schedule sha256 [0-9a-f]{12}\); a region leaves when it has no controller or its schedule interval ends/))
+      .toBeInTheDocument();
+    expect(screen.queryByText(/first-turn schedule/)).toBeNull();
   });
 
   it("says when the rolling log kept fewer of this turn's war events than happened (constructed)", () => {
