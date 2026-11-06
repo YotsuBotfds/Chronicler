@@ -72,7 +72,9 @@ declared modelling choice, not a calibration.
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass, field, fields
 from functools import lru_cache
+from typing import NamedTuple
 
 from chronicler.watershed_state import (
     COUNTER_KEYS, FLOW_KEYS, FRAME_COLUMNS, LAKE, SEA, SINK, DroughtSpell, ExternalFlow, FloodRecord,
@@ -83,47 +85,82 @@ MODES = ("record_only",)
 SCHEMA_VERSION = 1
 STAGE = "B1"
 
-#: Storage capacity of a region without forest cover (water units).
-STORAGE_BASE = 1.0
-#: Forest soils hold more: capacity x (1 + FOREST_RETENTION x cover).
-FOREST_RETENTION = 0.5
-#: Precipitation per turn at (0.2 + moisture) = 1, phase factor 1, no shock.
-PRECIPITATION_BASE = 0.1
-#: Precipitation factor by global climate phase (scaled by the region's
-#: latitude exposure and the climate trend share).
-PHASE_PRECIPITATION = {"temperate": 1.0, "warming": 0.85, "drought": 0.3, "cooling": 0.6}
-#: A bad harvest year of depth h cuts precipitation by h x this.
-SHOCK_PRECIPITATION = 1.0
-#: Snowmelt added to tundra precipitation in the warming phase.
-TUNDRA_MELT = 0.05
-#: Potential evapotranspiration per turn at phase factor 1.
-EVAPORATION_BASE = 0.03
-PHASE_EVAPORATION = {"temperate": 1.0, "warming": 1.3, "drought": 1.6, "cooling": 0.7}
-TERRAIN_EVAPORATION = {"desert": 1.6, "steppe": 1.25, "tundra": 0.5}
-#: Forests transpire more: evaporation x (1 + TRANSPIRATION x cover).
-TRANSPIRATION = 0.3
-#: Share of storage released downstream each turn (overflow above capacity also leaves).
-BASEFLOW = 0.05
-#: Consumptive irrigation use per turn of a region with an active irrigation work
-#: (service 1.0: this slice has no infrastructure condition).
-IRRIGATION_DEMAND = 0.02
-#: The derived index counts irrigation water applied to fields: W/C x this.
-IRRIGATION_WETTING = 1.0
-#: Arrivals per turn a region's channel passes without flooding ...
-CHANNEL_CAPACITY = 0.25
-#: ... larger on a named river region.
-RIVER_CHANNEL_FACTOR = 2.0
-#: A drought: storage below this fraction of capacity ...
-DROUGHT_FRACTION = 0.2
-#: ... for at least this many consecutive settled turns.
-DROUGHT_TURNS = 3
-#: Upstream regions below this cover count as deforested in a flood record
-#: (the ecology's deforestation threshold).
-DEFORESTED_COVER = 0.2
-#: The water index floor (``ecology._FLOOR_WATER``).
-INDEX_FLOOR = 0.10
-#: Relative closure tolerance of every per-turn and cumulative check.
-CLOSURE_TOLERANCE = 1e-9
+
+@dataclass(frozen=True)
+class Parameters:
+    """The account's declared constants (water units, wu, per turn unless noted)."""
+
+    #: Storage capacity of a region without forest cover.
+    storage_base: float = 1.0
+    #: Forest soils hold more: capacity x (1 + forest_retention x cover).
+    forest_retention: float = 0.5
+    #: Precipitation at (0.2 + moisture) = 1, phase factor 1, no shock.
+    precipitation_base: float = 0.1
+    #: Precipitation factor by global climate phase (scaled by the region's
+    #: latitude exposure and the climate trend share).
+    phase_precipitation: dict = field(default_factory=lambda: {
+        "temperate": 1.0, "warming": 0.85, "drought": 0.3, "cooling": 0.6})
+    #: A bad harvest year of depth h cuts precipitation by h x this.
+    shock_precipitation: float = 1.0
+    #: Snowmelt added to tundra precipitation in the warming phase.
+    tundra_melt: float = 0.05
+    #: Potential evapotranspiration at phase factor 1.
+    evaporation_base: float = 0.03
+    phase_evaporation: dict = field(default_factory=lambda: {
+        "temperate": 1.0, "warming": 1.3, "drought": 1.6, "cooling": 0.7})
+    terrain_evaporation: dict = field(default_factory=lambda: {"desert": 1.6, "steppe": 1.25, "tundra": 0.5})
+    #: Forests transpire more: evaporation x (1 + transpiration x cover).
+    transpiration: float = 0.3
+    #: Share of storage released downstream each turn (overflow above capacity also leaves).
+    baseflow: float = 0.05
+    #: Consumptive irrigation use of a region with an active irrigation work (service 1.0).
+    irrigation_demand: float = 0.02
+    #: The derived index counts irrigation water applied to fields: W/C x this.
+    irrigation_wetting: float = 1.0
+    #: Arrivals a region's channel passes without flooding ...
+    channel_capacity: float = 0.25
+    #: ... larger on a named river region.
+    river_channel_factor: float = 2.0
+    #: A drought: storage below this fraction of capacity ...
+    drought_fraction: float = 0.2
+    #: ... for at least this many consecutive settled turns.
+    drought_turns: int = 3
+    #: Upstream regions below this cover count as deforested in a flood record.
+    deforested_cover: float = 0.2
+    #: The water index floor (``ecology._FLOOR_WATER``).
+    index_floor: float = 0.10
+    #: Relative closure tolerance of every per-turn and cumulative check.
+    closure_tolerance: float = 1e-9
+
+    def as_dict(self) -> dict:
+        return {f.name: (dict(v) if isinstance(v := getattr(self, f.name), dict) else v) for f in fields(self)}
+
+
+#: The B1 (S1-A) constants, kept for comparison (docs/integration/watershed.md, calibration).
+B1_PARAMETERS = Parameters()
+#: The constants in force.
+PARAMETERS = B1_PARAMETERS
+
+STORAGE_BASE = PARAMETERS.storage_base
+FOREST_RETENTION = PARAMETERS.forest_retention
+PRECIPITATION_BASE = PARAMETERS.precipitation_base
+PHASE_PRECIPITATION = PARAMETERS.phase_precipitation
+SHOCK_PRECIPITATION = PARAMETERS.shock_precipitation
+TUNDRA_MELT = PARAMETERS.tundra_melt
+EVAPORATION_BASE = PARAMETERS.evaporation_base
+PHASE_EVAPORATION = PARAMETERS.phase_evaporation
+TERRAIN_EVAPORATION = PARAMETERS.terrain_evaporation
+TRANSPIRATION = PARAMETERS.transpiration
+BASEFLOW = PARAMETERS.baseflow
+IRRIGATION_DEMAND = PARAMETERS.irrigation_demand
+IRRIGATION_WETTING = PARAMETERS.irrigation_wetting
+CHANNEL_CAPACITY = PARAMETERS.channel_capacity
+RIVER_CHANNEL_FACTOR = PARAMETERS.river_channel_factor
+DROUGHT_FRACTION = PARAMETERS.drought_fraction
+DROUGHT_TURNS = PARAMETERS.drought_turns
+DEFORESTED_COVER = PARAMETERS.deforested_cover
+INDEX_FLOOR = PARAMETERS.index_floor
+CLOSURE_TOLERANCE = PARAMETERS.closure_tolerance
 
 TEMPLATE_REFUSAL = (
     "--watershed requires a procedural world (--worldgen procedural, or more than 12 regions with "
@@ -376,65 +413,91 @@ def coastal_flood_gain(world, region) -> float | None:
     return float(get_override(world, K_FLOOD_WATER_GAIN, 0.1))
 
 
-def _external(world, region, r: int, x_in: float, x_out: float, cap: float, stale: bool) -> list[ExternalFlow]:
-    """Attribute a region's external flows to their recorded source."""
-    flows: list[ExternalFlow] = []
-    if x_in > 0.0:
-        gain = None if stale else coastal_flood_gain(world, region)
-        attributed = min(x_in, gain / _span(region) * cap) if gain is not None else 0.0
-        if attributed > 0.0:
-            flows.append(ExternalFlow(region=r, direction="in", source="coastal_flood", amount=attributed))
-        if x_in - attributed > 0.0:
-            flows.append(ExternalFlow(region=r, direction="in", source="unattributed", amount=x_in - attributed))
-    if x_out > 0.0:
-        flows.append(ExternalFlow(region=r, direction="out", source="unattributed", amount=x_out))
-    return flows
+class RegionInput(NamedTuple):
+    """What the account reads of one region before the tick (pure data, so
+    the account can be replayed: scripts/watershed_calibration.py)."""
+    terrain: str
+    moisture: float
+    cover: float
+    water: float
+    exposure: float
+    shock: float
+    irrigated: bool
+    river: bool
+    cap: float
+    #: The coastal flood's index gain this turn (``coastal_flood_gain``), or None.
+    flood_gain: float | None
 
 
-def _compute(world, state: WatershedState, stale: bool = False) -> _Plan:
+def region_inputs(world, state: WatershedState) -> tuple[int, str, float, list[RegionInput]]:
+    """(turn, phase, trend share, per-region inputs): reads only."""
     from chronicler.climate import climate_trend_share, get_climate_phase, region_harvest_shocks
     from chronicler.geography import climate_exposure
     turn = int(world.turn)
     phase = get_climate_phase(turn, world.climate_config)
-    key = phase.value
     trend = climate_trend_share(world)
     shocks = region_harvest_shocks(world)
-    regions = world.regions
-    n = len(regions)
-    if len(state.graph.down) != n or len(state.storage) != n or len(state.last_index) != n:
+    inputs = []
+    for r, region in enumerate(world.regions):
+        water = float(region.ecology.water)
+        inputs.append(RegionInput(
+            terrain=region.terrain, moisture=float(region.geo.moisture), cover=_cover(region), water=water,
+            exposure=float(climate_exposure(region.latitude_band, phase)), shock=float(shocks[r]),
+            irrigated=_irrigated(region), river=bool(region.river_mask), cap=index_cap(region),
+            flood_gain=coastal_flood_gain(world, region) if water > float(state.last_index[r]) else None))
+    return turn, phase.value, trend, inputs
+
+
+def account_step(graph: WatershedGraph, storage: list[float], last_index: list[float], turn: int, key: str,
+                 trend: float, inputs: list[RegionInput], params: Parameters = PARAMETERS,
+                 stale: bool = False) -> _Plan:
+    """One turn of the account from its inputs (pure: no world, no RNG)."""
+    n = len(inputs)
+    if len(graph.down) != n or len(storage) != n or len(last_index) != n:
         raise RuntimeError("watershed state does not match the world's regions")
     cols = {name: [0.0] * n for name in FRAME_COLUMNS}
     routed = {"to_sea": [0.0] * n, "to_sink": [0.0] * n, "to_lake": [0.0] * n, "transfer": [0.0] * n}
     contributions: list[list[tuple[int, float]]] = [[] for _ in range(n)]
     external: list[ExternalFlow] = []
     normal, covers, unmet, channels = [0.0] * n, [0.0] * n, [0.0] * n, [0.0] * n
-    for r in state.graph.order:
-        region = regions[r]
-        cover = _cover(region)
-        cap = capacity(cover)
-        s = float(state.storage[r])
-        x = (float(region.ecology.water) - float(state.last_index[r])) / _span(region) * cap
+    floor = params.index_floor
+    for r in graph.order:
+        inp = inputs[r]
+        cover = inp.cover
+        cap = params.storage_base * (1.0 + params.forest_retention * cover)
+        span = max(inp.cap - floor, 1e-9)
+        s = float(storage[r])
+        x = (inp.water - float(last_index[r])) / span * cap
         x_in = x if x > 0.0 else 0.0
         want = -x if x < 0.0 else 0.0
         x_out = min(s, want)
-        external.extend(_external(world, region, r, x_in, x_out, cap, stale))
-        exposure = climate_exposure(region.latitude_band, phase)
-        p_norm = PRECIPITATION_BASE * (0.2 + float(region.geo.moisture))
-        factor = max(0.0, 1.0 - (1.0 - PHASE_PRECIPITATION[key]) * exposure * trend)
-        p = p_norm * factor * max(0.0, 1.0 - SHOCK_PRECIPITATION * float(shocks[r]))
-        if key == "warming" and region.terrain == "tundra":
-            p += TUNDRA_MELT
+        if x_in > 0.0:
+            gain = None if stale else inp.flood_gain
+            attributed = min(x_in, gain / span * cap) if gain is not None else 0.0
+            if attributed > 0.0:
+                external.append(ExternalFlow(region=r, direction="in", source="coastal_flood", amount=attributed))
+            if x_in - attributed > 0.0:
+                external.append(ExternalFlow(region=r, direction="in", source="unattributed",
+                                             amount=x_in - attributed))
+        if x_out > 0.0:
+            external.append(ExternalFlow(region=r, direction="out", source="unattributed", amount=x_out))
+        exposure = inp.exposure
+        p_norm = params.precipitation_base * (0.2 + inp.moisture)
+        factor = max(0.0, 1.0 - (1.0 - params.phase_precipitation[key]) * exposure * trend)
+        p = p_norm * factor * max(0.0, 1.0 - params.shock_precipitation * inp.shock)
+        if key == "warming" and inp.terrain == "tundra":
+            p += params.tundra_melt
         i = math.fsum(q for _, q in contributions[r])
         a = s + p + x_in - x_out + i
-        e_pot = (EVAPORATION_BASE * (1.0 + (PHASE_EVAPORATION[key] - 1.0) * exposure * trend)
-                 * TERRAIN_EVAPORATION.get(region.terrain, 1.0) * (1.0 + TRANSPIRATION * cover))
+        e_pot = (params.evaporation_base * (1.0 + (params.phase_evaporation[key] - 1.0) * exposure * trend)
+                 * params.terrain_evaporation.get(inp.terrain, 1.0) * (1.0 + params.transpiration * cover))
         e = min(a, e_pot)
         t = a - e
-        w = min(t, IRRIGATION_DEMAND) if _irrigated(region) else 0.0
+        w = min(t, params.irrigation_demand) if inp.irrigated else 0.0
         b = t - w
-        s2 = (1.0 - BASEFLOW) * min(b, cap)
+        s2 = (1.0 - params.baseflow) * min(b, cap)
         q = b - s2
-        d = state.graph.down[r]
+        d = graph.down[r]
         if d >= 0:
             contributions[d].append((r, q))
             routed["transfer"][r] = q
@@ -444,17 +507,23 @@ def _compute(world, state: WatershedState, stale: bool = False) -> _Plan:
             routed["to_lake"][r] = q
         else:
             routed["to_sink"][r] = q
-        channel = CHANNEL_CAPACITY * (RIVER_CHANNEL_FACTOR if region.river_mask else 1.0)
+        channel = params.channel_capacity * (params.river_channel_factor if inp.river else 1.0)
+        fill = min(1.0, s2 / cap + params.irrigation_wetting * w / cap) if cap > 0 else 0.0
         for name, value in (("storage_open", s), ("precipitation", p), ("external_in", x_in),
                             ("external_out", x_out), ("inflow", i), ("evaporation", e), ("withdrawal", w),
                             ("outflow", q), ("storage", s2), ("capacity", cap),
-                            ("index_derived", derived_index(region, s2, w, cap)),
+                            ("index_derived", floor + (inp.cap - floor) * max(0.0, fill)),
                             ("flood_excess", max(0.0, p + i + x_in - channel))):
             cols[name][r] = value
         normal[r], covers[r], unmet[r], channels[r] = p_norm, cover, want - x_out, channel
-    residual = check_closure(state.graph.down, cols, routed)
+    residual = check_closure(graph.down, cols, routed)
     external.sort(key=lambda f: (f.region, f.direction, f.source))
     return _Plan(turn, key, cols, routed, contributions, normal, covers, unmet, channels, residual, external, stale)
+
+
+def _compute(world, state: WatershedState, stale: bool = False) -> _Plan:
+    turn, key, trend, inputs = region_inputs(world, state)
+    return account_step(state.graph, state.storage, state.last_index, turn, key, trend, inputs, PARAMETERS, stale)
 
 
 def check_closure(down, cols: dict[str, list[float]], routed: dict[str, list[float]]) -> float:
@@ -635,19 +704,8 @@ def after_ecology(world, acc) -> list:
 # --- Protocol: observation ------------------------------------------------------------
 
 def parameters() -> dict:
-    """The declared constants (uncalibrated)."""
-    return {
-        "storage_base": STORAGE_BASE, "forest_retention": FOREST_RETENTION,
-        "precipitation_base": PRECIPITATION_BASE, "phase_precipitation": dict(PHASE_PRECIPITATION),
-        "shock_precipitation": SHOCK_PRECIPITATION, "tundra_melt": TUNDRA_MELT,
-        "evaporation_base": EVAPORATION_BASE, "phase_evaporation": dict(PHASE_EVAPORATION),
-        "terrain_evaporation": dict(TERRAIN_EVAPORATION), "transpiration": TRANSPIRATION,
-        "baseflow": BASEFLOW, "irrigation_demand": IRRIGATION_DEMAND, "irrigation_wetting": IRRIGATION_WETTING,
-        "channel_capacity": CHANNEL_CAPACITY, "river_channel_factor": RIVER_CHANNEL_FACTOR,
-        "drought_fraction": DROUGHT_FRACTION, "drought_turns": DROUGHT_TURNS,
-        "deforested_cover": DEFORESTED_COVER, "index_floor": INDEX_FLOOR,
-        "closure_tolerance": CLOSURE_TOLERANCE,
-    }
+    """The declared constants in force."""
+    return PARAMETERS.as_dict()
 
 
 def _r(value: float) -> float:
