@@ -1010,12 +1010,36 @@
       ],
       "group": "Livelihoods",
       "experimental": true
+    },
+    {
+      "key": "quarantine_mode",
+      "flag": "--quarantine-mode",
+      "label": "Quarantine mode",
+      "help": "Quarantine rules (connected-world C1): legacy (default, the same as omitting it): the abstract import multiplier and a flat charge; none: no quarantine; cost_only: the same decisions and enforcement cost as closure, nothing restricted; closure: trade routes and agent merchant edges between a closing polity and each polity with a reported outbreak it is in contact with are closed while the outbreak is reported, at a declared enforcement cost, with no import multiplier (relief grain, armies, hostages and migrants stay open); requires epidemiology and the contact ledger; saved on the world (docs/integration/quarantine-rules.md)",
+      "kind": "choice",
+      "choices": [
+        "legacy",
+        "none",
+        "cost_only",
+        "closure"
+      ],
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "setting": "epidemiology",
+          "reason": "requires epidemiology with the contact ledger (on by default for new worlds; off with --no-epidemiology or --no-contact-ledger)"
+        }
+      ],
+      "group": "Public health",
+      "experimental": true
     }
   ],
   "settings": {
     "cities": "cities (on by default for new worlds; off with --no-cities)",
     "techniques": "techniques (on by default for new worlds; off with --no-techniques)",
-    "no_household_mobility_liquid_requirement": "no household-mobility liquid requirement (--household-mobility-liquid-requirement unset or 0)"
+    "no_household_mobility_liquid_requirement": "no household-mobility liquid requirement (--household-mobility-liquid-requirement unset or 0)",
+    "epidemiology": "epidemiology with the contact ledger (on by default for new worlds; off with --no-epidemiology or --no-contact-ledger)"
   },
   "surfaces": {
     "live": {
@@ -1027,7 +1051,8 @@
       "settings": {
         "cities": true,
         "techniques": true,
-        "no_household_mobility_liquid_requirement": true
+        "no_household_mobility_liquid_requirement": true,
+        "epidemiology": true
       },
       "new_worlds_only": true
     },
@@ -1043,7 +1068,8 @@
       "settings": {
         "cities": true,
         "techniques": true,
-        "no_household_mobility_liquid_requirement": true
+        "no_household_mobility_liquid_requirement": true,
+        "epidemiology": true
       },
       "new_worlds_only": true
     }

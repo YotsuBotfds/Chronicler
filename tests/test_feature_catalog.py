@@ -45,7 +45,7 @@ def test_catalog_is_generated_from_the_registry_and_the_cli_parser():
     keys = [entry["key"] for entry in entries]
     assert len(keys) == len(set(keys))
     prerequisites = [k for k, options in fc.PREREQUISITES.items() for k in (k, *options)]
-    assert keys == prerequisites + list(LIVELIHOODS_ARG_KEYS)
+    assert keys == prerequisites + list(LIVELIHOODS_ARG_KEYS) + list(fc.PUBLIC_HEALTH)
     actions = {action.dest: action for action in _parser()._actions}
     parent = None
     for entry in entries:
@@ -57,6 +57,12 @@ def test_catalog_is_generated_from_the_registry_and_the_cli_parser():
         if key in LIVELIHOODS_ARG_KEYS:
             assert entry["group"] == fc.LIVELIHOODS_GROUP and entry["experimental"] is True
             assert entry["help"] == _HELP[key] == action.help
+        elif key in fc.PUBLIC_HEALTH:
+            # A top-level choice: no switch; unset keeps the run's rule (its first choice).
+            assert entry["group"] == fc.PUBLIC_HEALTH_GROUP and entry["experimental"] is True
+            assert entry["help"] == action.help and entry["kind"] == "choice" and entry["parent"] is None
+            assert entry["requires"] == [fc._with_reasons(c) for c in fc.REQUIREMENTS[key]]
+            continue
         else:
             assert entry["group"] == fc.PREREQUISITES_GROUP and entry["experimental"] is False
             assert entry["help"] == action.help
@@ -81,7 +87,7 @@ def test_every_boolean_feature_declares_requirements_over_known_terms():
     entries = {entry["key"]: entry for entry in fc.feature_entries()}
     bools = {key for key, entry in entries.items() if entry["kind"] == "bool"}
     # A registry switch added without declared requirements fails here.
-    assert set(fc.REQUIREMENTS) == bools
+    assert set(fc.REQUIREMENTS) == bools | set(fc.PUBLIC_HEALTH)
 
     def walk(condition):
         assert condition["reason"].startswith("requires ")
@@ -115,7 +121,8 @@ def test_lobby_catalog_shape_and_surfaces():
     for surface in (live, batch):
         assert surface["new_worlds_only"] is True
         assert surface["settings"] == {"cities": True, "techniques": True,
-                                       "no_household_mobility_liquid_requirement": True}
+                                       "no_household_mobility_liquid_requirement": True,
+                                       "epidemiology": True}
     json.dumps(catalog)
     args = _parser().parse_args(["--agents", "hybrid", "--no-cities", "--grain-reserves", "--workshops",
                                  "--workshop-mode", "observe", "--household-mobility-liquid-requirement", "2"])
@@ -123,7 +130,10 @@ def test_lobby_catalog_shape_and_surfaces():
     assert live["agents"] == "hybrid"
     assert live["values"] == {"grain_reserves": True, "workshops": True, "workshop_mode": "observe"}
     assert live["settings"] == {"cities": False, "techniques": True,
-                                "no_household_mobility_liquid_requirement": False}
+                                "no_household_mobility_liquid_requirement": False,
+                                "epidemiology": True}
+    for flags in (["--no-epidemiology"], ["--no-contact-ledger"]):
+        assert fc.live_surface(_parser().parse_args(flags))["settings"]["epidemiology"] is False
 
 
 def test_any_condition_reason_and_evaluation():
@@ -313,6 +323,41 @@ def sentinel_runtimes(monkeypatch):
 def test_catalog_requirements_agree_with_the_run(tmp_path, sentinel_runtimes):
     bools = [entry["key"] for entry in fc.feature_entries() if entry["kind"] == "bool"]
     assert _disagreements(tmp_path, bools) == []
+
+
+@pytest.mark.parametrize("agents", fc.AGENT_MODES)
+def test_public_health_choices_agree_with_the_run(tmp_path, sentinel_runtimes, agents):
+    """Each --quarantine-mode value, with epidemiology on, off and without the ledger."""
+    from chronicler import live, main
+    from chronicler.world_gen import generate_world
+
+    parser = _parser()
+    template = generate_world(seed=42, num_regions=8, num_civs=4)
+    output = tmp_path / "chronicle.md"
+    problems = []
+    for key in fc.PUBLIC_HEALTH:
+        for value in fc._by_key()[key]["choices"]:
+            for setting in ((), ("--no-epidemiology",), ("--no-contact-ledger",)):
+                base = ["--agents", agents, *setting]
+                surface = fc.live_surface(parser.parse_args(_base(tmp_path, *base)))
+                catalog = fc.validate_features({key: value}, surface)
+                flags = [*base, *fc.feature_cli_arguments({key: value})]
+                for path in ("cli", "live"):
+                    args = parser.parse_args(_base(tmp_path, *flags))
+                    try:
+                        if path == "cli":
+                            main._configure_run(args, template.model_copy(deep=True), True, output)
+                        else:
+                            world, _ = live._live_world(args, {"seed": 42, "regions": 8, "civs": 4})
+                            main._configure_run(args, world, False, output)
+                        refusal = "configuration finished without reaching the runtimes"
+                    except _Accepted:
+                        refusal = None
+                    except ValueError as exc:
+                        refusal = str(exc)
+                    if (catalog is None) != (refusal is None):
+                        problems.append(f"{path} {' '.join(flags)}: catalog {catalog!r}, run {refusal!r}")
+    assert problems == []
 
 
 def test_agreement_check_detects_wrong_declarations(tmp_path, sentinel_runtimes, fresh_catalog, monkeypatch):

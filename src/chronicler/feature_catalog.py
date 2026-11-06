@@ -9,7 +9,10 @@ drift. It lists:
   (``livelihoods_state.LIVELIHOODS_SWITCHES``, ``livelihoods.LIVELIHOODS_ARG_KEYS``
   and ``LIVELIHOODS_CHOICES``; the parser's help is ``livelihoods._HELP``); a
   choice key belongs to the switch declared before it;
-* the expansion prerequisites those switches depend on (``PREREQUISITES``).
+* the expansion prerequisites those switches depend on (``PREREQUISITES``);
+* public-health options (``PUBLIC_HEALTH``): top-level choices with no
+  boolean switch (``--quarantine-mode``), each declaring ``REQUIREMENTS``;
+  unset, the run keeps its rule (the first choice, ``legacy``).
 
 Each entry's key is the CLI parser destination; flag, help text and choices
 are read from the CLI parser itself. Nothing here is on by default: an absent
@@ -44,6 +47,7 @@ from chronicler.livelihoods_state import LIVELIHOODS_SWITCHES
 CATALOG_SCHEMA_VERSION = 1
 LIVELIHOODS_GROUP = "Livelihoods"
 PREREQUISITES_GROUP = "Prerequisites"
+PUBLIC_HEALTH_GROUP = "Public health"
 #: ``--agents`` modes, in the CLI's order of increasing agent detail.
 AGENT_MODES: tuple[str, ...] = ("off", "demographics-only", "shadow", "hybrid")
 _AGENT_ECONOMY: tuple[str, ...] = ("hybrid", "shadow", "demographics-only")
@@ -58,12 +62,19 @@ PREREQUISITES: dict[str, tuple[str, ...]] = {
     "academy_services": (),
 }
 
+#: Public-health choices (connected-world program C), listed after the
+#: livelihoods group: top-level choices whose first choice is the run's rule
+#: when unset.
+PUBLIC_HEALTH: tuple[str, ...] = ("quarantine_mode",)
+
 #: Server settings a request cannot change: what each means when true.
 SETTINGS: dict[str, str] = {
     "cities": "cities (on by default for new worlds; off with --no-cities)",
     "techniques": "techniques (on by default for new worlds; off with --no-techniques)",
     "no_household_mobility_liquid_requirement": (
         "no household-mobility liquid requirement (--household-mobility-liquid-requirement unset or 0)"),
+    "epidemiology": ("epidemiology with the contact ledger (on by default for new worlds; off with "
+                     "--no-epidemiology or --no-contact-ledger)"),
 }
 
 
@@ -117,6 +128,7 @@ REQUIREMENTS: dict[str, tuple[dict, ...]] = {
     "recovery_crews": (_HYBRID, _feature("repair_projects")),
     "maintenance_obligation": (_feature("local_budgets"), _feature("repair_projects")),
     "household_retail": (_HYBRID, _feature("food_allocation")),
+    "quarantine_mode": (_setting("epidemiology"),),
 }
 
 
@@ -200,11 +212,13 @@ def _features() -> tuple[dict, ...]:
         if not is_switch and entry["choices"] != list(LIVELIHOODS_CHOICES[key]):
             raise ValueError(f"{key} parser choices differ from LIVELIHOODS_CHOICES")
         entries.append(entry)
+    for key in PUBLIC_HEALTH:
+        entries.append(_entry(key, actions, group=PUBLIC_HEALTH_GROUP, experimental=True, parent=None))
     return tuple(entries)
 
 
 def feature_entries() -> list[dict]:
-    """The catalog's entries (copies), prerequisites first, then livelihoods."""
+    """The catalog's entries (copies): prerequisites, livelihoods, public health."""
     return copy.deepcopy(list(_features()))
 
 
@@ -226,6 +240,14 @@ def _techniques_default() -> bool:
     return bool(DEFAULT_ENABLED_FOR_NEW_WORLDS)
 
 
+def _epidemiology_setting(epidemiology: Any = None, contact_ledger: Any = None) -> bool:
+    """Epidemiology on a new world: its switch (default on) and the ledger it needs."""
+    from chronicler.contact_ledger import DEFAULT_ENABLED_FOR_NEW_WORLDS as ledger_default
+    from chronicler.epidemiology import DEFAULT_ENABLED_FOR_NEW_WORLDS as epi_default
+    ledger = ledger_default if contact_ledger is None else bool(contact_ledger)
+    return bool(epi_default if epidemiology is None else epidemiology) and bool(ledger)
+
+
 def live_surface(args: Any = None) -> dict:
     """What a lobby ``start`` inherits from the server's command line: the
     agent mode, explicit values of catalog keys and the settings."""
@@ -243,6 +265,8 @@ def live_surface(args: Any = None) -> dict:
             "cities": _cities_default() if cities is None else bool(cities),
             "techniques": _techniques_default() if techniques is None else bool(techniques),
             "no_household_mobility_liquid_requirement": not mobility > 0,
+            "epidemiology": _epidemiology_setting(getattr(args, "epidemiology", None),
+                                                  getattr(args, "contact_ledger", None)),
         },
         "new_worlds_only": True,
     }
@@ -276,6 +300,8 @@ def batch_surface(client_defaults: Mapping[str, Any], config: Mapping[str, Any] 
             "cities": _cities_default(),
             "techniques": _techniques_default() if techniques is None else bool(techniques),
             "no_household_mobility_liquid_requirement": True,
+            # Batch Lab runs are not given --epidemiology or --contact-ledger.
+            "epidemiology": _epidemiology_setting(),
         },
         "new_worlds_only": True,
     }
