@@ -390,3 +390,19 @@ section 2 hold, with these refinements from review:
 Results and limits: `docs/CONTINUATION.md` and
 `docs/superpowers/progress/productive-recovery-screens-cp2.md`.
 
+
+## 8. Status (2026-11-06): checkpoint 3
+
+Checkpoint 2 merged as #80 (`96c20439`). Checkpoint 3 adds no simulation or Rust change:
+`src/` and `chronicler-agents/` equal `main` `96c20439`. On `claude/productive-recovery-cp3`:
+
+| Package | What | Lane | Page |
+| --- | --- | --- | --- |
+| PL6d chain screen | `--checkpoint 3` arms `C0`, `CH`, `CH_unpaid`, `CH_cut`, `CH_free`, `CH_L2` at the `paid_work` boundary; held cohort 3 | `claude/pl6d-chain` | `docs/superpowers/progress/productive-recovery-screens-cp3.md` |
+| PL6d chain examples | `--chain` mode of the examples finder: the chain traced by id where the records allow, by region otherwise | `claude/pl6d-chain` | `docs/superpowers/progress/productive-recovery-examples.md` |
+| PL5c chain view | The viewer's recovery chain view (region picker, links, tradeoffs, text form) and its browser QA | `claude/pl5c-chain-viewer` | `docs/integration/feature-options.md` |
+
+The runner and the examples were reviewed independently before the freeze; the review found
+no blocker and no changed outcome, and its findings are fixed with tests (screens page,
+"Amendments"; examples page). Results and limits: `docs/CONTINUATION.md` and the screens page.
+Merging does not qualify any of it scientifically.
