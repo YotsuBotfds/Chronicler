@@ -83,7 +83,9 @@ price (`market_price_raw_material`; timber and ore share the `raw_material`
 category) **that the native economy computed for the firm's region in an
 earlier tick**, with its turn. If the region never had one (no raw demand
 there since A3 began observing), the most recent positive one among the
-regions of the region's ruler (latest turn, then lowest region index). If
+regions of the region's ruler (latest turn, then lowest region index): this
+fallback uses realm-wide knowledge, accepted as the ruler's knowledge of its
+own realm (it never fired in the 13 development worlds). If
 none exists, the firm cannot buy (`price_unknown`) and a site cannot open
 (`no_input_price`). The price is never clamped, smoothed or invented; it is
 rounded **up** to whole milli-units per load. The price the economy computes
@@ -216,10 +218,12 @@ inputs (`budget_exhausted`, then `idle`).
   firm reserves this turn's wages (and wages owed) before it buys inputs, so
   natural arrears do not arise; the path stays for arrears carried in (tested
   with constructed claims).
-- **Idle** (new): six turns in a row in which the firm could not operate for a
-  reason in `IDLE_REASONS` - no budget (`budget_exhausted`), no plan price
-  (`price_unknown`), an unfunded asset (`not_funded`) or no eligible crew
-  (`no_crew`) - and sold nothing. A worn site waiting for repair waits without
+- **Idle** (new): six turns in a row in which the firm converted and sold
+  nothing: it could not operate for a reason in `IDLE_REASONS` - no budget
+  (`budget_exhausted`), no plan price (`price_unknown`), an unfunded asset
+  (`not_funded`) or no eligible crew (`no_crew`) - or it operated with no raw
+  stock to convert (re-check n1: under payroll `unpaid_labor` such a firm owes
+  no wage and would otherwise never run out of budget). A worn site waiting for repair waits without
   counting (repair is RS2's work).
 - **City fell, city missing, region changed** (L6a).
 
@@ -254,8 +258,9 @@ readmits those cities while A3 is active and an opening there is refused
 - **A1 ledger** (`--wealth-accounting`): every purpose in
   `MONEY_PURPOSE_CHANNELS` is read generically with signs (agent payee in, agent
   payer out) from the seam's exact per-turn totals (`money.totals_for_turn`, never
-  truncated: a turn with more than 512 payments is counted in full and the drop
-  is recorded as `firm_economics.flows_dropped`); the typed channel
+  truncated, and keeping each treasury side's civilization, whole units and
+  carry change: a turn with more than 512 payments is counted in full, per
+  civilization too, and the drop is recorded as `firm_economics.flows_dropped`); the typed channel
   `wares_purchase` (households -> firm cash, located in the firm's region) keeps
   the agent-wealth identity `close - open = typed net / 1000 + native_model`; the treasury side
   gains `firm_economics` (present only while A3 is active, so ledger records
@@ -446,7 +451,9 @@ purpose (plus one assertion inside its test module).
 ## Evidence (development worlds only; not a screen)
 
 Development-only, 2026-11-06: source `9c9d10f7` (exported tree; the
-plan-price rule after review), native extension `2831bbd4…` (this branch's
+plan-price rule after review; before re-check n1, which also counts turns that
+operate and convert nothing toward idle, so firms in regions without raw stock
+may close earlier than shown; not rerun), native extension `2831bbd4…` (this branch's
 build); no preregistration, no held seed, no 7xx/8xx seed. One run per world
 and mode, 200 turns, flags `--agents hybrid --grain-reserves
 --public-grain-shipments --scholarship --techniques --academy-services

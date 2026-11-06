@@ -69,6 +69,7 @@ COUNTERS: tuple[str, ...] = (
     "sites_without_firm_turns", "asset_subsidy_firm_units", "asset_subsidy_idle_units",
     "demand_absent_firm_turns", "unpaid_conversion",
     "unbought_need", "plan_price_realm_turns", "opening_refused_no_input_price", "opening_refused_closed_city",
+    "idle_no_conversion_turns",
 )
 
 

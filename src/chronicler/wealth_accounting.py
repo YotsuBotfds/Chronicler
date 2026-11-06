@@ -477,10 +477,9 @@ def _workshop_economics(world, book: _Book, t: _Turn, turn: int) -> None:
            "subsidy": sum(r.owner_asset_spend for r in receipts)}
     idle = int(_counter(world, "workshop_economics", "asset_subsidy_idle_units")
                - t.baselines.get(("workshop_economics", "asset_subsidy_idle_units"), 0))
-    flows = [f for f in st.book.flows if f.purpose == "firm_input_purchase" and f.payee[0] == "civ_treasury"] \
-        if st.book.flows_turn == turn else []
-    units = sum(f.treasury_units for f in flows)
-    carried = sum((f.carry_after or 0) - (f.carry_before or 0) for f in flows)
+    to_treasury = [x for x in totals if x.purpose == "firm_input_purchase" and x.payee_kind == "civ_treasury"]
+    units = sum(x.treasury_units for x in to_treasury)
+    carried = sum(x.carry_change for x in to_treasury)
     paid = moved.get("wares_purchase", (0, 0))[1]
     book.treasury["firm_economics"] = {
         "capital_from_treasury_milli": applied("firm_capital"),
@@ -492,11 +491,12 @@ def _workshop_economics(world, book: _Book, t: _Turn, turn: int) -> None:
         "firm_cash_close_milli": sum(r.cash_close for r in receipts),
         "flows_dropped": int(st.book.flows_dropped if st.book.flows_turn == turn else 0),
     }
-    for f in (st.book.flows if st.book.flows_turn == turn else ()):
-        if f.purpose == "firm_capital":
-            book.civ_add(f.payer[1], "firm_capital_milli", f.applied)
-        elif f.purpose == "firm_input_purchase" and f.payee[0] == "civ_treasury":
-            book.civ_add(f.payee[1], "firm_inputs_milli", f.applied)
+    # Per civilization from the exact totals (the flow list may be truncated).
+    for x in totals:
+        if x.purpose == "firm_capital" and x.payer_civ is not None:
+            book.civ_add(x.payer_civ, "firm_capital_milli", x.applied)
+        elif x.purpose == "firm_input_purchase" and x.payee_civ is not None:
+            book.civ_add(x.payee_civ, "firm_inputs_milli", x.applied)
     for r in receipts:
         book.civ_add(r.owner, "asset_subsidy_units", r.owner_asset_spend)
     book.closure("wares_purchase", "households debited = firm cash credited (A3 receipts)", paid, got["household"])
@@ -504,10 +504,8 @@ def _workshop_economics(world, book: _Book, t: _Turn, turn: int) -> None:
                  got["capital"])
     book.closure("wares_purchase", "input purchase flows = inputs charged (A3 receipts)",
                  applied("firm_input_purchase"), got["inputs"])
-    if not st.book.flows_dropped:
-        # Per-flow treasury carries (the list is complete this turn).
-        book.closure("wares_purchase", "inputs to treasuries = whole units x 1000 + carry change",
-                     applied("firm_input_purchase", "civ_treasury"), units * MILLI + carried)
+    book.closure("wares_purchase", "inputs to treasuries = whole units x 1000 + carry change",
+                 applied("firm_input_purchase", "civ_treasury"), units * MILLI + carried)
 
 
 def _repairs(world, book: _Book, turn: int) -> None:

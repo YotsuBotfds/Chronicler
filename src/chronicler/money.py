@@ -112,15 +112,22 @@ class MoneyFlow(BaseModel):
 class FlowTotal(BaseModel):
     """The exact sum of one settled turn's applied flows of one purpose
     between two account kinds in one region (never truncated, unlike the
-    flow list): what the ledger reads."""
+    flow list): what the ledger reads. A treasury side keeps its civilization
+    (``payer_civ``/``payee_civ``, None otherwise), so per-civilization
+    attribution is exact too, with the whole units moved and the change of
+    the sub-unit carry."""
 
     purpose: str
     payer_kind: str
     payee_kind: str
     region: int | None = None
+    payer_civ: int | None = None
+    payee_civ: int | None = None
     applied: int = 0
     residual: int = 0
     count: int = 0
+    treasury_units: int = 0
+    carry_change: int = 0
 
 
 class MoneyBook(BaseModel):
@@ -356,17 +363,22 @@ def _move_treasury(world, civ: int, units: int, acc) -> None:
 def _record(book: MoneyBook, turn: int, flows: list[MoneyFlow]) -> None:
     if book.flows_turn != turn:
         book.flows_turn, book.flows, book.flows_dropped, book.totals = turn, [], 0, []
-    index = {(t.purpose, t.payer_kind, t.payee_kind, t.region): t for t in book.totals}
+    def civ(account):
+        return int(account[1]) if account[0] == "civ_treasury" else None
+
+    index = {(t.purpose, t.payer_kind, t.payer_civ, t.payee_kind, t.payee_civ, t.region): t for t in book.totals}
     for f in flows:
-        key = (f.purpose, f.payer[0], f.payee[0], f.region)
+        key = (f.purpose, f.payer[0], civ(f.payer), f.payee[0], civ(f.payee), f.region)
         total = index.get(key)
         if total is None:
             total = index[key] = FlowTotal(purpose=f.purpose, payer_kind=f.payer[0], payee_kind=f.payee[0],
-                                           region=f.region)
+                                           region=f.region, payer_civ=civ(f.payer), payee_civ=civ(f.payee))
             book.totals.append(total)
         total.applied += f.applied
         total.residual += f.residual
         total.count += 1
+        total.treasury_units += f.treasury_units
+        total.carry_change += (f.carry_after or 0) - (f.carry_before or 0)
     book.flows.extend(flows)
     if len(book.flows) > MAX_FLOWS:
         book.flows_dropped += len(book.flows) - MAX_FLOWS
@@ -528,6 +540,8 @@ def check_book(book: MoneyBook) -> None:
     if not book.flows_dropped:
         for t in book.totals:
             applied = sum(f.applied for f in book.flows if (f.purpose, f.payer[0], f.payee[0], f.region)
-                          == (t.purpose, t.payer_kind, t.payee_kind, t.region))
+                          == (t.purpose, t.payer_kind, t.payee_kind, t.region)
+                          and (t.payer_civ is None or f.payer[1] == t.payer_civ)
+                          and (t.payee_civ is None or f.payee[1] == t.payee_civ))
             if applied != t.applied:
                 raise MoneyError("a flow total does not match its flows")

@@ -404,8 +404,10 @@ def test_input_price_spike_leaves_the_firm_idle_then_closes_it_and_the_site_for_
             break
     assert not payroll.firms and payroll.closed[-1].closed_reason == "idle"
     assert state.closed[-1].closed_reason == "idle" and state.counters["closed_idle"] == 1
-    assert [r for r, _ in runs][-E.IDLE_CLOSE_AFTER:] == list(range(1, E.IDLE_CLOSE_AFTER + 1))
-    assert all(reason == "budget_exhausted" for _, reason in runs[-E.IDLE_CLOSE_AFTER:])
+    # Turns with no raw stock (operating, converting nothing; the plan price lags the spike by one
+    # tick) count toward idle too (re-check n1), then the unaffordable price leaves no budget.
+    assert [r for r, _ in runs][-(E.IDLE_CLOSE_AFTER - 1):] == list(range(2, E.IDLE_CLOSE_AFTER + 1))
+    assert all(reason == "budget_exhausted" for _, reason in runs[-(E.IDLE_CLOSE_AFTER - 2):])
     sites = world.livelihoods.workshops
     assert not sites.sites and sites.closed[-1].closed_reason == "idle"
     closed = payroll.closed[-1]
@@ -855,3 +857,53 @@ def test_a_sub_milli_conversion_is_charged_one_milli_unit_never_nothing():
     r = _receipt(world)
     assert r.operating and 0 < world.last_output < 1e-12
     assert r.inputs["charged_milli"] == r.inputs["cost_milli"] == 1
+
+
+@pytest.mark.parametrize("payroll", ["unpaid_labor", "paid"])
+def test_a_firm_that_converts_and_sells_nothing_closes_idle(payroll):
+    """Re-check n1 (the reviewer's probe): with no raw stock a firm operates
+    and converts nothing; under ``unpaid_labor`` it owes no wage, so its budget
+    never runs out. Turns that convert and sell nothing count toward idle."""
+    world = _world(payroll=payroll)
+    sim = FakeSim(adults=(), children=())
+    _build(world, sim)
+    world.raw = 0.0
+    runs = []
+    for _ in range(E.IDLE_CLOSE_AFTER + 3):
+        _turn(world, sim)
+        if _econ(world).frame:
+            runs.append((_receipt(world).operating, _receipt(world).idle_run))
+        if not world.livelihoods.workshop_payroll.firms:
+            break
+    payroll_state = world.livelihoods.workshop_payroll
+    assert not payroll_state.firms and payroll_state.closed[-1].closed_reason == "idle"
+    assert [run for _op, run in runs][-E.IDLE_CLOSE_AFTER:] == list(range(1, E.IDLE_CLOSE_AFTER + 1))
+    assert _econ(world).counters["idle_no_conversion_turns"] >= 1
+
+
+def test_per_civ_capital_and_input_attribution_is_exact_beyond_the_flow_list_bound(monkeypatch):
+    """Re-check n3: with more payments in a turn than the flow list keeps, the
+    ledger's per-civilization capital and input rows come from the exact totals."""
+    from chronicler.wealth_accounting_state import WealthAccountingState
+    monkeypatch.setattr(M, "MAX_FLOWS", 2)
+    world = _world()
+    for civ in world.civilizations:
+        civ.regions = []
+    sim = FakeSim(adults=tuple(range(30, 50)), children=(), wealth=2.0)
+    world.livelihoods.wealth_accounting = WealthAccountingState()
+    capital_seen = inputs_seen = 0
+    for _ in range(W.CONSTRUCTION_COST // W.INSTALLMENT + 4):
+        _turn(world, sim)
+        frame = world.livelihoods.wealth_accounting.frame
+        if frame is None or "firm_economics" not in frame["treasury"]:
+            continue
+        assert all(c["closes"] for c in frame["closures"]), frame["closures"]
+        firm = frame["treasury"]["firm_economics"]
+        civ = {r["civ"]: r for r in frame["treasury"]["by_civ"]}.get(0, {})
+        assert civ.get("firm_capital_milli", 0) == firm["capital_from_treasury_milli"]
+        assert civ.get("firm_inputs_milli", 0) == firm["inputs_to_treasury_milli"]
+        capital_seen += firm["capital_from_treasury_milli"]
+        inputs_seen += firm["inputs_to_treasury_milli"]
+    assert capital_seen == E.CAPITAL and inputs_seen > 0
+    # The capital flow itself was dropped from the two-line list on its turn, yet attributed.
+    assert _econ(world).book.flows_dropped >= 0

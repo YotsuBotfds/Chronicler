@@ -76,10 +76,10 @@ Who pays whom (milli-units; 1000 = one treasury unit = one wealth unit):
   consumes paid wares rather than stacking a free one on top). What
   households do not buy stays unsold.
 * **Payroll, arrears, insolvency** as L6a; distributions keep a reserve of
-  ``RESERVE_TURNS`` full wage and input bills. A firm that could not operate
-  for a reason in ``IDLE_REASONS`` (no budget, no price, an unfunded asset or
-  no eligible crew) and sold nothing for ``IDLE_CLOSE_AFTER`` turns in a row
-  closes ``idle`` (L6a liquidation: owed wages paid from cash where it can, the rest
+  ``RESERVE_TURNS`` full wage and input bills. A firm that converted and sold
+  nothing - it could not operate for a reason in ``IDLE_REASONS`` (no budget,
+  no price, an unfunded asset or no eligible crew), or it operated with no raw
+  stock to convert - for ``IDLE_CLOSE_AFTER`` turns in a row closes ``idle`` (L6a liquidation: owed wages paid from cash where it can, the rest
   written off, inventory returned to the commons, cash to the ruler).
 
 Declared limits of this slice (A3-1): the same tick's craft output still
@@ -689,8 +689,11 @@ def sell_to_households(world, firm, pt, customers, acc, sim) -> None:
 # ---------------------------------------------------------------------------
 
 def idle_close(world, firm, pt) -> bool:
-    """Count an idle turn (no input could be bought, ``IDLE_REASONS``, and
-    nothing was sold); True when the firm should close ``idle``."""
+    """Count an idle turn - nothing was sold and nothing was converted: the
+    firm could not operate for a reason in ``IDLE_REASONS``, or it operated
+    and converted nothing (no raw stock on hand; under payroll
+    ``unpaid_labor`` such a firm would otherwise stay open for ever) - and
+    return True when the firm should close ``idle``."""
     state = _state(world)
     t = _turn(state, world)
     terms = _terms(state, firm.site)
@@ -700,8 +703,13 @@ def idle_close(world, firm, pt) -> bool:
     row = _row(t, firm)
     sold = row.get("academy_sales", 0) or (row["households"] or {}).get("paid_milli", 0)
     could_not_buy = plan is not None and plan.reason in IDLE_REASONS
-    if row["operating"] or sold:
+    converted = row["operating"] and (row["inputs"] or {}).get("used_milli", 0) > 0
+    if converted or sold:
         terms.idle_run = 0
+    elif row["operating"]:
+        terms.idle_run += 1                  # operated and converted nothing
+        _bump(state, "idle_firm_turns")
+        _bump(state, "idle_no_conversion_turns")
     elif could_not_buy:
         terms.idle_run += 1
         _bump(state, "idle_firm_turns")
