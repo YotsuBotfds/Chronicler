@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "board_version": 4,
+  "board_version": 5,
   "title": "Connected-world program (A livelihoods and trade, B watersheds and infrastructure, C public health, D institutions and war, E stories and evidence) operational board",
   "plan": "docs/superpowers/roadmaps/connected-world-program.md",
   "owner_instruction": "2026-11-06 (after #82): own the A-E program end to end with parallel workers, integrating and evaluating each slice and continuing across slice boundaries; merges of this program authorized after independent review, green premerge Tests on the reviewed head and verified main CI; new systems opt-in and off by default; no default promotion; full 200-seed and procedural qualification gates restricted; bounded held screens (procedural included) authorized; no purchases, paid credits, paid narration APIs, deployments, credential or sharing changes. Amendment (same day): tiers sequence work and are not stopping points; failures block the affected merge, not the program; pin 8abc1acb as the original reference; default-path changes behind a switch or rules version.",
@@ -56,7 +56,7 @@
       "id": "E1",
       "branch": "claude/cw-e1-tooling",
       "scope": "seed registry, generic screen runner, compatibility matrix, RL8 viewer readers",
-      "status": "active"
+      "status": "finishing (granary panel layer cwe1); then independent review and PR 1"
     },
     {
       "id": "A5",
@@ -74,6 +74,12 @@
       "id": "B1",
       "branch": "claude/cw-b1-watershed",
       "scope": "--watershed record_only: drainage graph, conserved water account, closure checks, viewer panel (procedural only)",
+      "status": "active"
+    },
+    {
+      "id": "C1",
+      "branch": "claude/cw-c1-quarantine",
+      "scope": "--quarantine-mode none|cost_only|closure: trade closure with dated effect, enforcement cost, no multiplier in new modes",
       "status": "active"
     }
   ],

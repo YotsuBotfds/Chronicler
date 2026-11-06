@@ -205,7 +205,9 @@ open questions follow each summary.
   measure); closures target only polities with reported outbreaks (information available at the
   time); relief grain convoys are exempt, with the exemption recorded; migration closure (C1b) is a
   separate, later native slice; care (C2) lowers the epidemic's own fatality, never a second
-  mortality authority.
+  mortality authority. Armies and hostages are not restricted by a closure (intentional boundary);
+  the legacy multiplier stays the default reference until an owner promotion decision; C2's
+  funding authority and C1b's gate placement are decided when those slices start.
 
 ### 5.4 D institutions, war, attribution and the owned-stock lifecycle ([audit](../audits/connected-world/audit-d-institutions-war-owned-stock.md))
 
