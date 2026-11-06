@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { hasRecoveryChain } from "../../lib/recoveryChain";
+import { hasRecoveryChain, packagesOn } from "../../lib/recoveryChain";
 import type { SystemPanelProps } from "../../lib/systems";
 import { ClearingProtection } from "./ClearingProtection";
 import { Remittances } from "./Remittances";
@@ -35,6 +35,9 @@ export function LivelihoodsPanel(panelProps: SystemPanelProps) {
   const { bundle, snapshot, currentTurn, onSelectRegion } = panelProps;
   // The recovery chain (PL5c) reads the whole run, so it mounts on the run's records, not this snapshot's.
   const chain = useMemo(() => hasRecoveryChain(bundle), [bundle]);
+  // RL8: these panels tell an absent record (unknown at this snapshot) from a malformed one, so they mount
+  // whenever the run records their package, not only at snapshots that carry it.
+  const on = useMemo(() => packagesOn(Array.isArray(bundle?.history) ? bundle.history : []), [bundle]);
   const row = snapshot as unknown as Record<string, unknown> | null;
   const raw = row?.livelihoods ?? null;
   const readable = typeof raw === "object" && raw !== null && !Array.isArray(raw)
@@ -42,15 +45,17 @@ export function LivelihoodsPanel(panelProps: SystemPanelProps) {
   const record = readable ? raw as Record<string, unknown> : null;
   const at = snapshot?.turn ?? currentTurn;
   const props = { bundle, snapshot, currentTurn, onSelectRegion };
+  const mount = (key: "food_allocation" | "timber_stock" | "repair_projects" | "remittances") =>
+    record !== null && (record[key] != null || on[key]);
   return <div className="systems-body">
     {raw !== null && !readable ? <p className="systems-note">The livelihoods record at snapshot {at} is unreadable (malformed or of an unknown version); nothing is shown from it.</p> : null}
     {record !== null && !PACKAGES.some((key) => record[key] != null) ? <p className="systems-note">The livelihoods record at snapshot {at} names no package this viewer reads.</p> : null}
     {chain ? <RecoveryChain {...panelProps} /> : null}
     {record?.workshops != null ? <Workshops {...props} /> : null}
     {record?.workshop_payroll != null ? <WorkshopFinance {...props} /> : null}
-    {record?.food_allocation != null ? <FoodAllocation {...props} /> : null}
+    {mount("food_allocation") ? <FoodAllocation {...props} /> : null}
     {record?.household_retail != null ? <HouseholdRetail {...props} /> : null}
-    {record?.timber_stock != null ? <TimberStock {...props} /> : null}
+    {mount("timber_stock") ? <TimberStock {...props} /> : null}
     {record?.grain_convoys != null
       ? <section className="systems-section"><GrainConvoys snapshot={snapshot} bundle={bundle} /></section> : null}
     {record?.commons_rules != null ? <CommonsRules {...props} /> : null}
@@ -61,11 +66,11 @@ export function LivelihoodsPanel(panelProps: SystemPanelProps) {
     {record?.apprenticeship != null ? <Apprenticeship {...props} /> : null}
     {record?.operating_wear != null ? <OperatingWear {...props} /> : null}
     {record?.veteran_reintegration != null ? <Veterans {...props} /> : null}
-    {record?.repair_projects != null ? <RepairProjects {...props} /> : null}
+    {mount("repair_projects") ? <RepairProjects {...props} /> : null}
     {record?.recovery_crews != null ? <RecoveryCrews {...props} /> : null}
     {record?.timber_supply != null ? <TimberSupply {...props} /> : null}
     {record?.maintenance_obligation != null ? <MaintenanceObligation {...props} /> : null}
-    {record?.remittances != null ? <Remittances {...props} /> : null}
+    {mount("remittances") ? <Remittances {...props} /> : null}
     {raw === null ? <p className="systems-note">No livelihoods observation is recorded at snapshot {at}.</p> : null}
   </div>;
 }

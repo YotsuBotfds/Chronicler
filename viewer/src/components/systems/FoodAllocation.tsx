@@ -1,5 +1,6 @@
 import type { Bundle, TurnSnapshot } from "../../types";
-import { foodAllocationAt, meanShortfall } from "../../lib/foodAllocation";
+import { meanShortfall } from "../../lib/foodAllocation";
+import { readFoodAllocation } from "../../lib/recordReading";
 
 const show = (value: number | null) => value === null ? "No one" : value.toLocaleString(undefined, { maximumFractionDigits: 3 });
 const REGIME_NOTE: Record<string, string> = {
@@ -13,15 +14,17 @@ export function FoodAllocation({ bundle, snapshot, currentTurn, onSelectRegion }
   bundle: Bundle; snapshot: TurnSnapshot | null; currentTurn: number; onSelectRegion: (name: string) => void;
 }) {
   const regions = bundle.world_state.regions ?? [];
-  const record = foodAllocationAt(snapshot, regions.length);
-  if (!record) return <section className="systems-section" aria-label="Food allocation">
-    <h3>Food allocation</h3><p className="systems-note">Food allocation is not observed or is unavailable at snapshot {snapshot?.turn ?? currentTurn}.</p>
+  const reading = readFoodAllocation(bundle, snapshot, currentTurn);
+  if (reading.record === null) return <section className="systems-section" aria-label="Food allocation">
+    <h3>Food allocation</h3><p className="systems-note">{reading.note}</p>
   </section>;
+  const record = reading.record;
   const turn = record.source_turn + 1;
   const t = record.totals;
   return <section className="systems-section" aria-label="Food allocation">
     <h3>Food allocation · snapshot {turn}</h3>
     <p className="systems-note">Simulation turn {record.source_turn}. {REGIME_NOTE[record.regime]} Amounts are rations (1 = a person's food demand). The region's withdrawal is unchanged; the share of anyone who died after Phase 2 is unallocated.</p>
+    {reading.state === "recorded_zero" ? <p className="systems-note">{reading.note}</p> : null}
     {!t || !record.regions ? <p className="systems-note">No allocation ran in simulation turn {record.source_turn}; rations are unknown, not zero.</p> : <>
       <div className="systems-table-wrap"><table className="systems-table" aria-label={`Food allocation totals at snapshot ${turn}`}><tbody>
         {([["Short regions", String(t.scarce_regions)], ["People in short regions", String(t.alive)],

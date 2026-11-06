@@ -25,7 +25,7 @@ the same catalog, so they cannot drift. Its shape (`schema_version` 1):
 
 | Field | Meaning |
 | --- | --- |
-| `features[]` | One entry per CLI parser destination. Fields: `key`, `flag`, `label`, `help`, `kind` (`bool` or `choice`), `choices` (a mode's choices, the first being the run's default once its switch is on), `default` (always `null`: not forwarded), `parent` (the switch a mode belongs to), `requires`, `group` (`Livelihoods` or `Prerequisites`), `experimental`. |
+| `features[]` | One entry per CLI parser destination. Fields: `key`, `flag`, `label`, `help`, `kind` (`bool` or `choice`), `choices` (a mode's choices, the first being the run's default once its switch is on), `default` (always `null`: not forwarded), `parent` (the switch a mode belongs to), `requires`, `group` (`Prerequisites`, `Livelihoods` or a `FEATURE_GROUPS` name), `experimental`. |
 | `settings` | Server settings a request cannot change (`cities`, `techniques`, `no_household_mobility_liquid_requirement`), with what each means. |
 | `surfaces.live`, `surfaces.batch` | What a request inherits on that surface: `agents`, `agent_modes` (just the server's mode for live; all four for Batch Lab), `values` (catalog keys the server's command line already sets), `settings` (true or false), `new_worlds_only`. |
 
@@ -48,8 +48,35 @@ Each requirement is an object with a `reason`. It is one of:
   is one of these values.
 - `{"setting": name}`
 - `{"any": [...]}`
+- `{"not": condition}`: the condition does not hold (added 2026-11-06 for the
+  connected-world program). Two mutually exclusive switches each declare
+  `_excludes(other)`, `{"not": {"feature": other}}` with the reason "requires
+  --other off"; `exclusion_problems()` names a one-sided exclusion. The viewer
+  reads it (`viewer/src/lib/featureCatalog.ts`, kind `not`).
 
 `REQUIREMENTS` declares them for every boolean entry. A mode requires its switch.
+
+**Groups after livelihoods.** Switches of later programs (watersheds, public
+health, institutions) that are not livelihoods packages go into
+`FEATURE_GROUPS` (group name -> {switch: its choice keys}); their entries follow
+the livelihoods group in declaration order, `experimental` true, and need
+`REQUIREMENTS` like any switch. `Livelihoods` and `Prerequisites` are reserved
+names, and a key may appear once. Both extensions are unused so far: the served
+catalog of every existing switch is byte-identical to 8abc1acb
+(`tests/test_feature_matrix.py::test_existing_catalog_output_is_byte_identical`),
+and `CATALOG_SCHEMA_VERSION` stays 1. When the first group switch lands,
+`test_catalog_is_generated_from_the_registry_and_the_cli_parser` (which lists
+the prerequisite and livelihoods keys) needs its group keys added.
+
+**Compatibility matrix.** `scripts/feature_matrix.py [--json OUT] [--markdown
+OUT]` generates it from the catalog: each switch's minimal selection and agent
+modes, every pair (valid, or refused with the catalog's reason; a refusal is
+expected only for an exclusive pair or pair without a shared agent mode), each
+prerequisite drop (all must be refused) and the all-enabled selection per agent
+mode. `tests/test_feature_matrix.py` also sends every all-enabled selection and
+every drop through `main._configure_run`. On 2026-11-06: 24 switches, 276 pairs,
+0 refused, 24 drops all refused, all-enabled accepted in every mode (off: 2
+switches, demographics-only and shadow: 7, hybrid: 24).
 
 ## Agreement with the run's own checks
 

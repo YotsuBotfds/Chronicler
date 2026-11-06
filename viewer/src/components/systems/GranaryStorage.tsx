@@ -1,5 +1,5 @@
 import type { Bundle, TurnSnapshot } from "../../types";
-import { granaryStorageAt } from "../../lib/granaries";
+import { readGranaryStorage } from "../../lib/recordReading";
 
 const show = (value: number | null) => value === null ? "Not observed" : value.toLocaleString(undefined, { maximumFractionDigits: 3 });
 
@@ -7,15 +7,17 @@ const show = (value: number | null) => value === null ? "Not observed" : value.t
 export function GranaryStorage({ bundle, snapshot, region }: { bundle: Bundle; snapshot: TurnSnapshot | null; region: number | null }) {
   const regions = bundle.world_state.regions ?? [];
   const civs = bundle.world_state.civilizations ?? [];
-  const frame = granaryStorageAt(snapshot, regions.length, civs.length);
+  const reading = readGranaryStorage(bundle, snapshot);
+  const frame = reading.record;
   const at = snapshot?.turn;
   if (!frame) return <section className="systems-stack" aria-label="Granary storage assets">
-    <h4>Storage assets</h4><p className="systems-note">Storage assets and work are not observed or unavailable at this snapshot.</p>
+    <h4>Storage assets</h4><p className="systems-note">{reading.note}</p>
   </section>;
   const ids = regions.map((_, id) => id).filter((id) => region === null || region === id);
   const keeper = (id: number) => id === -1 ? "Unowned" : civs[id].name;
   return <section className="systems-stack" aria-label="Granary storage assets">
     <h4>Storage assets · snapshot {at}</h4>
+    {reading.state === "recorded_zero" ? <p className="systems-note">{reading.note}</p> : null}
     <p className="systems-note">Work in Phase 2 of simulation turn {frame.receipt_turn} uses aggregate farmer-equivalent capacity after city and care work, not an individual roster. The treasury and timber costs are recorded service inputs. Unused reserved timber returns after the native economy.</p>
     <p className="systems-note">Effective capacity is built capacity × condition. Damage increases spoilage. Capacity is enforced late in Phase 10 after arrivals: excess public grain returns to the regional market and cannot feed native consumption earlier that turn. Public relief is separate from native consumption.</p>
     <div className="systems-table-wrap"><table className="systems-table" aria-label={`Storage assets at snapshot ${at}`}>

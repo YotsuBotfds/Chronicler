@@ -1,5 +1,6 @@
 import type { Bundle, TurnSnapshot } from "../../types";
-import { diasporaCounts, remittancesAt, remittancesFunnel, units } from "../../lib/remittances";
+import { readRemittances } from "../../lib/recordReading";
+import { diasporaCounts, remittancesFunnel, units } from "../../lib/remittances";
 
 const show = (value: number | null | undefined, digits = 3) =>
   value === null || value === undefined ? "Unknown" : value.toLocaleString(undefined, { maximumFractionDigits: digits });
@@ -20,10 +21,11 @@ export function Remittances({ bundle, snapshot, currentTurn, onSelectRegion }: {
   bundle: Bundle; snapshot: TurnSnapshot | null; currentTurn: number; onSelectRegion: (name: string) => void;
 }) {
   const regions = bundle.world_state.regions ?? [];
-  const record = remittancesAt(snapshot, regions.length);
-  if (!record) return <section className="systems-section" aria-label="Remittances">
-    <h3>Remittances and diaspora</h3><p className="systems-note">Remittances are not observed or are unavailable at snapshot {snapshot?.turn ?? currentTurn}.</p>
+  const reading = readRemittances(bundle, snapshot, currentTurn);
+  if (reading.record === null) return <section className="systems-section" aria-label="Remittances">
+    <h3>Remittances and diaspora</h3><p className="systems-note">{reading.note}</p>
   </section>;
+  const record = reading.record;
   const turn = record.source_turn + 1;
   const p = record.parameters;
   const name = (index: number) => regions[index]?.name ?? `Region ${index}`;
@@ -34,6 +36,7 @@ export function Remittances({ bundle, snapshot, currentTurn, onSelectRegion }: {
     <h3>Remittances and diaspora · snapshot {turn}</h3>
     <p className="systems-note">Simulation turn {record.source_turn}. {MODE_NOTE[record.mode]} A sender is an adult migrant settled for at least {show(p.settled_turns)} turns at their destination; the recipient is one Marriage or Kin partner (sentiment {show(p.min_sentiment)} or more) living in the region the migrant left: the spouse first, then the strongest bond. The remittance is {show((p.share_permille ?? 0) / 10)}% of wealth above a reserve of {money(p.reserve_milli)}, at most {money(p.cap_milli)} a turn; {show((p.fee_permille ?? 0) / 10)}% of it is the courier's fee, which leaves the economy. Nothing is created: the sender loses what the recipient gains plus the fee.</p>
     <p className="systems-note">The diaspora ledger starts with the first move observed while the switch is on; earlier migrations are not in it.</p>
+    {reading.state === "recorded_zero" ? <p className="systems-note">{reading.note}</p> : null}
     <div className="systems-table-wrap"><table className="systems-table" aria-label={`Remittance funnel at snapshot ${turn}`}>
       <thead><tr><th>Stage (lifetime)</th><th>Count</th></tr></thead>
       <tbody>{remittancesFunnel(record).map(([label, value]) => <tr key={label}><td>{label}</td><td>{show(value)}</td></tr>)}

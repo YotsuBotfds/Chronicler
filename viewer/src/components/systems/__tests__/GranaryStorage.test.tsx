@@ -51,7 +51,7 @@ it("leaves missing, stale and malformed storage unknown without hiding granaries
     expect(granaryStorageAt(p.snapshot, 2, 1)).toBeNull();
   }
   view.rerender(<Granaries {...p} />);
-  expect(screen.getByText(/Storage assets and work are not observed/)).toBeInTheDocument();
+  expect(screen.getByText(/^Granary storage: the record at snapshot 5 was rejected as malformed/)).toBeInTheDocument();
   expect(screen.getByRole("table", { name: "Granaries at snapshot 5" })).toBeInTheDocument();
   view.rerender(<Granaries {...p} snapshot={p.bundle.history[0]} currentTurn={2} />);
   expect(screen.queryByText("20 / 15")).not.toBeInTheDocument();

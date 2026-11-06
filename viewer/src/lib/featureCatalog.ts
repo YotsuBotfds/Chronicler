@@ -13,7 +13,9 @@ export type FeatureRequirement =
   | { kind: "feature"; key: string; reason: string }
   | { kind: "choice"; key: string; values: string[]; reason: string }
   | { kind: "setting"; key: string; reason: string }
-  | { kind: "any"; parts: FeatureRequirement[]; reason: string };
+  | { kind: "any"; parts: FeatureRequirement[]; reason: string }
+  /** The condition must not hold (two mutually exclusive switches each declare one). */
+  | { kind: "not"; part: FeatureRequirement; reason: string };
 
 export interface FeatureEntry {
   key: string;
@@ -77,7 +79,7 @@ function text(value: unknown, where: string): string {
   return value;
 }
 
-const REQUIREMENT_KINDS = ["agents", "feature", "choice", "setting", "any"] as const;
+const REQUIREMENT_KINDS = ["agents", "feature", "choice", "setting", "any", "not"] as const;
 
 function readRequirement(raw: unknown, where: string): FeatureRequirement {
   if (!isRecord(raw)) fail(`${where} must be an object`);
@@ -98,6 +100,8 @@ function readRequirement(raw: unknown, where: string): FeatureRequirement {
       };
     case "setting":
       return { kind: "setting", key: text(raw.setting, `${where}.setting`), reason };
+    case "not":
+      return { kind: "not", part: readRequirement(raw.not, `${where}.not`), reason };
     default: {
       if (!Array.isArray(raw.any) || raw.any.length === 0) fail(`${where}.any must be a non-empty list`);
       return { kind: "any", parts: raw.any.map((part, i) => readRequirement(part, `${where}.any[${i}]`)), reason };
@@ -176,6 +180,7 @@ function checkRequirementTerms(req: FeatureRequirement, where: string, byKey: Ma
   }
   if (req.kind === "setting" && !(req.key in settings)) fail(`${where} names an unknown setting ${req.key}`);
   if (req.kind === "any") req.parts.forEach((part, i) => checkRequirementTerms(part, `${where}.any[${i}]`, byKey, settings));
+  if (req.kind === "not") checkRequirementTerms(req.part, `${where}.not`, byKey, settings);
 }
 
 /** Read the lobby's `feature_catalog` field (`undefined`: an older server). */
@@ -242,6 +247,8 @@ function satisfied(catalog: FeatureCatalog, req: FeatureRequirement, effective: 
     }
     case "setting":
       return surface.settings[req.key] === true;
+    case "not":
+      return !satisfied(catalog, req.part, effective, surface, agents);
     default:
       return req.parts.some((part) => satisfied(catalog, part, effective, surface, agents));
   }
