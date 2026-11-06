@@ -89,7 +89,18 @@ def test_registry_union_covers_the_audit_union(SR, registry):
 
 
 #: Screens whose held run ``mark-run`` recorded in the registry (complete).
-RECORDED = {"CW4"}
+RECORDED = {"CW4", "CW1"}
+
+
+def _unrun(SR, registry=None):
+    """The registry as it was before CW1's held run was recorded: the generic held-run tests
+    below run CW1's cohort (as an unrun screen) on a scratch copy, never on the real file."""
+    reg = copy.deepcopy(registry if registry is not None else SR.load_registry())
+    for e in reg["entries"]:
+        if e.get("screen") == "CW1" and e.get("cohort") == "held":
+            e["status"] = "reserved"
+            e.pop("held_run", None)
+    return reg
 PROGRAM = {"CW1": (731, 831), "CW2": (741, 841), "CW3": (751, 851), "CW4": (761, 861), "CW5": (771, 871),
            "CW6": (781, 881)}
 
@@ -138,13 +149,13 @@ def _mutate(registry, change):
     elif change == "reservation overlaps":
         by["cw2-held-t"]["seeds"] = [[736, 741]]
     elif change == "reservation in the gate":
-        by["cw1-held-t"]["seeds"] = [[231, 236]]
+        by["cw2-held-t"]["seeds"] = [[231, 236]]
     elif change == "no gate entry":
         reg["entries"] = [e for e in reg["entries"] if e["id"] != "gate200-t"]
     elif change == "ranges changed":
         reg["restricted_ranges"]["template"] = [[42, 141]]
     elif change == "held reservation without screen":
-        by["cw1-held-t"]["screen"] = None
+        by["cw2-held-t"]["screen"] = None
     return reg
 
 
@@ -462,9 +473,12 @@ class FakeRuntime:
         self.seconds, self.calls, self.rc, self.local = seconds, [], rc, threading.local()
         self.ledger = Path(ledger) if ledger else Path(tempfile.mkdtemp()) / "ledger.jsonl"
         ident = identity if callable(identity) else (lambda screen: list(identity))
+        if registry is None:
+            registry = Path(tempfile.mkdtemp()) / "registry.json"
+            registry.write_text(SR.dump_registry(_unrun(SR)), encoding="utf-8")
         self.rt = SR.Runtime(simulate=self.simulate, identity=ident, clock=self.clock,
                              ledger=self.ledger, changed_paths=lambda old, new: list(changed),
-                             registry=Path(registry) if registry else SR.REGISTRY)
+                             registry=Path(registry))
 
     def clock(self):
         return getattr(self.local, "now", 0.0)
@@ -628,7 +642,8 @@ def test_check_command_reports_stubs_not_ready(SR, CW, capsys):
     assert "DEV: extractor, packages, 2 arms and 3 outcomes (2 primary): OK" in text
     assert CW.main(["check", "--screen", "DEV"]) == 0
     assert CW.main(["registry"]) == 0
-    assert "reserved cw1-held-t: template 731-736" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "reserved cw2-held-t: template 741-746" in out and "reserved cw1-held-t" not in out   # CW1 was run
 
 
 def test_arm_command_lines_are_checked_by_the_parser_and_catalog(SR, CW):
@@ -723,7 +738,7 @@ def test_m1_a_second_held_run_is_refused_while_the_first_is_recorded(SR, CW, tmp
         SR.run_main([*_held_argv(tmp_path, out="restored"), "--resume"], screens, FakeRuntime(SR).rt)
     # mark-run records it in the registry: every clone then refuses the cohort as reused.
     reg_path = tmp_path / "registry.json"
-    reg_path.write_text(SR.dump_registry(registry))
+    reg_path.write_text(SR.dump_registry(_unrun(SR, registry)))
     assert SR.mark_run_main([str(tmp_path / "held1"), "--screen", "CW1", "--registry", str(reg_path)], screens) == 0
     marked = SR.load_registry(reg_path)
     assert SR.validate_registry(marked) == []
@@ -749,7 +764,7 @@ class Program:
     def __init__(self, SR, CW, tmp_path, registry):
         self.SR, self.tmp = SR, tmp_path
         self.registry = tmp_path / "registry.json"
-        self.registry.write_text(SR.dump_registry(registry))
+        self.registry.write_text(SR.dump_registry(_unrun(SR, registry)))
         self.ledger = tmp_path / "ledger.jsonl"
         self.screens = {"CW1": _held_screen(SR, CW, tmp_path, ceiling=10.0), "CW2": _held_screen(SR, CW, tmp_path, 10.0)}
 

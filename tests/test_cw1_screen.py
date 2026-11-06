@@ -460,6 +460,14 @@ def test_held_run_records_the_schedule_digests_in_the_ledger(SR, CW, tmp_path):
         for arm in screen.arms for tag, seed in (("t", 5), ("p", 19))))
     fake = FakeCW1(SR, CW)
     fake.rt.ledger = tmp_path / "ledger.jsonl"
+    # A scratch registry as before CW1's held run was recorded (never the real file).
+    reg = SR.load_registry()
+    for e in reg["entries"]:
+        if e.get("screen") == "CW1" and e.get("cohort") == "held":
+            e["status"] = "reserved"
+            e.pop("held_run", None)
+    fake.rt.registry = tmp_path / "registry.json"
+    fake.rt.registry.write_text(SR.dump_registry(reg))
     rc = SR.run_main([str(tmp_path / "held"), "--screen", "CW1", "--cohort", "held", "--jobs", "2", "--pilot",
                       str(pilot / "metrics.jsonl"), "--seeds", "template"], {"CW1": screen}, fake.rt)
     assert rc == 0
