@@ -191,6 +191,7 @@ class _Turn:
 
     def __init__(self, turn: int, sim):
         self.turn, self.sim = turn, sim
+        self.reserved = False             # the live crews were reserved (``reserve_first``)
         self.prepared = False
         self.finished = False
         self.plans: list[_Plan] = []
@@ -250,14 +251,21 @@ def set_timber_supply_enabled(world, value: bool, *, args=None, agent_mode=None)
             state.mode = mode
     if not value and state.enabled:
         turn = getattr(world, "turn", 0)
+        ended = len(state.expeditions)
+        cargo = math.fsum(e.cargo for e in state.expeditions)
         for exp in list(state.expeditions):
             _end(world, state, exp, turn, "switched_off")
         _flush_deposits(world, state)
+        released = math.fsum(state.store.values())
         for region, amount in sorted(state.store.items()):
             goods = world.regions[region].stockpile.goods
             goods["timber"] = goods.get("timber", 0.0) + amount
             _bump(state, "released", amount)
         state.store = {}
+        _bump(state, "switched_off_cargo", cargo)
+        _bump(state, "switched_off_store", released)
+        state.switched_off.append((turn, ended, cargo, released))
+        del state.switched_off[:-8]
         _write_off(state, list(state.prepaid))
     state.enabled = bool(value)
 
@@ -352,29 +360,34 @@ def _farm_share(world, home: int, fact) -> float:
     return float(URBAN_FARM_LABOR[city.rank]) if city is not None else 1.0
 
 
-def _drop_reason(fact, home: int, aid: int, enlisted, trips) -> str | None:
+def _drop_reason(fact, home: int, aid: int, enlisted, trips, soldiers=()) -> str | None:
+    """Why a member leaves the crew (None: stays). A veteran admitted while of
+    Soldier occupation (``soldiers``) leaves only when back on a roster."""
     if fact is None:
         return "died"
     if fact[0] != home:
         return "migrated"
-    if fact[1] == SOLDIER or aid in enlisted:
+    if aid in enlisted or (fact[1] == SOLDIER and aid not in soldiers):
         return "enlisted"
     if aid in trips:
         return "on_trip"
     return None
 
 
-def _end(world, state, exp: Expedition, turn: int, reason: str, *, defer: bool = False) -> None:
-    """End a live expedition without delivering. Its cargo is deposited in the
-    forest region's stockpile as commons (``abandoned``): now, or at the next
-    Phase 10 with ``defer`` (a pool rebuild can come after the economy batch
-    packed the stockpiles, whose write-back would drop a deposit made now)."""
+def _end(world, state, exp: Expedition, turn: int, reason: str, *, defer: bool = False,
+         region: int | None = None) -> None:
+    """End a live expedition without delivering. Its cargo is deposited as
+    commons (``abandoned``) in ``region``'s stockpile, by default the forest
+    region's: now, or at the next Phase 10 with ``defer`` (a pool rebuild can
+    come after the economy batch packed the stockpiles, whose write-back
+    would drop a deposit made now)."""
     if exp.cargo:
+        where = exp.forest if region is None else int(region)
         amount, exp.cargo = exp.cargo, 0.0
         exp.abandoned += amount
         _bump(state, "abandoned_cargo", amount)
-        state.pending_deposits[exp.forest] = state.pending_deposits.get(exp.forest, 0.0) + amount
-        state.deposits.append((turn, exp.eid, exp.forest, amount))
+        state.pending_deposits[where] = state.pending_deposits.get(where, 0.0) + amount
+        state.deposits.append((turn, exp.eid, where, amount))
         if not defer:
             _flush_deposits(world, state)
     exp.status, exp.ended_turn, exp.end_reason = "abandoned", turn, reason
@@ -552,35 +565,29 @@ def _reserve(sim, turn: int, aid: int) -> bool:
     return True
 
 
-def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
-    """Re-check every live expedition's crew, reserve it for the turn, plan
-    its wages and append the woodcut columns; charges nothing."""
+def reserve_first(world, agent_bridge, snapshot) -> None:
+    """Livelihoods seam, before any package plans this turn's work (review A,
+    2026-11-06): the crews of live expeditions are away, so they are re-checked
+    and reserved here, ahead of the L1 crews, RS1 seats and attached
+    apprentices, RS2 workshop repair crews and PL3 granary and workshop crews,
+    which all exclude registry holders. Only rural health work and a teaching
+    plan, prepared before the livelihoods hooks, come first. Charges nothing."""
     state = _state(world)
     sim = _native(agent_bridge)
     t = _begin(world, state, sim)
-    if t.prepared:
-        raise RuntimeError("timber supply already prepared for this turn")
-    t.sim = sim
-    names = set(region_input.schema.names)
-    if names & {AWAY_COLUMN, LABOR_COLUMN}:
-        raise ValueError("woodcut columns are owned by timber supply")
+    if t.reserved or t.prepared:
+        raise RuntimeError("timber supply crews already reserved for this turn")
+    t.sim, t.reserved = sim, True
     live = sorted(state.expeditions, key=lambda e: e.eid)
     if not live:
-        t.prepared = True
-        return region_input
+        return
     facts = _facts(snapshot, {a for e in live for a in e.crew})
     enlisted = _enlisted(world)
     trips = _trips(sim)
-    budgets = _budgets(world, acc)
-    planned = [0] * len(budgets)
-    wage = wage_milli()
     open_veterans = frozenset()
     if _lane_active(world, "veteran_reintegration"):
         from chronicler.veteran_reintegration import open_record_ids
         open_veterans = open_record_ids(world)
-    n = len(world.regions)
-    away = [0.0] * n
-    labor = [0.0] * n
     for exp in live:
         plan = _Plan(exp)
         t.plans.append(plan)
@@ -589,7 +596,7 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
             continue
         crew = []
         for aid in exp.crew:
-            reason = _drop_reason(facts.get(aid), exp.home, aid, enlisted, trips)
+            reason = _drop_reason(facts.get(aid), exp.home, aid, enlisted, trips, exp.soldier_veterans)
             if reason is None:
                 crew.append(aid)
             else:
@@ -607,7 +614,47 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
         if not crew:
             plan.end = "crew_lost"
             continue
-        if budgets[exp.civ] * MILLI - planned[exp.civ] < len(crew) * wage:
+        for aid in crew:
+            if _reserve(sim, world.turn, aid):
+                plan.crew.append(aid)
+            else:
+                plan.drops.append((aid, "other_work"))
+        if not plan.crew:
+            plan.end = "crew_lost"
+            continue
+        plan.farm = math.fsum(_farm_share(world, exp.home, facts[aid]) for aid in plan.crew)
+        plan.veterans = [a for a in plan.crew if a in open_veterans]
+
+
+def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
+    """After every earlier Phase 2 planner: plan the reserved crews' wages
+    (a turn the civ cannot pay recalls the crew) and append the woodcut
+    columns; charges nothing."""
+    state = _state(world)
+    sim = _native(agent_bridge)
+    t = _begin(world, state, sim)
+    if t.prepared:
+        raise RuntimeError("timber supply already prepared for this turn")
+    if state.expeditions and not t.reserved:
+        raise RuntimeError("timber supply crews were not reserved before the Phase 2 planners")
+    t.sim = sim
+    names = set(region_input.schema.names)
+    if names & {AWAY_COLUMN, LABOR_COLUMN}:
+        raise ValueError("woodcut columns are owned by timber supply")
+    if not t.plans:
+        t.prepared = True
+        return region_input
+    budgets = _budgets(world, acc)
+    planned = [0] * len(budgets)
+    wage = wage_milli()
+    n = len(world.regions)
+    away = [0.0] * n
+    labor = [0.0] * n
+    for plan in t.plans:
+        exp = plan.exp
+        if plan.end is not None or plan.idle:
+            continue
+        if budgets[exp.civ] * MILLI - planned[exp.civ] < len(plan.crew) * wage:
             # A turn the civ cannot pay: the crew stops cutting and walks home
             # with the cargo, unpaid for the turns it cannot pay.
             plan.unpaid = True
@@ -618,21 +665,13 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
                     plan.cut_end = "recalled"
                 plan.stage = "returning"
                 if back == 0:
-                    plan.idle = True          # home already: arrives this turn
+                    # Home already: arrives this turn. The turn's reservation,
+                    # made before anything was planned, is not worked or paid.
+                    plan.idle, plan.crew, plan.farm, plan.veterans = True, [], 0.0, []
                     continue
-        for aid in crew:
-            if _reserve(sim, world.turn, aid):
-                plan.crew.append(aid)
-            else:
-                plan.drops.append((aid, "other_work"))
-        if not plan.crew:
-            plan.end = "crew_lost"
-            continue
         if not plan.unpaid:
             plan.wage = wage
             planned[exp.civ] += len(plan.crew) * wage
-        plan.farm = math.fsum(_farm_share(world, exp.home, facts[aid]) for aid in plan.crew)
-        plan.veterans = [a for a in plan.crew if a in open_veterans]
         away[exp.home] += plan.farm
         if plan.stage == "cutting" and state.mode == "supply":
             plan.labor = float(len(plan.crew))
@@ -896,9 +935,12 @@ def _wants(world) -> dict[int, float]:
     per-turn caps: a granary's work cap, a workshop crew of ``MAX_CREW`` at
     its diverted share and rate (1 with RS1 active, else RS2's
     ``UNQUALIFIED_RATE``), each at most the project's remaining work, times
-    its timber rate."""
+    its timber rate. A granary project RS2 suspends ``no_people`` (no farm
+    labour in its region at this Phase 10, PL3) uses nothing and is skipped."""
     from chronicler import repair_projects as RP
     rp = RP._state(world)
+    seen = getattr(rp, "_labour", None)
+    labour = seen[1] if seen is not None and seen[0] == world.turn else None
     _per_condition, per_turn, timber_rate, _coins = RP._storage_rules()
     rate = 1.0 if _lane_active(world, "apprenticeship") else RP.UNQUALIFIED_RATE
     sites = RP._sites(world)
@@ -908,6 +950,8 @@ def _wants(world) -> dict[int, float]:
         if remaining <= RP.DONE or _controller(world, p.region) < 0:
             continue
         if p.kind == "granary":
+            if labour is not None and labour[p.region] == 0:
+                continue
             want = min(per_turn, remaining) * timber_rate
         else:
             site = sites.get(p.asset)
@@ -965,24 +1009,31 @@ def _choose_forest(world, state, civ: int, home: int) -> tuple[tuple | None, str
     return (hops, rid, slot), None
 
 
-def _choose_crew(world, state, snapshot, home: int, enlisted, trips) -> list[int]:
-    """At most ``CREW_CAP`` eligible residents of ``home``: RS3 veterans first."""
+def _choose_crew(world, state, snapshot, home: int, enlisted, trips) -> tuple[list[int], set[int]]:
+    """At most ``CREW_CAP`` eligible residents of ``home``, RS3 veterans first,
+    and which of them were admitted while of Soldier occupation. Eligible:
+    living adults resident there, not on an army roster, not on a trip, not on
+    another crew, of any occupation but Soldier; RS3's priority veterans of any
+    occupation, Soldier included (released, on no roster; the plan's "any
+    non-enlisted occupation")."""
     import numpy as np
     ids, region, occupation, age, _settlement = _rows(snapshot)
-    mask = (region == home) & (age >= AGE_ADULT) & (occupation != SOLDIER)
+    resident = (region == home) & (age >= AGE_ADULT)
     taken = {a for e in state.expeditions for a in e.crew}
-    eligible = sorted(int(a) for a in np.unique(ids[mask])
-                      if int(a) not in enlisted and int(a) not in trips and int(a) not in taken)
-    if not eligible:
-        return []
+
+    def free(a: int) -> bool:
+        return a not in enlisted and a not in trips and a not in taken
+
+    eligible = sorted(int(a) for a in np.unique(ids[resident & (occupation != SOLDIER)]) if free(int(a)))
+    soldiers = {int(a) for a in np.unique(ids[resident & (occupation == SOLDIER)]) if free(int(a))}
     first = []
     if _lane_active(world, "veteran_reintegration"):
         from chronicler.veteran_reintegration import priority_ids
-        pool = set(eligible)
+        pool = set(eligible) | soldiers
         first = [int(a) for a in priority_ids(world, home) if int(a) in pool]
     seen = set(first)
-    order = first + [a for a in eligible if a not in seen]
-    return order[:CREW_CAP]
+    order = (first + [a for a in eligible if a not in seen])[:CREW_CAP]
+    return order, {a for a in order if a in soldiers}
 
 
 def _remaining_bill(exp: Expedition, wage: int) -> int:
@@ -1016,32 +1067,18 @@ def phase10_before_reserves(world, acc, economy_result, agent_bridge):
     trips = _trips(sim)
     facts = _facts(snapshot, {a for e in state.expeditions for a in e.crew})
     for exp in sorted(state.expeditions, key=lambda e: e.eid):
+        if exp.arrived:
+            # The crew walked home in Phase 2: it delivers before the tick's
+            # deaths and moves are observed (review A, 2026-11-06).
+            _arrive(world, state, t, exp, turn)
+            continue
         for aid in list(exp.crew):
             fact = facts.get(aid)
-            reason = ("died" if fact is None else "migrated" if fact[0] != exp.home
-                      else "enlisted" if fact[1] == SOLDIER or aid in enlisted else None)
+            reason = _drop_reason(fact, exp.home, aid, enlisted, (), exp.soldier_veterans)
             if reason is not None:
                 _drop(state, exp, turn, aid, reason)
         if not exp.crew:
             _end(world, state, exp, turn, "crew_lost")
-        elif exp.arrived:
-            if _controller(world, exp.home) != exp.civ:
-                _end(world, state, exp, turn, "home_lost")
-                continue
-            keep = transit_keep(exp.return_hops)
-            delivered = exp.cargo * keep
-            lost = exp.cargo - delivered
-            exp.delivered, exp.lost, exp.cargo = delivered, exp.lost + lost, 0.0
-            exp.status, exp.ended_turn = "delivered", turn
-            _note(exp, turn, "delivered")
-            _bump(state, "delivered_expeditions")
-            _bump(state, "delivered", delivered)
-            _bump(state, "lost", lost)
-            if delivered > 0.0:
-                t.store_open.setdefault(exp.home, state.store.get(exp.home, 0.0))
-                state.store[exp.home] = state.store.get(exp.home, 0.0) + delivered
-                t.delivered[exp.home] = t.delivered.get(exp.home, 0.0) + delivered
-            _close(state, exp)
     from chronicler.repair_projects import _state as rp_state
     open_regions = {p.region for p in rp_state(world).projects}
     for region in sorted(state.store):
@@ -1058,6 +1095,36 @@ def phase10_before_reserves(world, acc, economy_result, agent_bridge):
     _write_off(state, [civ for civ in sorted(state.prepaid)
                        if not 0 <= civ < len(world.civilizations) or not world.civilizations[civ].regions])
     return []
+
+
+def _arrive(world, state, t, exp: Expedition, turn: int) -> None:
+    """An arrived crew's cargo, less the way home's decay, goes to the home
+    region's store (``delivered``), or, when nothing is left to deliver, the
+    expedition has ``returned``. If the home region changed hands on the way,
+    the cargo is deposited there as commons (``home_lost``)."""
+    keep = transit_keep(exp.return_hops)
+    delivered = exp.cargo * keep
+    lost = exp.cargo - delivered
+    exp.lost += lost
+    _bump(state, "lost", lost)
+    if _controller(world, exp.home) != exp.civ:
+        exp.cargo = delivered
+        _end(world, state, exp, turn, "home_lost", region=exp.home)
+        return
+    exp.delivered, exp.cargo, exp.ended_turn = delivered, 0.0, turn
+    if delivered > 0.0:
+        exp.status = "delivered"
+        _note(exp, turn, "delivered")
+        _bump(state, "delivered_expeditions")
+        _bump(state, "delivered", delivered)
+        t.store_open.setdefault(exp.home, state.store.get(exp.home, 0.0))
+        state.store[exp.home] = state.store.get(exp.home, 0.0) + delivered
+        t.delivered[exp.home] = t.delivered.get(exp.home, 0.0) + delivered
+    else:
+        exp.status = "returned"
+        _note(exp, turn, "returned")
+        _bump(state, "returned_expeditions")
+    _close(state, exp)
 
 
 def _plan_launches(world, state, snapshot, sim, acc, enlisted, trips):
@@ -1088,9 +1155,9 @@ def _plan_launches(world, state, snapshot, sim, acc, enlisted, trips):
             row.eid = homed[0].eid
         elif gap >= MIN_GAP:
             forest, reason = _choose_forest(world, state, civ, region)
-            crew = []
+            crew, soldiers = [], set()
             if reason is None:
-                crew = _choose_crew(world, state, snapshot, region, enlisted, trips)
+                crew, soldiers = _choose_crew(world, state, snapshot, region, enlisted, trips)
                 if not crew:
                     reason = "no_crew"
             if reason is None:
@@ -1112,13 +1179,15 @@ def _plan_launches(world, state, snapshot, sim, acc, enlisted, trips):
                     veterans = [a for a in crew if a in vet]
                 exp = Expedition(eid=state.next_eid, civ=civ, home=region, forest=rid, slot=slot, hops=hops,
                                  launched_turn=turn, stage="outbound" if hops > 0 else "cutting",
-                                 crew=list(crew), launched_crew=list(crew), veterans=veterans, need=gap)
+                                 crew=list(crew), launched_crew=list(crew), veterans=veterans,
+                                 soldier_veterans=sorted(soldiers), need=gap)
                 state.next_eid += 1
                 _note(exp, turn, "launched")
                 state.expeditions.append(exp)
                 row.status, row.eid = "launched", exp.eid
                 _bump(state, "launched")
                 _bump(state, "launched_veterans", len(veterans))
+                _bump(state, "soldier_veterans", len(soldiers))
         _bump(state, f"need_{row.status}")
         rows.append(row)
     dropped = max(0, len(rows) - MAX_NEEDS)

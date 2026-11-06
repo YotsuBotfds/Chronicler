@@ -50,6 +50,8 @@ Package module protocol (each function optional unless noted):
 
 ``set_<name>_enabled(world, value, *, args, agent_mode)`` (required),
 ``<name>_active(world)`` (required), ``snapshot_summary(world)`` (required),
+``reserve_first(world, agent_bridge, snapshot)`` (Phase 2, before every
+package's ``prepare_phase2``: reservations of work held across turns),
 ``prepare_phase2(world, region_input, agent_bridge, snapshot, acc)`` returning
 the region batch, ``finish_phase2(world, economy_result, agent_bridge, acc)``,
 ``rollback_phase2(world)``, ``before_agent_tick(world, agent_bridge,
@@ -408,10 +410,15 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
     if values["operating_wear"] is True:
         if agent_mode != "hybrid" or not _workshops_operate(world, values, args):
             raise ValueError("--operating-wear requires --workshops in operate mode (--agents hybrid)")
-    if values["timber_supply"] is True:
+    if _on(world, values, "timber_supply"):
+        # Also when only saved (review A, 2026-11-06): a resume that turns RS2 or
+        # L3 off would otherwise freeze the store and the live cargo unseen;
+        # --no-timber-supply releases the store and deposits the cargo, dated.
         if agent_mode != "hybrid" or not _on(world, values, "repair_projects") \
                 or not _on(world, values, "timber_stock"):
-            raise ValueError("--timber-supply requires --agents hybrid, --repair-projects and --timber-stock")
+            saved = values["timber_supply"] is not True
+            raise ValueError("--timber-supply requires --agents hybrid, --repair-projects and --timber-stock"
+                             + ("; this world has it on: pass --no-timber-supply to end it" if saved else ""))
 
 
 def configure_livelihoods(world: Any, args: Any, *, agent_mode: str) -> None:
@@ -571,8 +578,12 @@ def paid_work_receipt(world, sim) -> dict[int, tuple[float, float, float]] | Non
 
 
 def prepare_phase2(world, region_input, agent_bridge, snapshot, *, acc=None):
-    """Before the native economy tick: may replace columns; charges nothing."""
+    """Before the native economy tick: may replace columns; charges nothing.
+    Work held across turns (PL1 expedition crews, away from home) is reserved
+    first (``reserve_first``), so every package's planner sees it as held."""
     bind_native_pool(world, agent_bridge)
+    for fn in _hooks(world, "reserve_first"):
+        fn(world, agent_bridge, snapshot)
     for fn in _hooks(world, "prepare_phase2"):
         region_input = fn(world, region_input, agent_bridge, snapshot, acc)
     return region_input
