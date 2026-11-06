@@ -468,8 +468,9 @@ and 0.19 p of the set's region-turns (RS2 workshop wages alone).
   expeditions), the woodcutting homes' food shortfall after relief is a null (−0.15 t
   (2/2/2), +54.6 p (3/3/0)); the home-region shortfall share on away turns is 0.37 t and
   0.18 p in `CH`, 0.36 t and 0.17 p in `CH_cut`. No food cost of the cutting itself is
-  detectable; the labour cost is in both arms and is not separated from a no-expedition arm
-  here (checkpoint 1's `TS − RP` found none either).
+  detectable. The labour cost is in both arms and is not separated from a no-expedition arm
+  here; checkpoint 1's `TS_cost − RP` was also a null (+36 t, +21 p food), which is not
+  evidence that the labour cost is zero.
 - *Forest pressure*: L3 extraction +41 t (4/0/2), +212 p (5/1/0). The lowest stand share
   after a `CH` cutting turn is 0.86 t [0.72, 1.00] and **0.58 p [0.51, 0.70]**: procedural
   stands fall to about half of capacity, above the guard. Against `CH_cut`'s stands (no
