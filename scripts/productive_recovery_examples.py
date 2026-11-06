@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import sys
+from itertools import pairwise
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -117,8 +118,7 @@ def _timber_supply(hist):
             before = [(t, e) for t, e in by_region.get(p["region"], [])
                       if p["opened_turn"] <= e["ended_turn"] < p["closed_turn"]]
             if before:
-                t0, e = before[0]
-                completed = (turn, {**_pick(p, "pid", "asset", "region", "cause", "opened_turn", "closed_turn",
+                completed =(turn, {**_pick(p, "pid", "asset", "region", "cause", "opened_turn", "closed_turn",
                                             "opened_condition", "scope", "delivered", "timber_used"),
                                     "deliveries": [_pick(x, "eid", "ended_turn", "delivered") for _t, x in before],
                                     "store_held_while_open": sum(a for s, a in held.get(p["region"], [])
@@ -242,7 +242,7 @@ def _operating_wear(hist):
         the last one leaving it below ``below``."""
         return (bool(rows) and rows[0]["condition_before"] >= 1.0 - EPS and rows[-1]["condition_after"] < below
                 and all(not (r.get("upkeep_offset") or 0) and not r.get("qualified_on_crew") for r in rows)
-                and all(abs(a["condition_after"] - b["condition_before"]) < EPS for a, b in zip(rows, rows[1:])))
+                and all(abs(a["condition_after"] - b["condition_before"]) < EPS for a, b in pairwise(rows)))
 
     for snap in hist:
         turn = snap.get("turn")
