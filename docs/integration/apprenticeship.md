@@ -754,6 +754,37 @@ each importing its own `src`, native `6c675042…`):
   - RS1 version 1 on template 7 (90 turns, against the base's RS1);
   - RS1 version 1 on procedural 21 (`no_qualification` with payroll).
 
+### Development worlds after review B
+
+The version-2 arms were rerun on the same 12 worlds and base flags. The source is
+`49bf01f7` (the phase head `486c7a12` plus the review-B fixes), with native extension
+`native-pl1`.
+
+The reference arms are unchanged and were not rerun: `W_operate` (template 7) and
+`W_wear` (procedural 21) on this source and extension write byte-identical `state.json`
+to the earlier screen. Sums over the six worlds of each stratum:
+
+| Arm | Stratum | Operating site-turns | Lump repairs | Covered by a qualified member | Graduate crew-turns | Site-turns with a graduate aboard | Completions (distinct graduates) | Qualified by service / apprenticeship | Full-offset site-turns | Ended `stalled` |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| W_operate | template | 2554 | 3 | — | — | — | — | — | — | — |
+| W_wear | template | 2531 | 96 | 0 | — | — | — | — | 0 | — |
+| NQ v2 | template | 2486 | 71 | 733 (29.5%) | 275 | 234 (9.4%) | 74 (74) | 197 / 0 | 195 | 14 of 341 |
+| TR v2 | template | 2477 | 68 | 813 (32.8%) | 330 | 279 (11.3%) | 84 (84) | 172 / 84 | 275 | 6 of 384 |
+| W_operate | procedural | 3139 | 18 | — | — | — | — | — | — | — |
+| W_wear | procedural | 3169 | 121 | 0 | — | — | — | — | 0 | — |
+| NQ v2 | procedural | 3047 | 102 | 688 (22.6%) | 175 | 149 (4.9%) | 42 (42) | 200 / 0 | 203 | 11 of 389 |
+| TR v2 | procedural | 3162 | 93 | 942 (29.8%) | 370 | 279 (8.8%) | 80 (80) | 206 / 80 | 401 | 10 of 494 |
+
+- **Nobody completes twice.** Completions equal distinct graduates in every arm. The
+  control's graduate crew-turns fell (template 336 → 275), because its graduates are
+  no longer counted on crews as apprentices again.
+- **Against the control under the shared wear**, TR v2 has more covered site-turns
+  (32.8% / 29.8% against 29.5% / 22.6%) and more graduate crew-turns (330 / 370 against
+  275 / 175). It also has more full-offset site-turns (275 / 401 against 195 / 203) and
+  slightly fewer lump repairs (68 / 93 against 71 / 102).
+- **Long absence** remains the largest ending in procedural worlds (36–39%).
+- These are development worlds; a held screen is the evidence.
+
 ### Limits (version 2)
 
 - **The crew is still the city box.** Natively only city residents can be on a crew,
