@@ -25,12 +25,13 @@ matches the branch's Rust.
 
 ## Constructed (reproduce with `pytest <test>`)
 
-Every node id below passed on 2026-11-06 on this source:
+Every node id on this page passed on 2026-11-06 on this source:
 
-- the offline ones with `/home/user/Chronicler/.venv/bin/python -m pytest` (36 ids,
-  0.7 s);
-- the native ones (`*_native.py`) with `~/.venvs/native-pl1/bin/python -m pytest`
-  on the real extension (7 ids, 16.4 s).
+- the offline ones (36 ids, 0.7 s) with the project environment's `python -m pytest`;
+- the native ones (`*_native.py`) with `~/.venvs/native-pl1/bin/python -m pytest` on the
+  real extension. The 6 named here ran with
+  `tests/test_apprenticeship_v2_native.py::test_the_extension_is_the_compiled_build_with_the_v2_seams`,
+  which checks the compiled extension (7 ids, 16.4 s).
 
 | Package | Success | Failure |
 | --- | --- | --- |

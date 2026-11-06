@@ -114,7 +114,9 @@ def _bundle():
     _put(hist, 4, "apprenticeship", archive=[
         {"agent_id": 12, "ended_reason": "completed", "transfers": 1, "first_site": 1, "site": 0, "region": 0,
          "granted": True},
-        {"agent_id": 13, "ended_reason": "long_absence"}, {"agent_id": 14, "ended_reason": "stalled"}])
+        {"agent_id": 13, "ended_reason": "long_absence"}, {"agent_id": 14, "ended_reason": "stalled"}],
+         receipts=[{"site": 1, "region": 4, "operating": False, "crew": [], "qualified_on_crew": [],
+                    "seats": [{"agent_id": 22, "outcome": "missed", "reason": "no_mentor"}]}])
     _put(hist, 5, "apprenticeship", receipts=[{"site": 1, "region": 4, "operating": True, "crew": [20],
                                                "qualified_on_crew": [],
                                                "seats": [{"agent_id": 22, "outcome": "missed",

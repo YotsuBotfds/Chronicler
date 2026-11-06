@@ -180,7 +180,7 @@ def _apprenticeship(hist):
             continue
         for s in _rows(rec, "receipts"):
             seats = [x for x in _rows(s, "seats") if x.get("outcome") == "missed" and x.get("reason") == "no_mentor"]
-            if seats and not s.get("qualified_on_crew"):
+            if seats and s.get("operating") and not s.get("qualified_on_crew"):
                 no_mentor = (turn, {**_pick(s, "site", "region", "operating", "crew", "qualified_on_crew",
                                             "qualified_in_region"),
                                     "missed": [_pick(x, "agent_id", "reason") for x in seats]})
