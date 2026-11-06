@@ -61,3 +61,14 @@ it("the livelihoods tab reads a ledger-only record instead of naming no package"
   expect(screen.queryByText(/names no package this viewer reads/)).not.toBeInTheDocument();
   expect(screen.getByRole("heading", { name: "Wealth accounting · snapshot 10" })).toBeInTheDocument();
 });
+
+it("shows a failed closure on an observed frame instead of rejecting it", () => {
+  const typed = [frame.typed[0], frame.typed[1], { ...frame.typed[2], unlocated_in_milli: -115 }];
+  const closures = [...frame.closures, { channel: "remittance", check: "located flows do not exceed the package's total",
+    lhs: 1115, rhs: 1500, closes: false }];
+  const broken = { ...frame, typed, closures, world: { ...frame.world, unlocated_in_milli: 385 } };
+  render(<WealthAccounting {...props({ wealth_accounting: record({ frame: broken }) })} />);
+  expect(screen.queryByText(/rejected as malformed/)).not.toBeInTheDocument();
+  expect(screen.getByText(/Closures that did not hold: Remittances \(RS4\): located flows do not exceed the package's total \(1115 against 1500\)/)).toBeInTheDocument();
+  expect(screen.getByRole("table", { name: "Agent wealth at snapshot 10" })).toBeInTheDocument();
+});

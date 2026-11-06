@@ -1,5 +1,5 @@
 import type { Bundle, TurnSnapshot } from "../../types";
-import { readWealthAccounting, units } from "../../lib/wealthAccounting";
+import { failedClosures, readWealthAccounting, units } from "../../lib/wealthAccounting";
 
 const show = (value: number | null | undefined, digits = 3) =>
   value === null || value === undefined ? "Unknown" : value.toLocaleString(undefined, { maximumFractionDigits: digits });
@@ -54,12 +54,12 @@ export function WealthAccounting({ bundle, snapshot, currentTurn, onSelectRegion
     : c.status === "broken"
       ? `Something wrote agent wealth between the previous closing and this opening: ${show(c.difference)} in all, ${show(c.agents_difference, 0)} people.`
       : `The opening was not checked against a closing: ${UNCHECKED[c.reason ?? ""] ?? c.reason ?? "no reason recorded"}.`;
-  const failed = frame.closures.filter((x) => !x.closes);
+  const failed = failedClosures(frame);
   const wh = frame.withheld;
   const tr = frame.treasury;
   const paidFromTreasuries = Object.values(tr.to_households_milli).reduce((a, v) => a + v, 0);
   const charged = Object.values(tr.charged).reduce((a, v) => a + v, 0);
-  const unlocated = w.unlocated_in_milli + w.unlocated_out_milli;
+  const unlocated = Math.max(0, w.unlocated_in_milli) + Math.max(0, w.unlocated_out_milli);
   return <section className="systems-section" aria-label="Wealth accounting">{heading}
     <p className="systems-note">Simulation turn {source}. An observation-only ledger of agent wealth (the one spendable balance, not conserved cash): the balance at the Phase 2 opening and after every payer of Phase 10, the typed flows the packages recorded, and the rest labelled as native model flows, not itemized yet (occupational income net of withheld shares, decay, the wealth ceiling, birth endowments, estates without heirs). Balances in wealth units.</p>
     <p className="systems-note">{continuity}</p>
