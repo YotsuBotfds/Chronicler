@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "layer": "cwc1",
-  "parent": "8abc1acb3adf978ea212a570fb1dfbbfe9723ec3",
+  "parent": "13340446c06efe5cbef829f699be573d46d80341",
   "files": {
     "src/chronicler/agent_bridge.py": {
       "sha256": "0205fb68abacdf072501af8d4bac070d58d14f30a49bd20c8aee0fc17cb9b3a3",
@@ -22,26 +22,26 @@
       ]
     },
     "src/chronicler/batch_manifest.py": {
-      "sha256": "c3c48fd1e28b6961d078337c3fbf1d6e1c01ab7080a5a54b4d18fcd7619adb74",
-      "current_sha256": "b1aed1d2865fadfc3405758eba018460d2c6cc6cfcb022d68e7d535d5820eb01",
+      "sha256": "364c12b985669f47b59d8e2f853ea70d7144abe2d6fc78fc2fd9069a648391b3",
+      "current_sha256": "e4696404c34cdaa5b278f33ee2c880269b39167a267c06858c3d3a63b171ff74",
       "patches": [
         {
-          "old": "    \"household_retail\",\n    \"household_retail_mode\",\n    \"household_retail_boundary\",\n    \"tuning\",\n    \"preset\",\n    \"aggression_bias\",\n",
-          "new": "    \"household_retail\",\n    \"household_retail_mode\",\n    \"household_retail_boundary\",\n    \"quarantine_mode\",\n    \"tuning\",\n    \"preset\",\n    \"aggression_bias\",\n"
+          "old": "    \"household_retail_boundary\",\n    \"watershed\",\n    \"watershed_mode\",\n    \"tuning\",\n    \"preset\",\n    \"aggression_bias\",\n",
+          "new": "    \"household_retail_boundary\",\n    \"watershed\",\n    \"watershed_mode\",\n    \"quarantine_mode\",\n    \"tuning\",\n    \"preset\",\n    \"aggression_bias\",\n"
         },
         {
-          "old": "                             \"timber_supply\", \"timber_supply_mode\",\n                             \"recovery_crews\", \"recovery_crew_mode\", \"maintenance_obligation\",\n                             \"maintenance_obligation_mode\", \"apprenticeship_rules\",\n                             \"household_retail\", \"household_retail_mode\", \"household_retail_boundary\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n    config[\"tuning_overrides\"] = _json_value(overrides or {})\n",
-          "new": "                             \"timber_supply\", \"timber_supply_mode\",\n                             \"recovery_crews\", \"recovery_crew_mode\", \"maintenance_obligation\",\n                             \"maintenance_obligation_mode\", \"apprenticeship_rules\",\n                             \"household_retail\", \"household_retail_mode\", \"household_retail_boundary\",\n                             \"quarantine_mode\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n    config[\"tuning_overrides\"] = _json_value(overrides or {})\n"
+          "old": "                             \"recovery_crews\", \"recovery_crew_mode\", \"maintenance_obligation\",\n                             \"maintenance_obligation_mode\", \"apprenticeship_rules\",\n                             \"household_retail\", \"household_retail_mode\", \"household_retail_boundary\",\n                             \"watershed\", \"watershed_mode\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n    config[\"tuning_overrides\"] = _json_value(overrides or {})\n",
+          "new": "                             \"recovery_crews\", \"recovery_crew_mode\", \"maintenance_obligation\",\n                             \"maintenance_obligation_mode\", \"apprenticeship_rules\",\n                             \"household_retail\", \"household_retail_mode\", \"household_retail_boundary\",\n                             \"watershed\", \"watershed_mode\",\n                             \"quarantine_mode\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n    config[\"tuning_overrides\"] = _json_value(overrides or {})\n"
         }
       ]
     },
     "tests/test_batch_manifest.py": {
-      "sha256": "59cd9014e633d3f500e4e0dc7da5624634a23d65d35309b9db576a43c186b4ac",
-      "current_sha256": "7e3711e69476c95912ecc50e5a38dff627e532578486a46b5e0e39075e1a0817",
+      "sha256": "24d01cddfe7ea7bf2bc90449ff06019bff91a748eda2262233256491978c453e",
+      "current_sha256": "0cbf72cc5b8bc49b21f3473e3537b4df10df62f4f7a962ecd75c689e6773493b",
       "patches": [
         {
-          "old": "                                                           \"timber_supply\", \"timber_supply_mode\",\n                                                           \"recovery_crews\", \"recovery_crew_mode\", \"maintenance_obligation\",\n                                                           \"maintenance_obligation_mode\", \"apprenticeship_rules\",\n                                                           \"household_retail\", \"household_retail_mode\", \"household_retail_boundary\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n    assert manifest[\"outputs\"][\"simulate_only\"] is True\n    environment = manifest[\"environment\"]\n",
-          "new": "                                                           \"timber_supply\", \"timber_supply_mode\",\n                                                           \"recovery_crews\", \"recovery_crew_mode\", \"maintenance_obligation\",\n                                                           \"maintenance_obligation_mode\", \"apprenticeship_rules\",\n                                                           \"household_retail\", \"household_retail_mode\", \"household_retail_boundary\",\n                                                           \"quarantine_mode\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n    assert manifest[\"outputs\"][\"simulate_only\"] is True\n    environment = manifest[\"environment\"]\n"
+          "old": "                                                           \"recovery_crews\", \"recovery_crew_mode\", \"maintenance_obligation\",\n                                                           \"maintenance_obligation_mode\", \"apprenticeship_rules\",\n                                                           \"household_retail\", \"household_retail_mode\", \"household_retail_boundary\",\n                                                           \"watershed\", \"watershed_mode\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n    assert manifest[\"outputs\"][\"simulate_only\"] is True\n    environment = manifest[\"environment\"]\n",
+          "new": "                                                           \"recovery_crews\", \"recovery_crew_mode\", \"maintenance_obligation\",\n                                                           \"maintenance_obligation_mode\", \"apprenticeship_rules\",\n                                                           \"household_retail\", \"household_retail_mode\", \"household_retail_boundary\",\n                                                           \"watershed\", \"watershed_mode\",\n                                                           \"quarantine_mode\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n    assert manifest[\"outputs\"][\"simulate_only\"] is True\n    environment = manifest[\"environment\"]\n"
         }
       ]
     }
