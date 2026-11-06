@@ -12,8 +12,10 @@ drift. It lists:
 * the expansion prerequisites those switches depend on (``PREREQUISITES``);
 * switches of later programs in their own groups (``FEATURE_GROUPS``: group
   name -> {switch: its choice keys}), listed after the livelihoods group in
-  declaration order (none yet; the entries of the groups above are unchanged
-  while it is empty).
+  declaration order. A group key may also be a top-level choice with no
+  boolean switch (``Public health``: ``--quarantine-mode``, whose first choice,
+  ``legacy``, is the run's rule when unset); it declares ``REQUIREMENTS`` as a
+  switch does.
 
 Each entry's key is the CLI parser destination; flag, help text and choices
 are read from the CLI parser itself. Nothing here is on by default: an absent
@@ -69,8 +71,12 @@ PREREQUISITES: dict[str, tuple[str, ...]] = {
 
 #: Switch groups after the livelihoods group (B, C and D programs), in display
 #: order: group name -> {switch key: its choice keys (parser destinations)}.
-#: Every switch needs ``REQUIREMENTS``, as a livelihoods switch does.
-FEATURE_GROUPS: dict[str, dict[str, tuple[str, ...]]] = {}
+#: Every switch needs ``REQUIREMENTS``, as a livelihoods switch does. A key
+#: that is itself a choice (``quarantine_mode``) is a top-level choice: no
+#: switch, its own ``REQUIREMENTS``, its first choice the run's rule when unset.
+FEATURE_GROUPS: dict[str, dict[str, tuple[str, ...]]] = {
+    "Public health": {"quarantine_mode": ()},
+}
 
 #: Server settings a request cannot change: what each means when true.
 SETTINGS: dict[str, str] = {
@@ -82,6 +88,8 @@ SETTINGS: dict[str, str] = {
         "a procedural world (template worlds have no elevation): in Batch Lab, a batch of more than "
         "12 regions; on a live start, the run checks the requested world and refuses a template "
         "world (12 regions or fewer), reopening the lobby with the reason"),
+    "epidemiology": ("epidemiology with the contact ledger (on by default for new worlds; off with "
+                     "--no-epidemiology or --no-contact-ledger)"),
 }
 
 
@@ -145,6 +153,8 @@ REQUIREMENTS: dict[str, tuple[dict, ...]] = {
     "maintenance_obligation": (_feature("local_budgets"), _feature("repair_projects")),
     "household_retail": (_HYBRID, _feature("food_allocation")),
     "watershed": (_setting("procedural_world"),),
+    # An explicit legacy is the option omitted: it needs nothing (lead decision m4).
+    "quarantine_mode": (_any(_setting("epidemiology"), _choice("quarantine_mode", "legacy")),),
 }
 
 
@@ -279,6 +289,14 @@ def _techniques_default() -> bool:
     return bool(DEFAULT_ENABLED_FOR_NEW_WORLDS)
 
 
+def _epidemiology_setting(epidemiology: Any = None, contact_ledger: Any = None) -> bool:
+    """Epidemiology on a new world: its switch (default on) and the ledger it needs."""
+    from chronicler.contact_ledger import DEFAULT_ENABLED_FOR_NEW_WORLDS as ledger_default
+    from chronicler.epidemiology import DEFAULT_ENABLED_FOR_NEW_WORLDS as epi_default
+    ledger = ledger_default if contact_ledger is None else bool(contact_ledger)
+    return bool(epi_default if epidemiology is None else epidemiology) and bool(ledger)
+
+
 def live_surface(args: Any = None) -> dict:
     """What a lobby ``start`` inherits from the server's command line: the
     agent mode, explicit values of catalog keys and the settings."""
@@ -302,6 +320,8 @@ def live_surface(args: Any = None) -> dict:
             # reason and the lobby reopens (the viewer always names a
             # world-dependent switch it inherits from the server).
             "procedural_world": getattr(args, "live", None) is True,
+            "epidemiology": _epidemiology_setting(getattr(args, "epidemiology", None),
+                                                  getattr(args, "contact_ledger", None)),
         },
         "new_worlds_only": True,
     }
@@ -342,6 +362,10 @@ def batch_surface(client_defaults: Mapping[str, Any], config: Mapping[str, Any] 
             "no_household_mobility_liquid_requirement": True,
             "procedural_world": isinstance(regions, int) and regions > 0
             and resolve_worldgen(None, regions) == "procedural",
+            # Batch Lab runs are not given --epidemiology; --contact-ledger is an
+            # expansion prerequisite the batch config or the server forwards.
+            "epidemiology": _epidemiology_setting(
+                None, _batch_value("contact_ledger", client_defaults, config)),
         },
         "new_worlds_only": True,
     }

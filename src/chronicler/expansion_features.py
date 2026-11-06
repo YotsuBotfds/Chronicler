@@ -60,6 +60,9 @@ def add_expansion_arguments(parser: argparse.ArgumentParser, *, forwarding: bool
         )
     from chronicler.livelihoods import add_livelihoods_arguments
     add_livelihoods_arguments(parser, forwarding=forwarding)
+    # --quarantine-mode (connected-world C1; rules saved on the epidemic state).
+    from chronicler.quarantine_rules import add_quarantine_arguments
+    add_quarantine_arguments(parser, forwarding=forwarding)
 
 
 def expansion_arguments(args: Any) -> list[str]:
@@ -72,7 +75,8 @@ def expansion_arguments(args: Any) -> list[str]:
                 raise ValueError(f"{name} must be a boolean or None")
             flags.append("--" + ("" if value else "no-") + name.replace("_", "-"))
     from chronicler.livelihoods import livelihoods_arguments
-    return flags + livelihoods_arguments(args)
+    from chronicler.quarantine_rules import quarantine_arguments
+    return flags + livelihoods_arguments(args) + quarantine_arguments(args)
 
 
 def configure_expansion_features(world: Any, args: Any, *, agent_mode: str) -> None:
@@ -127,6 +131,10 @@ def configure_expansion_features(world: Any, args: Any, *, agent_mode: str) -> N
     # default off; a world that never enabled one is untouched.
     from chronicler.livelihoods import configure_livelihoods
     configure_livelihoods(world, args, agent_mode=agent_mode)
+    # Quarantine rules (chronicler.quarantine_rules): an explicit mode after
+    # epidemiology and the contact ledger are configured; valid in every mode.
+    from chronicler.quarantine_rules import configure_quarantine
+    configure_quarantine(world, args, agent_mode=agent_mode)
 
 
 def expansion_feature_flags(world: Any) -> dict[str, bool]:

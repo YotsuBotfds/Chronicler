@@ -401,6 +401,17 @@ def _city_route_graph(world: WorldState, batch):
     return merchant_route_graph(world, batch)
 
 
+def _quarantine_route_graph(world: WorldState, batch):
+    """``--quarantine-mode closure``: cross-border edges between polities closed
+    against each other leave the agent merchant graph
+    (``quarantine_rules.merchant_route_graph``); relief grain shipments and
+    convoys build their own graph and stay open. Unchanged otherwise."""
+    if getattr(getattr(world, "epidemics", None), "quarantine_rules", None) is None:
+        return batch
+    from chronicler.quarantine_rules import merchant_route_graph
+    return merchant_route_graph(world, batch)
+
+
 _MARKET_CATEGORIES: tuple[str, ...] = ("food", "raw_material", "luxury", "craft")
 
 
@@ -1498,6 +1509,7 @@ class AgentBridge:
             from chronicler.maritime import merchant_route_graph
             route_batch = merchant_route_graph(world, route_batch)
         route_batch = _city_route_graph(world, route_batch)
+        route_batch = _quarantine_route_graph(world, route_batch)
         self._sim.set_merchant_route_graph(route_batch)
 
         signals = build_signals(world, shocks=shocks, demands=demands, conquered=conquered,
@@ -1535,6 +1547,7 @@ class AgentBridge:
             from chronicler.maritime import merchant_route_graph
             route_batch = merchant_route_graph(world, route_batch)
         route_batch = _city_route_graph(world, route_batch)
+        route_batch = _quarantine_route_graph(world, route_batch)
         self._sim.set_merchant_route_graph(route_batch)
 
         signals = build_signals(world, shocks=shocks, demands=demands, conquered=conquered,

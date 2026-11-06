@@ -258,6 +258,11 @@ def _compute_active_trade_routes(
                 pair = tuple(sorted([m1, m2]))
                 if pair not in routes and pair not in embargo_set:
                     routes.add(pair)
+    # --quarantine-mode closure: pairs closed by a quarantine carry no route of
+    # any kind (chronicler.quarantine_rules; unchanged without such rules).
+    if getattr(getattr(world, "epidemics", None), "quarantine_rules", None) is not None:
+        from chronicler.quarantine_rules import filter_closed_routes
+        routes = filter_closed_routes(world, routes, emit_events=emit_events)
     return sorted(routes)
 
 

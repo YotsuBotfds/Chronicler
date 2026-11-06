@@ -19,9 +19,11 @@ choices set), the agent modes and the worlds it allows. Then:
   its choices) removed, in a mode and world the switch allows; the catalog must
   refuse every one;
 * **all enabled**, per agent mode and world: the largest selection the catalog
-  accepts (every switch the mode and world allow, required choices set, then the
-  first switch in catalog order with an unmet requirement dropped until none is,
-  as the viewer's ``normalizeSelection`` does), its flags and the catalog's verdict.
+  accepts (every switch the mode and world allow, required choices set, every
+  top-level choice of a ``FEATURE_GROUPS`` group at its last choice
+  (``--quarantine-mode=closure``), then the first entry in catalog order with an
+  unmet requirement dropped until none is, as the viewer's ``normalizeSelection``
+  does), its flags and the catalog's verdict.
 
 The run's own checks stay authoritative: ``tests/test_feature_matrix.py`` also
 sends every all-enabled selection (template and procedural worlds) and every drop
@@ -54,6 +56,11 @@ def _entries() -> dict[str, dict]:
 
 def bool_switches() -> list[str]:
     return [e["key"] for e in fc.feature_entries() if e["kind"] == "bool"]
+
+
+def top_level_choices() -> list[str]:
+    """Choices with no switch (a ``FEATURE_GROUPS`` key that is itself a choice)."""
+    return [e["key"] for e in fc.feature_entries() if e["kind"] == "choice" and e["parent"] is None]
 
 
 def world_settings() -> dict[str, dict[str, bool]]:
@@ -136,6 +143,8 @@ def all_enabled(mode: str, world: str = "template") -> dict:
                     selection.setdefault(k, v)
                 else:
                     selection[k] = True
+    for key in top_level_choices():
+        selection[key] = entries[key]["choices"][-1]
     while True:
         unmet = fc.unmet_requirements(selection, surf)       # catalog order: "'key' (--flag) reason"
         if not unmet:

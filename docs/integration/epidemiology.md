@@ -143,7 +143,11 @@ Region identity is the index in `world.regions`, civ identity the index in
 * **Quarantine.** A state with stability >= 30 and treasury >= 2, in ledger
   contact with a region of another polity that has a reported epidemic,
   closes its borders for the next turn: 70% of foreign import pressure on its
-  regions is stopped, and it pays 2 treasury per turn (`keep`).
+  regions is stopped, and it pays 2 treasury per turn (`keep`). This is the
+  default (legacy) rule. The opt-in `--quarantine-mode none|cost_only|closure`
+  replaces it with targeted closures that cut real trade routes and agent
+  merchant edges, a declared enforcement cost and no import multiplier
+  ([quarantine rules](quarantine-rules.md)).
 * **Labour scarcity.** Each civ keeps the share of its people killed by
   epidemics, decayed x0.9 per turn. Governance divides popular immiseration
   (`mmp_raw`, proportional to 1 / relative wage) by `1 + 5 x scarcity`: after
@@ -153,7 +157,9 @@ Region identity is the index in `world.regions`, civ identity the index in
   regions.
 
 Cut on purpose (no cheap, real version): trade embargoes or route closures
-from quarantine (the treasury cost stands in for lost commerce), agent wages
+from quarantine (under the default rule the treasury cost stands in for lost
+commerce; the opt-in `--quarantine-mode closure` closes routes, see
+[quarantine rules](quarantine-rules.md)), agent wages
 in Rust (only the governance MMP reads scarcity), per-agent infection state,
 and any change to the endemic M35b layer in `ecology.py` (for example its
 "no flare during an M18 pandemic" mask, which does not see epidemics), left
@@ -375,17 +381,24 @@ base, with mean population 0.5-11% below base at turns 50 to 200.
 
 ## Default
 
-Off. The subset gate passes with no regression and the long-run harness
-loses no world, but the switch is a deliberate, front-loaded mortality
-change for every new world: disease kills about twice the old capped toll
-in 200 turns (159 against 72 applied deaths per run) and mean final
-population falls 10% (393 to 352; the 500-turn harness converges). That
-calls for the documented 200-seed x 500-turn full gate on this base before
-a flip, and the famine and crowding inputs that drive susceptibility and
-fatality are being rebalanced by the concurrent food-balance work, so a
-calibration now would be against food dynamics that are about to move.
-Flip `DEFAULT_ENABLED_FOR_NEW_WORLDS` in its own commit after that work
-lands and the full gate passes with 0 extinct worlds.
+**On** for new worlds with the contact ledger
+(`epidemiology.DEFAULT_ENABLED_FOR_NEW_WORLDS = True`) since the 2026-10
+all-on full gate ([wave-3 defaults](wave3-defaults.md)); `--no-epidemiology`
+opts out, and resumed, forked and supplied worlds keep their own setting.
+Because epidemics are on by default, the quarantine above is default-path
+behaviour: changes to it go behind an opt-in rules switch
+(`--quarantine-mode`, [quarantine rules](quarantine-rules.md)), and
+feature-off identity is checked both with the default and with
+`--no-epidemiology`.
+
+History (kept as dated evidence): when this page was first written the
+switch was off. The subset gate passed with no regression and the long-run
+harness lost no world, but the switch was a deliberate, front-loaded
+mortality change for every new world: disease killed about twice the old
+capped toll in 200 turns (159 against 72 applied deaths per run) and mean
+final population fell 10% (393 to 352; the 500-turn harness converges). The
+flip therefore waited for the documented 200-seed x 500-turn full gate and
+the concurrent food-balance work, and was made after them.
 
 ## Follow-ups
 
@@ -393,6 +406,8 @@ lands and the full gate passes with 0 extinct worlds.
 * Per-pathogen viewer layer (the bundle already carries the data). Panels
   and a region-inspector block are since added on `feat/viewer-systems`
   ([viewer-systems.md](viewer-systems.md)), then an Epidemics map layer.
-* Quarantine could close goods routes and suspend merchant trips.
+* Quarantine could close goods routes and suspend merchant trips: done as the
+  opt-in `--quarantine-mode closure` ([quarantine rules](quarantine-rules.md));
+  migration closure (a native input) and border guards remain open.
 * Disease-specific treatment by great persons (the M18 scientist rule is not
   carried over).
