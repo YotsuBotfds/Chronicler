@@ -171,7 +171,8 @@ Development runs of all four arms, `--cohort dev`: template 7 and procedural 11 
 template 42 and procedural 31 at 200 turns (`--keep-first`). An independent checker
 (outside the repository, `/home/user/evidence/cw4/validate/validate_cw4.py`, reading the raw
 bundles) passed every check on all 16 bundles (192 checks, 0 failures; rerun on the amended
-extractor at `8c8feb41` with the primaries' checks added: 240 checks, 0 failures):
+extractor (screen module `a84fc211…`, uncommitted on `0fa92d7d`, then committed unchanged as
+`8c8feb41`) with the primaries' checks added: 240 checks, 0 failures):
 
 - snapshot s records world turn s - 1 (receipt turn and food-accounting source turn);
 - every cross-polity arrival's target actor is the region's controller at the end of its turn
@@ -255,7 +256,9 @@ every outcome and harm), with `metrics.jsonl`, `source.txt` and `held-run.json` 
 
 **Run.** `run HELD --screen CW4 --cohort held --pilot .../pilot/metrics.jsonl --jobs 2
 --keep-first` on source `14c3b90f` (the frozen code `8c8feb41` plus this page's Amendment 1
-commit; dirty 0), started 19:41:03Z, finished 19:45:41Z: **48 runs, 0 failed, complete, every
+commit; dirty 0). The `source` line differs from the identity above (source `8c8feb41`) by
+design: `git diff --stat 8c8feb41 14c3b90f` touches only this page and the three pilot files,
+and every code identity (screen module, runner, registry content, native) is unchanged. Started 19:41:03Z, finished 19:45:41Z: **48 runs, 0 failed, complete, every
 outcome extracted**; **0.153 core-hours** of simulation and extraction (ceiling 0.5; the pilot
 projected 0.176), 278 s of wall time at 2 processes. `check --cohort held` passes; `mark-run`
 recorded `cw4-held-t` and `cw4-held-p` as run (48 rows, complete) in
@@ -277,10 +280,14 @@ difference is a recorded exact 0.
 | `cw4_world_death_rate` (per 1,000 person-turns) | template | -0.146, -0.095, 0, +0.543, -1.199, -0.341 | -0.207 [-1.199, +0.543] | 1 / 4 / 1 | 32 (means ±0.387) |
 | `cw4_world_death_rate` | procedural | +0.146, -3.473, +0.248, +3.549, -5.609, -3.605 | -1.457 [-5.609, +3.549] | 3 / 3 / 0 | 30 (means ±2.77) |
 
-**Both primaries are nulls in both strata**: no consistent sign, and the observed means sit in
-the middle of their sign-flip distributions. This matches the preregistered prediction (C1
-closes trade only; migrants stay open, and in these hybrid worlds a closure is weaker and
-slower than the legacy multiplier).
+**Both primaries are nulls in both strata**: no sign consistent across worlds (P2 template: 4 of
+the 5 non-zero worlds negative, but 32 of 64 sign assignments are as extreme), and the observed
+means sit in the middle of their sign-flip distributions. This is consistent with the
+preregistered prediction of no systematic QR - QC difference, but it does not show that QR
+"differs little" from QC: per-world differences are large (procedural death rate -5.6 to +3.5
+per 1,000 person-turns against QC levels of 3.4-11.9; mean -1.46, about -18% of the QC mean),
+and six worlds cannot exclude a moderate effect of either sign. The screen does not test the
+prediction's reason (migrants stay open): no arrival is attributed to a carrier.
 
 ### Secondary outcomes (means per stratum; template / procedural)
 
@@ -289,17 +296,24 @@ slower than the legacy multiplier).
   (sign-flip 28 and 20 of 64): mixed.
 - Selection-conditioned (each arm's own closures): window arrivals -6.8 (0/4/2) / -36.5
   (2/4/0), 8 of 64 each; window deaths per 1,000 person-turns -0.83 (1/4/1) / -1.85 (2/4/0);
-  but the windows themselves shrink under QR, -38.8 / -223 civ-turns (QR closes fewer and
-  shorter times, partly because its closures change later reports). These compare different
+  but the windows themselves shrink under QR, -38.8 / -223 civ-turns (2/3/1 and 1/5/0 worlds;
+  QR opened fewer closures than QC in 3 of 6 template worlds, more in 761 and 762, and in 5 of 6
+  procedural worlds; each arm's windows follow its own trajectory). These compare different
   selections and are not effects.
 - Cost effect (QC - Q0): world death rate +0.49 [0, +1.28], 4/0/2, 8 of 64 / -0.81 [-5.09,
-  +1.20], 3/3/0; world arrivals +2.5 / -3.7; world treasury +81 / -150: no consistent cost
-  effect (on template 761 the declared quarantines changed only the treasury, and on 762 no
-  recorded outcome at all).
+  +1.20], 3/3/0; world arrivals +2.5 / -3.7; world treasury +81 / -150: in template worlds the
+  death rate was higher under cost_only in all 4 worlds where the declared quarantines changed
+  anything (8 of 64, the most extreme possible with two exact zeros; the death count was 3/1/2,
+  764 having fewer deaths over fewer person-turns); procedural mixed; no cost effect consistent
+  across strata (on template 761 the declared quarantines changed only the treasury, and on 762
+  no recorded outcome at all). Reported as a secondary finding: the screen estimates no
+  mechanism for it, and a cost-only quarantine changes trajectories only through its treasury
+  and event effects.
 - Legacy comparison (QR - QL, the negative of QL - QR): world arrivals +12.8 [0, +21], 5/0/1,
   4 of 64 / +8.5 [-64, +75], 5/1/0, 34 of 64; world death rate +0.53, 4/2/0 / -0.70, 2/4/0.
   Descriptively, the legacy multiplier world had fewer recorded cross-polity arrivals than the
-  real closure, most clearly in template worlds; deaths are mixed.
+  real closure, most clearly in template worlds; the death rate is mixed (the template death
+  count is 5/0/1, 4 of 64; the rate is 4/2/0, the person-turn denominators differing).
 
 ### Harms
 
@@ -309,16 +323,21 @@ C's trade and fiscal harms (QR - QC unless QR alone):
 - Merchant unwinds (world): +17.5 [0, +62], 4/0/2 / +92.2 [+30, +152], 6/0/0 (2 of 64);
   disruption replans: -0.17 (5 of 6 zero) / +23.7 [+5, +52], 6/0/0 (2 of 64).
 - Deliveries still crossing a closed pair (QR alone): 8 [0, 19] / 60.5 [28, 87] per run.
-- Enforcement paid: -65 / -314 (QR decided fewer closures than QC after the trajectories split).
+- Enforcement paid: -65 / -314 (template 1/4/1, procedural 1/5/0; on average QR opened fewer
+  closures than QC after the trajectories split: 3 of 6 template worlds, 761 and 762 more, and 5
+  of 6 procedural).
 - Net food transport into closing civs' windows, closing civs' treasury and stability, partner
   civs' population and treasury: mixed signs, no consistent difference (report).
 
 Fixed harm panel, QR - QC:
 
 - Food shortfall after relief over the run: +259.5 [-103, +692], 3/2/1 / +1,044 [-2,693, +3,328],
-  5/1/0 (16 and 18 of 64): more shortfall under closure in most worlds.
+  5/1/0 (16 and 18 of 64): more shortfall under closure in 8 of 12 worlds (template 3 of 6,
+  procedural 5 of 6); not consistent by the sign-flip count.
 - Agents migrating between regions: +106 [0, +366], 5/0/1 (4 of 64) / +1,437 [-956, +4,218],
-  5/1/0 (8 of 64): more migration under closure.
+  5/1/0 (8 of 64): more migration under closure. This is a whole-trajectory association: the
+  bundles do not record why agents moved (trade loss, food shortfall, war or epidemic flight
+  are not separated), and no mechanism is estimated.
 - Epidemic deaths: as the secondary above.
 - Population and treasury at the end, wealth Gini: mixed.
 - Not recorded in these runs: priced-out persons and children (retail off), forest stand
@@ -328,3 +347,20 @@ Fixed harm panel, QR - QC:
 
 The Q0 - QL, QC - Q0 and QR - QL rows of the panel are in the report. No world failed, none
 was incomplete, and no outcome was missing.
+
+**Where cost_only's enforcement goes (checked after the independent review, retained raw
+bundles of template 761).** QC paid 854 in enforcement there, yet its summed treasury ended
+only 69 below Q0's. The enforcement is debited every turn: per civ and turn, the treasury change
+of QC minus that of Q0, plus the enforcement QC paid, plus QC's court spending minus Q0's, is 0
+in every turn but two. Finance's court spending (`finance.civs[*].court`) is 30% of smoothed
+revenue scaled by how full the reserve is (and by the elite-consumption and debt factors),
+plus 8% of any surplus above the reserve (`finance.py`, step 5 of the turn), so a
+treasury lowered by enforcement spends less on the court: QC's court spent 765 less than Q0's.
+The two other turns: at world turn 124 the Dorrathi Clans paid 2 and lost their last region the
+same turn, so their finance record (and that turn's court saving, 2 on the turns before) is
+not recorded; and at snapshot 136 their entry, 18 lower in QC, leaves `civ_stats` with them.
+Total: -854 + 765 + 2 + 18 = -69, the end gap. Every other recorded outcome of 761 is identical
+between the arms, so the enforcement cost was real but displaced court spending rather than
+the reserve. `cw4_cost_treasury` and `cw4_h_enforcement` should be read that way: enforcement
+recorded and debited, its treasury effect mostly absorbed by a smaller court. Script and
+output: `/home/user/evidence/cw4/treasury/trace761.{py,out}` (outside the repository).

@@ -235,6 +235,24 @@ Native extension used for every native step: the shared build, SHA-256
   zero, mostly in the larger procedural worlds where a third polity's open border offers a way
   round. Every other column is unchanged by that fix (a receipt-only correction).
 
+**Held screen CW4 (2026-11-06).** The QL/Q0/QC/QR comparison of AUDIT-C section 7 test 7 ran
+as the preregistered screen CW4 on fresh worlds (template 761-766, procedural 861-866, hybrid,
+200 turns; 48 runs, 0 failed, 0.153 core-hours), declared in `scripts/connected_world_screens.py`
+(`cw4_extract`, `cw4_activation`; `tests/test_cw4_screen.py`). Preregistration, results and
+raw records: [connected-world-screens-cw4](../superpowers/progress/connected-world-screens-cw4.md).
+Every arm activated on every world. Both primaries, closure minus cost_only over the whole
+run, are nulls in both strata: cross-polity epidemic arrivals (template mean +0.8, procedural
++0.5) and world epidemic deaths per 1,000 person-turns (-0.21 and -1.46, with large per-world
+differences of either sign). The harms are recorded: route income forgone (mean 519 template,
+1,769 procedural, both sides), more merchant unwinds and replans (procedural 6 of 6 worlds),
+deliveries still crossing closed pairs (8 and 60.5 per run), and more food shortfall after relief
+(8 of 12 worlds) and more migration (10 of 12) under closure, as whole-trajectory associations.
+A trade-only closure did not reduce cross-polity arrivals in these hybrid worlds, where the
+legacy multiplier's world had fewer recorded arrivals than the closure's; with migrants open,
+this is the evidence that motivates migration closure (C1b) before any further claim about
+quarantine's effect. Under cost_only the enforcement is debited each turn but mostly displaces
+finance's court spending rather than the reserve (traced on template 761 in the results page).
+
 Tests: `tests/test_quarantine_rules.py` (offline, oracle chunk `connected-world-c`) and
 `tests/test_quarantine_rules_native.py` (real extension), both on native shard 0. The legacy
 quarantine tests in `tests/test_epidemiology.py` pass unchanged.
@@ -243,10 +261,6 @@ quarantine tests in `tests/test_epidemiology.py` pass unchanged.
 
 - C1.2 border guards (labour cost through the farm-labour seam), C1b migration closure (native),
   pilgrim restriction, convoy closure: out of C1 by decision.
-- No held screen yet. The QL/Q0/QC/QR comparison of AUDIT-C section 7 test 7 is declared as
-  screen CW4 in `scripts/connected_world_screens.py` (extractors `cw4_extract` and
-  `cw4_activation`, tests in `tests/test_cw4_screen.py`); its preregistration is
-  `docs/superpowers/progress/connected-world-screens-cw4.md`, and the held cohort waits for the
-  lead's review.
+- A promotion decision, and the C2-C4 slices (care, dated outbreak reports).
 - No dated outbreak reports (C4): a polity still learns of a foreign outbreak the tick it is
   reported, as under the legacy rule.
