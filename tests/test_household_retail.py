@@ -97,6 +97,7 @@ class FakeSim:
         self.die_after: set[int] = set()
         self.moves: dict[int, int] = {}
         self.skip_retail = False
+        self.columns = (*HR.FRAME_COLUMNS, "withheld_milli")
 
     def add(self, aid, region, *, occupation=0, age=30, wealth=5.0, settlement=0, parents=(0, 0)):
         self.people[aid] = {"id": aid, "region": region, "origin_region": region, "occupation": occupation,
@@ -246,7 +247,13 @@ class FakeSim:
 
     def _retail(self, install):
         turn, mode, regions, claims = install
-        remaining = {(o, r): m for o, r, m in claims}
+        # The native rule: a claim whose owner died before provisioning is
+        # withheld whole from the offer (neither eaten nor sold).
+        withheld = {r: 0 for r, _, _ in regions}
+        for o, r, m in claims:
+            if o not in self.people:
+                withheld[r] += m
+        remaining = {(o, r): m for o, r, m in claims if o in self.people}
         used = {key: [0, 0] for key in remaining}
         money: dict[int, list[int]] = {}
         rows, sample = [], []
@@ -305,13 +312,14 @@ class FakeSim:
                    "credited_milli": credited_r, "refunded_milli": refunded_r,
                    "rations": sum(ration.values()), "persons": n,
                    "priced_out_persons": sum(1 for s in status.values() if s == 1),
-                   "offer_short_persons": sum(1 for s in status.values() if s == 2)}
-            rows.append([float(row[c]) for c in HR.FRAME_COLUMNS])
+                   "offer_short_persons": sum(1 for s in status.values() if s == 2),
+                   "withheld_milli": withheld[rid]}
+            rows.append([float(row[c]) for c in self.columns])
             sample.extend((a, rid, a, float(f32(ration[a])), float(f32(share)), status[a]) for a in persons)
         claim_rows = [(o, r, e, s) for (o, r), (e, s) in sorted(used.items(), key=lambda kv: (kv[0][1], kv[0][0]))
                       if e or s]
         money_rows = [(a, *v) for a, v in sorted(money.items()) if any(v)]
-        return (turn, list(HR.FRAME_COLUMNS), rows, claim_rows, money_rows, sample, 0)
+        return (turn, list(self.columns), rows, claim_rows, money_rows, sample, 0)
 
 
 class FakeBridge:
@@ -726,17 +734,72 @@ def test_death_passes_the_claim_to_the_spouse_then_children_then_commons():
     assert sum(after.values()) == sum(h.state.region(VERDANT).goods)
 
 
-def test_an_owner_dead_before_provisioning_still_sells_then_the_claim_is_inherited():
+@pytest.mark.parametrize("withheld_column", [True, False])
+def test_an_owner_dead_before_provisioning_is_withheld_and_inherited_whole(withheld_column):
+    """The native rule (PL4 native fix): the claim of an owner who died before
+    phase 0.7 is neither eaten nor sold; the heir receives the whole installed
+    claim. Python accepts the smaller offer only for such claims."""
     h = Harness()
     _people(h, VERDANT, (1, 2), wealth=0.0)
-    h.sim.add(5, VERDANT, occupation=2, wealth=30.0)
+    h.sim.add(5, VERDANT, occupation=2, wealth=30.0)        # a buyer with cash: the spouse of 1
     h.sim.marry(1, 5)
+    if not withheld_column:
+        h.sim.columns = HR.FRAME_COLUMNS
     h.turn({VERDANT: {"grain": 4.0}})
     h.sim.die_before = {1}
     h.turn()
-    log = [r for r in h.state.log if r.kind == "inherited" and r.owner == 1]
-    assert log and log[0].other == 5
-    assert 1 not in _owners(h, VERDANT)
+    installed = {(o, r): m for o, r, m in _calls(h.sim, "set_household_retail")[-1][4]}
+    frame = h.frame(VERDANT)
+    assert frame.provisioning["offered_milli"] == sum(m for (o, r), m in installed.items() if r == VERDANT) \
+        - installed[(1, VERDANT)]
+    (record,) = [r for r in h.state.log if r.kind == "inherited" and r.owner == 1]
+    assert (record.other, record.note, record.milli) == (5, "spouse", installed[(1, VERDANT)])
+    assert _owners(h, VERDANT)[5] == installed[(1, VERDANT)] and 1 not in _owners(h, VERDANT)
+
+
+def test_a_missing_offer_of_a_living_owner_is_refused():
+    h = Harness()
+    _people(h, VERDANT, (1, 2), wealth=0.0)
+    h.turn({VERDANT: {"grain": 4.0}})
+    original = h.sim._retail
+
+    def short(install):
+        frame = list(original(install))
+        frame[2] = [list(row) for row in frame[2]]
+        cols = list(frame[1])
+        for row in frame[2]:
+            for name in ("offered_milli", "unsold_milli"):
+                row[cols.index(name)] -= 1                     # 1 milli of a living owner vanishes
+            row[cols.index("withheld_milli")] += 1
+        return tuple(frame)
+    h.sim._retail = short
+    with pytest.raises(HR.RetailAccountingError, match="owners alive to sell"):
+        h.turn()
+
+
+def test_resume_with_a_prerequisite_off_refuses_until_retail_is_ended():
+    h = Harness()
+    _people(h, VERDANT, (1, 2), wealth=0.0)
+    h.turn({VERDANT: {"grain": 8.0}})
+    parse = _build_parser().parse_args
+    before = h.world.model_dump_json()
+    owned = list(h.state.region(VERDANT).goods)
+    commons = h.world.regions[VERDANT].stockpile.goods.get("grain", 0.0)
+    for argv, mode in ((["--no-food-allocation"], "hybrid"), ([], "shadow")):
+        with pytest.raises(ValueError, match="pass --no-household-retail to end it"):
+            configure_livelihoods(h.world, parse(argv), agent_mode=mode)
+        assert h.world.model_dump_json() == before                # refused before any change
+    configure_livelihoods(h.world, parse(["--no-food-allocation", "--no-household-retail"]), agent_mode="hybrid")
+    assert not h.state.enabled and h.state.regions == [] and not h.world.livelihoods.food_allocation.enabled
+    closed = [r for r in h.state.log if r.kind == "switch_off"]
+    assert {r.region for r in closed} == {VERDANT, ASHARA, AMBER, OBSIDIAN}
+    assert all(r.turn == h.world.turn and r.note == "switch off" for r in closed)
+    assert next(r for r in closed if r.region == VERDANT).milli == sum(owned)
+    assert h.world.regions[VERDANT].stockpile.goods["grain"] == pytest.approx(commons + owned[0] / 1000)
+    # A fresh request still names only the prerequisite.
+    with pytest.raises(ValueError) as refused:
+        configure_livelihoods(generate_world(seed=42), parse(["--household-retail"]), agent_mode="hybrid")
+    assert "pass --no-household-retail" not in str(refused.value)
 
 
 def test_migration_keeps_the_claim_in_the_origin_and_split_or_rejoin_create_nothing():

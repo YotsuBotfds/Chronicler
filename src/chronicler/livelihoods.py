@@ -450,9 +450,15 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
             saved = values["timber_supply"] is not True
             raise ValueError("--timber-supply requires --agents hybrid, --repair-projects and --timber-stock"
                              + ("; this world has it on: pass --no-timber-supply to end it" if saved else ""))
-    if values["household_retail"] is True:
+    if _on(world, values, "household_retail"):
+        # Also when only saved: a resume that turns L2 off (or leaves hybrid)
+        # would otherwise keep the claims, the owned food and the pilot regions
+        # unseen; --no-household-retail closes every claim to the commons, dated.
         if agent_mode != "hybrid" or not _on(world, values, "food_allocation"):
-            raise ValueError("--household-retail requires --agents hybrid and --food-allocation")
+            saved = values["household_retail"] is not True
+            raise ValueError("--household-retail requires --agents hybrid and --food-allocation"
+                             + ("; this world has it on: pass --no-household-retail to end it (every claim "
+                                "returns to its region's commons, dated)" if saved else ""))
 
 
 def configure_livelihoods(world: Any, args: Any, *, agent_mode: str) -> None:
