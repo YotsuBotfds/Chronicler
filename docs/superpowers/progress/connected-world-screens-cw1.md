@@ -1,6 +1,6 @@
 # Connected-world CW1: preregistered held screen for the wage and `paid_work` enrollment (slice S1)
 
-Status: FROZEN at `81392e8b56c579e2bdcc3cf89a30f1dcdf1c40cd` (the screen module, runner, extractors and simulation source the record validation and the timing pilot ran on; frozen by the S1 lane as the lead asked, for the lead's review before any held run)
+Status: DRAFT (Amendment 1: P1 changed; first frozen at `81392e8b`; the pilot reruns on the amended screen module before the re-freeze)
 
 Written 2026-11-06 by the S1 lane on branch `claude/cw-s1-accounting` (the S1 integration of
 A1 wealth accounting and A2R retail cohorts, with `main` `8286804c` merged). The native
@@ -137,12 +137,11 @@ frame must all carry that turn (else the run fails). Sums run over every snapsho
 - **Region set of an arm.** For C and D: the regions their schedule names (S_A, S_B). For
   every other arm: every region it ever enrolled (its recorded intervals). Because C replays
   S_A exactly (activation), A's set and C's set are both S_A, and D's and B's are both S_B.
-- **Money credited to households (P1, over a region set R):**
+- **Money credited to households (P1, over a region set R; Amendment 1):**
 
   ```
-  money_set(R) = sum_s [ sum_{r in R} ( WA.frame.regions[r].typed_in_milli
-                                        - round(HR.regions[r].provisioning.credited_milli) )
-                         + WA.frame.typed[food_procurement].in_milli ] / 1000
+  money_set(R) = sum_s sum_{r in R} ( WA.frame.regions[r].typed_in_milli
+                                      - round(HR.regions[r].provisioning.credited_milli) ) / 1000
                  - sum_s sum_{r in R} HR.regions[r].income_replaced
   ```
 
@@ -151,8 +150,9 @@ frame must all carry that turn (else the run fails). Sums run over every snapsho
   payee's region; a region's located inflow less its retail sales (the `food_purchase`
   credit the ledger locates there from the same provisioning row) is exactly the wages
   (`workshop_wage`, `apprentice_stipend`, `repair_wage`, `granary_crew_wage`, `woodcut_wage`)
-  and remittances credited there. Procurement credits are unlocated in the ledger; they go to
-  owners of grain procured from pilot regions, all inside R. Farm income replaced is L6b's
+  and remittances credited there. Procurement credits are left out (Amendment 1): the ledger
+  does not locate them, and an owner who moved away keeps the claim, so some reach households
+  outside R; procurement credited is a world secondary. Farm income replaced is L6b's
   per region (no money moves). The extractor checks, every turn, that the located inflows
   less retail sales equal the ledger's located non-sale channels, that no region's inflow is
   below its sales, and that the frames' income replaced equals the ledger's
@@ -187,8 +187,8 @@ frame must all carry that turn (else the run fails). Sums run over every snapsho
 
 ## Primary outcomes
 
-1. `cw1_p1_wage_money`: money credited to households over S_A, **A - C** (the wage at A's
-   enrollment).
+1. `cw1_p1_wage_money`: money credited to households over S_A (wages and remittances located
+   there, less farm income replaced there), **A - C** (the wage at A's enrollment).
 2. `cw1_p2_enrollment_money`: money credited to households, world, **C - B** (A's enrollment
    against B's own, no wage).
 3. `cw1_p3_wage_priced_out`: priced-out person-turns per pilot person-turn over S_A, **A -
@@ -196,8 +196,9 @@ frame must all carry that turn (else the run fails). Sums run over every snapsho
 
 Region sets. P1 and P3 hold enrollment fixed (C replays S_A exactly), so they are read over
 S_A: money credited outside it (remittances into never-enrolled regions, wages paid in a
-region before it opens) is left out of P1 and reported in the world version
-(`cw1_sa_money_world`). P2 compares two different enrollments; a region-restricted measure
+region before it opens) and procurement credits (Amendment 1) are left out of P1 and reported
+in the world version (`cw1_sa_money_world`, with procurement) and `cw1_sa_procurement`. P2
+compares two different enrollments; a region-restricted measure
 would condition on B's own enrollment, so P2 is the world total (every household's receipts;
 farm income is replaced only in pilot regions, so the difference is the extra enrollment's
 replaced income plus any change in wages, remittances and procurement anywhere).
@@ -207,7 +208,7 @@ replaced income plus any change in wages, remittances and procurement anywhere).
 | Id | Measure | Comparison |
 | --- | --- | --- |
 | `cw1_sa_money_world` | money credited, world | A - C |
-| `cw1_sa_wages`, `cw1_sa_granary_wages`, `cw1_sa_remittances`, `cw1_sa_procurement` | P1's terms, world: wages (all channels), granary crew wages, remittances, procurement credited | A - C |
+| `cw1_sa_wages`, `cw1_sa_granary_wages`, `cw1_sa_remittances`, `cw1_sa_procurement` | the money terms, world: wages (all channels), granary crew wages, remittances, procurement credited | A - C |
 | `cw1_sa_income_replaced` | farm income replaced over S_A | A - C |
 | `cw1_sa_priced_out`, `cw1_sa_ration` | priced-out person-turns; mean ration over S_A | A - C |
 | `cw1_sb_money`, `cw1_sb_priced_out` | money credited over S_B; priced-out rate over S_B (the wage at B's enrollment) | D - B |
@@ -329,4 +330,18 @@ wall time at 2 processes. The pilot's `metrics.jsonl`, `source.txt`, `report.md`
 
 ## Amendments
 
-None.
+**Amendment 1 (before any held run), 2026-11-06, the lead's review.** P1 was read over S_A but
+added the world's procurement credits (`typed[food_procurement].in_milli`), which is
+consistent only if every credit reaches a household in the set. **Check** (development worlds
+only, arms A and C on all 13 worlds, 200 turns, the frozen source; outside the repository,
+`/home/user/evidence/s1/cw1/validate/procurement_regions.py` wraps
+`household_retail._credit_procurement` in-process and records each credited owner's region
+from the agent snapshot at the credit; its totals equal the native receipts and the ledger's
+channel on every run): every procured grain's source region was in the set (0 of 13,640
+credit rows outside), but owners who had moved away keep their claims, so credits reached
+households outside the set: 6.1% of A's procurement credits (747 of 6,994 rows; on 7 of 13
+worlds, up to 18.5% on procedural 17) and 4.7% of C's (601 of 6,646 rows; 6 worlds, up to
+14.1%). The condition does not hold, so **P1 leaves procurement out**, as do `cw1_sb_money`
+and `cw1_interaction_money`, which read the same measure (the formula above); procurement
+credited stays a world secondary (`cw1_sa_procurement`) and is still in `money_world` (P2).
+Code: `4a79b7f5` (the screen module only). REVALIDATION
