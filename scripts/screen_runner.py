@@ -33,8 +33,9 @@ What the runner enforces for every screen:
   ``Compute ceiling: X core-hours`` line and a ``Primary outcomes: a, b`` line
   naming exactly the screen's primaries.
 * **Compute ceiling**: a held run needs ``--pilot`` (the pilot's metrics and its
-  ``source.txt``: same extension, runner, screen module, registry and dirty
-  count, and a source revision that differs at most outside the code); it
+  ``source.txt``: same extension, runner, screen module, registry content (cohorts
+  and seeds, so a ``mark-run`` does not matter) and count of modified code files,
+  and a source revision that differs at most outside the code); it
   refuses when the pilot projection times 1.5 exceeds the ceiling, and starts a
   run only while the seconds used, the expected seconds of the runs in flight
   and the run's own expected seconds fit under the ceiling (expected: the larger
@@ -56,9 +57,10 @@ What the runner enforces for every screen:
 * **Identity**: ``source.txt`` records the source revision and dirty count, the
   imported ``chronicler``, the native extension's SHA-256, the interpreter, the
   SHA-256 of this runner, of the screen module (extractors live there), of the
-  registry and, for evidence runs, of the preregistration; every row carries the
-  identity digest and the schema versions it read. ``--resume`` refuses any
-  change.
+  registry file and of its cohorts and seeds, and, for evidence runs, of the
+  preregistration; every row carries the identity digest and the schema versions
+  it read. ``--resume`` refuses any change except to the registry file's run
+  records (another screen's ``mark-run``) and keeps the run's identity.
 * **Uncertainty**, descriptive only: per stratum mean, min/max, sign counts and
   an exact enumeration of the paired sign flips of the mean over the worlds (for
   an outcome with a control; the harm panel is shown beside every arm against
@@ -194,7 +196,7 @@ class Runtime:
         if self.simulate is None:
             self.simulate = simulate
         if self.identity is None:
-            self.identity = source_identity
+            self.identity = lambda screen: source_identity(screen, self.registry)
         if self.changed_paths is None:
             self.changed_paths = changed_paths
 
@@ -344,11 +346,12 @@ def seed_sets(reg: Mapping, stratum: str) -> dict[str, set[int]]:
     return out
 
 
-def check_seeds(screen: Screen, reg: Mapping, *, recorded_ok: bool = False) -> tuple[list[str], list[str]]:
+def check_seeds(screen: Screen, reg: Mapping, *, reuse: str = "refuse") -> tuple[list[str], list[str]]:
     """(problems, notes) for the screen's pilot and held cohorts against the registry.
-    ``recorded_ok``: a held cohort that ``mark-run`` recorded (status ``run`` with a
-    ``held_run`` record) is a note, not reuse: for ``check`` of retained evidence and for
-    a reserve run; starting a held run refuses it."""
+    ``reuse`` decides what a held cohort already marked ``run`` is: ``refuse`` (starting a
+    held run), ``recorded`` (a reserve run or ``check``: a cohort ``mark-run`` recorded is a
+    note, any other ``run`` is refused) or ``ignore`` (pilot and development runs, which
+    never touch the held cohort: a note)."""
     problems, notes = validate_registry(reg), []
     if problems:
         return problems, notes          # a malformed registry is refused, never half-read
@@ -379,10 +382,12 @@ def check_seeds(screen: Screen, reg: Mapping, *, recorded_ok: bool = False) -> t
             problems.append(f"{screen.name} {stratum} held {sorted(held)} differs from its registry reservation "
                             f"{sorted(reserved)}")
         for e in own:
-            if e["status"] == "run" and recorded_ok and isinstance(e.get("held_run"), dict):
-                run = e["held_run"]
+            recorded = isinstance(e.get("held_run"), dict)
+            if e["status"] == "run" and (reuse == "ignore" or reuse == "recorded" and recorded):
+                run = e.get("held_run") or {}
                 notes.append(f"{stratum} held cohort {e['id']} was recorded as run "
-                             f"({'complete' if run.get('complete') else 'incomplete'}, {run.get('out')})")
+                             f"({'complete' if run.get('complete') else 'incomplete'}, {run.get('out')})"
+                             if recorded else f"{stratum} held cohort {e['id']} is marked run")
             elif e["status"] == "run":
                 problems.append(f"{screen.name} {stratum}: held seeds of {e['id']} were already run (reused)")
             elif e["status"] != "reserved":
@@ -969,7 +974,7 @@ def sha256_file(path: Path) -> str:
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def source_identity(screen: Screen) -> list[str]:
+def source_identity(screen: Screen, registry: Path = REGISTRY) -> list[str]:
     """The identity lines of a run directory (``source.txt``); refuses when the runs
     would not import this checkout's ``src`` or need an extension that is absent."""
     p = subprocess.run([PY, "-c", _WHICH], cwd=REPO, env=_run_env(), capture_output=True, text=True)
@@ -980,9 +985,10 @@ def source_identity(screen: Screen) -> list[str]:
         raise SystemExit(f"{screen.name} needs the native extension; this interpreter has none ({lines[1]})")
     git = ["git", "-C", str(REPO)]
     rev = subprocess.run([*git, "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
-    dirty = subprocess.run([*git, "status", "--porcelain", "--untracked-files=no"],
-                           capture_output=True, text=True).stdout.splitlines()
-    return identity_lines(rev, len(dirty), lines[0], lines[1], screen)
+    dirty = [line[3:] for line in subprocess.run([*git, "status", "--porcelain", "--untracked-files=no"],
+                                                 capture_output=True, text=True).stdout.splitlines()]
+    return identity_lines(rev, len(dirty), lines[0], lines[1], screen, registry=registry,
+                          dirty_code=sum(code_path(path) for path in dirty))
 
 
 def _shown(path: Path) -> str:
@@ -990,12 +996,51 @@ def _shown(path: Path) -> str:
     return str(path.relative_to(REPO)) if path.is_relative_to(REPO) else str(path)
 
 
-def identity_lines(rev: str, dirty: int, chronicler: str, native: str, screen: Screen) -> list[str]:
+def identity_lines(rev: str, dirty: int, chronicler: str, native: str, screen: Screen, *,
+                   registry: Path = REGISTRY, dirty_code: int | None = None) -> list[str]:
+    """The identity lines. ``registry`` is the file's full SHA-256 (provenance);
+    ``registry-content`` hashes the cohorts and seeds only (``registry_content_sha256``),
+    so a ``mark-run`` does not change it; ``dirty-code`` counts modified tracked code
+    files (the registry and documents excluded)."""
     module = screen.module or RUNNER
-    return [f"source {rev}", f"dirty {dirty} tracked files", f"chronicler {chronicler}", f"native {native}",
+    return [f"source {rev}", f"dirty {dirty} tracked files",
+            f"dirty-code {dirty if dirty_code is None else dirty_code} tracked code files",
+            f"chronicler {chronicler}", f"native {native}",
             f"interpreter {PY}", f"runner {sha256_file(RUNNER)} {_shown(RUNNER)}",
             f"screens {sha256_file(module)} {_shown(module)}",
-            f"registry {sha256_file(REGISTRY)} {_shown(REGISTRY)}"]
+            f"registry {sha256_file(registry)} {_shown(registry)}",
+            f"registry-content {registry_content_sha256(load_registry(registry))} (cohorts and seeds)"]
+
+
+#: Paths whose change makes a pilot's timing another program's (the registry is compared
+#: by its content hash instead).
+CODE_PATHS = ("src/", "chronicler-agents/", "scripts/", "pyproject.toml", "uv.lock")
+
+
+def code_path(path: str) -> bool:
+    return path.startswith(CODE_PATHS) and path != _shown(REGISTRY)
+
+
+#: Run-record fields an entry gains from ``mark-run``; the content hash leaves them out.
+RUN_RECORD_FIELDS = ("status", "held_run")
+
+
+def registry_content_sha256(reg: Mapping) -> str:
+    """SHA-256 of the registry's cohort definitions and seeds: every entry without its
+    run-record fields (status, ``held_run``, and the screen a reserve entry was used by),
+    and the restricted ranges."""
+    entries = []
+    for e in reg.get("entries") or []:
+        drop = set(RUN_RECORD_FIELDS) | ({"screen"} if e.get("cohort") == "reserve" else set())
+        entries.append({k: v for k, v in e.items() if k not in drop})
+    content = {"restricted_ranges": reg.get("restricted_ranges"), "entries": entries}
+    return hashlib.sha256(json.dumps(content, sort_keys=True).encode()).hexdigest()
+
+
+def identity_key(lines: Sequence[str]) -> list[str]:
+    """The identity lines a resume must match: all but the registry's full hash (another
+    screen's ``mark-run`` changes it; ``registry-content`` must still match)."""
+    return [line for line in lines if not line.startswith("registry ")]
 
 
 def identity_digest(lines: Sequence[str]) -> str:
@@ -1150,11 +1195,6 @@ def identity_of(source_text: str) -> list[str]:
     return lines
 
 
-#: Paths whose change between the pilot's and the held run's source revision makes the
-#: pilot timing another program's.
-CODE_PATHS = ("src/", "chronicler-agents/", "scripts/", "pyproject.toml", "uv.lock")
-
-
 def load_pilot(path, screen: Screen, identity: Sequence[str], rt: Runtime) -> tuple[list[dict], list[str]]:
     """The pilot rows a projection may use, and the reasons to refuse them: rows of
     another identity than their ``source.txt``, or a pilot of another extension,
@@ -1170,7 +1210,7 @@ def load_pilot(path, screen: Screen, identity: Sequence[str], rt: Runtime) -> tu
     digests = sorted({str(r.get("identity")) for r in rows})
     if digests != [identity_digest(pilot)]:
         problems.append(f"pilot refused: its rows carry identity {digests}, not the identity of {source}")
-    for key in ("native", "runner", "screens", "registry", "dirty"):
+    for key in ("native", "runner", "screens", "registry-content", "dirty-code"):
         if _field(pilot, key) != _field(identity, key):
             problems.append(f"pilot refused: {key} {_field(pilot, key)!r} differs from this run's "
                             f"{_field(identity, key)!r}")
@@ -1180,7 +1220,7 @@ def load_pilot(path, screen: Screen, identity: Sequence[str], rt: Runtime) -> tu
         if changed is None:
             problems.append(f"pilot refused: cannot compare source {old} with {new}")
         else:
-            code = [p for p in changed if p.startswith(CODE_PATHS)]
+            code = [p for p in changed if code_path(p)]
             if code:
                 problems.append(f"pilot refused: source {old} differs from {new} in code: {code[:6]}")
     return rows, problems
@@ -1314,7 +1354,7 @@ def run_main(argv, screens: Mapping[str, Screen], rt: Runtime | None = None, pro
     reason = (a.reason or "").strip()
     if (a.cohort == "reserve") != bool(reason):
         raise SystemExit("--reason is required with --cohort reserve, and only there")
-    problems, notes = check_seeds(screen, reg, recorded_ok=a.cohort == "reserve")
+    problems, notes = check_seeds(screen, reg, reuse={"held": "refuse", "reserve": "recorded"}.get(a.cohort, "ignore"))
     if a.cohort == "reserve":
         problems += check_reserve(screen, reg)
     problems += check_screen(screen)
@@ -1367,9 +1407,13 @@ def run_main(argv, screens: Mapping[str, Screen], rt: Runtime | None = None, pro
         started = recorded_run(recorded)
         if started != (screen.name, a.cohort):
             raise SystemExit(f"resume refused: {out} was started as {started}, not ({screen.name!r}, {a.cohort!r})")
-        if identity_of(recorded) != identity:
+        if identity_key(identity_of(recorded)) != identity_key(identity):
             raise SystemExit("resume refused: the source, dirty count, chronicler path, extension, interpreter, "
-                             "runner, screen module, registry or preregistration changed:\n" + "\n".join(identity))
+                             "runner, screen module, registry content or preregistration changed:\n"
+                             + "\n".join(identity))
+        # The run keeps the identity it started with (only the registry's full hash may differ).
+        identity = identity_of(recorded)
+        digest = identity_digest(identity)
         if evidence and not any(e.get("screen") == screen.name and e.get("cohort") == a.cohort
                                 and e.get("identity") == digest for e in ledger_entries(rt.ledger)):
             # A restored output folder (another clone, a recovered container) carries its own
@@ -1805,7 +1849,7 @@ def check_main(argv, screens: Mapping[str, Screen], prog: str = "screens") -> in
     rc = 0
     for name in names:
         screen = _screen_arg(screens, name)
-        problems, notes = check_seeds(screen, reg, recorded_ok=True)
+        problems, notes = check_seeds(screen, reg, reuse="recorded")
         for note in notes:
             print(f"{screen.name} note: {note}")
         if problems:

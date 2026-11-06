@@ -127,10 +127,14 @@ of their preregistrations; the runner imports neither and is not tied to
   exactly one `Compute ceiling: X core-hours` line and one `Primary outcomes: id1, id2[, id3]`
   line naming exactly the screen's primaries.
 - **Pilot** (held and reserve runs): `--pilot` gives the pilot's `metrics.jsonl`; its sibling
-  `source.txt` must show the same extension, runner, screen module, registry and dirty count,
-  its rows that identity, and its source revision may differ from this run's only outside the
-  code (`src/`, `chronicler-agents/`, `scripts/`, `pyproject.toml`, `uv.lock`), as the freeze
-  commit does.
+  `source.txt` must show the same extension, runner, screen module, registry content (the
+  cohorts and seeds, without status and run records, so a `mark-run` keeps a pilot valid) and
+  count of modified code files, its rows that identity, and its source revision may differ
+  from this run's only outside the code (`src/`, `chronicler-agents/`, `scripts/` except the
+  registry, `pyproject.toml`, `uv.lock`), as the freeze commit and a committed `mark-run` do.
+- **Reuse**: only a held run is refused on a held cohort marked `run`; a reserve run and `check`
+  accept one `mark-run` recorded; pilot and development runs never touch the held cohort and
+  are not refused by it.
 - **Compute ceiling** (held and reserve runs): the run is refused when the projection (mean
   pilot seconds per arm and stratum times the cohort's worlds) times 1.5 exceeds the ceiling.
   During the run a run starts only while the seconds used, the expected seconds of the runs in
@@ -147,16 +151,18 @@ of their preregistrations; the runner imports neither and is not tied to
   nothing missing reads as zero. A failed run's output folder is kept for diagnosis. Exit
   codes: 1 a simulation failed, 3 a missing outcome, 4 stopped at the ceiling.
 
-**Identity.** `source.txt` starts with `source <rev>`, `dirty <n> tracked files`, the imported
+**Identity.** `source.txt` starts with `source <rev>`, `dirty <n> tracked files`,
+`dirty-code <n>` (modified tracked code files, the registry excluded), the imported
 `chronicler`, the native extension path and SHA-256, the interpreter, and the SHA-256 of the
-runner, of the screen module and of the registry, and for a held or reserve run of the
-preregistration; then one header per run or resume and, for those runs, the reason, the pilot
+runner, of the screen module, of the registry file (provenance) and of the registry's cohorts
+and seeds (`registry-content`), and for a held or reserve run of the preregistration; then one header per run or resume and, for those runs, the reason, the pilot
 file's SHA-256, its projection, the ceiling and the expected seconds per arm and stratum. The
 extractors live in the screen module, so its SHA-256 identifies them; a helper kept in another
 file is neither hashed nor counted as dirty when untracked. Every
 row carries the SHA-256 of those identity lines and the schema versions it read (bundle,
 livelihoods container, each package record, each dated snapshot record). `--resume` runs only
-the missing arm-world pairs and refuses any change of those lines, screen or cohort.
+the missing arm-world pairs, refuses any change of those lines (except the registry file's
+full hash: another screen's `mark-run`), screen or cohort, and keeps the run's identity.
 
 **Report.** Runs and failures, `INCOMPLETE ... not run` for every missing arm-world pair, the
 identity digests and schema versions, then **activation per world before any effect**
@@ -261,7 +267,7 @@ livelihoods layer `cwe1` (`tests/fixtures/livelihoods_cwe1_source_inverse.json`,
 
 ## 7. Verification (2026-11-06, branch `claude/cw-e1-tooling`)
 
-- `tests/test_screen_runner.py` (115) and `tests/test_feature_matrix.py` (17) pass under the
+- `tests/test_screen_runner.py` (117) and `tests/test_feature_matrix.py` (17) pass under the
   offline guard; `tests/test_feature_catalog.py` and `tests/test_native_ci_shards.py` pass.
 - A `DEV` smoke run on development world template 1 (10 turns, both arms, the reference native
   extension `101a4cd5...`) wrote identities, rows, activation and the harm panel; `report` and
@@ -269,6 +275,7 @@ livelihoods layer `cwe1` (`tests/fixtures/livelihoods_cwe1_source_inverse.json`,
 - Viewer: `npx vitest run --maxWorkers=1` (148 files, 1524 passed, 2 skipped, under load 8.5), `npm run lint`,
   `npm run build` pass.
 - After the independent review and its re-check (2026-11-06): M1, m1-m8, N1, N2 and n1,
-  n3-n7 are fixed with tests; a second `DEV` smoke run (template 1, 10 turns, 2 jobs) passed `check --metrics`.
+  n3-n7 are fixed with tests (the reserve sequence runs with an identity that hashes the
+  registry); a second `DEV` smoke run (template 1, 10 turns, 2 jobs) passed `check --metrics`.
 - Not run: any pilot or held screen (every CW screen is a stub), native or Rust suites (no
   native change).
