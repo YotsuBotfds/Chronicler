@@ -1572,11 +1572,14 @@ def run_live(
             try:
                 world, scenario_config = _live_world(args, params)
             except ValueError as exc:
-                if not features:
+                from chronicler.livelihoods import LivelihoodsRefusal
+                refused = isinstance(exc, LivelihoodsRefusal)       # a resumed world's saved switch
+                if not features and not refused:
                     raise
-                # The run refused the requested switches: nothing has started.
+                # The run refused the requested switches (or a resumed world's
+                # saved ones): nothing has started.
                 apply_features(args, previous)
-                server.reopen_lobby(f"Start field 'features': {exc}")
+                server.reopen_lobby(f"Start field '{'resume_state' if refused else 'features'}': {exc}")
                 continue
             break
         _record_live_world_args(args, params)

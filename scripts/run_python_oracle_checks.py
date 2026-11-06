@@ -368,6 +368,15 @@ CHUNKS = {
         "tests/test_productive_recovery_screens_cp2.py",
         "tests/test_productive_recovery_screens_cp3.py",
     ],
+    "household-retail-war": [
+        "tests/test_household_retail_war.py",
+    ],
+    "household-retail-evidence": [
+        "tests/test_household_retail_evidence.py",
+    ],
+    "connected-world-a": [
+        "tests/test_wealth_accounting.py",
+    ],
     "expansion-wiring": [
         "tests/test_expansion_feature_wiring.py",
         "tests/test_expansion_experiment.py",
@@ -380,6 +389,7 @@ CHUNKS = {
     "connected-world-e": [
         "tests/test_screen_runner.py",
         "tests/test_feature_matrix.py",
+        "tests/test_cw1_screen.py",
     ],
     "connected-world-b": [
         "tests/test_watershed.py",

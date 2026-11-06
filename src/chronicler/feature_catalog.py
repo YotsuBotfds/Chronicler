@@ -18,6 +18,12 @@ drift. It lists:
   whose first choice ``trade`` is C1's closure); it declares ``REQUIREMENTS``
   as a switch does.
 
+Choices that need a file the server cannot be handed (``CLI_ONLY_CHOICES``:
+the retail ``schedule`` boundary and its ``--household-retail-schedule``
+path, ``livelihoods.LIVELIHOODS_PATH_KEYS``) are command-line only: the
+catalog does not serve them, so a request naming one is refused as an
+unknown choice.
+
 Each entry's key is the CLI parser destination; flag, help text and choices
 are read from the CLI parser itself. Nothing here is on by default: an absent
 key is not forwarded, and the run then uses its CLI default (the first choice
@@ -78,6 +84,11 @@ PREREQUISITES: dict[str, tuple[str, ...]] = {
 FEATURE_GROUPS: dict[str, dict[str, tuple[str, ...]]] = {
     "Public health": {"quarantine_mode": (), "quarantine_channels": ()},
 }
+
+#: Choices of a served option that only the command line can use (each
+#: needs a file path, ``livelihoods.LIVELIHOODS_PATH_KEYS``); left out of the
+#: served choices, so a ``features`` request cannot name them.
+CLI_ONLY_CHOICES: dict[str, tuple[str, ...]] = {"household_retail_boundary": ("schedule",)}
 
 #: Server settings a request cannot change: what each means when true.
 SETTINGS: dict[str, str] = {
@@ -154,6 +165,7 @@ REQUIREMENTS: dict[str, tuple[dict, ...]] = {
     "maintenance_obligation": (_feature("local_budgets"), _feature("repair_projects")),
     "household_retail": (_HYBRID, _feature("food_allocation")),
     "watershed": (_setting("procedural_world"),),
+    "wealth_accounting": (_HYBRID,),
     # An explicit legacy is the option omitted: it needs nothing (lead decision m4).
     "quarantine_mode": (_any(_setting("epidemiology"), _choice("quarantine_mode", "legacy")),),
     # C1b: an explicit trade is the option omitted; trade,migration closes native
@@ -209,7 +221,8 @@ def _parser_actions() -> dict[str, Any]:
 def _entry(key: str, actions: Mapping[str, Any], *, group: str, experimental: bool,
            parent: str | None) -> dict:
     action = actions[key]
-    choices = list(action.choices) if action.choices is not None else None
+    choices = ([c for c in action.choices if c not in CLI_ONLY_CHOICES.get(key, ())]
+               if action.choices is not None else None)
     if parent is None:
         requires = [_with_reasons(c) for c in REQUIREMENTS.get(key, ())]
     else:
@@ -246,7 +259,9 @@ def _features() -> tuple[dict, ...]:
             raise ValueError(f"livelihoods key {key!r} is neither a switch nor a mode of one")
         entry = _entry(key, actions, group=LIVELIHOODS_GROUP, experimental=True,
                        parent=None if is_switch else parent)
-        if not is_switch and entry["choices"] != list(LIVELIHOODS_CHOICES[key]):
+        served = [c for c in LIVELIHOODS_CHOICES[key] if c not in CLI_ONLY_CHOICES.get(key, ())] \
+            if not is_switch else None
+        if not is_switch and entry["choices"] != served:
             raise ValueError(f"{key} parser choices differ from LIVELIHOODS_CHOICES")
         entries.append(entry)
     seen = {entry["key"] for entry in entries}
