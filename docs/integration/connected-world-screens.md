@@ -60,19 +60,33 @@ are used. Template 5, the shared pilot, was also in the M-AF1 and M58b developme
 `python scripts/connected_world_screens.py registry` validates the registry and prints the
 used, never-run-again, development and reserved sets per stratum.
 
-**Recording a held run.** A held (or reserve) run is recorded at its start in its
-`OUT/held-run.json` and in the clone's ledger `output/held-runs/ledger.jsonl` (git ignores
-`output/`); while it is recorded, a new run of that cohort is refused in that clone (resume the
-recorded one with `--resume`). When the run is finished or abandoned, `mark-run OUT --screen CWn`
-sets the cohort's registry entries to `run` with a `held_run` record (output folder, identity
-digest, start, rows, whether complete, reason); commit the registry with the results. From then
-on every clone refuses the cohort as reused, and a resume is refused too.
+**Recording a held run.** Where the record lives, plainly:
 
-**The reserve.** When a screen's held run must be repeated (a failed run, a fixed extractor),
-the lead runs the same screen on the reserve: `run OUT --screen CWn --cohort reserve --reason
-"<why>" --pilot PILOT/metrics.jsonl`. It needs what a held run needs (frozen preregistration,
-ceiling, pilot); the reason goes into `source.txt`, `held-run.json` and, through `mark-run`, the
-registry, which also names the screen on the reserve entries. The reserve serves one screen once.
+- At its start, a held (or reserve) run writes its record to `OUT/held-run.json` in its own
+  output folder and appends it to the ledger of the clone it runs in,
+  `output/held-runs/ledger.jsonl` (git ignores `output/`; every clone and worktree has its own).
+  While that clone's ledger records the run, a new run of the cohort there is refused; resume the
+  recorded run with `--resume`.
+- Nothing outside that clone sees the run until `mark-run OUT --screen CWn` sets the cohort's
+  registry entries to `run` with a `held_run` record (output folder, identity digest, start, rows,
+  whether complete, reason) **and that registry change is committed and merged**. Run `mark-run`
+  as soon as the run is finished or abandoned and commit it promptly, with the results; until
+  then another clone could start the cohort again.
+- A recovered or reclaimed container has an empty ledger. To resume there, restore the output
+  folder (with its `held-run.json`, `source.txt` and `metrics.jsonl`) on the same source; the
+  runner accepts the folder's own record when it names this run and writes it back to the
+  ledger. Without the folder the run cannot be resumed; record what exists with `mark-run`.
+- After `mark-run`, `check --screen CWn --metrics OUT/metrics.jsonl --cohort held` reports the
+  cohort as recorded (a note) and checks the metrics; only starting a held run of a recorded
+  cohort is refused.
+
+**The reserve.** When a screen's held run failed or is incomplete, the lead records it first
+(`mark-run`, which stores `complete: false`) and then runs the same screen on the reserve:
+`run OUT --screen CWn --cohort reserve --reason "<why>" --pilot PILOT/metrics.jsonl`. It is
+refused before that record exists and after a complete one. It needs what a held run needs
+(frozen preregistration, ceiling, pilot); the reason goes into `source.txt`, `held-run.json`
+and, through `mark-run`, the registry, which also names the screen on the reserve entries. The
+reserve serves one screen once in the whole program.
 
 **The shared pilot** reservation (template 5, procedural 19) stays `reserved` after use: a
 timing pilot is never evidence, and every screen's pilot uses it. Never mark it `run`.
@@ -123,7 +137,9 @@ of their preregistrations; the runner imports neither and is not tied to
   flight and its own expected seconds fit under the ceiling; a run's expected seconds are the
   larger of the pilot mean for its arm and stratum and the finished runs' mean for its stratum.
   The runs not started are listed in `source.txt` with the estimate that stopped them,
-  reported as `not run`, and the exit code is 4.
+  reported as `not run`, and the exit code is 4. Residual risk: the first `--jobs` runs start
+  on the pilot estimate alone, so runs far slower than the pilot can pass the ceiling by up to
+  that first batch.
 - **Packages**: in every snapshot that carries it, an enabled package's record is an object,
   dated (`source_turn` = turn - 1), in its mode, with declared, numeric counters; a package the
   arm does not enable records nothing.
@@ -163,7 +179,7 @@ recorded" means the system that records it is off in the run; it is never read a
 | --- | --- | --- | --- |
 | `population` | population at the end, summed over civilizations | `history[-1].civ_stats[*].population` | malformed |
 | `treasury` | treasury at the end, summed | `history[-1].civ_stats[*].treasury` | malformed |
-| `food_shortfall` | food shortfall after relief over the run: demand x max(0, 1 - min(1, sufficiency after relief)) per region and turn | `history[*].food_accounting.regions[*]` | not recorded (no record, or no native ledger in some turn: unknown, not zero) |
+| `food_shortfall` | food shortfall after relief over the run: demand x max(0, 1 - min(1, sufficiency after relief)) per region and turn | `history[*].food_accounting.regions[*]` | not recorded (no record, or a turn without an economy tick, transport `none`: unknown, not zero); malformed when the economy ticked without a native ledger |
 | `priced_out_persons` | priced-out person-turns | `livelihoods.household_retail.regions[*].provisioning`, checked against the `priced_out_persons` counter | not recorded (retail off) |
 | `priced_out_children` | priced-out child-turns | the same frames | not recorded (retail off) |
 | `deaths_famine` | deaths by the famine authority | none: deaths are not recorded by cause | **requires slice extractor** (the slice that records deaths by authority) |
@@ -232,8 +248,8 @@ zero), `recorded_zero` or `recorded`, each with a note. The repair projects, tim
 remittances, food allocation and granary storage panels show the note and say "recorded,
 nothing happened this turn" for a recorded zero; the livelihoods panel mounts its four
 whenever the run records their package, so an absent record is reported instead of hidden.
-L2 leaves out the regions household retail provisioned, so when the snapshot records retail
-an empty food-allocation frame reads "no region outside household retail's regions was short
+L2 leaves out the regions household retail provisioned, so when retail provisioned a region
+that turn (not in record-only mode) an empty food-allocation frame reads "no region outside household retail's regions was short
 of food", never "no region was short of food". Tests: every state for the five readers (`recordReading.test.ts`) and the five panels
 (`RecordStates.test.tsx`).
 
@@ -245,14 +261,14 @@ livelihoods layer `cwe1` (`tests/fixtures/livelihoods_cwe1_source_inverse.json`,
 
 ## 7. Verification (2026-11-06, branch `claude/cw-e1-tooling`)
 
-- `tests/test_screen_runner.py` (112) and `tests/test_feature_matrix.py` (17) pass under the
+- `tests/test_screen_runner.py` (115) and `tests/test_feature_matrix.py` (17) pass under the
   offline guard; `tests/test_feature_catalog.py` and `tests/test_native_ci_shards.py` pass.
 - A `DEV` smoke run on development world template 1 (10 turns, both arms, the reference native
   extension `101a4cd5...`) wrote identities, rows, activation and the harm panel; `report` and
   `check --metrics` passed.
-- Viewer: `npm test -- --maxWorkers=2` (148 files, 1522 passed, 2 skipped), `npm run lint`,
+- Viewer: `npx vitest run --maxWorkers=1` (148 files, 1524 passed, 2 skipped, under load 8.5), `npm run lint`,
   `npm run build` pass.
-- After the independent review (2026-11-06): its findings M1, m1-m8 and n1, n3, n4-n7 are fixed
-  with tests; a second `DEV` smoke run (template 1, 10 turns, 2 jobs) passed `check --metrics`.
+- After the independent review and its re-check (2026-11-06): M1, m1-m8, N1, N2 and n1,
+  n3-n7 are fixed with tests; a second `DEV` smoke run (template 1, 10 turns, 2 jobs) passed `check --metrics`.
 - Not run: any pilot or held screen (every CW screen is a stub), native or Rust suites (no
   native change).
