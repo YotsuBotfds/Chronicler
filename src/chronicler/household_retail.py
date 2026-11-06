@@ -483,6 +483,31 @@ def _qualifying(world, state) -> list[tuple[int, str]]:
     return sorted(out.items())
 
 
+def _apply_conquests(world, state) -> None:
+    """A conquest destroys the conquest share of each pilot region's owned
+    stock, once per conquest event: the region's ``last_conquered_turn`` (set
+    by ``action_engine.apply_region_conquest``, the path that destroys the
+    market's stock, also for annexed occupations) is newer than the last loss
+    applied and not before the region joined the pilot. A change of
+    controller without a conquest (peaceful transfer, abandonment) destroys
+    nothing. Checked before the economy and before the agent tick, so a
+    conquest in any phase is applied before the next sale."""
+    from chronicler.economy import CONQUEST_STOCKPILE_SURVIVAL
+    for reg in state.regions:
+        region = world.regions[reg.region]
+        when = int(getattr(region, "last_conquered_turn", -1))
+        if when < reg.opened_turn or when <= reg.war_loss_turn:
+            continue
+        reg.war_loss_turn = when
+        per_good = [v - math.floor(v * CONQUEST_STOCKPILE_SURVIVAL) for v in reg.goods]
+        total = sum(per_good)
+        if total:
+            _debit(state, world, reg, "war_loss", _pro_rata(total, reg.claims), per_good)
+            _bump(state, "war_loss_milli", total)
+        _log(state, RetailRecord(turn=int(world.turn), region=reg.region, kind="war_loss", milli=total,
+                                 note=f"conquered by {region.controller} on turn {when}"))
+
+
 def _update_boundary(world, state) -> None:
     for reg in list(state.regions):
         if world.regions[reg.region].controller is None:
@@ -688,6 +713,7 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
     if t.phase2 is not None:
         raise RuntimeError("household retail Phase 2 already prepared this turn")
     _update_boundary(world, state)
+    _apply_conquests(world, state)                 # a conquest after the last agent tick
     if t.touched:
         region_input = _patch_stockpiles(world, region_input, sorted(t.touched))
         t.touched.clear()
@@ -919,21 +945,8 @@ def before_agent_tick(world, agent_bridge, economy_result) -> None:
     sim = agent_bridge._sim
     t.installed = None
     p2 = t.phase2 if t.phase2 is not None and t.phase2.turn == world.turn and t.phase2.titled else None
-    # Conquest: a pilot region whose controller changed since Phase 2.
-    if p2 is not None:
-        from chronicler.economy import CONQUEST_STOCKPILE_SURVIVAL
-        for rid, before in sorted(p2.controllers.items()):
-            reg = state.region(rid)
-            now = world.regions[rid].controller
-            if reg is None or now == before or not sum(reg.goods):
-                continue
-            per_good = [v - math.floor(v * CONQUEST_STOCKPILE_SURVIVAL) for v in reg.goods]
-            total = sum(per_good)
-            if total:
-                _debit(state, world, reg, "war_loss", _pro_rata(total, reg.claims), per_good)
-                _bump(state, "war_loss_milli", total)
-                _log(state, RetailRecord(turn=int(world.turn), region=rid, kind="war_loss", milli=total,
-                                         note=f"{before} -> {now}"))
+    # Conquest (this turn's war phase): the conquest share of owned stock.
+    _apply_conquests(world, state)
     # Declared limit: occupation and siege requisitions do not reach owned stock.
     armies = getattr(getattr(world, "war_state", None), "armies", [])
     for reg in state.regions:

@@ -891,6 +891,16 @@ def test_migration_keeps_the_claim_in_the_origin_and_split_or_rejoin_create_noth
             v for k, v in frame.flows.items() if k in ("own_eaten", "sold", "decay", "overflow"))
 
 
+def _conquer(h, rid, attacker):
+    """The real conquest path (``action_engine.apply_region_conquest``)."""
+    from chronicler.action_engine import apply_region_conquest
+    world = h.world
+    region = world.regions[rid]
+    defender = next(c for c in world.civilizations if c.name == region.controller)
+    winner = next(c for c in world.civilizations if c.name == attacker)
+    apply_region_conquest(winner, defender, region, world, seed=1)
+
+
 def test_conquest_destroys_the_conquest_share_of_owned_stock():
     h = Harness()
     _people(h, VERDANT, (1, 2), wealth=0.0)
@@ -899,13 +909,51 @@ def test_conquest_destroys_the_conquest_share_of_owned_stock():
 
     def conquer():
         goods.extend(h.state.region(VERDANT).goods)          # after this turn's decay
-        h.world.regions[VERDANT].controller = "Kethani Empire"
+        _conquer(h, VERDANT, "Kethani Empire")
     h.turn(between=conquer)
     frame = h.frame(VERDANT)
-    expect = sum(v - math.floor(v * 0.5) for v in goods)
-    assert frame.flows["war_loss"] == expect
-    assert [r for r in h.state.log if r.kind == "war_loss"][0].note == "Thornwall Confederacy -> Kethani Empire"
+    assert frame.flows["war_loss"] == sum(v - math.floor(v * 0.5) for v in goods)
+    (record,) = [r for r in h.state.log if r.kind == "war_loss"]
+    assert record.note == "conquered by Kethani Empire on turn 11"
     assert VERDANT in [r.region for r in h.state.regions]                      # sticky
+    h.turn()                                                                  # applied once per conquest
+    assert "war_loss" not in h.frame(VERDANT).flows
+
+
+def test_a_conquest_after_the_agent_tick_is_applied_before_the_next_sale():
+    h = Harness()
+    _people(h, VERDANT, (1, 2), wealth=0.0)
+    h.turn({VERDANT: {"grain": 8.0}})
+    owned = []
+
+    def annex(res):
+        owned.extend(h.state.region(VERDANT).goods)
+        _conquer(h, VERDANT, "Kethani Empire")               # e.g. an occupation annexed in Phase 10
+    h.turn(granaries=annex)
+    assert "war_loss" not in h.frame(VERDANT).flows
+    h.turn()
+    loss = sum(v - math.floor(v * 0.5) for v in owned)
+    assert h.frame(VERDANT).flows["war_loss"] == loss
+    sent = h.region_inputs[-1].column("retail_owned_grain").to_pylist()[VERDANT]
+    assert sent == pytest.approx((owned[0] - (owned[0] - math.floor(owned[0] * 0.5))) / 1000, abs=1e-3)
+
+
+@pytest.mark.parametrize("change", ["transfer", "abandon"])
+def test_a_controller_change_without_a_conquest_destroys_nothing(change):
+    h = Harness()
+    _people(h, VERDANT, (1, 2), wealth=0.0)
+    h.turn({VERDANT: {"grain": 8.0}})
+    owned = sum(h.state.region(VERDANT).goods)
+
+    def move():
+        h.world.regions[VERDANT].controller = "Kethani Empire" if change == "transfer" else None
+    h.turn(between=move)
+    assert "war_loss" not in h.frame(VERDANT).flows and h.state.counters.get("war_loss_milli", 0) == 0
+    if change == "abandon":                                   # the next Phase 2 closes it to the commons
+        h.turn()
+        assert h.frame(VERDANT).commons["pilot_closed"] > 0 and VERDANT not in HR.pilot_regions(h.world)
+    else:
+        assert h.frame(VERDANT).close_milli <= owned and VERDANT in HR.pilot_regions(h.world)
 
 
 def test_pilot_closure_returns_holdings_to_the_commons_before_the_economy_reads_them():
