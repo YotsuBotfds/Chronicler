@@ -1088,7 +1088,7 @@
       "key": "quarantine_channels",
       "flag": "--quarantine-channels",
       "label": "Quarantine channels",
-      "help": "Journeys --quarantine-mode closure restricts (connected-world C1b): trade (default, the same as omitting it): trade routes and agent merchant edges; trade,migration: also refuses native migrations between the two polities of each closed pair, either way, while the closure lasts (refugees included, counted apart; moves already made stay); trade,migration requires --quarantine-mode closure and an agent mode (hybrid, shadow or demographics-only); saved on the world (docs/integration/quarantine-rules.md)",
+      "help": "Journeys --quarantine-mode closure restricts (connected-world C1b): trade (default, the same as omitting it): trade routes and agent merchant edges; trade,migration: also refuses native migrations between the two polities of each closed pair, either way, while the closure lasts (refugees included, counted apart; moves already made stay); trade,migration requires --quarantine-mode closure and an agent mode in which the native pool owns the population (hybrid or demographics-only; not shadow, whose Python population still migrates); saved on the world (docs/integration/quarantine-rules.md)",
       "kind": "choice",
       "choices": [
         "trade",
@@ -1128,13 +1128,12 @@
             {
               "agents": [
                 "hybrid",
-                "shadow",
                 "demographics-only"
               ],
-              "reason": "requires --agents hybrid, shadow or demographics-only"
+              "reason": "requires --agents hybrid or demographics-only"
             }
           ],
-          "reason": "requires one of: --quarantine-channels trade; --agents hybrid, shadow or demographics-only"
+          "reason": "requires one of: --quarantine-channels trade; --agents hybrid or demographics-only"
         }
       ],
       "group": "Public health",

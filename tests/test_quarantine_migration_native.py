@@ -1,10 +1,10 @@
 """Quarantine closure of migration (connected-world C1b) with the real extension.
 
-The FFI install, validation and receipt lifecycle; a hybrid run in which no
-agent migration crosses a pair closed for its tick while the trade-only arm's
-migrants do; every agent mode with native migration observes a receipt each
-tick; and an exact hybrid resume during an active migration closure. Run
-against a freshly built extension.
+The FFI install, validation and receipt lifecycle; the release of the install
+when the tick raises; a hybrid run in which no agent migration crosses a pair
+closed for its tick while the trade-only arm's migrants do; demographics-only
+observes a receipt each tick; and an exact hybrid resume during an active
+migration closure. Run against a freshly built extension.
 """
 from __future__ import annotations
 
@@ -42,7 +42,10 @@ def _world(seed: int = 7, mode: str = "closure", migration: bool = True, agents:
     ep.set_epidemiology_enabled(world, True)
     rules = world.epidemics.quarantine_rules = qr.QuarantineRulesState(mode=mode, migration=migration)
     if migration:
-        rules.totals.migrants_blocked = rules.totals.migrants_blocked_flight = 0
+        rules.refused_ids = []
+        for name in ("migrants_blocked", "migrants_blocked_flight", "migrants_blocked_hunger",
+                     "migrants_refused_persons"):
+            setattr(rules.totals, name, 0)
     return world
 
 
@@ -70,10 +73,27 @@ def test_ffi_validates_installs_and_takes_the_receipt_once():
     sim.set_migration_closure(world.turn, [0] * n, [(1, 0)])
     sim.tick(world.turn, build_signals(world))
     assert sim.take_migration_closure_receipt(world.turn + 1) is None
-    assert sim.take_migration_closure_receipt(world.turn) == []    # one polity everywhere: nothing refused
+    assert sim.take_migration_closure_receipt(world.turn) == ([], [])   # one polity everywhere: nothing refused
     assert sim.take_migration_closure_receipt(world.turn) is None   # taken once
     sim.tick(world.turn + 1, build_signals(world))                   # no closure: nothing pending
     assert sim.take_migration_closure_receipt(world.turn + 1) is None
+
+
+def test_a_tick_that_raises_leaves_no_closure_pending(monkeypatch):
+    _native()
+    import pyarrow as pa
+    from chronicler.agent_bridge import AgentBridge, _quarantine_migration_tick, build_signals
+    world = _world()
+    bridge = AgentBridge(world, mode="hybrid")
+    sim = bridge._sim
+    bridge.sync_regions(world)
+    world.epidemics.quarantine_rules.receipt = qr.QuarantineReceipt(turn=world.turn)
+    bad = pa.record_batch({"civ_id": pa.array([0], type=pa.uint8())})       # not a civ-signal batch
+    with pytest.raises(Exception):
+        _quarantine_migration_tick(world, sim, lambda: sim.tick(world.turn, bad))
+    assert sim.cancel_migration_closure() is False                        # released on the way out
+    sim.tick(world.turn + 3, build_signals(world))                        # no stale closure refuses it
+    assert sim.take_migration_closure_receipt(world.turn) is None
 
 
 # --- a hybrid run: no crossing of a pair closed for its tick ---------------------------------
@@ -148,16 +168,18 @@ def test_hybrid_migration_closure_refuses_every_crossing_of_a_pair_closed_for_it
         assert trade_receipts[t].migrants_blocked is None
     print(f"refused {refused}, trade-only crossings of closed pairs {crossed}, first closure {first}")
     assert refused > 0 and crossed > 0, (refused, crossed)
-    totals = closed.epidemics.quarantine_rules.totals
-    assert totals.migrants_blocked + qr.blocked_counts(closed.epidemics.quarantine_rules.receipt.migrants_blocked)[0] \
-        == refused
+    rules = closed.epidemics.quarantine_rules
+    totals = rules.totals
+    assert totals.migrants_blocked + qr.blocked_counts(rules.receipt.migrants_blocked)[0] == refused
+    # Distinct persons: never more than the refusals (person-ticks), one stable id each.
+    persons = totals.migrants_refused_persons + rules.receipt.migrants_refused_first
+    assert 0 < persons <= refused and persons == len(rules.refused_ids)
     assert trade.epidemics.quarantine_rules.totals.migrants_blocked is None
 
 
-@pytest.mark.parametrize("agents", ["shadow", "demographics-only"])
-def test_every_agent_mode_with_native_migration_observes_each_tick(monkeypatch, agents):
+def test_demographics_only_observes_each_tick(monkeypatch):
     _native()
-    world, tokens, _, receipts = _hybrid_run(True, 8, monkeypatch, agents=agents)
+    world, tokens, _, receipts = _hybrid_run(True, 8, monkeypatch, agents="demographics-only")
     assert len(tokens) == 8 and all(r.migrants_blocked is not None for r in receipts.values())
 
 

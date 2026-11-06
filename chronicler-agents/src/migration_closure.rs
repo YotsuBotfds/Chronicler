@@ -14,11 +14,14 @@
 //!
 //! Policies (recorded in `docs/integration/quarantine-rules.md`):
 //!
-//! * Refused at the border, not diverted: the decision (target, utilities and
-//!   the four Gumbel draws per agent) is the unconstrained one; only the
-//!   application of a closed crossing is refused. The count is then exact for
-//!   the tick: these moves were decided and would otherwise have been made.
-//!   A refused agent decides afresh next tick.
+//! * Refused at the border, not diverted (lead decision, a departure from
+//!   AUDIT-C 6.2's target-loop check sites): the decision (target, utilities
+//!   and the four Gumbel draws per agent) is the unconstrained one; only the
+//!   application of a closed crossing is refused. Diversion would invent a
+//!   destination choice the agent never made. The count is then exact for the
+//!   tick: these moves were decided and would otherwise have been made. A
+//!   refused agent decides afresh next tick (and may be refused again: the
+//!   receipt counts refusals per tick and the refused agents' stable ids).
 //! * No journey is in flight: a native migration is decided and applied in
 //!   the same tick, so a move applied before the closure's first tick is
 //!   complete and is never reversed, and every new move during the closure is
@@ -32,7 +35,7 @@
 //! Uncontrolled regions (255) belong to no polity and are never closed. No
 //! RNG; the closure and its receipt are transient (taken by the tick and by
 //! Python respectively) and never checkpointed.
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use crate::behavior::PendingDecisions;
 use crate::pool::AgentPool;
@@ -54,6 +57,8 @@ pub struct MigrationClosureReceipt {
     pub turn: u32,
     /// Refused moves: (origin, destination, driver code, persons), sorted.
     pub blocked: Vec<(u16, u16, u8, u32)>,
+    /// Stable ids of the agents refused this tick, ascending (each once).
+    pub refused_ids: Vec<u32>,
 }
 
 impl MigrationClosure {
@@ -97,27 +102,37 @@ pub fn check_tick(pool: &AgentPool, turn: u32) -> Result<(), &'static str> {
 }
 
 /// Refuse every consolidated move across a closed pair; returns the refused
-/// slots per bucket and the receipt rows (origin, destination, driver,
-/// persons), sorted.
-pub fn gate(closure: &MigrationClosure, pending: &mut [PendingDecisions])
-    -> (Vec<Vec<usize>>, Vec<(u16, u16, u8, u32)>) {
+/// slots per bucket (in move order) and the receipt of `closure.turn`: rows
+/// (origin, destination, driver, persons), sorted, and the refused agents'
+/// stable ids.
+pub fn gate(pool: &AgentPool, closure: &MigrationClosure, pending: &mut [PendingDecisions])
+    -> (Vec<Vec<usize>>, MigrationClosureReceipt) {
     let mut blocked_by_bucket = vec![Vec::new(); pending.len()];
     let mut rows: BTreeMap<(u16, u16, u8), u32> = BTreeMap::new();
+    let mut ids: BTreeSet<u32> = BTreeSet::new();
+    // A person is counted once per tick, whichever bucket holds its move.
+    let mut counted: HashSet<usize> = HashSet::new();
     for (bucket_index, bucket) in pending.iter_mut().enumerate() {
         let mut refused: Vec<usize> = Vec::new();
+        let mut seen: HashSet<usize> = HashSet::new();
         for &(slot, from, to) in &bucket.migrations {
-            if closure.blocks(from, to) && !refused.contains(&slot) {
+            if closure.blocks(from, to) && seen.insert(slot) {
                 refused.push(slot);
-                *rows.entry((from, to, bucket.migration_driver_of(slot))).or_insert(0) += 1;
+                if counted.insert(slot) {
+                    *rows.entry((from, to, bucket.migration_driver_of(slot))).or_insert(0) += 1;
+                    if let Some(&id) = pool.ids.get(slot) {
+                        ids.insert(id);
+                    }
+                }
             }
         }
         if !refused.is_empty() {
-            bucket.migrations.retain(|m| !refused.contains(&m.0));
+            bucket.migrations.retain(|m| !seen.contains(&m.0));
             blocked_by_bucket[bucket_index] = refused;
         }
     }
-    let rows = rows.into_iter().map(|((from, to, driver), n)| (from, to, driver, n)).collect();
-    (blocked_by_bucket, rows)
+    let blocked = rows.into_iter().map(|((from, to, driver), n)| (from, to, driver, n)).collect();
+    (blocked_by_bucket, MigrationClosureReceipt { turn: closure.turn, blocked, refused_ids: ids.into_iter().collect() })
 }
 
 /// The receipt of `turn`, taken once.
@@ -133,6 +148,14 @@ pub fn take(pool: &mut AgentPool, turn: u32) -> Option<MigrationClosureReceipt> 
 mod tests {
     use super::*;
     use crate::migration_drivers::{MIGRATION_TERMS, TERM_FAMINE_MEMORY, TERM_WAGE};
+
+    fn pool_of(n: usize) -> AgentPool {
+        let mut pool = AgentPool::new(n);
+        for _ in 0..n {
+            pool.spawn(0, 0, crate::agent::Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+        }
+        pool
+    }
 
     fn closure(pairs: Vec<(u8, u8)>) -> MigrationClosure {
         // Regions 0, 1 ruled by civ 0; 2 by civ 1; 3 by civ 2; 4 uncontrolled.
@@ -166,7 +189,11 @@ mod tests {
         let mut b = bucket(&[(5, 2, 0), (6, 2, 3), (7, 2, 1)]);
         b.migration_followers = vec![(7, TERM_WAGE as u8)];
         let mut pending = vec![a, b];
-        let (blocked, rows) = gate(&c, &mut pending);
+        let pool = pool_of(8);
+        let (blocked, receipt) = gate(&pool, &c, &mut pending);
+        let rows = receipt.blocked;
+        assert_eq!(receipt.turn, 7);
+        assert_eq!(receipt.refused_ids, vec![pool.ids[0], pool.ids[5], pool.ids[7]]);
         assert_eq!(blocked, vec![vec![0], vec![5, 7]]);
         assert_eq!(pending[0].migrations, vec![(1, 0, 1), (2, 0, 3)]);
         assert_eq!(pending[1].migrations, vec![(6, 2, 3)]);
@@ -182,9 +209,9 @@ mod tests {
         let c = closure(vec![]);
         let moves = [(0, 0, 2), (1, 2, 3), (2, 3, 4)];
         let mut pending = vec![bucket(&moves)];
-        let (blocked, rows) = gate(&c, &mut pending);
+        let (blocked, receipt) = gate(&pool_of(3), &c, &mut pending);
         assert_eq!(blocked, vec![Vec::<usize>::new()]);
-        assert!(rows.is_empty());
+        assert!(receipt.blocked.is_empty() && receipt.refused_ids.is_empty());
         assert_eq!(pending[0].migrations, moves.to_vec());
     }
 
@@ -200,7 +227,7 @@ mod tests {
         assert_eq!(install(&mut pool, 3, vec![0, 1], vec![], 2), Err("migration closure already pending"));
         assert!(check_tick(&pool, 3).is_ok());
         assert!(check_tick(&pool, 4).is_err());
-        pool.migration_closure_receipt = Some(MigrationClosureReceipt { turn: 3, blocked: vec![(0, 1, 0, 2)] });
+        pool.migration_closure_receipt = Some(MigrationClosureReceipt { turn: 3, blocked: vec![(0, 1, 0, 2)], refused_ids: vec![4, 9] });
         assert!(take(&mut pool, 2).is_none());
         assert_eq!(take(&mut pool, 3).unwrap().blocked, vec![(0, 1, 0, 2)]);
         assert!(take(&mut pool, 3).is_none());

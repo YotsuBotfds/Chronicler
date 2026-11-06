@@ -72,7 +72,9 @@ export function QuarantineRules({ epidemics, at }: { epidemics: unknown; at: num
               : (receipt.migrants_blocked ?? "not observed")}
             detail={migration
               ? (receipt.migrants_blocked === null ? "no native migration receipt this turn"
-                : `persons, of whom ${receipt.migrants_blocked_flight ?? 0} fleeing war, famine or persecution`)
+                : `persons this tick: ${receipt.migrants_blocked_flight ?? 0} fleeing war, famine or persecution, `
+                  + `${receipt.migrants_blocked_hunger ?? 0} hunger-driven; ${receipt.migrants_refused_first ?? 0} `
+                  + "refused for the first time")
               : undefined} />
         </div>
       </>
@@ -104,7 +106,10 @@ export function QuarantineRules({ epidemics, at }: { epidemics: unknown; at: num
         : `${record.totals.closed_pair_turns} closed pair-turns, ${record.totals.route_turns_removed} route-turns closed, `
           + `${record.totals.forgone_income} treasury of route income forgone, ${record.totals.enforcement_paid} paid in enforcement.`}
       {migration && record.totals.migrants_blocked !== null
-        ? ` Migrants refused: ${record.totals.migrants_blocked} (${record.totals.migrants_blocked_flight ?? 0} fleeing war, famine or persecution).`
+        ? ` Migrants refused: ${record.totals.migrants_blocked} refusals (person-ticks) of `
+          + `${record.totals.migrants_refused_persons ?? 0} distinct persons; of the refusals `
+          + `${record.totals.migrants_blocked_flight ?? 0} fleeing war, famine or persecution and `
+          + `${record.totals.migrants_blocked_hunger ?? 0} hunger-driven.`
         : ""}
       {" "}Never restricted: {record.exempt.map((key) => EXEMPT_LABEL[key] ?? key).join(", ")}.
     </p>

@@ -907,15 +907,18 @@ impl AgentSimulator {
         pending
     }
 
-    /// C1b: the tick's refused moves, taken once: (origin, destination,
+    /// C1b: the tick's refused moves, taken once: rows (origin, destination,
     /// driver name (`get_migration_driver_stats` term names; "unattributed"
-    /// without one), persons), sorted by origin, destination and driver code.
-    pub fn take_migration_closure_receipt(&mut self, turn: u32) -> Option<Vec<(u16, u16, String, u32)>> {
-        crate::migration_closure::take(&mut self.pool, turn).map(|r| r.blocked.into_iter()
+    /// without one), persons), sorted by origin, destination and driver code,
+    /// and the refused agents' stable ids, ascending.
+    #[allow(clippy::type_complexity)]
+    pub fn take_migration_closure_receipt(&mut self, turn: u32)
+        -> Option<(Vec<(u16, u16, String, u32)>, Vec<u32>)> {
+        crate::migration_closure::take(&mut self.pool, turn).map(|r| (r.blocked.into_iter()
             .map(|(from, to, driver, persons)| (from, to,
                 crate::migration_drivers::MIGRATION_TERM_NAMES.get(driver as usize)
                     .map_or_else(|| "unattributed".to_string(), |name| name.to_string()), persons))
-            .collect())
+            .collect(), r.refused_ids))
     }
 
     /// Livelihoods L6a wealth transfer (shared seam, `wealth_transfer.rs`):

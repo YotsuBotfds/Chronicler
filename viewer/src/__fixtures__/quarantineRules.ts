@@ -344,6 +344,8 @@ export const MIGRATION_CLOSURE_RECORD = {
     "leaked_quantity": 0.0,
     "migrants_blocked": 9,
     "migrants_blocked_flight": 1,
+    "migrants_blocked_hunger": 0,
+    "migrants_refused_first": 9,
     "migration_refusals": [
       {
         "closure": 1,
@@ -373,7 +375,9 @@ export const MIGRATION_CLOSURE_RECORD = {
     "leaked_deliveries": 0,
     "leaked_quantity": 0.0,
     "migrants_blocked": 11,
-    "migrants_blocked_flight": 3
+    "migrants_blocked_flight": 3,
+    "migrants_blocked_hunger": 0,
+    "migrants_refused_persons": 11
   }
 } as const;
 

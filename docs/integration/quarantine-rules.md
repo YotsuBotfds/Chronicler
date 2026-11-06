@@ -270,15 +270,27 @@ rules), the native module `chronicler-agents/src/migration_closure.rs`, one gate
 three FFI methods in `ffi/mod.rs`, two transient pool fields, and the two agent-tick sites of
 `agent_bridge.py`. Design source: AUDIT-C section 6.2 and the lead's decision Q-C6 (a native
 closure input, not an adjacency filter, which would also stop movement news crossing the border
-and change the frontier logic).
+and change the frontier logic). **Lead decision (review m3): refusal, not diversion.** AUDIT-C
+6.2 listed the migration target loops (`behavior.rs`), household follow, relocation and the
+migration drivers as check sites, so that a closed target would never be chosen. C1b departs
+from that on purpose: the decision is left as it was made and only the closed crossing is
+refused, so the mover stays home. Diversion would invent a destination choice the agent never
+made. The cost is the larger harm of this design: an agent whose best target is closed does not
+take an open second-best while the closure lasts. A diverting variant would be its own later
+option.
 
 **Option.** `--quarantine-channels trade|trade,migration`, default `trade` (the option omitted):
 C1's closure byte for byte, so existing `closure` runs and the CW4 evidence are unchanged. An
 explicit `trade` is the option omitted and needs nothing (it can be forwarded to any arm).
-`trade,migration` requires `--quarantine-mode closure` and an agent mode whose native tick
-decides migrations (`hybrid`, `shadow` or `demographics-only`); with `--agents off` there are no
-native migrants (Python's aggregate migration and refugee routing are not ledger contact) and the
-request is refused. Saved on the world as `QuarantineRulesState.migration` (omitted while false);
+`trade,migration` requires `--quarantine-mode closure` and an agent mode in which the native pool
+owns the population: `hybrid` or `demographics-only`. Both other modes are refused (lead decision,
+review M1): with `--agents off` there are no native migrants, and in `--agents shadow` the
+authoritative population is Python's, which still migrates across a closed pair through climate
+overflow (`climate.process_migration`) and famine refugees (`ecology`, to foreign-held neighbours)
+while only the native shadow pool would be closed (the review found 1 to 6 such transfers in 40
+turns of shadow worlds 7, 11 and 13). In `demographics-only` and `hybrid` both Python paths are
+no-ops and every other Python population change is an in-place growth or loss, never a move
+between regions. Saved on the world as `QuarantineRulesState.migration` (omitted while false);
 closures opened under it record `channels: ["trade", "migration"]`.
 
 **What closes.** Before every agent tick of a run with the channel, Python installs natively
@@ -294,9 +306,9 @@ frontier logic are not touched (no adjacency filter).
 | Policy | Decision |
 | --- | --- |
 | Refused, not diverted | The decision (target, utilities, the four Gumbel draws per agent) is the unconstrained one; only the application of a closed crossing is refused, and the mover stays where it is. The receipt is therefore exact for the tick: those moves were decided and would otherwise have been made. A refused agent decides afresh next tick (and is refused again while the closure lasts and the closed region stays its best target). |
-| Households | A household moves as a unit: the spouse and dependants the consolidator linked share the lead's origin and destination and are refused with it; a follower whose own rebellion or occupation switch the consolidator replaced gets it back, as the other household gates do. Refused moves are never priced by relocation fares or counted by the liquid-reserve gate. |
+| Households | A household moves as a unit: the spouse and dependants the consolidator linked share the lead's origin and destination and are refused with it; a follower whose own rebellion or occupation switch the consolidator replaced gets it back, as the other household gates do (a follower's own earlier choice to migrate elsewhere, replaced by the lead's move, is not restored: it stays home, as under the liquid-reserve gate). Refused moves are never priced by relocation fares or counted by the liquid-reserve gate (tested at tick level). The opt-in decision-delivery move observer is not told of refusals: refused proposals are simply absent from its applied moves, as for the liquid-reserve gate. |
 | Already moving | No migrant is in flight: a native migration is decided and applied in the same tick. A move applied before the closure's first tick is complete and is never reversed; every new move during the closure is refused. Merchants on a trip are not migrants (their border edges leave the merchant graph, C1). |
-| Refugees | Not exempt: a move driven by famine, battle, conquest or persecution memories, live persecution or the safety need is refused like any other. The receipt keeps each refused move's driver; refusals of those six drivers (`FLIGHT_DRIVERS`) are reported apart as flight, a harm. Python's aggregate famine and overflow refugee routing is dormant in agent modes. |
+| Refugees | Not exempt: a move driven by famine, battle, conquest or persecution memories, live persecution or the safety need is refused like any other. The receipt keeps each refused move's driver (the dominant term; a follower takes its lead's); refusals of those six drivers (`FLIGHT_DRIVERS`) are reported apart as flight, a harm, and hunger-driven moves (food opportunity, material need: `HUNGER_DRIVERS`) as a second harm line; flight excludes them. Python's aggregate famine and overflow refugee routing is dormant in the two accepted modes. |
 | Transit | The closure is between two polities, not on the person: a migrant may still reach a closed polity through a third polity over several turns (each leg crosses an open pair; a migrant is displaced for 5 turns after each move), the way round that merchants also find. Such journeys are not counted. |
 
 No new random draws, no new mortality authority: refused people stay where they are, and the
@@ -304,26 +316,42 @@ labour and food consequences emerge (they keep working and eating at home). The 
 receipt are transient pool fields (the `transient` persistence clause): absent from the native
 checkpoint payload and schema, recomputed from Python state each tick, so checkpoints keep their
 layout. The FFI refuses a tick while a closure for another turn is pending; Python drops any
-stale closure before each install.
+stale closure before each install and releases the install after the tick whatever happens
+(`migration_closure_tick`: a tick that raises leaves no closure or receipt pending).
+
+**Units.** A receipt counts the persons refused that tick (each at most once per tick). A refused
+agent decides afresh the next tick and may be refused again, so the totals sum **refusals**
+(person-ticks); the distinct persons refused are counted by stable agent id
+(`QuarantineRulesState.refused_ids`, persisted while the channel is on). A rebuilt native pool
+(a JSON resume) starts a new id space, so after one the distinct count is a lower bound.
+
+**Older checkpoints.** Every C1b field is read with `getattr` defaults: a checkpoint pickled by
+`main` (any rules mode) lacks them and resumes unchanged on this branch, including through
+`--resume-allow-mismatch` (fixture `tests/fixtures/quarantine_rules_c1_pickles.json`, states
+pickled with `8286804c`'s classes).
 
 **Receipts.** Taken once right after the tick (`take_migration_closure_receipt`): refused
-persons by (origin, destination, driver). Each row is attributed to the closure of the polity
-whose border the mover would have entered (its closure against the origin polity), else the
-origin polity's closure against the destination polity.
+persons by (origin, destination, driver) and the refused agents' stable ids. Each row is
+attributed to the closure of the polity whose border the mover would have entered (its closure
+against the origin polity), else the origin polity's closure against the destination polity.
 
 | Field | Where | Meaning |
 | --- | --- | --- |
 | `migrants_blocked` | receipt (state) | rows (closure id, origin region, destination region, driver, persons); None while no native receipt was read this turn |
-| `receipt.migrants_blocked`, `receipt.migrants_blocked_flight` | snapshot | persons refused this tick, and of them fleeing war, famine or persecution; null: not observed |
+| `migrants_refused_first` | receipt (state) | agents refused this tick for the first time in the run |
+| `receipt.migrants_blocked`, `_flight`, `_hunger`, `receipt.migrants_refused_first` | snapshot | persons refused this tick, of them fleeing war, famine or persecution, of them hunger-driven, and of them refused for the first time; null: not observed |
 | `receipt.migration_refusals` | snapshot | the rows with region names: `{closure, from, to, driver, persons}`; null: not observed, `[]`: a recorded zero |
-| `totals.migrants_blocked`, `totals.migrants_blocked_flight` | snapshot, state, analytics | folded per receipt; absent without the channel |
+| `totals.migrants_blocked`, `_flight`, `_hunger` | snapshot, state, analytics | refusals (person-ticks) folded per receipt; absent without the channel |
+| `totals.migrants_refused_persons` | snapshot, state, analytics | distinct persons refused (stable ids) |
 
 The event text names the channel: "X closes its borders to trade and migration with Y against
 ...". Viewer: the Epidemics panel's quarantine section shows a "Migrants refused" tile (not
 restricted without the channel; "not observed" for a null receipt; a recorded zero; otherwise
-the persons with the flight share), a table of refusals by closure and the totals. Feature
-catalog: `quarantine_channels`, a second top-level choice of the Public health group (requires
-`--quarantine-channels trade`, or `--quarantine-mode closure` and an agent mode). Batch
+the persons refused this tick with the flight, hunger and first-time shares), a table of refusals
+by closure and the totals (refusals as person-ticks, and distinct persons). Feature catalog:
+`quarantine_channels`, a second top-level choice of the Public health group (requires
+`--quarantine-channels trade`, or `--quarantine-mode closure` and `--agents hybrid` or
+`demographics-only`). Batch
 manifest: `quarantine_channels` in `SIMULATION_ARG_KEYS`, omitted when unset; forwarded by
 `expansion_arguments`.
 
@@ -331,8 +359,8 @@ manifest: `quarantine_channels` in `SIMULATION_ARG_KEYS`, omitted when unset; fo
 recorded it is checked against the retained world (`quarantine_resume_conflicts`), so
 `trade,migration` on a trade-only checkpoint, or `trade` on a migration checkpoint, is refused.
 A JSON resume keeps the saved channels when the option is omitted, refuses a different value once
-the epidemic model has ticked, and refuses `--agents off` on a world whose saved rules close
-migration.
+the epidemic model has ticked, and refuses `--agents off` or `shadow` on a world whose saved
+rules close migration.
 
 **Pinned files.** `lib.rs`, `pool.rs`, `tick.rs`, `ffi/mod.rs`, `agent_bridge.py`,
 `batch_manifest.py` and `tests/test_batch_manifest.py` carry the reviewed exact-inverse layer

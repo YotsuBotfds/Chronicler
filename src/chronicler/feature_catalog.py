@@ -157,9 +157,10 @@ REQUIREMENTS: dict[str, tuple[dict, ...]] = {
     # An explicit legacy is the option omitted: it needs nothing (lead decision m4).
     "quarantine_mode": (_any(_setting("epidemiology"), _choice("quarantine_mode", "legacy")),),
     # C1b: an explicit trade is the option omitted; trade,migration closes native
-    # migration, so it needs the closure mode and an agent mode.
+    # migration, so it needs the closure mode and a mode in which the native pool
+    # owns the population (not shadow: Python still moves its population there).
     "quarantine_channels": (_any(_choice("quarantine_channels", "trade"), _choice("quarantine_mode", "closure")),
-                            _any(_choice("quarantine_channels", "trade"), _ECONOMY)),
+                            _any(_choice("quarantine_channels", "trade"), _agents("hybrid", "demographics-only"))),
 }
 
 

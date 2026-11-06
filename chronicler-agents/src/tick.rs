@@ -811,12 +811,11 @@ fn try_tick_agents_with_movements_observer<M: crate::decision_delivery::MoveObse
     // C1b: consolidated moves across a closed pair are refused before any
     // household is priced or gated (`migration_closure`); unchanged without one.
     if let Some(closure) = closure.as_ref() {
-        let (blocked, rows) = crate::migration_closure::gate(closure, &mut pending_decisions);
+        let (blocked, receipt) = crate::migration_closure::gate(pool, closure, &mut pending_decisions);
         if let Some(original) = original_actions.as_ref() {
             restore_blocked_primary_actions(&mut pending_decisions, &blocked, original);
         }
-        pool.migration_closure_receipt =
-            Some(crate::migration_closure::MigrationClosureReceipt { turn, blocked: rows });
+        pool.migration_closure_receipt = Some(receipt);
     }
 
     if let Some((requirement, frame)) = gate {
@@ -2928,11 +2927,84 @@ mod tests {
         assert_eq!(pending[0].migrations.len(), 2, "the spouse follows the lead");
         assert!(pending[0].occupation_switches.is_empty());
         let closure = crate::migration_closure::MigrationClosure { turn: 0, region_civ: vec![0, 1], pairs: vec![(0, 1)] };
-        let (blocked, rows) = crate::migration_closure::gate(&closure, &mut pending);
+        let (blocked, receipt) = crate::migration_closure::gate(&pool, &closure, &mut pending);
         restore_blocked_primary_actions(&mut pending, &blocked, &original);
         assert!(pending[0].migrations.is_empty());
         assert_eq!(pending[0].occupation_switches, vec![(spouse, 2)]);
-        assert_eq!(rows, vec![(0, 1, crate::migration_drivers::TERM_FAMINE_MEMORY as u8, 2)]);
+        assert_eq!(receipt.blocked, vec![(0, 1, crate::migration_drivers::TERM_FAMINE_MEMORY as u8, 2)]);
+        assert_eq!(receipt.refused_ids, vec![pool.ids[lead], pool.ids[spouse]]);
+    }
+
+    /// C1b tick wiring: married soldiers in a crowded region whose only
+    /// neighbour is ruled by a closed polity. `with_closure` installs the
+    /// closure; `gate` also runs the liquid-reserve gate (food short at home,
+    /// so it would price every proposed household).
+    fn married_closure_tick(with_closure: bool, gate: bool) -> (Vec<AgentEvent>, AgentPool, crate::household::MobilityGateFrame) {
+        let mut regions = vec![make_healthy_region(0), make_healthy_region(1)];
+        regions[0].controller_civ = 0;
+        regions[1].controller_civ = 1;
+        regions[0].adjacency = vec![1];
+        regions[1].adjacency = vec![0];
+        regions[0].carrying_capacity = 5;
+        regions[0].soil = 0.05;
+        regions[0].water = 0.1;
+        regions[0].population = 240;
+        regions[0].food_sufficiency = 0.5;
+        let mut pool = AgentPool::new(0);
+        for k in 0..120u16 {
+            let a = pool.spawn(0, 0, Occupation::Soldier, 22 + k % 15, 0.5, 0.5, 0.5, 0, 1, 2, crate::agent::BELIEF_NONE);
+            let b = pool.spawn(0, 0, Occupation::Soldier, 22 + (k * 7) % 15, 0.5, 0.9, 0.5, 0, 1, 2, crate::agent::BELIEF_NONE);
+            assert!(crate::relationships::upsert_symmetric(&mut pool, a, b,
+                crate::relationships::BondType::Marriage as u8, 60, 1));
+        }
+        if with_closure {
+            crate::migration_closure::install(&mut pool, 0, vec![0, 1], vec![(0, 1)], 2).unwrap();
+        }
+        let signals = make_default_signals(2, 2);
+        let mut pct = vec![0.0f32; pool.capacity()];
+        let mut frame = crate::household::MobilityGateFrame { turn: 0, ..Default::default() };
+        let events = if gate {
+            try_tick_agents_with_mobility_gate(&mut pool, &regions, &signals, [97u8; 32], 0, &mut pct,
+                &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(), &[], None, &[],
+                crate::scale::TickOptions::default(), &mut crate::movements::MovementRuntime::default(), None,
+                1.0e6, &mut frame).unwrap().0
+        } else {
+            tick_agents(&mut pool, &regions, &signals, [97u8; 32], 0, &mut pct, &mut Vec::new(), &[],
+                &mut crate::spatial::SpatialDiagnostics::default(), &[], None).0
+        };
+        (events, pool, frame)
+    }
+
+    /// The tick snapshots primary actions when a closure is the only gate,
+    /// so a spouse whose own occupation switch the consolidator replaced with
+    /// a follow move switches after the household is refused. Refused moves
+    /// never reach the liquid-reserve gate, which then sees no household.
+    #[test]
+    fn test_migration_closure_tick_restores_followers_switches_and_hides_refused_moves_from_the_gate() {
+        let (open, open_pool, _) = married_closure_tick(false, false);
+        let movers: std::collections::HashSet<u32> =
+            open.iter().filter(|e| e.event_type == 2).map(|e| e.agent_id).collect();
+        let spouse = |pool: &AgentPool, id: u32| -> Option<u32> {
+            let slot = (0..pool.capacity()).find(|&s| pool.ids[s] == id)?;
+            crate::relationships::get_spouse_id(pool, slot)
+        };
+        // Couples that moved together without the closure.
+        let couples: Vec<(u32, u32)> = movers.iter().filter_map(|&id| spouse(&open_pool, id).map(|s| (id, s)))
+            .filter(|&(a, b)| a < b && movers.contains(&b)).collect();
+        assert!(!couples.is_empty(), "households must move together without the closure");
+
+        let (closed, _, _) = married_closure_tick(true, false);
+        assert!(closed.iter().all(|e| e.event_type != 2), "every move crossed the closed pair");
+        let switched: std::collections::HashSet<u32> =
+            closed.iter().filter(|e| e.event_type == 3).map(|e| e.agent_id).collect();
+        let restored = couples.iter().filter(|&&(a, b)| switched.contains(&a) || switched.contains(&b)).count();
+        assert!(restored > 0, "a follower's replaced switch must be restored when its household is refused");
+
+        let (gated, _, frame) = married_closure_tick(true, true);
+        assert_eq!((frame.proposed_groups, frame.proposed_persons, frame.blocked_persons), (0, 0, 0));
+        let key = |events: &[AgentEvent]| events.iter().map(|e| (e.agent_id, e.event_type, e.region, e.target_region))
+            .collect::<Vec<_>>();
+        assert_eq!(key(&gated), key(&closed));
     }
 
     /// Geography 2.0: adjacency lists let agents migrate between regions with

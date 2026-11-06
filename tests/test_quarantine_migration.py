@@ -4,13 +4,16 @@
 option validation and refusals, the default ``trade`` as the omitted option,
 serialization (absent while off), the native install and receipt seam with a
 fake simulator (attribution, flight drivers, malformed or missing receipts),
-the snapshot's distinct states, the totals, forwarding, the manifest, the
-feature catalog and resume conflicts. The real extension is exercised in
+the snapshot's distinct states, the totals (refusals, flight, hunger and
+distinct persons), forwarding, the manifest, the feature catalog, resume
+conflicts, the release of the install when the tick raises and states
+pickled with main's (C1) classes. The real extension is exercised in
 ``tests/test_quarantine_migration_native.py``.
 """
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import pickle
 from pathlib import Path
@@ -24,7 +27,7 @@ from chronicler.models import WorldState
 from chronicler.world_gen import generate_world
 
 AGENT_MODES = ("off", "demographics-only", "shadow", "hybrid")
-MIGRATING = ("demographics-only", "shadow", "hybrid")
+MIGRATING = ("demographics-only", "hybrid")   # the native pool owns the population
 
 
 def _world(migration: bool = True) -> WorldState:
@@ -33,8 +36,11 @@ def _world(migration: bool = True) -> WorldState:
     ep.set_epidemiology_enabled(world, True)
     world.epidemics.quarantine_rules = qr.QuarantineRulesState(mode="closure", migration=migration)
     if migration:
-        world.epidemics.quarantine_rules.totals.migrants_blocked = 0
-        world.epidemics.quarantine_rules.totals.migrants_blocked_flight = 0
+        rules = world.epidemics.quarantine_rules
+        rules.refused_ids = []
+        for name in ("migrants_blocked", "migrants_blocked_flight", "migrants_blocked_hunger",
+                     "migrants_refused_persons"):
+            setattr(rules.totals, name, 0)
     return world
 
 
@@ -50,11 +56,13 @@ def _two_polities(world: WorldState) -> None:
 
 
 class FakeSim:
-    """The three native methods, recording calls (no extension)."""
+    """The three native methods, recording calls (no extension). ``ids``
+    defaults to distinct stable ids, one per refused person."""
 
-    def __init__(self, rows=()):
+    def __init__(self, rows=(), ids=None):
         self.calls: list = []
         self.rows = list(rows)
+        self.ids = list(range(1000, 1000 + sum(r[3] for r in self.rows))) if ids is None else list(ids)
         self.receipt_missing = False
 
     def cancel_migration_closure(self):
@@ -66,7 +74,7 @@ class FakeSim:
 
     def take_migration_closure_receipt(self, turn):
         self.calls.append(("take", turn))
-        return None if self.receipt_missing else list(self.rows)
+        return None if self.receipt_missing else (list(self.rows), list(self.ids))
 
 
 def _parser():
@@ -133,18 +141,24 @@ def test_migration_channel_requires_the_closure_mode(tmp_path, sentinel_runtimes
 
 
 @pytest.mark.parametrize("agents", AGENT_MODES)
-def test_migration_channel_requires_an_agent_mode_with_native_migration(tmp_path, sentinel_runtimes, agents):
+def test_migration_channel_requires_a_mode_where_the_native_pool_owns_the_population(
+        tmp_path, sentinel_runtimes, agents):
     world, refusal = _configure(tmp_path, "--agents", agents, "--quarantine-mode", "closure",
                                 "--quarantine-channels", "trade,migration")
-    if agents == "off":
-        assert refusal.startswith("--quarantine-channels trade,migration requires an agent mode")
-        assert "--agents off" in refusal
+    if agents not in MIGRATING:
+        assert refusal.startswith("--quarantine-channels trade,migration requires an agent mode in which "
+                                  "the native pool owns the population")
+        assert f"--agents {agents}" in refusal
+        # Shadow: Python's population still migrates (climate overflow, famine refugees).
+        assert ("climate overflow, famine refugees" in refusal) == (agents == "shadow")
     else:
         assert refusal is None
         rules = world.epidemics.quarantine_rules
         assert rules.mode == "closure" and rules.migration is True
         assert qr.channels_of(rules) == ["trade", "migration"]
-        assert (rules.totals.migrants_blocked, rules.totals.migrants_blocked_flight) == (0, 0)
+        assert (rules.totals.migrants_blocked, rules.totals.migrants_blocked_flight,
+                rules.totals.migrants_blocked_hunger, rules.totals.migrants_refused_persons) == (0, 0, 0, 0)
+        assert rules.refused_ids == []
 
 
 @pytest.mark.parametrize("mode", [None, "legacy", "none", "cost_only", "closure"])
@@ -180,8 +194,9 @@ def test_the_flag_and_totals_are_absent_while_off_and_old_states_load():
     assert "migration" not in dumped and set(dumped["totals"]) == set(qr.QuarantineTotals().model_dump())
     assert "migrants_blocked" not in dumped["totals"]
     on = json.loads(_world().epidemics.model_dump_json())["quarantine_rules"]
-    assert on["migration"] is True
+    assert on["migration"] is True and on["refused_ids"] == []
     assert on["totals"]["migrants_blocked"] == 0 and on["totals"]["migrants_blocked_flight"] == 0
+    assert "refused_ids" not in dumped
     # A C1 rules state (no field) loads as trade only.
     restored = qr.QuarantineRulesState.model_validate(dumped)
     assert restored.migration is False and restored.totals.migrants_blocked is None
@@ -245,10 +260,6 @@ def test_nothing_reaches_the_simulator_without_the_channel(migration):
     token = qr.install_migration_closure(world, sim)
     qr.take_migration_receipt(world, sim, token)
     assert (token is None, sim.calls == []) == (not migration, not migration)
-    from chronicler.agent_bridge import _quarantine_migration_closure, _quarantine_migration_receipt
-    legacy = generate_world(seed=42, num_regions=8, num_civs=4)
-    assert _quarantine_migration_closure(legacy, object()) is None
-    _quarantine_migration_receipt(legacy, object(), None)   # touches nothing
 
 
 def test_an_old_extension_is_refused_clearly():
@@ -266,7 +277,9 @@ def test_the_receipt_is_attributed_to_the_border_the_mover_would_enter():
     qr.take_migration_receipt(world, sim, qr.install_migration_closure(world, sim))
     assert rules.receipt.migrants_blocked == [
         (3, 3, 4, "famine_memory", 2), (3, 3, 4, "wage", 1), (4, 5, 2, "opp_food", 4), (4, 6, 1, "unattributed", 1)]
-    assert qr.blocked_counts(rules.receipt.migrants_blocked) == (8, 2)
+    # Flight excludes the hunger-driven line (food opportunity, material need).
+    assert qr.blocked_counts(rules.receipt.migrants_blocked) == (8, 2, 4)
+    assert rules.receipt.migrants_refused_first == 8 and rules.refused_ids == list(range(1000, 1008))
 
 
 def test_a_one_sided_closure_takes_both_directions():
@@ -289,6 +302,61 @@ def test_an_impossible_native_row_is_refused(row, message):
         qr.take_migration_receipt(world, sim, qr.install_migration_closure(world, sim))
 
 
+@pytest.mark.parametrize("ids, message", [
+    ([1000], "rows and refused ids disagree"),
+    ([1000, 1000], "repeats an agent id"),
+])
+def test_rows_and_refused_ids_must_agree(ids, message):
+    world, _ = _receipt_world([(1, 0, 1)])
+    sim = FakeSim([(3, 4, "wage", 2)], ids=ids)
+    with pytest.raises(RuntimeError, match=message):
+        qr.take_migration_receipt(world, sim, qr.install_migration_closure(world, sim))
+
+
+def test_distinct_persons_count_each_agent_once_across_ticks():
+    world, rules = _receipt_world([(1, 0, 1)])
+    for ids in ([7, 8, 9], [8, 9, 10], [10]):
+        rules.receipt = qr.QuarantineReceipt(turn=world.turn)
+        sim = FakeSim([(3, 4, "famine_memory", len(ids))], ids=ids)
+        qr.take_migration_receipt(world, sim, qr.install_migration_closure(world, sim))
+        qr._fold(rules.totals, rules.receipt)
+        world.turn += 1
+    # 7 refusals (person-ticks) of 4 distinct persons; 3, 1 and 0 refused for the first time.
+    assert (rules.totals.migrants_blocked, rules.totals.migrants_refused_persons) == (7, 4)
+    assert rules.refused_ids == [7, 8, 9, 10] and rules.receipt.migrants_refused_first == 0
+
+
+class _Boom(Exception):
+    pass
+
+
+def test_the_install_is_released_when_the_tick_raises():
+    world, _ = _receipt_world([(1, 0, 1)])
+    sim = FakeSim()
+
+    def tick():
+        raise _Boom
+
+    with pytest.raises(_Boom):
+        qr.migration_closure_tick(world, sim, tick)
+    assert [c[0] for c in sim.calls] == ["cancel", "set", "cancel"]   # nothing left pending
+
+
+def test_a_successful_tick_takes_its_receipt_then_releases():
+    world, rules = _receipt_world([(1, 0, 1)])
+    sim = FakeSim([(4, 3, "persecution", 1)])
+    assert qr.migration_closure_tick(world, sim, lambda: "events") == "events"
+    assert [c[0] for c in sim.calls] == ["cancel", "set", "take", "cancel"]
+    assert rules.receipt.migrants_blocked == [(1, 4, 3, "persecution", 1)]
+    # Without the channel only the tick runs (the bridge's helper, legacy and trade-only worlds).
+    rules.migration = False
+    plain = FakeSim()
+    assert qr.migration_closure_tick(world, plain, lambda: 5) == 5 and plain.calls == []
+    from chronicler.agent_bridge import _quarantine_migration_tick
+    legacy = generate_world(seed=42, num_regions=8, num_civs=4)
+    assert _quarantine_migration_tick(legacy, object(), lambda: 6) == 6
+
+
 def test_a_missing_receipt_is_refused_and_the_install_released():
     world, _ = _receipt_world([(1, 0, 1)])
     sim = FakeSim()
@@ -304,6 +372,8 @@ def test_a_missing_receipt_is_refused_and_the_install_released():
 C1_RECEIPT_KEYS = {"turn", "decided", "continued", "closed_last_tick", "opened", "renewed", "lapsed",
                    "enforcement", "phase2_observed", "routes_removed", "forgone_income",
                    "merchant_edges_removed", "leaked_deliveries", "leaked_quantity"}
+C1B_RECEIPT_KEYS = {"migrants_blocked", "migrants_blocked_flight", "migrants_blocked_hunger",
+                    "migrants_refused_first", "migration_refusals"}
 
 
 def test_trade_only_snapshots_keep_c1s_shape():
@@ -321,36 +391,43 @@ def test_snapshot_keeps_not_observed_recorded_zero_and_refusals_distinct():
     summary = qr.snapshot_summary(world)
     assert summary["channels"] == ["trade", "migration"] and "migrants" not in summary["exempt"]
     receipt = summary["receipt"]
-    assert set(receipt) == C1_RECEIPT_KEYS | {"migrants_blocked", "migrants_blocked_flight", "migration_refusals"}
+    assert set(receipt) == C1_RECEIPT_KEYS | C1B_RECEIPT_KEYS
     assert receipt["migrants_blocked"] is None and receipt["migration_refusals"] is None   # not observed
+    assert receipt["migrants_refused_first"] is None
     sim = FakeSim([])
     qr.take_migration_receipt(world, sim, qr.install_migration_closure(world, sim))
     receipt = qr.snapshot_summary(world)["receipt"]
-    assert (receipt["migrants_blocked"], receipt["migrants_blocked_flight"], receipt["migration_refusals"]) == (0, 0, [])
+    assert (receipt["migrants_blocked"], receipt["migrants_blocked_flight"], receipt["migrants_blocked_hunger"],
+            receipt["migrants_refused_first"], receipt["migration_refusals"]) == (0, 0, 0, 0, [])
     rules.receipt = qr.QuarantineReceipt(turn=world.turn)
     sim = FakeSim([(4, 3, "persecution", 3), (5, 2, "frontier", 1)])
     qr.take_migration_receipt(world, sim, qr.install_migration_closure(world, sim))
     summary = qr.snapshot_summary(world)
     assert summary["receipt"]["migrants_blocked"] == 4 and summary["receipt"]["migrants_blocked_flight"] == 3
+    assert summary["receipt"]["migrants_blocked_hunger"] == 0 and summary["receipt"]["migrants_refused_first"] == 4
     assert summary["receipt"]["migration_refusals"][0] == {
         "closure": 1, "from": world.regions[4].name, "to": world.regions[3].name, "driver": "persecution",
         "persons": 3}
-    assert (summary["totals"]["migrants_blocked"], summary["totals"]["migrants_blocked_flight"]) == (4, 3)
+    assert (summary["totals"]["migrants_blocked"], summary["totals"]["migrants_blocked_flight"],
+            summary["totals"]["migrants_refused_persons"]) == (4, 3, 4)
 
 
 def test_totals_fold_each_receipt_once():
     totals = qr.QuarantineTotals(migrants_blocked=0, migrants_blocked_flight=0)
-    for rows in ([(1, 0, 4, "famine_memory", 2)], None, [], [(1, 4, 0, "wage", 5)]):
-        receipt = qr.QuarantineReceipt(turn=1, migrants_blocked=rows)
+    for rows in ([(1, 0, 4, "famine_memory", 2)], None, [], [(1, 4, 0, "wage", 5)], [(1, 4, 0, "material_need", 1)]):
+        receipt = qr.QuarantineReceipt(turn=1, migrants_blocked=rows,
+                                       migrants_refused_first=None if rows is None else len(rows))
         qr._fold(totals, receipt)
-    assert (totals.migrants_blocked, totals.migrants_blocked_flight, totals.receipts) == (7, 2, 4)
+    assert (totals.migrants_blocked, totals.migrants_blocked_flight, totals.migrants_blocked_hunger,
+            totals.migrants_refused_persons, totals.receipts) == (8, 2, 1, 3, 5)
     plain = qr.QuarantineTotals()
     qr._fold(plain, qr.QuarantineReceipt(turn=1))
     assert plain.migrants_blocked is None
 
 
-def test_flight_drivers_are_native_term_names():
-    assert set(qr.FLIGHT_DRIVERS) <= {
+def test_flight_and_hunger_drivers_are_disjoint_native_term_names():
+    assert not set(qr.FLIGHT_DRIVERS) & set(qr.HUNGER_DRIVERS)
+    assert set(qr.FLIGHT_DRIVERS) | set(qr.HUNGER_DRIVERS) <= {
         "low_satisfaction", "opp_satisfaction", "opp_capacity", "opp_food", "opp_river", "opp_news",
         "persecution", "famine_memory", "battle_memory", "conquest_memory", "persecution_memory",
         "safety_need", "material_need", "spiritual_need", "frontier", "wage", "chain", "urban",
@@ -362,7 +439,7 @@ def test_metrics_carry_the_migration_totals():
     sim = FakeSim([(4, 3, "famine_memory", 2)])
     qr.take_migration_receipt(world, sim, qr.install_migration_closure(world, sim))
     metrics = qr.extract_metrics([{"quarantine_rules": qr.snapshot_summary(world)}])
-    assert (metrics["migrants_blocked"], metrics["migrants_blocked_flight"]) == (2, 2)
+    assert (metrics["migrants_blocked"], metrics["migrants_blocked_flight"], metrics["migrants_refused_persons"]) == (2, 2, 2)
 
 
 # --- forwarding, manifest, catalog -------------------------------------------------------------
@@ -425,8 +502,9 @@ def test_a_world_that_never_ticked_takes_the_requested_channels(tmp_path, sentin
     assert world.epidemics.quarantine_rules.totals.migrants_blocked is None
 
 
-def test_saved_migration_closure_refuses_an_aggregate_continuation(tmp_path, sentinel_runtimes):
-    _, refusal = _configure(tmp_path, "--agents", "off", world=_ticked(True))
+@pytest.mark.parametrize("agents", ["off", "shadow"])
+def test_saved_migration_closure_refuses_a_python_owned_continuation(tmp_path, sentinel_runtimes, agents):
+    _, refusal = _configure(tmp_path, "--agents", agents, world=_ticked(True))
     assert refusal.startswith("this world's saved quarantine rules close migration")
 
 
@@ -457,3 +535,43 @@ def test_exact_aggregate_closure_checkpoint_refuses_the_migration_channel(tmp_pa
         "--quarantine-channels 'trade,migration' conflicts with the checkpoint (saved: 'trade')"]
     same = parser.parse_args(["--resume", str(path), "--quarantine-channels", "trade"])
     assert _adopt_checkpoint_args(parser, same, rc.read_checkpoint(path)) == []
+
+
+# --- states pickled by main (C1 classes) ----------------------------------------------------
+
+_C1_PICKLES = json.loads((Path(__file__).parent / "fixtures/quarantine_rules_c1_pickles.json").read_text())
+
+
+def _c1_rules(mode: str) -> qr.QuarantineRulesState:
+    """A rules state pickled with main 8286804c's classes (lacks every C1b field)."""
+    rules = pickle.loads(base64.b64decode(_C1_PICKLES["states"][mode]))
+    assert "migration" not in rules.__dict__ and "migrants_blocked" not in rules.receipt.__dict__
+    assert "migrants_blocked" not in rules.totals.__dict__
+    return rules
+
+
+@pytest.mark.parametrize("mode", ["none", "cost_only", "closure"])
+def test_a_state_pickled_by_main_runs_decides_snapshots_and_resumes(mode, tmp_path, sentinel_runtimes):
+    world = _world(migration=False)
+    _two_polities(world)
+    world.epidemics.quarantine_rules = _c1_rules(mode)
+    world.epidemics.last_tick_turn = 3
+    world.turn = 4
+    assert qr.channels_of(qr.rules_of(world)) == (["trade"] if mode == "closure" else [])
+    assert qr.migration_closure_on(world) is False
+    summary = qr.snapshot_summary(world)            # folds the C1 receipt into the totals
+    assert summary["mode"] == mode and "migrants_blocked" not in summary["totals"]
+    assert set(summary["receipt"]) == C1_RECEIPT_KEYS
+    ep.tick_epidemics(world)                         # decide() folds the C1 receipt
+    rules = qr.rules_of(world)
+    assert rules.totals.receipts == 4 and getattr(rules.totals, "migrants_blocked", None) is None
+    assert "migration" not in json.loads(world.epidemics.model_dump_json())["quarantine_rules"]
+    assert qr.install_migration_closure(world, FakeSim()) is None
+    args = argparse.Namespace(quarantine_mode=None, quarantine_channels="trade,migration")
+    assert qr.quarantine_resume_conflicts(world, args, {}) == [
+        "--quarantine-channels 'trade,migration' conflicts with the checkpoint (saved: 'trade')"]
+    assert qr.quarantine_resume_conflicts(world, argparse.Namespace(quarantine_mode=mode,
+                                                                    quarantine_channels="trade"), {}) == []
+    # A continuation (the --resume-allow-mismatch path) configures without touching it.
+    _, refusal = _configure(tmp_path, "--agents", "hybrid", world=world)
+    assert refusal is None

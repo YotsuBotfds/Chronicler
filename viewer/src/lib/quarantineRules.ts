@@ -12,6 +12,9 @@
  * include "migration" carries refused migrants in each receipt (null: no
  * native migration receipt read that turn; 0: a recorded zero) and in the
  * totals; a trade-only record carries neither (migrants are not restricted).
+ * Units: a receipt counts the persons refused that tick; the totals sum those
+ * refusals over ticks (person-ticks: an agent refused on k ticks counts k
+ * times) and count the distinct persons refused separately.
  */
 
 export type QuarantineMode = "none" | "cost_only" | "closure";
@@ -55,8 +58,12 @@ export interface QuarantineReceiptRecord {
   leaked_quantity: number | null;
   /** C1b: persons refused at a closed border this turn; null: not observed (or no migration channel). */
   migrants_blocked: number | null;
-  /** C1b: of them, fleeing war, famine or persecution. */
+  /** C1b: of them, fleeing war, famine or persecution (hunger-driven moves excluded). */
   migrants_blocked_flight: number | null;
+  /** C1b: of them, hunger-driven (food opportunity, material need). */
+  migrants_blocked_hunger: number | null;
+  /** C1b: of them, refused for the first time in the run. */
+  migrants_refused_first: number | null;
   migration_refusals: MigrationRefusalRecord[] | null;
 }
 
@@ -71,9 +78,12 @@ export interface QuarantineTotalsRecord {
   merchant_edges_removed: number;
   leaked_deliveries: number;
   leaked_quantity: number;
-  /** C1b only (null without the migration channel). */
+  /** C1b only (null without the migration channel): refusals summed over ticks (person-ticks). */
   migrants_blocked: number | null;
   migrants_blocked_flight: number | null;
+  migrants_blocked_hunger: number | null;
+  /** C1b: distinct persons refused (stable agent ids). */
+  migrants_refused_persons: number | null;
 }
 
 export interface QuarantineRulesRecord {
@@ -110,8 +120,8 @@ export function migrationClosed(record: QuarantineRulesRecord): boolean {
 }
 
 export const MIGRATION_CLOSURE_NOTE = "Native migrations between the two polities of each closed pair are refused "
-  + "at the border, either way; the movers stay home with their households. Moves made before the closure stay "
-  + "made, and refugees are refused like other migrants (counted apart).";
+  + "at the border, either way; the movers stay home with their households (they are not sent elsewhere). Moves "
+  + "made before the closure stay made, and refugees are refused like other migrants (counted apart).";
 
 export const QUARANTINE_MODE_NOTE: Record<QuarantineMode | "legacy", string> = {
   legacy: "The legacy rule: a closed state's foreign import pressure is multiplied away (70–90%) and it pays "
@@ -224,6 +234,10 @@ function readReceipt(raw: unknown, migration: boolean): QuarantineReceiptRecord 
     migrants_blocked: blocked,
     migrants_blocked_flight: migration
       ? nullable(raw.migrants_blocked_flight, int, "receipt.migrants_blocked_flight") : null,
+    migrants_blocked_hunger: migration
+      ? nullable(raw.migrants_blocked_hunger, int, "receipt.migrants_blocked_hunger") : null,
+    migrants_refused_first: migration
+      ? nullable(raw.migrants_refused_first, int, "receipt.migrants_refused_first") : null,
     migration_refusals: refusals,
   };
 }
@@ -239,6 +253,9 @@ function readTotals(raw: unknown, migration: boolean): QuarantineTotalsRecord {
   for (const key of TOTALS) out[key] = int(raw[key], `totals.${key}`);
   out.migrants_blocked = migration ? int(raw.migrants_blocked, "totals.migrants_blocked") : null;
   out.migrants_blocked_flight = migration ? int(raw.migrants_blocked_flight, "totals.migrants_blocked_flight") : null;
+  out.migrants_blocked_hunger = migration ? int(raw.migrants_blocked_hunger, "totals.migrants_blocked_hunger") : null;
+  out.migrants_refused_persons = migration
+    ? int(raw.migrants_refused_persons, "totals.migrants_refused_persons") : null;
   return out;
 }
 

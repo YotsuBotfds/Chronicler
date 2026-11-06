@@ -412,21 +412,14 @@ def _quarantine_route_graph(world: WorldState, batch):
     return merchant_route_graph(world, batch)
 
 
-def _quarantine_migration_closure(world: WorldState, sim):
-    """``--quarantine-channels trade,migration``: install this tick's closed
-    pairs natively (``quarantine_rules.install_migration_closure``); returns
-    the token for the receipt, None otherwise (nothing installed)."""
+def _quarantine_migration_tick(world: WorldState, sim, tick):
+    """``--quarantine-channels trade,migration``: run the native agent tick
+    inside this turn's migration closure, released even if the tick raises
+    (``quarantine_rules.migration_closure_tick``); otherwise only ``tick()``."""
     if getattr(getattr(world, "epidemics", None), "quarantine_rules", None) is None:
-        return None
-    from chronicler.quarantine_rules import install_migration_closure
-    return install_migration_closure(world, sim)
-
-
-def _quarantine_migration_receipt(world: WorldState, sim, token) -> None:
-    """Take the tick's refused migrations once (nothing without a token)."""
-    if token is not None:
-        from chronicler.quarantine_rules import take_migration_receipt
-        take_migration_receipt(world, sim, token)
+        return tick()
+    from chronicler.quarantine_rules import migration_closure_tick
+    return migration_closure_tick(world, sim, tick)
 
 
 _MARKET_CATEGORIES: tuple[str, ...] = ("food", "raw_material", "luxury", "craft")
@@ -1529,9 +1522,8 @@ class AgentBridge:
             capture_transaction_receipts, prepare_transaction_receipts,
         )
         prepare_transaction_receipts(world, self)
-        quarantine = _quarantine_migration_closure(world, self._sim)
-        agent_events, mobility = self._tick_with_household_mobility(world, signals, requirement)
-        _quarantine_migration_receipt(world, self._sim, quarantine)
+        agent_events, mobility = _quarantine_migration_tick(
+            world, self._sim, lambda: self._tick_with_household_mobility(world, signals, requirement))
         capture_transaction_receipts(world, self)
         result = self._process_tick_results(agent_events, world, death_output=death_output)
         self._capture_decision_delivery(delivery, agent_events)
@@ -1569,9 +1561,8 @@ class AgentBridge:
             capture_transaction_receipts, prepare_transaction_receipts,
         )
         prepare_transaction_receipts(world, self)
-        quarantine = _quarantine_migration_closure(world, self._sim)
-        agent_events, mobility = self._tick_with_household_mobility(world, signals, requirement)
-        _quarantine_migration_receipt(world, self._sim, quarantine)
+        agent_events, mobility = _quarantine_migration_tick(
+            world, self._sim, lambda: self._tick_with_household_mobility(world, signals, requirement))
         capture_transaction_receipts(world, self)
         result = self._process_tick_results(agent_events, world, death_output=death_output)
         self._capture_decision_delivery(delivery, agent_events)

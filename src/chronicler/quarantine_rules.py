@@ -50,18 +50,23 @@ Boundaries (intentional, C1)
     runs in sorted order.
 
 Migration channel (C1b, ``--quarantine-channels trade,migration``)
-    Opt-in under ``closure`` in an agent mode (native migration): before
-    each agent tick the closed pairs and the controllers of every region are
-    installed natively (``AgentSimulator.set_migration_closure``); a decided
-    migration between the two polities of a closed pair, either way, is
-    refused at the border and the mover stays home with its household. The
-    tick's receipt (refused persons by origin, destination and driver) is
+    Opt-in under ``closure`` in an agent mode where the native pool owns the
+    population (hybrid, demographics-only; shadow is refused: its Python
+    population still migrates through climate overflow and famine refugees):
+    before each agent tick the closed pairs and the controllers of every
+    region are installed natively (``AgentSimulator.set_migration_closure``);
+    a decided migration between the two polities of a closed pair, either
+    way, is refused at the border and the mover stays home with its household
+    (lead decision: refused, not diverted). The tick's receipt (refusals by
+    origin, destination and driver, and the refused agents' stable ids) is
     taken right after the tick and attributed to the closure of the polity
     whose border the mover would have entered (else the one it would have
-    left). Moves already applied are never reversed (a native migration is
-    decided and applied in one tick, so none is in flight); refugees are not
-    exempt and their refusals are counted apart (``FLIGHT_DRIVERS``). The
-    default ``trade`` keeps C1 byte for byte.
+    left); the install is released if the tick raises. Moves already applied
+    are never reversed (a native migration is decided and applied in one
+    tick, so none is in flight); refugees are not exempt and their refusals
+    are counted apart (``FLIGHT_DRIVERS``, and hunger-driven moves in
+    ``HUNGER_DRIVERS``). The default ``trade`` keeps C1 byte for byte. Every
+    new field is read with ``getattr`` (C1-era pickles lack them).
 
 The state lives inside ``EpidemicState.quarantine_rules`` (omitted while
 None) and is always read with ``getattr`` so checkpoints pickled before this
@@ -93,12 +98,19 @@ ROUTE_INCOME = 2
 CHANNELS: tuple[str, ...] = ("trade",)
 #: Choices of ``--quarantine-channels`` (C1b); the first is the default (option omitted).
 QUARANTINE_CHANNELS: tuple[str, ...] = ("trade", "trade,migration")
-#: Agent modes whose native tick decides migrations (the migration channel's scope).
-MIGRATION_AGENT_MODES: tuple[str, ...] = ("hybrid", "shadow", "demographics-only")
+#: Agent modes in which the native pool owns the population, so its migrations
+#: are the only ones (the migration channel's scope). Shadow is not one: Python
+#: still moves its population (``climate.process_migration`` overflow and
+#: ``ecology`` famine refugees), which a native closure cannot refuse.
+MIGRATION_AGENT_MODES: tuple[str, ...] = ("hybrid", "demographics-only")
 #: Migration drivers (``get_migration_driver_stats`` term names) whose refused
-#: moves count as flight from war, famine or persecution (a harm reported apart).
+#: moves count as flight from war, famine or persecution (a harm reported
+#: apart). It excludes the hunger-driven moves of ``HUNGER_DRIVERS``.
 FLIGHT_DRIVERS: tuple[str, ...] = ("persecution", "famine_memory", "battle_memory", "conquest_memory",
                                    "persecution_memory", "safety_need")
+#: Drivers of hunger-driven moves (food opportunity, material need), a second
+#: harm line beside flight.
+HUNGER_DRIVERS: tuple[str, ...] = ("opp_food", "material_need")
 #: Native methods the migration channel needs (a fresh build).
 _MIGRATION_NATIVE: tuple[str, ...] = ("set_migration_closure", "cancel_migration_closure",
                                       "take_migration_closure_receipt")
@@ -127,7 +139,8 @@ _CHANNELS_HELP = (
     "as omitting it): trade routes and agent merchant edges; trade,migration: also refuses native "
     "migrations between the two polities of each closed pair, either way, while the closure lasts "
     "(refugees included, counted apart; moves already made stay); trade,migration requires "
-    "--quarantine-mode closure and an agent mode (hybrid, shadow or demographics-only); saved on "
+    "--quarantine-mode closure and an agent mode in which the native pool owns the population "
+    "(hybrid or demographics-only; not shadow, whose Python population still migrates); saved on "
     "the world (docs/integration/quarantine-rules.md)"
 )
 
@@ -193,6 +206,9 @@ class QuarantineReceipt(BaseModel):
     #: origin region, destination region, driver, persons), sorted; None
     #: while no native migration receipt was read this turn.
     migrants_blocked: list[tuple[int, int, int, str, int]] | None = Field(default=None, exclude_if=_is_none)
+    #: Agent tick (C1b): agents refused this tick for the first time in the
+    #: run (by stable id); None with ``migrants_blocked``.
+    migrants_refused_first: int | None = Field(default=None, exclude_if=_is_none)
 
 
 class QuarantineTotals(BaseModel):
@@ -208,10 +224,14 @@ class QuarantineTotals(BaseModel):
     merchant_edges_removed: int = 0
     leaked_deliveries: int = 0
     leaked_quantity: float = 0.0
-    #: C1b migration channel only (None otherwise, omitted): persons refused,
-    #: of whom fleeing war, famine or persecution (``FLIGHT_DRIVERS``).
+    #: C1b migration channel only (None otherwise, omitted): refusals summed
+    #: over ticks (person-ticks: an agent refused on k ticks counts k times),
+    #: of them fleeing war, famine or persecution (``FLIGHT_DRIVERS``) and
+    #: hunger-driven (``HUNGER_DRIVERS``), and the distinct agents refused.
     migrants_blocked: int | None = Field(default=None, exclude_if=_is_none)
     migrants_blocked_flight: int | None = Field(default=None, exclude_if=_is_none)
+    migrants_blocked_hunger: int | None = Field(default=None, exclude_if=_is_none)
+    migrants_refused_persons: int | None = Field(default=None, exclude_if=_is_none)
 
 
 class QuarantineRulesState(BaseModel):
@@ -221,6 +241,10 @@ class QuarantineRulesState(BaseModel):
     #: C1b: closures also refuse migration (``--quarantine-channels
     #: trade,migration``; ``closure`` only). Omitted while False.
     migration: bool = Field(default=False, exclude_if=_is_false)
+    #: C1b: stable ids of every agent refused so far, ascending (distinct
+    #: persons); None without the migration channel. A rebuilt native pool
+    #: (a JSON resume) starts a new id space, so the count is then a lower bound.
+    refused_ids: list[int] | None = Field(default=None, exclude_if=_is_none)
     next_closure_id: int = 1
     closures: list[QuarantineClosure] = Field(default_factory=list)
     receipt: QuarantineReceipt | None = Field(default=None, exclude_if=_is_none)
@@ -253,17 +277,27 @@ def effective_mode(world: Any) -> str | None:
     return "legacy" if rules is None else rules.mode
 
 
+def _migration(rules: Any) -> bool:
+    """``rules.migration``; False on a rules state pickled before C1b."""
+    return getattr(rules, "migration", False) is True
+
+
+def _refusals(receipt: Any) -> list | None:
+    """``receipt.migrants_blocked``; None on a receipt pickled before C1b."""
+    return getattr(receipt, "migrants_blocked", None)
+
+
 def channels_of(rules: QuarantineRulesState | None) -> list[str]:
     """Journeys the rules restrict: none outside ``closure``."""
     if rules is None or rules.mode != "closure":
         return []
-    return list(CHANNELS) + (["migration"] if rules.migration else [])
+    return list(CHANNELS) + (["migration"] if _migration(rules) else [])
 
 
 def migration_closure_on(world: Any) -> bool:
     """Whether this world's closures also refuse migration (C1b)."""
     rules = rules_of(world)
-    return rules is not None and rules.mode == "closure" and rules.migration
+    return rules is not None and rules.mode == "closure" and _migration(rules)
 
 
 def closed_pairs(world: Any) -> set[tuple[str, str]]:
@@ -447,10 +481,14 @@ def take_migration_receipt(world: Any, sim: Any, token: tuple | None) -> None:
     if token is None:
         return
     turn, region_civ, by_pair = token
-    rows = sim.take_migration_closure_receipt(turn)
-    if rows is None:
+    got = sim.take_migration_closure_receipt(turn)
+    if got is None:
         sim.cancel_migration_closure()
         raise RuntimeError("native migration closure receipt missing for this turn")
+    rows, ids = got
+    ids = [int(i) for i in ids]
+    if len(set(ids)) != len(ids):
+        raise RuntimeError("native migration closure receipt repeats an agent id")
     rules = rules_of(world)
     receipt = _current_receipt(world, rules) if rules is not None else None
     if receipt is None or receipt.turn != turn:
@@ -466,14 +504,39 @@ def take_migration_receipt(world: Any, sim: Any, token: tuple | None) -> None:
         if closure_id is None:
             raise RuntimeError(f"native migration closure refused an open crossing {frm}->{to}")
         out.append((closure_id, frm, to, str(driver), persons))
+    if sum(r[4] for r in out) != len(ids):
+        raise RuntimeError("native migration closure rows and refused ids disagree")
+    known = set(getattr(rules, "refused_ids", None) or [])
     receipt.migrants_blocked = sorted(out)
+    receipt.migrants_refused_first = sum(1 for i in ids if i not in known)
+    rules.refused_ids = sorted(known.union(ids))
 
 
-def blocked_counts(rows) -> tuple[int, int]:
-    """(persons refused, of whom fleeing war, famine or persecution) of receipt rows."""
+def migration_closure_tick(world: Any, sim: Any, tick):
+    """Run ``tick()`` (the native agent tick) inside this turn's migration closure.
+
+    Installs the closure first and takes its receipt after a successful tick
+    (C1b); whatever happens, nothing stays pending natively afterwards (a
+    tick that raises leaves no closure or receipt behind). Without the
+    migration channel it only calls ``tick()``."""
+    token = install_migration_closure(world, sim)
+    if token is None:
+        return tick()
+    try:
+        result = tick()
+        take_migration_receipt(world, sim, token)
+    finally:
+        sim.cancel_migration_closure()
+    return result
+
+
+def blocked_counts(rows) -> tuple[int, int, int]:
+    """(persons refused, of them fleeing war, famine or persecution, of them
+    hunger-driven) of receipt rows."""
     persons = sum(r[4] for r in rows)
     flight = sum(r[4] for r in rows if r[3] in FLIGHT_DRIVERS)
-    return persons, flight
+    hunger = sum(r[4] for r in rows if r[3] in HUNGER_DRIVERS)
+    return persons, flight, hunger
 
 
 # ---------------------------------------------------------------------------
@@ -491,10 +554,14 @@ def _fold(totals: QuarantineTotals, receipt: QuarantineReceipt) -> None:
     totals.merchant_edges_removed += receipt.merchant_edges_removed or 0
     totals.leaked_deliveries += receipt.leaked_deliveries or 0
     totals.leaked_quantity = round(totals.leaked_quantity + (receipt.leaked_quantity or 0.0), 6)
-    if receipt.migrants_blocked is not None:
-        persons, flight = blocked_counts(receipt.migrants_blocked)
-        totals.migrants_blocked = (totals.migrants_blocked or 0) + persons
-        totals.migrants_blocked_flight = (totals.migrants_blocked_flight or 0) + flight
+    rows = _refusals(receipt)
+    if rows is not None:
+        persons, flight, hunger = blocked_counts(rows)
+        totals.migrants_blocked = (getattr(totals, "migrants_blocked", None) or 0) + persons
+        totals.migrants_blocked_flight = (getattr(totals, "migrants_blocked_flight", None) or 0) + flight
+        totals.migrants_blocked_hunger = (getattr(totals, "migrants_blocked_hunger", None) or 0) + hunger
+        totals.migrants_refused_persons = ((getattr(totals, "migrants_refused_persons", None) or 0)
+                                           + (getattr(receipt, "migrants_refused_first", None) or 0))
 
 
 def decide(world: Any, state: Any, rules: QuarantineRulesState, reports: dict, acc) -> list:
@@ -552,7 +619,7 @@ def decide(world: Any, state: Any, rules: QuarantineRulesState, reports: dict, a
             listed = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
             label = PATHOGENS[first[1]].label
             where = regions[first[0]].name
-            if rules.mode == "closure" and rules.migration:
+            if rules.mode == "closure" and _migration(rules):
                 text = (f"{civ.name} closes its borders to trade and migration with {listed} against "
                         f"{label} raging in {where}.")
             elif rules.mode == "closure":
@@ -571,7 +638,7 @@ def decide(world: Any, state: Any, rules: QuarantineRulesState, reports: dict, a
         if closure is None:
             closure = QuarantineClosure(id=rules.next_closure_id, civ=pair[0], target=pair[1],
                                         opened_turn=turn, last_renewed_turn=turn, cause=decided[pair])
-            if rules.migration:
+            if _migration(rules):
                 closure.channels = channels_of(rules)
             rules.next_closure_id += 1
             receipt.opened.append(closure.id)
@@ -648,17 +715,20 @@ def snapshot_summary(world: Any) -> dict | None:
             "leaked_deliveries": receipt.leaked_deliveries,
             "leaked_quantity": receipt.leaked_quantity,
         }
-        if rules.migration:
+        if _migration(rules):
             # C1b: refused moves (None: no native migration receipt read yet this turn).
-            rows = receipt.migrants_blocked
+            rows = _refusals(receipt)
             regions = world.regions
 
             def region(i: int) -> str:
                 return regions[i].name if 0 <= i < len(regions) else f"region {i}"
 
-            persons, flight = blocked_counts(rows) if rows is not None else (None, None)
+            persons, flight, hunger = blocked_counts(rows) if rows is not None else (None, None, None)
             out["receipt"]["migrants_blocked"] = persons
             out["receipt"]["migrants_blocked_flight"] = flight
+            out["receipt"]["migrants_blocked_hunger"] = hunger
+            out["receipt"]["migrants_refused_first"] = (
+                None if rows is None else getattr(receipt, "migrants_refused_first", None) or 0)
             out["receipt"]["migration_refusals"] = None if rows is None else [
                 {"closure": c, "from": region(a), "to": region(b), "driver": d, "persons": p}
                 for c, a, b, d, p in rows]
@@ -786,7 +856,7 @@ def _configure_channels(world: Any, channels: str | None, agent_mode: str | None
     channels for the rest of its run, and saved migration closure refuses a
     continuation in ``--agents off``."""
     rules = rules_of(world)
-    saved = rules is not None and rules.mode == "closure" and rules.migration
+    saved = rules is not None and rules.mode == "closure" and _migration(rules)
     want = saved if channels is None else channels == QUARANTINE_CHANNELS[1]
     if want and (rules is None or rules.mode != "closure"):
         raise ValueError("--quarantine-channels trade,migration requires --quarantine-mode closure")
@@ -794,16 +864,20 @@ def _configure_channels(world: Any, channels: str | None, agent_mode: str | None
         what = ("this world's saved quarantine rules close migration (--quarantine-channels "
                 "trade,migration), which needs" if channels is None
                 else "--quarantine-channels trade,migration requires")
-        raise ValueError(f"{what} an agent mode with native migration (--agents hybrid, shadow or "
-                         f"demographics-only), not --agents {agent_mode}")
+        raise ValueError(f"{what} an agent mode in which the native pool owns the population (--agents "
+                         f"hybrid or demographics-only), not --agents {agent_mode}"
+                         + (": shadow's Python population still migrates (climate overflow, famine "
+                            "refugees), which the native closure cannot refuse" if agent_mode == "shadow" else ""))
     if want == saved:
         return
     if world.epidemics.last_tick_turn >= 0:
         raise ValueError(f"--quarantine-channels {channels} conflicts with the saved world (saved: "
                          f"{_channels_name(saved)}); a world keeps its quarantine rules for its whole run")
     rules.migration = want
-    rules.totals.migrants_blocked = 0 if want else None
-    rules.totals.migrants_blocked_flight = 0 if want else None
+    rules.refused_ids = [] if want else None
+    for name in ("migrants_blocked", "migrants_blocked_flight", "migrants_blocked_hunger",
+                 "migrants_refused_persons"):
+        setattr(rules.totals, name, 0 if want else None)
 
 
 def quarantine_resume_conflicts(world: Any, args: Any, recorded: dict) -> list[str]:

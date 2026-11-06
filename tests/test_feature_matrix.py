@@ -259,11 +259,13 @@ def test_matrix_of_the_catalog(M):
     assert M.top_level_choices() == ["quarantine_mode", "quarantine_channels"]
     assert all(e["selection"]["quarantine_mode"] == "closure" for by in m["all_enabled"].values()
                for e in by.values())
-    # C1b: the migration channel joins every agent mode's selection (native
-    # migration); --agents off has no migrants, so the catalog drops it there.
+    # C1b: the migration channel joins the selection of the modes in which the native
+    # pool owns the population; the catalog drops it under off and shadow (Python
+    # still moves the population there).
     for mode, by in m["all_enabled"].items():
         for e in by.values():
-            assert e["selection"].get("quarantine_channels") == (None if mode == "off" else "trade,migration")
+            assert e["selection"].get("quarantine_channels") == (
+                "trade,migration" if mode in ("hybrid", "demographics-only") else None)
 
 
 def test_a_world_dependent_switch_is_reported_as_such(M):

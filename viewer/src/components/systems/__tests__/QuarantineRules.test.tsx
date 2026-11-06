@@ -71,11 +71,13 @@ describe("QuarantineRules", () => {
     expect(within(s).getByText("Closure (trade and migration closed)")).toBeInTheDocument();
     const tile = within(s).getByText("Migrants refused").parentElement!;
     expect(within(tile).getByText("9")).toBeInTheDocument();
-    expect(within(tile).getByText(/of whom 1 fleeing war, famine or persecution/)).toBeInTheDocument();
+    expect(within(tile).getByText(/1 fleeing war, famine or persecution, 0 hunger-driven; 9 refused for the first time/))
+      .toBeInTheDocument();
     const table = within(s).getByRole("table", { name: "Migrants refused at turn 8" });
     expect(within(table).getAllByRole("row")).toHaveLength(3);
     expect(within(table).getByText("famine memory")).toBeInTheDocument();
-    expect(within(s).getByText(/Migrants refused: 11 \(3 fleeing war, famine or persecution\)/)).toBeInTheDocument();
+    expect(within(s).getByText(/Migrants refused: 11 refusals \(person-ticks\) of 11 distinct persons; of the refusals 3 fleeing war, famine or persecution and 0 hunger-driven/))
+      .toBeInTheDocument();
     expect(within(s).queryByText(/Never restricted: .*migrants/)).toBeNull();
   });
 
@@ -86,7 +88,8 @@ describe("QuarantineRules", () => {
     unmount();
     const receipt = migrationRecord().receipt as Record<string, unknown>;
     const second = render(<QuarantineRules epidemics={{ quarantine_rules: migrationRecord({ receipt: {
-      ...receipt, migrants_blocked: null, migrants_blocked_flight: null, migration_refusals: null } }) }} at={8} />);
+      ...receipt, migrants_blocked: null, migrants_blocked_flight: null, migrants_blocked_hunger: null,
+      migrants_refused_first: null, migration_refusals: null } }) }} at={8} />);
     let tile = within(section()).getByText("Migrants refused").parentElement!;
     expect(within(tile).getByText("not observed")).toBeInTheDocument();
     expect(within(tile).getByText("no native migration receipt this turn")).toBeInTheDocument();
