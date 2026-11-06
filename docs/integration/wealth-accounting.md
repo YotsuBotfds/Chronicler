@@ -94,6 +94,7 @@ a death without heirs). Slice 2 (a native observer) will itemize it.
 | `remittance` | sender -> recipient, fee to the courier sink (RS4) | RS4 `totals`, `regions` | host (out), origin (in) | debited = credited + fee; sent = debited + refunded |
 | `relocation_fare` | movers -> travel sink (L7) | the `fare_debited_milli` counter delta; the kept household sample for regions | from region (sample), rest unlocated | due - assistance = debited + residual + not charged; travel sink = fares + assistance coins x 1000 |
 | `domestic_credit` | treasury <-> merchants, net applied | `domestic_credit.merchant_applied` delta, rounded to whole milli-units (the sub-milli rest of the f32 change stays in `native_model`) | unlocated | (its own books: `CHRONICLER_CHECK_RESOURCES=1`) |
+| `wares_purchase` (A3, [workshop economics](workshop-economics.md)) | households -> workshop firm cash | the payment seam's register (`money.flows_for_turn`) | firm region | households debited = firm credited (A3 receipts); capital and input flows = the receipts; inputs to treasuries = units x 1000 + carry change |
 
 Every typed amount is a whole milli-unit. `typed_complete` means **every known
 channel** of an active package had this turn's record. A payer this module
@@ -105,8 +106,11 @@ registers every **payer path** - module, enclosing function, native writer
 `prepare_teaching_work`, `prepare_health_work`) or routing helper, and the
 purpose and batch arguments as written - with its number of call sites and the
 channel the ledger reads it as. `WEALTH_ROUTERS` declares helpers that route a
-payment for a caller-chosen purpose (`workshop_payroll.pay_from_firm`; A3's
-`money.py` goes here) with the channels they may carry; each call of a router
+payment for a caller-chosen purpose (`workshop_payroll.pay_from_firm`, and
+A3's `money._native_transfer`, through which `money.pay` routes every
+agent-wealth line; `MONEY_PURPOSE_CHANNELS` lists the purposes the seam may
+move agent wealth for, and `money` refuses any other at run time) with the
+channels they may carry; each call of a router
 is a path of its own, and a writer call that takes its purpose or batch from a
 parameter of an undeclared function fails. `WEALTH_WRITER_REFERENCES` lists the
 only other references to a writer's name (the name strings packages use to
@@ -139,6 +143,13 @@ Created or destroyed, recorded beside the typed flows (`frame.treasury`):
   residuals, the remittance fee, fares and assistance to the travel sink,
   procurement credits refused by a ceiling. `by_civ` repeats them per
   civilization where the package records one.
+- `firm_economics` (only while A3 is active, so records without it are
+  unchanged): owner capital paid into firm cash, input purchases to rulers
+  (whole units and the carried sub-unit change) or to the `unowned_commons`
+  sink, household sales, the firms' cash at open and close and the owner's
+  building subsidy (firm sites from the A3 receipts, firm-less sites from the
+  counter delta). With A3 on, the L6a firm-cash closure adds capital,
+  household sales and inputs.
 
 Withheld income (`frame.withheld`) moves no money: it is the ordinary income
 the wealth phase did not create because the person did paid work. Each

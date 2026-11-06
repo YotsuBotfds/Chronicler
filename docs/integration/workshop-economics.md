@@ -350,8 +350,149 @@ other way out.
 
 ## Verification
 
-Filled in from the runs of this slice (see the evidence section below).
+All on 2026-11-06, source `ed9c0972` unless noted, native extension built from
+this branch (`maturin develop --release --locked`, native venv
+`~/.venvs/native-a3`): SHA-256
+`2831bbd4953311b87cfa208c751f7745f9bf7740335ae8f39029b1b0c33c7630`;
+`check_python_env.py --expect native` PASS. The Rust differs from `8abc1acb`
+only by the appended purpose (a later commit changed one assertion inside the
+Rust test module, which the built extension does not contain).
+
+- **Focused offline tests**: `tests/test_money.py` (19), `tests/test_workshop_economics.py`
+  (20), with `tests/test_wealth_accounting.py`, `test_workshop_payroll.py`,
+  `test_feature_catalog.py`, `test_batch_manifest.py`,
+  `test_livelihoods_sprint_witness.py` and `test_native_ci_shards.py`: 358 passed.
+- **Witness**: provisional layer `cwa3` (parent `fee5de7f`, 3 hunks, only the
+  added keys); the witness modules of the playbook: 509 passed.
+- **Bounded offline lane** (`run_python_oracle_checks.py`, 110-second limit
+  kept): PASS, 64 chunks in 257.6 s; slowest chunk `systems-2` 32.9 s;
+  `connected-world-a` 3.9 s (67 tests).
+- **Native tests** (real extension): `test_workshop_economics_native.py` (3:
+  every transfer checked against the live pool before and after and a repeated
+  key refused, input charges against native `craft_input` x the tick price,
+  no craft output at firm-less sites, every ledger closure, exact resume at
+  turn 116 before two idle closures and a city fall, exact resume at turn 76
+  inside wage arrears before an insolvent closure) with the wealth-accounting,
+  payroll, recovery-skills, retail, apprenticeship, relocation, remittance and
+  closure native modules: 76 passed.
+- **`cargo test --locked`**: 743 library tests and every integration target
+  passed.
+- **Feature-off identity** (`turn_speed_identity.py`, each side its own
+  exported tree and extension; the preceding integrated `main` is the
+  reference `8abc1acb`): 9 cases, 399 files compared, 0 differences (head 73 s).
+  With the prerequisites on (`--grain-reserves --public-grain-shipments
+  --grain-storage --workshops --workshop-payroll`) on `hybrid_s42` and
+  `proc48_hybrid_s42`: the switch absent and the explicit
+  `--no-workshop-economics` each 2 cases, 205 files, 0 differences against the
+  reference. The appended native purpose changes no output.
+- **Enabled exact resume**: `checkpoint_identity.py` (run from the branch with `PYTHONPATH`
+on its `src`, extension `2831bbd4…`) with the checkpoint-3 chain
+(`--grain-reserves --public-grain-shipments --scholarship --techniques
+--academy-services --grain-storage --food-allocation --workshops
+--operating-wear --repair-projects --timber-stock --household-retail
+--household-retail-boundary=paid_work --timber-supply --recovery-crews
+--remittances`) plus `--workshop-payroll --workshop-economics
+--wealth-accounting`: `hybrid_s42_long` PASS at all 19 resume points (two firms
+open at turn 52, one closes idle at 59, the other runs to 199: 8 resume points
+inside a live firm; the ledger's continuity exact on 199 turns, no closure
+failed) and `proc32_hybrid_s11` PASS at 10 chosen points (21: the opening turn;
+22-30: firms buying inputs and selling to households; 33 and 35: live idle
+runs; 36: the turn three firms close idle; 38: after); writing checkpoints
+changed nothing in either case.
+- **Viewer**: the new reader, component and L6a-reader tests 13 passed; the
+  full suite 1,462 passed with 5 timeouts at 5 s under a load average of 7-9 on
+  4 shared cores, all 5 (4 files, 112 tests) passing on a serial rerun; lint
+  clean; production build succeeded.
+- **Not run**: a held screen (CW2 is planned after A3-2, audit section 7), a
+  browser journey, the 200-seed and procedural qualification gates
+  (restricted), profiling at the declared scale, PR CI.
 
 ## Evidence (development worlds only; not a screen)
 
-See below.
+Development-only, 2026-11-06: source `ed9c0972` (exported tree), native
+extension `2831bbd4…` (this branch's build); no preregistration, no held seed,
+no 7xx/8xx seed. One run per world and mode, 200 turns, flags `--agents hybrid
+--grain-reserves --public-grain-shipments --scholarship --techniques
+--academy-services --workshops --workshop-payroll --workshop-economics
+--wealth-accounting` plus the mode; procedural worlds add `--worldgen
+procedural --regions 32 --civs 10`. This describes activation, not an effect.
+Money in treasury units; "survival" is turns from opening to closure (or to
+turn 199 for a firm still open); "household sales" is the paid non-academy
+demand. Template 7 x 3 runs took 7-9 s each, procedural 6 x 3 took 17-19 s
+each (4 shared cores under load).
+
+| Mode | Worlds active / run | Firms opened | Closed idle / insolvent / city fell / open at 199 | Median survival of closed firms (template; procedural) | Operating firm-turns | Inputs paid | Inputs not charged (control) | Academy sales | Household sales | Owner capital paid |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `market` | 13 / 13 | 141 (28 template, 113 procedural) | 99 / 0 / 22 / 20 | 70; 19 | 3,059 | 2,153.1 | 0 | 755 | 573.7 | 2,820 |
+| `free_inputs` | 13 / 13 | 91 (27; 64) | 5 / 43 / 14 / 29 | 27.5; 39 | 4,440 | 0 | 28,050.4 | 861 | 641.6 | 1,820 |
+| `academy_only` | 13 / 13 | 180 (27; 153) | 165 / 0 / 4 / 11 | 14; 14 | 1,543 | 2,629.8 | 0 | 729 | 0 | 3,600 |
+
+Every one of the 39 runs: every A1 ledger closure held on every observed turn
+(0 failures), and no household was priced out (`priced_out_households` 0: at the
+craft prices the economy computed, a resident's 0.01 load costs a few
+milli-units). Same-tick free use of firm output (`free_use_upper_bound`) was
+43.6 / 71.2 loads (market, template / procedural); the paid-share rule left
+96.9 / 137.7 loads of conversion in the commons (price discovery and tick
+prices above the plan).
+
+Reading (development-only):
+
+- **Most firms close.** Under `market` 99 of 141 firms closed idle (their input
+  budget ran out); none closed insolvent, because a firm reserves this turn's
+  wages before it buys inputs, so its crew shrinks with its cash instead of
+  running arrears. The 22 city-fell closures are conquest and city loss.
+- **The input charge is what kills them** (the price-margin risk): with inputs
+  free the same worlds' firms convert far more and would have owed 28,050 units
+  at the tick's raw prices (13x what `market` firms actually paid, because
+  `market` firms' production is bounded by what they can pay); firms there run
+  wages into arrears and close insolvent (43) or survive to turn 199 (29).
+- **Household demand matters to survival.** Without household customers
+  (`academy_only`) firms close idle after a median 14 turns in both world kinds,
+  and their sites are replaced by new ones (180 openings, each with fresh
+  capital at a new city; a closed city is never readmitted).
+- Household sales were real paid demand in every world (573.7 units under
+  `market`), 43% of firms' sales (100% in worlds without academy purchases).
+
+Per world (`t` template, `p` procedural):
+
+| World | Mode | Firms opened | Survival median (turns) | Survival range | Ending (closed reason / open at 199) | Operating firm-turns | Inputs paid (units) | Academy sales | Household sales (paid non-academy demand) | Household share | Ledger closures failed |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| t1 | market | 3 | 70 | 22-87 | city_fell 1, idle 2 | 122 | 51.1 | 0.0 | 28.45 | 1.00 | 0 |
+| t1 | free_inputs | 3 | 103 | 57-152 | city_fell 1, open@199 2 | 251 | 0.0 | 28.0 | 50.61 | 0.64 | 0 |
+| t1 | academy_only | 3 | 15 | 14-28 | idle 3 | 32 | 41.2 | 6.0 | 0.00 | 0.00 | 0 |
+| t3 | market | 4 | 98.0 | 55-115 | city_fell 2, idle 2 | 234 | 55.5 | 0.0 | 63.17 | 1.00 | 0 |
+| t3 | free_inputs | 3 | 49 | 20-163 | insolvent 2, open@199 1 | 188 | 0.0 | 0.0 | 31.19 | 1.00 | 0 |
+| t3 | academy_only | 3 | 16 | 12-18 | idle 3 | 27 | 23.5 | 0.0 | 0.00 | - | 0 |
+| t7 | market | 4 | 50.5 | 27-117 | city_fell 1, idle 3 | 152 | 68.0 | 0.0 | 35.28 | 1.00 | 0 |
+| t7 | free_inputs | 4 | 64.5 | 12-172 | insolvent 4 | 280 | 0.0 | 4.0 | 37.73 | 0.90 | 0 |
+| t7 | academy_only | 5 | 11 | 10-13 | idle 4, open@199 1 | 23 | 57.4 | 5.0 | 0.00 | 0.00 | 0 |
+| t9 | market | 5 | 36 | 13-126 | idle 3, open@199 2 | 196 | 143.8 | 334.0 | 13.41 | 0.04 | 0 |
+| t9 | free_inputs | 5 | 93 | 26-134 | city_fell 2, insolvent 3 | 338 | 0.0 | 291.0 | 27.42 | 0.09 | 0 |
+| t9 | academy_only | 5 | 30 | 16-70 | city_fell 1, idle 4 | 100 | 116.7 | 112.0 | 0.00 | 0.00 | 0 |
+| t11 | market | 5 | 89 | 39-144 | city_fell 1, idle 4 | 290 | 65.7 | 224.0 | 57.35 | 0.20 | 0 |
+| t11 | free_inputs | 5 | 27 | 13-99 | city_fell 1, insolvent 3, open@199 1 | 149 | 0.0 | 174.0 | 10.14 | 0.06 | 0 |
+| t11 | academy_only | 4 | 13.5 | 8-21 | idle 4 | 26 | 27.2 | 0.0 | 0.00 | - | 0 |
+| t23 | market | 4 | 68.5 | 40-113 | city_fell 2, idle 2 | 207 | 41.1 | 0.0 | 53.74 | 1.00 | 0 |
+| t23 | free_inputs | 3 | 24 | 21-25 | insolvent 3 | 69 | 0.0 | 0.0 | 4.83 | 1.00 | 0 |
+| t23 | academy_only | 4 | 13.5 | 11-32 | idle 4 | 40 | 26.0 | 0.0 | 0.00 | - | 0 |
+| t42 | market | 3 | 53 | 16-98 | idle 2, open@199 1 | 139 | 81.4 | 57.0 | 20.86 | 0.27 | 0 |
+| t42 | free_inputs | 4 | 68.5 | 3-162 | idle 1, open@199 3 | 220 | 0.0 | 0.0 | 45.20 | 1.00 | 0 |
+| t42 | academy_only | 3 | 8 | 7-13 | idle 3 | 8 | 47.8 | 0.0 | 0.00 | - | 0 |
+| p7 | market | 20 | 20.5 | 10-96 | city_fell 4, idle 13, open@199 3 | 303 | 234.9 | 112.0 | 30.27 | 0.21 | 0 |
+| p7 | free_inputs | 10 | 60.5 | 18-140 | city_fell 3, idle 1, insolvent 3, open@199 3 | 452 | 0.0 | 60.0 | 75.80 | 0.56 | 0 |
+| p7 | academy_only | 29 | 14 | 3-85 | idle 26, open@199 3 | 264 | 433.4 | 173.0 | 0.00 | 0.00 | 0 |
+| p11 | market | 17 | 11 | 6-62 | city_fell 1, idle 13, open@199 3 | 165 | 299.3 | 12.0 | 30.35 | 0.72 | 0 |
+| p11 | free_inputs | 9 | 58 | 8-126 | city_fell 1, idle 1, insolvent 3, open@199 4 | 441 | 0.0 | 11.0 | 31.87 | 0.74 | 0 |
+| p11 | academy_only | 10 | 16.5 | 7-55 | city_fell 1, idle 9 | 105 | 112.8 | 23.0 | 0.00 | 0.00 | 0 |
+| p13 | market | 15 | 21 | 0-177 | idle 12, open@199 3 | 321 | 221.8 | 1.0 | 81.14 | 0.99 | 0 |
+| p13 | free_inputs | 13 | 22 | 8-153 | city_fell 2, idle 1, insolvent 7, open@199 3 | 498 | 0.0 | 10.0 | 78.12 | 0.89 | 0 |
+| p13 | academy_only | 26 | 14.5 | 2-101 | city_fell 1, idle 23, open@199 2 | 267 | 420.5 | 179.0 | 0.00 | 0.00 | 0 |
+| p17 | market | 20 | 16.0 | 7-160 | city_fell 3, idle 14, open@199 3 | 333 | 315.3 | 8.0 | 61.29 | 0.88 | 0 |
+| p17 | free_inputs | 11 | 33 | 7-136 | city_fell 3, insolvent 4, open@199 4 | 454 | 0.0 | 189.0 | 60.36 | 0.24 | 0 |
+| p17 | academy_only | 32 | 12.0 | 5-45 | idle 31, open@199 1 | 248 | 547.6 | 134.0 | 0.00 | 0.00 | 0 |
+| p21 | market | 14 | 39.5 | 10-127 | city_fell 4, idle 8, open@199 2 | 351 | 142.1 | 7.0 | 58.46 | 0.89 | 0 |
+| p21 | free_inputs | 8 | 86.0 | 25-178 | idle 1, insolvent 3, open@199 4 | 521 | 0.0 | 93.0 | 90.46 | 0.49 | 0 |
+| p21 | academy_only | 19 | 19 | 8-53 | idle 19 | 206 | 261.0 | 97.0 | 0.00 | 0.00 | 0 |
+| p31 | market | 27 | 18 | 2-69 | city_fell 3, idle 21, open@199 3 | 246 | 433.1 | 0.0 | 39.94 | 1.00 | 0 |
+| p31 | free_inputs | 13 | 46 | 25-93 | city_fell 1, insolvent 8, open@199 4 | 579 | 0.0 | 1.0 | 97.88 | 0.99 | 0 |
+| p31 | academy_only | 37 | 10 | 0-41 | city_fell 1, idle 32, open@199 4 | 197 | 514.6 | 0.0 | 0.00 | - | 0 |
