@@ -1010,12 +1010,51 @@
       ],
       "group": "Livelihoods",
       "experimental": true
+    },
+    {
+      "key": "watershed",
+      "flag": "--watershed",
+      "label": "Watershed",
+      "help": "Watershed account (B1): a conserved water account on the drainage graph rebuilt from the world's saved procedural elevation (precipitation, storage, evaporation, irrigation withdrawal, downstream transfer, outflow to the sea), with closure checked every turn, floods and droughts recorded with their conditions, and the water index the account would derive recorded beside the one the simulation uses; requires a procedural world (template worlds have no elevation); opens with a new world (default off)",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "setting": "procedural_world",
+          "reason": "requires a procedural world (template worlds have no elevation); a live start cannot guarantee one, a Batch Lab world is procedural above 12 regions"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "watershed_mode",
+      "flag": "--watershed-mode",
+      "label": "Watershed mode",
+      "help": "record_only (default, the only mode of this slice): the account runs beside the existing water index and changes nothing outside its own record",
+      "kind": "choice",
+      "choices": [
+        "record_only"
+      ],
+      "default": null,
+      "parent": "watershed",
+      "requires": [
+        {
+          "feature": "watershed",
+          "reason": "requires --watershed"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
     }
   ],
   "settings": {
     "cities": "cities (on by default for new worlds; off with --no-cities)",
     "techniques": "techniques (on by default for new worlds; off with --no-techniques)",
-    "no_household_mobility_liquid_requirement": "no household-mobility liquid requirement (--household-mobility-liquid-requirement unset or 0)"
+    "no_household_mobility_liquid_requirement": "no household-mobility liquid requirement (--household-mobility-liquid-requirement unset or 0)",
+    "procedural_world": "a procedural world (template worlds have no elevation); a live start cannot guarantee one, a Batch Lab world is procedural above 12 regions"
   },
   "surfaces": {
     "live": {
@@ -1027,7 +1066,8 @@
       "settings": {
         "cities": true,
         "techniques": true,
-        "no_household_mobility_liquid_requirement": true
+        "no_household_mobility_liquid_requirement": true,
+        "procedural_world": false
       },
       "new_worlds_only": true
     },
@@ -1043,7 +1083,8 @@
       "settings": {
         "cities": true,
         "techniques": true,
-        "no_household_mobility_liquid_requirement": true
+        "no_household_mobility_liquid_requirement": true,
+        "procedural_world": false
       },
       "new_worlds_only": true
     }

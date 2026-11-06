@@ -64,6 +64,9 @@ SETTINGS: dict[str, str] = {
     "techniques": "techniques (on by default for new worlds; off with --no-techniques)",
     "no_household_mobility_liquid_requirement": (
         "no household-mobility liquid requirement (--household-mobility-liquid-requirement unset or 0)"),
+    "procedural_world": (
+        "a procedural world (template worlds have no elevation); a live start cannot guarantee one, "
+        "a Batch Lab world is procedural above 12 regions"),
 }
 
 
@@ -117,6 +120,7 @@ REQUIREMENTS: dict[str, tuple[dict, ...]] = {
     "recovery_crews": (_HYBRID, _feature("repair_projects")),
     "maintenance_obligation": (_feature("local_budgets"), _feature("repair_projects")),
     "household_retail": (_HYBRID, _feature("food_allocation")),
+    "watershed": (_setting("procedural_world"),),
 }
 
 
@@ -243,6 +247,9 @@ def live_surface(args: Any = None) -> dict:
             "cities": _cities_default() if cities is None else bool(cities),
             "techniques": _techniques_default() if techniques is None else bool(techniques),
             "no_household_mobility_liquid_requirement": not mobility > 0,
+            # The client's start message chooses the world, so the server's
+            # surface cannot promise a procedural one.
+            "procedural_world": False,
         },
         "new_worlds_only": True,
     }
@@ -268,6 +275,9 @@ def batch_surface(client_defaults: Mapping[str, Any], config: Mapping[str, Any] 
             values[name] = value
     techniques = _batch_value("techniques", client_defaults, config)
     agents = client_defaults.get("agents", "off")
+    # Batch Lab runs pass no --worldgen: ``auto`` is procedural above 12 regions.
+    from chronicler.world_gen import resolve_worldgen
+    regions = _batch_value("regions", client_defaults, config) or 8
     return {
         "agents": config.get("agents", agents) if config is not None else agents,
         "agent_modes": list(AGENT_MODES),
@@ -276,6 +286,8 @@ def batch_surface(client_defaults: Mapping[str, Any], config: Mapping[str, Any] 
             "cities": _cities_default(),
             "techniques": _techniques_default() if techniques is None else bool(techniques),
             "no_household_mobility_liquid_requirement": True,
+            "procedural_world": isinstance(regions, int) and regions > 0
+            and resolve_worldgen(None, regions) == "procedural",
         },
         "new_worlds_only": True,
     }

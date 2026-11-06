@@ -115,7 +115,8 @@ def test_lobby_catalog_shape_and_surfaces():
     for surface in (live, batch):
         assert surface["new_worlds_only"] is True
         assert surface["settings"] == {"cities": True, "techniques": True,
-                                       "no_household_mobility_liquid_requirement": True}
+                                       "no_household_mobility_liquid_requirement": True,
+                                       "procedural_world": False}
     json.dumps(catalog)
     args = _parser().parse_args(["--agents", "hybrid", "--no-cities", "--grain-reserves", "--workshops",
                                  "--workshop-mode", "observe", "--household-mobility-liquid-requirement", "2"])
@@ -123,7 +124,8 @@ def test_lobby_catalog_shape_and_surfaces():
     assert live["agents"] == "hybrid"
     assert live["values"] == {"grain_reserves": True, "workshops": True, "workshop_mode": "observe"}
     assert live["settings"] == {"cities": False, "techniques": True,
-                                "no_household_mobility_liquid_requirement": False}
+                                "no_household_mobility_liquid_requirement": False,
+                                "procedural_world": False}
 
 
 def test_any_condition_reason_and_evaluation():
