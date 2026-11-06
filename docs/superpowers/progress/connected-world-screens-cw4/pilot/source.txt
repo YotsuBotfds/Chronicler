@@ -1,13 +1,13 @@
-source d8678f06d653d973e5dda4beb2e0fa4cfbf746fa
+source 8c8feb412be2e216e2f0ca8107b46e1aead7abf3
 dirty 0 tracked files
 dirty-code 0 tracked code files
 chronicler /home/user/wt/cw4/src/chronicler/__init__.py
 native /root/.venvs/chronicler-native/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so 101a4cd5b928b14f43539f925fa565036b94e38d91b9698071c80fa3656e0df3
 interpreter /root/.venvs/chronicler-native/bin/python
 runner 413301768935f70c8d1f79ef4309455775d3ef8d9133aa0a2f440e4143bf1164 scripts/screen_runner.py
-screens daeb91c108cf9896660984b506fb00e25f0da3d810373a7f5beb5e59f865fce9 scripts/connected_world_screens.py
+screens a84fc211c80b6f3d97f4a6983a49d2fcd6c330b088af1440dea042a67d496d0c scripts/connected_world_screens.py
 registry da7e7deb8695b5712565ceb12c619c1963beee1b9221c9ba175271643e5452a7 scripts/seed_registry.json
 registry-content dc16f3c3b366699029de253da0a04d90394530b002ba3203b0e29b17ef7a98f8 (cohorts and seeds)
 run: screen CW4; cohort pilot; seeds all; arms QL,Q0,QC,QR; jobs 2; worlds -; turns -; rows already written 0
-started 2026-11-06T19:32:18Z
-finished 2026-11-06T19:33:13Z: 8 runs, 0 failed, 106 s of simulation and extraction (0.030 core-hours in all), 54.3 s wall
+started 2026-11-06T19:39:08Z
+finished 2026-11-06T19:40:01Z: 8 runs, 0 failed, 105 s of simulation and extraction (0.029 core-hours in all), 53.1 s wall

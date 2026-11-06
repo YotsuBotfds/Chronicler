@@ -1,17 +1,18 @@
 # Connected-world CW4: preregistered held screen for quarantine rules (slice C1)
 
-Status: FROZEN at `d8678f06d653d973e5dda4beb2e0fa4cfbf746fa` (the screen module, extractors and simulation source), awaiting the lead's review before any held run
+Status: FROZEN at `8c8feb412be2e216e2f0ca8107b46e1aead7abf3` (the screen module, extractors and simulation source after Amendment 1; the lead gave the go-ahead for the held run)
 
 Written 2026-11-06 by the C1 lane on branch `claude/cw-cw4-screen` (main `1d4141d7` merged into
-the C1 line at `be601a09`; the screen declared at `d8678f06`). The native extension is the
+the C1 line at `be601a09`; the screen declared at `d8678f06`, first frozen there, and amended
+before any held run at `8c8feb41`, Amendment 1 below). The native extension is the
 shared build `101a4cd5b928b14f43539f925fa565036b94e38d91b9698071c80fa3656e0df3`; C1 changed no
 Rust. No held seed (template 761-766, procedural 861-866) has been run. Code may change before
 the held run only to fix a defect, recorded as an amendment below with a new pilot; no arm,
 outcome, window or parameter changes in response to held outcomes.
 
-Compute ceiling: 0.266 core-hours
+Compute ceiling: 0.5 core-hours
 
-Primary outcomes: cw4_arrivals, cw4_deaths_closing
+Primary outcomes: cw4_world_arrivals, cw4_world_death_rate
 
 ## Purpose and limits
 
@@ -57,9 +58,9 @@ partners? The legacy multiplier rule and no quarantine are carried as references
   scripts/connected_world_screens.py run OUT --screen CW4 --cohort held --pilot
   PILOT/metrics.jsonl --jobs 2`, then `report`, `check --metrics ... --cohort held` and
   `mark-run`.
-- **Identity (the extractors live in the screen module):** source `d8678f06`, dirty 0;
+- **Identity (the extractors live in the screen module):** source `8c8feb41`, dirty 0;
   `scripts/connected_world_screens.py` SHA-256
-  `daeb91c108cf9896660984b506fb00e25f0da3d810373a7f5beb5e59f865fce9`; `scripts/screen_runner.py`
+  `a84fc211c80b6f3d97f4a6983a49d2fcd6c330b088af1440dea042a67d496d0c`; `scripts/screen_runner.py`
   `413301768935f70c8d1f79ef4309455775d3ef8d9133aa0a2f440e4143bf1164`; registry content
   `dc16f3c3b366699029de253da0a04d90394530b002ba3203b0e29b17ef7a98f8`; native extension
   `101a4cd5…`. A held run whose `source.txt` differs in any of these (apart from the
@@ -102,26 +103,37 @@ tick, decisions and reports (`epidemics.quarantine_rules.receipt.turn` and
   the world total (`epidemics.deaths`); on the development worlds the reported outbreaks held
   80-90% of all epidemic deaths (`reported_death_share`, kept per run).
 - **Person-turns of a civ at w:** `civ_stats[c].population` at the end of w.
+- **World person-turns:** the sum over world turns of `regional_population.counts` (every
+  region, controlled or not, at the end of the turn; `source_turn` = w, checked).
+- **All epidemic deaths at w:** `epidemics.deaths` of the snapshot of w, reported outbreaks or
+  not; the extractor checks that they sum to the last `deaths_total` (a mismatch is a missing
+  outcome).
 
-## Primary outcomes (QR - QC on each world)
+## Primary outcomes (QR - QC on each world; whole run, world level)
 
-1. `cw4_arrivals`: cross-polity epidemic arrivals into regions of closing civs during their
-   windows (count, summed over closing civs).
-2. `cw4_deaths_closing`: epidemic deaths of closing civs during their windows per 1,000 of
-   their person-turns during their windows (0 when a run has no window).
+Neither primary conditions on any arm's own closures (Amendment 1).
+
+1. `cw4_world_arrivals`: cross-polity epidemic arrivals over the whole run, world total
+   (`events_timeline` events `epidemic_arrival` with two distinct actors).
+2. `cw4_world_death_rate`: all epidemic deaths over the whole run per 1,000 world
+   person-turns (`sum(history[*].epidemics.deaths)`, equal to the last
+   `epidemics.deaths_total`, over `sum(history[*].regional_population.counts)`).
 
 ## Secondary outcomes
 
 | Id | Measure | Comparison |
 | --- | --- | --- |
-| `cw4_arrival_rate` | arrivals per 100 window civ-turns | QR - QC |
-| `cw4_window` | window civ-turns (exposure denominator) | QR - QC |
-| `cw4_world_deaths` | world epidemic deaths (`deaths_total`, last) | QR - QC |
-| `cw4_world_death_rate` | world epidemic deaths per 1,000 person-turns | QR - QC |
-| `cw4_cost_world_deaths` | world epidemic deaths: the cost effect | QC - Q0 |
+| `cw4_world_arrival_rate` | cross-polity arrivals per 1,000 region-turns (regions x turns, from `regional_population.counts`) | QR - QC |
+| `cw4_world_deaths` | world epidemic deaths, count (`deaths_total`, last) | QR - QC |
+| `cw4_sel_arrivals` | arrivals into regions of closing civs during their windows: **conditioned on each arm's own closures (selection)** | QR - QC |
+| `cw4_sel_deaths` | epidemic deaths (reported outbreaks) of closing civs during their windows per 1,000 of their person-turns there: **selection** | QR - QC |
+| `cw4_sel_arrival_rate` | window arrivals per 100 window civ-turns: **selection** | QR - QC |
+| `cw4_sel_window` | window civ-turns (exposure denominator): **selection** | QR - QC |
+| `cw4_cost_world_deaths` | world epidemic deaths per 1,000 person-turns: the cost effect | QC - Q0 |
+| `cw4_cost_world_arrivals` | cross-polity arrivals, world: the cost effect | QC - Q0 |
 | `cw4_cost_treasury` | world treasury at the end: the cost effect | QC - Q0 |
-| `cw4_legacy_arrivals` | arrivals into closing civs in their windows (QL's windows are its legacy closures) | QR - QL (the negative of QL - QR; the runner pairs an arm with a control on its chain) |
-| `cw4_legacy_world_deaths` | world epidemic deaths | QR - QL |
+| `cw4_legacy_world_arrivals` | cross-polity arrivals, world | QR - QL (the negative of QL - QR; the runner pairs an arm with a control on its chain) |
+| `cw4_legacy_world_death_rate` | world epidemic deaths per 1,000 person-turns | QR - QL |
 
 ## Harm panel
 
@@ -158,7 +170,8 @@ than the arm's is a missing outcome: the run fails (rc 3) and is reported as fai
 Development runs of all four arms, `--cohort dev`: template 7 and procedural 11 at 100 turns,
 template 42 and procedural 31 at 200 turns (`--keep-first`). An independent checker
 (outside the repository, `/home/user/evidence/cw4/validate/validate_cw4.py`, reading the raw
-bundles) passed every check on all 16 bundles (96 + 96 checks, 0 failures):
+bundles) passed every check on all 16 bundles (192 checks, 0 failures; rerun on the amended
+extractor at `8c8feb41` with the primaries' checks added: 240 checks, 0 failures):
 
 - snapshot s records world turn s - 1 (receipt turn and food-accounting source turn);
 - every cross-polity arrival's target actor is the region's controller at the end of its turn
@@ -172,7 +185,12 @@ bundles) passed every check on all 16 bundles (96 + 96 checks, 0 failures):
   deliveries equal the sums of the per-turn receipts;
 - Q0 closes nothing; QL keeps no rules record;
 - windows and arrivals recomputed directly from the raw lists equal the extractor's;
-- one merchant-trip record per tick.
+- one merchant-trip record per tick;
+- (Amendment 1) the world arrivals equal the raw count of cross-polity arrivals;
+  `regional_population.source_turn` = s - 1 in every snapshot; the world death rate equals
+  1,000 x `deaths_total` / the sum of the regional counts (the regional counts and the civ
+  populations differ by under 0.4% of person-turns on these worlds: uncontrolled regions and
+  the civ population's own timing).
 
 `tests/test_cw4_screen.py` covers the arms, windows, arrivals, deaths, food transport, the
 rules measures, missing records and activation on constructed bundles. `check --screen CW4`
@@ -180,20 +198,21 @@ passes.
 
 ## Timing pilot (the shared pilot, on the frozen source)
 
-`run PILOT --screen CW4 --cohort pilot --jobs 2` at `d8678f06` (clean tree): 8 runs, 0 failed,
-every outcome extracted (`check --metrics ... --cohort pilot` passes); 106 s of simulation and
-extraction, 54 s of wall time at 2 concurrent processes on the shared 4-core machine. Mean
-seconds per run: template QL 6.2, Q0 6.1, QC 7.7, QR 8.2; procedural QL 19.1, Q0 20.6, QC 19.0,
-QR 19.3. Activation: every arm activated on both pilot worlds. The pilot's `metrics.jsonl`,
-`source.txt` and `report.md` are retained in `connected-world-screens-cw4/pilot/` (the held
-run's `--pilot`). **Projected held run: 0.177
-core-hours for 48 runs**; x1.5 = 0.2655, so the ceiling is 0.266 core-hours (under the 2.0
-cap). The pilot's outcomes were not read for any decision.
+Rerun after Amendment 1 on `8c8feb41` (clean tree; the first pilot at `d8678f06` was refused by
+the changed screen module and is superseded): `run PILOT --screen CW4 --cohort pilot --jobs 2`,
+8 runs, 0 failed, every outcome extracted (`check --metrics ... --cohort pilot` passes); 105 s of
+simulation and extraction at 2 concurrent processes on the shared, loaded 4-core machine. Mean
+seconds per run: template QL 7.0, Q0 7.1, QC 7.1, QR 7.1; procedural QL 17.9, Q0 17.8, QC 21.0,
+QR 20.4. Every arm activated on both pilot worlds. **Projected held run: 0.176 core-hours for
+48 runs** (x1.5 = 0.264). The pilot's `metrics.jsonl`, `source.txt` and `report.md` are
+retained in `connected-world-screens-cw4/pilot/` (the held run's `--pilot`). The pilot's
+outcomes were not read for any decision.
 
 ## Budget and stopping rules
 
-- **Compute ceiling 0.266 core-hours** (the line above, read by the runner), at most 3
-  concurrent processes; run with `--jobs 2` because other lanes share the 4 cores. The runner
+- **Compute ceiling 0.5 core-hours** (the line above, read by the runner; the lead's
+  Amendment 1, under the 2.0 cap), at most 3 concurrent processes; run with `--jobs 2`
+  because other lanes share the 4 cores. The runner
   refuses a held run whose pilot projection x1.5 exceeds the ceiling and starts no run that
   would pass it; runs not started are reported as `not run` (exit code 4), never as zeros.
   Held worlds slower than the pilot can therefore stop the run early; the stop is reported,
@@ -209,4 +228,21 @@ cap). The pilot's outcomes were not read for any decision.
 
 ## Amendments
 
-None.
+**Amendment 1 (before any held run), 2026-11-06, the lead's review.**
+
+1. *Primaries must not condition on post-treatment variables.* Each arm's closure windows
+   follow that arm's own trajectory (QR's closures can suppress later reports and so shrink
+   its own windows), so window-restricted measures compare different selections. The
+   primaries are replaced by whole-run, world-level outcomes, QR - QC: `cw4_world_arrivals`
+   (every cross-polity arrival of the run; its rate per 1,000 region-turns is a secondary) and
+   `cw4_world_death_rate` (all epidemic deaths, `epidemics.deaths` summed, over the world's
+   person-turns from `regional_population.counts`). The former primaries `cw4_arrivals` and
+   `cw4_deaths_closing` become the secondaries `cw4_sel_arrivals` and `cw4_sel_deaths`, with
+   the window rate and size, labelled "conditioned on each arm's own closures (selection)".
+   The cost effect (QC - Q0) and the legacy comparison (QR - QL) now use the world measures.
+2. *Compute ceiling 0.5 core-hours* (was 0.266, the first pilot's projection x1.5): the pilot
+   was measured on a heavily loaded shared machine; 0.5 stays well under the 2.0 cap. At most
+   3 processes; run with `--jobs 2`.
+
+The screen module changed (new SHA-256 above), so the pilot was rerun on `8c8feb41`. No held
+seed had been run, and no held outcome was seen.
