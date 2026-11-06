@@ -356,6 +356,7 @@ CHUNKS = {
     ],
     "timber-supply": [
         "tests/test_timber_supply.py",
+        "tests/test_productive_recovery_examples.py",
     ],
     "productive-recovery-pl3": [
         "tests/test_recovery_crews.py",
