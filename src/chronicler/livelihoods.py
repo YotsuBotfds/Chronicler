@@ -88,6 +88,7 @@ LIVELIHOODS_CHOICES: dict[str, tuple[str, ...]] = {
     "timber_supply_mode": ("supply", "cost_only"),
     "recovery_crew_mode": ("paid", "unpaid"),
     "maintenance_obligation_mode": ("reserve", "reserve_only"),
+    "apprenticeship_rules": ("2", "1"),
 }
 #: All parser destinations owned here (``batch_manifest.SIMULATION_ARG_KEYS``).
 LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
@@ -98,6 +99,9 @@ LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     "relocation_costs", "relocation_mode",
     "local_budgets", "local_budget_mode",
     "apprenticeship", "apprenticeship_mode",
+    # PL2 review: inserted beside its switch (a choice belongs to the switch
+    # declared before it, ``feature_catalog``), not appended.
+    "apprenticeship_rules",
     "repair_projects", "repair_mode",
     "veteran_reintegration", "veteran_mode",
     "remittances", "remittance_mode",
@@ -197,6 +201,12 @@ _HELP = {
     "apprenticeship_mode": (
         "train (default): completion grants the qualification; no_qualification: the "
         "cost-retaining control (same wear, attendance and costs, no new qualifications)"
+    ),
+    "apprenticeship_rules": (
+        "RS1 rules version of a new apprenticeship state: 2 (default): attendance by region, "
+        "portable progress, training on the job (PL2); 1: the recovery-skills phase's rules "
+        "exactly (presence in the city box, seats before the crew, the consecutive-miss "
+        "dropout). A saved state keeps its version; a conflicting value is refused on resume"
     ),
     "repair_projects": (
         "Repair projects (RS2): paid projects rebuild workshop sites and granaries from their "
@@ -463,6 +473,7 @@ _CHOICE_FIELDS: dict[str, tuple[str, str]] = {
     "timber_supply_mode": ("timber_supply", "mode"),
     "recovery_crew_mode": ("recovery_crews", "mode"),
     "maintenance_obligation_mode": ("maintenance_obligation", "mode"),
+    "apprenticeship_rules": ("apprenticeship", "rules"),
 }
 
 

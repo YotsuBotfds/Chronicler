@@ -169,6 +169,12 @@ APPRENTICE_FRACTION = 0.5
 #: turns pause progress and never end it.
 MAX_GAP = 4
 COMPLETION_TURNS = 10
+#: Version 2: consecutive missed turns of any reason tolerated (pauses, and
+#: absences shorter than a long absence); one more ends the apprenticeship as
+#: ``stalled`` and frees its place. Declared, not tuned: twice
+#: ``COMPLETION_TURNS``, so a record that has not attended for as long as two
+#: whole apprenticeships no longer holds one of ``PER_SITE`` places.
+MAX_PAUSE = 20
 #: Stipend per unit of attended apprentice time (milli-units; half the L6a wage).
 STIPEND_PER_WORK = 250
 
@@ -261,17 +267,24 @@ def _bump(state: ApprenticeshipState, key: str, amount: float = 1) -> None:
 
 
 def set_apprenticeship_enabled(world, value: bool, *, args=None, agent_mode=None) -> None:
-    """Enable (with ``--apprenticeship-mode``, default ``train``) or disable; an
-    omitted mode keeps the saved one. The mode cannot change while an
-    apprenticeship is open; disabling ends open apprenticeships (``disabled``)
-    and keeps every qualification."""
+    """Enable (with ``--apprenticeship-mode``, default ``train``, and
+    ``--apprenticeship-rules``, default ``RULES_VERSION``) or disable; an
+    omitted option keeps the saved value. The mode cannot change while an
+    apprenticeship is open, and a saved state's rules version never changes (it
+    resumes under the rules it recorded); disabling ends open apprenticeships
+    (``disabled``) and keeps every qualification."""
     mode = getattr(args, "apprenticeship_mode", None) if args is not None else None
+    rules = getattr(args, "apprenticeship_rules", None) if args is not None else None
     state = _state(world)
     if state is None:
+        version = int(rules) if rules is not None else RULES_VERSION
         world.livelihoods.apprenticeship = state = ApprenticeshipState(
-            mode=mode or MODES[0], schema_version=RULES_VERSION,
-            **({"graduates": [], "detached": []} if RULES_VERSION >= 2 else {}))
-    elif mode is not None and mode != state.mode:
+            mode=mode or MODES[0], schema_version=version,
+            **({"graduates": [], "detached": []} if version >= 2 else {}))
+    elif rules is not None and int(rules) != state.rules_version:
+        raise ValueError(f"--apprenticeship-rules {rules} conflicts with the saved RS1 state "
+                         f"(rules version {state.rules_version}, which it keeps)")
+    if mode is not None and mode != state.mode:
         if state.apprenticeships:
             raise ValueError("cannot switch the apprenticeship mode while apprenticeships are open")
         state.mode = mode
@@ -1026,6 +1039,11 @@ def _before_crews_v2(world, sim, state: ApprenticeshipState, p: _Pending, reques
         else:
             _absent_v2(p, record, "no_room")
     apprenticing = {a.agent_id for a in state.apprenticeships}
+    # Nobody completes twice: living graduates (either mode; in the control
+    # they hold no qualification) and archived completions are never taken on
+    # again (review B 2026-11-06: the control re-enrolled its own graduates).
+    apprenticing |= {g.agent_id for g in state.graduates or []}
+    apprenticing |= {a.agent_id for a in state.archive if a.ended_reason == "completed"}
     oldest = max_entry_age()
     region_farmers: dict[int, list[tuple[int, int]]] = {}
     for aid, (region, _settlement, occupation, age) in people.items():
@@ -1039,6 +1057,8 @@ def _before_crews_v2(world, sim, state: ApprenticeshipState, p: _Pending, reques
         # completing (D2: 80% of qualifications ended in death within the run).
         pool = [aid for age, aid in sorted(local)
                 if age <= oldest and aid not in held and aid not in apprenticing and aid not in army]
+        # Veterans keep RS3's own order (earliest release first, as on every
+        # opening RS3 prioritises); the age rule still bounds who is eligible.
         vets = [v for v in _veterans(world, st.region) if v in set(pool)]
         st.vets = set(vets)
         st.pool = vets + [a for a in pool if a not in st.vets]
@@ -1066,7 +1086,10 @@ def _aboard_v2(world, p: _Pending, st: _SiteTurn) -> list[int]:
     qualified crew member."""
     sim = p.sim
     if p.trips is None:
-        p.trips = {int(a) for a in sim.trip_agent_ids()}
+        # Away on a trip, or holding rural health work (a patient or a carer:
+        # a work commitment the native registry also refuses). Teaching work is
+        # prepared later, at the agent tick, for Scholars only.
+        p.trips = {int(a) for a in sim.trip_agent_ids()} | _health_holders(world)
     holding = {int(row[0]) for row in sim.work_reservations(p.turn)}
     on_crew = set(st.crew)
     st.capacity = min(PER_SITE, PER_MENTOR * len(st.qualified_on_crew))
@@ -1154,7 +1177,24 @@ def _miss_v2(state: ApprenticeshipState, record: Apprenticeship, seat: Seat, tur
             return True
     else:
         record.absent = 0
+    if record.gap > MAX_PAUSE:
+        seat.ending = "stalled"
+        _end(state, record, turn, "stalled")
+        return True
     return False
+
+
+def _health_holders(world) -> set[int]:
+    """Patients and carers of this turn's prepared rural health work (as
+    ``recovery_crews._health_holders``); empty without ``--health-care``."""
+    health = getattr(world, "health_care", None)
+    rows = getattr(health, "_prepared", None) if health is not None else None
+    out: set[int] = set()
+    for aid, _region, giver, care in rows or ():
+        out.add(int(aid))
+        if int(giver) and float(care) > 0:
+            out.add(int(giver))
+    return out
 
 
 def _upkeep_split(st: _SiteTurn, p: _Pending) -> tuple[dict[str, float], dict[int, float]]:
@@ -1284,7 +1324,9 @@ def _commit_v2(world, state: ApprenticeshipState, p: _Pending, after: dict, rece
                                                            after[aid][:2]))
                     if record.granted:
                         _bump(state, "completions_granted")
-                    if len(graduates) < MAX_QUALIFIED:
+                    if aid in graduates:
+                        pass                      # keep the first record (a state saved before the fix)
+                    elif len(graduates) < MAX_QUALIFIED:
                         graduates[aid] = GraduateRecord(agent_id=aid, completed_turn=turn, site=st.site,
                                                         region=st.region, granted=record.granted)
                         _bump(state, "graduates")
@@ -1397,7 +1439,7 @@ def _snapshot_v2(state: ApprenticeshipState, source: int, fresh: bool) -> dict:
             "service_turns": SERVICE_TURNS, "operating_wear": _ow.OPERATING_WEAR, "upkeep_share": UPKEEP_SHARE,
             "wear_per_upkeep_work": WEAR_PER_UPKEEP_WORK, "teach_share": TEACH_SHARE,
             "per_mentor": PER_MENTOR, "per_site": PER_SITE, "apprentice_fraction": APPRENTICE_FRACTION,
-            "long_absence_turns": MAX_GAP, "completion_turns": COMPLETION_TURNS,
+            "long_absence_turns": MAX_GAP, "max_pause": MAX_PAUSE, "completion_turns": COMPLETION_TURNS,
             "stipend_per_work": STIPEND_PER_WORK, "max_entry_age": max_entry_age(),
         },
     }

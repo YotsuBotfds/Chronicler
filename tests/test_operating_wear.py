@@ -193,3 +193,25 @@ def test_round_trips_rollback_and_the_dated_snapshot():
         _turn(world, sim, fail="phase2")
     assert world.livelihoods.operating_wear.model_dump_json() == before
     assert world.livelihoods.operating_wear._pending is None and _site(world).condition == condition
+
+
+def test_no_operating_wear_under_apprenticeship_keeps_rs1s_wear_and_only_stops_the_records(monkeypatch):
+    """Review B (doc): ``--no-operating-wear`` does not stop the wear while
+    ``--apprenticeship`` is on, because RS1 implies it; the switch's record is kept
+    and stops updating, and its snapshot key goes."""
+    monkeypatch.setattr(A, "SERVICE_TURNS", 100)
+    world, sim = _rs1_world(rules=2), FakeSim(range(1, 5))
+    L.configure_livelihoods(world, _args(operating_wear=True), agent_mode="hybrid")
+    for _ in range(W.CONSTRUCTION_COST // W.INSTALLMENT + 2):
+        _turn(world, sim)
+    state = world.livelihoods.operating_wear
+    frame_turn, counted = state.frame_turn, state.counters["operating_site_turns"]
+    L.configure_livelihoods(world, _args(operating_wear=False), agent_mode="hybrid")
+    before = _site(world).condition
+    _turn(world, sim)
+    assert _site(world).condition == pytest.approx(before - OW.OPERATING_WEAR)     # RS1's own wear
+    assert world.livelihoods.apprenticeship.frame[0].net_wear == OW.OPERATING_WEAR
+    assert state.frame_turn == frame_turn and state.counters["operating_site_turns"] == counted
+    fields = L.livelihoods_snapshot_fields(world)["livelihoods"]
+    assert "operating_wear" not in fields and "apprenticeship" in fields
+    assert L.livelihoods_feature_flags(world)["operating_wear"] is False

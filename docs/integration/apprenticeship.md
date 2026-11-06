@@ -452,10 +452,20 @@ its meaning. `MAX_GAP` (4) keeps its value with a version-2 meaning, below.
   writes schema 2 with `rules_version: 2`.
 - Validation refuses a version-1 state carrying version-2 records, and an unknown
   version.
-- No option selects the rules, so a resume has nothing to override and nothing changes
-  silently. The existing RS1 tests pin version 1 to keep that path tested
-  (`tests/test_apprenticeship.py`, `tests/test_apprenticeship_native.py`, including the
-  exact native checkpoint resume).
+- **`--apprenticeship-rules {2,1}`** (review B, 2026-11-06) chooses the rules of a
+  *new* state: 2 by default when RS1 is on; 1 reproduces the recovery-skills phase's
+  rules exactly. A native test checks `--apprenticeship-rules 1` byte for byte against
+  a version-1 state on template seed 7.
+  - Given values are recorded with the manifest keys (`SIMULATION_ARG_KEYS`) and the
+    checkpoint's recorded configuration. An unset option is not recorded; the state
+    and its snapshot (`rules_version`, or schema 1) still say which rules ran. Pass the
+    option explicitly for a self-describing manifest.
+  - A saved state never changes its version. A resume or fork with a conflicting value
+    is refused (`livelihoods_resume_conflicts` via `_CHOICE_FIELDS`, or the
+    checkpoint's recorded value), and a version-1 state resumes as version 1.
+  - The existing RS1 tests pin version 1 to keep that path tested
+    (`tests/test_apprenticeship.py`, `tests/test_apprenticeship_native.py`, including
+    the exact native checkpoint resume).
 
 ### The rules
 
@@ -491,11 +501,17 @@ its meaning. `MAX_GAP` (4) keeps its value with a version-2 meaning, below.
      transfers come after the site's own apprentices. New apprentices fill what remains,
      up to `PER_SITE` open.
 4. **Missed turns pause progress.** The reasons are:
-   - `no_mentor`, `unavailable` (a trip, or other work in the registry),
-     `reservation_refused` and `site_not_operating`, which pause progress and never end
-     it;
+   - `no_mentor`; `unavailable` (a trip, other work in the registry, or rural health
+     work as a patient or carer: the native registry refuses those too, so they are
+     counted here rather than as a refused reservation; teaching work is prepared later,
+     at the agent tick, for Scholars only); `reservation_refused` (any other native
+     refusal); and `site_not_operating`. These pause progress;
    - `absent` (no open site in the apprentice's region) and `no_room`, which pause it
      too but count toward a long absence.
+   - **Bounded pause** (review B): more than `MAX_PAUSE` (20, twice
+     `COMPLETION_TURNS`; declared, not tuned) consecutive missed turns of any reason end
+     the apprenticeship as `stalled`, dated. A record that has not attended for as long
+     as two whole apprenticeships stops holding one of `PER_SITE` places.
 5. **Long absence.** More than `MAX_GAP` consecutive absent turns end the apprenticeship
    as `long_absence`. The consecutive-miss dropout and the `away`/`departed`/`migrated`
    endings of version 1 are gone. When a site closes, its apprentices become absent
@@ -504,16 +520,24 @@ its meaning. `MAX_GAP` (4) keeps its value with a version-2 meaning, below.
 6. **Other endings stay.** `died` (before the turn, or in the tick, when that turn does
    not count), `occupation_changed`, `remobilised`, `service_qualified` (a crew
    apprentice who reaches `SERVICE_TURNS` first), `completed`, `pool_reset` and
-   `disabled`.
+   `disabled`; version 2 adds `long_absence` and `stalled`.
 7. **A change of controller** does not end an apprenticeship, as in version 1.
 8. **Who is taken on.** New apprentices are adult farmers of the site's region, not
-   qualified, not apprenticed, not enlisted, and not travelling or holding work. The
-   order is:
-   - RS3 veterans (`priority_ids`);
-   - then members of this turn's crew, because the qualification is used only on the
-     crew (upkeep and teaching);
-   - then the region's other residents, attached;
-   - youngest first within each group.
+   qualified, not apprenticed, not enlisted, and not travelling or holding work.
+   - **Nobody completes twice** (review B, major). People who have already completed
+     are never taken on again, in either mode: living graduates and archived
+     completions are excluded. Before this fix the control re-enrolled its own
+     graduates (they hold no qualification). On template 3, 7, 11 and 23 that was 10
+     of 72 completions, spending seats, mentor time and stipends that `train` did not.
+     A second completion also never replaces a `GraduateRecord`.
+
+   The order is:
+   - RS3 veterans, in RS3's own priority order (earliest release first, `priority_ids`).
+     RS3 promises veterans that order on every opening it prioritises (workshop crews,
+     repair crews, apprenticeships), so RS1 does not re-sort them by age.
+   - then members of this turn's crew, youngest first, because the qualification is used
+     only on the crew (upkeep and teaching);
+   - then the region's other residents, attached, youngest first.
 
    **The age rule.** Nobody older than `max_entry_age() = AGE_ELDER − COMPLETION_TURNS`
    (50) is taken on. They would reach `AGE_ELDER` (60) before completing, and elder
@@ -570,6 +594,7 @@ site-turns covered by a qualified member, TR against NQ under the shared wear.
 | `MAX_GAP` | 4 (unchanged) | consecutive *absent* turns tolerated; one more ends it (`long_absence`); other misses pause |
 | `COMPLETION_TURNS` | 10 (unchanged) | attended turns to complete |
 | `max_entry_age()` | 50 (derived) | `AGE_ELDER − COMPLETION_TURNS` |
+| `MAX_PAUSE` | 20 (new, review B) | consecutive missed turns of any reason tolerated; one more ends it (`stalled`) |
 | all others | unchanged | as in the version-1 table |
 
 ### Tests
@@ -611,6 +636,12 @@ site-turns covered by a qualified member, TR against NQ under the shared wear.
   - the switch adds only records to an RS1 run.
 
 ### Development worlds (PL2)
+
+> **Review B fixes (2026-11-06).** The figures below come from source `6b32fd26`,
+> before the review-B fixes. Those fixes change version-2 trajectories: the control
+> no longer re-enrols its graduates, pauses are bounded, and health-work exclusion
+> applies only with `--health-care`, which these runs do not use. See
+> "Development worlds after review B" below for the rerun.
 
 200 turns on 12 development worlds (template 3, 7, 9, 11, 23 and 42; procedural 32 × 10
 worlds 7, 11, 13, 17, 21 and 31: the D2 set), one run per arm and world. The base
@@ -731,9 +762,9 @@ each importing its own `src`, native `6c675042…`):
   lane did not make.
 - **The viewer reads schema 1 only.** `viewer/src/lib/apprenticeship.ts` reports a
   version-2 record as malformed, never misread; PL5 adds a version-2 reader.
-- **No fresh version-1 run from the command line.** The rules have no CLI option, so
-  version 1 is reached only through a saved state (or a test that sets
-  `RULES_VERSION`).
+- **Version 1 keeps its own behaviour.** `--apprenticeship-rules 1` reproduces the
+  merged rules exactly, including what review B fixed in version 2 only: the control
+  re-enrolling graduates, and the unbounded pause. Version 1 has its own dropout.
 - **The age rule and the crew-first order** are part of version 2, not separate
   switches.
 - **Not run:** held screens, and the 200-seed and procedural qualification gates.
