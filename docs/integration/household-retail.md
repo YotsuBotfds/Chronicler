@@ -105,7 +105,9 @@ imports, convoy and granary grain stay commons.
   to the spouse read before the tick, if alive; else equally to the living children
   (either parent id) in the claim's region, largest remainder, ascending id; else to
   that region's commons (`escheat`). An heir beyond the claims cap is refused and that
-  share escheats. A dead owner's claim is still offered in the tick that killed them.
+  share escheats. A claim whose owner died in the tick before provisioning (phase 0.0
+  deaths) is withheld whole by the native step, neither offered nor eaten, so the heirs
+  receive all of it.
   - Native estate order (`household.rs`): spouse first, then dependants anywhere, then
     all children anywhere. Python follows lead decision 6: children in the claim's
     region only, all ages, equally. The spouse case agrees. Child cases can differ;
@@ -251,15 +253,17 @@ Python cannot see, and leaves to the native lane:
 
 ### Build identity
 
-- Source: `claude/pl4-retail-native` at `81d9743b`. The Rust tree is unchanged after
-  that commit (later commits touch only this page).
-- Extension built with `/home/user/wt/tools/build_native.sh` into `~/.venvs/native-pl4`
+- Source: `claude/hr-native-fix` at `6a4fe37e` (the dead-owner change on top of the
+  merged `claude/household-retail` `2a962374`). The Rust tree is unchanged after that
+  commit (later commits touch tests and this page).
+- Extension built with `/home/user/wt/tools/build_native.sh` into `~/.venvs/native-hrn`
   (CPython 3.13, release, `--locked`), checked by `check_python_env.py --expect
   native`: compiled submodule, real `AgentSimulator`, `EcologySimulator`,
   `PoliticsSimulator`.
 - `chronicler_agents.cpython-313-x86_64-linux-gnu.so` SHA-256
-  `eda66ae888cac32dba5fe3e806d84afb168324ddaeb5c0f742518140d157c0d5`.
-  An earlier build at `a7436b65` (`3f248402…`) differs only in the frame's column names.
+  `66cd5a7e2f179ea774b9daf49b2746482485e480e2db800da7590c2f909aa130`.
+- Earlier builds: the merge `2a962374` (`220f8421…`, dead owners' food sold); the lane
+  branch at `81d9743b` (`eda66ae8…`) and `a7436b65` (`3f248402…`).
 
 ### Deviations from the written contract
 
@@ -277,10 +281,13 @@ The contract is implemented as written, with these resolved gaps:
    (unchanged, `ValueError`) a retail install whose `source_turn` is not the tick's turn,
    or without an L2 allocation installed for that turn. It also refuses an income
    install for another turn.
-4. **Dead sellers.** An owner who died after Phase 2 still sells. The credit has no
-   living holder, so it is refunded to that region's buyers, like a ceiling refusal
-   (`refused_dead_milli`). The food is delivered; the estate gets no revenue. If the lead
-   wants estates paid, a seller-credit receipt or an estate row is needed.
+4. **Dead owners (lead decision, 2026-11-06).** A claim whose owner is no longer
+   alive at phase 0.7 (catastrophe or targeted deaths after Phase 2) is **withheld**:
+   neither offered nor eaten. It stays whole, so Python's settlement passes it to the
+   spouse, then the living children in the region, then the commons. Recorded per region
+   as `withheld_dead_claims` and `withheld_dead_milli` (part of `unsold_milli`). Before
+   this change (`2a962374`) such a claim was sold and the payment refunded to the
+   buyers (`refused_dead_milli`, now removed), so buyers ate it for free.
 5. **Ceiling room.** A seller's room below `MAX_WEALTH` is measured before the tick's
    purchases. A person who both buys (in one region) and sells (in another) therefore
    gets no extra room from their own payment. This removes a refund/credit circularity
@@ -394,9 +401,10 @@ observer's pre-health base income reads the zero.
 **Phase 0.7** (`provisioning::retail`, right after L2's allocation, before L7's ration
 observation and needs). Per pilot region:
 
-- Households are derived as L2 derives them; people are sorted by id. A claim is
-  *present* when its owner is alive in the region (stable-id guard against slot reuse);
-  otherwise it is only for sale.
+- Households are derived as L2 derives them; people are sorted by id. A claim whose
+  owner is not alive (stable-id guard against slot reuse) is *withheld* and takes no
+  part in the rounds. A living owner's claim is *present* when the owner is in the
+  region; otherwise it is only for sale.
 - `cf = min(1, regional sufficiency)`. Payers are a household's adults, or with no adult
   its members. Cash is the payers' wealth in whole milli. A household can afford
   `floor(cash × ration / price)` milli-food (unlimited at price 0).
@@ -434,11 +442,12 @@ household was cash-limited, else *offer short*.
   by id. A payer never goes below zero.
 - A region's payments are credited to its sellers in proportion to milli-food sold
   (ties by id), by stable id wherever they live, up to each seller's ceiling room.
-- What the ceiling refuses, and all of a dead seller's credit, is refunded to that
-  region's payers in proportion to what they paid.
+- What the ceiling refuses is refunded to that region's payers in proportion to what
+  they paid. Every seller is alive (a dead owner's claim is withheld); a sale by nobody
+  living is a logic error (the settlement panics).
 - Each person's net change is applied once.
-- `paid == credited + refunded` and `refunded == refused_ceiling + refused_dead`
-  exactly, per region and over the money rows.
+- `paid == credited + refunded` and `refunded == refused_ceiling` exactly, per region
+  and over the money rows.
 
 **Frame.** Region rows, in `RETAIL_REGION_COLUMNS` order. Food is in milli-food, money
 in milli-units, rations as fractions of one ration.
@@ -451,14 +460,15 @@ in milli-units, rations as fractions of one ration.
 | `price_quoted_milli`, `price_milli`, `milli_food_per_ration` | installed price; price charged (0 in mode 2); ration size |
 | `free_rations`, `free_living`, `free_given`, `free_unallocated` | installed free rations; the living's share; placed; `free_rations − free_given` |
 | `free_to_priority`, `priority_households` | free food placed in the means-tested stage; households tested in |
-| `claims`, `present_claims`, `offered_milli` | claims in the region; those whose owner is present; their total at the start |
+| `claims`, `present_claims`, `offered_milli` | claims in the region; those whose living owner is present; their total at the start, as installed |
+| `withheld_dead_claims`, `withheld_dead_milli` | claims whose owner was not alive at 0.7, and their milli-food: neither offered nor eaten, part of `unsold_milli` |
 | `own_eaten_milli` (`_fair_milli`, `_open_milli`) | own food eaten, total and by round |
 | `sold_milli` (`_fair_milli`, `_open_milli`) | food sold, total and by round |
 | `unsold_milli` | claims left after the open round |
 | `demand_fair_milli`, `demand_open_milli` | cash-limited demand in each round |
 | `buying_households`, `sellers` | households that bought; claims that sold |
 | `paid_milli`, `credited_milli`, `refunded_milli` | money moved |
-| `refused_ceiling_milli`, `refused_dead_milli` | the two causes of refunds |
+| `refused_ceiling_milli` | the cause of refunds: credits above a seller's ceiling room |
 | `rations`, `fed_fair`, `full_ration`, `min_ration`, `max_ration` | person rations: sum, at `cf`, at one ration, extremes |
 | `deficit` | Σ (`cf` − ration) over people not fed, = `priced_out_deficit + offer_short_deficit` |
 | `priced_out_households`, `_persons`, `_children`, `_deficit` | cash-limited shortfall |
@@ -477,10 +487,10 @@ Other frame fields:
 Region identities:
 
 - `free_given + free_unallocated = free_rations`.
-- `own_eaten + sold + unsold = offered`.
+- `own_eaten + sold + unsold = offered`, with `withheld_dead ≤ unsold`.
 - `rations = free_given + (own_eaten + sold) / ration`.
 - `fed_fair + priced_out_persons + offer_short_persons = persons`.
-- Per claim, `own_eaten + sold ≤ claim`.
+- Per claim, `own_eaten + sold ≤ claim`; a withheld claim reads `(owner, region, 0, 0)`.
 
 L2's own frame is computed and returned unchanged for pilot regions too, including its
 sample. PL4-python's seam leaves pilot regions out of L2's closure.
@@ -493,12 +503,13 @@ field, no schema-string change and no checkpoint change.
 
 | Command | Result |
 | --- | --- |
-| `native_slot.sh env CARGO_TARGET_DIR=…/target-r-test CARGO_BUILD_JOBS=2 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_INCREMENTAL=0 cargo test --locked --manifest-path chronicler-agents/Cargo.toml` | 1,282 passed, 0 failed, 2 ignored (pre-existing), 40 suites, 0 warnings |
+| `native_slot.sh env CARGO_TARGET_DIR=…/target-r-test CARGO_BUILD_JOBS=2 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_INCREMENTAL=0 cargo test --locked --manifest-path chronicler-agents/Cargo.toml` | 1,292 passed, 0 failed, 2 ignored (pre-existing), 40 suites, 0 warnings (on `claude/hr-native-fix`) |
 | … `--test test_household_retail_economy` (N1) | 8 passed: absent and all-null inputs keep every output's bits (all five outputs, hybrid deliveries, cap, oracle), non-pilot regions untouched, θ = 1 commons-only draw-down, owned food in sufficiency, supply, price and oracle, salt across pools, pro-rata cap, ledger and world conservation with owned stock, zero-production and empty regions, abstract path refused |
 | … `--lib provisioning` (N2) | 21 passed (8 L2, 13 retail) |
-| … `--lib wealth_transfer` | 20 passed (largest remainder, settlement with ceiling and dead-seller refunds, income replacement after paid work consumed once, next phase ordinary, installs refused) |
+| … `--lib wealth_transfer` | 21 passed (largest remainder, settlement with ceiling refunds, a sale by a dead seller refused as a logic error, income replacement after paid work consumed once, next phase ordinary, installs refused) |
 | … `--test test_household_retail_tick` | 2 passed: the tick consumes both installs once; next tick runs neither; empty installs leave the tick bit-identical |
-| `PYTHONPATH=src ~/.venvs/native-pl4/bin/python -m pytest tests/test_household_retail_native_ffi.py` | 4 passed |
+| `PYTHONPATH=src ~/.venvs/native-hrn/bin/python -m pytest tests/test_household_retail_native_ffi.py` | 5 passed (the dead-owner regression fails on the `2a962374` build: the dead owner's 3,000 milli-food is sold) |
+| `CHRONICLER_REQUIRE_RETAIL_NATIVE=1 … pytest tests/test_household_retail*.py` (`native-hrn`) | 62 passed, 1 failed: PL4-python's `test_granary_procurement_pays_owners_by_id`, which that lane is fixing |
 | `python scripts/run_python_oracle_checks.py` (offline lane) | FAIL at chunk 6 `academy-service-contracts`: the academy witness test below (first five chunks pass); expected until the lead's witness layers |
 | `pytest tests/test_native_ci_shards.py` (offline) | 210 passed, with the new module enrolled in shard 1 |
 
@@ -509,7 +520,7 @@ What the retail N2 tests cover:
 - short-offer pro-rata split by largest remainder;
 - adult payers and child-only payers;
 - the wealth floor and the ceiling refund;
-- a dead owner sells and a dead buyer is skipped;
+- a dead owner's claim is withheld whole (neither sold nor eaten, though buyers with cash want it) and a dead buyer is skipped; on `2a962374` that claim was sold;
 - a reused slot is ignored;
 - non-pilot regions keep L2's rations under all three regimes;
 - the means test and `no_relief`;
@@ -594,7 +605,8 @@ extension:
 
 ### Open risks
 
-- Dead sellers' revenue goes back to buyers, not to the estate (deviation 4).
+- A dead owner's food is unavailable to the hungry in the tick of the death (withheld
+  for the heirs; deviation 4). The heirs can eat or sell it from the next tick.
 - Means-test detail: priority members are filled to `cf` counting their projected own
   food. The free pool then reaches owners last, and owners' freed food is sold to others.
 - Payment rounds up per household (at most 1 milli above `bought × price`). Sellers

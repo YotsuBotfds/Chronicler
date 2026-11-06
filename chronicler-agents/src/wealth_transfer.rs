@@ -284,19 +284,19 @@ pub struct FoodPurchases {
     /// before the purchases) and the price of what it bought, at most the
     /// payers' total.
     pub households: Vec<(Vec<(u32, i64)>, i64)>,
-    /// (seller stable id, milli-food sold), distinct ids, ascending.
+    /// (seller stable id, milli-food sold), distinct living ids, ascending
+    /// (a dead owner's claim is withheld, never sold).
     pub sales: Vec<(u32, i64)>,
 }
 
 /// L6b: one region's settled money: `paid == credited + refunded` and
-/// `refunded == refused_ceiling + refused_dead`.
+/// `refunded == refused_ceiling`.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct FoodPurchaseMoney {
     pub paid: i64,
     pub credited: i64,
     pub refunded: i64,
     pub refused_ceiling: i64,
-    pub refused_dead: i64,
 }
 
 /// L6b: settle the tick's household food purchases once, under the purpose
@@ -308,9 +308,9 @@ pub struct FoodPurchaseMoney {
 /// in proportion to the food each sold (ties by id), by stable id wherever
 /// they live. A credit is limited by the seller's room below `MAX_WEALTH`
 /// measured before the purchases (regions in the given order share it); what
-/// the ceiling refuses, and all of a seller no longer alive (a dead owner's
-/// food is still sold), is refunded to that region's payers in proportion to
-/// what they paid. Each person's net change is applied once, so a payer is
+/// the ceiling refuses is refunded to that region's payers in proportion to
+/// what they paid. Every seller must be alive: the retail step withholds a
+/// dead owner's claim, so a sale by nobody living is a logic error (panics). Each person's net change is applied once, so a payer is
 /// never refunded above what they paid and `paid == credited + refunded`
 /// exactly. Returns per region the money and per stable id (ascending)
 /// (id, paid, credited, refunded) for everyone who paid or sold.
@@ -342,19 +342,14 @@ pub fn settle_food_purchases(pool: &mut AgentPool, turn: u32, regions: &[FoodPur
                 continue;
             }
             let left = room.entry(id).or_insert_with(|| living(id).map(|s| floor_millis(MAX_WEALTH - pool.wealth[s])));
-            let entry = book.entry(id).or_default();
-            match left {
-                Some(left) => {
-                    let accepted = credit.min(*left);
-                    *left -= accepted;
-                    entry[1] += accepted;
-                    money.credited += accepted;
-                    money.refused_ceiling += credit - accepted;
-                }
-                None => money.refused_dead += credit,
-            }
+            let Some(left) = left else { panic!("a food sale by no living seller") };
+            let accepted = credit.min(*left);
+            *left -= accepted;
+            book.entry(id).or_default()[1] += accepted;
+            money.credited += accepted;
+            money.refused_ceiling += credit - accepted;
         }
-        let refused = money.refused_ceiling + money.refused_dead;
+        let refused = money.refused_ceiling;
         let weights: Vec<(u64, i64)> = debits.iter().map(|&(id, d)| (id as u64, d)).collect();
         for (&(id, _), refund) in debits.iter().zip(split_largest_remainder(refused, &weights)) {
             if refund > 0 {
@@ -907,37 +902,46 @@ mod tests {
     }
 
     #[test]
-    fn food_purchases_settle_once_with_ceiling_and_estate_refunds() {
+    fn food_purchases_settle_once_with_ceiling_refunds() {
         let mut pool = pool_with(&[3.0, 1.0, 99.995, 5.0, 2.0]);
         let ids: Vec<u32> = pool.ids[..5].to_vec();
-        pool.kill(4);
         let room = floor_millis(MAX_WEALTH - pool.wealth[2]);
         let regions = [
             // ids[0] and ids[1] pay one household's 900 by wealth (3000 : 1000).
             FoodPurchases { households: vec![(vec![(ids[0], 3000), (ids[1], 1000)], 900)],
                             sales: vec![(ids[2], 300), (ids[3], 300)] },
-            // ids[3] buys in the second region from ids[2] (shares its room) and a dead seller.
+            // ids[3] buys in the second region from ids[2] (shares its room) and ids[4].
             FoodPurchases { households: vec![(vec![(ids[3], 5000)], 100)], sales: vec![(ids[2], 1), (ids[4], 1)] },
         ];
-        let before: i64 = (0..4).map(|s| milli(&pool, s)).sum();
+        let before: i64 = (0..5).map(|s| milli(&pool, s)).sum();
         let (money, book) = settle_food_purchases(&mut pool, 9, &regions);
         assert_eq!(money[0], FoodPurchaseMoney { paid: 900, credited: 450 + room, refunded: 450 - room,
-                                                 refused_ceiling: 450 - room, refused_dead: 0 });
-        assert_eq!(money[1], FoodPurchaseMoney { paid: 100, credited: 0, refunded: 100, refused_ceiling: 50,
-                                                 refused_dead: 50 });
-        for m in &money { assert_eq!(m.paid, m.credited + m.refunded); }
+                                                 refused_ceiling: 450 - room });
+        assert_eq!(money[1], FoodPurchaseMoney { paid: 100, credited: 50, refunded: 50, refused_ceiling: 50 });
+        for m in &money { assert_eq!((m.paid, m.refunded), (m.credited + m.refunded, m.refused_ceiling)); }
         // Debits by wealth (675 : 225), refunds in proportion to what each paid.
         let refund0 = split_largest_remainder(450 - room, &[(ids[0] as u64, 675), (ids[1] as u64, 225)]);
         assert_eq!(book, vec![(ids[0], 675, 0, refund0[0]), (ids[1], 225, 0, refund0[1]),
-                              (ids[2], 0, room, 0), (ids[3], 100, 450, 100), (ids[4], 0, 0, 0)]);
-        assert_eq!(milli(&pool, 3), 5000 + 450);
+                              (ids[2], 0, room, 0), (ids[3], 100, 450, 50), (ids[4], 0, 50, 0)]);
+        assert_eq!(milli(&pool, 3), 5000 + 450 - 100 + 50);
         assert!(pool.wealth[2] <= MAX_WEALTH);
-        let after: i64 = (0..4).map(|s| milli(&pool, s)).sum();
+        let after: i64 = (0..5).map(|s| milli(&pool, s)).sum();
         assert!((before - after).abs() <= 2);
         // The key is consumed: a replay under purpose 5, batch 0 is refused.
         assert_eq!(pool.wealth_transfer_log, vec![(9, PURPOSE_FOOD_PURCHASE, 0)]);
         assert!(transfer(&mut pool, 9, PURPOSE_FOOD_PURCHASE, 0, &[(ids[0], 1)]).is_err());
         transfer(&mut pool, 9, PURPOSE_FOOD_PROCUREMENT, 0, &[(ids[0], 1)]).unwrap();
+    }
+
+    #[test]
+    #[should_panic(expected = "a food sale by no living seller")]
+    fn a_sale_by_a_dead_seller_is_a_logic_error() {
+        // The retail step withholds a dead owner's claim; nothing may sell it.
+        let mut pool = pool_with(&[5.0, 1.0]);
+        let (a, b) = (pool.ids[0], pool.ids[1]);
+        pool.kill(1);
+        settle_food_purchases(&mut pool, 1, &[FoodPurchases { households: vec![(vec![(a, 5000)], 100)],
+                                                              sales: vec![(b, 1)] }]);
     }
 
     #[test]

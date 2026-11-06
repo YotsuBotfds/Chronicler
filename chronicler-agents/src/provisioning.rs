@@ -467,7 +467,11 @@ pub struct RetailRegionRow {
     pub priority_households: u32,
     pub claims: u32,
     pub present_claims: u32,
+    /// Claims (and their milli-food) whose owner was not alive at phase 0.7:
+    /// neither offered nor eaten, left whole for the owner's heirs.
+    pub withheld_dead_claims: u32,
     pub offered_milli: i64,
+    pub withheld_dead_milli: i64,
     pub own_eaten_fair_milli: i64,
     pub own_eaten_open_milli: i64,
     pub sold_fair_milli: i64,
@@ -481,7 +485,6 @@ pub struct RetailRegionRow {
     pub credited_milli: i64,
     pub refunded_milli: i64,
     pub refused_ceiling_milli: i64,
-    pub refused_dead_milli: i64,
     pub rations: f64,
     pub fed_fair: u32,
     pub full_ration: u32,
@@ -501,14 +504,13 @@ pub struct RetailRegionRow {
 /// Column names of [`RetailRegionRow::row`], in order: food in milli-food,
 /// money in milli-units (`_milli`), rations as fractions of one ration.
 /// `own_eaten_milli` and `sold_milli` are the two rounds together.
-pub const RETAIL_REGION_COLUMNS: [&str; 50] = [
+pub const RETAIL_REGION_COLUMNS: [&str; 51] = [
     "region", "mode", "phase2_alive", "persons", "households", "children", "sufficiency", "fair_share",
     "price_quoted_milli", "price_milli", "milli_food_per_ration", "free_rations", "free_living", "free_given",
-    "free_unallocated", "free_to_priority", "priority_households", "claims", "present_claims", "offered_milli",
-    "own_eaten_milli", "own_eaten_fair_milli", "own_eaten_open_milli", "sold_milli", "sold_fair_milli",
+    "free_unallocated", "free_to_priority", "priority_households", "claims", "present_claims",
+    "withheld_dead_claims", "offered_milli", "withheld_dead_milli", "own_eaten_milli", "own_eaten_fair_milli", "own_eaten_open_milli", "sold_milli", "sold_fair_milli",
     "sold_open_milli", "unsold_milli", "demand_fair_milli", "demand_open_milli", "buying_households", "sellers",
-    "paid_milli", "credited_milli", "refunded_milli", "refused_ceiling_milli", "refused_dead_milli",
-    "rations", "fed_fair", "full_ration", "min_ration", "max_ration", "deficit", "priced_out_households",
+    "paid_milli", "credited_milli", "refunded_milli", "refused_ceiling_milli", "rations", "fed_fair", "full_ration", "min_ration", "max_ration", "deficit", "priced_out_households",
     "priced_out_persons", "priced_out_children", "priced_out_deficit", "offer_short_households",
     "offer_short_persons", "offer_short_children", "offer_short_deficit",
 ];
@@ -521,13 +523,14 @@ impl RetailRegionRow {
             self.price_quoted_milli as f64, self.price_milli as f64, self.milli_food_per_ration as f64,
             self.free_rations, self.free_living, self.free_given, self.free_unallocated, self.free_to_priority,
             self.priority_households as f64, self.claims as f64, self.present_claims as f64,
-            self.offered_milli as f64, (self.own_eaten_fair_milli + self.own_eaten_open_milli) as f64,
+            self.withheld_dead_claims as f64, self.offered_milli as f64, self.withheld_dead_milli as f64,
+            (self.own_eaten_fair_milli + self.own_eaten_open_milli) as f64,
             self.own_eaten_fair_milli as f64, self.own_eaten_open_milli as f64,
             (self.sold_fair_milli + self.sold_open_milli) as f64, self.sold_fair_milli as f64,
             self.sold_open_milli as f64, self.unsold_milli as f64, self.demand_fair_milli as f64,
             self.demand_open_milli as f64, self.buying_households as f64, self.sellers as f64,
             self.paid_milli as f64, self.credited_milli as f64, self.refunded_milli as f64,
-            self.refused_ceiling_milli as f64, self.refused_dead_milli as f64, self.rations,
+            self.refused_ceiling_milli as f64, self.rations,
             self.fed_fair as f64, self.full_ration as f64, self.min_ration, self.max_ration, self.deficit,
             self.priced_out_households as f64, self.priced_out_persons as f64, self.priced_out_children as f64,
             self.priced_out_deficit, self.offer_short_households as f64, self.offer_short_persons as f64,
@@ -670,8 +673,11 @@ fn buy_round(hhs: &mut [RetailHousehold], cap: &[i64], own: &[i64], bought: &mut
 ///    regional signal where the region is not short (abundance kept), 1.0
 ///    otherwise; anyone below reads their ration.
 ///
-/// A dead buyer is not among the people; a claim whose owner is dead, away
-/// or in a reused slot (stable-id guard) is only for sale. Each household
+/// A dead buyer is not among the people. A claim whose owner is no longer
+/// alive (died after Phase 2; a reused slot is another person by the stable-id
+/// guard) is withheld: neither offered nor eaten, left whole for Python to
+/// pass to the heirs, and counted in `withheld_dead_milli` (part of
+/// `unsold_milli`). A living owner's claim away from home is only for sale. Each household
 /// pays `ceil(bought x price / ration)` milli-units, which its cash covers.
 pub fn retail(pool: &mut AgentPool, regions: &[RegionState], l2: &ProvisionConfig, cfg: &RetailConfig,
               turn: u32) -> RetailFrame {
@@ -736,16 +742,26 @@ pub fn retail(pool: &mut AgentPool, regions: &[RegionState], l2: &ProvisionConfi
                 };
                 h.payers = payers;
             }
+            // A claim whose owner is no longer alive (died after Phase 2, or a
+            // reused slot: stable-id guard) is withheld whole for the heirs.
+            let mut on_sale: Vec<usize> = Vec::with_capacity(region_claims.len());
             for &c in region_claims {
                 let owner = cfg.claims[c].0;
-                let present = id_slots.get(owner)
-                    .filter(|&s| pool.is_alive(s) && pool.ids[s] == owner && pool.regions[s] == offer.region)
-                    .and_then(|s| index.get(&s).copied());
-                if let Some(i) = present {
-                    hhs[hh_of[i]].claims.push(c);
-                    row.present_claims += 1;
+                let Some(slot) = id_slots.get(owner).filter(|&s| pool.is_alive(s) && pool.ids[s] == owner) else {
+                    row.withheld_dead_claims += 1;
+                    row.withheld_dead_milli += left[c];
+                    continue;
+                };
+                on_sale.push(c);
+                if pool.regions[slot] == offer.region {
+                    if let Some(&i) = index.get(&slot) {
+                        hhs[hh_of[i]].claims.push(c);
+                        row.present_claims += 1;
+                    }
                 }
             }
+            let region_claims_all = region_claims;
+            let region_claims: &[usize] = &on_sale;
             row.households = hhs.len() as u32;
             // 1. The free pool.
             let ones = vec![1.0f64; n];
@@ -840,7 +856,7 @@ pub fn retail(pool: &mut AgentPool, regions: &[RegionState], l2: &ProvisionConfi
                                           &mut left, &mut sold, false);
             row.demand_open_milli = demand;
             row.sold_open_milli = got;
-            row.unsold_milli = region_claims.iter().map(|&c| left[c]).sum();
+            row.unsold_milli = region_claims_all.iter().map(|&c| left[c]).sum();
             row.sellers = region_claims.iter().filter(|&&c| sold[c] > 0).count() as u32;
             row.buying_households = hhs.iter().filter(|h| h.bought > 0).count() as u32;
             // Payments (settled after every region is decided).
@@ -909,7 +925,6 @@ pub fn retail(pool: &mut AgentPool, regions: &[RegionState], l2: &ProvisionConfi
             w.row.credited_milli = m.credited;
             w.row.refunded_milli = m.refunded;
             w.row.refused_ceiling_milli = m.refused_ceiling;
-            w.row.refused_dead_milli = m.refused_dead;
         }
         frame.money = book;
     }
@@ -1137,7 +1152,8 @@ mod tests {
             assert_eq!(col(row, "own_eaten_milli") as i64, row.own_eaten_fair_milli + row.own_eaten_open_milli);
             assert_eq!(col(row, "sold_milli") as i64, row.sold_fair_milli + row.sold_open_milli);
             assert_eq!(row.paid_milli, row.credited_milli + row.refunded_milli);
-            assert_eq!(row.refunded_milli, row.refused_ceiling_milli + row.refused_dead_milli);
+            assert_eq!(row.refunded_milli, row.refused_ceiling_milli);
+            assert!(row.withheld_dead_milli <= row.unsold_milli && row.withheld_dead_claims <= row.claims);
             assert!(row.min_ration >= 0.0 && row.max_ration <= 1.0);
             assert!((row.deficit - row.priced_out_deficit - row.offer_short_deficit).abs() < 1e-12);
             assert_eq!(row.fed_fair + row.priced_out_persons + row.offer_short_persons, row.persons);
@@ -1290,25 +1306,34 @@ mod tests {
     }
 
     #[test]
-    fn an_owner_dead_after_phase2_still_sells_and_a_dead_buyer_is_skipped() {
-        let (mut pool, regions) = world(&[(0, 30, 0.0), (0, 30, 10.0), (0, 30, 10.0)], &[0.6]);
-        let (o, b, d) = (pool.ids[0], pool.ids[1], pool.ids[2]);
+    fn an_owner_dead_after_phase2_keeps_the_claim_whole_and_a_dead_buyer_is_skipped() {
+        // O owns 400 and dies after Phase 2, as D does; B has cash; a living
+        // owner L elsewhere in the region holds 100.
+        let (mut pool, regions) = world(&[(0, 30, 0.0), (0, 30, 10.0), (0, 30, 10.0), (0, 30, 0.0)], &[0.6]);
+        let (o, b, d, l) = (pool.ids[0], pool.ids[1], pool.ids[2], pool.ids[3]);
         pool.kill(0);
         pool.kill(2);
-        // Three were fed at Phase 2; the free rations of the two dead stay unallocated.
-        let rc = offer(RETAIL_MODE_RETAIL, vec![(0, 250, 0.3)], vec![(o, 0, 400)], 1);
-        let f = sell(&mut pool, &regions, &l2_equal(vec![3]), &rc);
+        // Four were fed at Phase 2; the free rations of the two dead stay unallocated.
+        let rc = offer(RETAIL_MODE_RETAIL, vec![(0, 250, 0.4)], vec![(o, 0, 400), (l, 0, 100)], 1);
+        let f = sell(&mut pool, &regions, &l2_equal(vec![4]), &rc);
         let row = &f.regions[0];
-        assert_eq!((row.persons, row.present_claims), (1, 0));
-        assert!((row.free_living - 0.1).abs() < 1e-12 && (row.free_unallocated - 0.2).abs() < 1e-9);
-        // B buys from the dead owner's claim; the credit has no living holder
-        // and is refunded, so B's wealth is unchanged.
-        // B's fair share is 0.6 less its 0.1 free (250), then 150 more in the open round.
-        assert_eq!((row.own_eaten_fair_milli + row.own_eaten_open_milli, row.sold_fair_milli, row.sold_open_milli), (0, 250, 150));
-        assert_eq!((row.paid_milli, row.refused_dead_milli, row.refunded_milli, row.credited_milli), (200, 200, 200, 0));
-        assert_eq!(f.money, vec![(o, 0, 0, 0), (b, 200, 0, 200)]);
+        assert_eq!((row.persons, row.present_claims), (2, 1));
+        assert!((row.free_living - 0.2).abs() < 1e-12 && (row.free_unallocated - 0.2).abs() < 1e-9);
+        // The dead owner's claim is neither offered nor eaten: it stays whole
+        // for the heirs. Only L's 100 is food: L eats it and B finds no offer.
+        assert_eq!((row.withheld_dead_claims, row.withheld_dead_milli, row.offered_milli), (1, 400, 500));
+        assert_eq!((row.own_eaten_fair_milli + row.own_eaten_open_milli, row.sold_fair_milli + row.sold_open_milli,
+                    row.unsold_milli), (100, 0, 400));
+        assert_eq!(f.claims, vec![(o, 0, 0, 0), (l, 0, 100, 0)]);
+        assert_eq!((row.paid_milli, row.credited_milli, row.refunded_milli), (0, 0, 0));
+        assert!(f.money.is_empty());
         assert_eq!(milli(&pool, 1), 10_000);
-        assert!(f.money.iter().all(|m| m.0 != d) && f.sample.iter().all(|s| s.0 == b));
+        // L, means-tested, takes the free 0.2 and eats its own 100 (0.4, priced
+        // out of the rest); B, with cash, finds nothing on offer.
+        assert_eq!(access(&pool, 1), 0.0);
+        assert!((access(&pool, 3) - 0.4).abs() < 1e-6);
+        assert_eq!((row.offer_short_persons, row.priced_out_persons), (1, 1));
+        assert!(f.sample.iter().all(|s| s.0 == b || s.0 == l) && f.sample.iter().all(|s| s.0 != d));
     }
 
     #[test]
@@ -1323,13 +1348,12 @@ mod tests {
         let rc = offer(RETAIL_MODE_RETAIL, vec![(0, 250, 0.0)], vec![(o, 0, 400)], 1);
         let f = sell(&mut pool, &regions, &l2_equal(vec![2]), &rc);
         let row = &f.regions[0];
-        // The newborn does not eat the dead owner's claim and cannot pay.
-        assert_eq!((row.present_claims, row.own_eaten_fair_milli + row.own_eaten_open_milli), (0, 0));
-        assert_eq!(access(&pool, 0), 0.0);
-        assert!((access(&pool, 1) - 0.8).abs() < 1e-6);
-        assert_eq!(row.refused_dead_milli, row.paid_milli);
-        assert_eq!(milli(&pool, 0), 0);
-        assert_eq!(f.claims, vec![(o, 0, 0, 400)]);
+        // The newborn in the dead owner's slot does not eat the claim, and
+        // nobody buys it: it is withheld whole.
+        assert_eq!((row.present_claims, row.withheld_dead_milli, row.unsold_milli), (0, 400, 400));
+        assert_eq!((access(&pool, 0), access(&pool, 1)), (0.0, 0.0));
+        assert_eq!((row.paid_milli, milli(&pool, 0), milli(&pool, 1)), (0, 0, 10_000));
+        assert_eq!(f.claims, vec![(o, 0, 0, 0)]);
         let _ = b;
     }
 
@@ -1465,9 +1489,11 @@ mod tests {
                 assert!(paid <= crate::wealth_transfer::floor_millis(pool.wealth[slot]) && refunded <= paid);
             }
             assert!((0..30).all(|s| p.wealth[s] >= 0.0));
+            assert_eq!(f.regions[0].withheld_dead_milli, 250);
+            assert!(f.claims.contains(&(ids[9], 0, 0, 0)));
             if mode != RETAIL_MODE_FREE_EXCHANGE {
                 assert!(f.regions.iter().map(|r| r.paid_milli).sum::<i64>() > 0);
-                assert!(f.regions.iter().map(|r| r.refused_dead_milli).sum::<i64>() > 0);
+                assert!(f.regions.iter().map(|r| r.paid_milli).sum::<i64>() > 0);
             }
         }
     }
