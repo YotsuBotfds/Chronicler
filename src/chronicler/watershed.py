@@ -136,10 +136,22 @@ class Parameters:
         return {f.name: (dict(v) if isinstance(v := getattr(self, f.name), dict) else v) for f in fields(self)}
 
 
-#: The B1 (S1-A) constants, kept for comparison (docs/integration/watershed.md, calibration).
+#: The B1 (S1-A) constants, declared and uncalibrated; kept for comparison.
 B1_PARAMETERS = Parameters()
-#: The constants in force.
-PARAMETERS = B1_PARAMETERS
+#: The constants in force (B2): calibrated in ``record_only`` on the procedural
+#: development worlds 7, 11, 13, 17, 21, 31, 302 and 303 (200 turns, hybrid) by
+#: ``scripts/watershed_replay.py`` so that storage is stationary after the first
+#: climate cycle, the derived index matches the old index's level and phase
+#: amplitude, droughts are as frequent as the same rule finds in the old index and
+#: floods about as frequent as coastal floods (docs/integration/watershed.md,
+#: "Calibration"). Precipitation and evaporation by phase are fitted to the old
+#: index's cycle, not to physical rates.
+PARAMETERS = Parameters(
+    forest_retention=0.25, precipitation_base=0.13,
+    phase_precipitation={"temperate": 1.0, "warming": 1.2, "drought": -0.9, "cooling": -0.5},
+    shock_precipitation=1.25, evaporation_base=0.02,
+    phase_evaporation={"temperate": 1.0, "warming": 1.05, "drought": 2.8, "cooling": 1.35},
+    transpiration=0.3, baseflow=0.009, channel_capacity=0.35)
 
 STORAGE_BASE = PARAMETERS.storage_base
 FOREST_RETENTION = PARAMETERS.forest_retention
