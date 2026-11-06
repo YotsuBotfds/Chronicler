@@ -110,9 +110,53 @@ Full audits (2026-11-06, source identical to `8abc1acb`) are under
 code with file and line evidence; unverified items are marked there. The lead's decisions on their
 open questions follow each summary.
 
-### 5.1 A1–A2 income and wealth
+### 5.1 A1–A2 income and wealth ([audit](../audits/connected-world/audit-a1-a2-income-wealth.md))
 
-Pending (critical path; its accounting design governs every payer added later).
+- Agent `wealth` (native f32, checkpointed) is not conserved cash. On development worlds over 200
+  turns, real transfers into households (wages and procurement, net of courier fees) are 2–12% of
+  inflows; the rest is occupational income the model creates (about 3,700–15,700 coins per world),
+  mostly removed by the 2% per-turn decay; each birth adds 0.5. The treasury tax (5% of merchant
+  wealth) and the tithe pay the treasury and priests without debiting anyone, so part of the
+  treasury that pays wages is itself created. No per-turn check covers agent wealth as a whole.
+- Every package payment (wages, food purchases, procurement, remittances, fares, credit) is keyed,
+  debits its payer and closes within its package. Defects and issues: estates without heirs are
+  destroyed uncounted; income refused at the wealth ceiling is unrecorded; tax and tithe are
+  labelled transfers but act as sources; milli-unit transfers applied to an f32 balance leave small
+  rounding differences; each package handles ceiling-refused wage residuals its own way; in the
+  checkpoint-3 screen design, payment decided which regions were enrolled. No double payment or lost
+  refund was found.
+- **A2 (exploratory, development worlds only, 40 runs, 0.25 core-hours):** paid and unpaid arms each
+  replayed the other's recorded opening schedule (reproduced exactly 10 of 10). With enrollment
+  fixed, the wage **raised** money credited to households in 5 of 5 worlds under both schedules;
+  enrollment growth alone lowered it in 4 of 5 (about 1,700–2,100 more coins of farm income
+  replaced per procedural world). Checkpoint 3's fall in household money comes from enrollment, not
+  from the wage. The paid arm's wider enrollment raised priced-out person-turns in 5 of 5; the
+  wage's own effect on being priced out was lower in 5 of 5 at the smaller schedule, mixed at the
+  larger, lower in 4 of 5 at `all`. 76% of the priced-out are non-farm adults (merchants, soldiers,
+  scholars, priests) and children with no parent in the region; paid crew members are 5% and sell
+  about twice what they buy. These are development-world observations, to be tested on the CW1
+  held cohort.
+- **Decisions:**
+  - `wealth` stays the one spendable balance; no second balance now (it would double purchasing
+    power unless every reader were re-pointed, a default-path change). Model income is replaced by
+    paid flows one source at a time, each behind its own switch, with the ledger showing the
+    remaining model share.
+  - `--wealth-accounting` (opt-in, hybrid-only, appended last among livelihoods switches) observes
+    only: with it on, every output except its own record equals it off. Slice A1-1 is Python-only
+    (opening/closing snapshots, typed flows from existing receipts, the no-hidden-writer check, the
+    PL3 granary/workshop split — RL7); slice A1-2 is a transient native observer itemizing income,
+    decay, the ceiling, births and estates (witness layers for the pinned Rust files).
+  - New payers (A3, A4, B3, C2, D4) pay through one helper (`chronicler/money.py`) that validates the
+    whole bill before moving anything and resolves refused credits by **returning them to the
+    payer** unless a named sink is declared and recorded. Existing packages are not refactored
+    onto it.
+  - The wage question is screened on fixed cohorts: `--household-retail-boundary schedule` replays a
+    frozen opening map, plus `all`/`market` with household-group cohorts; `paid_work` remains the
+    enrollment story itself. These retail-side additions land after A5 (same files).
+  - Recorded for later, with evidence from the ledger first: whether decay should be offset by food
+    spending under retail (pilot households arguably pay for food twice); whether the treasury tax
+    and tithe should debit their payers (a rules version, with A4's merchant work); relief for
+    non-farm adults and for children living apart from parents.
 
 ### 5.2 B watershed and infrastructure ([audit](../audits/connected-world/audit-b-watershed-infrastructure.md))
 
