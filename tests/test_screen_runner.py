@@ -676,7 +676,11 @@ def test_m1_held_identity_and_ledger(SR, CW, tmp_path):
     assert SR.run_main(_held_argv(tmp_path), screens, fake.rt) == 0
     source = (tmp_path / "out" / "source.txt").read_text()
     prereg = screens["CW1"].preregistration
-    line = f"preregistration {hashlib.sha256(prereg.read_bytes()).hexdigest()} {prereg.resolve()}"
+    # The runner's path rule: relative to the repository inside it (the lane's default
+    # pytest basetemp is under <repo>/output), absolute outside it.
+    shown = prereg.resolve()
+    shown = shown.relative_to(ROOT) if shown.is_relative_to(ROOT) else shown
+    line = f"preregistration {hashlib.sha256(prereg.read_bytes()).hexdigest()} {shown}"
     assert source.splitlines()[:3] == [*IDENTITY, line]                      # m4: the preregistration's hash
     rows = SR.read_rows(tmp_path / "out" / "metrics.jsonl", screens["CW1"])
     assert {r["identity"] for r in rows} == {hashlib.sha256("\n".join([*IDENTITY, line]).encode()).hexdigest()}
