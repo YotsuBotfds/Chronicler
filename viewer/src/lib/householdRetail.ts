@@ -13,7 +13,8 @@ import type { TurnSnapshot } from "../types";
 
 export const RETAIL_GOODS = ["grain", "fish", "salt", "botanicals", "exotic"] as const;
 export const RETAIL_MODES = ["retail", "no_relief", "free_exchange", "record_only"] as const;
-export const RETAIL_BOUNDARIES = ["market", "paid_work", "all"] as const;
+/** ``schedule`` (A2R): a frozen ``{region: opening turn}`` map (``--household-retail-schedule``). */
+export const RETAIL_BOUNDARIES = ["market", "paid_work", "all", "schedule"] as const;
 export type RetailMode = typeof RETAIL_MODES[number];
 export type RetailBoundary = typeof RETAIL_BOUNDARIES[number];
 /** The modes, plainly. */
