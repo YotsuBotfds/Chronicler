@@ -4,8 +4,8 @@
 beside the water index and changes nothing; ``--watershed-mode flow`` (B2)
 makes the derived index the index the simulation uses, replacing (never
 stacking on) the native water climate terms, the irrigation water bonus and
-the downstream deforestation cascade, and lets the account's floods act
-(native ecology only). See :mod:`chronicler.livelihoods` and
+the downstream deforestation cascade, and lets each flood event act once at
+its onset (native ecology only). See :mod:`chronicler.livelihoods` and
 docs/integration/watershed.md.
 
 Graph. Built once at enable from the world's saved procedural geography
@@ -56,10 +56,15 @@ actually used after the ecology tick (``index_observed``). The opening
 storage is ``C x (index - floor)/(cap - floor)``, so the derived index is
 continuous at enable and the world-generation river bonus is inside it.
 
-Conditions. A flood is a settled turn whose arrivals ``P + I + X_in`` exceed
-the region's channel capacity (``CHANNEL_CAPACITY``, x
-``RIVER_CHANNEL_FACTOR`` on a named river region); its record keeps the
-arrivals by source, each tributary's outflow and the upstream cover. A
+Conditions. A flood event starts on a settled turn whose arrivals ``P + I``
+(channel flow; an external inflow is not counted) exceed the region's
+channel capacity while no event is open there, and stays open while
+arrivals exceed ``flood_recession`` x channel (hysteresis). The channel is
+``channel_ratio`` x the normal precipitation of the region's drainage basin
+(B1: a fixed ``CHANNEL_CAPACITY``, x ``RIVER_CHANNEL_FACTOR`` on a named river
+region). The onset record keeps the arrivals by source, each tributary's
+outflow and the upstream cover. A terrain transition of the Phase 9
+post-pass that clamps the index to a new cap is recorded as a cap change. A
 drought is a run of at least ``DROUGHT_TURNS`` settled turns with ``S'/C``
 below ``DROUGHT_FRACTION``; its record keeps the precipitation against the
 normal precipitation (the forcing deficit), inflow, evaporation, the
@@ -71,8 +76,9 @@ no randomness: :func:`before_ecology` computes and checks the account from
 the pre-tick world, :func:`after_ecology` reads the observed index and
 commits. A plan left by a failed ecology tick is dropped at the next
 planning; nothing was settled. Works in every ecology path (native and the
-pure-Python fallback) and every agent mode. Every constant below is a
-declared modelling choice, not a calibration.
+pure-Python fallback) and every agent mode. Three constants are fitted to the
+old index on development worlds; the others are declared or fixed with a
+stated reason (``PARAMETERS``).
 """
 from __future__ import annotations
 
@@ -82,8 +88,9 @@ from functools import lru_cache
 from typing import NamedTuple
 
 from chronicler.watershed_state import (
-    COUNTER_KEYS, FLOW_COUNTER_KEYS, FLOW_KEYS, FRAME_COLUMNS, LAKE, SEA, SINK, DroughtSpell, ExternalFlow,
-    FloodConsequence, FloodRecord, SupersededFlood, WatershedFrame, WatershedGraph, WatershedState,
+    COUNTER_KEYS, EVENT_COUNTER_KEYS, FLOW_COUNTER_KEYS, FLOW_KEYS, FRAME_COLUMNS, LAKE, SEA, SINK,
+    ActiveConsequence, CapChange, DroughtSpell, ExternalFlow, FloodConsequence, FloodEvent, FloodRecord,
+    SupersededFlood, WatershedFrame, WatershedGraph, WatershedState,
 )
 
 #: The native ecology terms ``flow`` replaces, switched off exactly once, in the
@@ -101,9 +108,11 @@ FLOW_NATIVE_REFUSAL = (
 
 MODES = ("record_only", "flow")
 SCHEMA_VERSION = 1
-#: The slice that defined each mode's record.
-STAGES = {"record_only": "B1", "flow": "B2"}
-STAGE = STAGES["record_only"]
+#: The slice that defined the record this code writes (both modes): B2 records
+#: carry flood events, terrain cap changes and the B2 constants; B1 records
+#: (record_only only) are still read by the viewer.
+STAGE = "B2"
+STAGES = {"record_only": STAGE, "flow": STAGE}
 
 
 @dataclass(frozen=True)
@@ -139,8 +148,13 @@ class Parameters:
     irrigation_wetting: float = 1.0
     #: Arrivals a region's channel passes without flooding ...
     channel_capacity: float = 0.25
-    #: ... larger on a named river region.
+    #: ... larger on a named river region (B1's fixed channel).
     river_channel_factor: float = 2.0
+    #: B2: when set, a region's channel is this multiple of its drainage basin's normal
+    #: precipitation (the region's and every region's upstream, at phase factor 1 and no
+    #: shock), replacing the fixed channel: channels carry what their basin normally
+    #: delivers, so a confluence is not a permanent flood site.
+    channel_ratio: float | None = None
     #: A drought: storage below this fraction of capacity ...
     drought_fraction: float = 0.2
     #: ... for at least this many consecutive settled turns.
@@ -157,6 +171,9 @@ class Parameters:
     flood_silt: float = 0.15
     #: ... and the excess (wu) from which it lasts two turns instead of one.
     flood_long_excess: float = 0.1
+    #: A flood event, once started (arrivals above the channel), stays open
+    #: while arrivals exceed this share of the channel (hysteresis).
+    flood_recession: float = 0.75
 
     def as_dict(self) -> dict:
         return {f.name: (dict(v) if isinstance(v := getattr(self, f.name), dict) else v) for f in fields(self)}
@@ -164,20 +181,23 @@ class Parameters:
 
 #: The B1 (S1-A) constants, declared and uncalibrated; kept for comparison.
 B1_PARAMETERS = Parameters()
-#: The constants in force (B2): calibrated in ``record_only`` on the procedural
-#: development worlds 7, 11, 13, 17, 21, 31, 302 and 303 (200 turns, hybrid) by
-#: ``scripts/watershed_replay.py`` so that storage is stationary after the first
-#: climate cycle, the derived index matches the old index's level and phase
-#: amplitude, droughts are as frequent as the same rule finds in the old index and
-#: floods about as frequent as coastal floods (docs/integration/watershed.md,
-#: "Calibration"). Precipitation and evaporation by phase are fitted to the old
-#: index's cycle, not to physical rates.
+#: The constants in force (B2, refit after review): three fitted in ``record_only``
+#: on the procedural development worlds 7, 11, 13, 17, 21, 31, 302 and 303 (32x10,
+#: 400 turns, hybrid) by ``scripts/watershed_replay.py fit --form core``
+#: (precipitation_base, baseflow, cooling precipitation); every other constant is
+#: fixed with a stated reason (docs/integration/watershed.md, "Calibration"):
+#: evaporation 0.03 (only the precipitation/evaporation ratio is identified),
+#: warming factors 1.0 (the old index has no warming-phase water term), drought
+#: precipitation -1.0 and evaporation 4.0 (their physical limits, where every
+#: freer fit put them), cooling evaporation 1.0, harvest shock 1.0 and the forest
+#: linkage (retention 0.5, transpiration 0.3) at their declared values. The
+#: channel is the basin's normal precipitation (``channel_ratio`` 1.0, not fitted).
+#: Leave-two-out cross-validation and a 64x16 transfer check are reported there.
 PARAMETERS = Parameters(
-    forest_retention=0.25, precipitation_base=0.13,
-    phase_precipitation={"temperate": 1.0, "warming": 1.2, "drought": -0.9, "cooling": -0.5},
-    shock_precipitation=1.25, evaporation_base=0.02,
-    phase_evaporation={"temperate": 1.0, "warming": 1.05, "drought": 2.8, "cooling": 1.35},
-    transpiration=0.3, baseflow=0.009, channel_capacity=0.35)
+    precipitation_base=0.3488, evaporation_base=0.03, baseflow=0.0644,
+    phase_precipitation={"temperate": 1.0, "warming": 1.0, "drought": -1.0, "cooling": -0.3936},
+    phase_evaporation={"temperate": 1.0, "warming": 1.0, "drought": 4.0, "cooling": 1.0},
+    shock_precipitation=1.0, forest_retention=0.5, transpiration=0.3, channel_ratio=1.0)
 
 STORAGE_BASE = PARAMETERS.storage_base
 FOREST_RETENTION = PARAMETERS.forest_retention
@@ -217,6 +237,11 @@ class _Plan:
         self.contributions, self.normal, self.cover, self.unmet = contributions, normal, cover, unmet
         self.channel, self.residual, self.external, self.stale = channel, residual, external, stale
         self.consequences: dict[int, FloodConsequence] = {}
+        #: ``flow``: onsets whose consequence was withheld, with the cooldowns the region held.
+        self.withheld: dict[int, list[str]] = {}
+        #: The pre-tick terrain and water-index cap of each region (inputs).
+        self.terrain: list[str] = []
+        self.caps: list[float] = []
 
 
 # --- State and switch -----------------------------------------------------------------
@@ -271,6 +296,10 @@ def check_request(world, value: bool | None, args=None) -> None:
     state = _state(world)
     if state is None:
         if value is not True:
+            if mode is not None and value is None:
+                # Easy to mistake for a flow run that did nothing (review n1).
+                raise ValueError(f"--watershed-mode {mode} requires --watershed (this world has no watershed "
+                                 "account)")
             return
         build_graph(world)          # template worlds first: the same refusal at startup and on resume
         if int(world.turn) > 0:
@@ -452,6 +481,7 @@ def open_account(world, graph: WatershedGraph, mode: str = "record_only") -> Wat
         index.append(water)
     state = WatershedState(mode=mode, opened_turn=int(world.turn), graph=graph, storage=storage,
                            last_index=index, opening_storage=math.fsum(storage))
+    state.counters.update({key: 0 for key in EVENT_COUNTER_KEYS})
     if mode == "flow":
         state.counters.update({key: 0 for key in FLOW_COUNTER_KEYS})
     return state
@@ -533,6 +563,13 @@ def account_step(graph: WatershedGraph, storage: list[float], last_index: list[f
     external: list[ExternalFlow] = []
     normal, covers, unmet, channels = [0.0] * n, [0.0] * n, [0.0] * n, [0.0] * n
     floor = params.index_floor
+    basin = None
+    if params.channel_ratio is not None:
+        # Each region's drainage basin's normal precipitation (itself and everything upstream).
+        basin = [params.precipitation_base * (0.2 + inp.moisture) for inp in inputs]
+        for r in graph.order:
+            if graph.down[r] >= 0:
+                basin[graph.down[r]] += basin[r]
     for r in graph.order:
         inp = inputs[r]
         cover = inp.cover
@@ -579,18 +616,24 @@ def account_step(graph: WatershedGraph, storage: list[float], last_index: list[f
             routed["to_lake"][r] = q
         else:
             routed["to_sink"][r] = q
-        channel = params.channel_capacity * (params.river_channel_factor if inp.river else 1.0)
+        channel = (params.channel_ratio * basin[r] if basin is not None
+                   else params.channel_capacity * (params.river_channel_factor if inp.river else 1.0))
         fill = min(1.0, s2 / cap + params.irrigation_wetting * w / cap) if cap > 0 else 0.0
         for name, value in (("storage_open", s), ("precipitation", p), ("external_in", x_in),
                             ("external_out", x_out), ("inflow", i), ("evaporation", e), ("withdrawal", w),
                             ("outflow", q), ("storage", s2), ("capacity", cap),
                             ("index_derived", floor + (inp.cap - floor) * max(0.0, fill)),
-                            ("flood_excess", max(0.0, p + i + x_in - channel))):
+                            # AUDIT-B 7.2: flood = max(0, I + P - channel); an external inflow
+                            # (a coastal flood's surge) enters storage but is not channel flow.
+                            ("flood_excess", max(0.0, p + i - channel))):
             cols[name][r] = value
         normal[r], covers[r], unmet[r], channels[r] = p_norm, cover, want - x_out, channel
     residual = check_closure(graph.down, cols, routed)
     external.sort(key=lambda f: (f.region, f.direction, f.source))
-    return _Plan(turn, key, cols, routed, contributions, normal, covers, unmet, channels, residual, external, stale)
+    plan = _Plan(turn, key, cols, routed, contributions, normal, covers, unmet, channels, residual, external, stale)
+    plan.terrain = [inp.terrain for inp in inputs]
+    plan.caps = [float(inp.cap) for inp in inputs]
+    return plan
 
 
 def _compute(world, state: WatershedState, stale: bool = False) -> _Plan:
@@ -679,37 +722,73 @@ def before_ecology(world, acc, *, native: bool | None = None) -> None:
                                "is missing); refusing to apply the account")
     plan = _compute(world, state, stale=stale)
     if state.mode == "flow":
-        plan.consequences = _apply_flow(world, plan)
+        _end_expired_consequences(world, state)
+        _apply_flow(world, plan, state)
     state._plan = plan
     state.counters["planned_turns"] = state.counters.get("planned_turns", 0) + 1
 
 
-def _apply_flow(world, plan: _Plan) -> dict[int, FloodConsequence]:
+def _onsets(state: WatershedState, plan: _Plan) -> list[int]:
+    """Regions where a flood event starts this turn: arrivals above the channel
+    (``flood_excess`` > 0) and no event open there (an open event ends only
+    below the recession threshold, so an onset crosses the channel from below)."""
+    open_regions = {event.region for event in state.flood_events}
+    return [r for r, excess in enumerate(plan.columns["flood_excess"]) if excess > 0.0 and r not in open_regions]
+
+
+def _apply_flow(world, plan: _Plan, state: WatershedState) -> None:
     """``flow``: the derived index becomes the index the simulation uses, and
-    each flood acts through the existing fields, before the Phase 9 sync so
-    the native tick sees both. Deterministic; no RNG."""
+    each flood event acts once, at its onset, through the existing fields,
+    before the Phase 9 sync so the native tick sees both. As the old river
+    flood skipped a region holding any disaster cooldown, a consequence is
+    withheld (and recorded so) on such a region; this also counts a coastal
+    flood's storm once. Deterministic; no RNG."""
     from chronicler.ecology import TERRAIN_ECOLOGY_CAPS
     params = PARAMETERS
-    consequences: dict[int, FloodConsequence] = {}
     for r, region in enumerate(world.regions):
         region.ecology.water = plan.columns["index_derived"][r]
-        excess = plan.columns["flood_excess"][r]
-        if excess <= 0.0:
+    for r in _onsets(state, plan):
+        region = world.regions[r]
+        held = sorted(k for k, v in region.disaster_cooldowns.items() if v > 0)
+        if held:
+            plan.withheld[r] = held
             continue
+        excess = plan.columns["flood_excess"][r]
         days = 2 if excess >= params.flood_long_excess else 1
         # Applied in Phase 9, one turn later than the old Phase-1 river flood:
         # the cooldown covers this turn's tick and the next ``days`` turns.
-        cooldown = max(days + 1, int(region.disaster_cooldowns.get("flood", 0)))
-        modifier = min(float(region.capacity_modifier), params.flood_capacity_modifier)
+        cooldown = days + 1
+        before = float(region.capacity_modifier)
+        modifier = min(before, params.flood_capacity_modifier)
         cap = TERRAIN_ECOLOGY_CAPS.get(region.terrain, TERRAIN_ECOLOGY_CAPS["plains"])["soil"]
-        before = float(region.ecology.soil)
-        after = min(float(cap), before + params.flood_silt)
+        soil_before = float(region.ecology.soil)
+        soil_after = max(soil_before, min(float(cap), soil_before + params.flood_silt))
         region.disaster_cooldowns["flood"] = cooldown
         region.capacity_modifier = modifier
-        region.ecology.soil = max(before, after)
-        consequences[r] = FloodConsequence(capacity_modifier=modifier, cooldown=cooldown,
-                                           soil_before=before, soil_after=max(before, after))
-    return consequences
+        region.ecology.soil = soil_after
+        plan.consequences[r] = FloodConsequence(capacity_modifier=modifier, cooldown=cooldown,
+                                                soil_before=soil_before, soil_after=soil_after)
+        if modifier < before:
+            state.active_consequences.append(ActiveConsequence(
+                region=r, expires_turn=plan.turn + cooldown, modifier=modifier, before=before))
+
+
+def _end_expired_consequences(world, state: WatershedState) -> None:
+    """``flow``: end a flood's capacity modifier when its cooldown has expired.
+    ``simulation`` restores the modifier in Phase 1 only when every cooldown
+    is gone, so another disaster's cooldown (begun after the onset) would
+    otherwise keep it; the account restores its own value here, at its next
+    Phase 9, unless another system has changed it since."""
+    keep = []
+    for active in state.active_consequences:
+        if int(world.turn) < active.expires_turn:
+            keep.append(active)
+            continue
+        region = world.regions[active.region]
+        if ("flood" not in region.disaster_cooldowns and float(region.capacity_modifier) == active.modifier
+                and region.disaster_cooldowns):
+            region.capacity_modifier = active.before
+    state.active_consequences = keep
 
 
 def supersede_river_flood(world, region, duration: int) -> bool:
@@ -727,7 +806,9 @@ def supersede_river_flood(world, region, duration: int) -> bool:
 
 def after_ecology(world, acc) -> list:
     """Record the index the tick produced beside the derived one, the
-    floods and droughts with their conditions, and commit the turn."""
+    flood events and droughts with their conditions and the terrain cap
+    changes of the post-pass, and commit the turn. In ``flow`` each flood
+    event that acted is also a chronicle event."""
     state = _state(world)
     plan, state._plan = state._plan, None
     if plan is None or plan.turn != world.turn:
@@ -741,18 +822,46 @@ def after_ecology(world, acc) -> list:
     def mean_cover(r: int) -> float | None:
         return math.fsum(plan.cover[u] for u in up[r]) / len(up[r]) if up[r] else None
 
-    floods = []
+    # Flood events: an onset crosses the channel from below (no event open);
+    # an open event lasts while arrivals exceed the recession threshold.
+    recession = PARAMETERS.flood_recession
+    open_events = {event.region: event for event in state.flood_events}
+    onsets = set(_onsets(state, plan))
+    floods: list[FloodRecord] = []
+    flood_events: list[FloodEvent] = []
+    floods_ended: list[FloodEvent] = []
     for r in range(n):
-        if cols["flood_excess"][r] > 0.0:
+        arrivals = cols["precipitation"][r] + cols["inflow"][r]
+        excess = cols["flood_excess"][r]
+        event = open_events.get(r)
+        if event is not None:
+            if arrivals > recession * plan.channel[r]:
+                flood_events.append(event.model_copy(update={
+                    "turns": event.turns + 1, "peak_excess": max(event.peak_excess, excess)}))
+            else:
+                floods_ended.append(event.model_copy(update={"end_turn": plan.turn}))
+        elif r in onsets:
             floods.append(FloodRecord(
-                turn=plan.turn, region=r, excess=cols["flood_excess"][r],
-                arrivals=cols["precipitation"][r] + cols["inflow"][r] + cols["external_in"][r],
+                turn=plan.turn, region=r, excess=excess, arrivals=arrivals,
                 channel=plan.channel[r], precipitation=cols["precipitation"][r], inflow=cols["inflow"][r],
-                external_in=cols["external_in"][r], storage_open=cols["storage_open"][r],
+                storage_open=cols["storage_open"][r],
                 capacity=cols["capacity"][r], tributaries=list(plan.contributions[r]),
                 upstream_cover=mean_cover(r),
                 upstream_deforested=sum(1 for u in up[r] if plan.cover[u] < DEFORESTED_COVER),
-                consequence=plan.consequences.get(r)))
+                consequence=plan.consequences.get(r), withheld_by=plan.withheld.get(r, [])))
+            flood_events.append(FloodEvent(region=r, start_turn=plan.turn, turns=1, peak_excess=excess))
+
+    # Terrain transitions in this Phase 9's post-pass clamp the index to the
+    # new terrain's cap (emergence.tick_terrain_succession): recorded so the
+    # index used is explained (flow: min(index_derived, cap_after)).
+    cap_changes: list[CapChange] = []
+    for r, region in enumerate(regions):
+        if region.terrain != plan.terrain[r]:
+            cap_after = index_cap(region)
+            cap_changes.append(CapChange(
+                region=r, terrain_before=plan.terrain[r], terrain_after=region.terrain,
+                cap_before=plan.caps[r], cap_after=cap_after,
+                index_out=max(0.0, cols["index_derived"][r] - cap_after) if state.mode == "flow" else None))
 
     running = {spell.region: spell for spell in state.spells}
     spells: list[DroughtSpell] = []
@@ -803,22 +912,27 @@ def after_ecology(world, acc) -> list:
     if abs(math.fsum(terms)) > _tolerance(terms):
         raise RuntimeError("watershed: the cumulative account does not close against the opening storage")
     frame = WatershedFrame(turn=plan.turn, phase=plan.phase, columns=cols, floods=floods, droughts_ended=ended,
-                           totals=totals, storage_open=storage_open, storage_close=storage_close,
-                           closure_residual=plan.residual, drought_turns=drought_turns,
-                           external=plan.external, stale_baseline=plan.stale,
-                           superseded=[f for f in state.pending_superseded if f.turn == plan.turn])
+                           floods_ended=floods_ended, totals=totals, storage_open=storage_open,
+                           storage_close=storage_close, closure_residual=plan.residual,
+                           drought_turns=drought_turns, external=plan.external, stale_baseline=plan.stale,
+                           superseded=[f for f in state.pending_superseded if f.turn == plan.turn],
+                           cap_changes=cap_changes)
 
     # Commit: storage, the observed index, the spells, the frame and the totals.
     state.storage = list(cols["storage"])
     state.last_index = list(cols["index_observed"])
     state.spells = spells
+    state.flood_events = flood_events
     state.frame = frame
     state.cumulative = cumulative
     counters = state.counters
-    for key in COUNTER_KEYS:
+    for key in COUNTER_KEYS + EVENT_COUNTER_KEYS:
         counters.setdefault(key, 0)
     counters["settled_turns"] += 1
-    counters["flood_region_turns"] += len(floods)
+    counters["flood_region_turns"] += sum(1 for v in cols["flood_excess"] if v > 0.0)
+    counters["floods_started"] += len(floods)
+    counters["floods_ended"] += len(floods_ended)
+    counters["terrain_cap_changes"] += len(cap_changes)
     counters["drought_region_turns"] += open_count
     counters["droughts_declared"] += declared
     counters["droughts_ended"] += ended_count
@@ -828,9 +942,26 @@ def after_ecology(world, acc) -> list:
         for key in FLOW_COUNTER_KEYS:
             counters.setdefault(key, 0)
         counters["flood_consequences"] += len(plan.consequences)
+        counters["flood_consequences_withheld"] += len(plan.withheld)
         counters["superseded_river_floods"] += len(frame.superseded)
     state.pending_superseded = []
-    return []
+    return _flood_events(world, plan) if state.mode == "flow" else []
+
+
+def _flood_events(world, plan: _Plan) -> list:
+    """``flow``: a chronicle event for each flood event that acted (its record
+    is the cause), replacing the superseded river flood's event."""
+    from chronicler.models import Event
+    events = []
+    for r in sorted(plan.consequences):
+        region = world.regions[r]
+        events.append(Event(
+            turn=world.turn, event_type="flood", region=region.name,
+            actors=[region.controller] if region.controller else [],
+            description=(f"Swollen waters overflow the channels of {region.name}, depositing rich silt "
+                         "but damaging infrastructure"),
+            importance=6))
+    return events
 
 
 # --- Protocol: observation ------------------------------------------------------------
@@ -858,7 +989,8 @@ def _flood(flood: FloodRecord) -> dict:
     out = flood.model_dump()
     for key in ("excess", "arrivals", "channel", "precipitation", "inflow", "external_in", "storage_open",
                 "capacity"):
-        out[key] = _r(out[key])
+        if key in out:
+            out[key] = _r(out[key])
     out["tributaries"] = [[int(u), _r(q)] for u, q in flood.tributaries]
     if out["upstream_cover"] is not None:
         out["upstream_cover"] = _r(out["upstream_cover"])
@@ -872,6 +1004,14 @@ def _flood(flood: FloodRecord) -> dict:
 #: it (``storage_open + precipitation + external_in - external_out + inflow -
 #: evaporation - withdrawal - storage``); the state keeps it.
 SNAPSHOT_COLUMNS: tuple[str, ...] = tuple(name for name in FRAME_COLUMNS if name != "outflow")
+
+
+def _flood_event(event: FloodEvent) -> dict:
+    out = event.model_dump()
+    out["peak_excess"] = _r(out["peak_excess"])
+    if out["end_turn"] is None:
+        del out["end_turn"]
+    return out
 
 
 def _open_drought(spell: DroughtSpell) -> dict:
@@ -889,10 +1029,12 @@ def snapshot_summary(world) -> dict:
     ``graph``), so any segment of a history (a state-file resume or a fork
     starts after the opening turn) reads on its own; the bundle's deltas
     write it once anyway. ``observed`` is False (``regions``,
-    ``floods``, ``droughts``, ``external`` and ``totals`` None, not empty)
-    when no Phase 9 was settled in the completed turn; ``storage`` (the
-    account's current storage) is recorded only then, since a settled
-    turn's ``regions.storage`` is the same list."""
+    ``floods``, ``flood_events``, ``droughts``, ``external``,
+    ``cap_changes`` and ``totals`` None, not empty) when no Phase 9 was
+    settled in the completed turn; ``storage`` (the account's current
+    storage) is recorded only then, since a settled turn's
+    ``regions.storage`` is the same list. ``floods`` holds the flood events
+    that started in the turn (their onset records)."""
     state = _state(world)
     source_turn = world.turn - 1
     frame = state.frame
@@ -920,19 +1062,28 @@ def snapshot_summary(world) -> dict:
         "stale_baseline": frame.stale_baseline if observed else None,
         "regions": None,
         "floods": None,
+        "flood_events": None,
         "droughts": None,
         "external": None,
+        "cap_changes": None,
         "totals": None,
         "storage": None if observed else [_r(v) for v in state.storage],
         "cumulative": {**cumulative, "opening_storage": _r(state.opening_storage), "storage": _r(storage_now),
                        "closure_residual": math.fsum([storage_now, -state.opening_storage]
                                                      + [-v for v in _net(state.cumulative)])},
-        "counters": dict(state.counters),
+        # A B1 account resumed by this code gains the B2 counters when it settles.
+        "counters": {**{key: 0 for key in COUNTER_KEYS + EVENT_COUNTER_KEYS
+                        + (FLOW_COUNTER_KEYS if state.mode == "flow" else ())}, **state.counters},
     })
     if observed:
         record["regions"] = {**{name: [_r(v) for v in frame.columns[name]] for name in SNAPSHOT_COLUMNS},
                              "drought_turns": list(frame.drought_turns)}
         record["floods"] = [_flood(f) for f in frame.floods]
+        record["flood_events"] = {
+            "open": [_flood_event(e) for e in state.flood_events],
+            "ended": [_flood_event(e) for e in frame.floods_ended]}
+        record["cap_changes"] = [{key: (_r(v) if isinstance(v, float) else v)
+                                  for key, v in c.model_dump().items()} for c in frame.cap_changes]
         record["droughts"] = {
             "declared": [_spell(s) for s in state.spells if s.declared_turn == frame.turn],
             "open": [_open_drought(s) for s in state.spells if s.declared_turn is not None],

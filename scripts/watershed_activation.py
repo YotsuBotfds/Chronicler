@@ -7,8 +7,11 @@ regions and regions with upstream inflow), food sufficiency and shortfall,
 the water factor of effective capacity (``min(1, water / 0.5)``), soil, the
 final effective capacity and population, droughts and floods (the account's,
 what they did, the superseded river floods, the old river and coastal floods
-of the record_only run), and the downstream link (the water of regions with
-upstream inflow against their upstream irrigation withdrawals). Development
+of the record_only run), the flood spells (events and their lengths, the
+consequences applied and withheld; ``flood_spells`` also reads the first B2
+draft's records, where every turn above the channel acted), and the
+downstream link (the water of regions with upstream inflow against their
+upstream irrigation withdrawals). Development
 worlds only (it refuses any other seed); labelled development-only evidence,
 not an evaluation.
 
@@ -82,9 +85,48 @@ def _summary(bundle: dict) -> dict:
             pairs.append((math.fsum(cols["withdrawal"][u] for u in ups), cols["index_derived"][r]))
     with_w = [d for w, d in pairs if w > 0]
     without = [d for w, d in pairs if w == 0]
+    out["flood_spells"] = flood_spells(history)
     out["downstream_index_with_upstream_irrigation"] = _mean(with_w)
     out["downstream_index_without_upstream_irrigation"] = _mean(without)
     return out
+
+
+def flood_spells(history: list[dict]) -> dict:
+    """Flood spells of a flow history. A B2 record keeps flood events (onset
+    records, open and ended events); a record of the first B2 draft (before
+    the review) listed every region-turn above the channel, each with a
+    consequence, so its spells are runs of consecutive flood turns."""
+    records = [s["livelihoods"]["watershed"] for s in history]
+    events = "flood_events" in records[-1]
+    lengths, consequences, withheld = [], 0, 0
+    if events:
+        open_at = {}
+        for w in records:
+            if not w.get("observed"):
+                continue
+            for f in w["floods"]:
+                consequences += 1 if "consequence" in f else 0
+                withheld += 1 if "withheld_by" in f else 0
+            lengths += [e["turns"] for e in w["flood_events"]["ended"]]
+            open_at = {e["region"]: e["turns"] for e in w["flood_events"]["open"]}
+        lengths += list(open_at.values())
+    else:
+        run: dict[int, int] = {}
+        for w in records:
+            if not w.get("observed"):
+                continue
+            flooded = {f["region"] for f in w["floods"]}
+            consequences += sum(1 for f in w["floods"] if f.get("consequence"))
+            for r in list(run):
+                if r not in flooded:
+                    lengths.append(run.pop(r))
+            for r in flooded:
+                run[r] = run.get(r, 0) + 1
+        lengths += list(run.values())
+    lengths.sort()
+    return {"format": "events" if events else "region-turns", "spells": len(lengths),
+            "median": lengths[len(lengths) // 2] if lengths else 0, "longest": lengths[-1] if lengths else 0,
+            "consequences": consequences, "withheld": withheld}
 
 
 def _drains_into(down, u, r):
@@ -131,6 +173,12 @@ def main(argv=None) -> int:
               f"{f['counters'].get('flood_consequences')} | {f['counters'].get('superseded_river_floods')} | "
               f"{r['river_floods']} | {f['coastal_floods']} / {r['coastal_floods']} | "
               f"{'-' if dw is None else f'{dw:.3f}'} / {'-' if dn is None else f'{dn:.3f}'} |")
+    print("\n| World | Flood spells (flow) | Median / longest spell, turns | Consequences applied | Withheld |")
+    print("| --- | --- | --- | --- | --- |")
+    for row in rows:
+        s = row["flow"]["flood_spells"]
+        print(f"| procedural {row['seed']} | {s['spells']} ({s['format']}) | {s['median']} / {s['longest']} | "
+              f"{s['consequences']} | {s['withheld']} |")
     return 0
 
 

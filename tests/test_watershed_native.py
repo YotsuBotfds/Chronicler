@@ -7,8 +7,10 @@ config (harvest-shock water), must leave it as it is: the index observed after
 the tick equals the derived one up to the native rounding (4 decimals), in
 both native paths (``AgentSimulator`` with ``--agents hybrid``,
 ``EcologySimulator`` with ``--agents off``), while ``record_only`` shows the
-old terms acting. A flow run resumes exactly from a checkpoint. See
-docs/integration/watershed.md, section 4.
+old terms acting, over a whole climate cycle (every phase). Where a terrain
+transition of the Phase 9 post-pass lowers a region's cap, the index used is
+the derived one capped there (a recorded cap change). A flow run resumes
+exactly from a checkpoint. See docs/integration/watershed.md, section 4.
 """
 from __future__ import annotations
 
@@ -43,15 +45,31 @@ def _records(folder: Path) -> list[dict]:
     return [s["livelihoods"]["watershed"] for s in load_bundle(folder / "chronicle_bundle.json")["history"]]
 
 
+#: Turns covering a whole 75-turn climate cycle (temperate, warming, drought, cooling).
+TURNS = 80
+
+
+def _gaps(record: dict) -> list[float]:
+    """|index used - index the account wrote|, where a terrain transition of the
+    post-pass clamps the latter to the new cap (recorded as a cap change)."""
+    capped = {c["region"]: c["cap_after"] for c in record["cap_changes"]}
+    cols = record["regions"]
+    return [abs(o - (min(d, capped[r]) if r in capped else d))
+            for r, (o, d) in enumerate(zip(cols["index_observed"], cols["index_derived"]))]
+
+
 @pytest.mark.parametrize("agents", ["hybrid", "off"])
 def test_flow_leaves_the_water_index_to_the_account(tmp_path, agents):
     from chronicler.main import execute_run
-    execute_run(_args(tmp_path / "flow", 30, "flow", agents))
-    execute_run(_args(tmp_path / "record", 30, "record_only", agents))
+    execute_run(_args(tmp_path / "flow", TURNS, "flow", agents))
+    execute_run(_args(tmp_path / "record", TURNS, "record_only", agents))
     flow, record = _records(tmp_path / "flow"), _records(tmp_path / "record")
-    assert len(flow) == 30 and all(r["mode"] == "flow" and r["observed"] for r in flow)
-    gaps = [abs(o - d) for r in flow for o, d in zip(r["regions"]["index_observed"], r["regions"]["index_derived"])]
-    assert max(gaps) <= NATIVE_ROUNDING          # no climate term, irrigation bonus or cascade acted
+    assert len(flow) == TURNS and all(r["mode"] == "flow" and r["observed"] for r in flow)
+    by_phase: dict[str, float] = {}
+    for r in flow:                               # every phase: no climate term, irrigation bonus or cascade acted
+        by_phase[r["phase"]] = max(by_phase.get(r["phase"], 0.0), max(_gaps(r)))
+    assert set(by_phase) == {"temperate", "warming", "drought", "cooling"}
+    assert max(by_phase.values()) <= NATIVE_ROUNDING, by_phase
     irrigated = sum(1 for r in flow for w in r["regions"]["withdrawal"] if w > 0)
     assert irrigated > 0                         # irrigated regions were in play, with no bonus
     old = [abs(o - d) for r in record for o, d in zip(r["regions"]["index_observed"], r["regions"]["index_derived"])]

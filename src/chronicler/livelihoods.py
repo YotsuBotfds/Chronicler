@@ -400,7 +400,8 @@ def _grain_storage_on(world: Any) -> bool:
 
 
 def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = None) -> None:
-    if values["watershed"] is not None or getattr(livelihoods_state(world), "watershed", None) is not None:
+    if (values["watershed"] is not None or getattr(args, "watershed_mode", None) is not None
+            or getattr(livelihoods_state(world), "watershed", None) is not None):
         # Procedural geography; opens with a new world; a resume cannot end it
         # or change its mode (chronicler.watershed.check_request).
         from chronicler.watershed import check_request
