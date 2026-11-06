@@ -333,3 +333,46 @@ def test_retail_without_the_food_allocation_is_refused_by_the_tick():
     with pytest.raises(ValueError, match="retail income must be installed for this tick"):
         sim.tick(world.turn, build_signals(world))
     assert sim.cancel_retail_income() is True and sim.cancel_retail_income() is False
+
+
+def test_an_owner_dead_after_phase2_keeps_the_claim_whole_for_the_heirs():
+    """A claim whose owner dies before phase 0.7 (a targeted death) is neither
+    offered nor eaten, though buyers with cash want food: it comes back whole
+    for Python's settlement to pass on, recorded as withheld."""
+    from chronicler.agent_bridge import build_region_batch, build_signals
+    world, sim = _live()
+    people = _snapshot(sim)
+    turn, n = world.turn, len(world.regions)
+    by_region = {}
+    for p in people:
+        by_region.setdefault(p["region"], []).append(p)
+    r = max(by_region, key=lambda k: len(by_region[k]))
+    dead = next(p["id"] for p in by_region[r] if p["occupation"] == 0)
+    seller = next(p["id"] for p in people if p["region"] != r and p["age"] >= 20)
+    assert sum(1 for p in by_region[r] if p["id"] != dead and p["wealth"] > 0.5) >= 3   # buyers with cash
+    region_batch = build_region_batch(world)
+    fs = region_batch.column("food_sufficiency").to_pylist()
+    fs[r] = 0.7
+    index = region_batch.schema.get_field_index("food_sufficiency")
+    sim.set_region_state(region_batch.set_column(index, "food_sufficiency", pa.array(fs, type=pa.float32())))
+    sim.set_food_allocation(turn, 0, 0.5, 0.5, [float("nan")] * n,
+                            [sum(1 for p in people if p["region"] == i) for i in range(n)])
+    sim.set_household_retail(turn, 0, [(r, 300, 0.0)], [(dead, r, 3000), (seller, r, 500)])
+    sim.queue_targeted_deaths([dead])
+    events = sim.tick(turn, build_signals(world))
+    assert dead in {i for k, i in zip(events.column("event_type").to_pylist(),
+                                      events.column("agent_id").to_pylist(), strict=True) if k == 0}
+    _source, columns, rows, claim_rows, money, _sample, _dropped = sim.take_household_retail_frame()
+    row = dict(zip(columns, rows[0], strict=True))
+    claims = {(c[0], c[1]): (c[2], c[3]) for c in claim_rows}
+    # The living seller's 500 sells out to the hungry; the dead owner's 3000 is untouched.
+    assert claims[(seller, r)] == (0, 500)
+    assert claims[(dead, r)] == (0, 0)
+    assert dead not in {m[0] for m in money}
+    assert (row["withheld_dead_claims"], row["withheld_dead_milli"]) == (1, 3000)
+    assert "refused_dead_milli" not in columns
+    # PL4-python's checks hold with the withheld claim counted as unsold.
+    assert row["offered_milli"] == 3500 and row["sold_milli"] == 500 and row["own_eaten_milli"] == 0
+    assert row["own_eaten_milli"] + row["sold_milli"] == row["offered_milli"] - row["unsold_milli"]
+    assert row["paid_milli"] == row["credited_milli"] + row["refunded_milli"] > 0
+    assert row["priced_out_persons"] + row["offer_short_persons"] > 0

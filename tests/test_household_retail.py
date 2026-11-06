@@ -270,7 +270,9 @@ class FakeSim:
                 want = math.floor((1 - ration[a]) * 500 + 1e-9)
                 if want <= 0:
                     continue
-                offer = {o: m for (o, r), m in remaining.items() if r == rid and m > 0 and o != a}
+                # A dead owner's claim is withheld whole (native contract), never sold.
+                offer = {o: m for (o, r), m in remaining.items()
+                         if r == rid and m > 0 and o != a and o in self.people}
                 avail = sum(offer.values())
                 wealth = math.floor(self.people[a]["wealth"] * 1000)
                 afford = want if price == 0 else wealth * 500 // price
@@ -726,7 +728,7 @@ def test_death_passes_the_claim_to_the_spouse_then_children_then_commons():
     assert sum(after.values()) == sum(h.state.region(VERDANT).goods)
 
 
-def test_an_owner_dead_before_provisioning_still_sells_then_the_claim_is_inherited():
+def test_an_owner_dead_before_provisioning_keeps_the_claim_whole_for_the_heir():
     h = Harness()
     _people(h, VERDANT, (1, 2), wealth=0.0)
     h.sim.add(5, VERDANT, occupation=2, wealth=30.0)
@@ -734,8 +736,12 @@ def test_an_owner_dead_before_provisioning_still_sells_then_the_claim_is_inherit
     h.turn({VERDANT: {"grain": 4.0}})
     h.sim.die_before = {1}
     h.turn()
+    # The claim installed for the tick is neither sold (the spouse could pay)
+    # nor eaten: the spouse inherits all of it.
+    installed = {(o, r): m for o, r, m in _calls(h.sim, "set_household_retail")[-1][4]}
     log = [r for r in h.state.log if r.kind == "inherited" and r.owner == 1]
-    assert log and log[0].other == 5
+    assert log and log[0].other == 5 and log[0].milli == installed[(1, VERDANT)] > 0
+    assert _owners(h, VERDANT)[5] == installed[(1, VERDANT)]
     assert 1 not in _owners(h, VERDANT)
 
 
