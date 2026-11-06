@@ -1,6 +1,6 @@
 # Connected-world CW1: preregistered held screen for the wage and `paid_work` enrollment (slice S1)
 
-Status: DRAFT (Amendment 1: P1 changed; first frozen at `81392e8b`; the pilot reruns on the amended screen module before the re-freeze)
+Status: FROZEN at `4a79b7f55f794f78d31eb772bf950356df4c83cb` (Amendment 1, the lead's review; first frozen at `81392e8b`: the screen module, runner, extractors and simulation source the re-validation and the rerun timing pilot ran on)
 
 Written 2026-11-06 by the S1 lane on branch `claude/cw-s1-accounting` (the S1 integration of
 A1 wealth accounting and A2R retail cohorts, with `main` `8286804c` merged). The native
@@ -18,7 +18,7 @@ its cap; a 120-turn probe (procedural 13, boundary `all`, the CP3 base and chain
 the ledger) before and after it was byte-identical apart from the bundle's timestamp (81 cut
 frames, none with committed grain).
 
-Compute ceiling: 1.11 core-hours
+Compute ceiling: 1.46 core-hours
 
 Primary outcomes: cw1_p1_wage_money, cw1_p2_enrollment_money, cw1_p3_wage_priced_out
 
@@ -86,9 +86,10 @@ the A1 ledger's typed channels rather than reconstructed.
   scripts/connected_world_screens.py run OUT --screen CW1 --cohort held --pilot
   docs/superpowers/progress/connected-world-screens-cw1/pilot/metrics.jsonl --jobs 2`, then
   `report`, `check --metrics ... --cohort held` and `mark-run`.
-- **Identity (the extractors live in the screen module):** source `81392e8b`, dirty 0;
+- **Identity (the extractors live in the screen module; Amendment 1):** source `4a79b7f5`
+  (code; the pilot ran on `9a9a050a`, which differs only in this page), dirty 0;
   `scripts/connected_world_screens.py` SHA-256
-  `fa7e15c7a34b5393ae1bef735f9cfa1a81ea7a95370347d5fd25a21a70241065`; `scripts/screen_runner.py`
+  `833c48cff8c9af33e7849370fce1a5cea4a2451db6781dd0b13dc1791040883a`; `scripts/screen_runner.py`
   `891b65475a07bb62e8108a693957569e68558b42e182a187528633e1baf0e4f5`; registry content
   `dc16f3c3b366699029de253da0a04d90394530b002ba3203b0e29b17ef7a98f8`; native extension
   `101a4cd5…`. A held run whose
@@ -298,22 +299,25 @@ and a changed file. `check --screen CW1` passes.
 
 ## Timing pilot (the shared pilot, on the frozen source)
 
-`run PILOT --screen CW1 --cohort pilot --jobs 2` on `81392e8b` (clean tree): **18 runs, 0
-failed, every outcome extracted** (`check --metrics ... --cohort pilot` passes); 333 s of
-simulation and extraction (0.092 core-hours), 171.6 s of wall time at 2 concurrent processes
-on the shared, loaded 4-core machine. Every arm activated on both pilot worlds; all 4 replays
-(C and D on template 5 and procedural 19) were exact. Mean seconds per run (simulation and
-extraction): template A 9.5, B 8.8, C 9.8, D 9.2, E 10.9, F 10.8, G 10.5, H 10.6, CH_noTS
-9.1; procedural A 28.1, B 26.6, C 27.4, D 25.6, E 29.9, F 28.4, G 26.0, H 28.2, CH_noTS 23.6.
-**Projected held run: 0.555 core-hours for 108 runs** (x1.5 = 0.833), about 17 minutes of
-wall time at 2 processes. The pilot's `metrics.jsonl`, `source.txt`, `report.md`,
-`derived.jsonl` and derived schedules are retained in `connected-world-screens-cw1/pilot/`
-(the held run's `--pilot`). The pilot's outcomes were not read for any decision.
+Rerun after Amendment 1 on `9a9a050a` (the amended code `4a79b7f5` plus this page; clean tree;
+the first pilot, on `81392e8b`, is refused by the changed screen module and is superseded):
+`run PILOT --screen CW1 --cohort pilot --jobs 2`, **18 runs, 0 failed, every outcome
+extracted** (`check --metrics ... --cohort pilot` passes); 438 s of simulation and extraction
+(0.122 core-hours), 224.2 s of wall time at 2 concurrent processes on the shared 4-core
+machine, more loaded than for the first pilot (333 s). Every arm activated on both pilot
+worlds; all 4 replays were exact. Mean seconds per run (simulation and extraction): template A
+14.0, B 15.9, C 11.8, D 9.5, E 10.0, F 10.5, G 10.3, H 10.2, CH_noTS 8.5; procedural A 41.5,
+B 34.4, C 44.0, D 35.8, E 41.4, F 33.9, G 38.4, H 34.9, CH_noTS 32.8. **Projected held run:
+0.730 core-hours for 108 runs** (x1.5 = 1.095). The pilot's `metrics.jsonl`, `source.txt`,
+`report.md`, `derived.jsonl` and derived schedules are retained in
+`connected-world-screens-cw1/pilot/` (the held run's `--pilot`). The pilot's outcomes were not
+read for any decision.
 
 ## Budget and stopping rules
 
-- **Compute ceiling 1.11 core-hours** (the line above, read by the runner): the pilot
-  projection (0.555) x 2, under the 2.0 cap. At most 3 concurrent processes; run with `--jobs 2` because
+- **Compute ceiling 1.46 core-hours** (the line above, read by the runner): the rerun pilot's
+  projection (0.730) x 2, under the 2.0 cap (Amendment 1; first 1.11, from the superseded
+  pilot's 0.555). At most 3 concurrent processes; run with `--jobs 2` because
   other lanes share the 4 cores. The runner refuses a held run whose pilot projection x 1.5
   exceeds the ceiling and starts no run that would pass it; runs not started are reported as
   `not run` (exit code 4), never as zeros. Raising the ceiling needs the lead's amendment
@@ -344,4 +348,17 @@ worlds, up to 18.5% on procedural 17) and 4.7% of C's (601 of 6,646 rows; 6 worl
 14.1%). The condition does not hold, so **P1 leaves procurement out**, as do `cw1_sb_money`
 and `cw1_interaction_money`, which read the same measure (the formula above); procurement
 credited stays a world secondary (`cw1_sa_procurement`) and is still in `money_world` (P2).
-Code: `4a79b7f5` (the screen module only). REVALIDATION
+Code: `4a79b7f5` (the screen module only).
+
+*Re-validation* on `4a79b7f5` (development worlds procedural 13 and template 23, chosen because
+they had procurement credits outside the set; 200 turns, every arm, `--keep-first`): 18 runs,
+0 failed, every arm activated, 4 of 4 replays exact; the independent checker (its `money_set`
+also without procurement) passed 49,685 checks with 0 failures, and `tests/test_cw1_screen.py`
+was updated to the new formula. The other definitions, the arms and the extractor's checks are
+unchanged, so the 13-world record run above stands for them (its P1 values used the old
+formula).
+
+*Pilot and ceiling.* The screen module changed (SHA-256 `833c48cf…`), so the pilot was rerun
+(above) and the ceiling recomputed by the same rule: the rerun pilot's projection x 2, 1.46
+core-hours (the machine was busier than for the first pilot). No held seed had been run, and
+no held outcome was seen.

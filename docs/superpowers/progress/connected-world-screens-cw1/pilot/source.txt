@@ -1,17 +1,17 @@
-source 81392e8b56c579e2bdcc3cf89a30f1dcdf1c40cd
+source 9a9a050ad87c1221743aa39132e82180510e64ee
 dirty 0 tracked files
 dirty-code 0 tracked code files
 chronicler /home/user/wt/s1/src/chronicler/__init__.py
 native /root/.venvs/chronicler-native/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so 101a4cd5b928b14f43539f925fa565036b94e38d91b9698071c80fa3656e0df3
 interpreter /root/.venvs/chronicler-native/bin/python
 runner 891b65475a07bb62e8108a693957569e68558b42e182a187528633e1baf0e4f5 scripts/screen_runner.py
-screens fa7e15c7a34b5393ae1bef735f9cfa1a81ea7a95370347d5fd25a21a70241065 scripts/connected_world_screens.py
+screens 833c48cff8c9af33e7849370fce1a5cea4a2451db6781dd0b13dc1791040883a scripts/connected_world_screens.py
 registry 1c9632e7fc9b90420a191fe5b5deca4cf5e89940026a3ae1f4dad9c3e81cac50 scripts/seed_registry.json
 registry-content dc16f3c3b366699029de253da0a04d90394530b002ba3203b0e29b17ef7a98f8 (cohorts and seeds)
 run: screen CW1; cohort pilot; seeds all; arms A,B,C,D,E,F,G,H,CH_noTS; jobs 2; worlds -; turns -; rows already written 0
-started 2026-11-06T21:58:39Z
+started 2026-11-06T22:19:56Z
 derived S_B p19 (from arm B): sha256 240856d6bd772c2d94a9563dbe3f0d6827a674b25864e1e7d54123c9e9c51edc derived/S_B-p19.json
 derived S_A p19 (from arm A): sha256 33192152fde8f13fea24a8ec983162844023590e494fb24f00d976e182436aef derived/S_A-p19.json
 derived S_A t5 (from arm A): sha256 e7bf7a363a0c83fe77c1ba8efba62fc470afc2450d02b327c518ace61d3dde27 derived/S_A-t5.json
 derived S_B t5 (from arm B): sha256 68fb118bf10765952a959b9fe3a921a785cc9ed5949b065ea0ff5884e0dc1245 derived/S_B-t5.json
-finished 2026-11-06T22:01:30Z: 18 runs, 0 failed, 333 s of simulation and extraction (0.093 core-hours in all), 171.6 s wall
+finished 2026-11-06T22:23:40Z: 18 runs, 0 failed, 438 s of simulation and extraction (0.122 core-hours in all), 224.2 s wall

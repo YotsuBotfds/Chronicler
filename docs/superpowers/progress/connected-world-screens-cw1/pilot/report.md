@@ -1,9 +1,9 @@
 # CW1: S1 accounting and wages (A1-A2): the wage and paid_work enrollment
 
-Cohort pilot. Runs: 18; failed: 0 (missing outcomes: 0); simulation and extraction seconds 333 (0.092 core-hours)
-Projected held run time from this pilot: 0.555 core-hours (x1.5 = 0.833) for 108 runs
+Cohort pilot. Runs: 18; failed: 0 (missing outcomes: 0); simulation and extraction seconds 438 (0.122 core-hours)
+Projected held run time from this pilot: 0.730 core-hours (x1.5 = 1.094) for 108 runs
 
-Identity digests: dd296c16d86cd77e9ce7c9ae9a0cc785254bbba18b11d30f6209ad979713106a (source.txt holds the lines)
+Identity digests: 13a7415c3765e2e452dcad35adc9d1485b0fb6ca9be554ed6a224614753417da (source.txt holds the lines)
 Schema versions read: {"bundle": 6, "livelihoods": [1], "packages": {"food_allocation": [1], "household_retail": [1], "operating_wear": [1], "recovery_crews": [1], "remittances": [1], "repair_projects": [1], "timber_stock": [1], "timber_supply": [1], "wealth_accounting": [1], "workshops": [1]}, "records": {"food_accounting": [1], "regional_population": [1]}}; {"bundle": 6, "livelihoods": [1], "packages": {"food_allocation": [1], "household_retail": [1], "operating_wear": [1], "recovery_crews": [1], "remittances": [1], "repair_projects": [1], "timber_stock": [1], "wealth_accounting": [1], "workshops": [1]}, "records": {"food_accounting": [1], "regional_population": [1]}}
 
 ## Activation per world (before any effect)
@@ -54,8 +54,8 @@ Schema versions read: {"bundle": 6, "livelihoods": [1], "packages": {"food_alloc
 
 | Outcome | Stratum | Per world (seed: value) | Mean [min, max] | >0 / <0 / =0 | Sign-flip |
 | --- | --- | --- | --- | --- | --- |
-| cw1_p1_wage_money: Money credited to households over S_A, wealth units: wages + remittances + procurement - farm income replaced (A - C: the wage at A's enrollment) | t | 5: +211.8 | +211.8 [+211.8, +211.8] | 1 / 0 / 0 | 2/2 as extreme; means [-211.8, +211.8] |
-| cw1_p1_wage_money: Money credited to households over S_A, wealth units: wages + remittances + procurement - farm income replaced (A - C: the wage at A's enrollment) | p | 19: +1680 | +1680 [+1680, +1680] | 1 / 0 / 0 | 2/2 as extreme; means [-1680, +1680] |
+| cw1_p1_wage_money: Money credited to households over S_A, wealth units: wages + remittances - farm income replaced (A - C: the wage at A's enrollment) | t | 5: +210.8 | +210.8 [+210.8, +210.8] | 1 / 0 / 0 | 2/2 as extreme; means [-210.8, +210.8] |
+| cw1_p1_wage_money: Money credited to households over S_A, wealth units: wages + remittances - farm income replaced (A - C: the wage at A's enrollment) | p | 19: +1683 | +1683 [+1683, +1683] | 1 / 0 / 0 | 2/2 as extreme; means [-1683, +1683] |
 | cw1_p2_enrollment_money: Money credited to households, world, wealth units (C - B: A's enrollment against B's, no wage) | t | 5: -817.9 | -817.9 [-817.9, -817.9] | 0 / 1 / 0 | 2/2 as extreme; means [-817.9, +817.9] |
 | cw1_p2_enrollment_money: Money credited to households, world, wealth units (C - B: A's enrollment against B's, no wage) | p | 19: -422.2 | -422.2 [-422.2, -422.2] | 0 / 1 / 0 | 2/2 as extreme; means [-422.2, +422.2] |
 | cw1_p3_wage_priced_out: Priced-out person-turns per pilot person-turn over S_A (A - C) | t | 5: +0.00116 | +0.00116 [+0.00116, +0.00116] | 1 / 0 / 0 | 2/2 as extreme; means [-0.00116, +0.00116] |
@@ -82,11 +82,11 @@ Schema versions read: {"bundle": 6, "livelihoods": [1], "packages": {"food_alloc
 | cw1_sa_ration: Mean ration per pilot person-turn over S_A (A - C) | t | 5: -0.02179 | -0.02179 [-0.02179, -0.02179] | 0 / 1 / 0 | 2/2 as extreme; means [-0.02179, +0.02179] |
 | cw1_sa_ration: Mean ration per pilot person-turn over S_A (A - C) | p | 19: +0.01371 | +0.01371 [+0.01371, +0.01371] | 1 / 0 / 0 | 2/2 as extreme; means [-0.01371, +0.01371] |
 | cw1_sb_money: Money credited to households over S_B (D - B: the wage at B's enrollment) | t | 5: +14.89 | +14.89 [+14.89, +14.89] | 1 / 0 / 0 | 2/2 as extreme; means [-14.89, +14.89] |
-| cw1_sb_money: Money credited to households over S_B (D - B: the wage at B's enrollment) | p | 19: +1266 | +1266 [+1266, +1266] | 1 / 0 / 0 | 2/2 as extreme; means [-1266, +1266] |
+| cw1_sb_money: Money credited to households over S_B (D - B: the wage at B's enrollment) | p | 19: +1241 | +1241 [+1241, +1241] | 1 / 0 / 0 | 2/2 as extreme; means [-1241, +1241] |
 | cw1_sb_priced_out: Priced-out person-turns per pilot person-turn over S_B (D - B) | t | 5: +0.0003655 | +0.0003655 [+0.0003655, +0.0003655] | 1 / 0 / 0 | 2/2 as extreme; means [-0.0003655, +0.0003655] |
 | cw1_sb_priced_out: Priced-out person-turns per pilot person-turn over S_B (D - B) | p | 19: +1.103e-05 | +1.103e-05 [+1.103e-05, +1.103e-05] | 1 / 0 / 0 | 2/2 as extreme; means [-1.103e-05, +1.103e-05] |
-| cw1_interaction_money: Money credited over each schedule's set: (A - C) - (D - B) | t | 5: +196.9 | +196.9 [+196.9, +196.9] | 1 / 0 / 0 | 2/2 as extreme; means [-196.9, +196.9] |
-| cw1_interaction_money: Money credited over each schedule's set: (A - C) - (D - B) | p | 19: +413.5 | +413.5 [+413.5, +413.5] | 1 / 0 / 0 | 2/2 as extreme; means [-413.5, +413.5] |
+| cw1_interaction_money: Money credited over each schedule's set: (A - C) - (D - B) | t | 5: +195.9 | +195.9 [+195.9, +195.9] | 1 / 0 / 0 | 2/2 as extreme; means [-195.9, +195.9] |
+| cw1_interaction_money: Money credited over each schedule's set: (A - C) - (D - B) | p | 19: +441.5 | +441.5 [+441.5, +441.5] | 1 / 0 / 0 | 2/2 as extreme; means [-441.5, +441.5] |
 | cw1_interaction_priced_out: Priced-out person-turns per pilot person-turn over each schedule's set: (A - C) - (D - B) | t | 5: +0.0007948 | +0.0007948 [+0.0007948, +0.0007948] | 1 / 0 / 0 | 2/2 as extreme; means [-0.0007948, +0.0007948] |
 | cw1_interaction_priced_out: Priced-out person-turns per pilot person-turn over each schedule's set: (A - C) - (D - B) | p | 19: -0.000405 | -0.000405 [-0.000405, -0.000405] | 0 / 1 / 0 | 2/2 as extreme; means [-0.000405, +0.000405] |
 | cw1_all_money: Money credited to households, world (E - F: the wage at the all boundary) | t | 5: +226.1 | +226.1 [+226.1, +226.1] | 1 / 0 / 0 | 2/2 as extreme; means [-226.1, +226.1] |
@@ -343,14 +343,14 @@ Schema versions read: {"bundle": 6, "livelihoods": [1], "packages": {"food_alloc
 
 | Arm | t | p |
 | --- | --- | --- |
-| A | 9.5 [9.5, 9.5] | 28.1 [28.1, 28.1] |
-| B | 8.8 [8.8, 8.8] | 26.6 [26.6, 26.6] |
-| C | 9.8 [9.8, 9.8] | 27.4 [27.4, 27.4] |
-| D | 9.2 [9.2, 9.2] | 25.6 [25.6, 25.6] |
-| E | 10.9 [10.9, 10.9] | 29.9 [29.9, 29.9] |
-| F | 10.8 [10.8, 10.8] | 28.4 [28.4, 28.4] |
-| G | 10.5 [10.5, 10.5] | 26.0 [26.0, 26.0] |
-| H | 10.6 [10.6, 10.6] | 28.2 [28.2, 28.2] |
-| CH_noTS | 9.1 [9.1, 9.1] | 23.6 [23.6, 23.6] |
+| A | 14.0 [14.0, 14.0] | 41.5 [41.5, 41.5] |
+| B | 15.9 [15.9, 15.9] | 34.4 [34.4, 34.4] |
+| C | 11.8 [11.8, 11.8] | 44.0 [44.0, 44.0] |
+| D | 9.5 [9.5, 9.5] | 35.8 [35.8, 35.8] |
+| E | 10.0 [10.0, 10.0] | 41.4 [41.4, 41.4] |
+| F | 10.5 [10.5, 10.5] | 33.9 [33.9, 33.9] |
+| G | 10.3 [10.3, 10.3] | 38.4 [38.4, 38.4] |
+| H | 10.2 [10.2, 10.2] | 34.9 [34.9, 34.9] |
+| CH_noTS | 8.5 [8.5, 8.5] | 32.8 [32.8, 32.8] |
 
 Descriptive only: the sign-flip column counts the 2^n sign assignments whose mean is at least as far from zero as the observed mean, with the range of those means; it is not a significance test.
