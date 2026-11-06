@@ -204,6 +204,9 @@ Native extension used for every native step: the shared build, SHA-256
   source tree and extension copy), head source tree `3f6fa94d` (commit `f237adf9`) against
   `8abc1acb` (also the preceding integrated `main`): default (epidemics on) 9 cases, 399 files,
   0 differences; with `--no-epidemiology` on both sides 9 cases, 399 files, 0 differences.
+  Rerun after the review fixes on source tree `dbe3e7a5` (commit `44706db9`): the same, both
+  matrices 9 cases, 399 files, 0 differences; the chosen-point closure resume below, 12 points,
+  PASS again.
 - **Enabled exact resume** (`scripts/checkpoint_identity.py`, `--quarantine-mode closure`, every
   resume turn): `hybrid_s42` with `--transaction-receipts`, 59 resume points PASS; `off_s42`, 59
   PASS; `proc32_hybrid_s11` with `--transaction-receipts`, 39 PASS. A chosen-point run of
