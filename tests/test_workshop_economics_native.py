@@ -105,7 +105,7 @@ def test_firms_buy_inputs_sell_to_households_and_close_their_books(tmp_path, mon
                 assert used * 1000 <= inputs["capacity_milli"] + 1e-3
                 assert inputs["plan_price_turn"] < snap["turn"] - 1 or inputs["plan_price_turn"] is None
                 if used > 0:
-                    assert inputs["cost_milli"] == math.ceil(used * inputs["plan_price_milli"] - 1e-9)
+                    assert inputs["cost_milli"] == max(1, math.ceil(used * inputs["plan_price_milli"] - 1e-9))
                     assert inputs["charged_milli"] == inputs["cost_milli"]
                     assert inputs["charged_milli"] <= inputs["budget_milli"] + 2
                 assert inputs["converted_unpaid_milli"] == 0

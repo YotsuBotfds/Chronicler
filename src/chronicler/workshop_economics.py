@@ -480,7 +480,8 @@ def charge_inputs(world, pt, acc, economy_result) -> None:
         # ceiling never what the reservation buys at the plan price.
         if loads * MILLI > plan.capacity + 1e-3:
             raise RuntimeError(f"workshop firm {site} converted more raw input than it paid for")
-        cost = math.ceil(loads * plan.price["price_milli"] - 1e-9)
+        # At least one milli-unit for any conversion (a sub-milli use is never free).
+        cost = max(1, math.ceil(loads * plan.price["price_milli"] - 1e-9))
         if cost > plan.budget + INPUT_SLACK:
             raise RuntimeError(f"workshop firm {site} input charge exceeds its reservation")
         inputs["cost_milli"] = cost

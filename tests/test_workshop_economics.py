@@ -841,3 +841,17 @@ def test_a_closed_firms_city_is_never_readmitted_beyond_l1s_closed_list():
     world.livelihoods.workshop_economics.enabled = False
     W.refresh_sites(world, ws)
     assert [s.settlement_id for s in ws.sites] == [1]
+
+
+def test_a_sub_milli_conversion_is_charged_one_milli_unit_never_nothing():
+    """A conversion too small to cost a whole milli-unit at the plan price is
+    charged one (found by the development rerun: procedural 11, academy_only)."""
+    world = _world()
+    world.prices = {"raw_material": 0.5, "craft": 2.0}
+    sim = FakeSim(adults=(), children=())
+    _build(world, sim)
+    world.raw = 1e-13                               # 1e-13 loads at 500 milli a load: 5e-11 milli
+    _turn(world, sim)
+    r = _receipt(world)
+    assert r.operating and 0 < world.last_output < 1e-12
+    assert r.inputs["charged_milli"] == r.inputs["cost_milli"] == 1
