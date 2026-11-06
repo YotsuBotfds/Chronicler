@@ -109,6 +109,20 @@ class MoneyFlow(BaseModel):
     carry_after: int | None = None
 
 
+class FlowTotal(BaseModel):
+    """The exact sum of one settled turn's applied flows of one purpose
+    between two account kinds in one region (never truncated, unlike the
+    flow list): what the ledger reads."""
+
+    purpose: str
+    payer_kind: str
+    payee_kind: str
+    region: int | None = None
+    applied: int = 0
+    residual: int = 0
+    count: int = 0
+
+
 class MoneyBook(BaseModel):
     """What one package's payments through the seam must remember."""
 
@@ -121,7 +135,10 @@ class MoneyBook(BaseModel):
     #: The flows of the last settled turn (``flows_turn``), at most ``MAX_FLOWS``.
     flows_turn: int | None = None
     flows: list[MoneyFlow] = Field(default_factory=list)
+    #: Flows of ``flows_turn`` beyond ``MAX_FLOWS`` that the list does not keep
+    #: (their amounts are in ``totals``, which is never truncated).
     flows_dropped: int = 0
+    totals: list[FlowTotal] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -272,6 +289,12 @@ def quote(world, bill: Bill, *, turn: int, book: MoneyBook, acc=None, sim=None,
     total = sum(amount for _, amount in bill.lines)
     if _settled(book, turn, bill.purpose, bill.batch):
         return Quote(False, "already_settled", total, None)
+    # Every account that receives must exist before anything moves.
+    for account in ([a for a, _ in bill.lines] if bill.payer is not None else [bill.payee]):
+        if account.kind == "civ_treasury" and not 0 <= int(account.ident) < len(world.civilizations):
+            raise MoneyError(f"unknown civilization {account.ident}")
+        if account.kind == "firm_cash" and int(account.ident) not in (firms or {}):
+            raise MoneyError(f"unknown firm {account.ident}")
     if bill.payer is not None:
         if bill.payer.kind == "civ_treasury":
             available = _civ_budget(world, int(bill.payer.ident), acc) * MILLI
@@ -288,8 +311,6 @@ def quote(world, bill: Bill, *, turn: int, book: MoneyBook, acc=None, sim=None,
             return Quote(False, "payer_absent", total, None)
         if held < amount:
             return Quote(False, "payer_short", total, held)
-    if bill.payee.kind == "firm_cash" and int(bill.payee.ident) not in (firms or {}):
-        raise MoneyError(f"unknown firm {bill.payee.ident}")
     return Quote(True, None, total, None)
 
 
@@ -334,7 +355,18 @@ def _move_treasury(world, civ: int, units: int, acc) -> None:
 
 def _record(book: MoneyBook, turn: int, flows: list[MoneyFlow]) -> None:
     if book.flows_turn != turn:
-        book.flows_turn, book.flows, book.flows_dropped = turn, [], 0
+        book.flows_turn, book.flows, book.flows_dropped, book.totals = turn, [], 0, []
+    index = {(t.purpose, t.payer_kind, t.payee_kind, t.region): t for t in book.totals}
+    for f in flows:
+        key = (f.purpose, f.payer[0], f.payee[0], f.region)
+        total = index.get(key)
+        if total is None:
+            total = index[key] = FlowTotal(purpose=f.purpose, payer_kind=f.payer[0], payee_kind=f.payee[0],
+                                           region=f.region)
+            book.totals.append(total)
+        total.applied += f.applied
+        total.residual += f.residual
+        total.count += 1
     book.flows.extend(flows)
     if len(book.flows) > MAX_FLOWS:
         book.flows_dropped += len(book.flows) - MAX_FLOWS
@@ -464,6 +496,24 @@ def flows_for_turn(world, turn: int) -> list[MoneyFlow] | None:
     return out if seen else None
 
 
+def totals_for_turn(world, turn: int) -> list[FlowTotal] | None:
+    """The exact per-(purpose, account kinds, region) totals the seam settled in
+    ``turn``, from the active packages that keep a book; None when no such
+    package is active. The ledger reads these, so a turn with more flows than
+    ``MAX_FLOWS`` is still counted in full."""
+    container = getattr(world, "livelihoods", None)
+    seen = False
+    out: list[FlowTotal] = []
+    for name in MONEY_BOOKS:
+        sub = getattr(container, name, None) if container is not None else None
+        if sub is None or not getattr(sub, "enabled", False):
+            continue
+        seen = True
+        if sub.book.flows_turn == turn:
+            out.extend(sub.book.totals)
+    return out if seen else None
+
+
 def check_book(book: MoneyBook) -> None:
     """Carries below one unit; sinks non-negative; flows close."""
     if any(not 0 < v < MILLI for v in book.carry.values()):
@@ -473,3 +523,11 @@ def check_book(book: MoneyBook) -> None:
     for f in book.flows:
         if f.applied + f.residual != f.requested or f.requested <= 0:
             raise MoneyError("a money flow does not close")
+    if sum(t.count for t in book.totals) != len(book.flows) + book.flows_dropped:
+        raise MoneyError("the turn's flow totals do not count every flow")
+    if not book.flows_dropped:
+        for t in book.totals:
+            applied = sum(f.applied for f in book.flows if (f.purpose, f.payer[0], f.payee[0], f.region)
+                          == (t.purpose, t.payer_kind, t.payee_kind, t.region))
+            if applied != t.applied:
+                raise MoneyError("a flow total does not match its flows")

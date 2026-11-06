@@ -237,3 +237,97 @@ def test_the_register_is_read_per_turn_from_active_books():
     assert [f.applied for f in M.flows_for_turn(world, 3)] == [400] and M.flows_for_turn(world, 4) == []
     state.enabled = False
     assert M.flows_for_turn(world, 3) is None
+
+
+def _bill_call_sites():
+    """``(module, enclosing function) -> purposes`` of every ``Bill(...)`` built
+    under ``src/chronicler`` outside ``money`` itself, and non-literal purposes."""
+    import ast
+    from pathlib import Path
+    root = Path(M.__file__).resolve().parent
+    found, problems = {}, []
+    for path in sorted(root.rglob("*.py")):
+        module = ".".join(path.relative_to(root).with_suffix("").parts)
+        if module == "money":
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+
+        def visit(node, scope):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                inner = node.name if scope == "<module>" else f"{scope}.{node.name}"
+                for child in ast.iter_child_nodes(node):
+                    visit(child, inner)
+                return
+            if isinstance(node, ast.Call):
+                f = node.func
+                name = f.attr if isinstance(f, ast.Attribute) else f.id if isinstance(f, ast.Name) else None
+                if name == "Bill":
+                    purpose = next((k.value for k in node.keywords if k.arg == "purpose"), None)
+                    if not (isinstance(purpose, ast.Constant) and isinstance(purpose.value, str)):
+                        problems.append(f"{module}:{node.lineno}: a Bill without a literal purpose")
+                    else:
+                        found.setdefault((module, scope), set()).add(purpose.value)
+            for child in ast.iter_child_nodes(node):
+                visit(child, scope)
+
+        visit(tree, "<module>")
+    return {k: tuple(sorted(v)) for k, v in found.items()}, problems
+
+
+def test_every_caller_of_the_seam_is_registered_with_its_purposes_and_channels():
+    """The static guard for callers of ``money.pay`` (the ledger's per-path
+    guard sees only the seam's own router): every bill's purpose is literal,
+    every (module, function) is in ``MONEY_BILLS``, no row is stale, every
+    purpose is registered, and every purpose that can move agent wealth has a
+    ledger channel the router declares."""
+    from chronicler.wealth_accounting_state import (
+        CHANNEL_NAMES, MONEY_BILLS, MONEY_PURPOSE_CHANNELS, WEALTH_ROUTERS,
+    )
+    found, problems = _bill_call_sites()
+    assert not problems, problems
+    assert found == {k: tuple(sorted(v)) for k, v in MONEY_BILLS.items()}
+    used = {p for purposes in MONEY_BILLS.values() for p in purposes}
+    assert used <= set(M.PURPOSES)
+    for purpose in used:
+        if M.PURPOSES[purpose] is not None:          # a native purpose: it moves agent wealth
+            assert purpose in MONEY_PURPOSE_CHANNELS, purpose
+    assert set(MONEY_PURPOSE_CHANNELS.values()) == set(WEALTH_ROUTERS["_native_transfer"])
+    assert set(MONEY_PURPOSE_CHANNELS.values()) <= set(CHANNEL_NAMES)
+    assert all(M.PURPOSES.get(p) is not None for p in MONEY_PURPOSE_CHANNELS)
+
+
+def test_payees_are_validated_before_anything_moves():
+    world, book = _world(), M.MoneyBook()
+    firms = {1: _firm(5000)}
+    # The treasury line sorts first: an unknown firm payee must refuse before it is credited.
+    bill = M.Bill(purpose="firm_input_purchase", batch=1, phase="phase2", payer=M.firm_cash(1),
+                  lines=((M.treasury(0), 1000), (M.firm_cash(9), 1000)))
+    with pytest.raises(M.MoneyError, match="unknown firm 9"):
+        M.pay(world, bill, turn=1, book=book, firms=firms)
+    bad_civ = M.Bill(purpose="firm_input_purchase", batch=2, phase="phase2", payer=M.firm_cash(1),
+                     lines=((M.treasury(7), 1000),))
+    with pytest.raises(M.MoneyError, match="unknown civilization 7"):
+        M.pay(world, bad_civ, turn=1, book=book, firms=firms)
+    sim = FakeSim({1: 2.0})
+    collect = M.Bill(purpose="wares_purchase", batch=3, phase="phase10", payee=M.firm_cash(9),
+                     lines=((M.agent(1), 100),))
+    with pytest.raises(M.MoneyError, match="unknown firm 9"):
+        M.pay(world, collect, turn=1, book=book, sim=sim, firms=firms)
+    assert world.civilizations[0].treasury == 10 and firms[1].cash == 5000 and sim.calls == 0
+    assert sim.wealth == {1: 2.0} and book.flows == [] and book.settled == []
+
+
+def test_flow_totals_stay_exact_beyond_the_flow_list_bound():
+    world, book = _world(), M.MoneyBook()
+    n = M.MAX_FLOWS + 40
+    sim = FakeSim({aid: 1.0 for aid in range(1, n + 1)})
+    firms = {1: _firm(0)}
+    bill = M.Bill(purpose="wares_purchase", batch=1, phase="phase10", payee=M.firm_cash(1),
+                  lines=tuple((M.agent(a), 3) for a in range(1, n + 1)), regions=tuple(2 for _ in range(n)))
+    assert M.pay(world, bill, turn=5, book=book, sim=sim, firms=firms).ok
+    assert len(book.flows) == M.MAX_FLOWS and book.flows_dropped == 40
+    (total,) = book.totals
+    assert (total.purpose, total.payer_kind, total.payee_kind, total.region) == ("wares_purchase", "agent_wealth",
+                                                                                 "firm_cash", 2)
+    assert total.applied == 3 * n == firms[1].cash and total.count == n
+    M.check_book(book)

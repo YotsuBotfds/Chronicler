@@ -135,6 +135,16 @@ WEALTH_WRITERS: dict[tuple[str, str, str, str], tuple[int, tuple[str, ...]]] = {
 MONEY_PURPOSE_CHANNELS: dict[str, str] = {
     "wares_purchase": "wares_purchase",
 }
+#: Every bill built for the payment seam outside ``money`` itself:
+#: ``(module under chronicler, enclosing function) -> purposes`` (a literal
+#: ``purpose=`` at each ``Bill(...)``). ``tests/test_money.py`` walks ``src/``
+#: and fails on an unregistered or stale caller, a non-literal purpose, or an
+#: agent-wealth purpose without a ledger channel. Append only.
+MONEY_BILLS: dict[tuple[str, str], tuple[str, ...]] = {
+    ("workshop_economics", "charge_inputs"): ("firm_input_purchase",),
+    ("workshop_economics", "sell_to_households"): ("wares_purchase",),
+    ("workshop_economics", "open_firms"): ("firm_capital",),
+}
 #: Every reference to a writer or router name that is not a call: the name
 #: strings packages use to check the extension has a method
 #: (``callable(getattr(sim, name, None))``). ``(module, enclosing function,
