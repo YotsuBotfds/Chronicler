@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "board_version": 1,
+  "board_version": 2,
   "title": "Productive recovery and household livelihoods (PL0-PL6) operational board",
   "plan": "docs/superpowers/roadmaps/productive-recovery-phase.md",
   "owner_instruction": "2026-11-05 (after #77): make recovery work (timber supply and delivery with real labour and ecological costs; apprenticeship exits and maintenance assumptions separated before tuning, success = graduates doing useful work; budgets and opportunities after timber), then real household food retail (producer ownership, inventories, payments, consumption timing; care for poorer households and public relief); consecutive checkpoints of one assignment with independent review and evidence; qualification gates and default promotion remain separate decisions.",
@@ -107,55 +107,67 @@
   "packages": [
     {
       "id": "PL0",
-      "status": "active",
+      "status": "integrated",
       "lane": "lead",
       "switch": null,
       "summary": "Diagnosis D1-D4 on development worlds (plan section 1), plan, board, registry integration, witness layers."
     },
     {
       "id": "PL1",
-      "status": "ready",
-      "lane": "pl1-timber",
+      "status": "integrated",
+      "lane": "claude/pl1-timber (71a4d9e3)",
       "switch": "--timber-supply (supply | cost_only)",
       "summary": "Named, paid woodcutting expeditions from the community that needs timber to a forest of its civ; native woodcut labour columns; earmarked store; L3 debits the harvest."
     },
     {
       "id": "PL2",
-      "status": "ready",
-      "lane": "pl2-apprenticeship",
+      "status": "integrated",
+      "lane": "claude/pl2-apprenticeship (767e6cb1)",
       "switch": "--operating-wear; RS1 rules v2",
       "summary": "Operating wear as a workshop maintenance assumption the reference arm can carry; attendance by region, portable progress, training on the job."
     },
     {
       "id": "PL3",
-      "status": "ready",
-      "lane": "pl3-crews",
+      "status": "integrated",
+      "lane": "claude/pl3-crews (7707f672)",
       "switch": "--recovery-crews (paid | unpaid); --maintenance-obligation (reserve | reserve_only)",
       "summary": "Named paid granary crews from existing repair coins; wider workshop repair pool and veterans; empty-region RS2 correction; L9 maintenance obligation."
     },
     {
       "id": "PL4",
-      "status": "ready",
-      "lane": "pl4-retail-native + pl4-retail-python",
+      "status": "active",
+      "lane": "claude/pl4-retail-native (76f7554d) + claude/pl4-retail-python (5a2ff552); integrates at checkpoint 2",
       "switch": "--household-retail (retail | no_relief | free_exchange | record_only)",
       "summary": "Producer title of new harvest, owned food ledger, paid provisioning with fair-share and open rounds, farm income replacement, relief default (docs/integration/household-retail-design.md)."
     },
     {
       "id": "PL5",
-      "status": "proposed",
-      "lane": "lead + viewer",
+      "status": "active",
+      "lane": "claude/pl5a-viewer (checkpoint-1 panels and options)",
       "switch": null,
       "summary": "Integrated chain, viewer panels, Batch Lab and live options, browser QA."
     },
     {
       "id": "PL6",
-      "status": "proposed",
-      "lane": "lead",
+      "status": "active",
+      "lane": "claude/pl6a-screens (checkpoint-1 tooling, draft preregistration, pilot)",
       "switch": null,
       "summary": "Examples and preregistered held screens per checkpoint; handoff."
     }
   ],
-  "layers": [],
+  "layers": [
+    "pl2",
+    "pl1",
+    "pl3"
+  ],
   "merge": null,
-  "next": "Launch lanes PL1-PL4; integrate checkpoint 1 (PL0-PL3) first."
+  "next": "Independent reviews A (PL1), B (PL2), C (PL3); viewer lane; screen tooling and pilot; then fixes, identity, preregistration freeze, held screen on cohort 1, checkpoint-1 PR.",
+  "native_extension": {
+    "source_commit": "PL1 Rust (claude/pl1-timber; unchanged on the phase branch)",
+    "sha256_prefix": "fdcb0ca0"
+  },
+  "integration_fixes": [
+    "8f7a6718 PL1 and PL3 both paid repair_wage under transfer batch 1 (the native key refuses a repeat); PL1 now pays batch 2, with a test keeping the three payers distinct",
+    "18f5ad01 operating-wear registry test checked the last slot; now its position after the recovery-skills block"
+  ]
 }
