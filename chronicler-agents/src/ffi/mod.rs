@@ -519,6 +519,70 @@ impl AgentSimulator {
             f.regions.iter().map(|r| r.row()).collect(), f.sample, f.sample_dropped))
     }
 
+    /// Livelihoods L6b household retail: install a one-tick provisioning
+    /// step that the next agent tick runs at phase 0.7, right after the L2
+    /// allocation installed for the same turn (mode 0 retail, 1 no_relief,
+    /// 2 free_exchange). Regions are (pilot region, price in milli-units per
+    /// ration, free rations from the commons draw-down and the release);
+    /// claims are (owner stable id, pilot region, milli-food), one per
+    /// (owner, region). Food is in milli-food (a ration is the economy's
+    /// per-capita food x 1000: 500 at the default). Validates before any
+    /// change and refuses a pending install; drops an untaken frame.
+    pub fn set_household_retail(&mut self, source_turn: u32, mode: u8, regions: Vec<(u16, i64, f64)>,
+                                claims: Vec<(u32, u16, i64)>) -> PyResult<()> {
+        if self.pool.retail_config.is_some() {
+            return Err(PyValueError::new_err("household retail already pending"));
+        }
+        let per = self.economy_config.per_capita_food as f64 * 1000.0;
+        let per = if per.is_finite() { per.round() as i64 } else { 0 };
+        let cfg = crate::provisioning::RetailConfig::new(source_turn, mode, per, regions, claims, self.num_regions)
+            .map_err(PyValueError::new_err)?;
+        self.pool.retail_frame = None;
+        self.pool.retail_config = Some(cfg);
+        Ok(())
+    }
+
+    /// Livelihoods L6b: drop a household retail install the tick never took.
+    pub fn cancel_household_retail(&mut self) -> bool {
+        self.pool.retail_config.take().is_some()
+    }
+
+    /// Livelihoods L6b: the last retail step's receipts, taken once: (source
+    /// turn, region column names, region rows, claim rows (owner, region,
+    /// own-eaten milli-food, sold milli-food), money rows (id, paid,
+    /// credited, refunded milli-units), a bounded person sample (id, region,
+    /// household key, ration, fair share, status 0 fed, 1 priced out,
+    /// 2 offer short) and the sample rows dropped).
+    #[allow(clippy::type_complexity)]
+    pub fn take_household_retail_frame(&mut self) -> Option<(u32, Vec<String>, Vec<Vec<f64>>,
+        Vec<(u32, u16, i64, i64)>, Vec<(u32, i64, i64, i64)>, Vec<(u32, u16, u32, f32, f32, u8)>, usize)> {
+        self.pool.retail_frame.take().map(|f| (
+            f.source_turn,
+            crate::provisioning::RETAIL_REGION_COLUMNS.iter().map(|c| c.to_string()).collect(),
+            f.regions.iter().map(|r| r.row()).collect(), f.claims, f.money, f.sample, f.sample_dropped))
+    }
+
+    /// Livelihoods L6b: arm the next wealth phase to record and zero the
+    /// remaining ordinary farm income (after teaching, learning and paid
+    /// work) of farmers in `regions`. Refuses a pending install.
+    pub fn install_retail_income(&mut self, turn: u32, regions: Vec<u16>) -> PyResult<()> {
+        crate::wealth_transfer::install_retail_income(&mut self.pool, turn, &regions, self.num_regions)
+            .map_err(PyValueError::new_err)
+    }
+
+    /// Livelihoods L6b: drop an armed income replacement the tick never took.
+    pub fn cancel_retail_income(&mut self) -> bool {
+        self.pool.retail_income.take().is_some()
+    }
+
+    /// Livelihoods L6b: the last wealth phase's farm income replacement,
+    /// taken once: (turn, [(id, replaced)]), one row per farmer of a listed
+    /// region alive at the wealth phase.
+    #[allow(clippy::type_complexity)]
+    pub fn take_retail_income_receipt(&mut self) -> Option<(u32, Vec<(u32, f32)>)> {
+        self.pool.retail_income_receipt.take().map(|r| (r.turn, r.rows))
+    }
+
     /// Prepare a single regional teaching budget before this turn's economy.
     /// Fractions are Scholar-equivalent work-turns; no pay is created.
     pub fn prepare_teaching_work(&mut self, source_turn: u32, requests: Vec<f32>, excluded_ids: Vec<u32>)
@@ -1661,6 +1725,14 @@ impl AgentSimulator {
         crate::relocation::check_tick(&self.pool, turn, liquid_requirement).map_err(PyValueError::new_err)?;
         if self.pool.paid_work.as_ref().is_some_and(|p| p.turn != turn) {
             return Err(PyValueError::new_err("paid work must be armed for this tick"));
+        }
+        // Livelihoods L6b: retail extends this tick's L2 allocation.
+        if self.pool.retail_config.as_ref().is_some_and(|r| r.source_turn != turn
+            || !self.pool.food_allocation_config.as_ref().is_some_and(|c| c.source_turn == turn)) {
+            return Err(PyValueError::new_err("household retail must be installed for this tick with the food allocation"));
+        }
+        if self.pool.retail_income.as_ref().is_some_and(|p| p.turn != turn) {
+            return Err(PyValueError::new_err("retail income must be installed for this tick"));
         }
         if self.pool.work_reservations.iter().any(|r| r.turn == turn) {
             // Livelihoods: one person, one work commitment per turn.
@@ -3152,7 +3224,7 @@ impl AgentSimulator {
             Float32Builder, UInt8Builder, UInt16Builder, BooleanBuilder,
         };
         use crate::economy::{
-            EconomyRegionInput, RegionAgentCounts, TradeRouteInput, tick_economy_core_with_woodcut,
+            EconomyRegionInput, RegionAgentCounts, TradeRouteInput, tick_economy_core_with_inputs,
         };
 
         let _ = season_id; // reserved for future seasonal modifiers
@@ -3419,6 +3491,51 @@ impl AgentSimulator {
                 });
             }
         }
+        // Livelihoods L6b household retail (optional, default absent): the
+        // title share θ (null: not a pilot region) and the owned food stock
+        // at opening, all six Float32 columns or none; hybrid economy only.
+        let retail_names: Vec<String> = std::iter::once("retail_title_share".to_string())
+            .chain(crate::economy::RETAIL_FOOD_SLOTS.iter().map(|&g| format!("retail_owned_{}", GOOD_NAMES[g])))
+            .collect();
+        let retail_cols: Vec<Option<&Float32Array>> = retail_names.iter().map(|name| {
+            ri_rb.column_by_name(name).map(|c| c.as_any().downcast_ref::<Float32Array>()
+                .ok_or_else(|| PyValueError::new_err(format!("{name} must be Float32")))).transpose()
+        }).collect::<PyResult<_>>()?;
+        let retail_inputs: Option<Vec<Option<crate::economy::RetailRegionInput>>> = if retail_cols.iter().all(Option::is_none) {
+            None
+        } else if retail_cols.iter().any(Option::is_none) {
+            return Err(PyValueError::new_err("household retail needs all six retail_* Float32 columns"));
+        } else if !self.hybrid_economy_mode {
+            return Err(PyValueError::new_err("household retail requires the hybrid economy"));
+        } else {
+            let mut rows = Vec::with_capacity(n_regions);
+            for i in 0..n_regions {
+                let theta = retail_cols[0].unwrap();
+                let owned = &retail_cols[1..];
+                if theta.is_null(i) {
+                    // Not a pilot region: no owned stock may be reported.
+                    if owned.iter().any(|c| !c.unwrap().is_null(i) && c.unwrap().value(i) != 0.0) {
+                        return Err(PyValueError::new_err("owned food in a region without a retail title share"));
+                    }
+                    rows.push(None);
+                    continue;
+                }
+                let share = theta.value(i);
+                if !share.is_finite() || !(0.0..=1.0).contains(&share) {
+                    return Err(PyValueError::new_err("retail_title_share must be in [0, 1]"));
+                }
+                let mut row = crate::economy::RetailRegionInput { title_share: share, owned: [0.0; crate::economy::NUM_GOODS] };
+                for (k, &g) in crate::economy::RETAIL_FOOD_SLOTS.iter().enumerate() {
+                    let col = owned[k].unwrap();
+                    if col.is_null(i) || !col.value(i).is_finite() || col.value(i) < 0.0 {
+                        return Err(PyValueError::new_err("retail owned food must be finite and nonnegative in a pilot region"));
+                    }
+                    row.owned[g] = col.value(i);
+                }
+                rows.push(Some(row));
+            }
+            Some(rows)
+        };
 
         // PL1: crew labour only on a region with a timber slot.
         if let Some((_, labor)) = &woodcut_columns {
@@ -3585,7 +3702,7 @@ impl AgentSimulator {
         // --- Call the core ---
         let woodcut = woodcut_columns.as_ref().map(|(away, labor)| crate::economy::WoodcutInput {
             labor_away: away, labor });
-        let output = tick_economy_core_with_woodcut(
+        let output = tick_economy_core_with_inputs(
             &region_inputs,
             &agent_counts,
             &routes,
@@ -3599,6 +3716,7 @@ impl AgentSimulator {
             hybrid_delivery.as_ref(),
             &granary_work_requested,
             woodcut.as_ref(),
+            retail_inputs.as_deref(),
         );
 
         // M58b: Write transit decay diagnostics back to delivery buffer before clearing.
@@ -3735,6 +3853,31 @@ impl AgentSimulator {
             Arc::new(rr_schema),
             rr_columns,
         ).map_err(arrow_err)?;
+        // Livelihoods L6b household retail: owned-stock columns appended only
+        // when the retail inputs were present (null for non-pilot regions).
+        let region_result_batch = if let Some(retail) = &output.retail {
+            let mut fields: Vec<Field> = region_result_batch.schema().fields().iter().map(|f| f.as_ref().clone()).collect();
+            let mut columns: Vec<arrow::array::ArrayRef> = region_result_batch.columns().to_vec();
+            type Pick = fn(&crate::economy::RetailRegionResult) -> &[f32; crate::economy::NUM_GOODS];
+            let kinds: [(&str, Pick); 4] = [("titled", |r| &r.titled), ("owned_close", |r| &r.owned_close),
+                ("owned_decay", |r| &r.owned_decay), ("owned_overflow", |r| &r.owned_overflow)];
+            for (kind, pick) in kinds {
+                for &g in &crate::economy::RETAIL_FOOD_SLOTS {
+                    fields.push(Field::new(format!("retail_{kind}_{}", GOOD_NAMES[g]), DataType::Float32, true));
+                    columns.push(Arc::new(Float32Array::from(
+                        retail.iter().map(|r| r.as_ref().map(|r| pick(r)[g])).collect::<Vec<_>>())));
+                }
+            }
+            fields.push(Field::new("commons_consumed", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(
+                retail.iter().map(|r| r.as_ref().map(|r| r.commons_consumed)).collect::<Vec<_>>())));
+            fields.push(Field::new("commons_sufficiency", DataType::Float32, true));
+            columns.push(Arc::new(Float32Array::from(
+                retail.iter().map(|r| r.as_ref().map(|r| r.commons_sufficiency)).collect::<Vec<_>>())));
+            RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(arrow_err)?
+        } else {
+            region_result_batch
+        };
 
         // 2. Civ result batch
         let n_civ_out = active_civ_ids.len();

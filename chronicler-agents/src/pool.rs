@@ -212,6 +212,13 @@ pub struct AgentPool {
     /// (taken once by Python); transient, never checkpointed.
     pub relocation_policy: Option<crate::relocation::RelocationPolicy>,
     pub relocation_receipt: Option<crate::relocation::RelocationReceipt>,
+    /// Livelihoods L6b household retail: one-tick provisioning install and
+    /// its frame, one-tick farm income replacement and its receipt (each
+    /// taken once by Python); transient, never checkpointed.
+    pub retail_config: Option<crate::provisioning::RetailConfig>,
+    pub retail_frame: Option<crate::provisioning::RetailFrame>,
+    pub retail_income: Option<crate::wealth_transfer::RetailIncome>,
+    pub retail_income_receipt: Option<crate::wealth_transfer::RetailIncomeReceipt>,
     // CAREOBS_SOURCE_BEGIN: pool field
     /// Opt-in primitive care prefix; transient and absent by default.
     pub health_care_observation: Option<crate::health_care_observation::CareObservation>,
@@ -302,6 +309,10 @@ impl AgentPool {
             wealth_transfer_log: Vec::new(),
             relocation_policy: None,
             relocation_receipt: None,
+            retail_config: None,
+            retail_frame: None,
+            retail_income: None,
+            retail_income_receipt: None,
             // CAREOBS_SOURCE_BEGIN: pool default
             health_care_observation: None,
             // CAREOBS_SOURCE_END: pool default
@@ -1871,4 +1882,4 @@ crate::persist_struct!(AgentPool {
 } transient { health_work_loss /* CAREOBS_TRANSIENT_BEGIN */, health_care_observation /* CAREOBS_TRANSIENT_END */, teaching_plan,
     food_allocation_config, food_access, food_access_ids, food_access_regions, provision_frame,
     work_reservations, learning_attendance, paid_work, paid_work_receipt, wealth_transfer_log,
-    relocation_policy, relocation_receipt });
+    relocation_policy, relocation_receipt, retail_config, retail_frame, retail_income, retail_income_receipt });

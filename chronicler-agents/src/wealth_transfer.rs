@@ -30,6 +30,12 @@
 //!   sender pays a recipient an amount plus a courier fee under the purpose
 //!   `remittance`, both parties validated before any change, with the
 //!   recipient's ceiling excess refunded, once per (turn, purpose, batch).
+//! * [`install_retail_income`] (household retail L6b) arms a one-tick
+//!   replacement of pilot-region farmers' ordinary farm income: the wealth
+//!   phase records and zeroes what is left of it after the teaching,
+//!   learning and paid-work deductions ([`retail_income`]), so their cash
+//!   income from farming is their food sales, never both. The purchases
+//!   themselves are settled inside the tick ([`settle_food_purchases`]).
 //!
 //! Both are transient: the key log, a pending share and an untaken receipt
 //! are never checkpointed (exact checkpoints are taken between turns, when
@@ -41,15 +47,20 @@ use crate::pool::AgentPool;
 
 /// Milli-units per wealth (and treasury) unit.
 pub const MILLI: i64 = 1000;
-/// Transfer purposes, in declaration order (append only). The last three
-/// were appended by the recovery-skills groundwork (RS0) for apprentice
-/// stipends (RS1), repair wages (RS2) and remittances (RS4).
-pub const PURPOSES: [&str; 5] = ["workshop_wage", "relocation_fare", "apprentice_stipend", "repair_wage", "remittance"];
+/// Transfer purposes, in declaration order (append only). Codes 2-4 were
+/// appended by the recovery-skills groundwork (RS0) for apprentice stipends
+/// (RS1), repair wages (RS2) and remittances (RS4); 5-6 by household retail
+/// (L6b) for household food purchases (settled in the tick) and granary
+/// procurement from owners (paid by Python through [`transfer`]).
+pub const PURPOSES: [&str; 7] = ["workshop_wage", "relocation_fare", "apprentice_stipend", "repair_wage", "remittance",
+                                 "food_purchase", "food_procurement"];
 pub const PURPOSE_WORKSHOP_WAGE: u8 = 0;
 pub const PURPOSE_RELOCATION_FARE: u8 = 1;
 pub const PURPOSE_APPRENTICE_STIPEND: u8 = 2;
 pub const PURPOSE_REPAIR_WAGE: u8 = 3;
 pub const PURPOSE_REMITTANCE: u8 = 4;
+pub const PURPOSE_FOOD_PURCHASE: u8 = 5;
+pub const PURPOSE_FOOD_PROCUREMENT: u8 = 6;
 /// Largest magnitude accepted for one row (10^12 milli-units).
 pub const MAX_ROW_MILLIS: i64 = 1_000_000_000_000;
 /// Row statuses, in declaration order (append only).
@@ -89,7 +100,24 @@ pub struct PaidWorkReceipt {
     pub rows: Vec<(u32, f32, f32, f32)>,
 }
 
-fn floor_millis(value: f32) -> i64 {
+/// L6b: one turn's armed replacement of farm income in the listed regions.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RetailIncome {
+    pub turn: u32,
+    /// By region index: whether its farmers' remaining farm income is replaced.
+    pub regions: Vec<bool>,
+}
+
+/// L6b: what the wealth phase replaced, (id, remaining ordinary farm income
+/// recorded and set to zero) in slot order, one row per farmer of a listed
+/// region alive at the wealth phase (zero rows included).
+#[derive(Clone, Debug, PartialEq)]
+pub struct RetailIncomeReceipt {
+    pub turn: u32,
+    pub rows: Vec<(u32, f32)>,
+}
+
+pub(crate) fn floor_millis(value: f32) -> i64 {
     if value.is_finite() && value > 0.0 { (value as f64 * MILLI as f64).floor() as i64 } else { 0 }
 }
 
@@ -224,6 +252,133 @@ pub fn remit(pool: &mut AgentPool, turn: u32, batch: u32, rows: &[(u32, u32, i64
     Ok(out)
 }
 
+/// Split `total` milli over `weights` (tie key, weight >= 0) in proportion,
+/// by largest remainder: the shares sum to `total` exactly when any weight
+/// is positive (all zero otherwise); equal remainders go to the smaller key
+/// first. With integer weights and `total` at most their sum, no share
+/// exceeds its weight.
+pub fn split_largest_remainder(total: i64, weights: &[(u64, i64)]) -> Vec<i64> {
+    let sum: i128 = weights.iter().map(|&(_, w)| w.max(0) as i128).sum();
+    let mut out = vec![0i64; weights.len()];
+    if total <= 0 || sum == 0 {
+        return out;
+    }
+    let mut remainders = Vec::with_capacity(weights.len());
+    for (i, &(key, w)) in weights.iter().enumerate() {
+        let product = total as i128 * w.max(0) as i128;
+        out[i] = (product / sum) as i64;
+        remainders.push((product % sum, key, i));
+    }
+    let left = total - out.iter().sum::<i64>();
+    remainders.sort_unstable_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)).then(a.2.cmp(&b.2)));
+    for &(_, _, i) in remainders.iter().take(left.max(0) as usize) {
+        out[i] += 1;
+    }
+    out
+}
+
+/// L6b: one pilot region's food purchases to settle, in milli-units.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct FoodPurchases {
+    /// Per buying household: its payers (stable id, wealth in whole milli
+    /// before the purchases) and the price of what it bought, at most the
+    /// payers' total.
+    pub households: Vec<(Vec<(u32, i64)>, i64)>,
+    /// (seller stable id, milli-food sold), distinct ids, ascending.
+    pub sales: Vec<(u32, i64)>,
+}
+
+/// L6b: one region's settled money: `paid == credited + refunded` and
+/// `refunded == refused_ceiling + refused_dead`.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct FoodPurchaseMoney {
+    pub paid: i64,
+    pub credited: i64,
+    pub refunded: i64,
+    pub refused_ceiling: i64,
+    pub refused_dead: i64,
+}
+
+/// L6b: settle the tick's household food purchases once, under the purpose
+/// `food_purchase` (the key (turn, 5, 0) is consumed).
+///
+/// Per region: each household's price is debited from its payers in
+/// proportion to their wealth (largest remainder in whole milli, ties by
+/// id; never below zero). The region's payments are credited to its sellers
+/// in proportion to the food each sold (ties by id), by stable id wherever
+/// they live. A credit is limited by the seller's room below `MAX_WEALTH`
+/// measured before the purchases (regions in the given order share it); what
+/// the ceiling refuses, and all of a seller no longer alive (a dead owner's
+/// food is still sold), is refunded to that region's payers in proportion to
+/// what they paid. Each person's net change is applied once, so a payer is
+/// never refunded above what they paid and `paid == credited + refunded`
+/// exactly. Returns per region the money and per stable id (ascending)
+/// (id, paid, credited, refunded) for everyone who paid or sold.
+pub fn settle_food_purchases(pool: &mut AgentPool, turn: u32, regions: &[FoodPurchases])
+    -> (Vec<FoodPurchaseMoney>, Vec<(u32, i64, i64, i64)>) {
+    let slots = pool.build_id_slots();
+    let living = |id: u32| slots.get(id).filter(|&s| pool.is_alive(s) && pool.ids[s] == id);
+    let mut book: std::collections::BTreeMap<u32, [i64; 3]> = std::collections::BTreeMap::new();
+    let mut room: std::collections::HashMap<u32, Option<i64>> = std::collections::HashMap::new();
+    let mut out = Vec::with_capacity(regions.len());
+    for region in regions {
+        let mut money = FoodPurchaseMoney::default();
+        let mut debits: Vec<(u32, i64)> = Vec::new();
+        for (payers, amount) in &region.households {
+            let cash: i64 = payers.iter().map(|p| p.1.max(0)).sum();
+            assert!(*amount >= 0 && *amount <= cash, "a food purchase above its payers' cash");
+            let weights: Vec<(u64, i64)> = payers.iter().map(|&(id, w)| (id as u64, w)).collect();
+            for (&(id, _), share) in payers.iter().zip(split_largest_remainder(*amount, &weights)) {
+                if share > 0 {
+                    debits.push((id, share));
+                    book.entry(id).or_default()[0] += share;
+                    money.paid += share;
+                }
+            }
+        }
+        let weights: Vec<(u64, i64)> = region.sales.iter().map(|&(id, q)| (id as u64, q)).collect();
+        for (&(id, sold), credit) in region.sales.iter().zip(split_largest_remainder(money.paid, &weights)) {
+            if sold <= 0 && credit == 0 {
+                continue;
+            }
+            let left = room.entry(id).or_insert_with(|| living(id).map(|s| floor_millis(MAX_WEALTH - pool.wealth[s])));
+            let entry = book.entry(id).or_default();
+            match left {
+                Some(left) => {
+                    let accepted = credit.min(*left);
+                    *left -= accepted;
+                    entry[1] += accepted;
+                    money.credited += accepted;
+                    money.refused_ceiling += credit - accepted;
+                }
+                None => money.refused_dead += credit,
+            }
+        }
+        let refused = money.refused_ceiling + money.refused_dead;
+        let weights: Vec<(u64, i64)> = debits.iter().map(|&(id, d)| (id as u64, d)).collect();
+        for (&(id, _), refund) in debits.iter().zip(split_largest_remainder(refused, &weights)) {
+            if refund > 0 {
+                book.entry(id).or_default()[2] += refund;
+                money.refunded += refund;
+            }
+        }
+        out.push(money);
+    }
+    let updates: Vec<(usize, i64)> = book.iter()
+        .filter_map(|(&id, &[paid, credited, refunded])| {
+            let net = credited + refunded - paid;
+            if net == 0 { None } else { living(id).map(|slot| (slot, net)) }
+        })
+        .collect();
+    for (slot, net) in updates {
+        let next = (pool.wealth[slot] as f64 + net as f64 / MILLI as f64) as f32;
+        pool.wealth[slot] = next.clamp(0.0, MAX_WEALTH);
+    }
+    pool.wealth_transfer_log.retain(|&(t, _, _)| t >= turn);
+    pool.wealth_transfer_log.push((turn, PURPOSE_FOOD_PURCHASE, 0));
+    (out, book.into_iter().map(|(id, [p, c, r])| (id, p, c, r)).collect())
+}
+
 /// Stable ids of the living agents away on a merchant trip (loading or in
 /// transit), ascending. Reads only.
 pub fn trip_ids(pool: &AgentPool) -> Vec<u32> {
@@ -322,6 +477,43 @@ pub fn extend_paid_work(pool: &mut AgentPool, turn: u32, rows: &[(u32, f32)]) ->
     Ok(())
 }
 
+/// L6b: arm the next wealth phase to replace the remaining ordinary farm
+/// income of farmers in `regions` (indices, distinct, below `num_regions`).
+/// Refuses a pending install; validates before any change.
+pub fn install_retail_income(pool: &mut AgentPool, turn: u32, regions: &[u16], num_regions: usize)
+    -> Result<(), &'static str> {
+    if pool.retail_income.is_some() {
+        return Err("retail income replacement already pending");
+    }
+    let mut mask = vec![false; num_regions];
+    for &r in regions {
+        let Some(seen) = mask.get_mut(r as usize) else { return Err("retail income region out of range") };
+        if *seen {
+            return Err("duplicate region in retail income");
+        }
+        *seen = true;
+    }
+    pool.retail_income = Some(RetailIncome { turn, regions: mask });
+    pool.retail_income_receipt = None;
+    Ok(())
+}
+
+/// Wealth phase, after teaching, learning and paid work: a farmer of a
+/// listed region has the rest of the ordinary farm income recorded and set to
+/// zero (health loss then multiplies zero). Everyone else keeps their income.
+#[inline]
+pub fn retail_income(plan: &Option<RetailIncome>, receipt: &mut Vec<(u32, f32)>, occupation: u8, region: usize,
+                     agent_id: u32, income: f32) -> f32 {
+    match plan {
+        Some(plan) if occupation == crate::agent::Occupation::Farmer as u8
+            && plan.regions.get(region).copied().unwrap_or(false) => {
+            receipt.push((agent_id, income));
+            0.0
+        }
+        _ => income,
+    }
+}
+
 /// Wealth phase: the ordinary income left after paid work at `slot`,
 /// recording the actual deduction. The id guard keeps a reused slot clean.
 #[inline]
@@ -418,15 +610,18 @@ mod tests {
 
     #[test]
     fn appended_purposes_keep_the_old_codes() {
-        assert_eq!(PURPOSES, ["workshop_wage", "relocation_fare", "apprentice_stipend", "repair_wage", "remittance"]);
+        assert_eq!(PURPOSES, ["workshop_wage", "relocation_fare", "apprentice_stipend", "repair_wage", "remittance",
+                              "food_purchase", "food_procurement"]);
         assert_eq!((PURPOSE_APPRENTICE_STIPEND, PURPOSE_REPAIR_WAGE, PURPOSE_REMITTANCE), (2, 3, 4));
+        assert_eq!((PURPOSE_FOOD_PURCHASE, PURPOSE_FOOD_PROCUREMENT), (5, 6));
         let mut pool = pool_with(&[1.0]);
         let a = pool.ids[0];
-        for purpose in [PURPOSE_APPRENTICE_STIPEND, PURPOSE_REPAIR_WAGE, PURPOSE_REMITTANCE] {
+        for purpose in [PURPOSE_APPRENTICE_STIPEND, PURPOSE_REPAIR_WAGE, PURPOSE_REMITTANCE,
+                        PURPOSE_FOOD_PURCHASE, PURPOSE_FOOD_PROCUREMENT] {
             transfer(&mut pool, 2, purpose, 0, &[(a, 100)]).unwrap();
         }
-        assert!(transfer(&mut pool, 2, 5, 0, &[(a, 100)]).is_err());
-        assert!((pool.wealth[0] - 1.3).abs() < 1e-5);
+        assert!(transfer(&mut pool, 2, 7, 0, &[(a, 100)]).is_err());
+        assert!((pool.wealth[0] - 1.5).abs() < 1e-5);
     }
 
     #[test]
@@ -690,5 +885,128 @@ mod tests {
         let total = |v: &[i64]| v.iter().sum::<i64>();
         assert!((total(&before) - total(&after) - fees).abs() <= 2);
         assert!(out[3].refunded > 0 || out[2].refunded > 0);     // the ceiling was reached
+    }
+
+    // --- L6b household retail -------------------------------------------
+
+    #[test]
+    fn largest_remainder_sums_exactly_and_breaks_ties_by_key() {
+        assert_eq!(split_largest_remainder(301, &[(1, 300), (2, 300), (3, 150)]), vec![121, 120, 60]);
+        assert_eq!(split_largest_remainder(301, &[(2, 300), (1, 300), (3, 150)]), vec![120, 121, 60]);
+        assert_eq!(split_largest_remainder(2, &[(9, 1), (4, 1), (7, 1)]), vec![0, 1, 1]);
+        assert_eq!(split_largest_remainder(5, &[(1, 0), (2, 0)]), vec![0, 0]);
+        assert_eq!(split_largest_remainder(0, &[(1, 3)]), vec![0]);
+        assert_eq!(split_largest_remainder(7, &[(1, 7), (2, 0)]), vec![7, 0]);
+        // Never above a weight when the total is at most their sum.
+        for total in 0..=60 {
+            let w = [(5u64, 17i64), (2, 1), (8, 29), (1, 13)];
+            let out = split_largest_remainder(total, &w);
+            assert_eq!(out.iter().sum::<i64>(), total);
+            assert!(out.iter().zip(&w).all(|(&s, &(_, wt))| s >= 0 && s <= wt));
+        }
+    }
+
+    #[test]
+    fn food_purchases_settle_once_with_ceiling_and_estate_refunds() {
+        let mut pool = pool_with(&[3.0, 1.0, 99.995, 5.0, 2.0]);
+        let ids: Vec<u32> = pool.ids[..5].to_vec();
+        pool.kill(4);
+        let room = floor_millis(MAX_WEALTH - pool.wealth[2]);
+        let regions = [
+            // ids[0] and ids[1] pay one household's 900 by wealth (3000 : 1000).
+            FoodPurchases { households: vec![(vec![(ids[0], 3000), (ids[1], 1000)], 900)],
+                            sales: vec![(ids[2], 300), (ids[3], 300)] },
+            // ids[3] buys in the second region from ids[2] (shares its room) and a dead seller.
+            FoodPurchases { households: vec![(vec![(ids[3], 5000)], 100)], sales: vec![(ids[2], 1), (ids[4], 1)] },
+        ];
+        let before: i64 = (0..4).map(|s| milli(&pool, s)).sum();
+        let (money, book) = settle_food_purchases(&mut pool, 9, &regions);
+        assert_eq!(money[0], FoodPurchaseMoney { paid: 900, credited: 450 + room, refunded: 450 - room,
+                                                 refused_ceiling: 450 - room, refused_dead: 0 });
+        assert_eq!(money[1], FoodPurchaseMoney { paid: 100, credited: 0, refunded: 100, refused_ceiling: 50,
+                                                 refused_dead: 50 });
+        for m in &money { assert_eq!(m.paid, m.credited + m.refunded); }
+        // Debits by wealth (675 : 225), refunds in proportion to what each paid.
+        let refund0 = split_largest_remainder(450 - room, &[(ids[0] as u64, 675), (ids[1] as u64, 225)]);
+        assert_eq!(book, vec![(ids[0], 675, 0, refund0[0]), (ids[1], 225, 0, refund0[1]),
+                              (ids[2], 0, room, 0), (ids[3], 100, 450, 100), (ids[4], 0, 0, 0)]);
+        assert_eq!(milli(&pool, 3), 5000 + 450);
+        assert!(pool.wealth[2] <= MAX_WEALTH);
+        let after: i64 = (0..4).map(|s| milli(&pool, s)).sum();
+        assert!((before - after).abs() <= 2);
+        // The key is consumed: a replay under purpose 5, batch 0 is refused.
+        assert_eq!(pool.wealth_transfer_log, vec![(9, PURPOSE_FOOD_PURCHASE, 0)]);
+        assert!(transfer(&mut pool, 9, PURPOSE_FOOD_PURCHASE, 0, &[(ids[0], 1)]).is_err());
+        transfer(&mut pool, 9, PURPOSE_FOOD_PROCUREMENT, 0, &[(ids[0], 1)]).unwrap();
+    }
+
+    #[test]
+    #[should_panic(expected = "a food purchase above its payers' cash")]
+    fn a_purchase_above_the_payers_cash_is_a_logic_error() {
+        let mut pool = pool_with(&[1.0, 1.0]);
+        let (a, b) = (pool.ids[0], pool.ids[1]);
+        settle_food_purchases(&mut pool, 1, &[FoodPurchases { households: vec![(vec![(a, 1000)], 1001)],
+                                                              sales: vec![(b, 1)] }]);
+    }
+
+    fn farm_region(id: u16) -> crate::region::RegionState {
+        let mut region = crate::region::RegionState::new(id);
+        region.resource_types = [0, 255, 255];
+        region.resource_yields = [1.0, 0.0, 0.0];
+        region
+    }
+
+    #[test]
+    fn retail_income_is_replaced_once_after_paid_work_and_the_next_turn_is_ordinary() {
+        use crate::signals::TickSignals;
+        let regions = vec![farm_region(0), farm_region(1)];
+        let signals = TickSignals { civs: Vec::new(), contested_regions: vec![false; 2] };
+        // Farmers a (paid work 0.25) and b in pilot region 0, a soldier s
+        // there, and farmer c in region 1.
+        let make = || {
+            let mut pool = pool_with(&[5.0, 5.0]);
+            let s = pool.spawn(0, 0, Occupation::Soldier, 30, 0.5, 0.5, 0.5, 0, 1, 2, 0);
+            pool.wealth[s] = 5.0;
+            let c = pool.spawn(1, 0, Occupation::Farmer, 30, 0.5, 0.5, 0.5, 0, 1, 2, 0);
+            pool.wealth[c] = 5.0;
+            pool
+        };
+        let (mut pilot, mut control) = (make(), make());
+        let (a, b) = (pilot.ids[0], pilot.ids[1]);
+        for pool in [&mut pilot, &mut control] {
+            let id = pool.ids[0];
+            reserve(pool, 3, CATEGORY_WORKSHOP, &[(id, 0.25)]).unwrap();
+            install_paid_work(pool, 3, &[(id, 0.25)]).unwrap();
+        }
+        assert!(install_retail_income(&mut pilot, 3, &[0, 0], 2).is_err());     // duplicate
+        assert!(install_retail_income(&mut pilot, 3, &[2], 2).is_err());        // out of range
+        assert!(pilot.retail_income.is_none());
+        install_retail_income(&mut pilot, 3, &[0], 2).unwrap();
+        assert!(install_retail_income(&mut pilot, 3, &[1], 2).is_err());        // pending
+        let mut pct = vec![0.0f32; 4];
+        crate::tick::wealth_tick(&mut pilot, &regions, &signals, &mut pct);
+        crate::tick::wealth_tick(&mut control, &regions, &signals, &mut pct);
+        assert!(pilot.retail_income.is_none());
+        let receipt = pilot.retail_income_receipt.take().unwrap();
+        assert_eq!(receipt.turn, 3);
+        assert_eq!(receipt.rows.iter().map(|r| r.0).collect::<Vec<_>>(), vec![a, b]);
+        // a's replaced income is what paid work left; the paid share is unchanged.
+        let paid = pilot.paid_work_receipt.take().unwrap();
+        let control_paid = control.paid_work_receipt.take().unwrap();
+        assert_eq!(paid, control_paid);
+        let (_, share, ordinary, deducted) = paid.rows[0];
+        assert!((receipt.rows[0].1 - (ordinary - deducted)).abs() < 1e-7 && share == 0.25);
+        assert!((receipt.rows[1].1 - ordinary).abs() < 1e-7 && ordinary > 0.0);
+        // Pilot farmers earn no farm income; the soldier and region 1 are unchanged.
+        let decay = 1.0 - crate::agent::WEALTH_DECAY;
+        assert!((pilot.wealth[0] - 5.0 * decay).abs() < 1e-6 && (pilot.wealth[1] - 5.0 * decay).abs() < 1e-6);
+        assert!(control.wealth[0] > pilot.wealth[0]);
+        assert_eq!((pilot.wealth[2], pilot.wealth[3]), (control.wealth[2], control.wealth[3]));
+        // The next wealth phase has nothing armed: ordinary income again.
+        let (w0, c0) = (pilot.wealth[1], control.wealth[1]);
+        crate::tick::wealth_tick(&mut pilot, &regions, &signals, &mut pct);
+        crate::tick::wealth_tick(&mut control, &regions, &signals, &mut pct);
+        assert!(pilot.retail_income_receipt.is_none());
+        assert!(((pilot.wealth[1] - w0 * decay) - (control.wealth[1] - c0 * decay)).abs() < 1e-6);
     }
 }

@@ -295,6 +295,7 @@
       "tests/test_historiography.py",
       "tests/test_history_forensics.py",
       "tests/test_household_mobility_native.py",
+      "tests/test_household_retail_native_ffi.py",
       "tests/test_hunger_mortality.py",
       "tests/test_import_compatibility.py",
       "tests/test_institutions.py",
