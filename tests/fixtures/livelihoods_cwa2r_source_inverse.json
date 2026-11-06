@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "layer": "cwa2r",
+  "parent": "1370ae7a92c7a262ac59a78bf67cbb2ca479d523",
+  "files": {
+    "src/chronicler/batch_manifest.py": {
+      "sha256": "177511d5439526fa641c9259300459a48c75b1c1e37f35c56d76d1922a4c5063",
+      "current_sha256": "dcfe66d58c8b01c251a30d37f7fdfb740f5344a050451211c7f0c82268172336",
+      "patches": [
+        {
+          "old": "    \"household_retail_mode\",\n    \"household_retail_boundary\",\n    \"household_retail_rules\",\n    \"tuning\",\n    \"preset\",\n    \"aggression_bias\",\n",
+          "new": "    \"household_retail_mode\",\n    \"household_retail_boundary\",\n    \"household_retail_rules\",\n    \"household_retail_schedule\",\n    \"tuning\",\n    \"preset\",\n    \"aggression_bias\",\n"
+        },
+        {
+          "old": "                             \"recovery_crews\", \"recovery_crew_mode\", \"maintenance_obligation\",\n                             \"maintenance_obligation_mode\", \"apprenticeship_rules\",\n                             \"household_retail\", \"household_retail_mode\", \"household_retail_boundary\",\n                             \"household_retail_rules\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n    config[\"tuning_overrides\"] = _json_value(overrides or {})\n",
+          "new": "                             \"recovery_crews\", \"recovery_crew_mode\", \"maintenance_obligation\",\n                             \"maintenance_obligation_mode\", \"apprenticeship_rules\",\n                             \"household_retail\", \"household_retail_mode\", \"household_retail_boundary\",\n                             \"household_retail_rules\", \"household_retail_schedule\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n    config[\"tuning_overrides\"] = _json_value(overrides or {})\n"
+        }
+      ]
+    },
+    "tests/test_batch_manifest.py": {
+      "sha256": "dd84ea3897fcecf78bbdaab9709ce3fb2e76a61a8526ffa39b4963ef68035516",
+      "current_sha256": "b675301bd52bab19c425f1894629dfc3ef8c1c5fbb37d43934dd8b526b60283f",
+      "patches": [
+        {
+          "old": "                                                           \"recovery_crews\", \"recovery_crew_mode\", \"maintenance_obligation\",\n                                                           \"maintenance_obligation_mode\", \"apprenticeship_rules\",\n                                                           \"household_retail\", \"household_retail_mode\", \"household_retail_boundary\",\n                                                           \"household_retail_rules\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n    assert manifest[\"outputs\"][\"simulate_only\"] is True\n    environment = manifest[\"environment\"]\n",
+          "new": "                                                           \"recovery_crews\", \"recovery_crew_mode\", \"maintenance_obligation\",\n                                                           \"maintenance_obligation_mode\", \"apprenticeship_rules\",\n                                                           \"household_retail\", \"household_retail_mode\", \"household_retail_boundary\",\n                                                           \"household_retail_rules\", \"household_retail_schedule\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n    assert manifest[\"outputs\"][\"simulate_only\"] is True\n    environment = manifest[\"environment\"]\n"
+        }
+      ]
+    },
+    "src/chronicler/live.py": {
+      "sha256": "e450ea39d03b80eb4a171736bae3069b8ef3d1bc156b5fb0029d42c6b31e3702",
+      "current_sha256": "b0f86404cf6231305db09f1987f14c558625c2dea26a2c2e7d7de14219beeef6",
+      "patches": [
+        {
+          "old": "            try:\n                world, scenario_config = _live_world(args, params)\n            except ValueError as exc:\n                if not features:\n                    raise\n                # The run refused the requested switches: nothing has started.\n                apply_features(args, previous)\n                server.reopen_lobby(f\"Start field 'features': {exc}\")\n                continue\n            break\n        _record_live_world_args(args, params)\n",
+          "new": "            try:\n                world, scenario_config = _live_world(args, params)\n            except ValueError as exc:\n                from chronicler.livelihoods import LivelihoodsRefusal\n                refused = isinstance(exc, LivelihoodsRefusal)       # a resumed world's saved switch\n                if not features and not refused:\n                    raise\n                # The run refused the requested switches (or a resumed world's\n                # saved ones): nothing has started.\n                apply_features(args, previous)\n                server.reopen_lobby(f\"Start field '{'resume_state' if refused else 'features'}': {exc}\")\n                continue\n            break\n        _record_live_world_args(args, params)\n"
+        }
+      ]
+    }
+  }
+}
