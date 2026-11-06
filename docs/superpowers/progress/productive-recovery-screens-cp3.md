@@ -1,7 +1,20 @@
 # Productive recovery, checkpoint 3: preregistered held screens (PL6d)
 
-Status: **DRAFT** (lane PL6d, 2026-11-06), not frozen. The lead freezes this file before
-any held run; until then the runner refuses `run --checkpoint 3 --cohort held`.
+Status: **FROZEN** by the lead on 2026-11-06, before any held run, with the runner at
+`df21cb43` (branch `claude/productive-recovery-cp3`). The simulation source (`src/`,
+`chronicler-agents/`) is identical to `main` `96c20439`, and the native extension
+`101a4cd5…` (`~/.venvs/native-hrn2`) was built from `478f2dca`, whose Rust equals `main`'s.
+Code may change between this freeze and the held run only to fix a defect, listed as an
+amendment; no arm, outcome or parameter may change in response to held outcomes.
+
+**Pilot on the frozen source.** Rerun on `df21cb43` after the lead decisions and the review
+fixes: 12 runs, 0 failed, every outcome extracted (`check --checkpoint 3 --cohort pilot`
+passes); 156 s of simulation and 28 s of extraction, 94.7 s of wall time at 2 concurrent
+processes on the shared machine; projected held run 0.306 core-hours for 72 runs. The
+pilot's outcomes were not read for any other decision.
+
+Drafted by lane PL6d (below); the lead's decisions and the review's fixes are recorded in
+"Lead decisions" and "Amendments".
 
 Drafted on `claude/pl6d-chain` from `claude/household-retail` `12ad9a1e`. This lane changes
 no simulation, Rust or viewer file: `src/` and `chronicler-agents/` equal `12ad9a1e`, and the
@@ -33,7 +46,7 @@ Every arm runs once on every held world, and each arm is compared with its decla
 on the same world. Results are reported per stratum: template (8 regions, 4 civs) and
 procedural (32 regions, 10 civs).
 
-## Source and budget (proposal)
+## Source and budget
 
 - **Source.** The checkpoint-3 integration branch at the commit the lead records when
   freezing, and a native extension built from that commit's Rust into the interpreter that
@@ -340,9 +353,21 @@ choose arms, outcomes or parameters.
 
 ## Amendments
 
-None yet. Any change to the arms, outcomes, analysis or budget after the lead freezes this
-file is recorded here as a dated amendment with its reason, and only before the first held
-run.
+Before the freeze (2026-11-06, lead), from the independent review of the runner
+(no blocker; no screen outcome changed on the pilot or development bundles):
+
+- `--resume` now also refuses a directory whose recorded run header (`source.txt`) names
+  another checkpoint or cohort, so a run killed before its first row cannot be continued as
+  another screen (the check read rows only).
+- Every fixed region set's size, its regions pilot in both arms and both arms' coverage are
+  reported (they were computed but not printed for `CH − CH_free` and `CH − C0`): 81
+  outcomes.
+- Two rc-3 rules are stated as the code applies them: counters are validated for the
+  packages the screen reads, and the woodcutting home check covers receipts with farm labour
+  away.
+
+After the freeze: none. Any later change to the arms, outcomes, analysis or budget is
+recorded here as a dated amendment with its reason, and only before the first held run.
 
 ## Lead decisions (2026-11-06, before the freeze)
 

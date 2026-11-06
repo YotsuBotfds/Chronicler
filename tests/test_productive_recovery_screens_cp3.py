@@ -314,9 +314,15 @@ def test_jobs_cover_exactly_the_cohort(S):
     assert sorted({j[2] for j in held if j[1] == "p"}) == list(range(821, 827))
 
 
+def test_the_committed_preregistration_is_frozen(S):
+    # The lead froze checkpoint 3's preregistration before the held run.
+    assert S.preregistration_frozen(S.CP3.PREREGISTRATION)
+    status = next(line for line in S.CP3.PREREGISTRATION.read_text().splitlines() if line.startswith("Status:"))
+    assert "FROZEN" in status and "DRAFT" not in status
+
+
 def test_a_held_run_is_refused_while_its_preregistration_is_a_draft(S, tmp_path, monkeypatch):
-    # The refusal reads checkpoint 3's own file; a draft refuses. (Whether the committed
-    # file is frozen is the lead's decision and is not asserted here.)
+    # The refusal reads checkpoint 3's own file; a draft refuses.
     draft = tmp_path / "draft.md"
     draft.write_text("# x\n\nStatus: **DRAFT** (not frozen).\n")
     assert not S.preregistration_frozen(draft)
