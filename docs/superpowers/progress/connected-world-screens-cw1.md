@@ -379,7 +379,13 @@ extraction (ceiling 1.46; the pilot projected 0.730), 1,061 s of wall time at 2 
 rows, complete) in `scripts/seed_registry.json`. Identities: run digest `1be6247d…`; native
 `101a4cd5…`; runner `891b6547…`; screen module `833c48cf…`; registry content `dc16f3c3…`;
 preregistration `81701ebf…` (this page as re-frozen, before this section). Mean seconds per
-run: template 10.1, procedural 28.8.
+run: template 10.1, procedural 28.8. The `--keep-first` bundles (procedural 831, template 731)
+were deleted after extraction; no raw held bundle is retained, so the independent check of the
+write-up spot-checked the extractor by internal field consistency on all 108 rows
+(`money_set` = located inflows in the set - income replaced there; `money_world` = wages +
+remittances + procurement - income replaced; the wage channels' sum; rates and coverage;
+procurement and priced-out persons against the packages' own counters and the runner's harm
+extractor; unpaid arms' granary wage 0), 0 failures.
 
 **Activation and validity (before any effect).**
 - A, C, D, E, G and CH_noTS activated on 5 of 6 template worlds and 6 of 6 procedural; F and H
@@ -387,10 +393,13 @@ run: template 10.1, procedural 28.8.
   woodcutting crew): A and B enrolled no region, S_A and S_B are empty, and no arm paid a
   granary wage, so every comparison involving a paid arm or C or D leaves it out (template n =
   5).
-- **All 24 schedule replays were exact** (C and D on 12 worlds), and A and C had equal pilot
-  region-turns on 12 of 12 worlds. A enrolled 1.4-1.8 times B's pilot region-turns on template
+- **All 24 schedule replays were exact** (C and D on 12 worlds; the two on template 734 replay
+  an empty schedule), and A and C had equal pilot region-turns on 12 of 12 worlds (0 = 0 on
+  734). A enrolled 1.4-1.8 times B's pilot region-turns on template
   worlds and 1.6-3.4 times on procedural (coverage A 0.51-0.66 against B 0.29-0.44 template,
-  0.38-0.49 against 0.14-0.25 procedural): payment decided enrollment, as the audit found.
+  0.38-0.49 against 0.14-0.25 procedural): the arms differ only in the granary wage, so payment
+  raised enrollment, as the audit found (B, whose woodcutting and repair crews are paid, still
+  enrolled 3-10 regions).
 - The ledger observed every turn of every run: no broken continuity, failed closure or
   incomplete typed turn, and no wage or remittance it could not locate (P1 lost nothing to the
   set restriction). 12.3% of provisioned region-turns have unknown RL5 group persons.
@@ -409,12 +418,20 @@ run: template 10.1, procedural 28.8.
 - **P1, the wage at A's enrollment:** money credited to households over S_A rose in every
   procedural world (+486 to +1,015 wealth units over 200 turns; none of the 64 sign
   assignments is more extreme) and in 4 of 5 template worlds (mean +170; 732 -139). The
-  granary wages themselves (`cw1_sa_granary_wages`, +169 template, +885 procedural) account
-  for most of it; farm income replaced over S_A moved both ways.
-- **P2, A's enrollment without the wage:** money credited to households fell in every world
-  (template -603, procedural -2,151; each the most extreme assignment): the larger enrollment
-  replaced more farm income (`cw1_enrollment_income_replaced` +358 template, +1,848
-  procedural) and paid nothing for it.
+  wages and remittances the ledger located in S_A (the row's `located_in_set`, A - C) rose in
+  every activated world (template mean +165, procedural +969), close to the world granary-wage
+  difference (`cw1_sa_granary_wages`, +169 and +885). Farm income replaced over S_A moved both
+  ways in template worlds (2 up, 3 down; mean -5) and rose in 5 of 6 procedural worlds (mean
+  +199, about a fifth of the located gain). Template 732's negative P1 is its replaced income
+  (+288 against +149 located).
+- **P2, A's enrollment without the wage:** money credited to households fell in every activated
+  world (template -603, 0/5; procedural -2,151, 0/6; each the most extreme assignment). Most of
+  the fall is farm income replaced by the larger enrollment (`cw1_enrollment_income_replaced`
+  +358 template, +1,848 procedural: 59% and 86% of the mean fall), which no wage offset; the
+  rest is lower remittances credited (C - B -251 template, lower in 5 of 5 worlds; -313
+  procedural, 5 of 6), with wages and procurement nearly unchanged (+3 and +2 template, +3 and
+  +7 procedural; per-row fields, not declared outcomes). In template 731 the remittance fall
+  (-351) exceeded the replaced income (+169).
 - **P3, the wage and priced-out persons at A's enrollment:** no consistent effect: 2 higher and
   3 lower template worlds, 3 and 3 procedural; the means (+0.00047 and +0.00053 per pilot
   person-turn) come from one world each (732, 834); 30 of 32 and 52 of 64 sign assignments are
@@ -465,20 +482,30 @@ activated or unknown, named in the report).
 | `cw1_nots_coverage` | CH_noTS - A | -0.05838 [-0.1362, +0] 0/3/2, 8/32 (n=5) | +0.009922 [-0.002187, +0.02578] 4/1/1, 8/64 |
 
 - **RL5 groups:** crew households (members and co-resident children) were priced out once in
-  the whole held run (B, procedural 832: 1 person-turn) and never in A, C or D; the A - C
-  difference in priced-out persons is carried by non-farm adults (count +11.8 template, +49.8
-  procedural, mixed signs); children without a co-resident adult changed little (A - C -2 to
-  +1 template, -8 to +12 procedural person-turns). C's RL5 counts on procedural 832 are unknown
-  (not zero): the native sample did not hold every priced-out person there.
-- **The wage at fixed cohorts:** at `all` (E - F) the wage raised money credited in every world
-  and lowered the priced-out rate in every procedural world (0/6) and 4 of 5 template; at
+  arms A-D (B, procedural 832: 1 person-turn): never in A or D, and never in C where its count
+  is known (C, procedural 832: unknown). In the unpaid fixed-cohort arms they were priced out 20
+  person-turns in 7 runs (F: template 733, 735, 736 and procedural 834; H: procedural 832, 833,
+  835), and never in a paid arm whose count is known; the count is unknown in 12 E, F and H
+  runs, none of which an RL5 outcome reads. The A - C difference in priced-out persons is
+  carried by non-farm adults (count +11.8 template, +49.8 procedural, mixed signs); children
+  without a co-resident adult changed little (A - C -2 to +1 template, -8 to +12 procedural
+  person-turns). C's RL5 counts on procedural 832 are unknown, not zero (a group's priced-out
+  count was null there; the metrics do not keep the reason).
+- **The wage at fixed cohorts:** at `all` (E - F) the wage raised money credited in every
+  activated world (5 of 5 template, 6 of 6 procedural) and lowered the priced-out rate in every procedural world (0/6) and 4 of 5 template; at
   `market` (G - H) money rose in 10 of 11 worlds, priced-out mixed.
-- **The total checkpoint-3 contrast (A - B)** lowered money credited in every world, as
-  checkpoint 3 reported: the enrollment effect (P2) outweighs the wage (P1).
+- **The total checkpoint-3 contrast (A - B)** lowered money credited in every activated world
+  (0/5, 0/6), the direction checkpoint 3 reported on average with its reconstructed measure
+  (-353 t, 1/3/2; -1,153 p, 1/5/0). In world money A - B = (A - C) + (C - B) exactly, and the
+  enrollment effect (P2, -603 and -2,151) outweighs the wage's world effect
+  (`cw1_sa_money_world`, +174 and +762) in every activated world.
 - **RL6, the expedition-labour control (CH_noTS - A, the negative of CH - CH_noTS):** without
-  the timber supply, money credited fell in every procedural world (-778 mean; woodcutting
-  wages are gone) and was mixed in template worlds (+113 mean, 3/2); priced-out rate mixed;
-  coverage changed little (CH_noTS enrolls without woodcutters' homes).
+  the timber supply, money credited fell in every procedural world (-778 mean, 0/6:
+  woodcutting wages are gone, -282 mean, while granary crew wages were lower on average, -173,
+  and more farm income was replaced, +383; per-row differences, not a causal split) and was
+  mixed in template worlds (+113 mean, 3/2); priced-out rate mixed; coverage fell in 3 of 5
+  template worlds (mean -0.058, down to -0.136, up to 23% fewer pilot region-turns than A) and
+  changed little in procedural worlds (+0.010).
 
 ### Harm panel
 
@@ -567,13 +594,37 @@ A - B; every other declared pair is in the report). Famine and war deaths have n
 | A - B | forest_stand | -0.0226 [-0.1093, +0.009857] 2/3/0, 16/32 (n=5) | -0.07197 [-0.2069, +0.0433] 1/5/0, 6/64 |
 
 Readings, descriptive only: at A's enrollment the wage left population, treasury, food
-shortfall and epidemic deaths mixed; procedural forest stand fell in every world (-0.09 of
-capacity: the paid arm cut more timber). A's larger enrollment without the wage (C - B) cut
-out-migration in every world and food shortfall in 5 of 5 template and 5 of 6 procedural worlds,
-but priced more people out in every procedural world (+51 person-turns) and drained procedural
-treasuries (0/6). Trajectories diverge after the first wage or enrollment difference, so none
-of this is a mechanism estimate.
+shortfall and epidemic deaths mixed; procedural forest stand was lower in every world (-0.09 of
+capacity, 0/6; the metrics hold no timber-extraction field, and A's woodcutting wages exceeded
+C's in only 3 of the 6 worlds, so the cause is not shown here). A's larger enrollment without
+the wage (C - B) cut out-migration in every activated world (5 of 5 template, 6 of 6
+procedural) and food shortfall in 5 of 5 template and 5 of 6 procedural worlds, but priced more
+people out in every procedural world (+51 person-turns) and lowered procedural treasuries (-988,
+0/6). Elsewhere one sign in every activated world: the wage at `all` (E - F) lowered template
+population (-26.8, 0/5) and food shortfall (-402, 0/5) and procedural priced-out persons (-397,
+0/6); the total contrast (A - B) priced more people out in every procedural world (+98, 6/0)
+and lowered template out-migration (-271, 0/5). Trajectories diverge after the first wage or
+enrollment difference, so none of this is a mechanism estimate.
 
 **Failures and nulls.** No run failed. Not-activated worlds (template 734 for every
 comparison with a paid arm or with C or D) are left out, never counted as zero; RL5 counts
-unknown on one procedural world (C, 832) are left out; famine and war deaths remain unrecorded.
+unknown on one procedural world (C, 832) are left out, and are also unknown in 12 E, F and H
+runs that no outcome reads; forest stand is not recorded on template 734 (no timber capacity;
+that world is left out of every shown harm pair, and shows as not recorded in F - B and H - B in
+the report); famine and war deaths remain unrecorded.
+
+## Erratum (2026-11-06, after the held run; the frozen text above is left as it was hashed)
+
+The independent check of this write-up (all 230 table values confirmed) found these in the
+preregistration text the held run hashed (`81701ebf…`); they are corrected here, not in place:
+
+1. **Amendment 1, the procurement shares, are shares of credited value, not of rows.** Read: 6.1%
+   of the value of A's procurement credits (747 of 6,994 credit rows, 10.7%; on 7 of 13 worlds,
+   up to 18.5% of the value on procedural 17) and 4.7% of C's (601 of 6,646 rows, 9.0%; 6
+   worlds, up to 14.1%).
+2. **The Status line** reads: Status: FROZEN at `4a79b7f55f794f78d31eb772bf950356df4c83cb`
+   (Amendment 1, the lead's review: the screen module, runner, extractors and simulation source
+   the re-validation and the rerun timing pilot ran on; first frozen at `81392e8b`).
+3. Two sentences of the frozen text describe the time of the freeze: "No held seed ... has been
+   run" (the held run then ran, as recorded above), and the rerun pilot's comparison "(333 s)"
+   is the first pilot's simulation and extraction seconds, not its wall time (171.6 s).
