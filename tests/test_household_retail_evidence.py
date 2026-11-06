@@ -492,17 +492,43 @@ def test_a_crew_living_in_two_regions_or_without_wages_leaves_wages_unknown():
     assert _cohort(h2)["unknown"]["wages_milli"] == "a crew receipt records no wage"
 
 
-def test_a_seller_with_claims_in_two_regions_leaves_credited_unknown_there():
+def _migrant_sellers(*crew):
+    """1 and 9 farm in Verdant, then move to Ashara keeping their Verdant
+    claims: next turn each sells there and in Ashara (one money row each)."""
     h = Harness("--household-retail-boundary", "all")
-    _people(h, VERDANT, (1,), wealth=0.0)
+    _people(h, VERDANT, (1, 9), wealth=0.0)
     _people(h, VERDANT, (2, 3), occupation=2, wealth=5.0)
     _people(h, ASHARA, (12, 13), occupation=2, wealth=5.0)
-    h.sim.moves = {1: ASHARA}                               # 1 keeps the Verdant claim, farms in Ashara
+    h.sim.moves = {1: ASHARA, 9: ASHARA}
     h.turn({VERDANT: {"grain": 6.0}})
-    h.turn({ASHARA: {"grain": 6.0}, VERDANT: {"grain": 6.0}})
+    h.turn({ASHARA: {"grain": 6.0}, VERDANT: {"grain": 6.0}},
+           economy=_stage_crews(h, pl3=[(ASHARA, [(a, 0) for a in crew])]) if crew else None)
+    return h
+
+
+def test_sellers_with_claims_in_two_regions_are_attributed_by_the_regions_totals():
+    """One money row covers a seller's sales in several regions: each region's
+    part is its credit less its one-region sellers', exact as a total, and it
+    belongs to the sellers' group when they share one."""
+    h = _migrant_sellers()
+    for rid in (VERDANT, ASHARA):
+        cohort, prov = _cohort(h, rid), h.frame(rid).provisioning
+        assert "credited_milli" not in cohort["unknown"]
+        assert _sums(cohort, "credited_milli") + cohort["credited_outside_milli"] == prov["credited_milli"]
+    # 1 and 9 (farmers off the crews, provisioned in Ashara now) are the only sellers in both
+    # regions: credited goes by the claim's region to the seller's group.
     for rid in (VERDANT, ASHARA):
         cohort = _cohort(h, rid)
-        assert cohort["unknown"].get("credited_milli") == "a seller sold claims of several regions in one turn"
+        assert cohort["groups"]["other"]["credited_milli"] == h.frame(rid).provisioning["credited_milli"] > 0
+        assert cohort["credited_outside_milli"] == 0
+
+
+def test_sellers_of_two_groups_with_claims_in_two_regions_leave_credited_unknown_there():
+    h = _migrant_sellers(9)                                  # 9 is on a crew this turn, 1 is not
+    for rid in (VERDANT, ASHARA):
+        cohort = _cohort(h, rid)
+        assert cohort["unknown"].get("credited_milli") == (
+            "sellers of several groups also sold claims of other regions this turn")
         assert all(cohort["groups"][g]["credited_milli"] is None for g in COHORT_GROUPS)
         assert cohort["credited_outside_milli"] is None
 

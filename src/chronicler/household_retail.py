@@ -1728,9 +1728,12 @@ def cohorts(world, roster, by_region: dict[int, dict], money_rows, claim_rows, s
     lives in one region); a group's sum is unknown when a person whose group
     is uncertain contributes to it. ``paid``/``refunded`` are by the payer's
     region and must equal the region's totals; ``credited`` is by the region of
-    the claim sold (``credited_outside_milli``: sellers provisioned in no pilot
-    region) and must equal the region's total; income must equal the region's
-    income replaced. A check that fails makes that field unknown."""
+    the claim sold, to the seller's group (``credited_outside_milli``: sellers
+    provisioned in no pilot region), and must equal the region's total. A
+    seller who sold claims of several regions has one money row: the region's
+    part is its credit less its one-region sellers', attributed when all such
+    sellers of the region share a group. Income must equal the region's income
+    replaced. A check that fails makes that field unknown."""
     members, wage, crews = _crews(world)
     region_of = {aid: info[0] for aid, info in roster.items()}
     groups: dict[int, tuple[str, bool]] = {aid: cohort_group(aid, roster, members, alive) for aid in roster}
@@ -1785,23 +1788,43 @@ def cohorts(world, roster, by_region: dict[int, dict], money_rows, claim_rows, s
     for owner, region, _own, sale in claim_rows:
         if int(sale) > 0:
             sold_in.setdefault(int(owner), set()).add(int(region))
+    single = dict.fromkeys(by_region, 0)          # credits of sellers who sold in one region only
     for aid, paid, credited, refunded in money_rows:
         aid, paid, credited, refunded = int(aid), int(paid), int(credited), int(refunded)
         if paid or refunded:
             rid = region_of.get(aid)
             add(rid, aid, "paid_milli", paid)
             add(rid, aid, "refunded_milli", refunded)
-        if credited:
-            regions = sold_in.get(aid, set())
-            if len(regions) != 1:
-                for rid in regions & set(by_region):
-                    unknown[rid]["credited_milli"] = "a seller sold claims of several regions in one turn"
-                continue
+        regions = sold_in.get(aid, set())
+        if credited and len(regions) == 1:
             (rid,) = regions
+            if rid in single:
+                single[rid] += credited
             if aid in groups:
                 add(rid, aid, "credited_milli", credited)
             elif rid in outside:
                 outside[rid] += credited
+    # A seller who sold claims of several regions has one money row: what each
+    # region paid them is the region's credit less its one-region sellers'
+    # credits, exact as a total, and belongs to one group when every such
+    # seller of the region is of that group (or provisioned in no pilot region).
+    for rid in by_region:
+        several = sorted(aid for aid, regions in sold_in.items() if rid in regions and len(regions) > 1)
+        rest = int(by_region[rid]["credited_milli"]) - single[rid]
+        if not several:
+            continue
+        kinds = {groups[aid] if aid in groups else ("outside", True) for aid in several}
+        if rest < 0 or len(kinds) != 1:
+            unknown[rid]["credited_milli"] = ("sellers of several groups also sold claims of other regions this turn"
+                                              if rest >= 0 else "the region's credit is less than its one-region sellers'")
+            continue
+        (group, certain), = kinds
+        if group == "outside":
+            outside[rid] += rest
+        elif rest:
+            acc[rid][group]["credited_milli"] += rest
+            if not certain:
+                shaky[rid].add("credited_milli")
     # Ordinary farm income replaced, by the farmer's Phase 2 region.
     for aid, value in (receipt[1] if receipt is not None else ()):
         add(region_of.get(int(aid)), int(aid), "income_replaced", float(value))
