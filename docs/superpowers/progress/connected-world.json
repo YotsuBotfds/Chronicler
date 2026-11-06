@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "board_version": 1,
+  "title": "Connected-world program (A livelihoods and trade, B watersheds and infrastructure, C public health, D institutions and war, E stories and evidence) operational board",
+  "plan": "docs/superpowers/roadmaps/connected-world-program.md",
+  "owner_instruction": "2026-11-06 (after #82): own the A-E program end to end with parallel workers, integrating and evaluating each slice and continuing across slice boundaries; merges of this program authorized after independent review, green premerge Tests on the reviewed head and verified main CI; new systems opt-in and off by default; no default promotion; full 200-seed and procedural qualification gates restricted; bounded held screens (procedural included) authorized; no purchases, paid credits, paid narration APIs, deployments, credential or sharing changes. Amendment (same day): tiers sequence work and are not stopping points; failures block the affected merge, not the program; pin 8abc1acb as the original reference; default-path changes behind a switch or rules version.",
+  "reference": {
+    "original": "8abc1acb3adf978ea212a570fb1dfbbfe9723ec3",
+    "original_native_sha256": "101a4cd5b928b14f43539f925fa565036b94e38d91b9698071c80fa3656e0df3",
+    "native_build": "maturin develop --release --locked into ~/.venvs/chronicler-native, 3m14s on 4 cores; identical to the checkpoint-2/3 extension"
+  },
+  "durable_location": {
+    "branch": "claude/connected-world",
+    "base": "main at 8abc1acb (#82)"
+  },
+  "status_values": ["proposed", "ready", "active", "blocked", "integrated", "evaluated", "merged", "deferred"],
+  "machine": {"cores": 4, "memory_gb": 15, "writable_disk_gb": 30},
+  "slices": [
+    {"id": "S0", "status": "active", "summary": "Baseline verification, board, dependency map, seed registry, contract audits (A1-A2, B, C, D with A5/D4, E)."},
+    {"id": "S1", "status": "proposed", "summary": "A1 accounting, A2 wage vs paid_work enrollment with fixed cohorts, recorded-limit dispositions needing no new mechanism."},
+    {"id": "S2", "status": "proposed", "summary": "A3 workshop economics, A5 owned-stock lifecycle."},
+    {"id": "S3", "status": "proposed", "summary": "B1-B3 initial watershed and infrastructure slice, C1 quarantine."},
+    {"id": "S4", "status": "proposed", "summary": "A4 merchants and owned cargo, B4 forest and water, B5 viewer, C2 care and sanitation, D2 attribution, D4 requisition and reconstruction."},
+    {"id": "S5", "status": "proposed", "summary": "A6 adaptive decisions, D1 cross-border organization, D3 war's human consequences, C4 public-health choices."}
+  ],
+  "lanes": [],
+  "recorded_limits": [
+    {"id": "RL1", "limit": "two conquests in one turn destroy owned stock once", "class": "pending", "slice": "S2"},
+    {"id": "RL2", "limit": "occupation and siege do not requisition owned stock", "class": "missing capability", "slice": "S2/S4"},
+    {"id": "RL3", "limit": "legacy JSON state-file resume runs neither L2 nor retail hooks", "class": "pending", "slice": "S2"},
+    {"id": "RL4", "limit": "pilot region can exceed the storage cap by up to one turn's harvest between close and next opening", "class": "pending", "slice": "S1/S2"},
+    {"id": "RL5", "limit": "purchases by person not in the snapshot", "class": "evidence gap", "slice": "S1"},
+    {"id": "RL6", "limit": "expedition labour cost not separated from a no-expedition arm", "class": "evidence gap", "slice": "S1"},
+    {"id": "RL7", "limit": "PL3 withheld income does not split granary from workshop crews", "class": "evidence gap", "slice": "S1"},
+    {"id": "RL8", "limit": "five viewer readers return null for both absent and malformed records", "class": "defect", "slice": "S1"}
+  ],
+  "seeds": {"status": "pending audit E registry check"},
+  "merges": [],
+  "next": "S0: integrate the five contract audits into the plan (sections 3-6), reserve seed cohorts against the full registry, then start S1."
+}
