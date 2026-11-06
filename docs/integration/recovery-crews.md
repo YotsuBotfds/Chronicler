@@ -214,8 +214,89 @@ No viewer reader exists yet (PL5).
 
 ## Evidence
 
-See the evidence section of [maintenance-obligation.md](maintenance-obligation.md)
-for the shared development screens, and below for the tests.
+### Verification on this lane's source (2026-11-06)
+
+- Focused offline: `PYTHONHASHSEED=0 python -m pytest -q tests/test_recovery_crews.py
+  tests/test_maintenance_obligation.py`: 39 passed.
+- Bounded offline lane (`scripts/run_python_oracle_checks.py`): it stops at the
+  first failing chunk, a source witness of the pinned `batch_manifest.py`. Run
+  to the end with a scratch copy that continues past failures: 55 of 61 chunks
+  pass, 6,443 passed, 69 skipped, 7 failed; all 7 failures are the source
+  witnesses (information, academy, household, crisis candidates, public grain
+  shipments, livelihoods sprint x2) naming `src/chronicler/batch_manifest.py`,
+  which wait for the lead's witness layer. Chunk `productive-recovery-pl3`:
+  39 passed in 1.4 s of 110 s.
+- Native (`~/.venvs/native-int`, extension `6c675042…`, `check_python_env.py
+  --expect native` PASS, `PYTHONPATH=src`): `test_recovery_crews_native.py`,
+  `test_repair_projects_native.py`, `test_veteran_reintegration_native.py`,
+  `test_local_budgets_native.py`, `test_recovery_skills_native.py`,
+  `test_livelihoods_closure_native.py`, `test_apprenticeship_native.py`,
+  `test_livelihoods_work_authority_native.py`: 38 passed.
+- `CHRONICLER_CHECK_RESOURCES=1` with every PL3 switch on (procedural 302,
+  100 turns, the screen flags plus `--recovery-crews --local-budgets
+  --maintenance-obligation`): completed.
+- Feature-off identity against `bec63b5b`: see
+  [maintenance-obligation.md](maintenance-obligation.md).
+
+### Development screens
+
+Development worlds only: template seeds 1, 3, 7, 9, 11, 23, 42 (8 regions,
+4 civs) and procedural 32x10 seeds 7, 11, 13, 17, 31; 200 turns; native
+extension `6c675042…`; `PYTHONHASHSEED=0 RAYON_NUM_THREADS=1`; one process at a
+time. Every arm used `--agents hybrid --simulate-only --grain-reserves
+--public-grain-shipments --scholarship --techniques --academy-services
+--grain-storage --workshops --repair-projects --apprenticeship
+--veteran-reintegration` (`--apprenticeship` as in D3, so RS1 operating wear
+gives workshop projects) plus the arm's flags. `pre` is the phase head
+`bec63b5b` (exported with `git archive`) with the base flags; every other arm
+is this lane. Sums over the worlds of each stratum (template / procedural).
+Single worlds diverge once any spending differs, so these show where the
+mechanisms act and what binds, not effect estimates. The "ghost" arms apply
+D3's diagnostic in a scratch driver only (RS2 sees ample free timber; the
+physical stock and the packed `stockpile_timber` column are restored after
+RS2's Phase 2 and the returned timber removed after its settlement), to show
+what binds once timber does not.
+
+| Measure (template / procedural) | `pre` | base | `paid` | `unpaid` | ghost base | ghost `paid` |
+| --- | --- | --- | --- | --- | --- | --- |
+| Granary crew-turns (person-turns) | - | - | 651 (848) / 1,864 (2,680) | 564 (778) / 1,556 (2,490) | - | - |
+| Granary wages to households (coins) | 0 | 0 | 815 / 3,070 | 0 (842 / 3,260 sunk) | 0 | 4,473 / 9,579 |
+| RS2 workshop wages (coins) | 35 / 104 | 35 / 108 | 39 / 150 | 45 / 148 | | |
+| Granary crew short of the planned work / no free adult farmer (turns) | - | - | 100 / 295; 94 / 323 | 352 / 361; 401 / 327 | - | 285 / 435; 52 / 100 |
+| Income withheld for crew work (wealth) | 0 | 0 | 75 / 220 | 72 / 246 | | |
+| Granary work delivered | 400 / 1,642 | 400 / 1,555 | 407 / 1,535 | 421 / 1,630 | 2,131 / 4,897 | 2,237 / 4,790 |
+| Mean granary condition | 0.325 / 0.404 | 0.325 / 0.408 | 0.323 / 0.389 | 0.320 / 0.395 | 0.700 / 0.798 | 0.729 / 0.792 |
+| Workshop repair: eligible per crew-turn, region pool / site-city part | - | - | 12.9 / 4.9; 10.2 / 2.9 | 10.2 / 3.1; 9.3 / 2.9 | | |
+| Workshop crew members: site city / rural / veteran | - | - | 120 / 224 / 0; 343 / 879 / 42 | 104 / 266 / 2; 386 / 835 / 27 | | |
+| Workshop stalls, primary `no_labor` / `no_timber` | 1,723 / 794; 1,757 / 761 | 1,712 / 806; 1,699 / 872 | 320 / 2,370; 219 / 2,009 | 281 / 2,455; 238 / 2,038 | 428 / -; 327 / - | 46 / -; 14 / - |
+| Workshop work delivered | 34 / 102 | 34 / 105 | 40 / 157 | 44 / 159 | 245 / 277 | 334 / 387 |
+| Mean workshop condition | 0.508 / 0.576 | 0.508 / 0.586 | 0.550 / 0.607 | 0.521 / 0.560 | 0.837 / 0.848 | 0.837 / 0.837 |
+| RS3 `placed:repair` spells; people placed (any opening) | 6, 16 / 8, 28 | 6, 16 / 4, 27 | 16, 16 / 108, 84 | 21, 18 / 119, 84 | | |
+
+- **Wages reach households.** Paid granary crews moved 815 (template) and
+  3,070 (procedural) coins of granary charges to named farmers, against 35 and
+  108 coins of RS2 workshop wages; with timber ample 4,473 and 9,579. In
+  `unpaid` the same order of coins left the economy as a sink. The treasury
+  charge is the granary cost in both modes (tested exactly offline; here the
+  trajectories diverge after the first wage).
+- **What binds granary crews.** Timber first, as in D1. Once timber is ample
+  the crew is short of the planned work in 285 / 435 project-turns and absent
+  in 52 / 100 (few free adult farmers in small regions), and granary work and
+  condition stay close to the anonymous channel's (0.729 / 0.792 against
+  0.700 / 0.798).
+- **The wider workshop pool removes the labour limit.** Eligible people per
+  workshop crew-turn rise from about 5 (template) and 3 (procedural) in the
+  site's city to 13 and 10 in the region; primary `no_labor` workshop stalls
+  fall from 1,712 to 320 and from 1,699 to 219 (ghost: 428 to 46, 327 to 14),
+  and timber binds instead. Workshop work rises 34 to 40 and 105 to 157.
+- **Veterans.** Repair placements of veterans rise from 6 to 16 (template) and
+  4 to 108 (procedural); people placed in any opening from 27 to 84 in the
+  procedural worlds (unchanged in template). 42 procedural workshop
+  member-turns were veterans of non-farming occupations. RS3's own counts
+  differ between arms because the trajectories do.
+
+The budget arms (L9 alone, `reserve`, `reserve_only`) and the RS2 correction's
+effect are in [maintenance-obligation.md](maintenance-obligation.md).
 
 ### Tests
 
