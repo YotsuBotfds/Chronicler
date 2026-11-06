@@ -1,6 +1,6 @@
 import type { Bundle, TurnSnapshot } from "../../types";
 import { meanShortfall } from "../../lib/foodAllocation";
-import { carriesHouseholdRetail, readFoodAllocation } from "../../lib/recordReading";
+import { readFoodAllocation, retailProvisioned } from "../../lib/recordReading";
 
 const show = (value: number | null) => value === null ? "No one" : value.toLocaleString(undefined, { maximumFractionDigits: 3 });
 const REGIME_NOTE: Record<string, string> = {
@@ -19,7 +19,7 @@ export function FoodAllocation({ bundle, snapshot, currentTurn, onSelectRegion }
     <h3>Food allocation</h3><p className="systems-note">{reading.note}</p>
   </section>;
   const record = reading.record;
-  const retail = snapshot !== null && carriesHouseholdRetail(snapshot);
+  const retail = snapshot !== null && retailProvisioned(snapshot);
   const turn = record.source_turn + 1;
   const t = record.totals;
   return <section className="systems-section" aria-label="Food allocation">

@@ -148,18 +148,25 @@ export const REMITTANCES: RecordSpec<RemittancesRecord> = {
 };
 
 /**
- * Whether the snapshot records household retail. L2 leaves out the regions retail
- * provisioned (`food_allocation.py`), so an empty L2 frame then means no short region
- * outside retail's regions, not no short region.
+ * Whether household retail provisioned at least one region in this snapshot's turn (a
+ * retail frame row with a provisioning record). L2 leaves those regions out
+ * (`food_allocation.py`), so an empty L2 frame then means no short region outside
+ * retail's regions. In record-only mode, or a turn retail provisioned nothing, L2
+ * covers every region.
  */
-export const carriesHouseholdRetail = inLivelihoods("household_retail");
+export function retailProvisioned(snapshot: TurnSnapshot): boolean {
+  const livelihoods = (snapshot as unknown as Record<string, unknown>).livelihoods;
+  const retail = object(livelihoods) ? livelihoods.household_retail : null;
+  return object(retail) && Array.isArray(retail.regions)
+    && retail.regions.some((row) => object(row) && row.provisioning !== null && row.provisioning !== undefined);
+}
 
 export const FOOD_ALLOCATION: RecordSpec<FoodAllocationRecord> = {
   key: "food_allocation", label: "Food allocation", flag: "--food-allocation", livelihoods: true,
   carries: inLivelihoods("food_allocation"), read: (s, regions) => foodAllocationAt(s, regions),
   observed: (r) => r.totals !== null && r.regions !== null,
   empty: (r) => r.regions !== null && r.regions.length === 0,
-  zero: (s) => carriesHouseholdRetail(s) ? "no region outside household retail's regions was short of food"
+  zero: (s) => retailProvisioned(s) ? "no region outside household retail's regions was short of food"
     : "no region was short of food",
 };
 

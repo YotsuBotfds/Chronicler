@@ -188,6 +188,7 @@ class Runtime:
     clock: Callable[[], float] = time.time
     ledger: Path = LEDGER
     changed_paths: Callable[[str, str], list[str] | None] = None  # type: ignore[assignment]
+    registry: Path = REGISTRY
 
     def __post_init__(self):
         if self.simulate is None:
@@ -343,8 +344,11 @@ def seed_sets(reg: Mapping, stratum: str) -> dict[str, set[int]]:
     return out
 
 
-def check_seeds(screen: Screen, reg: Mapping) -> tuple[list[str], list[str]]:
-    """(problems, notes) for the screen's pilot and held cohorts against the registry."""
+def check_seeds(screen: Screen, reg: Mapping, *, recorded_ok: bool = False) -> tuple[list[str], list[str]]:
+    """(problems, notes) for the screen's pilot and held cohorts against the registry.
+    ``recorded_ok``: a held cohort that ``mark-run`` recorded (status ``run`` with a
+    ``held_run`` record) is a note, not reuse: for ``check`` of retained evidence and for
+    a reserve run; starting a held run refuses it."""
     problems, notes = validate_registry(reg), []
     if problems:
         return problems, notes          # a malformed registry is refused, never half-read
@@ -375,7 +379,11 @@ def check_seeds(screen: Screen, reg: Mapping) -> tuple[list[str], list[str]]:
             problems.append(f"{screen.name} {stratum} held {sorted(held)} differs from its registry reservation "
                             f"{sorted(reserved)}")
         for e in own:
-            if e["status"] == "run":
+            if e["status"] == "run" and recorded_ok and isinstance(e.get("held_run"), dict):
+                run = e["held_run"]
+                notes.append(f"{stratum} held cohort {e['id']} was recorded as run "
+                             f"({'complete' if run.get('complete') else 'incomplete'}, {run.get('out')})")
+            elif e["status"] == "run":
                 problems.append(f"{screen.name} {stratum}: held seeds of {e['id']} were already run (reused)")
             elif e["status"] != "reserved":
                 problems.append(f"{screen.name} {stratum}: {e['id']} is {e['status']}, not reserved")
@@ -737,7 +745,12 @@ def harm_food_shortfall(bundle: dict) -> dict:
             continue
         natives = [row.get("native") is not None for row in rows]
         if rows and not any(natives):
-            unobserved.append(snap.get("turn"))     # no native economy tick: no ledger this turn
+            # Without an economy tick (transport "none", mode "off") there is no native
+            # ledger; an economy that ticked without one is a build that lacks it: malformed.
+            if fa.get("transport") == "none" or fa.get("mode") == "off":
+                unobserved.append(snap.get("turn"))
+            else:
+                bad.append(snap.get("turn"))
             continue
         for i, row in enumerate(rows):
             d, s = (row.get("native") or {}).get("demand"), row.get("sufficiency_after_relief")
@@ -1217,11 +1230,20 @@ def cohort_seeds(screen: Screen, cohort: str, reg: Mapping | None = None) -> dic
 
 
 def check_reserve(screen: Screen, reg: Mapping) -> list[str]:
-    """The reserve is free (every entry reserved, assigned to no other screen)."""
+    """The reserve is free (every entry reserved, assigned to no other screen) and the
+    screen's held run was recorded by ``mark-run`` as failed or incomplete."""
     entries = [e for e in reg["entries"] if e.get("cohort") == "reserve"]
     if not entries:
         return ["the registry has no reserve cohort"]
     problems = []
+    own = [e for e in reg["entries"] if e.get("screen") == screen.name and e.get("cohort") == "held"]
+    recorded = [e for e in own if e["status"] == "run" and isinstance(e.get("held_run"), dict)]
+    if not own or len(recorded) != len(own):
+        problems.append(f"the reserve serves a screen whose held run mark-run recorded as failed or incomplete; "
+                        f"{screen.name} has no recorded held run")
+    elif all(e["held_run"].get("complete") for e in recorded):
+        problems.append(f"{screen.name}'s recorded held run is complete; the reserve is for a failed or "
+                        f"incomplete one")
     for e in entries:
         if e.get("screen") not in (None, screen.name):
             problems.append(f"the reserve {e['id']} is assigned to {e['screen']}")
@@ -1282,7 +1304,7 @@ def run_main(argv, screens: Mapping[str, Screen], rt: Runtime | None = None, pro
     screen = _screen_arg(screens, a.screen)
     if not screen.ready:
         raise SystemExit(f"run refused: {screen.name} is not ready ({screen.not_ready or 'a stub'})")
-    reg = load_registry()
+    reg = load_registry(rt.registry)
     evidence = a.cohort in EVIDENCE_COHORTS
     seeds_by = cohort_seeds(screen, a.cohort, reg)
     if a.cohort != "dev" and not any(seeds_by.values()):
@@ -1292,7 +1314,7 @@ def run_main(argv, screens: Mapping[str, Screen], rt: Runtime | None = None, pro
     reason = (a.reason or "").strip()
     if (a.cohort == "reserve") != bool(reason):
         raise SystemExit("--reason is required with --cohort reserve, and only there")
-    problems, notes = check_seeds(screen, reg)
+    problems, notes = check_seeds(screen, reg, recorded_ok=a.cohort == "reserve")
     if a.cohort == "reserve":
         problems += check_reserve(screen, reg)
     problems += check_screen(screen)
@@ -1348,9 +1370,22 @@ def run_main(argv, screens: Mapping[str, Screen], rt: Runtime | None = None, pro
         if identity_of(recorded) != identity:
             raise SystemExit("resume refused: the source, dirty count, chronicler path, extension, interpreter, "
                              "runner, screen module, registry or preregistration changed:\n" + "\n".join(identity))
-        if evidence and not any(e.get("out") == str(out.resolve()) and e.get("identity") == digest
-                                for e in ledger_entries(rt.ledger)):
-            raise SystemExit(f"resume refused: the ledger {rt.ledger} records no {a.cohort} run in {out}")
+        if evidence and not any(e.get("screen") == screen.name and e.get("cohort") == a.cohort
+                                and e.get("identity") == digest for e in ledger_entries(rt.ledger)):
+            # A restored output folder (another clone, a recovered container) carries its own
+            # record; it is accepted when it names this run and is written back to the ledger.
+            try:
+                held = json.loads((out / "held-run.json").read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                held = None
+            if not (isinstance(held, dict) and held.get("screen") == screen.name and held.get("cohort") == a.cohort
+                    and held.get("identity") == digest):
+                raise SystemExit(f"resume refused: neither the ledger {rt.ledger} nor {out / 'held-run.json'} "
+                                 f"records this {a.cohort} run")
+            Path(rt.ledger).parent.mkdir(parents=True, exist_ok=True)
+            with open(rt.ledger, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps({**held, "out": str(out.resolve()),
+                                     "restored": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}) + "\n")
         for r in read_rows(metrics, screen):
             if r.get("cohort") != a.cohort or r.get("identity") != digest:
                 raise SystemExit(f"{metrics} holds a row of cohort {r.get('cohort')} or another identity")
@@ -1763,13 +1798,14 @@ def check_main(argv, screens: Mapping[str, Screen], prog: str = "screens") -> in
     ap.add_argument("--metrics", default=None)
     ap.add_argument("--cohort", choices=("pilot", "held", "reserve", "dev"), default=None)
     ap.add_argument("--worlds", default=None, help="dev metrics: the development worlds run")
+    ap.add_argument("--registry", default=str(REGISTRY))
     a = ap.parse_args(argv)
     names = list(screens) if a.screen == "all" else a.screen.split(",")
-    reg = load_registry()
+    reg = load_registry(Path(a.registry))
     rc = 0
     for name in names:
         screen = _screen_arg(screens, name)
-        problems, notes = check_seeds(screen, reg)
+        problems, notes = check_seeds(screen, reg, recorded_ok=True)
         for note in notes:
             print(f"{screen.name} note: {note}")
         if problems:
