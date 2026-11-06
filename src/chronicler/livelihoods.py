@@ -38,6 +38,8 @@ The productive-recovery phase appends:
   existing coins, and a wider workshop repair pool that admits veterans;
 * ``--maintenance-obligation`` (PL3): a bounded L9 obligation reserved for RS2's
   planned repair charges before the budget is bargained.
+* ``--household-retail`` (PL4, L6b): producer title of new harvest, owned
+  food, paid provisioning, income replacement and relief in pilot regions.
 
 This module owns only CLI forwarding, validation of prerequisites and the
 fan-out of phase hooks to each package's module ``chronicler.<switch>``.
@@ -91,6 +93,8 @@ LIVELIHOODS_CHOICES: dict[str, tuple[str, ...]] = {
     "recovery_crew_mode": ("paid", "unpaid"),
     "maintenance_obligation_mode": ("reserve", "reserve_only"),
     "apprenticeship_rules": ("2", "1"),
+    "household_retail_mode": ("retail", "no_relief", "free_exchange", "record_only"),
+    "household_retail_boundary": ("market", "paid_work", "all"),
 }
 #: All parser destinations owned here (``batch_manifest.SIMULATION_ARG_KEYS``).
 LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
@@ -112,6 +116,7 @@ LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     "timber_supply", "timber_supply_mode",
     "recovery_crews", "recovery_crew_mode",
     "maintenance_obligation", "maintenance_obligation_mode",
+    "household_retail", "household_retail_mode", "household_retail_boundary",
 )
 _AGENT_ECONOMY = ("hybrid", "shadow", "demographics-only")
 
@@ -290,6 +295,22 @@ _HELP = {
         "reserve_only: the crowding-out control that reserves the same amount but keeps repairs to "
         "their envelope and returns the reservation unspent"
     ),
+    "household_retail": (
+        "Household food retail (L6b): in pilot regions most of each new harvest belongs to its "
+        "farmers by stable id; owners' households eat their own food and sell the rest to "
+        "neighbours at the clamped market price, buyers pay from their wealth, farmers' ordinary "
+        "farm income is replaced by their sales; commons and granary releases stay free; requires "
+        "--agents hybrid and --food-allocation (default off)"
+    ),
+    "household_retail_mode": (
+        "retail (default); no_relief: the whole harvest titled, L2's rule on the commons, no means "
+        "test; free_exchange: the same title and rounds at price 0 with farm income kept; "
+        "record_only: the control that computes the pilot and the would-be title and changes nothing"
+    ),
+    "household_retail_boundary": (
+        "market (default): each ruler's capital region, sticky; paid_work: regions that have had an "
+        "open workshop firm or a paid repair crew, sticky; all: every controlled region (stress)"
+    ),
 }
 
 
@@ -429,6 +450,9 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
             saved = values["timber_supply"] is not True
             raise ValueError("--timber-supply requires --agents hybrid, --repair-projects and --timber-stock"
                              + ("; this world has it on: pass --no-timber-supply to end it" if saved else ""))
+    if values["household_retail"] is True:
+        if agent_mode != "hybrid" or not _on(world, values, "food_allocation"):
+            raise ValueError("--household-retail requires --agents hybrid and --food-allocation")
 
 
 def configure_livelihoods(world: Any, args: Any, *, agent_mode: str) -> None:
@@ -481,6 +505,8 @@ _CHOICE_FIELDS: dict[str, tuple[str, str]] = {
     "recovery_crew_mode": ("recovery_crews", "mode"),
     "maintenance_obligation_mode": ("maintenance_obligation", "mode"),
     "apprenticeship_rules": ("apprenticeship", "rules"),
+    "household_retail_mode": ("household_retail", "mode"),
+    "household_retail_boundary": ("household_retail", "boundary"),
 }
 
 
