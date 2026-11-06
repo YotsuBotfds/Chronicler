@@ -197,15 +197,17 @@ reader and returns `disabled` (no snapshot of the run records the package), `abs
 the run but not at this snapshot, or no livelihoods record: unknown, not zero), `malformed`
 (the record or the livelihoods container was refused), `unobserved` (null frames: unknown, not
 zero), `recorded_zero` or `recorded`, each with a note. The repair projects, timber stock,
-remittances and food allocation panels show the note and say "recorded, nothing happened this
-turn" for a recorded zero; the livelihoods panel mounts them whenever the run records their
-package, so an absent record is reported instead of hidden. Tests: every state for the five
-readers (`recordReading.test.ts`) and the four panels (`RecordStates.test.tsx`).
+remittances, food allocation and granary storage panels show the note and say "recorded,
+nothing happened this turn" for a recorded zero; the livelihoods panel mounts its four
+whenever the run records their package, so an absent record is reported instead of hidden.
+Tests: every state for the five readers (`recordReading.test.ts`) and the five panels
+(`RecordStates.test.tsx`).
 
-Left open: `granaries.ts`, `GranaryStorage.tsx` and its parent `Granaries.tsx` are pinned by the
-crisis-candidate source witness, so the granary storage panel still renders its own "not
-observed or unavailable" note; `readGranaryStorage` supplies the distinct state, and showing
-it in that panel needs a reviewed exact-inverse layer (lead-owned).
+The granary storage panel `GranaryStorage.tsx` is pinned whole by the crisis-candidate source
+witness (`new_files`), which projects through `before_livelihoods_sprint`; its edit (render
+`readGranaryStorage` instead of `granaryStorageAt`'s null) is inverted by the reviewed
+livelihoods layer `cwe1` (`tests/fixtures/livelihoods_cwe1_source_inverse.json`, appended to
+`LAYERS`). `granaries.ts` and `Granaries.tsx` are unchanged.
 
 ## 7. Verification (2026-11-06, branch `claude/cw-e1-tooling`)
 
@@ -214,7 +216,7 @@ it in that panel needs a reviewed exact-inverse layer (lead-owned).
 - A `DEV` smoke run on development world template 1 (10 turns, both arms, the reference native
   extension `101a4cd5...`) wrote identities, rows, activation and the harm panel; `report` and
   `check --metrics` passed.
-- Viewer: `npm test -- --maxWorkers=2` (148 files, 1515 passed, 2 skipped), `npm run lint`,
+- Viewer: `npm test -- --maxWorkers=2` (148 files, 1520 passed, 2 skipped), `npm run lint`,
   `npm run build` pass.
 - Not run: any pilot or held screen (every CW screen is a stub), native or Rust suites (no
   native change).

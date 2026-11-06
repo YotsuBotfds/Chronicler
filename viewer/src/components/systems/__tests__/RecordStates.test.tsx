@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import type { Bundle } from "../../../types";
 import { FoodAllocation } from "../FoodAllocation";
+import { GranaryStorage } from "../GranaryStorage";
 import { LivelihoodsPanel } from "../LivelihoodsPanel";
 import { Remittances } from "../Remittances";
 import { RepairProjects } from "../RepairProjects";
@@ -97,5 +98,41 @@ describe("the livelihoods panel mounts these panels from the run's records", () 
     panel(chainBundle((s) => { if (s.turn === AT) s.livelihoods.schema_version = 2; }));
     expect(screen.getByText(/The livelihoods record at snapshot 20 is unreadable/)).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Timber stock" })).not.toBeInTheDocument();
+  });
+});
+
+describe("granary storage panel", () => {
+  const show = (bundle: Bundle) => render(<GranaryStorage bundle={bundle} snapshot={snapshotOf(bundle, AT)} region={null} />);
+  const region = () => within(screen.getByRole("region", { name: "Granary storage assets" }));
+  const edit = (change: (storage: Rec) => void) => chainBundle((s) => { if (s.turn === AT) change(s.grain_reserves.storage); });
+
+  it("says storage is off in this run (constructed: removed from every snapshot)", () => {
+    show(chainBundle(without("grain_storage")));
+    expect(region().getByText("Granary storage: off in this run (--grain-storage is not recorded in any snapshot).")).toBeInTheDocument();
+    expect(region().queryByRole("table")).not.toBeInTheDocument();
+  });
+
+  it("says an absent frame is unknown, not zero (constructed: removed at snapshot 20)", () => {
+    show(chainBundle((s) => { if (s.turn === AT) delete s.grain_reserves.storage; }));
+    expect(region().getByText("Granary storage: on in this run, but snapshot 20 has no record; unknown, not zero.")).toBeInTheDocument();
+  });
+
+  it("says a malformed frame was rejected (constructed: misdated at snapshot 20)", () => {
+    show(edit((storage) => { storage.receipt_turn = 99; }));
+    expect(region().getByText(/^Granary storage: the record at snapshot 20 was rejected as malformed/)).toBeInTheDocument();
+    expect(region().queryByRole("table")).not.toBeInTheDocument();
+  });
+
+  it("shows a recorded zero as recorded (constructed: no storage receipt at snapshot 20)", () => {
+    show(edit((storage) => { storage.receipts = []; }));
+    expect(screen.getByRole("heading", { name: "Storage assets · snapshot 20" })).toBeInTheDocument();
+    expect(region().getByText(/^Granary storage: recorded, nothing happened this turn/)).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: "Storage work at snapshot 20" })).toBeInTheDocument();
+  });
+
+  it("shows recorded work without a state note (constructed: one receipt delivers work)", () => {
+    show(edit((storage) => { storage.receipts[0] = { ...storage.receipts[0], requested: 1, delivered: 1 }; }));
+    expect(screen.getByRole("heading", { name: "Storage assets · snapshot 20" })).toBeInTheDocument();
+    expect(region().queryByText(/^Granary storage: /)).not.toBeInTheDocument();
   });
 });

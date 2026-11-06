@@ -15,8 +15,9 @@
  * - `recorded`: a valid record with something in it.
  *
  * The readers keep their contract (the recovery chain composes them the same
- * way, `recoveryChain.ts`); `granaries.ts` and its panel are pinned by a source
- * witness, so the granary storage reading is offered here without changing them.
+ * way, `recoveryChain.ts`). The granary storage panel (`GranaryStorage.tsx`,
+ * pinned by the crisis-candidate witness through livelihoods layer `cwe1`)
+ * renders `readGranaryStorage`; `granaries.ts` is unchanged.
  */
 import type { Bundle, TurnSnapshot } from "../types";
 import { foodAllocationAt, type FoodAllocationRecord } from "./foodAllocation";
@@ -157,8 +158,9 @@ export const GRANARY_STORAGE: RecordSpec<GranaryStorageFrame> = {
   key: "grain_storage", label: "Granary storage", flag: "--grain-storage", livelihoods: false,
   carries: (s) => s.grain_reserves?.storage != null, read: granaryStorageAt,
   observed: () => true,
-  empty: (frame) => frame.receipts.every((row) => row.delivered === 0 && row.treasury_paid === 0 && row.timber_used === 0),
-  zero: "no storage work delivered or paid",
+  empty: (frame) => frame.receipts.every((row) => row.delivered === 0 && row.treasury_paid === 0 && row.timber_used === 0
+    && row.capacity_returned === 0),
+  zero: "no storage work delivered or paid and no grain returned to market",
 };
 
 export const readRepairProjects = (bundle: Bundle | null | undefined, snapshot: TurnSnapshot | null, turn?: number) =>
@@ -169,6 +171,6 @@ export const readRemittances = (bundle: Bundle | null | undefined, snapshot: Tur
   readRecord(REMITTANCES, bundle, snapshot, turn);
 export const readFoodAllocation = (bundle: Bundle | null | undefined, snapshot: TurnSnapshot | null, turn?: number) =>
   readRecord(FOOD_ALLOCATION, bundle, snapshot, turn);
-/** The granary storage state; its pinned panel (GranaryStorage.tsx) still renders its own note. */
+/** The granary storage state, rendered by GranaryStorage.tsx. */
 export const readGranaryStorage = (bundle: Bundle | null | undefined, snapshot: TurnSnapshot | null, turn?: number) =>
   readRecord(GRANARY_STORAGE, bundle, snapshot, turn);
