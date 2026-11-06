@@ -246,3 +246,84 @@ outcomes were not read for any decision.
 
 The screen module changed (new SHA-256 above), so the pilot was rerun on `8c8feb41`. No held
 seed had been run, and no held outcome was seen.
+
+## Results (held run, 2026-11-06)
+
+Read after the run; nothing below changed an arm, outcome or parameter, and no held seed was
+rerun. Full report: `connected-world-screens-cw4/held/report.md` (every per-world value of
+every outcome and harm), with `metrics.jsonl`, `source.txt` and `held-run.json` beside it.
+
+**Run.** `run HELD --screen CW4 --cohort held --pilot .../pilot/metrics.jsonl --jobs 2
+--keep-first` on source `14c3b90f` (the frozen code `8c8feb41` plus this page's Amendment 1
+commit; dirty 0), started 19:41:03Z, finished 19:45:41Z: **48 runs, 0 failed, complete, every
+outcome extracted**; **0.153 core-hours** of simulation and extraction (ceiling 0.5; the pilot
+projected 0.176), 278 s of wall time at 2 processes. `check --cohort held` passes; `mark-run`
+recorded `cw4-held-t` and `cw4-held-p` as run (48 rows, complete) in
+`scripts/seed_registry.json`. Identities: run digest `158fbeb0…`; native `101a4cd5…`; runner
+`41330176…`; screen module `a84fc211…`; registry content `dc16f3c3…`; preregistration
+`deecbaa9…` (this page as frozen). Mean seconds per run: template 5.9-6.1, procedural 16.4-17.5.
+
+**Activation (before any effect).** Q0, QC and QR activated on 6 of 6 worlds in both strata.
+On template 763 QR opened 59 closures but no closed pair had a route or merchant edge between
+them (0 route-turns, 0 edges removed), so QR's world equals QC's there and every QR - QC
+difference is a recorded exact 0.
+
+### Primary outcomes (QR - QC, whole run, world level)
+
+| Outcome | Stratum | Per world | Mean [min, max] | >0 / <0 / =0 | Sign flips at least as extreme (of 64) |
+| --- | --- | --- | --- | --- | --- |
+| `cw4_world_arrivals` | template | 761 -9, 762 -2, 763 0, 764 +12, 765 +5, 766 -1 | +0.83 [-9, +12] | 2 / 3 / 1 | 52 (means ±4.83) |
+| `cw4_world_arrivals` | procedural | 861 +11, 862 -48, 863 -7, 864 +62, 865 -7, 866 -8 | +0.50 [-48, +62] | 2 / 4 / 0 | 64 (means ±23.8) |
+| `cw4_world_death_rate` (per 1,000 person-turns) | template | -0.146, -0.095, 0, +0.543, -1.199, -0.341 | -0.207 [-1.199, +0.543] | 1 / 4 / 1 | 32 (means ±0.387) |
+| `cw4_world_death_rate` | procedural | +0.146, -3.473, +0.248, +3.549, -5.609, -3.605 | -1.457 [-5.609, +3.549] | 3 / 3 / 0 | 30 (means ±2.77) |
+
+**Both primaries are nulls in both strata**: no consistent sign, and the observed means sit in
+the middle of their sign-flip distributions. This matches the preregistered prediction (C1
+closes trade only; migrants stay open, and in these hybrid worlds a closure is weaker and
+slower than the legacy multiplier).
+
+### Secondary outcomes (means per stratum; template / procedural)
+
+- World arrivals per 1,000 region-turns (QR - QC): +0.52 / +0.08 (null, as P1).
+- World epidemic deaths, count (QR - QC): -5.7 [-29, +18], 1/4/1 / -96.3 [-313, +219], 3/3/0
+  (sign-flip 28 and 20 of 64): mixed.
+- Selection-conditioned (each arm's own closures): window arrivals -6.8 (0/4/2) / -36.5
+  (2/4/0), 8 of 64 each; window deaths per 1,000 person-turns -0.83 (1/4/1) / -1.85 (2/4/0);
+  but the windows themselves shrink under QR, -38.8 / -223 civ-turns (QR closes fewer and
+  shorter times, partly because its closures change later reports). These compare different
+  selections and are not effects.
+- Cost effect (QC - Q0): world death rate +0.49 [0, +1.28], 4/0/2, 8 of 64 / -0.81 [-5.09,
+  +1.20], 3/3/0; world arrivals +2.5 / -3.7; world treasury +81 / -150: no consistent cost
+  effect (on template 761 and 762 the declared quarantines changed no outcome but treasury).
+- Legacy comparison (QR - QL, the negative of QL - QR): world arrivals +12.8 [0, +21], 5/0/1,
+  4 of 64 / +8.5 [-64, +75], 5/1/0, 34 of 64; world death rate +0.53, 4/2/0 / -0.70, 2/4/0.
+  Descriptively, the legacy multiplier world had fewer recorded cross-polity arrivals than the
+  real closure, most clearly in template worlds; deaths are mixed.
+
+### Harms
+
+C's trade and fiscal harms (QR - QC unless QR alone):
+
+- Route income forgone, both sides (QR alone): 519 [0, 1,260] / 1,769 [704, 3,636] treasury.
+- Merchant unwinds (world): +17.5 [0, +62], 4/0/2 / +92.2 [+30, +152], 6/0/0 (2 of 64);
+  disruption replans: -0.17 (5 of 6 zero) / +23.7 [+5, +52], 6/0/0 (2 of 64).
+- Deliveries still crossing a closed pair (QR alone): 8 [0, 19] / 60.5 [28, 87] per run.
+- Enforcement paid: -65 / -314 (QR decided fewer closures than QC after the trajectories split).
+- Net food transport into closing civs' windows, closing civs' treasury and stability, partner
+  civs' population and treasury: mixed signs, no consistent difference (report).
+
+Fixed harm panel, QR - QC:
+
+- Food shortfall after relief over the run: +259.5 [-103, +692], 3/2/1 / +1,044 [-2,693, +3,328],
+  5/1/0 (16 and 18 of 64): more shortfall under closure in most worlds.
+- Agents migrating between regions: +106 [0, +366], 5/0/1 (4 of 64) / +1,437 [-956, +4,218],
+  5/1/0 (8 of 64): more migration under closure.
+- Epidemic deaths: as the secondary above.
+- Population and treasury at the end, wealth Gini: mixed.
+- Not recorded in these runs: priced-out persons and children (retail off), forest stand
+  (timber stock off).
+- No bundle field: famine and war deaths ("requires slice extractor", owners named in the
+  runner).
+
+The Q0 - QL, QC - Q0 and QR - QL rows of the panel are in the report. No world failed, none
+was incomplete, and no outcome was missing.
