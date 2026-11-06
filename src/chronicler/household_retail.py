@@ -594,10 +594,11 @@ def _region_index(world, region) -> int:
 
 def _war_entry(world, region) -> tuple[HouseholdRetailState, RetailRegion] | None:
     """The version-2 pilot entry a war event in ``region`` reaches, or None
-    (retail off, inactive, ``record_only`` or version 1; the region outside
-    the pilot)."""
+    (retail off, inactive or version 1; the region outside the pilot). In
+    ``record_only`` the entry holds nothing: the event is recorded with no
+    loss, so a control arm keeps its war exposure (review A5, finding 2)."""
     state = _state(world)
-    if state is None or not _v2(state) or state.mode == "record_only" or not household_retail_active(world):
+    if state is None or not _v2(state) or not household_retail_active(world):
         return None
     reg = state.region(_region_index(world, region))
     if reg is None:
@@ -611,7 +612,8 @@ def _apply_war_loss(world, state, reg: RetailRegion, survival: float, cause: str
                     note: str) -> int:
     """Destroy ``v - floor(v x survival)`` of each owned good of ``reg``, claims
     pro rata (largest remainder, ties by id), once; count the event and log
-    the loss (cause, actor and victim by index and name at the event)."""
+    it (cause, actor and victim by index and name at the event), also when it
+    destroys nothing (no owned food, or ``record_only``: milli 0)."""
     if cause not in WAR_CAUSES:
         raise ValueError(f"unknown war loss cause {cause!r}")
     book = _book(state, world, reg)
@@ -623,13 +625,15 @@ def _apply_war_loss(world, state, reg: RetailRegion, survival: float, cause: str
         _bump(state, f"war_loss_{cause}_milli", total)
     reg.war_events = (reg.war_events or 0) + 1
     _bump(state, "war_events")
-    if total:
-        # Every event is counted; an event that found nothing owned is not logged.
-        actor_id, actor_name = _civ(world, actor)
-        victim_id, victim_name = _civ(world, victim)
-        _log(state, RetailRecord(turn=int(world.turn), region=reg.region, kind="war_loss", milli=total, note=note,
-                                 cause=cause, actor=actor_id, actor_name=actor_name,
-                                 victim=victim_id, victim_name=victim_name))
+    # Every event is counted and logged with its cause, actor and victim, also
+    # one that found nothing owned (review A5, finding 3).
+    actor_id, actor_name = _civ(world, actor)
+    victim_id, victim_name = _civ(world, victim)
+    if state.mode == "record_only":
+        note += " (record_only: nothing held)"
+    _log(state, RetailRecord(turn=int(world.turn), region=reg.region, kind="war_loss", milli=total, note=note,
+                             cause=cause, actor=actor_id, actor_name=actor_name,
+                             victim=victim_id, victim_name=victim_name))
     check_region(reg, book)
     check_owner(reg, book)
     return total

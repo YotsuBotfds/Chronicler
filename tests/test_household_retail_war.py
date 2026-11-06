@@ -81,9 +81,10 @@ def test_a_new_state_runs_version_2_and_the_option_selects_version_1():
     # A saved state keeps its version when the option is omitted.
     configure_livelihoods(h1.world, parse(["--household-retail"]), agent_mode="hybrid")
     assert h1.state.rules_version == 1
-    # Counters are appended, never reordered.
-    assert COUNTERS[-4:] == ("war_loss_conquest_milli", "war_loss_siege_milli", "war_loss_occupation_milli",
-                             "war_events")
+    # Counters are appended, never reordered (A2R appended after these).
+    first = COUNTERS.index("war_loss_conquest_milli")
+    assert COUNTERS[first:first + 4] == ("war_loss_conquest_milli", "war_loss_siege_milli",
+                                         "war_loss_occupation_milli", "war_events")
     assert COUNTERS.index("requisition_exempt_region_turns") < COUNTERS.index("war_events")
 
 
@@ -294,14 +295,17 @@ def test_siege_turns_and_an_occupation_start_reach_owned_stock_through_the_war_p
             assert reg.goods == [v - x for v, x in zip(goods, share)]
             steps.append(sum(share))
         # A region outside the pilot (Thornwood, not a capital) holds no owned
-        # stock; a pilot region without owned food counts the event only.
+        # stock; a pilot region without owned food counts and records the event
+        # with no loss (review A5, finding 3).
         assert HR.on_war_loss(world, world.regions[THORNWOOD], 0.85, cause="siege", actor=_civ(h, KETHANI)) == 0
         assert HR.on_war_loss(world, world.regions[ASHARA], 0.85, cause="siege", actor=_civ(h, KETHANI)) == 0
     h.turn(between=besiege_then_occupy)
     records = _war_records(h)
-    assert [(r.cause, r.actor_name, r.victim_name, r.milli) for r in records] == [
-        ("siege", KETHANI, THORNWALL, steps[0]), ("occupation", KETHANI, THORNWALL, steps[1])]
-    assert [r.note for r in records] == [f"besieged by {KETHANI}", f"occupied by {KETHANI}"]
+    assert [(r.region, r.cause, r.actor_name, r.victim_name, r.milli) for r in records] == [
+        (VERDANT, "siege", KETHANI, THORNWALL, steps[0]), (VERDANT, "occupation", KETHANI, THORNWALL, steps[1]),
+        (ASHARA, "siege", KETHANI, SELURIAN, 0)]
+    assert [r.note for r in records] == [f"besieged by {KETHANI}", f"occupied by {KETHANI}", f"besieged by {KETHANI}"]
+    assert (records[2].actor, records[2].victim) == (INDEX[KETHANI], INDEX[SELURIAN])
     assert h.state.region(ASHARA).war_events == 1 and THORNWOOD not in HR.pilot_regions(world)
     assert reg.war_events == 2 and h.state.counters["war_events"] == 3
     assert {k: h.state.counters.get(f"war_loss_{k}_milli", 0) for k in WAR_CAUSES} == {
@@ -360,12 +364,13 @@ def test_a_conquest_then_the_loss_of_the_controller_lose_once_then_close_once():
 
 # --- g. feature off, version 1, record_only, inactive ---------------------------
 
-@pytest.mark.parametrize("case", ["no_livelihoods", "l2_only", "rules_1", "record_only", "not_hybrid"])
+@pytest.mark.parametrize("case", ["no_livelihoods", "l2_only", "rules_1", "rules_1_record_only", "not_hybrid"])
 def test_the_hooks_are_no_ops_outside_an_active_version_2_pilot(case, monkeypatch):
+    # Version 2 record_only records each event with no loss: test_record_only_...
     if case == "no_livelihoods":
         world = generate_world(seed=42)
     else:
-        flags = {"rules_1": V1, "record_only": ("--household-retail-mode", "record_only")}.get(case, ())
+        flags = {"rules_1": V1, "rules_1_record_only": (*V1, "--household-retail-mode", "record_only")}.get(case, ())
         h = Harness(*flags, retail=case != "l2_only")
         _people(h, VERDANT, (1, 2), wealth=0.0)
         h.turn({VERDANT: {"grain": 6.0}})
@@ -415,6 +420,181 @@ def test_a_version_1_state_serializes_exactly_the_checkpoint_3_fields():
     assert list(world_json) == STATE_KEYS_8ABC
 
 
+#: SHA-256 of the per-turn world JSON and livelihoods snapshot of
+#: :func:`_v1_history` written by the reference source 8abc1acb (no rules
+#: option: checkpoint 3's only rules), recorded by the A5 review's
+#: ``probe_v1_identity.py``; ``--household-retail-rules 1`` must keep the bytes.
+V1_HISTORY_SHA256_8ABC = "18d5e35863ca47f1f5bd08f948c7ae00e29041be287cb82f6ff7a486ef1994d3"
+
+
+def _v1_history(*flags) -> str:
+    """A war, death and late-conquest history (the A5 review's probe), as the
+    JSON of each turn's world and livelihoods snapshot."""
+    from chronicler.war.battles import siege_turn
+    from chronicler.war.occupation import start_occupation
+    h = Harness(*flags) if flags else Harness()
+    out = []
+
+    def dump(tag):
+        out.append({"tag": tag, "world": h.world.model_dump_json(),
+                    "snap": json.dumps(LV.livelihoods_snapshot_fields(h.world), sort_keys=False)})
+    _people(h, VERDANT, (1, 2, 3, 4), wealth=0.0)
+    _people(h, ASHARA, (11, 12), wealth=0.0)
+    h.sim.add(5, VERDANT, occupation=2, wealth=0.0)
+    h.sim.marry(1, 5)
+    h.turn({VERDANT: {"grain": 9.0, "fish": 1.3}, ASHARA: {"grain": 4.0}})
+    dump("t1")
+    world = h.world
+    ctx, war = start_war(world, KETHANI, THORNWALL)
+    region = world.regions[VERDANT]
+    army = place_army(world, KETHANI, region.name, 40, war.war_key)
+
+    def siege_occ():
+        siege_turn(ctx, war, region, [army], world.civ_map[KETHANI], world.civ_map[THORNWALL])
+        start_occupation(ctx, region, world.civ_map[KETHANI], war, army)
+    h.turn({VERDANT: {"grain": 5.0}}, between=siege_occ)
+    dump("t2-siege-occ")
+
+    def two():
+        _conquer(h, VERDANT, KETHANI)
+        _conquer(h, VERDANT, SELURIAN)
+    h.sim.die_before = {1}
+    h.turn({VERDANT: {"grain": 5.0}}, between=two)
+    dump("t3-two-conquests-death")
+    h.sim.die_before = set()
+    h.turn({VERDANT: {"grain": 5.0}}, granaries=lambda res: _conquer(h, VERDANT, KETHANI))
+    dump("t4-late-conquest")
+    h.turn({VERDANT: {"grain": 5.0}})
+    dump("t5")
+    h.turn()
+    dump("t6")
+    return json.dumps(out)
+
+
+def test_rules_1_keeps_the_reference_bytes_of_a_war_history():
+    """Review A5, finding 6a: bytes, not key orders. The world JSON and the
+    snapshot of every turn under ``--household-retail-rules 1`` hash to what
+    8abc1acb wrote for the same history; version 2 differs."""
+    import hashlib
+    assert hashlib.sha256(_v1_history(*V1).encode()).hexdigest() == V1_HISTORY_SHA256_8ABC
+    assert hashlib.sha256(_v1_history().encode()).hexdigest() != V1_HISTORY_SHA256_8ABC
+
+
+def test_the_rules_versions_agree_with_the_option_and_the_state_field():
+    """Review A5, nit 1."""
+    from typing import get_args
+    from chronicler.household_retail_state import RULES_VERSIONS
+    assert tuple(str(v) for v in sorted(RULES_VERSIONS, reverse=True)) == LV.LIVELIHOODS_CHOICES[
+        "household_retail_rules"]
+    assert get_args(HouseholdRetailState.model_fields["rules_version"].annotation) == RULES_VERSIONS
+    assert RULES_VERSIONS[-1] == RULES_VERSION
+
+
+def test_record_only_records_each_war_event_with_no_loss_and_version_1_is_unchanged():
+    """Review A5, finding 2: a version-2 ``record_only`` arm holds nothing, but
+    each conquest, siege turn and occupation start of a pilot region is counted
+    and recorded with its cause, actor and victim (milli 0), so the control arm
+    keeps its war exposure. Version 1 still logs its one zero-loss conquest
+    record per turn and nothing for the siege."""
+    from chronicler.war.battles import siege_turn
+    from chronicler.war.occupation import start_occupation
+    out = {}
+    for name, flags in (("v1", V1), ("v2", ())):
+        h = Harness("--household-retail-mode", "record_only", *flags)
+        _people(h, VERDANT, (1, 2), wealth=0.0)
+        h.turn({VERDANT: {"grain": 6.0}})
+        world = h.world
+        ctx, war = start_war(world, KETHANI, THORNWALL)
+        region = world.regions[VERDANT]
+        army = place_army(world, KETHANI, region.name, 40, war.war_key)
+
+        def events():
+            siege_turn(ctx, war, region, [army], world.civ_map[KETHANI], world.civ_map[THORNWALL])
+            start_occupation(ctx, region, world.civ_map[KETHANI], war, army)
+            _conquer(h, VERDANT, KETHANI)
+        h.turn(between=events)
+        h.turn()                                                       # the observed check passes
+        out[name] = ([(r.milli, r.cause, r.actor, r.victim, r.note) for r in _war_records(h)], dict(h.state.counters))
+        assert h.state.regions[0].goods == [0] * 5 and not h.state.regions[0].claims
+    v1_records, v1_counters = out["v1"]
+    assert v1_records == [(0, None, None, None, f"conquered by {KETHANI} on turn 11")]
+    assert "war_events" not in v1_counters
+    v2_records, v2_counters = out["v2"]
+    assert v2_records == [
+        (0, "siege", INDEX[KETHANI], INDEX[THORNWALL], f"besieged by {KETHANI} (record_only: nothing held)"),
+        (0, "occupation", INDEX[KETHANI], INDEX[THORNWALL], f"occupied by {KETHANI} (record_only: nothing held)"),
+        (0, "conquest", INDEX[KETHANI], INDEX[THORNWALL],
+         f"conquered by {KETHANI} from {THORNWALL} (won in war) (record_only: nothing held)")]
+    assert v2_counters["war_events"] == 3 and "war_loss_milli" not in v2_counters
+
+
+def test_a_record_only_conquest_then_retail_on_resume_runs_on():
+    """Review A5, finding 6b: a ``record_only`` conquest, the next turn, then the
+    switch to ``retail`` on a resume (the observed marker followed)."""
+    h = Harness("--household-retail-mode", "record_only")
+    _people(h, VERDANT, (1, 2), wealth=0.0)
+    h.turn({VERDANT: {"grain": 6.0}})
+    h.turn(between=lambda: _conquer(h, VERDANT, KETHANI))
+    h.turn()
+    assert h.state.region(VERDANT).war_loss_turn == 11
+    h.world = pickle.loads(pickle.dumps(h.world))
+    configure_livelihoods(h.world, parse(["--household-retail", "--household-retail-mode", "retail"]),
+                          agent_mode="hybrid")
+    h.turn({VERDANT: {"grain": 6.0}})
+    h.turn()
+    assert h.state.mode == "retail" and h.state.region(VERDANT).claims
+
+
+@pytest.mark.parametrize("via, how", [("consolidated", "annexed after a long occupation"),
+                                      ("owner_gone", "annexed as its former rulers vanish"),
+                                      ("treaty", "ceded by treaty")])
+def test_an_annexation_names_its_path(via, how):
+    """Review A5, finding 6c: the annexation paths' notes."""
+    from chronicler.action_engine import apply_region_conquest
+    h = Harness()
+    reg = _pilot(h)
+    goods = []
+
+    def annex():
+        goods.extend(reg.goods)
+        region = h.world.regions[VERDANT]
+        apply_region_conquest(_civ(h, KETHANI), _civ(h, THORNWALL), region, h.world, seed=1, via=via)
+    h.turn(between=annex)
+    (record,) = _war_records(h)
+    assert record.note == f"conquered by {KETHANI} from {THORNWALL} ({how})"
+    assert (record.cause, record.actor, record.victim, record.milli) == (
+        "conquest", INDEX[KETHANI], INDEX[THORNWALL], sum(_share(goods, 0.5)))
+
+
+def test_a_reconquest_by_the_original_owner_then_an_occupation_in_one_turn():
+    """Review A5, finding 6d: Thornwall loses Verdant to Kethani, retakes it,
+    and Selurian occupies it, all in one turn: three events, each once, with
+    the right actor and victim, and the books close."""
+    from chronicler.war.occupation import start_occupation
+    h = Harness()
+    reg = _pilot(h)
+    seen = {}
+
+    def events():
+        seen["before"] = list(reg.goods)
+        _conquer(h, VERDANT, KETHANI)
+        _conquer(h, VERDANT, THORNWALL)
+        ctx, war = start_war(h.world, SELURIAN, THORNWALL)
+        army = place_army(h.world, SELURIAN, h.world.regions[VERDANT].name, 40, war.war_key)
+        start_occupation(ctx, h.world.regions[VERDANT], _civ(h, SELURIAN), war, army)
+        seen["after"] = list(reg.goods)
+    h.turn(between=events)
+    assert [_who(r)[0:2] + (r.victim_name,) for r in _war_records(h)] == [
+        ("conquest", INDEX[KETHANI], THORNWALL), ("conquest", INDEX[THORNWALL], KETHANI),
+        ("occupation", INDEX[SELURIAN], THORNWALL)]
+    first = _share(seen["before"], 0.5)
+    second = _share([v - x for v, x in zip(seen["before"], first)], 0.5)
+    third = _share([v - x - y for v, x, y in zip(seen["before"], first, second)], 0.8)
+    assert seen["after"] == [v - x - y - z for v, x, y, z in zip(seen["before"], first, second, third)]
+    assert reg.war_events == 3 and h.frame(VERDANT).flows["war_loss"] == sum(seen["before"]) - sum(seen["after"])
+    h.turn()
+
+
 def test_a_version_2_state_round_trips_json_and_pickle_and_old_pickles_restore_as_version_1():
     from chronicler.models import WorldState
     h = Harness()
@@ -459,7 +639,8 @@ def test_a_saved_food_allocation_outside_hybrid_is_refused_cleanly_with_its_hint
         with pytest.raises(LivelihoodsRefusal) as refused:
             configure_livelihoods(h.world, parse([]), agent_mode=mode)
         exc = refused.value
-        assert isinstance(exc, ValueError) and isinstance(exc, SystemExit)
+        # A plain ValueError (review A5, finding 4): never a SystemExit.
+        assert isinstance(exc, ValueError) and not isinstance(exc, SystemExit)
         assert "this world has it on" in str(exc) and "--no-food-allocation" in str(exc)
         assert exc.code == f"Error: {exc}"
         assert pickle.loads(pickle.dumps(exc)).code == exc.code
@@ -485,11 +666,15 @@ def test_a_saved_retail_world_outside_hybrid_is_refused_cleanly_with_its_hint():
     assert not h.state.enabled and h.state.regions == []
 
 
-def test_a_legacy_resume_of_a_saved_retail_world_without_hybrid_exits_without_a_traceback(tmp_path, monkeypatch):
-    """The CLI path (``main``): the refusal reaches the top level as a
-    ``SystemExit`` whose code is the message (the interpreter prints it, exit
-    status 1, no traceback), before any turn runs or any output is written."""
+def test_a_legacy_resume_of_a_saved_retail_world_without_hybrid_exits_without_a_traceback(tmp_path, monkeypatch,
+                                                                                          capsys):
+    """The CLI path (``main``): the refusal reaches the top level as the plain
+    ``ValueError`` it is, before any turn runs or any output is written; the
+    interpreter's exception hook, installed by the refusal, prints its one line
+    and nothing else (the exit status 1 and the absent traceback of a real
+    process are checked in ``test_household_retail_war_native.py``)."""
     from chronicler.main import main
+    monkeypatch.setattr(sys, "excepthook", sys.__excepthook__)       # restored after the test
     h = Harness()
     _pilot(h)
     saved = tmp_path / "state.json"
@@ -497,12 +682,69 @@ def test_a_legacy_resume_of_a_saved_retail_world_without_hybrid_exits_without_a_
     out = tmp_path / "resumed"
     monkeypatch.setattr(sys, "argv", ["chronicler", "--resume", str(saved), "--simulate-only", "--turns", "14",
                                       "--output", str(out / "chronicle.md"), "--state", str(out / "state.json")])
-    with pytest.raises(SystemExit) as exited:
+    with pytest.raises(LivelihoodsRefusal) as refused:
         main()
-    assert isinstance(exited.value, LivelihoodsRefusal)
-    assert exited.value.code.startswith("Error: --household-retail requires --agents hybrid and --food-allocation; "
-                                        "this world has it on: pass --no-household-retail")
+    exc = refused.value
+    assert not isinstance(exc, SystemExit)
+    assert exc.code.startswith("Error: --household-retail requires --agents hybrid and --food-allocation; "
+                               "this world has it on: pass --no-household-retail")
     assert not (out / "chronicle_bundle.json").exists() and not (out / "state.json").exists()
+    capsys.readouterr()
+    sys.excepthook(type(exc), exc, exc.__traceback__)
+    assert capsys.readouterr().err == exc.code + "\n"
+    # Any other exception still goes to the previous hook (a full traceback).
+    try:
+        raise ValueError("another")
+    except ValueError as other:
+        sys.excepthook(type(other), other, other.__traceback__)
+    err = capsys.readouterr().err
+    assert err.startswith("Traceback") and err.rstrip().endswith("ValueError: another")
+
+
+def test_a_refusal_in_a_thread_or_task_is_an_ordinary_error(monkeypatch):
+    """Review A5, finding 4: a thread reports the refusal (a ``SystemExit``
+    would end it silently) and asyncio raises it to its caller."""
+    import asyncio
+    import threading
+    monkeypatch.setattr(sys, "excepthook", sys.__excepthook__)
+    h = Harness(retail=False)
+    _people(h, VERDANT, (1, 2), wealth=0.0)
+    h.turn({VERDANT: {"grain": 6.0}})
+    seen = []
+    monkeypatch.setattr(threading, "excepthook", lambda hook_args: seen.append(hook_args.exc_type))
+    worker = threading.Thread(target=configure_livelihoods, args=(h.world, parse([])), kwargs={"agent_mode": "off"})
+    worker.start()
+    worker.join()
+    assert seen == [LivelihoodsRefusal]
+
+    async def configure():
+        configure_livelihoods(h.world, parse([]), agent_mode="off")
+    with pytest.raises(LivelihoodsRefusal):
+        asyncio.run(configure())
+
+
+def test_a_live_lobby_resume_refused_by_a_saved_switch_reopens_the_lobby(tmp_path, monkeypatch):
+    """Review A5, finding 4: a lobby ``start`` resuming a saved L2 world under
+    a server without --agents hybrid is refused at the lobby (reported to the
+    viewer as ``resume_state``), and the server keeps running: the next start
+    proceeds. A plain refusal without features still fails the run
+    (``test_feature_catalog.py::test_a_refusal_without_features_still_fails_the_run``)."""
+    from tests.test_feature_catalog import _LobbyServer, _run_live_until_execute
+    monkeypatch.setattr(sys, "excepthook", sys.__excepthook__)
+    h = Harness(retail=False)
+    _people(h, VERDANT, (1, 2), wealth=0.0)
+    h.turn({VERDANT: {"grain": 6.0}})
+    saved = json.loads(h.world.model_dump_json())
+    server = _LobbyServer([{"turns": 12, "civs": 4, "regions": 8, "resume_state": saved},
+                           {"turns": 3, "civs": 2, "regions": 3, "seed": 7}])
+    args, seen = _run_live_until_execute(tmp_path, monkeypatch, server)
+    assert server.replies == [None, None]
+    (message,) = server.reopened
+    assert message.startswith("Start field 'resume_state': --food-allocation requires --agents hybrid; "
+                              "this world has it on")
+    assert server.status_queue.get_nowait() == {"type": "error", "message": message}
+    # The second start, a new world, reached the run.
+    assert seen["world"].livelihoods is None and seen["world"].turn == 0
 
 
 # --- the checkpoint 2-3 screens keep version 1 -----------------------------------

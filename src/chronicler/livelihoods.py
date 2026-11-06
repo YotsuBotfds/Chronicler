@@ -69,6 +69,7 @@ after the ecology tick, in every agent mode.
 from __future__ import annotations
 
 import argparse
+import sys
 from importlib import import_module
 from typing import Any
 
@@ -355,21 +356,43 @@ def livelihoods_arguments(args: Any) -> list[str]:
     return flags
 
 
-class LivelihoodsRefusal(ValueError, SystemExit):
+class LivelihoodsRefusal(ValueError):
     """A refused resume of a saved livelihoods switch (RL3): the run cannot
     honour the saved state and names the option that ends it.
 
-    It is a ``ValueError`` to every caller that handles one (tests, the live
-    lobby, batch workers). Uncaught at the command line it is also a
-    ``SystemExit`` whose code is ``Error: <message>``: the interpreter prints
-    that line and exits with status 1, without a traceback, as ``main``'s own
-    refusals do (``main.py`` is pinned, so the clean refusal lives here). Raise
-    it only on the main configuration path: a thread or an asyncio task treats
-    a ``SystemExit`` as a shutdown."""
+    A plain ``ValueError`` to every caller (tests, library callers, the live
+    lobby, which reports it and reopens, batch workers, threads and asyncio
+    tasks). Only at the command line, where nothing catches it, it is shown
+    as one line: constructing one installs :func:`_refusal_excepthook`, so an
+    uncaught refusal prints ``Error: <message>`` without a traceback and the
+    interpreter exits with status 1, as ``main``'s own refusals do (``main.py``
+    is pinned, so the clean refusal lives here). ``code`` holds that line.
+    (A5's first version also subclassed ``SystemExit``, which a thread
+    swallows and asyncio takes for a shutdown; review A5, finding 4.)"""
 
     def __init__(self, message: str):
         super().__init__(message)
         self.code = f"Error: {message}"
+        _install_refusal_excepthook()
+
+
+def _refusal_excepthook(previous):
+    def hook(kind, value, traceback):
+        if isinstance(value, LivelihoodsRefusal):
+            print(value.code, file=sys.stderr)          # the interpreter then exits with status 1
+            return
+        previous(kind, value, traceback)
+    hook.livelihoods_refusal = True
+    return hook
+
+
+def _install_refusal_excepthook() -> None:
+    """Show an uncaught :class:`LivelihoodsRefusal` as its one-line message
+    (every other exception goes to the hook that was installed before);
+    idempotent. Installed when a refusal is first constructed, so a process
+    that never refuses anything keeps its hook untouched."""
+    if not getattr(sys.excepthook, "livelihoods_refusal", False):
+        sys.excepthook = _refusal_excepthook(sys.excepthook)
 
 
 def livelihoods_state(world: Any) -> LivelihoodsState | None:
