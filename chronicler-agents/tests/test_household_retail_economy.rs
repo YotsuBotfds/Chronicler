@@ -133,6 +133,18 @@ fn early(row: &chronicler_agents::economy::RetailRegionResult) -> f64 {
     (0..NUM_GOODS).map(|g| row.owned_decay[g] as f64 + row.owned_overflow[g] as f64).sum()
 }
 
+/// The commons' share of the opening cap overflow (in the ledger's cap term
+/// only): the cap holds the commons and the carried owned stock together.
+fn commons_opening_overflow(input: &EconomyRegionInput, row: &chronicler_agents::economy::RetailRegionResult,
+                            open: &RetailRegionInput) -> f64 {
+    let cap = EconomyConfig::default().per_good_cap_factor * input.storage_population as f32;
+    RETAIL_FOOD_SLOTS.iter().map(|&g| {
+        let carried = open.owned[g] - row.owned_decay[g];
+        let total = input.stockpile[g] + carried;
+        if total > cap { (input.stockpile[g] - input.stockpile[g] * (cap / total)) as f64 } else { 0.0 }
+    }).sum()
+}
+
 #[test]
 fn retail_food_slots_are_exactly_the_food_goods() {
     for g in 0..NUM_GOODS {
@@ -285,9 +297,9 @@ fn decay_reads_salt_in_both_pools_and_the_cap_splits_overflow_pro_rata() {
     let titled = one([0.0; NUM_GOODS], 0, 4, 100, pilot(1.0, [0.0; NUM_GOODS]));
     let rt = titled.retail.as_ref().unwrap()[0].as_ref().unwrap();
     assert_eq!((rt.titled[SLOT_GRAIN], rt.owned_decay[SLOT_GRAIN], rt.owned_close[SLOT_GRAIN]), (4.0, 0.0, 4.0));
-    // Cap 2.5 x 4 = 10 per good. The carried 30 grain decays to 29.1 and keeps
-    // its pro-rata share of the cap against the 10 commons on hand at opening;
-    // the commons decay to 9.7 and are capped at close as everywhere.
+    // Cap 2.5 x 4 = 10 per good, enforced at opening on both pools together:
+    // the carried 30 grain decays to 29.1, and with the 10 commons (39.1) both
+    // keep their pro-rata share of the cap; the commons then decay as usual.
     let mut c = [0.0; NUM_GOODS];
     c[SLOT_GRAIN] = 10.0;
     let big = owned([(SLOT_GRAIN, 30.0), (SLOT_FISH, 0.0), (SLOT_SALT, 0.0), (SLOT_BOTANICALS, 0.0), (SLOT_EXOTIC, 0.0)]);
@@ -295,17 +307,59 @@ fn decay_reads_salt_in_both_pools_and_the_cap_splits_overflow_pro_rata() {
     let rr = &capped.region_results[0];
     let rt = capped.retail.as_ref().unwrap()[0].as_ref().unwrap();
     let carried = 30.0f32 * 0.97;
-    let keep = carried * (10.0 / (10.0 + carried));
-    assert!((rt.owned_close[SLOT_GRAIN] - keep).abs() < 1e-5, "{}", rt.owned_close[SLOT_GRAIN]);
-    assert!((rt.owned_overflow[SLOT_GRAIN] - (carried - keep)).abs() < 1e-5);
-    assert!((rr.stockpile[SLOT_GRAIN] - 9.7).abs() < 1e-5);
-    assert!((rr.food_ledger[8] - rt.owned_overflow[SLOT_GRAIN] as f64).abs() < 1e-5);
-    // Commons over the cap at close are capped as in every region.
+    let share = 10.0 / (10.0 + carried);
+    assert!((rt.owned_close[SLOT_GRAIN] - carried * share).abs() < 1e-5, "{}", rt.owned_close[SLOT_GRAIN]);
+    assert!((rt.owned_overflow[SLOT_GRAIN] - carried * (1.0 - share)).abs() < 1e-5);
+    assert!((rr.stockpile[SLOT_GRAIN] - 10.0 * share * 0.97).abs() < 1e-5);
+    // The opening holds exactly the cap; the ledger carries both overflows.
+    assert!((carried * share + 10.0 * share - 10.0).abs() < 1e-5);
+    assert!((rr.food_ledger[8] - (10.0 + carried as f64 - 10.0)).abs() < 1e-4);
+    // In a pilot region commons over the cap at opening are capped there too
+    // (owned or not), then decay; at close they are capped as in every region.
     let mut full = [0.0; NUM_GOODS];
     full[SLOT_GRAIN] = 12.0;
     let over = one(full, 0, 0, 4, pilot(0.9, [0.0; NUM_GOODS]));
-    assert_eq!(over.region_results[0].stockpile[SLOT_GRAIN], 10.0);
-    assert_food_balance_with(&rr.food_ledger, early(rt));
+    assert!((over.region_results[0].stockpile[SLOT_GRAIN] - 10.0 * 0.97).abs() < 1e-5);
+    let plain = one(full, 0, 0, 4, None);
+    assert_eq!(plain.region_results[0].stockpile[SLOT_GRAIN], 10.0);
+    let input = region(0, 0, 1.0);
+    let mut input = input;
+    input.stockpile = c;
+    input.storage_population = 4;
+    assert_food_balance_with(&rr.food_ledger, early(rt) + commons_opening_overflow(&input, rt, &pilot(0.9, big).unwrap()));
+}
+
+#[test]
+fn the_combined_cap_holds_at_every_opening_when_nothing_is_sold() {
+    // Reviewer D's case: cap 2.5 x 4 = 10 grain, 20 grain grown every turn,
+    // nobody eats or buys (Phase 0.7 would leave every claim whole). Before the
+    // fix the pilot closed at 32.6-34.4 grain every turn against L2's 10.
+    let (mut commons, mut owned_open) = ([0.0f32; NUM_GOODS], [0.0f32; NUM_GOODS]);
+    for turn in 0..10 {
+        let out = one(commons, 0, 20, 4, pilot(0.9, owned_open));
+        let rr = &out.region_results[0];
+        let rt = out.retail.as_ref().unwrap()[0].as_ref().unwrap();
+        // What the opening held after the cap: Phase A supply less the harvest.
+        let held = rr.market_supply[CAT_FOOD] - rr.food_ledger[1] as f32;
+        assert!(held <= 10.0 + 1e-4, "turn {turn}: opening holds {held}");
+        let expected = (0..NUM_GOODS).map(|g| commons[g] + owned_open[g] - rt.owned_decay[g]).sum::<f32>().min(10.0);
+        assert!((held - expected).abs() < 1e-4, "turn {turn}: {held} {expected}");
+        // Between close and the next opening the region holds at most one
+        // turn's harvest above the cap: the title (uncapped until the next
+        // opening) and the commons' growth since the opening cut (the commons
+        // alone are capped at close, as in every region).
+        let close = rr.stockpile[SLOT_GRAIN] + rt.owned_close[SLOT_GRAIN];
+        assert!(close <= 10.0 + rr.food_ledger[1] as f32 + 1e-4, "turn {turn}: closes at {close}");
+        assert!(rr.stockpile[SLOT_GRAIN] <= 10.0 && rt.owned_close[SLOT_GRAIN] <= 10.0 + rt.titled[SLOT_GRAIN] + 1e-4);
+        let ledger = &rr.food_ledger;
+        let balance = ledger[0] + ledger[1] + ledger[2] - ledger[3] + ledger[4] - ledger[6] - ledger[7] - ledger[8];
+        assert!((balance - ledger[9]).abs() < 1e-4, "turn {turn}: {ledger:?}");
+        commons = rr.stockpile;
+        owned_open = rt.owned_close;
+    }
+    // L2 alone closes at the cap.
+    let plain = one(commons, 0, 20, 4, None);
+    assert_eq!(plain.region_results[0].stockpile[SLOT_GRAIN], 10.0);
 }
 
 fn assert_owned_closes(out: &EconomyOutput, opening: &[Option<RetailRegionInput>]) {
@@ -331,7 +385,11 @@ fn the_food_ledger_and_conservation_close_with_owned_stock() {
     let (regions, ..) = scenario();
     assert_owned_closes(&out, &rows);
     for (ri, rr) in out.region_results.iter().enumerate() {
-        assert_food_balance_with(&rr.food_ledger, out.retail.as_ref().unwrap()[ri].as_ref().map_or(0.0, early));
+        let opening = match (&out.retail.as_ref().unwrap()[ri], rows[ri]) {
+            (Some(rt), Some(open)) => early(rt) + commons_opening_overflow(&regions[ri], rt, &open),
+            _ => 0.0,
+        };
+        assert_food_balance_with(&rr.food_ledger, opening);
         let owned_open: f32 = rows[ri].map_or(0.0, |r| r.owned.iter().sum());
         let commons_open: f32 = RETAIL_FOOD_SLOTS.iter().map(|&g| regions[ri].stockpile[g]).sum();
         assert!((rr.food_ledger[0] - (commons_open + owned_open) as f64).abs() < 1e-5);
