@@ -28,14 +28,15 @@ REGIONS = ["A1", "A2", "B1", "C1"]
 
 
 def _snap(turn, *, quarantine=(), active=(), deaths=0, total=0, control=None, civs=None, rules=None,
-          fa_regions=None):
+          fa_regions=None, counts=(100, 100, 100, 50)):
     control = control or {"A1": "A", "A2": "A", "B1": "B", "C1": "C"}
     civs = civs or {c: {"population": 100, "treasury": 50, "stability": 40} for c in "ABC"}
     epi = {"active": list(active), "deaths": deaths, "deaths_by_pathogen": {}, "deaths_total": total,
            "quarantine": list(quarantine), "strains": {}}
     if rules is not None:
         epi["quarantine_rules"] = rules
-    snap = {"turn": turn, "epidemics": epi, "region_control": control, "civ_stats": civs}
+    snap = {"turn": turn, "epidemics": epi, "region_control": control, "civ_stats": civs,
+            "regional_population": {"schema_version": 1, "source_turn": turn - 1, "counts": list(counts)}}
     if fa_regions is not None:
         snap["food_accounting"] = {"schema_version": 1, "source_turn": turn - 1, "regions": fa_regions}
     return snap
@@ -68,7 +69,8 @@ def test_the_screen_declares_four_arms_on_one_control_chain_and_two_primaries(CW
     assert {arm: control for arm, (_f, control) in screen.arms.items()} == {
         "QL": None, "Q0": "QL", "QC": "Q0", "QR": "QC"}
     assert screen.arms["QR"][0] == ("--quarantine-mode", "closure") and screen.arms["QL"][0] == ()
-    assert [o.id for o in screen.primaries()] == ["cw4_arrivals", "cw4_deaths_closing"]
+    # Amendment 1: whole-run, world-level primaries (no conditioning on an arm's own closures).
+    assert [o.id for o in screen.primaries()] == ["cw4_world_arrivals", "cw4_world_death_rate"]
     assert all((o.arm, o.control) == ("QR", "QC") for o in screen.primaries())
     assert screen.held == {"template": tuple(range(761, 767)), "procedural": tuple(range(861, 867))}
     assert screen.pilot == {"template": (5,), "procedural": (19,)}
@@ -100,6 +102,9 @@ def test_arrivals_count_only_cross_polity_arrivals_into_window_civs(CW):
     assert problems == []
     assert m["arrivals"] == 2 and m["window_civ_turns"] == CW.CW4_K + 1
     assert m["arrivals_per_100_window_civ_turns"] == pytest.approx(200 / (CW.CW4_K + 1))
+    # The primary counts every cross-polity arrival of the run, whoever closed.
+    assert m["arrivals_world"] == 5 and m["region_turns"] == 20 * 4
+    assert m["arrivals_world_per_1000_region_turns"] == pytest.approx(5 * 1000 / 80)
 
 
 def test_deaths_per_person_turn_of_closing_civs_and_the_world(CW):
@@ -114,7 +119,10 @@ def test_deaths_per_person_turn_of_closing_civs_and_the_world(CW):
     assert m["person_turns_closing"] == 700 and m["deaths_closing"] == 3
     assert m["deaths_per_1000_pt_closing"] == pytest.approx(3 * 1000 / 700)
     assert m["world_epidemic_deaths"] == 10 and m["reported_death_share"] == pytest.approx(0.8)
-    assert m["world_deaths_per_1000_pt"] == pytest.approx(10 * 1000 / (10 * 300))
+    # The primary counts ALL epidemic deaths (epidemics.deaths, reported or not) per
+    # person-turn of every region (regional_population.counts: 350 a turn).
+    assert m["world_person_turns"] == 10 * 350
+    assert m["world_deaths_per_1000_pt"] == pytest.approx(10 * 1000 / (10 * 350))
     assert m["merchant_replans"] == 10 and m["merchant_unwinds"] == 20
 
 
@@ -150,6 +158,11 @@ def test_rules_measures_are_recorded_under_new_modes_and_never_zero_in_legacy(CW
 
 
 def test_missing_records_are_problems_never_zero(CW):
+    bad_sum = [_snap(1, deaths=4, total=4), _snap(2, deaths=1, total=6)]
+    assert any("deaths_total" in p for p in CW.cw4_extract(_bundle(bad_sum), ())[1])
+    misdated = [_snap(s) for s in range(1, 3)]
+    misdated[1]["regional_population"]["source_turn"] = 7
+    assert any("regional_population" in p for p in CW.cw4_extract(_bundle(misdated), ())[1])
     snaps = [_snap(s) for s in range(1, 4)]
     del snaps[1]["epidemics"]["quarantine"]
     assert any("epidemics.quarantine" in p for p in CW.cw4_extract(_bundle(snaps), ())[1])

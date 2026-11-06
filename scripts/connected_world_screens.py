@@ -158,16 +158,19 @@ def cw4_extract(bundle: dict, flags) -> tuple[dict, list[str]]:
         problems.append(f"quarantine rules recorded in {len(rules)} of {len(snaps)} snapshots under {mode}")
     elif any(r.get("mode") != mode for r in rules):
         problems.append(f"quarantine rules mode differs from {mode}")
-    # Primary 1: cross-polity arrivals into window civs' regions during their windows.
-    arrivals = 0
+    # Primary 1 (whole run, world): every cross-polity arrival. Secondary (selection):
+    # those into window civs' regions during their windows.
+    arrivals = arrivals_world = 0
     for ev in bundle.get("events_timeline") or []:
         if ev.get("event_type") != "epidemic_arrival":
             continue
         actors, turn = ev.get("actors") or [], ev.get("turn")
         if not SR._num(turn) or len(actors) != 2 or actors[0] == actors[1]:
             continue   # not cross-polity (same polity, or an uncontrolled source or target)
+        arrivals_world += 1
         if int(turn) in windows.get(actors[0], ()):
             arrivals += 1
+    m["arrivals_world"] = arrivals_world
     window_ct = sum(len(ws) for ws in windows.values())
     m["arrivals"] = arrivals
     m["window_civ_turns"] = window_ct
@@ -176,6 +179,7 @@ def cw4_extract(bundle: dict, flags) -> tuple[dict, list[str]]:
     deaths = person_turns = 0.0
     stab = []
     reported_deaths = world_deaths = world_pt = 0.0
+    region_turns = 0
     food_net = 0.0
     food_seen = False
     for w, snap in sorted(snaps.items()):
@@ -186,10 +190,22 @@ def cw4_extract(bundle: dict, flags) -> tuple[dict, list[str]]:
             problems.append(f"snapshot {w + 1} lacks region_control or civ_stats")
             continue
         active = epi.get("active") if isinstance(epi.get("active"), list) else []
+        # Primary 2 (whole run, world): ALL epidemic deaths of the tick (epidemics.deaths,
+        # reported or not; they sum to deaths_total) per person-turn of the whole world
+        # (regional_population.counts at the end of the turn, every region).
         turn_deaths = epi.get("deaths")
         if SR._num(turn_deaths):
             world_deaths += turn_deaths
-        world_pt += sum(c.get("population") or 0 for c in civs.values() if isinstance(c, dict))
+        else:
+            problems.append(f"epidemics.deaths missing at snapshot {w + 1}")
+        regional = snap.get("regional_population")
+        counts = regional.get("counts") if isinstance(regional, dict) else None
+        if not isinstance(counts, list) or not all(SR._num(c) for c in counts) \
+                or regional.get("source_turn") != w:
+            problems.append(f"regional_population counts missing or misdated at snapshot {w + 1}")
+        else:
+            world_pt += sum(counts)
+            region_turns += len(counts)
         by_civ: dict[str, float] = {}
         for row in active:
             d = row.get("deaths")
@@ -220,7 +236,13 @@ def cw4_extract(bundle: dict, flags) -> tuple[dict, list[str]]:
     m["person_turns_closing"] = person_turns
     m["deaths_per_1000_pt_closing"] = _cw4_rate(deaths, person_turns, 1000.0)
     m["world_epidemic_deaths"] = SR.harm_value({"harm": {"d": SR.harm_epidemic_deaths(bundle)}}, "d")
+    if m["world_epidemic_deaths"] is not None and world_deaths != m["world_epidemic_deaths"]:
+        problems.append(f"per-turn epidemic deaths sum to {world_deaths}, deaths_total is "
+                        f"{m['world_epidemic_deaths']}")
+    m["world_person_turns"] = world_pt
     m["world_deaths_per_1000_pt"] = _cw4_rate(world_deaths, world_pt, 1000.0)
+    m["region_turns"] = region_turns
+    m["arrivals_world_per_1000_region_turns"] = _cw4_rate(arrivals_world, region_turns, 1000.0)
     m["reported_death_share"] = (reported_deaths / world_deaths) if world_deaths > 0 else None
     m["stability_closing_mean"] = (sum(stab) / len(stab)) if stab else None
     m["food_net_transport_closing"] = food_net if food_seen or not windows else None
@@ -274,26 +296,38 @@ SCREENS["CW4"] = SR.Screen(
           "QR": ((CW4_MODE, "closure"), "QC")},
     root="QL", pilot=PILOT, held={"template": tuple(range(761, 767)), "procedural": tuple(range(861, 867))},
     outcomes=(
-        SR.Outcome("cw4_arrivals", "Cross-polity epidemic arrivals into closing civs' regions in their windows "
-                   "(QR - QC)", "QR", "QC", _m("arrivals"), primary=True),
-        SR.Outcome("cw4_deaths_closing", "Epidemic deaths per 1,000 person-turns of closing civs in their windows "
-                   "(QR - QC)", "QR", "QC", _m("deaths_per_1000_pt_closing"), primary=True),
-        SR.Outcome("cw4_arrival_rate", "Arrivals per 100 window civ-turns (QR - QC)", "QR", "QC",
-                   _m("arrivals_per_100_window_civ_turns")),
-        SR.Outcome("cw4_window", "Window civ-turns (QR - QC)", "QR", "QC", _m("window_civ_turns")),
-        SR.Outcome("cw4_world_deaths", "World epidemic deaths (QR - QC)", "QR", "QC", _m("world_epidemic_deaths")),
-        SR.Outcome("cw4_world_death_rate", "World epidemic deaths per 1,000 person-turns (QR - QC)", "QR", "QC",
-                   _m("world_deaths_per_1000_pt")),
-        SR.Outcome("cw4_cost_world_deaths", "World epidemic deaths (QC - Q0: the cost effect)", "QC", "Q0",
+        # Primaries (Amendment 1): whole-run, world-level outcomes, unconditioned on any
+        # arm's own closures.
+        SR.Outcome("cw4_world_arrivals", "Cross-polity epidemic arrivals over the whole run, world (QR - QC)",
+                   "QR", "QC", _m("arrivals_world"), primary=True),
+        SR.Outcome("cw4_world_death_rate", "World epidemic deaths (all) per 1,000 person-turns over the whole run "
+                   "(QR - QC)", "QR", "QC", _m("world_deaths_per_1000_pt"), primary=True),
+        SR.Outcome("cw4_world_arrival_rate", "Cross-polity arrivals per 1,000 region-turns, world (QR - QC)",
+                   "QR", "QC", _m("arrivals_world_per_1000_region_turns")),
+        SR.Outcome("cw4_world_deaths", "World epidemic deaths, count (QR - QC)", "QR", "QC",
                    _m("world_epidemic_deaths")),
+        # Conditioned on each arm's own closures (selection): windows follow the arm's trajectory.
+        SR.Outcome("cw4_sel_arrivals", "Arrivals into closing civs' regions in their windows (QR - QC; "
+                   "conditioned on each arm's own closures: selection)", "QR", "QC", _m("arrivals")),
+        SR.Outcome("cw4_sel_deaths", "Epidemic deaths (reported outbreaks) per 1,000 person-turns of closing civs "
+                   "in their windows (QR - QC; conditioned on each arm's own closures: selection)", "QR", "QC",
+                   _m("deaths_per_1000_pt_closing")),
+        SR.Outcome("cw4_sel_arrival_rate", "Arrivals per 100 window civ-turns (QR - QC; conditioned on each arm's "
+                   "own closures: selection)", "QR", "QC", _m("arrivals_per_100_window_civ_turns")),
+        SR.Outcome("cw4_sel_window", "Window civ-turns (QR - QC; conditioned on each arm's own closures: "
+                   "selection)", "QR", "QC", _m("window_civ_turns")),
+        SR.Outcome("cw4_cost_world_deaths", "World epidemic deaths per 1,000 person-turns (QC - Q0: the cost "
+                   "effect)", "QC", "Q0", _m("world_deaths_per_1000_pt")),
+        SR.Outcome("cw4_cost_world_arrivals", "Cross-polity arrivals, world (QC - Q0: the cost effect)", "QC", "Q0",
+                   _m("arrivals_world")),
         SR.Outcome("cw4_cost_treasury", "World treasury at the end (QC - Q0: the cost effect)", "QC", "Q0",
                    lambda r: SR.harm_value(r, "treasury")),
         # The legacy comparison QL - QR, reported as QR - QL (the runner pairs an arm with a
         # control on its chain; the sign is the negative of QL - QR).
-        SR.Outcome("cw4_legacy_arrivals", "Arrivals into closing civs in their windows (QR - QL)", "QR", "QL",
-                   _m("arrivals")),
-        SR.Outcome("cw4_legacy_world_deaths", "World epidemic deaths (QR - QL)", "QR", "QL",
-                   _m("world_epidemic_deaths")),
+        SR.Outcome("cw4_legacy_world_arrivals", "Cross-polity arrivals, world (QR - QL)", "QR", "QL",
+                   _m("arrivals_world")),
+        SR.Outcome("cw4_legacy_world_death_rate", "World epidemic deaths per 1,000 person-turns (QR - QL)", "QR", "QL",
+                   _m("world_deaths_per_1000_pt")),
         SR.Outcome("cw4_h_forgone", "Route income forgone, both sides (QR alone; structurally 0 in QC)", "QR", None,
                    _m("forgone_income")),
         SR.Outcome("cw4_h_food", "Net food transport into closing civs' regions in their windows (QR - QC)",

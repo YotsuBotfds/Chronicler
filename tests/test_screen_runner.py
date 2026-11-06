@@ -611,7 +611,7 @@ def test_check_command_reports_stubs_not_ready(SR, CW, capsys):
     for name in ("CW1", "CW2", "CW3", "CW5", "CW6"):
         assert f"{name}: seeds OK" in text and f"{name}: NOT READY" in text
     # CW4 is declared by slice C1 (tests/test_cw4_screen.py).
-    assert "CW4: seeds OK" in text and "CW4: extractor, packages, 4 arms and 20 outcomes (2 primary): OK" in text
+    assert "CW4: seeds OK" in text and "CW4: extractor, packages, 4 arms and 23 outcomes (2 primary): OK" in text
     assert "DEV: extractor, packages, 2 arms and 3 outcomes (2 primary): OK" in text
     assert CW.main(["check", "--screen", "DEV"]) == 0
     assert CW.main(["registry"]) == 0
