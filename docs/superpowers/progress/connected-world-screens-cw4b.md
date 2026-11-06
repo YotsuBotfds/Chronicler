@@ -259,7 +259,7 @@ Mean seconds per run: template 6.0-6.2, procedural 15.4-15.5.
 
 **Activation (before any effect).** QR and QRM activated on 6 of 6 worlds in both strata (QC is
 the root). QRM opened 18-83 closures per template world and 323-516 per procedural world and
-refused migrants on 14-161 of 200 turns.
+refused migrants on 14-161 of 200 turns per template world and 59-171 per procedural world.
 
 Uncertainty below is descriptive (six worlds per stratum): the mean, min/max, sign counts
 (> 0 / < 0 / = 0) and how many of the 64 sign assignments of the per-world differences give a
@@ -322,8 +322,8 @@ with wide spread.
 | procedural | 2,843 [830, 4,311]; 17,059 | 2,404 [745, 3,581]; 14,423 | 1,854 [613, 2,981]; 11,126 (65%) | 421 [79, 673]; 2,528 (15%) |
 
 Most refusals are flight from war, famine or persecution (hunger-driven moves excluded); a
-large hunger-driven share in template world 3106 (1,147 of 2,348). Refusal spells are 80-85%
-of the refusals: many refused agents were refused on consecutive turns while the closure lasted.
+large hunger-driven share in template world 3106 (1,147 of 2,348). Refusal spells are 80% (template) and
+85% (procedural) of the refusals: many refused agents were refused on consecutive turns while the closure lasted.
 
 ### Harms
 
