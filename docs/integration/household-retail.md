@@ -323,16 +323,19 @@ Python cannot see, and leaves to the native lane:
 
 ### Build identity
 
-- Source: `claude/hr-native-cap` at `3ed75f22` (the combined opening cap on top of
-  `claude/household-retail` `4fac1537`). The Rust tree is unchanged after that commit
-  (later commits touch tests and this page).
-- Extension built with `/home/user/wt/tools/build_native.sh` into `~/.venvs/native-hrn`
+- Source: `claude/hr-native-departures` at `478f2dca` (the opening cap net of merchant
+  departures, on top of `claude/household-retail` `77202dd2`). The Rust tree is
+  unchanged after that commit (later commits touch this page).
+- Extension built with `/home/user/wt/tools/build_native.sh` into `~/.venvs/native-hrn2`
   (CPython 3.13, release, `--locked`), checked by `check_python_env.py --expect
   native`: compiled submodule, real `AgentSimulator`, `EcologySimulator`,
   `PoliticsSimulator`.
 - `chronicler_agents.cpython-313-x86_64-linux-gnu.so` SHA-256
-  `b1910b948b07c3ab6bec8387552e99fbc72615b5fa31a0289c8698d8c85f9c6c`.
+  `101a4cd5b928b14f43539f925fa565036b94e38d91b9698071c80fa3656e0df3`.
 - Earlier builds:
+  - `claude/hr-native-cap` `3ed75f22` (`b1910b94…`, in `~/.venvs/native-hrn`): the opening
+    cap read the commons before this tick's merchant departures, which could then drive
+    the cut commons negative (the clamp created food);
   - `claude/hr-native-review` `4ae0ca8a` (`b8a09339…`): only the carried owned stock was
     cut at opening, so owned plus commons could exceed the cap;
   - `claude/hr-native-fix` `6a4fe37e` (`66cd5a7e…`): owned stock decayed after
@@ -412,6 +415,9 @@ and absent inputs execute none of it):
     owned).
   - Where the commons plus the carried owned stock of a food good exceed the cap, both
     are cut pro rata to it: each keeps `pool × cap / (commons + carried)`.
+    - The commons count net of this tick's merchant departures, as the crafts' on-hand
+      does. The departures already left with merchants, so they can never drive the cut
+      commons negative.
     - The owned share of the overflow is `retail_owned_overflow_<good>`.
     - The commons share is in the ledger's cap-overflow term.
     - This applies in a pilot region even with nothing owned, so commons above the cap
