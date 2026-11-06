@@ -8,8 +8,9 @@ integration page ``docs/integration/household-retail.md``.
 
 Pilot boundary (``--household-retail-boundary``), sticky: ``market``
 (default) adds each ruling civilization's capital region the turn it first
-qualifies; ``paid_work`` adds regions that have had an open L6a firm or a
-paid RS2 repair crew; ``all`` adds every controlled region. A region leaves
+qualifies; ``paid_work`` adds regions that have had an open L6a firm, a
+paid RS2 workshop repair crew, a paid PL3 granary crew or a PL1 expedition's
+home region; ``all`` adds every controlled region. A region leaves
 the pilot only when it has no controller (or the switch goes off, or the
 mode becomes ``record_only``): its holdings return to its commons, dated
 (``pilot_closed``). Conquest alone does not remove a region.

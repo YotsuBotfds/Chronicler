@@ -35,6 +35,7 @@ Terms carried over from the previous owner instruction:
 | Use | Template (8 regions, 4 civs) | Procedural (32 × 10) |
 | --- | --- | --- |
 | Development, inspected freely | 1, 3, 7, 9, 11, 23, 42 | 7, 11, 13, 17, 21, 31, 302, 303 |
+| Development, viewer QA batches only | 12, 13, 14 | — |
 | Timing pilot (this phase) | 5 | 19 |
 | Held cohort, checkpoint 1 (recovery) | 701–706 | 801–806 |
 | Held cohort, checkpoint 2 (retail) | 711–716 | 811–816 |
@@ -42,7 +43,9 @@ Terms carried over from the previous owner instruction:
 | Never run (earlier held cohorts and pilot) | 2, 101–106, 301–306, 501–506 | 201–206, 401–406, 601–606 |
 
 Seed numbers are per stratum: procedural 302 and 303 are development worlds, while
-template 301–306 were the sprint-2 held cohort.
+template 301–306 were the sprint-2 held cohort. The checkpoint-1 viewer QA (PL5a) first ran
+its Batch Lab check on template seeds 1–3, which includes the previous phase's pilot seed 2;
+it was a viewer check whose outcomes were never read, and the script now uses 12–14.
 
 ## 1. Diagnosis (PL0)
 
