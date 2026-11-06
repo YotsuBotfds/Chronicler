@@ -75,7 +75,7 @@ import math
 from functools import lru_cache
 
 from chronicler.watershed_state import (
-    COUNTER_KEYS, FLOW_KEYS, FRAME_COLUMNS, SEA, SINK, DroughtSpell, FloodRecord,
+    COUNTER_KEYS, FLOW_KEYS, FRAME_COLUMNS, LAKE, SEA, SINK, DroughtSpell, ExternalFlow, FloodRecord,
     WatershedFrame, WatershedGraph, WatershedState,
 )
 
@@ -136,10 +136,11 @@ class _Plan:
 
     def __init__(self, turn: int, phase: str, columns: dict[str, list[float]], routed: dict[str, list[float]],
                  contributions: list[list[tuple[int, float]]], normal: list[float], cover: list[float],
-                 unmet: list[float], channel: list[float], residual: float):
+                 unmet: list[float], channel: list[float], residual: float, external: list[ExternalFlow],
+                 stale: bool):
         self.turn, self.phase, self.columns, self.routed = turn, phase, columns, routed
         self.contributions, self.normal, self.cover, self.unmet = contributions, normal, cover, unmet
-        self.channel, self.residual = channel, residual
+        self.channel, self.residual, self.external, self.stale = channel, residual, external, stale
 
 
 # --- State and switch -----------------------------------------------------------------
@@ -252,13 +253,16 @@ def build_graph(world) -> WatershedGraph:
     if len(index) != len(names):
         raise ValueError("--watershed: region names are not unique")
     lanes = {frozenset(pair) for pair in geography.sea_lanes}
+    zone_kind = {zone.name: zone.kind for zone in geography.sea_zones}
     elevation = [float(r.geo.elevation) for r in regions]
     if not all(math.isfinite(e) for e in elevation):
         raise ValueError("--watershed: a region's saved elevation is not finite")
     down: list[int] = []
     for i, region in enumerate(regions):
         if region.geo.coastal:
-            down.append(SEA)
+            # A shore on lakes only drains to closed water, never to the sea.
+            kinds = [zone_kind.get(z) for z in region.geo.sea_zones]
+            down.append(LAKE if kinds and all(k == "lake" for k in kinds) else SEA)
             continue
         land = sorted({index[n] for n in region.adjacencies
                        if n in index and n != region.name and frozenset((region.name, n)) not in lanes})
@@ -270,7 +274,8 @@ def build_graph(world) -> WatershedGraph:
         for a, b in zip(river.path, river.path[1:]):
             got = down[index[a]]
             if got != index[b]:
-                target = "the sea" if got == SEA else "a sink" if got == SINK else names[got]
+                target = ("the sea" if got == SEA else "a sink" if got == SINK else "a lake" if got == LAKE
+                          else names[got])
                 raise ValueError(f"--watershed: river {river.name} flows {a} -> {b}, but the drainage graph "
                                  f"rebuilt from saved elevation drains {a} to {target}")
             steps += 1
@@ -349,7 +354,44 @@ def _tolerance(terms) -> float:
     return CLOSURE_TOLERANCE * math.fsum(abs(t) for t in terms)
 
 
-def _compute(world, state: WatershedState) -> _Plan:
+def coastal_flood_gain(world, region) -> float | None:
+    """The index gain a coastal flood (``climate.check_disasters``) gave this
+    region in Phase 1 of this turn, or None when none struck. Recomputed from
+    the disaster's own deterministic roll and probability, and confirmed by
+    the cooldown it set this turn (cooldowns are decremented before the
+    check, and ``emergence`` skips a region with any cooldown); reads only."""
+    from chronicler.climate import _deterministic_roll, _disaster_probability, get_climate_phase
+    from chronicler.tuning import K_DISASTER_COOLDOWN, K_FLOOD_WATER_GAIN, get_override
+    if region.terrain != "coast":
+        return None
+    if region.disaster_cooldowns.get("flood") != int(get_override(world, K_DISASTER_COOLDOWN, 10)):
+        return None
+    phase = get_climate_phase(world.turn, world.climate_config)
+    prob = _disaster_probability("flood", region.terrain, phase, world.climate_config.severity)
+    if region.latitude_band is not None:
+        from chronicler.geography import disaster_factor
+        prob *= disaster_factor(region.latitude_band, "flood")
+    if _deterministic_roll(world.seed, region.name, world.turn, "flood") >= prob:
+        return None
+    return float(get_override(world, K_FLOOD_WATER_GAIN, 0.1))
+
+
+def _external(world, region, r: int, x_in: float, x_out: float, cap: float, stale: bool) -> list[ExternalFlow]:
+    """Attribute a region's external flows to their recorded source."""
+    flows: list[ExternalFlow] = []
+    if x_in > 0.0:
+        gain = None if stale else coastal_flood_gain(world, region)
+        attributed = min(x_in, gain / _span(region) * cap) if gain is not None else 0.0
+        if attributed > 0.0:
+            flows.append(ExternalFlow(region=r, direction="in", source="coastal_flood", amount=attributed))
+        if x_in - attributed > 0.0:
+            flows.append(ExternalFlow(region=r, direction="in", source="unattributed", amount=x_in - attributed))
+    if x_out > 0.0:
+        flows.append(ExternalFlow(region=r, direction="out", source="unattributed", amount=x_out))
+    return flows
+
+
+def _compute(world, state: WatershedState, stale: bool = False) -> _Plan:
     from chronicler.climate import climate_trend_share, get_climate_phase, region_harvest_shocks
     from chronicler.geography import climate_exposure
     turn = int(world.turn)
@@ -362,8 +404,9 @@ def _compute(world, state: WatershedState) -> _Plan:
     if len(state.graph.down) != n or len(state.storage) != n or len(state.last_index) != n:
         raise RuntimeError("watershed state does not match the world's regions")
     cols = {name: [0.0] * n for name in FRAME_COLUMNS}
-    routed = {"to_sea": [0.0] * n, "to_sink": [0.0] * n, "transfer": [0.0] * n}
+    routed = {"to_sea": [0.0] * n, "to_sink": [0.0] * n, "to_lake": [0.0] * n, "transfer": [0.0] * n}
     contributions: list[list[tuple[int, float]]] = [[] for _ in range(n)]
+    external: list[ExternalFlow] = []
     normal, covers, unmet, channels = [0.0] * n, [0.0] * n, [0.0] * n, [0.0] * n
     for r in state.graph.order:
         region = regions[r]
@@ -374,6 +417,7 @@ def _compute(world, state: WatershedState) -> _Plan:
         x_in = x if x > 0.0 else 0.0
         want = -x if x < 0.0 else 0.0
         x_out = min(s, want)
+        external.extend(_external(world, region, r, x_in, x_out, cap, stale))
         exposure = climate_exposure(region.latitude_band, phase)
         p_norm = PRECIPITATION_BASE * (0.2 + float(region.geo.moisture))
         factor = max(0.0, 1.0 - (1.0 - PHASE_PRECIPITATION[key]) * exposure * trend)
@@ -396,6 +440,8 @@ def _compute(world, state: WatershedState) -> _Plan:
             routed["transfer"][r] = q
         elif d == SEA:
             routed["to_sea"][r] = q
+        elif d == LAKE:
+            routed["to_lake"][r] = q
         else:
             routed["to_sink"][r] = q
         channel = CHANNEL_CAPACITY * (RIVER_CHANNEL_FACTOR if region.river_mask else 1.0)
@@ -407,13 +453,21 @@ def _compute(world, state: WatershedState) -> _Plan:
             cols[name][r] = value
         normal[r], covers[r], unmet[r], channels[r] = p_norm, cover, want - x_out, channel
     residual = check_closure(state.graph.down, cols, routed)
-    return _Plan(turn, key, cols, routed, contributions, normal, covers, unmet, channels, residual)
+    external.sort(key=lambda f: (f.region, f.direction, f.source))
+    return _Plan(turn, key, cols, routed, contributions, normal, covers, unmet, channels, residual, external, stale)
 
 
 def check_closure(down, cols: dict[str, list[float]], routed: dict[str, list[float]]) -> float:
     """Raise unless the account closes region by region and in total, every
     flow is non-negative, storage is within capacity and each inflow is the
-    sum of its tributaries' outflows. Returns the total residual (wu)."""
+    sum of its tributaries' outflows. Returns the total residual (wu).
+
+    These are construction invariants and routing guards, not a validation
+    of the water model: each region's outflow is defined as the residual of
+    its account, so its closure can fail only through float pathology; the
+    total and tributary checks catch water routed to no region or to a region
+    already processed (a broken order), and the bounds catch negative or
+    non-finite inputs."""
     n = len(down)
     for r in range(n):
         flows = [cols[k][r] for k in ("precipitation", "external_in", "external_out", "inflow", "evaporation",
@@ -432,12 +486,12 @@ def check_closure(down, cols: dict[str, list[float]], routed: dict[str, list[flo
         tributaries = [cols["outflow"][u] for u in range(n) if down[u] == r]
         if abs(math.fsum(tributaries) - cols["inflow"][r]) > _tolerance(tributaries + [cols["inflow"][r]]):
             raise RuntimeError(f"watershed: region {r}'s inflow is not the sum of its tributaries' outflows")
-        routes = [routed["transfer"][r], routed["to_sea"][r], routed["to_sink"][r]]
+        routes = [routed["transfer"][r], routed["to_sea"][r], routed["to_sink"][r], routed["to_lake"][r]]
         if sum(1 for v in routes if v != 0.0) > 1 or abs(math.fsum(routes) - cols["outflow"][r]) > 0.0:
             raise RuntimeError(f"watershed: region {r}'s outflow is not routed to one destination")
     terms = (list(cols["storage"]) + [-v for v in cols["storage_open"]] + [-v for v in cols["precipitation"]]
              + [-v for v in cols["external_in"]] + list(cols["external_out"]) + list(cols["evaporation"])
-             + list(cols["withdrawal"]) + list(routed["to_sea"]) + list(routed["to_sink"]))
+             + list(cols["withdrawal"]) + list(routed["to_sea"]) + list(routed["to_sink"]) + list(routed["to_lake"]))
     residual = math.fsum(terms)
     if abs(residual) > _tolerance(terms):
         raise RuntimeError("watershed: the account does not close this turn")
@@ -449,12 +503,13 @@ def _totals(plan: _Plan) -> dict[str, float]:
     return {"precipitation": math.fsum(c["precipitation"]), "external_in": math.fsum(c["external_in"]),
             "external_out": math.fsum(c["external_out"]), "evaporation": math.fsum(c["evaporation"]),
             "withdrawal": math.fsum(c["withdrawal"]), "to_sea": math.fsum(r["to_sea"]),
-            "to_sink": math.fsum(r["to_sink"]), "transfer": math.fsum(r["transfer"])}
+            "to_sink": math.fsum(r["to_sink"]), "to_lake": math.fsum(r["to_lake"]),
+            "transfer": math.fsum(r["transfer"])}
 
 
 def _net(flows: dict[str, float]) -> list[float]:
     return [flows["precipitation"], flows["external_in"], -flows["external_out"], -flows["evaporation"],
-            -flows["withdrawal"], -flows["to_sea"], -flows["to_sink"]]
+            -flows["withdrawal"], -flows["to_sea"], -flows["to_sink"], -flows.get("to_lake", 0.0)]
 
 
 # --- Protocol: Phase 9 ----------------------------------------------------------------
@@ -464,10 +519,15 @@ def before_ecology(world, acc, *, native: bool | None = None) -> None:
     nothing outside this package's state. A plan left by a failed tick is
     dropped first (``abandoned_plans``: nothing was settled)."""
     state = _state(world)
-    if state._plan is not None:
+    dropped = state._plan is not None
+    if dropped:
         state._plan = None
         state.counters["abandoned_plans"] = state.counters.get("abandoned_plans", 0) + 1
-    plan = _compute(world, state)
+    # The baseline index must be the one observed after the previous turn's
+    # tick: a dropped plan or a missing turn makes it stale (recorded; the
+    # external flows are then all unattributed).
+    expected = state.frame.turn + 1 if state.frame is not None else state.opened_turn
+    plan = _compute(world, state, stale=dropped or int(world.turn) != expected)
     state._plan = plan
     state.counters["planned_turns"] = state.counters.get("planned_turns", 0) + 1
 
@@ -539,6 +599,9 @@ def after_ecology(world, acc) -> list:
     totals = _totals(plan)
     unmet = math.fsum(plan.unmet)
     totals["external_out_unmet"] = unmet
+    for direction, source in (("in", "coastal_flood"), ("in", "unattributed"), ("out", "unattributed")):
+        totals[f"external_{direction}_{source}"] = math.fsum(
+            f.amount for f in plan.external if f.direction == direction and f.source == source)
     storage_open = math.fsum(cols["storage_open"])
     storage_close = math.fsum(cols["storage"])
     cumulative = {key: state.cumulative.get(key, 0.0) + totals[key] for key in FLOW_KEYS}
@@ -547,7 +610,8 @@ def after_ecology(world, acc) -> list:
         raise RuntimeError("watershed: the cumulative account does not close against the opening storage")
     frame = WatershedFrame(turn=plan.turn, phase=plan.phase, columns=cols, floods=floods, droughts_ended=ended,
                            totals=totals, storage_open=storage_open, storage_close=storage_close,
-                           closure_residual=plan.residual, drought_turns=drought_turns)
+                           closure_residual=plan.residual, drought_turns=drought_turns,
+                           external=plan.external, stale_baseline=plan.stale)
 
     # Commit: storage, the observed index, the spells, the frame and the totals.
     state.storage = list(cols["storage"])
@@ -564,6 +628,7 @@ def after_ecology(world, acc) -> list:
     counters["droughts_declared"] += declared
     counters["droughts_ended"] += ended_count
     counters["external_out_unmet_turns"] += 1 if unmet > 0.0 else 0
+    counters["stale_baseline_turns"] += 1 if plan.stale else 0
     return []
 
 
@@ -610,13 +675,31 @@ def _flood(flood: FloodRecord) -> dict:
     return out
 
 
+#: Per-region columns of the snapshot record. ``outflow`` is left out: it is
+#: the residual of each region's account by construction, so a reader derives
+#: it (``storage_open + precipitation + external_in - external_out + inflow -
+#: evaporation - withdrawal - storage``); the state keeps it.
+SNAPSHOT_COLUMNS: tuple[str, ...] = tuple(name for name in FRAME_COLUMNS if name != "outflow")
+
+
+def _open_drought(spell: DroughtSpell) -> dict:
+    """An open drought after its declaration turn: its identity and depth;
+    the conditions are recorded in full when it is declared and when it ends."""
+    return {"region": spell.region, "start_turn": spell.start_turn, "turns": spell.turns,
+            "declared_turn": spell.declared_turn, "min_fraction": _r(spell.min_fraction)}
+
+
 def snapshot_summary(world) -> dict:
     """Copied record of the completed turn (values rounded to 6 decimals;
     the full-precision account stays in the state); never live state.
 
-    ``observed`` is False (``regions``, ``floods``, ``droughts`` and
-    ``totals`` None, not empty) when no Phase 9 was settled in the completed
-    turn."""
+    The static part (``units``, ``parameters``, ``graph``) is recorded once,
+    in the snapshot of the opening turn (``source_turn == opened_turn``);
+    later records leave those keys out. ``observed`` is False (``regions``,
+    ``floods``, ``droughts``, ``external`` and ``totals`` None, not empty)
+    when no Phase 9 was settled in the completed turn; ``storage`` (the
+    account's current storage) is recorded only then, since a settled
+    turn's ``regions.storage`` is the same list."""
     state = _state(world)
     source_turn = world.turn - 1
     frame = state.frame
@@ -630,28 +713,43 @@ def snapshot_summary(world) -> dict:
         "source_turn": source_turn,
         "completed_turn": world.turn,
         "opened_turn": state.opened_turn,
-        "units": {"water": "wu (one region's storage capacity without forest cover is 1)",
-                  "index": "ecology.water (the 0-1 water index)"},
-        "parameters": parameters(),
-        "graph": {"down": list(state.graph.down), "sea": SEA, "sink": SINK, "river_steps": state.graph.river_steps},
+    }
+    if source_turn == state.opened_turn:
+        record.update({
+            "units": {"water": "wu (one region's storage capacity without forest cover is 1)",
+                      "index": "ecology.water (the 0-1 water index)"},
+            "parameters": parameters(),
+            "graph": {"down": list(state.graph.down), "sea": SEA, "sink": SINK, "lake": LAKE,
+                      "river_steps": state.graph.river_steps},
+        })
+    record.update({
         "observed": observed,
         "phase": frame.phase if observed else None,
+        "stale_baseline": frame.stale_baseline if observed else None,
         "regions": None,
         "floods": None,
         "droughts": None,
+        "external": None,
         "totals": None,
-        "storage": [_r(v) for v in state.storage],
+        "storage": None if observed else [_r(v) for v in state.storage],
         "cumulative": {**cumulative, "opening_storage": _r(state.opening_storage), "storage": _r(storage_now),
                        "closure_residual": math.fsum([storage_now, -state.opening_storage]
                                                      + [-v for v in _net(state.cumulative)])},
         "counters": dict(state.counters),
-    }
+    })
     if observed:
-        record["regions"] = {**{name: [_r(v) for v in frame.columns[name]] for name in FRAME_COLUMNS},
+        record["regions"] = {**{name: [_r(v) for v in frame.columns[name]] for name in SNAPSHOT_COLUMNS},
                              "drought_turns": list(frame.drought_turns)}
         record["floods"] = [_flood(f) for f in frame.floods]
-        record["droughts"] = {"open": [_spell(s) for s in state.spells if s.declared_turn is not None],
-                              "ended": [_spell(s) for s in frame.droughts_ended]}
+        record["droughts"] = {
+            "declared": [_spell(s) for s in state.spells if s.declared_turn == frame.turn],
+            "open": [_open_drought(s) for s in state.spells if s.declared_turn is not None],
+            "ended": [_spell(s) for s in frame.droughts_ended]}
+        # Flows below the record's precision (e.g. a coastal flood clamped at
+        # the cap of an f32-rounded index) round to 0 and are left out, as
+        # their columns read 0.
+        record["external"] = [{"region": f.region, "direction": f.direction, "source": f.source,
+                               "amount": _r(f.amount)} for f in frame.external if _r(f.amount) > 0]
         record["totals"] = {**{key: _r(value) for key, value in frame.totals.items()},
                             "storage_open": _r(frame.storage_open), "storage_close": _r(frame.storage_close),
                             "closure_residual": frame.closure_residual}

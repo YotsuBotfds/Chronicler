@@ -233,14 +233,16 @@ def _check_frame(state, world):
     assert math.isclose(frame.totals["to_sea"], sea, rel_tol=1e-12, abs_tol=1e-15)
     assert math.isclose(frame.totals["to_sink"], sink, rel_tol=1e-12, abs_tol=1e-15)
     t = frame.totals
+    lake = math.fsum(c["outflow"][r] for r in range(n) if down[r] == ws.LAKE)
+    assert math.isclose(frame.totals["to_lake"], lake, rel_tol=1e-12, abs_tol=1e-15)
     net = t["precipitation"] + t["external_in"] - t["external_out"] - t["evaporation"] - t["withdrawal"] \
-        - t["to_sea"] - t["to_sink"]
+        - t["to_sea"] - t["to_sink"] - t["to_lake"]
     gross = sum(abs(t[k]) for k in FLOW_KEYS) + frame.storage_open + frame.storage_close
     assert abs((frame.storage_close - frame.storage_open) - net) <= 1e-9 * gross
     assert abs(frame.closure_residual) <= 1e-9 * gross
     cum = state.cumulative
     cum_net = cum["precipitation"] + cum["external_in"] - cum["external_out"] - cum["evaporation"] \
-        - cum["withdrawal"] - cum["to_sea"] - cum["to_sink"]
+        - cum["withdrawal"] - cum["to_sea"] - cum["to_sink"] - cum["to_lake"]
     cum_gross = sum(abs(cum[k]) for k in FLOW_KEYS) + state.opening_storage
     assert abs((math.fsum(state.storage) - state.opening_storage) - cum_net) <= 1e-9 * cum_gross
 
@@ -462,20 +464,110 @@ def test_the_snapshot_record_is_dated_copied_and_distinguishes_unobserved():
     opening = livelihoods_snapshot_fields(world)["livelihoods"]["watershed"]
     assert opening["observed"] is False and opening["source_turn"] == 0
     assert opening["regions"] is None and opening["floods"] is None and opening["totals"] is None
+    assert opening["external"] is None and opening["stale_baseline"] is None
     assert len(opening["storage"]) == len(world.regions)
     world.turn = 0
     _phase9(world)
     record = livelihoods_snapshot_fields(world)["livelihoods"]["watershed"]
     assert (record["schema_version"], record["stage"], record["mode"]) == (1, "B1", "record_only")
     assert record["source_turn"] == world.turn - 1 == record["completed_turn"] - 1 and record["observed"]
-    assert set(record["regions"]) == set(FRAME_COLUMNS) | {"drought_turns"}
-    assert record["graph"]["down"] == _state(world).graph.down
-    assert record["parameters"] == ws.parameters()
+    # Outflow is each region's residual by construction: readers derive it.
+    assert set(record["regions"]) == set(FRAME_COLUMNS) - {"outflow"} | {"drought_turns"}
+    assert record["storage"] is None                 # the settled turn's regions.storage is the same list
+    assert record["graph"]["down"] == _state(world).graph.down and record["graph"]["lake"] == -3
+    assert record["parameters"] == ws.parameters() and record["stale_baseline"] is False
     json.dumps(record)
     record["regions"]["storage"][0] = -1.0           # a copy, never live state
     assert _state(world).frame.columns["storage"][0] >= 0.0
+    _phase9(world)                                   # the static part is recorded once, at the opening turn
+    later = livelihoods_snapshot_fields(world)["livelihoods"]["watershed"]
+    assert later["observed"] and not {"units", "parameters", "graph"} & set(later)
     world.turn += 1                                  # a later snapshot without a settled turn
     assert livelihoods_snapshot_fields(world)["livelihoods"]["watershed"]["observed"] is False
+
+
+def test_lake_shores_drain_to_closed_water_not_to_the_sea():
+    world = _procedural(11)
+    zones = {z.name: z for z in world.geography.sea_zones}
+    shore = next(i for i, r in enumerate(world.regions) if r.geo.coastal and len(r.geo.sea_zones) == 1)
+    lake = world.model_copy(deep=True)
+    zone = next(z for z in lake.geography.sea_zones if z.name == world.regions[shore].geo.sea_zones[0])
+    zone.kind = "lake"                               # a constructed lake (no development world has one)
+    assert zones[zone.name].kind != "lake"
+    graph = ws.build_graph(lake)
+    assert graph.down[shore] == ws.LAKE
+    for i, r in enumerate(lake.regions):            # a shore that also touches open sea still drains to the sea
+        if r.geo.coastal and zone.name in r.geo.sea_zones and len(r.geo.sea_zones) > 1:
+            assert graph.down[i] == SEA
+    configure_livelihoods(lake, _build_parser().parse_args(["--watershed"]), agent_mode="off")
+    _phase9(lake)
+    frame = _state(lake).frame
+    assert frame.totals["to_lake"] > 0 and frame.totals["to_lake"] == pytest.approx(math.fsum(
+        frame.columns["outflow"][i] for i, d in enumerate(graph.down) if d == ws.LAKE))
+    assert frame.totals["to_sea"] == pytest.approx(math.fsum(
+        frame.columns["outflow"][i] for i, d in enumerate(graph.down) if d == SEA))
+    _check_frame(_state(lake), lake)
+
+
+def test_external_inflow_is_attributed_to_a_coastal_flood_and_the_rest_left_unattributed():
+    from chronicler.climate import _deterministic_roll, _disaster_probability, check_disasters
+    from chronicler.geography import disaster_factor
+    world = _world(11)
+    _phase9(world)
+    state = _state(world)
+    coast = next(i for i, r in enumerate(world.regions) if r.terrain == "coast")
+    region = world.regions[coast]
+    region.ecology.water = state.last_index[coast] = 0.5   # constructed: room for the flood's +0.1
+
+    def strikes(turn):
+        phase = get_climate_phase(turn, world.climate_config)
+        prob = _disaster_probability("flood", "coast", phase, world.climate_config.severity)
+        prob *= disaster_factor(region.latitude_band, "flood") if region.latitude_band is not None else 1.0
+        return _deterministic_roll(world.seed, region.name, turn, "flood") < prob
+
+    turn = next(t for t in range(world.turn, world.turn + 5000) if strikes(t))
+    world.turn = turn
+    state.frame = state.frame.model_copy(update={"turn": turn - 1})   # constructed: the previous turn settled
+    for r in world.regions:
+        r.disaster_cooldowns.clear()
+    others = [float(r.ecology.water) for r in world.regions]
+    check_disasters(world, get_climate_phase(turn, world.climate_config))   # the real Phase 1 authority
+    assert region.ecology.water == pytest.approx(0.6) and ws.coastal_flood_gain(world, region) == pytest.approx(0.1)
+    struck = [i for i, r in enumerate(world.regions) if r.ecology.water != others[i]]
+    region.ecology.water += 0.05                     # another writer on top of the flood
+    _phase9(world)
+    frame = state.frame
+    assert not frame.stale_baseline
+    flows = {(f.region, f.source): f.amount for f in frame.external}
+    span = ws.index_cap(region) - ws.INDEX_FLOOR
+    cap = frame.columns["capacity"][coast]
+    assert flows[(coast, "coastal_flood")] == pytest.approx(0.1 / span * cap)
+    assert flows[(coast, "unattributed")] == pytest.approx(0.05 / span * cap)
+    assert {i for i, _ in flows} == set(struck) | {coast}
+    assert frame.totals["external_in"] == pytest.approx(
+        frame.totals["external_in_coastal_flood"] + frame.totals["external_in_unattributed"])
+    record = livelihoods_snapshot_fields(world)["livelihoods"]["watershed"]
+    assert {(f["region"], f["source"]) for f in record["external"]} == set(flows)
+    _check_frame(state, world)
+
+
+def test_a_stale_baseline_is_recorded_and_left_unattributed():
+    world = _world(11)
+    _phase9(world)
+    state = _state(world)
+    before_ecology(world, acc=None)                  # a tick that never settles ...
+    tick_ecology(world, get_climate_phase(world.turn, world.climate_config), acc=None)
+    world.turn += 1                                  # ... and the run goes on
+    _phase9(world)
+    assert state.frame.stale_baseline and state.counters["stale_baseline_turns"] == 1
+    assert all(f.source == "unattributed" for f in state.frame.external)
+    _phase9(world)                                   # the next settled turn is clean again
+    assert not state.frame.stale_baseline and state.counters["stale_baseline_turns"] == 1
+    gap = _world(13)
+    _phase9(gap)
+    gap.turn += 3                                    # a missing turn (e.g. an out-of-band load)
+    _phase9(gap)
+    assert _state(gap).frame.stale_baseline
 
 
 def test_feature_off_keeps_no_state_and_no_manifest_keys():
@@ -503,6 +595,18 @@ def test_the_feature_catalog_requires_a_procedural_world():
     assert fc.validate_batch_features({"regions": 32, "features": {"watershed": True}}, {"agents": "off"}) is None
     assert fc.validate_batch_features({"regions": 8, "features": {"watershed": True}}, {"agents": "off"}) \
         .startswith("'watershed' (--watershed) requires a procedural")
+
+
+def test_the_batch_surface_follows_the_requested_regions():
+    from chronicler import feature_catalog as fc
+    assert fc.batch_surface({"agents": "off"})["settings"]["procedural_world"] is False      # the default 8 regions
+    assert fc.batch_surface({"agents": "off"}, {"regions": 13})["settings"]["procedural_world"] is True
+    assert fc.batch_surface({"agents": "off"}, {"regions": 12})["settings"]["procedural_world"] is False
+    assert fc.batch_surface({"agents": "off", "regions": 32})["settings"]["procedural_world"] is True
+    # The viewer's TEMPLATE_REGION_POOL (viewer/src/lib/featureWorld.ts) mirrors this threshold.
+    from chronicler.world_gen import REGION_TEMPLATES, resolve_worldgen
+    assert len(REGION_TEMPLATES) == 12
+    assert (resolve_worldgen(None, 12), resolve_worldgen(None, 13)) == ("template", "procedural")
 
 
 @pytest.fixture
@@ -533,6 +637,27 @@ def test_the_run_accepts_every_agent_mode_on_a_procedural_world(tmp_path, sentin
     template = generate_world(seed=11, num_regions=8, num_civs=4)
     with pytest.raises(ValueError, match="requires a procedural world"):
         main._configure_run(args, template, True, tmp_path / "c.md")
+
+
+def test_a_server_started_with_the_watershed_keeps_it_on_live_starts(tmp_path, sentinel_runtimes):
+    """Review m1: a live start must not silently switch the server's --watershed off; it is
+    honoured on a procedural world and refused explicitly by the run on a template world."""
+    from chronicler import feature_catalog as fc
+    from chronicler import live, main
+    plain = fc.live_surface(_build_parser().parse_args(["--live", "--agents", "hybrid"]))
+    assert plain["settings"]["procedural_world"] is False
+    assert fc.validate_features({"watershed": True}, plain).startswith("'watershed' (--watershed) requires")
+    args = _build_parser().parse_args(["--live", "--agents", "off", "--watershed", "--simulate-only",
+                                       "--output", str(tmp_path / "c.md")])
+    surface = fc.live_surface(args)
+    assert surface["values"]["watershed"] is True and surface["settings"]["procedural_world"] is True
+    assert fc.validate_features({}, surface) is None                   # the viewer sends no explicit false
+    world, _ = live._live_world(args, {"seed": 11, "regions": 16, "civs": 4})   # procedural (auto, > 12)
+    assert world.livelihoods.watershed is not None
+    with pytest.raises(sentinel_runtimes):
+        main._configure_run(args, world, False, tmp_path / "c.md")
+    with pytest.raises(ValueError, match="requires a procedural world"):
+        live._live_world(args, {"seed": 11, "regions": 8, "civs": 4})   # a template start: refused explicitly
 
 
 # --- End to end (CLI, Python fallback): exact resume ---------------------------------------

@@ -14,9 +14,12 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
-#: Destination codes in ``WatershedGraph.down`` besides a region index.
+#: Destination codes in ``WatershedGraph.down`` besides a region index:
+#: the sea (a shore on an ocean or sea), a sink (an inland region with no
+#: lower land neighbour) and a lake (a shore on lakes only: closed water).
 SEA = -1
 SINK = -2
+LAKE = -3
 
 #: Per-region columns of a settled frame, in record order (water units unless
 #: noted). ``storage_open + precipitation + external_in - external_out +
@@ -29,12 +32,16 @@ FRAME_COLUMNS: tuple[str, ...] = (
 #: The account's flows (totals of a frame and cumulative totals since opening).
 FLOW_KEYS: tuple[str, ...] = (
     "precipitation", "external_in", "external_out", "evaporation", "withdrawal", "to_sea",
-    "to_sink", "transfer",
+    "to_sink", "to_lake", "transfer",
 )
+#: Known writers of the water index outside Phase 9 an external flow is
+#: attributed to; anything else (or a stale baseline) is ``unattributed``.
+EXTERNAL_SOURCES: tuple[str, ...] = ("coastal_flood", "unattributed")
 #: Cumulative counters, in report order (all start at zero).
 COUNTER_KEYS: tuple[str, ...] = (
     "planned_turns", "settled_turns", "abandoned_plans", "flood_region_turns",
     "drought_region_turns", "droughts_declared", "droughts_ended", "external_out_unmet_turns",
+    "stale_baseline_turns",
 )
 
 
@@ -53,6 +60,19 @@ class WatershedGraph(BaseModel):
     order: list[int]
     #: Persisted river steps the graph reproduces (all of them, or enable fails).
     river_steps: int = Field(ge=0)
+
+
+class ExternalFlow(BaseModel):
+    """One region's external inflow or outflow of a settled turn, by source:
+    ``coastal_flood`` (``climate.check_disasters`` raised the index in Phase 1
+    of this turn; at most its nominal gain is attributed to it) or
+    ``unattributed`` (any other writer, or the remainder)."""
+    model_config = ConfigDict(extra="forbid")
+
+    region: int = Field(ge=0)
+    direction: Literal["in", "out"]
+    source: Literal["coastal_flood", "unattributed"]
+    amount: float = Field(gt=0.0, allow_inf_nan=False)
 
 
 class FloodRecord(BaseModel):
@@ -118,6 +138,13 @@ class WatershedFrame(BaseModel):
     drought_turns: list[int]
     floods: list[FloodRecord] = Field(default_factory=list)
     droughts_ended: list[DroughtSpell] = Field(default_factory=list)
+    #: External flows by source (non-zero entries only).
+    external: list[ExternalFlow] = Field(default_factory=list)
+    #: The baseline index was not observed after the previous turn's tick (a
+    #: dropped plan or a missing turn): this turn's external flows include
+    #: unsettled index changes and are all unattributed. ``flow`` mode must
+    #: refuse or reconcile such a turn.
+    stale_baseline: bool = False
     totals: dict[str, float]
     storage_open: float = _amount()
     storage_close: float = _amount()
