@@ -1,4 +1,4 @@
-"""The connected-world screen runner, its seed registry and the CW1-CW6 stubs.
+"""The connected-world screen runner, its seed registry and the CW2, CW3, CW5 and CW6 stubs.
 
 Offline: constructed bundles and a fake runtime (no simulation, no child process);
 the real parser and feature catalog check arm command lines. Nothing here runs a
@@ -480,8 +480,8 @@ class FakeRuntime:
 @pytest.mark.parametrize("cohort", ["held", "pilot"])
 def test_stub_screens_are_refused(SR, CW, tmp_path, cohort):
     fake = FakeRuntime(SR)
-    with pytest.raises(SystemExit, match="CW1 is not ready"):
-        SR.run_main([str(tmp_path / "out"), "--screen", "CW1", "--cohort", cohort], CW.SCREENS, fake.rt)
+    with pytest.raises(SystemExit, match="CW2 is not ready"):
+        SR.run_main([str(tmp_path / "out"), "--screen", "CW2", "--cohort", cohort], CW.SCREENS, fake.rt)
     assert fake.calls == []
 
 
@@ -533,7 +533,8 @@ def _held_screen(SR, CW, tmp_path, ceiling=1.0):
     prereg.write_text(PREREG.replace("1.0", str(ceiling)))
     dev = CW.SCREENS["DEV"]
     return dataclasses.replace(CW.SCREENS["CW1"], base=dev.base, arms=dev.arms, root=dev.root, packages=dev.packages,
-                               outcomes=dev.outcomes, activation=dev.activation, ready=True, preregistration=prereg)
+                               outcomes=dev.outcomes, activation=dev.activation, extract=None, ready=True,
+                               preregistration=prereg, derived=(), control_activation=False, report=None)
 
 
 def _pilot(tmp_path, seconds, identity=IDENTITY, rows_identity=None, name="pilot"):
@@ -618,8 +619,10 @@ def test_registry_content_hash_ignores_run_records_only(SR, registry):
 def test_check_command_reports_stubs_not_ready(SR, CW, capsys):
     assert CW.main(["check", "--screen", "all"]) == 2
     text = capsys.readouterr().out
-    for name in ("CW1", "CW2", "CW3", "CW5", "CW6"):
+    for name in ("CW2", "CW3", "CW5", "CW6"):
         assert f"{name}: seeds OK" in text and f"{name}: NOT READY" in text
+    # CW1 is declared by slice S1 (tests/test_cw1_screen.py).
+    assert "CW1: seeds OK" in text and "CW1: extractor, packages, 9 arms and 38 outcomes (3 primary): OK" in text
     # CW4 is declared by slice C1 (tests/test_cw4_screen.py).
     assert "CW4: seeds OK" in text and "CW4: extractor, packages, 4 arms and 23 outcomes (2 primary): OK" in text
     assert "DEV: extractor, packages, 2 arms and 3 outcomes (2 primary): OK" in text
