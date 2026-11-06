@@ -721,3 +721,117 @@ extension:
   describes what pilot people ate.
 - No checkpoint or resume test exists natively: there is no persisted state, and the
   installs are one-tick.
+
+## Viewer (PL5b)
+
+Lane PL5b, `claude/pl5b-retail-viewer` from `claude/household-retail` `fdc1dfbc`. The
+viewer reads only `snapshot.livelihoods.household_retail`, the completed turn's copy
+written by `snapshot_summary`; it never reads final-world state.
+
+### Reader
+
+`viewer/src/lib/householdRetail.ts`, `readHouseholdRetail(snapshot, regionCount)`:
+absent, malformed (with the reason), or a dated record. It refuses a record whose
+schema, stage, mode or boundary is unknown, whose `source_turn + 1` is not the
+snapshot's turn, or whose θ is not 1 exactly in `no_relief`. Of the Accounting identities,
+it checks those the frame carries:
+
+- **Owned pool, per region** (totals; the frame has no per-good flows):
+  `close = open + titled − own_eaten − sold − procured − decay − overflow − war_loss −
+  to_commons + inherited_in − inherited_out`, `Σ goods_close = close`, owners exactly when
+  there is owned food, inheritance conserves claims, `to_commons` equals its reasons, the
+  title equals the Phase 2 `retail_titled_<good>` columns (within one milli a good), and
+  the decay and overflow applied do not exceed what the economy reported.
+- **Provisioning, per region**: the row is the region's, in the record's native mode;
+  price and free rations equal the install; the claims debited equal `own_eaten_milli`
+  and `sold_milli`; `free_given + free_unallocated = free_rations`; `own_eaten + sold +
+  unsold = offered`; the fair-share and open rounds add up; `withheld_dead_milli ≤ unsold`;
+  `rations = free_given + (own_eaten + sold) / ration`, each ration at most one;
+  `fed_fair + priced_out + offer_short + withheld_dead = persons`; children and households
+  within their persons; `deficit` is the sum of the three causes; `paid = credited +
+  refunded`, `refunded = refused_ceiling`, and `sold × price ≤ paid × ration ≤ sold × price
+  + buying_households × ration`. `free_exchange` charges nothing and prices nobody out.
+- **The turn**: money rows equal the region totals and balance; granary credits close
+  (`owed = credited + refused + unpaid`; `free_exchange` pays nothing, the other modes
+  leave nothing unpaid) and exist exactly when owners' grain was procured; the income
+  receipt equals the regions' income plus the unattributed (`free_exchange` and
+  `record_only` replace none); `record_only` holds, sells and prices nothing; the person
+  sample is bounded and names provisioned regions; the record log is ordered.
+- **Lifetime**: `paid = credited + refunded`.
+
+It cannot check the per-good pool, per-owner claims, the native food ledger, the price
+formula or the per-person cash limits; Python and the native lane check those.
+
+Missing data is unknown, never zero. `regions` null (with `money`, `income`, `sample`
+and `sample_dropped`; a partial blank is refused) reads "not recorded … unknown, not
+zero". A region without a provisioning row (it left the pilot before the install, or the
+tick took no install) reads "not provisioned": its people were fed by L2's rule and are in
+the food allocation section. A flow the writer leaves out is zero only because the closing
+identity holds without it. Lifetime counters the writer has never bumped read zero.
+
+### Panel
+
+`viewer/src/components/systems/HouseholdRetail.tsx`, on the Livelihoods tab after Food
+allocation, headed `Household retail · snapshot N`, its first note naming simulation turn
+N − 1. In this order:
+
+1. The mode, labelled plainly (`retail`; `no_relief (what relief protects)`;
+   `free_exchange (ownership without cash)`; `record_only (identity control, nothing
+   applied)`), the boundary (`market`, `paid_work` with its four sources, `all`), θ and the
+   commons share, the price band and the claims cap.
+2. **People below their fair share**, first: persons and children provisioned, then each
+   cause someone was short of (priced out, offer short, withheld for heirs) as children,
+   persons and households with the deficit in rations, and "Nobody was …" for the others.
+   A table per region with someone short (a column per cause present), and the person
+   sample of those not fed (bounded at 24; the region counts are complete).
+3. **Owned food** per pilot region: open → close (owners); the title with what was titled
+   but kept commons and the derived commons share (1 − θ of the harvest); own food eaten,
+   sold, unsold; free food given of the free rations; decay and overflow; sold to
+   granaries and conquest loss; to commons by reason (no heir, left the pilot, claims cap,
+   no farmer, pool rebuilt); inherited. A region that joined or left this turn says so.
+4. **Food money** per pilot region: price a ration ("not charged" in `free_exchange`);
+   paid, credited, refunded; farm income replaced with its farmers ("kept" in
+   `free_exchange`); merchants' commons food and the owned food they could not load,
+   labelled as an upper bound on foregone departures, not a measured loss.
+5. Granary purchases of owners' grain and their credits; the turn's records (openings,
+   closures, conquest losses, inheritance, escheat, pool resets); lifetime totals; recent
+   pilot records.
+
+`record_only` shows the would-be title, owners of farmers, the untitled share and the
+would-be price instead of tables 2–4.
+
+### Options
+
+`--household-retail`, `--household-retail-mode` and `--household-retail-boundary` come
+from the served `feature_catalog` (no viewer or `live.py` code is specific to them), off
+by default, disabled until `--food-allocation` (and hybrid agents in Batch Lab), modes
+hidden until the switch is on, defaults not sent. `viewer/src/__fixtures__/featureCatalog.json`
+is regenerated from this branch. The boundary's help now names all four `paid_work`
+sources (`livelihoods._HELP`; it named only firms and repair crews).
+`tests/test_feature_catalog.py::test_household_retail_is_offered_and_forwarded_with_its_options`
+checks a live start (namespace, world mode and boundary, manifest) and a Batch Lab
+request (namespace and manifest), and the refusal without `--food-allocation`.
+
+### Tests and fixtures
+
+- `viewer/src/__fixtures__/household_retail_natural_records.json`: eight records written
+  by this branch with the extension `b8a09339…` (development seeds; commands in its
+  `note`): template 7 in each mode, template 11 boundary `all`, procedural 13 (a conquest
+  loss), template 7 `paid_work` with crews, and before any paid work.
+- `viewer/src/lib/__tests__/householdRetail.test.ts`: every natural record reads; each
+  identity above is refused when broken; blanked frames read unknown; constructed
+  records (labelled) with a refund, an offer shortfall and a pilot closure read.
+- `viewer/src/components/systems/__tests__/HouseholdRetail.test.tsx`, and household
+  retail cases in `featureCatalog.test.ts` and `FeatureOptions.test.tsx`.
+
+### Browser QA
+
+`viewer/scripts/qa-household-retail.mjs` (opt-in; Playwright and Chromium): the panel
+at 1440 and 390 px over real bundles, each stop checked against the turn's record read
+with `chronicler.bundle_codec`; old bundles without the key; a constructed variant with
+absent, malformed, blanked and null records, rewound through; a live session with the
+setup options, pause, rewind, checkpoint, resume and fork; Batch Lab options and
+cancellation. Batch Lab runs consecutive seeds from its start seed and stops only
+between seeds; no two template development seeds are consecutive, so the QA cancels a
+one-seed batch (template 7) and records the manifest's status (`complete`) rather than
+requiring `cancelled`.
