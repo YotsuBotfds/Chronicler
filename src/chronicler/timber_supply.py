@@ -129,9 +129,10 @@ MIN_GAP = 0.5
 #: Share of a member's turn the expedition takes: all of it (paid and withheld).
 SHARE = 1.0
 #: Native ``wealth_transfer::PURPOSES`` index of repair wages, and this
-#: package's batch key under it (RS2 pays batch 0).
+#: package's batch key under it. Every payer of ``repair_wage`` in a turn needs
+#: its own batch: RS2 workshop repair wages 0, PL3 granary crews 1, PL1 2.
 PURPOSE_REPAIR_WAGE = 3
-WAGE_BATCH = 1
+WAGE_BATCH = 2
 #: Native ``workshop_work::RESERVATION_CATEGORIES`` index of repair work.
 CATEGORY_REPAIR = 3
 #: Native occupations and age (``agent::Occupation``, ``agent::AGE_ADULT``).

@@ -949,3 +949,18 @@ def test_continuing_after_a_resume_from_a_pickle_matches_an_uninterrupted_run():
         _turn(b, sb)
     assert a.livelihoods.timber_supply.model_dump_json() == b.livelihoods.timber_supply.model_dump_json()
     assert a.civilizations[0].treasury == b.civilizations[0].treasury
+
+
+def test_every_repair_wage_payer_has_its_own_transfer_batch():
+    """The native transfer key is (turn, purpose, batch) and refuses a repeat,
+    so RS2 workshop wages, PL3 granary crews and PL1 expeditions, which can all
+    pay ``repair_wage`` in one turn, need distinct batches (integration fix:
+    PL1 and PL3 both used batch 1)."""
+    import inspect
+    import re
+    from chronicler import recovery_crews as RC
+    from chronicler import repair_projects as RP
+    rs2 = re.findall(r"PURPOSE_REPAIR_WAGE, (\w+), wages", inspect.getsource(RP))
+    assert rs2 == ["0"]
+    assert RP.PURPOSE_REPAIR_WAGE == TSU.PURPOSE_REPAIR_WAGE == 3  # PL3 imports RS2's constant
+    assert len({0, RC.GRANARY_WAGE_BATCH, TSU.WAGE_BATCH}) == 3

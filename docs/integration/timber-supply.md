@@ -46,7 +46,7 @@ changes, no new native state. Only the home economy loses their labour:
   holds work that turn leaves the crew (`other_work`); reservations are made
   one member at a time, so one refusal does not cost the others theirs.
 - **Pay.** Wages are paid by stable id through `transfer_wealth` (purpose 3
-  `repair_wage`, batch `WAGE_BATCH` = 1; RS2 pays batch 0), which is also
+  `repair_wage`, batch `WAGE_BATCH` = 2; RS2's workshop repair wages use batch 0 and PL3's granary crews batch 1), which is also
   region-blind. The same share (1.0) is armed with `extend_paid_work`, so the
   next wealth phase withholds that share of ordinary income and the wage
   replaces it. The treasury pays whole units once per civ and turn, with the
