@@ -1499,10 +1499,19 @@ def extract_cp3(bundle: dict, flags, declared: dict) -> tuple[dict, list[str]]:
     if not hist:
         return out, problems
     n = len((bundle.get("world_state") or {}).get("regions") or [])
+    expected = expected_packages(flags, cp)
     out["granary"] = _granary_measures(hist, bundle, problems)
     out["workshop"], out["lump_repairs"] = _workshop_measures(hist, bundle, problems)
-    if "timber_supply" in expected_packages(flags, cp):
+    if "timber_supply" in expected:
         out["ts"] = _woodcut_measures(hist, n, _food_cells(hist, n), out["pk"].get("timber_supply") or {}, problems)
+    if "timber_stock" in expected:
+        # The shared metrics sum L3's extraction over the snapshots that carry totals;
+        # a snapshot without them would read as no extraction.
+        missing = [s.get("turn") for s in hist
+                   if not _num((((s.get("livelihoods") or {}).get("timber_stock") or {}).get("totals") or {})
+                               .get("extraction"))]
+        if missing:
+            problems.append(f"timber_stock: totals missing at turns {missing[:5]}")
     return out, problems
 
 
