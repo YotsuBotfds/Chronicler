@@ -1,4 +1,4 @@
-# Current continuation — productive recovery, checkpoint 1, 2026-11-06
+# Current continuation — productive recovery, checkpoint 1 merged (PR #78), 2026-11-06
 
 ## Productive recovery and household livelihoods: checkpoint 1 (recovery)
 
@@ -8,7 +8,12 @@ consecutive checkpoints with independent review and evidence. Plan:
 [productive-recovery-phase.md](superpowers/roadmaps/productive-recovery-phase.md). Board:
 [productive-recovery.json](superpowers/progress/productive-recovery.json).
 
-- **Branch** `claude/productive-recovery` from `main` `1ec0876e`. Checkpoint 1 merges by PR;
+- **Merged** as [PR #78](https://github.com/YotsuBotfds/Chronicler/pull/78) at `dde5c004`
+  on 2026-11-06. The merge tree `8a2ffc12` equals the tree of the reviewed head `005880b6`.
+  Premerge Tests run 42147761904 passed all nine jobs; main Tests run 42149350923 on the
+  merge SHA (`push`) succeeded. Between the verified simulation source `0cffa89e` and that
+  head only tests, docs, examples and the native shard manifest changed.
+- **Branch** `claude/productive-recovery` from `main` `1ec0876e`. Checkpoint 1 merged by PR;
   household retail (PL4, built on `claude/pl4-retail-native` and `claude/pl4-retail-python`)
   integrates after it as checkpoint 2.
 - **Diagnosis first** (plan section 1, development worlds only): timber stalls come from

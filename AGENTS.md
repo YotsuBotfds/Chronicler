@@ -3,10 +3,11 @@
 Read [current source and recovery/archive index](docs/RECOVERY.md),
 `docs/CONTINUATION.md` and `docs/DEVELOPMENT.md` before changing code;
 [docs/README.md](docs/README.md) maps the rest of the documentation.
-Start new work from fetched `main`; PR #76 (the recovery-skills phase) merged on
-2026-11-05 at `c4e259b6`, after PR #74 at `ee4c7ac2` and PR #73 at `7001d649`. The
-default-off livelihoods and recovery-skills packages and their boards are under
-`docs/superpowers/` (`livelihoods-*`, `recovery-skills*`).
+Start new work from fetched `main`; PR #78 (productive recovery, checkpoint 1)
+merged on 2026-11-06 at `dde5c004`, after PR #76 (recovery skills) at `c4e259b6`. The
+default-off livelihoods, recovery-skills and productive-recovery packages and their
+boards are under `docs/superpowers/` (`livelihoods-*`, `recovery-skills*`,
+`productive-recovery*`).
 Older branch instructions and machine paths are dated historical evidence.
 In Claude Code cloud sessions, `scripts/cloud_setup.sh` installs dependencies;
 build native extensions only into the separate venv it describes.

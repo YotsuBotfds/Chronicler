@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "board_version": 3,
+  "board_version": 4,
   "title": "Productive recovery and household livelihoods (PL0-PL6) operational board",
   "plan": "docs/superpowers/roadmaps/productive-recovery-phase.md",
   "owner_instruction": "2026-11-05 (after #77): make recovery work (timber supply and delivery with real labour and ecological costs; apprenticeship exits and maintenance assumptions separated before tuning, success = graduates doing useful work; budgets and opportunities after timber), then real household food retail (producer ownership, inventories, payments, consumption timing; care for poorer households and public relief); consecutive checkpoints of one assignment with independent review and evidence; qualification gates and default promotion remain separate decisions.",
@@ -152,7 +152,7 @@
     },
     {
       "id": "PL6",
-      "status": "active",
+      "status": "evaluated",
       "lane": "claude/pl6a-screens (cp1 screens done); claude/pl6b-examples",
       "switch": null,
       "summary": "Examples and preregistered held screens per checkpoint; handoff."
@@ -164,8 +164,18 @@
     "pl3",
     "pl2b"
   ],
-  "merge": null,
-  "next": "Checkpoint-1 examples (PL6b), viewer checks, checkpoint-1 PR and merge; then checkpoint 2 (PL4 retail) integration with its own review and cohort 2.",
+  "merge": {
+    "checkpoint_1": {
+      "pr": 78,
+      "merge_commit": "dde5c00406e0999ed26e1f03312121c5e08f6cb5",
+      "merge_tree": "8a2ffc12",
+      "reviewed_head": "005880b6",
+      "premerge_run": 42147761904,
+      "main_run": 42149350923,
+      "date": "2026-11-06"
+    }
+  },
+  "next": "Checkpoint 2 (PL4 household retail) on claude/household-retail: review fixes integrated, witness layer pl4; retail viewer (PL5b), cp2 screens (PL6c), verification, preregistration, held cohort 2, PR.",
   "native_extension": {
     "source_commit": "PL1 Rust (claude/pl1-timber; unchanged on the phase branch)",
     "sha256_prefix": "fdcb0ca0"

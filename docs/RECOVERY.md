@@ -1,6 +1,6 @@
 # Source, recovery and archive index
 
-Updated 2026-11-05 after PRs #73, #74 and #76. This is the starting map for future agents;
+Updated 2026-11-06 after PRs #73, #74, #76 and #78. This is the starting map for future agents;
 dated reports keep their original source, platform and qualification limits.
 
 ## Current source and evidence
@@ -29,7 +29,16 @@ Use fetched `main` for new work.
   - Premerge Tests run 42079224091 on that head passed all nine jobs.
   - [Main Tests run 42080888486](https://github.com/YotsuBotfds/Chronicler/actions/runs/42080888486) tested the merge SHA on `push`, attempt 1: success, all nine jobs (optional cache steps skipped, no job skipped).
 
-Every livelihoods and recovery-skills switch is off by default. These merges do not complete the 200-seed or
+- [PR #78](https://github.com/YotsuBotfds/Chronicler/pull/78) (productive recovery,
+  checkpoint 1: timber supply, operating wear and apprenticeship rules version 2,
+  recovery crews and the maintenance obligation) merged on 2026-11-06 at
+  `dde5c00406e0999ed26e1f03312121c5e08f6cb5`.
+  - Its tree, `8a2ffc12`, equals the tree of the reviewed head `005880b6`.
+  - Premerge Tests run 42147761904 on that head passed all nine jobs.
+  - [Main Tests run 42149350923](https://github.com/YotsuBotfds/Chronicler/actions/runs/42149350923)
+    tested the merge SHA on `push`, attempt 1: success.
+
+Every livelihoods, recovery-skills and productive-recovery switch is off by default. These merges do not complete the 200-seed or
 procedural qualification gates. What landed, the review and the evidence are in the
 [continuation ledger](CONTINUATION.md) and the PR descriptions.
 
