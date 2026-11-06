@@ -273,6 +273,21 @@ open questions follow each summary.
   purpose (`wares_purchase`); A3-2's native column that keeps firm output out of the shared stock is
   batched with A4's merchant payment operation into one later native build. CW2 runs after A3-2.
 
+### 5.7 A4 merchants and owned cargo ([audit](../audits/connected-world/audit-a4-merchants-owned-cargo.md))
+- Merchants carry only commons stock; merchant_trade_income is model-created and paid to every merchant in a region regardless of carriage (economy.rs:2082-2129, tick.rs:1566); under retail owned food never loads and imports become free rations; retail at `all` stopped food trade on a development world (0 food delivered in 200 turns vs ~400) despite profitable gaps in 160/200 turns. Timber-poor worlds lack production as well as access (RS2 timber need never enters market demand; timber shares a price category with ore; usable timber within two hops covers ≤29% of the gap). Correction to A3: A3-2's owned-output column does not let native merchants carry owned goods. Defect recorded: merchant income computed by origin but paid by current region.
+- Decisions: A4-1 `--titled-trade` (food, between retail pilot regions first) with Python-held title/custody per shipment by stable id (grain-convoy/PL1 pattern); merchants buy only owners' surplus above their fair-share reserve, pro rata, at the local retail price, paying owners directly; delivered cargo becomes the merchant's retail claim sold through existing settlement; the carrier's model income is withheld while on a shipment (exact receipt) so margins replace it; every event has one declared outcome (A4-1: conquest of destination returns the shipment to origin; carrier death escheats cargo to the commons of the region of death, recorded; A4-2 replaces these with requisition/seizure via A5/D4/C1 hooks); no tolls; timber orders/escrow decided at A4-3; purpose codes appended in landing order (cargo_purchase, cargo_sale, then D4 restitution); A4's native parts (settle_pairs, trade work reservation, merchant planner skip, FFI) batched with A3-2's firm-output column into one native build. A4-1 starts after S1 and A3 merge.
+
+### 5.8 Evidence so far (held screens)
+
+- **CW4** (C1 quarantine, PR #85): both primaries null in both strata — a trade-only closure did not
+  cut cross-polity epidemic arrivals or the epidemic death rate in hybrid worlds; harms in forgone
+  route income, merchant unwinds, food shortfall after relief and migration. Motivated C1b.
+- **CW1** (S1 wages and enrollment): at fixed enrollment the wage raised money credited to households
+  in every activated world (template 4/1, procedural 6/0); wider `paid_work` enrollment alone lowered
+  it in every activated world (0/5, 0/6), mostly through replaced farm income (59% template, 86%
+  procedural) and partly lower remittances; the wage's effect on the priced-out rate was null.
+  Checkpoint 3's fall in household money came from enrollment, not the wage.
+
 ## 6. Turn-order table
 
 Maintained as slices land.
