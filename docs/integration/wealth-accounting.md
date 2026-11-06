@@ -59,9 +59,14 @@ close_r - open_r = (migration_in_r - migration_out_r)
 - `typed`: located typed flows (below).
 - `native_model`: **the residual, labelled, not itemized in slice 1** -
   occupational income net of withheld shares, decay, the wealth ceiling,
-  birth endowments, estates without heirs and inheritance overflow. Per region
-  it also holds the f32 rounding of typed transfers (audit D4) and typed flows a
-  package recorded in another region than the payee's opening region.
+  birth endowments, estates without heirs and inheritance overflow, plus the
+  f32 rounding of typed transfers (audit D4, in the world residual too). **Per
+  region it also holds every unlocated typed flow** (`unlocated_in_milli`,
+  `unlocated_out_milli`: granary procurement, L7 fares beyond the kept sample,
+  domestic credit, wages of PL3 receipts dropped by its row cap) and typed
+  flows a package recorded in another region than the payee's opening region,
+  so a region's residual is not model-only while unlocated flows are non-zero.
+  The record's own label says so.
 
 World: `close - open = typed_net_milli / 1000 + native_model`, with
 `typed_net_milli` including the `unlocated` flows (a package that records no
@@ -88,7 +93,19 @@ a death without heirs). Slice 2 (a native observer) will itemize it.
 | `food_purchase` | buyers -> sellers in the tick (L6b) | retail `money`, `frame[].provisioning` | pilot region | paid = credited + refunded; household net = 0 |
 | `remittance` | sender -> recipient, fee to the courier sink (RS4) | RS4 `totals`, `regions` | host (out), origin (in) | debited = credited + fee; sent = debited + refunded |
 | `relocation_fare` | movers -> travel sink (L7) | the `fare_debited_milli` counter delta; the kept household sample for regions | from region (sample), rest unlocated | due - assistance = debited + residual + not charged; travel sink = fares + assistance coins x 1000 |
-| `domestic_credit` | treasury <-> merchants, net applied | `domestic_credit.merchant_applied` delta | unlocated | (its own books: `CHRONICLER_CHECK_RESOURCES=1`) |
+| `domestic_credit` | treasury <-> merchants, net applied | `domestic_credit.merchant_applied` delta, rounded to whole milli-units (the sub-milli rest of the f32 change stays in `native_model`) | unlocated | (its own books: `CHRONICLER_CHECK_RESOURCES=1`) |
+
+Every typed amount is a whole milli-unit. `typed_complete` means **every known
+channel** of an active package had this turn's record. A payer this module
+does not know cannot pass unnoticed: `wealth_accounting_state.WEALTH_WRITERS`
+registers every Python call site of a native method that writes wealth or
+withholds income (`transfer_wealth`, `remit_wealth`,
+`apply_merchant_transfers`, `set_household_retail`, `install_paid_work`,
+`extend_paid_work`, `install_retail_income`) with the channel the ledger reads
+it as, and `tests/test_wealth_accounting.py` walks `src/` and fails on an
+unregistered call site (or a stale row). A new payer (for example A3's
+`money.py`) adds one row and its channel. A native test also fails when
+`AgentSimulator.wealth_transfer_purposes()` grows past `KNOWN_PURPOSES`.
 
 Created or destroyed, recorded beside the typed flows (`frame.treasury`):
 
@@ -96,10 +113,14 @@ Created or destroyed, recorded beside the typed flows (`frame.treasury`):
   units, reproduced exactly from `economy_result.treasury_tax` and the
   fractional carry read at the opening. **Credited to the treasury, debited
   from nobody** (audit D3).
-- `created.tithe_offered`: `int(TITHE_RATE x tithe base)` per civilization
-  with regions - credited (debited from nobody) only where the clergy held the
-  faction threshold at the faction tick. `tithe_collected` is **None**: slice 1
-  cannot observe that threshold after the faction tick normalizes influence.
+- `tithe` (not in `created`): `potential` is `int(TITHE_RATE x tithe base)`
+  per civilization with regions - an **upper bound, not created money**;
+  `at_threshold_after_tick` is the part of civilizations whose clergy influence
+  is at the faction threshold after the faction tick (`approximate: true`: the
+  tick tests the threshold before it normalizes influence); `collected` is
+  **None**. What is collected is credited to the treasury and debited from
+  nobody (audit D3). On the development worlds below the approximate collected
+  part is 39% and 14% of the potential.
 - `to_households_milli`: wages and procurement credits paid from treasuries;
   `firm_cash`: treasury purchases into L6a firm cash and what firm cash paid
   out; `charged`: whole treasury units charged by RS2, PL1 and L7 assistance;
@@ -115,9 +136,15 @@ attached apprentices (version-2 crew members are L6a crew), PL3 granary crews,
 PL3 workshop crews (RS2's workshop crews drawn from PL3's widened pool), RS2
 workshop crews without PL3, PL1 woodcutters - and checked against each
 package's own counter (`package_total`, `matches`; RS2's counter covers PL3's
-workshop crews). `unattributed_rows` and `conflicts` are 0 on every world
-checked. `retail_income_replaced` is L6b's replaced farm income (also no
-money).
+workshop crews). While PL3 is active every RS2 workshop crew is a PL3
+workshop crew, so a member only RS2 names was on a PL3 receipt dropped by its
+64-row cap: such rows are counted in `unattributed_rows` and
+`unattributed_pl3_dropped_rows`, never credited to RS2. `unattributed_rows`
+and `conflicts` are 0 on every world checked. `retail_income_replaced` is
+L6b's replaced farm income (also no money), shown whenever retail is active,
+with or without a paid-work package (`paid_work_active` false: the paid-work
+fields are null, not zero; `retail_income_replaced` null: retail off or not
+observed this turn).
 
 ## Recorded limit RL7: separate granary and workshop income withholding
 
@@ -125,7 +152,7 @@ Class: evidence gap. Disposition (this slice): **resolved by attribution**.
 `frame.withheld.recovery_crews` holds `granary`, `workshop`, PL3's own total
 for the turn (the delta of its `income_replaced` counter), `difference` and
 `closes`, plus PL3 receipt rows dropped by its 64-row frame cap that turn
-(their members would be unattributed). Tested: offline (constructed) and on
+(their members are unattributed, as above, and the split then does not close). Tested: offline (constructed) and on
 template seed 7 (80 turns, both crew kinds in the same turn) and the
 `hybrid_s42` 200-turn all-switch run (19 turns with both kinds); the split
 closed on every turn.
@@ -165,11 +192,13 @@ Stage `A1`, `schema_version` 1, dated by `source_turn` (the completed turn):
    typed: [{channel, package, payer, observed, in_milli, out_milli,
             unlocated_in_milli, unlocated_out_milli}],  # active channels, declaration order
    closures: [{channel, check, lhs, rhs, closes}],
-   withheld: null | {rows, deducted, packages: [{package, rows, deducted, ordinary,
-                     package_total, matches}], unattributed_rows, unattributed_deducted,
-                     conflicts, recovery_crews: null | {granary, workshop, total, difference,
-                     closes, rows_dropped}, retail_income_replaced},
-   treasury: {created: {treasury_tax, tithe_offered, tithe_collected: null},
+   withheld: null | {paid_work_active, rows, deducted, packages: [{package, rows, deducted,
+                     ordinary, package_total, matches}], unattributed_rows,
+                     unattributed_pl3_dropped_rows, unattributed_deducted, conflicts,
+                     recovery_crews: null | {granary, workshop, total, difference, closes,
+                     rows_dropped}, retail_active, retail_income_replaced},
+   treasury: {created: {treasury_tax},
+              tithe: {potential, at_threshold_after_tick, approximate: true, collected: null},
               to_households_milli, firm_cash, charged, sinks_milli, by_civ: [...]}},
  lifetime: {...}, counters: {...}, log: [{turn, kind, detail}], log_dropped,
  labels: {...}, parameters: {...}}
@@ -183,9 +212,15 @@ reference for viewer and analysis readers):
 - **unobserved**: `frame` is null - the turn had no opening or no closing
   (unknown, not zero);
 - **observed**: a frame; its zeros are recorded zeros. Inside a frame,
-  `withheld` is null when no paid-work package is active (not zero), a typed
-  row with `observed: false` is an active package without this turn's frame
-  (`typed_complete` is then false), and `tithe_collected` is always null.
+  `withheld` is null when neither a paid-work package nor retail is active, its
+  paid-work fields are null when no paid-work package is active (not zero), a
+  typed row with `observed: false` is an active package without this turn's
+  frame (`typed_complete` is then false), and `tithe.collected` is always null.
+
+The viewer reads the record in `viewer/src/lib/wealthAccounting.ts`
+(`readWealthAccounting`: absent, malformed with its reason, unobserved,
+observed) and shows it in the Livelihoods panel
+(`viewer/src/components/systems/WealthAccounting.tsx`).
 
 ## Checkpoints, resume and switches
 
@@ -227,11 +262,13 @@ Registered in `feature_catalog.REQUIREMENTS` (`--agents hybrid`), in
   heir (audit D1, D2), and add a `strict` mode.
 - Unlocated: granary procurement credits, L7 fares beyond the 64 kept
   households, domestic credit (net per turn only; signs within a turn cancel).
-- The PL3 frame keeps 64 receipts; members of dropped receipts would be
-  unattributed (counted in `rows_dropped`; 0 on every world checked).
+- The PL3 frame keeps 64 receipts; members of dropped receipts are
+  unattributed (`unattributed_pl3_dropped_rows`, `rows_dropped`; 0 on every
+  world checked).
 - Typed transfers are integer milli-units applied to f32 balances (audit D4):
   the per-row rounding lands in `native_model`.
-- `tithe_collected` is not observed (see above).
+- The collected tithe is not observed; `at_threshold_after_tick` approximates
+  it from the influence after the faction tick (see above).
 - Development measurements only (below); no screen, no held seed.
 
 ## Evidence (development worlds, not a screen)
@@ -258,10 +295,15 @@ Typed flows by channel (units, in / out): template 23 - food purchases
 procurement 8.0. Withheld (no money): PL1 104.3 / 162.0, PL3 granary 34.6 /
 47.8, PL3 workshop 11.7 / 6.3 (both kinds in the same turn on 64 / 51 turns).
 
-Treasury side: created treasury tax 1,474 / 3,110 units and tithe offered
-1,287 / 4,386 units, against 615.5 / 1,004.9 units paid from treasuries to
-households (RS2, PL3, PL1 wages and procurement) and 593 / 1,001 units charged
-by RS2 and PL1. The audit's independent estimates for the same flags (its
+Treasury side: created treasury tax 1,474 / 3,110 units, against 615.5 /
+1,004.9 units paid from treasuries to households (RS2, PL3, PL1 wages and
+procurement) and 593 / 1,001 units charged by RS2 and PL1. The clergy tithe's
+potential was 1,287 / 4,386 units, of which about 502 / 627 fell to
+civilizations whose clergy was at the threshold after the faction tick
+(approximate collected tithe, also debited from nobody); an earlier draft of
+this page reported the potential as created money. Retail replaced 2,154.4 /
+3,386.3 units of farm income (withheld, no money), equal to the audit's figure
+for its `CH_pw` arm. The audit's independent estimates for the same flags (its
 `CH_pw` arm, section 2.1) were a change of +425 and +2,368 with typed net
 +510 and +782.
 
