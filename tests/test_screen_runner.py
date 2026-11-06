@@ -88,6 +88,8 @@ def test_registry_union_covers_the_audit_union(SR, registry):
     assert 23 in SR.seed_sets(registry, "template")["development"]
 
 
+#: Screens whose held run ``mark-run`` recorded in the registry (complete).
+RECORDED = {"CW4"}
 PROGRAM = {"CW1": (731, 831), "CW2": (741, 841), "CW3": (751, 851), "CW4": (761, 861), "CW5": (771, 871),
            "CW6": (781, 881)}
 
@@ -96,8 +98,11 @@ PROGRAM = {"CW1": (731, 831), "CW2": (741, 841), "CW3": (751, 851), "CW4": (761,
 def test_program_reservations(SR, registry, CW, screen):
     t0, p0 = PROGRAM[screen]
     own = [e for e in registry["entries"] if e.get("screen") == screen]
+    status = "run" if screen in RECORDED else "reserved"
     assert {(e["stratum"], e["status"], e["cohort"], e["program"]) for e in own} == {
-        ("template", "reserved", "held", "connected-world"), ("procedural", "reserved", "held", "connected-world")}
+        ("template", status, "held", "connected-world"), ("procedural", status, "held", "connected-world")}
+    if screen in RECORDED:
+        assert all(e["held_run"]["complete"] for e in own)
     got = {e["stratum"]: SR.expand(e["seeds"]) for e in own}
     assert got == {"template": set(range(t0, t0 + 6)), "procedural": set(range(p0, p0 + 6))}
     assert CW.SCREENS[screen].held == {"template": tuple(range(t0, t0 + 6)), "procedural": tuple(range(p0, p0 + 6))}
@@ -154,8 +159,13 @@ def test_validate_registry_refuses(SR, registry, change):
 
 @pytest.mark.parametrize("name", ["CW1", "CW2", "CW3", "CW4", "CW5", "CW6", "DEV"])
 def test_program_cohorts_pass(SR, registry, CW, name):
-    problems, notes = SR.check_seeds(CW.SCREENS[name], registry)
+    problems, notes = SR.check_seeds(CW.SCREENS[name], registry, reuse="recorded" if name in RECORDED else "refuse")
     assert problems == []
+    if name in RECORDED:
+        # A recorded held cohort refuses a new held run of it, and is noted as recorded.
+        assert any("already run" in p for p in SR.check_seeds(CW.SCREENS[name], registry)[0])
+        assert sum("was recorded as run (complete" in n for n in notes) == 2
+        notes = [n for n in notes if "was recorded as run" not in n]
     # The shared pilot was also seen by old exploratory batches: a note, not a refusal.
     assert all("pilot seed" in n for n in notes)
 
@@ -608,8 +618,10 @@ def test_registry_content_hash_ignores_run_records_only(SR, registry):
 def test_check_command_reports_stubs_not_ready(SR, CW, capsys):
     assert CW.main(["check", "--screen", "all"]) == 2
     text = capsys.readouterr().out
-    for name in ("CW1", "CW2", "CW3", "CW4", "CW5", "CW6"):
+    for name in ("CW1", "CW2", "CW3", "CW5", "CW6"):
         assert f"{name}: seeds OK" in text and f"{name}: NOT READY" in text
+    # CW4 is declared by slice C1 (tests/test_cw4_screen.py).
+    assert "CW4: seeds OK" in text and "CW4: extractor, packages, 4 arms and 23 outcomes (2 primary): OK" in text
     assert "DEV: extractor, packages, 2 arms and 3 outcomes (2 primary): OK" in text
     assert CW.main(["check", "--screen", "DEV"]) == 0
     assert CW.main(["registry"]) == 0

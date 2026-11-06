@@ -21,12 +21,23 @@
   42274171595 and main Tests 42275935233 green on all nine jobs): plan, board, audits and lane E1 —
   seed registry, generic screen runner, compatibility matrix, RL8 viewer readers. No simulation
   change.
-- **PR 2** (`claude/cw-pr2-watershed`): lane B1, `--watershed` mode `record_only` — drainage graph
+- **PR #84 merged** at `13340446` (tree `51b7a7cd` = reviewed head `dfdd772a`; premerge Tests
+  42280073920 and main Tests 42281625835 green): lane B1, `--watershed` mode `record_only` — drainage graph
   rebuilt from procedural elevation (reproduces every saved river step), a conserved per-region
   water account with closure checks, flood and drought records, a viewer panel; procedural worlds
   only; no effect on the simulation (record_only identity holds on the full RS/PL stack). The
   development calibration shows the declared constants lose water (storage 34 → 10–14 wu), to be
   recalibrated before `flow` mode.
+- **PR 3** (`claude/cw-cw4-screen`): lane C1 `--quarantine-mode legacy|none|cost_only|closure`
+  (omitted = legacy, byte-identical; new modes close trade routes and the merchant graph to polities
+  with reported outbreaks, no import multiplier, an enforcement cost instead of the flat charge;
+  relief convoys, armies and hostages exempt) and the **CW4 held screen** (template 761–766,
+  procedural 861–866, frozen before running, one amendment before any held run): 48 runs, 0 failed,
+  0.153 core-hours. **Both primaries null** in both strata (whole-run world cross-polity arrivals and
+  epidemic death rate, closure against cost-only). Harms: forgone route income, more merchant
+  unwinds, more food shortfall after relief (procedural 5 of 6), more migration. A trade-only closure
+  does not cut arrivals in hybrid worlds, where migrants carry most cross-polity contact; migration
+  closure (C1b) is the next public-health slice.
 - **Lanes in flight** (each on its own branch, provisional witness layers regenerated at
   integration): A5 retail rules v2, war reaches owned stock once per event (RL1–RL3; review
   merge-ready); A1 `--wealth-accounting` observation ledger (RL7; review fixes); B1 `--watershed
