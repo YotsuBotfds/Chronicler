@@ -440,7 +440,7 @@ def _chain_index(hist) -> dict:
     """One pass over the dated records, keyed by snapshot turn ``T`` (each record
     observes the completed turn ``T - 1``)."""
     ix = {k: {} for k in ("stall", "rs2", "rs2_at", "closed", "open_at", "delivered", "launch", "ts_rx", "stores",
-                          "crews", "frames", "sample", "opened", "food")}
+                          "crews", "frames", "sample", "opened", "food", "l3")}
     ix["ts_list"], ix["crew_list"], ix["rs2_list"] = [], [], []
     for snap in hist:
         T = snap.get("turn")
@@ -480,7 +480,15 @@ def _chain_index(hist) -> dict:
                 ix["opened"].setdefault(rec["region"], rec)
         for row in (snap.get("food_accounting") or {}).get("regions") or []:
             ix["food"][(T, row.get("region_id"))] = row
+        for row in _rows(_liv(snap, "timber_stock"), "regions"):
+            ix["l3"][(T, row.get("region_id"), row.get("slot"))] = row
     return ix
+
+
+def _l3(ix, T, r) -> dict | None:
+    """The forest slot's L3 ledger row of snapshot ``T`` (what moved its stock)."""
+    row = ix["l3"].get((T, r.get("forest"), r.get("slot")))
+    return None if row is None else _pick(row, "opening", "cleared", "extraction", "regrowth", "stock", "capacity")
 
 
 def _wage_snapshots(ix) -> dict[int, dict[int, list]]:
@@ -719,16 +727,26 @@ def _tradeoffs(hist, ix=None) -> dict:
             fall = r["stock_before"] - r["stock_after"]
             falls += fall > 0
             if fall > 0 and (cut is None or fall > cut[1]["stock_fall"]):
-                cut = (T, {**_pick(r, "eid", "home", "forest", "crew", "cut", "stock_before", "stock_after", "capacity"),
+                cut = (T, {**_pick(r, "eid", "home", "forest", "slot", "crew", "cut", "stock_before", "stock_after",
+                                   "capacity"),
                            "stock_fall": round(fall, 6), "share_before": round(r["stock_before"] / r["capacity"], 6),
-                           "share_after": round(r["stock_after"] / r["capacity"], 6)})
+                           "share_after": round(r["stock_after"] / r["capacity"], 6), "l3_row": _l3(ix, T, r)})
         if guard is None and r.get("cut_end") == "forest_depleted":
-            last = [(t, x) for t, x in ix["ts_rx"].get(r["eid"], []) if t < T and x.get("stage") == "cutting"
-                    and isinstance(x.get("stock_after"), (int, float)) and (x.get("capacity") or 0) > 0]
-            guard = (T, {**_pick(r, "eid", "home", "forest", "stage", "cut_end", "cargo_after"),
+            worked = [(t, x) for t, x in ix["ts_rx"].get(r["eid"], []) if t < T and x.get("stage") == "cutting"]
+            last = [(t, x) for t, x in worked
+                    if isinstance(x.get("stock_after"), (int, float)) and (x.get("capacity") or 0) > 0]
+            span = range(worked[0][0], T + 1) if worked else range(T, T + 1)
+            rows = [_l3(ix, t, r) for t in span]
+            rows = [x for x in rows if x is not None]
+            guard = (T, {**_pick(r, "eid", "home", "forest", "slot", "stage", "cut_end", "cargo_after"),
+                         "crew_cut": round(sum(x.get("cut") or 0 for _t, x in worked), 6),
                          "last_cutting_snapshot": last[-1][0] if last else None,
                          "last_cutting_share_after": round(last[-1][1]["stock_after"] / last[-1][1]["capacity"], 6)
-                         if last else None})
+                         if last else None,
+                         "l3_snapshots": [span[0], span[-1]],
+                         "l3_cleared": round(sum(x.get("cleared") or 0 for x in rows), 6),
+                         "l3_extraction": round(sum(x.get("extraction") or 0 for x in rows), 6),
+                         "l3_capacity_after": rows[-1].get("capacity") if rows else None})
     family = None
     hits = 0
     if not ix["sample"]:
@@ -777,9 +795,11 @@ CHAIN_FIELDS_READ = {
     ("timber_supply_state", "Expedition"): {"eid", "civ", "home", "forest", "hops", "launched_turn", "ended_turn",
                                             "launched_crew", "crew", "cut", "delivered", "wages_milli",
                                             "away_delivered", "status"},
-    ("timber_supply_state", "ExpeditionReceipt"): {"eid", "home", "forest", "stage", "crew", "wages_milli",
+    ("timber_supply_state", "ExpeditionReceipt"): {"eid", "home", "forest", "slot", "stage", "crew", "wages_milli",
                                                    "away_delivered", "cut", "stock_before", "stock_after",
                                                    "capacity", "cut_end", "cargo_after"},
+    ("timber_stock_state", "TimberLedgerRow"): {"region_id", "slot", "opening", "cleared", "extraction", "regrowth",
+                                                "stock", "capacity"},
     ("timber_supply_state", "StoreRow"): {"region", "held", "delivered", "closing"},
     ("timber_supply_state", "NeedRow"): {"want", "free", "gap", "status", "eid"},
     ("recovery_crews_state", "CrewReceipt"): {"pid", "members"},
