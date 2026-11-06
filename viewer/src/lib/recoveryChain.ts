@@ -554,26 +554,26 @@ export function farmLabourAway(t: ChainTurn): { pl1: number | null; pl3: number 
   return { pl1: w ? sum(w.pl1) : null, pl3: w ? sum(w.pl3) : null };
 }
 
-/** Budget limits recorded this turn: RS2 stalls or limits for coins or the envelope, PL1 refusals for coins,
- * PL1 recalls and unpaid turns, and wages the wealth ceiling refused. */
-export function budgetLimits(t: ChainTurn): string[] {
-  const out: string[] = [];
-  const repair = has(t.repair);
-  for (const r of repair?.receipts ?? []) {
-    for (const reason of r.reasons) if (reason === "no_coins" || reason === "no_envelope")
-      out.push(`project #${r.pid} ${r.status === "stalled" ? "stalled" : "limited"}: ${reason === "no_coins" ? "treasury short" : "no repairs envelope"}`);
+/** Budget limits recorded this turn, by link: RS2 stalls or limits for coins or the envelope, a PL1 refusal for
+ * coins, PL1 recalls and unpaid turns, and wages the wealth ceiling refused. */
+export function budgetLimits(t: ChainTurn): Array<{ link: "repair" | "expedition" | "wages"; text: string }> {
+  const out: Array<{ link: "repair" | "expedition" | "wages"; text: string }> = [];
+  for (const r of has(t.repair)?.receipts ?? []) {
+    for (const reason of r.reasons) if (reason === "no_coins" || reason === "no_envelope") out.push({ link: "repair",
+      text: `project #${r.pid} ${r.status === "stalled" ? "stalled" : "limited"}: ${reason === "no_coins" ? "treasury short" : "no repairs envelope"}` });
   }
   const exp = has(t.expedition);
   if (exp && exp.need !== null && exp.need !== "none" && exp.need.status === "refused" && exp.need.reason === "no_coins")
-    out.push("no expedition: the treasury cannot pay one");
+    out.push({ link: "expedition", text: "no expedition: the treasury cannot pay one" });
   for (const r of exp?.receipts ?? []) {
-    if (r.recalled) out.push(`expedition #${r.eid} recalled (treasury could not pay)`);
-    else if (r.unpaid) out.push(`expedition #${r.eid} unpaid this turn`);
+    if (r.recalled) out.push({ link: "expedition", text: `expedition #${r.eid} recalled: the treasury could not pay` });
+    else if (r.unpaid) out.push({ link: "expedition", text: `expedition #${r.eid} unpaid this turn` });
   }
   const w = has(t.wages);
   const refused = w ? [w.pl3, w.rs2, w.pl1].flatMap((c) => c.state === "known" ? c.value.rows : [])
     .reduce((a, r) => a + r.refusedMilli, 0) : 0;
-  if (refused > 0) out.push(`${(refused / 1000).toLocaleString(undefined, { maximumFractionDigits: 3 })} coins of wages refused by the wealth ceiling`);
+  if (refused > 0) out.push({ link: "wages",
+    text: `${(refused / 1000).toLocaleString(undefined, { maximumFractionDigits: 3 })} coins of wages refused by the wealth ceiling` });
   return out;
 }
 

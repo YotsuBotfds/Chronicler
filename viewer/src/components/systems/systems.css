@@ -602,3 +602,9 @@ button.systems-strip-label:hover {
     display: none;
   }
 }
+
+/* Recovery chain (PL5c): the region picker's label, as the shell's field labels. */
+.recovery-chain-field label {
+  color: var(--phase75-muted-strong);
+  font-size: 0.82rem;
+}
