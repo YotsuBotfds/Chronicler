@@ -111,8 +111,13 @@ imports, convoy and granary grain stay commons.
   (either parent id) in the claim's region, largest remainder, ascending id; else to
   that region's commons (`escheat`). An heir beyond the claims cap is refused and that
   share escheats. A claim whose owner died in the tick before provisioning (phase 0.0
-  deaths) is withheld whole by the native step, neither offered nor eaten, so the heirs
-  receive all of it.
+  deaths) is withheld whole by the native step, so the heirs receive all of it. It
+  stays in `offered_milli`, is neither sold nor eaten (its claim row reads `(owner,
+  region, 0, 0)`), and counts in `unsold_milli` and in `withheld_dead_claims` /
+  `withheld_dead_milli`. Settlement checks those two columns exactly: exactly
+  `withheld_dead_claims` of the zero rows of owners dead after the tick must sum to
+  exactly `withheld_dead_milli`. It cannot require all of them, because natural deaths
+  come after phase 0.7, so an owner dead after the tick may have been alive to sell.
   - Native estate order (`household.rs`): spouse first, then dependants anywhere, then
     all children anywhere. Python follows lead decision 6: children in the claim's
     region only, all ages, equally. The spouse case agrees. Child cases can differ;
@@ -180,9 +185,11 @@ them:
 `region`, `price_milli`, `free_rations`, `free_given`, `free_unallocated`,
 `offered_milli`, `own_eaten_milli`, `sold_milli`, `unsold_milli`, `paid_milli`,
 `credited_milli`, `refunded_milli`, `rations` (sum of person rations), `persons`,
-`priced_out_persons`, `offer_short_persons`.
+`priced_out_persons`, `offer_short_persons`, `withheld_dead_claims`,
+`withheld_dead_milli`.
 
-Other columns are kept in the frame as given.
+Other columns are kept in the frame as given. The frame must also carry one claim row
+for every installed claim.
 
 ### Snapshot
 
@@ -215,13 +222,14 @@ Raised on failure (`RetailAccountingError`, a `RuntimeError`):
   - `free_given + free_unallocated = free_rations`, and `free_rations` equals the
     install;
   - `own_eaten + sold = offered − unsold`;
-  - `offered` equals the installed claims, less only the withheld claims of owners
-    dead after the tick with no claim row (equal to `withheld_milli` when reported);
+  - `offered` equals the installed claims;
+  - `withheld_dead_milli ≤ unsold`, and exactly `withheld_dead_claims` of the zero
+    claim rows of owners dead after the tick sum to exactly `withheld_dead_milli`;
   - the claim rows sum to the region's `own_eaten` and `sold`;
   - `sum(person rations) = free_given + (own_eaten + sold) / ration`, each ration at
     most 1.
-- **Claim rows.** Each names an installed claim once, and `own + sold` does not exceed
-  it.
+- **Claim rows.** There is exactly one per installed claim, and `own + sold` does not
+  exceed it.
 - **Money.** Per row, `paid`, `credited` and `refunded` are nonnegative and `refunded ≤
   paid`. `Σ paid = Σ credited + Σ refunded`, per region and over the rows, and the two
   totals agree. `free_exchange` moves no money.

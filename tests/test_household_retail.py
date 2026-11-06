@@ -97,7 +97,7 @@ class FakeSim:
         self.die_after: set[int] = set()
         self.moves: dict[int, int] = {}
         self.skip_retail = False
-        self.columns = (*HR.FRAME_COLUMNS, "withheld_milli")
+        self.columns = HR.FRAME_COLUMNS
 
     def add(self, aid, region, *, occupation=0, age=30, wealth=5.0, settlement=0, parents=(0, 0)):
         self.people[aid] = {"id": aid, "region": region, "origin_region": region, "occupation": occupation,
@@ -247,14 +247,17 @@ class FakeSim:
 
     def _retail(self, install):
         turn, mode, regions, claims = install
-        # The native rule: a claim whose owner died before provisioning is
-        # withheld whole from the offer (neither eaten nor sold).
-        withheld = {r: 0 for r, _, _ in regions}
+        # The native rule (provisioning.rs): a claim whose owner died before
+        # provisioning stays in the offer but is withheld whole, neither eaten
+        # nor sold; it counts in unsold_milli and in withheld_dead_milli/_claims.
+        withheld = {r: [0, 0] for r, _, _ in regions}
         for o, r, m in claims:
             if o not in self.people:
-                withheld[r] += m
+                withheld[r][0] += 1
+                withheld[r][1] += m
+        installed = {(o, r): m for o, r, m in claims}
         remaining = {(o, r): m for o, r, m in claims if o in self.people}
-        used = {key: [0, 0] for key in remaining}
+        used = {key: [0, 0] for key in installed}               # a row for every installed claim
         money: dict[int, list[int]] = {}
         rows, sample = [], []
         for rid, price, free in regions:
@@ -263,7 +266,7 @@ class FakeSim:
             share = min(1.0, free / n) if n else 0.0
             ration = {a: share for a in persons}
             status = dict.fromkeys(persons, 0)
-            offered = sum(m for (o, r), m in remaining.items() if r == rid)
+            offered = sum(m for (o, r), m in installed.items() if r == rid)
             own = sold = paid_r = credited_r = refunded_r = 0
             for a in persons:                                  # own food first
                 key = (a, rid)
@@ -315,11 +318,10 @@ class FakeSim:
                    "rations": sum(ration.values()), "persons": n,
                    "priced_out_persons": sum(1 for s in status.values() if s == 1),
                    "offer_short_persons": sum(1 for s in status.values() if s == 2),
-                   "withheld_milli": withheld[rid]}
+                   "withheld_dead_claims": withheld[rid][0], "withheld_dead_milli": withheld[rid][1]}
             rows.append([float(row[c]) for c in self.columns])
             sample.extend((a, rid, a, float(f32(ration[a])), float(f32(share)), status[a]) for a in persons)
-        claim_rows = [(o, r, e, s) for (o, r), (e, s) in sorted(used.items(), key=lambda kv: (kv[0][1], kv[0][0]))
-                      if e or s]
+        claim_rows = [(o, r, e, s) for (o, r), (e, s) in sorted(used.items(), key=lambda kv: (kv[0][1], kv[0][0]))]
         money_rows = [(a, *v) for a, v in sorted(money.items()) if any(v)]
         return (turn, list(self.columns), rows, claim_rows, money_rows, sample, 0)
 
@@ -736,47 +738,97 @@ def test_death_passes_the_claim_to_the_spouse_then_children_then_commons():
     assert sum(after.values()) == sum(h.state.region(VERDANT).goods)
 
 
-@pytest.mark.parametrize("withheld_column", [True, False])
-def test_an_owner_dead_before_provisioning_is_withheld_and_inherited_whole(withheld_column):
-    """The native rule (PL4 native fix): the claim of an owner who died before
-    phase 0.7 is neither eaten nor sold; the heir receives the whole installed
-    claim. Python accepts the smaller offer only for such claims."""
+def test_an_owner_dead_before_provisioning_is_withheld_and_inherited_whole():
+    """The native rule: the claim of an owner who died before phase 0.7 stays in
+    the offer, is neither eaten nor sold (its row reads 0, 0), counts as unsold
+    and in withheld_dead_milli/_claims; the heir receives the whole claim. An
+    owner who dies later in the tick was offered normally and is not withheld."""
     h = Harness()
-    _people(h, VERDANT, (1, 2), wealth=0.0)
+    _people(h, VERDANT, (1, 2, 3), wealth=0.0)
     h.sim.add(5, VERDANT, occupation=2, wealth=30.0)        # a buyer with cash: the spouse of 1
     h.sim.marry(1, 5)
-    if not withheld_column:
-        h.sim.columns = HR.FRAME_COLUMNS
-    h.turn({VERDANT: {"grain": 4.0}})
-    h.sim.die_before = {1}
+    h.turn({VERDANT: {"grain": 6.0}})
+    h.sim.die_before, h.sim.die_after = {1}, {3}
+    rows = []
+    original = h.sim._retail
+    h.sim._retail = lambda install: rows.append(original(install)) or rows[-1]
     h.turn()
     installed = {(o, r): m for o, r, m in _calls(h.sim, "set_household_retail")[-1][4]}
-    frame = h.frame(VERDANT)
-    assert frame.provisioning["offered_milli"] == sum(m for (o, r), m in installed.items() if r == VERDANT) \
-        - installed[(1, VERDANT)]
+    prov = h.frame(VERDANT).provisioning
+    assert prov["offered_milli"] == sum(m for (o, r), m in installed.items() if r == VERDANT)
+    assert (prov["withheld_dead_claims"], prov["withheld_dead_milli"]) == (1, installed[(1, VERDANT)])
+    assert prov["unsold_milli"] >= prov["withheld_dead_milli"]
+    assert (1, VERDANT, 0, 0) in rows[-1][3]
     (record,) = [r for r in h.state.log if r.kind == "inherited" and r.owner == 1]
     assert (record.other, record.note, record.milli) == (5, "spouse", installed[(1, VERDANT)])
     assert _owners(h, VERDANT)[5] == installed[(1, VERDANT)] and 1 not in _owners(h, VERDANT)
+    assert 3 not in _owners(h, VERDANT)                      # died after selling: escheat or heirs, not withheld
 
 
-def test_a_missing_offer_of_a_living_owner_is_refused():
-    h = Harness()
-    _people(h, VERDANT, (1, 2), wealth=0.0)
-    h.turn({VERDANT: {"grain": 4.0}})
+def _corrupt(h, change):
+    """Replace the stand-in frame's region row through ``change(row, cols)``."""
     original = h.sim._retail
 
-    def short(install):
+    def frame_of(install):
         frame = list(original(install))
         frame[2] = [list(row) for row in frame[2]]
         cols = list(frame[1])
         for row in frame[2]:
-            for name in ("offered_milli", "unsold_milli"):
-                row[cols.index(name)] -= 1                     # 1 milli of a living owner vanishes
-            row[cols.index("withheld_milli")] += 1
+            change(row, cols)
         return tuple(frame)
-    h.sim._retail = short
-    with pytest.raises(HR.RetailAccountingError, match="owners alive to sell"):
+    h.sim._retail = frame_of
+
+
+@pytest.mark.parametrize("change, message", [
+    # A living owner's claim reported as withheld: no dead owner holds it.
+    (lambda row, cols: row.__setitem__(cols.index("withheld_dead_claims"), 1) or
+     row.__setitem__(cols.index("withheld_dead_milli"), 1), "owners dead before selling"),
+    # 1 milli of a living owner's offer vanishes from the offer.
+    (lambda row, cols: [row.__setitem__(cols.index(n), row[cols.index(n)] - 1)
+                        for n in ("offered_milli", "unsold_milli")], "offered differs"),
+])
+def test_a_missing_or_withheld_offer_of_a_living_owner_is_refused(change, message):
+    h = Harness()
+    _people(h, VERDANT, (1, 2), wealth=0.0)
+    h.turn({VERDANT: {"grain": 4.0}})
+    _corrupt(h, change)
+    with pytest.raises(HR.RetailAccountingError, match=message):
         h.turn()
+
+
+def test_withheld_dead_claims_must_match_the_dead_owners_claims_exactly():
+    h = Harness()
+    _people(h, VERDANT, (1, 2, 3), wealth=0.0)
+    h.turn({VERDANT: {"grain": 6.0}})
+    h.sim.die_before = {1}
+    # One milli more than the dead owner's whole claim: no exact subset.
+    _corrupt(h, lambda row, cols: row.__setitem__(cols.index("withheld_dead_milli"),
+                                                  row[cols.index("withheld_dead_milli")] + 1))
+    with pytest.raises(HR.RetailAccountingError, match="owners dead before selling"):
+        h.turn()
+
+
+def test_a_frame_without_the_withheld_columns_or_a_claim_row_is_refused():
+    h = Harness()
+    _people(h, VERDANT, (1, 2), wealth=0.0)
+    h.turn({VERDANT: {"grain": 4.0}})
+    h.sim.columns = tuple(c for c in HR.FRAME_COLUMNS if not c.startswith("withheld_dead"))
+    with pytest.raises(RuntimeError, match="lacks columns"):
+        h.turn()
+    h2 = Harness()
+    _people(h2, VERDANT, (1, 2), wealth=0.0)
+    h2.turn({VERDANT: {"grain": 4.0}})
+    original = h2.sim._retail
+    h2.sim._retail = lambda install: (lambda f: (*f[:3], [r for r in f[3] if r[2] or r[3]], *f[4:]))(original(install))
+    h2.sim.die_before = {1}                                  # its 0, 0 row is dropped
+    with pytest.raises(RuntimeError, match="lacks the row"):
+        h2.turn()
+
+
+def test_exact_subset_is_exact():
+    assert HR._exact_subset([], 0, 0) and not HR._exact_subset([], 1, 0)
+    assert HR._exact_subset([5, 7, 9], 2, 16) and not HR._exact_subset([5, 7, 9], 2, 13)
+    assert HR._exact_subset([5, 7, 9], 3, 21) and not HR._exact_subset([5, 7, 9], 1, 6)
 
 
 def test_resume_with_a_prerequisite_off_refuses_until_retail_is_ended():
