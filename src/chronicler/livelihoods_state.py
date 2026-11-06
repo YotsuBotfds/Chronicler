@@ -8,8 +8,9 @@ independent switches was enabled: ``workshops`` (L1), ``food_allocation``
 ``apprenticeship`` (RS1), ``repair_projects`` (RS2),
 ``veteran_reintegration`` (RS3), ``remittances`` (RS4) and
 ``clearing_protection`` (RS5), and the productive-recovery phase's
-``operating_wear`` (PL2) and ``timber_supply`` (PL1). Each sub-state is owned
-by its own module and is None while that switch has never been enabled.
+``operating_wear`` (PL2), ``timber_supply`` (PL1), ``recovery_crews`` and
+``maintenance_obligation`` (PL3). Each sub-state is owned by its own module
+and is None while that switch has never been enabled.
 Pure data, importable by :mod:`chronicler.models`.
 """
 from __future__ import annotations
@@ -26,6 +27,8 @@ from chronicler.grain_convoys_state import GrainConvoyState
 from chronicler.learning_cohorts_state import LearningCohortState
 from chronicler.local_budgets_state import LocalBudgetState
 from chronicler.operating_wear_state import OperatingWearState
+from chronicler.maintenance_obligation_state import MaintenanceObligationState
+from chronicler.recovery_crews_state import RecoveryCrewsState
 from chronicler.relocation_costs_state import RelocationCostsState
 from chronicler.remittances_state import RemittancesState
 from chronicler.repair_projects_state import RepairProjectsState
@@ -41,7 +44,8 @@ LIVELIHOODS_SWITCHES: tuple[str, ...] = ("workshops", "food_allocation", "timber
                                          "relocation_costs", "local_budgets",
                                          "apprenticeship", "repair_projects", "veteran_reintegration",
                                          "remittances", "clearing_protection",
-                                         "operating_wear", "timber_supply")
+                                         "operating_wear", "timber_supply",
+                                         "recovery_crews", "maintenance_obligation")
 
 
 def _is_none(value) -> bool:
@@ -66,6 +70,8 @@ class LivelihoodsState(BaseModel):
     clearing_protection: ClearingProtectionState | None = Field(default=None, exclude_if=_is_none)
     operating_wear: OperatingWearState | None = Field(default=None, exclude_if=_is_none)
     timber_supply: TimberSupplyState | None = Field(default=None, exclude_if=_is_none)
+    recovery_crews: RecoveryCrewsState | None = Field(default=None, exclude_if=_is_none)
+    maintenance_obligation: MaintenanceObligationState | None = Field(default=None, exclude_if=_is_none)
 
     # Transient: ``id()`` of the native simulator whose pool the saved stable
     # ids belong to (``livelihoods.bind_native_pool``). Never serialized; an

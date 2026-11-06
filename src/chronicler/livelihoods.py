@@ -34,6 +34,10 @@ The productive-recovery phase appends:
   offset only by qualified upkeep (``--apprenticeship`` implies it).
 * ``--timber-supply`` (PL1): named, paid woodcutting expeditions that carry
   timber from a forest of the civ to its repair projects.
+* ``--recovery-crews`` (PL3): named granary repair crews paid from the granary's
+  existing coins, and a wider workshop repair pool that admits veterans;
+* ``--maintenance-obligation`` (PL3): a bounded L9 obligation reserved for RS2's
+  planned repair charges before the budget is bargained.
 
 This module owns only CLI forwarding, validation of prerequisites and the
 fan-out of phase hooks to each package's module ``chronicler.<switch>``.
@@ -82,6 +86,8 @@ LIVELIHOODS_CHOICES: dict[str, tuple[str, ...]] = {
     "remittance_mode": ("send", "record_only"),
     "clearing_protection_mode": ("enforced", "cost_only"),
     "timber_supply_mode": ("supply", "cost_only"),
+    "recovery_crew_mode": ("paid", "unpaid"),
+    "maintenance_obligation_mode": ("reserve", "reserve_only"),
 }
 #: All parser destinations owned here (``batch_manifest.SIMULATION_ARG_KEYS``).
 LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
@@ -98,6 +104,8 @@ LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     "clearing_protection", "clearing_protection_mode",
     "operating_wear",
     "timber_supply", "timber_supply_mode",
+    "recovery_crews", "recovery_crew_mode",
+    "maintenance_obligation", "maintenance_obligation_mode",
 )
 _AGENT_ECONOMY = ("hybrid", "shadow", "demographics-only")
 
@@ -248,6 +256,28 @@ _HELP = {
         "supply (default); cost_only: the cost-retaining control (the same expeditions, crews, "
         "travel, wages and home labour removal, no cutting: no timber and no stock debit)"
     ),
+    "recovery_crews": (
+        "Recovery crews (PL3): granary repair work is done by a named crew of adult farmers "
+        "resident in the granary's region, reserved for the turn and paid the granary's existing "
+        "coins per work as wages by stable id (no new money); workshop repair crews draw on the "
+        "site's whole region and admit eligible veterans of any non-enlisted occupation, their "
+        "paid share withheld from ordinary income; requires --agents hybrid and --repair-projects "
+        "(default off)"
+    ),
+    "recovery_crew_mode": (
+        "paid (default): the granary coins go to the crew as wages; unpaid: the control with the "
+        "same crews, income withheld and the same charge, the coins leaving the economy as before"
+    ),
+    "maintenance_obligation": (
+        "Maintenance obligation (PL3): before the L9 budget is bargained each ruler reserves its "
+        "repair projects' planned per-turn charges, capped at a declared share of the budget; "
+        "requires --local-budgets and --repair-projects (default off)"
+    ),
+    "maintenance_obligation_mode": (
+        "reserve (default): repairs may spend the reservation beyond their bargained envelope; "
+        "reserve_only: the crowding-out control that reserves the same amount but keeps repairs to "
+        "their envelope and returns the reservation unspent"
+    ),
 }
 
 
@@ -368,6 +398,12 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
                              "--apprenticeship or --repair-projects")
     if values["remittances"] is True and agent_mode != "hybrid":
         raise ValueError("--remittances requires --agents hybrid")
+    if values["recovery_crews"] is True:
+        if agent_mode != "hybrid" or not _on(world, values, "repair_projects"):
+            raise ValueError("--recovery-crews requires --agents hybrid and --repair-projects")
+    if values["maintenance_obligation"] is True:
+        if not (_on(world, values, "local_budgets") and _on(world, values, "repair_projects")):
+            raise ValueError("--maintenance-obligation requires --local-budgets and --repair-projects")
     # --clearing-protection has no prerequisite (it works in every ecology path).
     if values["operating_wear"] is True:
         if agent_mode != "hybrid" or not _workshops_operate(world, values, args):
@@ -425,6 +461,8 @@ _CHOICE_FIELDS: dict[str, tuple[str, str]] = {
     "remittance_mode": ("remittances", "mode"),
     "clearing_protection_mode": ("clearing_protection", "mode"),
     "timber_supply_mode": ("timber_supply", "mode"),
+    "recovery_crew_mode": ("recovery_crews", "mode"),
+    "maintenance_obligation_mode": ("maintenance_obligation", "mode"),
 }
 
 

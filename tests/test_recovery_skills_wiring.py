@@ -72,7 +72,7 @@ def parse(*argv):
 
 
 def test_switches_are_appended_in_order_with_their_choices():
-    # Later phases append after RS5 (PL2 operating_wear, PL1 timber_supply), so RS sits at 9..13.
+    # Later phases append after RS5 (PL2, PL1, PL3), so RS sits at 9..13.
     assert LIVELIHOODS_SWITCHES[9:14] == RS
     assert LIVELIHOODS_SWITCHES[:9] == ("workshops", "food_allocation", "timber_stock", "grain_convoys",
                                         "commons_rules", "learning_cohorts", "workshop_payroll",

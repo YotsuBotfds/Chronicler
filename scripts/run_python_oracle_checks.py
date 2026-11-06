@@ -357,6 +357,10 @@ CHUNKS = {
     "timber-supply": [
         "tests/test_timber_supply.py",
     ],
+    "productive-recovery-pl3": [
+        "tests/test_recovery_crews.py",
+        "tests/test_maintenance_obligation.py",
+    ],
     "expansion-wiring": [
         "tests/test_expansion_feature_wiring.py",
         "tests/test_expansion_experiment.py",

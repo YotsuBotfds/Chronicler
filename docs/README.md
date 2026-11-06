@@ -62,6 +62,8 @@ link to these by path, so keep their names stable.
   [clearing protection](integration/clearing-protection.md),
   [workshop apprenticeship](integration/apprenticeship.md),
   [repair projects](integration/repair-projects.md),
+  [recovery crews](integration/recovery-crews.md),
+  [maintenance obligation](integration/maintenance-obligation.md),
   [veteran reintegration](integration/veteran-reintegration.md),
   [remittances and the diaspora ledger](integration/remittances.md),
   [workshop operating wear](integration/operating-wear.md),
