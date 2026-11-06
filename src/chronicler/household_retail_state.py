@@ -80,6 +80,7 @@ COUNTERS: tuple[str, ...] = (
     "procurement_flows", "procurement_credited_milli", "procurement_residual_milli",
     "procurement_unpaid_milli", "requisition_exempt_region_turns",
     "priced_out_persons", "offer_short_persons", "income_replaced_rows",
+    "crew_farm_time_person_turns", "crew_farm_time_micro",
 )
 
 
@@ -87,7 +88,18 @@ def _is_none(value) -> bool:
     return value is None
 
 
-class RetailRegion(BaseModel):
+class _Backfilled(BaseModel):
+    """Exact pickle restoration bypasses defaults: fields added later read
+    their default when an older pickle lacks them."""
+
+    def __setstate__(self, state):
+        super().__setstate__(state)
+        for name, field in type(self).model_fields.items():
+            if name not in self.__dict__:
+                self.__dict__[name] = field.get_default(call_default_factory=True)
+
+
+class RetailRegion(_Backfilled):
     """One pilot region's owned food. ``sum(claims) == sum(goods)``."""
 
     region: int
@@ -98,6 +110,8 @@ class RetailRegion(BaseModel):
     claims: dict[int, int] = Field(default_factory=dict)
     #: Lifetime flows of this pilot entry, milli-food (FLOW_KINDS keys).
     totals: dict[str, int] = Field(default_factory=dict)
+    #: ``last_conquered_turn`` of the last conquest whose loss was applied.
+    war_loss_turn: int = -1
 
 
 class RetailRecord(BaseModel):
@@ -112,7 +126,7 @@ class RetailRecord(BaseModel):
     note: str | None = None
 
 
-class RegionFrame(BaseModel):
+class RegionFrame(_Backfilled):
     """One pilot region's completed turn. Food in milli-food; money milli-units.
 
     ``flows`` and ``commons`` are this turn's owned-pool flows (FLOW_KINDS,
@@ -136,6 +150,13 @@ class RegionFrame(BaseModel):
     #: record_only: what retail would have done this turn (title, price,
     #: free rations); None in every other mode.
     would_be: dict[str, float] | None = None
+    #: Ordinary farm income replaced this turn for the region's farmers, and rows.
+    income_replaced: float | None = None
+    income_rows: int | None = None
+    #: Lead decision 7: food merchants committed from the commons this turn,
+    #: and the owned food (milli-food) they could not load (foregone at most).
+    merchant_food_departing: float | None = None
+    owned_food_unloadable_milli: int | None = None
 
 
 class HouseholdRetailState(BaseModel):

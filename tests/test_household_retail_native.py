@@ -384,38 +384,145 @@ if READY:
                 assert r["money"].get("paid_milli", 0) == 0
 
     def test_inheritance_agrees_with_the_native_estate_rule_for_spouses(monkeypatch):
-        """Lead decision 6: the spouse case must agree with ``household.rs``
-        (spouse first when alive after the tick). A child case may differ
-        (Python: living children in the claim's region, equally; native:
-        dependants first, then all children, anywhere): counted, not refused,
-        and documented in docs/integration/household-retail.md."""
-        rows = []
-        original = HR._settle_deaths
+        """Lead decision 6, against the native estate rule (``household.rs``: the
+        spouse first, when alive after the tick), read independently of Python's
+        own spouse lookup: before each tick the native relationship batch names
+        each owner's spouse (one Marriage partner at most) and the pool their
+        wealth. After it, every dead owner whose spouse lives passes the claim
+        to that spouse, and the native estate step reports at least as many
+        spouse transfers as such owners who held a clear estate. A child case
+        may differ (Python: living children in the claim's region, equally;
+        native: dependants first, then all children, anywhere): counted, not
+        refused, and documented in docs/integration/household-retail.md."""
+        from chronicler.ffi_constants import BOND_MARRIAGE
+        pre = []
+        original = HR.before_agent_tick
 
-        def spy(world, state, t, sim, alive=None):
-            spouses = dict(t.spouses or {})
-            original(world, state, t, sim, alive)
-            rows.append((world.turn, spouses, _agents(sim)))
+        def spy(world, agent_bridge, economy_result):
+            sim = agent_bridge._sim
+            rows = pa.record_batch(sim.get_all_relationships()).to_pylist()
+            marriages = [(r["agent_id"], r["target_id"]) for r in rows if r["bond_type"] == BOND_MARRIAGE]
+            assert len({a for a, _b in marriages}) == len(marriages)
+            spouse = dict(marriages)
+            pre.append((world.turn, spouse, _agents(sim)))
+            original(world, agent_bridge, economy_result)
+            read = world.livelihoods.household_retail._turn.spouses or {}
+            assert read == {aid: spouse.get(aid) for aid in read}   # Python's read is the native partner
 
-        monkeypatch.setattr(HR, "_settle_deaths", spy)
-        world, bridge = _world()
+        monkeypatch.setattr(HR, "before_agent_tick", spy)
+        world, bridge = _world("--household-retail-boundary", "all")
         spouse_cases = child_cases = child_differs = 0
-        for _ in range(24):
+        for _ in range(40):
             state = _turn(world, bridge)
-            turn, spouses, alive = rows[-1]
+            turn, spouse, before = pre[-1]
+            alive = _agents(bridge._sim)
+            stats = bridge._sim.get_household_stats()
             dead = sorted({r.owner for r in state.log if r.turn == turn and r.kind in ("inherited", "escheat")})
+            estates = 0
             for owner in dead:
                 heirs = sorted({r.other for r in state.log
                                 if r.turn == turn and r.owner == owner and r.kind == "inherited"})
-                spouse = spouses.get(owner)
-                if spouse is not None and spouse in alive:
-                    assert heirs == [spouse]
+                partner = spouse.get(owner)
+                if partner is not None and partner in alive:
+                    assert heirs == [partner]
                     spouse_cases += 1
+                    estates += before[owner]["wealth"] > 2.0          # a clear estate at death
                     continue
                 children = sorted(a for a, p in alive.items() if owner in (p["parent_id_0"], p["parent_id_1"]))
                 dependants = [a for a in children if alive[a]["age"] < HR.ADULT_AGE]
                 child_cases += 1
                 child_differs += heirs != (dependants or children)
+            assert stats["inheritance_transfers_spouse"] >= estates
+            if spouse_cases >= 3:
+                break
+        assert spouse_cases >= 1, "an owner was expected to die with a living spouse"
         assert child_differs <= child_cases
-        assert world.livelihoods.household_retail.counters.get("deaths", 0) >= spouse_cases
         bridge.close()
+
+    CREWS = ["--grain-reserves", "--grain-storage", "--repair-projects", "--recovery-crews", "--timber-stock",
+             "--timber-supply"]
+
+    def test_named_crews_farm_time_is_paid_not_titled_on_the_real_extension(tmp_path, monkeypatch):
+        """PL1 woodcutters and PL3 granary and workshop crews in pilot regions:
+        each member's weight is ``max(0, u (1 - h) - r)`` for the farm time the
+        crew took, a member away for all of it holds no new title that turn,
+        and every turn the weights sum to the economy's farm labour after the
+        removals (``check_farm_labour`` raises otherwise)."""
+        seen = []
+        original = HR.finish_phase2
+
+        def spy(world, economy_result, agent_bridge, acc):
+            out = original(world, economy_result, agent_bridge, acc)
+            t = world.livelihoods.household_retail._turn
+            if t is not None and t.phase2 is not None and t.phase2.work:
+                removed, _granary = HR.crew_farm_time(world, t.phase2, economy_result)
+                for rid, rows in t.phase2.work.items():
+                    weights = dict(t.phase2.farmers.get(rid, []))
+                    titled = t.books[rid].owners.get("titled", {}) if rid in t.books else {}
+                    for aid, u, h in rows:
+                        r = removed.get(aid, 0.0)
+                        if r > 0:
+                            seen.append((world.turn, rid, aid, u, h, r, weights[aid], titled.get(aid, 0)))
+            return out
+
+        monkeypatch.setattr(HR, "finish_phase2", spy)
+        _cli(tmp_path, *RETAIL, *CREWS, "--household-retail-boundary", "all", turns=30)
+        assert seen, "crew members were expected in pilot regions within thirty turns"
+        for _turn_, _rid, _aid, u, h, r, w, titled in seen:
+            assert w == int(round(max(0.0, u * (1.0 - h) - r) * 1_000_000))
+            if u * (1.0 - h) - r <= 1e-9:
+                assert w == 0 and titled == 0
+
+    def test_paid_work_admits_paid_granary_crews_and_woodcutters_home_regions(tmp_path, monkeypatch):
+        """With the real PL1 and PL3 receipts: every region a paid crew worked in
+        (PL3 granary) or came from (PL1) enters the pilot at the next Phase 2."""
+        expected, opened = [], set()
+        original = HR.prepare_phase2
+
+        def spy(world, region_input, agent_bridge, snapshot, acc):
+            lv = world.livelihoods
+            crews = {r.region for r in lv.recovery_crews.receipts or () if r.kind == "granary" and r.wages_milli > 0}
+            wood = {r.home for r in lv.timber_supply.receipts or () if r.wages_milli > 0}
+            rulers = {c.name for c in world.civilizations if c.regions}
+            want = {rid for rid in crews | wood if world.regions[rid].controller in rulers}
+            out = original(world, region_input, agent_bridge, snapshot, acc)
+            pilots = set(HR.pilot_regions(world))
+            assert want <= pilots
+            expected.append(want)
+            opened.update(pilots)
+            return out
+
+        monkeypatch.setattr(HR, "prepare_phase2", spy)
+        _cli(tmp_path, *RETAIL, *CREWS, "--household-retail-boundary", "paid_work", turns=30)
+        assert any(expected), "a paid crew was expected within thirty turns"
+
+    def test_exact_resume_with_crews_and_procurement_on_a_procedural_world(tmp_path, monkeypatch):
+        """Procedural development world 11 (32 x 10), crews, granaries and retail
+        on every controlled region: a resume inside live claims and crew work is
+        byte-identical to the straight run."""
+        import sys
+        from chronicler.bundle_codec import load_bundle
+        from chronicler.main import _build_parser, execute_run, main
+        base = ["--seed", "11", "--worldgen", "procedural", "--regions", "32", "--civs", "10",
+                "--agents", "hybrid", "--simulate-only", *RETAIL, *CREWS, "--household-retail-boundary", "all"]
+        straight = tmp_path / "straight"
+        ck = tmp_path / "ck"
+        execute_run(_build_parser().parse_args([*base, "--turns", "12", "--checkpoint-every", "1",
+                                                "--checkpoint", str(ck / "turn_{turn:04d}.ckpt"),
+                                                "--output", str(straight / "chronicle.md"),
+                                                "--state", str(straight / "state.json")]))
+        state = read_checkpoint(ck / "turn_0006.ckpt").state
+        retail = state.world.livelihoods.household_retail
+        assert any(r.claims for r in retail.regions)                 # live claims at the resume point
+        state.agent_bridge.close()
+        resumed = tmp_path / "resumed"
+        monkeypatch.setattr(sys, "argv", ["chronicler", "--resume", str(ck / "turn_0006.ckpt"),
+                                          "--output", str(resumed / "chronicle.md"),
+                                          "--state", str(resumed / "state.json")])
+        main()
+        a = load_bundle(straight / "chronicle_bundle.json")
+        b = load_bundle(resumed / "chronicle_bundle.json")
+        assert a["history"] == b["history"] and a["world_state"] == b["world_state"]
+        records = [s["livelihoods"] for s in a["history"] if s.get("livelihoods")]
+        assert any((r.get("recovery_crews") or {}).get("receipts") or (r.get("timber_supply") or {}).get("receipts")
+                   for r in records), "crew work was expected in the run"

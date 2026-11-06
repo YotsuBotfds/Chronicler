@@ -243,6 +243,10 @@ class _Book:
     phase2: dict | None = None
     provisioning: dict | None = None
     would_be: dict | None = None
+    income_replaced: float | None = None
+    income_rows: int | None = None
+    merchant_food_departing: float | None = None
+    owned_food_unloadable: int | None = None
 
 
 @dataclass
@@ -250,7 +254,17 @@ class _Phase2:
     turn: int
     pilots: list[int]
     theta: float
-    farmers: dict[int, list[tuple[int, int]]]      # region -> [(id, micro-weight)], ascending id
+    #: region -> [(id, u, h)]: each Phase 2 farmer's urban farm-labour factor and
+    #: health work loss, ascending id.
+    work: dict[int, list[tuple[int, float, float]]]
+    #: region -> the economy batch's final ``farm_labor_factor`` (after every
+    #: earlier Phase 2 planner; 1 without the column).
+    factor: dict[int, float] = field(default_factory=dict)
+    #: region -> the commons food the economy batch carried (f32 values).
+    commons_open: dict[int, float] = field(default_factory=dict)
+    #: region -> [(id, micro-weight)] after the named crews' farm time
+    #: (``finish_phase2``), ascending id.
+    farmers: dict[int, list[tuple[int, int]]] = field(default_factory=dict)
     controllers: dict[int, str | None] = field(default_factory=dict)
     titled: bool = False
 
@@ -437,8 +451,10 @@ def _capital_regions(world) -> list[tuple[int, str]]:
 
 
 def _paid_work_regions(world) -> list[tuple[int, str]]:
-    """Regions with an open L6a firm, or a paid RS2 repair crew in RS2's last
-    frame (PL3's paid recovery crews pay through RS2's receipts)."""
+    """Regions where paid work has been done, from each lane's last committed
+    frame: an open L6a firm; a repair crew paid in RS2's receipts; a PL3
+    granary crew paid in ``recovery_crews.receipts``; the home region of a
+    PL1 woodcutting crew paid in ``timber_supply.receipts``."""
     out = set()
     lv = getattr(world, "livelihoods", None)
     payroll = getattr(lv, "workshop_payroll", None)
@@ -447,6 +463,12 @@ def _paid_work_regions(world) -> list[tuple[int, str]]:
     repair = getattr(lv, "repair_projects", None)
     if repair is not None and repair.enabled and repair.receipts:
         out.update(r.region for r in repair.receipts if r.wages_milli > 0)
+    crews = getattr(lv, "recovery_crews", None)
+    if crews is not None and crews.enabled and crews.receipts:
+        out.update(r.region for r in crews.receipts if r.kind == "granary" and r.wages_milli > 0)
+    timber = getattr(lv, "timber_supply", None)
+    if timber is not None and timber.enabled and timber.receipts:
+        out.update(r.home for r in timber.receipts if r.wages_milli > 0)
     return [(rid, "paid_work") for rid in sorted(out)]
 
 
@@ -465,6 +487,31 @@ def _qualifying(world, state) -> list[tuple[int, str]]:
                 and world.regions[rid].controller in rulers):
             out[rid] = reason
     return sorted(out.items())
+
+
+def _apply_conquests(world, state) -> None:
+    """A conquest destroys the conquest share of each pilot region's owned
+    stock, once per conquest event: the region's ``last_conquered_turn`` (set
+    by ``action_engine.apply_region_conquest``, the path that destroys the
+    market's stock, also for annexed occupations) is newer than the last loss
+    applied and not before the region joined the pilot. A change of
+    controller without a conquest (peaceful transfer, abandonment) destroys
+    nothing. Checked before the economy and before the agent tick, so a
+    conquest in any phase is applied before the next sale."""
+    from chronicler.economy import CONQUEST_STOCKPILE_SURVIVAL
+    for reg in state.regions:
+        region = world.regions[reg.region]
+        when = int(getattr(region, "last_conquered_turn", -1))
+        if when < reg.opened_turn or when <= reg.war_loss_turn:
+            continue
+        reg.war_loss_turn = when
+        per_good = [v - math.floor(v * CONQUEST_STOCKPILE_SURVIVAL) for v in reg.goods]
+        total = sum(per_good)
+        if total:
+            _debit(state, world, reg, "war_loss", _pro_rata(total, reg.claims), per_good)
+            _bump(state, "war_loss_milli", total)
+        _log(state, RetailRecord(turn=int(world.turn), region=reg.region, kind="war_loss", milli=total,
+                                 note=f"conquered by {region.controller} on turn {when}"))
 
 
 def _update_boundary(world, state) -> None:
@@ -524,9 +571,9 @@ def _health_losses(world, people: dict[int, tuple]) -> dict[int, float]:
     return loss
 
 
-def title_weights(world, snapshot, regions) -> dict[int, list[tuple[int, int]]]:
-    """Each pilot region's Phase 2 farmers and their food work
-    ``u_i x (1 - h_i)`` in integer micro-units, ascending id."""
+def title_inputs(world, snapshot, regions) -> dict[int, list[tuple[int, float, float]]]:
+    """Each pilot region's Phase 2 farmers with ``u_i`` (the urban farm-labour
+    factor) and ``h_i`` (health work loss), ascending id."""
     wanted = set(regions)
     if not wanted:
         return {}
@@ -538,16 +585,103 @@ def title_weights(world, snapshot, regions) -> dict[int, list[tuple[int, int]]]:
     cities = getattr(getattr(world, "cities", None), "cities", None) or []
     rank = {(int(c.region), int(c.settlement_id)): int(c.rank) for c in cities if c.settlement_id > 0}
     losses = _health_losses(world, people)
-    out: dict[int, list[tuple[int, int]]] = {rid: [] for rid in sorted(wanted)}
+    out: dict[int, list[tuple[int, float, float]]] = {rid: [] for rid in sorted(wanted)}
     for aid in sorted(people):
         region, occupation, _age, settlement = people[aid]
         if region not in wanted or occupation != FARMER:
             continue
         city = rank.get((region, settlement))
-        u = URBAN_FARM_LABOR[city] if city is not None else 1.0
+        u = float(URBAN_FARM_LABOR[city]) if city is not None else 1.0
         h = 0.0 if city is not None else min(1.0, max(0.0, losses.get(aid, 0.0)))
-        out[region].append((aid, int(round(u * (1.0 - h) * 1_000_000))))
+        out[region].append((aid, u, h))
     return out
+
+
+def weights_after_crews(work, removed=None) -> dict[int, list[tuple[int, int]]]:
+    """Food-work weights ``w_i = max(0, u_i (1 - h_i) - r_i)`` in integer
+    micro-units, where ``r_i`` is the farm time person ``i`` gave a named crew
+    this turn (``removed``; the time is paid as a wage, never also titled)."""
+    removed = removed or {}
+    return {rid: [(aid, int(round(max(0.0, u * (1.0 - h) - removed.get(aid, 0.0)) * 1_000_000)))
+                  for aid, u, h in rows] for rid, rows in work.items()}
+
+
+def title_weights(world, snapshot, regions, removed=None) -> dict[int, list[tuple[int, int]]]:
+    """Each pilot region's Phase 2 farmers and their food work after crews."""
+    return weights_after_crews(title_inputs(world, snapshot, regions), removed)
+
+
+def crew_farm_time(world, p2: "_Phase2", economy_result) -> tuple[dict[int, float], dict[int, float]]:
+    """This turn's farm time given to named crews by pilot farmers, by id, and
+    the named granary crews' farm time by region:
+
+    * PL1 woodcutters (``timber_supply``): each crew member's farm share
+      (``u_i``), scaled by the native ``woodcut_labor_away`` delivered over the
+      expeditions' requests from that home region;
+    * PL3 granary crews (``recovery_crews``): each member's worked share of
+      the delivered storage work (``granary_shares``);
+    * PL3 workshop crews: each member's farm time removed through
+      ``farm_labor_factor``.
+
+    The crews are planned earlier in Phase 2 and their receipts staged by the
+    packages' own ``finish_phase2`` before this one (switch order)."""
+    turn = int(world.turn)
+    lv = getattr(world, "livelihoods", None)
+    u_of = {aid: u for rows in p2.work.values() for aid, u, _h in rows}
+    removed: dict[int, float] = {}
+    granary: dict[int, float] = {}
+    ts = getattr(lv, "timber_supply", None)
+    tt = getattr(ts, "_turn", None) if ts is not None else None
+    if tt is not None and tt.turn == turn:
+        delivered = getattr(economy_result, "woodcut_labor_away_delivered", None) or {}
+        by_home: dict[int, list] = {}
+        for rec in tt.receipts:
+            if rec.home in p2.work and rec.crew:
+                by_home.setdefault(rec.home, []).append(rec)
+        for home, recs in sorted(by_home.items()):
+            requested = math.fsum(r.away_requested for r in recs)
+            crew = [a for r in recs for a in r.crew]
+            if abs(math.fsum(u_of.get(a, 0.0) for a in crew) - requested) > 1e-4 * max(1, len(crew)):
+                raise RetailAccountingError(f"region {home}: woodcut crews' farm shares differ from their request")
+            got = float(delivered.get(home, 0.0))
+            scale = min(1.0, got / requested) if requested > 0 else 0.0
+            for a in crew:
+                if a in u_of:
+                    removed[a] = removed.get(a, 0.0) + u_of[a] * scale
+    rc = getattr(lv, "recovery_crews", None)
+    rt = getattr(rc, "_turn", None) if rc is not None else None
+    if rt is not None and rt.turn == turn:
+        for rec in rt.receipts:
+            if rec.region not in p2.work:
+                continue
+            for m in rec.members:
+                if m.farm_time > 0:
+                    removed[m.agent_id] = removed.get(m.agent_id, 0.0) + float(m.farm_time)
+                    if rec.kind == "granary":
+                        granary[rec.region] = granary.get(rec.region, 0.0) + float(m.farm_time)
+    return removed, granary
+
+
+def check_farm_labour(world, p2: "_Phase2", economy_result, removed, granary) -> None:
+    """Sum of title weights == the economy's farm labour after the crews' farm
+    time, per pilot region: ``sum(u_i (1 - h_i) - r_i)`` against ``farmers x
+    farm_labor_factor - health loss - named granary work - woodcut labour
+    away`` (anonymous storage work shrinks every title equally and is not a
+    person's)."""
+    wood = getattr(economy_result, "woodcut_labor_away_delivered", None) or {}
+    storage = getattr(economy_result, "granary_work_delivered", None) or {}
+    for rid, named in sorted(granary.items()):
+        if named > float(storage.get(rid, 0.0)) + 1e-4:
+            raise RetailAccountingError(
+                f"region {rid}: granary crews' farm time {named:.6f} exceeds the storage work delivered")
+    for rid, rows in p2.work.items():
+        got = math.fsum(u * (1.0 - h) - removed.get(aid, 0.0) for aid, u, h in rows)
+        health = math.fsum(h for _aid, _u, h in rows)
+        expect = (len(rows) * p2.factor.get(rid, 1.0) - health - granary.get(rid, 0.0)
+                  - float(wood.get(rid, 0.0)))
+        if abs(got - expect) > 1e-3 + 1e-5 * len(rows):
+            raise RetailAccountingError(
+                f"region {rid}: title weights {got:.6f} differ from the farm labour after crews {expect:.6f}")
 
 
 def _ration(world) -> float:
@@ -585,13 +719,20 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
     if t.phase2 is not None:
         raise RuntimeError("household retail Phase 2 already prepared this turn")
     _update_boundary(world, state)
+    _apply_conquests(world, state)                 # a conquest after the last agent tick
     if t.touched:
         region_input = _patch_stockpiles(world, region_input, sorted(t.touched))
         t.touched.clear()
     pilots = [r.region for r in state.regions]
     theta = 1.0 if state.mode == "no_relief" else THETA
+    names = list(region_input.schema.names)
+    factors = (region_input.column(names.index("farm_labor_factor")).to_pylist()
+               if "farm_labor_factor" in names else None)
+    stock = {good: region_input.column(names.index(f"stockpile_{good}")).to_pylist() for good in RETAIL_GOODS}
     t.phase2 = _Phase2(turn=int(world.turn), pilots=pilots, theta=theta,
-                       farmers=title_weights(world, snapshot, pilots))
+                       work=title_inputs(world, snapshot, pilots),
+                       factor={rid: float(factors[rid]) if factors is not None else 1.0 for rid in pilots},
+                       commons_open={rid: math.fsum(float(stock[g][rid]) for g in RETAIL_GOODS) for rid in pilots})
     _check(state, world)
     if not pilots or state.mode == "record_only":
         return region_input
@@ -670,6 +811,13 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
         p2.controllers[rid] = world.regions[rid].controller
     if not p2.pilots:
         return []
+    # Named crews' farm time is paid as a wage, never also titled (design 3.1).
+    removed, granary = crew_farm_time(world, p2, economy_result)
+    check_farm_labour(world, p2, economy_result, removed, granary)
+    p2.farmers = weights_after_crews(p2.work, removed)
+    crew = [aid for rows in p2.work.values() for aid, _u, _h in rows if removed.get(aid, 0.0) > 0]
+    _bump(state, "crew_farm_time_person_turns", len(crew))
+    _bump(state, "crew_farm_time_micro", int(round(math.fsum(removed.get(a, 0.0) for a in crew) * 1_000_000)))
     if state.mode == "record_only":
         for rid in p2.pilots:
             titled = _would_be_title(world, economy_result, rid, p2.theta)
@@ -685,9 +833,37 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
         row = columns.get(rid)
         if row is None or any(row.get(name) is None for name in PHASE2_COLUMNS):
             raise RuntimeError("household retail requires a native economy that returns the retail columns")
+        _check_food_ledger(world, p2, reg, row, economy_result)
         _title_region(world, state, t, reg, row)
     _check(state, world)
     return []
+
+
+def _check_food_ledger(world, p2: "_Phase2", reg: RetailRegion, row: dict, economy_result) -> None:
+    """Design 10, native Phase 2 in a pilot region (food units): the native food
+    ledger closes, its opening is the commons sent plus the owned stock sent,
+    and its closing is the commons returned plus the owned close. Skipped when
+    the extension exports no ledger (unknown, not zero)."""
+    ledger = (getattr(economy_result, "food_ledger", None) or {}).get(reg.region)
+    if ledger is None:
+        return
+    from numpy import float32
+    from chronicler.food_accounting import FOOD_LEDGER_FIELDS
+    f = dict(zip(FOOD_LEDGER_FIELDS, (float(v) for v in ledger)))
+    terms = [f["opening"], f["produced"], f["transport_net"], -f["craft_input"], f["clamp_correction"],
+             -f["consumed"], -f["storage_loss"], -f["cap_overflow"]]
+    scale = max(1.0, math.fsum(abs(v) for v in terms))
+    owned_open = math.fsum(float(float32(v / MILLI)) for v in reg.goods)
+    commons_close = math.fsum(float(world.regions[reg.region].stockpile.goods.get(g, 0.0)) for g in RETAIL_GOODS)
+    owned_close = math.fsum(float(row[f"retail_owned_close_{g}"]) for g in RETAIL_GOODS)
+    checks = ((f["closing"] - math.fsum(terms), "the native food ledger does not close"),
+              (f["opening"] - p2.commons_open.get(reg.region, 0.0) - owned_open,
+               "the food ledger's opening is not the commons plus the owned stock sent"),
+              (f["closing"] - commons_close - owned_close,
+               "the food ledger's closing is not the commons plus the owned close"))
+    for residual, message in checks:
+        if abs(residual) > 1e-5 * scale:
+            raise RetailAccountingError(f"region {reg.region}: {message} (residual {residual:.6g})")
 
 
 def _title_region(world, state, t: _Turn, reg: RetailRegion, row: dict) -> None:
@@ -808,21 +984,8 @@ def before_agent_tick(world, agent_bridge, economy_result) -> None:
     sim = agent_bridge._sim
     t.installed = None
     p2 = t.phase2 if t.phase2 is not None and t.phase2.turn == world.turn and t.phase2.titled else None
-    # Conquest: a pilot region whose controller changed since Phase 2.
-    if p2 is not None:
-        from chronicler.economy import CONQUEST_STOCKPILE_SURVIVAL
-        for rid, before in sorted(p2.controllers.items()):
-            reg = state.region(rid)
-            now = world.regions[rid].controller
-            if reg is None or now == before or not sum(reg.goods):
-                continue
-            per_good = [v - math.floor(v * CONQUEST_STOCKPILE_SURVIVAL) for v in reg.goods]
-            total = sum(per_good)
-            if total:
-                _debit(state, world, reg, "war_loss", _pro_rata(total, reg.claims), per_good)
-                _bump(state, "war_loss_milli", total)
-                _log(state, RetailRecord(turn=int(world.turn), region=rid, kind="war_loss", milli=total,
-                                         note=f"{before} -> {now}"))
+    # Conquest (this turn's war phase): the conquest share of owned stock.
+    _apply_conquests(world, state)
     # Declared limit: occupation and siege requisitions do not reach owned stock.
     armies = getattr(getattr(world, "war_state", None), "armies", [])
     for reg in state.regions:
@@ -982,6 +1145,12 @@ def _settle_frame(world, state, t: _Turn, installed: _Installed, frame, receipt,
             (int(r["own_eaten_milli"]) == own and int(r["sold_milli"]) == sale, "claim rows differ from the totals"),
             (own + sale == offered - int(r["unsold_milli"]), "own_eaten + sold != offered - unsold"),
             (int(r["paid_milli"]) == int(r["credited_milli"]) + int(r["refunded_milli"]), "payments do not balance"),
+            # Each buying household pays ceil(bought x price / ration): paid is
+            # at least sold x price / ration and exceeds it by under one milli-unit
+            # per household.
+            (sale * price <= int(r["paid_milli"]) * ration_milli
+             <= sale * price + int(r.get("buying_households", r["persons"])) * ration_milli,
+             "paid differs from sold x price / ration beyond per-household rounding"),
             (abs(r["rations"] - (r["free_given"] + (own + sale) / ration_milli))
              <= RATION_TOL * max(1.0, r["persons"]), "person rations != free_given + own_eaten + sold"),
             (r["rations"] <= r["persons"] + RATION_TOL, "a ration above one"),
@@ -1024,13 +1193,34 @@ def _settle_frame(world, state, t: _Turn, installed: _Installed, frame, receipt,
             raise RuntimeError("retail income receipt belongs to another turn")
         seen_ids = set()
         replaced = 0.0
+        # Per region (design 9.2): a Phase 2 farmer's pilot region, else where
+        # the person lives after the tick when that is a pilot region.
+        region_of = {aid: rid for rid, rows in (t.phase2.work if t.phase2 is not None else {}).items()
+                     for aid, _u, _h in rows}
+        per_region: dict[int, list] = {}
+        unattributed = 0.0
         for aid, value in rrows:
             value = float(value)
             if int(aid) in seen_ids or not math.isfinite(value) or value < 0:
                 raise RetailAccountingError("retail income receipt row is invalid")
             seen_ids.add(int(aid))
             replaced += value
-        t.income = {"rows": len(seen_ids), "replaced": round(replaced, 6)}
+            rid = region_of.get(int(aid))
+            if rid is None and alive is not None and int(aid) in alive and alive[int(aid)][0] in by_region:
+                rid = alive[int(aid)][0]
+            if rid is None:
+                unattributed += value
+            else:
+                cell = per_region.setdefault(rid, [0.0, 0])
+                cell[0] += value
+                cell[1] += 1
+        for rid, (value, rows_) in per_region.items():
+            reg = state.region(rid)
+            if reg is not None:
+                book = _book(state, world, reg)
+                book.income_replaced, book.income_rows = round(value, 6), rows_
+        t.income = {"rows": len(seen_ids), "replaced": round(replaced, 6),
+                    "unattributed": round(unattributed, 6)}
         state.income_replaced_total = round(state.income_replaced_total + replaced, 6)
         _bump(state, "income_replaced_rows", len(seen_ids))
 
@@ -1163,7 +1353,9 @@ def take_procured(world, rid: int, amount: float, flow_index: int) -> float:
     """A granary buys ``amount`` (food units) of owned grain in ``rid``: debit
     the owners pro rata to their claims (whole milli-food, rounded up, never
     above the owned grain) and record it for the Phase 10 credit. Returns the
-    food units taken from owners."""
+    food units taken from owners, exactly ``milli / 1000``: the market's
+    commons supply the rest of the purchase, and a sub-milli excess over it
+    goes into the commons, so no food is lost or made."""
     state = _state(world)
     reg = state.region(rid)
     if reg is None or not math.isfinite(amount) or amount <= 0:
@@ -1171,7 +1363,7 @@ def take_procured(world, rid: int, amount: float, flow_index: int) -> float:
     milli = min(max(1, math.ceil(amount * MILLI - 1e-6)), reg.goods[GRAIN])
     if milli <= 0:
         raise RuntimeError("household retail procurement names no owned grain")
-    taken = min(float(amount), milli / MILLI)
+    taken = milli / MILLI
     per_owner = _pro_rata(milli, reg.claims)
     per_good = [milli] + [0] * (len(RETAIL_GOODS) - 1)
     _debit(state, world, reg, "procured", per_owner, per_good)
@@ -1209,7 +1401,7 @@ def _credit_procurement(world, state, t: _Turn, agent_bridge) -> dict:
             raise RuntimeError("household retail procurement names no purchase flow")
         f = flows[p.flow_index]
         if (f.kind != BOUGHT or f.source != p.region or f.seller != f.buyer or f.cost < 1
-                or f.sent <= 0 or p.taken > f.sent * (1 + 1e-9) + 1e-9):
+                or f.sent <= 0 or p.taken >= f.sent + 1.0 / MILLI):     # a sub-milli excess goes to the commons
             raise RetailAccountingError("household retail procurement does not match its purchase flow")
         share = int(math.floor(f.cost * MILLI * min(1.0, p.taken / f.sent)))
         owed += share
@@ -1242,6 +1434,23 @@ def _credit_procurement(world, state, t: _Turn, agent_bridge) -> dict:
     return summary
 
 
+def _record_departures(world, state, t: _Turn, agent_bridge) -> None:
+    """Lead decision 7: merchants load commons only. Per pilot region-turn, the
+    food merchants committed to loads and departures from the commons (the
+    native commitments procurement reads) and the owned food they could not
+    load: the foregone departures are at most the latter."""
+    if not state.regions or agent_bridge is None:
+        return
+    from chronicler.economy import FOOD_GOODS
+    from chronicler.mutual_aid import read_stockpile_commitments
+    commitments = read_stockpile_commitments(world, agent_bridge._sim)
+    for reg in state.regions:
+        book = _book(state, world, reg)
+        held = commitments.get(world.regions[reg.region].name, {})
+        book.merchant_food_departing = round(math.fsum(float(held.get(g, 0.0)) for g in sorted(FOOD_GOODS)), 6)
+        book.owned_food_unloadable = sum(reg.goods)
+
+
 def phase10(world, acc, economy_result, agent_bridge) -> list:
     """Credit owners for grain their granaries bought (once), then close the
     turn's frame."""
@@ -1249,6 +1458,7 @@ def phase10(world, acc, economy_result, agent_bridge) -> list:
     t = _turn(state, world)
     procurement = _credit_procurement(world, state, t, agent_bridge) if t.procured else None
     _check(state, world)
+    _record_departures(world, state, t, agent_bridge)
     frames = []
     for rid in sorted(t.books):
         book = t.books[rid]
@@ -1263,7 +1473,10 @@ def phase10(world, acc, economy_result, agent_bridge) -> list:
             flows={k: flows[k] for k in FLOW_KINDS if flows.get(k)},
             commons={k: book.commons[k] for k in COMMONS_REASONS if book.commons.get(k)},
             price_milli=book.price_milli, free_rations=None if book.free_rations is None else round(book.free_rations, 6),
-            phase2=book.phase2, provisioning=book.provisioning, would_be=book.would_be))
+            phase2=book.phase2, provisioning=book.provisioning, would_be=book.would_be,
+            income_replaced=book.income_replaced, income_rows=book.income_rows,
+            merchant_food_departing=book.merchant_food_departing,
+            owned_food_unloadable_milli=book.owned_food_unloadable))
     _bump(state, "pilot_region_turns", len(state.regions))
     state.frame_turn = int(world.turn)
     state.frame = frames
