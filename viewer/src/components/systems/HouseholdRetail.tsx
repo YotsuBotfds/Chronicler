@@ -237,7 +237,7 @@ export function HouseholdRetail({ bundle, snapshot, currentTurn, onSelectRegion 
                 <td>{food(ownedTitle(r))}{kept ? ` (+${food(kept)} titled but kept commons)` : ""} ({share === null ? "Unknown" : `≈${food(share)}`})</td>
                 <td>{q ? `${food(flowOf(r, "own_eaten"))} · ${food(flowOf(r, "sold"))} · ${food(q.unsold_milli)}` : "not provisioned"}</td>
                 <td>{q ? `${number(q.free_given)} of ${number(q.free_rations)}` : "not provisioned"}</td>
-                <td>{food(flowOf(r, "decay"))} · {food(flowOf(r, "overflow"))}</td>
+                <td>{food(flowOf(r, "decay"))} · {food(flowOf(r, "overflow"))}{flowOf(r, "cap_overflow") ? ` (+${food(flowOf(r, "cap_overflow"))} above the cap before granaries)` : ""}</td>
                 <td>{food(flowOf(r, "procured"))} · {food(flowOf(r, "war_loss"))}</td>
                 <td>{why.length ? why.join("; ") : "none"}</td>
                 <td>{food(flowOf(r, "inherited_in"))}</td>
@@ -284,7 +284,7 @@ export function HouseholdRetail({ bundle, snapshot, currentTurn, onSelectRegion 
         <tr><td>Farm income replaced (farmer-turns)</td><td>{number(record.income_replaced_total)} ({number(c("income_replaced_rows"))})</td></tr>
         <tr><td>Person-turns priced out · offer short</td><td>{number(c("priced_out_persons"))} · {number(c("offer_short_persons"))}</td></tr>
         <tr><td>Claims refused (cap) · region-turns exempt from requisition</td><td>{number(c("claims_refused"))} · {v2 ? "not applicable (rules version 2 applies sieges and occupations to owned food)" : number(c("requisition_exempt_region_turns"))}</td></tr>
-        {v2 ? <tr><td>Owned grain above the storage cap, not offered to granaries</td><td>{food(c("owned_grain_above_cap_milli"))}</td></tr> : null}
+        {v2 ? <tr><td>Owned grain above the storage cap, lost before granaries buy</td><td>{food(c("owned_grain_above_cap_milli"))}</td></tr> : null}
         <tr><td>Crew farm time paid as wages, not titled (person-turns)</td><td>{number(c("crew_farm_time_person_turns"))}</td></tr>
       </tbody>
     </table></div>

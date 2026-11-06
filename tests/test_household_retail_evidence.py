@@ -571,7 +571,11 @@ def _above_cap_market(h):
     h.world.regions[VERDANT].population = 12
 
 
-def test_granaries_buy_owned_grain_only_within_this_turns_storage_cap(monkeypatch):
+def test_owned_grain_above_the_cap_is_lost_before_the_granaries_buy(monkeypatch):
+    """RL4: with granaries on, version 2 cuts the owned grain above this turn's
+    storage cap (``cap - commons``) before Phase 10 procurement, so the
+    granaries buy only grain the cap leaves, as from a market without retail;
+    version 1 lets them buy grain the next opening destroys."""
     seen = {}
     for name, flags in (("v2", ()), ("v1", V1)):
         h = Harness(*flags)
@@ -580,41 +584,55 @@ def test_granaries_buy_owned_grain_only_within_this_turns_storage_cap(monkeypatc
         h.turn({VERDANT: {"grain": 60.0}})
 
         def look(res, h=h, name=name):
+            # After the retail hook of phase10_before_reserves, before the granaries.
             owned = h.state.region(VERDANT).goods[0]
             commons = h.world.regions[VERDANT].stockpile.goods.get("grain", 0.0)
             offered = HR.procurement_owned_grain(h.world)
             seen[name] = (owned, commons, offered[VERDANT] if offered else 0.0, h.state._turn.phase2.cap)
             G.tick_grain_reserves(h.world, None, res, None)
+        counted = h.state.counters.get("owned_grain_above_cap_milli", 0)
         h.turn({VERDANT: {"grain": 60.0}}, granaries=look)
-        seen[name] += (h.frame(VERDANT).flows.get("procured", 0), dict(h.state.counters))
-    owned, commons, offered, cap, procured, counters = seen["v2"]
+        frame = h.frame(VERDANT)
+        seen[name] += (frame.flows.get("procured", 0), frame.flows.get("cap_overflow", 0), dict(h.state.counters),
+                       counted)
+    owned, commons, offered, cap, procured, cut, counters, counted = seen["v2"]
     assert cap[VERDANT] == 30.0
     room = math.floor((30.0 - commons) * 1000 + 1e-6)
-    assert owned > room >= 0
-    assert offered == room / 1000 and procured <= room
-    assert counters["owned_grain_above_cap_milli"] == owned - room
-    owned1, _c, offered1, cap1, procured1, counters1 = seen["v1"]
-    assert offered1 == owned1 / 1000 and cap1 == {} and "owned_grain_above_cap_milli" not in counters1
+    assert cut > 0 and owned == room and offered == room / 1000 and procured <= room
+    assert counters["owned_grain_above_cap_milli"] - counted == cut and "cap_overflow" not in str(counters)
+    owned1, _c, offered1, cap1, procured1, cut1, counters1, _ = seen["v1"]
+    assert offered1 == owned1 / 1000 > room / 1000 and cap1 == {} and cut1 == 0
+    assert "owned_grain_above_cap_milli" not in counters1
     assert procured1 > procured                             # version 1 sold grain the cap destroys
 
 
-def test_owned_grain_within_the_cap_is_offered_whole_and_nothing_is_counted(monkeypatch):
+def test_without_granaries_or_within_the_cap_nothing_is_cut(monkeypatch):
+    # Within the cap: offered whole, nothing counted.
     h = Harness()
     _above_cap_market(h)
     h.world.regions[VERDANT].population = 400                # cap 1000
-    G, _ = _granary_world(h, monkeypatch)
+    _granary_world(h, monkeypatch)
     h.turn({VERDANT: {"grain": 60.0}})
     got = {}
     h.turn({VERDANT: {"grain": 60.0}}, granaries=lambda res: got.update(
         offered=HR.procurement_owned_grain(h.world)[VERDANT], owned=h.state.region(VERDANT).goods[0]))
     assert got["offered"] == got["owned"] / 1000 and "owned_grain_above_cap_milli" not in h.state.counters
+    # Without granaries nothing can buy it: the next opening cuts it, as before.
+    h2 = Harness()
+    _above_cap_market(h2)
+    h2.turn({VERDANT: {"grain": 60.0}})
+    h2.turn({VERDANT: {"grain": 60.0}})
+    assert "cap_overflow" not in h2.frame(VERDANT).flows and h2.frame(VERDANT).flows.get("overflow", 0) > 0
 
 
-def test_without_this_turns_phase2_the_cap_comes_from_the_population():
+def test_the_cap_of_a_turn_without_phase2_comes_from_the_population(monkeypatch):
     h = Harness()
     _above_cap_market(h)
-    h.turn({VERDANT: {"grain": 60.0}})
-    h.state._turn = None
+    h.turn({VERDANT: {"grain": 60.0}})                               # no granaries yet: nothing cut
+    _granary_world(h, monkeypatch)
     owned = h.state.region(VERDANT).goods[0]
     commons = h.world.regions[VERDANT].stockpile.goods.get("grain", 0.0)
-    assert HR.procurement_owned_grain(h.world)[VERDANT] == min(owned, math.floor((30.0 - commons) * 1000 + 1e-6)) / 1000
+    assert HR._cap_room_milli(h.world, VERDANT, None) == math.floor((30.0 - commons) * 1000 + 1e-6) < owned
+    h.state._turn = None
+    HR.phase10_before_reserves(h.world, None, None, None)            # a turn whose Phase 2 recorded no cap
+    assert h.state.region(VERDANT).goods[0] == HR._cap_room_milli(h.world, VERDANT, None)

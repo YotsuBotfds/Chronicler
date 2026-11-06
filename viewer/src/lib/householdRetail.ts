@@ -28,6 +28,8 @@ export const RETAIL_MODE_LABEL: Record<RetailMode, string> = {
 export const FLOW_SIGNS = {
   titled: 1, own_eaten: -1, sold: -1, procured: -1, decay: -1, overflow: -1, war_loss: -1, to_commons: -1,
   inherited_in: 1, inherited_out: -1,
+  /** Rules version 2 (A2R, RL4): owned grain above the storage cap, lost before Phase 10 procurement. */
+  cap_overflow: -1,
 } as const;
 export type FlowKind = keyof typeof FLOW_SIGNS;
 const FLOW_KINDS = Object.keys(FLOW_SIGNS) as FlowKind[];

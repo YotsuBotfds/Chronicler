@@ -75,8 +75,9 @@ L2's alone).
 Evidence (version 2, A2R): ``opened_turn`` keeps each region's first pilot
 turn, so a bundle names its schedule (:func:`extract_schedule`); each
 provisioned pilot region-turn records household-group cohorts (RL5,
-:func:`cohorts`), exact or marked unknown; Phase 10 granaries buy owned grain
-only within this turn's storage cap (RL4, :func:`procurement_owned_grain`).
+:func:`cohorts`), exact or marked unknown; with granaries on, owned grain above
+this turn's storage cap is lost to overflow before Phase 10 procurement (RL4,
+:func:`phase10_before_reserves`).
 
 Accounting: every identity of the design's section 10 that Python can see is
 checked after each mutation and raised on failure (:func:`check_region`,
@@ -496,8 +497,6 @@ class _Procured:
 @dataclass
 class _Turn:
     turn: int
-    #: Version 2 (RL4): owned grain withheld from granaries above the cap, per region (milli).
-    above_cap: dict[int, int] = field(default_factory=dict)
     books: dict[int, _Book] = field(default_factory=dict)
     touched: set[int] = field(default_factory=set)  # commons written this turn
     phase2: _Phase2 | None = None
@@ -1994,33 +1993,55 @@ def after_agent_tick(world, agent_bridge) -> list:
 
 def procurement_owned_grain(world) -> list[float] | None:
     """Owned grain per region (food units) a pilot market may sell to its
-    own ruler's granaries; None when retail holds none (the off path).
-
-    Version 2 (RL4): only the owned grain within this turn's storage cap,
-    ``max(0, cap - commons grain)``. After the agent tick a pilot region can
-    hold this turn's uneaten title above the cap until the next opening cuts
-    it; a granary could otherwise buy grain that the cap destroys, which a
-    market without retail (capped at Phase 2 close) cannot sell. The rest is
-    held, counted (``owned_grain_above_cap_milli``) and left to that cut.
-    Version 1 offers all owned grain (checkpoints 2-3)."""
+    own ruler's granaries; None when retail holds none (the off path). Under
+    rules version 2 it is already within this turn's storage cap
+    (:func:`phase10_before_reserves`, RL4)."""
     state = _state(world)
     if state is None or not household_retail_active(world) or state.mode == "record_only":
         return None
-    t = state._turn if state._turn is not None and state._turn.turn == world.turn else None
-    caps = t.phase2.cap if t is not None and t.phase2 is not None else {}
     out = [0.0] * len(world.regions)
-    above: dict[int, int] = {}
+    for reg in state.regions:
+        out[reg.region] = reg.goods[GRAIN] / MILLI
+    return out if any(out) else None
+
+
+def phase10_before_reserves(world, acc, economy_result, agent_bridge) -> list:
+    """RL4, rules version 2 with granaries on: before Phase 10 procurement,
+    owned grain a pilot market holds above this turn's storage cap, beyond
+    ``max(0, cap - commons grain)``, is lost to storage overflow (claims pro
+    rata), as a market without retail loses its commons above the cap at
+    Phase 2 close.
+
+    This turn's title is on offer whole at phase 0.7 and the native caps the
+    two pools together only at the next opening; between the tick and that
+    opening a granary could otherwise buy grain the cap destroys (grain is
+    fungible: any purchase from a pool above the cap shrinks the later cut by
+    as much), so a pilot market could sell more than its storage holds. The
+    commons met the cap alone at close, so the excess is owned title; the
+    loss is the frame's ``cap_overflow`` flow and the counter
+    ``owned_grain_above_cap_milli`` (``overflow`` stays the native opening's).
+    Version 1, ``record_only`` and runs without granaries (nothing can buy
+    it) leave the cut to the next opening, as at checkpoints 2-3."""
+    state = _state(world)
+    if state is None or not _v2(state) or state.mode == "record_only" or not state.regions:
+        return []
+    from chronicler.grain_reserves import grain_reserves_active
+    if not grain_reserves_active(world):
+        return []
+    t = _turn(state, world)
+    caps = t.phase2.cap if t.phase2 is not None and t.phase2.turn == world.turn else {}
     for reg in state.regions:
         grain = reg.goods[GRAIN]
-        if _v2(state) and grain:
-            room = _cap_room_milli(world, reg.region, caps.get(reg.region))
-            if grain > room:
-                above[reg.region] = grain - room
-                grain = room
-        out[reg.region] = grain / MILLI
-    if t is not None:
-        t.above_cap = above
-    return out if any(out) else None
+        if not grain:
+            continue
+        over = grain - min(grain, _cap_room_milli(world, reg.region, caps.get(reg.region)))
+        if over <= 0:
+            continue
+        per_good = [over] + [0] * (len(RETAIL_GOODS) - 1)
+        _debit(state, world, reg, "cap_overflow", _pro_rata(over, reg.claims), per_good)
+        _bump(state, "owned_grain_above_cap_milli", over)
+    _check(state, world)
+    return []
 
 
 def _cap_room_milli(world, rid: int, cap: float | None) -> int:
@@ -2146,8 +2167,6 @@ def phase10(world, acc, economy_result, agent_bridge) -> list:
     state = _state(world)
     t = _turn(state, world)
     procurement = _credit_procurement(world, state, t, agent_bridge) if t.procured else None
-    if t.above_cap:
-        _bump(state, "owned_grain_above_cap_milli", sum(t.above_cap.values()))
     _check(state, world)
     _record_departures(world, state, t, agent_bridge)
     frames = []

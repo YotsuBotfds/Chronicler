@@ -64,11 +64,14 @@ OPEN_REASONS: tuple[str, ...] = ("capital", "paid_work", "all", "schedule")
 FLOW_KINDS: tuple[str, ...] = (
     "titled", "own_eaten", "sold", "procured", "decay", "overflow", "war_loss", "to_commons",
     "inherited_in", "inherited_out",
+    # Rules version 2 (A2R, RL4): owned grain above this turn's storage cap,
+    # lost before Phase 10 procurement (``overflow`` is the native opening's).
+    "cap_overflow",
 )
 #: Signs of the flows in ``close = open + sum(sign x flow)``.
 FLOW_SIGNS: dict[str, int] = {
     "titled": 1, "own_eaten": -1, "sold": -1, "procured": -1, "decay": -1, "overflow": -1,
-    "war_loss": -1, "to_commons": -1, "inherited_in": 1, "inherited_out": -1,
+    "war_loss": -1, "to_commons": -1, "inherited_in": 1, "inherited_out": -1, "cap_overflow": -1,
 }
 #: Why owned food went to the region's commons (``region.stockpile``).
 COMMONS_REASONS: tuple[str, ...] = (
@@ -110,8 +113,8 @@ COUNTERS: tuple[str, ...] = (
     "crew_farm_time_person_turns", "crew_farm_time_micro",
     # Rules version 2 (A5-1): war losses by cause and the war events observed.
     "war_loss_conquest_milli", "war_loss_siege_milli", "war_loss_occupation_milli", "war_events",
-    # Rules version 2 (A2R, RL4): owned grain a pilot market held above this
-    # turn's storage cap at Phase 10, withheld from granary procurement.
+    # Rules version 2 (A2R, RL4): owned grain above this turn's storage cap
+    # lost before Phase 10 procurement (the ``cap_overflow`` flow).
     "owned_grain_above_cap_milli",
 )
 #: RL5 (version 2): household groups of the people provisioned in a pilot
