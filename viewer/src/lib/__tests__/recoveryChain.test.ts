@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
-  budgetLimits, fullestChainRegion, chainTotals, farmLabourAway, hasRecoveryChain, incomplete, LINKS, linkState, packagesOn, paidWorkers,
+  budgetLimits, fullestChainRegion, chainTotals, farmLabourAway, hasRecoveryChain, incomplete, LINKS, linkState, moreRowsLabel,
+  packagesOn, paidWorkers,
   readChainSnapshots, regionChain, type ChainTurn,
 } from "../recoveryChain";
 import type { Bundle } from "../../types";
-import { chainBundle, IRON_PEAKS, SAPPHIRE, TURNS, without } from "./recoveryChainFixture";
+import {
+  chainBundle, emptyGranaryCrew, IRON_PEAKS, refusedWage, SAPPHIRE, TURNS, unpaidWoodcutting, without, workshopProject,
+} from "./recoveryChainFixture";
 
 const chain = (bundle: Bundle, region = SAPPHIRE) => regionChain(readChainSnapshots(bundle).snapshots, region);
 const at = (turns: ChainTurn[], turn: number) => turns.find((t) => t.turn === turn)!;
@@ -46,7 +49,7 @@ describe("recovery chain over natural records (template seed 23)", () => {
     const g = known(t28.granary);
     expect(g.asset).toEqual(expect.objectContaining({ condition: expect.closeTo(0.8222, 4) }));
     expect(g.receipt?.condition_before).toBeCloseTo(0.7322, 4);
-    expect(farmLabourAway(t28)).toEqual({ pl1: 0, pl3: 4 });
+    expect(farmLabourAway(t28)).toEqual({ pl1: 0, granary: 4, workshop: 0 });
     // Snapshot 29: the project completed in that source turn (listed among closed).
     const t29 = at(turns, 29);
     expect(known(t29.repair).projects).toEqual([expect.objectContaining({ pid: 0, status: "completed", closedNow: true })]);
@@ -81,12 +84,17 @@ describe("recovery chain over natural records (template seed 23)", () => {
     expect(linkState(at(turns, 23), "forest")).toBe("active");
   });
 
-  it("matches the person sample by id only to workers paid at an earlier snapshot in the region", () => {
-    // Woodcutter 2 is first paid at snapshot 21 (expedition 1): not matched there, matched at 22.
+  it("matches the person sample by id to workers paid in the region at this or an earlier snapshot", () => {
+    // A turn's Phase 2 wages are paid before that turn's provisioning. Woodcutter 2 is sampled at 20, first paid at
+    // 21 (expedition 1): not matched at 20, matched from 21. Granary crew member 15 is sampled at 21-23 and first
+    // paid at 26: matched only from 26.
+    expect(known(at(turns, 20).retail).matches.map((m) => m.agentId)).not.toContain(2);
     expect(paidWorkers(at(turns, 21).wages)).toContain(2);
-    expect(known(at(turns, 21).retail).matches.map((m) => m.agentId)).not.toContain(2);
+    expect(known(at(turns, 21).retail).matches).toContainEqual(expect.objectContaining({ agentId: 2, who: "self", since: 21 }));
+    for (const turn of [21, 22, 23]) expect(known(at(turns, turn).retail).matches.map((m) => m.agentId)).not.toContain(15);
+    expect(known(at(turns, 26).retail).matches).toContainEqual(expect.objectContaining({ agentId: 15, since: 26 }));
     const m22 = known(at(turns, 22).retail).matches;
-    expect(m22).toContainEqual(expect.objectContaining({ agentId: 2, who: "self", worker: 2, status: "fed" }));
+    expect(m22).toContainEqual(expect.objectContaining({ agentId: 2, who: "self", worker: 2, status: "fed", since: 21 }));
     // Person 20 is sampled in the household keyed by woodcutter 13.
     expect(m22).toContainEqual(expect.objectContaining({ agentId: 20, household: 13, who: "household", worker: 13 }));
     expect(m22.every((m) => [2, 3, 13, 14, 17, 19, 22, 23, 27, 34, 35, 36, 40].includes(m.worker))).toBe(true);
@@ -144,6 +152,59 @@ describe("off, unknown and zero", () => {
     expect(totals.wagesMilli.pl3).toBe(26568 - 8000);
     expect(totals.unknown.wages).toBe(1);
     expect(totals.unknown.retail).toBe(1);
+    expect(totals.farmAwayUnknown).toBe(1);
+    expect(totals.farmAway.granary).toBeCloseTo(13.2823 - 4, 3);
+  });
+
+  it("does not draw unknown work as recorded (constructed: RS2 and PL1 receipts blanked)", () => {
+    const turns = chain(chainBundle((s) => {
+      if (s.turn === 28) Object.assign(s.livelihoods.repair_projects, { receipts: null, ledger: null });
+      if (s.turn === 20) Object.assign(s.livelihoods.timber_supply, { receipts: null, ledger: null });
+    }));
+    // RS2: project 0 is listed open, but whether it worked or stalled is unknown; so is whose timber the store held.
+    const t28 = at(turns, 28);
+    expect(known(t28.repair).receipts).toBeNull();
+    expect(linkState(t28, "repair")).toBe("unknown");
+    expect(known(t28.store).holders).toBeNull();
+    expect(incomplete(t28, "store")).toBe(true);
+    expect(known(t28.granary).receiptKnown).toBe(false);
+    // PL1: expeditions are listed, their crews' work and farm labour away are unknown, never zero.
+    const t20 = at(turns, 20);
+    expect(known(t20.expedition).receipts).toBeNull();
+    expect(incomplete(t20, "expedition")).toBe(true);
+    expect(farmLabourAway(t20).pl1).toBeNull();
+    expect(known(t20.forest).slots).toBeNull();
+    const totals = chainTotals(turns);
+    expect(totals.unknown.repair).toBe(1);
+    expect(totals.unknown.store).toBe(1);
+    expect(totals.unknown.expedition).toBe(1);
+    expect(totals.farmAwayUnknown).toBe(1);                     // PL1 at 20 (RS2 receipts carry no farm time)
+    expect(totals.farmAway.pl1).toBeCloseTo(21.8 - 2, 3);
+    expect(totals.stalls).toBe(4);                               // the stalls at 15 and 21-23 are still known
+  });
+
+  it("counts an unprovisioned pilot as unknown, but not the record-only control's (constructed on the reader's output)", () => {
+    const turns = chain(chainBundle());
+    const t22 = structuredClone(at(turns, 22));
+    const retail = known(t22.retail);
+    retail.frame = { ...retail.frame!, provisioning: null };
+    expect(linkState(t22, "retail")).toBe("unknown");
+    expect(chainTotals([t22]).unknown.retail).toBe(1);
+    retail.mode = "record_only";
+    expect(linkState(t22, "retail")).toBe("active");
+    expect(chainTotals([t22]).unknown.retail).toBe(0);
+  });
+
+  it("counts a forest slot without its L3 account as partly unknown (constructed: L3 not settled at 23)", () => {
+    const turns = chain(chainBundle((s) => {
+      if (s.turn === 23) Object.assign(s.livelihoods.timber_stock, { observed: false, regions: null, totals: null });
+    }));
+    const forest = known(at(turns, 23).forest);
+    expect(forest.slots).toEqual([expect.objectContaining({ eid: 1, forest: 6, l3: null })]);
+    expect(forest.l3Missing).toBe("no L3 account was settled in the source turn");
+    expect(incomplete(at(turns, 23), "forest")).toBe(true);
+    expect(incomplete(at(chain(chainBundle()), 23), "forest")).toBe(false);
+    expect(chainTotals(turns).unknown.forest).toBe(1);
   });
 
   it("keeps a reader's refusal as malformed with its reason, and an unreadable livelihoods record as malformed", () => {
@@ -196,17 +257,16 @@ describe("links joined by id and by region", () => {
     for (const l of LINKS) expect(l.joined.startsWith(l.join === "id" ? "by id: " : "by region only: ")).toBe(true);
   });
 
-  it("joins the granary to its project by the project's asset (the granary's region index)", () => {
-    // Constructed: project 0's asset renamed to another region's granary. The RS2 reader refuses a granary
-    // project whose asset is not its region, so nothing is joined on the region alone.
-    const turns = chain(chainBundle((s) => {
-      const rp = s.livelihoods.repair_projects;
-      for (const p of [...rp.projects, ...rp.closed]) if (p.pid === 0) p.asset = 6;
-    }));
-    expect(at(turns, 28).repair.state).toBe("malformed");
-    const natural = known(at(chain(chainBundle()), 28).granary);
-    expect(natural.project).toEqual(expect.objectContaining({ pid: 0, kind: "granary", asset: SAPPHIRE }));
-    expect(known(at(chain(chainBundle(), 6), 28).granary).project).toBeNull();
+  it("joins the granary to its project by kind and asset, not to any project in the region", () => {
+    // Constructed: workshop projects listed first in Sapphire Coast (beside granary project 0) and in Mistwood
+    // (which has no granary project). A join by region alone would take the workshop projects.
+    const turns = (region: number) => chain(chainBundle((s) => {
+      if (s.turn === 28) { workshopProject(s, 99, 3, SAPPHIRE); workshopProject(s, 97, 4, 6); }
+    }), region);
+    expect(known(at(turns(SAPPHIRE), 28).repair).projects.map((p) => p.pid)).toEqual([99, 0]);
+    expect(known(at(turns(SAPPHIRE), 28).granary).project).toEqual(expect.objectContaining({ pid: 0, kind: "granary", asset: SAPPHIRE }));
+    expect(known(at(turns(6), 28).repair).projects.map((p) => p.pid)).toEqual([97]);
+    expect(known(at(turns(6), 28).granary).project).toBeNull();
   });
 
   it("counts a workshop crew's wages once, from its RS2 receipt (PL3 records them as zero)", () => {
@@ -225,8 +285,8 @@ describe("links joined by id and by region", () => {
       const rc = s.livelihoods.recovery_crews;
       rc.receipts.push({ turn: 27, pid: 99, kind: "workshop", region: 7, payer: 0, eligible: 4, eligible_site_city: 1, planned: 0,
         capacity: 0, requested: 0.4, delivered: 0.4, coin_cost_milli: 0, wages_due_milli: 0, wages_milli: 0,
-        wage_residual_milli: 0, sunk_milli: 0, farm_time_removed: 0,
-        members: [50, 51].map((agent_id) => ({ agent_id, origin: "rural_farmer", share: 0.2, worked: 0.2, farm_time: 0,
+        wage_residual_milli: 0, sunk_milli: 0, farm_time_removed: 0.4,
+        members: [50, 51].map((agent_id) => ({ agent_id, origin: "rural_farmer", share: 0.2, worked: 0.2, farm_time: 0.2,
           veteran: false, wage_due_milli: 0, wage_milli: 0, wage_residual_milli: 0, income_replaced: 0 })) });
     }));
     const t28 = at(turns, 28);
@@ -234,6 +294,11 @@ describe("links joined by id and by region", () => {
     expect(known(wages.rs2).rows).toEqual([expect.objectContaining({ source: "rs2_workshop", pid: 99, people: [50, 51], wagesMilli: 400 })]);
     expect(known(wages.pl3).rows.map((r) => r.pid)).toEqual([0]);   // the granary crew only
     expect(chainTotals(turns).wagesMilli).toEqual({ pl3: 26568, rs2: 400, pl1: 14500 });
+    // The workshop crew's farm time is PL3's: counted as farm labour taken, by source.
+    expect(known(wages.pl3).workshops).toEqual([{ pid: 99, people: [50, 51], farmTime: 0.4 }]);
+    expect(farmLabourAway(t28)).toEqual({ pl1: 0, granary: 4, workshop: 0.4 });
+    expect(chainTotals(turns).farmAway.workshop).toBeCloseTo(0.4, 9);
+    expect(paidWorkers(t28.wages)).toEqual(expect.arrayContaining([50, 51]));
   });
 });
 
@@ -276,18 +341,53 @@ describe("a run with only some of the switches (constructed from the natural rec
 });
 
 describe("tradeoffs", () => {
-  it("names budget limits by link (constructed: a no_coins stall and an unpaid woodcutting turn)", () => {
+  it("names budget limits by link (constructed: a no_coins stall, a recall, an unpaid woodcutting turn, a refused wage)", () => {
     const turns = chain(chainBundle((s) => {
       if (s.turn === 15) s.livelihoods.repair_projects.receipts.find((r: { pid: number }) => r.pid === 0).reasons = ["no_timber", "no_coins"];
+      if (s.turn === 14) s.livelihoods.timber_supply.receipts.find((r: { eid: number }) => r.eid === 0).recalled = true;
+      if (s.turn === 21) unpaidWoodcutting(s, 1);
+      if (s.turn === 28) refusedWage(s, 0, 20, 2000);
     }));
     expect(budgetLimits(at(turns, 15))).toEqual([{ link: "repair", text: "project #0 stalled: treasury short" }]);
-    expect(budgetLimits(at(turns, 14))).toEqual([]);
+    expect(budgetLimits(at(turns, 14))).toEqual([{ link: "expedition", text: "expedition #0 recalled: the treasury could not pay" }]);
+    expect(budgetLimits(at(turns, 21))).toEqual([{ link: "expedition", text: "expedition #1 unpaid this turn" }]);
+    expect(budgetLimits(at(turns, 28))).toEqual([{ link: "wages", text: "2 coins of wages refused by the wealth ceiling" }]);
+    expect(budgetLimits(at(chain(chainBundle()), 21))).toEqual([]);
+    // Nobody on an unpaid turn, and no member whose own wage was refused, counts as paid.
+    const t21 = at(turns, 21);
+    expect(known(known(t21.wages).pl1).rows).toEqual([expect.objectContaining({ eid: 1, unpaid: true, wagesMilli: 0, paid: [] })]);
+    expect(paidWorkers(t21.wages)).toEqual([]);
+    expect(known(t21.retail).matches.map((m) => m.agentId)).not.toContain(2);
+    const t28 = known(known(at(turns, 28).wages).pl3).rows[0];
+    expect(t28).toEqual(expect.objectContaining({ people: [3, 13, 15, 20], paid: [3, 13, 15], wagesMilli: 6000, refusedMilli: 2000 }));
   });
 
-  it("counts farm labour away from both PL1 crews and PL3 granary crews", () => {
+  it("counts farm labour away from PL1 woodcutters and PL3 granary and workshop crews, by source", () => {
     const t20 = at(chain(chainBundle()), 20);
     expect(farmLabourAway(t20).pl1).toBe(2);
-    expect(farmLabourAway(t20).pl3).toBeCloseTo(3.2687, 4);
-    expect(chainTotals(chain(chainBundle())).farmAway).toBeCloseTo(35.0823, 3);
+    expect(farmLabourAway(t20).granary).toBeCloseTo(3.2687, 4);
+    expect(farmLabourAway(t20).workshop).toBe(0);
+    const totals = chainTotals(chain(chainBundle()));
+    expect(totals.farmAway.pl1).toBeCloseTo(21.8, 3);
+    expect(totals.farmAway.granary).toBeCloseTo(13.2823, 3);
+    expect(totals.farmAwayUnknown).toBe(0);
+    // With timber supply off, the PL3 crews' farm labour is still counted.
+    const off = chainTotals(chain(chainBundle(without("timber_supply", "timber_stock"))));
+    expect(off.farmAway).toEqual({ pl1: 0, granary: expect.closeTo(13.2823, 3), workshop: 0 });
+    expect(farmLabourAway(at(chain(chainBundle(without("timber_supply", "timber_stock"))), 20)).pl1).toBe("off");
   });
+
+  it("shows no crew formed as nothing paid, not as a paid row (constructed: an empty granary crew in Mistwood)", () => {
+    const t28 = at(chain(chainBundle((s) => { if (s.turn === 28) emptyGranaryCrew(s, 98, 6); }), 6), 28);
+    const pl3 = known(known(t28.wages).pl3);
+    expect(pl3.rows).toEqual([]);
+    expect(pl3.noCrew).toEqual([{ pid: 98, planned: 1 }]);
+    expect(linkState(t28, "wages")).toBe("none");
+  });
+});
+
+it("labels the turn table's pager by the rows not yet shown", () => {
+  expect(moreRowsLabel(12, 25)).toBe("Show the last 12");
+  expect(moreRowsLabel(25, 25)).toBe("Show the last 25");
+  expect(moreRowsLabel(37, 25)).toBe("Show 25 more (37 not shown)");
 });
