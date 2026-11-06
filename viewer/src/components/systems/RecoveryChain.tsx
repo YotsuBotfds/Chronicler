@@ -1,6 +1,5 @@
 import { useId, useMemo, useState } from "react";
 import type { SystemPanelProps, StripRow } from "../../lib/systems";
-import { buildSegments } from "../../lib/systems";
 import {
   budgetLimits, busiestRegion, CHAIN_PACKAGES, chainTotals, farmLabourAway, LINKS, linkState, PACKAGE_INFO,
   readChainSnapshots, regionChain, type Cell, type ChainTurn, type ExpeditionValue, type LinkKey, type LinkState, type WageRow,
@@ -25,7 +24,11 @@ const REFUSAL: Record<string, string> = {
   no_coins: "the treasury cannot pay the expedition",
 };
 const STATE_LABEL: Record<LinkState, string> = {
-  off: "off", unknown: "unknown", none: "nothing recorded", active: "recorded", tradeoff: "stall, refusal, priced out or stock drawn down",
+  off: "off", unknown: "unknown", none: "nothing recorded", active: "recorded", tradeoff: "tradeoff",
+};
+/** What a link's tradeoff state is (``linkState``). */
+const TRADEOFF_LABEL: Partial<Record<LinkKey, string>> = {
+  repair: "stalled", expedition: "need refused", forest: "forest stock drawn down", retail: "people priced out",
 };
 const COLOR = { active: "#3987e5", tradeoff: "#ec835a", unknown: "#8a8a86" } as const;
 const TEXT = { active: "#ffffff", tradeoff: "#0b0b0b", unknown: "#0b0b0b" } as const;
@@ -144,8 +147,8 @@ function wageRow(r: WageRow, brief: boolean): string {
   const what = r.source === "pl3_granary" ? `granary crew of project #${r.pid}` : r.source === "rs2_workshop"
     ? `workshop crew of project #${r.pid}` : `woodcutters of expedition #${r.eid}`;
   const paid = r.unpaid ? (r.source === "pl3_granary" ? "unpaid control, no wage" : "unpaid this turn")
-    : `paid ${coins(r.wagesMilli)}${brief ? "" : " coins"}`;
-  return brief ? `${what}: ${paid}` : `${what[0].toUpperCase()}${what.slice(1)} (${ids(r.people)}): ${paid}`;
+    : brief ? coins(r.wagesMilli) : `paid ${coins(r.wagesMilli)} coins`;
+  return brief ? `${what} ${paid}` : `${what[0].toUpperCase()}${what.slice(1)} (${ids(r.people)}): ${paid}`;
 }
 
 function wagesText(t: ChainTurn, brief: boolean): string {
@@ -163,7 +166,12 @@ function wagesText(t: ChainTurn, brief: boolean): string {
     if (c.value.rows.length) parts.push(...c.value.rows.map((r) => wageRow(r, brief) + (brief ? "" : `.${truncated}`)));
     else if (!brief) parts.push(`${label}: none in the region.${truncated}`);
   }
-  if (brief) return parts.length ? `${coins(total)}${complete ? "" : " (incomplete)"}: ${parts.join("; ")}` : "none";
+  if (brief) {
+    if (!parts.length) return "none";
+    // An unknown source leaves the total unknown: at least what the known receipts paid.
+    const head = complete ? `${coins(total)} coins` : total > 0 ? `at least ${coins(total)} coins` : "unknown";
+    return `${head} (${parts.join("; ")})`;
+  }
   return `${parts.join(" ")} ${complete ? `Total paid in the region: ${coins(total)} coins.` : "The region's total is unknown: a source is not known."}`;
 }
 
@@ -176,7 +184,7 @@ function retailText(t: ChainTurn, brief: boolean): string {
     : `Pilot region since turn ${v.frame.opened_turn}; not provisioned this turn: purchases unknown, not zero${v.mode === "record_only" ? " (record-only control)" : ""}.`;
   const bought = `${p.buying_households} households paid ${coins(p.paid_milli)} coins for ${num(p.sold_milli / 1000, 3)} food`
     + `${p.price_milli ? ` at ${coins(p.price_milli)} a ration` : ""}`;
-  if (brief) return `pilot: ${p.persons} people; paid ${coins(p.paid_milli)}`;
+  if (brief) return `pilot: ${p.persons} people, paid ${coins(p.paid_milli)} coins`;
   const matches = v.sampled === 0 ? "None of the person sample is in this region this turn."
     : v.matches.length === 0 ? `None of the ${v.sampled} people sampled here was paid earlier in the region or is in a paid worker's household.`
       : `By id (ration and status only, not who paid): ${v.matches.map((m) => `${m.agentId}${m.who === "household" ? ` (household of ${m.worker})` : ""} `
@@ -190,7 +198,7 @@ function remittanceText(t: ChainTurn, brief: boolean): string {
   const v = t.remittances.value;
   const control = v.mode === "record_only" ? " (record-only control: nothing is sent)" : "";
   if (!v.row || v.row.inflow_milli === 0) return brief ? "none" : `Nothing came in this turn${control}.`;
-  return brief ? `${coins(v.row.inflow_milli)} in` : `${coins(v.row.inflow_milli)} coins came in to ${v.row.recipients} recipients${control}.`;
+  return brief ? `${coins(v.row.inflow_milli)} coins in` : `${coins(v.row.inflow_milli)} coins came in to ${v.row.recipients} recipients${control}.`;
 }
 
 /** The tradeoffs beside a link; an empty list when the link records none. */
@@ -248,6 +256,20 @@ function linkText(t: ChainTurn, key: LinkKey, names: Names, brief: boolean): str
 
 // ---------------------------------------------------------------- the view
 
+/** A link's strip: runs of the same state over consecutive turns (a gap in the history ends a run). */
+function stripSegments(turns: readonly ChainTurn[], key: LinkKey): StripRow["segments"] {
+  const out: Array<StripRow["segments"][number] & { state: keyof typeof COLOR }> = [];
+  for (const t of turns) {
+    const s = linkState(t, key);
+    if (s !== "active" && s !== "tradeoff" && s !== "unknown") continue;
+    const last = out[out.length - 1];
+    if (last && last.state === s && last.end === t.turn) last.end = t.turn + 1;
+    else out.push({ state: s, start: t.turn, end: t.turn + 1, color: COLOR[s], textColor: TEXT[s], label: "" });
+  }
+  return out.map(({ state, ...seg }) => ({ ...seg,
+    label: `${state === "tradeoff" ? TRADEOFF_LABEL[key] ?? STATE_LABEL[state] : STATE_LABEL[state]}, ${seg.end - seg.start === 1 ? `snapshot ${seg.start}` : `snapshots ${seg.start}-${seg.end - 1}`}` }));
+}
+
 /**
  * One region's recovery chain over the run, composed from the packages' own
  * readers (lib/recoveryChain). Off packages say off, unknown frames say
@@ -274,18 +296,8 @@ export function RecoveryChain({ bundle, snapshot, currentTurn, onSeek, onSelectR
   const on = CHAIN_PACKAGES.filter((k) => read.on[k]);
   const off = CHAIN_PACKAGES.filter((k) => !read.on[k]);
 
-  const strip: StripRow[] = useMemo(() => links.map((l) => {
-    const keys = turns.map((t) => {
-      const s = linkState(t, l.key);
-      return s === "active" || s === "tradeoff" || s === "unknown" ? s : null;
-    });
-    const segments = buildSegments(turns.map((t) => t.turn), keys).map((seg) => {
-      const state = seg.key as keyof typeof COLOR;
-      return { start: seg.start, end: seg.end, color: COLOR[state], textColor: TEXT[state],
-        label: `${l.title}: ${STATE_LABEL[state]}, snapshots ${seg.start}-${seg.end - 1}` };
-    });
-    return { id: l.key, label: l.title, segments };
-  }), [links, turns]);
+  const strip: StripRow[] = useMemo(() => links.map((l) => ({ id: l.key, label: l.title,
+    segments: stripSegments(turns, l.key) })), [links, turns]);
 
   const shown = turns.filter((t) => everySnapshot || t.turn === at
     || links.some((l) => ["active", "tradeoff"].includes(linkState(t, l.key))));

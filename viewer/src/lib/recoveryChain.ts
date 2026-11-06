@@ -577,15 +577,17 @@ export function budgetLimits(t: ChainTurn): Array<{ link: "repair" | "expedition
   return out;
 }
 
-/** The region where the chain is busiest (most link-snapshots with something recorded), lowest index on ties. */
+/** The region where the chain is busiest: most link-snapshots recorded outside retail and remittances, then most
+ * in them (a run with household retail alone), lowest index on ties. */
 export function busiestRegion(snapshots: readonly ChainSnapshot[], regionCount: number): number {
   let best = 0;
-  let score = -1;
+  let score: [number, number] = [-1, -1];
   for (let r = 0; r < regionCount; r += 1) {
-    const turns = regionChain(snapshots, r);
-    const s = turns.reduce((a, t) => a + LINKS.filter((l) => ["active", "tradeoff"].includes(linkState(t, l.key))
-      && l.key !== "retail" && l.key !== "remittances").length, 0);
-    if (s > score) { best = r; score = s; }
+    const s: [number, number] = [0, 0];
+    for (const t of regionChain(snapshots, r)) {
+      for (const l of LINKS) if (["active", "tradeoff"].includes(linkState(t, l.key))) s[l.key === "retail" || l.key === "remittances" ? 1 : 0] += 1;
+    }
+    if (s[0] > score[0] || (s[0] === score[0] && s[1] > score[1])) { best = r; score = s; }
   }
   return best;
 }
