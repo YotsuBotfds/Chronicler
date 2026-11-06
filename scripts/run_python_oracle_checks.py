@@ -377,6 +377,9 @@ CHUNKS = {
     "feature-options": [
         "tests/test_feature_catalog.py",
     ],
+    "connected-world-b": [
+        "tests/test_watershed.py",
+    ],
     "ritual-gatherings": [
         "tests/test_ritual_gatherings.py",
         "tests/test_narration_expansion_context.py",
