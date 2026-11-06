@@ -1,12 +1,15 @@
 # Productive recovery, checkpoint 2: preregistered held screens (PL6c)
 
-Status: **DRAFT, not frozen**. Code may change before the lead freezes this file. After
-the freeze it may change only to fix a defect, listed as an amendment; no arm, outcome or
-parameter may change in response to held outcomes.
+Status: **FROZEN** by the lead on 2026-11-06, before any held run, on simulation source
+`78cf2efd` (branch `claude/household-retail`) with native extension `b1910b94…` (built from
+`3ed75f22`; the Rust is unchanged since). Code may change between this freeze and the held
+run only to fix a defect, listed as an amendment; no arm, outcome or parameter may change in
+response to held outcomes.
 
-Drafted 2026-11-06 by lane PL6c on `claude/pl6c-retail-screens`, from
-`claude/household-retail` `fdc1dfbc`. No held seed of any cohort was run. The lead
-freezes this file and runs the held cohort.
+**Pilot on the frozen source.** Rerun on `78cf2efd` after the review fixes: 16 runs, 0
+failed, every outcome extracted; 175 s of simulation and 36 s of extraction at 2 concurrent
+processes; all 17 identity outcomes (`R_rec − L2`) exactly zero on both worlds. The pilot's
+outcomes were not read for any other decision.
 
 ## Purpose and limits
 
