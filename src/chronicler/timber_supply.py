@@ -1013,9 +1013,10 @@ def _choose_crew(world, state, snapshot, home: int, enlisted, trips) -> tuple[li
     """At most ``CREW_CAP`` eligible residents of ``home``, RS3 veterans first,
     and which of them were admitted while of Soldier occupation. Eligible:
     living adults resident there, not on an army roster, not on a trip, not on
-    another crew, of any occupation but Soldier; RS3's priority veterans of any
+    another crew, of any occupation but Soldier; RS3-eligible veterans of any
     occupation, Soldier included (released, on no roster; the plan's "any
-    non-enlisted occupation")."""
+    non-enlisted occupation"), in both RS3 modes, first only under RS3
+    ``priority``."""
     import numpy as np
     ids, region, occupation, age, _settlement = _rows(snapshot)
     resident = (region == home) & (age >= AGE_ADULT)
@@ -1028,8 +1029,13 @@ def _choose_crew(world, state, snapshot, home: int, enlisted, trips) -> tuple[li
     soldiers = {int(a) for a in np.unique(ids[resident & (occupation == SOLDIER)]) if free(int(a))}
     first = []
     if _lane_active(world, "veteran_reintegration"):
-        from chronicler.veteran_reintegration import priority_ids
-        pool = set(eligible) | soldiers
+        from chronicler.veteran_reintegration import eligible_ids, priority_ids
+        # Released veterans of Soldier occupation on no roster are eligible in
+        # both RS3 modes (RS3's own rule, ``eligible_ids``); only ``priority``
+        # puts veterans first (integration, 2026-11-06).
+        veterans = {int(a) for a in eligible_ids(world, home)}
+        eligible = sorted(set(eligible) | (soldiers & veterans))
+        pool = set(eligible)
         first = [int(a) for a in priority_ids(world, home) if int(a) in pool]
     seen = set(first)
     order = (first + [a for a in eligible if a not in seen])[:CREW_CAP]

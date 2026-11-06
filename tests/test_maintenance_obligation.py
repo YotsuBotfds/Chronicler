@@ -165,7 +165,7 @@ def _exec_world(mode):
 
 
 @pytest.mark.usefixtures("settle_only")
-def test_reserve_spends_the_reservation_first_and_the_envelope_settles_its_part(settle_only):
+def test_reserve_spends_reservation_and_envelope_and_the_envelope_settles_its_part(settle_only):
     world = _exec_world("reserve")
     sim = rc._Sim(rc._people())
     rc._open(world, sim)
@@ -178,7 +178,7 @@ def test_reserve_spends_the_reservation_first_and_the_envelope_settles_its_part(
     state = world.livelihoods.maintenance_obligation
     (use,) = state.uses
     assert use == ReservationUse(turn=5, civ=0, reserved=5, envelope=3, charged=8, used=5, returned=0,
-                                 envelope_spent=3)
+                                 envelope_spent=3, envelope_share=3 / 8)
     (c,) = settle_only
     assert (c.outcome, c.spent, c.detail["reservation_used"]) == ("kept", 3, 5)
     assert c.delivered == pytest.approx(4.0 * 3 / 8)
@@ -219,17 +219,67 @@ def test_a_reservation_without_an_envelope_funds_repairs_alone(settle_only):
 
 
 @pytest.mark.usefixtures("settle_only")
-def test_unspent_reservation_is_returned_when_repairs_fall_short(settle_only):
+def test_a_shortfall_falls_on_reservation_and_envelope_pro_rata(settle_only):
+    """Review C 2026-11-06: paying from the reservation first left the whole
+    shortfall on the bargained envelope (here: spent 0, ratio 0), lowering
+    its ratio and raising broken-promise grievance against L9 alone. The
+    charge and the work are split pro rata to the two amounts."""
     world = _exec_world("reserve")
     sim = rc._Sim(rc._people())
     rc._open(world, sim)
-    _budgets(world, reserved=6, envelope=2)
-    world.regions[0].stockpile.goods["timber"] = 1.0              # only one work unit of timber
+    _budgets(world, reserved=5, envelope=3)
+    world.regions[0].stockpile.goods["timber"] = 1.0              # one of the 4 funded work units
     rc._turn(world, sim)
     (use,) = world.livelihoods.maintenance_obligation.uses
-    assert (use.charged, use.used, use.returned, use.envelope_spent) == (2, 2, 4, 0)
+    # 2 coins charged: floor(2 x 5/8) = 1 from the reservation, 1 from the envelope.
+    assert (use.charged, use.used, use.returned, use.envelope_spent) == (2, 1, 4, 1)
+    assert use.envelope_share == pytest.approx(3 / 8)
     (c,) = settle_only
-    assert c.outcome == "deferred" and c.spent == 0 and c.reason == "inputs_short"
+    assert c.spent == 1 and c.delivered == pytest.approx(1.0 * 3 / 8)
+    assert c.ratio == pytest.approx(0.25)                         # 1 of the 4 funded units
+    assert (c.outcome, c.reason) == ("deferred", "inputs_short")
+
+
+def test_the_envelope_ratio_matches_l9_alone_under_the_same_shortfall(monkeypatch):
+    """With timber for a quarter of the funded work, L9 alone (an 8-coin
+    envelope) and ``reserve`` (5 reserved, a 3-coin envelope) settle their
+    promise at the same delivered ratio, so their grievance responses are
+    comparable."""
+    ratios = {}
+    for mode in ("l9", "reserve"):
+        settled = []
+
+        def phase10(world, acc=None, economy_result=None, agent_bridge=None, settled=settled):
+            obs = SimpleNamespace(economy=economy_result, turn=world.turn, trace={})
+            events = LB._settle(world, world.livelihoods.local_budgets, obs, LB._providers())
+            settled.extend(world.livelihoods.local_budgets.settled)
+            return events
+
+        monkeypatch.setattr(LB, "phase10", phase10)
+        world = _exec_world("reserve") if mode == "reserve" else rc._world(crews=None)
+        sim = rc._Sim(rc._people())
+        rc._open(world, sim)
+        if mode == "reserve":
+            _budgets(world, reserved=5, envelope=3)
+        else:
+            _budgets(world, reserved=0, envelope=8)
+        world.regions[0].stockpile.goods["timber"] = 1.0
+        rc._turn(world, sim)
+        (c,) = settled
+        ratios[mode] = (c.ratio, c.outcome, c.reason)
+    assert ratios["l9"] == ratios["reserve"] == (pytest.approx(0.25), "deferred", "inputs_short")
+
+
+def test_split_charge_rounds_the_reservation_down_and_keeps_both_in_bounds():
+    assert MO.split_charge(8, 5, 3) == (5, 3 / 8)
+    assert MO.split_charge(2, 5, 3) == (1, 3 / 8)
+    assert MO.split_charge(3, 4, 0) == (3, 0.0)
+    assert MO.split_charge(5, 0, 8) == (0, 1.0)
+    for charged in range(0, 12):
+        used, share = MO.split_charge(charged, 7, 4)
+        assert 0 <= used <= 7 and 0 <= charged - used <= 4
+    with pytest.raises(RuntimeError):
+        MO.split_charge(12, 7, 4)
 
 
 def test_closure_check_refuses_unbalanced_rows():

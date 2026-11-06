@@ -135,3 +135,71 @@ def test_exact_checkpoint_resume_inside_live_crews(tmp_path, monkeypatch):
     assert any(r["kind"] == "granary" and r["members"] for r in at["recovery_crews"]["receipts"])
     assert a["history"] == b["history"] and a["world_state"] == b["world_state"]
     assert (straight / "state.json").read_bytes() == (resumed / "state.json").read_bytes()
+
+
+MAINTENANCE = ["--local-budgets", "--maintenance-obligation"]
+
+
+def test_maintenance_reservations_close_and_split_on_the_real_extension(tmp_path, monkeypatch):
+    """L9 with the maintenance obligation (and paid crews), procedural seed 31,
+    60 turns, ``CHRONICLER_CHECK_RESOURCES=1``: every reservation L9 records is
+    this package's decision; RS2 never charges beyond envelope plus
+    reservation; each civ's charge splits pro rata (``split_charge``) and its
+    rows close; each settled repairs envelope spent exactly its part."""
+    from chronicler import maintenance_obligation as MO
+    from chronicler.bundle_codec import load_bundle
+    monkeypatch.setenv("CHRONICLER_CHECK_RESOURCES", "1")
+    _cli(monkeypatch, tmp_path, "--seed", "31", "--turns", "60", *FLAGS, *PROCEDURAL, *MAINTENANCE)
+    history = load_bundle(tmp_path / "chronicle_bundle.json")["history"]
+    seen = {"reserved": 0, "used": 0, "split": 0, "settled": 0}
+    decided: dict[int, dict[int, int]] = {}
+    for snap in history:
+        lv = snap["livelihoods"]
+        mo, l9, rs2 = lv["maintenance_obligation"], lv["local_budgets"], lv["repair_projects"]
+        assert mo["stage"] == "PL3" and mo["mode"] == "reserve"
+        source = mo["source_turn"]
+        if mo["decisions"] is not None:
+            assert l9["decisions"] is not None
+            recorded = {d["civ"]: d["reserved"].get("maintenance", 0) for d in l9["decisions"]}
+            mine = {d["civ"]: d["reserved"] for d in mo["decisions"]}
+            assert {c: v for c, v in recorded.items() if v} == {c: v for c, v in mine.items() if v}
+            for d in mo["decisions"]:
+                assert d["reserved"] == min(d["planned"], d["cap"]) and d["cap"] == d["budget_before"] // 2
+            decided[source] = mine
+        if mo["uses"] is None:
+            continue
+        charged = {row["civ"]: row["charged"] for row in rs2["ledger"] or []}
+        settled = {c["civ"]: c for c in l9["settled"] or [] if c["service"] == "repairs"}
+        for u in mo["uses"]:
+            MO.check_use(MO.ReservationUse.model_validate(u))
+            assert u["reserved"] == decided.get(source - 1, {}).get(u["civ"], 0)
+            assert u["charged"] == charged.get(u["civ"], 0)
+            assert u["charged"] <= u["reserved"] + (u["envelope"] or 0)
+            used, share = MO.split_charge(u["charged"], u["reserved"], u["envelope"] or 0)
+            assert (u["used"], u["envelope_share"]) == (used, pytest.approx(share))
+            if u["civ"] in settled:
+                assert settled[u["civ"]]["spent"] == u["envelope_spent"]
+                seen["settled"] += 1
+            seen["reserved"] += u["reserved"]
+            seen["used"] += u["used"]
+            seen["split"] += bool(u["used"] and u["envelope_spent"])
+    assert seen["reserved"] > 0 and seen["used"] > 0 and seen["split"] > 0 and seen["settled"] > 0
+
+
+def test_exact_checkpoint_resume_across_a_live_reservation(tmp_path, monkeypatch):
+    from chronicler.bundle_codec import load_bundle
+    straight = tmp_path / "straight"
+    _cli(monkeypatch, straight, "--seed", "31", "--turns", "46", *FLAGS, *PROCEDURAL, *MAINTENANCE,
+         "--checkpoint-turns", "39")
+    ckpt = straight / "checkpoint_turn_39.ckpt"
+    assert ckpt.exists()
+    resumed = tmp_path / "resumed"
+    _cli(monkeypatch, resumed, "--resume", str(ckpt))
+    a, b = (load_bundle(p / "chronicle_bundle.json") for p in (straight, resumed))
+    for bundle in (a, b):
+        bundle["metadata"].pop("generated_at", None)
+    # The decision of turn 38 reserves coins for turn 39 across the checkpoint.
+    (snap,) = [s for s in a["history"] if s["livelihoods"]["maintenance_obligation"]["source_turn"] == 38]
+    assert sum(d["reserved"] for d in snap["livelihoods"]["maintenance_obligation"]["decisions"]) > 0
+    assert a["history"] == b["history"] and a["world_state"] == b["world_state"]
+    assert (straight / "state.json").read_bytes() == (resumed / "state.json").read_bytes()

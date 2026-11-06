@@ -29,10 +29,13 @@ the budget the civ would have without it:
 ``reserve``: RS2's ``repairs`` proposal asks only for the part beyond the
 reservation (cost, expected work and relief scaled by the unreserved share),
 and during T+1 RS2 may spend up to its envelope plus the reservation
-(``repairs_limit``). The charge is paid from the reservation first; the rest
-is the envelope's, which L9 settles as before (``spent <= amount``, kept or
-deferred from RS2's receipts, the grievance response of a promise). The
-reservation is not a promise: it has no sponsor and moves no grievance.
+(``repairs_limit``). The charge and the delivered work are split between the
+reservation and the envelope pro rata to their amounts (:func:`split_charge`),
+so a shortfall falls on both and the envelope's delivered ratio stays the work
+delivered over the work its limit funded, as under L9 alone; L9 settles the
+envelope's part as before (``spent <= amount``, kept or deferred from RS2's
+receipts, the grievance response of a promise). The reservation is not a
+promise: it has no sponsor and moves no grievance.
 
 ``reserve_only``: the same reservation (the same smaller budget for every
 bargained service), while RS2 keeps its full proposal and is limited to its
@@ -218,13 +221,35 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
         if not reserved and row is None:
             continue
         charged = int(row.charged) if row is not None else 0
-        used = min(charged, reserved) if state.mode == "reserve" else 0
-        use = ReservationUse(turn=world.turn, civ=ci, reserved=reserved, envelope=envelope(world, ci, "repairs"),
-                             charged=charged, used=used, returned=reserved - used, envelope_spent=charged - used)
+        amount = envelope(world, ci, "repairs")
+        used, share = split_charge(charged, reserved if state.mode == "reserve" else 0, amount or 0)
+        use = ReservationUse(turn=world.turn, civ=ci, reserved=reserved, envelope=amount, charged=charged,
+                             used=used, returned=reserved - used, envelope_spent=charged - used,
+                             envelope_share=share)
         check_use(use)
         t.uses[ci] = use
     t.finished = True
     return []
+
+
+def split_charge(charged: int, reserved: int, envelope: int) -> tuple[int, float]:
+    """The turn's RS2 charge split between the reservation and the bargained
+    envelope pro rata to their amounts: the reservation pays
+    ``floor(charged x reserved / (reserved + envelope))`` coins and the
+    envelope the rest (never above its amount, since ``charged <= reserved +
+    envelope``); the envelope's share of the delivered work is
+    ``envelope / (reserved + envelope)``. A shortfall therefore falls on both
+    in proportion, so the envelope's delivered ratio is the work delivered
+    over the work its limit funded, as under L9 alone (review C 2026-11-06:
+    paying from the reservation first left every shortfall on the promise,
+    lowering its ratio and raising broken-promise grievance against L9
+    alone). Returns ``(reservation coins, envelope work share)``."""
+    whole = reserved + envelope
+    if reserved <= 0 or whole <= 0:
+        return 0, 1.0
+    if charged > whole:
+        raise RuntimeError("repair charge beyond the reservation and envelope")
+    return (charged * reserved) // whole, envelope / whole
 
 
 def check_use(row: ReservationUse) -> None:
@@ -235,15 +260,22 @@ def check_use(row: ReservationUse) -> None:
         raise RuntimeError(f"repairs of civ {row.civ} spent beyond their envelope and reservation")
 
 
-def reservation_used(world, civ: int) -> int:
-    """Coins of this turn's RS2 charge to ``civ`` that its reservation paid
-    (0 in ``reserve_only`` or before Phase 2 settled)."""
+def reservation_split(world, civ: int) -> tuple[int, float]:
+    """This turn's split of RS2's charge to ``civ`` (:func:`split_charge`):
+    the coins its reservation paid and the envelope's share of the delivered
+    work; ``(0, 1.0)`` in ``reserve_only``, without a reservation or before
+    Phase 2 settled."""
     state = _state(world)
     t = state._turn if state is not None else None
     if t is None or t.turn != world.turn or not t.finished:
-        return 0
+        return 0, 1.0
     use = t.uses.get(civ)
-    return int(use.used) if use is not None else 0
+    return (int(use.used), float(use.envelope_share)) if use is not None else (0, 1.0)
+
+
+def reservation_used(world, civ: int) -> int:
+    """Coins of this turn's RS2 charge to ``civ`` that its reservation paid."""
+    return reservation_split(world, civ)[0]
 
 
 def rollback_phase2(world) -> None:

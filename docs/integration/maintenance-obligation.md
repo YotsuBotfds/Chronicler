@@ -56,12 +56,25 @@ the disposable treasury the budget is drawn from:
 **Execution (Phase 2 of T+1).** RS2 spends within its limit
 (`repair_projects._envelope`): in `reserve` mode the bargained envelope plus
 the reservation (`maintenance_obligation.repairs_limit`), in `reserve_only` the
-envelope alone. After RS2's single charge per civ, this package splits it:
-the reservation pays first, the envelope the rest.
+envelope alone. After RS2's single charge per civ, this package splits the
+charge and the delivered work between the reservation `R` and the envelope
+`E` pro rata to their amounts (`maintenance_obligation.split_charge`):
+
+    used           = floor(charged x R / (R + E))      (the reservation's coins)
+    envelope_spent = charged - used                    (<= E, since charged <= R + E)
+    envelope_share = E / (R + E)                       (the envelope's part of the work)
+
+A shortfall therefore falls on both in proportion. The envelope's delivered
+ratio is the work delivered over the work its limit funded, as under L9
+alone, so the `reserve` arm's kept and deferred promises and its grievance
+are comparable with L9 alone's. (Review C, 2026-11-06: the first rule paid
+from the reservation first, which left every shortfall on the promise,
+lowered its ratio and raised broken-promise grievance against L9 alone.)
+Rounding favours the envelope by less than a coin.
 
 **Settlement (Phase 10 of T+1).** L9 settles the repairs envelope from RS2's
 receipts as before, but with the envelope's own part: `spent = charged - used`
-and `delivered = work x spent / charged` (`repair_projects.budget_settlement`,
+and `delivered = work x envelope_share` (`repair_projects.budget_settlement`,
 which records `reservation_used` in the detail). L9's own closure
 (`spent <= amount`) and its kept and deferred rules, deferral events and
 grievance response therefore apply to the promise only. The reservation is an
@@ -79,6 +92,7 @@ Every civ with a reservation or a repair charge has one row per turn
     reserved == used + returned
     used + envelope_spent == charged          (RS2's whole-unit charge to the civ)
     envelope_spent <= envelope                (with an envelope)
+    reserve: used == floor(charged x reserved / (reserved + envelope))
     reserve_only: used == 0, returned == reserved
 
 RS2's own check (`charged <= limit`) and the RS2 viewer reader's
@@ -92,13 +106,13 @@ package's rows.
 parameters}`. `decisions` are the reservations decided in the source turn for
 the next (`turn, civ, planned, budget_before, cap, reserved`); `uses` the
 reservations used in the source turn (`turn, civ, reserved, envelope, charged,
-used, returned, envelope_spent`). Each is `null` when that turn decided or
+used, returned, envelope_spent, envelope_share`). Each is `null` when that turn decided or
 settled nothing (unknown, not zero). Viewer (PL5a):
 `viewer/src/lib/maintenanceObligation.ts` (`readMaintenanceObligation`) checks the cap,
-`reserved = min(planned, cap)` and the closure above; the panel
-`MaintenanceObligation.tsx` shows reserved, used and returned, and the crowding-out as
-`budget_before` less L9's own `budget` of the same dated decision (unknown when L9's
-record is not readable).
+`reserved = min(planned, cap)` and the closure above, including the pro-rata split and
+`envelope_share`; the panel `MaintenanceObligation.tsx` shows reserved, used and
+returned, and the crowding-out as `budget_before` less L9's own `budget` of the same
+dated decision (unknown when L9's record is not readable).
 
 ## Declared constants (uncalibrated)
 
@@ -131,7 +145,17 @@ the recovery-crews test world (the reservation spent first and the envelope
 settled for its part; `reserve_only` held to its envelope with the reservation
 returned; a reservation without an envelope; an unspent reservation returned
 when timber is short; closure refusals; a failed Phase 2; prerequisites;
-feature-off identity of the decisions; exact pickle).
+feature-off identity of the decisions; exact pickle), and the pro-rata split
+(a shortfall on both parts; the envelope ratio equal to L9 alone's under the
+same shortfall; `split_charge` bounds).
+
+`tests/test_recovery_crews_native.py` (real extension, shard 1): procedural
+32x10 seed 31, 60 turns, with paid crews and `CHRONICLER_CHECK_RESOURCES=1`:
+every reservation L9 records is this package's capped decision; RS2's charge
+never exceeds envelope plus reservation; each civ's split equals
+`split_charge` and closes; each settled repairs envelope spent exactly its
+part. Exact checkpoint resume at turn 39, across the reservation decided in
+turn 38: history, world state and `state.json` are byte-identical.
 
 ### Development screens (PL3 lane)
 
@@ -193,6 +217,25 @@ granary condition is 0.325 / 0.408, and 0.700 / 0.798 with ample timber.
   awards move within the noise of diverging trajectories. Granary condition in
   `reserve_only` matches L9 alone (ghost 0.586 / 0.708), so the benefit in
   `reserve` is the reservation spent on repairs, not a side effect.
+
+**Rerun after the pro-rata split (review C, 2026-11-06).** The table above was
+measured with the first, reservation-first rule. L9 alone and `reserve`
+were rerun on the fixed source (phase branch with PL1 and PL2 off, extension
+`fdcb0ca0…`, the same 12 worlds and flags):
+
+| Measure (template / procedural) | `l9` | `reserve` | ghost `l9` | ghost `reserve` |
+| --- | --- | --- | --- | --- |
+| Repairs envelopes settled: kept / deferred | 321 / 23; 1,151 / 56 | 16 / 0; 83 / 1 | 636 / 475; 1,342 / 535 | 61 / 1; 240 / 19 |
+| Reserved; used; returned (coins) | - | 1,097; 717; 380 / 3,137; 2,239; 898 | - | 6,353; 4,707; 1,646 / 12,037; 9,723; 2,314 |
+| RS2 charged (coins) | 481 / 2,562 | 761 / 2,438 | 4,565 / 10,262 | 4,946 / 10,713 |
+| Granary stalls, primary `no_envelope` | 214 / 497 | 31 / 92 | 1,978 / 3,424 | 299 / 749 |
+| Mean granary condition | 0.275 / 0.348 | 0.311 / 0.373 | 0.590 / 0.710 | 0.695 / 0.782 |
+
+The conclusions above hold. Envelope stalls fall by 85% / 81% naturally and
+85% / 78% with ample timber. With the split, `reserve`'s few promises are
+deferred at 0% / 1% (ghost 2% / 7%), against 7% / 5% (ghost 43% / 29%) for
+L9 alone. Under the first rule the procedural ghost `reserve` arm deferred
+16% (41 of 254).
 
 ## Limits
 

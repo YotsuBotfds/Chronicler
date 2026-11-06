@@ -102,7 +102,12 @@ Eligibility, evaluated live whenever `priority_ids(world, region)` is asked:
 - resident in a region whose controller is the civilization they served.
 
 `priority_ids` returns the eligible veterans resident in that region, earliest
-release first, then id, in `priority` mode only. Consumers:
+release first, then id, in `priority` mode only.
+`eligible_ids(world, region=None)` (added by PL3, 2026-11-06) returns the same
+eligible veterans in the same order in both modes (every region when `region`
+is None): the rule other packages read when they admit veterans (PL3 workshop
+repair crews), while the order is applied only through `priority_ids`.
+Consumers:
 
 - workshops: `workshops._crew_priority` passes one list per open site region
   to `plan_workshop_crews(..., priority_ids=...)`. Listed ids that are

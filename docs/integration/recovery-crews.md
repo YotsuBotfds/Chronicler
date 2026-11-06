@@ -69,7 +69,12 @@ native farm labour but are never on a crew.
 
 **Fewer free farmers than the work.** The request shrinks to the crew, and
 `no_labor` joins the RS2 receipt's limits (the timber and coins are not held
-for work nobody can do). With no free adult farmer at all the project stalls
+for work nobody can do). Only a real shortage counts: the receipt's `short`
+is true when the free adult farmers ran out with at least `MIN_SHARE` of the
+planned work left. A smaller remainder names nobody and counts as covered,
+with no `no_labor`, no `granary_crew_short` and so no `work_short` settlement
+of an L9 envelope (review C, 2026-11-06: it read as a shortage while free
+farmers remained). With no free adult farmer at all the project stalls
 `no_labor` and asks for nothing. Without crews the same region would have had
 its work done by any farmers, children included, up to the farm labour; with
 crews granary work can be lower where the free adult farmers are few.
@@ -117,8 +122,9 @@ farmers of the site's own city. With crews the pool is:
   other cities of the region), and
 - every adult RS3 veteran resident there who is eligible under RS3's rules
   (open record, adult, within `ELIGIBLE_TURNS` of release, not on a roster,
-  under the civ they served), of any non-enlisted occupation. Admission uses
-  RS3's eligibility in both RS3 modes; `record_only` only removes the order.
+  under the civ they served), of any non-enlisted occupation. Admission reads
+  RS3's public `veteran_reintegration.eligible_ids(world, region)`, the same
+  in both RS3 modes; `record_only` only removes the order (`priority_ids`).
 
 The exclusions are those of the granary crews. The order is RS2's priority
 list (qualified veterans, the qualified, veterans) and then ascending id, so
@@ -135,7 +141,11 @@ column (`factor -= removed / farmers`, applied before native health losses).
 A veteran of another occupation gives time the economy does not count as
 production; only the income share is withheld (a declared limit).
 
-## API for woodcutting (PL1)
+## API offered for woodcutting (PL1)
+
+PL1 does not call this API today: it chooses its expedition crews with its
+own rule. It is offered so that woodcutting can share the recovery-crew pool
+(the lead may wire it at integration).
 
 `recovery_crews.eligible_ids(world, region, kind, *, sim, snapshot=None,
 priority=None) -> list[int]`: stable ids eligible now for a recovery crew of
@@ -145,9 +155,9 @@ turn, not on a trip, not enlisted and not a seated mentor. `granary`: adult
 farmers. `workshop` and `woodcut`: adult farmers and, while `--recovery-crews`
 is active, RS3's eligible veterans of any non-enlisted occupation. Order:
 `priority` (default: the region's `priority_ids`), then ascending id. It only
-reads; the caller reserves (`reserve_work`, all or none). PL1 wages under
-`repair_wage` need a transfer batch other than 0 (RS2 workshops) and 1
-(granary crews).
+reads; the caller reserves (`reserve_work`, all or none). Under
+`repair_wage` RS2 workshop wages use transfer batch 0, granary crews 1 and
+PL1's expeditions 2.
 
 ## Lifecycle and guards
 
@@ -328,7 +338,7 @@ effect are in [maintenance-obligation.md](maintenance-obligation.md).
 ## Limits
 
 - Granary crews are farmers only: veterans of other occupations join workshop
-  crews (and woodcutting through `eligible_ids`), not granary crews, because
+  crews (and could join woodcutting through `eligible_ids`), not granary crews, because
   granary labour is farm labour.
 - A non-farming veteran's repair time is not taken from any production; only
   their income share is withheld.

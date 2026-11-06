@@ -60,7 +60,9 @@ of the site's city gives ``max(0, d - own diverted share)`` of farm time
 occupation gives time the economy does not count as production; only the
 income share is withheld (a declared limit).
 
-Woodcutting (PL1) reads :func:`eligible_ids`.
+Woodcutting. :func:`eligible_ids` offers the same pool for woodcutting
+crews (PL1); PL1 does not call it today: it chooses its expedition crews with
+its own rule.
 
 Records: per project and turn a crew receipt (eligible people, planned,
 capacity, requested and delivered work, members with origin, share, worked
@@ -250,13 +252,12 @@ def _excluded(world, sim, turn: int) -> set[int]:
 
 
 def _veterans(world, region: int) -> list[int]:
-    """RS3's eligible veterans resident in ``region`` (its eligibility, the
+    """RS3's eligible veterans resident in ``region`` (its public rule, the
     same in both RS3 modes), earliest release first."""
     if not _lane_active(world, "veteran_reintegration"):
         return []
-    from chronicler import veteran_reintegration as VR
-    state = VR._state(world)
-    return VR._ordered(state, int(region), VR._eligible_ids(world, state))
+    from chronicler.veteran_reintegration import eligible_ids as veteran_ids
+    return veteran_ids(world, int(region))
 
 
 def _cities(world) -> dict[int, tuple[int, int]]:
@@ -308,7 +309,8 @@ def _eligible(world, people: _People, sim, region: int, kind: str, priority, *,
 
 
 def eligible_ids(world, region: int, kind: str, *, sim, snapshot=None, priority=None) -> list[int]:
-    """Cross-lane API (PL1 woodcutting): stable ids eligible now for a
+    """Cross-lane API, offered for woodcutting (PL1 does not call it yet; it
+    chooses expedition crews with its own rule): stable ids eligible now for a
     recovery crew of ``kind`` (``"granary"``, ``"workshop"`` or ``"woodcut"``)
     in ``region`` (an index in ``world.regions``), in crew order.
 
@@ -371,7 +373,11 @@ def workshop_candidates(world, sim, site, diverted: float, priority) -> tuple[li
 def plan_granary_crew(world, w, planned: float, *, sim, snapshot, priority) -> float:
     """Name and reserve the crew of RS2 granary work ``w`` (its ``_Work``)
     for ``planned`` work; returns the native request, ``min(planned, the
-    crew's farm time)``, f32-floored. Stores the crew on ``w.named``."""
+    crew's farm time)``, f32-floored. Stores the crew on ``w.named`` and
+    ``w.short``: True only when the free adult farmers ran out with at least
+    ``MIN_SHARE`` of the planned work left. A remainder below ``MIN_SHARE``
+    names nobody and counts as covered (review C 2026-11-06: it read as a
+    labour shortage while free farmers remained)."""
     from chronicler.grain_storage import _f32_floor
     from chronicler.repair_projects import CATEGORY_REPAIR
     t = _begin(world, sim)
@@ -388,6 +394,7 @@ def plan_granary_crew(world, w, planned: float, *, sim, snapshot, priority) -> f
             break
         chosen.append((aid, origin, farm))
         capacity += farm
+    w.short = planned - capacity >= MIN_SHARE - EPS
     request = _f32_floor(max(0.0, min(planned, capacity)))
     named, assigned = [], 0.0
     for aid, origin, farm in chosen:
@@ -489,7 +496,7 @@ def record(world, w, *, sim, turn: int, delivered: float, coin_cost_milli: int, 
         residual = sum(m.wage_residual_milli for m in members)
         receipt = CrewReceipt(turn=turn, pid=w.project.pid, kind="granary", region=w.region, payer=w.payer,
                               eligible=w.eligible, planned=w.planned, capacity=w.capacity,
-                              requested=w.request, delivered=delivered, members=members,
+                              requested=w.request, delivered=delivered, short=w.short, members=members,
                               coin_cost_milli=coin_cost_milli, wages_due_milli=due, wages_milli=applied,
                               wage_residual_milli=residual, sunk_milli=coin_cost_milli - applied,
                               farm_time_removed=delivered)
@@ -506,7 +513,7 @@ def record(world, w, *, sim, turn: int, delivered: float, coin_cost_milli: int, 
         t.bump("granary_crew_person_turns", len(members))
         t.bump("granary_work_planned", w.planned)
         t.bump("granary_work_named", delivered)
-        if w.request + EPS < w.planned:
+        if w.short:
             t.bump("granary_crew_short")
         t.bump("granary_coin_cost_milli", coin_cost_milli)
         t.bump("granary_wages_due_milli", due)

@@ -1095,6 +1095,7 @@ def test_released_soldier_veterans_on_no_roster_are_eligible(monkeypatch):
                  "on_pool_reset"):
         monkeypatch.delattr(VR, hook)
     monkeypatch.setattr(VR, "priority_ids", lambda w, region: [7] if region == 0 else [])
+    monkeypatch.setattr(VR, "eligible_ids", lambda w, region=None: [7] if region in (0, None) else [])
     monkeypatch.setattr(VR, "open_record_ids", lambda w: frozenset({7}))
     monkeypatch.setattr(VR, "note_outcome", lambda *a, **k: None)
     sim = _Sim(_people())                           # 7 is an adult of Soldier occupation at home
@@ -1113,3 +1114,26 @@ def test_released_soldier_veterans_on_no_roster_are_eligible(monkeypatch):
     plain = _world()
     _launch(plain, _Sim(_people()))
     assert 7 not in _ts(plain).expeditions[0].crew
+
+
+def test_soldier_veterans_are_eligible_in_record_only_but_not_first(monkeypatch):
+    """RS3's record_only control offers no priority, but its eligible veterans
+    (Soldier occupation included) can still join an expedition in id order
+    (integration fix: before, a Soldier veteran was admitted only through
+    priority_ids, so the control excluded them)."""
+    world = _world()
+    VR.set_veteran_reintegration_enabled(world, True, args=None)
+    for hook in ("prepare_phase2", "finish_phase2", "rollback_phase2", "rollback_agent_tick", "phase10",
+                 "on_pool_reset"):
+        monkeypatch.delattr(VR, hook)
+    monkeypatch.setattr(VR, "priority_ids", lambda w, region: [])          # record_only: no priority
+    monkeypatch.setattr(VR, "eligible_ids", lambda w, region=None: [7] if region in (0, None) else [])
+    monkeypatch.setattr(VR, "open_record_ids", lambda w: frozenset({7}))
+    monkeypatch.setattr(VR, "note_outcome", lambda *a, **k: None)
+    people = {1: [0, 0, 30, 0], 7: [0, 1, 30, 0], 20: [1, 0, 30, 0], 21: [1, 0, 30, 0]}
+    _launch(world, _Sim(dict(people)))              # one farmer and a released soldier at home
+    (exp,) = _ts(world).expeditions
+    assert exp.crew == [1, 7] and exp.soldier_veterans == [7]   # eligible, in id order, not first
+    plain = _world()                                # without RS3 a soldier is never admitted
+    _launch(plain, _Sim(dict(people)))
+    assert _ts(plain).expeditions[0].crew == [1]

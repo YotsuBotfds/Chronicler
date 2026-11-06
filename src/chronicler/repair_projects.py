@@ -164,7 +164,11 @@ class _Work:
                  # [(id, origin, share, veteran)], the work planned before it was
                  # named, its farm time, eligible counts, and per workshop member
                  # the origin and the farm time removed.
-                 "named", "planned", "capacity", "eligible", "eligible_site_city", "origins", "removed")
+                 "named", "planned", "capacity", "eligible", "eligible_site_city", "origins", "removed",
+                 # whether the free adult farmers ran short of the planned work
+                 # (``recovery_crews.plan_granary_crew``), and whether this turn
+                 # suspends the granary project for ``no_people``.
+                 "short", "suspended")
 
     def __init__(self, project, payer, condition_before):
         self.project, self.kind, self.payer = project, project.kind, payer
@@ -188,6 +192,8 @@ class _Work:
         self.eligible_site_city = None
         self.origins: dict = {}
         self.removed: dict = {}
+        self.short = False
+        self.suspended = False
 
 
 class _Turn:
@@ -817,7 +823,6 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
     # agent rows the economy reads); None when the snapshot is unavailable.
     labour = _farm_labour(world, snapshot) if granaries else None
     crews = _crews_active(world)
-    previous = {r.pid: r for r in state.receipts or []} if state.frame_turn == world.turn - 1 else {}
     for p in list(granaries):
         if storage is None or storage.assets[p.asset] is None:
             _close(state, p, world.turn, "abandoned", "asset_closed")
@@ -858,22 +863,17 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
             payer = _controller(world, p.region)
             asset = storage.assets[p.asset]
             w = t.work[p.pid] = _Work(p, payer, float(asset.condition))
-            was = previous.get(p.pid)
-            was_suspended = was is not None and was.reasons == ["no_people"]
             if labour is not None and labour[p.region] == 0:
                 # PL3 correction: no farm labour in the region. The project is
                 # suspended: it asks for no work, timber or coins (stall
                 # ``no_people``) and resumes when farmers are present again.
+                # The transition is recorded when the turn settles
+                # (``finish_phase2``, the project's ``suspended`` flag).
                 w.reasons = ["no_people"]
+                w.suspended = True
                 if requested[p.region] != 0.0:
                     raise RuntimeError("storage requested work in a region under a repair project")
-                if not was_suspended:
-                    _note(p, world.turn, "suspended_no_people", p.controller)
-                    _bump(state, "suspensions")
                 continue
-            if was_suspended:
-                _note(p, world.turn, "resumed", p.controller)
-                _bump(state, "resumptions")
             remaining = max(0.0, p.scope - p.delivered)
             want = min(per_turn, remaining)
             free = _free_timber(world, p.region, commitments, t.holds.get(p.region, 0.0))
@@ -894,7 +894,7 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
                 planned = amount
                 amount = plan_granary_crew(world, w, planned, sim=sim, snapshot=snapshot,
                                            priority=_veteran_priority(world, p.region))
-                if amount + EPS < planned and "no_labor" not in w.reasons:
+                if w.short and "no_labor" not in w.reasons:
                     w.reasons.append("no_labor")
             w.request = amount
             w.hold = amount * timber_rate
@@ -1062,6 +1062,14 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
             p.controller = w.payer
         if w.kind == "workshop":
             p.last_crew = list(w.crew)
+        if w.kind == "granary" and w.suspended != p.suspended:
+            # PL3 correction: a dated suspension or resumption, read from the
+            # project's own persisted flag (review C 2026-11-06: the previous
+            # frame, unsettled after a turn without Phase 2, re-noted the
+            # suspension and missed the resumption).
+            _note(p, world.turn, "suspended_no_people" if w.suspended else "resumed", w.payer)
+            _bump(state, "suspensions" if w.suspended else "resumptions")
+            p.suspended = w.suspended
         status = "progress" if done > 0 else "stalled"
         if done > 0:
             p.work_turns += 1
@@ -1481,12 +1489,13 @@ def budget_settlement(world, c, obs) -> dict:
     spent, delivered = int(row.charged), float(row.work_delivered)
     used = 0
     if _lane_active(world, "maintenance_obligation"):
-        # PL3: the part of the charge the civ's maintenance reservation paid
-        # is not the envelope's; the envelope keeps the rest of the work.
-        from chronicler.maintenance_obligation import reservation_used
-        used = reservation_used(world, c.civ)
-        if used:
-            delivered = delivered * (spent - used) / spent if spent > 0 else 0.0
+        # PL3: the charge and the work are split between the civ's maintenance
+        # reservation and this envelope pro rata to their amounts
+        # (``maintenance_obligation.split_charge``); the envelope keeps its part.
+        from chronicler.maintenance_obligation import reservation_split
+        used, share = reservation_split(world, c.civ)
+        if used or share < 1.0:
+            delivered = delivered * share
             spent -= used
     # Nothing expected is never kept by default (review C: a 0-work envelope
     # read as ratio 1.0).

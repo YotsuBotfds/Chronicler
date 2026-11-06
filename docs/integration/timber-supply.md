@@ -137,13 +137,13 @@ the larger standing stock, then the lower region index.
 
 At most `CREW_CAP` living adults (age at least 20) resident in the home region,
 not on an army roster, not on a merchant trip and not on another crew: of any
-occupation but Soldier, and RS3's priority veterans of any occupation,
-Soldier included (the plan's "any non-enlisted occupation": released and on no
-roster; D3 put about 40% of veterans at Soldier occupation). RS3 veterans come
-first (`veteran_reintegration.priority_ids`), then ascending stable id. Until
-RS3 has a public eligibility list for both modes, a Soldier veteran is admitted
-only in RS3's `priority` mode (its `record_only` list is empty); the lead
-reconciles this with PL3's `eligible_ids`. A Soldier veteran farms nothing at
+occupation but Soldier, and RS3-eligible veterans of any occupation, Soldier
+included (the plan's "any non-enlisted occupation": released and on no roster;
+D3 put about 40% of veterans at Soldier occupation). Eligibility is RS3's own
+rule (`veteran_reintegration.eligible_ids`), the same in both RS3 modes; only
+`priority` puts veterans first (`veteran_reintegration.priority_ids`), then
+ascending stable id, so the `record_only` control admits the same veterans in
+id order. A Soldier veteran farms nothing at
 home; the paid share withholds their ordinary income. Veterans on a crew (by open RS3 record) are noted
 `placed:repair` with `{expedition, region, forest}` for each turn they worked.
 

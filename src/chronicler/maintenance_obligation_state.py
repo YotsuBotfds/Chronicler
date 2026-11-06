@@ -46,7 +46,9 @@ class ReservationDecision(BaseModel):
 class ReservationUse(BaseModel):
     """One civ's reservation in the turn it was for. Closure:
     ``reserved == used + returned`` and ``used + envelope_spent == charged``
-    (RS2's whole-unit charge to the civ); ``used == 0`` in ``reserve_only``."""
+    (RS2's whole-unit charge to the civ); ``used == 0`` in ``reserve_only``.
+    The charge is split pro rata to the reservation and the envelope
+    (``maintenance_obligation.split_charge``)."""
 
     turn: int
     civ: int
@@ -56,6 +58,9 @@ class ReservationUse(BaseModel):
     used: int
     returned: int
     envelope_spent: int
+    #: The envelope's share of the delivered work, ``envelope / (reserved +
+    #: envelope)`` (1.0 without a reservation in use; ``reserve_only``).
+    envelope_share: float = 1.0
 
 
 class MaintenanceObligationState(BaseModel):
