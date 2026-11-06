@@ -280,9 +280,9 @@ trade and migration had fewer cross-polity arrivals than cost_only in 9 of 12 wo
 template, 5 of 6 procedural; 12 of 64 sign assignments as extreme in each stratum) and a lower
 world death rate in 10 of 12 (5 of 6 in each stratum). The template death rate is the most
 consistent (6 of 64); the procedural death rate is a null (50 of 64: one world, 3205, +3.87
-against five small negatives). Per-world differences are large in both directions.
+against five negatives from -0.19 to -2.24). Per-world differences are large in both directions.
 
-### The migration channel's increment (QRM - QR) and the trade closure alone (QR - QC)
+### Secondary outcomes: the migration channel's increment (QRM - QR) and the trade closure alone (QR - QC)
 
 | Outcome | Stratum | Mean [min, max] | >0 / <0 / =0 | Sign flips (of 64) |
 | --- | --- | --- | --- | --- |
@@ -295,14 +295,16 @@ against five small negatives). Per-world differences are large in both direction
 | `cw4b_trade_world_death_rate` (QR - QC) | template | -0.429 [-2.002, +1.179] | 3 / 3 / 0 | 26 |
 | `cw4b_trade_world_death_rate` | procedural | +0.351 [-1.334, +4.364] | 2 / 4 / 0 | 62 |
 
-Against the trade closure, closing migration too lowered cross-polity arrivals and the world
-death rate on every template world (both 0 / 6 / 0, the most extreme of the 64 assignments) and
-on 4 and 5 of 6 procedural worlds (18 and 10 of 64); world epidemic deaths (count) fell on 6 of 6
-template worlds (-22.2 [-32, -9]) and 4 of 6 procedural (-22.0 [-85, +92], 36 of 64). The trade
-closure alone was again a null on these new worlds (arrivals and death rate mixed, 16-62 of 64),
-replicating CW4. So the migration channel carries what difference closure makes here, most
-clearly in the template stratum; in the procedural stratum the direction holds on most worlds
-with wide spread.
+These are secondary outcomes, not the primaries. Against the trade closure, closing migration too
+went with fewer cross-polity arrivals and a lower world death rate on every template world (both
+0 / 6 / 0, the most extreme of the 64 assignments) and on 4 and 5 of 6 procedural worlds (18 and 10
+of 64); world epidemic deaths (count; the runner's harm panel, QRM - QR) were lower on 6 of 6
+template worlds (-22.2 [-32, -9], 2 of 64) and 4 of 6 procedural (-22.0 [-85, +92], 36 of 64). The
+trade closure alone showed no consistent direction on these new worlds (arrivals and death rate
+mixed, 16-62 of 64), as in CW4. So, in these secondary comparisons, the difference between the two
+closures lies with the migration channel: clearly on the template worlds, and on most procedural
+worlds with wide spread. The preregistered primary (QRM - QC) still leans without being consistent,
+and these whole-trajectory differences on six worlds per stratum are not a mechanism estimate.
 
 ### Other secondaries (QRM - QC; template / procedural)
 
@@ -321,9 +323,15 @@ with wide spread.
 | template | 863 [100, 2,348]; 5,179 | 688 [99, 1,805]; 4,129 | 449 [76, 1,077]; 2,694 (52%) | 310 [21, 1,147]; 1,862 (36%) |
 | procedural | 2,843 [830, 4,311]; 17,059 | 2,404 [745, 3,581]; 14,423 | 1,854 [613, 2,981]; 11,126 (65%) | 421 [79, 673]; 2,528 (15%) |
 
-Most refusals are flight from war, famine or persecution (hunger-driven moves excluded); a
-large hunger-driven share in template world 3106 (1,147 of 2,348). Refusal spells are 80% (template) and
-85% (procedural) of the refusals: many refused agents were refused on consecutive turns while the closure lasted.
+Refusals classed as flight (persecution, or famine, battle, conquest or persecution memory, or the
+safety need; hunger-driven moves excluded) are a slight majority in template (52% pooled; under
+half on 3102, 47%, and 3106, 46%) and about two-thirds in procedural (65%); hunger-driven moves are
+36% / 15% (template world 3106: 1,147 of 2,348), and the remaining 12% / 20% had another dominant
+driver. In the two retained QRM bundles flight is mostly famine memory (template 3101: 410 of 412;
+procedural 3201: 536 of 691), not war. Refusal spells are 80% (template) and 85% (procedural) of
+the refusals, so a spell averaged 1.25 / 1.18 refused ticks: most refusals were not repeated on the
+next tick, and 1,050 / 2,636 refusals (20% / 15%) continued an agent's spell on consecutive ticks.
+Spells are not distinct persons (an agent refused in separate spells counts once per spell).
 
 ### Harms
 
@@ -331,26 +339,42 @@ Beside the primaries (QRM - QC):
 
 - **Food shortfall after relief over the run: more under QRM in 10 of 12 worlds**: +625
   [-916, +1,892] (5/1/0, 12 of 64) / +914 [-2,314, +2,712] (5/1/0, 18 of 64). The trade closure
-  alone (QR - QC) also raised it (+561, 5/1/0, 4 of 64 / +218, 5/1/0, 50 of 64); the migration
-  channel added +64 (4/2/0, 50 of 64) / +696 (4/2/0, 16 of 64) over QR.
+  alone (QR - QC) was higher on 5 of 6 worlds in each stratum, consistently in template (+561,
+  5/1/0, 4 of 64) but not in procedural (+218, 5/1/0, 50 of 64: one world -2,829); over QR the
+  migration channel added +64 (4/2/0, 50 of 64: no consistent direction) / +696 (4/2/0, 16 of 64).
 - Agents moving between regions: -17 (2/4/0, 58 of 64) / -1,126 (1/5/0, 4 of 64); against QR,
-  fewer on 6 of 6 template worlds (-448, 2 of 64) and 5 of 6 procedural (-752, 4 of 64): the
-  refused moves did not happen and were not replaced.
+  fewer on 6 of 6 template worlds (-448, 2 of 64) and 5 of 6 procedural (-752, 4 of 64). The
+  template null against QC sits beside a trade closure that itself went with more moves (QR - QC
+  +431, 5/1/0, 4 of 64; procedural -374, 2/3/1, 32 of 64). The drop against QR is smaller than the
+  refusal spells (688 / 2,404 per world) and trajectories diverge, so it is not a count of refused
+  moves; whether refused agents later moved by another route is not measured here.
 - Population at the end: +34 (5/1/0, 18 of 64) / +15 (4/2/0, 52 of 64); against QR +28.5
-  (5/1/0) / +68.7 (5/1/0, 4 of 64). Treasury at the end: -313 (3/3/0) / +1,454 (5/1/0, 4 of 64).
+  (5/1/0) / +68.7 (5/1/0, 4 of 64). Treasury at the end: -313 (3/3/0) / +1,454 (5/1/0, 4 of 64);
+  the trade closure alone (QR - QC): -539 (1/5/0, 6 of 64) / +695 (5/1/0, 8 of 64).
 - Partner civs (closed against at any decision): their population and treasury at the end
   equal (template) or nearly equal (procedural) the world totals, because every or nearly every
-  civ was closed against at some decision (3-4 of 4 template, 8-10 of 10 procedural): no
+  civ was closed against at some decision (3-4 of the 4
+  template civs; 8-10 civs per procedural world in QC and QRM, up to 11 in QR, where civs beyond the
+  10 founding ones took part in closures): no
   separate externality is measurable here.
 - Route income forgone, both sides: QRM 376 [160, 800] / 2,982 [1,420, 4,628]; QR alone 389 /
   1,980. Merchant unwinds: +23.3 (6/0/0, 2 of 64) / +206 (6/0/0, 2 of 64). Deliveries still
   crossing a closed pair (QRM): 5 [0, 17] / 115.5 [36, 175] per run. Enforcement paid: -4.7
   (3/3/0) / +358 (4/2/0).
-- Wealth Gini: mixed. Not recorded in these runs: priced-out persons and children (retail off),
+- Wealth Gini: higher on 4 of 6 worlds in each stratum (+0.081, 16 of 64 / +0.041, 20 of 64),
+  not consistent. Not recorded in these runs: priced-out persons and children (retail off),
   forest stand (timber stock off). No bundle field: famine and war deaths ("requires slice
   extractor"): the deaths of refused migrants who stayed in famine regions are therefore not
-  separated from other deaths, which the food-shortfall harm only bounds.
+  separated from other deaths, for which the food-shortfall harm is only an indirect indicator, not a
+  bound.
 
 No world failed, none was incomplete, and no outcome was missing. These are whole-trajectory
 comparisons on six worlds per stratum: they describe the direction and spread on held worlds,
 not a mechanism, and they do not license promotion (the owner's decision).
+
+**Erratum (2026-11-06, the independent check; frozen text, "Held cohort").** The numbers also
+appear in `docs/superpowers/progress/connected-world.json`, the lead's board reservation of the
+CW4b cohort committed at `6ec7a826` (23:07Z) before the screen at `a732382e`; that is a
+reservation, not a use, and no run of these seeds exists before the held run (git history of all
+refs; `/home/user/evidence`). The frozen sentence ("found them only in the registry and the screen
+module") is left as written.

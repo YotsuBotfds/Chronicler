@@ -15,7 +15,7 @@ Status: implemented behind `--quarantine-mode`, **default legacy** (the option o
 option omitted the epidemic model's existing quarantine runs byte for byte as before; nothing in
 this page applies. Experimental and opt-in; not promoted. C1 was screened on held worlds (CW4,
 below); the migration channel of slice C1b (`--quarantine-channels trade,migration`,
-[below](#migration-closure-c1b)) is not screened yet.
+[below](#migration-closure-c1b)) was screened on held worlds as CW4b (below).
 
 ## Why
 
@@ -436,11 +436,32 @@ included, before it was refused).
 
 Evidence and runners: `/home/user/evidence/c1b/` (outside the repository).
 
+**Held screen CW4b (2026-11-06).** Arms QC (`cost_only`), QR (`closure`, trade) and QRM
+(`closure --quarantine-channels trade,migration`) on fresh reserved worlds (template 3101-3106,
+procedural 3201-3206, hybrid, 200 turns; 36 runs, 0 failed, 0.107 core-hours), declared in
+`scripts/connected_world_screens.py` (`cw4b_extract` on CW4's validated extractor,
+`cw4b_activation`). Preregistration (frozen at `a732382e`, Amendment 1 raising the ceiling),
+results and raw records: [connected-world-screens-cw4b](../superpowers/progress/connected-world-screens-cw4b.md).
+QR and QRM activated on every world. **Both primaries (QRM - QC, whole run) lean negative but
+are not consistent enough to call an effect:** cross-polity arrivals lower on 4 of 6 template and
+5 of 6 procedural worlds (12 of 64 sign assignments as extreme in each stratum), the world
+epidemic death rate lower on 5 of 6 in each (template 6 of 64; procedural a null, 50 of 64). In
+the secondary comparisons the difference between the two closures lies with the migration
+channel: against QR, QRM went with fewer arrivals and a lower death rate on every template world
+(2 of 64 each) and on 4 and 5 of 6 procedural worlds, while the trade closure alone (QR - QC)
+again showed no consistent direction; these whole-trajectory differences on six worlds per
+stratum are not a mechanism estimate. Harms recorded: 5,179 / 17,059 refusals (person-ticks) in
+4,129 / 14,423 spells, 52% / 65% classed as flight (mostly famine memory in the retained
+bundles) and 36% / 15% hunger-driven; more food shortfall after relief under QRM than QC on 10 of
+12 worlds (not consistent by the sign-flip count: 12 and 18 of 64); merchant unwinds higher on
+every world; route income forgone. Deaths of refused migrants who stayed in famine regions are
+not separated from other deaths (no bundle field). No promotion follows (the owner's decision).
+
 ## Not done here (by name)
 
 - C1.2 border guards (labour cost through the farm-labour seam), pilgrim restriction, convoy
   closure: out of C1 by decision. The migration channel is C1b ([above](#migration-closure-c1b));
-  it has not been screened on held worlds.
+  its held screen CW4b is above.
 - A promotion decision, and the C2-C4 slices (care, dated outbreak reports).
 - No dated outbreak reports (C4): a polity still learns of a foreign outbreak the tick it is
   reported, as under the legacy rule.
