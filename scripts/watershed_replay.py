@@ -171,7 +171,8 @@ def simulate(world: World, params) -> dict:
     x_in, want = np.maximum(x, 0.0), np.maximum(-x, 0.0)
     demand = np.where(world.irrigated, params.irrigation_demand, 0.0)
     if params.channel_ratio is not None:
-        basin = params.precipitation_base * (0.2 + world.moisture)
+        # Normal inflow: normal precipitation plus the seasonal melt (tundra, warming).
+        basin = params.precipitation_base * (0.2 + world.moisture) + params.tundra_melt * (warming & world.tundra)
         for r in world.order:
             if world.down[r] >= 0:
                 basin[:, world.down[r]] += basin[:, r]

@@ -60,9 +60,10 @@ Conditions. A flood event starts on a settled turn whose arrivals ``P + I``
 (channel flow; an external inflow is not counted) exceed the region's
 channel capacity while no event is open there, and stays open while
 arrivals exceed ``flood_recession`` x channel (hysteresis). The channel is
-``channel_ratio`` x the normal precipitation of the region's drainage basin
-(B1: a fixed ``CHANNEL_CAPACITY``, x ``RIVER_CHANNEL_FACTOR`` on a named river
-region). The onset record keeps the arrivals by source, each tributary's
+``channel_ratio`` x the normal inflow of the region's drainage basin (normal
+precipitation plus the seasonal melt of its terrain in this phase), so only
+anomalous rain or melt crosses it (B1: a fixed ``CHANNEL_CAPACITY``, x
+``RIVER_CHANNEL_FACTOR`` on a named river region). The onset record keeps the arrivals by source, each tributary's
 outflow and the upstream cover. A terrain transition of the Phase 9
 post-pass that clamps the index to a new cap is recorded as a cap change. A
 drought is a run of at least ``DROUGHT_TURNS`` settled turns with ``S'/C``
@@ -151,9 +152,10 @@ class Parameters:
     #: ... larger on a named river region (B1's fixed channel).
     river_channel_factor: float = 2.0
     #: B2: when set, a region's channel is this multiple of its drainage basin's normal
-    #: precipitation (the region's and every region's upstream, at phase factor 1 and no
-    #: shock), replacing the fixed channel: channels carry what their basin normally
-    #: delivers, so a confluence is not a permanent flood site.
+    #: inflow (the region's and every region's upstream: precipitation at phase factor 1
+    #: and no shock, plus the seasonal melt their terrain gets in this phase), replacing
+    #: the fixed channel: channels carry what their basin normally delivers, so only
+    #: anomalous rain or melt floods, and a confluence is not a permanent flood site.
     channel_ratio: float | None = None
     #: A drought: storage below this fraction of capacity ...
     drought_fraction: float = 0.2
@@ -191,7 +193,8 @@ B1_PARAMETERS = Parameters()
 #: precipitation -1.0 and evaporation 4.0 (their physical limits, where every
 #: freer fit put them), cooling evaporation 1.0, harvest shock 1.0 and the forest
 #: linkage (retention 0.5, transpiration 0.3) at their declared values. The
-#: channel is the basin's normal precipitation (``channel_ratio`` 1.0, not fitted).
+#: channel is the basin's normal inflow, rain and seasonal melt (``channel_ratio``
+#: 1.0, not fitted).
 #: Leave-two-out cross-validation and a 64x16 transfer check are reported there.
 PARAMETERS = Parameters(
     precipitation_base=0.3488, evaporation_base=0.03, baseflow=0.0644,
@@ -565,8 +568,10 @@ def account_step(graph: WatershedGraph, storage: list[float], last_index: list[f
     floor = params.index_floor
     basin = None
     if params.channel_ratio is not None:
-        # Each region's drainage basin's normal precipitation (itself and everything upstream).
-        basin = [params.precipitation_base * (0.2 + inp.moisture) for inp in inputs]
+        # Each region's drainage basin's normal inflow (itself and everything upstream): normal
+        # precipitation plus the seasonal melt (tundra, warming) the account adds to it.
+        basin = [params.precipitation_base * (0.2 + inp.moisture)
+                 + (params.tundra_melt if key == "warming" and inp.terrain == "tundra" else 0.0) for inp in inputs]
         for r in graph.order:
             if graph.down[r] >= 0:
                 basin[graph.down[r]] += basin[r]
