@@ -245,12 +245,14 @@ livelihoods layer `cwe1` (`tests/fixtures/livelihoods_cwe1_source_inverse.json`,
 
 ## 7. Verification (2026-11-06, branch `claude/cw-e1-tooling`)
 
-- `tests/test_screen_runner.py` (95) and `tests/test_feature_matrix.py` (16) pass under the
+- `tests/test_screen_runner.py` (112) and `tests/test_feature_matrix.py` (17) pass under the
   offline guard; `tests/test_feature_catalog.py` and `tests/test_native_ci_shards.py` pass.
 - A `DEV` smoke run on development world template 1 (10 turns, both arms, the reference native
   extension `101a4cd5...`) wrote identities, rows, activation and the harm panel; `report` and
   `check --metrics` passed.
-- Viewer: `npm test -- --maxWorkers=2` (148 files, 1520 passed, 2 skipped), `npm run lint`,
+- Viewer: `npm test -- --maxWorkers=2` (148 files, 1522 passed, 2 skipped), `npm run lint`,
   `npm run build` pass.
+- After the independent review (2026-11-06): its findings M1, m1-m8 and n1, n3, n4-n7 are fixed
+  with tests; a second `DEV` smoke run (template 1, 10 turns, 2 jobs) passed `check --metrics`.
 - Not run: any pilot or held screen (every CW screen is a stub), native or Rust suites (no
   native change).
