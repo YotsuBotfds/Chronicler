@@ -385,16 +385,21 @@ def test_an_unknown_measure_is_none_not_zero(short):
 
 # --- Running: a missing outcome exits with code 3 -------------------------------------
 
+def _arm_of(S, cmd):
+    """The arm whose flags a runner command carries (after the base and world flags)."""
+    start = 5 + len(S.BASE)
+    assert cmd[5:start] == S.BASE
+    if cmd[start:start + len(S.PROCEDURAL)] == S.PROCEDURAL:
+        start += len(S.PROCEDURAL)
+    flags = cmd[start:cmd.index("--output")]
+    (arm,) = [a for a, (f, _c) in S.ARMS.items() if f == flags]
+    return arm
+
+
 def _fake_simulate(S, *, drop=None):
     def simulate(cmd):
         out = Path(cmd[cmd.index("--output") + 1]).parent
-        start = 5 + len(S.BASE)
-        assert cmd[5:start] == S.BASE
-        if cmd[start:start + len(S.PROCEDURAL)] == S.PROCEDURAL:
-            start += len(S.PROCEDURAL)
-        flags = cmd[start:cmd.index("--output")]
-        (arm,) = [a for a, (f, _c) in S.ARMS.items() if f == flags]
-        (out / "chronicle_bundle.json").write_text(json.dumps(_bundle(S, arm, drop=drop)))
+        (out / "chronicle_bundle.json").write_text(json.dumps(_bundle(S, _arm_of(S, cmd), drop=drop)))
         return subprocess.CompletedProcess(cmd, 0, "", "")
     return simulate
 
@@ -448,3 +453,47 @@ def test_a_complete_pilot_extracts_and_reports(short, tmp_path, monkeypatch, cap
     assert by[("TS_cost", "t")]["pair"]["TS|TS_cost"] == pytest.approx(3.0)
     assert by[("RP", "t")]["pair"]["TS_cost|RP"] == pytest.approx(3.0)
     assert by[("RP", "t")]["pair"]["TS|RP"] == pytest.approx(3.0)
+
+
+def test_resume_runs_only_what_is_missing_on_the_same_source(short, tmp_path, monkeypatch):
+    S = short
+    identity = {"text": "source abc\nchronicler x\nnative y z\ninterpreter py\n"}
+
+    def stub(out):
+        (out / "source.txt").write_text(identity["text"])
+        return identity["text"]
+
+    monkeypatch.setattr(S.LS, "source_identity", stub)
+    calls = []
+    fake = _fake_simulate(S)
+    monkeypatch.setattr(S, "simulate", lambda cmd: calls.append(cmd) or fake(cmd))
+    out = tmp_path / "out"
+    assert S.main(["run", str(out), "--cohort", "pilot", "--arms", "W,W_wear", "--seeds", "template"]) == 0
+    assert len(calls) == 2
+    # A killed run: one row lost. The same command without --resume is refused.
+    metrics = out / "metrics.jsonl"
+    lines = metrics.read_text().splitlines()
+    metrics.write_text(lines[0] + "\n")
+    with pytest.raises(SystemExit, match="pass --resume"):
+        S.main(["run", str(out), "--cohort", "pilot", "--arms", "W,W_wear", "--seeds", "template"])
+    kept = json.loads(lines[0])["arm"]
+    calls.clear()
+    assert S.main(["run", str(out), "--cohort", "pilot", "--arms", "W,W_wear", "--seeds", "template",
+                   "--resume"]) == 0
+    assert [_arm_of(S, cmd) for cmd in calls] == [a for a in ("W", "W_wear") if a != kept]
+    rows = [json.loads(line) for line in metrics.read_text().splitlines()]
+    assert sorted(r["arm"] for r in rows) == ["W", "W_wear"]
+    assert "resumed pilot" in (out / "source.txt").read_text()
+    # Another source, extension or interpreter: refused, nothing run.
+    metrics.write_text(lines[0] + "\n")
+    identity["text"] = "source def\nchronicler x\nnative y z\ninterpreter py\n"
+    calls.clear()
+    with pytest.raises(SystemExit, match="resume refused"):
+        S.main(["run", str(out), "--cohort", "pilot", "--arms", "W,W_wear", "--seeds", "template", "--resume"])
+    assert calls == []
+    # Rows of another cohort are refused before anything runs.
+    row = json.loads(lines[0])
+    metrics.write_text(json.dumps(dict(row, cohort="held")) + "\n")
+    with pytest.raises(SystemExit, match="holds a row of cohort held, not pilot"):
+        S.main(["run", str(out), "--cohort", "pilot", "--arms", "W,W_wear", "--seeds", "template", "--resume"])
+    assert calls == []

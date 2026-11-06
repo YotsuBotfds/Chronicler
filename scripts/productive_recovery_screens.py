@@ -1,6 +1,6 @@
 """Productive-recovery checkpoint-1 screens (PL6a): run, report and check.
 
-    python scripts/productive_recovery_screens.py run OUT_DIR --cohort pilot|held [--jobs 3] [--arms a,b] [--seeds all|template|procedural] [--keep-first]
+    python scripts/productive_recovery_screens.py run OUT_DIR --cohort pilot|held [--jobs 3] [--arms a,b] [--seeds all|template|procedural] [--keep-first] [--resume]
     python scripts/productive_recovery_screens.py report OUT_DIR/metrics.jsonl
     python scripts/productive_recovery_screens.py check [--metrics OUT_DIR/metrics.jsonl --cohort pilot|held]
 
@@ -22,7 +22,10 @@ checkout's ``src``, source identity, shared metrics and the world-by-world
 table) come from ``livelihoods_screens.py``, whose sprint 1-3 behaviour is
 unchanged. A held run refuses unless the preregistration's status line reads
 FROZEN. Raw outputs are deleted after extraction (``--keep-first`` keeps the
-first world of each stratum).
+first world of each stratum). ``--resume`` continues an interrupted run in the
+same OUT_DIR: it runs only the arms and worlds without a row, and refuses
+unless the recorded source, ``chronicler`` path, extension and interpreter
+are the current ones; no recorded run is repeated.
 """
 from __future__ import annotations
 
@@ -745,10 +748,12 @@ def run_one(out: Path, cohort: str, arm: str, stratum: str, seed: int, extra: li
     if p.returncode != 0:
         row["error"] = (p.stderr or "")[-2000:]
     else:
+        t1 = time.time()
         try:
             row.update(metrics_row(d / "chronicle_bundle.json", flags))
         except Exception as error:  # an unreadable bundle is a missing outcome, never zero
             row["rc"], row["error"] = 3, f"missing or malformed outcomes: {type(error).__name__}: {error}"
+        row["extract_s"] = round(time.time() - t1, 1)
     if not keep:
         shutil.rmtree(d)
     return row
@@ -769,6 +774,8 @@ def run_main(argv) -> int:
     ap.add_argument("--arms", default=None, help="comma-separated arms (default: all 14)")
     ap.add_argument("--seeds", choices=("all", "template", "procedural"), default="all")
     ap.add_argument("--keep-first", action="store_true", help="keep the first world of each stratum")
+    ap.add_argument("--resume", action="store_true",
+                    help="continue an interrupted run in OUT_DIR on the same source (rows already written are kept)")
     a = ap.parse_args(argv)
     check_seeds()
     check_extractor()
@@ -781,15 +788,39 @@ def run_main(argv) -> int:
     if a.jobs < 1:
         raise SystemExit("--jobs must be at least 1")
     out = Path(a.out)
+    metrics = out / "metrics.jsonl"
+    done: set = set()
+    if metrics.exists() and not a.resume:
+        raise SystemExit(f"{metrics} exists: pass --resume to continue it, or choose a new OUT_DIR")
+    if a.resume:
+        if not metrics.exists() or not (out / "source.txt").exists():
+            raise SystemExit(f"nothing to resume in {out}")
+        recorded = (out / "source.txt").read_text(encoding="utf-8")
+        for line in metrics.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                r = json.loads(line)
+                if r.get("cohort") != a.cohort:
+                    raise SystemExit(f"{metrics} holds a row of cohort {r.get('cohort')}, not {a.cohort}")
+                done.add((r["arm"], r["stratum"], r["seed"]))
     out.mkdir(parents=True, exist_ok=True)
-    text = LS.source_identity(out)
+    if a.resume:
+        probe = out / "resume-probe"
+        probe.mkdir(exist_ok=True)
+        text = LS.source_identity(probe)
+        shutil.rmtree(probe)
+        if recorded.splitlines()[:4] != text.splitlines()[:4]:
+            raise SystemExit("resume refused: the source, chronicler path, extension or interpreter changed:\n"
+                             + text)
+    else:
+        text = LS.source_identity(out)
     with open(out / "source.txt", "a", encoding="utf-8") as fh:
-        fh.write(f"cohort {a.cohort}; seeds {a.seeds}; arms {','.join(chosen)}; jobs {a.jobs}\n"
+        fh.write(f"{'resumed' if a.resume else 'cohort'} {a.cohort}; seeds {a.seeds}; arms {','.join(chosen)}; "
+                 f"jobs {a.jobs}; rows already written {len(done)}\n"
                  f"started {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}\n")
     print(text, end="", flush=True)
-    jobs = jobs_for(a.cohort, a.seeds, chosen)
+    jobs = [j for j in jobs_for(a.cohort, a.seeds, chosen) if (j[0], j[1], j[2]) not in done]
     rows, t0 = [], time.time()
-    with open(out / "metrics.jsonl", "a", encoding="utf-8") as fh, ThreadPoolExecutor(a.jobs) as ex:
+    with open(metrics, "a", encoding="utf-8") as fh, ThreadPoolExecutor(a.jobs) as ex:
         for row in ex.map(lambda j: run_one(out, a.cohort, j[0], j[1], j[2], j[3], a.keep_first and j[4]), jobs):
             rows.append(row)
             fh.write(json.dumps(row) + "\n")
@@ -798,8 +829,9 @@ def run_main(argv) -> int:
             print(row["arm"], f"{row['stratum']}{row['seed']}", row["rc"], row["wall_s"], note, flush=True)
     wall = round(time.time() - t0, 1)
     with open(out / "source.txt", "a", encoding="utf-8") as fh:
-        fh.write(f"finished: {len(rows)} runs, {sum(r['rc'] != 0 for r in rows)} failed, "
-                 f"{sum(r['wall_s'] for r in rows):.0f} s of run time, {wall} s wall\n")
+        fh.write(f"finished {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}: {len(rows)} runs, "
+                 f"{sum(r['rc'] != 0 for r in rows)} failed, {sum(r['wall_s'] for r in rows):.0f} s of simulation, "
+                 f"{sum(r.get('extract_s', 0) for r in rows):.0f} s of extraction, {wall} s wall\n")
     print("total wall", wall)
     for r in rows:
         if r["rc"]:
@@ -821,8 +853,9 @@ def report_lines(rows) -> list[str]:
     annotate_pairs(rows)
     by = {(r["arm"], r["stratum"], r["seed"]): r for r in rows}
     fails = [r for r in rows if r["rc"] != 0]
+    seconds = sum(_run_seconds(r) for r in rows)
     out = [f"Runs: {len(rows)}; failed: {len(fails)} (missing outcomes: {sum(r['rc'] == 3 for r in rows)}); "
-           f"run seconds total {sum(r['wall_s'] for r in rows):.0f} ({sum(r['wall_s'] for r in rows) / 3600:.3f} core-hours)"]
+           f"simulation and extraction seconds total {seconds:.0f} ({seconds / 3600:.3f} core-hours)"]
     for f in fails:
         out.append(f"- FAILED {f['arm']} {f['stratum']}{f['seed']} (rc {f['rc']}): {f.get('error', '')[-300:]}")
     for arm in ARMS:
@@ -833,11 +866,12 @@ def report_lines(rows) -> list[str]:
                 if (arm, s, seed) not in by:
                     out.append(f"- INCOMPLETE {arm} {s}{seed}: not run")
 
-    out.append("\n### Run time per arm (seconds per run: mean [min, max])\n")
+    out.append("\n### Run time per arm (simulation and extraction seconds per run: mean [min, max])\n")
     out.append("| Arm | " + " | ".join(labels[s] for s in labels) + " |")
     out.append("| --- | " + " | ".join("---" for _ in labels) + " |")
     for arm in ARMS:
-        cells = [_rng([r["wall_s"] for r in rows if r["arm"] == arm and r["stratum"] == s], "{:.1f}") for s in labels]
+        cells = [_rng([_run_seconds(r) for r in rows if r["arm"] == arm and r["stratum"] == s], "{:.1f}")
+                 for s in labels]
         out.append(f"| {arm} | " + " | ".join(cells) + " |")
 
     out.append("\n### Shared outcomes vs each arm's control (mean [min, max] over worlds)\n")
@@ -880,13 +914,18 @@ def report_lines(rows) -> list[str]:
     return out
 
 
+def _run_seconds(r) -> float:
+    """A run's simulation and extraction seconds (extraction ran in the runner process)."""
+    return r["wall_s"] + r.get("extract_s", 0.0)
+
+
 def projected_held_core_hours(rows) -> float | None:
-    """Pilot run time per arm and stratum times the held worlds per stratum, in core-hours
-    (None if a pilot arm is missing)."""
+    """Pilot run time (simulation and extraction) per arm and stratum times the held worlds
+    per stratum, in core-hours (None if a pilot arm is missing)."""
     total = 0.0
     for arm in ARMS:
         for stratum, tag in TAGS.items():
-            walls = [r["wall_s"] for r in rows if r["arm"] == arm and r["stratum"] == tag]
+            walls = [_run_seconds(r) for r in rows if r["arm"] == arm and r["stratum"] == tag]
             if not walls:
                 return None
             total += mean(walls) * len(HELD[stratum])
