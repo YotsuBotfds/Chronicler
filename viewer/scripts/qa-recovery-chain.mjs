@@ -59,13 +59,16 @@
 import { createRequire } from "node:module";
 import { createServer } from "node:http";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..", "..");
+const VIEWER = path.resolve(HERE, "..");
+/** Written into `--out` when the script creates it: only a directory holding it may be emptied on a later run. */
+const MARKER = ".qa-recovery-chain-output";
 
 const MIME = {
   ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
@@ -206,6 +209,8 @@ for s in b["history"]:
                                                                 if x["region"] == r and x["status"] == "stalled"]
             e["rs2_wages"] = None if rp["receipts"] is None else sum(x["wages_milli"] for x in rp["receipts"]
                                                                      if x["region"] == r and x["kind"] == "workshop")
+            e["holders"] = None if rp["receipts"] is None else [[x["pid"], x["timber_held"]] for x in rp["receipts"]
+                                                                if x["region"] == r and x["timber_held"] > 0]
         if ts is not None:
             e["live"] = [x["eid"] for x in ts["expeditions"] if x["home"] == r]
             e["delivered"] = sum(x["delivered"] for x in ts["closed"] if x["home"] == r and x["ended_turn"] == ts["source_turn"]
@@ -217,6 +222,9 @@ for s in b["history"]:
             g = None if rc["receipts"] is None else [x for x in rc["receipts"] if x["region"] == r and x["kind"] == "granary"]
             e["pl3_wages"] = None if g is None else sum(m["wage_milli"] for x in g for m in x["members"])
             e["pl3_crew"] = None if g is None else [m["agent_id"] for x in g for m in x["members"]]
+            k = None if rc["receipts"] is None else [x for x in rc["receipts"] if x["region"] == r]
+            e["pl3_farm"] = None if k is None else {kind: sum(x["farm_time_removed"] for x in k if x["kind"] == kind)
+                                                    for kind in ("granary", "workshop")}
         if storage is not None:
             a = storage["assets"][r]
             e["condition"] = None if a is None else a["condition"]
@@ -393,6 +401,18 @@ function checkValues(part, tag, state, turn, name, e, on) {
   } else {
     for (const key of ["expedition", "forest", "store"]) need(`${key}: off`, L(key).startsWith("Off: Timber supply (PL1) is off"), L(key));
   }
+  if (on.timber_supply && on.repair_projects && e.store && e.store !== "none" && e.holders) {
+    const sole = e.store.held > 0 && e.holders.length === 1;
+    need(`store: ${sole ? "the sole holder's hold is attributed to the store" : "no hold is attributed to the store by elimination"}`,
+      sole ? L("store").includes(`Only project #${e.holders[0][0]} held timber`) : !/can only/.test(L("store")), L("store"));
+    if (e.store.held <= 0 && e.holders.length) need("store: a hold the store did not give is said to come from other free timber",
+      L("store").includes("The store gave the repairs nothing this turn"), L("store"));
+  }
+  if (on.recovery_crews && e.pl3_farm) {
+    const trade = state.links[LINK.wages]?.tradeoff ?? "";
+    for (const [kind, v] of Object.entries(e.pl3_farm)) if (v > 0) need(`wages tradeoff: PL3 ${kind} crews took ${fmt(v)} farmer-turns`,
+      trade.includes(`farm labour taken by PL3 ${kind} crews: ${fmt(v)} farmer-turns`), trade);
+  }
   if (e.condition !== undefined) need(e.condition === null ? "granary: no granary" : `granary: condition ${fmt(e.condition, 3)}`,
     e.condition === null ? L("granary").startsWith("No granary") : L("granary").startsWith(`Condition ${fmt(e.condition, 3)} `), L("granary"));
   if (on.recovery_crews && e.pl3_wages !== null) {
@@ -468,7 +488,7 @@ async function partChain(browser, url, bundle, x) {
       state.stripRows.join(" | "));
     await chainSection(page).getByLabel("Show every snapshot").check();
     // The turn table pages its rows: show them all.
-    for (let more = chainSection(page).getByRole("button", { name: /^Show \d+ more of \d+$/ }); await more.count();) await more.click();
+    for (let more = chainSection(page).getByRole("button", { name: /^Show (the last \d+|\d+ more \(\d+ not shown\))$/ }); await more.count();) await more.click();
     state = await settled(page);
     part.check(`${tag}: "Show every snapshot" lists all ${x.list.length} snapshots`, state.rows.length === x.list.length
       && state.rows.map((r) => r.turn).join() === x.list.join(), `${state.rows.length}`);
@@ -501,6 +521,19 @@ async function partChain(browser, url, bundle, x) {
     checkValues(part, `${tag} ${x.regions[other]} T${stall}`, state, stall, x.regions[other], x.at(stall, other), x.on);
     state = await pickRegion(page, region);
     part.check(`${tag}: picking ${name} again restores its chain`, state.nowLabel === `Recovery chain in ${name} at snapshot ${stall}`, state.nowLabel);
+    // A repair holding timber while the region's store held none (its delivery came after the hold): the view must
+    // not attribute the hold to the store. The first such case in the run, wherever it is.
+    const empty = x.list.flatMap((t) => x.regions.map((_, r) => [t, r])).find(([t, r]) => {
+      const e = x.at(t, r);
+      return e.store && e.store !== "none" && e.store.held <= 0 && (e.holders ?? []).length > 0;
+    });
+    if (empty) {
+      const [t, r] = empty;
+      await pickRegion(page, r);
+      state = await seek(page, t);
+      checkValues(part, `${tag} ${x.regions[r]} T${t} (store held nothing)`, state, t, x.regions[r], x.at(t, r), x.on);
+      await pickRegion(page, region);
+    } else part.notes.push(`${tag}: no repair held timber while its region's store held none in this run`);
     checkFits(part, `${tag} picker`, state, viewportName);
     part.errorsFree(viewportName);
     await context.close();
@@ -549,7 +582,9 @@ async function partVariant(browser, url, bundle, x) {
     && /The region's total is unknown/.test(state.links[LINK.wages]?.what ?? "") && !/Total paid/.test(state.links[LINK.wages]?.what ?? ""), state.links[LINK.wages]?.what);
   const row = state.rows.find((r) => r.turn === b);
   part.check(`T${b}: the turn table claims no zero wage`, !!row && !/^0 coins/.test(row.cells[state.columns.indexOf(LINK.wages) - 1] ?? ""), JSON.stringify(row?.cells));
-  part.check(`T${b}: the totals say what is unknown`, state.notes.some((n) => /Totals count known snapshots only; unknown at: .*Wages paid \(PL3, RS2, PL1\) 2, Food purchases \(PL4\) 1, Remittances in \(RS4\) 1\./.test(n)),
+  part.check(`T${b}: the run's wage total reads "at least"`, state.notes.some((n) => / wages at least [\d,.]+ coins to /.test(n)),
+    state.notes.find((n) => /over snapshots/.test(n)));
+  part.check(`T${b}: the totals say what is unknown`, state.notes.some((n) => /Totals count known snapshots only; unknown at, wholly or in part: .*Wages paid \(PL3, RS2, PL1\) 2, Food purchases \(PL4\) 1, Remittances in \(RS4\) 1\./.test(n)),
     state.notes.find((n) => /over snapshots/.test(n)));
   await part.shot(chainSection(page), `desktop-variant-${name.replace(/\W+/g, "-")}-T${b}.jpg`);
   state = await seek(page, c);
@@ -593,9 +628,26 @@ function nativeIdentity() {
   if (run.status !== 0) throw new Error(`the native extension check failed:\n${run.stdout}\n${run.stderr}`);
 }
 
+/** Refuse an `--out` the script must not empty: the current directory, the repository or viewer/ or anything
+ * holding them, anything inside the repository, or an existing directory this script did not create. */
+function prepareOut(out) {
+  const inside = (child, parent) => child === parent || child.startsWith(parent + path.sep);
+  for (const [label, dir] of [["the current directory", process.cwd()], ["the repository", REPO], ["viewer/", VIEWER]]) {
+    if (inside(dir, out)) throw new Error(`Refusing --out ${out}: it is or holds ${label} (${dir})`);
+  }
+  if (inside(out, REPO)) throw new Error(`Refusing --out ${out}: generated runs and screenshots stay outside the repository`);
+  if (existsSync(out)) {
+    if (!statSync(out).isDirectory()) throw new Error(`Refusing --out ${out}: not a directory`);
+    if (readdirSync(out).length && !existsSync(path.join(out, MARKER)))
+      throw new Error(`Refusing --out ${out}: an existing directory this script did not create (no ${MARKER}); use a new path`);
+    rmSync(out, { recursive: true, force: true });
+  }
+  mkdirSync(out, { recursive: true });
+  writeFileSync(path.join(out, MARKER), "Output of viewer/scripts/qa-recovery-chain.mjs; the next run empties this directory.\n");
+}
+
 async function main() {
-  rmSync(options.out, { recursive: true, force: true });
-  mkdirSync(options.out, { recursive: true });
+  prepareOut(options.out);
   nativeIdentity();
   const { chromium } = require("playwright");
   const server = await serve(options.build);
