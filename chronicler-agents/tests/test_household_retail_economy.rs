@@ -134,14 +134,16 @@ fn early(row: &chronicler_agents::economy::RetailRegionResult) -> f64 {
 }
 
 /// The commons' share of the opening cap overflow (in the ledger's cap term
-/// only): the cap holds the commons and the carried owned stock together.
+/// only): the cap holds the commons net of this tick's departures and the
+/// carried owned stock together.
 fn commons_opening_overflow(input: &EconomyRegionInput, row: &chronicler_agents::economy::RetailRegionResult,
-                            open: &RetailRegionInput) -> f64 {
+                            open: &RetailRegionInput, departures: &[f32; NUM_GOODS]) -> f64 {
     let cap = EconomyConfig::default().per_good_cap_factor * input.storage_population as f32;
     RETAIL_FOOD_SLOTS.iter().map(|&g| {
         let carried = open.owned[g] - row.owned_decay[g];
-        let total = input.stockpile[g] + carried;
-        if total > cap { (input.stockpile[g] - input.stockpile[g] * (cap / total)) as f64 } else { 0.0 }
+        let net = (input.stockpile[g] - departures[g]).max(0.0);
+        let total = net + carried;
+        if total > cap { (net - net * (cap / total)) as f64 } else { 0.0 }
     }).sum()
 }
 
@@ -326,7 +328,7 @@ fn decay_reads_salt_in_both_pools_and_the_cap_splits_overflow_pro_rata() {
     let mut input = input;
     input.stockpile = c;
     input.storage_population = 4;
-    assert_food_balance_with(&rr.food_ledger, early(rt) + commons_opening_overflow(&input, rt, &pilot(0.9, big).unwrap()));
+    assert_food_balance_with(&rr.food_ledger, early(rt) + commons_opening_overflow(&input, rt, &pilot(0.9, big).unwrap(), &[0.0; NUM_GOODS]));
 }
 
 #[test]
@@ -386,7 +388,8 @@ fn the_food_ledger_and_conservation_close_with_owned_stock() {
     assert_owned_closes(&out, &rows);
     for (ri, rr) in out.region_results.iter().enumerate() {
         let opening = match (&out.retail.as_ref().unwrap()[ri], rows[ri]) {
-            (Some(rt), Some(open)) => early(rt) + commons_opening_overflow(&regions[ri], rt, &open),
+            (Some(rt), Some(open)) => early(rt) + commons_opening_overflow(&regions[ri], rt, &open,
+                &scenario().3.departure_debits[ri]),
             _ => 0.0,
         };
         assert_food_balance_with(&rr.food_ledger, opening);
@@ -486,4 +489,51 @@ fn the_abstract_path_is_refused() {
     let rows = [pilot(0.9, [0.0; NUM_GOODS])];
     tick_economy_core_with_retail(&[r], &[agents(4, 2)], &[], &[0.0], &[0], 1, &[0], &EconomyConfig::default(),
         1.0, false, None, &[], Some(&rows));
+}
+
+#[test]
+fn the_opening_cap_reads_the_commons_net_of_merchant_departures() {
+    // Reviewer D's case: the commons at the cap (10), 20 grain owned carried,
+    // merchants loaded 8 of the commons grain this tick. The cap must count
+    // the 2 grain left after the departures: the departures never drive the
+    // cut commons negative (no clamp: no food from nothing).
+    let mut r = region(0, 0, 1.0);
+    r.stockpile[SLOT_GRAIN] = 10.0;
+    r.storage_population = 4;
+    let counts = [RegionAgentCounts { population: 0, farmer_count: 0, soldier_count: 0, merchant_count: 1,
+                                      wealthy_count: 0 }];
+    let mut buf = DeliveryBuffer::new(1);
+    buf.record_departure(0, SLOT_GRAIN, 8.0);
+    let delivery = HybridDeliveryInput::from_buffer(&buf, 1);
+    let own = owned([(SLOT_GRAIN, 20.0), (SLOT_FISH, 0.0), (SLOT_SALT, 0.0), (SLOT_BOTANICALS, 0.0), (SLOT_EXOTIC, 0.0)]);
+    let rows = [pilot(0.9, own)];
+    let out = tick_economy_core_with_retail(&[r], &counts, &[], &[0.0], &[0], 1, &[0], &EconomyConfig::default(),
+        1.0, false, Some(&delivery), &[], Some(&rows));
+    let rr = &out.region_results[0];
+    let rt = out.retail.as_ref().unwrap()[0].as_ref().unwrap();
+    assert_eq!(out.conservation.clamp_floor_loss, 0.0);
+    assert_eq!(rr.food_ledger[4], 0.0);
+    // 2 grain of commons net of departures and 19.4 carried keep 10 together.
+    let carried = 20.0f32 * 0.97;
+    let share = 10.0 / (2.0 + carried);
+    assert!((rt.owned_close[SLOT_GRAIN] - carried * share).abs() < 1e-5, "{}", rt.owned_close[SLOT_GRAIN]);
+    assert!((rr.stockpile[SLOT_GRAIN] - 2.0 * share * 0.97).abs() < 1e-5, "{}", rr.stockpile[SLOT_GRAIN]);
+    assert!(rr.stockpile[SLOT_GRAIN] >= 0.0);
+    let ledger = &rr.food_ledger;
+    let balance = ledger[0] + ledger[1] + ledger[2] - ledger[3] + ledger[4] - ledger[6] - ledger[7] - ledger[8];
+    assert!((balance - ledger[9]).abs() < 1e-4, "{ledger:?}");
+    assert!((ledger[2] + 8.0).abs() < 1e-6 && (ledger[0] - 30.0).abs() < 1e-6);
+    // Without departures the cap reads the whole commons, as before.
+    let none = HybridDeliveryInput::from_buffer(&DeliveryBuffer::new(1), 1);
+    let plain = tick_economy_core_with_retail(&[r_at_cap()], &counts, &[], &[0.0], &[0], 1, &[0],
+        &EconomyConfig::default(), 1.0, false, Some(&none), &[], Some(&rows));
+    let pt = plain.retail.as_ref().unwrap()[0].as_ref().unwrap();
+    assert!((pt.owned_close[SLOT_GRAIN] - carried * (10.0 / (10.0 + carried))).abs() < 1e-5);
+}
+
+fn r_at_cap() -> EconomyRegionInput {
+    let mut r = region(0, 0, 1.0);
+    r.stockpile[SLOT_GRAIN] = 10.0;
+    r.storage_population = 4;
+    r
 }
