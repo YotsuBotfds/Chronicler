@@ -611,7 +611,8 @@ def test_the_registry_guard_fails_on_an_unregistered_payer(tmp_path, monkeypatch
     calls = [n.func.attr for n in ast.walk(ast.parse(source))
              if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
              and n.func.attr in WEALTH_WRITER_METHODS]
-    assert calls == ["transfer_wealth"] and ("money", "transfer_wealth") not in WEALTH_WRITERS
+    # (A3 registered the real payment seam ``money``; the hypothetical payer is another module.)
+    assert calls == ["transfer_wealth"] and ("unregistered_payer", "transfer_wealth") not in WEALTH_WRITERS
 
 
 # --- treasury side -------------------------------------------------------------

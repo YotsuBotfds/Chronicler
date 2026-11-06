@@ -190,9 +190,14 @@ def _residents(sim):
 
 def _turn(world, sim, lord=0):
     """One whole turn: Phase 2 (workshop, payroll and A3 seams), the stand-in
-    economy, the wealth phase, academy procurement and Phase 10."""
+    economy, the wealth phase, academy procurement and Phase 10 (with the A1
+    ledger's opening first and closing last when it is on)."""
     sim._regions = len(world.regions)
     bridge = SimpleNamespace(_sim=sim)
+    ledger = getattr(world.livelihoods, "wealth_accounting", None) is not None
+    if ledger:
+        from chronicler import wealth_accounting as WA
+        WA.prepare_phase2(world, None, bridge, sim.get_snapshot(), None)
     batch = W.prepare_phase2(world, _batch(len(world.regions)), bridge, None, None)
     P.prepare_phase2(world, batch, bridge, None, None)
     ceiling = float(batch.column("craft_raw_demand").to_pylist()[SITE])
@@ -220,6 +225,8 @@ def _turn(world, sim, lord=0):
     if world.academy:
         _academy_procurement(world, lord=lord)
     P.phase10(world, None, economy, bridge)
+    if ledger:
+        WA.phase10(world, None, economy, bridge)
     world.turn += 1
     return batch
 
@@ -682,3 +689,43 @@ def test_price_discovery_plans_the_full_ceiling_when_no_positive_price_was_seen(
     world.raw = 0.0
     _turn(world, sim)
     assert _econ(world).prices[0].plan_raw_milli == 500 and _econ(world).prices[0].raw_milli is None
+
+
+def test_the_wealth_ledger_records_the_new_channels_and_its_identity_holds():
+    from chronicler.wealth_accounting_state import WealthAccountingState
+    world = _world()
+    for civ in world.civilizations:
+        civ.regions = []
+    sim = FakeSim(adults=tuple(range(30, 50)), children=((70, 30), (71, 31)), wealth=2.0)
+    _build(world, sim)
+    world.livelihoods.wealth_accounting = WealthAccountingState()
+    frames = []
+    for _ in range(8):
+        _turn(world, sim)
+        frame = world.livelihoods.wealth_accounting.frame
+        if frame is None:
+            continue
+        frames.append(frame)
+        assert all(c["closes"] for c in frame["closures"]), frame["closures"]
+        typed = {r["channel"]: r for r in frame["typed"]}
+        econ = _econ(world)
+        h = econ.frame[0].households or {}
+        # Households' purchases leave the household sector and are located in the firm's region.
+        assert typed["wares_purchase"]["out_milli"] == h.get("paid_milli", 0)
+        assert typed["wares_purchase"]["unlocated_out_milli"] == 0
+        firm = frame["treasury"]["firm_economics"]
+        assert firm["inputs_to_treasury_milli"] == econ.frame[0].inputs["charged_milli"]
+        assert firm["asset_subsidy_firm_units"] == W.UPKEEP
+        # The identity: close - open = typed net / 1000 + the native model; the stand-in's only
+        # model flow is the crew's ordinary income net of the withheld share (0.3 x 0.7 each).
+        w = frame["world"]
+        assert w["close"] - w["open"] == pytest.approx(w["typed_net_milli"] / 1000 + w["native_model"], abs=1e-6)
+        crew = econ.frame[0].inputs["crew"] if econ.frame[0].operating else 0
+        assert w["native_model"] == pytest.approx(crew * 0.3 * 0.7, abs=1e-4)
+        assert frame["continuity"]["status"] in ("exact", "unchecked")
+    assert any(f["typed"] and any(r["channel"] == "wares_purchase" and r["out_milli"] for r in f["typed"])
+               for f in frames)
+    life = world.livelihoods.wealth_accounting.lifetime
+    assert life["wares_purchase_out_milli"] == sum(
+        r["out_milli"] for f in frames for r in f["typed"] if r["channel"] == "wares_purchase")
+    assert life["firm_inputs_to_treasury_milli"] > 0 and life["asset_subsidy_units"] >= 8 * W.UPKEEP

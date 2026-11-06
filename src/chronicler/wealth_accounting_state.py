@@ -42,6 +42,7 @@ CHANNELS: tuple[tuple[str, str | None, str], ...] = (
     ("remittance", "remittances", "sender -> recipient, fee to the courier sink (RS4)"),
     ("relocation_fare", "relocation_costs", "movers -> travel sink (L7)"),
     ("domestic_credit", None, "treasury <-> merchants, net applied (domestic credit)"),
+    ("wares_purchase", "workshop_economics", "households -> workshop firm cash, wares bought by id (A3)"),
 )
 CHANNEL_NAMES: tuple[str, ...] = tuple(c[0] for c in CHANNELS)
 
@@ -84,12 +85,16 @@ WEALTH_WRITERS: dict[tuple[str, str], tuple[str, ...]] = {
     ("remittances", "remit_wealth"): ("remittance",),
     ("relocation_costs", "transfer_wealth"): ("relocation_fare",),
     ("domestic_credit", "apply_merchant_transfers"): ("domestic_credit",),
+    # The shared payment seam (connected-world A3): households' wares purchases
+    # (``money.flows_for_turn``); its treasury <-> firm-cash flows are Python
+    # accounts, read on the treasury side (``frame.treasury.firm_economics``).
+    ("money", "transfer_wealth"): ("wares_purchase",),
 }
 #: Native ``AgentSimulator.wealth_transfer_purposes()`` this ledger knows
 #: (append only; a native test fails when the extension grows past it).
 KNOWN_PURPOSES: tuple[str, ...] = (
     "workshop_wage", "relocation_fare", "apprentice_stipend", "repair_wage", "remittance", "food_purchase",
-    "food_procurement",
+    "food_procurement", "wares_purchase",
 )
 
 #: Continuity of an opening with the previous closing.
@@ -110,12 +115,15 @@ MAX_CONTINUITY_REGIONS = 16
 #: units, ``withheld_*`` ordinary income withheld (wealth units),
 #: ``treasury_*``/``tithe_*`` treasury units.
 LIFETIME: tuple[str, ...] = (
-    *(f"{name}_{side}_milli" for name in CHANNEL_NAMES for side in ("in", "out")),
+    *(f"{name}_{side}_milli" for name in CHANNEL_NAMES[:10] for side in ("in", "out")),
     "delta", "native_model", "discontinuity",
     *(f"withheld_{name}" for name in WITHHELD_PACKAGES), "withheld_unattributed",
     "treasury_tax_created", "tithe_potential", "treasury_to_households_milli",
     "treasury_to_firm_cash_milli", "firm_cash_to_treasury_milli", "treasury_charged",
     "tithe_at_threshold_after_tick", "withheld_retail",
+    # A3 (workshop economics), appended: its typed channel, then its treasury side.
+    "wares_purchase_in_milli", "wares_purchase_out_milli", "treasury_to_firm_capital_milli",
+    "firm_inputs_to_treasury_milli", "asset_subsidy_units",
 )
 
 #: Lifetime counters (declaration order; append only).
