@@ -259,6 +259,33 @@ Boundaries, recorded as decisions:
 - **Soldiers at home.** Enlisted people keep their claims and home food demand; nothing
   here changes that (D3/D4).
 
+Verification (2026-11-06, simulation source `b9e64330`, native `101a4cd5…` built from Rust
+identical to `8abc1acb`; development worlds only):
+
+- Offline lane: PASS, 64 chunks, 6,735 passed, 69 skipped, 0 failed, 240.8 s (chunk
+  `household-retail-war`: 27 passed, 1.2 s). Witness tests with layer `cwa5`: 509 passed
+  and 61 subtests.
+- Native (`CHRONICLER_REQUIRE_RETAIL_NATIVE=1`): `test_household_retail*.py` and
+  `test_livelihoods_closure_native.py` 127 passed; L2, work authority, PL3, RS2, PL1,
+  checkpoint and war suites 77 passed.
+- Feature-off `turn_speed_identity` against `8abc1acb` (also the preceding `main`): 9
+  cases, 399 files, 0 differences. With grain reserves, shipments, storage, workshops and
+  L2 on: retail absent, and `--no-household-retail`, 205 files, 0 differences each;
+  retail on in every region, `8abc1acb` against `--household-retail-rules 1`, 205 files,
+  0 differences (version 2 differs in 194, as intended). A scripted harness scenario
+  (conquests, deaths, a closure) gives byte-identical world JSON, retail `model_dump` and
+  snapshot under `8abc1acb` and under `--household-retail-rules 1`.
+- All-switch `checkpoint_identity` with retail version 2 in every region:
+  `hybrid_s42_long` PASS at 19 resume points, and at 11 and 12 (inside an occupation, before
+  a siege and a conquest of pilot regions holding owned food); `proc32_hybrid_s11` PASS at
+  39 resume points (an occupation start on turn 17).
+- Natural activation (checkpoint-3 base, retail in every region, 200 turns): an owned-stock
+  war loss in 11 of 13 development worlds (none in template 7 and 23): 183 losses (siege
+  134, occupation 29, conquest 20) and 219 events; no region was conquered twice in one
+  turn (campaigns on).
+- `CHRONICLER_CHECK_RESOURCES=1`, procedural 13, 200 turns: PASS, with 38 losses (siege 29,
+  occupation 5, conquest 4).
+
 ### Merchants, procurement and the controls
 
 - **Merchants** load only commons (lead decision 7). Owned food is never in
