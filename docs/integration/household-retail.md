@@ -383,7 +383,11 @@ region's first interval must open on it. `scripts/retail_schedule.py BUNDLE --ou
 S.json [--strict]` writes the canonical JSON (its SHA-256 equals the digest the
 replaying run records), prints the digest, the source and any closures, warns when the
 schedule is approximate, and with `--strict` refuses it. Nothing ties a schedule to the
-world it came from beyond the region count: replay it on the same seed and world.
+world it came from beyond the region count: replay it on the same seed and world. The CW1
+screen (`docs/superpowers/progress/connected-world-screens-cw1.md`) does this per world
+through the screen runner's two-phase support: arm A's and B's exact intervals are frozen
+and hashed before arms C and D replay them, and a replay counts only when the intervals it
+recorded equal the schedule's.
 
 Replay results (native `101a4cd5…`, development worlds, the checkpoint-3 base; `CH` =
 `--timber-supply --recovery-crews --remittances`, `U` = the same with
@@ -473,8 +477,13 @@ Fix, rules version 2 only (version 1 unchanged, as at checkpoints 2-3):
 `tick_grain_reserves`), when granaries are on and a pilot market holds owned grain, cuts
 the market's grain above this turn's storage cap before procurement, **split pro rata
 between the two pools as the native opening cap splits it** (each keeps `pool × cap /
-(commons + owned)`, owned in whole milli rounded down; S1, A2R review 2: A2R's first fix
-charged the owners alone), once per turn. The owned share is the flow `cap_overflow`
+(net commons + owned)`, owned in whole milli rounded down; S1, A2R review 2: A2R's first fix
+charged the owners alone), once per turn. As in the native cap (`net = commons -
+departures`), the commons count net of the grain merchants have committed to load or carry
+out of the market (the native stockpile commitments, reserved plus pending departure, read
+without draining them; S1 review m3), and that committed grain is never cut, so the
+departures still fit; the frame's `cap_cut` then also records `committed_milli`. Without an
+agent bridge nothing is committed. The owned share is the flow `cap_overflow`
 (its own kind, so `overflow` stays the native opening's), claims pro rata, and the
 counter `owned_grain_above_cap_milli`; the commons share leaves `region.stockpile` and
 is counted in `commons_grain_above_cap_milli`; both are on the frame's `cap_cut`. `cap`

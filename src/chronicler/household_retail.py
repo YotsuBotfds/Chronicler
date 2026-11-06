@@ -2113,7 +2113,11 @@ def phase10_before_reserves(world, acc, economy_result, agent_bridge) -> list:
     pilot market holding owned grain whose grain (commons plus owned) exceeds
     this turn's storage cap loses the excess, split pro rata between the two
     pools as the native opening cap splits it (each keeps ``pool x cap /
-    (commons + owned)``; owned in whole milli, rounded down), once per turn.
+    (net commons + owned)``; owned in whole milli, rounded down), once per
+    turn. As in the native cap, the commons count net of the grain merchants
+    have committed to load or carry out (the native stockpile commitments,
+    read without draining them; none without an agent bridge), and that
+    committed grain is never cut: the departures still fit.
 
     This turn's title is on offer whole at phase 0.7 and the native caps the
     two pools together only at the next opening; between the tick and that
@@ -2140,6 +2144,7 @@ def phase10_before_reserves(world, acc, economy_result, agent_bridge) -> list:
         return []
     t.cap_cut_done = True
     caps = t.phase2.cap if t.phase2 is not None and t.phase2.turn == world.turn else {}
+    committed = None
     for reg in state.regions:
         owned = reg.goods[GRAIN]
         if not owned:
@@ -2147,24 +2152,44 @@ def phase10_before_reserves(world, acc, economy_result, agent_bridge) -> list:
         cap = _storage_cap(world, reg.region, caps.get(reg.region))
         goods = world.regions[reg.region].stockpile.goods
         commons = float(goods.get("grain", 0.0))
-        total = owned / MILLI + commons
+        if owned / MILLI + commons <= cap + 1e-9:
+            continue
+        if committed is None:
+            committed = _grain_committed(world, agent_bridge)
+        held = min(commons, committed.get(reg.region, 0.0))
+        net = commons - held
+        total = owned / MILLI + net
         if total <= cap + 1e-9:
             continue
         keep_owned = min(owned, math.floor(owned * cap / total + 1e-9))
-        keep_commons = min(commons, max(0.0, cap - keep_owned / MILLI))
-        owned_cut, commons_cut = owned - keep_owned, commons - keep_commons
+        keep_net = min(net, max(0.0, cap - keep_owned / MILLI))
+        owned_cut, commons_cut = owned - keep_owned, net - keep_net
         if owned_cut:
             per_good = [owned_cut] + [0] * (len(RETAIL_GOODS) - 1)
             _debit(state, world, reg, "cap_overflow", _pro_rata(owned_cut, reg.claims), per_good)
             _bump(state, "owned_grain_above_cap_milli", owned_cut)
         commons_milli = int(round(commons_cut * MILLI))
         if commons_cut > 0:
-            goods["grain"] = keep_commons
+            goods["grain"] = held + keep_net
             _bump(state, "commons_grain_above_cap_milli", commons_milli)
         if owned_cut or commons_milli:
-            _book(state, world, reg).cap_cut = {"owned_milli": owned_cut, "commons_milli": commons_milli}
+            cut = {"owned_milli": owned_cut, "commons_milli": commons_milli}
+            if held > 0:
+                cut["committed_milli"] = int(round(held * MILLI))
+            _book(state, world, reg).cap_cut = cut
     _check(state, world)
     return []
+
+
+def _grain_committed(world, agent_bridge) -> dict[int, float]:
+    """Grain merchants have committed to load or carry out of each region (the
+    native stockpile commitments: reserved plus pending departure, read without
+    draining them), food units; empty without an agent bridge."""
+    if agent_bridge is None:
+        return {}
+    from chronicler.mutual_aid import read_stockpile_commitments
+    by_name = read_stockpile_commitments(world, agent_bridge._sim)
+    return {i: float(by_name.get(r.name, {}).get("grain", 0.0)) for i, r in enumerate(world.regions)}
 
 
 def _storage_cap(world, rid: int, cap: float | None) -> float:

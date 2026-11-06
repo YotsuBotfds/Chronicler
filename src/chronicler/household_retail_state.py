@@ -224,8 +224,9 @@ class RegionFrame(_Backfilled):
     #: version-1 state and in a region without a provisioning row.
     cohorts: dict | None = Field(default=None, exclude_if=_is_none)
     #: Version 2 (RL4): this turn's storage-cap cut before Phase 10 procurement,
-    #: ``{"owned_milli", "commons_milli"}`` (pro rata, as the native cap);
-    #: omitted when nothing was cut.
+    #: ``{"owned_milli", "commons_milli"}`` (pro rata, as the native cap), and
+    #: ``committed_milli`` when merchants had committed grain there (never cut,
+    #: left out of the commons split); omitted when nothing was cut.
     cap_cut: dict[str, int] | None = Field(default=None, exclude_if=_is_none)
 
 

@@ -769,6 +769,46 @@ def test_the_rl4_cut_splits_the_excess_pro_rata_and_runs_once_a_turn(monkeypatch
     assert (h.state.region(VERDANT).goods[0], goods["grain"]) == before
 
 
+def test_the_rl4_cut_leaves_grain_merchants_committed_out_of_the_split(monkeypatch):
+    """S1 review m3: as the native opening cap (``net = commons - departures``),
+    the cut splits the excess between the owned pool and the commons net of the
+    grain merchants have committed to load or carry out, and never cuts the
+    committed grain; the frame records it. Without commitments the split is the
+    plain pro-rata one above."""
+    h = Harness()
+    _above_cap_market(h)
+    h.turn({VERDANT: {"grain": 60.0}})
+    _granary_world(h, monkeypatch)
+    owned = h.state.region(VERDANT).goods[0]
+    goods = h.world.regions[VERDANT].stockpile.goods
+    goods["grain"] = 35.0
+    h.sim.loads[(VERDANT, "grain")] = 10.0                           # committed by merchants
+    h.state._turn = None
+    HR.phase10_before_reserves(h.world, None, None, h.bridge)
+    net = 25.0
+    total = owned / 1000 + net
+    keep = math.floor(owned * 30.0 / total + 1e-9)
+    assert h.state.region(VERDANT).goods[0] == keep > 0
+    assert goods["grain"] == pytest.approx(10.0 + 30.0 - keep / 1000)
+    assert goods["grain"] - 10.0 == pytest.approx(net * 30.0 / total, abs=1e-3)   # the net commons, pro rata
+    cut = h.state._turn.books[VERDANT].cap_cut
+    assert cut == {"owned_milli": owned - keep, "commons_milli": round((35.0 - goods["grain"]) * 1000),
+                   "committed_milli": 10000}
+    assert keep > math.floor(owned * 30.0 / (owned / 1000 + 35.0) + 1e-9)   # owners keep more than gross
+    # Committed grain beyond the cap: the net commons and the owners share the cap,
+    # the committed grain stays whole.
+    h2 = Harness()
+    _above_cap_market(h2)
+    h2.turn({VERDANT: {"grain": 60.0}})
+    _granary_world(h2, monkeypatch)
+    goods2 = h2.world.regions[VERDANT].stockpile.goods
+    goods2["grain"] = 50.0
+    h2.sim.loads[(VERDANT, "grain")] = 45.0
+    h2.state._turn = None
+    HR.phase10_before_reserves(h2.world, None, None, h2.bridge)
+    assert goods2["grain"] >= 45.0
+
+
 def test_a_convoy_returned_into_a_pilot_market_before_retails_hook_is_cut_pro_rata(monkeypatch):
     """A2R review 2 (c): with --grain-convoys a convoy turned back by a closed
     road returns its cargo to its origin's market in grain_convoys'
