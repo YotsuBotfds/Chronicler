@@ -1,8 +1,9 @@
 """Observation-only wealth ledger (A1, ``--wealth-accounting``, default off).
 
-Requires ``--agents hybrid``. Design: the connected-world A1-A2 audit
-(``docs/superpowers/audits/connected-world/``, section 3.2, slice 1); integration
-page ``docs/integration/wealth-accounting.md``.
+Requires ``--agents hybrid``. Design: the connected-world A1-A2 income and
+wealth audit (section 3.2, slice 1; on the lead's branch as
+``docs/superpowers/audits/connected-world/audit-a1-a2-income-wealth.md``);
+integration page ``docs/integration/wealth-accounting.md``.
 
 Why. Agent ``wealth`` (native ``AgentPool.wealth``, f32) is the one spendable
 balance every payer debits, but most of what enters it is created by the
@@ -41,8 +42,11 @@ Seams (Python only; no edit to any payer):
    receipt (``livelihoods.paid_work_receipt``) attributed row by row to the
    package that installed it, which splits PL3's withheld income into granary
    and workshop crews (recorded limit RL7); the treasury side (wages paid from
-   treasuries and firm cash beside the treasury tax created this turn and the
-   clergy tithe offered); then the closing.
+   treasuries and firm cash beside the treasury tax created this turn, and the
+   clergy tithe's potential and its approximate collected part); then the
+   closing. Every Python call site of a wealth-writing native method must be
+   in ``WEALTH_WRITERS`` (a test walks ``src/``), so ``typed_complete`` means
+   "every known channel of an active package had this turn's record".
 3. ``on_pool_reset``: a rebuilt pool drops the closing with a dated record;
    the next opening is unchecked (balances are never carried across pools).
 
@@ -73,16 +77,24 @@ REL_TOL = 1e-9
 LABELS: dict[str, str] = {
     "native_model": (
         "native model flows, not itemized in slice 1: occupational income net of withheld shares, decay, "
-        "the wealth ceiling, birth endowments, estates without heirs and inheritance overflow; per region "
-        "also the f32 rounding of typed transfers and typed flows the paying package recorded in another "
-        "region than the payee's opening region"),
+        "the wealth ceiling, birth endowments, estates without heirs and inheritance overflow, plus the "
+        "f32 rounding of typed transfers; per region it ALSO holds every unlocated typed flow (the frame's "
+        "unlocated_in_milli/unlocated_out_milli: granary procurement, L7 fares beyond the kept sample, "
+        "domestic credit, wages of PL3 receipts dropped by its row cap) and typed flows a package recorded "
+        "in another region than the payee's opening region, so a region's residual is not model-only "
+        "while unlocated flows are non-zero"),
     "typed": "conserved or declared transfers through keyed native wealth transfers (payer debited)",
+    "typed_complete": ("every known channel of an active package had this turn's record (WEALTH_WRITERS "
+                       "registers every Python call site of a wealth-writing native method)"),
     "migration": "closing balances of people whose region changed during the turn (they carry them)",
-    "withheld": "ordinary income the native wealth phase withheld for paid work (no money moves)",
+    "withheld": ("ordinary income the native wealth phase withheld for paid work, and farm income L6b "
+                 "replaced by sales (no money moves)"),
     "treasury_tax": "the 5% treasury tax on merchant wealth: credited to the treasury, debited from nobody",
-    "tithe_offered": ("TITHE_RATE x the economy's tithe base per civilization: credited to the treasury, "
-                      "debited from nobody, only where the clergy held the faction threshold at the faction "
-                      "tick; collection is not observed in slice 1 (tithe_collected is None)"),
+    "tithe": ("potential: TITHE_RATE x the economy's tithe base per civilization with regions, an upper "
+              "bound, NOT created money; at_threshold_after_tick: the part of civilizations whose clergy "
+              "influence is at the faction threshold after the faction tick (approximate: the tick tests the "
+              "threshold before normalizing influence); collected is None (not observed in slice 1). The "
+              "collected tithe is credited to the treasury and debited from nobody"),
 }
 
 #: (package, counter) read as per-turn deltas between the opening and Phase 10.
@@ -506,7 +518,6 @@ def _retail(world, book: _Book, turn: int) -> None:
     book.treasury["to_households_milli"]["food_procurement"] += got
     book.treasury["sinks_milli"]["procurement_residual"] += rest
     book.closure("food_purchase", "buyers paid = sellers credited + refunds", paid, credited + refunded)
-    book.closure("food_purchase", "household sector net (credited - net paid) = 0", credited - (paid - refunded), 0)
     book.closure("food_procurement", "owners' share owed = credited + ceiling residual + unpaid", owed,
                  got + rest + unpaid)
 
@@ -564,14 +575,19 @@ def _credit(world, book: _Book, t: _Turn) -> None:
     if t.credit is None:
         book.channel("domestic_credit", None, CHANNELS[9][2], False)
         return
-    net = (float(st.merchant_applied) - t.credit[1]) * MILLI
-    book.channel("domestic_credit", None, CHANNELS[9][2], True, max(net, 0.0), max(-net, 0.0), ())
+    # Whole milli-units, as every channel; the sub-milli rest of the f32
+    # change stays in the native-model residual.
+    net = int(round((float(st.merchant_applied) - t.credit[1]) * MILLI))
+    book.channel("domestic_credit", None, CHANNELS[9][2], True, max(net, 0), max(-net, 0), ())
 
 
-def _treasury_created(world, economy_result, acc, t: _Turn, book: _Book) -> dict:
+def _treasury_created(world, economy_result, acc, t: _Turn, book: _Book) -> tuple[dict, dict]:
     """The treasury tax credited this turn (reproduced exactly from the
-    economy's tax and the carry read at the opening) and the tithe offered."""
-    from chronicler.factions import TITHE_RATE, compute_tithe_base
+    economy's tax and the carry read at the opening), and the tithe: its
+    potential (an upper bound) and the approximate part of civilizations whose
+    clergy is at the threshold after the faction tick."""
+    from chronicler.factions import TITHE_RATE, TITHE_THRESHOLD, compute_tithe_base
+    from chronicler.models import FactionType
     tax = 0
     n = len(world.civilizations)
     if economy_result is not None and acc is not None:
@@ -582,15 +598,21 @@ def _treasury_created(world, economy_result, acc, t: _Turn, book: _Book) -> dict
             if whole > 0:
                 tax += whole
                 book.civ_add(civ_idx, "treasury_tax", whole)
-    tithe = 0
+    potential = at_threshold = 0
     for civ_idx, civ in enumerate(world.civilizations):
         if not civ.regions:
             continue
         offered = int(TITHE_RATE * compute_tithe_base(civ, economy_result=economy_result, civ_idx=civ_idx))
-        if offered > 0:
-            tithe += offered
-            book.civ_add(civ_idx, "tithe_offered", offered)
-    return {"treasury_tax": tax, "tithe_offered": tithe, "tithe_collected": None}
+        if offered <= 0:
+            continue
+        potential += offered
+        book.civ_add(civ_idx, "tithe_potential", offered)
+        if civ.factions.influence.get(FactionType.CLERGY, 0) >= TITHE_THRESHOLD:
+            at_threshold += offered
+            book.civ_add(civ_idx, "tithe_at_threshold_after_tick", offered)
+    return ({"treasury_tax": tax},
+            {"potential": potential, "at_threshold_after_tick": at_threshold, "approximate": True,
+             "collected": None})
 
 
 # ---------------------------------------------------------------------------
@@ -638,21 +660,44 @@ def _installed(world, turn: int) -> dict[str, set[int]] | None:
 
 
 def _withheld(world, t: _Turn, turn: int) -> dict | None:
+    """Withheld income of the turn (no money moves): paid work, attributed row
+    by row to its installing package, and L6b's replaced farm income. None only
+    when neither a paid-work package nor retail is active; inside, the paid-work
+    fields are None when no paid-work package is active (not zero) and
+    ``retail_income_replaced`` is None when retail is off or not observed."""
     sets = _installed(world, turn)
-    if sets is None:
+    retail_state = _active(world, "household_retail")
+    if sets is None and retail_state is None:
         return None
+    retail = None
+    if retail_state is not None and retail_state.frame_turn == turn:
+        replaced = (retail_state.income or {}).get("replaced")
+        retail = float(replaced) if replaced is not None else None
+    out = {"paid_work_active": sets is not None, "rows": None, "deducted": None, "packages": None,
+           "unattributed_rows": None, "unattributed_pl3_dropped_rows": None, "unattributed_deducted": None,
+           "conflicts": None, "recovery_crews": None, "retail_active": retail_state is not None,
+           "retail_income_replaced": retail}
+    if sets is None:
+        return out
     lv = world.livelihoods
     cached = getattr(lv, "_paid_receipt", None)
     rows = cached[1] if cached is not None and cached[0] == turn else {}
+    pl3_active = _active(world, "recovery_crews") is not None
     deducted = {name: [] for name in WITHHELD_PACKAGES}
     ordinary = {name: [] for name in WITHHELD_PACKAGES}
     counts = dict.fromkeys(WITHHELD_PACKAGES, 0)
-    unattributed, conflicts, lost = 0, 0, []
+    unattributed, dropped, conflicts, lost = 0, 0, 0, []
     for aid in sorted(rows):
         _share, base, cut = rows[aid]
         matches = [name for name in WITHHELD_PACKAGES if aid in sets[name]]
         if "recovery_crews_workshop" in matches and "repair_projects" in matches:
             matches.remove("repair_projects")        # one crew: PL3 widened RS2's pool
+        elif pl3_active and matches == ["repair_projects"]:
+            # While PL3 is active every RS2 workshop crew is a PL3 workshop
+            # crew; one only RS2 names was on a receipt PL3's row cap dropped.
+            # Its package is not known from the records: unattributed.
+            matches = []
+            dropped += 1
         if not matches:
             unattributed += 1
             lost.append(float(cut))
@@ -692,14 +737,10 @@ def _withheld(world, t: _Turn, turn: int) -> dict | None:
         split = {"granary": granary, "workshop": workshop, "total": pl3, "difference": granary + workshop - pl3,
                  "closes": _close_enough(granary + workshop, pl3),
                  "rows_dropped": int(delta("recovery_crews", "rows_dropped") or 0)}
-    retail = None
-    st = _active(world, "household_retail")
-    if st is not None and st.frame_turn == turn:
-        replaced = (st.income or {}).get("replaced")
-        retail = float(replaced) if replaced is not None else None
-    return {"rows": len(rows), "deducted": math.fsum(float(v[2]) for v in rows.values()),
-            "packages": packages, "unattributed_rows": unattributed, "unattributed_deducted": math.fsum(lost),
-            "conflicts": conflicts, "recovery_crews": split, "retail_income_replaced": retail}
+    out.update(rows=len(rows), deducted=math.fsum(float(v[2]) for v in rows.values()), packages=packages,
+               unattributed_rows=unattributed, unattributed_pl3_dropped_rows=dropped,
+               unattributed_deducted=math.fsum(lost), conflicts=conflicts, recovery_crews=split)
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -734,7 +775,7 @@ def _frame(world, t: _Turn, closing, economy_result, acc) -> dict:
     _remittances(world, book, turn)
     _relocation(world, book, t, turn)
     _credit(world, book, t)
-    created = _treasury_created(world, economy_result, acc, t, book)
+    created, tithe = _treasury_created(world, economy_result, acc, t, book)
     order = {name: i for i, name in enumerate(CHANNEL_NAMES)}
     book.rows.sort(key=lambda row: order[row["channel"]])
 
@@ -770,7 +811,7 @@ def _frame(world, t: _Turn, closing, economy_result, acc) -> dict:
         "native_model": delta - (typed_in - typed_out) / MILLI,
         "unplaced_agents": (int(len(ids_o)) - placed_o) + (int(len(ids_c)) - placed_c),
     }
-    treasury = {"created": created, **book.treasury,
+    treasury = {"created": created, "tithe": tithe, **book.treasury,
                 "by_civ": [{"civ": c, **{k: v for k, v in sorted(book.civ[c].items())}} for c in sorted(book.civ)]}
     return {
         "turn": turn, "continuity": t.continuity, "typed_complete": book.complete, "world": world_row,
@@ -832,7 +873,9 @@ def _commit(state: WealthAccountingState, frame: dict, turn: int) -> None:
     _total(state, "delta", frame["world"]["delta"])
     _total(state, "native_model", frame["world"]["native_model"])
     withheld = frame["withheld"]
-    if withheld is not None:
+    if withheld is not None and withheld["retail_income_replaced"] is not None:
+        _total(state, "withheld_retail", withheld["retail_income_replaced"])
+    if withheld is not None and withheld["paid_work_active"]:
         _bump(state, "withheld_rows", withheld["rows"])
         for row in withheld["packages"]:
             _total(state, f"withheld_{row['package']}", row["deducted"])
@@ -841,12 +884,15 @@ def _commit(state: WealthAccountingState, frame: dict, turn: int) -> None:
             _bump(state, "unattributed_rows", withheld["unattributed_rows"])
         if withheld["conflicts"]:
             _bump(state, "attribution_conflicts", withheld["conflicts"])
+        if withheld["unattributed_pl3_dropped_rows"]:
+            _bump(state, "unattributed_pl3_dropped_rows", withheld["unattributed_pl3_dropped_rows"])
         if withheld["unattributed_rows"] or withheld["conflicts"]:
             _log(state, turn, "attribution", unattributed=withheld["unattributed_rows"],
-                 conflicts=withheld["conflicts"])
+                 pl3_dropped=withheld["unattributed_pl3_dropped_rows"], conflicts=withheld["conflicts"])
     tr = frame["treasury"]
     _total(state, "treasury_tax_created", tr["created"]["treasury_tax"])
-    _total(state, "tithe_offered", tr["created"]["tithe_offered"])
+    _total(state, "tithe_potential", tr["tithe"]["potential"])
+    _total(state, "tithe_at_threshold_after_tick", tr["tithe"]["at_threshold_after_tick"])
     _total(state, "treasury_to_households_milli", sum(tr["to_households_milli"].values()))
     _total(state, "treasury_to_firm_cash_milli", tr["firm_cash"]["sales_from_treasury_milli"])
     _total(state, "firm_cash_to_treasury_milli", tr["firm_cash"]["distributions_to_treasury_milli"])
