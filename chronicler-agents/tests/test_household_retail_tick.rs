@@ -111,3 +111,101 @@ fn an_install_without_pilot_regions_leaves_the_tick_bit_identical() {
     assert_eq!(bits(&plain), bits(&empty));
     assert_eq!(plain.provision_frame, empty.provision_frame);
 }
+
+#[test]
+fn two_consecutive_retail_ticks_settle_once_each_and_carry_the_claims() {
+    let (mut pool, regions) = world();
+    let owners: Vec<u32> = (0..pool.capacity()).filter(|&s| pool.regions[s] == 0).map(|s| pool.ids[s]).take(2).collect();
+    let mut claims = vec![(owners[0], 0u16, 1500i64), (owners[1], 0, 200)];
+    for turn in [5u32, 6] {
+        pool.food_allocation_config = Some(l2(turn, &pool));
+        pool.retail_config = Some(RetailConfig::new(turn, RETAIL_MODE_RETAIL, 500, vec![(0, 300, 0.6)],
+            claims.clone(), 2).unwrap());
+        install_retail_income(&mut pool, turn, &[0], 2).unwrap();
+        tick(&mut pool, &regions, turn);
+        let frame = pool.retail_frame.take().expect("each tick runs retail");
+        let row = &frame.regions[0];
+        assert_eq!(frame.source_turn, turn);
+        assert_eq!(row.paid_milli, row.credited_milli + row.refunded_milli);
+        assert_eq!(row.offered_milli, claims.iter().map(|c| c.2).sum::<i64>());
+        assert!(pool.retail_income_receipt.take().is_some_and(|r| r.turn == turn));
+        assert!(pool.wealth_transfer_log.contains(&(turn, PURPOSE_FOOD_PURCHASE, 0)));
+        // Python's part: what is neither eaten nor sold is carried to the next turn.
+        claims = frame.claims.iter().zip(&claims)
+            .map(|(&(o, r, eaten, sold), &(_, _, held))| (o, r, held - eaten - sold)).collect();
+    }
+    assert!(claims.iter().map(|c| c.2).sum::<i64>() < 1700);
+}
+
+/// The fair share is reachable from the Phase 2 split: with nothing withheld,
+/// the free food and the owned food Phase 2 leaves on offer cover `cf` for
+/// everyone (reviewer D's B1: the owned stock was counted before its decay).
+#[test]
+fn the_fair_share_the_economy_reports_is_on_offer_at_phase_0_7() {
+    use chronicler_agents::economy::{tick_economy_core_with_retail, EconomyConfig, EconomyRegionInput,
+        HybridDeliveryInput, RegionAgentCounts, RetailRegionInput, NUM_GOODS, RETAIL_FOOD_SLOTS, SLOT_FISH,
+        SLOT_GRAIN, SLOT_SALT};
+    use chronicler_agents::merchant::DeliveryBuffer;
+    use chronicler_agents::provisioning::retail;
+    // (commons grain, owned grain, owned fish, owned salt, farmers, people, storage population, θ)
+    let cases = [(2.0, 6.0, 1.0, 0.0, 10, 50, 100, 0.9), (0.0, 12.0, 3.0, 2.0, 6, 60, 100, 1.0),
+                 (5.0, 30.0, 0.0, 0.0, 8, 90, 6, 0.9), (1.0, 0.0, 0.0, 0.0, 12, 40, 100, 0.0),
+                 (0.0, 40.0, 4.0, 1.0, 0, 120, 100, 0.9), (3.0, 9.0, 2.5, 0.5, 14, 70, 20, 0.5)];
+    for (case, &(commons, grain, fish, salt, farmers, people, storage, theta)) in cases.iter().enumerate() {
+        let mut stock = [0.0f32; NUM_GOODS];
+        stock[SLOT_GRAIN] = commons;
+        let mut owned = [0.0f32; NUM_GOODS];
+        owned[SLOT_GRAIN] = grain;
+        owned[SLOT_FISH] = fish;
+        owned[SLOT_SALT] = salt;
+        let region = EconomyRegionInput {
+            region_id: 0, terrain: 0, storage_population: storage, resource_types: [0, 255, 255],
+            resource_yields: [1.0, 0.0, 0.0], production_caps: [None; 3], stockpile: stock, subsistence_yield: 0.0,
+            farm_labor_factor: 1.0, craft_raw_demand: 0.0, craft_demand: 0.0, farm_labor_ref: 0.0,
+            farm_labor_half: 0.0, slot_curves: false, slot_labor_ref: [0.0; 3], slot_labor_half: [0.0; 3],
+        };
+        let counts = [RegionAgentCounts { population: people, farmer_count: farmers, soldier_count: 0,
+                                          merchant_count: 0, wealthy_count: 0 }];
+        let delivery = HybridDeliveryInput::from_buffer(&DeliveryBuffer::new(1), 1);
+        let rows = [Some(RetailRegionInput { title_share: theta, owned })];
+        let economy = tick_economy_core_with_retail(&[region], &counts, &[], &[0.0], &[0], 1, &[0],
+            &EconomyConfig::default(), 1.0, false, Some(&delivery), &[], Some(&rows));
+        let result = &economy.region_results[0];
+        let rt = economy.retail.as_ref().unwrap()[0].as_ref().unwrap();
+        assert!(result.food_sufficiency < 1.0, "case {case} must be short");
+        // Python's part: owned food in whole milli-food (nearest, as Python
+        // titles), split over the first `farmers` people; free rations from the
+        // commons draw-down.
+        let offered: i64 = RETAIL_FOOD_SLOTS.iter().map(|&g| (rt.owned_close[g] as f64 * 1000.0).round() as i64).sum();
+        let mut pool = AgentPool::new(people as usize);
+        for _ in 0..people {
+            let s = pool.spawn(0, 0, Occupation::Farmer, 30, 0.5, 0.5, 0.5, 0, 1, 2, chronicler_agents::BELIEF_NONE);
+            pool.wealth[s] = 50.0;
+        }
+        let owners: Vec<u32> = pool.ids[..(farmers.max(1) as usize)].to_vec();
+        let share = offered / owners.len() as i64;
+        let claims: Vec<(u32, u16, i64)> = owners.iter().enumerate()
+            .map(|(i, &o)| (o, 0, share + if (i as i64) < offered % owners.len() as i64 { 1 } else { 0 })).collect();
+        let mut regions = vec![RegionState::new(0)];
+        regions[0].food_sufficiency = result.food_sufficiency;
+        let l2 = ProvisionConfig { source_turn: 1, regime: REGIME_EQUAL, floor: 0.5, target_share: 0.5,
+                                   pre_release: vec![f32::NAN], phase2_alive: vec![people] };
+        let free = rt.commons_consumed / 0.5;
+        let cfg = RetailConfig::new(1, RETAIL_MODE_RETAIL, 500, vec![(0, 300, free)], claims, 1).unwrap();
+        let (access, ids, _) = chronicler_agents::provisioning::allocate(&pool, &regions, &l2);
+        pool.food_access_regions = pool.regions.clone();
+        pool.food_access = access;
+        pool.food_access_ids = ids;
+        let frame = retail(&mut pool, &regions, &l2, &cfg, 1).unwrap();
+        let row = &frame.regions[0];
+        assert_eq!(row.withheld_dead_milli, 0);
+        // The invariant (a few milli-food of rounding at most).
+        let need = row.fair_share * row.persons as f64;
+        let on_offer = row.free_living + row.offered_milli as f64 / 500.0;
+        assert!(on_offer >= need - 6.0 / 500.0, "case {case}: {on_offer} < {need}");
+        // With cash in hand nobody is left short for want of an offer.
+        assert_eq!(row.priced_out_persons, 0, "case {case}");
+        assert!(row.offer_short_deficit <= 6.0 / 500.0 + 1e-9, "case {case}: {row:?}");
+        assert!(row.fed_fair + row.offer_short_persons == row.persons);
+    }
+}
