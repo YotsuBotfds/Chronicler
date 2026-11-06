@@ -78,8 +78,9 @@ For every closed pair (closing polity, target polity), in both directions:
    extension, federation): one post-filter at the end of `resources._compute_active_trade_routes`.
    Everything that reads the route set follows: route income (+2 per route per side), the goods
    economy's trade-route input (agent modes), the aggregate (`--agents off`) trade proxy in the
-   contact ledger, specialization, intelligence and the M18 pandemic path. The route cache is
-   invalidated when the set of closed pairs changes.
+   contact ledger, specialization, intelligence and the M18 pandemic path; through the ledger's
+   trade stock, the diplomatic second-order effects of trade dependence follow too. The route
+   cache is invalidated when the set of closed pairs changes.
 2. **The TRADE action** cannot choose a closed partner: its candidates are route partners, and
    without one it falls back to develop (`test_trade_action_cannot_choose_a_closed_partner`).
 3. **Agent merchants** (hybrid, shadow, demographics-only): the border edges between the two
@@ -169,7 +170,7 @@ bundle's `merchant_trip_stats` and, with `--transaction-receipts`, the `replanne
 | Batch manifest | `quarantine_mode` in `SIMULATION_ARG_KEYS`, omitted when unset |
 | Forwarding | `expansion_features.expansion_arguments` (batch children, the gate runner `m53b_run_validation.py`) |
 | Feature catalog | group "Public health": a top-level choice requiring the `epidemiology` setting (epidemiology with the contact ledger) |
-| Viewer | the Epidemics panel's "Quarantine rule" section (`viewer/src/lib/quarantineRules.ts`) |
+| Viewer | the Epidemics panel's "Quarantine rule" section (`viewer/src/lib/quarantineRules.ts`); Batch Lab and live setup offer the mode under "Public health" |
 
 **Resume.** A world keeps its rules for its run:
 
@@ -200,8 +201,11 @@ Native extension used for every native step: the shared build, SHA-256
   `hybrid_s42` (resume points 13, 14, 15, 29, 30, 34, 35, 42, 47, 48, 51, 52, picked from the
   straight run's receipts) covers a resume right after two closures opened with 6 merchant edges
   cut and 2 voyages in transit, resumes across lapses and reclosures with new ids, and resumes
-  across mass openings and lapses: 12 points, all PASS. Source and extension identities were
-  recorded beside each run (`checkpoint_identity.py` records neither).
+  across mass openings and lapses: 12 points, all PASS. The all-enabled compatible case (every
+  catalog switch with retail in every region, plus `--transaction-receipts` and
+  `--quarantine-mode=closure`, on `hybrid_s42`): 13 chosen resume points inside and across
+  closures (openings with voyages in transit, lapses, reclosures), all PASS. Source and extension
+  identities were recorded beside each run (`checkpoint_identity.py` records neither).
 - **Natural closures on development worlds (development-only, not a screen).** 100 turns,
   `--quarantine-mode closure`, template worlds 1, 3, 7, 9, 11, 23, 42 and procedural worlds 7, 11,
   13, 17, 21, 31 (32 regions, 10 polities), aggregate and hybrid. Closures occurred in all 26 runs.
