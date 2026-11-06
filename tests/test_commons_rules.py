@@ -632,3 +632,24 @@ def test_commons_management_uses_the_last_settled_funding_in_real_phase_order():
     assert cr.institution_share(world, civ) == 0.5
     civ.governance.funding_turn = world.turn - 2        # stale: not funded last turn
     assert cr.institution_share(world, civ) == 0.0
+
+
+def test_a_woodcutting_crew_reaching_the_limit_is_not_the_residents_binding():
+    """PL1 review A (2026-11-06): a crew from elsewhere harvests after the
+    residents under the same limit (``woodcut_output``). The rule binds, and
+    the city's grievance rises, only when the residents' own harvest reaches
+    the limit; before, a limit reached by the crew alone blamed the residents."""
+    world = _adopted(share=0.35)                                       # a quota, not a rest
+    city = _city(world, grievance=0.0)
+    for crew_share, binds in ((0.9, False), (0.0, True)):
+        batch = prepare_phase2(world, _batch(world), None, _snapshot(world))
+        result = _kernel(world, batch, {THORN: 500.0})                 # the total reaches the limit
+        total = result.slot_output[world.regions[0].name][0]
+        result.woodcut_output = {0: total * crew_share}
+        finish_phase2(world, result, None)
+        world.turn += 1
+        receipt = _receipt(world, THORN)
+        assert receipt["status"] == "quota" and receipt["limit"] > 1.0
+        assert receipt["extraction"] == receipt["limit"] == total
+        assert receipt["binding"] is binds
+        assert (receipt["grievance_added"] > 0.0) is binds

@@ -968,3 +968,148 @@ def test_every_repair_wage_payer_has_its_own_transfer_batch():
     assert rs2 == ["0"]
     assert RP.PURPOSE_REPAIR_WAGE == TSU.PURPOSE_REPAIR_WAGE == 3  # PL3 imports RS2's constant
     assert len({0, RC.GRANARY_WAGE_BATCH, TSU.WAGE_BATCH}) == 3
+
+
+# ---------------------------------------------------------------------------
+# Review A (2026-11-06)
+# ---------------------------------------------------------------------------
+
+def test_live_crews_are_reserved_before_pl3_granary_crews_in_the_home_region():
+    """PL3's granary crew picks the region's lowest-id free adult farmers, who
+    were the expedition's: PL1 reserved after it and dropped them ``other_work``.
+    Live crews are now reserved first (``reserve_first``)."""
+    from chronicler import recovery_crews as RC
+    world = _world(timber=3.0)                      # RS2 plans work, the gap launches a crew
+    RC.set_recovery_crews_enabled(world, True, args=SimpleNamespace(recovery_crew_mode="paid"))
+    sim = _Sim(_people())
+    _launch(world, sim)
+    (exp,) = _ts(world).expeditions
+    assert exp.crew == [1, 2, 3, 4]
+    named = []
+    for _ in range(3):
+        _turn(world, sim)
+        rc = world.livelihoods.recovery_crews
+        members = {m.agent_id for r in (rc.receipts or []) for m in r.members}
+        assert not members & {1, 2, 3, 4}
+        named.append(members)
+    assert named[0] == {5, 6}                       # the home granary's crew: the free farmers
+    (exp,) = _ts(world).expeditions
+    assert exp.crew == [1, 2, 3, 4] and exp.drops == []
+    assert _ts(world).counters.get("dropped_other_work", 0) == 0
+
+
+def test_prepare_refuses_live_crews_that_were_not_reserved_first():
+    world = _world()
+    sim = _Sim(_people())
+    _launch(world, sim)
+    bridge = SimpleNamespace(_sim=sim, get_snapshot=sim.snapshot)
+    with pytest.raises(RuntimeError, match="not reserved before"):
+        TSU.prepare_phase2(world, pa.record_batch({"region_id": pa.array(range(3), pa.uint16())}),
+                           bridge, sim.snapshot(), None)
+
+
+@pytest.mark.parametrize("event", ["migrate", "die"])
+def test_a_crew_that_walked_home_delivers_although_it_is_lost_in_that_tick(event):
+    """The arrival turn's walk is done in Phase 2; the last members move or die
+    in that turn's agent tick. Before, the crew was observed first and the
+    cargo went back to the forest as ``crew_lost``."""
+    world = _world()
+    sim = _Sim(_people())
+    _launch(world, sim)
+    for _ in range(4):
+        _turn(world, sim)                           # outbound, three cuts: cargo 24
+
+    def lose(s):
+        for a in (1, 2, 3, 4):
+            if event == "die":
+                s.people.pop(a)
+            else:
+                s.people[a][0] = 2
+    _turn(world, sim, between=lose)
+    (done,) = _ts(world).closed
+    assert (done.status, done.end_reason) == ("delivered", None)
+    assert done.delivered == pytest.approx(24.0 * 0.99) and done.abandoned == 0.0
+    assert _ts(world).store == {0: pytest.approx(24.0 * 0.99)}
+    assert world.regions[1].stockpile.goods["timber"] == 0.0
+
+
+def test_an_arrival_whose_home_changed_hands_deposits_at_home():
+    world = _world()
+    sim = _Sim(_people())
+    _launch(world, sim)
+    for _ in range(4):
+        _turn(world, sim)
+    other = world.civilizations[1]
+
+    def conquer(s):
+        world.regions[0].controller = other.name   # taken after the crew walked in
+        other.regions = [world.regions[0].name]
+    _turn(world, sim, between=conquer)
+    (done,) = _ts(world).closed
+    assert (done.status, done.end_reason) == ("abandoned", "home_lost")
+    assert done.abandoned == pytest.approx(24.0 * 0.99) and done.lost == pytest.approx(24.0 * 0.01)
+    assert world.regions[0].stockpile.goods["timber"] == pytest.approx(24.0 * 0.99)   # commons at home
+    assert world.regions[1].stockpile.goods["timber"] == 0.0
+    assert _ts(world).deposits == [(world.turn - 1, 0, 0, pytest.approx(24.0 * 0.99))]
+
+
+def test_a_resume_with_a_prerequisite_off_is_refused_and_switching_off_is_dated():
+    world = _world()
+    sim = _Sim(_people())
+    _launch(world, sim)
+    _turn(world, sim)
+    _turn(world, sim)                               # cargo 8
+    _ts(world).store[2] = 5.0
+    args = SimpleNamespace(**{k: None for k in LV.LIVELIHOODS_ARG_KEYS})
+    for prerequisite in ("repair_projects", "timber_stock"):
+        setattr(args, prerequisite, False)
+        with pytest.raises(ValueError, match="pass --no-timber-supply"):
+            LV.configure_livelihoods(world, args, agent_mode="hybrid")
+        setattr(args, prerequisite, None)
+    assert TSU.timber_supply_active(world) and _ts(world).store == {2: 5.0}
+    args.repair_projects, args.timber_supply = False, False
+    LV.configure_livelihoods(world, args, agent_mode="hybrid")
+    state = _ts(world)
+    assert state.expeditions == [] and state.store == {}
+    assert state.closed[-1].end_reason == "switched_off" and state.closed[-1].abandoned == pytest.approx(8.0)
+    assert world.regions[1].stockpile.goods["timber"] == pytest.approx(8.0)
+    assert world.regions[2].stockpile.goods["timber"] == pytest.approx(5.0)
+    assert state.switched_off == [(world.turn, 1, pytest.approx(8.0), pytest.approx(5.0))]
+
+
+def test_a_suspended_no_people_granary_adds_no_need():
+    world = _world()
+    _phase10(world, _Sim(_people()))
+    assert TSU._wants(world) == {0: 4.0}
+    rp = world.livelihoods.repair_projects
+    rp._labour = (world.turn, [0, 2, 6])            # RS2 saw no farm labour at home this Phase 10
+    assert TSU._wants(world) == {}
+    rp._labour = (world.turn - 1, [0, 2, 6])        # a stale observation is not used
+    assert TSU._wants(world) == {0: 4.0}
+
+
+def test_released_soldier_veterans_on_no_roster_are_eligible(monkeypatch):
+    world = _world()
+    VR.set_veteran_reintegration_enabled(world, True, args=None)
+    for hook in ("prepare_phase2", "finish_phase2", "rollback_phase2", "rollback_agent_tick", "phase10",
+                 "on_pool_reset"):
+        monkeypatch.delattr(VR, hook)
+    monkeypatch.setattr(VR, "priority_ids", lambda w, region: [7] if region == 0 else [])
+    monkeypatch.setattr(VR, "open_record_ids", lambda w: frozenset({7}))
+    monkeypatch.setattr(VR, "note_outcome", lambda *a, **k: None)
+    sim = _Sim(_people())                           # 7 is an adult of Soldier occupation at home
+    _launch(world, sim)
+    (exp,) = _ts(world).expeditions
+    assert exp.crew == [7, 1, 2, 3] and exp.soldier_veterans == [7] and exp.veterans == [7]
+    _turn(world, sim)
+    (exp,) = _ts(world).expeditions
+    assert 7 in exp.crew and _ts(world).receipts[0].away_requested == 3.0   # a soldier farms nothing
+    world.war_state = SimpleNamespace(armies=[SimpleNamespace(roster=[(7, 0)])], wars=[], ended_wars=[],
+                                      occupations=[])
+    _turn(world, sim)                               # back on a roster: enlisted
+    (exp,) = _ts(world).expeditions
+    assert 7 not in exp.crew and (7, "enlisted") in [(a, r) for _t, a, r in exp.drops]
+    # Without RS3's priority a soldier is never admitted.
+    plain = _world()
+    _launch(plain, _Sim(_people()))
+    assert 7 not in _ts(plain).expeditions[0].crew
