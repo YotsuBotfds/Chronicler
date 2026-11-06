@@ -23,6 +23,7 @@ from chronicler.grain_reserves import _ensure, set_grain_reserves_enabled
 from chronicler.grain_storage_state import StorageAsset
 from chronicler.livelihoods_state import LivelihoodsState
 from chronicler.recovery_crews_state import CivCrewLedger, RecoveryCrewsState
+from chronicler.veteran_reintegration_state import VeteranRecord
 from chronicler.workshops_state import WorkshopSite, WorkshopState
 from chronicler.world_gen import generate_world
 
@@ -392,6 +393,47 @@ def test_no_free_adult_farmer_stalls_the_granary_without_holding_timber_or_coins
     assert sim.transfers == [] and _rc(world).counters["granary_no_crew"] == 1
 
 
+def test_a_remainder_below_min_share_is_covered_not_a_labour_shortage(monkeypatch):
+    """Review C 2026-11-06: planned work 1.0005 (timber-limited). Farmer 1
+    covers 1.0 and the 0.0005 left is below MIN_SHARE, so nobody is named for
+    it, although farmers 2 and 3 are free. That remainder is covered: no
+    ``no_labor``, no crew shortage, and L9 keeps its promise."""
+    from chronicler import local_budgets as LB
+    from chronicler.local_budgets_state import Commitment, LocalBudgetState
+    world = _world()
+    sim = _Sim(_people())
+    _open(world, sim)
+    world.regions[0].stockpile.goods["timber"] = 1.0005
+    state = world.livelihoods.local_budgets = LocalBudgetState()
+    state.open = [Commitment(cid=0, civ=0, service="repairs", pid=0, decided_turn=world.turn - 1,
+                             for_turn=world.turn, claims=["repairs:0"], amount=3, unit="work", expected=1.0005,
+                             detail={"cost": 3})]
+    settled = []
+
+    def settle_only(world, acc=None, economy_result=None, agent_bridge=None):
+        obs = SimpleNamespace(economy=economy_result, turn=world.turn, trace={})
+        events = LB._settle(world, world.livelihoods.local_budgets, obs, LB._providers())
+        settled.extend(world.livelihoods.local_budgets.settled)
+        return events
+
+    monkeypatch.setattr(LB, "phase10", settle_only)
+    _turn(world, sim)
+    (r,) = _rc(world).receipts
+    (rr,) = _rs2(world).receipts
+    assert [m.agent_id for m in r.members] == [1] and r.requested == pytest.approx(1.0)
+    assert "no_labor" not in rr.reasons and "granary_crew_short" not in _rc(world).counters
+    assert r.short is False
+    (c,) = settled
+    assert (c.outcome, c.reason) == ("kept", None)
+    # A real shortage still reads as one: three free farmers for four planned work.
+    world.regions[0].stockpile.goods["timber"] = 50.0
+    world.livelihoods.local_budgets = None
+    _turn(world, sim)
+    (r,) = _rc(world).receipts
+    assert r.short is True and "no_labor" in _rs2(world).receipts[0].reasons
+    assert _rc(world).counters["granary_crew_short"] == 1
+
+
 def test_registry_holders_health_work_trips_and_the_enlisted_never_join(monkeypatch):
     world = _world()
     sim = _Sim(_people({6: (0, FARMER, 30, 0), 7: (0, FARMER, 30, 0)}))
@@ -408,15 +450,9 @@ def test_registry_holders_health_work_trips_and_the_enlisted_never_join(monkeypa
 
 def test_veteran_priority_on_a_granary_crew_and_the_placement_is_noted(monkeypatch):
     world = _world()
-    VR.set_veteran_reintegration_enabled(world, True, args=None)
-    for hook in ("prepare_phase2", "finish_phase2", "rollback_phase2", "rollback_agent_tick", "phase10",
-                 "on_pool_reset", "after_agent_tick"):
-        monkeypatch.delattr(VR, hook, raising=False)
-    monkeypatch.setattr(VR, "priority_ids", lambda w, region: [3, 5] if region == 0 else [])
-    monkeypatch.setattr(VR, "open_record_ids", lambda w: frozenset({3, 5}))
-    noted = []
-    monkeypatch.setattr(VR, "note_outcome", lambda w, aid, kind, *, turn, detail=None:
-                        noted.append((aid, kind, detail)))
+    # Farmer 3 and merchant 5 left an army of civ 0 in region 0 (3 earlier).
+    noted = _vets(monkeypatch, world, [(3, 0, 30, 3, 0), (5, 0, 30, 2, 0)], details=True)
+    assert VR.priority_ids(world, 0) == [3, 5]
     sim = _Sim(_people())
     _open(world, sim)
     _turn(world, sim)
@@ -560,18 +596,44 @@ def test_snapshot_is_dated_and_unknown_without_a_settled_phase2():
 # Workshop repair crews: the wider pool
 # ---------------------------------------------------------------------------
 
-def _vets(monkeypatch, world, *, eligible, priority):
-    VR.set_veteran_reintegration_enabled(world, True, args=None)
+def _vets(monkeypatch, world, records, *, mode="priority", details=False):
+    """RS3 with real records and its own eligibility rule. ``records``:
+    (agent id, residence region, age, turns since release, civ served). Only
+    RS3's turn hooks (which need the war state and a native pool) are off,
+    and ``note_outcome`` is captured."""
+    VR.set_veteran_reintegration_enabled(world, True, args=SimpleNamespace(veteran_mode=mode))
     for hook in ("prepare_phase2", "finish_phase2", "rollback_phase2", "rollback_agent_tick", "phase10",
                  "on_pool_reset", "after_agent_tick"):
         monkeypatch.delattr(VR, hook, raising=False)
-    monkeypatch.setattr(VR, "_eligible_ids", lambda w, s: set(eligible))
-    monkeypatch.setattr(VR, "_ordered", lambda s, region, ids: [a for a in eligible if a in ids])
-    monkeypatch.setattr(VR, "priority_ids", lambda w, region: list(priority))
-    monkeypatch.setattr(VR, "open_record_ids", lambda w: frozenset(eligible))
+    world.livelihoods.veteran_reintegration.records = [
+        VeteranRecord(record_id=i, agent_id=aid, civ=civ, army_id="army-1", cause="demobilised",
+                      released_turn=world.turn - ago, released_region=region, region=region, age=age)
+        for i, (aid, region, age, ago, civ) in enumerate(records)]
     noted = []
-    monkeypatch.setattr(VR, "note_outcome", lambda w, aid, kind, *, turn, detail=None: noted.append((aid, kind)))
+    monkeypatch.setattr(VR, "note_outcome", lambda w, aid, kind, *, turn, detail=None:
+                        noted.append((aid, kind, detail) if details else (aid, kind)))
     return noted
+
+
+def test_the_public_rs3_eligibility_follows_its_rule_in_both_modes(monkeypatch):
+    """Review C 2026-11-06: PL3 read RS3's private helpers. The public API
+    applies RS3's own rule: open record, adult, released before this turn and
+    within ELIGIBLE_TURNS, not enlisted, resident under the civ served."""
+    world = _world(granary=(1.0, 1.0, 1.0))
+    records = [(120, 1, 30, 5, 0), (111, 1, 30, 2, 0), (110, 1, 30, 25, 0), (104, 1, 15, 2, 0),
+               (105, 1, 30, 2, 1), (103, 1, 30, 0, 0), (1, 0, 30, 3, 0), (102, 1, 30, 1, 0)]
+    _vets(monkeypatch, world, records)
+    # 110 expired, 104 a minor, 105 under another ruler, 103 released this turn.
+    assert VR.eligible_ids(world, 1) == [120, 111, 102]               # earliest release first
+    assert VR.eligible_ids(world, 0) == [1] and VR.eligible_ids(world) == [120, 1, 111, 102]
+    assert VR.priority_ids(world, 1) == [120, 111, 102]
+    world.war_state.armies.append(SimpleNamespace(army_id="army-2", roster=[(111, 1)]))
+    assert VR.eligible_ids(world, 1) == [120, 102]                     # on a roster now
+    world.war_state.armies.pop()
+    world.livelihoods.veteran_reintegration.mode = "record_only"
+    assert VR.eligible_ids(world, 1) == [120, 111, 102] and VR.priority_ids(world, 1) == []
+    VR.set_veteran_reintegration_enabled(world, False)
+    assert VR.eligible_ids(world, 1) == [] and VR.priority_ids(world, 1) == []
 
 
 def test_without_the_switch_the_workshop_crew_is_the_site_citys():
@@ -586,7 +648,7 @@ def test_without_the_switch_the_workshop_crew_is_the_site_citys():
 
 def test_the_workshop_pool_widens_to_the_region_and_admits_veterans_first(monkeypatch):
     world = _world(granary=(1.0, 1.0, 1.0), site=0.4)
-    noted = _vets(monkeypatch, world, eligible=[120], priority=[120])
+    noted = _vets(monkeypatch, world, [(120, 1, 30, 2, 0)])            # a merchant veteran of civ 0
     people = {a: v for a, v in _people().items() if a not in (102, 103, 104, 105)}   # two city farmers left
     sim = _Sim(people)
     _open(world, sim)
@@ -613,7 +675,7 @@ def test_the_workshop_pool_widens_to_the_region_and_admits_veterans_first(monkey
 
 def test_record_only_admits_the_same_veterans_without_putting_them_first(monkeypatch):
     world = _world(granary=(1.0, 1.0, 1.0), site=0.4)
-    _vets(monkeypatch, world, eligible=[120], priority=[])
+    _vets(monkeypatch, world, [(120, 1, 30, 2, 0)], mode="record_only")
     people = {a: v for a, v in _people().items() if a not in (101, 102, 103, 104, 105)}
     sim = _Sim(people)
     _open(world, sim)
@@ -624,7 +686,7 @@ def test_record_only_admits_the_same_veterans_without_putting_them_first(monkeyp
 
 def test_eligible_ids_api_for_woodcutting(monkeypatch):
     world = _world(granary=(1.0, 1.0, 1.0))
-    _vets(monkeypatch, world, eligible=[120], priority=[120])
+    _vets(monkeypatch, world, [(120, 1, 30, 2, 0)])
     sim = _Sim(_people())
     sim.registry = [(100, 0, 0.2, world.turn)]
     assert RC.eligible_ids(world, 1, "woodcut", sim=sim) == [120, 101, 102, 103, 104, 105, 110, 111]
@@ -687,6 +749,42 @@ def test_an_open_granary_project_is_suspended_without_farm_labour_and_resumes():
     assert r.status == "progress" and r.delivered == 4.0
     assert [h[1] for h in _rs2(world).projects[0].history][-1] == "resumed"
     assert _rs2(world).counters["resumptions"] == 1
+
+
+def test_suspension_and_resumption_survive_a_turn_without_a_settled_phase2():
+    """Review C 2026-11-06: the transition was read from the previous RS2
+    frame, so a frame left unsettled (a turn without a settled Phase 2)
+    re-noted the suspension and missed the resumption. The project's own
+    persisted flag decides, and only a settled turn changes it."""
+    world = _world(granary=(1.0, 1.0, 0.5), crews=None)
+    sim = _Sim(_people())
+    _open(world, sim)
+    gone = {a: sim.people.pop(a) for a in list(sim.people) if sim.people[a][0] == 2}
+    _turn(world, sim)
+    (p,) = _rs2(world).projects
+    assert _rs2(world).counters["suspensions"] == 1
+
+    def unsettled():                       # Phase 10 of a turn whose Phase 2 never settled
+        RP.phase10_before_reserves(world, None, None, _Bridge(sim))
+        RP.phase10(world, None, None, _Bridge(sim))
+        assert _rs2(world).receipts is None
+        world.turn += 1
+
+    unsettled()
+    _turn(world, sim)                      # still empty: no second suspension note
+    assert _rs2(world).counters["suspensions"] == 1
+    assert [h[1] for h in p.history].count("suspended_no_people") == 1
+    assert p.suspended is True and p.model_dump()["suspended"] is True
+    unsettled()
+    sim.people.update(gone)
+    _turn(world, sim)                      # farmers are back: the resumption is noted
+    assert _rs2(world).counters["resumptions"] == 1 and [h[1] for h in p.history][-1] == "resumed"
+    assert p.suspended is False and "suspended" not in p.model_dump()
+    # A failed Phase 2 changes no flag.
+    sim.people = {a: v for a, v in sim.people.items() if v[0] != 2}
+    with pytest.raises(RuntimeError, match="economy failed"):
+        _turn(world, sim, fail_economy=True)
+    assert p.suspended is False and _rs2(world).counters["suspensions"] == 1
 
 
 def test_the_correction_needs_a_snapshot_and_otherwise_keeps_the_legacy_rule():
