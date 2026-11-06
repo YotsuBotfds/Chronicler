@@ -370,6 +370,8 @@ CHUNKS = {
     ],
     "connected-world-a": [
         "tests/test_wealth_accounting.py",
+        "tests/test_money.py",
+        "tests/test_workshop_economics.py",
     ],
     "expansion-wiring": [
         "tests/test_expansion_feature_wiring.py",
