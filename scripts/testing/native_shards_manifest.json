@@ -216,6 +216,7 @@
       "tests/test_war_occupation.py",
       "tests/test_war_peace.py",
       "tests/test_watershed.py",
+      "tests/test_watershed_native.py",
       "tests/test_wealth.py",
       "tests/test_weight_cap.py",
       "tests/test_workshop_payroll.py",

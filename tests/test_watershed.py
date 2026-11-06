@@ -1000,3 +1000,25 @@ def test_a_b1_record_only_checkpoint_still_loads():
     assert again.livelihoods.watershed.pending_superseded == [] and again.livelihoods.watershed.frame.superseded == []
     _phase9(again)
     assert again.livelihoods.watershed.counters["settled_turns"] == state.counters["settled_turns"] + 1
+
+
+def test_flow_changes_only_the_water_index_and_what_its_floods_do(monkeypatch):
+    """The replaced terms' own state is untouched: irrigation works, rivers and the
+    river topology stay as they were; flow writes the index and, in flooded regions
+    only, the capacity modifier, the flood cooldown and the soil."""
+    world = _flow_world(monkeypatch)
+    world.regions[0].infrastructure.append(
+        Infrastructure(type=InfrastructureType.IRRIGATION, builder_civ="x", built_turn=0))
+    _set_storage(_state(world), _headwater_chain(_state(world))[0], 10.0)
+    before = _strip(world.model_dump(mode="json"))
+    before_ecology(world, acc=None, native=True)
+    after = _strip(world.model_dump(mode="json"))
+    flooded = {r for r, v in enumerate(_state(world)._plan.columns["flood_excess"]) if v > 0}
+    assert flooded
+    for r, (a, b) in enumerate(zip(before.pop("regions"), after.pop("regions"))):
+        for side in (a, b):
+            side["ecology"].pop("water")
+            if r in flooded:
+                side.pop("capacity_modifier"), side.pop("disaster_cooldowns"), side["ecology"].pop("soil")
+        assert a == b, r
+    assert before == after
