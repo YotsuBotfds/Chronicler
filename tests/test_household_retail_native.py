@@ -115,9 +115,9 @@ def _capture(monkeypatch):
         seen.append({"turn": world.turn, "pre": _agents(agent_bridge._sim)})
         before(world, agent_bridge, economy_result)
 
-    def spy_settle(world, state, t, installed, frame, receipt):
+    def spy_settle(world, state, t, installed, frame, receipt, alive=None):
         seen[-1].update(installed=installed, frame=frame, receipt=receipt)
-        settle(world, state, t, installed, frame, receipt)
+        settle(world, state, t, installed, frame, receipt, alive)
 
     monkeypatch.setattr(HR, "before_agent_tick", spy_before)
     monkeypatch.setattr(HR, "_settle_frame", spy_settle)
@@ -228,32 +228,106 @@ if READY:
         had, got = _priced_out_fork(tmp_path, monkeypatch, remit)
         assert got > had
 
-    def test_granary_procurement_pays_owners_by_id(monkeypatch):
-        """Constructed: every granary wants four turns of demand, so pilot owners'
-        surplus is procured; their wealth rises by exactly the credits applied."""
+    class _Recorder:
+        """Delegates to the simulator, recording its ``transfer_wealth`` calls."""
+
+        def __init__(self, sim):
+            self._real, self.calls = sim, []
+
+        def transfer_wealth(self, *args):
+            out = self._real.transfer_wealth(*args)
+            self.calls.append((args, out))
+            return out
+
+        def __getattr__(self, name):
+            return getattr(self._real, name)
+
+    def _construct_owned_surplus(world, bridge):
+        """Constructed: in the pilot region with the most owners, owned grain near
+        its storage cap (2.5 x population, five turns of demand per good) split
+        over the owners pro rata, and four turns of demand of commons salt (no
+        decay) in its market. The keep (four turns of the market's food demand,
+        commons plus owned grain) is then held by the commons, and the owners'
+        grain stands above it. The ruler's treasury is raised so a purchase is
+        affordable. The ledger stays exact (claims == goods). Returns the region."""
+        state = world.livelihoods.household_retail
+        reg = max((r for r in state.regions if r.claims), key=lambda r: (len(r.claims), -r.region))
+        region = world.regions[reg.region]
+        agents = sum(1 for p in _agents(bridge._sim).values() if p["region"] == reg.region)
+        add = max(0, int(0.95 * 2.5 * region.population * 1000) - reg.goods[0])
+        for aid, v in HR.largest_remainder(add, reg.claims.items()).items():
+            reg.claims[aid] += v
+        reg.goods[0] += add
+        assert sum(reg.claims.values()) == sum(reg.goods) and reg.goods[0] > 0
+        region.stockpile.goods["salt"] = region.stockpile.goods.get("salt", 0.0) + 4.0 * 0.5 * agents
+        ruler = next(c for c in world.civilizations if c.name == region.controller)
+        ruler.treasury = max(ruler.treasury, 500)
+        return reg.region
+
+    def test_granary_procurement_pays_owners_by_id_once_and_the_ledger_closes(monkeypatch):
+        """Seed 7's pilot owners hold no grain of their own on these turns, so the
+        surplus is constructed (``_construct_owned_surplus``); every granary wants
+        four turns of demand. The purchase takes owners' grain first and pays
+        them in one transfer, by id, exactly what each gave; a second transfer
+        of the turn is refused by both books; the resource ledgers close."""
         import chronicler.grain_reserves as G
+        from chronicler.grain_reserves_state import BOUGHT
         monkeypatch.setenv("CHRONICLER_CHECK_RESOURCES", "1")
         monkeypatch.setattr(G, "target_grain", lambda granary, demand: 4.0 * demand)
-        credits = []
+        paid = []
         original = HR._credit_procurement
 
         def spy(world, state, t, agent_bridge):
-            before = _agents(agent_bridge._sim)
-            summary = original(world, state, t, agent_bridge)
-            after = _agents(agent_bridge._sim)
-            credits.append((summary, before, after))
+            real = agent_bridge._sim
+            debits: dict[int, int] = {}
+            for p in t.procured:
+                for aid, v in p.owners.items():
+                    debits[aid] = debits.get(aid, 0) + v
+            before = _agents(real)
+            agent_bridge._sim = recorder = _Recorder(real)
+            try:
+                summary = original(world, state, t, agent_bridge)
+            finally:
+                agent_bridge._sim = real
+            after = _agents(real)
+            calls = [c for c in recorder.calls if c[0][1] == HR.PURPOSE_FOOD_PROCUREMENT]
+            assert len(calls) == (1 if summary["owed_milli"] else 0)
+            with pytest.raises(RuntimeError, match="already credited"):
+                original(world, state, t, agent_bridge)
+            if calls:
+                (args, rows), = calls
+                with pytest.raises(ValueError, match="already applied"):
+                    real.transfer_wealth(*args)
+                paid.append((world.turn, summary, rows, debits, before, after))
             return summary
 
         monkeypatch.setattr(HR, "_credit_procurement", spy)
         world, bridge = _world(grain_reserves=True)
-        for _ in range(16):
+        for _ in range(4):
             _turn(world, bridge)
-        paid = [c for c in credits if c[0]["credited_milli"] > 0]
-        assert paid, "owners' grain was expected to be procured within sixteen turns"
-        for summary, before, after in paid:
-            gained = sum(after[a]["wealth"] - before[a]["wealth"] for a in after if a in before)
-            assert gained == pytest.approx(summary["credited_milli"] / 1000, rel=2e-5, abs=2e-3)
-        assert world.livelihoods.household_retail.last_procured_turn is not None
+        rid = _construct_owned_surplus(world, bridge)
+        claims_before = dict(world.livelihoods.household_retail.region(rid).claims)
+        _turn(world, bridge)
+        state = world.livelihoods.household_retail
+        assert paid and paid[0][0] == world.turn - 1, "the constructed surplus was expected to be procured"
+        turn, summary, rows, debits, before, after = paid[0]
+        assert summary["credited_milli"] > 0 and summary["credited_milli"] + summary["residual_milli"] \
+            == summary["owed_milli"]
+        # By id: every credited owner gave grain; each one's wealth rose by what was applied.
+        assert {aid for aid, *_ in rows} <= set(debits) <= set(claims_before)
+        for aid, requested, applied, residual, _status in rows:
+            assert applied + residual == requested and applied >= 0
+            assert after[aid]["wealth"] - before[aid]["wealth"] == pytest.approx(applied / 1000, abs=2e-4)
+        untouched = [a for a in after if a in before and a not in {r[0] for r in rows}]
+        assert all(after[a]["wealth"] == before[a]["wealth"] for a in untouched)
+        # The grain left the owners' claims and came from a purchase in their own market.
+        frame = next(f for f in state.frame if f.region == rid)
+        assert frame.flows["procured"] == sum(debits.values()) > 0
+        bought = [f for f in world.grain_reserves.flows if f.kind == BOUGHT and f.source == rid]
+        assert bought and all(f.seller == f.buyer for f in bought)
+        signed = sum(HR.FLOW_SIGNS[k] * v for k, v in frame.flows.items())
+        assert frame.open_milli + signed == frame.close_milli == sum(state.region(rid).goods)
+        assert state.last_procured_turn == turn
         bridge.close()
 
     def test_exact_resume_mid_pilot_is_byte_identical(tmp_path, monkeypatch):
@@ -318,9 +392,9 @@ if READY:
         rows = []
         original = HR._settle_deaths
 
-        def spy(world, state, t, sim):
+        def spy(world, state, t, sim, alive=None):
             spouses = dict(t.spouses or {})
-            original(world, state, t, sim)
+            original(world, state, t, sim, alive)
             rows.append((world.turn, spouses, _agents(sim)))
 
         monkeypatch.setattr(HR, "_settle_deaths", spy)

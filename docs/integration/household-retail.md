@@ -29,6 +29,11 @@ Modules: `chronicler/household_retail.py` (hooks, rules, checks) and
   feature-off manifests keep their bytes. A mode or boundary given without the switch
   is ignored (the existing livelihoods limit); an exact resume refuses one that
   conflicts with the checkpoint (`livelihoods_resume_conflicts`).
+- A saved, enabled switch is checked too. A resume that turns `--food-allocation` off,
+  or runs outside `--agents hybrid`, is refused with a message naming
+  `--no-household-retail`. Passing it closes every claim to its region's commons, with
+  a dated `switch_off` record per region, so no claim, owned food or pilot region drops
+  out unseen.
 
 ### State
 
@@ -121,6 +126,20 @@ imports, convoy and granary grain stay commons.
   reach owned stock (declared limit, counted in `requisition_exempt_region_turns`).
 - **Pool reset.** Every claim to the commons, dated.
 
+### Merchants, procurement and the controls
+
+- **Merchants** load only commons (lead decision 7). Owned food is never in
+  `region.stockpile`, so no merchant carries or pays for it; Python records no separate
+  count of the exports foregone.
+- **Foreign purchases and public grain shipments** buy commons only. Owners' grain is
+  sold only to their own ruler's granaries. A foreign buyer pays the seller's ruler as
+  before (`finance.transfer`); owners neither lose grain nor are paid.
+- **`free_exchange`.** Buyers are not charged: Python installs price 0, the native runs
+  mode 2 at price 0, and Python refuses a frame that moved money. Farm income is kept.
+  Granaries still buy owners' grain as in `retail`, but procured owner grain is not paid
+  for: the treasury's cost goes to the old sink ("producers outside the treasury
+  accounts"), exactly as with retail off, and is counted as `procurement_unpaid_milli`.
+
 ### Granary procurement (pinned seam in `grain_reserves.py`)
 
 - A pilot market's sellable surplus counts commons plus owned grain (only grain: owned
@@ -196,7 +215,8 @@ Raised on failure (`RetailAccountingError`, a `RuntimeError`):
   - `free_given + free_unallocated = free_rations`, and `free_rations` equals the
     install;
   - `own_eaten + sold = offered − unsold`;
-  - `offered` equals the installed claims;
+  - `offered` equals the installed claims, less only the withheld claims of owners
+    dead after the tick with no claim row (equal to `withheld_milli` when reported);
   - the claim rows sum to the region's `own_eaten` and `sold`;
   - `sum(person rations) = free_given + (own_eaten + sold) / ration`, each ration at
     most 1.

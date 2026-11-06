@@ -891,7 +891,8 @@ def provisioned_regions(world) -> set[int]:
     return set(t.installed.regions)
 
 
-def _settle_frame(world, state, t: _Turn, installed: _Installed, frame, receipt) -> None:
+def _settle_frame(world, state, t: _Turn, installed: _Installed, frame, receipt, alive=None) -> None:
+    """``alive``: stable ids alive after the tick (the post-tick snapshot)."""
     turn = int(world.turn)
     source, columns, rows, claim_rows, money_rows, sample, dropped = frame
     if int(source) != installed.turn or installed.turn != turn:
@@ -946,7 +947,14 @@ def _settle_frame(world, state, t: _Turn, installed: _Installed, frame, receipt)
     totals = {"paid_milli": 0, "credited_milli": 0, "refunded_milli": 0}
     for rid, r in sorted(by_region.items()):
         price, free = installed.regions[rid]
-        offered = sum(v for (aid, reg), v in installed.claims.items() if reg == rid)
+        installed_total = sum(v for (aid, reg), v in installed.claims.items() if reg == rid)
+        # A claim whose owner died before provisioning is withheld whole from
+        # the offer (neither eaten nor sold) and inherited after the tick. Only
+        # such claims may be missing: owners dead after the tick, with no row.
+        quiet_dead = sum(v for (aid, reg), v in installed.claims.items()
+                         if reg == rid and (aid, reg) not in seen and alive is not None and aid not in alive)
+        offered = int(r["offered_milli"])
+        withheld = installed_total - offered
         own, sale = sum(eaten[rid].values()), sum(sold[rid].values())
         ints = {k: r[k] for k in ("price_milli", "offered_milli", "own_eaten_milli", "sold_milli", "unsold_milli",
                                    "paid_milli", "credited_milli", "refunded_milli")}
@@ -958,7 +966,9 @@ def _settle_frame(world, state, t: _Turn, installed: _Installed, frame, receipt)
             (abs(r["free_given"] + r["free_unallocated"] - r["free_rations"]) <= RATION_TOL * max(1.0, free),
              "free_given + free_unallocated != free_rations"),
             (min(r["free_given"], r["free_unallocated"]) >= -RATION_TOL, "negative free rations"),
-            (int(r["offered_milli"]) == offered, "offered differs from the installed claims"),
+            (0 <= withheld <= quiet_dead, "offered differs from the installed claims of owners alive to sell"),
+            ("withheld_milli" not in r or int(r["withheld_milli"]) == withheld,
+             "withheld differs from the installed claims not offered"),
             (int(r["own_eaten_milli"]) == own and int(r["sold_milli"]) == sale, "claim rows differ from the totals"),
             (own + sale == offered - int(r["unsold_milli"]), "own_eaten + sold != offered - unsold"),
             (int(r["paid_milli"]) == int(r["credited_milli"]) + int(r["refunded_milli"]), "payments do not balance"),
@@ -1021,12 +1031,12 @@ def _people_after(sim) -> dict[int, tuple[int, int, int]]:
     return {int(i): (int(r), int(a), int(b)) for i, r, a, b in zip(*cols)}
 
 
-def _settle_deaths(world, state, t: _Turn, sim) -> None:
+def _settle_deaths(world, state, t: _Turn, sim, alive=None) -> None:
     """Dead owners' claims: spouse, else living children in the region, else commons."""
     owners = {aid for reg in state.regions for aid in reg.claims}
     if not owners:
         return
-    alive = _people_after(sim)
+    alive = _people_after(sim) if alive is None else alive
     dead = sorted(aid for aid in owners if aid not in alive)
     if not dead:
         return
@@ -1088,6 +1098,7 @@ def after_agent_tick(world, agent_bridge) -> list:
     if state.last_settled_turn is not None and turn <= state.last_settled_turn:
         raise RuntimeError("household retail already settled for this turn")
     installed, t.installed = t.installed, None
+    alive = None
     if installed is not None:
         frame = sim.take_household_retail_frame()
         receipt = sim.take_retail_income_receipt() if installed.income else None
@@ -1100,9 +1111,10 @@ def after_agent_tick(world, agent_bridge) -> list:
         elif frame is None or (installed.income and receipt is None):
             raise RuntimeError("household retail frame and income receipt were not taken together")
         else:
-            _settle_frame(world, state, t, installed, frame, receipt)
+            alive = _people_after(sim)
+            _settle_frame(world, state, t, installed, frame, receipt, alive)
             _bump(state, "turns_settled")
-    _settle_deaths(world, state, t, sim)
+    _settle_deaths(world, state, t, sim, alive)
     state.last_settled_turn = turn
     t.spouses = None
     _check(state, world)
