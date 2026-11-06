@@ -136,3 +136,23 @@ describe("granary storage panel", () => {
     expect(region().queryByText(/^Granary storage: /)).not.toBeInTheDocument();
   });
 });
+
+describe("food allocation zero with and without household retail (review m6)", () => {
+  // Constructed: no L2 region at snapshot 20; the natural snapshot also records household retail.
+  const empty = (s: Rec) => { const r = s.livelihoods.food_allocation; r.totals = zeroTotals(r.totals); r.regions = []; r.sample = []; };
+
+  it("does not say no region was short when retail provisioned its regions", () => {
+    view(FoodAllocation, chainBundle((s) => { if (s.turn === AT) empty(s); }));
+    expect(screen.getByText("Food allocation: recorded, nothing happened this turn (no region outside household retail's regions was short of food).")).toBeInTheDocument();
+    expect(screen.getByText("No region outside household retail's regions was short of food.")).toBeInTheDocument();
+    expect(screen.getByText(/Household retail provisioned its own regions this turn/)).toBeInTheDocument();
+    expect(screen.queryByText("No region was short of food.")).not.toBeInTheDocument();
+  });
+
+  it("says no region was short when the run has no household retail", () => {
+    view(FoodAllocation, chainBundle((s) => { delete s.livelihoods.household_retail; if (s.turn === AT) empty(s); }));
+    expect(screen.getByText("Food allocation: recorded, nothing happened this turn (no region was short of food).")).toBeInTheDocument();
+    expect(screen.getByText("No region was short of food.")).toBeInTheDocument();
+    expect(screen.queryByText(/Household retail provisioned/)).not.toBeInTheDocument();
+  });
+});

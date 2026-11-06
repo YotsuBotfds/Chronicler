@@ -44,8 +44,8 @@ interface RecordSpec<T> {
   read: (snapshot: TurnSnapshot, regions: number, civs: number) => T | null;
   observed: (record: T) => boolean;
   empty: (record: T) => boolean;
-  /** What "nothing happened" means for this record. */
-  zero: string;
+  /** What "nothing happened" means for this record (it may depend on what else the snapshot records). */
+  zero: string | ((snapshot: TurnSnapshot) => string);
 }
 
 const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
@@ -114,7 +114,8 @@ export function readRecord<T>(spec: RecordSpec<T>, bundle: Bundle | null | undef
       note: `${spec.label}: recorded at snapshot ${at}, but its turn was not observed; unknown, not zero.` };
   }
   if (spec.empty(record)) {
-    return { state: "recorded_zero", record, note: `${spec.label}: recorded, nothing happened this turn (${spec.zero}).` };
+    const zero = typeof spec.zero === "function" ? spec.zero(snapshot) : spec.zero;
+    return { state: "recorded_zero", record, note: `${spec.label}: recorded, nothing happened this turn (${zero}).` };
   }
   return { state: "recorded", record, note: "" };
 }
@@ -146,12 +147,20 @@ export const REMITTANCES: RecordSpec<RemittancesRecord> = {
   zero: "no remittance, migration or closure",
 };
 
+/**
+ * Whether the snapshot records household retail. L2 leaves out the regions retail
+ * provisioned (`food_allocation.py`), so an empty L2 frame then means no short region
+ * outside retail's regions, not no short region.
+ */
+export const carriesHouseholdRetail = inLivelihoods("household_retail");
+
 export const FOOD_ALLOCATION: RecordSpec<FoodAllocationRecord> = {
   key: "food_allocation", label: "Food allocation", flag: "--food-allocation", livelihoods: true,
   carries: inLivelihoods("food_allocation"), read: (s, regions) => foodAllocationAt(s, regions),
   observed: (r) => r.totals !== null && r.regions !== null,
   empty: (r) => r.regions !== null && r.regions.length === 0,
-  zero: "no region was short of food",
+  zero: (s) => carriesHouseholdRetail(s) ? "no region outside household retail's regions was short of food"
+    : "no region was short of food",
 };
 
 export const GRANARY_STORAGE: RecordSpec<GranaryStorageFrame> = {
