@@ -11,6 +11,7 @@ import dataclasses
 import hashlib
 import importlib.util
 import json
+import shutil
 import tempfile
 import threading
 import types
@@ -447,11 +448,12 @@ class FakeRuntime:
     its own thread's clock (so concurrent runs are timed alike). The ledger lives in a
     temporary directory; ``changed`` lists the paths between two revisions."""
 
-    def __init__(self, SR, seconds=1.0, identity=IDENTITY, ledger=None, changed=(), rc=0):
+    def __init__(self, SR, seconds=1.0, identity=IDENTITY, ledger=None, changed=(), rc=0, registry=None):
         self.seconds, self.calls, self.rc, self.local = seconds, [], rc, threading.local()
         self.ledger = Path(ledger) if ledger else Path(tempfile.mkdtemp()) / "ledger.jsonl"
         self.rt = SR.Runtime(simulate=self.simulate, identity=lambda screen: list(identity), clock=self.clock,
-                             ledger=self.ledger, changed_paths=lambda old, new: list(changed))
+                             ledger=self.ledger, changed_paths=lambda old, new: list(changed),
+                             registry=Path(registry) if registry else SR.REGISTRY)
 
     def clock(self):
         return getattr(self.local, "now", 0.0)
@@ -673,10 +675,18 @@ def test_m1_a_second_held_run_is_refused_while_the_first_is_recorded(SR, CW, tmp
     with pytest.raises(SystemExit, match=r"a held run of CW1 was started at .* into .*held1 .*resume it there"):
         SR.run_main(_held_argv(tmp_path, out="held2"), screens, again.rt)
     assert again.calls == []
-    # The recorded run itself resumes (nothing left to run); without its ledger entry it does not.
+    # The recorded run itself resumes (nothing left to run).
     assert SR.run_main([*_held_argv(tmp_path, out="held1"), "--resume"], screens, again.rt) == 0
-    with pytest.raises(SystemExit, match="the ledger .* records no held run"):
-        SR.run_main([*_held_argv(tmp_path, out="held1"), "--resume"], screens, FakeRuntime(SR).rt)
+    # A restored output folder (another clone, a recovered container: empty ledger) resumes on its
+    # own record, which is written back to the ledger; without that record it is refused.
+    restored = FakeRuntime(SR)
+    shutil.copytree(tmp_path / "held1", tmp_path / "restored")
+    assert SR.run_main([*_held_argv(tmp_path, out="restored"), "--resume"], screens, restored.rt) == 0
+    (entry,) = SR.ledger_entries(restored.ledger)
+    assert entry["out"] == str((tmp_path / "restored").resolve()) and "restored" in entry
+    (tmp_path / "restored" / "held-run.json").unlink()
+    with pytest.raises(SystemExit, match="resume refused: neither the ledger .* records this held run"):
+        SR.run_main([*_held_argv(tmp_path, out="restored"), "--resume"], screens, FakeRuntime(SR).rt)
     # mark-run records it in the registry: every clone then refuses the cohort as reused.
     reg_path = tmp_path / "registry.json"
     reg_path.write_text(SR.dump_registry(registry))
@@ -696,36 +706,89 @@ def test_registry_file_is_its_own_dump(SR, registry):
     assert SR.dump_registry(registry) == SR.REGISTRY.read_text(encoding="utf-8")
 
 
-def test_m5_reserve_cohort_for_a_named_screen(SR, CW, tmp_path, registry):
-    screens = {"CW1": _held_screen(SR, CW, tmp_path, ceiling=10.0), "CW2": _held_screen(SR, CW, tmp_path, 10.0)}
-    argv = [str(tmp_path / "reserve"), "--screen", "CW1", "--cohort", "reserve", "--jobs", "1",
+def _reserve_argv(tmp_path, screen="CW1", out="reserve", reason="CW1's held run failed"):
+    argv = [str(tmp_path / out), "--screen", screen, "--cohort", "reserve", "--jobs", "1",
             "--pilot", str(_pilot(tmp_path, 10.0))]
+    return [*argv, "--reason", reason] if reason else argv
+
+
+def _marked(SR, screens, tmp_path, registry, out):
+    """A copy of the registry with the run in ``out`` recorded by mark-run."""
+    path = tmp_path / f"registry-{out}.json"
+    path.write_text(SR.dump_registry(registry))
+    assert SR.mark_run_main([str(tmp_path / out), "--screen", "CW1", "--registry", str(path)], screens) == 0
+    return path
+
+
+def test_m5_reserve_after_a_recorded_failed_held_run(SR, CW, tmp_path, registry):
+    """The documented order: the held run fails, mark-run records it, the same screen runs
+    the reserve once with its reason (review m5, re-check)."""
+    screens = {"CW1": _held_screen(SR, CW, tmp_path, ceiling=10.0), "CW2": _held_screen(SR, CW, tmp_path, 10.0)}
+    failed = FakeRuntime(SR, rc=1)
+    assert SR.run_main(_held_argv(tmp_path, out="held1"), screens, failed.rt) == SR.RC_FAILED
     with pytest.raises(SystemExit, match="--reason is required with --cohort reserve"):
-        SR.run_main(argv, screens, FakeRuntime(SR).rt)
+        SR.run_main(_reserve_argv(tmp_path, reason=None), screens, FakeRuntime(SR).rt)
     with pytest.raises(SystemExit, match="--reason is required with --cohort reserve, and only there"):
         SR.run_main([*_held_argv(tmp_path), "--reason", "x"], screens, FakeRuntime(SR).rt)
-    fake = FakeRuntime(SR)
-    reason = "CW1's held run failed at a fixed extractor bug"
-    assert SR.run_main([*argv, "--reason", reason], screens, fake.rt) == 0
-    seeds = {int(c[c.index("--seed") + 1]) for c in fake.calls}
-    assert seeds == set(range(791, 797)) | set(range(891, 897))
+    # Before mark-run the reserve is refused: no recorded held run.
+    with pytest.raises(SystemExit, match="CW1 has no recorded held run"):
+        SR.run_main(_reserve_argv(tmp_path), screens, FakeRuntime(SR, ledger=failed.ledger).rt)
+    reg_path = _marked(SR, screens, tmp_path, registry, "held1")
+    held = [e for e in SR.load_registry(reg_path)["entries"] if e.get("screen") == "CW1"]
+    assert {(e["status"], e["held_run"]["complete"]) for e in held} == {("run", False)}
+    fake = FakeRuntime(SR, ledger=failed.ledger, registry=reg_path)
+    assert SR.run_main(_reserve_argv(tmp_path), screens, fake.rt) == 0
+    assert {int(c[c.index("--seed") + 1]) for c in fake.calls} == set(range(791, 797)) | set(range(891, 897))
     source = (tmp_path / "reserve" / "source.txt").read_text()
-    assert "run: screen CW1; cohort reserve;" in source and f"reason: {reason}" in source
+    assert "run: screen CW1; cohort reserve;" in source and "reason: CW1's held run failed" in source
     rows = SR.read_rows(tmp_path / "reserve" / "metrics.jsonl", screens["CW1"])
     assert {r["cohort"] for r in rows} == {"reserve"}
     assert SR.check_metrics(rows, "reserve", screens["CW1"], seeds=SR.cohort_seeds(screens["CW1"], "reserve")) == []
-    # The reserve is used once by the whole program.
+    # Once for the program: a second reserve run is refused by the ledger, then by the registry.
     with pytest.raises(SystemExit, match="a reserve run of CW1 was started"):
-        SR.run_main([str(tmp_path / "r2"), "--screen", "CW2", "--cohort", "reserve", "--reason", "x", "--pilot",
-                     str(_pilot(tmp_path, 10.0))], screens, FakeRuntime(SR, ledger=fake.ledger).rt)
-    reg_path = tmp_path / "registry.json"
-    reg_path.write_text(SR.dump_registry(registry))
+        SR.run_main(_reserve_argv(tmp_path, out="r2"), screens, FakeRuntime(SR, ledger=fake.ledger, registry=reg_path).rt)
     assert SR.mark_run_main([str(tmp_path / "reserve"), "--screen", "CW1", "--registry", str(reg_path)], screens) == 0
     marked = SR.load_registry(reg_path)
     reserve = [e for e in marked["entries"] if e.get("cohort") == "reserve"]
-    assert {(e["status"], e["screen"], e["held_run"]["reason"]) for e in reserve} == {("run", "CW1", reason)}
+    assert {(e["status"], e["screen"], e["held_run"]["reason"]) for e in reserve} == {("run", "CW1",
+                                                                                       "CW1's held run failed")}
     assert SR.validate_registry(marked) == []
-    assert any("was already used (run, by CW1)" in p for p in SR.check_reserve(screens["CW2"], marked))
+    with pytest.raises(SystemExit, match="the reserve cw-reserve-t was already used"):
+        SR.run_main(_reserve_argv(tmp_path, out="r3"), screens, FakeRuntime(SR, registry=reg_path).rt)
+
+
+def test_m5_no_reserve_after_a_complete_held_run(SR, CW, tmp_path, registry):
+    screens = {"CW1": _held_screen(SR, CW, tmp_path, ceiling=10.0)}
+    assert SR.run_main(_held_argv(tmp_path, out="held1"), screens, FakeRuntime(SR).rt) == 0
+    reg_path = _marked(SR, screens, tmp_path, registry, "held1")
+    with pytest.raises(SystemExit, match="CW1's recorded held run is complete"):
+        SR.run_main(_reserve_argv(tmp_path), screens, FakeRuntime(SR, registry=reg_path).rt)
+
+
+def test_n2_check_passes_on_a_recorded_complete_held_run(SR, CW, tmp_path, registry, capsys):
+    screens = {"CW1": _held_screen(SR, CW, tmp_path, ceiling=10.0)}
+    assert SR.run_main(_held_argv(tmp_path, out="held1"), screens, FakeRuntime(SR).rt) == 0
+    reg_path = _marked(SR, screens, tmp_path, registry, "held1")
+    capsys.readouterr()
+    rc = SR.check_main(["--screen", "CW1", "--metrics", str(tmp_path / "held1" / "metrics.jsonl"), "--cohort", "held",
+                        "--registry", str(reg_path)], screens)
+    out = capsys.readouterr().out
+    assert rc == 0, out
+    assert "held cohort cw1-held-t was recorded as run (complete" in out and "every outcome extracted" in out
+    # Starting another held run of the recorded cohort is still refused.
+    with pytest.raises(SystemExit, match="were already run \\(reused\\)"):
+        SR.run_main(_held_argv(tmp_path, out="held2"), screens, FakeRuntime(SR, registry=reg_path).rt)
+
+
+def test_n1_an_economy_without_a_native_food_ledger_fails_the_run(SR, CW):
+    bundle = make_bundle(timber=True)
+    for snap in bundle["history"]:
+        snap["food_accounting"].update(mode="hybrid", transport="physical_delivery")
+        for row in snap["food_accounting"]["regions"]:
+            row["native"] = None
+    assert SR.harm_food_shortfall(bundle)["state"] == "malformed"
+    row = SR.extract_bundle(CW.SCREENS["DEV"], "TS", bundle, ["--timber-stock"])
+    assert row["rc"] == 3 and "harm food_shortfall" in row["error"]
 
 
 def test_m4_pilot_of_another_identity_is_refused(SR, CW, tmp_path):
@@ -769,6 +832,7 @@ def test_m2_harm_panel_for_every_arm(SR, CW):
 def test_m3_harms_without_an_agent_economy_are_not_recorded(SR):
     bundle = make_bundle(migration=False)
     for snap in bundle["history"]:
+        snap["food_accounting"].update(mode="off", transport="none")
         for row in snap["food_accounting"]["regions"]:
             row["native"], row["sufficiency_after_relief"] = None, None
     harm, problems = SR.harm_panel(bundle)
@@ -777,6 +841,7 @@ def test_m3_harms_without_an_agent_economy_are_not_recorded(SR):
     assert harm["food_shortfall"] == {"state": "not_recorded", "value": None,
                                       "note": "no native food ledger in this run (no agent economy)"}
     partly = make_bundle()
+    partly["history"][0]["food_accounting"]["transport"] = "none"
     for row in partly["history"][0]["food_accounting"]["regions"]:
         row["native"] = None
     assert SR.harm_food_shortfall(partly)["note"] == "no native food ledger at turns [1]: the run total is unknown, not zero"
