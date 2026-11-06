@@ -287,7 +287,7 @@ describe("productive-recovery readers on natural records", () => {
     type Natural = { turn: number; region_count: number; civ_count: number; livelihoods: Record<string, unknown> };
     const fixture = (await import("../../__fixtures__/productive_recovery_natural_records.json")).default as unknown as {
       snapshots: Natural[] };
-    const [main, control, graduates] = fixture.snapshots;
+    const [main, control, graduates, split] = fixture.snapshots;
     const at = (n: Natural) => n as unknown as TurnSnapshot;
     for (const n of [main, control]) {
       const s = at(n);
@@ -334,6 +334,10 @@ describe("productive-recovery readers on natural records", () => {
         expect(d.budget_before - budget).toBeLessThanOrEqual(d.reserved);
       }
     }
+    // A natural pro-rata split: the reservation pays floor(charged x reserved / (reserved + envelope)).
+    const prorata = readMaintenanceObligation(at(split), split.civ_count);
+    expect(why(prorata)).toBe("ok");
+    expect(prorata.status === "ok" && prorata.record.uses!.some((u) => u.used > 0 && (u.envelope_share ?? 1) < 1)).toBe(true);
     const grads = readApprenticeship(at(graduates), graduates.region_count);
     expect(grads.status === "ok" && grads.record.graduates!.length).toBeGreaterThan(0);
     // The same records misdated are refused.
