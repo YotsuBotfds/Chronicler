@@ -582,7 +582,7 @@ fn try_tick_agents_with_movements_observer<M: crate::decision_delivery::MoveObse
         pool.provision_frame = Some(frame);
         // Livelihoods L6b (default off): household retail in its pilot regions.
         if let Some(retail) = pool.retail_config.take() {
-            pool.retail_frame = Some(crate::provisioning::retail(pool, regions, &cfg, &retail, turn));
+            pool.retail_frame = Some(crate::provisioning::retail(pool, regions, &cfg, &retail, turn)?);
         }
     }
     // Livelihoods L7: last turn's arrivals' own rations against residents'.
@@ -1600,9 +1600,9 @@ pub fn wealth_tick(
         let income = crate::wealth_transfer::paid_work_income(
             &paid_work, &mut paid_work_rows, pool.ids[slot], slot, income);
         // Livelihoods L6b: what is left of a pilot farmer's farm income is
-        // replaced by food sales (recorded, then zero).
+        // replaced by food sales (recorded after health loss, then zero).
         let income = crate::wealth_transfer::retail_income(
-            &retail_income, &mut retail_income_rows, occ, region_id, pool.ids[slot], income);
+            &retail_income, &mut retail_income_rows, occ, region_id, pool.ids[slot], income, health_loss.get(slot));
         // CAREOBS_SOURCE_BEGIN: actual pre-health base income
         if let Some(observation) = &mut health_care_observation { observation.wealth_value(slot, 1, income); }
         // CAREOBS_SOURCE_END: actual pre-health base income

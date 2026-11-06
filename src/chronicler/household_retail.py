@@ -883,23 +883,11 @@ def _title_region(world, state, t: _Turn, reg: RetailRegion, row: dict) -> None:
         if (any(not math.isfinite(v) for v in (*terms, close)) or min(terms[1], -terms[2], -terms[3]) < 0
                 or abs(close - math.fsum(terms)) > 1e-5 * max(1.0, math.fsum(abs(v) for v in terms))):
             raise RetailAccountingError(f"region {rid}: native owned {good} does not close")
-    credits, pseudo = _split_title(state, t, rid, titled, reg)
-    # Title: goods by good, claims by owner (pseudo-owners for what stays commons).
-    for aid, v in credits.items():
-        reg.claims[aid] = reg.claims.get(aid, 0) + v
-    for g, v in enumerate(titled):
-        reg.goods[g] += v
-    held = {**dict(reg.claims), **{k: v for k, v in pseudo.items() if v}}
-    _record(book, "titled", titled, {**credits, **{k: v for k, v in pseudo.items() if v}})
-    _bump(state, "titled_milli", sum(credits.values()))
-    _bump(state, "untitled_milli", pseudo[UNTITLED])
-    if pseudo[REFUSED]:
-        _bump(state, "claims_refused", 1)
-        _log(state, RetailRecord(turn=int(world.turn), region=rid, kind="claims_refused",
-                                 milli=pseudo[REFUSED], note="claims cap"))
-    _bump(state, "owners_titled", len(credits))
-    # Decay, then storage overflow: per good as the native reports (whole
-    # milli, never above the stock), on claims pro rata.
+    # Decay, then storage overflow, fall on the stock carried into the turn:
+    # the native applies both before this turn's title (which is on offer
+    # whole at phase 0.7). Per good as the native reports (whole milli, never
+    # above the stock), on the opening claims pro rata.
+    held = dict(reg.claims)
     for kind, prefix in (("decay", "retail_owned_decay"), ("overflow", "retail_owned_overflow")):
         per_good = [min(to_milli(row[f"{prefix}_{good}"]), reg.goods[g]) for g, good in enumerate(RETAIL_GOODS)]
         total = sum(per_good)
@@ -910,6 +898,20 @@ def _title_region(world, state, t: _Turn, reg: RetailRegion, row: dict) -> None:
             held[k] -= v
         _debit(state, world, reg, kind, per_owner, per_good)
         _bump(state, f"{kind}_milli", total)
+    credits, pseudo = _split_title(state, t, rid, titled, reg)
+    # Title: goods by good, claims by owner (pseudo-owners for what stays commons).
+    for aid, v in credits.items():
+        reg.claims[aid] = reg.claims.get(aid, 0) + v
+    for g, v in enumerate(titled):
+        reg.goods[g] += v
+    _record(book, "titled", titled, {**credits, **{k: v for k, v in pseudo.items() if v}})
+    _bump(state, "titled_milli", sum(credits.values()))
+    _bump(state, "untitled_milli", pseudo[UNTITLED])
+    if pseudo[REFUSED]:
+        _bump(state, "claims_refused", 1)
+        _log(state, RetailRecord(turn=int(world.turn), region=rid, kind="claims_refused",
+                                 milli=pseudo[REFUSED], note="claims cap"))
+    _bump(state, "owners_titled", len(credits))
     # The native owned close agrees within f32 and milli rounding (Python is
     # authoritative; it re-sends its own totals every turn, so nothing drifts).
     for g, good in enumerate(RETAIL_GOODS):
@@ -917,9 +919,10 @@ def _title_region(world, state, t: _Turn, reg: RetailRegion, row: dict) -> None:
         slack = OWNED_TOL_MILLI + 2e-5 * max(native, float(reg.goods[g]))
         if not native - slack <= reg.goods[g] <= native + slack:
             raise RetailAccountingError(f"region {rid}: owned {good} {reg.goods[g]} differs from native {native:.3f}")
-    # What stays commons leaves the pool after its decay, pro rata to the mix.
+    # What stays commons (this turn's title nobody holds) leaves the pool
+    # whole, pro rata to the mix.
     for key, reason in _PSEUDO.items():
-        left = held.get(key, 0)
+        left = pseudo.get(key, 0)
         if left:
             _debit(state, world, reg, "to_commons", {key: left}, _draw(reg.goods, left), commons=reason)
 
@@ -1177,7 +1180,7 @@ def _settle_frame(world, state, t: _Turn, installed: _Installed, frame, receipt,
     t.money = {**{f"{k}_milli": v for k, v in money.items()}, "rows": len(ids)}
     kept = []
     for aid, region, household, ration, fair, status in sample:
-        if int(region) not in by_region or int(status) not in (0, 1, 2) or \
+        if int(region) not in by_region or int(status) not in (0, 1, 2, 3) or \
                 not (-RATION_TOL <= float(ration) <= 1.0 + RATION_TOL):
             raise RetailAccountingError("household retail sample row is invalid")
         kept.append([int(aid), int(region), int(household), round(float(ration), 6), round(float(fair), 6),

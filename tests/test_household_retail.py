@@ -368,7 +368,10 @@ class Harness:
 
     def economy(self, region_input, production, imports=None):
         """Native Phase 2 under the contract: owned in availability and price,
-        commons-only draw-down, decay and the storage cap on both pools."""
+        commons-only draw-down; the carried owned stock decays and takes its
+        share of the storage cap at opening, before this turn's title and
+        before sufficiency; the commons decay after the draw-down and are
+        capped at close."""
         world = self.world
         cols = {n: region_input.column(n).to_pylist() for n in region_input.schema.names}
         retail = "retail_title_share" in cols
@@ -381,6 +384,18 @@ class Harness:
             theta = cols["retail_title_share"][rid] if retail else None
             owned = [float(cols[f"retail_owned_{g}"][rid]) for g in RETAIL_GOODS] if retail else [0.0] * 5
             opening = sum(commons) + sum(owned)
+            rates = [STORAGE_DECAY[g] for g in RETAIL_GOODS]
+            cap = 2.5 * region.population
+            # The carried owned stock: decay, then its share of the cap
+            # against the commons on hand, at opening.
+            odec = [float(f32(o * r)) for o, r in zip(owned, rates)]
+            owned = [o - d for o, d in zip(owned, odec)]
+            oover = []
+            for g in range(5):
+                both = commons[g] + owned[g]
+                share_o = owned[g] - owned[g] * cap / both if both > cap else 0.0
+                oover.append(float(f32(share_o)))
+                owned[g] -= share_o
             titled = [float(f32(theta * p)) if theta is not None else 0.0 for p in prod]
             owned = [o + t for o, t in zip(owned, titled)]
             commons = [c + p - t + i for c, p, t, i in zip(commons, prod, titled, imp)]
@@ -389,22 +404,9 @@ class Harness:
             ctotal = sum(commons)
             draw = min(ctotal, demand)
             commons = [c - draw * c / ctotal for c in commons] if ctotal > 0 else commons
-            rates = [STORAGE_DECAY[g] for g in RETAIL_GOODS]
             cdec = [c * r for c, r in zip(commons, rates)]
-            odec = [float(f32(o * r)) for o, r in zip(owned, rates)]
-            commons = [c - d for c, d in zip(commons, cdec)]
-            owned = [o - d for o, d in zip(owned, odec)]
-            cap = 2.5 * region.population
-            oover = []
-            covered = 0.0
-            for g in range(5):
-                both = commons[g] + owned[g]
-                over = max(0.0, both - cap)
-                share_o = over * owned[g] / both if both > 0 else 0.0
-                commons[g] -= over - share_o
-                covered += over - share_o
-                oover.append(float(f32(share_o)))
-                owned[g] -= share_o
+            covered = sum(max(0.0, c - d - cap) for c, d in zip(commons, cdec))  # commons cap overflow
+            commons = [min(cap, c - d) for c, d in zip(commons, cdec)]
             for g, name in enumerate(RETAIL_GOODS):
                 if commons[g] or name in region.stockpile.goods:
                     region.stockpile.goods[name] = float(f32(max(0.0, commons[g])))
@@ -574,9 +576,9 @@ def test_title_by_food_work_weights_and_largest_remainder():
         health.health_care_active = original
     assert weights == {VERDANT: [(1, 1_000_000), (2, 500_000), (3, 750_000), (4, 800_000), (6, 1_000_000)]}
     h.world.health_care = None
-    # Salt does not decay, so the claims right after Phase 2 are the title itself:
-    # 0.9 x 10.0 = 9000 milli over weights 1, 1, 1, 0.8, 1 (ties to the smaller id),
-    # and 0.9 x 0.7 = 630 milli of fish after its decay, pro rata.
+    # This turn's title is not decayed before it can be eaten, so the claims
+    # right after Phase 2 are the title itself: 0.9 x 10.0 = 9000 milli over
+    # weights 1, 1, 1, 0.8, 1 (ties to the smaller id).
     seen = {}
     res = h.turn({VERDANT: {"salt": 10.0}}, between=lambda: seen.update(h.state.region(VERDANT).claims))
     assert res.household_retail[VERDANT]["retail_titled_salt"] == float(f32(9.0))
@@ -590,6 +592,25 @@ def test_title_by_food_work_weights_and_largest_remainder():
         h2.sim.add(aid, VERDANT)
     h2.turn({VERDANT: {"salt": 0.001}}, between=lambda: seen.update(h2.state.region(VERDANT).claims))
     assert seen == {1: 1}                                  # 0.9 milli rounds to 1; the tie goes to id 1
+
+
+def test_decay_and_overflow_fall_on_the_carried_claims_not_on_the_new_title():
+    # Owner 1 carries a claim into the next turn; farmer 2 arrives with none.
+    # The native decays and caps the carried stock at opening, before the
+    # title: the new title is credited whole, the carried claim bears it all.
+    h = Harness()
+    _people(h, VERDANT, (1,), wealth=0.0)
+    h.turn({VERDANT: {"grain": 40.0}})
+    carried = dict(h.state.region(VERDANT).claims)
+    assert carried.get(1, 0) > 0
+    _people(h, VERDANT, (2,), wealth=0.0)
+    seen = {}
+    h.turn({VERDANT: {"grain": 10.0}}, between=lambda: seen.update(h.state.region(VERDANT).claims))
+    flows = h.frame(VERDANT).flows
+    assert flows["decay"] > 0
+    shares = HR.largest_remainder(flows["titled"], [(1, 1), (2, 1)])
+    assert seen[2] == shares[2]
+    assert seen[1] == carried[1] - flows["decay"] - flows.get("overflow", 0) + shares[1]
 
 
 def test_opening_stock_and_imports_stay_commons_and_only_new_harvest_is_titled():
@@ -793,6 +814,27 @@ def test_an_owner_dead_before_provisioning_is_withheld_and_inherited_whole():
     assert (record.other, record.note, record.milli) == (5, "spouse", installed[(1, VERDANT)])
     assert _owners(h, VERDANT)[5] == installed[(1, VERDANT)] and 1 not in _owners(h, VERDANT)
     assert 3 not in _owners(h, VERDANT)                      # died after selling: escheat or heirs, not withheld
+
+
+def test_the_withheld_dead_status_is_a_valid_sample_status_and_an_unknown_one_is_refused():
+    # Native status 3 (withheld_dead): below the fair share with cash in hand
+    # while a dead owner's claim was withheld in the region.
+    for status, ok in ((3, True), (4, False)):
+        h = Harness()
+        _people(h, VERDANT, (1, 2), wealth=0.0)
+        h.turn({VERDANT: {"grain": 6.0}})
+        original = h.sim._retail
+
+        def frame_of(install, status=status, original=original):
+            frame = list(original(install))
+            frame[5] = [(*s[:5], status) for s in frame[5]]
+            return tuple(frame)
+        h.sim._retail = frame_of
+        if ok:
+            h.turn()
+        else:
+            with pytest.raises(HR.RetailAccountingError):
+                h.turn()
 
 
 def _corrupt(h, change):

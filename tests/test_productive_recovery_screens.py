@@ -236,7 +236,12 @@ def test_a_held_run_is_refused_until_the_preregistration_is_frozen(S, tmp_path, 
     assert not S.preregistration_frozen(draft)
     draft.write_text("# x\n\nStatus: **FROZEN** on 2026-11-07 at abc.\n")
     assert S.preregistration_frozen(draft)
-    assert not S.preregistration_frozen(S.PREREGISTRATION)     # the committed draft
+    # The committed preregistration was frozen before the checkpoint-1 held run.
+    assert S.preregistration_frozen(S.PREREGISTRATION)
+    # A draft still refuses a held run.
+    draft.write_text("# x\n\nStatus: **DRAFT, not frozen**.\n")
+    real = S.preregistration_frozen
+    monkeypatch.setattr(S, "preregistration_frozen", lambda path=draft: real(draft))
     called = []
     monkeypatch.setattr(S, "simulate", lambda cmd: called.append(cmd))
     with pytest.raises(SystemExit, match="held run refused"):

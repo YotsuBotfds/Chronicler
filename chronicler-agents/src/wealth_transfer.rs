@@ -315,7 +315,10 @@ pub struct FoodPurchaseMoney {
 /// exactly. Returns per region the money and per stable id (ascending)
 /// (id, paid, credited, refunded) for everyone who paid or sold.
 pub fn settle_food_purchases(pool: &mut AgentPool, turn: u32, regions: &[FoodPurchases])
-    -> (Vec<FoodPurchaseMoney>, Vec<(u32, i64, i64, i64)>) {
+    -> Result<(Vec<FoodPurchaseMoney>, Vec<(u32, i64, i64, i64)>), &'static str> {
+    if pool.wealth_transfer_log.iter().any(|&(t, p, b)| p == PURPOSE_FOOD_PURCHASE && b == 0 && t >= turn) {
+        return Err("household food purchases already settled for this turn");
+    }
     let slots = pool.build_id_slots();
     let living = |id: u32| slots.get(id).filter(|&s| pool.is_alive(s) && pool.ids[s] == id);
     let mut book: std::collections::BTreeMap<u32, [i64; 3]> = std::collections::BTreeMap::new();
@@ -371,7 +374,7 @@ pub fn settle_food_purchases(pool: &mut AgentPool, turn: u32, regions: &[FoodPur
     }
     pool.wealth_transfer_log.retain(|&(t, _, _)| t >= turn);
     pool.wealth_transfer_log.push((turn, PURPOSE_FOOD_PURCHASE, 0));
-    (out, book.into_iter().map(|(id, [p, c, r])| (id, p, c, r)).collect())
+    Ok((out, book.into_iter().map(|(id, [p, c, r])| (id, p, c, r)).collect()))
 }
 
 /// Stable ids of the living agents away on a merchant trip (loading or in
@@ -494,15 +497,24 @@ pub fn install_retail_income(pool: &mut AgentPool, turn: u32, regions: &[u16], n
 }
 
 /// Wealth phase, after teaching, learning and paid work: a farmer of a
-/// listed region has the rest of the ordinary farm income recorded and set to
-/// zero (health loss then multiplies zero). Everyone else keeps their income.
+/// listed region has the rest of the ordinary farm income set to zero (health
+/// loss then multiplies zero). The receipt records the income the farmer
+/// would have received: that remainder after this turn's health loss
+/// (`health`, the slot's `(id, loss)`; the same arithmetic as the wealth
+/// phase), so a sick farmer's replacement is not overstated. (Health loss
+/// also reduces the farmer's title, through the title weights.) Everyone else
+/// keeps their income.
 #[inline]
 pub fn retail_income(plan: &Option<RetailIncome>, receipt: &mut Vec<(u32, f32)>, occupation: u8, region: usize,
-                     agent_id: u32, income: f32) -> f32 {
+                     agent_id: u32, income: f32, health: Option<&(u32, f32)>) -> f32 {
     match plan {
         Some(plan) if occupation == crate::agent::Occupation::Farmer as u8
             && plan.regions.get(region).copied().unwrap_or(false) => {
-            receipt.push((agent_id, income));
+            let received = match health {
+                Some(&(id, loss)) if id == agent_id && loss != 0.0 => income * (1.0 - loss),
+                _ => income,
+            };
+            receipt.push((agent_id, received));
             0.0
         }
         _ => income,
@@ -914,7 +926,7 @@ mod tests {
             FoodPurchases { households: vec![(vec![(ids[3], 5000)], 100)], sales: vec![(ids[2], 1), (ids[4], 1)] },
         ];
         let before: i64 = (0..5).map(|s| milli(&pool, s)).sum();
-        let (money, book) = settle_food_purchases(&mut pool, 9, &regions);
+        let (money, book) = settle_food_purchases(&mut pool, 9, &regions).unwrap();
         assert_eq!(money[0], FoodPurchaseMoney { paid: 900, credited: 450 + room, refunded: 450 - room,
                                                  refused_ceiling: 450 - room });
         assert_eq!(money[1], FoodPurchaseMoney { paid: 100, credited: 50, refunded: 50, refused_ceiling: 50 });
@@ -940,7 +952,7 @@ mod tests {
         let mut pool = pool_with(&[5.0, 1.0]);
         let (a, b) = (pool.ids[0], pool.ids[1]);
         pool.kill(1);
-        settle_food_purchases(&mut pool, 1, &[FoodPurchases { households: vec![(vec![(a, 5000)], 100)],
+        let _ = settle_food_purchases(&mut pool, 1, &[FoodPurchases { households: vec![(vec![(a, 5000)], 100)],
                                                               sales: vec![(b, 1)] }]);
     }
 
@@ -949,7 +961,7 @@ mod tests {
     fn a_purchase_above_the_payers_cash_is_a_logic_error() {
         let mut pool = pool_with(&[1.0, 1.0]);
         let (a, b) = (pool.ids[0], pool.ids[1]);
-        settle_food_purchases(&mut pool, 1, &[FoodPurchases { households: vec![(vec![(a, 1000)], 1001)],
+        let _ = settle_food_purchases(&mut pool, 1, &[FoodPurchases { households: vec![(vec![(a, 1000)], 1001)],
                                                               sales: vec![(b, 1)] }]);
     }
 
@@ -1012,5 +1024,45 @@ mod tests {
         crate::tick::wealth_tick(&mut control, &regions, &signals, &mut pct);
         assert!(pilot.retail_income_receipt.is_none());
         assert!(((pilot.wealth[1] - w0 * decay) - (control.wealth[1] - c0 * decay)).abs() < 1e-6);
+    }
+
+    #[test]
+    fn food_purchases_are_settled_once_per_turn() {
+        let mut pool = pool_with(&[5.0, 1.0]);
+        let (a, b) = (pool.ids[0], pool.ids[1]);
+        let regions = [FoodPurchases { households: vec![(vec![(a, 5000)], 100)], sales: vec![(b, 1)] }];
+        settle_food_purchases(&mut pool, 3, &regions).unwrap();
+        let after = (milli(&pool, 0), milli(&pool, 1));
+        // The same turn (or an older one) is refused before any change.
+        assert!(settle_food_purchases(&mut pool, 3, &regions).is_err());
+        assert!(settle_food_purchases(&mut pool, 2, &regions).is_err());
+        assert_eq!((milli(&pool, 0), milli(&pool, 1)), after);
+        settle_food_purchases(&mut pool, 4, &regions).unwrap();
+        assert_eq!(milli(&pool, 0), after.0 - 100);
+    }
+
+    #[test]
+    fn replaced_income_is_what_the_farmer_would_have_received_after_health_loss() {
+        use crate::signals::TickSignals;
+        let regions = vec![farm_region(0)];
+        let signals = TickSignals { civs: Vec::new(), contested_regions: vec![false] };
+        let (mut sick, mut control) = (pool_with(&[5.0, 5.0]), pool_with(&[5.0, 5.0]));
+        let (a, b) = (sick.ids[0], sick.ids[1]);
+        for pool in [&mut sick, &mut control] {
+            let id = pool.ids[0];
+            pool.health_work_loss = vec![(id, 0.4), (0, 0.0)];
+        }
+        install_retail_income(&mut sick, 3, &[0], 1).unwrap();
+        let mut pct = vec![0.0f32; 2];
+        crate::tick::wealth_tick(&mut sick, &regions, &signals, &mut pct);
+        crate::tick::wealth_tick(&mut control, &regions, &signals, &mut pct);
+        let rows = sick.retail_income_receipt.take().unwrap().rows;
+        assert_eq!(rows.iter().map(|r| r.0).collect::<Vec<_>>(), vec![a, b]);
+        // The control farmers received these amounts (before the 2% decay).
+        let decay = 1.0 - crate::agent::WEALTH_DECAY;
+        let received = |slot: usize| control.wealth[slot] / decay - 5.0;
+        assert!((rows[0].1 - received(0)).abs() < 1e-5 && (rows[1].1 - received(1)).abs() < 1e-5);
+        assert!((rows[0].1 - 0.6 * rows[1].1).abs() < 1e-6 && rows[1].1 > 0.0);
+        assert_eq!(sick.wealth[0], 5.0 * decay);
     }
 }

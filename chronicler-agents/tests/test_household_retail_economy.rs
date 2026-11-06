@@ -6,7 +6,8 @@
 //! Without the inputs (or for a non-pilot region) every output keeps its bits.
 
 use chronicler_agents::economy::{
-    tick_economy_core, tick_economy_core_with_granary_work, tick_economy_core_with_retail,
+    tick_economy_core, tick_economy_core_with_granary_work, tick_economy_core_with_inputs,
+    tick_economy_core_with_retail, tick_economy_core_with_woodcut, WoodcutInput,
     EconomyConfig, EconomyOutput, EconomyRegionInput, HybridDeliveryInput, RegionAgentCounts,
     RetailRegionInput, TradeRouteInput, CAT_FOOD, GOOD_CATEGORY, NUM_GOODS, RETAIL_FOOD_SLOTS,
     SLOT_BOTANICALS, SLOT_EXOTIC, SLOT_FISH, SLOT_GRAIN, SLOT_SALT, SLOT_TIMBER,
@@ -119,11 +120,17 @@ fn bits(out: &EconomyOutput) -> Vec<u64> {
     v
 }
 
-fn assert_food_balance(ledger: &[f64; 10]) {
+/// In a pilot region the carried owned stock's decay and overflow (`early`)
+/// fall before `food_pre_consumption`; the ten-term balance closes as before.
+fn assert_food_balance_with(ledger: &[f64; 10], early: f64) {
     let expected = ledger[0] + ledger[1] + ledger[2] - ledger[3] + ledger[4] - ledger[6] - ledger[7] - ledger[8];
     assert!((expected - ledger[9]).abs() < 1e-4, "ledger: {ledger:?}");
-    let pre = ledger[0] + ledger[1] + ledger[2] - ledger[3] + ledger[4];
+    let pre = ledger[0] + ledger[1] + ledger[2] - ledger[3] + ledger[4] - early;
     assert!((pre - ledger[5]).abs() < 1e-4, "ledger: {ledger:?}");
+}
+
+fn early(row: &chronicler_agents::economy::RetailRegionResult) -> f64 {
+    (0..NUM_GOODS).map(|g| row.owned_decay[g] as f64 + row.owned_overflow[g] as f64).sum()
 }
 
 #[test]
@@ -196,23 +203,26 @@ fn theta_one_titles_the_whole_harvest_and_the_draw_down_takes_commons_only() {
     let rt = out.retail.as_ref().unwrap()[0].as_ref().unwrap();
     assert_eq!(rt.titled[SLOT_GRAIN], 10.0);
     assert_eq!(rt.titled[SLOT_FISH], 0.0);
-    // Only the 2 commons grain was eaten: the commons is empty and the owned
-    // 16 grain and 1 fish only decay.
+    // Only the 2 commons grain was eaten: the commons is empty. The carried
+    // 6 grain and 1 fish decay at opening; the 10 titled are not decayed.
     assert_eq!(rt.commons_consumed, 2.0);
     assert_eq!(rr.food_ledger[6], 2.0);
     assert_eq!(rr.stockpile[SLOT_GRAIN], 0.0);
     assert!((rt.commons_sufficiency - 0.2).abs() < 1e-6);
-    assert_eq!(rt.owned_close[SLOT_GRAIN], 16.0 * (1.0 - 0.03));
+    assert_eq!(rt.owned_decay[SLOT_GRAIN], 6.0 - 6.0 * (1.0 - 0.03));
+    assert_eq!(rt.owned_close[SLOT_GRAIN], 6.0 * (1.0 - 0.03) + 10.0);
     assert_eq!(rt.owned_close[SLOT_FISH], 1.0 * (1.0 - 0.06));
-    // Availability: (2 + 16 + 1) / 10 = 1.9.
-    assert!((rr.food_sufficiency - 1.9).abs() < 1e-6);
-    assert_food_balance(&rr.food_ledger);
+    // Availability counts exactly the food on offer at 0.7: (2 + 15.82 + 0.94) / 10.
+    let offered: f32 = rt.owned_close.iter().sum();
+    assert!((rr.food_sufficiency - (2.0 + offered) / 10.0).abs() < 1e-6);
+    assert!((rr.food_sufficiency - 1.876).abs() < 1e-5);
+    assert_food_balance_with(&rr.food_ledger, early(rt));
     // With no commons at all, nothing is drawn down however much is owned.
     let none = one([0.0; NUM_GOODS], 20, 10, 100, pilot(1.0, own));
     let rt = none.retail.as_ref().unwrap()[0].as_ref().unwrap();
     assert_eq!((rt.commons_consumed, rt.commons_sufficiency), (0.0, 0.0));
     assert_eq!(none.conservation.consumption, 0.0);
-    assert!((none.region_results[0].food_sufficiency - 1.7).abs() < 1e-6);
+    assert!((none.region_results[0].food_sufficiency - 1.676).abs() < 1e-5);
     // θ = 0.9 leaves a tenth of the harvest in the commons.
     let tenth = one([0.0; NUM_GOODS], 20, 10, 100, pilot(0.9, [0.0; NUM_GOODS]));
     let rt = tenth.retail.as_ref().unwrap()[0].as_ref().unwrap();
@@ -223,32 +233,35 @@ fn theta_one_titles_the_whole_harvest_and_the_draw_down_takes_commons_only() {
 
 #[test]
 fn owned_stock_counts_in_sufficiency_supply_and_price() {
-    // The same food on hand, once all commons and once mostly owned.
-    let mut all = [0.0; NUM_GOODS];
-    all[SLOT_GRAIN] = 4.0;
-    all[SLOT_FISH] = 1.0;
+    // Commons 1 grain, owned 3 grain and 1 fish carried in (θ = 0: no title).
     let mut commons = [0.0; NUM_GOODS];
     commons[SLOT_GRAIN] = 1.0;
     let own = owned([(SLOT_GRAIN, 3.0), (SLOT_FISH, 1.0), (SLOT_SALT, 0.0), (SLOT_BOTANICALS, 0.0), (SLOT_EXOTIC, 0.0)]);
-    let base = one(all, 30, 6, 100, None);
     let split = one(commons, 30, 6, 100, pilot(0.0, own));
-    let (a, b) = (&base.region_results[0], &split.region_results[0]);
-    assert_eq!(a.market_supply[CAT_FOOD], b.market_supply[CAT_FOOD]);
-    assert_eq!(a.market_price[CAT_FOOD], b.market_price[CAT_FOOD]);
-    assert_eq!(a.farmer_income_modifier, b.farmer_income_modifier);
-    assert!((a.food_sufficiency - b.food_sufficiency).abs() < 1e-6);
-    assert!((a.food_ledger[5] - b.food_ledger[5]).abs() < 1e-6);
-    // ...but the draw-down is limited to the commons (1 + 6 harvest at θ = 0).
-    assert!((b.food_ledger[6] - 7.0).abs() < 1e-5);
-    assert!((a.food_ledger[6] - 11.0).abs() < 1e-5);
-    // Without the owned stock the price is higher and sufficiency lower.
     let without = one(commons, 30, 6, 100, pilot(0.0, [0.0; NUM_GOODS]));
-    let c = &without.region_results[0];
+    let (b, c) = (&split.region_results[0], &without.region_results[0]);
+    let rt = split.retail.as_ref().unwrap()[0].as_ref().unwrap();
+    // The carried owned stock, after its opening decay, is supply and availability.
+    let carried: f32 = rt.owned_close.iter().sum();
+    assert!((carried - (3.0 * 0.97 + 0.94)).abs() < 1e-5);
+    assert!((b.market_supply[CAT_FOOD] - c.market_supply[CAT_FOOD] - carried).abs() < 1e-5);
     assert!(c.market_price[CAT_FOOD] > b.market_price[CAT_FOOD]);
+    assert!((b.food_ledger[5] - c.food_ledger[5] - carried as f64).abs() < 1e-5);
     assert!(c.food_sufficiency < b.food_sufficiency);
+    // ...but the draw-down is limited to the commons (1 + 6 harvest at θ = 0).
+    assert!((b.food_ledger[6] - 7.0).abs() < 1e-5 && (c.food_ledger[6] - 7.0).abs() < 1e-5);
+    // The same food held as commons would not have decayed before the draw-down.
+    let mut all = [0.0; NUM_GOODS];
+    all[SLOT_GRAIN] = 1.0 + 3.0 * 0.97;
+    all[SLOT_FISH] = 0.94;
+    let base = one(all, 30, 6, 100, None);
+    let a = &base.region_results[0];
+    assert!((a.market_supply[CAT_FOOD] - b.market_supply[CAT_FOOD]).abs() < 1e-5);
+    assert!((a.food_sufficiency - b.food_sufficiency).abs() < 1e-5);
     // The oracle shadow sees the owned food too.
     let oracle = |o: &EconomyOutput| o.oracle_food_sufficiency.as_ref().unwrap()[0];
-    assert!((oracle(&base) - oracle(&split)).abs() < 1e-6);
+    assert!((oracle(&base) - oracle(&split)).abs() < 1e-5);
+    assert_food_balance_with(&b.food_ledger, early(rt));
 }
 
 #[test]
@@ -264,24 +277,35 @@ fn decay_reads_salt_in_both_pools_and_the_cap_splits_overflow_pro_rata() {
     assert!(a.region_results[0].stockpile[SLOT_GRAIN] > b.region_results[0].stockpile[SLOT_GRAIN]);
     assert!(ra.owned_decay[SLOT_GRAIN] < rb.owned_decay[SLOT_GRAIN]);
     assert_eq!(ra.owned_decay[SLOT_SALT], 0.0);
-    // Equal pools decay equally (same effective rate).
+    // Without salt the carried owned grain decays at the commons' rate (at
+    // opening; the commons after consumption, here none).
     assert_eq!(rb.owned_decay[SLOT_GRAIN], 10.0 - b.region_results[0].stockpile[SLOT_GRAIN]);
     assert!((rb.owned_decay[SLOT_GRAIN] - 10.0 * 0.03).abs() < 1e-5);
-    // Cap 2.5 x 4 = 10 per good against 10 + 30 grain (after decay 9.7 + 29.1).
+    // This turn's title is never decayed: 4 farmers grow 4 grain, θ = 1.
+    let titled = one([0.0; NUM_GOODS], 0, 4, 100, pilot(1.0, [0.0; NUM_GOODS]));
+    let rt = titled.retail.as_ref().unwrap()[0].as_ref().unwrap();
+    assert_eq!((rt.titled[SLOT_GRAIN], rt.owned_decay[SLOT_GRAIN], rt.owned_close[SLOT_GRAIN]), (4.0, 0.0, 4.0));
+    // Cap 2.5 x 4 = 10 per good. The carried 30 grain decays to 29.1 and keeps
+    // its pro-rata share of the cap against the 10 commons on hand at opening;
+    // the commons decay to 9.7 and are capped at close as everywhere.
     let mut c = [0.0; NUM_GOODS];
     c[SLOT_GRAIN] = 10.0;
     let big = owned([(SLOT_GRAIN, 30.0), (SLOT_FISH, 0.0), (SLOT_SALT, 0.0), (SLOT_BOTANICALS, 0.0), (SLOT_EXOTIC, 0.0)]);
     let capped = one(c, 0, 0, 4, pilot(0.9, big));
     let rr = &capped.region_results[0];
     let rt = capped.retail.as_ref().unwrap()[0].as_ref().unwrap();
-    let total_close = rr.stockpile[SLOT_GRAIN] + rt.owned_close[SLOT_GRAIN];
-    assert!((total_close - 10.0).abs() < 1e-5, "{total_close}");
-    assert!((rt.owned_close[SLOT_GRAIN] - 7.5).abs() < 1e-5);
-    assert!((rr.stockpile[SLOT_GRAIN] - 2.5).abs() < 1e-5);
-    let commons_overflow = rr.food_ledger[8] - rt.owned_overflow[SLOT_GRAIN] as f64;
-    assert!((rt.owned_overflow[SLOT_GRAIN] as f64 / commons_overflow - 3.0).abs() < 1e-4);
-    assert!((rr.food_ledger[8] - (38.8 - 10.0)).abs() < 1e-4);
-    assert_food_balance(&rr.food_ledger);
+    let carried = 30.0f32 * 0.97;
+    let keep = carried * (10.0 / (10.0 + carried));
+    assert!((rt.owned_close[SLOT_GRAIN] - keep).abs() < 1e-5, "{}", rt.owned_close[SLOT_GRAIN]);
+    assert!((rt.owned_overflow[SLOT_GRAIN] - (carried - keep)).abs() < 1e-5);
+    assert!((rr.stockpile[SLOT_GRAIN] - 9.7).abs() < 1e-5);
+    assert!((rr.food_ledger[8] - rt.owned_overflow[SLOT_GRAIN] as f64).abs() < 1e-5);
+    // Commons over the cap at close are capped as in every region.
+    let mut full = [0.0; NUM_GOODS];
+    full[SLOT_GRAIN] = 12.0;
+    let over = one(full, 0, 0, 4, pilot(0.9, [0.0; NUM_GOODS]));
+    assert_eq!(over.region_results[0].stockpile[SLOT_GRAIN], 10.0);
+    assert_food_balance_with(&rr.food_ledger, early(rt));
 }
 
 fn assert_owned_closes(out: &EconomyOutput, opening: &[Option<RetailRegionInput>]) {
@@ -307,7 +331,7 @@ fn the_food_ledger_and_conservation_close_with_owned_stock() {
     let (regions, ..) = scenario();
     assert_owned_closes(&out, &rows);
     for (ri, rr) in out.region_results.iter().enumerate() {
-        assert_food_balance(&rr.food_ledger);
+        assert_food_balance_with(&rr.food_ledger, out.retail.as_ref().unwrap()[ri].as_ref().map_or(0.0, early));
         let owned_open: f32 = rows[ri].map_or(0.0, |r| r.owned.iter().sum());
         let commons_open: f32 = RETAIL_FOOD_SLOTS.iter().map(|&g| regions[ri].stockpile[g]).sum();
         assert!((rr.food_ledger[0] - (commons_open + owned_open) as f64).abs() < 1e-5);
@@ -345,13 +369,56 @@ fn zero_production_and_empty_regions() {
     let rt = out.retail.as_ref().unwrap()[0].as_ref().unwrap();
     assert_eq!(rt.titled, [0.0; NUM_GOODS]);
     assert_eq!(rt.commons_consumed, 0.0);
-    assert!((out.region_results[0].food_sufficiency - 0.5).abs() < 1e-6);
+    assert!((out.region_results[0].food_sufficiency - 3.0 * 0.97 / 6.0).abs() < 1e-6);
     assert_eq!(rt.owned_close[SLOT_GRAIN], 3.0 * (1.0 - 0.03));
-    assert_food_balance(&out.region_results[0].food_ledger);
+    assert_food_balance_with(&out.region_results[0].food_ledger, early(rt));
     // Owned food but nobody to feed: demand floors at SUPPLY_FLOOR.
     let out = one([0.0; NUM_GOODS], 0, 0, 100, pilot(1.0, own));
     assert_eq!(out.region_results[0].food_sufficiency, 2.0);
     assert_eq!(out.retail.as_ref().unwrap()[0].as_ref().unwrap().commons_sufficiency, 0.0);
+}
+
+#[test]
+fn woodcutting_crews_and_retail_combine_without_touching_each_other() {
+    // A home region (grain; its pilot farmers send a crew away) and a forest
+    // (grain and timber) the crew works.
+    let home = region(0, 0, 1.0);
+    let mut forest = region(1, 0, 1.0);
+    forest.resource_types = [0, 1, 255];
+    forest.resource_yields = [1.0, 2.0, 0.0];
+    forest.stockpile[SLOT_TIMBER] = 3.0;
+    let regions = [home, forest];
+    let counts = [agents(20, 12), agents(10, 8)];
+    let delivery = HybridDeliveryInput::from_buffer(&DeliveryBuffer::new(2), 2);
+    let crew = WoodcutInput { labor_away: &[3.0, 0.0], labor: &[0.0, 3.0] };
+    let rows = [pilot(0.9, owned([(SLOT_GRAIN, 2.0), (SLOT_FISH, 0.0), (SLOT_SALT, 0.0), (SLOT_BOTANICALS, 0.0),
+                                  (SLOT_EXOTIC, 0.0)])), None];
+    let config = EconomyConfig::default();
+    let woodcut_only = tick_economy_core_with_woodcut(&regions, &counts, &[], &[0.0], &[0], 1, &[0, 0], &config, 1.0,
+        false, Some(&delivery), &[], Some(&crew));
+    let null_retail = tick_economy_core_with_inputs(&regions, &counts, &[], &[0.0], &[0], 1, &[0, 0], &config, 1.0,
+        false, Some(&delivery), &[], Some(&crew), Some(&[None, None]));
+    let both = tick_economy_core_with_inputs(&regions, &counts, &[], &[0.0], &[0], 1, &[0, 0], &config, 1.0,
+        false, Some(&delivery), &[], Some(&crew), Some(&rows));
+    assert_eq!(bits(&null_retail), bits(&woodcut_only));
+    let (w, b) = (&woodcut_only.region_results, &both.region_results);
+    assert!(w[1].woodcut_output > 0.0 && w[0].woodcut_labor_away_delivered == 3.0);
+    // Retail changes neither the labour nor what the land and the crew produce.
+    for ri in 0..2 {
+        assert_eq!(b[ri].slot_output.map(f32::to_bits), w[ri].slot_output.map(f32::to_bits));
+        assert_eq!(b[ri].woodcut_output.to_bits(), w[ri].woodcut_output.to_bits());
+        assert_eq!(b[ri].woodcut_labor_away_delivered.to_bits(), w[ri].woodcut_labor_away_delivered.to_bits());
+    }
+    // The forest (not a pilot) keeps every food output; the crew-reduced home
+    // harvest (9 of 12 farmers) is titled at θ.
+    assert_eq!(b[1].stockpile.map(f32::to_bits), w[1].stockpile.map(f32::to_bits));
+    assert_eq!(b[1].food_ledger.map(f64::to_bits), w[1].food_ledger.map(f64::to_bits));
+    let rt = both.retail.as_ref().unwrap()[0].as_ref().unwrap();
+    assert_eq!(w[0].slot_output[0], 9.0);
+    assert!((rt.titled[SLOT_GRAIN] - 0.9 * 9.0).abs() < 1e-5);
+    assert_owned_closes(&both, &rows);
+    assert_food_balance_with(&b[0].food_ledger, early(rt));
+    assert!(both.retail.as_ref().unwrap()[1].is_none());
 }
 
 #[test]

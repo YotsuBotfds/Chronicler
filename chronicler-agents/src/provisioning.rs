@@ -362,6 +362,16 @@ pub const RETAIL_MODE_FREE_EXCHANGE: u8 = 2;
 pub const RETAIL_STATUS_FED: u8 = 0;
 pub const RETAIL_STATUS_PRICED_OUT: u8 = 1;
 pub const RETAIL_STATUS_OFFER_SHORT: u8 = 2;
+/// Below the fair share with cash in hand while a dead owner's claim was
+/// withheld in the region (the one source of an unreachable fair share once
+/// sufficiency counts exactly the food offered).
+pub const RETAIL_STATUS_WITHHELD_DEAD: u8 = 3;
+
+/// Within one milli-food of a full ration (the fed tolerance): a full ration.
+#[inline]
+fn full_ration(ration: f64, milli_food_per_ration: f64) -> bool {
+    (1.0 - ration) * milli_food_per_ration < 1.0 + 1e-6
+}
 /// Most milli-units one ration may cost, milli-food one claim may hold, and
 /// claims one install may carry.
 pub const RETAIL_MAX_PRICE_MILLI: i64 = 1_000_000_000;
@@ -499,12 +509,16 @@ pub struct RetailRegionRow {
     pub offer_short_persons: u32,
     pub offer_short_children: u32,
     pub offer_short_deficit: f64,
+    pub withheld_dead_households: u32,
+    pub withheld_dead_persons: u32,
+    pub withheld_dead_children: u32,
+    pub withheld_dead_deficit: f64,
 }
 
 /// Column names of [`RetailRegionRow::row`], in order: food in milli-food,
 /// money in milli-units (`_milli`), rations as fractions of one ration.
 /// `own_eaten_milli` and `sold_milli` are the two rounds together.
-pub const RETAIL_REGION_COLUMNS: [&str; 51] = [
+pub const RETAIL_REGION_COLUMNS: [&str; 55] = [
     "region", "mode", "phase2_alive", "persons", "households", "children", "sufficiency", "fair_share",
     "price_quoted_milli", "price_milli", "milli_food_per_ration", "free_rations", "free_living", "free_given",
     "free_unallocated", "free_to_priority", "priority_households", "claims", "present_claims",
@@ -512,7 +526,8 @@ pub const RETAIL_REGION_COLUMNS: [&str; 51] = [
     "sold_open_milli", "unsold_milli", "demand_fair_milli", "demand_open_milli", "buying_households", "sellers",
     "paid_milli", "credited_milli", "refunded_milli", "refused_ceiling_milli", "rations", "fed_fair", "full_ration", "min_ration", "max_ration", "deficit", "priced_out_households",
     "priced_out_persons", "priced_out_children", "priced_out_deficit", "offer_short_households",
-    "offer_short_persons", "offer_short_children", "offer_short_deficit",
+    "offer_short_persons", "offer_short_children", "offer_short_deficit", "withheld_dead_households",
+    "withheld_dead_persons", "withheld_dead_children", "withheld_dead_deficit",
 ];
 
 impl RetailRegionRow {
@@ -534,7 +549,8 @@ impl RetailRegionRow {
             self.fed_fair as f64, self.full_ration as f64, self.min_ration, self.max_ration, self.deficit,
             self.priced_out_households as f64, self.priced_out_persons as f64, self.priced_out_children as f64,
             self.priced_out_deficit, self.offer_short_households as f64, self.offer_short_persons as f64,
-            self.offer_short_children as f64, self.offer_short_deficit,
+            self.offer_short_children as f64, self.offer_short_deficit, self.withheld_dead_households as f64,
+            self.withheld_dead_persons as f64, self.withheld_dead_children as f64, self.withheld_dead_deficit,
         ]
     }
 }
@@ -645,6 +661,29 @@ fn buy_round(hhs: &mut [RetailHousehold], cap: &[i64], own: &[i64], bought: &mut
     (total, sold_now)
 }
 
+/// Checks the tick makes on the pending retail installs before anything
+/// changes: purchases are settled once per turn (the turn's `food_purchase`
+/// key must be unused unless the mode pays nothing), and the farm income
+/// replacement covers only pilot regions of the retail install (no region
+/// without one), except under `free_exchange`.
+pub fn check_retail_tick(pool: &AgentPool, turn: u32) -> Result<(), &'static str> {
+    if let Some(cfg) = &pool.retail_config {
+        if cfg.mode != RETAIL_MODE_FREE_EXCHANGE && pool.wealth_transfer_log.iter()
+            .any(|&(t, p, b)| p == crate::wealth_transfer::PURPOSE_FOOD_PURCHASE && b == 0 && t >= turn) {
+            return Err("household food purchases already settled for this turn");
+        }
+    }
+    if let Some(income) = &pool.retail_income {
+        let free_exchange = pool.retail_config.as_ref().is_some_and(|c| c.mode == RETAIL_MODE_FREE_EXCHANGE);
+        let pilot = |r: usize| pool.retail_config.as_ref()
+            .is_some_and(|c| c.regions.iter().any(|o| o.region as usize == r));
+        if !free_exchange && income.regions.iter().enumerate().any(|(r, &on)| on && !pilot(r)) {
+            return Err("retail income regions must be pilot regions of the retail install");
+        }
+    }
+    Ok(())
+}
+
 /// Household retail at phase 0.7, right after the L2 allocation `l2` it
 /// extends: in each pilot region of `cfg` it allocates the free pool, runs
 /// the fair-share round (own food, then purchases) and the open round to one
@@ -669,9 +708,18 @@ fn buy_round(hhs: &mut [RetailHousehold], cap: &[i64], own: &[i64], bought: &mut
 /// 3. Fair-share round, purchases (see [`buy_round`]), limited by cash over
 ///    price; at price 0 nothing limits them.
 /// 4. Open round: own food, then purchases, up to one ration.
-/// 5. Rations: free plus own plus bought. A person at a full ration reads the
-///    regional signal where the region is not short (abundance kept), 1.0
-///    otherwise; anyone below reads their ration.
+/// 5. Rations: free plus own plus bought. A person within one milli-food of a
+///    full ration (the fed tolerance) has a full ration and reads the regional
+///    signal where the region is not short (abundance kept), 1.0 otherwise;
+///    anyone below reads their ration. Status: fed within one milli-food of
+///    `cf`; else priced out when the household's fair-share purchases were
+///    cash-limited; else withheld_dead when a dead owner's claim was withheld
+///    in the region; else offer short.
+///
+/// Phase 2 counts in sufficiency exactly the owned food offered here (the
+/// carried stock decays and is capped before sufficiency; this turn's title
+/// whole), so with nothing withheld the free and offered food together cover
+/// `cf` for everyone alive.
 ///
 /// A dead buyer is not among the people. A claim whose owner is no longer
 /// alive (died after Phase 2; a reused slot is another person by the stable-id
@@ -679,8 +727,10 @@ fn buy_round(hhs: &mut [RetailHousehold], cap: &[i64], own: &[i64], bought: &mut
 /// pass to the heirs, and counted in `withheld_dead_milli` (part of
 /// `unsold_milli`). A living owner's claim away from home is only for sale. Each household
 /// pays `ceil(bought x price / ration)` milli-units, which its cash covers.
+/// Refused, with nothing changed, when this turn's purchases were already
+/// settled (the `food_purchase` key of the turn is consumed).
 pub fn retail(pool: &mut AgentPool, regions: &[RegionState], l2: &ProvisionConfig, cfg: &RetailConfig,
-              turn: u32) -> RetailFrame {
+              turn: u32) -> Result<RetailFrame, &'static str> {
     let rf = cfg.milli_food_per_ration as f64;
     let n_claims = cfg.claims.len();
     let mut left: Vec<i64> = cfg.claims.iter().map(|c| c.2).collect();
@@ -877,6 +927,7 @@ pub fn retail(pool: &mut AgentPool, regions: &[RegionState], l2: &ProvisionConfi
             row.min_ration = if n > 0 { f64::INFINITY } else { 0.0 };
             let mut priced_out_hh = std::collections::BTreeSet::new();
             let mut offer_short_hh = std::collections::BTreeSet::new();
+            let mut withheld_hh = std::collections::BTreeSet::new();
             for (i, p) in people.iter().enumerate() {
                 let ration = (free[i] + (own[i] + bought[i]) as f64 / rf).clamp(0.0, 1.0);
                 let short = (cf - ration).max(0.0);
@@ -885,13 +936,15 @@ pub fn retail(pool: &mut AgentPool, regions: &[RegionState], l2: &ProvisionConfi
                     RETAIL_STATUS_FED
                 } else if h.cash_limited {
                     RETAIL_STATUS_PRICED_OUT
+                } else if row.withheld_dead_milli > 0 {
+                    RETAIL_STATUS_WITHHELD_DEAD
                 } else {
                     RETAIL_STATUS_OFFER_SHORT
                 };
                 row.rations += ration;
                 row.min_ration = row.min_ration.min(ration);
                 row.max_ration = row.max_ration.max(ration);
-                if ration >= 1.0 - 1e-9 { row.full_ration += 1; }
+                if full_ration(ration, rf) { row.full_ration += 1; }
                 match status {
                     RETAIL_STATUS_FED => row.fed_fair += 1,
                     RETAIL_STATUS_PRICED_OUT => {
@@ -899,6 +952,12 @@ pub fn retail(pool: &mut AgentPool, regions: &[RegionState], l2: &ProvisionConfi
                         row.priced_out_children += p.child as u32;
                         row.priced_out_deficit += short;
                         priced_out_hh.insert(h.key);
+                    }
+                    RETAIL_STATUS_WITHHELD_DEAD => {
+                        row.withheld_dead_persons += 1;
+                        row.withheld_dead_children += p.child as u32;
+                        row.withheld_dead_deficit += short;
+                        withheld_hh.insert(h.key);
                     }
                     _ => {
                         row.offer_short_persons += 1;
@@ -911,7 +970,8 @@ pub fn retail(pool: &mut AgentPool, regions: &[RegionState], l2: &ProvisionConfi
             }
             row.priced_out_households = priced_out_hh.len() as u32;
             row.offer_short_households = offer_short_hh.len() as u32;
-            row.deficit = row.priced_out_deficit + row.offer_short_deficit;
+            row.withheld_dead_households = withheld_hh.len() as u32;
+            row.deficit = row.priced_out_deficit + row.offer_short_deficit + row.withheld_dead_deficit;
             works.push(RetailRegionWork { row, purchase, people: out });
         }
     }
@@ -919,7 +979,7 @@ pub fn retail(pool: &mut AgentPool, regions: &[RegionState], l2: &ProvisionConfi
     let mut frame = RetailFrame { source_turn: cfg.source_turn, mode: cfg.mode, ..Default::default() };
     if cfg.mode != RETAIL_MODE_FREE_EXCHANGE {
         let purchases: Vec<crate::wealth_transfer::FoodPurchases> = works.iter().map(|w| w.purchase.clone()).collect();
-        let (money, book) = crate::wealth_transfer::settle_food_purchases(pool, turn, &purchases);
+        let (money, book) = crate::wealth_transfer::settle_food_purchases(pool, turn, &purchases)?;
         for (w, m) in works.iter_mut().zip(money) {
             w.row.paid_milli = m.paid;
             w.row.credited_milli = m.credited;
@@ -935,7 +995,7 @@ pub fn retail(pool: &mut AgentPool, regions: &[RegionState], l2: &ProvisionConfi
         let abundant = w.row.sufficiency >= 1.0;
         for &(slot, id, household, _child, ration, status) in &w.people {
             if slot < pool.food_access.len() {
-                pool.food_access[slot] = if ration >= 1.0 - 1e-9 {
+                pool.food_access[slot] = if full_ration(ration, rf) {
                     if abundant { f32::NAN } else { 1.0 }
                 } else {
                     ration as f32
@@ -952,7 +1012,7 @@ pub fn retail(pool: &mut AgentPool, regions: &[RegionState], l2: &ProvisionConfi
     frame.claims = by_claim_region.values().flatten()
         .map(|&c| (cfg.claims[c].0, cfg.claims[c].1, eaten[c], sold[c])).collect();
     frame.regions = works.into_iter().map(|w| w.row).collect();
-    frame
+    Ok(frame)
 }
 
 #[cfg(test)]
@@ -1127,7 +1187,7 @@ mod tests {
     /// As the tick does at phase 0.7: L2 first, then retail.
     fn sell(pool: &mut AgentPool, regions: &[RegionState], l2: &ProvisionConfig, rc: &RetailConfig) -> RetailFrame {
         install(pool, regions, l2);
-        let frame = retail(pool, regions, l2, rc, 3);
+        let frame = retail(pool, regions, l2, rc, 3).expect("retail settles");
         assert_closes(&frame, rc);
         frame
     }
@@ -1155,8 +1215,11 @@ mod tests {
             assert_eq!(row.refunded_milli, row.refused_ceiling_milli);
             assert!(row.withheld_dead_milli <= row.unsold_milli && row.withheld_dead_claims <= row.claims);
             assert!(row.min_ration >= 0.0 && row.max_ration <= 1.0);
-            assert!((row.deficit - row.priced_out_deficit - row.offer_short_deficit).abs() < 1e-12);
-            assert_eq!(row.fed_fair + row.priced_out_persons + row.offer_short_persons, row.persons);
+            assert!((row.deficit - row.priced_out_deficit - row.offer_short_deficit - row.withheld_dead_deficit).abs() < 1e-12);
+            assert_eq!(row.fed_fair + row.priced_out_persons + row.offer_short_persons + row.withheld_dead_persons,
+                       row.persons);
+            // A shortfall is withheld_dead only where a dead owner's claim was withheld.
+            assert!(row.withheld_dead_persons == 0 || row.withheld_dead_milli > 0);
             let claims: Vec<_> = frame.claims.iter().filter(|c| c.1 == row.region).collect();
             assert_eq!(claims.len() as u32, row.claims);
             assert_eq!(claims.iter().map(|c| c.2).sum::<i64>(), row.own_eaten_fair_milli + row.own_eaten_open_milli);
@@ -1329,10 +1392,15 @@ mod tests {
         assert!(f.money.is_empty());
         assert_eq!(milli(&pool, 1), 10_000);
         // L, means-tested, takes the free 0.2 and eats its own 100 (0.4, priced
-        // out of the rest); B, with cash, finds nothing on offer.
+        // out of the rest); B, with cash, finds nothing on offer because the
+        // dead owner's food was withheld: classified withheld_dead, never
+        // offer_short.
         assert_eq!(access(&pool, 1), 0.0);
         assert!((access(&pool, 3) - 0.4).abs() < 1e-6);
-        assert_eq!((row.offer_short_persons, row.priced_out_persons), (1, 1));
+        assert_eq!((row.offer_short_persons, row.priced_out_persons, row.withheld_dead_persons), (0, 1, 1));
+        assert_eq!((row.withheld_dead_households, row.withheld_dead_children), (1, 0));
+        assert!((row.withheld_dead_deficit - 0.6).abs() < 1e-6);
+        assert_eq!(f.sample.iter().find(|s| s.0 == b).unwrap().5, RETAIL_STATUS_WITHHELD_DEAD);
         assert!(f.sample.iter().all(|s| s.0 == b || s.0 == l) && f.sample.iter().all(|s| s.0 != d));
     }
 
@@ -1519,5 +1587,117 @@ mod tests {
         assert!(bad.iter().all(Result::is_err));
         // Offers are kept by region.
         assert_eq!(ok().unwrap().regions.iter().map(|o| o.region).collect::<Vec<_>>(), vec![0, 2]);
+    }
+
+    // --- review D -----------------------------------------------------------
+
+    #[test]
+    fn a_fractional_free_share_in_an_abundant_region_still_reads_the_signal() {
+        // Reviewer D's case: owner O with plenty, three buyers with cash,
+        // regional sufficiency 1.4, one free ration for N2 = 4. The free third
+        // leaves each buyer 0.9993 of a ration after whole milli-food purchases;
+        // within one milli-food that is a full ration and reads the signal.
+        let (mut pool, regions) = world(&[(0, 30, 0.0), (0, 30, 10.0), (0, 30, 10.0), (0, 30, 10.0)], &[1.4]);
+        let o = pool.ids[0];
+        let rc = offer(RETAIL_MODE_RETAIL, vec![(0, 400, 1.0)], vec![(o, 0, 5000)], 1);
+        let f = sell(&mut pool, &regions, &l2_equal(vec![4]), &rc);
+        let row = &f.regions[0];
+        for slot in 0..4 {
+            assert!(access(&pool, slot).is_nan(), "slot {slot} reads {}", access(&pool, slot));
+            assert_eq!(food_for(&pool, slot, 1.4), 1.4);
+        }
+        assert_eq!((row.full_ration, row.fed_fair), (4, 4));
+        assert!(row.min_ration < 1.0 && row.min_ration > 1.0 - 1.0 / R as f64);
+        // In a short region a nearly full ration reads 1.0.
+        let (mut pool, regions) = world(&[(0, 30, 0.0), (0, 30, 10.0), (0, 30, 10.0), (0, 30, 10.0)], &[0.999]);
+        let rc = offer(RETAIL_MODE_RETAIL, vec![(0, 400, 1.0)], vec![(pool.ids[0], 0, 5000)], 1);
+        sell(&mut pool, &regions, &l2_equal(vec![4]), &rc);
+        assert!((1..4).all(|slot| access(&pool, slot) == 1.0));
+    }
+
+    #[test]
+    fn a_household_sells_in_the_fair_round_and_buys_in_the_open_round() {
+        // A (cash) owns 400 at cf = 0.6: eats its 300 and offers 100; B wants
+        // 300; C, absent, offers 600.
+        let (mut pool, regions) = world(&[(0, 30, 10.0), (0, 30, 10.0), (1, 30, 0.0)], &[0.6, 1.0]);
+        let (a, b, c) = (pool.ids[0], pool.ids[1], pool.ids[2]);
+        let rc = offer(RETAIL_MODE_RETAIL, vec![(0, 250, 0.0)], vec![(a, 0, 400), (c, 0, 600)], 2);
+        let f = sell(&mut pool, &regions, &l2_equal(vec![2, 1]), &rc);
+        // Fair round: B's 300 from A's 100 and C's 600 pro rata: 43 and 257.
+        // Open round: A eats its last 57, then buys 143; B buys 200; C sells 343.
+        assert_eq!(f.claims, vec![(a, 0, 357, 43), (c, 0, 0, 600)]);
+        assert_eq!((access(&pool, 0), access(&pool, 1)), (1.0, 1.0));
+        // A pays 72 for its 143 and is credited 22 of the 322 paid for its 43.
+        assert_eq!(f.money, vec![(a, 72, 22, 0), (b, 250, 0, 0), (c, 0, 300, 0)]);
+        assert_eq!(milli(&pool, 0), 10_000 - 72 + 22);
+    }
+
+    #[test]
+    fn cash_and_a_short_offer_binding_together_classify_as_priced_out() {
+        // B1 can afford 100 milli-food, B2 plenty; C, absent, offers 200 at cf = 0.6.
+        let (mut pool, regions) = world(&[(0, 30, 0.05), (0, 30, 10.0), (1, 30, 0.0)], &[0.6, 1.0]);
+        let c = pool.ids[2];
+        let rc = offer(RETAIL_MODE_RETAIL, vec![(0, 250, 0.0)], vec![(c, 0, 200)], 2);
+        let f = sell(&mut pool, &regions, &l2_equal(vec![2, 1]), &rc);
+        let row = &f.regions[0];
+        // Demand 100 + 300 > 200: split 50 and 150. B1 is limited by both and
+        // reads priced out; B2 by the offer only.
+        assert_eq!((row.demand_fair_milli, row.sold_fair_milli), (400, 200));
+        assert!((access(&pool, 0) - 0.1).abs() < 1e-6 && (access(&pool, 1) - 0.3).abs() < 1e-6);
+        let status = |id: u32| f.sample.iter().find(|s| s.0 == id).unwrap().5;
+        assert_eq!(status(pool.ids[0]), RETAIL_STATUS_PRICED_OUT);
+        assert_eq!(status(pool.ids[1]), RETAIL_STATUS_OFFER_SHORT);
+        assert_eq!((row.priced_out_persons, row.offer_short_persons, row.withheld_dead_persons), (1, 1, 0));
+    }
+
+    #[test]
+    fn retail_is_refused_unchanged_when_the_turns_purchases_were_settled() {
+        let (mut pool, regions) = world(&[(0, 30, 0.0), (0, 30, 10.0)], &[0.6]);
+        let a = pool.ids[0];
+        let rc = offer(RETAIL_MODE_RETAIL, vec![(0, 250, 0.0)], vec![(a, 0, 700)], 1);
+        let l2 = l2_equal(vec![2]);
+        sell(&mut pool, &regions, &l2, &rc);
+        let wealth = (milli(&pool, 0), milli(&pool, 1));
+        let access_before = pool.food_access.clone();
+        install(&mut pool, &regions, &l2);
+        let installed = pool.food_access.clone();
+        assert!(retail(&mut pool, &regions, &l2, &rc, 3).is_err());
+        assert_eq!((milli(&pool, 0), milli(&pool, 1)), wealth);
+        assert_eq!(pool.food_access, installed);
+        assert_ne!(access_before, installed);
+        // free_exchange moves no money and needs no key.
+        let free = offer(RETAIL_MODE_FREE_EXCHANGE, vec![(0, 250, 0.0)], vec![(a, 0, 700)], 1);
+        assert!(retail(&mut pool, &regions, &l2, &free, 3).is_ok());
+    }
+
+    #[test]
+    fn the_tick_checks_the_purchase_key_and_the_income_regions() {
+        let (mut pool, _) = world(&[(0, 30, 1.0), (1, 30, 1.0)], &[0.6, 0.6]);
+        assert!(check_retail_tick(&pool, 4).is_ok());
+        // Income for a region without a retail install, or outside its regions.
+        crate::wealth_transfer::install_retail_income(&mut pool, 4, &[1], 2).unwrap();
+        assert!(check_retail_tick(&pool, 4).is_err());
+        pool.retail_config = Some(RetailConfig::new(4, RETAIL_MODE_RETAIL, R, vec![(0, 250, 0.0)], vec![], 2).unwrap());
+        assert!(check_retail_tick(&pool, 4).is_err());
+        pool.retail_config = Some(RetailConfig::new(4, RETAIL_MODE_RETAIL, R, vec![(0, 250, 0.0), (1, 250, 0.0)],
+                                                    vec![], 2).unwrap());
+        assert!(check_retail_tick(&pool, 4).is_ok());
+        pool.retail_config = Some(RetailConfig::new(4, RETAIL_MODE_FREE_EXCHANGE, R, vec![(0, 250, 0.0)], vec![], 2).unwrap());
+        assert!(check_retail_tick(&pool, 4).is_ok());          // not checked under free_exchange
+        pool.retail_income = None;
+        crate::wealth_transfer::install_retail_income(&mut pool, 4, &[], 2).unwrap();
+        pool.retail_config = None;
+        assert!(check_retail_tick(&pool, 4).is_ok());          // an empty install needs no pilot
+        // The purchase key of the turn (or a later one) already consumed.
+        pool.retail_income = None;
+        pool.retail_config = Some(RetailConfig::new(4, RETAIL_MODE_NO_RELIEF, R, vec![(0, 250, 0.0)], vec![], 2).unwrap());
+        pool.wealth_transfer_log.push((4, crate::wealth_transfer::PURPOSE_FOOD_PURCHASE, 0));
+        assert!(check_retail_tick(&pool, 4).is_err());
+        assert!(check_retail_tick(&pool, 5).is_ok());
+        pool.wealth_transfer_log = vec![(4, crate::wealth_transfer::PURPOSE_FOOD_PURCHASE, 1)];
+        assert!(check_retail_tick(&pool, 4).is_ok());          // another batch
+        pool.wealth_transfer_log = vec![(4, crate::wealth_transfer::PURPOSE_FOOD_PURCHASE, 0)];
+        pool.retail_config = Some(RetailConfig::new(4, RETAIL_MODE_FREE_EXCHANGE, R, vec![(0, 250, 0.0)], vec![], 2).unwrap());
+        assert!(check_retail_tick(&pool, 4).is_ok());
     }
 }
