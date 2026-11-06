@@ -65,8 +65,9 @@ SETTINGS: dict[str, str] = {
     "no_household_mobility_liquid_requirement": (
         "no household-mobility liquid requirement (--household-mobility-liquid-requirement unset or 0)"),
     "procedural_world": (
-        "a procedural world (template worlds have no elevation); a live start cannot guarantee one, "
-        "a Batch Lab world is procedural above 12 regions"),
+        "a procedural world (template worlds have no elevation): in Batch Lab, a batch of more than "
+        "12 regions; on a live start, only when the server was started with --watershed (a start "
+        "asking for 12 regions or fewer is then refused by the run)"),
 }
 
 
@@ -247,9 +248,11 @@ def live_surface(args: Any = None) -> dict:
             "cities": _cities_default() if cities is None else bool(cities),
             "techniques": _techniques_default() if techniques is None else bool(techniques),
             "no_household_mobility_liquid_requirement": not mobility > 0,
-            # The client's start message chooses the world, so the server's
-            # surface cannot promise a procedural one.
-            "procedural_world": False,
+            # The client's start message chooses the world, which this static
+            # surface cannot see. A server started with --watershed keeps it on
+            # every live start (the run refuses a template world explicitly);
+            # otherwise a live start cannot ask for it.
+            "procedural_world": getattr(args, "watershed", None) is True,
         },
         "new_worlds_only": True,
     }
@@ -275,7 +278,9 @@ def batch_surface(client_defaults: Mapping[str, Any], config: Mapping[str, Any] 
             values[name] = value
     techniques = _batch_value("techniques", client_defaults, config)
     agents = client_defaults.get("agents", "off")
-    # Batch Lab runs pass no --worldgen: ``auto`` is procedural above 12 regions.
+    # Batch Lab runs pass no --worldgen: ``auto`` is procedural above 12 regions
+    # (the batch config's regions, else the batch default; the viewer
+    # recomputes this from the regions it will send).
     from chronicler.world_gen import resolve_worldgen
     regions = _batch_value("regions", client_defaults, config) or 8
     return {

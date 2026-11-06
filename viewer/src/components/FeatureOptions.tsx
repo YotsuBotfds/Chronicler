@@ -23,6 +23,7 @@ import {
   type FeatureSurface,
   type FeatureSurfaceName,
 } from "../lib/featureCatalog";
+import { surfaceForWorld, type FeatureWorld } from "../lib/featureWorld";
 
 export interface FeatureOptionsProps {
   /** The lobby message's `feature_catalog` field, unread. */
@@ -36,6 +37,8 @@ export interface FeatureOptionsProps {
   disabled?: boolean;
   /** Why no feature can be requested right now (shown, everything disabled). */
   unavailable?: string | null;
+  /** Batch Lab: the world the batch will request (settings that depend on it are recomputed). */
+  world?: FeatureWorld;
 }
 
 const WRAP = "min-w-0 max-w-full [overflow-wrap:anywhere]";
@@ -58,6 +61,7 @@ export function FeatureOptions({
   onAgentsChange,
   disabled = false,
   unavailable = null,
+  world,
 }: FeatureOptionsProps) {
   const reading = useMemo(() => readFeatureCatalog(raw), [raw]);
   const [open, setOpen] = useState(false);
@@ -74,7 +78,7 @@ export function FeatureOptions({
   }
   const catalog = reading.catalog;
   if (catalog.features.length === 0) return null;
-  const surface = catalog.surfaces[surfaceName];
+  const surface = surfaceForWorld(catalog.surfaces[surfaceName], surfaceName, world);
   const agents = agentsOverride ?? surface.agents;
   const count = Object.keys(selection).length;
 
