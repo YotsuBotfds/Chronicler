@@ -4,7 +4,7 @@ import large from "../../__fixtures__/watershed_large_records.json";
 import type { Bundle, TurnSnapshot } from "../../types";
 import {
   carriesWatershed, drainsTo, readWatershed, readWatershedRun, watershedOn, watershedOutflow, watershedRegionValue,
-  type WatershedAudit,
+  watershedRunMode, type WatershedAudit,
 } from "../watershed";
 import { inspectRegionHistory, regionMetrics } from "../regionHistory";
 
@@ -210,5 +210,24 @@ describe("readWatershed, flow mode (B2)", () => {
     const recordOnly = copy(1);                           // a record_only record may not carry flow keys
     record(recordOnly).superseded = [];
     expect(reason(recordOnly)).toBe("a record-only record with superseded floods");
+  });
+
+  it("labels the region history by the run's mode: in flow the derived index is the index used", () => {
+    const bundle = (h: TurnSnapshot[], regions: string[]) => {
+      for (const s of h) (s as unknown as { region_control: Record<string, string> }).region_control = {};
+      return { world_state: { regions: regions.map((name) => ({ name })) }, history: h, named_events: [],
+        events_timeline: [] } as unknown as Bundle;
+    };
+    expect(watershedRunMode(flow)).toBe("flow");
+    expect(watershedRunMode(snapshots)).toBe("record_only");
+    expect(watershedRunMode([{ turn: 1, livelihoods: { schema_version: 1 } } as unknown as TurnSnapshot])).toBeNull();
+    const label = (h: TurnSnapshot[], regions: string[]) =>
+      regionMetrics(bundle(structuredClone(h), regions)).find((m) => m.id === "watershed:index_derived")!.label;
+    expect(label(flow, flowNatural.regions)).toBe("Water index the watershed account derived (flow: the index used)");
+    expect(label(snapshots, natural.regions)).toBe("Water index the watershed account would derive (record only)");
+    const metric = regionMetrics(bundle(structuredClone(flow), flowNatural.regions)).find((m) => m.id === "watershed:index_derived")!;
+    const rows = inspectRegionHistory(bundle(structuredClone(flow), flowNatural.regions), flowNatural.regions[0], metric, 0, 300).rows;
+    expect(rows.length).toBe(flow.length);
+    expect(rows.every((r) => r.value !== null)).toBe(true);
   });
 });

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import fixture from "../../__fixtures__/region_inspection_bundle.json";
+import flowRecords from "../../__fixtures__/watershed_flow_records.json";
 import type { Bundle } from "../../types";
 import { RegionHistoryInspector } from "../RegionHistoryInspector";
 
@@ -56,5 +57,19 @@ describe("RegionHistoryInspector", () => {
     expect(screen.getByText("51–100 of 120 observations")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Through turn"), { target: { value: "3" } });
     expect(screen.getByText("1–3 of 3 observations")).toBeInTheDocument();
+  });
+
+  it("explains the watershed history by the run's mode: in flow the derived index is the index used", () => {
+    const flow = structuredClone(bundle);
+    flow.history = flowRecords.snapshots.map((s) => ({ ...structuredClone(bundle.history[0]), ...structuredClone(s),
+      region_control: {} })) as unknown as Bundle["history"];
+    flow.world_state.regions = flowRecords.regions.map((name) => ({ ...bundle.world_state.regions[0], name }));
+    flow.world_state.turn = 200;
+    flow.metadata.total_turns = 200;
+    render(<RegionHistoryInspector bundle={flow} currentTurn={1} onSeek={() => {}} />);
+    fireEvent.change(screen.getByLabelText("Metric"), { target: { value: "watershed:index_derived" } });
+    expect(screen.getByRole("option", { name: "Water index the watershed account derived (flow: the index used)" })).toBeInTheDocument();
+    expect(screen.getByText(/Watershed account \(flow\): the derived index is the water index the simulation used/)).toBeInTheDocument();
+    expect(screen.queryByText(/calibration observation/)).not.toBeInTheDocument();
   });
 });

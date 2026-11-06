@@ -71,6 +71,19 @@ export function watershedOn(history: readonly TurnSnapshot[] | null | undefined)
   return Array.isArray(history) && history.some((snapshot) => carriesWatershed(snapshot));
 }
 
+/** The run's mode, from the first record naming a known one (a mode cannot change on resume);
+ * null when the run is off or no record names one. Labels only: each record is still read strictly. */
+export function watershedRunMode(history: readonly TurnSnapshot[] | null | undefined): "record_only" | "flow" | null {
+  if (!Array.isArray(history)) return null;
+  for (const snapshot of history) {
+    if (!carriesWatershed(snapshot)) continue;
+    const record = (snapshot as unknown as { livelihoods: Record<string, unknown> }).livelihoods.watershed;
+    const mode = object(record) ? record.mode : undefined;
+    if (mode === "record_only" || mode === "flow") return mode;
+  }
+  return null;
+}
+
 function graphProblem(graph: unknown, regions: number): string | null {
   if (!object(graph) || graph.sea !== SEA || graph.sink !== SINK || graph.lake !== LAKE || !count(graph.river_steps)
     || !Array.isArray(graph.down) || graph.down.length !== regions) return "malformed drainage graph";

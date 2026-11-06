@@ -6,6 +6,7 @@ import {
   inspectRegionEvents, inspectRegionHistory, recordedTurnBounds, regionMetrics, regionNames,
   type RegionHistoryEvent, type RegionHistoryRow,
 } from "../lib/regionHistory";
+import { watershedRunMode } from "../lib/watershed";
 import "./region-history.css";
 import { TurnChanges } from "./TurnChanges";
 import type { Event } from "../types";
@@ -74,6 +75,7 @@ function Results({ rows, events, currentTurn, onSeek, maxTurn }: {
 export function RegionHistoryInspector({ bundle, artifactIdentity, selectedRegion, selectedCivilization, currentTurn, onSeek, onSelectEvent, onSelectEntity }: Props) {
   const names = useMemo(() => regionNames(bundle), [bundle]);
   const metrics = useMemo(() => regionMetrics(bundle), [bundle]);
+  const watershedMode = useMemo(() => watershedRunMode(bundle.history), [bundle]);
   const [first, last] = useMemo(() => recordedTurnBounds(bundle), [bundle]);
   const [localRegion, setRegion] = useState(selectedRegion ?? names[0] ?? "");
   const region = onSelectEntity && selectedRegion && names.includes(selectedRegion) ? selectedRegion : localRegion;
@@ -125,7 +127,9 @@ export function RegionHistoryInspector({ bundle, artifactIdentity, selectedRegio
     </div>
     {!validRange ? <p role="alert">Choose whole turns from {first} through {last}, with the start at or before the end.</p> : <>
       <p role="status" aria-label="Region observation coverage">{observed} recorded values · {inspection.rows.length - observed} missing values · {inspection.unrecordedTurns} turns without observations in this inclusive window. Missing values are not zero.</p>
-      {metric.kind === "watershed" && <p>Watershed account (record only): the derived index is what its uncalibrated water account would set; the simulation used the observed index. A difference is a calibration observation, not an effect. Turns without a settled account stay unknown.</p>}
+      {metric.kind === "watershed" && <p>{watershedMode === "flow"
+        ? "Watershed account (flow): the derived index is the water index the simulation used. The native climate water terms, the irrigation water bonus and the deforestation cascade were switched off, so the observed index equals the derived one up to the native rounding (4 decimals). Turns without a settled account stay unknown."
+        : "Watershed account (record only): the derived index is what its water account would set; the simulation used the observed index. A difference is a calibration observation, not an effect. Turns without a settled account stay unknown."}</p>}
       {metric.kind === "stockpile" && <p>Historical stockpiles are not exported. The final-state observation at turn {bundle.world_state.turn} is shown separately, even when a history snapshot has the same turn. Salt remains a separate good.</p>}
       {metric.kind !== "stockpile" && observed > 0 && <div className="region-history-chart" aria-label={`${metric.label} by recorded turn`}>
         <ResponsiveContainer width="100%" height={220}>

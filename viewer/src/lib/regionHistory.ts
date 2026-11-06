@@ -1,6 +1,6 @@
 import type { Bundle } from "../types";
 import { readRegionalPopulation } from "./regionalPopulation";
-import { readWatershedRun, watershedOn, watershedRegionValue, type WatershedRegionKey } from "./watershed";
+import { readWatershedRun, watershedOn, watershedRegionValue, watershedRunMode, type WatershedRegionKey } from "./watershed";
 
 export interface RegionMetric {
   id: string;
@@ -49,19 +49,24 @@ export function regionMetrics(bundle: Bundle): RegionMetric[] {
     { id: "ecology:soil", label: "Soil", kind: "ecology", key: "soil" },
     { id: "ecology:water", label: "Water", kind: "ecology", key: "water" },
     { id: "ecology:forest_cover", label: "Forest cover", kind: "ecology", key: "forest_cover" },
-    // Offered only when the run records the watershed account (--watershed, record only).
-    ...(watershedOn(bundle.history) ? WATERSHED_METRICS : []),
+    // Offered only when the run records the watershed account (--watershed), labelled by its mode.
+    ...(watershedOn(bundle.history) ? watershedMetrics(watershedRunMode(bundle.history)) : []),
     ...goods.map((good): RegionMetric => ({
       id: `stockpile:${good}`, label: `Stockpile: ${good} (final state only)`, kind: "stockpile", key: good,
     })),
   ];
 }
 
-const WATERSHED_METRICS: RegionMetric[] = [
-  { id: "watershed:index_observed", label: "Water index the simulation used (watershed record)", kind: "watershed", key: "index_observed" },
-  { id: "watershed:index_derived", label: "Water index the watershed account would derive (record only)", kind: "watershed", key: "index_derived" },
-  { id: "watershed:storage", label: "Watershed storage (water units)", kind: "watershed", key: "storage" },
-];
+function watershedMetrics(mode: "record_only" | "flow" | null): RegionMetric[] {
+  const flow = mode === "flow";
+  return [
+    { id: "watershed:index_observed", label: flow ? "Water index the simulation used (watershed record; flow: set by the account)"
+      : "Water index the simulation used (watershed record)", kind: "watershed", key: "index_observed" },
+    { id: "watershed:index_derived", label: flow ? "Water index the watershed account derived (flow: the index used)"
+      : "Water index the watershed account would derive (record only)", kind: "watershed", key: "index_derived" },
+    { id: "watershed:storage", label: "Watershed storage (water units)", kind: "watershed", key: "storage" },
+  ];
+}
 
 export function recordedTurnBounds(bundle: Bundle): [number, number] {
   const turns = [bundle.world_state.turn, ...bundle.history.map((snapshot) => snapshot.turn),
