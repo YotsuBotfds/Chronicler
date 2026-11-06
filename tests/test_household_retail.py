@@ -368,10 +368,10 @@ class Harness:
 
     def economy(self, region_input, production, imports=None):
         """Native Phase 2 under the contract: owned in availability and price,
-        commons-only draw-down; the carried owned stock decays and takes its
-        share of the storage cap at opening, before this turn's title and
-        before sufficiency; the commons decay after the draw-down and are
-        capped at close."""
+        commons-only draw-down; the carried owned stock decays at opening, and
+        the storage cap holds it and the commons together there (both cut pro
+        rata), before this turn's title and before sufficiency; the commons
+        decay after the draw-down and are capped again at close."""
         world = self.world
         cols = {n: region_input.column(n).to_pylist() for n in region_input.schema.names}
         retail = "retail_title_share" in cols
@@ -386,14 +386,17 @@ class Harness:
             opening = sum(commons) + sum(owned)
             rates = [STORAGE_DECAY[g] for g in RETAIL_GOODS]
             cap = 2.5 * region.population
-            # The carried owned stock: decay, then its share of the cap
-            # against the commons on hand, at opening.
+            # The carried owned stock decays; then the cap holds it and the
+            # commons on hand together, both cut pro rata, at opening.
             odec = [float(f32(o * r)) for o, r in zip(owned, rates)]
             owned = [o - d for o, d in zip(owned, odec)]
-            oover = []
+            oover, cover = [], 0.0                           # owned and commons opening overflow
             for g in range(5):
                 both = commons[g] + owned[g]
                 share_o = owned[g] - owned[g] * cap / both if both > cap else 0.0
+                if both > cap:
+                    cover += commons[g] - commons[g] * cap / both
+                    commons[g] *= cap / both
                 oover.append(float(f32(share_o)))
                 owned[g] -= share_o
             titled = [float(f32(theta * p)) if theta is not None else 0.0 for p in prod]
@@ -433,8 +436,9 @@ class Harness:
             # The native food ledger (food units; owned stock in opening and closing).
             closing = (sum(float(region.stockpile.goods.get(g, 0.0)) for g in RETAIL_GOODS)
                        + sum(float(f32(o)) for o in owned))
-            res.food_ledger[rid] = (opening, sum(prod), sum(imp), 0.0, 0.0, opening + sum(prod) + sum(imp),
-                                    draw, sum(cdec) + sum(odec), covered + sum(oover), closing,
+            pre = opening + sum(prod) + sum(imp) - sum(odec) - sum(oover) - cover   # after the opening losses
+            res.food_ledger[rid] = (opening, sum(prod), sum(imp), 0.0, 0.0, pre,
+                                    draw, sum(cdec) + sum(odec), cover + covered + sum(oover), closing,
                                     demand, res.food_sufficiency[name])
         return res
 
@@ -611,6 +615,28 @@ def test_decay_and_overflow_fall_on_the_carried_claims_not_on_the_new_title():
     shares = HR.largest_remainder(flows["titled"], [(1, 1), (2, 1)])
     assert seen[2] == shares[2]
     assert seen[1] == carried[1] - flows["decay"] - flows.get("overflow", 0) + shares[1]
+
+
+def test_the_opening_cap_falls_on_the_carried_claims_and_the_commons_not_on_the_new_title():
+    # A small storage (cap 2.5 x 2 = 5): owner 1 carries far more than the cap;
+    # at the next opening the cap cuts the commons and the carried stock pro
+    # rata. The overflow, like the decay, falls on the opening claims; farmer
+    # 2's new title is credited whole.
+    h = Harness()
+    h.world.regions[VERDANT].population = 2
+    _people(h, VERDANT, (1,), wealth=0.0)
+    h.turn({VERDANT: {"grain": 40.0}})
+    carried = dict(h.state.region(VERDANT).claims)
+    assert carried[1] > 5000
+    _people(h, VERDANT, (2,), wealth=0.0)
+    seen = {}
+    h.turn({VERDANT: {"grain": 10.0}}, between=lambda: seen.update(h.state.region(VERDANT).claims))
+    flows = h.frame(VERDANT).flows
+    assert flows["overflow"] > 0 and flows["decay"] > 0
+    shares = HR.largest_remainder(flows["titled"], [(1, 1), (2, 1)])
+    assert seen[2] == shares[2]
+    assert seen[1] == carried[1] - flows["decay"] - flows["overflow"] + shares[1]
+    assert seen[1] - shares[1] <= 5000                       # what was carried fits the cap
 
 
 def test_opening_stock_and_imports_stay_commons_and_only_new_harvest_is_titled():
