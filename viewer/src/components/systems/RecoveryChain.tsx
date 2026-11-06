@@ -1,7 +1,7 @@
 import { useId, useMemo, useState } from "react";
 import type { SystemPanelProps, StripRow } from "../../lib/systems";
 import {
-  budgetLimits, busiestRegion, CHAIN_PACKAGES, chainTotals, farmLabourAway, LINKS, linkState, PACKAGE_INFO,
+  budgetLimits, fullestChainRegion, CHAIN_PACKAGES, chainTotals, farmLabourAway, LINKS, linkState, PACKAGE_INFO,
   readChainSnapshots, regionChain, type Cell, type ChainTurn, type ExpeditionValue, type LinkKey, type LinkState, type WageRow,
 } from "../../lib/recoveryChain";
 import { StripLegend, TurnStrip } from "./SystemParts";
@@ -32,7 +32,7 @@ const TRADEOFF_LABEL: Partial<Record<LinkKey, string>> = {
 };
 const COLOR = { active: "#3987e5", tradeoff: "#ec835a", unknown: "#8a8a86" } as const;
 const TEXT = { active: "#ffffff", tradeoff: "#0b0b0b", unknown: "#0b0b0b" } as const;
-const ROW_PAGE = 40;
+const ROW_PAGE = 25;
 
 /** Why a cell is not known, plainly. */
 function missing(cell: Cell<unknown>, brief = false): string {
@@ -81,12 +81,12 @@ function expeditionText(t: ChainTurn, names: Names, brief: boolean): string {
   const receipts = new Map((v.receipts ?? []).map((r) => [r.eid, r]));
   const each = v.expeditions.map((e) => {
     const r = receipts.get(e.eid);
-    const turn = v.receipts === null ? "this turn's work unknown" : !r ? "no receipt this turn"
+    const turn = v.receipts === null ? "this turn's work unknown" : !r ? (e.launched_turn === t.turn - 1 ? "launched this turn" : "no receipt this turn")
       : `crew of ${r.crew.length} ${r.stage}${r.cut > 0 ? `, cut ${num(r.cut)}` : ""}`;
     const end = e.status === "delivered" ? `delivered ${num(e.delivered)} of ${num(e.cut)} cut`
       : e.status === "returned" ? "came home with nothing to deliver" : e.status === "abandoned" ? `abandoned (${words(e.end_reason)})` : "";
     if (brief) return `#${e.eid} ${end || turn}`;
-    return `Expedition #${e.eid} to ${names.region(e.forest)} (${e.hops} hops, launched turn ${e.launched_turn}; `
+    return `Expedition #${e.eid} to ${names.region(e.forest)} (${e.hops} ${e.hops === 1 ? "hop" : "hops"}, launched turn ${e.launched_turn}; `
       + `crew ${ids(e.crew)} of ${e.launched_crew.length} launched): ${turn}${end ? `; ${end}` : ""}.`;
   });
   if (brief) {
@@ -278,13 +278,13 @@ function stripSegments(turns: readonly ChainTurn[], key: LinkKey): StripRow["seg
 export function RecoveryChain({ bundle, snapshot, currentTurn, onSeek, onSelectRegion, selectedRegion }: SystemPanelProps) {
   const regions = useMemo(() => bundle.world_state.regions ?? [], [bundle]);
   const read = useMemo(() => readChainSnapshots(bundle), [bundle]);
-  const busiest = useMemo(() => busiestRegion(read.snapshots, regions.length), [read, regions.length]);
+  const fullest = useMemo(() => fullestChainRegion(read.snapshots, regions.length), [read, regions.length]);
   const [chosen, setChosen] = useState<number | null>(null);
   const [everySnapshot, setEverySnapshot] = useState(false);
   const [limit, setLimit] = useState(ROW_PAGE);
   const id = useId();
   const fromMap = selectedRegion ? regions.findIndex((r) => r.name === selectedRegion) : -1;
-  const region = chosen !== null && chosen < regions.length ? chosen : fromMap >= 0 ? fromMap : busiest;
+  const region = chosen !== null && chosen < regions.length ? chosen : fromMap >= 0 ? fromMap : fullest;
   const turns = useMemo(() => regionChain(read.snapshots, region), [read, region]);
   const totals = useMemo(() => chainTotals(turns), [turns]);
   const names: Names = { region: (index) => regions[index]?.name ?? `Region ${index}` };
@@ -319,7 +319,7 @@ export function RecoveryChain({ bundle, snapshot, currentTurn, onSeek, onSelectR
     <div className="phase75-field recovery-chain-field">
       <label htmlFor={`${id}-region`}>Region</label>
       <select id={`${id}-region`} value={region} onChange={(event) => { setChosen(Number(event.target.value)); setLimit(ROW_PAGE); }}>
-        {regions.map((r, index) => <option key={index} value={index}>{r.name}{index === busiest ? " (busiest chain)" : ""}</option>)}
+        {regions.map((r, index) => <option key={index} value={index}>{r.name}{index === fullest ? " (fullest chain)" : ""}</option>)}
       </select>
     </div>
     <p className="systems-note">
@@ -338,15 +338,15 @@ export function RecoveryChain({ bundle, snapshot, currentTurn, onSeek, onSelectR
     </p>
     {now === null
       ? <p className="systems-note">No snapshot of this run is dated {at}; the chain at this turn is unknown.</p>
-      : <div className="systems-table-wrap"><table className="systems-table" aria-label={`Recovery chain in ${name} at snapshot ${at}`}>
+      : <div className="systems-table-wrap"><table className="systems-table recovery-chain-now" aria-label={`Recovery chain in ${name} at snapshot ${at}`}>
         <thead><tr><th>Link</th><th>At snapshot {at}</th><th>Joined by</th><th>Tradeoff</th></tr></thead>
         <tbody>{LINKS.map((l) => {
           const trade = tradeoffs(now, l.key, false);
           return <tr key={l.key} data-link={l.key}>
             <th scope="row">{l.title}</th>
-            <td>{linkText(now, l.key, names, false)}</td>
-            <td>{l.join === "id" ? "Stable id" : "Region only"}: {l.joined.replace(/^by (id|region only): /, "")}</td>
-            <td>{trade.length ? trade.join("; ") : "—"}</td>
+            <td data-label={`At snapshot ${at}`}>{linkText(now, l.key, names, false)}</td>
+            <td data-label="Joined by">{l.join === "id" ? "Stable id" : "Region only"}: {l.joined.replace(/^by (id|region only): /, "")}</td>
+            <td data-label="Tradeoff">{trade.length ? trade.join("; ") : "—"}</td>
           </tr>;
         })}</tbody>
       </table></div>}
@@ -362,7 +362,7 @@ export function RecoveryChain({ bundle, snapshot, currentTurn, onSeek, onSelectR
       onChange={(event) => { setEverySnapshot(event.target.checked); setLimit(ROW_PAGE); }} /> Show every snapshot</label>
     <p className="systems-note">{everySnapshot ? `All ${turns.length} snapshots are listed.`
       : `${shown.length} of ${turns.length} snapshots are listed: those where a link recorded something, and the current one. ${hidden} where every link recorded nothing or is unknown are hidden.`}</p>
-    <div className="systems-table-wrap"><table className="systems-table" aria-label={`Recovery chain in ${name} over snapshots`}>
+    <div className="systems-table-wrap"><table className="systems-table recovery-chain-turns" aria-label={`Recovery chain in ${name} over snapshots`}>
       <thead><tr><th>Snapshot</th>{links.map((l) => <th key={l.key}>{l.title}</th>)}<th>Tradeoffs</th></tr></thead>
       <tbody>{shown.slice(0, limit).map((t) => {
         const trade = links.flatMap((l) => tradeoffs(t, l.key, true));

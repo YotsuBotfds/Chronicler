@@ -21,7 +21,7 @@ const paragraph = (pattern: RegExp) => screen.getByText((_, el) => el?.tagName =
 const turnTable = (region: string) => within(screen.getByRole("table", { name: `Recovery chain in ${region} over snapshots` }));
 
 describe("recovery chain view (natural records, template seed 23)", () => {
-  it("shows the chain of the busiest region at the scrubbed snapshot, each link with how it is joined and its tradeoff", () => {
+  it("shows the region whose chain goes furthest at the scrubbed snapshot, each link with how it is joined and its tradeoff", () => {
     render(<RecoveryChain {...props(chainBundle(), 28)} />);
     expect(screen.getByRole("heading", { name: "Recovery chain · snapshot 28" })).toBeInTheDocument();
     expect(screen.getByLabelText("Region")).toHaveValue("7");
@@ -85,6 +85,9 @@ describe("recovery chain view (natural records, template seed 23)", () => {
     expect(r15).toHaveTextContent("#0 granary: stalled: no free timber");
     expect(r15).toHaveTextContent("2 coins (woodcutters of expedition #0 2)");
     expect(r15).toHaveTextContent("farm labour away: 4 farmer-turns (food sufficiency 0.934)");
+    // Expedition 1 was launched in simulation turn 19 (snapshot 20) as expedition 0 came home empty.
+    const r20 = rows.find((r) => within(r).queryByRole("button", { name: "Seek to snapshot 20" }))!;
+    expect(r20).toHaveTextContent("#1 launched this turn; #0 came home with nothing to deliver");
     fireEvent.click(within(r15).getByRole("button", { name: "Seek to snapshot 15" }));
     expect(p.onSeek).toHaveBeenCalledWith(15);
   });

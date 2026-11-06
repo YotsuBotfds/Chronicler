@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  budgetLimits, busiestRegion, chainTotals, farmLabourAway, hasRecoveryChain, LINKS, linkState, packagesOn, paidWorkers,
+  budgetLimits, fullestChainRegion, chainTotals, farmLabourAway, hasRecoveryChain, incomplete, LINKS, linkState, packagesOn, paidWorkers,
   readChainSnapshots, regionChain, type ChainTurn,
 } from "../recoveryChain";
 import type { Bundle } from "../../types";
@@ -23,7 +23,7 @@ describe("recovery chain over natural records (template seed 23)", () => {
     expect(snapshots.map((s) => s.turn)).toEqual(TURNS);
     for (const s of snapshots) for (const [key, cell] of Object.entries(s.packages)) expect(`${s.turn} ${key} ${cell.state}`).toBe(`${s.turn} ${key} known`);
     expect(hasRecoveryChain(bundle)).toBe(true);
-    expect(busiestRegion(snapshots, 8)).toBe(SAPPHIRE);
+    expect(fullestChainRegion(snapshots, 8)).toBe(SAPPHIRE);
   });
 
   it("follows the stall, the expedition, the delivery, the repair, the wages and the purchases", () => {
@@ -138,6 +138,7 @@ describe("off, unknown and zero", () => {
     expect(wages.pl3.state).toBe("unknown");
     expect(wages.pl1.state).toBe("known");
     expect(linkState(t28, "wages")).toBe("unknown");
+    expect(incomplete(t28, "wages")).toBe(true);
     // The run totals leave the unknown snapshot out and say so.
     const totals = chainTotals(turns);
     expect(totals.wagesMilli.pl3).toBe(26568 - 8000);
@@ -173,6 +174,19 @@ describe("off, unknown and zero", () => {
     }));
     expect(known(at(control, 28).expedition).need).toBe("none");
   });
+});
+
+it("counts a snapshot with one wage source unknown as unknown in the run totals (constructed)", () => {
+  // Snapshot 20 pays both a PL3 granary crew and expedition 0's woodcutters; blank PL3's receipts there.
+  const turns = chain(chainBundle((s) => {
+    if (s.turn === 20) Object.assign(s.livelihoods.recovery_crews, { receipts: null, ledger: null });
+  }));
+  const t20 = at(turns, 20);
+  expect(linkState(t20, "wages")).toBe("active");          // the woodcutters' wages are known
+  expect(incomplete(t20, "wages")).toBe(true);
+  expect(chainTotals(turns).unknown.wages).toBe(1);
+  expect(chainTotals(turns).wagesMilli.pl3).toBe(26568 - 6538);
+  expect(incomplete(at(chain(chainBundle()), 20), "wages")).toBe(false);
 });
 
 describe("links joined by id and by region", () => {

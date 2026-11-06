@@ -546,6 +546,22 @@ export function linkState(t: ChainTurn, key: LinkKey): LinkState {
   }
 }
 
+/** Whether a link recorded something but not all of it is known (a wage source unknown, a forest account or the
+ * store's holders unknown): run totals then count that snapshot as unknown too. */
+export function incomplete(t: ChainTurn, key: LinkKey): boolean {
+  if (key === "wages") {
+    const w = has(t.wages);
+    return !!w && [w.pl3, w.rs2, w.pl1].some((c) => c.state === "unknown" || c.state === "malformed"
+      || (c.state === "known" && "truncated" in c.value && c.value.truncated));
+  }
+  if (key === "forest") return !!has(t.forest)?.slots?.some((s) => s.l3 === null);
+  if (key === "store") {
+    const v = has(t.store);
+    return !!v && v.store !== null && v.store !== "none" && v.holders === null;
+  }
+  return false;
+}
+
 /** Farm labour taken from the region this turn (farmer-turns): PL1 crews away and PL3 granary crews. */
 export function farmLabourAway(t: ChainTurn): { pl1: number | null; pl3: number | null } {
   const w = has(t.wages);
@@ -577,22 +593,28 @@ export function budgetLimits(t: ChainTurn): Array<{ link: "repair" | "expedition
   return out;
 }
 
-/** The region where the chain is busiest: most link-snapshots recorded outside retail and remittances, then most
- * in them (a run with household retail alone), lowest index on ties. */
-export function busiestRegion(snapshots: readonly ChainSnapshot[], regionCount: number): number {
+/**
+ * The region whose chain goes furthest, to show first: the most of the chain's steps recorded at some snapshot
+ * (an RS2 stall for want of timber, timber delivered home by an expedition, the store holding timber for a repair,
+ * wages paid, food bought), then the most timber delivered, then the most link-snapshots recorded; lowest index on ties.
+ */
+export function fullestChainRegion(snapshots: readonly ChainSnapshot[], regionCount: number): number {
   let best = 0;
-  let score: [number, number] = [-1, -1];
+  let score: number[] = [-1, -1, -1];
   for (let r = 0; r < regionCount; r += 1) {
-    const s: [number, number] = [0, 0];
-    for (const t of regionChain(snapshots, r)) {
-      for (const l of LINKS) if (["active", "tradeoff"].includes(linkState(t, l.key))) s[l.key === "retail" || l.key === "remittances" ? 1 : 0] += 1;
-    }
-    if (s[0] > score[0] || (s[0] === score[0] && s[1] > score[1])) { best = r; score = s; }
+    const turns = regionChain(snapshots, r);
+    const t = chainTotals(turns);
+    const held = turns.some((x) => { const s = has(x.store)?.store; return !!s && s !== "none" && s.held > 0; });
+    const steps = [t.stallsNoTimber > 0, t.delivered > 0, held, t.paidPeople > 0, t.purchasesMilli > 0].filter(Boolean).length;
+    const activity = turns.reduce((a, x) => a + LINKS.filter((l) => ["active", "tradeoff"].includes(linkState(x, l.key))).length, 0);
+    const s = [steps, t.delivered, activity];
+    if (s[0] > score[0] || (s[0] === score[0] && (s[1] > score[1] || (s[1] === score[1] && s[2] > score[2])))) { best = r; score = s; }
   }
   return best;
 }
 
-/** Run totals for a region, over known snapshots only; ``unknown`` counts the snapshots that could not be read. */
+/** Run totals for a region, over known snapshots only; ``unknown`` counts the snapshots that could not be read,
+ * wholly or in part. */
 export interface ChainTotals {
   snapshots: number;
   stalls: number; stallsNoTimber: number;
@@ -615,7 +637,7 @@ export function chainTotals(turns: readonly ChainTurn[]): ChainTotals {
   const eids = new Set<number>();
   const people = new Set<number>();
   for (const t of turns) {
-    for (const l of LINKS) if (linkState(t, l.key) === "unknown") unknown[l.key] += 1;
+    for (const l of LINKS) if (linkState(t, l.key) === "unknown" || incomplete(t, l.key)) unknown[l.key] += 1;
     const repair = has(t.repair);
     for (const r of repair?.receipts ?? []) if (r.status === "stalled") {
       out.stalls += 1;
