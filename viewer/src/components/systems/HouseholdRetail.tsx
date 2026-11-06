@@ -29,6 +29,8 @@ const RISK_LABEL: Record<Risk, string> = {
   offer_short: "Offer short (not enough food on offer)",
   withheld_dead: "Withheld (a dead owner's claim held for the heirs)",
 };
+const RISK_SHORT: Record<Risk, string> = { priced_out: "priced out", offer_short: "offer short", withheld_dead: "withheld for heirs" };
+const plural = (n: number, one: string, many = `${one}s`) => `${number(n)} ${n === 1 ? one : many}`;
 const STATUS_LABEL: Record<string, string> = {
   fed: "fed", priced_out: "priced out", offer_short: "offer short", withheld_dead: "withheld (dead owner's claim)",
 };
@@ -49,21 +51,22 @@ function riskSentence(record: HouseholdRetailRecord): string | null {
   const provisioned = (record.regions ?? []).filter((r) => r.provisioning !== null);
   const persons = provisioned.reduce((a, r) => a + r.provisioning!.persons, 0);
   const children = provisioned.reduce((a, r) => a + r.provisioning!.children, 0);
-  const head = `${persons} people (${children} children) were provisioned in ${provisioned.length} pilot region${provisioned.length === 1 ? "" : "s"}.`;
+  const head = `${plural(persons, "person", "people")} (${plural(children, "child", "children")}) were provisioned in ${plural(provisioned.length, "pilot region")}.`;
   const below = RISKS.filter((k) => totals[k].persons > 0);
   if (!below.length) return `${head} Everyone reached their fair share.`;
-  return `${head} Below their fair share: ${below.map((k) => `${words(k)} ${totals[k].children} children of ${totals[k].persons} people in ${totals[k].households} households, deficit ${number(totals[k].deficit)} rations`).join("; ")}.`;
+  return `${head} Below their fair share: ${below.map((k) => `${RISK_SHORT[k]}, ${plural(totals[k].children, "child", "children")} among ${plural(totals[k].persons, "person", "people")} in ${plural(totals[k].households, "household")} (deficit ${number(totals[k].deficit)} rations)`).join("; ")}.`;
 }
 
 function incomeCell(record: HouseholdRetailRecord, r: RetailRegionFrame): string {
   if (record.mode === "free_exchange") return "kept (not replaced)";
   if (record.mode === "record_only") return "not replaced";
+  if (r.provisioning === null) return "not replaced (not provisioned)";
   if (r.income_replaced !== null) return `${number(r.income_replaced)} (${r.income_rows} farmers)`;
   return r.provisioning !== null && record.income && Object.keys(record.income).length ? "none (no farmer rows)" : "Unknown";
 }
 
 function priceCell(record: HouseholdRetailRecord, r: RetailRegionFrame): string {
-  if (r.price_milli === null) return "Unknown";
+  if (r.price_milli === null) return "not installed";
   if (record.mode === "free_exchange") return "not charged";
   return `${coins(r.price_milli)} a ration`;
 }
@@ -127,7 +130,7 @@ export function HouseholdRetail({ bundle, snapshot, currentTurn, onSelectRegion 
             </tr>)}</tbody>
           </table></div> : null}
           {sampled.length > 0 || record.sample_dropped ? <p className="systems-note">The person sample holds at most 24 people, those below their fair share first{record.sample_dropped ? `; ${record.sample_dropped} more were not sampled` : ""}. The region counts above are complete.</p> : null}
-          {unprovisioned.length > 0 ? <p className="systems-note">Not provisioned this turn (eating, sales, payments and people below their fair share unknown, not zero): {unprovisioned.map((r) => region(r.region)).join(", ")}.</p> : null}
+          {unprovisioned.length > 0 ? <p className="systems-note">Not provisioned by retail this turn (nothing installed there, or the tick took no install; its people were fed under the food allocation rule, in that section): {unprovisioned.map((r) => region(r.region)).join(", ")}.</p> : null}
         </>}
         {control ? <div className="systems-table-wrap"><table className="systems-table" aria-label={`Would-be retail at snapshot ${turn}`}>
           <thead><tr><th>Region</th><th>Would-be title</th><th>Owners of farmers</th><th>Would stay commons (no farmer)</th><th>Would-be price</th><th>Merchant food departing</th></tr></thead>
@@ -140,7 +143,7 @@ export function HouseholdRetail({ bundle, snapshot, currentTurn, onSelectRegion 
           </tr>)}</tbody>
         </table></div> : <>
           <div className="systems-table-wrap"><table className="systems-table" aria-label={`Owned food at snapshot ${turn}`}>
-            <thead><tr><th>Region</th><th>Owned open → close (owners)</th><th>Titled to owners (commons share)</th>
+            <thead><tr><th>Region</th><th>Owned open → close (owners)</th><th>Titled to owners (≈ the harvest's commons share)</th>
               <th>Own food eaten · sold · unsold</th><th>Free food given (of free rations)</th><th>Decay · overflow</th>
               <th>Sold to granaries · conquest loss</th><th>To commons (why)</th><th>Inherited</th></tr></thead>
             <tbody>{frames.map((r) => {
@@ -152,8 +155,8 @@ export function HouseholdRetail({ bundle, snapshot, currentTurn, onSelectRegion 
                 <td>{name(r)}</td>
                 <td>{food(r.open_milli)} → {food(r.close_milli)} ({r.owners})</td>
                 <td>{food(ownedTitle(r))}{kept ? ` (+${food(kept)} titled but kept commons)` : ""} ({share === null ? "Unknown" : `≈${food(share)}`})</td>
-                <td>{food(flowOf(r, "own_eaten"))} · {food(flowOf(r, "sold"))} · {q ? food(q.unsold_milli) : "Unknown"}</td>
-                <td>{q ? `${number(q.free_given)} of ${number(q.free_rations)}` : r.free_rations === null ? "Unknown" : `Unknown of ${number(r.free_rations)}`}</td>
+                <td>{q ? `${food(flowOf(r, "own_eaten"))} · ${food(flowOf(r, "sold"))} · ${food(q.unsold_milli)}` : "not provisioned"}</td>
+                <td>{q ? `${number(q.free_given)} of ${number(q.free_rations)}` : "not provisioned"}</td>
                 <td>{food(flowOf(r, "decay"))} · {food(flowOf(r, "overflow"))}</td>
                 <td>{food(flowOf(r, "procured"))} · {food(flowOf(r, "war_loss"))}</td>
                 <td>{why.length ? why.join("; ") : "none"}</td>
@@ -168,7 +171,7 @@ export function HouseholdRetail({ bundle, snapshot, currentTurn, onSelectRegion 
               const q = r.provisioning;
               return <tr key={r.region}>
                 <td>{name(r)}</td><td>{priceCell(record, r)}</td>
-                <td>{q ? `${coins(q.paid_milli)} · ${coins(q.credited_milli)} · ${coins(q.refunded_milli)}` : "Unknown"}</td>
+                <td>{q ? `${coins(q.paid_milli)} · ${coins(q.credited_milli)} · ${coins(q.refunded_milli)}` : "not provisioned"}</td>
                 <td>{incomeCell(record, r)}</td>
                 <td>{r.merchant_food_departing === null ? "Unknown" : `${show(r.merchant_food_departing)} · at most ${food(r.owned_food_unloadable_milli)}`}</td>
               </tr>;
@@ -185,19 +188,19 @@ export function HouseholdRetail({ bundle, snapshot, currentTurn, onSelectRegion 
     <div className="systems-table-wrap"><table className="systems-table" aria-label={`Household retail to snapshot ${turn}`}>
       <thead><tr><th>Lifetime</th><th>Amount</th></tr></thead>
       <tbody>
-        <tr><td>Pilot region-turns · regions opened · closed</td><td>{c("pilot_region_turns")} · {c("regions_opened")} · {c("regions_closed")}</td></tr>
-        <tr><td>Turns settled · installs not taken · unobserved</td><td>{c("turns_settled")} · {c("turns_not_taken")} · {c("turns_unobserved")}</td></tr>
+        <tr><td>Pilot region-turns · regions opened · closed</td><td>{number(c("pilot_region_turns"))} · {number(c("regions_opened"))} · {number(c("regions_closed"))}</td></tr>
+        <tr><td>Turns settled · installs not taken · unobserved</td><td>{number(c("turns_settled"))} · {number(c("turns_not_taken"))} · {number(c("turns_unobserved"))}</td></tr>
         <tr><td>Titled to owners (titled but kept commons)</td><td>{food(c("titled_milli"))} ({food(c("untitled_milli"))})</td></tr>
         <tr><td>Own food eaten · sold to neighbours · sold to granaries</td><td>{food(c("own_eaten_milli"))} · {food(c("sold_milli"))} · {food(c("procured_milli"))}</td></tr>
         <tr><td>Decay · storage overflow · conquest loss</td><td>{food(c("decay_milli"))} · {food(c("overflow_milli"))} · {food(c("war_loss_milli"))}</td></tr>
         <tr><td>To commons (of it, no heir)</td><td>{food(c("to_commons_milli"))} ({food(c("escheat_milli"))})</td></tr>
-        <tr><td>Inherited · owners who died</td><td>{food(c("inherited_milli"))} · {c("deaths")}</td></tr>
+        <tr><td>Inherited · owners who died</td><td>{food(c("inherited_milli"))} · {number(c("deaths"))}</td></tr>
         <tr><td>Paid · credited · refunded</td><td>{coins(c("paid_milli"))} · {coins(c("credited_milli"))} · {coins(c("refunded_milli"))}</td></tr>
         <tr><td>Granary purchases: credited · refused by the ceiling · unpaid</td><td>{coins(c("procurement_credited_milli"))} · {coins(c("procurement_residual_milli"))} · {coins(c("procurement_unpaid_milli"))}</td></tr>
-        <tr><td>Farm income replaced (farmer-turns)</td><td>{number(record.income_replaced_total)} ({c("income_replaced_rows")})</td></tr>
-        <tr><td>Person-turns priced out · offer short</td><td>{c("priced_out_persons")} · {c("offer_short_persons")}</td></tr>
-        <tr><td>Claims refused (cap) · region-turns exempt from requisition</td><td>{c("claims_refused")} · {c("requisition_exempt_region_turns")}</td></tr>
-        <tr><td>Crew farm time paid as wages, not titled (person-turns)</td><td>{c("crew_farm_time_person_turns")}</td></tr>
+        <tr><td>Farm income replaced (farmer-turns)</td><td>{number(record.income_replaced_total)} ({number(c("income_replaced_rows"))})</td></tr>
+        <tr><td>Person-turns priced out · offer short</td><td>{number(c("priced_out_persons"))} · {number(c("offer_short_persons"))}</td></tr>
+        <tr><td>Claims refused (cap) · region-turns exempt from requisition</td><td>{number(c("claims_refused"))} · {number(c("requisition_exempt_region_turns"))}</td></tr>
+        <tr><td>Crew farm time paid as wages, not titled (person-turns)</td><td>{number(c("crew_farm_time_person_turns"))}</td></tr>
       </tbody>
     </table></div>
     {notable.length > 0 ? <p className="systems-note">Recent pilot records: {notable.map((e) =>
