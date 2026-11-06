@@ -398,6 +398,96 @@ source after them (Timing pilot, below).
 6. **Merged first**: the runner, its tests and this file are on the integration branch
    (merged with `main` `96c20439`) before the freeze, and the frozen commit is recorded below.
 
-## Results
+## Results (held cohort 3, 2026-11-06)
 
-Not run. The held cohort runs only after the lead freezes this file.
+Run on the frozen source from a separate worktree at the freeze commit `5dd03207` (simulation
+source identical to `main` `96c20439`), native `101a4cd5…`, 3 concurrent processes: **72
+runs, 0 failed, every outcome extracted** (`check --checkpoint 3 --cohort held` passes), 932 s
+of simulation and 243 s of extraction (**0.33 of the 2.0 core-hours**), 403.5 s of wall time.
+Nothing was rerun or resumed. Evidence: [`metrics.jsonl`, `report.md`,
+`source.txt`](productive-recovery-screens-cp3/).
+
+Each line gives the mean per world, its range, and worlds above / below / at zero, template
+(t, 721–726) then procedural (p, 821–826). A world is unknown where a measure has no event
+(listed in the report). In template worlds 722 and 725 no arm paid anyone for repair work,
+so no region joined the `paid_work` pilot and no expedition launched: the chain never
+started there (as in checkpoint 1, template worlds remain timber-poor). Most template
+outcomes are therefore zero in two worlds.
+
+**Does timber matter?** (`CH − CH_cut`: the same expeditions, crews, wages and labour away,
+without cutting.)
+- **Primary, granary mean condition (run mean): +0.028 t [0, +0.090] (4/0/2), +0.075 p
+  [−0.026, +0.188] (5/1/0).** At the end: +0.017 t (mixed), +0.088 p (5/1/0). Workshop mean
+  condition +0.042 t (3/1/2), +0.120 p (5/1/0).
+- Timber delivered +18.9 t (4/0/2), +225 p (6/0/0); RS2 used +22.8 t, +164 p; `no_timber`
+  stalled project-turns −102 t (1/3/2), −278 p (0/6/0). Completed repairs rose from 5.5 to
+  8.5 t and from 22.8 to 43.0 p per world.
+- **Most stalls still lack timber**: CH still has 937 t and 1,654 p `no_timber` project-turns
+  per world (76–78% of its stalls). Expeditions were refused for no forest of the civ 520 t
+  and 784 p times per world, and for a depleted forest 111 t and 364 p times.
+
+**Does the wage reach food?** (`CH − CH_unpaid`: the granary crews' coins paid or sunk.)
+- **Primary, priced-out person-turns per pilot person-turn: +0.00025 t [0, +0.00072] (3/0/1,
+  2 unknown), −0.0029 p [−0.0187, +0.00058] (5/1/0).** The procedural mean is one world (824,
+  −0.0187); the other five are higher under `CH`. Paying the crews did **not** lower the
+  rate at which people facing prices were priced out; in most worlds it was slightly higher.
+  The rates are small in both arms (pooled over worlds, `CH` 2.4 × 10⁻⁴ t and 5.6 × 10⁻⁴ p).
+- Whole count +3.8 t (3/0/3), −67.7 p (5/1/0); in the regions pilot in both arms +1.8 t
+  (2/0/2), −86.2 p (5/1/0); children +0.3 t, +3.5 p (mixed). Ration shortfall and mean ration
+  are mixed (−3.2 t, +106 p rations; ±0.005).
+- **Coverage moved most**: wages put more regions under prices, so `CH` covered 0.82 t and
+  0.83 p of the set's region-turns against 0.46 and 0.51 for `CH_unpaid` (pilot person-turns
+  +5,763 t, +27,840 p).
+- **Money**: wages to named repair workers +122 t (4/0/2), +790 p (6/0/0) coins per world, of
+  which granary-crew wages +127 t, +805 p. The crews' withheld ordinary income is far smaller
+  (in `CH`, PL1 23 t / 133 p, PL3 13 t / 92 p, RS2 2 t / 8 p coins per world, PL3 and RS2
+  overlapping), so the paid workers' households gain. But the wider pilot replaced more farm
+  income (+448 t, +2,059 p coins), and **money credited to households (gross) fell −353 t
+  (1/3/2), −1,153 p (1/5/0)**. Remittances changed little (−29 t, +103 p, mixed).
+- Granary mean condition ±0.02 (mixed), as checkpoint 1 found for paid against unpaid crews.
+
+**Cash pressure with the whole chain on** (`CH − CH_free`): priced-out person-turns +3.8 t
+(3/0/3), **+34.3 p [+9, +97] (6/0/0)**, children +0.3 t, +6.5 p (4/0/2); ration shortfall
++306 t (2/2/2), +633 p (5/1/0); mean ration −0.011 t, −0.004 p (1/5/0 p). Fewer than at
+checkpoint 2's `market` boundary (+452 t, +339 p against `R_free`): at `paid_work` prices
+apply where households have wages, and relief stays on.
+
+**Retail against free allocation** (`CH − CH_L2`, over CH's pilot regions): ration shortfall
++162 t (3/1/2), −1,140 p (2/4/0); food shortfall after relief +78 t, −587 p; population −4 t,
+−2.7 p; all mixed, **a null**, as at checkpoint 2.
+
+**The chain's total** (`CH − C0`): granary mean condition +0.023 t (4/1/1), +0.033 p (4/2/0);
+wages to named workers +159 t, +1,076 p (6/0/0 p); priced-out person-turns +3.8 t, +33.3 p
+(6/0/0 p); ration shortfall +219 t, −476 p (mixed); money credited (gross) +141 t (4/2/0),
+−1,053 p (2/4/0); population −11.7 t (1/5/0), +17.2 p (4/2/0). `C0`'s pilot covered only 0.25 t
+and 0.19 p of the set's region-turns (RS2 workshop wages alone).
+
+**Tradeoffs.**
+- *Farm labour*: `CH` crews were away 32 t and 247 p farmer-turns per world. Against
+  `CH_cut`, which takes the same labour by design (it launches more: −8.8 t, −42.3 p
+  expeditions), the woodcutting homes' food shortfall after relief is a null (−0.15 t
+  (2/2/2), +54.6 p (3/3/0)); the home-region shortfall share on away turns is 0.37 t and
+  0.18 p in `CH`, 0.36 t and 0.17 p in `CH_cut`. No food cost of the cutting itself is
+  detectable; the labour cost is in both arms and is not separated from a no-expedition arm
+  here (checkpoint 1's `TS − RP` found none either).
+- *Forest pressure*: L3 extraction +41 t (4/0/2), +212 p (5/1/0). The lowest stand share
+  after a `CH` cutting turn is 0.86 t [0.72, 1.00] and **0.58 p [0.51, 0.70]**: procedural
+  stands fall to about half of capacity, above the guard. Against `CH_cut`'s stands (no
+  cutting) the minimum is +0.13 t (4/0/0) and −0.003 p (3/3/0).
+- *Scarce budgets*: RS2 projects stalled for coins 48 t and 237 p project-turns per world in
+  `CH` (fewer than `CH_cut`'s 50 t and 364 p); expeditions refused for coins 0.2 t and 17.8 p.
+  Timber, not coins, remains the binding constraint.
+- *Families priced out*: priced out in every procedural world (above). Under `CH`, 34.3 p
+  person-turns per world, 6.5 of them children; 3.8 t.
+
+**What this does and does not show.** On fresh worlds every link of the chain occurs where
+the chain starts (4 of 6 template worlds, 6 of 6 procedural): communities short of timber
+send paid crews, cut and carry timber, and repair granaries and workshops measurably better
+than the same crews without cutting; the crews and woodcutters are paid by id, and their
+households gain far more than the ordinary income they give up. **What the screen does not
+find is the last link at the community scale**: at the `paid_work` boundary the wage brings
+more households under prices, the model farm income retail replaces outweighs the wages
+paid, and the rate of people priced out does not fall. Families are priced out in small
+numbers in every procedural world, children among them. Template worlds stay timber-poor.
+These are bounded screens on six worlds per stratum, not qualification; no default is
+promoted and no constant was tuned.

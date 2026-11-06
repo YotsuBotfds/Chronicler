@@ -1,0 +1,7 @@
+source 5dd03207ace4b3b569533388031837ba1f94892d
+chronicler /home/user/wt/held3/src/chronicler/__init__.py
+native /root/.venvs/native-hrn2/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so 101a4cd5b928b14f43539f925fa565036b94e38d91b9698071c80fa3656e0df3
+interpreter /root/.venvs/native-hrn2/bin/python
+checkpoint 3; cohort held; seeds all; arms C0,CH,CH_unpaid,CH_cut,CH_free,CH_L2; jobs 3; rows already written 0
+started 2026-11-06T05:29:27Z
+finished 2026-11-06T05:36:10Z: 72 runs, 0 failed, 932 s of simulation, 243 s of extraction, 403.5 s wall
