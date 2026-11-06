@@ -374,6 +374,9 @@ CHUNKS = {
     "household-retail-evidence": [
         "tests/test_household_retail_evidence.py",
     ],
+    "connected-world-a": [
+        "tests/test_wealth_accounting.py",
+    ],
     "expansion-wiring": [
         "tests/test_expansion_feature_wiring.py",
         "tests/test_expansion_experiment.py",

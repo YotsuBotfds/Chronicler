@@ -498,10 +498,16 @@ def test_switch_registry_cli_and_prerequisites():
     from chronicler.batch_manifest import SIMULATION_ARG_KEYS, simulation_config
     from chronicler.feature_catalog import REQUIREMENTS
     from chronicler.livelihoods_state import LIVELIHOODS_SWITCHES
-    assert LIVELIHOODS_SWITCHES[-1] == "household_retail"
+    # PL4 was appended after PL3 (after L2, so L2's hooks run first in every phase); the
+    # observation ledger (A1) is last: the full order is pinned in test_wealth_accounting.py.
+    from tests.test_wealth_accounting import SWITCH_ORDER
+    assert LIVELIHOODS_SWITCHES == SWITCH_ORDER
+    assert LIVELIHOODS_SWITCHES[-2:] == ("household_retail", "wealth_accounting")
     assert LIVELIHOODS_SWITCHES.index("food_allocation") < LIVELIHOODS_SWITCHES.index("household_retail")
-    assert LV.LIVELIHOODS_ARG_KEYS[-4:] == ("household_retail", "household_retail_mode", "household_retail_boundary",
-                                            "household_retail_rules")             # A5-1 appended the rules version
+    start = LV.LIVELIHOODS_ARG_KEYS.index("household_retail")
+    assert LV.LIVELIHOODS_ARG_KEYS[start:start + 4] == ("household_retail", "household_retail_mode",
+                                                        "household_retail_boundary",
+                                                        "household_retail_rules")  # A5-1 appended the rules version
     assert LV.LIVELIHOODS_CHOICES["household_retail_mode"] == MODES
     assert LV.LIVELIHOODS_CHOICES["household_retail_boundary"] == ("market", "paid_work", "all",
                                                                   "schedule")    # A2R appended the schedule

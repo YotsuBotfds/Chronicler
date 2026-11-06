@@ -92,7 +92,9 @@ def test_the_rules_option_is_registered_forwarded_and_omitted_when_unset():
     from chronicler.batch_manifest import SIMULATION_ARG_KEYS, simulation_config
     from chronicler.feature_catalog import REQUIREMENTS, feature_entries
     assert LV.LIVELIHOODS_CHOICES["household_retail_rules"] == ("2", "1")
-    assert LV.LIVELIHOODS_ARG_KEYS[-1] == "household_retail_rules"
+    # Right after the boundary (a choice belongs to the switch before it); A1's switch follows.
+    boundary = LV.LIVELIHOODS_ARG_KEYS.index("household_retail_boundary")
+    assert LV.LIVELIHOODS_ARG_KEYS[boundary + 1] == "household_retail_rules"
     assert "household_retail_rules" in SIMULATION_ARG_KEYS
     assert "household_retail_rules" not in simulation_config(parse([]))
     assert simulation_config(parse(["--household-retail-rules", "1"]))["household_retail_rules"] == "1"

@@ -151,6 +151,7 @@ REQUIREMENTS: dict[str, tuple[dict, ...]] = {
     "recovery_crews": (_HYBRID, _feature("repair_projects")),
     "maintenance_obligation": (_feature("local_budgets"), _feature("repair_projects")),
     "household_retail": (_HYBRID, _feature("food_allocation")),
+    "wealth_accounting": (_HYBRID,),
 }
 
 
