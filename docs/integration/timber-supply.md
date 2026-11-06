@@ -637,5 +637,11 @@ Failing witness tests (9, all from these edits; no fixture was touched):
 - **The control is matched per expedition, not in total.** `cost_only` supplies
   nothing, so its need persists and it launches more expeditions: its total
   cost exceeds `supply`'s. Compare costs per expedition (`per_expedition`).
-- **Viewer.** No reader or panel (PL5).
+- **Viewer (PL5a).** `viewer/src/lib/timberSupply.ts` (`readTimberSupply`) and the panel
+  `TimberSupply.tsx`. The reader checks each expedition (`cut = cargo + delivered + lost +
+  abandoned`; `returned` carries nothing), receipt (wages at the declared rate, unpaid
+  turns paid nothing, crew labour only while cutting in `supply`), wage ledger, store,
+  need row (the gap and the refusal reason), the per-expedition means against the counters
+  and the lifetime timber and endings. The panel shows farm labour away, wages, the L3
+  stock debited, cargo lost and abandoned, and refusals with their reasons.
 - No held seed, 200-seed or procedural qualification gate was run.

@@ -93,7 +93,12 @@ parameters}`. `decisions` are the reservations decided in the source turn for
 the next (`turn, civ, planned, budget_before, cap, reserved`); `uses` the
 reservations used in the source turn (`turn, civ, reserved, envelope, charged,
 used, returned, envelope_spent`). Each is `null` when that turn decided or
-settled nothing (unknown, not zero). No viewer reader exists yet (PL5).
+settled nothing (unknown, not zero). Viewer (PL5a):
+`viewer/src/lib/maintenanceObligation.ts` (`readMaintenanceObligation`) checks the cap,
+`reserved = min(planned, cap)` and the closure above; the panel
+`MaintenanceObligation.tsx` shows reserved, used and returned, and the crowding-out as
+`budget_before` less L9's own `budget` of the same dated decision (unknown when L9's
+record is not readable).
 
 ## Declared constants (uncalibrated)
 
