@@ -61,6 +61,15 @@ What the runner enforces for every screen:
   preregistration; every row carries the identity digest and the schema versions
   it read. ``--resume`` refuses any change except to the registry file's run
   records (another screen's ``mark-run``) and keeps the run's identity.
+* **Two-phase screens** (``Screen.derived``): an arm may need a file made from
+  another arm's run on the same world (CW1: arm A's recorded pilot schedule, which
+  arm C replays). The runner runs the source arm first, writes the file read-only
+  under ``OUT_DIR/derived/``, records its SHA-256 in the source's row,
+  ``derived.jsonl``, ``source.txt`` and (evidence runs) the ledger, and only then
+  starts the arms that name its placeholder, checking the file's SHA-256 again. A
+  source that fails fails its users on that world (not run, rc 1). Outcomes may be
+  a difference of differences (``Outcome.minus``); ``control_activation`` also
+  requires a non-root control to have acted; ``Screen.report`` adds screen tables.
 * **Uncertainty**, descriptive only: per stratum mean, min/max, sign counts and
   an exact enumeration of the paired sign flips of the mean over the worlds (for
   an outcome with a control; the harm panel is shown beside every arm against
@@ -140,13 +149,35 @@ class Package:
 @dataclass(frozen=True)
 class Outcome:
     """One preregistered outcome: ``read(row)`` for the arm minus ``read(row)`` for the
-    control on the same world (or the arm alone when ``control`` is None)."""
+    control on the same world (or the arm alone when ``control`` is None). With
+    ``minus = (arm2, control2)`` it is a difference of differences on the same world,
+    ``(arm - control) - (arm2 - control2)`` (an interaction; ``control2`` is a control of
+    ``arm2``)."""
     id: str
     label: str
     arm: str
     control: str | None
     read: Callable[[dict], float | None]
     primary: bool = False
+    minus: tuple[str, str] | None = None
+
+
+@dataclass(frozen=True)
+class Derived:
+    """A file one arm's run makes for other arms on the same world (a two-phase
+    screen). ``make(bundle, flags)`` reads the ``source`` arm's bundle and returns the
+    file's bytes and a record of what it holds; the runner writes it, read-only, to
+    ``OUT_DIR/derived/<name>-<world><suffix>`` and records its SHA-256 (in the source
+    arm's row, ``OUT_DIR/derived.jsonl``, ``source.txt`` and, for an evidence run, the
+    ledger) before any arm that uses it starts. An arm uses it by naming
+    ``placeholder`` in its flags; the runner puts the file's path there and checks the
+    file's SHA-256 again when that arm starts. A source arm that fails, or whose
+    ``make`` refuses, fails its users on that world (rc 1, not run)."""
+    name: str
+    source: str
+    placeholder: str
+    make: Callable[[dict, Sequence[str]], tuple[bytes, dict]]
+    suffix: str = ".json"
 
 
 @dataclass(frozen=True)
@@ -172,12 +203,24 @@ class Screen:
     procedural: tuple[str, ...] = PROCEDURAL
     requires_native: bool = True
     module: Path | None = None
+    #: Files made from one arm's run for other arms on the same world (two-phase).
+    derived: tuple[Derived, ...] = ()
+    #: True: a comparison also needs its control activated (unless the control is the
+    #: root), not only its arm; a world where either did not act is left out.
+    control_activation: bool = False
+    #: (rows, {stratum tag: seeds}) -> extra report lines, after the activation table.
+    report: Callable[[Sequence[dict], Mapping[str, list[int]]], list[str]] | None = None
 
     def cohort(self, cohort: str) -> Mapping[str, tuple[int, ...]]:
         return {"pilot": self.pilot, "held": self.held}[cohort]
 
     def primaries(self) -> list[Outcome]:
         return [o for o in self.outcomes if o.primary]
+
+    def uses(self, arm: str) -> list[Derived]:
+        """The derived files an arm's flags name."""
+        flags = self.arms[arm][0]
+        return [d for d in self.derived if d.placeholder in flags]
 
 
 @dataclass
@@ -474,17 +517,30 @@ def check_preregistration(screen: Screen, *, held: bool) -> list[str]:
     ids = [o.id for o in screen.outcomes]
     if len(ids) != len(set(ids)):
         problems.append(f"{screen.name}: outcome ids repeat")
+
+    def controls(arm: str) -> list[str]:
+        chain, a = [], screen.arms[arm][1]
+        while a is not None and a in screen.arms and a not in chain:
+            chain.append(a)
+            a = screen.arms[a][1]
+        return chain
+
     for o in screen.outcomes:
         if o.arm not in screen.arms:
             problems.append(f"outcome {o.id}: unknown arm {o.arm}")
             continue
-        if o.control is not None:
-            chain, a = [], screen.arms[o.arm][1]
-            while a is not None and a in screen.arms and a not in chain:
-                chain.append(a)
-                a = screen.arms[a][1]
-            if o.control not in chain:
-                problems.append(f"outcome {o.id}: {o.control} is not a control of {o.arm} (its controls: {chain})")
+        if o.control is not None and o.control not in controls(o.arm):
+            problems.append(f"outcome {o.id}: {o.control} is not a control of {o.arm} (its controls: "
+                            f"{controls(o.arm)})")
+        if o.minus is not None:
+            arm2, control2 = o.minus
+            if o.control is None:
+                problems.append(f"outcome {o.id}: a difference of differences needs a control")
+            elif arm2 not in screen.arms:
+                problems.append(f"outcome {o.id}: unknown arm {arm2}")
+            elif control2 not in controls(arm2):
+                problems.append(f"outcome {o.id}: {control2} is not a control of {arm2} (its controls: "
+                                f"{controls(arm2)})")
     if held:
         text = preregistration_text(screen)
         where = screen.preregistration.relative_to(REPO) if screen.preregistration and \
@@ -531,9 +587,40 @@ def check_screen(screen: Screen) -> list[str]:
             problems.append(f"arm {arm}: its controls do not lead to the root ({control!r})")
     if screen.activation is None:
         problems.append(f"{screen.name}: no activation rule (activation is reported before any effect)")
+    problems += check_derived(screen)
     problems += check_preregistration(screen, held=False)
     problems += check_packages_declared(screen)
     problems += check_arm_flags(screen)
+    return problems
+
+
+_FILE_NAME = re.compile(r"[A-Za-z0-9_]+")
+
+
+def check_derived(screen: Screen) -> list[str]:
+    """Derived files: distinct names and placeholders, a source that is an arm and
+    names none itself, at least one arm using each, each placeholder exactly once in
+    a using arm's flags and nowhere in the base."""
+    problems = []
+    names = [d.name for d in screen.derived]
+    marks = [d.placeholder for d in screen.derived]
+    if len(set(names)) != len(names) or len(set(marks)) != len(marks):
+        problems.append(f"{screen.name}: derived names or placeholders repeat")
+    for d in screen.derived:
+        if not _FILE_NAME.fullmatch(d.name) or not re.fullmatch(r"\.[A-Za-z0-9]+", d.suffix):
+            problems.append(f"derived {d.name!r}: a name of letters, digits and _ and a suffix such as .json")
+        if d.source not in screen.arms:
+            problems.append(f"derived {d.name}: source {d.source!r} is not an arm")
+        elif screen.uses(d.source):
+            problems.append(f"derived {d.name}: its source arm {d.source} uses a derived file itself")
+        users = [arm for arm in screen.arms if d in screen.uses(arm)]
+        if not users:
+            problems.append(f"derived {d.name}: no arm names {d.placeholder}")
+        for arm in users:
+            if list(screen.arms[arm][0]).count(d.placeholder) != 1:
+                problems.append(f"arm {arm}: names {d.placeholder} more than once")
+        if d.placeholder in screen.base:
+            problems.append(f"derived {d.name}: the base names {d.placeholder}")
     return problems
 
 
@@ -555,14 +642,18 @@ def check_packages_declared(screen: Screen) -> list[str]:
     return problems
 
 
-def arm_command(screen: Screen, arm: str, stratum: str, seed: int, turns: int | None = None) -> list[str]:
+def arm_command(screen: Screen, arm: str, stratum: str, seed: int, turns: int | None = None,
+                files: Mapping[str, str] | None = None) -> list[str]:
+    """The arm's command line; ``files`` maps a derived file's placeholder to its path
+    (left as written when not given: the parser and catalog checks need no file)."""
     base = list(screen.base)
     if turns is not None:
         if "--turns" not in base:
             raise SystemExit(f"{screen.name}: the base names no --turns to override")
         base[base.index("--turns") + 1] = str(turns)
     extra = list(screen.procedural) if stratum == "procedural" else []
-    return ["--seed", str(seed), *base, *extra, *screen.arms[arm][0]]
+    flags = [(files or {}).get(f, f) for f in screen.arms[arm][0]]
+    return ["--seed", str(seed), *base, *extra, *flags]
 
 
 def check_arm_flags(screen: Screen) -> list[str]:
@@ -1068,27 +1159,78 @@ def jobs_for(screen: Screen, cohort: str, seeds: str, arms: Sequence[str],
     return out
 
 
+def derived_path(out: Path, d: Derived, tag: str, seed: int) -> Path:
+    return out / "derived" / f"{d.name}-{tag}{seed}{d.suffix}"
+
+
+def _shown_in(out: Path, path: Path) -> str:
+    path, out = Path(path).resolve(), Path(out).resolve()
+    return str(path.relative_to(out)) if path.is_relative_to(out) else str(path)
+
+
 def run_one(screen: Screen, rt: Runtime, out: Path, cohort: str, arm: str, tag: str, seed: int, keep: bool,
-            identity: str, turns: int | None = None) -> dict:
+            identity: str, turns: int | None = None, inputs: Mapping[str, str] | None = None) -> dict:
+    """One run and its row. ``inputs`` maps each derived file the arm uses (by name) to
+    the SHA-256 recorded when it was made; the file is checked again before the run.
+    A source arm's derived files are made from its bundle after extraction."""
     d = (out / "runs" / f"{arm}-{tag}{seed}").resolve()
+    row = {"screen": screen.name, "cohort": cohort, "arm": arm, "stratum": tag, "seed": seed, "rc": 0,
+           "wall_s": 0.0, "identity": identity}
+    files, used = {}, {}
+    for dv in screen.uses(arm):
+        path = derived_path(out, dv, tag, seed).resolve()
+        want = (inputs or {}).get(dv.name)
+        got = sha256_file(path) if path.is_file() else None
+        if want is None or got != want:
+            row["rc"], row["error"] = RC_FAILED, (
+                f"not run: derived {dv.name} for {tag}{seed} is "
+                + ("unavailable (its source arm " + dv.source + " failed or did not make it)" if want is None else
+                   f"missing or changed (recorded sha256 {want[:12]}, found {str(got)[:12]})"))
+            return row
+        files[dv.placeholder] = str(path)
+        used[dv.name] = {"path": _shown_in(out, path), "sha256": got}
+    if used:
+        row["inputs"] = used
     if d.exists():
         shutil.rmtree(d)
     d.mkdir(parents=True)
-    flags = list(screen.arms[arm][0])
-    cmd = [PY, "-m", "chronicler.main", *arm_command(screen, arm, STRATUM_OF[tag], seed, turns),
-           "--output", str(d / "chronicle.md"), "--state", str(d / "state.json")]
+    command = arm_command(screen, arm, STRATUM_OF[tag], seed, turns, files)
+    flags = [files.get(f, f) for f in screen.arms[arm][0]]
+    cmd = [PY, "-m", "chronicler.main", *command, "--output", str(d / "chronicle.md"), "--state", str(d / "state.json")]
     t0 = rt.clock()
     p = rt.simulate(cmd)
-    row = {"screen": screen.name, "cohort": cohort, "arm": arm, "stratum": tag, "seed": seed, "rc": p.returncode,
-           "wall_s": round(rt.clock() - t0, 1), "identity": identity}
+    row.update(rc=p.returncode, wall_s=round(rt.clock() - t0, 1))
     if p.returncode != 0:
         row["error"] = (p.stderr or "")[-2000:]
     else:
         t1 = rt.clock()
+        bundle = None
         try:
-            row.update(extract_row(screen, arm, d / "chronicle_bundle.json", flags))
+            bundle = load_bundle_file(d / "chronicle_bundle.json")
+            row.update(extract_bundle(screen, arm, bundle, flags))
         except Exception as error:  # an unreadable bundle is a missing outcome, never zero
             row["rc"], row["error"] = RC_MISSING, f"missing or malformed outcomes: {type(error).__name__}: {error}"
+        made = {}
+        for dv in (x for x in screen.derived if x.source == arm):
+            if row["rc"] != 0:
+                break
+            try:
+                data, info = dv.make(bundle, flags)
+                if not isinstance(data, bytes):
+                    raise TypeError("make returned no bytes")
+            except Exception as error:  # a schedule that cannot be made fails the source, visibly
+                row["rc"], row["error"] = RC_MISSING, f"derived {dv.name}: {type(error).__name__}: {error}"
+                break
+            path = derived_path(out, dv, tag, seed)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            if path.exists():
+                path.chmod(0o644)
+            path.write_bytes(data)
+            path.chmod(0o444)       # frozen: its users read it, nothing rewrites it
+            made[dv.name] = {"path": _shown_in(out, path), "sha256": hashlib.sha256(data).hexdigest(),
+                             "info": info}
+        if made and row["rc"] == 0:
+            row["derived"] = made
         row["extract_s"] = round(rt.clock() - t1, 1)
     # A failed run's output is kept for diagnosis; a passing one only when asked.
     if not keep and row["rc"] == 0:
@@ -1096,13 +1238,16 @@ def run_one(screen: Screen, rt: Runtime, out: Path, cohort: str, arm: str, tag: 
     return row
 
 
+def load_bundle_file(bundle_path: Path) -> dict:
+    _src()
+    from chronicler.bundle_codec import load_bundle
+    return load_bundle(bundle_path)
+
+
 def extract_row(screen: Screen, arm: str, bundle_path: Path, flags: Sequence[str]) -> dict:
     """Schema versions, the harm panel, package counters, activation and the screen's
     own measures of one run; rc 3 with the reasons when anything is missing."""
-    _src()
-    from chronicler.bundle_codec import load_bundle
-    bundle = load_bundle(bundle_path)
-    return extract_bundle(screen, arm, bundle, flags)
+    return extract_bundle(screen, arm, load_bundle_file(bundle_path), flags)
 
 
 def extract_bundle(screen: Screen, arm: str, bundle: dict, flags: Sequence[str]) -> dict:
@@ -1245,6 +1390,8 @@ def ledger_conflicts(path: Path, screen: Screen, cohort: str) -> list[str]:
     program's reserve (whichever screen used it). A new run of it is refused."""
     out = []
     for e in ledger_entries(path):
+        if "derived" in e:
+            continue        # a derived file's digest, recorded after its run's start entry
         same = (e.get("cohort") == "reserve") if cohort == "reserve" else \
             (e.get("cohort") == "held" and e.get("screen") == screen.name)
         if same:
@@ -1459,42 +1606,98 @@ def run_main(argv, screens: Mapping[str, Screen], rt: Runtime | None = None, pro
     rows: list[dict] = []
     used = sum(run_seconds(r) for r in prior_rows)
     t0 = rt.clock()
+    # Derived files (two-phase screens): (name, tag, seed) -> the SHA-256 recorded when made.
+    made: dict[tuple[str, str, int], str] = {}
+    for r in prior_rows:
+        for name, rec in (r.get("derived") or {}).items():
+            made[(name, r["stratum"], r["seed"])] = rec["sha256"]
+    for arm, tag, seed, _first in pending:
+        for dv in screen.uses(arm):
+            if dv.source not in chosen and (dv.name, tag, seed) not in made:
+                raise SystemExit(f"run refused: arm {arm} uses {dv.name}, which arm {dv.source} makes on each world: "
+                                 f"choose arm {dv.source} too (or resume the run that made it)")
 
     def expected(arm: str, tag: str) -> float:
         # Never below the pilot; once runs of the stratum finished, never below their mean.
         finished = [run_seconds(r) for r in (*prior_rows, *rows) if r["stratum"] == tag]
         return max(means.get((arm, tag), 0.0), mean(finished) if finished else 0.0)
 
+    def readiness(job, running_jobs) -> str:
+        """``ready``; ``waiting`` for a source arm still to finish on the world; ``blocked``
+        when a source arm finished without making the file (its users are not run)."""
+        arm, tag, seed, _first = job
+        state = "ready"
+        for dv in screen.uses(arm):
+            if (dv.name, tag, seed) in made:
+                continue
+            if any(j[:3] == (dv.source, tag, seed) for j in (*pending, *running_jobs)):
+                state = "waiting"
+            else:
+                return "blocked"
+        return state
+
+    def record_derived(row: dict) -> None:
+        # Recorded before the source's row and before any user starts.
+        stamp_now = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+        for name, rec in (row.get("derived") or {}).items():
+            made[(name, row["stratum"], row["seed"])] = rec["sha256"]
+            entry = {"name": name, "arm": row["arm"], "stratum": row["stratum"], "seed": row["seed"],
+                     "path": rec["path"], "sha256": rec["sha256"], "info": rec.get("info"), "recorded": stamp_now}
+            with open(out / "derived.jsonl", "a", encoding="utf-8") as dfh:
+                dfh.write(json.dumps(entry) + "\n")
+            with open(source, "a", encoding="utf-8") as sfh:
+                sfh.write(f"derived {name} {row['stratum']}{row['seed']} (from arm {row['arm']}): sha256 "
+                          f"{rec['sha256']} {rec['path']}\n")
+            if evidence:
+                with open(rt.ledger, "a", encoding="utf-8") as lfh:
+                    lfh.write(json.dumps({"screen": screen.name, "cohort": a.cohort, "out": str(out.resolve()),
+                                          "identity": digest, "derived": entry}) + "\n")
+
     refused_at = None
     with open(metrics, "a", encoding="utf-8") as fh, ThreadPoolExecutor(a.jobs) as ex:
         running: dict = {}
+
+        def finish(row: dict) -> None:
+            # Each row is written as soon as its run finishes, so a killed run
+            # loses only the runs in flight (``--resume`` runs those).
+            nonlocal used
+            record_derived(row)
+            rows.append(row)
+            used += run_seconds(row)
+            fh.write(json.dumps(row) + "\n")
+            fh.flush()
+            note = f" FAILED: {row.get('error', '')[-300:]}" if row["rc"] else ""
+            print(row["arm"], f"{row['stratum']}{row['seed']}", row["rc"], row["wall_s"], note, flush=True)
+
         while True:
             while pending and len(running) < a.jobs:
-                arm, tag, seed, first = pending[0]
+                states = [readiness(j, list(running.values())) for j in pending]
+                if "blocked" in states:
+                    # Not run: its source arm failed on this world (no ceiling cost).
+                    job = pending.pop(states.index("blocked"))
+                    finish(run_one(screen, rt, out, a.cohort, job[0], job[1], job[2], False, digest, a.turns, {}))
+                    continue
+                if "ready" not in states:
+                    break           # every pending run waits for a source arm in flight
+                i = states.index("ready")
+                arm, tag, seed, first = pending[i]
                 if ceiling is not None:
-                    in_flight = sum(expected(r_arm, r_tag) for r_arm, r_tag in running.values())
+                    in_flight = sum(expected(r[0], r[1]) for r in running.values())
                     cost = expected(arm, tag)
                     if used + in_flight + cost > ceiling * 3600:
                         refused_at = (used, in_flight, cost)
                         break
-                pending.pop(0)
+                pending.pop(i)
+                inputs = {dv.name: made[(dv.name, tag, seed)] for dv in screen.uses(arm)}
                 future = ex.submit(run_one, screen, rt, out, a.cohort, arm, tag, seed, a.keep_first and first,
-                                   digest, a.turns)
-                running[future] = (arm, tag)
+                                   digest, a.turns, inputs)
+                running[future] = (arm, tag, seed, first)
             if not running:
                 break
             finished, _ = wait(set(running), return_when=FIRST_COMPLETED)
             for future in finished:
-                # Each row is written as soon as its run finishes, so a killed run
-                # loses only the runs in flight (``--resume`` runs those).
                 running.pop(future)
-                row = future.result()
-                rows.append(row)
-                used += run_seconds(row)
-                fh.write(json.dumps(row) + "\n")
-                fh.flush()
-                note = f" FAILED: {row.get('error', '')[-300:]}" if row["rc"] else ""
-                print(row["arm"], f"{row['stratum']}{row['seed']}", row["rc"], row["wall_s"], note, flush=True)
+                finish(future.result())
     stopped = bool(pending)
     wall = round(rt.clock() - t0, 1)
     with open(source, "a", encoding="utf-8") as fh:
@@ -1640,29 +1843,40 @@ def _strata_seen(rows, cohort_map: Mapping[str, Sequence[int]]) -> dict[str, lis
 
 def paired_values(rows, screen: Screen, arm: str, control: str | None, read, tag: str,
                   seeds: Sequence[int], need_activation: bool = True,
-                  why: Callable[[dict], str] = lambda row: "unknown") -> tuple[list[str], list[float]]:
-    """Per-world cells and the values of the activated worlds (arm minus control);
-    ``why(row)`` names a value that is missing (default "unknown")."""
+                  why: Callable[[dict], str] = lambda row: "unknown",
+                  minus: tuple[str, str] | None = None) -> tuple[list[str], list[float]]:
+    """Per-world cells and the values of the activated worlds (arm minus control, and
+    minus ``minus[0] - minus[1]`` for a difference of differences); ``why(row)`` names a
+    value that is missing (default "unknown"). With ``screen.control_activation`` a
+    control that is not the root must have acted too."""
     by = {(r["arm"], r["stratum"], r["seed"]): r for r in rows}
     cells, values = [], []
     for seed in seeds:
-        a, c = by.get((arm, tag, seed)), (by.get((control, tag, seed)) if control else None)
-        if a is None or (control and c is None):
+        names = [arm, *([control] if control else []), *(minus or ())]
+        got = [by.get((name, tag, seed)) for name in names]
+        if any(r is None for r in got):
             cells.append(f"{seed}: not run")
             continue
-        if a["rc"] != 0 or (control and c["rc"] != 0):
+        if any(r["rc"] != 0 for r in got):
             cells.append(f"{seed}: failed")
             continue
-        act = (a.get("activation") or {}).get("activated")
-        if need_activation and arm != screen.root and act is not True:
-            cells.append(f"{seed}: {'not activated' if act is False else 'activation unknown'}")
+        acting = [arm, *(minus[:1] if minus else ())]
+        if screen.control_activation:
+            acting += [c for c in (control, *(minus[1:] if minus else ())) if c]
+        acts = [(by[(name, tag, seed)].get("activation") or {}).get("activated")
+                for name in acting if name != screen.root]
+        if need_activation and any(act is not True for act in acts):
+            cells.append(f"{seed}: {'not activated' if False in acts else 'activation unknown'}")
             continue
-        va, vc = read(a), (read(c) if control else 0.0)
-        if va is None or vc is None:
-            cells.append(f"{seed}: {why(a if va is None else c)}")
+        vals = [read(r) for r in got]
+        if any(v is None for v in vals):
+            cells.append(f"{seed}: {why(got[[v is None for v in vals].index(True)])}")
             continue
-        values.append(va - vc)
-        cells.append(f"{seed}: {va - vc:+.4g}")
+        value = vals[0] - (vals[1] if control else 0.0)
+        if minus:
+            value -= vals[-2] - vals[-1]
+        values.append(value)
+        cells.append(f"{seed}: {value:+.4g}")
     return cells, values
 
 
@@ -1737,6 +1951,8 @@ def report_lines(rows, screen: Screen, cohort_map: Mapping[str, Sequence[int]] |
             cells = [f"{seed}: {_activation_cell(by.get((arm, tag, seed)))}" for seed in seeds]
             n = sum(_activation_cell(by.get((arm, tag, seed))) == "activated" for seed in seeds)
             out.append(f"| {arm} | {tag} | {'; '.join(cells)} | {n} of {len(seeds)} |")
+    if screen.report is not None:
+        out += screen.report(rows, strata)
 
     for title, outcomes in (("Primary outcomes", [o for o in screen.outcomes if o.primary]),
                             ("Secondary outcomes", [o for o in screen.outcomes if not o.primary])):
@@ -1747,7 +1963,7 @@ def report_lines(rows, screen: Screen, cohort_map: Mapping[str, Sequence[int]] |
         out.append("| --- | --- | --- | --- | --- | --- |")
         for o in outcomes:
             for tag, seeds in strata.items():
-                cells, values = paired_values(rows, screen, o.arm, o.control, o.read, tag, seeds)
+                cells, values = paired_values(rows, screen, o.arm, o.control, o.read, tag, seeds, minus=o.minus)
                 summary, signs, flip = _summary_cells(values, paired=o.control is not None)
                 out.append(f"| {o.id}: {o.label} | {tag} | {'; '.join(cells)} | {summary} | {signs} | {flip} |")
 

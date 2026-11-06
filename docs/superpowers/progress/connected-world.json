@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "board_version": 10,
+  "board_version": 11,
   "title": "Connected-world program (A livelihoods and trade, B watersheds and infrastructure, C public health, D institutions and war, E stories and evidence) operational board",
   "plan": "docs/superpowers/roadmaps/connected-world-program.md",
   "owner_instruction": "2026-11-06 (after #82): own the A-E program end to end with parallel workers, integrating and evaluating each slice and continuing across slice boundaries; merges of this program authorized after independent review, green premerge Tests on the reviewed head and verified main CI; new systems opt-in and off by default; no default promotion; full 200-seed and procedural qualification gates restricted; bounded held screens (procedural included) authorized; no purchases, paid credits, paid narration APIs, deployments, credential or sharing changes. Amendment (same day): tiers sequence work and are not stopping points; failures block the affected merge, not the program; pin 8abc1acb as the original reference; default-path changes behind a switch or rules version.",
@@ -11,7 +11,7 @@
   },
   "durable_location": {
     "branch": "main (merged slices) plus the lane and integration branches listed in lanes",
-    "base": "main at 13340446 (#84)"
+    "base": "main at 8286804c (#85)"
   },
   "status_values": ["proposed", "ready", "active", "blocked", "integrated", "evaluated", "merged", "deferred"],
   "machine": {
@@ -63,7 +63,7 @@
       "id": "A5",
       "branch": "claude/cw-a5-owned-stock",
       "scope": "retail rules v2: war reaches owned stock once per event; RL1-RL3 dispositions",
-      "status": "approved; folded into A2R (claude/cw-a2r-retail-cohorts db96efe5)",
+      "status": "integrated into S1 (claude/cw-s1-accounting)",
       "head": "1370ae7a",
       "source": "36d1a040",
       "layer": "b9e64330 (provisional cwa5)",
@@ -73,7 +73,7 @@
       "id": "A1",
       "branch": "claude/cw-a1-ledger",
       "scope": "--wealth-accounting observation ledger (slice A1-1, Python only); RL7 PL3 granary/workshop split",
-      "status": "approved with minors fixed (2b18841f)",
+      "status": "integrated into S1 (claude/cw-s1-accounting)",
       "head": "fee5de7f",
       "layer": "fee5de7f (provisional cwa1)",
       "verification": "offline lane PASS 64 chunks 242.8 s; native 130 passed; feature-off identity 9 cases 399 files 0 differences; observer identity 571 files 0 differences beyond its record; exact resume hybrid_s42_long 19, proc32_hybrid_s11 39 PASS; CHECK_RESOURCES PASS; RL7 split equals PL3 total every turn"
@@ -92,33 +92,41 @@
       "id": "C1",
       "branch": "claude/cw-c1-quarantine",
       "scope": "--quarantine-mode none|cost_only|closure: trade closure with dated effect, enforcement cost, no multiplier in new modes",
-      "status": "approved; integrated with main and screened (CW4) on claude/cw-cw4-screen; PR 3"
+      "status": "merged (#85)"
     },
     {
       "id": "A2R",
       "branch": "claude/cw-a2r-retail-cohorts",
       "base": "A5 head 1370ae7a",
       "scope": "schedule boundary, persistent opened_turn map, household-group cohorts (RL5), storage-cap timing (RL4), viewer war-loss and cohort display",
-      "status": "implemented (db96efe5): RL4 defect fixed under v2, RL5 cohorts, schedule boundary; review running"
+      "status": "integrated into S1 (claude/cw-s1-accounting)"
     },
     {
       "id": "A3",
       "branch": "claude/cw-a3-workshop-economics",
       "base": "A1 head fee5de7f",
       "scope": "--workshop-economics A3-1: money.py seam, paid inputs, firm cash, household customers, arrears, idle closure; one native purpose append",
-      "status": "implemented (5b5b3df6, native 2831bbd4); review running"
+      "status": "approved (f051f927, native 2831bbd4); merges after S1; CW2 after A3-2"
     },
     {
       "id": "S1",
       "branch": "claude/cw-s1-accounting",
       "scope": "integration of A5+A2R+A1 on main with one layer cws1; then CW1 screen",
-      "status": "active"
+      "status": "integrated; review merge-ready; CW1 run and checked; PR",
+      "head": "8fc3cc60",
+      "layer": "cws1 (batch_manifest.py, its test, live.py)"
     },
     {
       "id": "B2",
       "branch": "claude/cw-b2-flow",
       "scope": "recalibrated watershed constants; flow mode replacing native water terms, irrigation bonus and cascade",
-      "status": "active"
+      "status": "review: changes requested (terrain clamp, chronic floods, calibration CV); fixes in progress"
+    },
+    {
+      "id": "C1b",
+      "branch": "claude/cw-c1b-migration",
+      "scope": "--quarantine-channels trade,migration: native transient closure input refusing migration between closed pairs",
+      "status": "approved (c7242983, native e724072d); CW4b screen preparation"
     }
   ],
   "recorded_limits": [
@@ -161,7 +169,8 @@
       "id": "RL6",
       "limit": "expedition labour cost not separated from a no-expedition arm",
       "class": "evidence gap",
-      "slice": "S1/S2 screen arm CH_noTS (no-expedition control)"
+      "slice": "S1/S2 screen arm CH_noTS (no-expedition control)",
+      "disposition": "CW1 arm CH_noTS (CHAIN without timber supply): money credited fell in every procedural world (-778) relative to A; coverage fell in 3 of 5 template worlds"
     },
     {
       "id": "RL7",
@@ -219,6 +228,11 @@
       "reserve": {
         "template": [791, 792, 793, 794, 795, 796],
         "procedural": [891, 892, 893, 894, 895, 896]
+      },
+      "CW4b": {
+        "template": [3101, 3102, 3103, 3104, 3105, 3106],
+        "procedural": [3201, 3202, 3203, 3204, 3205, 3206],
+        "note": "reserved for the C1b migration-closure screen"
       }
     },
     "status": "reserved 2026-11-06 against the audit E registry (none run)"
@@ -243,9 +257,19 @@
       "premerge_run": 42280073920,
       "main_run": 42281625835,
       "date": "2026-11-06"
+    },
+    {
+      "pr": 85,
+      "slice": "C1 quarantine + CW4",
+      "merge_commit": "8286804cba473ccb8cd278b95e34faf3b4759ee8",
+      "merge_tree": "0c738587",
+      "reviewed_head": "020b27b7",
+      "premerge_run": 42286466762,
+      "main_run": 42288620571,
+      "date": "2026-11-06"
     }
   ],
-  "next": "Open PR 3 (C1 quarantine + CW4); finish S1 integration and preregister CW1; A3 fixes and re-review; B2 flow mode; then C1b migration closure (motivated by the CW4 null), A1-2 native observer, B3 infrastructure condition, D2 attribution.",
+  "next": "Open the S1 PR (A5+A2R+A1+CW1); then A3 PR (merge main after S1, rerun activation); B2 fixes and re-review then CW3; CW4b review then held run and C1b PR; A4-1 + A3-2 batched native lane after A3 merges; then D2 attribution, B3 infrastructure condition, C2 care, D4, E linked histories.",
   "baseline": {
     "oracle_lane": "PASS, 63 chunks, 295.5 s, slowest 32.4 s of 110 s",
     "native_check": "check_python_env --expect native PASS (101a4cd5)",
@@ -257,7 +281,8 @@
     "D": "docs/superpowers/audits/connected-world/audit-d-institutions-war-owned-stock.md",
     "E": "docs/superpowers/audits/connected-world/audit-e-verification-playbook.md",
     "A1-A2": "docs/superpowers/audits/connected-world/audit-a1-a2-income-wealth.md",
-    "A3": "docs/superpowers/audits/connected-world/audit-a3-workshop-economics.md"
+    "A3": "docs/superpowers/audits/connected-world/audit-a3-workshop-economics.md",
+    "A4": "docs/superpowers/audits/connected-world/audit-a4-merchants-owned-cargo.md"
   },
   "decisions": {
     "livelihoods_switch_order": "existing switches, then household_retail, watershed, workshop_economics, wealth_accounting last (observer after every payer); pinned by a test at integration"
@@ -271,6 +296,14 @@
       "primaries": "P1 world cross-polity arrivals QR-QC: template +0.83 (2/3/1), procedural +0.5 (2/4/0) - null; P2 world epidemic deaths per 1000 person-turns QR-QC: template -0.21 (1/4/1), procedural -1.46 (3/3/0) - null",
       "harms": "route income forgone 519 t / 1769 p; merchant unwinds up (6/0/0 p); food shortfall after relief up (5/1/0 p, 3 of 6 t); migration up; enforcement paid mostly from court spending",
       "page": "docs/superpowers/progress/connected-world-screens-cw4.md"
+    },
+    "CW1": {
+      "status": "run 2026-11-06",
+      "frozen": "4a79b7f5 (Amendment 1: P1 without procurement)",
+      "held": "108 runs, 0 failed, 0.584 core-hours (ceiling 1.46)",
+      "primaries": "P1 wage at fixed enrollment, money credited A-C: template +170 (4/1), procedural +770 (6/0); P2 enrollment without wage C-B: template -603 (0/5), procedural -2151 (0/6); P3 priced-out rate A-C: null",
+      "validity": "24 of 24 schedule replays exact; template 734 not activated",
+      "page": "docs/superpowers/progress/connected-world-screens-cw1.md"
     }
   }
 }

@@ -9,7 +9,7 @@ whose served output is byte-identical (section 5).
 | --- | --- |
 | `scripts/seed_registry.json` | Every recorded use of a seed number, per stratum, and the program's reservations |
 | `scripts/screen_runner.py` | The generic run/report/check/`--resume` runner, parametrized by a `Screen` |
-| `scripts/connected_world_screens.py` | CW1-CW6 (stubs: cohorts only, except CW4, declared by slice C1: [quarantine rules](quarantine-rules.md), preregistration `docs/superpowers/progress/connected-world-screens-cw4.md`) and the development-only `DEV` smoke screen |
+| `scripts/connected_world_screens.py` | CW1-CW6 (stubs: cohorts only, except CW4, declared by slice C1: [quarantine rules](quarantine-rules.md), preregistration `docs/superpowers/progress/connected-world-screens-cw4.md`, and CW1, declared by slice S1: the wage and `paid_work` enrollment, a two-phase screen, preregistration `docs/superpowers/progress/connected-world-screens-cw1.md`) and the development-only `DEV` smoke screen |
 | `scripts/feature_matrix.py` | The switch compatibility matrix, generated from `feature_catalog` |
 | `viewer/src/lib/recordReading.ts` | The RL8 fix: absent, malformed, disabled and recorded-zero records told apart |
 | `tests/test_screen_runner.py`, `tests/test_feature_matrix.py` | Offline tests (oracle chunk `connected-world-e`, native shard 0) |
@@ -150,6 +150,26 @@ of their preregistrations; the runner imports neither and is not tied to
 - **Failures**: a missing or malformed outcome or harm makes the run rc 3 with the reasons;
   nothing missing reads as zero. A failed run's output folder is kept for diagnosis. Exit
   codes: 1 a simulation failed, 3 a missing outcome, 4 stopped at the ceiling.
+- **Two-phase screens** (`Screen.derived`, S1 for CW1): an arm may need a file made from
+  another arm's run on the same world. A `SR.Derived(name, source, placeholder, make)` names
+  the source arm and the token the using arms' flags carry; `make(bundle, flags)` returns the
+  file's bytes and a record of what it holds. The runner runs the source first, writes the
+  file read-only to `OUT/derived/<name>-<world>.json`, and records its SHA-256 in the source's
+  row (`derived`), `OUT/derived.jsonl`, `source.txt` (`derived <name> <world> (from arm X):
+  sha256 ...`) and, for a held or reserve run, the ledger (entries with a `derived` key, which
+  the conflict check skips), all before any user of the file starts. A user's command carries
+  the file's path in place of the token; its row records the file and SHA-256 it ran on
+  (`inputs`), and the runner hashes the file again before the run (a changed file fails the
+  run, not run). A source that fails, or whose `make` refuses, fails its users on that world
+  (rc 1, `not run: derived ... unavailable`). `--arms` with a user but not its source is
+  refused unless `--resume` finds the file already recorded; a resumed run reads the recorded
+  digests from the source rows. `check` requires distinct names and tokens, a source that is an
+  arm and uses no derived file, and each token exactly once in each using arm.
+- **Interactions and control activation**: `SR.Outcome(..., minus=(arm2, control2))` reads
+  `(arm - control) - (arm2 - control2)` on each world (all four runs needed, both arms
+  activated). `Screen.control_activation=True` also requires a non-root control to have acted,
+  in the outcomes and the harm panel. `Screen.report(rows, strata)` adds the screen's own tables
+  after the activation table (CW1: enrollment, wages and schedule replays per world).
 
 **Identity.** `source.txt` starts with `source <rev>`, `dirty <n> tracked files`,
 `dirty-code <n>` (modified tracked code files, the registry excluded), the imported
@@ -206,7 +226,9 @@ bundle to `{state, value, note}`) in `HARM_PANEL`; it does not drop or reorder h
    default_mode)`), `outcomes` (`SR.Outcome(id, label, arm, control, read, primary)`, 2-3
    primary; `read(row)` reads `row["m"]`, `row["pk"]` or `SR.harm_value(row, key)`),
    `activation(bundle, flags) -> (True/False/None, evidence)`, `extract(bundle, flags) ->
-   (measures, problems)` and `ready=True`. Keep the declared `pilot` and `held` cohorts.
+   (measures, problems)` and `ready=True`. Keep the declared `pilot` and `held` cohorts. A
+   screen whose arms replay another arm's recorded behaviour declares `derived` (CW1 is the
+   example: arms C and D replay A's and B's pilot schedules).
 2. Write `docs/superpowers/progress/connected-world-screens-cwN.md` with `Status: DRAFT`, the
    `Compute ceiling:` and `Primary outcomes:` lines, definitions, structural zeros versus
    unknowns and stopping rules (the productive-recovery checkpoint-3 preregistration is the
