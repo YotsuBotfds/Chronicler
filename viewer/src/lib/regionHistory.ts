@@ -1,6 +1,6 @@
 import type { Bundle } from "../types";
 import { readRegionalPopulation } from "./regionalPopulation";
-import { watershedOn, watershedRegionValue, type WatershedRegionKey } from "./watershed";
+import { readWatershedRun, watershedOn, watershedRegionValue, type WatershedRegionKey } from "./watershed";
 
 export interface RegionMetric {
   id: string;
@@ -75,13 +75,13 @@ export function inspectRegionHistory(
   bundle: Bundle, regionName: string, metric: RegionMetric, start: number, end: number,
 ): { rows: RegionHistoryRow[]; unrecordedTurns: number } {
   const regionKey = pointer(regionName);
-  const watershed = metric.kind === "watershed" && watershedOn(bundle.history);
+  const watershed = metric.kind === "watershed" ? readWatershedRun(bundle.history, bundle.world_state.regions.length) : null;
   const rows: RegionHistoryRow[] = bundle.history.flatMap((snapshot, index) => {
     if (snapshot.turn < start || snapshot.turn > end) return [];
     const regionIndex = bundle.world_state.regions.findIndex((region) => region.name === regionName);
     if (metric.kind === "watershed") {
       const reading = watershedRegionValue(snapshot, regionIndex, bundle.world_state.regions.length,
-        metric.key as WatershedRegionKey, watershed);
+        metric.key as WatershedRegionKey, watershed!);
       return [{ turn: snapshot.turn, controller: snapshot.region_control[regionName], value: reading.value,
         missing: reading.missing, source: `/history/${index}${reading.path}` }];
     }

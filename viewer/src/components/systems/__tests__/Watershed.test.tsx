@@ -36,12 +36,29 @@ it("shows the turn's account, each region's indices, a flood with its causes and
   expect(p.onSelectRegion).toHaveBeenCalledWith(natural.regions[2]);
 });
 
-it("lists open and ended droughts with the conditions behind them", () => {
+it("lists declared, open and ended droughts with the conditions behind them", () => {
+  const first = render(<Watershed {...props(at(37))} />);
+  expect(within(screen.getByRole("table", { name: "Droughts at snapshot 37" })).getByText("Declared this turn")).toBeInTheDocument();
+  first.unmount();
   render(<Watershed {...props(at(42))} />);
   const table = within(screen.getByRole("table", { name: "Droughts at snapshot 42" }));
-  expect(table.getAllByText("Open").length).toBeGreaterThan(0);
   expect(table.getByText(/Ended at turn 41/)).toBeInTheDocument();
+  expect(within(screen.getByRole("table", { name: "Open droughts at snapshot 42" })).getAllByRole("row").length).toBeGreaterThan(1);
+  expect(screen.getByText(/recorded in full in the snapshot of the turn it was declared/)).toBeInTheDocument();
   expect(screen.getByText(/No region's arrivals exceeded its channel this turn \(recorded: no flood\)/)).toBeInTheDocument();
+});
+
+it("attributes external inflow by recorded source and flags a stale baseline", () => {
+  const first = render(<Watershed {...props(at(1))} />);
+  const flows = within(screen.getByRole("table", { name: "External flows at snapshot 1" }));
+  expect(flows.getByText("coastal flood")).toBeInTheDocument();
+  expect(screen.queryByText(/Stale baseline/)).toBeNull();
+  expect(screen.getByText(/closure holds by construction/)).toBeInTheDocument();
+  first.unmount();
+  const stale = at(60);
+  (stale as unknown as { livelihoods: { watershed: { stale_baseline: boolean } } }).livelihoods.watershed.stale_baseline = true;
+  render(<Watershed {...props(stale)} />);
+  expect(screen.getByText(/Stale baseline: the index was not observed after the previous tick/)).toBeInTheDocument();
 });
 
 it("keeps disabled, absent, malformed and unobserved apart", () => {
@@ -59,8 +76,9 @@ it("keeps disabled, absent, malformed and unobserved apart", () => {
   expect(screen.getByText(/malformed \(unknown watershed schema\); nothing is shown from it/)).toBeInTheDocument();
   third.unmount();
   const unobserved = at(60);
-  Object.assign((unobserved as unknown as { livelihoods: { watershed: object } }).livelihoods.watershed,
-    { observed: false, phase: null, regions: null, floods: null, droughts: null, totals: null });
+  const w = (unobserved as unknown as { livelihoods: { watershed: { regions: { storage: number[] } } } }).livelihoods.watershed;
+  Object.assign(w, { observed: false, phase: null, stale_baseline: null, storage: w.regions.storage, regions: null,
+    floods: null, droughts: null, external: null, totals: null });
   render(<Watershed {...props(unobserved)} />);
   expect(screen.getByText(/flows, floods and droughts are unknown, not zero/)).toBeInTheDocument();
   expect(screen.queryByRole("table", { name: "Watershed regions at snapshot 60" })).toBeNull();
