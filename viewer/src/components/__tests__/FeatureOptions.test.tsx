@@ -234,6 +234,29 @@ describe("FeatureOptions", () => {
     expect(onChange).toHaveBeenLastCalledWith({});
   });
 
+  it("offers the quarantine mode as a top-level public-health choice, legacy when unset (C1)", () => {
+    const onChange = vi.fn();
+    render(<Harness catalog={served} onChange={onChange} />);
+    open();
+    const mode = screen.getByRole("combobox", { name: /Quarantine mode --quarantine-mode/ }) as HTMLSelectElement;
+    expect(mode.disabled).toBe(false);
+    expect([...mode.options].map((o) => o.textContent)).toEqual(
+      ["Not set (the run's default: legacy)", "legacy", "none", "cost_only", "closure"]);
+    expect(description(mode)).toMatch(/Needs: epidemiology with the contact ledger .* \(met\)\.$/);
+    fireEvent.change(mode, { target: { value: "none" } });
+    expect(onChange).toHaveBeenLastCalledWith({ quarantine_mode: "none" });
+    expect(screen.getByText(/--quarantine-mode=none/)).toBeTruthy();
+    fireEvent.change(mode, { target: { value: "legacy" } });   // the default: nothing to send
+    expect(onChange).toHaveBeenLastCalledWith({});
+    cleanup();
+    const noEpidemics = catalogWith((raw) => { raw.surfaces.live.settings.epidemiology = false; });
+    render(<Harness catalog={noEpidemics} />);
+    open();
+    const off = screen.getByRole("combobox", { name: /Quarantine mode --quarantine-mode/ }) as HTMLSelectElement;
+    expect(off.disabled).toBe(true);
+    expect(description(off)).toMatch(/Unavailable: .*epidemiology/);
+  });
+
   it("offers RS1's rules version under apprenticeship, version 2 by default, sent only when changed", () => {
     const onChange = vi.fn();
     render(<Harness catalog={served} onChange={onChange} />);
