@@ -180,6 +180,10 @@ open questions follow each summary.
   layer; a switch change on resume is refused). Irrigation and road condition live in their own
   record keyed by infrastructure stable id (RS2's schema and viewer stay unchanged), repaired with
   the same crews, timber store and L9 envelope, so no budget is spent twice. Ports are deferred.
+  In `flow` mode the old river-flood check keeps drawing from the shared environment stream but its
+  effect is suppressed and recorded as superseded, so enabling the watershed does not shift other
+  systems' draws. Roads gain service-gated range only; a transport discount would be a new bonus
+  with its own mode. Constants are calibrated from `record_only` on development worlds only.
 
 ### 5.3 C public health ([audit](../audits/connected-world/audit-c-public-health.md))
 
