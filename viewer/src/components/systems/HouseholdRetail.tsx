@@ -130,10 +130,10 @@ export function HouseholdRetail({ bundle, snapshot, currentTurn, onSelectRegion 
             </tr>)}</tbody>
           </table></div> : null}
           {sampled.length > 0 ? <div className="systems-table-wrap"><table className="systems-table" aria-label={`Sampled people below their fair share at snapshot ${turn}`}>
-            <thead><tr><th>Person (household), region</th><th>Ration of fair share</th><th>Why</th></tr></thead>
+            <thead><tr><th>Person (household), region</th><th>Why</th><th>Ration of fair share</th></tr></thead>
             <tbody>{sampled.map(([id, rid, household, ration, fair, status]) => <tr key={`${rid}-${id}`}>
-              <td>{id} ({household}), {link(rid)}</td><td>{number(ration)} of {number(fair)}</td>
-              <td>{STATUS_LABEL[RETAIL_STATUSES[status]]}</td>
+              <td>{id} ({household}), {link(rid)}</td><td>{STATUS_LABEL[RETAIL_STATUSES[status]]}</td>
+              <td>{number(ration)} of {number(fair)}</td>
             </tr>)}</tbody>
           </table></div> : null}
           {sampled.length > 0 || record.sample_dropped ? <p className="systems-note">The person sample holds at most 24 people, those below their fair share first{record.sample_dropped ? `; ${record.sample_dropped} more were not sampled` : ""}. The region counts above are complete.</p> : null}

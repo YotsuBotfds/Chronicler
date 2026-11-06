@@ -57,7 +57,7 @@ describe("household retail panel", () => {
       .toBeInTheDocument();
     expect(rowOf("People below their fair share at snapshot 81", "Oldmere")).toHaveTextContent(/^Oldmere \(0\.382\)0 · 9 · 7 \(0\.26\)$/);
     expect(table("Sampled people below their fair share at snapshot 81").getAllByRole("row")[1])
-      .toHaveTextContent("45 (45), Oldmere0.368 of 0.382withheld (dead owner's claim)");
+      .toHaveTextContent("45 (45), Oldmerewithheld (dead owner's claim)0.368 of 0.382");
     expect(note(/117 more were not sampled\. The region counts above are complete\./)).toBeInTheDocument();
     expect(note(/^Records this turn: inherited 2\.$/)).toBeInTheDocument();
   });
