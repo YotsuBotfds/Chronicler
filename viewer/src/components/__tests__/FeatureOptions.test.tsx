@@ -286,4 +286,17 @@ describe("FeatureOptions", () => {
     expect(screen.getByRole("note").textContent).toBe("Feature options apply to new worlds only.");
     for (const checkbox of screen.getAllByRole("checkbox")) expect((checkbox as HTMLInputElement).disabled).toBe(true);
   });
+
+  it("lets Batch Lab request the watershed for the procedural world it will send (review m1)", () => {
+    const { rerender } = render(<FeatureOptions catalog={served} surface="batch" selection={{}} onSelectionChange={() => {}}
+      world={{ regions: 8 }} />);
+    open();
+    const watershed = () => screen.getByRole("checkbox", { name: /Watershed/ }) as HTMLInputElement;
+    expect(watershed().disabled).toBe(true);
+    expect(description(watershed())).toMatch(/Unavailable: requires a procedural world/);
+    rerender(<FeatureOptions catalog={served} surface="batch" selection={{}} onSelectionChange={() => {}}
+      world={{ regions: 32 }} />);
+    expect(watershed().disabled).toBe(false);
+    expect(description(watershed())).toMatch(/\(met\)/);
+  });
 });

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "board_version": 8,
+  "board_version": 9,
   "title": "Connected-world program (A livelihoods and trade, B watersheds and infrastructure, C public health, D institutions and war, E stories and evidence) operational board",
   "plan": "docs/superpowers/roadmaps/connected-world-program.md",
   "owner_instruction": "2026-11-06 (after #82): own the A-E program end to end with parallel workers, integrating and evaluating each slice and continuing across slice boundaries; merges of this program authorized after independent review, green premerge Tests on the reviewed head and verified main CI; new systems opt-in and off by default; no default promotion; full 200-seed and procedural qualification gates restricted; bounded held screens (procedural included) authorized; no purchases, paid credits, paid narration APIs, deployments, credential or sharing changes. Amendment (same day): tiers sequence work and are not stopping points; failures block the affected merge, not the program; pin 8abc1acb as the original reference; default-path changes behind a switch or rules version.",
@@ -10,8 +10,8 @@
     "native_build": "maturin develop --release --locked into ~/.venvs/chronicler-native, 3m14s on 4 cores; identical to the checkpoint-2/3 extension"
   },
   "durable_location": {
-    "branch": "claude/connected-world",
-    "base": "main at 8abc1acb (#82)"
+    "branch": "main (merged slices) plus the lane and integration branches listed in lanes",
+    "base": "main at 1d4141d7 (#83)"
   },
   "status_values": ["proposed", "ready", "active", "blocked", "integrated", "evaluated", "merged", "deferred"],
   "machine": {
@@ -56,14 +56,14 @@
       "id": "E1",
       "branch": "claude/cw-e1-tooling",
       "scope": "seed registry, generic screen runner, compatibility matrix, RL8 viewer readers",
-      "status": "review: approve with changes (M1 ceiling overrun + minors); fixes in progress",
+      "status": "merged (#83)",
       "head": "1619edc9"
     },
     {
       "id": "A5",
       "branch": "claude/cw-a5-owned-stock",
       "scope": "retail rules v2: war reaches owned stock once per event; RL1-RL3 dispositions",
-      "status": "review: merge-ready (6 minor, folded into A2R)",
+      "status": "approved; folded into A2R (claude/cw-a2r-retail-cohorts db96efe5)",
       "head": "1370ae7a",
       "source": "36d1a040",
       "layer": "b9e64330 (provisional cwa5)",
@@ -73,7 +73,7 @@
       "id": "A1",
       "branch": "claude/cw-a1-ledger",
       "scope": "--wealth-accounting observation ledger (slice A1-1, Python only); RL7 PL3 granary/workshop split",
-      "status": "implemented; independent review running",
+      "status": "approved with minors fixed (2b18841f)",
       "head": "fee5de7f",
       "layer": "fee5de7f (provisional cwa1)",
       "verification": "offline lane PASS 64 chunks 242.8 s; native 130 passed; feature-off identity 9 cases 399 files 0 differences; observer identity 571 files 0 differences beyond its record; exact resume hybrid_s42_long 19, proc32_hybrid_s11 39 PASS; CHECK_RESOURCES PASS; RL7 split equals PL3 total every turn"
@@ -82,7 +82,7 @@
       "id": "B1",
       "branch": "claude/cw-b1-watershed",
       "scope": "--watershed record_only: drainage graph, conserved water account, closure checks, viewer panel (procedural only)",
-      "status": "review: approve after gate (all-switch evidence) + minors; fixes in progress",
+      "status": "approved (final check d28eb338); integrated as PR 2 branch claude/cw-pr2-watershed",
       "head": "54147ffa",
       "layer": "54147ffa (provisional cwb1)",
       "verification": "offline lane PASS 64 chunks 241.5 s; feature-off identity 9 cases 399 files 0 differences; record_only vs off 0 differences on 6 runs; exact resume proc32_hybrid_s11 39 PASS; viewer 1463 tests, lint, build; browser desktop+phone 23/23",
@@ -92,20 +92,26 @@
       "id": "C1",
       "branch": "claude/cw-c1-quarantine",
       "scope": "--quarantine-mode none|cost_only|closure: trade closure with dated effect, enforcement cost, no multiplier in new modes",
-      "status": "active"
+      "status": "approved (final check ac18300c); integrating with main + CW4 screen on claude/cw-cw4-screen"
     },
     {
       "id": "A2R",
       "branch": "claude/cw-a2r-retail-cohorts",
       "base": "A5 head 1370ae7a",
       "scope": "schedule boundary, persistent opened_turn map, household-group cohorts (RL5), storage-cap timing (RL4), viewer war-loss and cohort display",
-      "status": "active"
+      "status": "implemented (db96efe5): RL4 defect fixed under v2, RL5 cohorts, schedule boundary; review running"
     },
     {
       "id": "A3",
       "branch": "claude/cw-a3-workshop-economics",
       "base": "A1 head fee5de7f",
       "scope": "--workshop-economics A3-1: money.py seam, paid inputs, firm cash, household customers, arrears, idle closure; one native purpose append",
+      "status": "implemented (5b5b3df6, native 2831bbd4); review running"
+    },
+    {
+      "id": "S1",
+      "branch": "claude/cw-s1-accounting",
+      "scope": "integration of A5+A2R+A1 on main with one layer cws1; then CW1 screen",
       "status": "active"
     }
   ],
@@ -134,14 +140,16 @@
     {
       "id": "RL4",
       "limit": "pilot region can exceed the storage cap by up to one turn's harvest between close and next opening",
-      "class": "pending",
-      "slice": "S1 (lane A2R)"
+      "class": "defect",
+      "slice": "S1 (lane A2R)",
+      "disposition": "granaries bought owned grain the next cap would destroy; under retail rules v2 owned grain above the cap is cut before Phase 10 buying, recorded as cap_overflow (lane A2R)"
     },
     {
       "id": "RL5",
       "limit": "purchases by person not in the snapshot",
       "class": "evidence gap",
-      "slice": "S1 (lane A2R)"
+      "slice": "S1 (lane A2R)",
+      "disposition": "five household-group aggregates per provisioned region-turn, each exact or null with reason; no ids (lane A2R)"
     },
     {
       "id": "RL6",
@@ -209,8 +217,19 @@
     },
     "status": "reserved 2026-11-06 against the audit E registry (none run)"
   },
-  "merges": [],
-  "next": "Review and integrate lanes E1 (PR 1: tooling, RL8), A5 (owned stock, RL1-RL3) and A1 (ledger, RL7) as they report; then the retail-side A2 additions (schedule boundary, opened_turn map, household-group cohorts, RL5) on top of A5, and the CW1 screen.",
+  "merges": [
+    {
+      "pr": 83,
+      "slice": "S0 + E1",
+      "merge_commit": "1d4141d787929d9cf1143b27e9745fcf8685d2c9",
+      "merge_tree": "cd0eb07b",
+      "reviewed_head": "7faebe73",
+      "premerge_run": 42274171595,
+      "main_run": 42275935233,
+      "date": "2026-11-06"
+    }
+  ],
+  "next": "Open PR 2 (B1 watershed record_only) once its integration review and identity pass; integrate S1 (A5+A2R+A1) and preregister CW1; review CW4 preregistration then run the held cohort; review A3.",
   "baseline": {
     "oracle_lane": "PASS, 63 chunks, 295.5 s, slowest 32.4 s of 110 s",
     "native_check": "check_python_env --expect native PASS (101a4cd5)",

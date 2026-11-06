@@ -222,25 +222,32 @@ bundle to `{state, value, note}`) in `HARM_PANEL`; it does not drop or reorder h
 ## 5. The compatibility matrix
 
 `PYTHONPATH=src python scripts/feature_matrix.py [--json OUT] [--markdown OUT]` (adapted from
-audit E's prototype) lists, from `feature_catalog.REQUIREMENTS`, each switch's minimal selection
-and agent modes; every pair as valid or refused with the catalog's reason (a refusal is
-expected only for an exclusive pair or a pair with no common agent mode); every prerequisite
-drop (each must be refused); and the all-enabled selection per agent mode. It exits 1 on an
-accepted drop, an unexpected refusal, a refused all-enabled selection or a one-sided
-exclusion. On 2026-11-06: 24 switches, 276 pairs, none refused, 24 drops all refused,
-all-enabled accepted in every mode (off: `--scholarship --clearing-protection`;
-demographics-only and shadow: 7 switches; hybrid: all 24). `tests/test_feature_matrix.py`
-also sends every all-enabled selection and every drop through `main._configure_run`.
+audit E's prototype) evaluates the catalog per agent mode and per world: a template world and a
+procedural one, which differ in the world-dependent settings (`WORLD_SETTINGS`: today
+`procedural_world`, which `--watershed` requires; the other settings take their defaults). It
+lists each switch's minimal selection, agent modes and worlds; every pair as valid, refused
+with the catalog's reason, or *world-dependent* (valid in the worlds both switches allow,
+refused in another: reported, not a problem; a refusal is expected only for an exclusive pair
+or a pair with no common agent mode or world); every prerequisite drop, in a mode and world
+the switch allows (each must be refused); and the all-enabled selection per agent mode and
+world. It exits 1 on an accepted drop, an unexpected refusal, a refused all-enabled selection
+or a one-sided exclusion. With B1 merged (2026-11-06): 25 switches, 300 pairs, none refused,
+24 world-dependent (`--watershed` with each other switch: refused in a template world), 24
+drops all refused, all-enabled accepted in every mode and world (template: off 2, demographics-
+only and shadow 7, hybrid 24; procedural: one more each, `--watershed`; procedural hybrid: all
+25). `tests/test_feature_matrix.py` also sends every all-enabled selection, on a template world
+and on procedural development world 11, and every drop through `main._configure_run`.
 
 `feature_catalog.py` can now represent the program's later switches: `FEATURE_GROUPS` (groups
 after livelihoods for switches that are not livelihoods packages) and a `{"not": condition}`
 requirement (`_excludes(other)`, declared by both switches of a mutually exclusive pair;
 `exclusion_problems()` names a one-sided one). The viewer reads the `not` kind. Both are
-unused, so the served catalog of every existing switch, the lobby message, `REQUIREMENTS` and
-`CATALOG_SCHEMA_VERSION` (1) are byte-identical to 8abc1acb, which
+unused (B1's `--watershed` is a livelihoods switch, in the Livelihoods group), so the served
+catalog of every switch and setting 8abc1acb had (entries, requirements, settings and surface
+fields, in order) is byte-identical to 8abc1acb's, which
 `test_existing_catalog_output_is_byte_identical` checks against digests taken from the
-unchanged module; `tests/test_feature_catalog.py` is unchanged. See
-[feature options](feature-options.md).
+unchanged module; it leaves out switches and settings added later (B1's `watershed` and
+`procedural_world`), and `CATALOG_SCHEMA_VERSION` stays 1. See [feature options](feature-options.md).
 
 ## 6. Recorded limit RL8: absent versus malformed viewer records
 

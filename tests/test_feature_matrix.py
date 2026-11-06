@@ -67,16 +67,19 @@ def _digest(value) -> str:
     return hashlib.sha256(json.dumps(value).encode()).hexdigest()
 
 
+def _reference_surface(surface: dict) -> dict:
+    """A surface restricted to the 8abc1acb switches and settings (in their order)."""
+    return {**surface, "values": {k: v for k, v in surface["values"].items() if k in REFERENCE_KEYS},
+            "settings": {k: surface["settings"][k] for k in REFERENCE_SETTINGS}}
+
+
 def _reference_view(catalog: dict) -> dict:
-    """The 8abc1acb part of a lobby catalog: its entries and settings, and the surfaces
-    with only the reference settings (a later setting such as C1's ``epidemiology`` is
-    new output, not a change to an existing one)."""
-    surfaces = {name: {**surface, "settings": {k: surface["settings"][k] for k in REFERENCE_SETTINGS}}
-                for name, surface in catalog["surfaces"].items()}
+    """The lobby catalog restricted to what 8abc1acb served: its entries, settings and
+    surface fields. Switches and settings added later are left out, never compared."""
     return {"schema_version": catalog["schema_version"],
             "features": [e for e in catalog["features"] if e["key"] in REFERENCE_KEYS],
             "settings": {k: catalog["settings"][k] for k in REFERENCE_SETTINGS},
-            "surfaces": surfaces}
+            "surfaces": {name: _reference_surface(surface) for name, surface in catalog["surfaces"].items()}}
 
 
 def _assert_reference_catalog_unchanged():
@@ -91,7 +94,9 @@ def _assert_reference_catalog_unchanged():
 
 
 def test_existing_catalog_output_is_byte_identical():
-    """The served catalog of every existing switch is the 8abc1acb catalog, byte for byte."""
+    """Every switch and setting 8abc1acb served is served byte for byte as then (its
+    entries, requirements, settings and surface fields, in order); later programs may
+    add switches and settings, which this comparison leaves out."""
     assert fc.CATALOG_SCHEMA_VERSION == 1
     # Groups after livelihoods add entries; none of them is an existing key.
     grouped = {k for switches in fc.FEATURE_GROUPS.values() for key, options in switches.items()
@@ -99,6 +104,20 @@ def test_existing_catalog_output_is_byte_identical():
     assert not grouped & set(REFERENCE_KEYS)
     assert fc.FEATURE_GROUPS["Public health"] == {"quarantine_mode": ()}
     _assert_reference_catalog_unchanged()
+    # Additions are additions: the 8abc1acb entries keep their relative order, and every
+    # 8abc1acb setting is still offered on both surfaces.
+    keys = [e["key"] for e in fc.feature_entries()]
+    assert [k for k in keys if k in REFERENCE_KEYS] == list(REFERENCE_KEYS)
+    catalog = fc.lobby_feature_catalog(_parser().parse_args(["--live", "--agents", "hybrid"]))
+    for surface in catalog["surfaces"].values():
+        assert set(REFERENCE_SETTINGS) <= set(surface["settings"])
+
+
+def test_the_reference_comparison_catches_a_changed_existing_entry(monkeypatch, fresh_catalog):
+    """The restriction to 8abc1acb's switches still sees a change to one of them."""
+    monkeypatch.setitem(fc.REQUIREMENTS, "commons_rules", (fc._feature("timber_stock"), fc._HYBRID))
+    with pytest.raises(AssertionError):
+        _assert_reference_catalog_unchanged()
 
 
 # --- Switch groups after livelihoods -----------------------------------------------------
@@ -119,9 +138,12 @@ def test_a_new_group_is_listed_after_livelihoods_without_touching_existing_entri
                                                "Public health": {"test_quarantine": ()}})
     monkeypatch.setitem(fc.REQUIREMENTS, "test_water_model", (fc._HYBRID, fc._feature("timber_stock")))
     monkeypatch.setitem(fc.REQUIREMENTS, "test_quarantine", ())
+    fc._features.cache_clear()
     entries = fc.feature_entries()
     keys = [e["key"] for e in entries]
-    assert keys == [*REFERENCE_KEYS, "test_water_model", "test_water_mode", "test_quarantine"]
+    groups_end = keys.index("test_water_model")
+    assert keys[groups_end:] == ["test_water_model", "test_water_mode", "test_quarantine"]
+    assert all(e["group"] in (fc.PREREQUISITES_GROUP, fc.LIVELIHOODS_GROUP) for e in entries[:groups_end])
     by = {e["key"]: e for e in entries}
     assert by["test_water_model"] == {
         "key": "test_water_model", "flag": "--test-water-model", "label": "Test water model",
@@ -191,7 +213,7 @@ def test_mutually_exclusive_switches_refuse_each_other(monkeypatch, fresh_catalo
     pair = next(p for p in m["pairs_refused"] if p["pair"] == ["test_water_a", "test_water_b"])
     assert pair["expected_refusal"] and pair["refusal"].endswith("requires --test-water-b off")
     assert m["pairs_refused_unexpectedly"] == [] and M.problems(m) == []
-    hybrid_all = m["all_enabled"]["hybrid"]
+    hybrid_all = m["all_enabled"]["hybrid"]["template"]
     assert "test_water_b" in hybrid_all["switches"] and "test_water_a" not in hybrid_all["switches"]
     assert hybrid_all["refusal"] is None
     _assert_reference_catalog_unchanged()
@@ -211,6 +233,7 @@ def test_matrix_of_the_catalog(M):
     bools = [e["key"] for e in fc.feature_entries() if e["kind"] == "bool"]
     assert m["switches"] == len(bools) and m["pairs_total"] == len(bools) * (len(bools) - 1) // 2
     assert m["groups"][:2] == [fc.PREREQUISITES_GROUP, fc.LIVELIHOODS_GROUP]
+    assert m["worlds"] == ["template", "procedural"]
     assert M.problems(m) == []
     assert m["drops_not_refused"] == [] and m["pairs_refused_unexpectedly"] == []
     assert len(m["pairs_valid"]) + len(m["pairs_refused"]) == m["pairs_total"]
@@ -221,16 +244,50 @@ def test_matrix_of_the_catalog(M):
         "maintenance_obligation": True, "repair_projects": True, "workshops": True, "local_budgets": True,
         "grain_reserves": True}
     assert m["features"]["maintenance_obligation"]["modes"] == ["hybrid"]
+    assert m["features"]["maintenance_obligation"]["worlds"] == ["template", "procedural"]
     assert m["features"]["timber_stock"]["modes"] == ["demographics-only", "shadow", "hybrid"]
-    reference = {mode: [k for k in e["switches"] if k in REFERENCE_KEYS] for mode, e in m["all_enabled"].items()}
     economy = ["grain_reserves", "public_grain_shipments", "scholarship", "timber_stock", "grain_convoys",
                "commons_rules", "clearing_protection"]
-    assert reference == {"off": ["scholarship", "clearing_protection"], "demographics-only": economy,
-                         "shadow": economy, "hybrid": [k for k in REFERENCE_KEYS if k in fc.REQUIREMENTS]}
-    assert all(e["refusal"] is None for e in m["all_enabled"].values())
+    expected = {"off": ["scholarship", "clearing_protection"], "demographics-only": economy, "shadow": economy,
+                "hybrid": [k for k in REFERENCE_KEYS if k in fc.REQUIREMENTS]}
+    for world in ("template", "procedural"):
+        reference = {mode: [k for k in by[world]["switches"] if k in REFERENCE_KEYS]
+                     for mode, by in m["all_enabled"].items()}
+        assert reference == expected, world
+    assert all(e["refusal"] is None for by in m["all_enabled"].values() for e in by.values())
     # Top-level choices join every all-enabled selection at their last choice.
     assert M.top_level_choices() == ["quarantine_mode"]
-    assert all(e["selection"]["quarantine_mode"] == "closure" for e in m["all_enabled"].values())
+    assert all(e["selection"]["quarantine_mode"] == "closure" for by in m["all_enabled"].values()
+               for e in by.values())
+
+
+def test_a_world_dependent_switch_is_reported_as_such(M):
+    """--watershed needs a procedural world: refused in a template world (world-dependent,
+    not a problem), accepted with every other switch in a procedural one, and in the
+    procedural all-enabled set of every agent mode."""
+    if "watershed" not in fc.REQUIREMENTS:
+        pytest.skip("no world-dependent switch in this catalog")
+    m = M.matrix()
+    assert m["world_settings"] == {"procedural_world": {"template": False, "procedural": True}}
+    assert m["features"]["watershed"]["worlds"] == ["procedural"]
+    pairs = {tuple(p["pair"]): p for p in m["pairs_world_dependent"]}
+    pair = pairs[("grain_reserves", "watershed")]
+    assert pair["worlds"] == ["procedural"] and pair["by_world"]["procedural"] is None
+    assert pair["world_dependent"]["template"].startswith("'watershed' (--watershed) requires a procedural world")
+    assert all("watershed" in p for p in pairs)
+    assert not any("watershed" in p["pair"] for p in m["pairs_refused"])
+    for mode, by in m["all_enabled"].items():
+        assert "watershed" in by["procedural"]["switches"] and "watershed" not in by["template"]["switches"], mode
+        assert by["procedural"]["refusal"] is None
+    assert len(m["all_enabled"]["hybrid"]["procedural"]["switches"]) == len(m["features"])
+
+
+def test_world_settings_and_surfaces(M):
+    assert M.surface("hybrid", "procedural")["settings"]["procedural_world"] is True
+    assert M.surface("hybrid", "template")["settings"]["procedural_world"] is False
+    assert M.closure("workshops")[2] == ["template", "procedural"]
+    if "watershed" in fc.REQUIREMENTS:
+        assert M.closure("watershed")[2] == ["procedural"]
 
 
 class _Accepted(Exception):
@@ -249,14 +306,18 @@ def sentinel_runtimes(monkeypatch):
 
 
 @pytest.fixture(scope="module")
-def template():
+def worlds():
+    """A template world and a procedural one (the procedural development world 11)."""
     from chronicler.world_gen import generate_world
-    return generate_world(seed=42, num_regions=8, num_civs=4)
+    return {"template": (generate_world(seed=42, num_regions=8, num_civs=4), ["--regions", "8", "--civs", "4"]),
+            "procedural": (generate_world(seed=11, num_regions=32, num_civs=10, worldgen="procedural"),
+                           ["--regions", "32", "--civs", "10", "--worldgen", "procedural"])}
 
 
-def _configure(tmp_path, template, mode, flags) -> str | None:
+def _configure(tmp_path, worlds, world, mode, flags) -> str | None:
     from chronicler import main
-    args = _parser().parse_args(["--seed", "42", "--turns", "4", "--regions", "8", "--civs", "4", "--simulate-only",
+    template, shape = worlds[world]
+    args = _parser().parse_args(["--seed", "42", "--turns", "4", *shape, "--simulate-only",
                                  "--output", str(tmp_path / "chronicle.md"), "--state", str(tmp_path / "state.json"),
                                  "--agents", mode, *flags])
     try:
@@ -268,18 +329,26 @@ def _configure(tmp_path, template, mode, flags) -> str | None:
     return "configuration finished without reaching the runtimes"
 
 
+@pytest.mark.parametrize("world", ["template", "procedural"])
 @pytest.mark.parametrize("mode", fc.AGENT_MODES)
-def test_all_enabled_selections_pass_the_run_configuration(M, tmp_path, template, sentinel_runtimes, mode):
-    enabled = M.matrix()["all_enabled"][mode]
+def test_all_enabled_selections_pass_the_run_configuration(M, tmp_path, worlds, sentinel_runtimes, mode, world):
+    enabled = M.matrix()["all_enabled"][mode][world]
     assert enabled["refusal"] is None
-    assert _configure(tmp_path, template, mode, enabled["flags"]) is None
+    assert _configure(tmp_path, worlds, world, mode, enabled["flags"]) is None
 
 
-def test_every_prerequisite_drop_is_refused_by_the_run(M, tmp_path, template, sentinel_runtimes):
+def test_a_world_dependent_refusal_is_the_runs_too(M, tmp_path, worlds, sentinel_runtimes):
+    if "watershed" not in fc.REQUIREMENTS:
+        pytest.skip("no world-dependent switch in this catalog")
+    procedural = M.matrix()["all_enabled"]["hybrid"]["procedural"]["flags"]
+    assert "requires a procedural world" in _configure(tmp_path, worlds, "template", "hybrid", procedural)
+
+
+def test_every_prerequisite_drop_is_refused_by_the_run(M, tmp_path, worlds, sentinel_runtimes):
     accepted = []
     for d in M.matrix()["drops"]:
         selection = M._without(M.closure(d["feature"])[0], d["dropped"])
-        if _configure(tmp_path, template, d["mode"], fc.feature_cli_arguments(selection)) is None:
+        if _configure(tmp_path, worlds, d["world"], d["mode"], fc.feature_cli_arguments(selection)) is None:
             accepted.append(f"{d['feature']} without {d['dropped']}")
     assert accepted == []
 
@@ -287,10 +356,11 @@ def test_every_prerequisite_drop_is_refused_by_the_run(M, tmp_path, template, se
 def test_cli_writes_json_and_markdown(M, tmp_path, capsys):
     assert M.main(["--json", str(tmp_path / "m.json"), "--markdown", str(tmp_path / "m.md")]) == 0
     data = json.loads((tmp_path / "m.json").read_text())
-    assert data["drops_not_refused"] == [] and data["all_enabled"]["hybrid"]["refusal"] is None
+    assert data["drops_not_refused"] == [] and data["all_enabled"]["hybrid"]["procedural"]["refusal"] is None
     text = (tmp_path / "m.md").read_text()
     assert text.startswith("# Switch compatibility matrix (catalog schema 1)")
-    assert "## All enabled, per agent mode" in text and "- hybrid: accepted; --grain-reserves" in text
+    assert "## All enabled, per agent mode and world" in text and "- hybrid, template: accepted; --grain-reserves" in text
+    assert "- hybrid, procedural: accepted; --grain-reserves" in text and "## World-dependent pairs" in text
     assert "0 accepted" in capsys.readouterr().out
 
 

@@ -739,7 +739,8 @@ def test_all_enabled_selection_with_closure_is_valid_in_the_catalog():
             selection[entry["key"]] = True
     selection["household_retail_boundary"] = "all"
     selection["quarantine_mode"] = "closure"
-    surface = fc.live_surface(_build_parser().parse_args(["--agents", "hybrid"]))
+    # A live surface (--live): the world-dependent --watershed is offered there too.
+    surface = fc.live_surface(_build_parser().parse_args(["--agents", "hybrid", "--live"]))
     assert fc.validate_features(selection, surface) is None
     off = fc.live_surface(_build_parser().parse_args(["--agents", "hybrid", "--no-epidemiology"]))
     assert "epidemiology with the contact ledger" in fc.validate_features({"quarantine_mode": "closure"}, off)

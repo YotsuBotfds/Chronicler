@@ -90,14 +90,17 @@ contains one: consider bumping `CATALOG_SCHEMA_VERSION` (and the version the
 viewer accepts) when the first exclusion lands.
 
 **Compatibility matrix.** `scripts/feature_matrix.py [--json OUT] [--markdown
-OUT]` generates it from the catalog: each switch's minimal selection and agent
-modes, every pair (valid, or refused with the catalog's reason; a refusal is
-expected only for an exclusive pair or pair without a shared agent mode), each
-prerequisite drop (all must be refused) and the all-enabled selection per agent
-mode. `tests/test_feature_matrix.py` also sends every all-enabled selection and
-every drop through `main._configure_run`. On 2026-11-06: 24 switches, 276 pairs,
-0 refused, 24 drops all refused, all-enabled accepted in every mode (off: 2
-switches, demographics-only and shadow: 7, hybrid: 24).
+OUT]` generates it from the catalog, per agent mode and per world (template and
+procedural, which differ in the `procedural_world` setting): each switch's
+minimal selection, agent modes and worlds, every pair (valid, refused with the
+catalog's reason, or world-dependent: valid in the worlds both switches allow;
+a refusal is expected only for an exclusive pair or a pair without a shared
+agent mode or world), each prerequisite drop (all must be refused) and the
+all-enabled selection per agent mode and world. `tests/test_feature_matrix.py`
+also sends every all-enabled selection (template and procedural worlds) and
+every drop through `main._configure_run`. With `--watershed` (2026-11-06): 25
+switches, 300 pairs, 0 refused, 24 world-dependent, 24 drops all refused,
+all-enabled accepted in every mode and world (procedural hybrid: all 25).
 
 ## Agreement with the run's own checks
 
