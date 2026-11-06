@@ -1,6 +1,6 @@
 # Connected-world CW4b: preregistered held screen for the migration channel of quarantine closure (slice C1b)
 
-Status: FROZEN at `a732382e400d49f6aad4189725979587699ae139` (the screen module, extractors, seed registry and simulation source; the pilot below ran on it, clean tree). Awaiting the lead's review before any held run.
+Status: FROZEN at `a732382e400d49f6aad4189725979587699ae139` (the screen module, extractors, seed registry and simulation source, unchanged by Amendment 1; the pilot below ran on it, clean tree), with this page frozen as amended by Amendment 1 (compute ceiling 0.5 core-hours) before any held run; the lead approved the screen and gave the go-ahead for the held run (2026-11-06)
 
 Written 2026-11-06 by the C1b lane on branch `claude/cw-c1b-migration` (from `main` `8286804c`;
 C1b at `c7242983`, approved; the bounded refusal memory at `ea8a4657`; the screen declared at
@@ -10,7 +10,7 @@ C1b at `c7242983`, approved; the bounded refusal memory at `ea8a4657`; the scree
 defect, recorded as an amendment below with a new pilot; no arm, outcome, window or parameter
 changes in response to held outcomes.
 
-Compute ceiling: 0.236 core-hours
+Compute ceiling: 0.5 core-hours
 
 Primary outcomes: cw4b_world_arrivals, cw4b_world_death_rate
 
@@ -214,9 +214,9 @@ run's `--pilot`). The report prints the pilot's outcomes; they were not read for
 
 ## Budget and stopping rules
 
-- **Compute ceiling 0.236 core-hours** (the line above, read by the runner): the pilot
-  projection x 2, under the 2.0 cap; at most 3 concurrent processes; run with `--jobs 2` because
-  other lanes share the 4 cores. The runner refuses a held run whose pilot projection x 1.5
+- **Compute ceiling 0.5 core-hours** (the line above, read by the runner; the lead's
+  Amendment 1, under the 2.0 cap; was 0.236, the pilot projection x 2); at most 3 concurrent
+  processes; run with `--jobs 2` because other lanes share the 4 cores. The runner refuses a held run whose pilot projection x 1.5
   (0.177) exceeds the ceiling and starts no run that would pass it; runs not started are
   reported as `not run` (exit code 4), never as zeros. Held worlds slower than the pilot (the
   pilot ran on a lightly loaded machine) can therefore stop the run early; the stop is reported,
@@ -232,4 +232,9 @@ run's `--pilot`). The report prints the pilot's outcomes; they were not read for
 
 ## Amendments
 
-None.
+**Amendment 1 (before any held run), 2026-11-06, the lead's review.** The compute ceiling is
+0.5 core-hours (was 0.236, the pilot projection x 2): the pilot ran on a lightly loaded machine
+and the machine is now heavily loaded by other lanes; 0.5 stays well under the 2.0 cap (the same
+reasoning as CW4's Amendment 1). Nothing else changes: no arm, outcome, window, parameter, seed
+or code (the screen module, extractors, registry content and native extension are those of
+`a732382e`), so the pilot stays valid. No held seed had been run, and no held outcome was seen.
