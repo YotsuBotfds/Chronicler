@@ -1,13 +1,17 @@
-"""Productive-recovery checkpoint-1 screens (PL6a): run, report and check.
+"""Productive-recovery checkpoint screens (PL6a, PL6c): run, report and check.
 
-    python scripts/productive_recovery_screens.py run OUT_DIR --cohort pilot|held [--jobs 3] [--arms a,b] [--seeds all|template|procedural] [--keep-first] [--resume]
-    python scripts/productive_recovery_screens.py report OUT_DIR/metrics.jsonl
-    python scripts/productive_recovery_screens.py check [--metrics OUT_DIR/metrics.jsonl --cohort pilot|held]
+    python scripts/productive_recovery_screens.py run OUT_DIR --cohort pilot|held [--checkpoint 1|2] [--jobs 3] [--arms a,b] [--seeds all|template|procedural] [--keep-first] [--resume]
+    python scripts/productive_recovery_screens.py report OUT_DIR/metrics.jsonl [--checkpoint 1|2]
+    python scripts/productive_recovery_screens.py check [--checkpoint 1|2] [--metrics OUT_DIR/metrics.jsonl --cohort pilot|held]
 
 Run with the native interpreter whose extension matches the source under
-test (every arm is hybrid). Arms, cohorts and outcomes are preregistered in
-docs/superpowers/progress/productive-recovery-screens-cp1.md; worlds are the
-units. Every arm is compared with its declared control on the same world.
+test (every arm is hybrid). ``--checkpoint`` (default 1) picks the arms,
+outcomes, seeds and preregistration: checkpoint 1 (recovery) in
+docs/superpowers/progress/productive-recovery-screens-cp1.md, checkpoint 2
+(household food retail) in docs/superpowers/progress/productive-recovery-screens-cp2.md.
+Worlds are the units. Every arm is compared with its declared control on the same world.
+Checkpoint 2's rows carry ``"checkpoint": 2``; a report, check or resume refuses rows
+of another checkpoint.
 
 The extractor reads package lifetime counters from the dated snapshot records
 (``history[i]["livelihoods"][<package>]``) and world measures from the
@@ -20,8 +24,8 @@ run a visible failure (rc 3, the run and the reasons named); ``run`` and
 The shared helpers (base flags, the run environment that imports this
 checkout's ``src``, source identity, shared metrics and the world-by-world
 table) come from ``livelihoods_screens.py``, whose sprint 1-3 behaviour is
-unchanged. A held run refuses unless the preregistration's status line reads
-FROZEN. Raw outputs are deleted after extraction (``--keep-first`` keeps the
+unchanged. A held run refuses unless its checkpoint's preregistration's status
+line reads FROZEN. Raw outputs are deleted after extraction (``--keep-first`` keeps the
 first world of each stratum). ``--resume`` continues an interrupted run in the
 same OUT_DIR: it runs only the arms and worlds without a row, and refuses
 unless the recorded source, ``chronicler`` path, extension and interpreter
@@ -30,6 +34,7 @@ are the current ones; no recorded run is repeated.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import re
@@ -47,6 +52,27 @@ import livelihoods_screens as LS  # noqa: E402  (shared screen helpers)
 REPO = LS.REPO
 PY = LS.PY
 PREREGISTRATION = Path(REPO) / "docs/superpowers/progress/productive-recovery-screens-cp1.md"
+CHECKPOINT = 1
+#: The arm every control chain leads to.
+ROOT = "W"
+
+
+class _ModuleCheckpoint:
+    """Checkpoint 1 is this module's own globals, read when used (so tests can patch
+    them). Checkpoint 2 is the ``CP2`` namespace below; both offer the same names."""
+
+    def __getattr__(self, name):
+        try:
+            return globals()[name]
+        except KeyError:
+            raise AttributeError(name) from None
+
+
+CP1 = _ModuleCheckpoint()
+
+
+def _cp(cp):
+    return CP1 if cp is None else cp
 
 # --- Arms -------------------------------------------------------------------------
 
@@ -92,6 +118,11 @@ PACKAGES: dict[str, tuple[str, str | None, str | None]] = {
     "--maintenance-obligation": ("maintenance_obligation", "--maintenance-obligation-mode", "reserve"),
     "--veteran-reintegration": ("veteran_reintegration", "--veteran-mode", "priority"),
 }
+#: Further choices of a package checked like its mode: switch -> ((option, record
+#: attribute, default), ...). Checkpoint 1 has none.
+OPTIONS: dict[str, tuple[tuple[str, str, str], ...]] = {}
+#: Packages whose mode is recorded under another attribute than ``mode``.
+MODE_KEYS: dict[str, str] = {}
 
 # --- Seeds (per stratum; procedural 32x10 seed numbers are separate worlds) --------
 
@@ -103,6 +134,8 @@ NEVER_RUN = {"template": frozenset({2, *range(101, 107), *range(301, 307), *rang
 #: This phase's other held cohorts (checkpoints 2 and 3).
 RESERVED = {"template": frozenset({*range(711, 717), *range(721, 727)}),
             "procedural": frozenset({*range(811, 817), *range(821, 827)})}
+#: Earlier checkpoints' held cohorts, which NEVER_RUN must contain (none before checkpoint 1).
+PRIOR_HELD: tuple[dict, ...] = ()
 #: Development worlds, inspected freely by the lanes.
 DEVELOPMENT = {"template": frozenset({1, 3, 7, 9, 11, 23, 42}),
                "procedural": frozenset({7, 11, 13, 17, 21, 31, 302, 303})}
@@ -181,29 +214,53 @@ def declared_services() -> frozenset[str]:
     return frozenset(out)
 
 
-def expected_packages(flags) -> dict[str, str | None]:
+def source_problems() -> list[str]:
+    """Checkpoint-specific source checks (checkpoint 1: none beyond ``check_extractor``)."""
+    return []
+
+
+def expected_packages(flags, cp=None) -> dict[str, str | None]:
     """{snapshot key: mode} of the livelihoods packages the base plus ``flags`` enable
     (None for a package without modes)."""
-    flags = [*BASE, *flags]
+    cp = _cp(cp)
+    flags = [*cp.BASE, *flags]
     out = {}
-    for flag, (name, mode_flag, default) in PACKAGES.items():
+    for flag, (name, mode_flag, default) in cp.PACKAGES.items():
         if flag in flags:
             out[name] = (flags[flags.index(mode_flag) + 1] if mode_flag and mode_flag in flags else default)
     return out
 
 
-def _known_flags() -> set[str]:
-    known = set(BASE) | set(PACKAGES)
-    for _name, mode_flag, _default in PACKAGES.values():
+def expected_options(flags, cp=None) -> dict[str, dict[str, str]]:
+    """{snapshot key: {record attribute: value}} of the further choices (``OPTIONS``)
+    of the packages the base plus ``flags`` enable."""
+    cp = _cp(cp)
+    flags = [*cp.BASE, *flags]
+    out = {}
+    for flag, options in cp.OPTIONS.items():
+        if flag in flags:
+            out[cp.PACKAGES[flag][0]] = {attr: (flags[flags.index(option) + 1] if option in flags else default)
+                                         for option, attr, default in options}
+    return out
+
+
+def _known_flags(cp=None) -> set[str]:
+    cp = _cp(cp)
+    known = set(cp.BASE) | set(cp.PACKAGES)
+    for _name, mode_flag, _default in cp.PACKAGES.values():
         if mode_flag:
             known.add(mode_flag)
+    for options in cp.OPTIONS.values():
+        known.update(option for option, _attr, _default in options)
     return known
 
 
-def check_seeds() -> None:
+def check_seeds(cp=None) -> None:
     """Pilot and held seeds are disjoint from every earlier cohort and pilot, from
     this phase's other reserved cohorts, from development worlds and from each other
-    (per stratum), and the earlier cohorts include every sprint 1-3 cohort and pilot."""
+    (per stratum), and the earlier cohorts include every sprint 1-3 cohort and pilot
+    and every earlier checkpoint's held cohort."""
+    cp = _cp(cp)
     problems = []
     earlier = {"template": set(), "procedural": set()}
     for strata in (LS.STRATA, LS.STRATA2, LS.STRATA3, LS.PILOT3):
@@ -212,14 +269,18 @@ def check_seeds() -> None:
     for stratum in ("template", "procedural"):
         # The sprint-3 pilot ran procedural 7, a development world; every other
         # earlier seed must be listed as never run.
-        missing = earlier[stratum] - NEVER_RUN[stratum] - DEVELOPMENT[stratum]
+        missing = earlier[stratum] - cp.NEVER_RUN[stratum] - cp.DEVELOPMENT[stratum]
         if missing:
             problems.append(f"{stratum}: earlier cohort seeds {sorted(missing)} not in NEVER_RUN")
-        pilot, held = set(PILOT[stratum]), set(HELD[stratum])
+        for prior in cp.PRIOR_HELD:
+            missing = set(prior[stratum]) - cp.NEVER_RUN[stratum]
+            if missing:
+                problems.append(f"{stratum}: earlier checkpoint's held seeds {sorted(missing)} not in NEVER_RUN")
+        pilot, held = set(cp.PILOT[stratum]), set(cp.HELD[stratum])
         for label, seeds in (("pilot", pilot), ("held", held)):
-            for other_label, other in (("earlier cohorts and pilots", NEVER_RUN[stratum] | earlier[stratum]),
-                                       ("reserved cohorts", RESERVED[stratum]),
-                                       ("development worlds", DEVELOPMENT[stratum])):
+            for other_label, other in (("earlier cohorts and pilots", cp.NEVER_RUN[stratum] | earlier[stratum]),
+                                       ("reserved cohorts", cp.RESERVED[stratum]),
+                                       ("development worlds", cp.DEVELOPMENT[stratum])):
                 if seeds & other:
                     problems.append(f"{stratum} {label} seeds {sorted(seeds & other)} are in the {other_label}")
         if pilot & held:
@@ -228,19 +289,21 @@ def check_seeds() -> None:
         raise SystemExit("seed cohorts are not disjoint: " + "; ".join(problems))
 
 
-def check_extractor() -> None:
+def check_extractor(cp=None) -> None:
     """Every counter the report reads is declared by its package, every package is a
-    livelihoods switch whose option and default mode match the registry, every arm's
-    flags are known and its control exists (a tree rooted at W), and every outcome
-    names known arms. Raises SystemExit naming each problem."""
+    livelihoods switch whose option and default mode (and further options) match the
+    registry, every arm's flags are known and its control exists (a tree rooted at the
+    checkpoint's root), every outcome names known arms in a declared comparison, and
+    the checkpoint's own source checks pass. Raises SystemExit naming each problem."""
+    cp = _cp(cp)
     _src()
     from chronicler.livelihoods import LIVELIHOODS_ARG_KEYS, LIVELIHOODS_CHOICES
     from chronicler.livelihoods_state import LIVELIHOODS_SWITCHES
-    declared = declared_counters()
-    problems = [f"{name} is not a livelihoods switch" for name in OUTCOMES if name not in LIVELIHOODS_SWITCHES]
-    problems += [f"{name}.{key} is not a declared counter" for name, keys in OUTCOMES.items()
+    declared = cp.declared_counters()
+    problems = [f"{name} is not a livelihoods switch" for name in cp.OUTCOMES if name not in LIVELIHOODS_SWITCHES]
+    problems += [f"{name}.{key} is not a declared counter" for name, keys in cp.OUTCOMES.items()
                  for key in keys if key not in declared.get(name, ())]
-    for flag, (name, mode_flag, default) in PACKAGES.items():
+    for flag, (name, mode_flag, default) in cp.PACKAGES.items():
         dest = flag[2:].replace("-", "_")
         if dest != name or name not in LIVELIHOODS_SWITCHES or dest not in LIVELIHOODS_ARG_KEYS:
             problems.append(f"{flag} is not the switch of livelihoods package {name}")
@@ -250,35 +313,45 @@ def check_extractor() -> None:
                 problems.append(f"{mode_flag}: default {default!r} is not the registry default {choices}")
         elif any(k.startswith(name) and k != name for k in LIVELIHOODS_CHOICES):
             problems.append(f"{name} has registered modes the screen does not check")
-    known = _known_flags()
-    for arm, (flags, control) in ARMS.items():
+    for flag, options in cp.OPTIONS.items():
+        if flag not in cp.PACKAGES:
+            problems.append(f"options of {flag}, which is not a package of the screen")
+        for option, _attr, default in options:
+            choices = LIVELIHOODS_CHOICES.get(option[2:].replace("-", "_"))
+            if not choices or choices[0] != default:
+                problems.append(f"{option}: default {default!r} is not the registry default {choices}")
+    known = _known_flags(cp)
+    for arm, (flags, control) in cp.ARMS.items():
         bad = [f for f in flags if f.startswith("--") and f not in known]
         if bad:
             problems.append(f"arm {arm}: unknown flags {bad}")
-        if control is not None and control not in ARMS:
+        if control is not None and control not in cp.ARMS:
             problems.append(f"arm {arm}: unknown control {control}")
         seen, a = set(), arm
-        while a is not None and a in ARMS and a not in seen:
+        while a is not None and a in cp.ARMS and a not in seen:
             seen.add(a)
-            a = ARMS[a][1]
+            a = cp.ARMS[a][1]
         if a is not None:
-            problems.append(f"arm {arm}: its controls do not lead to the root W")
-    roots = [arm for arm, (_f, control) in ARMS.items() if control is None]
-    if roots != ["W"]:
-        problems.append(f"the root arms are {roots}, not ['W']")
-    for label, arm, control, _f in PAIRED:
-        problems += [f"outcome {label!r}: unknown arm {a}" for a in (arm, control) if a and a not in ARMS]
-    for label, arm, control, _f in PAIRED:
-        if control is not None and (arm, control) not in DECLARED_PAIRS:
+            problems.append(f"arm {arm}: its controls do not lead to the root {cp.ROOT}")
+    roots = [arm for arm, (_f, control) in cp.ARMS.items() if control is None]
+    if roots != [cp.ROOT]:
+        problems.append(f"the root arms are {roots}, not {[cp.ROOT]}")
+    for label, arm, control, _f in cp.PAIRED:
+        problems += [f"outcome {label!r}: unknown arm {a}" for a in (arm, control) if a and a not in cp.ARMS]
+    for label, arm, control, _f in cp.PAIRED:
+        if control is not None and (arm, control) not in cp.DECLARED_PAIRS:
             problems.append(f"outcome {label!r}: {arm} - {control} is not a declared comparison")
+    problems += cp.source_problems()
     if problems:
         raise SystemExit("productive-recovery extractor does not match the source: " + "; ".join(problems))
 
 
-def check_arm_flags() -> None:
+def check_arm_flags(cp=None) -> None:
     """Every arm's command line parses and passes the livelihoods prerequisite checks
     on a constructed hybrid world with cities, grain reserves and storage, enabling
-    exactly the packages and modes ``expected_packages`` names."""
+    exactly the packages and modes ``expected_packages`` names (and the options
+    ``expected_options`` names)."""
+    cp = _cp(cp)
     _src()
     from chronicler.cities_state import CityState
     from chronicler.grain_reserves import set_grain_reserves_enabled
@@ -289,9 +362,9 @@ def check_arm_flags() -> None:
     from chronicler.world_gen import generate_world
     parser = _build_parser()
     problems = []
-    for arm, (flags, _control) in ARMS.items():
-        for extra in ([], PROCEDURAL):
-            args = parser.parse_args(["--seed", "1", *BASE, *extra, *flags])
+    for arm, (flags, _control) in cp.ARMS.items():
+        for extra in ([], cp.PROCEDURAL):
+            args = parser.parse_args(["--seed", "1", *cp.BASE, *extra, *flags])
             world = generate_world(seed=11, num_regions=6, num_civs=2)
             world.cities = CityState()
             world.agent_mode = "hybrid"
@@ -307,9 +380,14 @@ def check_arm_flags() -> None:
             for name in LIVELIHOODS_SWITCHES:
                 sub = getattr(state, name, None) if state is not None else None
                 if sub is not None and getattr(sub, "enabled", True):
-                    enabled[name] = getattr(sub, "mode", None)
-            if enabled != expected_packages(flags):
-                problems.append(f"arm {arm}: enables {enabled}, expected {expected_packages(flags)}")
+                    enabled[name] = getattr(sub, cp.MODE_KEYS.get(name, "mode"), None)
+            if enabled != expected_packages(flags, cp):
+                problems.append(f"arm {arm}: enables {enabled}, expected {expected_packages(flags, cp)}")
+            for name, attrs in expected_options(flags, cp).items():
+                sub = getattr(state, name, None) if state is not None else None
+                got = {attr: getattr(sub, attr, None) for attr in attrs}
+                if got != attrs:
+                    problems.append(f"arm {arm}: {name} configures {got}, expected {attrs}")
     if problems:
         raise SystemExit("arm flags do not configure as declared: " + "; ".join(problems))
 
@@ -703,6 +781,573 @@ def annotate_pairs(rows) -> None:
                     target.setdefault("pair", {})[key] = total(target, regions) if regions is not None else None
 
 
+def report_extra(rows) -> list[str]:
+    """Checkpoint-specific report sections (checkpoint 1: none)."""
+    return []
+
+
+# --- Checkpoint 2: household food retail (PL4) -------------------------------------
+#
+# Preregistered in docs/superpowers/progress/productive-recovery-screens-cp2.md. The
+# ``CP2`` namespace at the end of this section offers every name checkpoint 1 keeps as
+# a module global, so the shared check, run and report code serves both checkpoints.
+
+#: Retail modes that provision pilot regions (``record_only`` provisions none).
+PROVISIONED_MODES = ("retail", "no_relief", "free_exchange")
+#: Native retail frame columns (``provisioning`` of a frame row) summed over an arm's
+#: own pilot region-turns; validated against ``RETAIL_REGION_COLUMNS`` in the Rust source.
+RETAIL_SUMS = ("persons", "children", "rations", "fed_fair", "deficit",
+               "priced_out_households", "priced_out_persons", "priced_out_children", "priced_out_deficit",
+               "offer_short_persons", "offer_short_children", "offer_short_deficit",
+               "withheld_dead_persons", "withheld_dead_children", "withheld_dead_deficit",
+               "free_given", "own_eaten_milli", "sold_milli", "paid_milli", "credited_milli", "refunded_milli")
+#: Sums over the frames that must equal the lifetime counter of the same name: a frame
+#: missing for a provisioned pilot region-turn shows here.
+CHECKED_SUMS = ("priced_out_persons", "offer_short_persons", "own_eaten_milli", "sold_milli",
+                "paid_milli", "credited_milli", "refunded_milli")
+#: L2 frame columns read (validated against ``REGION_COLUMNS``). L2 lists only scarce
+#: regions; elsewhere everyone has a full ration, so a ration shortfall of zero.
+L2_COLUMNS = ("region", "alive", "allocated", "shortfall")
+#: Retail frame-row fields read (validated against ``RegionFrame``).
+FRAME_FIELDS = ("region", "provisioning", "would_be", "merchant_food_departing", "owned_food_unloadable_milli")
+#: Food-accounting native fields read (validated against ``FOOD_LEDGER_FIELDS``).
+FOOD_FIELDS = ("demand", "transport_net")
+PROVISIONING_RS = "chronicler-agents/src/provisioning.rs"
+#: Checkpoint 1's held cohort, which checkpoint 2 must never run.
+CP1_HELD = HELD
+
+
+def _index(value, n: int) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and 0 <= value < n
+
+
+def declared_counters_cp2() -> dict[str, frozenset[str]]:
+    """Household retail's declared lifetime counters, from this checkout's source."""
+    _src()
+    from chronicler import household_retail_state
+    return {"household_retail": frozenset(household_retail_state.COUNTERS)}
+
+
+def rust_columns(path: str, const: str) -> tuple[str, ...] | None:
+    """The ``pub const <const>: [&str; N]`` array of a Rust file of this checkout (None
+    if it is absent or its length differs from N)."""
+    try:
+        text = (Path(REPO) / path).read_text(encoding="utf-8")
+    except OSError:
+        return None
+    m = re.search(rf"pub const {const}: \[&str; (\d+)\] = \[(.*?)\];", text, re.S)
+    if m is None:
+        return None
+    names = tuple(re.findall(r'"([^"]+)"', m.group(2)))
+    return names if len(names) == int(m.group(1)) else None
+
+
+def source_problems_cp2() -> list[str]:
+    """Every frame column, frame field and food-ledger field the extractor reads is
+    declared in this checkout's source; the retail modes are the four the screen
+    knows; and every registered choice of a package is checked as its mode or an
+    option."""
+    _src()
+    from chronicler.food_accounting import FOOD_LEDGER_FIELDS
+    from chronicler.household_retail_state import MODES, RegionFrame
+    from chronicler.livelihoods import LIVELIHOODS_CHOICES
+    problems = []
+    for const, wanted in (("RETAIL_REGION_COLUMNS", RETAIL_SUMS + ("region",)), ("REGION_COLUMNS", L2_COLUMNS)):
+        declared = rust_columns(PROVISIONING_RS, const)
+        if declared is None:
+            problems.append(f"{PROVISIONING_RS} declares no {const}")
+            continue
+        problems += [f"frame column {c} is not in {const}" for c in wanted if c not in declared]
+    problems += [f"frame field {f} is not a RegionFrame field" for f in FRAME_FIELDS
+                 if f not in RegionFrame.model_fields]
+    problems += [f"food accounting field {f} is not declared" for f in FOOD_FIELDS
+                 if f not in (*FOOD_LEDGER_FIELDS, "demand", "sufficiency")]
+    if set(MODES) != {*PROVISIONED_MODES, "record_only"}:
+        problems.append(f"household retail modes are {MODES}, not {(*PROVISIONED_MODES, 'record_only')}")
+    for flag, (name, mode_flag, _default) in CP2.PACKAGES.items():
+        covered = {mode_flag[2:].replace("-", "_")} if mode_flag else set()
+        covered |= {option[2:].replace("-", "_") for option, _a, _d in CP2.OPTIONS.get(flag, ())}
+        extra = sorted(k for k in LIVELIHOODS_CHOICES if k.startswith(name + "_") and k not in covered)
+        if extra:
+            problems.append(f"{name} has registered choices the screen does not check: {extra}")
+    return problems
+
+
+def trajectory_digest(bundle: dict) -> str:
+    """SHA-256 of the history and the final world state with the household retail
+    records removed (and the bundle metadata, which dates the run, left out): equal
+    for two runs whose trajectories are identical."""
+    def strip(liv):
+        return {k: v for k, v in liv.items() if k != "household_retail"} if isinstance(liv, dict) else liv
+    hist = [dict(s, livelihoods=strip(s["livelihoods"])) if isinstance(s, dict) and "livelihoods" in s else s
+            for s in bundle.get("history") or []]
+    world = bundle.get("world_state") or {}
+    if isinstance(world, dict) and "livelihoods" in world:
+        world = dict(world, livelihoods=strip(world["livelihoods"]))
+    text = json.dumps({"history": hist, "world_state": world}, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def extract_cp2(bundle: dict, flags, declared: dict) -> tuple[dict, list[str]]:
+    """The checkpoint-2 outcomes of one run and the reasons any is missing or malformed.
+
+    The run must have one snapshot per turn (1..TURNS); the last snapshot must hold
+    exactly the packages the arm enables, for the completed turn, in the arm's mode and
+    boundary, with numeric declared counters. Every snapshot must hold a complete food
+    accounting row per region, L2's frame and (retail arms) the retail frame, dated by
+    its source turn. A pilot region-turn is a frame row with a provisioning row (retail,
+    no_relief, free_exchange) or a would-be record (record_only); their number, and the
+    frame sums in ``CHECKED_SUMS``, must equal the lifetime counters. In provisioned
+    modes a pilot region may not also be in L2's frame. Any failure is returned, never
+    read as zero."""
+    cp = CP2
+    hist = bundle.get("history") or []
+    if not hist:
+        return {}, ["no snapshots"]
+    problems: list[str] = []
+    turns = [s.get("turn") for s in hist]
+    if turns != list(range(1, cp.TURNS + 1)):
+        problems.append(f"snapshots are not turns 1..{cp.TURNS} (got {len(turns)}, last {turns[-1]!r})")
+    last = hist[-1]
+    liv = last.get("livelihoods") or {}
+    expected = expected_packages(flags, cp)
+    options = expected_options(flags, cp)
+    present = sorted(k for k in liv if k != "schema_version")
+    if present != sorted(expected):
+        problems.append(f"packages {present} recorded, expected exactly {sorted(expected)}")
+    out: dict = {"packages": dict(expected), "pk": {}}
+    for name, mode in expected.items():
+        rec = liv.get(name)
+        if not isinstance(rec, dict):
+            problems.append(f"{name}: no record in the last snapshot")
+            continue
+        if rec.get("source_turn") != last.get("turn", 0) - 1:
+            problems.append(f"{name}: source_turn {rec.get('source_turn')!r} is not the completed turn")
+        key = cp.MODE_KEYS.get(name, "mode")
+        if mode is not None and rec.get(key) != mode:
+            problems.append(f"{name}: {key} {rec.get(key)!r}, expected {mode!r}")
+        for attr, value in options.get(name, {}).items():
+            if rec.get(attr) != value:
+                problems.append(f"{name}: {attr} {rec.get(attr)!r}, expected {value!r}")
+        if name not in cp.OUTCOMES:
+            continue
+        counters = rec.get("counters")
+        if not isinstance(counters, dict):
+            problems.append(f"{name}: counters missing")
+            continue
+        unknown = sorted(set(counters) - declared[name])
+        if unknown:
+            problems.append(f"{name}: undeclared counters {unknown[:5]}")
+        bad = sorted(k for k, v in counters.items() if not _num(v))
+        if bad:
+            problems.append(f"{name}: non-numeric counters {bad[:5]}")
+        # A declared counter absent from the record was never incremented (every
+        # record starts empty when its switch is enabled).
+        out["pk"][name] = {k: counters.get(k, 0) for k in cp.OUTCOMES[name]}
+
+    regions = (bundle.get("world_state") or {}).get("regions") or []
+    n = len(regions)
+    if not n:
+        problems.append("world state has no regions")
+    mode = expected.get("household_retail")
+    provisioned = mode in PROVISIONED_MODES
+    totals = {k: [0.0] * n for k in ("food_gap", "food_demand", "ration_short", "phase2_alive", "transport_net")}
+    pilot_turns = [0] * n
+    sums = dict.fromkeys(RETAIL_SUMS, 0.0)
+    departing = unloadable = 0.0
+    bad_food, bad_l2, bad_retail, overlap, leaked = [], [], [], [], []
+    for snap in hist:
+        turn = snap.get("turn")
+        source = turn - 1 if isinstance(turn, int) else None
+        # Food accounting (Phase 2 availability after relief, per region).
+        fa = snap.get("food_accounting") or {}
+        rows = fa.get("regions")
+        cells = []
+        if fa.get("source_turn") == source and isinstance(rows, list) and len(rows) == n:
+            for i, row in enumerate(rows):
+                native = row.get("native") or {}
+                d, s, t = native.get("demand"), row.get("sufficiency_after_relief"), native.get("transport_net")
+                count = row.get("native_count")
+                if row.get("region_id") != i or not (_num(d) and _num(s) and _num(t)) or not _index(count, 1 << 31):
+                    break
+                cells.append((d * max(0.0, 1.0 - min(1.0, s)), d, t, count))
+        if len(cells) != n:
+            bad_food.append(turn)
+        else:
+            for i, (gap, d, t, count) in enumerate(cells):
+                totals["food_gap"][i] += gap
+                totals["food_demand"][i] += d
+                totals["transport_net"][i] += t
+                totals["phase2_alive"][i] += count
+        # L2's frame: scarce regions outside the provisioned pilot.
+        l2 = (snap.get("livelihoods") or {}).get("food_allocation")
+        l2_regions: set[int] = set()
+        if not isinstance(l2, dict) or l2.get("source_turn") != source or not isinstance(l2.get("regions"), list):
+            bad_l2.append(turn)
+        else:
+            for row in l2["regions"]:
+                rid = row.get("region") if isinstance(row, dict) else None
+                if not _index(rid, n) or rid in l2_regions or not all(_num(row.get(k)) for k in L2_COLUMNS[1:]):
+                    bad_l2.append(turn)
+                    break
+                l2_regions.add(rid)
+                totals["ration_short"][rid] += row["shortfall"]
+        # The retail frame (one row per pilot region touched this turn).
+        hr = (snap.get("livelihoods") or {}).get("household_retail")
+        if mode is None:
+            if hr is not None:
+                leaked.append(turn)
+            continue
+        if not isinstance(hr, dict) or hr.get("source_turn") != source or not isinstance(hr.get("regions"), list):
+            bad_retail.append(turn)
+            continue
+        seen: set[int] = set()
+        for f in hr["regions"]:
+            rid = f.get("region") if isinstance(f, dict) else None
+            if not _index(rid, n) or rid in seen:
+                bad_retail.append(turn)
+                break
+            seen.add(rid)
+            prov, would_be = f.get("provisioning"), f.get("would_be")
+            if provisioned:
+                if would_be is not None:
+                    bad_retail.append(turn)
+                    break
+                if prov is None:
+                    continue        # a region closed this turn: not provisioned, not a pilot region-turn
+                if not isinstance(prov, dict) or prov.get("region") != rid \
+                        or not all(_num(prov.get(k)) for k in RETAIL_SUMS) \
+                        or not _num(f.get("merchant_food_departing")) or not _num(f.get("owned_food_unloadable_milli")):
+                    bad_retail.append(turn)
+                    break
+                if rid in l2_regions:
+                    overlap.append(turn)
+                for k in RETAIL_SUMS:
+                    sums[k] += prov[k]
+                totals["ration_short"][rid] += prov["persons"] - prov["rations"]
+                unloadable += f["owned_food_unloadable_milli"]
+            else:
+                if prov is not None:
+                    bad_retail.append(turn)
+                    break
+                if would_be is None:
+                    continue
+                if not isinstance(would_be, dict) or not _num(f.get("merchant_food_departing")):
+                    bad_retail.append(turn)
+                    break
+            departing += f["merchant_food_departing"]
+            pilot_turns[rid] += 1
+    if bad_food:
+        problems.append(f"food accounting missing or incomplete at turns {bad_food[:5]}")
+    if bad_l2:
+        problems.append(f"food_allocation: frame missing or malformed at turns {bad_l2[:5]}")
+    if bad_retail:
+        problems.append(f"household_retail: frame missing or malformed at turns {bad_retail[:5]}")
+    if overlap:
+        problems.append(f"household_retail: a provisioned pilot region is also in L2's frame at turns {overlap[:5]}")
+    if leaked:
+        problems.append(f"household_retail: recorded at turns {leaked[:5]} in an arm without it")
+    pk = out["pk"].get("household_retail")
+    income_replaced = 0.0
+    if mode is not None and pk is not None:
+        if sum(pilot_turns) != pk["pilot_region_turns"]:
+            problems.append(f"household_retail: {sum(pilot_turns)} pilot region-turns in the frames, "
+                            f"the counter has {pk['pilot_region_turns']}")
+        for k in CHECKED_SUMS:
+            if abs(sums[k] - pk[k]) > 1e-6 * max(1.0, abs(pk[k])):
+                problems.append(f"household_retail: frames sum {k} to {sums[k]}, the counter has {pk[k]}")
+        income_replaced = (liv.get("household_retail") or {}).get("income_replaced_total")
+        if not _num(income_replaced):
+            problems.append("household_retail: income_replaced_total missing")
+            income_replaced = None
+    civs = [c for c in (last.get("civ_stats") or {}).values() if isinstance(c, dict) and (c.get("population") or 0) > 0]
+    if not all(_num(c.get("gini")) for c in civs):
+        problems.append("civ_stats: wealth Gini missing in the last snapshot")
+    out["retail"] = {**{k: round(v, 6) for k, v in sums.items()}, "pilot_region_turns": sum(pilot_turns),
+                     "merchant_food_departing": round(departing, 6), "owned_food_unloadable": unloadable / 1000}
+    out["income_replaced"] = income_replaced
+    out["region_totals"] = {**{k: [round(v, 6) for v in vals] for k, vals in totals.items()},
+                            "pilot_turns": pilot_turns}
+    out["gini"] = mean(c["gini"] for c in civs) if civs and all(_num(c.get("gini")) for c in civs) else None
+    out["digest"] = trajectory_digest(bundle)
+    return out, problems
+
+
+def metrics_row_cp2(bundle_path: Path, flags) -> dict:
+    """The shared sprint metrics plus the validated checkpoint-2 outcomes.
+    A missing or malformed outcome makes the row a visible failure (rc 3)."""
+    _src()
+    from chronicler.bundle_codec import load_bundle
+    m = LS.metrics(bundle_path)
+    extra, problems = extract_cp2(load_bundle(bundle_path), flags, declared_counters_cp2())
+    m.update(extra)
+    if problems:
+        m["rc"], m["error"] = 3, "missing or malformed outcomes: " + "; ".join(problems)
+    return m
+
+
+def _region_set(row, regions) -> dict | None:
+    """A run's totals over a fixed region set, all turns (None if unknown)."""
+    if row is None or row.get("rc") != 0 or regions is None:
+        return None
+    t = row.get("region_totals") or {}
+    try:
+        food, short, alive, transport = (math.fsum(t[k][i] for i in regions)
+                                         for k in ("food_gap", "ration_short", "phase2_alive", "transport_net"))
+    except (KeyError, IndexError, TypeError):
+        return None
+    return {"regions": len(regions), "food": food, "ration_short": short, "phase2_alive": alive,
+            "mean_ration": (1.0 - short / alive) if alive else None, "transport_net": transport}
+
+
+def annotate_pairs_cp2(rows) -> None:
+    """Fixed region sets per world (checkpoint 1's rule): each ``REGION_SETS`` treatment
+    arm's pilot regions (provisioned, or recorded in record_only, at any turn), summed over
+    every turn in both that arm and its control; and, for the identity arm, whether its
+    trajectory digest differs from its control's (1) or not (0)."""
+    by = {(r["arm"], r["stratum"], r["seed"]): r for r in rows}
+    for treat, control in CP2.REGION_SETS:
+        key = f"{treat}|{control}"
+        for (arm, stratum, seed), row in by.items():
+            if arm != treat:
+                continue
+            ctl = by.get((control, stratum, seed))
+            turns = _get(row, "region_totals", "pilot_turns") if row.get("rc") == 0 else None
+            regions = [i for i, v in enumerate(turns) if v] if isinstance(turns, list) else None
+            for target in (row, ctl):
+                if target is not None:
+                    target.setdefault("pair", {})[key] = _region_set(target, regions)
+            if row["pair"][key] is not None:
+                row["pair"][key]["coverage"] = (math.fsum(turns[i] for i in regions) / (len(regions) * CP2.TURNS)
+                                                if regions else None)
+            if (treat, control) == CP2.IDENTITY and ctl is not None:
+                mine, theirs = row["pair"][key], ctl["pair"][key]
+                known = mine is not None and theirs is not None and bool(row.get("digest")) and bool(ctl.get("digest"))
+                if mine is not None:
+                    mine["trajectory_differs"] = float(row["digest"] != ctl["digest"]) if known else None
+                if theirs is not None:
+                    theirs["trajectory_differs"] = 0.0 if known else None
+
+
+def _rt(key):
+    """A sum over the arm's own pilot region-turns (structural zero in an arm that
+    provisions none: the extractor verified it has no provisioning row)."""
+    return lambda r: _get(r, "retail", key)
+
+
+def _own_mean_ration(r):
+    """Mean ration of the arm's own pilot persons (person rations over person-turns)."""
+    return _ratio(_get(r, "retail", "rations"), _get(r, "retail", "persons"))
+
+
+def _over(key, field):
+    return lambda r: _get(r, "pair", key, field)
+
+
+def _retail_coins(*keys):
+    """Household retail counters in milli-units, as coins (structural zero without retail)."""
+    def value(r):
+        parts = [_z(r, "household_retail", k) for k in keys]
+        return None if any(p is None for p in parts) else sum(parts) / 1000
+    return value
+
+
+_REVENUE = _retail_coins("credited_milli", "procurement_credited_milli")
+
+
+def _revenue_ratio(r):
+    return _ratio(_REVENUE(r), r.get("income_replaced"))
+
+
+def _net_money(r):
+    """Procurement credited minus ordinary farm income replaced, coins: the money retail
+    brings into or takes out of households (purchases move it between households)."""
+    procured, replaced = _retail_coins("procurement_credited_milli")(r), r.get("income_replaced")
+    return None if procured is None or replaced is None else procured - replaced
+
+
+def _paired_cp2() -> list:
+    """The preregistered checkpoint-2 outcomes (``PAIRED``)."""
+    out = []
+    for b, primary in (("", "[primary] "), ("_all", "")):
+        R, F, N = f"R{b}", f"R{b}_free", f"R{b}_norelief"
+        out += [
+            # R - R_free: payment and income replacement, against ownership and timing without cash.
+            (f"{primary}{R} priced-out person-turns in its pilot regions ({R} - {F})", R, F, _rt("priced_out_persons")),
+            (f"{R} priced-out child-turns ({R} - {F})", R, F, _rt("priced_out_children")),
+            (f"{R} priced-out deficit, rations ({R} - {F})", R, F, _rt("priced_out_deficit")),
+            (f"{R} offer-short person-turns ({R} - {F})", R, F, _rt("offer_short_persons")),
+            (f"{R} withheld-dead person-turns ({R} - {F})", R, F, _rt("withheld_dead_persons")),
+            (f"{R} mean ration of pilot persons ({R} - {F})", R, F, _own_mean_ration),
+            (f"{R} pilot person-turns ({R} - {F}; the denominator)", R, F, _rt("persons")),
+            # R_norelief - R: what the tithe and the means test protect.
+            (f"{primary}{N} priced-out person-turns ({N} - {R}; what relief protects)", N, R,
+             _rt("priced_out_persons")),
+            (f"{N} priced-out child-turns ({N} - {R})", N, R, _rt("priced_out_children")),
+            (f"{N} priced-out deficit, rations ({N} - {R})", N, R, _rt("priced_out_deficit")),
+        ]
+        for A in (R, F):
+            key = f"{A}|L2"
+            out += [
+                (f"{A} food shortfall after relief in {A}'s pilot regions, food ({A} - L2)", A, "L2", _over(key, "food")),
+                (f"{A} mean ration per Phase-2 person in {A}'s pilot regions ({A} - L2)", A, "L2",
+                 _over(key, "mean_ration")),
+                (f"{A} ration shortfall in {A}'s pilot regions, rations ({A} - L2)", A, "L2",
+                 _over(key, "ration_short")),
+                (f"{A} population ({A} - L2)", A, "L2", lambda r: r.get("population")),
+            ]
+            if A != R:
+                continue
+            out += [
+                (f"{R} net food transport into {R}'s pilot regions, food ({R} - L2)", R, "L2",
+                 _over(key, "transport_net")),
+                (f"{R} treasury ({R} - L2)", R, "L2", lambda r: r.get("treasury")),
+                (f"{R} mean civilization wealth Gini at the end ({R} - L2)", R, "L2", lambda r: r.get("gini")),
+                (f"{R} share of its pilot regions' region-turns that were pilot turns ({R})", R, None,
+                 _over(key, "coverage")),
+                (f"{R} owners' sale revenue: household purchases and granary procurement credited, coins ({R})",
+                 R, None, _REVENUE),
+                (f"{R} household purchases credited to owners, coins ({R})", R, None,
+                 _retail_coins("credited_milli")),
+                (f"{R} granary procurement credited to owners, coins ({R})", R, None,
+                 _retail_coins("procurement_credited_milli")),
+                (f"{R} ordinary farm income replaced, coins ({R})", R, None, lambda r: r.get("income_replaced")),
+                (f"{R} sale revenue / income replaced ({R})", R, None, _revenue_ratio),
+                (f"{R} money into households: procurement credited minus income replaced, coins ({R})", R, None,
+                 _net_money),
+                (f"{R} owned food merchants could not load, summed over pilot region-turns, food ({R}; "
+                 "bounds the merchant departures foregone)", R, None, _rt("owned_food_unloadable")),
+            ]
+        if not b:
+            out.append(("R commons food merchants committed from pilot regions, food (R - R_rec; R_rec records "
+                        "L2's trajectory)", "R", "R_rec", _rt("merchant_food_departing")))
+            # R_rec - L2: the identity control. Every value must be zero in every world.
+            key = "R_rec|L2"
+            ident = [
+                ("trajectory differs (1) or is identical (0)", _over(key, "trajectory_differs")),
+                ("food shortfall after relief in R_rec's pilot regions, food", _over(key, "food")),
+                ("mean ration per Phase-2 person in R_rec's pilot regions", _over(key, "mean_ration")),
+                ("ration shortfall in R_rec's pilot regions, rations", _over(key, "ration_short")),
+                ("net food transport into R_rec's pilot regions, food", _over(key, "transport_net")),
+                ("population", lambda r: r.get("population")),
+                ("treasury", lambda r: r.get("treasury")),
+                ("mean civilization wealth Gini at the end", lambda r: r.get("gini")),
+                ("priced-out person-turns", _rt("priced_out_persons")),
+                ("priced-out child-turns", _rt("priced_out_children")),
+                ("priced-out deficit, rations", _rt("priced_out_deficit")),
+                ("offer-short person-turns", _rt("offer_short_persons")),
+                ("withheld-dead person-turns", _rt("withheld_dead_persons")),
+                ("owners' sale revenue, coins", _REVENUE),
+                ("ordinary farm income replaced, coins", lambda r: r.get("income_replaced")),
+                ("money into households, coins", _net_money),
+                ("owned food merchants could not load, food", _rt("owned_food_unloadable")),
+            ]
+            out += [(f"[identity] R_rec {label} (R_rec - L2; must be 0)", "R_rec", "L2", f) for label, f in ident]
+    return out
+
+
+def report_extra_cp2(rows) -> list[str]:
+    """The identity control: every R_rec - L2 outcome must be zero in every world."""
+    by = {(r["arm"], r["stratum"], r["seed"]): r for r in rows}
+    worlds = sorted({(s, seed) for (_a, s, seed) in by})
+    out = ["\n### Identity control (R_rec - L2: every outcome must be zero in every world)\n"]
+    bad = []
+    for label, arm, control, f in CP2.PAIRED:
+        if (arm, control) != CP2.IDENTITY:
+            continue
+        for s, seed in worlds:
+            a, c = by.get((arm, s, seed)), by.get((control, s, seed))
+            if a is None or c is None or a["rc"] != 0 or c["rc"] != 0:
+                bad.append(f"{label} {s}{seed}: not run or failed")
+                continue
+            va, vc = f(a), f(c)
+            if va is None or vc is None:
+                bad.append(f"{label} {s}{seed}: unknown")
+            elif va - vc != 0:
+                bad.append(f"{label} {s}{seed}: {va - vc:+.6g}")
+    n = sum(1 for label, a, c, _f in CP2.PAIRED if (a, c) == CP2.IDENTITY)
+    if bad:
+        out.append(f"**FAILED** on {len(bad)} outcome-worlds:")
+        out += [f"- {b}" for b in bad]
+    else:
+        out.append(f"All {n} identity outcomes are zero in all {len(worlds)} worlds.")
+    return out
+
+
+class CP2:
+    """Checkpoint 2 (household food retail): the names checkpoint 1 keeps as globals."""
+
+    CHECKPOINT = 2
+    PREREGISTRATION = Path(REPO) / "docs/superpowers/progress/productive-recovery-screens-cp2.md"
+    ROOT = "L2"
+    #: The sprint base, the sprint-2/3 base and L2 in its default floor_means regime
+    #: (retail requires it). No workshops.
+    BASE = [*LS.BASE, *LS.BASE2, "--food-allocation"]
+    TURNS = int(BASE[BASE.index("--turns") + 1])
+    PROCEDURAL = list(LS.PROCEDURAL)
+    #: Arm -> (flags added to the base, control arm). ``L2`` is the root.
+    ARMS: dict[str, tuple[list[str], str | None]] = {
+        "L2": ([], None),
+        "R_rec": (["--household-retail", "--household-retail-mode", "record_only"], "L2"),
+        "R": (["--household-retail"], "R_free"),
+        "R_free": (["--household-retail", "--household-retail-mode", "free_exchange"], "L2"),
+        "R_norelief": (["--household-retail", "--household-retail-mode", "no_relief"], "R"),
+        "R_all": (["--household-retail", "--household-retail-boundary", "all"], "R_all_free"),
+        "R_all_free": (["--household-retail", "--household-retail-mode", "free_exchange",
+                        "--household-retail-boundary", "all"], "L2"),
+        "R_all_norelief": (["--household-retail", "--household-retail-mode", "no_relief",
+                            "--household-retail-boundary", "all"], "R_all"),
+    }
+    PACKAGES: dict[str, tuple[str, str | None, str | None]] = {
+        "--food-allocation": ("food_allocation", "--food-allocation-regime", "floor_means"),
+        "--household-retail": ("household_retail", "--household-retail-mode", "retail"),
+    }
+    OPTIONS = {"--household-retail": (("--household-retail-boundary", "boundary", "market"),)}
+    MODE_KEYS = {"food_allocation": "regime"}
+    # Seeds (per stratum). The pilot is the phase's timing pilot, shared with checkpoint 1.
+    PILOT = {"template": (5,), "procedural": (19,)}
+    HELD = {"template": tuple(range(711, 717)), "procedural": tuple(range(811, 817))}
+    #: Earlier held cohorts and pilots, checkpoint 1's held cohort included: never run.
+    NEVER_RUN = {"template": frozenset({2, *range(101, 107), *range(301, 307), *range(501, 507), *range(701, 707)}),
+                 "procedural": frozenset({*range(201, 207), *range(401, 407), *range(601, 607), *range(801, 807)})}
+    #: This phase's later held cohort (checkpoint 3).
+    RESERVED = {"template": frozenset(range(721, 727)), "procedural": frozenset(range(821, 827))}
+    DEVELOPMENT = DEVELOPMENT
+    PRIOR_HELD = (CP1_HELD,)
+    TAGS = TAGS
+    COHORTS = {"pilot": PILOT, "held": HELD}
+    LABELS = {"pilot": {"t": "template 8x4 (seed 5)", "p": "procedural 32x10 (seed 19)"},
+              "held": {"t": "template 8x4 (seeds 711-716)", "p": "procedural 32x10 (seeds 811-816)"}}
+    #: Counters the funnels report (validated against household_retail_state.COUNTERS).
+    OUTCOMES: dict[str, tuple[str, ...]] = {
+        "household_retail": (
+            "turns_settled", "turns_unobserved", "turns_not_taken", "pilot_region_turns", "regions_opened",
+            "regions_closed", "claims_refused", "owners_titled", "titled_milli", "untitled_milli",
+            "own_eaten_milli", "sold_milli", "procured_milli", "decay_milli", "overflow_milli", "war_loss_milli",
+            "to_commons_milli", "inherited_milli", "escheat_milli", "deaths", "pool_resets", "paid_milli",
+            "credited_milli", "refunded_milli", "procurement_flows", "procurement_credited_milli",
+            "procurement_residual_milli", "procurement_unpaid_milli", "requisition_exempt_region_turns",
+            "priced_out_persons", "offer_short_persons", "income_replaced_rows", "crew_farm_time_person_turns",
+            "crew_farm_time_micro"),
+    }
+    #: Treatment arms compared with L2 over a fixed region set (their pilot regions).
+    REGION_SETS = (("R", "L2"), ("R_free", "L2"), ("R_rec", "L2"), ("R_all", "L2"), ("R_all_free", "L2"))
+    #: The identity control and its reference.
+    IDENTITY = ("R_rec", "L2")
+    PAIRED = _paired_cp2()
+    #: The arm table's comparisons plus the cross-arm contrasts the preregistration names.
+    DECLARED_PAIRS = {(arm, control) for arm, (_f, control) in ARMS.items() if control} \
+        | {("R", "L2"), ("R_all", "L2"), ("R", "R_rec")}
+    declared_counters = staticmethod(declared_counters_cp2)
+    source_problems = staticmethod(source_problems_cp2)
+    metrics_row = staticmethod(metrics_row_cp2)
+    annotate_pairs = staticmethod(annotate_pairs_cp2)
+    report_extra = staticmethod(report_extra_cp2)
+
+
+CHECKPOINTS = {1: CP1, 2: CP2}
+
+
 # --- Running ----------------------------------------------------------------------
 
 def preregistration_frozen(path: Path = PREREGISTRATION) -> bool:
@@ -715,15 +1360,16 @@ def preregistration_frozen(path: Path = PREREGISTRATION) -> bool:
                for line in text.splitlines())
 
 
-def jobs_for(cohort: str, seeds: str, arms: list[str]) -> list[tuple[str, str, int, list[str], bool]]:
+def jobs_for(cohort: str, seeds: str, arms: list[str], cp=None) -> list[tuple[str, str, int, list[str], bool]]:
     """(arm, stratum tag, seed, extra world flags, first world of its stratum) per run;
     procedural worlds first (they take longest)."""
+    cp = _cp(cp)
     strata = ["procedural", "template"] if seeds == "all" else [seeds]
     out = []
     for stratum in strata:
-        for i, seed in enumerate(COHORTS[cohort][stratum]):
+        for i, seed in enumerate(cp.COHORTS[cohort][stratum]):
             for arm in arms:
-                out.append((arm, TAGS[stratum], seed, PROCEDURAL if stratum == "procedural" else [], i == 0))
+                out.append((arm, cp.TAGS[stratum], seed, cp.PROCEDURAL if stratum == "procedural" else [], i == 0))
     return out
 
 
@@ -732,24 +1378,28 @@ def simulate(cmd: list[str]) -> subprocess.CompletedProcess:
     return subprocess.run(cmd, cwd=REPO, env=LS._run_env(), capture_output=True, text=True)
 
 
-def run_one(out: Path, cohort: str, arm: str, stratum: str, seed: int, extra: list[str], keep: bool) -> dict:
+def run_one(out: Path, cohort: str, arm: str, stratum: str, seed: int, extra: list[str], keep: bool,
+            cp=None) -> dict:
+    cp = _cp(cp)
     d = (out / "runs" / f"{arm}-{stratum}{seed}").resolve()
     if d.exists():
         shutil.rmtree(d)
     d.mkdir(parents=True)
-    flags = list(ARMS[arm][0])
-    cmd = [PY, "-m", "chronicler.main", "--seed", str(seed), *BASE, *extra, *flags,
+    flags = list(cp.ARMS[arm][0])
+    cmd = [PY, "-m", "chronicler.main", "--seed", str(seed), *cp.BASE, *extra, *flags,
            "--output", str(d / "chronicle.md"), "--state", str(d / "state.json")]
     t0 = time.time()
     p = simulate(cmd)
     row = {"cohort": cohort, "arm": arm, "stratum": stratum, "seed": seed, "rc": p.returncode,
            "wall_s": round(time.time() - t0, 1)}
+    if cp.CHECKPOINT != 1:
+        row = {"checkpoint": cp.CHECKPOINT, **row}
     if p.returncode != 0:
         row["error"] = (p.stderr or "")[-2000:]
     else:
         t1 = time.time()
         try:
-            row.update(metrics_row(d / "chronicle_bundle.json", flags))
+            row.update(cp.metrics_row(d / "chronicle_bundle.json", flags))
         except Exception as error:  # an unreadable bundle is a missing outcome, never zero
             row["rc"], row["error"] = 3, f"missing or malformed outcomes: {type(error).__name__}: {error}"
         row["extract_s"] = round(time.time() - t1, 1)
@@ -765,23 +1415,36 @@ def exit_code(rows) -> int:
     return 1 if any(r["rc"] != 0 for r in rows) else 0
 
 
+def _checkpoint_option(ap) -> None:
+    ap.add_argument("--checkpoint", type=int, choices=sorted(CHECKPOINTS), default=1,
+                    help="the checkpoint's arms, outcomes, seeds and preregistration (default 1)")
+
+
+def _foreign_rows(rows, cp) -> list[str]:
+    """Rows of another checkpoint (rows without a checkpoint are checkpoint 1's)."""
+    return [f"{r['arm']} {r['stratum']}{r['seed']}: row of checkpoint {r.get('checkpoint', 1)}"
+            for r in rows if r.get("checkpoint", 1) != cp.CHECKPOINT]
+
+
 def run_main(argv) -> int:
     ap = argparse.ArgumentParser(prog="productive_recovery_screens.py run")
     ap.add_argument("out")
-    ap.add_argument("--cohort", choices=sorted(COHORTS), required=True)
+    _checkpoint_option(ap)
+    ap.add_argument("--cohort", choices=("held", "pilot"), required=True)
     ap.add_argument("--jobs", type=int, default=3)
-    ap.add_argument("--arms", default=None, help="comma-separated arms (default: all 14)")
+    ap.add_argument("--arms", default=None, help="comma-separated arms (default: every arm of the checkpoint)")
     ap.add_argument("--seeds", choices=("all", "template", "procedural"), default="all")
     ap.add_argument("--keep-first", action="store_true", help="keep the first world of each stratum")
     ap.add_argument("--resume", action="store_true",
                     help="continue an interrupted run in OUT_DIR on the same source (rows already written are kept)")
     a = ap.parse_args(argv)
-    check_seeds()
-    check_extractor()
-    if a.cohort == "held" and not preregistration_frozen():
-        raise SystemExit(f"held run refused: {PREREGISTRATION.relative_to(REPO)} is not marked FROZEN")
-    chosen = a.arms.split(",") if a.arms else list(ARMS)
-    unknown = [arm for arm in chosen if arm not in ARMS]
+    cp = CHECKPOINTS[a.checkpoint]
+    check_seeds(cp)
+    check_extractor(cp)
+    if a.cohort == "held" and not preregistration_frozen(cp.PREREGISTRATION):
+        raise SystemExit(f"held run refused: {cp.PREREGISTRATION.relative_to(REPO)} is not marked FROZEN")
+    chosen = a.arms.split(",") if a.arms else list(cp.ARMS)
+    unknown = [arm for arm in chosen if arm not in cp.ARMS]
     if unknown:
         raise SystemExit(f"unknown arms: {unknown}")
     if a.jobs < 1:
@@ -800,6 +1463,9 @@ def run_main(argv) -> int:
                 r = json.loads(line)
                 if r.get("cohort") != a.cohort:
                     raise SystemExit(f"{metrics} holds a row of cohort {r.get('cohort')}, not {a.cohort}")
+                if r.get("checkpoint", 1) != cp.CHECKPOINT:
+                    raise SystemExit(f"{metrics} holds a row of checkpoint {r.get('checkpoint', 1)}, "
+                                     f"not {cp.CHECKPOINT}")
                 done.add((r["arm"], r["stratum"], r["seed"]))
     out.mkdir(parents=True, exist_ok=True)
     if a.resume:
@@ -813,16 +1479,18 @@ def run_main(argv) -> int:
     else:
         text = LS.source_identity(out)
     with open(out / "source.txt", "a", encoding="utf-8") as fh:
-        fh.write(f"{'resumed' if a.resume else 'cohort'} {a.cohort}; seeds {a.seeds}; arms {','.join(chosen)}; "
-                 f"jobs {a.jobs}; rows already written {len(done)}\n"
+        prefix = f"checkpoint {cp.CHECKPOINT}; " if cp.CHECKPOINT != 1 else ""
+        fh.write(f"{prefix}{'resumed' if a.resume else 'cohort'} {a.cohort}; seeds {a.seeds}; "
+                 f"arms {','.join(chosen)}; jobs {a.jobs}; rows already written {len(done)}\n"
                  f"started {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}\n")
     print(text, end="", flush=True)
-    jobs = [j for j in jobs_for(a.cohort, a.seeds, chosen) if (j[0], j[1], j[2]) not in done]
+    jobs = [j for j in jobs_for(a.cohort, a.seeds, chosen, cp) if (j[0], j[1], j[2]) not in done]
     rows, t0 = [], time.time()
     with open(metrics, "a", encoding="utf-8") as fh, ThreadPoolExecutor(a.jobs) as ex:
         # Each row is written as soon as its run finishes, so a killed run loses only
         # the runs still in flight (``--resume`` runs those).
-        futures = [ex.submit(run_one, out, a.cohort, j[0], j[1], j[2], j[3], a.keep_first and j[4]) for j in jobs]
+        futures = [ex.submit(run_one, out, a.cohort, j[0], j[1], j[2], j[3], a.keep_first and j[4], cp)
+                   for j in jobs]
         for future in as_completed(futures):
             row = future.result()
             rows.append(row)
@@ -850,10 +1518,11 @@ def _rng(vals, fmt="{:+.4g}"):
     return f"{fmt.format(mean(vals))} [{fmt.format(min(vals))}, {fmt.format(max(vals))}]"
 
 
-def report_lines(rows) -> list[str]:
+def report_lines(rows, cp=None) -> list[str]:
+    cp = _cp(cp)
     cohorts = sorted({r.get("cohort", "held") for r in rows})
-    labels = LABELS[cohorts[0]] if len(cohorts) == 1 else {"t": "template", "p": "procedural"}
-    annotate_pairs(rows)
+    labels = cp.LABELS[cohorts[0]] if len(cohorts) == 1 else {"t": "template", "p": "procedural"}
+    cp.annotate_pairs(rows)
     by = {(r["arm"], r["stratum"], r["seed"]): r for r in rows}
     fails = [r for r in rows if r["rc"] != 0]
     seconds = sum(_run_seconds(r) for r in rows)
@@ -861,18 +1530,18 @@ def report_lines(rows) -> list[str]:
            f"simulation and extraction seconds total {seconds:.0f} ({seconds / 3600:.3f} core-hours)"]
     for f in fails:
         out.append(f"- FAILED {f['arm']} {f['stratum']}{f['seed']} (rc {f['rc']}): {f.get('error', '')[-300:]}")
-    for arm in ARMS:
+    for arm in cp.ARMS:
         for s in labels:
             cohort = cohorts[0] if len(cohorts) == 1 else "held"
             stratum = "template" if s == "t" else "procedural"
-            for seed in COHORTS[cohort][stratum]:
+            for seed in cp.COHORTS[cohort][stratum]:
                 if (arm, s, seed) not in by:
                     out.append(f"- INCOMPLETE {arm} {s}{seed}: not run")
 
     out.append("\n### Run time per arm (simulation and extraction seconds per run: mean [min, max])\n")
     out.append("| Arm | " + " | ".join(labels[s] for s in labels) + " |")
     out.append("| --- | " + " | ".join("---" for _ in labels) + " |")
-    for arm in ARMS:
+    for arm in cp.ARMS:
         cells = [_rng([_run_seconds(r) for r in rows if r["arm"] == arm and r["stratum"] == s], "{:.1f}")
                  for s in labels]
         out.append(f"| {arm} | " + " | ".join(cells) + " |")
@@ -880,7 +1549,7 @@ def report_lines(rows) -> list[str]:
     out.append("\n### Shared outcomes vs each arm's control (mean [min, max] over worlds)\n")
     out.append("| Arm | Control | Stratum | Worlds | Population | Treasury |")
     out.append("| --- | --- | --- | --- | --- | --- |")
-    for arm, (_flags, control) in ARMS.items():
+    for arm, (_flags, control) in cp.ARMS.items():
         if control is None:
             continue
         for s in labels:
@@ -893,19 +1562,20 @@ def report_lines(rows) -> list[str]:
             out.append(f"| {arm} | {control} | {s} | {len(dp)} | {_rng(dp, '{:+.1f}')} | {_rng(dt, '{:+.1f}')} |")
 
     out.append("\n### Preregistered outcomes, world by world (arm minus control, or the arm alone)\n")
-    out.extend(LS.per_world_table(rows, PAIRED, labels))
+    out.extend(LS.per_world_table(rows, cp.PAIRED, labels))
+    out.extend(cp.report_extra(rows))
 
     out.append("\n### Activation funnels (mean per world [min, max]; z = worlds at zero)\n")
     for s in labels:
         out.append(f"\n**{labels[s]}**\n")
-        for arm in ARMS:
+        for arm in cp.ARMS:
             rs = [r for r in rows if r["arm"] == arm and r["stratum"] == s and r["rc"] == 0]
-            for name in OUTCOMES:
+            for name in cp.OUTCOMES:
                 cs = [r["pk"][name] for r in rs if name in r.get("pk", {})]
                 if not cs:
                     continue
                 cells = []
-                for k in OUTCOMES[name]:
+                for k in cp.OUTCOMES[name]:
                     v = [c[k] for c in cs]
                     cells.append(f"{k} {mean(v):.4g} [{min(v):.4g}, {max(v):.4g}] z{sum(x == 0 for x in v)}")
                 out.append(f"- {arm} / {name} ({len(cs)} worlds): " + ", ".join(cells))
@@ -922,29 +1592,40 @@ def _run_seconds(r) -> float:
     return r["wall_s"] + r.get("extract_s", 0.0)
 
 
-def projected_held_core_hours(rows) -> float | None:
+def projected_held_core_hours(rows, cp=None) -> float | None:
     """Pilot run time (simulation and extraction) per arm and stratum times the held worlds
     per stratum, in core-hours (None if a pilot arm is missing)."""
+    cp = _cp(cp)
     total = 0.0
-    for arm in ARMS:
-        for stratum, tag in TAGS.items():
+    for arm in cp.ARMS:
+        for stratum, tag in cp.TAGS.items():
             walls = [_run_seconds(r) for r in rows if r["arm"] == arm and r["stratum"] == tag]
             if not walls:
                 return None
-            total += mean(walls) * len(HELD[stratum])
+            total += mean(walls) * len(cp.HELD[stratum])
     return total / 3600
+
+
+def _read_rows(path, cp) -> list[dict]:
+    rows = [json.loads(line) for line in open(path, encoding="utf-8") if line.strip()]
+    foreign = _foreign_rows(rows, cp)
+    if foreign:
+        raise SystemExit(f"{path} holds rows of another checkpoint than {cp.CHECKPOINT}: " + "; ".join(foreign[:5]))
+    return rows
 
 
 def report_main(argv) -> int:
     ap = argparse.ArgumentParser(prog="productive_recovery_screens.py report")
     ap.add_argument("metrics")
+    _checkpoint_option(ap)
     a = ap.parse_args(argv)
-    rows = [json.loads(line) for line in open(a.metrics, encoding="utf-8") if line.strip()]
-    lines = report_lines(rows)
+    cp = CHECKPOINTS[a.checkpoint]
+    rows = _read_rows(a.metrics, cp)
+    lines = report_lines(rows, cp)
     if all(r.get("cohort") == "pilot" for r in rows):
-        hours = projected_held_core_hours(rows)
+        hours = projected_held_core_hours(rows, cp)
         lines.insert(1, "Projected held run time from this pilot: "
-                     + (f"{hours:.3f} core-hours for {len(ARMS) * sum(map(len, HELD.values()))} runs"
+                     + (f"{hours:.3f} core-hours for {len(cp.ARMS) * sum(map(len, cp.HELD.values()))} runs"
                         if hours is not None else "unknown (an arm or stratum is missing)"))
     print("\n".join(lines))
     return 0
@@ -952,9 +1633,10 @@ def report_main(argv) -> int:
 
 # --- Check ------------------------------------------------------------------------
 
-def check_metrics(rows, cohort: str) -> list[str]:
-    """Every arm and world of the cohort has exactly one row, and none failed."""
-    problems = []
+def check_metrics(rows, cohort: str, cp=None) -> list[str]:
+    """Every arm and world of the cohort has exactly one row of the checkpoint, and none failed."""
+    cp = _cp(cp)
+    problems = _foreign_rows(rows, cp)
     seen: dict = {}
     for r in rows:
         key = (r["arm"], r["stratum"], r["seed"])
@@ -963,31 +1645,34 @@ def check_metrics(rows, cohort: str) -> list[str]:
             problems.append(f"{r['arm']} {r['stratum']}{r['seed']}: row of cohort {r.get('cohort')}")
         if r["rc"] != 0:
             problems.append(f"{r['arm']} {r['stratum']}{r['seed']}: rc {r['rc']}: {r.get('error', '')[-300:]}")
-    for stratum, tag in TAGS.items():
-        for seed in COHORTS[cohort][stratum]:
-            for arm in ARMS:
+    for stratum, tag in cp.TAGS.items():
+        for seed in cp.COHORTS[cohort][stratum]:
+            for arm in cp.ARMS:
                 n = seen.get((arm, tag, seed), 0)
                 if n != 1:
                     problems.append(f"{arm} {tag}{seed}: {n} rows")
-    extra = sorted(k for k in seen if k[0] not in ARMS or k[2] not in COHORTS[cohort]["template" if k[1] == "t" else "procedural"])
+    extra = sorted(k for k in seen if k[0] not in cp.ARMS
+                   or k[2] not in cp.COHORTS[cohort]["template" if k[1] == "t" else "procedural"])
     problems += [f"{a} {s}{seed}: not in the cohort" for a, s, seed in extra]
     return problems
 
 
 def check_main(argv) -> int:
     ap = argparse.ArgumentParser(prog="productive_recovery_screens.py check")
+    _checkpoint_option(ap)
     ap.add_argument("--metrics", default=None)
-    ap.add_argument("--cohort", choices=sorted(COHORTS), default=None)
+    ap.add_argument("--cohort", choices=("held", "pilot"), default=None)
     a = ap.parse_args(argv)
-    check_seeds()
-    check_extractor()
-    check_arm_flags()
-    print(f"extractor, seeds and {len(ARMS)} arms: OK")
+    cp = CHECKPOINTS[a.checkpoint]
+    check_seeds(cp)
+    check_extractor(cp)
+    check_arm_flags(cp)
+    print(f"extractor, seeds and {len(cp.ARMS)} arms: OK")
     if a.metrics:
         if a.cohort is None:
             raise SystemExit("--metrics needs --cohort")
         rows = [json.loads(line) for line in open(a.metrics, encoding="utf-8") if line.strip()]
-        problems = check_metrics(rows, a.cohort)
+        problems = check_metrics(rows, a.cohort, cp)
         for p in problems:
             print("FAILED", p)
         if any(r["rc"] == 3 for r in rows):

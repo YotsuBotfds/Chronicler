@@ -148,6 +148,7 @@
       "tests/test_production_ledger_native.py",
       "tests/test_productive_recovery_examples.py",
       "tests/test_productive_recovery_screens.py",
+      "tests/test_productive_recovery_screens_cp2.py",
       "tests/test_public_grain_shipments.py",
       "tests/test_recovery_crews.py",
       "tests/test_recovery_gini_numerics.py",
