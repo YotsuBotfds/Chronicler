@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "board_version": 5,
+  "board_version": 6,
   "title": "Productive recovery and household livelihoods (PL0-PL6) operational board",
   "plan": "docs/superpowers/roadmaps/productive-recovery-phase.md",
   "owner_instruction": "2026-11-05 (after #77): make recovery work (timber supply and delivery with real labour and ecological costs; apprenticeship exits and maintenance assumptions separated before tuning, success = graduates doing useful work; budgets and opportunities after timber), then real household food retail (producer ownership, inventories, payments, consumption timing; care for poorer households and public relief); consecutive checkpoints of one assignment with independent review and evidence; qualification gates and default promotion remain separate decisions.",
@@ -154,9 +154,10 @@
     {
       "id": "PL6",
       "status": "evaluated",
-      "lane": "cp1 screens + examples merged; cp2 screens claude/pl6c-retail-screens",
+      "lane": "cp1 screens + examples merged (#78); cp2 screens merged (#80); cp3 chain screen and chain examples claude/pl6d-chain",
       "switch": null,
-      "summary": "Examples and preregistered held screens per checkpoint; handoff."
+      "summary": "Examples and preregistered held screens per checkpoint; handoff.",
+      "held_outcome": "Held cp3 (721-726 / 821-826): CH - CH_cut granary run mean +0.028 t (4/0/2) / +0.075 p (5/1/0); CH - CH_unpaid priced-out rate +0.00025 t (3/0/1, 2 unknown) / -0.0029 p (5/1/0; one world): the wage did not lower the rate; money credited (gross) -353 t / -1153 p."
     }
   ],
   "layers": [
@@ -175,9 +176,18 @@
       "premerge_run": 42147761904,
       "main_run": 42149350923,
       "date": "2026-11-06"
+    },
+    "checkpoint_2": {
+      "pr": 80,
+      "merge_commit": "96c204392847622b9086be638ca5970ce6072bae",
+      "merge_tree": "014ad8c2",
+      "reviewed_head": "12ad9a1e",
+      "premerge_run": 42161536601,
+      "main_run": 42162966710,
+      "date": "2026-11-06"
     }
   },
-  "next": "Checkpoint-2 PR and merge; then checkpoint 3 (integrated chain screen on cohort 3, examples, handoff).",
+  "next": "Checkpoint-3 PR and merge; then the phase handoff. Qualification gates and default promotion are separate owner decisions.",
   "native_extension": {
     "source_commit": "PL1 Rust (claude/pl1-timber; unchanged on the phase branch)",
     "sha256_prefix": "fdcb0ca0"
@@ -209,6 +219,12 @@
       "concurrency": 3,
       "pilot": "template 5, procedural 19: 16 runs, 0 failed (rerun on the frozen source)",
       "held": "96 runs, 0 failed, 0.33 core-hours"
+    },
+    "checkpoint_3": {
+      "core_hours": 2.0,
+      "concurrency": 3,
+      "pilot": "template 5, procedural 19: 12 runs, 0 failed (rerun on the frozen source)",
+      "held": "72 runs, 0 failed, 0.33 core-hours"
     }
   },
   "checkpoint_2": {
@@ -217,5 +233,17 @@
     "native_sha256_prefix": "101a4cd5",
     "verification": "offline lane PASS; native suites 94 passed; turn_speed_identity vs main dde5c004 9 cases 399 files 0 differences; all-switch + retail(all) checkpoint_identity hybrid_s42_long 19 and proc32_hybrid_s11 10 PASS; viewer 1409 tests, lint, build",
     "held": "96 runs, 0 failed, 0.33 core-hours, frozen source 78cf2efd run from 77202dd2 (native b1910b94); post-run departures fix byte-identical on 3 development worlds"
+  },
+  "checkpoint_3": {
+    "branch": "claude/productive-recovery-cp3",
+    "lanes": [
+      "claude/pl6d-chain (screen, chain examples, review fixes)",
+      "claude/pl5c-chain-viewer (recovery chain view)"
+    ],
+    "simulation_source": "identical to main 96c20439 (no src/ or chronicler-agents/ change)",
+    "native_sha256_prefix": "101a4cd5",
+    "review": "independent review of the cp3 runner and chain examples: no blocker, no screen outcome changed; fixed: resume run header, set sizes/coverage reported, rc-3 wording; examples: RS2 workshop wages under PL3, link-3 cause, drawdown label, vacuous test, sample double count",
+    "freeze": "5dd03207 (runner df21cb43), pilot rerun on the frozen source: 12 runs, 0 failed",
+    "held": "72 runs, 0 failed, 0.33 core-hours, run from 5dd03207 (native 101a4cd5)"
   }
 }
