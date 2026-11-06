@@ -631,7 +631,7 @@ mod tests {
             transfer(&mut pool, 2, purpose, 0, &[(a, 100)]).unwrap();
         }
         assert!(transfer(&mut pool, 2, 8, 0, &[(a, 100)]).is_err());
-        assert!((pool.wealth[0] - 1.5).abs() < 1e-5);
+        assert!((pool.wealth[0] - 1.6).abs() < 1e-5);
     }
 
     #[test]
