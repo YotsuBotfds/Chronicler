@@ -183,14 +183,26 @@ def _apprenticeship(hist):
             if seats and not s.get("qualified_on_crew"):
                 no_mentor = (turn, {**_pick(s, "site", "region", "operating", "crew", "qualified_on_crew",
                                             "qualified_in_region"),
-                                    "missed": [_pick(x, "agent_id", "aboard", "reason") for x in seats]})
+                                    "missed": [_pick(x, "agent_id", "reason") for x in seats]})
                 break
         if no_mentor is not None:
             break
-    pick = (lambda hit: None if hit is None else (hit[0], _pick(hit[1], *_ARCHIVE)))
+    site_region: dict[int, int] = {}       # workshop site -> region, from the dated records
+    for _turn, rec in _records(hist, "apprenticeship"):
+        for row in [*_rows(rec, "sites"), *_rows(rec, "receipts")]:
+            site_region.setdefault(row["site"], row["region"])
+
+    def pick(hit):
+        if hit is None:
+            return None
+        return hit[0], {**_pick(hit[1], *_ARCHIVE), "first_region": site_region.get(hit[1].get("first_site"))}
+
+    ungranted = pick(archived("completed", lambda a: a.get("granted") is False))
+    if ungranted is None and all(rec.get("mode") == "train" for _t, rec in _records(hist, "apprenticeship")):
+        ungranted = "not applicable (train mode grants every completion)"
     if not any(v2(rec) for _t, rec in _records(hist, "apprenticeship")):
         note = "not applicable (the run's RS1 records are rules version 1)"
-        graduate = no_mentor = note
+        graduate = no_mentor = ungranted = note
         pick = (lambda _hit: note)
     return {
         "success: a graduate on an operating crew gives upkeep offset": graduate if not isinstance(graduate, tuple)
@@ -202,6 +214,7 @@ def _apprenticeship(hist):
         "failure: an apprenticeship ends long_absence": pick(archived("long_absence")),
         "failure: an apprenticeship ends stalled": pick(archived("stalled")),
         "failure: an apprentice misses teaching with no mentor aboard (no_mentor)": no_mentor,
+        "control: a completion that grants no qualification (no_qualification)": ungranted,
     }
 
 
