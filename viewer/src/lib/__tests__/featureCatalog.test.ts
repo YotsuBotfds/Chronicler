@@ -66,6 +66,43 @@ describe("productive-recovery switches in the served catalog", () => {
   });
 });
 
+describe("household retail in the served catalog (PL5b)", () => {
+  it("declares the switch, its mode and boundary, off by default, needing food allocation", () => {
+    const catalog = read(served);
+    const entry = (key: string) => catalog.features.find((e) => e.key === key)!;
+    expect(entry("household_retail").requires.map((r) => r.kind === "feature" ? r.key : r.kind)).toEqual(["agents", "food_allocation"]);
+    expect(entry("household_retail")).toMatchObject({ kind: "bool", flag: "--household-retail", group: "Livelihoods", experimental: true });
+    expect(entry("household_retail_mode")).toMatchObject({ kind: "choice", parent: "household_retail", flag: "--household-retail-mode",
+      choices: ["retail", "no_relief", "free_exchange", "record_only"] });
+    expect(entry("household_retail_boundary")).toMatchObject({ kind: "choice", parent: "household_retail",
+      flag: "--household-retail-boundary", choices: ["market", "paid_work", "all"] });
+    for (const key of ["household_retail", "household_retail_mode", "household_retail_boundary"]) {
+      expect(served.features.find((e) => e.key === key)?.default).toBeNull();
+    }
+    expect(entry("household_retail_boundary").help).toMatch(/paid_work: regions where paid work has been done/);
+  });
+
+  it("is unavailable without food allocation or hybrid agents, and dropping either drops it and its options", () => {
+    const catalog = read(served);
+    const { live, batch } = catalog.surfaces;
+    const retail = catalog.features.find((e) => e.key === "household_retail")!;
+    expect(unmetRequirements(catalog, retail, effectiveValues(live, {}), live, live.agents).map((r) => r.reason))
+      .toEqual(["requires --food-allocation"]);
+    expect(unmetRequirements(catalog, retail, effectiveValues(batch, { food_allocation: true }), batch, "off").map((r) => r.reason))
+      .toEqual(["requires --agents hybrid"]);
+    const full = { food_allocation: true, household_retail: true, household_retail_mode: "free_exchange",
+      household_retail_boundary: "paid_work" };
+    expect(normalizeSelection(catalog, live, live.agents, full)).toEqual(full);
+    expect(selectionFlags(catalog, full)).toEqual(["--food-allocation", "--household-retail",
+      "--household-retail-mode=free_exchange", "--household-retail-boundary=paid_work"]);
+    // The run's defaults (retail, market) are not sent.
+    expect(normalizeSelection(catalog, live, live.agents, { ...full, household_retail_mode: "retail", household_retail_boundary: "market" }))
+      .toEqual({ food_allocation: true, household_retail: true });
+    expect(normalizeSelection(catalog, live, live.agents, { ...full, food_allocation: false })).toEqual({});
+    expect(normalizeSelection(catalog, live, "off", full)).toEqual({});
+  });
+});
+
 describe("readFeatureCatalog", () => {
   it("reads the catalog the server serves", () => {
     const catalog = read(served);
