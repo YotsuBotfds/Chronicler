@@ -37,23 +37,36 @@ chronicler ... --watershed --watershed-mode record_only                         
   (`--no-watershed`) or change its mode, on an exact resume (the checkpoint's recorded configuration
   and `livelihoods.livelihoods_resume_conflicts`) or on a state-file resume
   (`watershed.check_request`). Omitting the switch on resume keeps the saved account.
-- Feature catalog: `REQUIREMENTS["watershed"] = (_setting("procedural_world"),)`. The new setting is
-  false on the live surface (the client's start message chooses the world, so the server cannot
-  promise a procedural one) and true on the Batch Lab surface above 12 regions (Batch Lab passes no
-  `--worldgen`; `auto` is procedural there). `watershed_mode` is a choice of `watershed`.
+- Feature catalog: `REQUIREMENTS["watershed"] = (_setting("procedural_world"),)`; `watershed_mode`
+  is a choice of `watershed`. The setting depends on the requested world, which the catalog's static
+  surfaces cannot see, so it is evaluated per surface:
+  - **Batch Lab**: Batch Lab passes no `--worldgen`, so `auto` builds a procedural world above 12
+    regions. The server's batch check reads the batch config's `regions` (else the batch default, 8);
+    the viewer recomputes the setting from the regions it will send
+    (`viewer/src/lib/featureWorld.ts`), so a batch of more than 12 regions can enable the watershed.
+  - **Live start**: the client's start message chooses the world and the static live surface cannot
+    see it. A server started with `--watershed` reports the setting true, so the viewer keeps the
+    operator's switch on every live start (it never sends an explicit `false`); a start that asks for
+    12 regions or fewer is then refused explicitly by the run ("`--watershed requires a procedural
+    world ...`", the lobby reopens with it). A server started without it cannot be asked for it on a
+    live start.
 
 ## 2. The drainage graph
 
 Built once at enable from saved procedural geography (`world.geography`, `Region.geo`), and kept in
 the state (`WatershedGraph`):
 
-- a **coastal** region (`geo.coastal`: it borders open water, ocean, sea or lake) drains to the sea;
+- a **coastal** region (`geo.coastal`) on an ocean or sea (any bordering zone of kind `ocean` or
+  `sea`) drains to the **sea**; a shore on lakes only drains to a **lake** (closed water: what reaches it
+  leaves the account as `to_lake`, never as outflow to the sea). Worldgen can make lakes
+  (`geography._sea_zones`, `LAKE_MAX_CELLS`), but none of the 64 development world/size combinations
+  checked (procedural 7-303 at 13-150 regions) has one; a constructed lake is tested;
 - an **inland** region drains to its lowest land neighbour (`Region.adjacencies` without
   `geography.sea_lanes`) that is strictly lower (`geo.elevation`), ties to the lower index;
 - an inland region with no lower land neighbour is a **sink** (a closed basin).
 
 Elevation strictly falls along every edge, so the graph is acyclic and each region has exactly one
-destination (`down[i]`: a region index, `-1` sea or `-2` sink). `order` lists every region after all
+destination (`down[i]`: a region index, `-1` sea, `-2` sink or `-3` lake). `order` lists every region after all
 regions that drain into it (elevation descending, then index).
 
 Validation at enable (each failure refuses the switch with a message naming the river and step):
@@ -102,21 +115,41 @@ E    = min(A, EVAPORATION_BASE x (1 + (PHASE_EVAPORATION[phase] - 1) x exposure 
 W    = min(A - E, IRRIGATION_DEMAND) with an active irrigation work, else 0
 S'   = (1 - BASEFLOW) x min(A - E - W, C)
 Q    = A - E - W - S'                                                     baseflow + overflow
-Q   -> I of the destination | to_sea | to_sink (a closed basin loses it)
+Q   -> I of the destination | to_sea | to_sink (a closed basin loses it) | to_lake
 ```
 
 - `exposure` is the region's latitude climate exposure, `trend` the climate trend share and the
   harvest shock the region's regional bad year (`climate.region_harvest_shocks`): the same forcing
   the old index reads, through pure functions (no state, no RNG).
-- `X` folds every other writer of the index between two ticks (the coastal flood's +0.1 in Phase 1;
-  a scenario or live `set`) into the account once, as a recorded external inflow. `X_out` is limited
-  to the storage; any remainder is recorded as `external_out_unmet` and never taken from elsewhere.
-- **Closure**, checked before anything is committed, raising otherwise (relative 1e-9 of the gross
-  terms, `math.fsum`): every region `S' - S = P + X_in - X_out + I - E - W - Q`; in total
-  `sum(S' - S) = sum(P + X_in - X_out - E - W) - to_sea - to_sink`; each region's inflow equals the sum
-  of its tributaries' outflows and each outflow goes to exactly one destination; `0 <= S' <= C`,
-  `X_out <= S`, every flow non-negative and finite. The cumulative totals close against the opening
-  storage the same way after every turn.
+- `X` folds every other writer of the index between two ticks into the account once, as a recorded
+  external flow, **attributed by source** (`ExternalFlow`):
+  - `coastal_flood`: the coastal flood of `climate.check_disasters` struck this region in Phase 1 of
+    this turn. It is recognised from the disaster's own deterministic roll and probability and the
+    cooldown it set this turn (cooldowns are decremented before the check, and `emergence` skips a
+    region with any cooldown), reading only; at most its nominal gain (`K_FLOOD_WATER_GAIN`) is
+    attributed to it;
+  - `unattributed`: any other writer (a scenario, a live `set`, an index write in Phase 10 of the
+    previous turn) and any remainder above the flood's gain; every external outflow.
+
+  `X_out` is limited to the storage; any remainder is recorded as `external_out_unmet` and never
+  taken from elsewhere.
+- **Stale baseline.** `X` is measured against the index observed after the previous turn's tick. When
+  that baseline is stale (a plan was dropped because a tick never settled, or a turn is missing), the
+  frame is flagged `stale_baseline`, every external flow of that turn is unattributed, and
+  `stale_baseline_turns` counts it. `record_only` records it; **`flow` mode must refuse or reconcile a
+  stale baseline before it may apply the account** (a prerequisite, not done here).
+- **Closure checks are construction invariants and routing guards, not a validation of the model.**
+  Each region's outflow is defined as the residual of its account (`Q = A - E - W - S'`), so the
+  per-region identity `S' - S = P + X_in - X_out + I - E - W - Q` holds by construction and can fail
+  only through float pathology. The world-total check
+  `sum(S' - S) = sum(P + X_in - X_out - E - W) - to_sea - to_sink - to_lake` and the tributary check
+  (each inflow equals the sum of its tributaries' outflows; each outflow goes to exactly one
+  destination) guard the routing: water sent to no region, or to a region already processed (a broken
+  order), would make them fail. The bounds (`0 <= S' <= C`, `X_out <= S`, every flow non-negative
+  and finite) catch bad inputs. The cumulative check against the opening storage catches an
+  out-of-band edit of the stored account between turns. All raise before anything is committed
+  (relative 1e-9, `math.fsum`). None of them says the forcing, the constants or the attribution of
+  `X` is right: that is the calibration question (section 7).
 - **Opening** at enable: `S = C x (index - floor)/(cap - floor)`, so the derived index is continuous
   with the old one; the world-generation river bonus (+0.15 on river regions) is inside the opening
   storage, never added again.
@@ -244,53 +277,85 @@ Observations (development only):
 
 ## 8. Record and viewer
 
-`snapshot.livelihoods.watershed` (schema 1, stage `B1`, mode `record_only`): `source_turn` (the
-completed turn, snapshot turn − 1), `completed_turn`, `opened_turn`, `units`, `parameters`, the graph
-(`down`, `river_steps`), `observed`, and when observed the climate `phase`, per-region columns
-(`storage_open`, `precipitation`, `external_in`, `external_out`, `inflow`, `evaporation`, `withdrawal`,
-`outflow`, `storage`, `capacity`, `index_observed`, `index_derived`, `flood_excess`, `drought_turns`),
-`floods`, `droughts` (`open`, `ended`), `totals` with the closure residual; always `storage`,
-`cumulative` (with the opening storage and cumulative residual) and `counters`. Values are rounded to
-6 decimals (the full-precision frame stays in the state); `observed: false` leaves the per-turn
-fields `null`, never empty. About 5.7 KB of record a turn at 32 regions and 21 KB at 150; in a
-60-turn hybrid 32-region bundle +183 KB (+5.5%).
+`snapshot.livelihoods.watershed` (schema 1, stage `B1`, mode `record_only`):
+
+- every record: `source_turn` (the completed turn, snapshot turn − 1), `completed_turn`,
+  `opened_turn`, `observed`, `cumulative` (flows since opening, the opening storage, the storage now and
+  the cumulative residual) and `counters`;
+- **once**, in the record of the opening turn (`source_turn == opened_turn`): the static part,
+  `units`, `parameters` and the graph (`down`, `sea` −1, `sink` −2, `lake` −3, `river_steps`). Later
+  records leave these keys out; readers take them from the run's opening record;
+- when observed: the climate `phase`, `stale_baseline`, per-region columns (`storage_open`,
+  `precipitation`, `external_in`, `external_out`, `inflow`, `evaporation`, `withdrawal`, `storage`,
+  `capacity`, `index_observed`, `index_derived`, `flood_excess`, `drought_turns`), `external` (flows by
+  source, non-zero at the record's precision), `floods`, `droughts` and `totals` (flows, the
+  external flows by source, the storage open and close and the residual). Outflow is not recorded: it
+  is each region's residual by construction, and readers derive it. `droughts` holds the spells
+  `declared` this turn and those `ended` this turn in full (with their conditions), and every `open`
+  spell compactly (region, start, declaration, turns, lowest fill);
+- when not observed: the per-turn fields are `null`, never empty, and `storage` holds the account's
+  storage (a settled turn's `regions.storage` is the same list, so it is not repeated).
+
+Values are rounded to 6 decimals; the full-precision frame (outflow and full drought conditions
+included) stays in the state. Growth of the encoded bundle (version-6 deltas, after review m7): a
+60-turn hybrid 32-region run (procedural 11) +141 KB, **+4.25%** (was +5.52%); a 150-turn agents-off
+32-region run (procedural 31) **+5.79%** (the reviewer measured +8.5% before). The static part was
+already elided by the bundle's deltas; the savings come from dropping the repeated storage list, the
+derived outflow column and the repeated drought conditions.
 
 Viewer (types in `viewer/src/watershedTypes.ts`; `types.ts` is pinned and unchanged):
 
-- `readWatershed` is strict and keeps five states apart: **disabled** (no snapshot of the run carries
-  the record), **absent** (on in the run, missing at this snapshot), **malformed** (with the reason:
-  schema, dating, graph range and cycles, per-region and total closure, tributary inflows, flood
-  arithmetic, drought dating), **unobserved** (no settled account this turn: unknown, not zero) and
-  **ok** (a zero is a recorded zero).
+- `readWatershedRun(history)` finds the run's static part once; `readWatershed(snapshot, regions,
+  run)` is strict and keeps five states apart: **disabled** (no snapshot of the run carries the
+  record), **absent** (on in the run, missing at this snapshot), **malformed** (with the reason: a null
+  record or a non-object livelihoods container, schema, dating, a static part outside the opening
+  record or a missing opening record, graph range and cycles, the exact counter, cumulative and total
+  key sets, the cumulative and turn closure, outflows routed to the sea, sinks, lakes and downstream
+  matching the totals, tributary inflows, external flows by source adding up, flood arithmetic, drought
+  dating), **unobserved** (no settled account this turn: unknown, not zero) and **ok** (a zero is a
+  recorded zero).
 - The Livelihoods tab mounts a **Watershed** panel whenever the run records it: the turn's account,
-  each region's destination, storage/capacity, index used against index derived, inflow, outflow,
-  irrigation, flood excess and dry turns; floods with arrivals by source and tributaries; open and
-  ended droughts with the forcing deficit, inflow, own and upstream irrigation and upstream cover;
-  cumulative totals and closure; counters.
+  external flows by source, a stale-baseline note, each region's destination, storage/capacity, index
+  used against index derived, inflow, derived outflow, irrigation, flood excess and dry turns; floods
+  with arrivals by source and tributaries; droughts declared and ended with their conditions and the
+  open ones compactly; cumulative totals and closure (labelled as a routing check, not a validation);
+  counters.
 - Region history offers "Water index the simulation used", "Water index the watershed account would
   derive (record only)" and "Watershed storage" when the run records the account, with absent,
   malformed and unobserved turns reading as missing with their reason.
+- Batch Lab's feature options recompute `procedural_world` from the regions the batch will send
+  (`viewer/src/lib/featureWorld.ts`, `TEMPLATE_REGION_POOL` 12, pinned on the Python side by
+  `tests/test_watershed.py`).
 
-## 9. Verification (2026-11-06, source `0779587` (`src` unchanged since), extension `101a4cd5…`)
+## 9. Verification (2026-11-06, extension `101a4cd5…`)
 
-- Offline: `tests/test_watershed.py`, 36 cases, in the new oracle chunk `connected-world-b` (2.8 s of
-  110 s); native shard 0. Bounded offline lane (`scripts/run_python_oracle_checks.py`, with the
-  `cwb1` witness layer in place): PASS, 64 chunks in 241.5 s, slowest `systems-2` 32.5 s of 110 s.
+First pass (source `0779587`) and, after the independent review's findings, again on `a33f408`:
+
+- Offline: `tests/test_watershed.py`, 41 cases, in the oracle chunk `connected-world-b` (3.4 s of
+  110 s); native shard 0. Bounded offline lane (`scripts/run_python_oracle_checks.py`, `cwb1` layer
+  in place): PASS, 64 chunks in 286.8 s, slowest `systems-2` 34.5 s of 110 s (first pass: 241.5 s).
   The witness tests of the playbook (sprint, restoration, scenarios, information, academy,
   household mobility, crisis, food accounting, grain release, public grain shipments, regional
   population, health care, practice observer, native shards, preflight): 509 passed.
 - Feature-off identity (`turn_speed_identity.py`, each side its own `git archive` tree and copied
   extension) against `8abc1acb` (also the preceding integrated `main`): 9 cases, 399 files,
-  0 differences; with an explicit `--no-watershed` on `hybrid_s42` and `proc48_hybrid_s42`: 203 files,
-  0 differences.
-- `record_only` against off on development worlds, outputs compared after removing only the watershed
-  record: procedural 7, 13, 303 hybrid (100 turns), 11 hybrid (60), 31 agents-off native ecology (100)
-  and 21 pure-Python fallback (60): 0 differences in every file.
-- Enabled exact resume: `checkpoint_identity.py run --case proc32_hybrid_s11
-  --cli-arg=--watershed --cli-arg=--watershed-mode=record_only`: PASS, 39 resume points, 0
-  differences, checkpointing changes nothing; a procedural-11 hybrid resume inside the drought phase
-  (turn 50, five open droughts) to turn 80: 16 files, 0 differences.
-- Viewer: 1463 tests (147 files), lint and production build; desktop 1440x900 and phone 390x844
+  0 differences, on both sources; with an explicit `--no-watershed` on `hybrid_s42` and
+  `proc48_hybrid_s42` (first pass): 203 files, 0 differences.
+- `record_only` against off, outputs compared after removing only the watershed record:
+  - **with every other livelihoods switch on** (review M1: the checkpoint-3 chain, i.e. the sprint
+    and sprint-2/3 base, food allocation, workshops, operating wear, repair projects, timber stock,
+    household retail at the `paid_work` boundary, timber supply, recovery crews and remittances, plus
+    apprenticeship, veteran reintegration, clearing protection, local budgets, maintenance
+    obligation, workshop payroll, learning cohorts, commons rules, grain convoys and relocation
+    costs): procedural 11, 32x10, hybrid, 80 turns, source `a33f408`: 16 files, 0 differences;
+  - alone (first pass): procedural 7, 13, 303 hybrid (100 turns), 11 hybrid (60), 31 agents-off
+    native ecology (100) and 21 pure-Python fallback (60): 0 differences in every file.
+- Enabled exact resume, `checkpoint_identity.py run --case proc32_hybrid_s11`:
+  - **with the same full stack plus `--watershed --watershed-mode=record_only`** (review M1, source
+    `a33f408`): PASS, 39 resume points, 0 differences; checkpointing changes nothing (41 files);
+  - with the watershed alone (first pass): PASS, 39 resume points; a procedural-11 hybrid resume
+    inside the drought phase (turn 50, five open droughts) to turn 80: 16 files, 0 differences.
+- Viewer: 1468 tests (148 files), lint and production build; desktop 1440x900 and phone 390x844
   browser check of the panel on procedural 11 (60 turns): 23/23 checks, no console errors, no page
   overflow on the phone.
 
@@ -299,11 +364,13 @@ Viewer (types in `viewer/src/watershedTypes.ts`; `types.ts` is pinned and unchan
 | Item | Class | Disposition |
 | --- | --- | --- |
 | Template worlds have no watershed | intentional boundary | refused at startup and on a state-file resume (tested) |
-| Live starts cannot request it through the catalog | intentional boundary of the catalog surface | the live surface reports `procedural_world: false`; the CLI and Batch Lab above 12 regions can |
+| A live start cannot be checked against its requested world by the catalog (static surface; `live.py` is pinned) | intentional boundary of the catalog surface | a server started with `--watershed` keeps it on every live start and the run refuses a template start explicitly; without it, a live start cannot ask for it; Batch Lab above 12 regions and the CLI can |
 | Constants uncalibrated; storage drifts down over two cycles | evidence gap | development calibration report (section 7); `flow` needs calibration first |
 | Floods and droughts have no consequence | intentional (record only) | `flow` (later) applies them through existing authorities |
 | Irrigation service is 1.0 for every active work | missing capability | infrastructure condition (B3) scales it |
 | The account reads pre-tick terrain for the index cap; a same-turn succession changes the cap only from the next turn | intentional | documented |
-| Lake shores drain "to the sea" (any bordering open water) | intentional | documented; the outflow leaves the account either way |
+| Lake shores | corrected (review m8) | a shore on lakes only drains to the lake (`to_lake`), never to the sea; no development world has a lake (a constructed one is tested) |
+| External flows other than the coastal flood are unattributed | evidence gap (record only) | recorded with an explicit `unattributed` remainder; a stale baseline is flagged; `flow` must refuse or reconcile a stale baseline first |
+| Closure checks are construction invariants | documented (review m2) | they guard routing and bounds; the model itself is a calibration question |
 | A drop of the index larger than storage is recorded as unmet, not taken | intentional | recorded (`external_out_unmet`) |
 | Opening on a resumed world, ending or changing mode on resume | refused | tested (exact and state-file resumes) |
