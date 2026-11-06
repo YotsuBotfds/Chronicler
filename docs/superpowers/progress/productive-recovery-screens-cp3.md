@@ -109,7 +109,7 @@ arm's own value where no control is named. The report prints every world's value
 stratum, the mean, the range and the number of worlds above, below and at zero; a world
 whose arm or control failed, or whose value is unknown, is listed as such (`failed`,
 `unknown`, `not run`). **Primary** outcomes are marked; the rest are secondary. The
-executable list is `CP3.PAIRED` in the runner (69 outcomes, 2 primary).
+executable list is `CP3.PAIRED` in the runner (81 outcomes, 2 primary).
 
 ### Definitions
 
@@ -226,6 +226,10 @@ executable list is `CP3.PAIRED` in the runner (69 outcomes, 2 primary).
 ### Coverage per arm and shared outcomes
 
 - Every arm alone: its pilot region-turns and its number of pilot regions (zero in CH_L2).
+- Every fixed region set (`CH − CH_unpaid`, `CH − CH_free`, `CH − CH_L2`, `CH − C0`): its
+  number of regions and the number of regions pilot in both arms; both arms' coverage of
+  the set (CH alone for `CH − CH_L2`, where L2 has none). Added by the lead after the
+  independent review found the sizes computed but not reported.
 - Final total population and treasury, arm minus control, mean and range per stratum.
 - Every counter in `CP3.OUTCOMES` (household retail, RS2, PL1, PL3, RS4), per arm: mean per
   world with range and the number of worlds at zero. Null activation is reported, not hidden.
@@ -261,8 +265,10 @@ executable list is `CP3.PAIRED` in the runner (69 outcomes, 2 primary).
   the console and in the report; `run` and `check --metrics` exit with code 3) when:
   - the run does not have one snapshot per turn 1..200;
   - the last snapshot does not hold exactly the packages the arm enables, or a package's
-    record is not for the completed turn, is in another mode, regime or boundary, or carries
-    an undeclared or non-numeric counter;
+    record is not for the completed turn, is in another mode, regime or boundary, or (for the
+    packages whose counters the screen reads: household retail, RS2, PL1, PL3 and RS4) carries
+    an undeclared or non-numeric counter. The counters of L2, the workshops, the operating
+    wear and L3 are not read and not validated;
   - any snapshot lacks a complete food accounting row per region, L2's frame, (retail arms)
     the retail frame for its source turn, the granaries, the workshop sites or receipts,
     (woodcutting arms) the woodcutting receipts, or L3's totals, or a row is malformed;
@@ -272,8 +278,9 @@ executable list is `CP3.PAIRED` in the runner (69 outcomes, 2 primary).
     own-eaten and sold food and money paid, credited and refunded, differ from the lifetime
     counters;
   - the retail record has no `income_replaced_total`, an alive civilization has no wealth
-    Gini, a woodcutting receipt names no food accounting row for its home, or the bundle
-    cannot be read.
+    Gini, a woodcutting receipt with farm labour away (`away_delivered > 0`) names no food
+    accounting row for its home (checkpoint 1's rule; other receipts are not looked up), or
+    the bundle cannot be read.
 - A simulation that exits non-zero is a failed run (its rc and stderr recorded).
 - Constructed-bundle tests: `tests/test_productive_recovery_screens_cp3.py` (oracle chunk
   `household-retail`, native shard 0).

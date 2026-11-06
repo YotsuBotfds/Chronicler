@@ -637,6 +637,21 @@ def test_a_complete_pilot_extracts_and_reports(short, tmp_path, monkeypatch, cap
     assert l2["both_priced_out_persons"] is None                   # no region is a pilot region in both
     # CH - C0 over {0, 1}.
     assert diff("CH priced-out person-turns in the pilot regions of either arm (CH - C0)", "CH", "C0") == 2.0
+    # Every set's size and both-arms size are reported, and both arms' coverage of the
+    # CH - CH_free and CH - C0 sets (C0's set is {0, 1}, pilot in both arms: region 0).
+    ch_row = by[("CH", "t")]
+    assert paired["CH regions in the CH|CH_unpaid set (CH; the pilot regions of either arm)"](ch_row) == 3
+    assert paired["CH regions pilot in both arms (CH; CH|CH_unpaid set)"](ch_row) == 1
+    assert paired["CH regions in the CH|CH_L2 set (CH; the pilot regions of either arm)"](ch_row) == 2
+    assert paired["CH regions pilot in both arms (CH; CH|CH_L2 set)"](ch_row) == 0
+    c0_set = ch_row["pair"]["CH|C0"]
+    assert paired["CH regions in the CH|C0 set (CH; the pilot regions of either arm)"](ch_row) == c0_set["regions"]
+    assert paired["CH share of the set's region-turns that were pilot turns (CH; CH|C0 set)"](ch_row) == \
+        pytest.approx(c0_set["coverage"])
+    assert paired["C0 share of the set's region-turns that were pilot turns (C0; CH|C0 set)"](by[("C0", "t")]) == \
+        pytest.approx(3 / (c0_set["regions"] * 3))
+    assert paired["CH_free share of the set's region-turns that were pilot turns (CH_free; CH|CH_free set)"](
+        by[("CH_free", "t")]) == pytest.approx(by[("CH_free", "t")]["pair"]["CH|CH_free"]["coverage"])
     assert paired["C0 pilot region-turns (C0)"](by[("C0", "t")]) == 3
     assert paired["CH_unpaid pilot regions (CH_unpaid)"](by[("CH_unpaid", "t")]) == 2
     assert paired["CH_L2 pilot region-turns (CH_L2)"](by[("CH_L2", "t")]) == 0
@@ -662,6 +677,29 @@ def test_a_failed_control_leaves_its_pair_unknown(short, tmp_path, monkeypatch):
         assert f"| {label} | t | 5: failed" in text
 
 
+def test_a_resume_before_the_first_row_checks_the_recorded_checkpoint_and_cohort(short, tmp_path, monkeypatch):
+    """A run killed before its first row leaves source.txt and an empty metrics.jsonl;
+    the resume must still refuse another checkpoint or cohort (the run header)."""
+    S = short
+    monkeypatch.setattr(S.LS, "source_identity", _stub_identity)
+    monkeypatch.setattr(S, "simulate", _fake_simulate(S))
+    out = tmp_path / "out"
+    assert S.main(["run", str(out), "--checkpoint", "3", "--cohort", "pilot", "--arms", "C0",
+                   "--seeds", "template"]) == 0
+    (out / "metrics.jsonl").write_text("")                         # killed before any row
+    assert S.recorded_run((out / "source.txt").read_text()) == (3, "pilot")
+    with pytest.raises(SystemExit, match="started as checkpoint 3, cohort pilot, not checkpoint 1, cohort pilot"):
+        S.main(["run", str(out), "--cohort", "pilot", "--arms", "W", "--seeds", "template", "--resume"])
+    assert (out / "metrics.jsonl").read_text() == ""                 # nothing was run
+    (out / "source.txt").write_text("source test\n")
+    with pytest.raises(SystemExit, match="records no run header"):
+        S.main(["run", str(out), "--checkpoint", "3", "--cohort", "pilot", "--arms", "C0", "--seeds", "template",
+                "--resume"])
+    # Checkpoint 1's header has no checkpoint prefix; the same rule reads it.
+    assert S.recorded_run("source x\ncohort held; seeds all; arms W; jobs 3; rows already written 0\n") == (1, "held")
+    assert S.recorded_run("source x\ncheckpoint 2; resumed held; seeds all\n") is None
+
+
 def test_rows_of_another_checkpoint_are_refused(short, tmp_path, monkeypatch):
     S = short
     monkeypatch.setattr(S.LS, "source_identity", _stub_identity)
@@ -674,6 +712,12 @@ def test_rows_of_another_checkpoint_are_refused(short, tmp_path, monkeypatch):
         S.main(["report", str(metrics), "--checkpoint", "2"])
     rows = [json.loads(line) for line in metrics.read_text().splitlines()]
     assert any("row of checkpoint 3" in p for p in S.check_metrics(rows, "pilot", S.CP2))
+    with pytest.raises(SystemExit, match="started as checkpoint 3, cohort pilot, not checkpoint 2"):
+        S.main(["run", str(out), "--checkpoint", "2", "--cohort", "pilot", "--arms", "L2", "--seeds", "template",
+                "--resume"])
+    # The rows are checked too: a directory whose header was rewritten still refuses them.
+    source = out / "source.txt"
+    source.write_text(source.read_text().replace("checkpoint 3; cohort pilot", "checkpoint 2; cohort pilot"))
     with pytest.raises(SystemExit, match="holds a row of checkpoint 3, not 2"):
         S.main(["run", str(out), "--checkpoint", "2", "--cohort", "pilot", "--arms", "L2", "--seeds", "template",
                 "--resume"])

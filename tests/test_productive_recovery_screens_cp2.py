@@ -563,6 +563,11 @@ def test_rows_of_another_checkpoint_are_refused(short, tmp_path, monkeypatch):
         S.main(["report", str(metrics)])
     rows = [json.loads(line) for line in metrics.read_text().splitlines()]
     assert any("row of checkpoint 2" in p for p in S.check_metrics(rows, "pilot"))
+    with pytest.raises(SystemExit, match="started as checkpoint 2, cohort pilot, not checkpoint 1"):
+        S.main(["run", str(out), "--cohort", "pilot", "--arms", "W", "--seeds", "template", "--resume"])
+    # The rows are checked too: with the header rewritten to checkpoint 1 they still refuse.
+    source = out / "source.txt"
+    source.write_text(source.read_text().replace("checkpoint 2; cohort pilot", "cohort pilot"))
     with pytest.raises(SystemExit, match="holds a row of checkpoint 2, not 1"):
         S.main(["run", str(out), "--cohort", "pilot", "--arms", "W", "--seeds", "template", "--resume"])
     # A checkpoint-1 row is refused by a checkpoint-2 report.

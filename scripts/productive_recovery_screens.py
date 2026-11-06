@@ -1729,6 +1729,17 @@ def _paired_cp3() -> list:
         (f"CH money credited to households (gross), coins (CH - {Z})", "CH", Z, _money_cp3),
         (f"CH population (CH - {Z})", "CH", Z, lambda r: r.get("population")),
     ]
+    # Every fixed region set's size, the regions pilot in both arms, and each arm's
+    # coverage of the set (CH_unpaid's is listed with its comparison; CH_L2 has none).
+    for ctl in (U, F, L, Z):
+        out += [(f"CH regions in the CH|{ctl} set (CH; the pilot regions of either arm)", "CH", None,
+                 over(ctl, "regions")),
+                (f"CH regions pilot in both arms (CH; CH|{ctl} set)", "CH", None, over(ctl, "both_regions"))]
+    for ctl in (F, Z):
+        out += [(f"CH share of the set's region-turns that were pilot turns (CH; CH|{ctl} set)", "CH", None,
+                 over(ctl, "coverage")),
+                (f"{ctl} share of the set's region-turns that were pilot turns ({ctl}; CH|{ctl} set)", ctl, None,
+                 over(ctl, "coverage"))]
     # Coverage per arm: the paid_work boundary depends on wages.
     for arm in ("C0", "CH", U, X, F, L):
         out += [(f"{arm} pilot region-turns ({arm})", arm, None, _retail_turns),
@@ -1903,6 +1914,21 @@ def _foreign_rows(rows, cp) -> list[str]:
             for r in rows if r.get("checkpoint", 1) != cp.CHECKPOINT]
 
 
+_RUN_HEADER = re.compile(r"^(?:checkpoint (\d+); )?cohort (\w+); ")
+
+
+def recorded_run(source_text: str) -> tuple[int, str] | None:
+    """The checkpoint and cohort a run directory was started with: the first run header
+    ``run`` appends to ``source.txt`` (checkpoint 1 writes no checkpoint prefix). A
+    resume is refused unless it matches, even when no row was written before the run
+    was killed."""
+    for line in source_text.splitlines():
+        m = _RUN_HEADER.match(line)
+        if m:
+            return int(m.group(1) or 1), m.group(2)
+    return None
+
+
 def run_main(argv) -> int:
     ap = argparse.ArgumentParser(prog="productive_recovery_screens.py run")
     ap.add_argument("out")
@@ -1935,6 +1961,12 @@ def run_main(argv) -> int:
         if not metrics.exists() or not (out / "source.txt").exists():
             raise SystemExit(f"nothing to resume in {out}")
         recorded = (out / "source.txt").read_text(encoding="utf-8")
+        started = recorded_run(recorded)
+        if started is None:
+            raise SystemExit(f"resume refused: {out / 'source.txt'} records no run header")
+        if started != (cp.CHECKPOINT, a.cohort):
+            raise SystemExit(f"resume refused: {out} was started as checkpoint {started[0]}, cohort {started[1]}, "
+                             f"not checkpoint {cp.CHECKPOINT}, cohort {a.cohort}")
         for line in metrics.read_text(encoding="utf-8").splitlines():
             if line.strip():
                 r = json.loads(line)
