@@ -372,3 +372,21 @@ PL0–PL3 are integrated on `claude/productive-recovery` with witness layers `pl
 
 Review, verification and held results are summarized in `docs/CONTINUATION.md` and the
 screens page. Merging does not qualify any of it scientifically.
+
+## 7. Status (2026-11-06): checkpoint 2
+
+Checkpoint 1 merged as #78 (`dde5c004`, record #79). PL4 household retail is integrated on
+`claude/household-retail` with witness layer `pl4`, the retail viewer (PL5b) and the
+checkpoint-2 screens (PL6c, cohort 2, frozen before running). The lead's PL4 decisions in
+section 2 hold, with these refinements from review:
+
+- Owned stock carried into a turn decays and the storage cap applies to both pools (commons
+  net of merchant departures) at opening, so the fair share `cf` is reachable at 0.7.
+- A dead owner's claim is withheld whole for the heirs (status `withheld_dead`), never sold.
+- Named crews (PL1 woodcutters, PL3 granary and workshop crews) receive title only for the
+  farm time they gave: `w = max(0, u(1 − h) − r)`.
+- `paid_work` reads L6a firms, RS2 workshop wages, PL3 granary crews and PL1 home regions.
+
+Results and limits: `docs/CONTINUATION.md` and
+`docs/superpowers/progress/productive-recovery-screens-cp2.md`.
+

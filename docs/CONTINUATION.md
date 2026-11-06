@@ -1,4 +1,51 @@
-# Current continuation — productive recovery, checkpoint 1 merged (PR #78), 2026-11-06
+# Current continuation — productive recovery, checkpoint 2 (household retail), 2026-11-06
+
+## Productive recovery and household livelihoods: checkpoint 2 (household food retail)
+
+- **Branch** `claude/household-retail` from the phase head, with `main` (#78, #79) merged in.
+  It integrates the two retail lanes (`claude/pl4-retail-native`, `claude/pl4-retail-python`),
+  their review fixes, the retail viewer (PL5b) and the checkpoint-2 screens (PL6c).
+- **New switch, off by default, not promoted:** `--household-retail` (L6b, modes `retail`,
+  `no_relief`, `free_exchange`, `record_only`; `--household-retail-boundary` `market` (default),
+  `paid_work`, `all`). Requires `--agents hybrid` and `--food-allocation`.
+  - Producer title: 90% of each pilot harvest belongs to its farmers by stable id, weighted by
+    the farm work they actually gave (crews away from the land, PL1 and PL3, get title only for
+    what they farmed); 10% stays commons.
+  - Owned food lives in a Python ledger by stable id; every native addition is transient.
+  - The native economy draws down commons only; owned stock counts in availability and prices.
+    Carried owned stock decays and both pools are capped (net of merchant departures) at
+    opening, so the fair share `cf` is reachable.
+  - Provisioning (phase 0.7): a means-tested free pool, a fair-share round (owners eat their
+    own food up to `cf`, others buy), then an open round to one ration; buyers pay from adults'
+    wealth (child-only households from their own), sellers are credited by stable id, refunds
+    at the wealth ceiling; a dead owner's claim is withheld whole for the heirs.
+  - Pilot farmers' model farm income is replaced (after health loss) by sale revenue; granary
+    procurement buys owners' surplus through one pinned seam and pays them by id.
+  - Relief default: commons and granary releases always free, 10% of harvest kept commons,
+    means-tested free pool.
+- **Independent review:** D (native) and E (Python), from the code, then re-checks. No blocker
+  remained. Fixed with regression tests: the fair share unreachable after owned decay, rounding
+  below a full ration, crews titled for farm time they did not give, `paid_work` missing crew
+  wages, any controller change treated as conquest, a combined storage cap not held, and the
+  opening cap reading commons before merchant departures; plus the minors listed on the page.
+- **Verification of the final source** (native `101a4cd5…`): offline oracle lane PASS; native
+  suites PASS; feature-off `turn_speed_identity` against `main` `dde5c004`: 9 cases, 399 files,
+  0 differences; all-switch `checkpoint_identity` with retail on in every region:
+  `hybrid_s42_long` (19 resume points) and `proc32_hybrid_s11` (10) PASS.
+- **Held screens** (cohort 2, template 711–716, procedural 811–816, frozen before running):
+  96 runs, 0 failed, 0.33 core-hours; the identity control was exact in all 12 worlds.
+  [Results](superpowers/progress/productive-recovery-screens-cp2.md#results-held-cohort-2-2026-11-06):
+  payment prices out +452 t / +339 p person-turns per world (children +42 / +51) against
+  ownership without cash; relief protects +1,104 t / +2,832 p; against free allocation the
+  ration shortfall is a null (−217 t, +860 p, mixed); pilot households lose 1,713 t / 5,025 p
+  coins per world because model-created farm income becomes transfers between households.
+- **Limits:** the money drain above; merchants load commons only; occupation and siege do not
+  requisition owned stock; two conquests in one turn destroy owned stock once; a legacy JSON
+  state-file resume runs neither L2 nor retail hooks (pre-existing); a pilot region can hold up
+  to one turn's harvest above the storage cap between close and the next opening; constants
+  declared, not calibrated; qualification gates not run.
+
+# 2026-11-06 — productive recovery, checkpoint 1 merged (PR #78), 2026-11-06
 
 ## Productive recovery and household livelihoods: checkpoint 1 (recovery)
 

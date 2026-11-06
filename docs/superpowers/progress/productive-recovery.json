@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "board_version": 4,
+  "board_version": 5,
   "title": "Productive recovery and household livelihoods (PL0-PL6) operational board",
   "plan": "docs/superpowers/roadmaps/productive-recovery-phase.md",
   "owner_instruction": "2026-11-05 (after #77): make recovery work (timber supply and delivery with real labour and ecological costs; apprenticeship exits and maintenance assumptions separated before tuning, success = graduates doing useful work; budgets and opportunities after timber), then real household food retail (producer ownership, inventories, payments, consumption timing; care for poorer households and public relief); consecutive checkpoints of one assignment with independent review and evidence; qualification gates and default promotion remain separate decisions.",
@@ -138,22 +138,23 @@
     },
     {
       "id": "PL4",
-      "status": "active",
-      "lane": "claude/pl4-retail-native (76f7554d) + claude/pl4-retail-python (5a2ff552); integrates at checkpoint 2",
+      "status": "evaluated",
+      "lane": "claude/household-retail (native + python lanes, review fixes D/E)",
       "switch": "--household-retail (retail | no_relief | free_exchange | record_only)",
-      "summary": "Producer title of new harvest, owned food ledger, paid provisioning with fair-share and open rounds, farm income replacement, relief default (docs/integration/household-retail-design.md)."
+      "summary": "Producer title of new harvest, owned food ledger, paid provisioning with fair-share and open rounds, farm income replacement, relief default (docs/integration/household-retail-design.md).",
+      "held_outcome": "Held cp2: R - R_free priced-out +452 t / +339 p person-turns (6/0/0); R_norelief - R +1104 t / +2832 p (6/0/0); R - L2 ration shortfall null (-217 t, +860 p, mixed); money into households -1713 t / -5025 p coins per world; identity control exact in 12/12."
     },
     {
       "id": "PL5",
       "status": "active",
-      "lane": "claude/pl5a-viewer (checkpoint 1 merged); checkpoint 2-3 viewer later",
+      "lane": "claude/pl5a-viewer (cp1, merged), claude/pl5b-retail-viewer (cp2)",
       "switch": null,
       "summary": "Integrated chain, viewer panels, Batch Lab and live options, browser QA."
     },
     {
       "id": "PL6",
       "status": "evaluated",
-      "lane": "claude/pl6a-screens (cp1 screens done); claude/pl6b-examples",
+      "lane": "cp1 screens + examples merged; cp2 screens claude/pl6c-retail-screens",
       "switch": null,
       "summary": "Examples and preregistered held screens per checkpoint; handoff."
     }
@@ -162,7 +163,8 @@
     "pl2",
     "pl1",
     "pl3",
-    "pl2b"
+    "pl2b",
+    "pl4"
   ],
   "merge": {
     "checkpoint_1": {
@@ -175,7 +177,7 @@
       "date": "2026-11-06"
     }
   },
-  "next": "Checkpoint 2 (PL4 household retail) on claude/household-retail: review fixes integrated, witness layer pl4; retail viewer (PL5b), cp2 screens (PL6c), verification, preregistration, held cohort 2, PR.",
+  "next": "Checkpoint-2 PR and merge; then checkpoint 3 (integrated chain screen on cohort 3, examples, handoff).",
   "native_extension": {
     "source_commit": "PL1 Rust (claude/pl1-timber; unchanged on the phase branch)",
     "sha256_prefix": "fdcb0ca0"
@@ -201,6 +203,19 @@
       "concurrency": 3,
       "pilot": "template 5, procedural 19: 28 runs, 0 failed (rerun on the frozen source)",
       "held": "168 runs, 0 failed, 0.60 core-hours, frozen source 0cffa89e run from c5833e98"
+    },
+    "checkpoint_2": {
+      "core_hours": 2.0,
+      "concurrency": 3,
+      "pilot": "template 5, procedural 19: 16 runs, 0 failed (rerun on the frozen source)",
+      "held": "96 runs, 0 failed, 0.33 core-hours"
     }
+  },
+  "checkpoint_2": {
+    "branch": "claude/household-retail",
+    "final_source": "f7f588a3",
+    "native_sha256_prefix": "101a4cd5",
+    "verification": "offline lane PASS; native suites 94 passed; turn_speed_identity vs main dde5c004 9 cases 399 files 0 differences; all-switch + retail(all) checkpoint_identity hybrid_s42_long 19 and proc32_hybrid_s11 10 PASS; viewer 1409 tests, lint, build",
+    "held": "96 runs, 0 failed, 0.33 core-hours, frozen source 78cf2efd run from 77202dd2 (native b1910b94); post-run departures fix byte-identical on 3 development worlds"
   }
 }
