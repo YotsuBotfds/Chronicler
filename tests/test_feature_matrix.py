@@ -98,7 +98,11 @@ def test_existing_catalog_output_is_byte_identical():
     entries, requirements, settings and surface fields, in order); later programs may
     add switches and settings, which this comparison leaves out."""
     assert fc.CATALOG_SCHEMA_VERSION == 1
-    assert fc.FEATURE_GROUPS == {}
+    # Groups after livelihoods add entries; none of them is an existing key.
+    grouped = {k for switches in fc.FEATURE_GROUPS.values() for key, options in switches.items()
+               for k in (key, *options)}
+    assert not grouped & set(REFERENCE_KEYS)
+    assert fc.FEATURE_GROUPS["Public health"] == {"quarantine_mode": ()}
     _assert_reference_catalog_unchanged()
     # Additions are additions: the 8abc1acb entries keep their relative order, and every
     # 8abc1acb setting is still offered on both surfaces.
@@ -251,6 +255,10 @@ def test_matrix_of_the_catalog(M):
                      for mode, by in m["all_enabled"].items()}
         assert reference == expected, world
     assert all(e["refusal"] is None for by in m["all_enabled"].values() for e in by.values())
+    # Top-level choices join every all-enabled selection at their last choice.
+    assert M.top_level_choices() == ["quarantine_mode"]
+    assert all(e["selection"]["quarantine_mode"] == "closure" for by in m["all_enabled"].values()
+               for e in by.values())
 
 
 def test_a_world_dependent_switch_is_reported_as_such(M):

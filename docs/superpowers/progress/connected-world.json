@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "board_version": 9,
+  "board_version": 10,
   "title": "Connected-world program (A livelihoods and trade, B watersheds and infrastructure, C public health, D institutions and war, E stories and evidence) operational board",
   "plan": "docs/superpowers/roadmaps/connected-world-program.md",
   "owner_instruction": "2026-11-06 (after #82): own the A-E program end to end with parallel workers, integrating and evaluating each slice and continuing across slice boundaries; merges of this program authorized after independent review, green premerge Tests on the reviewed head and verified main CI; new systems opt-in and off by default; no default promotion; full 200-seed and procedural qualification gates restricted; bounded held screens (procedural included) authorized; no purchases, paid credits, paid narration APIs, deployments, credential or sharing changes. Amendment (same day): tiers sequence work and are not stopping points; failures block the affected merge, not the program; pin 8abc1acb as the original reference; default-path changes behind a switch or rules version.",
@@ -11,7 +11,7 @@
   },
   "durable_location": {
     "branch": "main (merged slices) plus the lane and integration branches listed in lanes",
-    "base": "main at 1d4141d7 (#83)"
+    "base": "main at 13340446 (#84)"
   },
   "status_values": ["proposed", "ready", "active", "blocked", "integrated", "evaluated", "merged", "deferred"],
   "machine": {
@@ -82,7 +82,7 @@
       "id": "B1",
       "branch": "claude/cw-b1-watershed",
       "scope": "--watershed record_only: drainage graph, conserved water account, closure checks, viewer panel (procedural only)",
-      "status": "approved (final check d28eb338); integrated as PR 2 branch claude/cw-pr2-watershed",
+      "status": "merged (#84)",
       "head": "54147ffa",
       "layer": "54147ffa (provisional cwb1)",
       "verification": "offline lane PASS 64 chunks 241.5 s; feature-off identity 9 cases 399 files 0 differences; record_only vs off 0 differences on 6 runs; exact resume proc32_hybrid_s11 39 PASS; viewer 1463 tests, lint, build; browser desktop+phone 23/23",
@@ -92,7 +92,7 @@
       "id": "C1",
       "branch": "claude/cw-c1-quarantine",
       "scope": "--quarantine-mode none|cost_only|closure: trade closure with dated effect, enforcement cost, no multiplier in new modes",
-      "status": "approved (final check ac18300c); integrating with main + CW4 screen on claude/cw-cw4-screen"
+      "status": "approved; integrated with main and screened (CW4) on claude/cw-cw4-screen; PR 3"
     },
     {
       "id": "A2R",
@@ -112,6 +112,12 @@
       "id": "S1",
       "branch": "claude/cw-s1-accounting",
       "scope": "integration of A5+A2R+A1 on main with one layer cws1; then CW1 screen",
+      "status": "active"
+    },
+    {
+      "id": "B2",
+      "branch": "claude/cw-b2-flow",
+      "scope": "recalibrated watershed constants; flow mode replacing native water terms, irrigation bonus and cascade",
       "status": "active"
     }
   ],
@@ -227,9 +233,19 @@
       "premerge_run": 42274171595,
       "main_run": 42275935233,
       "date": "2026-11-06"
+    },
+    {
+      "pr": 84,
+      "slice": "B1 watershed record_only",
+      "merge_commit": "13340446c06efe5cbef829f699be573d46d80341",
+      "merge_tree": "51b7a7cd",
+      "reviewed_head": "dfdd772a",
+      "premerge_run": 42280073920,
+      "main_run": 42281625835,
+      "date": "2026-11-06"
     }
   ],
-  "next": "Open PR 2 (B1 watershed record_only) once its integration review and identity pass; integrate S1 (A5+A2R+A1) and preregister CW1; review CW4 preregistration then run the held cohort; review A3.",
+  "next": "Open PR 3 (C1 quarantine + CW4); finish S1 integration and preregister CW1; A3 fixes and re-review; B2 flow mode; then C1b migration closure (motivated by the CW4 null), A1-2 native observer, B3 infrastructure condition, D2 attribution.",
   "baseline": {
     "oracle_lane": "PASS, 63 chunks, 295.5 s, slowest 32.4 s of 110 s",
     "native_check": "check_python_env --expect native PASS (101a4cd5)",
@@ -245,5 +261,16 @@
   },
   "decisions": {
     "livelihoods_switch_order": "existing switches, then household_retail, watershed, workshop_economics, wealth_accounting last (observer after every payer); pinned by a test at integration"
+  },
+  "screens": {
+    "CW4": {
+      "status": "run 2026-11-06",
+      "frozen": "8c8feb41 (code) / 14c3b90f (held-run source)",
+      "amendment": "1 (before any held run): whole-run world primaries; ceiling 0.5 core-hours",
+      "held": "48 runs, 0 failed, 0.153 core-hours",
+      "primaries": "P1 world cross-polity arrivals QR-QC: template +0.83 (2/3/1), procedural +0.5 (2/4/0) - null; P2 world epidemic deaths per 1000 person-turns QR-QC: template -0.21 (1/4/1), procedural -1.46 (3/3/0) - null",
+      "harms": "route income forgone 519 t / 1769 p; merchant unwinds up (6/0/0 p); food shortfall after relief up (5/1/0 p, 3 of 6 t); migration up; enforcement paid mostly from court spending",
+      "page": "docs/superpowers/progress/connected-world-screens-cw4.md"
+    }
   }
 }

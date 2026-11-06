@@ -696,6 +696,10 @@ def livelihoods_resume_conflicts(world: Any, args: Any, recorded: dict) -> list[
             conflicts.append(problem)
         else:
             recorded.pop("household_retail_schedule", None)
+    # --quarantine-mode shares this resume seam; its rules live on the epidemic
+    # state (chronicler.quarantine_rules), not on LivelihoodsState.
+    from chronicler.quarantine_rules import quarantine_resume_conflicts
+    conflicts.extend(quarantine_resume_conflicts(world, args, recorded))
     return conflicts
 
 

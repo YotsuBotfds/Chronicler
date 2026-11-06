@@ -707,7 +707,7 @@ Python cannot see, and leaves to the native lane:
   `simulation_config`'s omit-when-unset list; A5-1 appends `household_retail_rules` to
   both, A2R appends `household_retail_schedule` and A1 `wealth_accounting`. The S1
   integration folded the lanes' provisional layers (`cwa5`, `cwa2r`, `cwa1`, never landed)
-  into one integrated layer `cws1` (parent `main` `13340446`).
+  into one integrated layer `cws1` (parent `main` `8286804c`, the last layer).
 - `tests/test_batch_manifest.py`: the three keys, A5-1's fourth and A2R's fifth.
 - `src/chronicler/live.py` (A2R, review A5 finding 4): the lobby loop reopens on a resumed
   world's `LivelihoodsRefusal` (layer `cws1`).

@@ -39,7 +39,7 @@ link to these by path, so keep their names stable.
   [population entities](integration/population-entities.md),
   [healthy migration](integration/healthy-migration.md),
   [refugee routing](integration/refugee-routing.md),
-  [epidemiology](integration/epidemiology.md),
+  [epidemiology](integration/epidemiology.md) ([quarantine rules](integration/quarantine-rules.md)),
   [health care](integration/health-care.md).
 - **Culture and knowledge:** [techniques](integration/techniques.md),
   [languages](integration/languages.md),
