@@ -147,6 +147,12 @@ export function HouseholdRetail({ bundle, snapshot, currentTurn, onSelectRegion 
   const notable = record.log.filter((e) => !["inherited", "escheat"].includes(e.kind)).slice(-8);
   const theta = p.theta;
   const v2 = rulesVersion(record) === 2;
+  const keys = record as unknown as Record<string, unknown>;
+  /** RL4 counters: absent from a version-2 record written before the cut (A5: no opened_turn) is not
+   * recorded, not 0; the commons' share came with the pro-rata cut (S1: intervals). */
+  const aboveCap = !("opened_turn" in keys) ? "not recorded (written before the storage-cap cut)"
+    : `${food(c("owned_grain_above_cap_milli"))} · ${"intervals" in keys ? food(c("commons_grain_above_cap_milli")) : "not recorded (written before the pro-rata cut)"}`;
+  const capCut = (r: RetailRegionFrame) => (r as unknown as { cap_cut?: { owned_milli: number; commons_milli: number } }).cap_cut ?? null;
   const schedule = (record as unknown as { schedule?: { sha256: string; turns: Record<string, number> } }).schedule;
   const cohorts = cohortTotals(record);
   const cell = (v: number | null, f: CohortField) => v === null ? "Unknown"
@@ -173,6 +179,17 @@ export function HouseholdRetail({ bundle, snapshot, currentTurn, onSelectRegion 
   const wars = readWarLosses(record, bundle.world_state.civilizations?.length ?? 0);
   const warThisTurn = wars.status === "ok" ? wars.losses.filter((w) => w.turn === record.source_turn) : [];
   const civ = (index: number | null, label: string | null) => label ?? (index === null ? "Unknown" : `Civilization ${index}`);
+  // This turn's war events by the counter (the previous snapshot's record, when readable), against the
+  // rows the rolling 64-record log still holds: a busy turn can push some of them out.
+  const previous = (bundle.history ?? []).find((h) => h.turn === turn - 1) ?? null;
+  const before = previous ? readHouseholdRetail(previous, regions.length) : null;
+  const eventsThisTurn = wars.status === "ok" && before?.status === "ok" && rulesVersion(before.record) === 2
+    ? c("war_events") - (before.record.counters.war_events ?? 0) : null;
+  const truncated = wars.status === "ok" && (eventsThisTurn !== null ? eventsThisTurn > warThisTurn.length
+    : record.log_dropped > 0 && record.log.length > 0 && record.log[0].turn === record.source_turn);
+  const truncationNote = !truncated ? null : <p className="systems-note">{eventsThisTurn !== null
+    ? `${plural(eventsThisTurn, "war event")} in pilot regions this turn; the rolling log (the last 64 records) kept ${plural(warThisTurn.length, "row")}, so the others' causes, actors and victims are not shown (not recorded here, not absent).`
+    : "The rolling log (the last 64 records) dropped records of this turn, so this turn's war events may be more than shown."}</p>;
   const warSection = wars.status === "malformed"
     ? <p className="systems-note">The war losses of owned food were rejected as malformed: {wars.reason}.</p>
     : wars.status === "disabled"
@@ -184,7 +201,7 @@ export function HouseholdRetail({ bundle, snapshot, currentTurn, onSelectRegion 
           <td>{link(w.region)}</td><td>{CAUSE_LABEL[w.cause]}</td><td>{civ(w.actor, w.actorName)} ({ACTOR_ROLE[w.cause]})</td>
           <td>{civ(w.victim, w.victimName)}</td><td>{w.milli ? food(w.milli) : control ? "none (nothing held)" : "none (no owned food)"}</td>
         </tr>)}</tbody>
-      </table></div> : null;
+      </table>{truncationNote}</div> : truncationNote;
   return <section className="systems-section" aria-label="Household retail">
     <h3>Household retail · snapshot {turn}</h3>
     <p className="systems-note">Simulation turn {record.source_turn}. {MODE_NOTE[record.mode]}</p>
@@ -237,7 +254,7 @@ export function HouseholdRetail({ bundle, snapshot, currentTurn, onSelectRegion 
                 <td>{food(ownedTitle(r))}{kept ? ` (+${food(kept)} titled but kept commons)` : ""} ({share === null ? "Unknown" : `≈${food(share)}`})</td>
                 <td>{q ? `${food(flowOf(r, "own_eaten"))} · ${food(flowOf(r, "sold"))} · ${food(q.unsold_milli)}` : "not provisioned"}</td>
                 <td>{q ? `${number(q.free_given)} of ${number(q.free_rations)}` : "not provisioned"}</td>
-                <td>{food(flowOf(r, "decay"))} · {food(flowOf(r, "overflow"))}{flowOf(r, "cap_overflow") ? ` (+${food(flowOf(r, "cap_overflow"))} above the cap before granaries)` : ""}</td>
+                <td>{food(flowOf(r, "decay"))} · {food(flowOf(r, "overflow"))}{flowOf(r, "cap_overflow") ? ` (+${food(flowOf(r, "cap_overflow"))} above the cap before granaries${capCut(r) ? `, with ${food(capCut(r)!.commons_milli)} of the commons` : ""})` : ""}</td>
                 <td>{food(flowOf(r, "procured"))} · {food(flowOf(r, "war_loss"))}</td>
                 <td>{why.length ? why.join("; ") : "none"}</td>
                 <td>{food(flowOf(r, "inherited_in"))}</td>
@@ -284,7 +301,7 @@ export function HouseholdRetail({ bundle, snapshot, currentTurn, onSelectRegion 
         <tr><td>Farm income replaced (farmer-turns)</td><td>{number(record.income_replaced_total)} ({number(c("income_replaced_rows"))})</td></tr>
         <tr><td>Person-turns priced out · offer short</td><td>{number(c("priced_out_persons"))} · {number(c("offer_short_persons"))}</td></tr>
         <tr><td>Claims refused (cap) · region-turns exempt from requisition</td><td>{number(c("claims_refused"))} · {v2 ? "not applicable (rules version 2 applies sieges and occupations to owned food)" : number(c("requisition_exempt_region_turns"))}</td></tr>
-        {v2 ? <tr><td>Owned grain above the storage cap, lost before granaries buy</td><td>{food(c("owned_grain_above_cap_milli"))}</td></tr> : null}
+        {v2 ? <tr><td>Grain above the storage cap, lost before granaries buy: owned · commons</td><td>{aboveCap}</td></tr> : null}
         <tr><td>Crew farm time paid as wages, not titled (person-turns)</td><td>{number(c("crew_farm_time_person_turns"))}</td></tr>
       </tbody>
     </table></div>
