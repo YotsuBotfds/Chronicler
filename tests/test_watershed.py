@@ -677,10 +677,9 @@ def _lobby(starts):
 
 
 def test_a_live_lobby_refuses_a_template_start_and_keeps_running(tmp_path, monkeypatch):
-    """Review N1: a server started with --watershed. The viewer names the inherited,
-    world-dependent switch in a start's features, so a template start is refused with
-    the reason and the lobby reopens (the process keeps running); a procedural start
-    then runs with the account."""
+    """Review N1: a start that asks for the watershed on a template world is refused with the
+    reason and the lobby reopens (the process keeps running); a saved state is refused at
+    validation; a procedural start then runs with the account."""
     from chronicler import feature_catalog as fc
     from chronicler import live, main
     assert fc.live_surface(_build_parser().parse_args(["--agents", "hybrid"]))["settings"]["procedural_world"] is False
@@ -696,10 +695,9 @@ def test_a_live_lobby_refuses_a_template_start_and_keeps_running(tmp_path, monke
     resumed = {"turns": 3, "civs": 4, "regions": 8, "features": {"watershed": True}, "resume_state": {"turn": 4}}
     procedural = {"turns": 3, "civs": 4, "regions": 16, "seed": 11, "features": {"watershed": True}}
     server = _lobby([template, resumed, procedural])
-    args = _build_parser().parse_args(["--live", "--agents", "off", "--watershed", "--simulate-only",
+    args = _build_parser().parse_args(["--live", "--agents", "off", "--simulate-only",
                                        "--output", str(tmp_path / "chronicle.md")])
-    surface = fc.live_surface(args)
-    assert surface["values"]["watershed"] is True and surface["settings"]["procedural_world"] is True
+    assert fc.live_surface(args)["settings"]["procedural_world"] is True     # the run checks a live start's world
     with pytest.raises(_Stop):
         live.run_live(args, server=server)
     assert len(server.reopened) == 1 and server.reopened[0].startswith(
@@ -710,19 +708,37 @@ def test_a_live_lobby_refuses_a_template_start_and_keeps_running(tmp_path, monke
     assert server.replies[2] is None and seen["world"].livelihoods.watershed is not None
 
 
-def test_a_live_start_without_features_ends_the_session_as_before(tmp_path, monkeypatch):
-    """The documented limit (``live.py`` is pinned): a client that sends no features
-    while the server's own --watershed meets a template world ends the session, as any
-    refused server-level switch does (``test_a_refusal_without_features_still_fails_the_run``).
-    The viewer always names the switch, so it is refused and the lobby reopens instead."""
-    from chronicler import live
+def test_a_live_lobby_server_holding_the_watershed_is_refused_before_it_opens(tmp_path, monkeypatch):
+    """The residual of review N1: a live start chooses its own world (the server's --worldgen
+    does not apply to it), so a lobby whose command line holds --watershed could meet a
+    template start that names nothing and end the session. It is refused at startup, before
+    the lobby opens, even with --worldgen procedural; a start without features on a lobby
+    without it runs (here on a procedural world, without an account)."""
+    from chronicler import feature_catalog as fc
+    from chronicler import live, main
     monkeypatch.setattr(live, "_get_available_models", lambda args: [""])
-    server = _lobby([{"turns": 3, "civs": 4, "regions": 8, "seed": 11}])
-    args = _build_parser().parse_args(["--live", "--agents", "off", "--watershed", "--simulate-only",
-                                       "--output", str(tmp_path / "chronicle.md")])
-    with pytest.raises(ValueError, match="requires a procedural world"):
-        live.run_live(args, server=server)
-    assert server.reopened == []
+    assert live._live_world(_build_parser().parse_args(["--live", "--worldgen", "procedural"]),
+                            {"seed": 11, "regions": 8, "civs": 4})[0].geography is None   # the client's world, not the server's
+    for extra in ([], ["--worldgen", "procedural"]):
+        server = _lobby([{"turns": 3, "civs": 4, "regions": 16, "seed": 11}])
+        args = _build_parser().parse_args(["--live", "--agents", "off", "--watershed", *extra, "--simulate-only",
+                                           "--output", str(tmp_path / "chronicle.md")])
+        with pytest.raises(ValueError, match="cannot be set on a live lobby's command line"):
+            live.run_live(args, server=server)
+        assert server.replies == [] and server._server_state == "lobby"   # the lobby never opened
+    assert fc.lobby_feature_catalog(_build_parser().parse_args(["--live", "--no-watershed"]))["schema_version"] == 1
+    seen = {}
+
+    def execute_run(args, **kwargs):
+        seen["world"] = kwargs["world"]
+        raise _Stop
+
+    monkeypatch.setattr(main, "execute_run", execute_run)
+    server = _lobby([{"turns": 3, "civs": 4, "regions": 16, "seed": 11}])
+    with pytest.raises(_Stop):
+        live.run_live(_build_parser().parse_args(["--live", "--agents", "off", "--simulate-only",
+                                                  "--output", str(tmp_path / "chronicle.md")]), server=server)
+    assert server.replies == [None] and seen["world"].geography is not None and seen["world"].livelihoods is None
 
 
 # --- End to end (CLI, Python fallback): exact resume ---------------------------------------

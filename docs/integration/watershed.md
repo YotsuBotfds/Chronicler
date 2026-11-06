@@ -48,14 +48,16 @@ chronicler ... --watershed --watershed-mode record_only                         
     see it, so on a live lobby (`--live`) the setting is true and the run checks the world. A start
     that names the switch in its `features` and asks for a template world (12 regions or fewer) is
     refused with the reason ("`--watershed requires a procedural world ...`") and the lobby reopens;
-    nothing has started. The viewer names a world-dependent switch the server's command line already
-    turns on (`liveStartFeatures`, `viewer/src/lib/featureWorld.ts`), so a server started with
-    `--watershed` refuses a template start this way and runs a procedural one. A saved state
-    (`resume_state`) takes no features: the viewer names the switch only when that world has no
-    account, and the server then refuses the start ("applies to new worlds only") with the lobby
-    open. A client that sends no `features` at all while the server's own `--watershed` meets a
-    template world ends the session, as any refused server-level switch does (`live.py`, pinned,
-    re-raises a refusal of an unrequested switch; tested).
+    nothing has started; a saved state (`resume_state`) asking for it is refused at validation
+    ("applies to new worlds only"), the lobby open.
+  - **A live lobby's own command line may not hold `--watershed`** (`feature_catalog.LOBBY_REFUSED`):
+    `--live --watershed` is refused at startup, before the lobby opens, with a message pointing to the
+    per-start request. A live start chooses its own world (the server's `--worldgen` and `--regions`
+    do not apply to it: verified), so even `--worldgen procedural` cannot promise one, and a held
+    switch meeting a template start that names nothing would end the session (`live.py`, pinned,
+    re-raises a refusal of an unrequested switch). `--live --resume` of a checkpoint with an account
+    opens no lobby and is unaffected. The viewer's `liveStartFeatures` (`viewer/src/lib/featureWorld.ts`)
+    still names any world-dependent switch a server holds, for later switches of the same kind.
 
 ## 2. The drainage graph
 
@@ -377,7 +379,7 @@ First pass (source `0779587`) and, after the independent review's findings, agai
 | Item | Class | Disposition |
 | --- | --- | --- |
 | Template worlds have no watershed | intentional boundary | refused at startup and on a state-file resume (tested) |
-| A live start cannot be checked against its requested world by the catalog (static surface; `live.py` is pinned) | intentional boundary of the catalog surface | on a live lobby the run checks it: a start naming the switch on a template world is refused and the lobby reopens (the viewer names an inherited one); a client that names nothing while the server's `--watershed` meets a template world ends the session (tested, documented) |
+| A live start cannot be checked against its requested world by the catalog (static surface; `live.py` is pinned) | intentional boundary of the catalog surface | on a live lobby the run checks it: a start naming the switch on a template world is refused and the lobby reopens; a lobby whose command line holds `--watershed` is refused at startup (tested) |
 | Constants uncalibrated; storage drifts down over two cycles | evidence gap | development calibration report (section 7); `flow` needs calibration first |
 | Floods and droughts have no consequence | intentional (record only) | `flow` (later) applies them through existing authorities |
 | Irrigation service is 1.0 for every active work | missing capability | infrastructure condition (B3) scales it |

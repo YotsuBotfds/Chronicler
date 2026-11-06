@@ -299,8 +299,26 @@ def batch_surface(client_defaults: Mapping[str, Any], config: Mapping[str, Any] 
     }
 
 
+#: Switches a live lobby's own command line may not hold: they depend on the
+#: world a start requests, which the client chooses (the server's --worldgen
+#: and --regions do not apply to live starts). Requested per start instead, a
+#: refusal reopens the lobby with the reason; held by the server, a template
+#: start would end the session.
+LOBBY_REFUSED: dict[str, str] = {
+    "watershed": (
+        "--watershed cannot be set on a live lobby's command line: each live start chooses its own world "
+        "(the server's --worldgen and --regions do not apply to it), so the server cannot promise a "
+        "procedural one. Request --watershed per start under Experimental features with more than 12 "
+        "regions (a template start is refused and the lobby stays open)"),
+}
+
+
 def lobby_feature_catalog(args: Any = None) -> dict:
-    """The ``feature_catalog`` field of the lobby ``init`` message."""
+    """The ``feature_catalog`` field of the lobby ``init`` message, built before
+    the lobby opens; refuses a command line holding a ``LOBBY_REFUSED`` switch."""
+    for key, message in LOBBY_REFUSED.items():
+        if getattr(args, key, None) is True:
+            raise ValueError(message)
     from chronicler.expansion_features import EXPANSION_PREREQUISITES
     defaults = {"agents": getattr(args, "agents", "off") if args is not None else "off"}
     for name in EXPANSION_PREREQUISITES:
