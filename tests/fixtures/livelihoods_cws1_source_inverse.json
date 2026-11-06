@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "layer": "cws1",
+  "parent": "1d4141d787929d9cf1143b27e9745fcf8685d2c9",
+  "files": {
+    "src/chronicler/batch_manifest.py": {
+      "sha256": "c3c48fd1e28b6961d078337c3fbf1d6e1c01ab7080a5a54b4d18fcd7619adb74",
+      "current_sha256": "926fa6dcf82ade05759ae26a6d270d8e8d8397ee01d42187e693bc1342c62c2b",
+      "patches": [
+        {
+          "old": "    \"household_retail\",\n    \"household_retail_mode\",\n    \"household_retail_boundary\",\n    \"tuning\",\n    \"preset\",\n    \"aggression_bias\",\n",
+          "new": "    \"household_retail\",\n    \"household_retail_mode\",\n    \"household_retail_boundary\",\n    \"household_retail_rules\",\n    \"household_retail_schedule\",\n    \"wealth_accounting\",\n    \"tuning\",\n    \"preset\",\n    \"aggression_bias\",\n"
+        },
+        {
+          "old": "                             \"timber_supply\", \"timber_supply_mode\",\n                             \"recovery_crews\", \"recovery_crew_mode\", \"maintenance_obligation\",\n                             \"maintenance_obligation_mode\", \"apprenticeship_rules\",\n                             \"household_retail\", \"household_retail_mode\", \"household_retail_boundary\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n    config[\"tuning_overrides\"] = _json_value(overrides or {})\n",
+          "new": "                             \"timber_supply\", \"timber_supply_mode\",\n                             \"recovery_crews\", \"recovery_crew_mode\", \"maintenance_obligation\",\n                             \"maintenance_obligation_mode\", \"apprenticeship_rules\",\n                             \"household_retail\", \"household_retail_mode\", \"household_retail_boundary\",\n                             \"household_retail_rules\", \"household_retail_schedule\", \"wealth_accounting\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n    config[\"tuning_overrides\"] = _json_value(overrides or {})\n"
+        }
+      ]
+    },
+    "tests/test_batch_manifest.py": {
+      "sha256": "59cd9014e633d3f500e4e0dc7da5624634a23d65d35309b9db576a43c186b4ac",
+      "current_sha256": "911df2f7b764e863baa03bf222c55768cc91f4ec3ed9128e760e2aa81798e8ea",
+      "patches": [
+        {
+          "old": "                                                           \"timber_supply\", \"timber_supply_mode\",\n                                                           \"recovery_crews\", \"recovery_crew_mode\", \"maintenance_obligation\",\n                                                           \"maintenance_obligation_mode\", \"apprenticeship_rules\",\n                                                           \"household_retail\", \"household_retail_mode\", \"household_retail_boundary\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n    assert manifest[\"outputs\"][\"simulate_only\"] is True\n    environment = manifest[\"environment\"]\n",
+          "new": "                                                           \"timber_supply\", \"timber_supply_mode\",\n                                                           \"recovery_crews\", \"recovery_crew_mode\", \"maintenance_obligation\",\n                                                           \"maintenance_obligation_mode\", \"apprenticeship_rules\",\n                                                           \"household_retail\", \"household_retail_mode\", \"household_retail_boundary\",\n                                                           \"household_retail_rules\", \"household_retail_schedule\",\n                                                           \"wealth_accounting\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n    assert manifest[\"outputs\"][\"simulate_only\"] is True\n    environment = manifest[\"environment\"]\n"
+        }
+      ]
+    },
+    "src/chronicler/live.py": {
+      "sha256": "e450ea39d03b80eb4a171736bae3069b8ef3d1bc156b5fb0029d42c6b31e3702",
+      "current_sha256": "b0f86404cf6231305db09f1987f14c558625c2dea26a2c2e7d7de14219beeef6",
+      "patches": [
+        {
+          "old": "            try:\n                world, scenario_config = _live_world(args, params)\n            except ValueError as exc:\n                if not features:\n                    raise\n                # The run refused the requested switches: nothing has started.\n                apply_features(args, previous)\n                server.reopen_lobby(f\"Start field 'features': {exc}\")\n                continue\n            break\n        _record_live_world_args(args, params)\n",
+          "new": "            try:\n                world, scenario_config = _live_world(args, params)\n            except ValueError as exc:\n                from chronicler.livelihoods import LivelihoodsRefusal\n                refused = isinstance(exc, LivelihoodsRefusal)       # a resumed world's saved switch\n                if not features and not refused:\n                    raise\n                # The run refused the requested switches (or a resumed world's\n                # saved ones): nothing has started.\n                apply_features(args, previous)\n                server.reopen_lobby(f\"Start field '{'resume_state' if refused else 'features'}': {exc}\")\n                continue\n            break\n        _record_live_world_args(args, params)\n"
+        }
+      ]
+    }
+  }
+}

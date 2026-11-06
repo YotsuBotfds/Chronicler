@@ -59,7 +59,7 @@ Modules: `chronicler/household_retail.py` (hooks, rules, checks) and
   thread swallows and asyncio takes for a shutdown, and which ended a live server on a
   lobby resume (review A5, finding 4). The live lobby now reports a resumed world's
   refusal as `Start field 'resume_state': <message>` and reopens (a four-line edit to the
-  pinned `live.py`, in witness layer `cwa2r`); a refusal of no requested features that is
+  pinned `live.py`, in the integrated witness layer `cws1`); a refusal of no requested features that is
   not a `LivelihoodsRefusal` still ends the run, as before. Explicit requests
   (`--food-allocation` or `--household-retail` without hybrid) keep their plain
   `ValueError`. Open item (default path, unchanged): an
@@ -345,7 +345,7 @@ arm's recorded openings.
 - Rules versions: the boundary works under both; version 1 records no `opened_turn` and
   no cohorts (below).
 - Registration: `household_retail_schedule` is a simulation manifest key after
-  `household_retail_rules`, omitted when unset (`batch_manifest`, pinned: layer `cwa2r`);
+  `household_retail_rules`, omitted when unset (`batch_manifest`, pinned: layer `cws1`);
   batch children receive it as an absolute path (`livelihoods.livelihoods_arguments`,
   path options in `LIVELIHOODS_PATH_KEYS`). The feature catalog does not serve it: a
   browser cannot hand the server a file, so `schedule` is a command-line-only choice
@@ -664,11 +664,12 @@ Python cannot see, and leaves to the native lane:
   result columns.
 - `src/chronicler/batch_manifest.py`: the three keys in `SIMULATION_ARG_KEYS` and in
   `simulation_config`'s omit-when-unset list; A5-1 appends `household_retail_rules` to
-  both (provisional layer `cwa5`, which the lead may rebuild at integration); A2R appends
-  `household_retail_schedule` to both (provisional layer `cwa2r`, parent `1370ae7a`).
+  both, A2R appends `household_retail_schedule` and A1 `wealth_accounting`. The S1
+  integration folded the lanes' provisional layers (`cwa5`, `cwa2r`, `cwa1`, never landed)
+  into one integrated layer `cws1` (parent `main` `1d4141d7`).
 - `tests/test_batch_manifest.py`: the three keys, A5-1's fourth and A2R's fifth.
 - `src/chronicler/live.py` (A2R, review A5 finding 4): the lobby loop reopens on a resumed
-  world's `LivelihoodsRefusal` (layer `cwa2r`).
+  world's `LivelihoodsRefusal` (layer `cws1`).
 
 ### Tests
 
