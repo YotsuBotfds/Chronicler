@@ -10,7 +10,10 @@ Pilot boundary (``--household-retail-boundary``), sticky: ``market``
 (default) adds each ruling civilization's capital region the turn it first
 qualifies; ``paid_work`` adds regions that have had an open L6a firm, a
 paid RS2 workshop repair crew, a paid PL3 granary crew or a PL1 expedition's
-home region; ``all`` adds every controlled region. A region leaves
+home region; ``all`` adds every controlled region; ``schedule`` (A2R) adds
+each region of a frozen ``{region: opening turn}`` map
+(``--household-retail-schedule``) from its turn, so an arm can replay another
+arm's enrollment. A region leaves
 the pilot only when it has no controller (or the switch goes off, or the
 mode becomes ``record_only``): its holdings return to its commons, dated
 (``pilot_closed``). Conquest alone does not remove a region.
@@ -69,6 +72,12 @@ procurement unpaid); ``record_only`` (Python computes the boundary and what
 would be titled and priced, installs and holds nothing: the trajectory is
 L2's alone).
 
+Evidence (version 2, A2R): ``opened_turn`` keeps each region's first pilot
+turn, so a bundle names its schedule (:func:`extract_schedule`); each
+provisioned pilot region-turn records household-group cohorts (RL5,
+:func:`cohorts`), exact or marked unknown; Phase 10 granaries buy owned grain
+only within this turn's storage cap (RL4, :func:`procurement_owned_grain`).
+
 Accounting: every identity of the design's section 10 that Python can see is
 checked after each mutation and raised on failure (:func:`check_region`,
 :func:`check_owner`, the frame checks). No randomness; every order is by
@@ -77,14 +86,18 @@ choices, not calibrated.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import math
+import re
 from dataclasses import dataclass, field
 from fractions import Fraction
+from pathlib import Path
 
 from chronicler.household_retail_state import (
-    BOUNDARIES, COMMONS_REASONS, COUNTERS, FLOW_KINDS, FLOW_SIGNS, MAX_CLAIMS, MAX_LOG, MAX_SAMPLE,
-    MODES, NATIVE_MODES, RETAIL_GOODS, RULES_VERSION, WAR_CAUSES, HouseholdRetailState, RegionFrame,
-    RetailRecord, RetailRegion,
+    BOUNDARIES, COHORT_FIELDS, COHORT_GROUPS, COMMONS_REASONS, COUNTERS, FLOW_KINDS, FLOW_SIGNS, MAX_CLAIMS,
+    MAX_LOG, MAX_SAMPLE, MODES, NATIVE_MODES, RETAIL_GOODS, RULES_VERSION, WAR_CAUSES, HouseholdRetailState,
+    RegionFrame, RetailRecord, RetailRegion,
 )
 
 #: Titled share of each pilot harvest (``no_relief``: 1).
@@ -155,10 +168,11 @@ def _log(state: HouseholdRetailState, record: RetailRecord) -> None:
 
 
 def set_household_retail_enabled(world, value: bool, *, args=None, agent_mode=None) -> None:
-    """Enable (with ``--household-retail-mode``, ``--household-retail-boundary``
-    and ``--household-retail-rules``, default :data:`RULES_VERSION`) or disable;
-    omitted options keep the saved ones. A saved state's rules version never
-    changes (a conflicting value is refused). Disabling, or switching to
+    """Enable (with ``--household-retail-mode``, ``--household-retail-boundary``,
+    ``--household-retail-rules``, default :data:`RULES_VERSION`, and for the
+    ``schedule`` boundary ``--household-retail-schedule``) or disable; omitted
+    options keep the saved ones. A saved state's rules version and schedule
+    never change (a conflicting value is refused). Disabling, or switching to
     ``record_only``, closes every holding to its region's commons, dated."""
     mode = getattr(args, "household_retail_mode", None) if args is not None else None
     boundary = getattr(args, "household_retail_boundary", None) if args is not None else None
@@ -166,15 +180,19 @@ def set_household_retail_enabled(world, value: bool, *, args=None, agent_mode=No
     state = _state(world)
     if state is not None and rules is not None and str(rules) != state.rules:
         raise ValueError(rules_conflict(rules, state))
+    requested = check_schedule_request(world, args, on=bool(value), saved=state)
     if state is None:
+        version = int(rules) if rules is not None else RULES_VERSION
         world.livelihoods.household_retail = state = HouseholdRetailState(
-            mode=mode or MODES[0], boundary=boundary or BOUNDARIES[0],
-            rules_version=int(rules) if rules is not None else RULES_VERSION)
+            mode=mode or MODES[0], boundary=boundary or BOUNDARIES[0], rules_version=version,
+            **({"opened_turn": {}} if version >= 2 else {}))
     else:
         if mode is not None:
             state.mode = mode
         if boundary is not None:
             state.boundary = boundary
+    if requested is not None and state.schedule is None:
+        state.schedule, state.schedule_sha256 = requested
     state.enabled = bool(value)
     if not state.enabled or state.mode == "record_only":
         note = "switch off" if not state.enabled else "mode record_only holds no food"
@@ -185,6 +203,161 @@ def set_household_retail_enabled(world, value: bool, *, args=None, agent_mode=No
 def rules_conflict(rules, state: HouseholdRetailState) -> str:
     return (f"--household-retail-rules {rules} conflicts with the saved retail state (rules version "
             f"{state.rules_version}, which it keeps)")
+
+
+# ---------------------------------------------------------------------------
+# The schedule boundary (A2R)
+# ---------------------------------------------------------------------------
+
+_INDEX = re.compile(r"(0|[1-9][0-9]*)")
+
+
+def canonical_schedule(schedule: dict[int, int]) -> bytes:
+    """A schedule's canonical JSON: ``{"<region index>": <opening turn>}``,
+    compact, ascending region. Its SHA-256 is the schedule's digest, and the
+    file :func:`write_schedule` writes holds exactly these bytes."""
+    return json.dumps({str(int(rid)): int(turn) for rid, turn in sorted(schedule.items())},
+                      separators=(",", ":")).encode("ascii")
+
+
+def schedule_digest(schedule: dict[int, int]) -> str:
+    return hashlib.sha256(canonical_schedule(schedule)).hexdigest()
+
+
+def parse_schedule(data, n_regions: int) -> dict[int, int]:
+    """Validate ``{region index: opening turn}`` (JSON object keys are the
+    decimal region indices, values non-negative integers); ascending region."""
+    if not isinstance(data, dict):
+        raise ValueError("a retail schedule is a JSON object {region index: opening turn}")
+    out: dict[int, int] = {}
+    for key, turn in data.items():
+        if not isinstance(key, str) or _INDEX.fullmatch(key) is None:
+            raise ValueError(f"retail schedule key {key!r} is not a region index")
+        rid = int(key)
+        if rid >= n_regions:
+            raise ValueError(f"retail schedule names region {rid}; this world has regions 0-{n_regions - 1}")
+        if type(turn) is not int or turn < 0:
+            raise ValueError(f"retail schedule opening turn of region {rid} must be a non-negative integer, "
+                             f"not {turn!r}")
+        out[rid] = turn
+    return dict(sorted(out.items()))
+
+
+def _pairs_once(pairs):
+    seen = {}
+    for key, value in pairs:
+        if key in seen:
+            raise ValueError(f"retail schedule repeats key {key!r}")
+        seen[key] = value
+    return seen
+
+
+def load_schedule(path, n_regions: int) -> tuple[dict[int, int], str]:
+    """Read and validate a ``--household-retail-schedule`` file; returns the
+    schedule and its digest. Refused (``ValueError``) when unreadable, not
+    JSON, a repeated key, an unknown region or a negative or non-integer turn."""
+    try:
+        raw = Path(path).read_bytes()
+    except OSError as exc:
+        raise ValueError(f"--household-retail-schedule {path}: {exc.strerror or exc}") from None
+    try:
+        data = json.loads(raw.decode("utf-8"), object_pairs_hook=_pairs_once)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError(f"--household-retail-schedule {path} is not JSON: {exc}") from None
+    try:
+        schedule = parse_schedule(data, n_regions)
+    except ValueError as exc:
+        raise ValueError(f"--household-retail-schedule {path}: {exc}") from None
+    return schedule, schedule_digest(schedule)
+
+
+def schedule_conflict(path, digest: str, state: HouseholdRetailState | None) -> str:
+    saved = state.schedule_sha256 if state is not None else None
+    return (f"--household-retail-schedule {path} (sha256 {digest[:12]}) conflicts with the saved retail state "
+            + (f"(schedule sha256 {saved[:12]}, which it keeps)" if saved else "(no schedule)"))
+
+
+def check_schedule_request(world, args, *, on: bool, saved: HouseholdRetailState | None):
+    """The schedule a configuration asks for, validated before any change:
+    ``(schedule, digest)``, or None when no schedule file is given. Refused:
+    a file without the switch or with another boundary, the ``schedule``
+    boundary without a file (unless the saved state has one), an invalid file,
+    and a file that differs from the saved state's schedule."""
+    path = getattr(args, "household_retail_schedule", None) if args is not None else None
+    given = getattr(args, "household_retail_boundary", None) if args is not None else None
+    boundary = given or (saved.boundary if saved is not None else BOUNDARIES[0])
+    if path is None:
+        if on and boundary == "schedule" and (saved is None or saved.schedule is None):
+            raise ValueError("--household-retail-boundary schedule requires --household-retail-schedule PATH "
+                             "(a JSON object {region index: opening turn})")
+        return None
+    if not on:
+        raise ValueError("--household-retail-schedule requires --household-retail")
+    if boundary != "schedule":
+        raise ValueError(f"--household-retail-schedule requires --household-retail-boundary schedule "
+                         f"(the boundary is {boundary})")
+    schedule, digest = load_schedule(path, len(world.regions))
+    if saved is not None and saved.schedule_sha256 is not None and saved.schedule_sha256 != digest:
+        raise ValueError(schedule_conflict(path, digest, saved))
+    return schedule, digest
+
+
+def schedule_resume_conflict(world, path, state: HouseholdRetailState | None) -> str | None:
+    """An exact resume given ``--household-retail-schedule``: None when the
+    file's schedule is the checkpoint's (by digest, wherever the file lives),
+    else why it is refused."""
+    try:
+        _schedule, digest = load_schedule(path, len(world.regions))
+    except ValueError as exc:
+        return str(exc)
+    if state is None or state.schedule_sha256 != digest:
+        return schedule_conflict(path, digest, state)
+    return None
+
+
+def schedule_summary(state: HouseholdRetailState) -> dict | None:
+    if state.schedule is None:
+        return None
+    return {"sha256": state.schedule_sha256, "turns": {str(k): v for k, v in sorted(state.schedule.items())}}
+
+
+def extract_schedule(bundle) -> dict:
+    """The pilot opening schedule a bundle records, for
+    ``--household-retail-schedule``: ``{"schedule": {region: first opening
+    turn}, "source": ..., "closures": [...]}``. Read from the last retail
+    record's ``opened_turn`` (rules version 2) when there is one, else from
+    the first turn each region appears in a completed-turn frame; when both
+    exist they must agree. ``closures`` lists (turn, region) pilot closures the
+    log shows: a region that closed may reopen at another turn in a replay
+    (the schedule reopens a region as soon as it has a controller again)."""
+    records = [s["livelihoods"]["household_retail"] for s in bundle.get("history") or []
+               if isinstance(s, dict) and ((s.get("livelihoods") or {}).get("household_retail"))]
+    if not records:
+        raise ValueError("the bundle has no household retail record")
+    framed: dict[int, int] = {}
+    for record in records:
+        for frame in record.get("regions") or ():
+            framed.setdefault(int(frame["region"]), int(record["source_turn"]))
+    closures = sorted({(int(r["turn"]), int(r["region"])) for record in records for r in record.get("log") or ()
+                       if r.get("kind") in ("pilot_closed", "switch_off")})
+    opened = records[-1].get("opened_turn")
+    if opened is not None:
+        schedule = {int(k): int(v) for k, v in opened.items()}
+        disagree = sorted(rid for rid, turn in framed.items() if schedule.get(rid) != turn)
+        if disagree:
+            raise ValueError(f"opened_turn disagrees with the frames for regions {disagree}")
+        source = "opened_turn"
+    else:
+        schedule, source = framed, "frames"
+    return {"schedule": dict(sorted(schedule.items())), "source": source, "closures": [list(c) for c in closures],
+            "sha256": schedule_digest(schedule), "regions_closed": int(records[-1].get("counters", {})
+                                                                        .get("regions_closed", 0))}
+
+
+def write_schedule(path, schedule: dict[int, int]) -> str:
+    """Write a schedule's canonical JSON to ``path``; returns its digest."""
+    Path(path).write_bytes(canonical_schedule(schedule))
+    return schedule_digest(schedule)
 
 
 def household_retail_active(world) -> bool:
@@ -274,6 +447,7 @@ class _Book:
     income_rows: int | None = None
     merchant_food_departing: float | None = None
     owned_food_unloadable: int | None = None
+    cohorts: dict | None = None
 
 
 @dataclass
@@ -294,6 +468,12 @@ class _Phase2:
     farmers: dict[int, list[tuple[int, int]]] = field(default_factory=dict)
     controllers: dict[int, str | None] = field(default_factory=dict)
     titled: bool = False
+    #: Version 2: region -> this turn's per-good storage cap (food units, the
+    #: native ``per_good_cap_factor x storage_population`` in f32), for RL4.
+    cap: dict[int, float] = field(default_factory=dict)
+    #: Version 2: everyone in a pilot region in the Phase 2 snapshot,
+    #: ``id -> (region, age, occupation, parent_id_0, parent_id_1)`` (RL5).
+    roster: dict[int, tuple[int, int, int, int, int]] | None = None
 
 
 @dataclass
@@ -316,6 +496,8 @@ class _Procured:
 @dataclass
 class _Turn:
     turn: int
+    #: Version 2 (RL4): owned grain withheld from granaries above the cap, per region (milli).
+    above_cap: dict[int, int] = field(default_factory=dict)
     books: dict[int, _Book] = field(default_factory=dict)
     touched: set[int] = field(default_factory=set)  # commons written this turn
     phase2: _Phase2 | None = None
@@ -499,11 +681,21 @@ def _paid_work_regions(world) -> list[tuple[int, str]]:
     return [(rid, "paid_work") for rid in sorted(out)]
 
 
+def _scheduled_regions(world, state) -> list[tuple[int, str]]:
+    """The ``schedule`` boundary: every region of the frozen schedule whose
+    opening turn has come (the controller filter, sticky closure and
+    reopening are the other boundaries')."""
+    turn = int(world.turn)
+    return [(rid, "schedule") for rid, start in sorted((state.schedule or {}).items()) if start <= turn]
+
+
 def _qualifying(world, state) -> list[tuple[int, str]]:
     if state.boundary == "market":
         found = _capital_regions(world)
     elif state.boundary == "paid_work":
         found = _paid_work_regions(world)
+    elif state.boundary == "schedule":
+        found = _scheduled_regions(world, state)
     else:
         found = [(rid, "all") for rid in range(len(world.regions))]
     rulers = {c.name for c in world.civilizations if c.regions}
@@ -688,15 +880,24 @@ def on_war_loss(world, region, survival: float, *, cause: str | None, actor=None
 
 
 def _update_boundary(world, state) -> None:
+    if _v2(state) and state.opened_turn is None:
+        # A version-2 state saved before A2R: start the map from its open regions.
+        state.opened_turn = {r.region: r.opened_turn for r in sorted(state.regions, key=lambda r: r.region)}
     for reg in list(state.regions):
         if world.regions[reg.region].controller is None:
             _close_region(world, state, reg, "pilot_closed", note="no controller")
+    opened = False
     for rid, reason in _qualifying(world, state):
         reg = RetailRegion(region=rid, opened_turn=int(world.turn), reason=reason,
                            **({"war_events": 0} if _v2(state) else {}))
         state.regions.append(reg)
         _bump(state, "regions_opened")
         _log(state, RetailRecord(turn=int(world.turn), region=rid, kind="pilot_opened", note=reason))
+        if state.opened_turn is not None and rid not in state.opened_turn:
+            state.opened_turn[rid] = int(world.turn)
+            opened = True
+    if opened:
+        state.opened_turn = dict(sorted(state.opened_turn.items()))
     state.regions.sort(key=lambda r: r.region)
     for reg in state.regions:
         _book(state, world, reg)
@@ -884,6 +1085,31 @@ def _patch_stockpiles(world, region_input, rids):
     return pa.record_batch(data)
 
 
+def _storage_caps(world, region_input, pilots) -> dict[int, float]:
+    """This turn's per-good storage cap of each pilot region, as the native
+    economy computes it from the batch: ``per_good_cap_factor x
+    storage_population`` in f32 (food units)."""
+    from numpy import float32
+    from chronicler.economy import PER_GOOD_CAP_FACTOR
+    from chronicler.tuning import get_override
+    factor = float32(get_override(world, "economy.per_good_cap_factor", PER_GOOD_CAP_FACTOR))
+    names = list(region_input.schema.names)
+    if "storage_population" not in names:
+        return {}
+    pops = region_input.column(names.index("storage_population")).to_pylist()
+    return {rid: float(factor * float32(pops[rid])) for rid in pilots}
+
+
+def _roster(snapshot, pilots) -> dict[int, tuple[int, int, int, int, int]]:
+    """Everyone in a pilot region in the Phase 2 snapshot (RL5): the people
+    provisioned there at phase 0.7 are these, less any who die before it."""
+    wanted = set(pilots)
+    names = ("id", "region", "age", "occupation", "parent_id_0", "parent_id_1")
+    cols = [_column(snapshot, name) for name in names]
+    return {int(i): (int(r), int(a), int(o), int(p0), int(p1)) for i, r, a, o, p0, p1 in zip(*cols)
+            if int(r) in wanted}
+
+
 def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
     """Boundary, title weights and (unless record_only) the optional economy
     columns: ``retail_title_share`` (THETA; null outside the pilot) and
@@ -907,6 +1133,9 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
                        work=title_inputs(world, snapshot, pilots),
                        factor={rid: float(factors[rid]) if factors is not None else 1.0 for rid in pilots},
                        commons_open={rid: math.fsum(float(stock[g][rid]) for g in RETAIL_GOODS) for rid in pilots})
+    if _v2(state) and pilots and state.mode != "record_only":
+        t.phase2.cap = _storage_caps(world, region_input, pilots)
+        t.phase2.roster = _roster(snapshot, pilots)
     _check(state, world)
     if not pilots or state.mode == "record_only":
         return region_input
@@ -1400,6 +1629,232 @@ def _settle_frame(world, state, t: _Turn, installed: _Installed, frame, receipt,
                     "unattributed": round(unattributed, 6)}
         state.income_replaced_total = round(state.income_replaced_total + replaced, 6)
         _bump(state, "income_replaced_rows", len(seen_ids))
+    roster = t.phase2.roster if t.phase2 is not None and t.phase2.turn == turn else None
+    if _v2(state) and roster is not None:
+        # RL5: household-group cohorts (aggregates only; exact or unknown).
+        income = {rid: t.books[rid].income_replaced or 0.0 for rid in by_region}
+        for rid, record in cohorts(world, roster, by_region, money_rows, claim_rows, sample, receipt, alive,
+                                   income).items():
+            t.books[rid].cohorts = record
+
+
+# ---------------------------------------------------------------------------
+# RL5: household-group cohorts (version 2)
+# ---------------------------------------------------------------------------
+
+#: Groups whose members' classification depends on a parent's presence.
+_CHILD_DEPENDENT = ("crew_children", "children_alone", "other")
+
+
+def _crews(world) -> tuple[set[int], dict[int, int | None], list[tuple[list[int], int | None]]]:
+    """This turn's named crews, from the packages' staged receipts (Phase 2,
+    before their Phase 10 commit and its row cap): every member, the wage of
+    each PL3 member (recorded per person), and the (crew, wages applied) of
+    each PL1 expedition and RS2 repair receipt (recorded per crew). L6a firm
+    workers are not crews here: the payroll pays owed wages pro rata to firm
+    cash, former workers included, at Phase 10, and records no per-person split.
+    A receipt without a wage field gives None (unknown, not zero)."""
+    turn = int(world.turn)
+    lv = getattr(world, "livelihoods", None)
+    members: set[int] = set()
+    wage: dict[int, int | None] = {}
+    crews: list[tuple[list[int], int | None]] = []
+
+    def staged(name):
+        sub = getattr(lv, name, None)
+        t = getattr(sub, "_turn", None) if sub is not None else None
+        return t.receipts if t is not None and getattr(t, "turn", None) == turn else ()
+
+    for rec in staged("recovery_crews"):
+        for m in rec.members:
+            aid = int(m.agent_id)
+            members.add(aid)
+            got = getattr(m, "wage_milli", None)
+            before = wage.get(aid, 0)
+            wage[aid] = None if got is None or before is None else before + int(got)
+    for name in ("timber_supply", "repair_projects"):
+        for rec in staged(name):
+            crew = sorted({int(a) for a in rec.crew})
+            members.update(crew)
+            if crew:
+                got = getattr(rec, "wages_milli", None)
+                crews.append((crew, None if got is None else int(got)))
+    return members, wage, crews
+
+
+def cohort_group(aid: int, roster: dict, members: set[int], alive) -> tuple[str, bool]:
+    """A provisioned person's household group (``COHORT_GROUPS``) from the
+    Phase 2 roster, and whether it is certain at phase 0.7:
+
+    * ``crew``: named on one of this turn's crews (any age);
+    * ``crew_children``: a child (under ``ADULT_AGE``) with a crew parent in
+      the region;
+    * ``children_alone``: a child with no adult parent in the region (L2's
+      household of its own: its members pay for it);
+    * ``nonfarm_adults``: an adult off the crews who is not a farmer;
+    * ``other``: an adult farmer off the crews, or a child living with an
+      adult parent, none of them on a crew.
+
+    A child's group is uncertain when an adult parent in the region is not
+    alive after the tick: the parent may have died before provisioning."""
+    region, age, occupation, p0, p1 = roster[aid]
+    if aid in members:
+        return "crew", True
+    if age < ADULT_AGE:
+        parents = [p for p in (p0, p1) if p and p in roster and roster[p][0] == region
+                   and roster[p][1] >= ADULT_AGE]
+        certain = all(p in alive for p in parents)
+        if any(p in members for p in parents):
+            return "crew_children", certain
+        return ("other" if parents else "children_alone"), certain
+    return ("nonfarm_adults" if occupation != FARMER else "other"), True
+
+
+def cohorts(world, roster, by_region: dict[int, dict], money_rows, claim_rows, sample, receipt, alive,
+            income_by_region: dict[int, float]) -> dict[int, dict]:
+    """RL5: per provisioned pilot region, the household groups of the people
+    provisioned there (``COHORT_GROUPS``): persons, priced out, money paid,
+    refunded and credited, ordinary farm income replaced and crew wages.
+    Aggregates only; no id leaves.
+
+    Everything is exact or None (unknown, never zero), with the reasons in
+    ``unknown``. The people provisioned in a region at phase 0.7 are its Phase
+    2 roster less those who die before provisioning (nobody moves in between).
+    Persons are exact when the roster's count equals the frame's ``persons``
+    (and its children ``children``); priced out when the native sample holds
+    every priced-out person of the region and each one's group is certain.
+    Money, income and wages are per person (money rows, the income receipt,
+    PL3 wages; PL1 and RS2 wages per crew, attributed when the whole crew
+    lives in one region); a group's sum is unknown when a person whose group
+    is uncertain contributes to it. ``paid``/``refunded`` are by the payer's
+    region and must equal the region's totals; ``credited`` is by the region of
+    the claim sold (``credited_outside_milli``: sellers provisioned in no pilot
+    region) and must equal the region's total; income must equal the region's
+    income replaced. A check that fails makes that field unknown."""
+    members, wage, crews = _crews(world)
+    region_of = {aid: info[0] for aid, info in roster.items()}
+    groups: dict[int, tuple[str, bool]] = {aid: cohort_group(aid, roster, members, alive) for aid in roster}
+    out: dict[int, dict] = {}
+    acc = {rid: {g: dict.fromkeys(COHORT_FIELDS, 0) for g in COHORT_GROUPS} for rid in by_region}
+    for rec in acc.values():
+        for g in rec.values():
+            g["income_replaced"] = 0.0
+    unknown: dict[int, dict[str, str]] = {rid: {} for rid in by_region}
+    shaky: dict[int, set[str]] = {rid: set() for rid in by_region}    # fields an uncertain person touched
+    outside = dict.fromkeys(by_region, 0)
+
+    def add(rid, aid, name, value):
+        if rid not in acc or not value:
+            return
+        group, certain = groups[aid] if aid in groups else ("other", False)
+        acc[rid][group][name] += value
+        if not certain:
+            shaky[rid].add(name)
+
+    # Persons and priced out.
+    residents: dict[int, list[int]] = {rid: [] for rid in by_region}
+    for aid, rid in region_of.items():
+        if rid in residents:
+            residents[rid].append(aid)
+    priced: dict[int, list[int]] = {rid: [] for rid in by_region}
+    for aid, region, _household, _ration, _fair, status in sample:
+        if int(status) == 1 and int(region) in priced:
+            priced[int(region)].append(int(aid))
+    for rid, row in by_region.items():
+        ids = residents[rid]
+        children = sum(1 for aid in ids if roster[aid][1] < ADULT_AGE)
+        n2 = row.get("phase2_alive")
+        if len(ids) != int(row["persons"]) or ("children" in row and children != int(row["children"])) \
+                or (n2 is not None and len(ids) != int(n2)):
+            unknown[rid]["persons"] = (f"the Phase 2 roster lists {len(ids)}, the tick provisioned "
+                                       f"{int(row['persons'])}: who died before provisioning is not recorded")
+        else:
+            for aid in ids:
+                acc[rid][groups[aid][0]]["persons"] += 1
+        out_po = priced[rid]
+        if len(out_po) != int(row["priced_out_persons"]):
+            unknown[rid]["priced_out"] = (f"the native sample holds {len(out_po)} of "
+                                          f"{int(row['priced_out_persons'])} priced-out persons")
+        elif any(aid not in groups or region_of[aid] != rid or not groups[aid][1] for aid in out_po):
+            unknown[rid]["priced_out"] = "a priced-out person's group is uncertain"
+        else:
+            for aid in out_po:
+                acc[rid][groups[aid][0]]["priced_out"] += 1
+    # Money: paid and refunded where the payer lives; credited where the claim was sold.
+    sold_in: dict[int, set[int]] = {}
+    for owner, region, _own, sale in claim_rows:
+        if int(sale) > 0:
+            sold_in.setdefault(int(owner), set()).add(int(region))
+    for aid, paid, credited, refunded in money_rows:
+        aid, paid, credited, refunded = int(aid), int(paid), int(credited), int(refunded)
+        if paid or refunded:
+            rid = region_of.get(aid)
+            add(rid, aid, "paid_milli", paid)
+            add(rid, aid, "refunded_milli", refunded)
+        if credited:
+            regions = sold_in.get(aid, set())
+            if len(regions) != 1:
+                for rid in regions & set(by_region):
+                    unknown[rid]["credited_milli"] = "a seller sold claims of several regions in one turn"
+                continue
+            (rid,) = regions
+            if aid in groups:
+                add(rid, aid, "credited_milli", credited)
+            elif rid in outside:
+                outside[rid] += credited
+    # Ordinary farm income replaced, by the farmer's Phase 2 region.
+    for aid, value in (receipt[1] if receipt is not None else ()):
+        add(region_of.get(int(aid)), int(aid), "income_replaced", float(value))
+    # Crew wages: PL3 per member; PL1 and RS2 per crew, when the crew lives in one region.
+    for aid, amount in wage.items():
+        if amount is None:
+            if region_of.get(aid) in unknown:
+                unknown[region_of[aid]]["wages_milli"] = "a crew receipt records no wage"
+            continue
+        add(region_of.get(aid), aid, "wages_milli", amount)
+    for crew, amount in crews:
+        homes = {region_of.get(a) for a in crew}
+        if amount is None:
+            for rid in homes & set(by_region):
+                unknown[rid]["wages_milli"] = "a crew receipt records no wage"
+            continue
+        if not amount:
+            continue
+        if len(homes) == 1:
+            add(next(iter(homes)), crew[0], "wages_milli", amount)
+        else:
+            for rid in homes & set(by_region):
+                unknown[rid]["wages_milli"] = "a paid crew's members live in several regions"
+    for rid, row in by_region.items():
+        rec, why = acc[rid], unknown[rid]
+        totals = {name: sum(rec[g][name] for g in COHORT_GROUPS) for name in COHORT_FIELDS}
+        for name, column in (("paid_milli", "paid_milli"), ("refunded_milli", "refunded_milli")):
+            if name not in why and totals[name] != int(row[column]):
+                why[name] = f"its groups sum to {totals[name]}, the region's total is {int(row[column])}"
+        if "credited_milli" not in why and totals["credited_milli"] + outside[rid] != int(row["credited_milli"]):
+            why["credited_milli"] = (f"its groups and outside sellers sum to {totals['credited_milli'] + outside[rid]},"
+                                     f" the region's total is {int(row['credited_milli'])}")
+        expect = income_by_region.get(rid, 0.0)
+        if "income_replaced" not in why and abs(totals["income_replaced"] - expect) > 1e-6 * max(1.0, expect):
+            why["income_replaced"] = f"its groups sum to {totals['income_replaced']:.6f}, the region's is {expect:.6f}"
+        groups_out = {}
+        for g in COHORT_GROUPS:
+            cell = {}
+            for name in COHORT_FIELDS:
+                value = rec[g][name]
+                if name in why or (name in shaky[rid] and g in _CHILD_DEPENDENT):
+                    value = None
+                elif name == "income_replaced":
+                    value = round(value, 6)
+                cell[name] = value
+            groups_out[g] = cell
+        outside_milli = None if "credited_milli" in why else outside[rid]
+        for name in sorted(shaky[rid] - set(why)):
+            why[name] = ("unknown for the children's and other groups: a child whose parent may have died "
+                         "before provisioning contributes to it")
+        out[rid] = {"groups": groups_out, "credited_outside_milli": outside_milli,
+                    "unknown": {k: why[k] for k in COHORT_FIELDS if k in why}}
+    return out
 
 
 def _exact_subset(values: list[int], count: int, total: int) -> bool:
@@ -1516,14 +1971,48 @@ def after_agent_tick(world, agent_bridge) -> list:
 
 def procurement_owned_grain(world) -> list[float] | None:
     """Owned grain per region (food units) a pilot market may sell to its
-    own ruler's granaries; None when retail holds none (the off path)."""
+    own ruler's granaries; None when retail holds none (the off path).
+
+    Version 2 (RL4): only the owned grain within this turn's storage cap,
+    ``max(0, cap - commons grain)``. After the agent tick a pilot region can
+    hold this turn's uneaten title above the cap until the next opening cuts
+    it; a granary could otherwise buy grain that the cap destroys, which a
+    market without retail (capped at Phase 2 close) cannot sell. The rest is
+    held, counted (``owned_grain_above_cap_milli``) and left to that cut.
+    Version 1 offers all owned grain (checkpoints 2-3)."""
     state = _state(world)
     if state is None or not household_retail_active(world) or state.mode == "record_only":
         return None
+    t = state._turn if state._turn is not None and state._turn.turn == world.turn else None
+    caps = t.phase2.cap if t is not None and t.phase2 is not None else {}
     out = [0.0] * len(world.regions)
+    above: dict[int, int] = {}
     for reg in state.regions:
-        out[reg.region] = reg.goods[GRAIN] / MILLI
+        grain = reg.goods[GRAIN]
+        if _v2(state) and grain:
+            room = _cap_room_milli(world, reg.region, caps.get(reg.region))
+            if grain > room:
+                above[reg.region] = grain - room
+                grain = room
+        out[reg.region] = grain / MILLI
+    if t is not None:
+        t.above_cap = above
     return out if any(out) else None
+
+
+def _cap_room_milli(world, rid: int, cap: float | None) -> int:
+    """Whole milli-food of grain the region may hold beyond its commons under
+    this turn's storage cap (``cap``; from the region's population when this
+    turn's Phase 2 recorded none)."""
+    region = world.regions[rid]
+    if cap is None:
+        from numpy import float32
+        from chronicler.economy import PER_GOOD_CAP_FACTOR
+        from chronicler.tuning import get_override
+        cap = float(float32(get_override(world, "economy.per_good_cap_factor", PER_GOOD_CAP_FACTOR))
+                    * float32(region.population))
+    commons = float(region.stockpile.goods.get("grain", 0.0))
+    return max(0, math.floor((cap - commons) * MILLI + 1e-6))
 
 
 def take_procured(world, rid: int, amount: float, flow_index: int) -> float:
@@ -1634,6 +2123,8 @@ def phase10(world, acc, economy_result, agent_bridge) -> list:
     state = _state(world)
     t = _turn(state, world)
     procurement = _credit_procurement(world, state, t, agent_bridge) if t.procured else None
+    if t.above_cap:
+        _bump(state, "owned_grain_above_cap_milli", sum(t.above_cap.values()))
     _check(state, world)
     _record_departures(world, state, t, agent_bridge)
     frames = []
@@ -1653,7 +2144,7 @@ def phase10(world, acc, economy_result, agent_bridge) -> list:
             phase2=book.phase2, provisioning=book.provisioning, would_be=book.would_be,
             income_replaced=book.income_replaced, income_rows=book.income_rows,
             merchant_food_departing=book.merchant_food_departing,
-            owned_food_unloadable_milli=book.owned_food_unloadable))
+            owned_food_unloadable_milli=book.owned_food_unloadable, cohorts=book.cohorts))
     _bump(state, "pilot_region_turns", len(state.regions))
     state.frame_turn = int(world.turn)
     state.frame = frames
@@ -1693,7 +2184,10 @@ def snapshot_summary(world) -> dict:
     observed = state.frame_turn == source
     return {
         "schema_version": 1, "stage": "L6b", "mode": state.mode, "boundary": state.boundary,
+        **({"schedule": schedule_summary(state)} if state.schedule is not None else {}),
         **({"rules_version": state.rules_version} if _v2(state) else {}),
+        **({"opened_turn": {str(k): v for k, v in sorted(state.opened_turn.items())}}
+           if _v2(state) and state.opened_turn is not None else {}),
         "source_turn": source,
         "regions": [f.model_dump() for f in state.frame] if observed else None,
         "money": dict(state.money) if observed else None,

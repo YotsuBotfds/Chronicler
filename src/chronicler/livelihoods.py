@@ -71,6 +71,7 @@ from __future__ import annotations
 import argparse
 import sys
 from importlib import import_module
+from pathlib import Path
 from typing import Any
 
 from chronicler.livelihoods_state import LIVELIHOODS_SWITCHES, LivelihoodsState
@@ -95,7 +96,7 @@ LIVELIHOODS_CHOICES: dict[str, tuple[str, ...]] = {
     "maintenance_obligation_mode": ("reserve", "reserve_only"),
     "apprenticeship_rules": ("2", "1"),
     "household_retail_mode": ("retail", "no_relief", "free_exchange", "record_only"),
-    "household_retail_boundary": ("market", "paid_work", "all"),
+    "household_retail_boundary": ("market", "paid_work", "all", "schedule"),
     "household_retail_rules": ("2", "1"),
 }
 #: All parser destinations owned here (``batch_manifest.SIMULATION_ARG_KEYS``).
@@ -121,6 +122,12 @@ LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     "household_retail", "household_retail_mode", "household_retail_boundary",
     "household_retail_rules",
 )
+#: Options that take a file path (A2R), parser destinations owned here too
+#: (``batch_manifest.SIMULATION_ARG_KEYS``). Command line only: the feature
+#: catalog serves switches and choices, and a browser cannot hand the server
+#: a file, so the choices that need one are not served either
+#: (``feature_catalog.CLI_ONLY_CHOICES``).
+LIVELIHOODS_PATH_KEYS: tuple[str, ...] = ("household_retail_schedule",)
 _AGENT_ECONOMY = ("hybrid", "shadow", "demographics-only")
 
 _HELP = {
@@ -313,7 +320,8 @@ _HELP = {
     "household_retail_boundary": (
         "market (default): each ruler's capital region, sticky; paid_work: regions where paid work has "
         "been done (an open workshop firm, a paid repair or granary crew, or the home of a paid "
-        "woodcutting crew), sticky; all: every controlled region (stress)"
+        "woodcutting crew), sticky; all: every controlled region (stress); schedule (command line "
+        "only): the regions of --household-retail-schedule from their opening turns, sticky"
     ),
     "household_retail_rules": (
         "Retail rules version of a new retail state: 2 (default): each conquest, siege turn and "
@@ -321,6 +329,12 @@ _HELP = {
         "once per event, recorded with its cause, actor and victim; 1: checkpoints 2-3 exactly (the "
         "conquest share once per turn, siege and occupation leave owned food alone). A saved state "
         "keeps its version; a conflicting value is refused"
+    ),
+    "household_retail_schedule": (
+        "With --household-retail-boundary schedule: a JSON file {region index: opening turn}; each region "
+        "enters the pilot from its turn while it has a controller (a frozen enrollment, e.g. one arm's "
+        "openings replayed in another: scripts/retail_schedule.py extracts them from a bundle). The "
+        "schedule and its SHA-256 are saved with the state; a resume keeps it and refuses a different one"
     ),
 }
 
@@ -335,6 +349,10 @@ def add_livelihoods_arguments(parser: argparse.ArgumentParser, *, forwarding: bo
         else:
             parser.add_argument(flag, action=argparse.BooleanOptionalAction, default=None,
                                 help=prefix + _HELP[name])
+    for name in LIVELIHOODS_PATH_KEYS:
+        flag = "--" + name.replace("_", "-")
+        prefix = f"Forward {flag} to every run. " if forwarding else ""
+        parser.add_argument(flag, metavar="PATH", default=None, help=prefix + _HELP[name])
 
 
 def livelihoods_arguments(args: Any) -> list[str]:
@@ -353,6 +371,14 @@ def livelihoods_arguments(args: Any) -> list[str]:
             flags.append("--" + ("" if value else "no-") + flag)
         else:
             raise ValueError(f"{name} must be a boolean or None")
+    for name in LIVELIHOODS_PATH_KEYS:
+        value = getattr(args, name, None)
+        if value is None:
+            continue
+        if not isinstance(value, (str, Path)) or not str(value):
+            raise ValueError(f"{name} must be a path or None")
+        # Absolute, so a child run reads the same file from any directory.
+        flags.append(f"--{name.replace('_', '-')}={Path(value).resolve()}")
     return flags
 
 
@@ -516,6 +542,11 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
         # A saved state keeps the rules it recorded (refused before any change).
         from chronicler.household_retail import rules_conflict
         raise ValueError(rules_conflict(rules, retail))
+    if getattr(args, "household_retail_schedule", None) is not None or (
+            getattr(args, "household_retail_boundary", None) == "schedule"):
+        # A2R: the schedule boundary's file, validated before any change.
+        from chronicler.household_retail import check_schedule_request
+        check_schedule_request(world, args, on=_on(world, values, "household_retail"), saved=retail)
     if agent_mode != "hybrid" and values["food_allocation"] is None and _on(world, values, "food_allocation"):
         # RL3: a saved L2 outside hybrid would otherwise run silently inert (no
         # bridge, no hooks) while the world still says it is on.
@@ -585,7 +616,9 @@ def livelihoods_resume_conflicts(world: Any, args: Any, recorded: dict) -> list[
     ``batch_manifest.simulation_config`` omits options that were never
     given, so the generic checkpoint adoption never sees them; the retained
     state is authoritative. Options the checkpoint recorded (``recorded``)
-    are left to that adoption. Never changes ``world`` or ``args``."""
+    are left to that adoption, except ``--household-retail-schedule``, which
+    is compared by its schedule's digest (see below). Never changes ``world``
+    or ``args``."""
     state = livelihoods_state(world)
     conflicts = []
     for name in LIVELIHOODS_SWITCHES:
@@ -606,6 +639,19 @@ def livelihoods_resume_conflicts(world: Any, args: Any, recorded: dict) -> list[
         if given != saved:
             conflicts.append(f"--{key.replace('_', '-')} {given!r} conflicts with the checkpoint "
                              f"(saved: {saved!r})")
+    schedule = getattr(args, "household_retail_schedule", None)
+    if schedule is not None:
+        # A2R: the retained schedule is authoritative and is identified by its
+        # digest, so the same schedule read from another path is no conflict:
+        # the recorded path is dropped from the generic comparison (the one
+        # change this function makes, to ``recorded``).
+        from chronicler.household_retail import schedule_resume_conflict
+        sub = getattr(state, "household_retail", None) if state is not None else None
+        problem = schedule_resume_conflict(world, schedule, sub)
+        if problem is not None:
+            conflicts.append(problem)
+        else:
+            recorded.pop("household_retail_schedule", None)
     return conflicts
 
 

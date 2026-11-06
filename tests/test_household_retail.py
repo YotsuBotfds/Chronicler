@@ -503,7 +503,8 @@ def test_switch_registry_cli_and_prerequisites():
     assert LV.LIVELIHOODS_ARG_KEYS[-4:] == ("household_retail", "household_retail_mode", "household_retail_boundary",
                                             "household_retail_rules")             # A5-1 appended the rules version
     assert LV.LIVELIHOODS_CHOICES["household_retail_mode"] == MODES
-    assert LV.LIVELIHOODS_CHOICES["household_retail_boundary"] == ("market", "paid_work", "all")
+    assert LV.LIVELIHOODS_CHOICES["household_retail_boundary"] == ("market", "paid_work", "all",
+                                                                  "schedule")    # A2R appended the schedule
     assert {"household_retail", "household_retail_mode", "household_retail_boundary"} <= set(SIMULATION_ARG_KEYS)
     assert REQUIREMENTS["household_retail"] == ({"agents": ["hybrid"]}, {"feature": "food_allocation"})
     parse = _build_parser().parse_args

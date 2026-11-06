@@ -91,6 +91,8 @@
       "tests/test_household_mobility_adapter.py",
       "tests/test_household_mobility_witness.py",
       "tests/test_household_retail.py",
+      "tests/test_household_retail_evidence.py",
+      "tests/test_household_retail_evidence_native.py",
       "tests/test_household_retail_war.py",
       "tests/test_household_retail_war_native.py",
       "tests/test_information_candidate_witness.py",

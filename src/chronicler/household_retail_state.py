@@ -30,6 +30,13 @@ A5 has no version field and reads as version 1, and a version-1 state omits
 the field and every version-2 field, so its JSON keeps its bytes; pickles
 written before A5 restore with the version-2 fields at their defaults.
 
+A2R (connected-world lane, all opt-in): the ``schedule`` boundary
+(``--household-retail-schedule PATH``) stores its frozen ``{region: opening
+turn}`` map and the SHA-256 of its canonical JSON, both omitted while unset;
+version 2 also keeps ``opened_turn`` (each region's first pilot turn, never
+removed on closure) and writes the turn's household-group cohorts (RL5) into
+the frame. A version-1 state writes neither, so its bytes stay checkpoint-3's.
+
 Tuple orders below are declaration orders: append new values at the end,
 never reorder.
 """
@@ -43,13 +50,14 @@ from pydantic import BaseModel, Field, PrivateAttr
 #: codes: retail 0, no_relief 1, free_exchange 2; record_only installs nothing.
 MODES: tuple[str, ...] = ("retail", "no_relief", "free_exchange", "record_only")
 NATIVE_MODES: dict[str, int] = {"retail": 0, "no_relief": 1, "free_exchange": 2}
-#: Pilot boundaries (first: the default).
-BOUNDARIES: tuple[str, ...] = ("market", "paid_work", "all")
+#: Pilot boundaries (first: the default). ``schedule`` (A2R): a frozen
+#: ``{region: opening turn}`` map read from ``--household-retail-schedule``.
+BOUNDARIES: tuple[str, ...] = ("market", "paid_work", "all", "schedule")
 #: Food goods of the owned pool, in the FFI column order
 #: (``retail_owned_<good>``, ``retail_titled_<good>``, ...).
 RETAIL_GOODS: tuple[str, ...] = ("grain", "fish", "salt", "botanicals", "exotic")
 #: Why a region entered the pilot.
-OPEN_REASONS: tuple[str, ...] = ("capital", "paid_work", "all")
+OPEN_REASONS: tuple[str, ...] = ("capital", "paid_work", "all", "schedule")
 #: Flows of the owned pool. Each moves goods (per good) and claims (per
 #: owner) by the same total, except ``inherited_in``/``inherited_out``, which
 #: move claims between owners of one region and never goods.
@@ -102,6 +110,16 @@ COUNTERS: tuple[str, ...] = (
     "crew_farm_time_person_turns", "crew_farm_time_micro",
     # Rules version 2 (A5-1): war losses by cause and the war events observed.
     "war_loss_conquest_milli", "war_loss_siege_milli", "war_loss_occupation_milli", "war_events",
+    # Rules version 2 (A2R, RL4): owned grain a pilot market held above this
+    # turn's storage cap at Phase 10, withheld from granary procurement.
+    "owned_grain_above_cap_milli",
+)
+#: RL5 (version 2): household groups of the people provisioned in a pilot
+#: region, in this order (a partition; ``household_retail.cohort_groups``).
+COHORT_GROUPS: tuple[str, ...] = ("crew", "crew_children", "children_alone", "nonfarm_adults", "other")
+#: Per-group fields of a cohort record (None: not attributable exactly).
+COHORT_FIELDS: tuple[str, ...] = (
+    "persons", "priced_out", "paid_milli", "refunded_milli", "credited_milli", "income_replaced", "wages_milli",
 )
 
 
@@ -195,16 +213,30 @@ class RegionFrame(_Backfilled):
     #: and the owned food (milli-food) they could not load (foregone at most).
     merchant_food_departing: float | None = None
     owned_food_unloadable_milli: int | None = None
+    #: Version 2 (A2R, RL5): the household-group cohorts of the people
+    #: provisioned here this turn (``household_retail.cohorts``); omitted in a
+    #: version-1 state and in a region without a provisioning row.
+    cohorts: dict | None = Field(default=None, exclude_if=_is_none)
 
 
 class HouseholdRetailState(BaseModel):
     schema_version: Literal[1] = 1
     enabled: bool = True
     mode: Literal["retail", "no_relief", "free_exchange", "record_only"] = "retail"
-    boundary: Literal["market", "paid_work", "all"] = "market"
+    boundary: Literal["market", "paid_work", "all", "schedule"] = "market"
     #: Retail rules version (RULES_VERSIONS). 1 when absent (a state saved
     #: before A5) and omitted while 1; a saved state keeps its version.
     rules_version: Literal[1, 2] = Field(default=1, exclude_if=_is_one)
+    #: The ``schedule`` boundary (A2R): region index -> opening turn, ascending
+    #: region, and the SHA-256 of its canonical JSON (compact, ascending
+    #: region); fixed for the state's life, omitted while unset.
+    schedule: dict[int, int] | None = Field(default=None, exclude_if=_is_none)
+    schedule_sha256: str | None = Field(default=None, exclude_if=_is_none)
+    #: Version 2 (A2R): each region's first pilot turn (region index -> turn),
+    #: kept after a closure, so a bundle names every opening. A version-2
+    #: state saved before A2R starts it from its open regions. Omitted in a
+    #: version-1 state.
+    opened_turn: dict[int, int] | None = Field(default=None, exclude_if=_is_none)
     #: Open pilot regions, ascending region index.
     regions: list[RetailRegion] = Field(default_factory=list)
     #: Exactly-once guards (persisted): the last turn whose harvest was
