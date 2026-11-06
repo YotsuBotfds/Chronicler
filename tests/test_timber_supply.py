@@ -539,7 +539,11 @@ def test_cost_only_keeps_crews_wages_and_home_labour_but_cuts_nothing():
     assert [r[0] for r in s_rows] == [r[0] for r in c_rows]
     assert all(r[1] == [0.0, 0.0, 0.0] for r in c_rows) and any(r[1][1] > 0 for r in s_rows)
     assert s_t == c_t and s_treasury == c_treasury
-    assert c_exp.cut == 0.0 and c_exp.delivered == 0.0 and c_exp.status == "delivered"
+    # Review A: a crew home with nothing is "returned", never a delivery.
+    assert c_exp.cut == 0.0 and c_exp.delivered == 0.0 and c_exp.status == "returned"
+    assert _ts(control).counters.get("delivered_expeditions", 0) == 0
+    assert _ts(control).counters["returned_expeditions"] == 1
+    assert s_exp.status == "delivered" and _ts(supply).counters["delivered_expeditions"] == 1
     assert c_exp.person_turns == s_exp.person_turns and c_exp.wages_milli == s_exp.wages_milli
     assert c_ex == [RESIDENT] and s_ex == [RESIDENT]          # the last turn walked home
     assert c_exp.cut_turns == s_exp.cut_turns == TSU.CUT_TURNS
@@ -678,7 +682,7 @@ def test_a_recall_on_the_way_out_turns_back_and_one_at_a_home_forest_arrives_at_
     world.civilizations[0].treasury = 0
     _turn(world, sim)                                       # recalled: one hop back, unpaid
     (exp,) = _ts(world).closed
-    assert (exp.status, exp.travelled, exp.return_hops, exp.unpaid_turns, exp.cut) == ("delivered", 1, 1, 1, 0.0)
+    assert (exp.status, exp.travelled, exp.return_hops, exp.unpaid_turns, exp.cut) == ("returned", 1, 1, 1, 0.0)
     home = _world(forest_hops=0)
     sim2 = _Sim(_people())
     _launch(home, sim2)
