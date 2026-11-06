@@ -323,9 +323,13 @@ choose arms, outcomes or parameters.
 
 ## Amendments
 
-None yet. Any change to the arms, outcomes, analysis or budget after the lead freezes
-this file is recorded here as a dated amendment with its reason, and only before the
-first held run.
+- **2026-11-06, after the held run (no change to the held source).** Reviewer D's last check
+  found that the opening storage cap read the commons before this tick's merchant
+  departures, so in a constructed case departures could drive the cut commons negative and
+  the clamp would create food. It never fired in development runs. It is fixed on the
+  branch after the held run; whether held results stand for the fixed source is recorded
+  below once the byte-identity check of fixed against frozen source on development worlds
+  is complete.
 
 ## Lead decisions (2026-11-06, before freezing)
 
@@ -351,3 +355,54 @@ first held run.
    and while it stands comparisons with L2 are reported but not interpreted.
 9. **Merged first**: the runner and this file are on the checkpoint-2 integration branch
    before the freeze.
+
+## Results (held cohort 2, 2026-11-06)
+
+Run on the frozen source from a separate worktree at `77202dd2` (simulation source as
+frozen at `78cf2efd`; the later commit changed one test only), native `b1910b94…`, 3
+concurrent processes: **96 runs, 0 failed, every outcome extracted**, 989 s of simulation
+and 189 s of extraction (**0.33 of the 2.0 core-hours**). **All 17 identity outcomes
+(`R_rec − L2`) are zero in all 12 worlds**, so the comparisons with L2 are interpretable.
+Evidence: [`metrics.jsonl`, `report.md`, `source.txt`](productive-recovery-screens-cp2/).
+
+Each line gives the mean per world, its range, and worlds above / below / at zero, template
+(t, 711–716) then procedural (p, 811–816), at the default `market` boundary unless noted.
+
+**What payment does** (`R − R_free`, ownership and timing held fixed).
+- **Primary, priced-out person-turns: +452 t [+149, +1478] (6/0/0), +339 p [+162, +440]
+  (6/0/0).** Children +42 t, +51 p (6/0/0 each); deficit +144 t, +106 p rations.
+- Mean ration of pilot persons ±0.01 (mixed): cash pushes a minority below their fair share
+  rather than lowering the average.
+
+**What relief protects** (`R_norelief − R`: no harvest share kept commons, no means test).
+- **Primary, priced-out person-turns: +1,104 t [+752, +1,786] (6/0/0), +2,832 p [+2,161,
+  +4,489] (6/0/0).** Children +150 t, +411 p; deficit +630 t, +1,746 p rations. Relief
+  removes most of the cash exposure the mechanism would otherwise create.
+
+**Retail against free allocation** (`R − L2`, over R's pilot regions, all turns).
+- **Primary, ration shortfall: −217 t [−1,571, +1,037] (4/2/0), +860 p [−1,904, +4,822]
+  (4/2/0): a null.** Neither sign is consistent; the ranges are wide because trajectories
+  diverge. Food shortfall after relief (−149 t, +376 p), mean ration (±0.008) and population
+  (+11 t, −46.5 p, 1/5/0 in procedural) are mixed too. Ownership and timing alone
+  (`R_free − L2`) are mixed as well (+221 t, +589 p rations).
+- **Money leaves households**, as the design implies: farm income the model created is
+  replaced by sales between households. Income replaced 1,715 t and 5,030 p coins per world;
+  owners' sale revenue 1,715 t and 4,876 p (ratio 1.02 and 0.99); net money into households
+  **−1,713 t, −5,025 p (0/6/0)**. Granary procurement credited owners only 2–6 coins per world.
+- **Merchants** committed 462 t and 2,323 p less food from pilot regions (0/6/0), since they
+  load commons only; net food transport into procedural pilot regions rose +423 (6/0/0).
+
+**Under stress** (boundary `all`, every controlled region a pilot): payment adds +1,051 t and
++1,578 p priced-out person-turns (6/0/0); removing relief adds +1,719 t and +6,041 p (6/0/0);
+the ration shortfall against L2 is again mixed (+98 t, +442 p); money into households
+−2,232 t and −7,187 p.
+
+**What this does and does not show.** On fresh worlds, real retail works as an accounting
+system: title, owned food, purchases, payments and income replacement close every turn, and
+the identity control holds exactly. Paying for food prices out a minority of people,
+children among them, in every world; the default relief (a tenth of each harvest kept
+commons and a means-tested free pool) removes most of that exposure; and against free
+allocation the net effect on what people ate is not detectable at this size. Because farm
+income the model created becomes transfers between households, pilot households lose cash
+steadily; whether wages and remittances can offset that is the chain question for checkpoint
+3. None of this is qualification; no default is promoted and no constant was tuned.
