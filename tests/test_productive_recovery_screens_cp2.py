@@ -160,7 +160,7 @@ def test_base_and_arms_are_the_preregistered_ones(S):
     assert (S.CP2.CHECKPOINT, S.CP2.ROOT, S.CP2.TURNS) == (2, "L2", 200)
     # Checkpoint 1 keeps its own arms, base and preregistration.
     assert len(S.ARMS) == 14 and S.ARMS["W"] == ([], None) and "--workshops" in S.BASE
-    assert S.CHECKPOINTS == {1: S.CP1, 2: S.CP2} and S.CP1.ARMS is S.ARMS
+    assert S.CHECKPOINTS[1] is S.CP1 and S.CHECKPOINTS[2] is S.CP2 and S.CP1.ARMS is S.ARMS
 
 
 def test_every_arm_parses_and_passes_the_livelihoods_prerequisites(S):
@@ -563,6 +563,11 @@ def test_rows_of_another_checkpoint_are_refused(short, tmp_path, monkeypatch):
         S.main(["report", str(metrics)])
     rows = [json.loads(line) for line in metrics.read_text().splitlines()]
     assert any("row of checkpoint 2" in p for p in S.check_metrics(rows, "pilot"))
+    with pytest.raises(SystemExit, match="started as checkpoint 2, cohort pilot, not checkpoint 1"):
+        S.main(["run", str(out), "--cohort", "pilot", "--arms", "W", "--seeds", "template", "--resume"])
+    # The rows are checked too: with the header rewritten to checkpoint 1 they still refuse.
+    source = out / "source.txt"
+    source.write_text(source.read_text().replace("checkpoint 2; cohort pilot", "cohort pilot"))
     with pytest.raises(SystemExit, match="holds a row of checkpoint 2, not 1"):
         S.main(["run", str(out), "--cohort", "pilot", "--arms", "W", "--seeds", "template", "--resume"])
     # A checkpoint-1 row is refused by a checkpoint-2 report.

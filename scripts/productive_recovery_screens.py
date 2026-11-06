@@ -1,17 +1,19 @@
-"""Productive-recovery checkpoint screens (PL6a, PL6c): run, report and check.
+"""Productive-recovery checkpoint screens (PL6a, PL6c, PL6d): run, report and check.
 
-    python scripts/productive_recovery_screens.py run OUT_DIR --cohort pilot|held [--checkpoint 1|2] [--jobs 3] [--arms a,b] [--seeds all|template|procedural] [--keep-first] [--resume]
-    python scripts/productive_recovery_screens.py report OUT_DIR/metrics.jsonl [--checkpoint 1|2]
-    python scripts/productive_recovery_screens.py check [--checkpoint 1|2] [--metrics OUT_DIR/metrics.jsonl --cohort pilot|held]
+    python scripts/productive_recovery_screens.py run OUT_DIR --cohort pilot|held [--checkpoint 1|2|3] [--jobs 3] [--arms a,b] [--seeds all|template|procedural] [--keep-first] [--resume]
+    python scripts/productive_recovery_screens.py report OUT_DIR/metrics.jsonl [--checkpoint 1|2|3]
+    python scripts/productive_recovery_screens.py check [--checkpoint 1|2|3] [--metrics OUT_DIR/metrics.jsonl --cohort pilot|held]
 
 Run with the native interpreter whose extension matches the source under
 test (every arm is hybrid). ``--checkpoint`` (default 1) picks the arms,
 outcomes, seeds and preregistration: checkpoint 1 (recovery) in
 docs/superpowers/progress/productive-recovery-screens-cp1.md, checkpoint 2
-(household food retail) in docs/superpowers/progress/productive-recovery-screens-cp2.md.
+(household food retail) in docs/superpowers/progress/productive-recovery-screens-cp2.md,
+checkpoint 3 (the integrated chain) in
+docs/superpowers/progress/productive-recovery-screens-cp3.md.
 Worlds are the units. Every arm is compared with its declared control on the same world.
-Checkpoint 2's rows carry ``"checkpoint": 2``; a report, check or resume refuses rows
-of another checkpoint.
+Rows of checkpoints 2 and 3 carry ``"checkpoint": 2`` or ``3``; a report, check or resume
+refuses rows of another checkpoint.
 
 The extractor reads package lifetime counters from the dated snapshot records
 (``history[i]["livelihoods"][<package>]``) and world measures from the
@@ -410,6 +412,100 @@ def _granary_conditions(assets) -> list[float]:
             and _num(a.get("condition"))]
 
 
+def _granary_measures(hist, bundle: dict, problems: list[str]) -> dict:
+    """Granaries (grain storage is in the base), per turn and at the end: the run mean
+    of each turn's mean condition over granaries with capacity, and the end value."""
+    run_means, missing = [], []
+    for snap in hist:
+        assets = ((snap.get("grain_reserves") or {}).get("storage") or {}).get("assets")
+        if not isinstance(assets, list):
+            missing.append(snap.get("turn"))
+            continue
+        conds = _granary_conditions(assets)
+        if conds:
+            run_means.append(mean(conds))
+    if missing:
+        problems.append(f"granary storage missing at turns {missing[:5]}")
+    end_assets = (((bundle.get("world_state") or {}).get("grain_reserves") or {}).get("storage") or {}).get("assets")
+    if not isinstance(end_assets, list):
+        problems.append("granary storage missing from the final world state")
+        end_assets = []
+    end_conds = _granary_conditions(end_assets)
+    return {"run_mean": mean(run_means) if run_means else None,
+            "end": mean(end_conds) if end_conds else None, "turns_with_assets": len(run_means)}
+
+
+def _workshop_measures(hist, bundle: dict, problems: list[str]) -> tuple[dict, int]:
+    """Workshop sites (workshops are in the base), per turn and at the end, and the
+    L1 lump repairs paid over all snapshots."""
+    run_means, missing, lump = [], [], 0
+    for snap in hist:
+        ws = (snap.get("livelihoods") or {}).get("workshops") or {}
+        sites, receipts = ws.get("sites"), ws.get("receipts")
+        if not isinstance(sites, list) or not isinstance(receipts, list):
+            missing.append(snap.get("turn"))
+            continue
+        conds = _site_conditions(sites)
+        if conds:
+            run_means.append(mean(conds))
+        lump += sum(1 for r in receipts if (r.get("paid") or {}).get("repair"))
+    if missing:
+        problems.append(f"workshop sites or receipts missing at turns {missing[:5]}")
+    end_sites = (((bundle.get("world_state") or {}).get("livelihoods") or {}).get("workshops") or {}).get("sites")
+    if not isinstance(end_sites, list):
+        problems.append("workshop sites missing from the final world state")
+        end_sites = []
+    end_conds = _site_conditions(end_sites)
+    return ({"run_mean": mean(run_means) if run_means else None,
+             "end": mean(end_conds) if end_conds else None, "turns_with_sites": len(run_means)}, lump)
+
+
+def _woodcut_measures(hist, n_regions: int, cells: dict, counters: dict, problems: list[str]) -> dict:
+    """Woodcutting: the regions that sent a crew, home farm labour away per region, the
+    home region's food on away turns (``cells``: (source turn, region) -> (shortfall,
+    demand, sufficiency after relief)), the forest guard and the per-expedition means."""
+    homes, away = set(), [0.0] * n_regions
+    a_cells = a_short = a_demand = a_below = 0
+    share, missing = None, []
+    for snap in hist:
+        rec = (snap.get("livelihoods") or {}).get("timber_supply") or {}
+        receipts = rec.get("receipts")
+        if not isinstance(receipts, list):
+            missing.append(snap.get("turn"))
+            continue
+        for r in receipts:
+            home = r.get("home")
+            if not isinstance(home, int) or not 0 <= home < n_regions or not _num(r.get("away_delivered")):
+                problems.append(f"timber_supply: malformed receipt at turn {snap.get('turn')}")
+                break
+            homes.add(home)
+            away[home] += r["away_delivered"]
+            if r["away_delivered"] > 0:
+                cell = cells.get((r.get("turn"), home))
+                if cell is None:
+                    problems.append(f"timber_supply: no food accounting for region {home} at turn {r.get('turn')}")
+                    break
+                a_cells += 1
+                a_short += cell[0]
+                a_demand += cell[1]
+                a_below += cell[2] < 1.0
+            if r.get("stage") == "cutting" and _num(r.get("stock_after")) and _num(r.get("capacity")) \
+                    and r["capacity"] > 0:
+                value = r["stock_after"] / r["capacity"]
+                share = value if share is None else min(share, value)
+    if missing:
+        problems.append(f"timber_supply: receipts missing at turns {missing[:5]}")
+    c = counters
+    ended = c.get("ended", 0)
+    return {"homes": sorted(homes), "region_away": away, "away_cells": a_cells,
+            "away_shortfall": a_short, "away_demand": a_demand, "away_below_one": a_below,
+            "away_shortfall_share": (a_short / a_demand) if a_demand else None,
+            "min_stock_share": share,
+            "wages_per_ended": (c.get("ended_wages_milli", 0) / 1000 / ended) if ended else None,
+            "person_turns_per_ended": (c.get("ended_person_turns", 0) / ended) if ended else None,
+            "away_per_ended": (c.get("ended_away", 0) / ended) if ended else None}
+
+
 def extract(bundle: dict, flags, declared: dict, services: frozenset[str]) -> tuple[dict, list[str]]:
     """The checkpoint-1 outcomes of one run and the reasons any is missing or malformed.
 
@@ -464,48 +560,8 @@ def extract(bundle: dict, flags, declared: dict, services: frozenset[str]) -> tu
     if not n_regions:
         problems.append("world state has no regions")
 
-    # Granaries (grain storage is in the base), per turn and at the end.
-    run_means, missing = [], []
-    for snap in hist:
-        assets = ((snap.get("grain_reserves") or {}).get("storage") or {}).get("assets")
-        if not isinstance(assets, list):
-            missing.append(snap.get("turn"))
-            continue
-        conds = _granary_conditions(assets)
-        if conds:
-            run_means.append(mean(conds))
-    if missing:
-        problems.append(f"granary storage missing at turns {missing[:5]}")
-    end_assets = (((bundle.get("world_state") or {}).get("grain_reserves") or {}).get("storage") or {}).get("assets")
-    if not isinstance(end_assets, list):
-        problems.append("granary storage missing from the final world state")
-        end_assets = []
-    end_conds = _granary_conditions(end_assets)
-    out["granary"] = {"run_mean": mean(run_means) if run_means else None,
-                      "end": mean(end_conds) if end_conds else None, "turns_with_assets": len(run_means)}
-
-    # Workshop sites (workshops are in the base), per turn and at the end; lump repairs.
-    run_means, missing, lump = [], [], 0
-    for snap in hist:
-        ws = (snap.get("livelihoods") or {}).get("workshops") or {}
-        sites, receipts = ws.get("sites"), ws.get("receipts")
-        if not isinstance(sites, list) or not isinstance(receipts, list):
-            missing.append(snap.get("turn"))
-            continue
-        conds = _site_conditions(sites)
-        if conds:
-            run_means.append(mean(conds))
-        lump += sum(1 for r in receipts if (r.get("paid") or {}).get("repair"))
-    if missing:
-        problems.append(f"workshop sites or receipts missing at turns {missing[:5]}")
-    end_sites = (((bundle.get("world_state") or {}).get("livelihoods") or {}).get("workshops") or {}).get("sites")
-    if not isinstance(end_sites, list):
-        problems.append("workshop sites missing from the final world state")
-        end_sites = []
-    end_conds = _site_conditions(end_sites)
-    out["workshop"] = {"run_mean": mean(run_means) if run_means else None,
-                       "end": mean(end_conds) if end_conds else None, "turns_with_sites": len(run_means)}
-    out["lump_repairs"] = lump
+    out["granary"] = _granary_measures(hist, bundle, problems)
+    out["workshop"], out["lump_repairs"] = _workshop_measures(hist, bundle, problems)
 
     # Food accounting: unmet demand after public relief, per region over the run.
     short = [0.0] * n_regions
@@ -535,46 +591,7 @@ def extract(bundle: dict, flags, declared: dict, services: frozenset[str]) -> tu
 
     # Woodcutting: sending regions, food on away turns, forest guard.
     if "timber_supply" in expected:
-        homes, away = set(), [0.0] * n_regions
-        a_cells = a_short = a_demand = a_below = 0
-        share, missing = None, []
-        for snap in hist:
-            rec = (snap.get("livelihoods") or {}).get("timber_supply") or {}
-            receipts = rec.get("receipts")
-            if not isinstance(receipts, list):
-                missing.append(snap.get("turn"))
-                continue
-            for r in receipts:
-                home = r.get("home")
-                if not isinstance(home, int) or not 0 <= home < n_regions or not _num(r.get("away_delivered")):
-                    problems.append(f"timber_supply: malformed receipt at turn {snap.get('turn')}")
-                    break
-                homes.add(home)
-                away[home] += r["away_delivered"]
-                if r["away_delivered"] > 0:
-                    cell = cells.get((r.get("turn"), home))
-                    if cell is None:
-                        problems.append(f"timber_supply: no food accounting for region {home} at turn {r.get('turn')}")
-                        break
-                    a_cells += 1
-                    a_short += cell[0]
-                    a_demand += cell[1]
-                    a_below += cell[2] < 1.0
-                if r.get("stage") == "cutting" and _num(r.get("stock_after")) and _num(r.get("capacity")) \
-                        and r["capacity"] > 0:
-                    value = r["stock_after"] / r["capacity"]
-                    share = value if share is None else min(share, value)
-        if missing:
-            problems.append(f"timber_supply: receipts missing at turns {missing[:5]}")
-        c = out["pk"].get("timber_supply") or {}
-        ended = c.get("ended", 0)
-        out["ts"] = {"homes": sorted(homes), "region_away": away, "away_cells": a_cells,
-                     "away_shortfall": a_short, "away_demand": a_demand, "away_below_one": a_below,
-                     "away_shortfall_share": (a_short / a_demand) if a_demand else None,
-                     "min_stock_share": share,
-                     "wages_per_ended": (c.get("ended_wages_milli", 0) / 1000 / ended) if ended else None,
-                     "person_turns_per_ended": (c.get("ended_person_turns", 0) / ended) if ended else None,
-                     "away_per_ended": (c.get("ended_away", 0) / ended) if ended else None}
+        out["ts"] = _woodcut_measures(hist, n_regions, cells, out["pk"].get("timber_supply") or {}, problems)
 
     # L9 awards by service, summed over the dated decision frames.
     if "local_budgets" in expected:
@@ -888,7 +905,7 @@ def trajectory_digest(bundle: dict) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def extract_cp2(bundle: dict, flags, declared: dict) -> tuple[dict, list[str]]:
+def extract_cp2(bundle: dict, flags, declared: dict, cp=None) -> tuple[dict, list[str]]:
     """The checkpoint-2 outcomes of one run and the reasons any is missing or malformed.
 
     The run must have one snapshot per turn (1..TURNS); the last snapshot must hold
@@ -899,8 +916,13 @@ def extract_cp2(bundle: dict, flags, declared: dict) -> tuple[dict, list[str]]:
     no_relief, free_exchange) or a would-be record (record_only); their number, and the
     frame sums in ``CHECKED_SUMS``, must equal the lifetime counters. In provisioned
     modes a pilot region may not also be in L2's frame. Any failure is returned, never
-    read as zero."""
-    cp = CP2
+    read as zero.
+
+    ``cp`` (default checkpoint 2) supplies the arms' packages, the counters read, the
+    retail frame columns also summed per region (``REGION_RETAIL``) and whether the
+    trajectory digest is needed (an ``IDENTITY`` control)."""
+    cp = CP2 if cp is None else cp
+    region_retail = tuple(getattr(cp, "REGION_RETAIL", ()))
     hist = bundle.get("history") or []
     if not hist:
         return {}, ["no snapshots"]
@@ -951,7 +973,8 @@ def extract_cp2(bundle: dict, flags, declared: dict) -> tuple[dict, list[str]]:
         problems.append("world state has no regions")
     mode = expected.get("household_retail")
     provisioned = mode in PROVISIONED_MODES
-    totals = {k: [0.0] * n for k in ("food_gap", "food_demand", "ration_short", "phase2_alive", "transport_net")}
+    totals = {k: [0.0] * n for k in ("food_gap", "food_demand", "ration_short", "phase2_alive", "transport_net",
+                                     *(f"retail_{c}" for c in region_retail))}
     pilot_turns = [0] * n
     sums = dict.fromkeys(RETAIL_SUMS, 0.0)
     departing = unloadable = 0.0
@@ -1024,6 +1047,8 @@ def extract_cp2(bundle: dict, flags, declared: dict) -> tuple[dict, list[str]]:
                     overlap.append(turn)
                 for k in RETAIL_SUMS:
                     sums[k] += prov[k]
+                for k in region_retail:
+                    totals[f"retail_{k}"][rid] += prov[k]
                 totals["ration_short"][rid] += prov["persons"] - prov["rations"]
                 unloadable += f["owned_food_unloadable_milli"]
             else:
@@ -1069,7 +1094,8 @@ def extract_cp2(bundle: dict, flags, declared: dict) -> tuple[dict, list[str]]:
     out["region_totals"] = {**{k: [round(v, 6) for v in vals] for k, vals in totals.items()},
                             "pilot_turns": pilot_turns}
     out["gini"] = mean(c["gini"] for c in civs) if civs and all(_num(c.get("gini")) for c in civs) else None
-    out["digest"] = trajectory_digest(bundle)
+    if getattr(cp, "IDENTITY", None) is not None:
+        out["digest"] = trajectory_digest(bundle)
     return out, problems
 
 
@@ -1345,7 +1371,469 @@ class CP2:
     report_extra = staticmethod(report_extra_cp2)
 
 
-CHECKPOINTS = {1: CP1, 2: CP2}
+# --- Checkpoint 3: the integrated chain (PL5, PL6) ------------------------------------
+#
+# Preregistered (draft until the lead freezes it) in
+# docs/superpowers/progress/productive-recovery-screens-cp3.md. A community needs timber
+# (RS2 stalls), sends a named, paid woodcutting crew (PL1), repairs its granary with a
+# named, paid crew (PL3), and those households buy food (PL4 retail at the ``paid_work``
+# boundary); RS4 remittances are the other household cash channel. Every arm carries the
+# recovery reference (RS2 under the operating wear with the L3 stock) and, except CH_L2,
+# retail at the ``paid_work`` boundary.
+
+#: Retail frame columns also summed per region, so checkpoint 3 can compare arms over a
+#: fixed region set (``annotate_pairs_cp3``); validated with ``RETAIL_SUMS``.
+REGION_RETAIL_CP3 = ("priced_out_persons", "priced_out_children", "priced_out_deficit", "persons")
+#: Record fields the checkpoint-3 extractor reads beyond checkpoint 2's: (module, model) ->
+#: fields, checked against this checkout's models (pydantic or dataclass).
+FIELDS_READ_CP3 = {
+    ("grain_storage_state", "StorageAsset"): {"capacity", "condition"},
+    ("workshops_state", "WorkshopSite"): {"status", "asset", "condition"},
+    ("workshops_state", "WorkshopReceipt"): {"paid"},
+    ("timber_supply_state", "ExpeditionReceipt"): {"turn", "home", "stage", "away_delivered", "stock_after",
+                                                   "capacity"},
+    ("food_accounting", "RegionFood"): {"region_id", "native_count", "native", "sufficiency_after_relief"},
+}
+#: Declared values the checkpoint-3 extractor matches: (module, tuple name) -> values.
+VALUES_READ_CP3 = {("timber_supply_state", "STAGES"): {"cutting"}}
+#: Checkpoint 2's held cohort, which checkpoint 3 must never run.
+CP2_HELD = CP2.HELD
+
+
+def declared_counters_cp3() -> dict[str, frozenset[str]]:
+    """The declared lifetime counters of every package checkpoint 3 reads, from this
+    checkout's source."""
+    _src()
+    from chronicler import household_retail_state, recovery_crews_state, remittances_state
+    from chronicler import repair_projects_state, timber_supply_state
+    mods = {"household_retail": household_retail_state, "repair_projects": repair_projects_state,
+            "timber_supply": timber_supply_state, "recovery_crews": recovery_crews_state,
+            "remittances": remittances_state}
+    return {name: frozenset(mod.COUNTERS) for name, mod in mods.items()}
+
+
+def _model_fields(model) -> set[str]:
+    import dataclasses
+    if dataclasses.is_dataclass(model):
+        return {f.name for f in dataclasses.fields(model)}
+    return set(model.model_fields)
+
+
+def source_problems_cp3() -> list[str]:
+    """Checkpoint 2's frame, field and mode checks; every registered choice of every
+    package of the screen is its mode option or a checked option, recorded under the
+    attribute the screen reads (the registry's choice-field map); and every record field
+    and declared value the checkpoint-3 extractor reads exists in this checkout."""
+    _src()
+    from importlib import import_module
+    from chronicler.food_accounting import FOOD_LEDGER_FIELDS
+    from chronicler.household_retail_state import MODES, RegionFrame
+    from chronicler.livelihoods import _CHOICE_FIELDS
+    problems = []
+    for const, wanted in (("RETAIL_REGION_COLUMNS", RETAIL_SUMS + ("region",)), ("REGION_COLUMNS", L2_COLUMNS)):
+        declared = rust_columns(PROVISIONING_RS, const)
+        if declared is None:
+            problems.append(f"{PROVISIONING_RS} declares no {const}")
+            continue
+        problems += [f"frame column {c} is not in {const}" for c in wanted if c not in declared]
+    problems += [f"per-region retail column {c} is not in RETAIL_SUMS" for c in CP3.REGION_RETAIL
+                 if c not in RETAIL_SUMS]
+    problems += [f"frame field {f} is not a RegionFrame field" for f in FRAME_FIELDS
+                 if f not in RegionFrame.model_fields]
+    problems += [f"food accounting field {f} is not declared" for f in FOOD_FIELDS
+                 if f not in (*FOOD_LEDGER_FIELDS, "demand", "sufficiency")]
+    if set(MODES) != {*PROVISIONED_MODES, "record_only"}:
+        problems.append(f"household retail modes are {MODES}, not {(*PROVISIONED_MODES, 'record_only')}")
+    names = {name: flag for flag, (name, _m, _d) in CP3.PACKAGES.items()}
+    for key, (name, field) in _CHOICE_FIELDS.items():
+        if name not in names:
+            continue
+        flag = names[name]
+        mode_flag = CP3.PACKAGES[flag][1]
+        if mode_flag and key == mode_flag[2:].replace("-", "_"):
+            if field != CP3.MODE_KEYS.get(name, "mode"):
+                problems.append(f"{name}: its mode is recorded as {field!r}, the screen reads "
+                                f"{CP3.MODE_KEYS.get(name, 'mode')!r}")
+            continue
+        attrs = {option[2:].replace("-", "_"): attr for option, attr, _d in CP3.OPTIONS.get(flag, ())}
+        if key not in attrs:
+            problems.append(f"{name} has a registered choice the screen does not check: {key}")
+        elif attrs[key] != field:
+            problems.append(f"{name}: {key} is recorded as {field!r}, the screen reads {attrs[key]!r}")
+    for (module, model), fields in FIELDS_READ_CP3.items():
+        declared = _model_fields(getattr(import_module(f"chronicler.{module}"), model))
+        problems += [f"{model}.{f} is not a field" for f in sorted(fields - declared)]
+    for (module, name), values in VALUES_READ_CP3.items():
+        declared = set(getattr(import_module(f"chronicler.{module}"), name))
+        problems += [f"{module}.{name} does not declare {v!r}" for v in sorted(values - declared)]
+    return problems
+
+
+def _food_cells(hist, n: int) -> dict[tuple[int, int], tuple[float, float, float]]:
+    """(source turn, region) -> (shortfall after relief, demand, sufficiency after relief)
+    for the well-formed food accounting rows (``extract_cp2`` names any other)."""
+    cells = {}
+    for snap in hist:
+        fa = snap.get("food_accounting") or {}
+        rows = fa.get("regions")
+        if not isinstance(rows, list) or len(rows) != n or not isinstance(fa.get("source_turn"), int):
+            continue
+        for i, row in enumerate(rows):
+            d, s = (row.get("native") or {}).get("demand"), row.get("sufficiency_after_relief")
+            if row.get("region_id") == i and _num(d) and _num(s):
+                cells[(fa["source_turn"], i)] = (d * max(0.0, 1.0 - min(1.0, s)), d, s)
+    return cells
+
+
+def extract_cp3(bundle: dict, flags, declared: dict) -> tuple[dict, list[str]]:
+    """The checkpoint-3 outcomes of one run and the reasons any is missing or malformed.
+
+    Checkpoint 2's extractor (with checkpoint 3's packages) validates the packages,
+    counters, food accounting, L2 frames and retail frames, and sums the retail and food
+    measures per region; checkpoint 1's measures add the granaries, the workshop sites
+    and (woodcutting arms) the woodcutting receipts. Any failure is returned, never read
+    as zero."""
+    cp = CP3
+    out, problems = extract_cp2(bundle, flags, declared, cp)
+    hist = bundle.get("history") or []
+    if not hist:
+        return out, problems
+    n = len((bundle.get("world_state") or {}).get("regions") or [])
+    expected = expected_packages(flags, cp)
+    out["granary"] = _granary_measures(hist, bundle, problems)
+    out["workshop"], out["lump_repairs"] = _workshop_measures(hist, bundle, problems)
+    if "timber_supply" in expected:
+        out["ts"] = _woodcut_measures(hist, n, _food_cells(hist, n), out["pk"].get("timber_supply") or {}, problems)
+    if "timber_stock" in expected:
+        # The shared metrics sum L3's extraction over the snapshots that carry totals;
+        # a snapshot without them would read as no extraction.
+        missing = [s.get("turn") for s in hist
+                   if not _num((((s.get("livelihoods") or {}).get("timber_stock") or {}).get("totals") or {})
+                               .get("extraction"))]
+        if missing:
+            problems.append(f"timber_stock: totals missing at turns {missing[:5]}")
+    return out, problems
+
+
+def metrics_row_cp3(bundle_path: Path, flags) -> dict:
+    """The shared sprint metrics plus the validated checkpoint-3 outcomes.
+    A missing or malformed outcome makes the row a visible failure (rc 3)."""
+    _src()
+    from chronicler.bundle_codec import load_bundle
+    m = LS.metrics(bundle_path)
+    extra, problems = extract_cp3(load_bundle(bundle_path), flags, declared_counters_cp3())
+    m.update(extra)
+    if "timber_stock" in expected_packages(flags, CP3) and "timber" not in m:
+        problems.append("timber_stock: no totals in any snapshot")
+    if problems:
+        m["rc"], m["error"] = 3, "missing or malformed outcomes: " + "; ".join(problems)
+    return m
+
+
+def _pilot_turns(row):
+    """A run's pilot region-turns per region (None if the run is missing or failed)."""
+    if row is None or row.get("rc") != 0:
+        return None
+    turns = _get(row, "region_totals", "pilot_turns")
+    return turns if isinstance(turns, list) else None
+
+
+def _region_set_cp3(row, regions, both) -> dict | None:
+    """``_region_set`` over ``regions`` plus the retail measures: priced-out persons,
+    children and deficit, pilot person-turns and region-turns, the priced-out rate and
+    the coverage; and priced-out person-turns over ``both`` (the regions that are pilot
+    regions in both arms; None when there is none)."""
+    base = _region_set(row, regions)
+    if base is None:
+        return None
+    t = row.get("region_totals") or {}
+    try:
+        sums = {k: math.fsum(t[f"retail_{k}"][i] for i in regions) for k in CP3.REGION_RETAIL}
+        pilot = math.fsum(t["pilot_turns"][i] for i in regions)
+        in_both = math.fsum(t["retail_priced_out_persons"][i] for i in both) if both else None
+    except (KeyError, IndexError, TypeError):
+        return None
+    base.update({**sums, "pilot_region_turns": pilot,
+                 "priced_out_rate": _ratio(sums["priced_out_persons"], sums["persons"]),
+                 "coverage": (pilot / (len(regions) * CP3.TURNS)) if regions else None,
+                 "both_regions": len(both), "both_priced_out_persons": in_both})
+    return base
+
+
+def annotate_pairs_cp3(rows) -> None:
+    """Fixed region sets per world. For each ``REGION_SETS`` pair, the regions that were
+    pilot regions (at any turn) in either arm, summed over every turn in both arms; it
+    is checkpoint 2's rule (the treatment arm's pilot regions) when the control has
+    none, and checkpoint 1's either-arm rule otherwise. The regions pilot in both arms
+    are kept beside it. For CH - CH_cut, the regions that sent a woodcutting crew in
+    either arm (checkpoint 1's food-cost set). A pair with a run missing or failed gets
+    None."""
+    by = {(r["arm"], r["stratum"], r["seed"]): r for r in rows}
+    for treat, control in CP3.REGION_SETS:
+        key = f"{treat}|{control}"
+        for (arm, stratum, seed), row in by.items():
+            if arm != treat:
+                continue
+            ctl = by.get((control, stratum, seed))
+            mine, theirs = _pilot_turns(row), _pilot_turns(ctl)
+            known = mine is not None and theirs is not None and len(mine) == len(theirs)
+            union = [i for i in range(len(mine)) if mine[i] or theirs[i]] if known else None
+            both = [i for i in range(len(mine)) if mine[i] and theirs[i]] if known else None
+            for target in (row, ctl):
+                if target is not None:
+                    target.setdefault("pair", {})[key] = (_region_set_cp3(target, union, both)
+                                                          if known else None)
+    treat, control = CP3.HOME_SET
+    key = f"{treat}|{control}|homes"
+    for (arm, stratum, seed), row in by.items():
+        if arm != treat:
+            continue
+        ctl = by.get((control, stratum, seed))
+        homes = None
+        if row.get("rc") == 0 and ctl is not None and ctl.get("rc") == 0:
+            homes = sorted(set(_get(row, "ts", "homes") or ()) | set(_get(ctl, "ts", "homes") or ()))
+        for target in (row, ctl):
+            if target is None:
+                continue
+            gaps = _get(target, "region_totals", "food_gap")
+            value = None
+            if homes is not None and isinstance(gaps, list) and all(i < len(gaps) for i in homes):
+                value = math.fsum(gaps[i] for i in homes)
+            target.setdefault("pair", {})[key] = value
+
+
+def _retail_turns(r):
+    """The run's pilot region-turns (structural zero without retail)."""
+    return _get(r, "retail", "pilot_region_turns")
+
+
+def _pilot_regions(r):
+    """The number of regions with at least one pilot region-turn."""
+    turns = _get(r, "region_totals", "pilot_turns")
+    return sum(1 for v in turns if v) if isinstance(turns, list) else None
+
+
+def _remit_debit(r):
+    """Coins remittance senders lost net of refunds: credited to recipients plus the
+    courier fee (RS4 checks debited = credited + fee = sent - refunded; structural zero
+    without RS4)."""
+    credited, fee = _z(r, "remittances", "credited_milli"), _z(r, "remittances", "fee_milli")
+    return None if credited is None or fee is None else (credited + fee) / 1000
+
+
+def _money_cp3(r):
+    """Money credited to households (gross), coins: wages to named repair workers (RS2 workshop crews,
+    PL3 granary crews, PL1 woodcutters) + remittances credited to recipients + granary
+    procurement credited to owners - ordinary farm income replaced by retail. Purchases
+    and the crews' withheld ordinary income are not in it (see the preregistration)."""
+    wages = _wages(r)
+    remitted = _z(r, "remittances", "credited_milli")
+    procured = _z(r, "household_retail", "procurement_credited_milli")
+    replaced = r.get("income_replaced")
+    if any(v is None for v in (wages, remitted, procured, replaced)):
+        return None
+    return wages + (remitted + procured) / 1000 - replaced
+
+
+def _paired_cp3() -> list:
+    """The preregistered checkpoint-3 outcomes (``PAIRED``)."""
+    U, X, F, L, Z = "CH_unpaid", "CH_cut", "CH_free", "CH_L2", "C0"
+    either = "the pilot regions of either arm"
+
+    def over(control, field):
+        return _over(f"CH|{control}", field)
+
+    def coins(pkg, key):
+        return lambda r: _coins(_z(r, pkg, key))
+
+    out = [
+        # CH - CH_unpaid: does the wage reach food?
+        (f"CH priced-out person-turns in {either} (CH - {U})", "CH", U, over(U, "priced_out_persons")),
+        (f"CH priced-out child-turns in {either} (CH - {U})", "CH", U, over(U, "priced_out_children")),
+        (f"CH priced-out deficit in {either}, rations (CH - {U})", "CH", U, over(U, "priced_out_deficit")),
+        (f"CH priced-out person-turns in the regions that are pilot regions in both arms (CH - {U})", "CH", U,
+         over(U, "both_priced_out_persons")),
+        (f"[primary] CH priced-out person-turns per pilot person-turn in {either} (CH - {U})", "CH", U,
+         over(U, "priced_out_rate")),
+        (f"CH pilot person-turns in {either} (CH - {U}; the denominator)", "CH", U, over(U, "persons")),
+        (f"CH pilot region-turns in {either} (CH - {U}; coverage)", "CH", U, over(U, "pilot_region_turns")),
+        (f"CH share of the set's region-turns that were pilot turns (CH; CH|{U} set)", "CH", None,
+         over(U, "coverage")),
+        (f"{U} share of the set's region-turns that were pilot turns ({U}; CH|{U} set)", U, None,
+         over(U, "coverage")),
+        (f"CH ration shortfall in {either}, rations (CH - {U})", "CH", U, over(U, "ration_short")),
+        (f"CH mean ration per Phase-2 person in {either} (CH - {U})", "CH", U, over(U, "mean_ration")),
+        (f"CH granary-crew wages paid to named members, coins (CH - {U})", "CH", U,
+         coins("recovery_crews", "granary_wages_milli")),
+        (f"CH granary coins sunk, coins (CH - {U})", "CH", U, coins("recovery_crews", "granary_sunk_milli")),
+        (f"CH wages to named repair workers (RS2 workshop, PL3 granary, PL1 woodcut), coins (CH - {U})", "CH", U,
+         _wages),
+        (f"CH remittances credited to recipients, coins (CH - {U})", "CH", U, coins("remittances", "credited_milli")),
+        (f"CH granary procurement credited to owners, coins (CH - {U})", "CH", U,
+         coins("household_retail", "procurement_credited_milli")),
+        (f"CH ordinary farm income replaced by retail, coins (CH - {U})", "CH", U, lambda r: r.get("income_replaced")),
+        (f"CH money credited to households (gross): named wages + remittances credited + procurement - income "
+         f"replaced by retail, coins (CH - {U})", "CH", U, _money_cp3),
+        (f"CH ordinary income withheld for PL3 crews' paid shares (granary and workshop), coins (CH - {U})", "CH", U,
+         lambda r: _z(r, "recovery_crews", "income_replaced")),
+        (f"CH ordinary income withheld for RS2 workshop crews' paid shares, coins (CH - {U})", "CH", U,
+         lambda r: _z(r, "repair_projects", "income_replaced")),
+        (f"CH ordinary income withheld for PL1 woodcutters' paid shares, coins (CH - {U})", "CH", U,
+         lambda r: _z(r, "timber_supply", "income_withheld")),
+        (f"CH remittance senders' net debit: credited + courier fee, coins (CH - {U})", "CH", U,
+         lambda r: _remit_debit(r)),
+        (f"CH granary mean condition, run mean (CH - {U})", "CH", U, _GR),
+        # CH - CH_cut: does timber matter?
+        (f"[primary] CH granary mean condition, run mean (CH - {X})", "CH", X, _GR),
+        (f"CH granary mean condition at end (CH - {X})", "CH", X, _GE),
+        (f"CH workshop mean condition, run mean (CH - {X})", "CH", X, _WR),
+        (f"CH timber delivered (CH - {X})", "CH", X, lambda r: _c(r, "timber_supply", "delivered")),
+        (f"CH timber cut (CH - {X})", "CH", X, lambda r: _c(r, "timber_supply", "cut")),
+        (f"CH RS2 no_timber stalled project-turns (CH - {X})", "CH", X,
+         lambda r: _c(r, "repair_projects", "stalled_no_timber")),
+        (f"CH RS2 timber used (CH - {X})", "CH", X, lambda r: _c(r, "repair_projects", "timber_used")),
+        (f"CH L3 extraction (CH - {X})", "CH", X, lambda r: _get(r, "timber", "extraction")),
+        (f"CH minimum L3 stock share after a cutting turn (CH - {X})", "CH", X,
+         lambda r: _get(r, "ts", "min_stock_share")),
+        ("CH minimum L3 stock share after a cutting turn (CH)", "CH", None, lambda r: _get(r, "ts", "min_stock_share")),
+        (f"CH home farm labour away, farmer-turns (CH - {X})", "CH", X,
+         lambda r: _c(r, "timber_supply", "away_delivered")),
+        (f"CH food shortfall after relief in the regions that sent a woodcutting crew in either arm, food "
+         f"(CH - {X})", "CH", X, _pair(f"CH|{X}|homes")),
+        ("CH home-region shortfall share on turns a woodcutting crew was away (CH)", "CH", None,
+         lambda r: _get(r, "ts", "away_shortfall_share")),
+        (f"{X} home-region shortfall share on turns a woodcutting crew was away ({X})", X, None,
+         lambda r: _get(r, "ts", "away_shortfall_share")),
+        (f"CH woodcutting wages, coins (CH - {X})", "CH", X, coins("timber_supply", "wages_milli")),
+        (f"CH expeditions launched (CH - {X})", "CH", X, lambda r: _c(r, "timber_supply", "launched")),
+        (f"CH farmer-turns away per ended expedition (CH - {X})", "CH", X, lambda r: _get(r, "ts", "away_per_ended")),
+        # CH - CH_free: cash pressure with the whole chain on.
+        (f"CH priced-out person-turns in {either} (CH - {F})", "CH", F, over(F, "priced_out_persons")),
+        (f"CH priced-out child-turns in {either} (CH - {F})", "CH", F, over(F, "priced_out_children")),
+        (f"CH ration shortfall in {either}, rations (CH - {F})", "CH", F, over(F, "ration_short")),
+        (f"CH mean ration per Phase-2 person in {either} (CH - {F})", "CH", F, over(F, "mean_ration")),
+        (f"CH pilot region-turns in {either} (CH - {F}; coverage)", "CH", F, over(F, "pilot_region_turns")),
+        # CH - CH_L2: retail against free allocation, with the chain.
+        (f"CH ration shortfall in CH's pilot regions, rations (CH - {L})", "CH", L, over(L, "ration_short")),
+        (f"CH population (CH - {L})", "CH", L, lambda r: r.get("population")),
+        (f"CH food shortfall after relief in CH's pilot regions, food (CH - {L})", "CH", L, over(L, "food")),
+        (f"CH mean ration per Phase-2 person in CH's pilot regions (CH - {L})", "CH", L, over(L, "mean_ration")),
+        (f"CH share of its pilot regions' region-turns that were pilot turns (CH; CH|{L} set)", "CH", None,
+         over(L, "coverage")),
+        # CH - C0: the chain's total.
+        (f"CH granary mean condition, run mean (CH - {Z})", "CH", Z, _GR),
+        (f"CH priced-out person-turns in {either} (CH - {Z})", "CH", Z, over(Z, "priced_out_persons")),
+        (f"CH ration shortfall in {either}, rations (CH - {Z})", "CH", Z, over(Z, "ration_short")),
+        (f"CH pilot region-turns in {either} (CH - {Z}; coverage)", "CH", Z, over(Z, "pilot_region_turns")),
+        (f"CH wages to named repair workers, coins (CH - {Z})", "CH", Z, _wages),
+        (f"CH money credited to households (gross), coins (CH - {Z})", "CH", Z, _money_cp3),
+        (f"CH population (CH - {Z})", "CH", Z, lambda r: r.get("population")),
+    ]
+    # Every fixed region set's size, the regions pilot in both arms, and each arm's
+    # coverage of the set (CH_unpaid's is listed with its comparison; CH_L2 has none).
+    for ctl in (U, F, L, Z):
+        out += [(f"CH regions in the CH|{ctl} set (CH; the pilot regions of either arm)", "CH", None,
+                 over(ctl, "regions")),
+                (f"CH regions pilot in both arms (CH; CH|{ctl} set)", "CH", None, over(ctl, "both_regions"))]
+    for ctl in (F, Z):
+        out += [(f"CH share of the set's region-turns that were pilot turns (CH; CH|{ctl} set)", "CH", None,
+                 over(ctl, "coverage")),
+                (f"{ctl} share of the set's region-turns that were pilot turns ({ctl}; CH|{ctl} set)", ctl, None,
+                 over(ctl, "coverage"))]
+    # Coverage per arm: the paid_work boundary depends on wages.
+    for arm in ("C0", "CH", U, X, F, L):
+        out += [(f"{arm} pilot region-turns ({arm})", arm, None, _retail_turns),
+                (f"{arm} pilot regions ({arm})", arm, None, _pilot_regions)]
+    return out
+
+
+class CP3:
+    """Checkpoint 3 (the integrated chain): the names checkpoint 1 keeps as globals."""
+
+    CHECKPOINT = 3
+    PREREGISTRATION = Path(REPO) / "docs/superpowers/progress/productive-recovery-screens-cp3.md"
+    ROOT = "C0"
+    #: The flags every arm carries: the sprint base, the sprint-2/3 base, L2, workshops,
+    #: the operating wear, RS2 and the L3 stock (checkpoint 1's recovery reference).
+    BASE = [*LS.BASE, *LS.BASE2, "--food-allocation", "--workshops", "--operating-wear", "--repair-projects",
+            "--timber-stock"]
+    #: Retail at the paid_work boundary: part of the preregistered base, carried by every
+    #: arm but CH_L2 (the boundary option goes with the switch).
+    RETAIL = ["--household-retail", "--household-retail-boundary", "paid_work"]
+    #: The chain: PL1 timber supply, PL3 recovery crews and RS4 remittances.
+    CHAIN = ["--timber-supply", "--recovery-crews", "--remittances"]
+    TURNS = int(BASE[BASE.index("--turns") + 1])
+    PROCEDURAL = list(LS.PROCEDURAL)
+    #: Arm -> (flags added to the shared flags, control arm). ``C0`` is the root.
+    ARMS: dict[str, tuple[list[str], str | None]] = {
+        "C0": (list(RETAIL), None),
+        "CH": ([*RETAIL, *CHAIN], "CH_unpaid"),
+        "CH_unpaid": ([*RETAIL, "--timber-supply", "--recovery-crews", "--recovery-crew-mode", "unpaid",
+                       "--remittances"], "C0"),
+        "CH_cut": ([*RETAIL, "--timber-supply", "--timber-supply-mode", "cost_only", "--recovery-crews",
+                    "--remittances"], "CH"),
+        "CH_free": ([*RETAIL, "--household-retail-mode", "free_exchange", *CHAIN], "CH"),
+        "CH_L2": (list(CHAIN), "CH"),
+    }
+    PACKAGES: dict[str, tuple[str, str | None, str | None]] = {
+        "--food-allocation": ("food_allocation", "--food-allocation-regime", "floor_means"),
+        "--workshops": ("workshops", "--workshop-mode", "operate"),
+        "--operating-wear": ("operating_wear", None, None),
+        "--repair-projects": ("repair_projects", "--repair-mode", "repair"),
+        "--timber-stock": ("timber_stock", None, None),
+        "--household-retail": ("household_retail", "--household-retail-mode", "retail"),
+        "--timber-supply": ("timber_supply", "--timber-supply-mode", "supply"),
+        "--recovery-crews": ("recovery_crews", "--recovery-crew-mode", "paid"),
+        "--remittances": ("remittances", "--remittance-mode", "send"),
+    }
+    OPTIONS = {"--household-retail": (("--household-retail-boundary", "boundary", "market"),)}
+    MODE_KEYS = {"food_allocation": "regime"}
+    # Seeds (per stratum). The pilot is the phase's timing pilot (checkpoints 1 and 2).
+    PILOT = {"template": (5,), "procedural": (19,)}
+    HELD = {"template": tuple(range(721, 727)), "procedural": tuple(range(821, 827))}
+    #: Earlier held cohorts and pilots, checkpoints 1 and 2 included: never run.
+    NEVER_RUN = {"template": frozenset({2, *range(101, 107), *range(301, 307), *range(501, 507), *range(701, 707),
+                                        *range(711, 717)}),
+                 "procedural": frozenset({*range(201, 207), *range(401, 407), *range(601, 607), *range(801, 807),
+                                          *range(811, 817)})}
+    #: No later held cohort is reserved in this phase.
+    RESERVED = {"template": frozenset(), "procedural": frozenset()}
+    DEVELOPMENT = DEVELOPMENT
+    PRIOR_HELD = (CP1_HELD, CP2_HELD)
+    TAGS = TAGS
+    COHORTS = {"pilot": PILOT, "held": HELD}
+    LABELS = {"pilot": {"t": "template 8x4 (seed 5)", "p": "procedural 32x10 (seed 19)"},
+              "held": {"t": "template 8x4 (seeds 721-726)", "p": "procedural 32x10 (seeds 821-826)"}}
+    #: Counters the outcomes and funnels read (validated against each package's COUNTERS).
+    OUTCOMES: dict[str, tuple[str, ...]] = {
+        "household_retail": CP2.OUTCOMES["household_retail"],
+        "repair_projects": (*OUTCOMES["repair_projects"], "income_replaced"),
+        "timber_supply": OUTCOMES["timber_supply"],
+        "recovery_crews": OUTCOMES["recovery_crews"],
+        "remittances": ("turns", "eligible_sender_turns", "linked_sender_turns", "rows_applied", "rows_limited",
+                        "rows_absent", "requested_milli", "sent_milli", "credited_milli", "fee_milli",
+                        "refunded_milli", "departures", "returns"),
+    }
+    REGION_RETAIL = REGION_RETAIL_CP3
+    #: Pairs compared over a fixed region set (the pilot regions of either arm).
+    REGION_SETS = (("CH", "CH_unpaid"), ("CH", "CH_free"), ("CH", "CH_L2"), ("CH", "C0"))
+    #: The pair compared over the regions that sent a woodcutting crew in either arm.
+    HOME_SET = ("CH", "CH_cut")
+    #: No identity control in this checkpoint (no trajectory digest is computed).
+    IDENTITY = None
+    PAIRED = _paired_cp3()
+    #: The arm table's comparisons plus the contrasts the preregistration names (the
+    #: chain minus each control).
+    DECLARED_PAIRS = {(arm, control) for arm, (_f, control) in ARMS.items() if control} \
+        | {("CH", "CH_cut"), ("CH", "CH_free"), ("CH", "CH_L2"), ("CH", "C0")}
+    declared_counters = staticmethod(declared_counters_cp3)
+    source_problems = staticmethod(source_problems_cp3)
+    metrics_row = staticmethod(metrics_row_cp3)
+    annotate_pairs = staticmethod(annotate_pairs_cp3)
+    report_extra = staticmethod(lambda rows: [])
+
+
+CHECKPOINTS = {1: CP1, 2: CP2, 3: CP3}
 
 
 # --- Running ----------------------------------------------------------------------
@@ -1426,6 +1914,21 @@ def _foreign_rows(rows, cp) -> list[str]:
             for r in rows if r.get("checkpoint", 1) != cp.CHECKPOINT]
 
 
+_RUN_HEADER = re.compile(r"^(?:checkpoint (\d+); )?cohort (\w+); ")
+
+
+def recorded_run(source_text: str) -> tuple[int, str] | None:
+    """The checkpoint and cohort a run directory was started with: the first run header
+    ``run`` appends to ``source.txt`` (checkpoint 1 writes no checkpoint prefix). A
+    resume is refused unless it matches, even when no row was written before the run
+    was killed."""
+    for line in source_text.splitlines():
+        m = _RUN_HEADER.match(line)
+        if m:
+            return int(m.group(1) or 1), m.group(2)
+    return None
+
+
 def run_main(argv) -> int:
     ap = argparse.ArgumentParser(prog="productive_recovery_screens.py run")
     ap.add_argument("out")
@@ -1458,6 +1961,12 @@ def run_main(argv) -> int:
         if not metrics.exists() or not (out / "source.txt").exists():
             raise SystemExit(f"nothing to resume in {out}")
         recorded = (out / "source.txt").read_text(encoding="utf-8")
+        started = recorded_run(recorded)
+        if started is None:
+            raise SystemExit(f"resume refused: {out / 'source.txt'} records no run header")
+        if started != (cp.CHECKPOINT, a.cohort):
+            raise SystemExit(f"resume refused: {out} was started as checkpoint {started[0]}, cohort {started[1]}, "
+                             f"not checkpoint {cp.CHECKPOINT}, cohort {a.cohort}")
         for line in metrics.read_text(encoding="utf-8").splitlines():
             if line.strip():
                 r = json.loads(line)

@@ -69,6 +69,7 @@ link to these by path, so keep their names stable.
   [workshop operating wear](integration/operating-wear.md),
   [timber supply (woodcutting expeditions)](integration/timber-supply.md),
   [household food retail](integration/household-retail.md) ([design](integration/household-retail-design.md)),
+  [the recovery chain view](integration/recovery-chain-view.md),
   [feature options in Batch Lab and live setup](integration/feature-options.md); plans in
   [sprint 1](superpowers/roadmaps/livelihoods-commons-sprint1.md),
   [sprint 2](superpowers/roadmaps/livelihoods-commons-sprint2.md) and the
@@ -77,8 +78,9 @@ link to these by path, so keep their names stable.
   [productive-recovery phase](superpowers/roadmaps/productive-recovery-phase.md)
   ([board](superpowers/progress/productive-recovery.json),
   [checkpoint-1 screens](superpowers/progress/productive-recovery-screens-cp1.md),
-  [checkpoint-1 examples](superpowers/progress/productive-recovery-examples.md),
-  [checkpoint-2 screens](superpowers/progress/productive-recovery-screens-cp2.md)).
+  [examples, checkpoints 1 and 3](superpowers/progress/productive-recovery-examples.md),
+  [checkpoint-2 screens](superpowers/progress/productive-recovery-screens-cp2.md),
+  [checkpoint-3 screens, draft](superpowers/progress/productive-recovery-screens-cp3.md)).
 - **World generation:** [geography 2.0](integration/geography-2.md),
   [procedural gates](integration/procedural-gates.md).
 
@@ -116,6 +118,7 @@ map layers. Feature views: [granaries](integration/granary-view.md),
 [expansion inspectors](integration/expansion-inspectors.md),
 [city institutions](integration/city-institution-history.md),
 [entity search](integration/historical-entity-search.md),
+[recovery chain](integration/recovery-chain-view.md),
 [feature options in Batch Lab and live setup](integration/feature-options.md). Commands and pages are in
 [`viewer/README.md`](../viewer/README.md).
 

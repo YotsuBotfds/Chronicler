@@ -1,3 +1,5 @@
+import { useMemo } from "react";
+import { hasRecoveryChain } from "../../lib/recoveryChain";
 import type { SystemPanelProps } from "../../lib/systems";
 import { ClearingProtection } from "./ClearingProtection";
 import { Remittances } from "./Remittances";
@@ -12,6 +14,7 @@ import { LearningCohorts } from "./LearningCohorts";
 import { LocalBudgets } from "./LocalBudgets";
 import { MaintenanceObligation } from "./MaintenanceObligation";
 import { OperatingWear } from "./OperatingWear";
+import { RecoveryChain } from "./RecoveryChain";
 import { RecoveryCrews } from "./RecoveryCrews";
 import { Relocation } from "./Relocation";
 import { TimberStock } from "./TimberStock";
@@ -28,7 +31,10 @@ const PACKAGES = ["workshops", "workshop_payroll", "food_allocation", "timber_st
   "remittances", "apprenticeship", "veteran_reintegration", "repair_projects", "operating_wear", "timber_supply",
   "recovery_crews", "maintenance_obligation", "household_retail"];
 
-export function LivelihoodsPanel({ bundle, snapshot, currentTurn, onSelectRegion }: SystemPanelProps) {
+export function LivelihoodsPanel(panelProps: SystemPanelProps) {
+  const { bundle, snapshot, currentTurn, onSelectRegion } = panelProps;
+  // The recovery chain (PL5c) reads the whole run, so it mounts on the run's records, not this snapshot's.
+  const chain = useMemo(() => hasRecoveryChain(bundle), [bundle]);
   const row = snapshot as unknown as Record<string, unknown> | null;
   const raw = row?.livelihoods ?? null;
   const readable = typeof raw === "object" && raw !== null && !Array.isArray(raw)
@@ -39,6 +45,7 @@ export function LivelihoodsPanel({ bundle, snapshot, currentTurn, onSelectRegion
   return <div className="systems-body">
     {raw !== null && !readable ? <p className="systems-note">The livelihoods record at snapshot {at} is unreadable (malformed or of an unknown version); nothing is shown from it.</p> : null}
     {record !== null && !PACKAGES.some((key) => record[key] != null) ? <p className="systems-note">The livelihoods record at snapshot {at} names no package this viewer reads.</p> : null}
+    {chain ? <RecoveryChain {...panelProps} /> : null}
     {record?.workshops != null ? <Workshops {...props} /> : null}
     {record?.workshop_payroll != null ? <WorkshopFinance {...props} /> : null}
     {record?.food_allocation != null ? <FoodAllocation {...props} /> : null}

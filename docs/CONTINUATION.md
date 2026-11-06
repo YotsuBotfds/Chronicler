@@ -1,4 +1,64 @@
-# Current continuation — productive recovery, checkpoint 2 (household retail), 2026-11-06
+# Current continuation — productive recovery, checkpoint 3 (the integrated chain), 2026-11-06
+
+## Productive recovery and household livelihoods: checkpoint 3 and the phase handoff
+
+- **Branch** `claude/productive-recovery-cp3` from `main` `96c20439` (#80). It integrates the
+  chain screen and chain examples (`claude/pl6d-chain`) and the recovery chain view
+  (`claude/pl5c-chain-viewer`). **No simulation or Rust change**: `src/` and
+  `chronicler-agents/` equal `main`, so checkpoint 2's identity and native evidence on that
+  source stands (native `101a4cd5…`, built from `478f2dca`, whose Rust equals `main`'s).
+- **Checkpoint-2 merge:** [PR #80](https://github.com/YotsuBotfds/Chronicler/pull/80) at
+  `96c20439` on 2026-11-06; tree `014ad8c2` equals reviewed head `12ad9a1e`; premerge Tests
+  run 42161536601 passed all nine jobs; main Tests run 42162966710 on `push`: success.
+- **The chain screen** (`scripts/productive_recovery_screens.py --checkpoint 3`): arms `C0`
+  (RS2 under wear, L3, L2 and retail at `paid_work`), `CH` (+ PL1 timber supply, PL3 paid
+  granary crews, RS4 remittances), `CH_unpaid`, `CH_cut`, `CH_free`, `CH_L2`; 81 outcomes, two
+  primary. [Preregistration and results](superpowers/progress/productive-recovery-screens-cp3.md).
+- **Chain examples** (`scripts/productive_recovery_examples.py --chain`): on development
+  worlds T23, P7, P21 and P31 every link occurs naturally; the stall, the expedition, its crew
+  and the wages are traced by stable id; the expedition to the project, the store to the
+  repair and food purchases only by region (purchases are summed per region before the
+  snapshot). [Examples](superpowers/progress/productive-recovery-examples.md).
+- **Recovery chain view** (viewer, Livelihoods tab): one region's chain per snapshot and over
+  the run, with the tradeoffs beside each link; off, unknown and zero are distinct, and every
+  link says whether it is joined by id or by region. Browser QA
+  `viewer/scripts/qa-recovery-chain.mjs` on development worlds.
+  [Page](integration/recovery-chain-view.md).
+- **Independent review:** the runner and examples (no blocker, no screen outcome changed;
+  fixed: resume run header, set sizes and coverage reported, rc-3 wording, RS2 workshop wages
+  dropped by the examples under PL3, link-3 cause, drawdown label, a vacuous test, a sample
+  double count); the results write-up (numbers exact; overstated readings corrected); the
+  chain view (no blocker; fixed with tests: a store attribution claimed when the store held
+  nothing, PL3 workshop crews' farm time left out, unknown receipts or provisioning counted
+  as recorded, totals not marked "at least", empty crews shown as paid rows, members counted
+  as paid with a zero wage, the turn order of wages and purchases, and an unguarded QA
+  output delete).
+- **Held screens** (cohort 3, template 721–726, procedural 821–826, frozen at `5dd03207`
+  before running): 72 runs, 0 failed, 0.33 core-hours.
+  - **Timber matters in procedural worlds**: `CH − CH_cut` granary run mean +0.028 t (4/0/2,
+    weak), **+0.075 p (5/1/0)**; workshop +0.120 p; `no_timber` stalls −278 p (0/6/0);
+    completed repairs 22.8 → 43.0 p per world. Most stalls still lack timber (78% p).
+  - **The wage does not reach food at the community scale**: `CH − CH_unpaid` priced-out rate
+    mixed (8 of 10 worlds higher; one procedural world much lower). Paid crews bring more
+    regions under prices (coverage 0.83 against 0.51 p), the farm income retail replaces
+    outweighs the wages, and money credited to households (gross) falls −353 t, −1,153 p.
+    Granary crews' wages far exceed the income they give up; woodcutters' only modestly.
+  - **Tradeoffs**: crews away 247 p farmer-turns per world, with no food cost detectable
+    against the cost-only control (the labour cost itself is not measured);
+    procedural stands fall to about 0.58 of capacity; families priced out +34 p per world
+    against free exchange (6/0/0), children among them; retail against free allocation is
+    again a null.
+- **Limits:** everything in checkpoint 2's limits below; template worlds remain timber-poor
+  (two of six never start the chain); purchases by person are not in the snapshot; the
+  labour cost of expeditions is not separated from a no-expedition arm; PL3's withheld income
+  does not split granary from workshop crews; five viewer readers return null for both an
+  absent and a malformed record (the chain view tells them apart, their own panels cannot).
+- **Out of scope for this phase:** the 200-seed and procedural qualification gates, default
+  promotion, cross-civ timber trade, harvest-driven cover loss, infrastructure repair,
+  merchants buying from owners, requisition of owned stock, and calibration of the declared
+  constants.
+
+# 2026-11-06 — productive recovery, checkpoint 2 (household retail), merged (PR #80)
 
 ## Productive recovery and household livelihoods: checkpoint 2 (household food retail)
 

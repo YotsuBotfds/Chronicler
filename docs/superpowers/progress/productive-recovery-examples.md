@@ -1,4 +1,4 @@
-# Productive recovery, checkpoint 1: success and failure examples (PL6b)
+# Productive recovery: success and failure examples (PL6b, checkpoint 1; PL6d, checkpoint 3)
 
 Two kinds of example are recorded here, and the labels mean exactly this:
 
@@ -9,7 +9,9 @@ Two kinds of example are recorded here, and the labels mean exactly this:
   seed). Each names the command that writes the run and the snapshot turn of the
   instance. `scripts/productive_recovery_examples.py` finds them.
 
-The packages are the checkpoint-1 set: PL1 timber supply
+The [checkpoint-3 section](#checkpoint-3-the-integrated-chain-pl6d) at the end traces the
+integrated chain by stable id. The sections before it cover the checkpoint-1 packages:
+PL1 timber supply
 ([timber-supply.md](../../integration/timber-supply.md)), PL2 `--operating-wear` and RS1
 rules version 2 ([operating-wear.md](../../integration/operating-wear.md),
 [apprenticeship.md](../../integration/apprenticeship.md#rs1-rules-version-2-pl2)), PL3
@@ -18,8 +20,9 @@ recovery crews and the maintenance obligation
 [maintenance-obligation.md](../../integration/maintenance-obligation.md)) and RS2's
 `no_people` correction ([repair-projects.md](../../integration/repair-projects.md)).
 
-The source is the phase branch `claude/productive-recovery` at `de9a5699`. This lane's
-branch changes no simulation or Rust file. The native extension is `fdcb0ca0…` in
+For the checkpoint-1 sections, the source is the phase branch `claude/productive-recovery` at
+`de9a5699`. That lane's branch changes no simulation or Rust file. The native extension is
+`fdcb0ca0…` in
 `~/.venvs/native-pl1` (Python 3.13, Linux), built from the Rust of `7c16e9ce`, which
 matches the branch's Rust.
 
@@ -211,3 +214,132 @@ each field, declared value and RS2 history event the finder reads against this c
 snapshot and ids, the near misses it must skip, the "none found", "not recorded" and
 "not applicable" outputs, that the final state is never read, the printed report of a
 written bundle, and `check_fields()` against the source.
+
+## Checkpoint 3: the integrated chain (PL6d)
+
+The phase's story is a chain: a community needs timber (an RS2 project stalls
+`no_timber`), shifts labour to obtain it (a PL1 expedition from that region cuts and
+delivers), repairs the asset (RS2), pays named workers (`repair_wage` to PL3 granary crews,
+RS2 workshop crews and the PL1 crew), and those households buy food (PL4 retail, here at the
+`paid_work` boundary). `scripts/productive_recovery_examples.py --chain` follows every
+project that stalled `no_timber` through those five links and says, for each link, whether
+the dated records join it to the previous one **by stable id** or **only by region**. It
+also finds the chain's natural tradeoffs.
+
+The source is `claude/pl6d-chain` (from `claude/household-retail` `12ad9a1e`; this lane
+changes no simulation, Rust or viewer file). The native extension is `101a4cd5…` in
+`~/.venvs/native-hrn2` (Python 3.13, Linux), which matches the branch's Rust.
+
+### Natural runs
+
+Development worlds only: template seed 23 and procedural 32×10 seeds 7, 21 and 31, 200
+turns, each the checkpoint-3 screen arm `CH` (every chain switch; the preregistration is
+[productive-recovery-screens-cp3.md](productive-recovery-screens-cp3.md)). T23 rerun from
+scratch wrote a byte-identical `state.json` (SHA-256 `a021c0e1…`) and identical finder
+output.
+
+```sh
+# T23 (and P7, P21, P31 with --seed 7 / 21 / 31 --worldgen procedural --regions 32 --civs 10)
+PYTHONHASHSEED=0 RAYON_NUM_THREADS=1 PYTHONPATH=src ~/.venvs/native-hrn2/bin/python -m chronicler.main \
+  --seed 23 --turns 200 --agents hybrid --simulate-only --grain-reserves --public-grain-shipments \
+  --scholarship --techniques --academy-services --grain-storage --food-allocation --workshops \
+  --operating-wear --repair-projects --timber-stock --household-retail --household-retail-boundary paid_work \
+  --timber-supply --recovery-crews --remittances --output OUT/chronicle.md --state OUT/state.json
+
+python scripts/productive_recovery_examples.py --chain OUT/chronicle_bundle.json
+```
+
+Snapshots are the viewer's turn; each record observes the completed turn before it.
+Expedition `launched_turn` and `ended_turn` are those completed turns (the snapshot is one
+later). Ids are native stable ids (people), region indices, expedition `eid` and RS2 project
+`pid`. Wages are in coins (1000 milli = one coin).
+
+### How far each link can be traced
+
+| Link | Record | Joined by |
+| --- | --- | --- |
+| 1. RS2 project stalled `no_timber` | `repair_projects.receipts` (`pid`, `asset`, `reasons`) | id |
+| 2. A PL1 expedition from that region launched, cut and delivered | `timber_supply.closed` (`eid`, crew ids, `home`), the `needs` row that names the `eid` | the expedition and its crew by id; the expedition to the project **by region** (PL1's need is per region, summed over its open projects). All four instances below had the project as the region's only open project at launch, so the link is unambiguous there. |
+| 3. The asset's repair used the delivered timber | `timber_supply.stores` (per region: `held`, `released`) and the project's RS2 receipt (`timber_used`) of the same turn | **region**: the store is per region and RS2's receipt does not say how much of its timber came from it. When the project is the only one in the region holding timber that turn, the store's hold can only be its own (marked "by id"); in the four worlds this held in 2 of 15, 8 of 10, 5 of 13 and 13 of 27 traced chains. |
+| 4. Named workers paid `repair_wage` | `recovery_crews.receipts[].members` (`pid` → `agent_id`, `wage_milli`); RS2 workshop receipts (`crew`, `wages_milli`); PL1 receipts (`crew`, `wages_milli`) | id |
+| 5. Those households, or the region's pilot households, bought food later | the retail frame row of the region (`provisioning.paid_milli`, `sold_milli`, `persons`), and the 24-person sample (`agent_id`, `household`, `ration`, `fair_share`, `status`) | purchases **by region only**: the native money rows (id, paid, credited, refunded) are summed to totals before the snapshot. By id only the sample, which records a person's ration and status, not whether they bought: a crew member, or a member of the household keyed by the crew member's id (a household's key is the smaller id of a co-resident couple, and a child takes a parent's key). |
+
+### Natural instances (one per world, the deepest with the most links joined by id)
+
+| World | Snapshots: stall → delivery → repair → wages → purchases | What happened |
+| --- | --- | --- |
+| T23 | 15 → 27 → 28–29 → 28 → 29 | Granary project 0 (region 7) stalled `no_timber` on 9 snapshots from 15. Expedition 1 (home 7, forest 6, 2 hops; launched turn 19 for a gap of 4.0 with no free timber; crew 2, 3, 13, 14, with 3 and 13 still aboard at the end; 17 farmer-turns away from region 7) cut 15.48 and delivered 15.17. RS2 held 5.11 of it from region 7's store at snapshots 28–29 (project 0 the only holder: **by id**); condition 0.73 → 0.84 and the project completed at snapshot 29; the other 10.06 was released to the region's stockpile. PL3 paid granary crew 3, 13, 15 and 20 (2.0, 4.0, 2.0, 2.2 coins); the woodcutters had been paid 2.5–3.5 coins each from snapshot 21. Region 7 had been a `paid_work` pilot since turn 14; after the repair wage its households paid for food on 172 snapshots (903 coins; at snapshot 29: 3.6 coins for 3.9 food at 0.462 a ration, 50 pilot persons, none priced out). **By id:** woodcutters 2, 3 and 13 are in the sample in region 7 at snapshot 22, after their wages, fed at a full ration. No member of project 0's granary crew is in the sample after the repair wage: that sub-link is **not traced by id** here (it is in 8 of T23's 15 chains). |
+| P31 | 29 → 37 → 38, 39, 42 → 38 → 39 | Granary project 6 (region 9) stalled `no_timber` (with `no_coins`) on 9 snapshots from 29. Expedition 7 (home 9, forest 3, 1 hop; launched turn 31, gap 4.0; crew 5, 7, 16, 20, all home; 12 farmer-turns away) cut 5.15 and delivered 5.10. RS2 held all 5.10 from the store at snapshots 38, 39 and 42 (only holder: **by id**), using 6.07 timber with the stockpile's; condition 0.74 → 0.84, completed at snapshot 42. PL3 paid 5 (5.95 coins, also a woodcutter), 64, 80 and 95 (2.0 each) and 99 (0.19); the woodcutters had 2.5 each from snapshot 33. Region 9 a pilot since turn 27; 144 purchase snapshots after the wage (354 coins; at 39: 5.7 coins for 5.2 food at 0.552, 43 persons, none priced out). **By id:** crew member 5 is in the sample in region 9 at snapshots 39 and 40, fed at the fair share (0.906, then 1.0), and so is 7, of the household keyed by 5 (a fellow woodcutter): the whole chain is joined by id except purchases and the expedition-to-project step. |
+| P7 | 104 → 113 → 114–115 → 114 → 115 | Granary project 38 (region 23) stalled on 3 snapshots from 104. Expedition 16 (home 23, forest 28, 1 hop; launched turn 107; crew 746, 760, 777, 852, all home; 5 farmer-turns away) cut 4.74, delivered 4.69; RS2 held 4.08 at 114–115 (only holder: **by id**), condition 0.79 → 0.87, completed at 115; 0.61 released. PL3 paid 746 (2.0), 1122 (2.2), 1225 and 1231 (2.0 each); woodcutters 2.5 each from 109. Region 23 a pilot since turn 31; 74 purchase snapshots (154 coins; at 115: 3.4 coins for 2.1 food at 0.794, 41 persons, none priced out). **By id:** 777 (woodcutter) and 1593 (of the household keyed by repair crew member 1122) are in the sample at snapshots 116–144, every row `withheld_dead` (just under the fair share because a dead owner's claim was withheld for heirs): they are traced by id, but not as fed. |
+| P21 | 55 → 70 → 71–72 → 71 → 72 | Granary project 18 (region 5) stalled `no_timber` (with `no_labor`) on 15 snapshots from 55. Expedition 15 cut at the home region's own forest (0 hops; launched turn 67; crew 2, 21, 131, 542; 2.4 farmer-turns away), delivered 1.66; RS2 held all of it at 71–72 (only holder: **by id**), condition 0.59 → 0.61; the project was still open at the end of the run. PL3 paid 131 (1.9) and 542 (1.4); woodcutters 0.5 each. Region 5 a pilot since turn 32, but its households bought food on only 5 snapshots afterwards (3.1 coins; at 72: 0.52 coins for 0.25 food at 1.055 a ration, 11 persons). **By id:** 131 and 542 themselves and 679 (household keyed by 542) are fed at the fair share 0.474 in region 5 at snapshot 72. |
+
+Funnel over every project that stalled `no_timber` (the finder's `chain funnel`):
+
+| World | Stalled `no_timber` | Expedition from the region delivered after the stall | Repair used it | Workers paid | Region bought food later | A paid worker or their household in the sample later (in the chain's region; the repair crew after its wage) |
+| --- | --- | --- | --- | --- | --- | --- |
+| T23 | 29 | 15 | 15 | 15 | 15 | 15 (12; 8) |
+| P7 | 43 | 11 | 10 | 10 | 10 | 8 (6; 4) |
+| P21 | 43 | 13 | 13 | 13 | 13 | 12 (11; 11) |
+| P31 | 79 | 27 | 27 | 27 | 27 | 25 (15; 13) |
+
+Where the chain breaks, it breaks at link 2: most stalled projects never got a delivery from
+an expedition of their region while they were open (the finder does not say why per
+project; the checkpoint-1 refusal examples above show the usual reasons). Once timber
+arrived, the remaining links followed in every chain but one: P7's granary project 36
+(region 27). Expedition 11 delivered 3.22 timber to region 27's store at snapshot 86, and it
+stayed there unused until the run ended (snapshots 87–200: nothing held, returned or
+released, and no other project in the region held timber). The project stalled
+`no_timber` with `no_labor` on 3 of those snapshots, then `no_people` (suspended, nobody
+farming in the region) on the other 111, and never closed. The finder states this cause
+from the store rows and the project's receipts rather than assuming one.
+
+### Natural tradeoffs
+
+| Tradeoff | World, snapshot | What happened |
+| --- | --- | --- |
+| Crew farm labour away while the home region was short of food | P31, 84 | Expedition 26's crew (502, 503, 568, 702; outbound) took 2.0 farmer-turns from region 28 while its sufficiency after relief was 0.57 (a shortfall of 8.0 of 18.5 food), and 3 of region 28's 37 pilot persons were priced out that turn. Many away crew-turns fell on short home regions: T23 57 of 89, P7 87 of 160, P21 66 of 105, P31 104 of 276. These are coincidences in time, by id (expedition, crew) and region (food); the cost of the labour itself is not separable in one run (checkpoint 1's limit). |
+| The forest stand drawn down by a cut | P7, 28 | The finder ranks the receipt's harvest fall: the stand within this turn's capacity before the cut minus after it, which is extraction net of regrowth; L3's whole change adds the cover lost that turn and is reported beside it. In P7 expedition 0 (crew 78, 79, 81, 82) cut 8.82 at forest 12 against 1.94 of regrowth, with no cover loss: the stand fell 6.88 (2,123.0 to 2,116.1, 97.5% to 97.2% of capacity), all of it the harvest. P31's largest (snapshot 28, expedition 4, forest 30) is the same kind: an 8.19 fall, 12.16 extracted (the crew's 8.46 cut and the residents') against 3.97 regrowth, no cover loss. In T23 (snapshot 143, expedition 14, forest 6) the crew's 5.22 cut was the whole extraction and the harvest fall, but L3's stock fell 28.05 that turn (2,032.1 to 2,004.1), **mostly cover loss** (22.83 cleared); P21's largest (snapshot 34, forest 19) likewise fell 56.46 in L3, 51.00 of it cover loss against 5.63 extracted. The harvest lowered the stand on 17 of 65, 27 of 106, 20 of 93 and 66 of 177 cutting turns (T23, P7, P21, P31); counting cover loss, L3's stock fell on 19, 28, 29 and 69. Every harvest fall was under 0.4% of the stand. |
+| The guard ended a cutting stage | T23, 35 | Expedition 4's cutting at forest 5 ended `forest_depleted`, but **not because of the crew**: the crew cut 0.004 timber, while L3 recorded 126.4 cleared (cover lost) over snapshots 33–35 and the stand's capacity fell to 0. It is D1's depletion cause (clearing), seen under a crew. No guard ending occurred in P7, P21 or P31. |
+| A family priced out after its crew member's wages ended | P31, 83 | The search counts every `repair_wage` once, from the record that carries it: PL3 granary-crew members' own wages, RS2 receipts for workshop crews (PL3 lists the crews it widened but pays them nothing itself), and PL1 receipts; a sample row belonging to two former workers counts once. Person 1071, paid once as a PL3 granary-crew member in region 19 (0.38 coins at snapshot 66), is in the sample at snapshot 83 **priced out** in region 28 (ration 0.536 against a fair share of 0.589; household keyed 1035, the smaller id of the couple), 17 turns after that wage and never paid again: traced by id. The person had moved regions in between, so the household priced out is not in the region where the wage was earned. This was the only kind of instance found: 4 priced-out sample rows in P31 and **none in T23, P7 or P21**. A crew member's family whose key is the spouse's id is found only if the crew member is in the sample too, so the search can miss families; with only 24 sampled persons a turn, a null here is not evidence that no family was priced out. |
+
+### Not traced, or not found
+
+- **Purchases by person.** No link 5 is traced to a purchase by id: the snapshot keeps
+  region purchase totals and a person's ration and status, not who paid.
+- **The expedition-to-project step** is regional in every instance (PL1 plans the need per
+  region); it is unambiguous only because each project was its region's only open one.
+- **T23's repair crew in the sample** after the repair wage did not occur for project 0
+  (only the woodcutters were sampled), and P7's sampled crew households were all
+  `withheld_dead`, not fed.
+- **A family priced out after wages ended** did not occur in T23, P7 or P21.
+- **A crew drawdown to the guard** did not occur: the one guard ending (T23) was clearing.
+
+### Limits of the trace
+
+These are possible in principle and were not observed; they are recorded, not changed.
+
+- Link 3 sums the store's per-turn `held` over the turns the project used timber. Timber
+  RS2 returned to the store and held again in a later turn would be counted twice; `returned`
+  was 0 in every store row of the CH bundles checked.
+- Link 3 credits the uses to the expedition traced even if a second delivery to the region
+  arrived before the first use (the window stops at a new delivery only once a use is
+  found).
+- Only the earliest delivered expedition after the stall is traced per project; a later
+  delivery to the same project is not.
+- RS2 and PL1 receipts carry a crew's wages in total. The finder splits them equally (RS2
+  pays every repairer of a site the same wage, PL1 every member the same rate), which is
+  exact unless the wealth ceiling refused one member's wage; the receipt does not say whose.
+
+### Constructed
+
+`tests/test_productive_recovery_examples.py` (offline, oracle chunk `timber-supply`) builds
+a chain on purpose and checks every link's snapshot, ids and "by id" or "by region" label,
+the funnel, near misses (a project with no expedition, a stall after the launch, a
+price-out in the very turn the wage was paid, a store shared with another project), each
+missing link's stated reason (no store row; timber released, held by another project, or
+still in the store at the end of the run), the tradeoffs with their ids (a drawdown under
+cover loss included), RS2 workshop wages of a PL3-widened crew counted once, a sample row of
+two paid workers counted once, and that only dated records are read: a final state shaped
+like a snapshot that holds a delivery and another stall changes nothing. `check_fields()` also checks every field, reason, status and stage the chain mode
+reads, the retail sample's columns and the native provisioning columns against this
+checkout.
