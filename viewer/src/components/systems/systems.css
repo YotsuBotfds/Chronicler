@@ -602,3 +602,58 @@ button.systems-strip-label:hover {
     display: none;
   }
 }
+
+/* Recovery chain (PL5c): the region picker's label, as the shell's field labels. */
+.recovery-chain-field label {
+  color: var(--phase75-muted-strong);
+  font-size: 0.82rem;
+}
+
+/* At phone width the chain's at-snapshot table stacks each link: its name, then the labelled cells. */
+@media (max-width: 640px) {
+  .recovery-chain-now thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+
+  .recovery-chain-now tr,
+  .recovery-chain-now th,
+  .recovery-chain-now td {
+    display: block;
+  }
+
+  .recovery-chain-now th {
+    white-space: normal;
+    padding-bottom: 2px;
+    border-bottom: 0;
+    color: var(--phase75-ink);
+  }
+
+  .recovery-chain-now td {
+    padding-top: 2px;
+    padding-bottom: 4px;
+    border-bottom: 0;
+  }
+
+  .recovery-chain-now td::before {
+    content: attr(data-label) ": ";
+    color: var(--phase75-muted-strong);
+  }
+
+  .recovery-chain-now tr {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 6px 0;
+  }
+}
+
+/* The chain over snapshots is a wide data table: it scrolls in its wrap rather than squeezing each column. */
+.recovery-chain-turns {
+  min-width: 78rem;
+}
+
+.recovery-chain-turns td {
+  min-width: 7rem;
+}

@@ -69,6 +69,7 @@ link to these by path, so keep their names stable.
   [workshop operating wear](integration/operating-wear.md),
   [timber supply (woodcutting expeditions)](integration/timber-supply.md),
   [household food retail](integration/household-retail.md) ([design](integration/household-retail-design.md)),
+  [the recovery chain view](integration/recovery-chain-view.md),
   [feature options in Batch Lab and live setup](integration/feature-options.md); plans in
   [sprint 1](superpowers/roadmaps/livelihoods-commons-sprint1.md),
   [sprint 2](superpowers/roadmaps/livelihoods-commons-sprint2.md) and the
@@ -117,6 +118,7 @@ map layers. Feature views: [granaries](integration/granary-view.md),
 [expansion inspectors](integration/expansion-inspectors.md),
 [city institutions](integration/city-institution-history.md),
 [entity search](integration/historical-entity-search.md),
+[recovery chain](integration/recovery-chain-view.md),
 [feature options in Batch Lab and live setup](integration/feature-options.md). Commands and pages are in
 [`viewer/README.md`](../viewer/README.md).
 
