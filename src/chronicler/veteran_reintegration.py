@@ -653,6 +653,26 @@ def open_record_ids(world) -> frozenset[int]:
     return frozenset(r.agent_id for r in state.records if r.status != "closed")
 
 
+def eligible_ids(world, region: int | None = None) -> list[int]:
+    """Stable ids of veterans eligible now under RS3's rule, the same in both
+    modes: an open record, released before this turn and at most
+    ``ELIGIBLE_TURNS`` turns ago, adult (``AGE_ADULT``) at the last
+    observation, on no army roster now, and resident in a region ruled by the
+    civilization they served. ``region`` (an index in ``world.regions``)
+    keeps those resident there; None keeps every region. Order: earliest
+    release first, then ascending id (the order :func:`priority_ids` offers).
+    ``[]`` while inactive. Admission by another package (PL3 recovery crews)
+    reads this; the order is applied only through :func:`priority_ids`."""
+    state = _state(world)
+    if state is None or not veteran_reintegration_active(world):
+        return []
+    eligible = _eligible_ids(world, state)
+    if region is not None:
+        return _ordered(state, int(region), eligible)
+    rows = [r for r in state.records if r.agent_id in eligible]
+    return [r.agent_id for r in sorted(rows, key=lambda r: (r.released_turn, r.agent_id))]
+
+
 def priority_ids(world, region: int) -> list[int]:
     """Stable ids of eligible veterans resident in ``region`` (an index in
     ``world.regions``), earliest release first, then id; ``[]`` in the
@@ -661,7 +681,7 @@ def priority_ids(world, region: int) -> list[int]:
     state = _state(world)
     if state is None or state.mode != "priority" or not veteran_reintegration_active(world):
         return []
-    return _ordered(state, int(region), _eligible_ids(world, state))
+    return eligible_ids(world, region)
 
 
 def note_outcome(world, agent_id: int, kind: str, *, turn: int, detail: dict | None = None) -> None:

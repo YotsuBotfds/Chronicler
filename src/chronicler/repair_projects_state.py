@@ -74,6 +74,10 @@ MAX_HISTORY = 16
 MAX_CREW = 4
 
 
+def _false(value) -> bool:
+    return value is False
+
+
 class RepairProject(BaseModel):
     """One repair or reconstruction project of one asset.
 
@@ -112,6 +116,10 @@ class RepairProject(BaseModel):
     last_crew: list[int] = Field(default_factory=list)
     #: (turn, event, civ, amount); amounts in milli-units or milli-work.
     history: list[tuple[int, str, int, int]] = Field(default_factory=list)
+    #: PL3 correction: the granary project is suspended for ``no_people`` as
+    #: of its last settled turn (omitted while False, so records of projects
+    #: never suspended are unchanged).
+    suspended: bool = Field(default=False, exclude_if=_false)
 
 
 class WarDamage(BaseModel):

@@ -95,6 +95,9 @@ class CrewReceipt(BaseModel):
     capacity: float = 0.0
     requested: float = 0.0
     delivered: float = 0.0
+    #: Granary: the free adult farmers ran out with at least ``MIN_SHARE`` of
+    #: the planned work left (a smaller remainder counts as covered).
+    short: bool = False
     members: list[CrewMember] = Field(default_factory=list)
     coin_cost_milli: int = 0
     wages_due_milli: int = 0

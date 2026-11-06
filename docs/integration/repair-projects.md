@@ -327,13 +327,18 @@ region has no farmers.
     project stays open, its storage request stays suspended, and it resumes
     when farmers are present again. The transitions are dated in the project
     history (`suspended_no_people`, `resumed`) and counted (`suspensions`,
-    `resumptions`).
+    `resumptions`). They are read from the project's own persisted
+    `suspended` flag (present in its record only while true), which only a
+    settled turn changes; a frame left unsettled by a turn without a settled
+    Phase 2 neither repeats a suspension nor hides a resumption (review C,
+    2026-11-06; the first version read the previous frame).
   - L9: a granary project in a region without farmers at the decision's
     observation is not proposed (and not planned for the maintenance
     obligation).
   - Without an agent snapshot (constructed tests) the signal is unknown and
     the earlier rule applies.
-- **Regression tests** (`tests/test_recovery_crews.py`):
+- **Regression tests** (`tests/test_recovery_crews.py`; the unsettled-frame
+  case is `test_suspension_and_resumption_survive_a_turn_without_a_settled_phase2`):
   `test_no_granary_project_opens_in_a_region_without_farm_labour` fails on the
   earlier code (a project opens in the empty region);
   `test_an_open_granary_project_is_suspended_without_farm_labour_and_resumes`
