@@ -253,6 +253,9 @@ export interface WageRow {
   /** The RS2 project (PL3, RS2) or the PL1 expedition. */
   pid: number | null; eid: number | null;
   people: number[];
+  /** The people the records show were paid, by id: a PL3 member whose own wage is above zero; an RS2 or PL1 crew
+   * when its receipt paid wages and the ceiling refused none (with a refusal, who went unpaid is not recorded). */
+  paid: number[];
   wagesMilli: number;
   /** Wages the wealth ceiling refused (sunk). */
   refusedMilli: number;
@@ -262,8 +265,14 @@ export interface WageRow {
   unpaid: boolean;
 }
 
+/** A PL3 workshop crew: its wages are on the RS2 receipt, but the farm time it took is PL3's. */
+export interface WorkshopCrew { pid: number; people: number[]; farmTime: number }
+
 export interface WagesValue {
-  pl3: Cell<{ rows: WageRow[]; mode: RecoveryCrewsRecord["mode"]; truncated: boolean }>;
+  pl3: Cell<{ rows: WageRow[]; mode: RecoveryCrewsRecord["mode"]; truncated: boolean;
+    /** Granary projects of the region whose crew had nobody this turn, with the work planned for them. */
+    noCrew: Array<{ pid: number; planned: number }>;
+    workshops: WorkshopCrew[] }>;
   rs2: Cell<{ rows: WageRow[] }>;
   pl1: Cell<{ rows: WageRow[] }>;
 }
@@ -273,13 +282,16 @@ export interface SampleMatch {
   /** "self": the paid worker; "household": a member of the household keyed by the worker's id. */
   who: "self" | "household";
   worker: number; ration: number; fairShare: number; status: string;
+  /** The snapshot the worker was first paid in the region (this one or earlier). */
+  since: number;
 }
 
 export interface RetailValue {
   mode: HouseholdRetailRecord["mode"]; boundary: HouseholdRetailRecord["boundary"];
   /** The region's pilot frame; null: the region is not a pilot region this turn. */
   frame: RetailRegionFrame | null;
-  /** Sample rows in the region whose person, or household key, was paid in the region at an earlier snapshot. */
+  /** Sample rows in the region whose person, or household key, was paid in the region at this or an earlier
+   * snapshot (a turn's Phase 2 wages are paid before that turn's provisioning). */
   matches: SampleMatch[];
   /** Sample rows in the region this turn. */
   sampled: number;
@@ -386,9 +398,13 @@ function granaryLink(storage: Cell<GrainStorageSnapshot>, repair: Cell<RepairPro
 }
 
 function crewRows(r: CrewReceiptRecord, mode: RecoveryCrewsRecord["mode"]): WageRow {
-  return { source: "pl3_granary", pid: r.pid, eid: null, people: r.members.map((m) => m.agent_id), wagesMilli: r.wages_milli,
+  return { source: "pl3_granary", pid: r.pid, eid: null, people: r.members.map((m) => m.agent_id),
+    paid: r.members.filter((m) => m.wage_milli > 0).map((m) => m.agent_id), wagesMilli: r.wages_milli,
     refusedMilli: r.wage_residual_milli, farmTime: r.farm_time_removed, unpaid: mode === "unpaid" };
 }
+
+/** An RS2 or PL1 receipt names its crew and one total: the crew counts as paid only when nothing was refused. */
+const crewPaid = (crew: number[], wages: number, refused: number) => wages > 0 && refused === 0 ? [...crew] : [];
 
 function wagesLink(crews: Cell<RecoveryCrewsRecord>, repair: Cell<RepairProjectsRecord>, timber: Cell<TimberSupplyRecord>,
   region: number): Cell<WagesValue> {
@@ -396,24 +412,31 @@ function wagesLink(crews: Cell<RecoveryCrewsRecord>, repair: Cell<RepairProjects
   const pl3: WagesValue["pl3"] = crews.state !== "known" ? pass(crews) : crews.value.receipts === null
     ? unknown("no repair Phase 2 was settled in the source turn: this turn's crews are unknown, not zero")
     : { state: "known", value: {
-      // Granary crews only: a workshop crew's wages are on its RS2 receipt (PL3 records them as zero).
-      rows: crews.value.receipts.filter((r) => r.region === region && r.kind === "granary").map((r) => crewRows(r, crews.value.mode)),
+      // Granary crews with somebody on them: a workshop crew's wages are on its RS2 receipt (PL3 records them as
+      // zero), and a granary receipt with no member formed no crew.
+      rows: crews.value.receipts.filter((r) => r.region === region && r.kind === "granary" && r.members.length > 0)
+        .map((r) => crewRows(r, crews.value.mode)),
+      noCrew: crews.value.receipts.filter((r) => r.region === region && r.kind === "granary" && r.members.length === 0)
+        .map((r) => ({ pid: r.pid, planned: r.planned })),
+      workshops: crews.value.receipts.filter((r) => r.region === region && r.kind === "workshop" && r.members.length > 0)
+        .map((r) => ({ pid: r.pid, people: r.members.map((m) => m.agent_id), farmTime: r.farm_time_removed })),
       mode: crews.value.mode,
       truncated: crews.value.receipts.length >= (crews.value.parameters.max_frame_rows ?? 64) } };
   const rs2: WagesValue["rs2"] = repair.state !== "known" ? pass(repair) : repair.value.receipts === null
     ? unknown("no repair Phase 2 was settled in the source turn: this turn's workshop crews are unknown, not zero")
     : { state: "known", value: { rows: repair.value.receipts.filter((r) => r.region === region && r.kind === "workshop"
       && (r.crew.length > 0 || r.wages_due_milli > 0)).map((r): WageRow => ({ source: "rs2_workshop", pid: r.pid, eid: null,
-      people: [...r.crew], wagesMilli: r.wages_milli, refusedMilli: r.wage_residual_milli, farmTime: null, unpaid: false })) } };
+      people: [...r.crew], paid: crewPaid(r.crew, r.wages_milli, r.wage_residual_milli), wagesMilli: r.wages_milli,
+      refusedMilli: r.wage_residual_milli, farmTime: null, unpaid: false })) } };
   const pl1: WagesValue["pl1"] = timber.state !== "known" ? pass(timber) : timber.value.receipts === null
     ? unknown("no expedition Phase 2 in the source turn: this turn's woodcutters are unknown, not zero")
     : { state: "known", value: { rows: timber.value.receipts.filter((r) => r.home === region).map((r): WageRow => ({
-      source: "pl1_woodcut", pid: null, eid: r.eid, people: [...r.crew], wagesMilli: r.wages_milli,
-      refusedMilli: r.wage_residual_milli, farmTime: r.away_delivered, unpaid: r.unpaid })) } };
+      source: "pl1_woodcut", pid: null, eid: r.eid, people: [...r.crew], paid: crewPaid(r.crew, r.wages_milli, r.wage_residual_milli),
+      wagesMilli: r.wages_milli, refusedMilli: r.wage_residual_milli, farmTime: r.away_delivered, unpaid: r.unpaid })) } };
   return { state: "known", value: { pl3, rs2, pl1 } };
 }
 
-function retailLink(cell: Cell<HouseholdRetailRecord>, region: number, paidBefore: ReadonlySet<number>): Cell<RetailValue> {
+function retailLink(cell: Cell<HouseholdRetailRecord>, region: number, paidSince: ReadonlyMap<number, number>): Cell<RetailValue> {
   if (cell.state !== "known") return pass(cell);
   const x = cell.value;
   if (x.regions === null || x.sample === null)
@@ -423,8 +446,9 @@ function retailLink(cell: Cell<HouseholdRetailRecord>, region: number, paidBefor
   const matches: SampleMatch[] = [];
   for (const [agentId, , household, ration, fairShare, status] of rows) {
     const base = { agentId, household, ration, fairShare, status: RETAIL_STATUSES[status] ?? String(status) };
-    if (paidBefore.has(agentId)) matches.push({ ...base, who: "self", worker: agentId });
-    else if (household !== agentId && paidBefore.has(household)) matches.push({ ...base, who: "household", worker: household });
+    if (paidSince.has(agentId)) matches.push({ ...base, who: "self", worker: agentId, since: paidSince.get(agentId)! });
+    else if (household !== agentId && paidSince.has(household))
+      matches.push({ ...base, who: "household", worker: household, since: paidSince.get(household)! });
   }
   return { state: "known", value: { mode: x.mode, boundary: x.boundary, frame, matches, sampled: rows.length } };
 }
@@ -453,23 +477,25 @@ function foodLink(retail: Cell<HouseholdRetailRecord>, food: Cell<FoodAllocation
     : { source: "food_allocation", sufficiency: null, shortfall: null, scarce: false } };
 }
 
-/** Workers paid (wages above zero) in the region this turn, by stable id. */
+/** Workers the records show were paid in the region this turn, by stable id (``WageRow.paid``). */
 export function paidWorkers(wages: Cell<WagesValue>): number[] {
   if (wages.state !== "known") return [];
   const out = new Set<number>();
   for (const sub of [wages.value.pl3, wages.value.rs2, wages.value.pl1]) {
     if (sub.state !== "known") continue;
-    for (const row of sub.value.rows) if (row.wagesMilli > 0) row.people.forEach((p) => out.add(p));
+    for (const row of sub.value.rows) row.paid.forEach((p) => out.add(p));
   }
   return [...out];
 }
 
 /** One region's chain at every snapshot of the run, oldest first. */
 export function regionChain(snapshots: readonly ChainSnapshot[], region: number): ChainTurn[] {
-  const paid = new Set<number>();
+  const paid = new Map<number, number>();
   return snapshots.map((s) => {
     const p = s.packages;
     const wages = wagesLink(p.recovery_crews, p.repair_projects, p.timber_supply, region);
+    // A turn's Phase 2 wages are paid before that turn's provisioning, so this snapshot's wages count.
+    for (const id of paidWorkers(wages)) if (!paid.has(id)) paid.set(id, s.turn);
     const turn: ChainTurn = {
       turn: s.turn,
       repair: repairLink(p.repair_projects, region),
@@ -482,7 +508,6 @@ export function regionChain(snapshots: readonly ChainSnapshot[], region: number)
       remittances: remittanceLink(p.remittances, region),
       food: foodLink(p.household_retail, p.food_allocation, region),
     };
-    paidWorkers(wages).forEach((id) => paid.add(id));
     return turn;
   });
 }
@@ -502,8 +527,8 @@ export function linkState(t: ChainTurn, key: LinkKey): LinkState {
     case "repair": {
       const v = has(t.repair)!;
       if (v.receipts?.some((r) => r.status === "stalled")) return "tradeoff";
-      // Open projects are listed every turn; only this turn's work can be unknown.
-      return v.projects.length ? "active" : "none";
+      // Open projects are listed every turn; with this turn's receipts unknown, whether they stalled is unknown.
+      return v.projects.length ? (v.receipts === null ? "unknown" : "active") : "none";
     }
     case "expedition": {
       const v = has(t.expedition)!;
@@ -537,7 +562,9 @@ export function linkState(t: ChainTurn, key: LinkKey): LinkState {
     case "retail": {
       const v = has(t.retail)!;
       if (v.frame === null) return "none";
-      return (v.frame.provisioning?.priced_out_persons ?? 0) > 0 ? "tradeoff" : "active";
+      // The record-only control provisions no one by design; elsewhere an unprovisioned pilot is not observed.
+      if (v.frame.provisioning === null) return v.mode === "record_only" ? "active" : "unknown";
+      return v.frame.provisioning.priced_out_persons > 0 ? "tradeoff" : "active";
     }
     default: {
       const v = has(t.remittances)!;
@@ -546,9 +573,13 @@ export function linkState(t: ChainTurn, key: LinkKey): LinkState {
   }
 }
 
-/** Whether a link recorded something but not all of it is known (a wage source unknown, a forest account or the
- * store's holders unknown): run totals then count that snapshot as unknown too. */
+/** Whether a link recorded something but not all of it is known (a wage source unknown, the expeditions' receipts,
+ * a forest account or the store's holders unknown): run totals then count that snapshot as unknown too. */
 export function incomplete(t: ChainTurn, key: LinkKey): boolean {
+  if (key === "expedition") {
+    const v = has(t.expedition);
+    return !!v && v.receipts === null && v.expeditions.length > 0;
+  }
   if (key === "wages") {
     const w = has(t.wages);
     return !!w && [w.pl3, w.rs2, w.pl1].some((c) => c.state === "unknown" || c.state === "malformed"
@@ -562,12 +593,19 @@ export function incomplete(t: ChainTurn, key: LinkKey): boolean {
   return false;
 }
 
-/** Farm labour taken from the region this turn (farmer-turns): PL1 crews away and PL3 granary crews. */
-export function farmLabourAway(t: ChainTurn): { pl1: number | null; pl3: number | null } {
+/** Farm labour taken from the region this turn, in farmer-turns, by source: PL1 woodcutters away, PL3 granary
+ * crews and PL3 workshop crews. "off": the source is off in the run; null: unknown at this snapshot. */
+export interface FarmAway { pl1: number | "off" | null; granary: number | "off" | null; workshop: number | "off" | null }
+
+export function farmLabourAway(t: ChainTurn): FarmAway {
   const w = has(t.wages);
-  const sum = (c: Cell<{ rows: WageRow[] }> | undefined) =>
-    c && c.state === "known" ? c.value.rows.reduce((a, r) => a + (r.farmTime ?? 0), 0) : null;
-  return { pl1: w ? sum(w.pl1) : null, pl3: w ? sum(w.pl3) : null };
+  if (!w) return t.wages.state === "off" ? { pl1: "off", granary: "off", workshop: "off" } : { pl1: null, granary: null, workshop: null };
+  const of = <T,>(c: Cell<T>, f: (v: T) => number) => c.state === "off" ? "off" as const : c.state === "known" ? f(c.value) : null;
+  return {
+    pl1: of(w.pl1, (v) => v.rows.reduce((a, r) => a + (r.farmTime ?? 0), 0)),
+    granary: of(w.pl3, (v) => v.rows.reduce((a, r) => a + (r.farmTime ?? 0), 0)),
+    workshop: of(w.pl3, (v) => v.workshops.reduce((a, c) => a + c.farmTime, 0)),
+  };
 }
 
 /** Budget limits recorded this turn, by link: RS2 stalls or limits for coins or the envelope, a PL1 refusal for
@@ -613,15 +651,25 @@ export function fullestChainRegion(snapshots: readonly ChainSnapshot[], regionCo
   return best;
 }
 
+/** The turn table's pager: the rows not yet shown, a page at a time. */
+export function moreRowsLabel(remaining: number, page: number): string {
+  return remaining <= page ? `Show the last ${remaining}` : `Show ${page} more (${remaining} not shown)`;
+}
+
 /** Run totals for a region, over known snapshots only; ``unknown`` counts the snapshots that could not be read,
  * wholly or in part. */
 export interface ChainTotals {
   snapshots: number;
   stalls: number; stallsNoTimber: number;
   expeditions: number[]; delivered: number;
+  /** Snapshots where the timber-supply record itself is unknown or refused (deliveries unknown). */
+  deliveredUnknown: number;
   wagesMilli: { pl3: number; rs2: number; pl1: number };
   paidPeople: number;
-  farmAway: number;
+  /** Farm labour taken, by source, over the snapshots where that source is known. */
+  farmAway: { pl1: number; granary: number; workshop: number };
+  /** Snapshots where an on source of farm labour was unknown. */
+  farmAwayUnknown: number;
   purchasesMilli: number; purchaseSnapshots: number;
   pricedOutSnapshots: number; pricedOutPersons: number;
   remittanceMilli: number;
@@ -631,8 +679,9 @@ export interface ChainTotals {
 
 export function chainTotals(turns: readonly ChainTurn[]): ChainTotals {
   const unknown = Object.fromEntries(LINKS.map((l) => [l.key, 0])) as Record<LinkKey, number>;
-  const out: ChainTotals = { snapshots: turns.length, stalls: 0, stallsNoTimber: 0, expeditions: [], delivered: 0,
-    wagesMilli: { pl3: 0, rs2: 0, pl1: 0 }, paidPeople: 0, farmAway: 0, purchasesMilli: 0, purchaseSnapshots: 0,
+  const out: ChainTotals = { snapshots: turns.length, stalls: 0, stallsNoTimber: 0, expeditions: [], delivered: 0, deliveredUnknown: 0,
+    wagesMilli: { pl3: 0, rs2: 0, pl1: 0 }, paidPeople: 0, farmAway: { pl1: 0, granary: 0, workshop: 0 }, farmAwayUnknown: 0,
+    purchasesMilli: 0, purchaseSnapshots: 0,
     pricedOutSnapshots: 0, pricedOutPersons: 0, remittanceMilli: 0, conditionFirst: null, conditionLast: null, unknown };
   const eids = new Set<number>();
   const people = new Set<number>();
@@ -646,16 +695,21 @@ export function chainTotals(turns: readonly ChainTurn[]): ChainTotals {
     const exp = has(t.expedition);
     exp?.expeditions.forEach((e) => eids.add(e.eid));
     out.delivered += exp?.delivered ?? 0;
+    if (t.expedition.state === "unknown" || t.expedition.state === "malformed") out.deliveredUnknown += 1;
     const w = has(t.wages);
     if (w) for (const [k, c] of [["pl3", w.pl3], ["rs2", w.rs2], ["pl1", w.pl1]] as const) {
       if (c.state !== "known") continue;
       for (const row of c.value.rows) {
         out.wagesMilli[k] += row.wagesMilli;
-        if (row.wagesMilli > 0) row.people.forEach((p) => people.add(p));
+        row.paid.forEach((p) => people.add(p));
       }
     }
     const away = farmLabourAway(t);
-    out.farmAway += (away.pl1 ?? 0) + (away.pl3 ?? 0);
+    for (const k of ["pl1", "granary", "workshop"] as const) {
+      const v = away[k];
+      if (typeof v === "number") out.farmAway[k] += v;
+    }
+    if (Object.values(away).some((v) => v === null)) out.farmAwayUnknown += 1;
     const p = has(t.retail)?.frame?.provisioning;
     if (p) {
       out.purchasesMilli += p.paid_milli;
