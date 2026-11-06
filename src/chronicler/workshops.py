@@ -66,6 +66,12 @@ crew (registry category ``repair``), so the L1 planner never also employs a
 repairer; and :func:`_pending_storage_bills` includes the repair work planned
 but not yet charged (``repair_projects.pending_bills``), so the L1 funding and
 every later planner leave room for it.
+
+A3 seam (``--workshop-economics``; inert unless active):
+:func:`_firm_input_cap` bounds an operate-mode site's ceiling by the raw
+inputs its workshop firm can pay for (``workshop_economics.input_capacity``);
+a site whose firm can pay for none, or that has no firm, does not operate
+this turn (no free-input production under A3).
 """
 from __future__ import annotations
 
@@ -280,6 +286,20 @@ def _crew_maintenance(world, site: WorkshopSite, row: dict) -> float:
     return used
 
 
+def _firm_input_cap(world, site: WorkshopSite, row: dict, operating: bool, bill: dict, funded: bool):
+    """A3 seam: the raw loads this turn's workshop firm can pay for (the
+    ceiling's bound; 0.0: the site does not operate), or None while workshop
+    economics is inactive (the L1 rule, unchanged)."""
+    if not _lane_active(world, "workshop_economics"):
+        return None
+    from chronicler.workshop_economics import input_capacity
+    cap = float(input_capacity(world, site, row, operating=operating, funded=bool(funded),
+                               building="construction" in bill))
+    if math.isnan(cap) or cap < 0.0:
+        raise ValueError("a workshop firm's input capacity must be a non-negative number")
+    return cap
+
+
 def _operating_wear(world, site: WorkshopSite) -> float:
     """RS0 seam (RS1, PL2): this turn's wear of a funded operating site; 0.0
     unless operating wear is active: ``--operating-wear`` (which takes RS1's
@@ -405,6 +425,9 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
             operating = (funded and not builds and state.mode == "operate"
                          and row["work_available"] > 0.0
                          and (site.condition >= OPERATE_CONDITION or "repair" in bill))
+            limit = _firm_input_cap(world, site, row, operating, bill, funded) if state.mode == "operate" else None
+            if limit is not None and limit <= 0.0:
+                operating = False                     # A3: no affordable input (or no firm)
             ceiling = None
             work = row["work_available"]
             if operating:
@@ -413,6 +436,8 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
                     work = work - used
             if state.mode == "operate":
                 ceiling = K_RAW_PER_WORK * work if operating else 0.0
+                if operating and limit is not None:
+                    ceiling = min(ceiling, limit)
             plans.append(_SitePlan(site, payer, controller, bill, funded, operating, ceiling, row, work))
         caps = {p.site.region: p.ceiling for p in plans if p.ceiling is not None}
         if caps:
