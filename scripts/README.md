@@ -58,6 +58,10 @@ screens through the generic `screen_runner.py` (seeds checked against `seed_regi
 panel, activation before effects, identities); CW1-CW6 are stubs until their slices fill them
 in. `feature_matrix.py` generates the switch compatibility matrix from the feature catalog.
 See [connected-world screens](../docs/integration/connected-world-screens.md).
+`watershed_calibration.py BUNDLE [BUNDLE ...] [--json OUT]` compares the index the watershed
+account (`--watershed`, record only) would derive with the index the simulation used, on
+procedural development worlds only (it refuses other seeds); see
+[docs/integration/watershed.md](../docs/integration/watershed.md), section 7.
 
 ## Bundles and viewer fixtures
 
