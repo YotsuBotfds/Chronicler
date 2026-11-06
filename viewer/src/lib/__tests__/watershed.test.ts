@@ -170,3 +170,45 @@ describe("watershed region history", () => {
       "storage", readWatershedRun([])).missing).toBe("Watershed off in this run (--watershed not recorded)");
   });
 });
+
+import flowNatural from "../../__fixtures__/watershed_flow_records.json";
+
+describe("readWatershed, flow mode (B2)", () => {
+  const flow = flowNatural.snapshots as unknown as TurnSnapshot[];
+  const n = flowNatural.regions.length;
+  const at = (turn: number) => structuredClone(flow.find((s) => s.turn === turn)!) as unknown as TurnSnapshot;
+  const why = (s: TurnSnapshot) => { const r = readWatershed(s, n, readWatershedRun(flow)); return r.status === "malformed" ? r.reason : r.status; };
+
+  it("accepts natural flow records: index used = derived, floods with what they did, superseded river floods", () => {
+    for (const s of flow) expect(why(s)).toBe("ok");
+    const first = readWatershed(at(1), n, readWatershedRun(flow));
+    if (first.status !== "ok") throw new Error("expected ok");
+    expect(first.record.mode).toBe("flow");
+    expect(first.record.superseded).toEqual([{ turn: 0, region: 26, duration: 1 }]);
+    const flooded = readWatershed(at(31), n, readWatershedRun(flow));
+    if (flooded.status !== "ok") throw new Error("expected ok");
+    expect(flooded.record.floods![0].consequence).toMatchObject({ capacity_modifier: 0.85 });
+  });
+
+  it("refuses mixed or inconsistent flow records", () => {
+    const cases: Array<[(r: Record<string, unknown>) => void, string]> = [
+      [(r) => { r.stage = "B1"; }, "unknown watershed schema"],
+      [(r) => { delete r.superseded; }, "a flow record without its superseded floods"],
+      [(r) => { (r.regions as Record<string, number[]>).index_observed[0] += 0.01; }, "in flow the index used differs from the derived index"],
+      [(r) => { delete (r.counters as Record<string, number>).superseded_river_floods; }, "malformed counters"],
+      [(r) => { (r.superseded as Array<Record<string, number>>)[0].turn = 5; }, "malformed superseded flood"],
+    ];
+    for (const [edit, reason] of cases) {
+      const s = at(1);
+      edit((s as unknown as { livelihoods: { watershed: Record<string, unknown> } }).livelihoods.watershed);
+      expect(why(s)).toBe(reason);
+    }
+    const flood = at(31);
+    delete ((flood as unknown as { livelihoods: { watershed: { floods: Array<Record<string, unknown>> } } })
+      .livelihoods.watershed.floods[0]).consequence;
+    expect(why(flood)).toBe("a flow flood without its consequence");
+    const recordOnly = copy(1);                           // a record_only record may not carry flow keys
+    record(recordOnly).superseded = [];
+    expect(reason(recordOnly)).toBe("a record-only record with superseded floods");
+  });
+});

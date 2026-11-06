@@ -1,5 +1,6 @@
 /**
- * The watershed record (`snapshot.livelihoods.watershed`, schema 1, stage B1):
+ * The watershed record (`snapshot.livelihoods.watershed`, schema 1; stage B1
+ * for mode `record_only`, B2 for mode `flow`):
  * a conserved water account on the drainage graph of a procedural world,
  * written by `chronicler.watershed.snapshot_summary`. Values are rounded to
  * six decimals in the record; the full-precision account stays in the saved
@@ -34,6 +35,22 @@ export interface WatershedFlood {
   tributaries: Array<[number, number]>;
   upstream_cover: number | null;
   upstream_deforested: number;
+  /** Flow mode only: what the flood did through the existing fields. */
+  consequence?: WatershedFloodConsequence;
+}
+
+export interface WatershedFloodConsequence {
+  capacity_modifier: number;
+  cooldown: number;
+  soil_before: number;
+  soil_after: number;
+}
+
+/** Flow mode: a river flood the old check drew (its draws kept) whose effect was suppressed. */
+export interface WatershedSupersededFlood {
+  turn: number;
+  region: number;
+  duration: number;
 }
 
 /** An open drought after its declaration (its conditions are in its declaration and end records). */
@@ -101,8 +118,8 @@ export interface WatershedStatic {
 
 export interface WatershedRecord {
   schema_version: 1;
-  stage: "B1";
-  mode: "record_only";
+  stage: "B1" | "B2";
+  mode: "record_only" | "flow";
   source_turn: number;
   completed_turn: number;
   opened_turn: number;
@@ -123,6 +140,8 @@ export interface WatershedRecord {
   storage: number[] | null;
   cumulative: Record<string, number>;
   counters: Record<string, number>;
+  /** Flow mode only: this turn's superseded river floods (null when unobserved). */
+  superseded?: WatershedSupersededFlood[] | null;
 }
 
 /**

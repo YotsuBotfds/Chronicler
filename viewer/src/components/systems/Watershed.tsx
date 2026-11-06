@@ -26,6 +26,8 @@ const COUNTERS: Array<[string, string]> = [
   ["droughts_declared", "Droughts declared"], ["droughts_ended", "Droughts ended"],
   ["external_out_unmet_turns", "Turns with unmet outflow"],
   ["stale_baseline_turns", "Turns with a stale baseline"],
+  ["flood_consequences", "Floods that acted (flow)"],
+  ["superseded_river_floods", "River floods superseded (flow)"],
 ];
 
 /** Completed-turn watershed accounts only; never reads final-world state. */
@@ -39,9 +41,12 @@ export function Watershed({ bundle, snapshot, currentTurn, onSelectRegion }: {
   const at = snapshot?.turn ?? currentTurn;
   const regionLink = (rid: number) => <button type="button" className="systems-link"
     onClick={() => onSelectRegion(names[rid])}>{names[rid]}</button>;
+  const mode = reading.status === "ok" || reading.status === "unobserved" ? reading.record.mode : null;
   const header = <>
     <h3>Watershed account · snapshot {at}</h3>
-    <p className="systems-note">Record only: a conserved water account on the drainage graph of this procedural world runs beside the water index the simulation uses and changes nothing. Its constants are declared and uncalibrated, so a gap between the index it would derive and the index used is a calibration observation, not an effect. Water in water units (wu: one region's storage capacity without forest cover is 1).</p>
+    {mode === "flow"
+      ? <p className="systems-note">Flow: the account's derived index is the water index the simulation used. The native climate water terms, the irrigation water bonus and the downstream deforestation cascade are switched off; upstream irrigation withdrawals reduce the water downstream, and the account's floods act on the capacity modifier, the soil and the flood cooldown. The old river flood still draws from the shared environment stream, but its effect is superseded (listed below). Water in water units (wu: one region's storage capacity without forest cover is 1).</p>
+      : <p className="systems-note">{mode === "record_only" ? "Record only: a" : "A"} conserved water account on the drainage graph of this procedural world {mode === "record_only" ? "runs beside the water index the simulation uses and changes nothing" : "(record only or flow)"}. Its constants are fitted to the old index's cycle on development worlds; in record only, a gap between the index it would derive and the index used is a calibration observation, not an effect. Water in water units (wu: one region's storage capacity without forest cover is 1).</p>}
     <p className="systems-note">Precipitation includes tundra melt; evaporation includes transpiration; irrigation withdrawal is consumed. External inflow and outflow are changes of the water index between ticks made by other writers, attributed to a coastal flood where one struck and otherwise left unattributed. A closed basin (sink) or a lake loses what reaches it; water passed downstream stays in the account. Each region's outflow is the residual of its account, so closure holds by construction: the residual shows the routing and arithmetic are intact, not that the model is right.</p>
   </>;
   if (reading.status !== "ok" && reading.status !== "unobserved") {
@@ -65,7 +70,8 @@ export function Watershed({ bundle, snapshot, currentTurn, onSelectRegion }: {
       <tr><th scope="row">Closure residual</th><td>{cumulative.closure_residual?.toExponential(1) ?? "Unknown"}</td></tr>
     </tbody></table></div>
     <div className="systems-table-wrap"><table className="systems-table" aria-label={`Watershed counters to snapshot ${at}`}><tbody>
-      {COUNTERS.map(([key, label]) => <tr key={key}><th scope="row">{label}</th><td>{show(record.counters[key])}</td></tr>)}
+      {COUNTERS.filter(([key]) => key in record.counters).map(([key, label]) =>
+        <tr key={key}><th scope="row">{label}</th><td>{show(record.counters[key])}</td></tr>)}
     </tbody></table></div>
   </section>;
 }
@@ -77,6 +83,7 @@ function Settled({ record, statics, names, regionLink }: {
   const t = record.totals!;
   const outflow = watershedOutflow(record)!;
   const turn = record.completed_turn;
+  const flow = record.mode === "flow";
   const declared = new Set(record.droughts!.declared.map((d) => d.region));
   const droughts: Array<[WatershedDrought, string]> = [
     ...record.droughts!.declared.map((d): [WatershedDrought, string] => [d, "Declared this turn"]),
@@ -112,14 +119,23 @@ function Settled({ record, statics, names, regionLink }: {
     </table></div>
     {record.floods!.length === 0 ? <p className="systems-note">No region's arrivals exceeded its channel this turn (recorded: no flood).</p>
       : <div className="systems-table-wrap"><table className="systems-table" aria-label={`Floods at snapshot ${turn}`}>
-        <thead><tr><th>Region</th><th>Excess</th><th>Arrivals = rain + inflow + external</th><th>Channel</th><th>Tributaries (outflow)</th><th>Upstream cover</th></tr></thead>
+        <thead><tr><th>Region</th><th>Excess</th><th>Arrivals = rain + inflow + external</th><th>Channel</th><th>Tributaries (outflow)</th><th>Upstream cover</th>{flow ? <th>What it did</th> : null}</tr></thead>
         <tbody>{record.floods!.map((f) => <tr key={f.region}>
           <td>{regionLink(f.region)}</td><td>{show(f.excess)}</td>
           <td>{show(f.arrivals)} = {show(f.precipitation)} + {show(f.inflow)} + {show(f.external_in)}</td><td>{show(f.channel)}</td>
           <td>{f.tributaries.length === 0 ? "None (headwater)" : f.tributaries.map(([u, q]) => `${names[u]} ${show(q)}`).join("; ")}</td>
           <td>{f.upstream_cover === null ? "No upstream region" : `${show(f.upstream_cover)} mean; ${f.upstream_deforested} deforested`}</td>
+          {flow ? <td>{f.consequence ? `capacity ×${show(f.consequence.capacity_modifier)}; cooldown ${f.consequence.cooldown} turns; soil ${show(f.consequence.soil_before)} → ${show(f.consequence.soil_after)}` : "Unknown"}</td> : null}
         </tr>)}</tbody>
       </table></div>}
+    {flow && (record.superseded!.length === 0
+      ? <p className="systems-note">No river flood was superseded this turn (recorded: none).</p>
+      : <div className="systems-table-wrap"><table className="systems-table" aria-label={`Superseded river floods at snapshot ${turn}`}>
+        <thead><tr><th>Region</th><th>Old river flood (suppressed)</th></tr></thead>
+        <tbody>{record.superseded!.map((e) => <tr key={e.region}>
+          <td>{regionLink(e.region)}</td><td>drew a {e.duration}-turn flood; its capacity, cooldown and silt were not applied</td>
+        </tr>)}</tbody>
+      </table></div>)}
     {droughts.length === 0 && stillOpen.length === 0 ? <p className="systems-note">No region is in a declared drought this turn (recorded: none).</p>
       : droughts.length === 0 ? null
       : <div className="systems-table-wrap"><table className="systems-table" aria-label={`Droughts at snapshot ${turn}`}>

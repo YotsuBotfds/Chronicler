@@ -103,3 +103,20 @@ it("reads a resumed history that does not begin at the opening turn (review N2)"
   expect(screen.getByRole("table", { name: "Watershed regions at snapshot 21" })).toBeInTheDocument();
   expect(screen.queryByText(/malformed/)).toBeNull();
 });
+
+import flowNatural from "../../../__fixtures__/watershed_flow_records.json";
+
+it("shows flow mode: the index used is the derived one, what floods did and the superseded river floods", () => {
+  const flow = flowNatural.snapshots as unknown as TurnSnapshot[];
+  const b = { world_state: { regions: flowNatural.regions.map((name) => ({ name })) }, history: flow } as unknown as Bundle;
+  const first = render(<Watershed {...props(flow[0], b)} />);
+  expect(screen.getByText(/Flow: the account's derived index is the water index the simulation used/)).toBeInTheDocument();
+  const superseded = within(screen.getByRole("table", { name: "Superseded river floods at snapshot 1" }));
+  expect(superseded.getByText(flowNatural.regions[26])).toBeInTheDocument();
+  expect(screen.getByRole("row", { name: /River floods superseded \(flow\)/ })).toHaveTextContent("1");
+  first.unmount();
+  render(<Watershed {...props(flow.find((s) => s.turn === 31)!, b)} />);
+  const floods = within(screen.getByRole("table", { name: "Floods at snapshot 31" }));
+  expect(floods.getByText(/capacity ×0.85; cooldown \d turns/)).toBeInTheDocument();
+  expect(screen.getByText(/No river flood was superseded this turn \(recorded: none\)/)).toBeInTheDocument();
+});

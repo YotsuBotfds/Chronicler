@@ -23,6 +23,10 @@ const FLOW_KEYS = ["precipitation", "external_in", "external_out", "evaporation"
 const CUMULATIVE_KEYS = [...FLOW_KEYS, "opening_storage", "storage", "closure_residual"];
 const TOTAL_KEYS = [...FLOW_KEYS, "external_out_unmet", "external_in_coastal_flood", "external_in_unattributed",
   "external_out_unattributed", "storage_open", "storage_close", "closure_residual"];
+/** Counters of flow mode only. */
+const FLOW_COUNTER_KEYS = ["flood_consequences", "superseded_river_floods"];
+/** In flow mode the native write-back rounds the index the account wrote to 4 decimals. */
+export const NATIVE_ROUNDING = 5e-5;
 const COUNTER_KEYS = ["planned_turns", "settled_turns", "abandoned_plans", "flood_region_turns", "drought_region_turns",
   "droughts_declared", "droughts_ended", "external_out_unmet_turns", "stale_baseline_turns"];
 const SEA = -1;
@@ -103,7 +107,18 @@ export function watershedOutflow(record: WatershedRecord): number[] | null {
 
 type Near = ReturnType<typeof nearWith>;
 
-function floodProblem(x: unknown, regions: number, down: number[], outflow: number[], turn: number, near: Near): string | null {
+function consequenceProblem(x: unknown): string | null {
+  if (!object(x) || !sameKeys(x, ["capacity_modifier", "cooldown", "soil_before", "soil_after"])
+    || !finite(x.capacity_modifier) || !(x.capacity_modifier > 0 && x.capacity_modifier <= 1) || !count(x.cooldown)
+    || x.cooldown < 1 || !amount(x.soil_before) || !amount(x.soil_after) || x.soil_after < x.soil_before)
+    return "malformed flood consequence";
+  return null;
+}
+
+function floodProblem(x: unknown, regions: number, down: number[], outflow: number[], turn: number, near: Near,
+  flow: boolean): string | null {
+  if (object(x) && flow !== ("consequence" in x)) return flow ? "a flow flood without its consequence" : "a record-only flood with a consequence";
+  if (flow) { const why = consequenceProblem((x as Record<string, unknown>).consequence); if (why) return why; }
   if (!object(x) || x.turn !== turn || !count(x.region) || x.region >= regions
     || ![x.excess, x.arrivals, x.channel, x.precipitation, x.inflow, x.external_in, x.storage_open, x.capacity].every(amount)
     || !(x.upstream_cover === null || amount(x.upstream_cover)) || !count(x.upstream_deforested)
@@ -156,7 +171,11 @@ export function readWatershed(snapshot: TurnSnapshot | null | undefined, regionC
   if (container.schema_version !== 1) return bad("unknown livelihoods schema");
   const x = container.watershed;
   if (x === null) return bad("a null watershed record");
-  if (!object(x) || x.schema_version !== 1 || x.stage !== "B1" || x.mode !== "record_only") return bad("unknown watershed schema");
+  if (!object(x) || x.schema_version !== 1
+    || !((x.stage === "B1" && x.mode === "record_only") || (x.stage === "B2" && x.mode === "flow")))
+    return bad("unknown watershed schema");
+  const flow = x.mode === "flow";
+  if (flow !== ("superseded" in x)) return bad(flow ? "a flow record without its superseded floods" : "a record-only record with superseded floods");
   const turn = snapshot!.turn;
   if (!count(x.source_turn) || x.source_turn + 1 !== turn || x.completed_turn !== turn) return bad("misdated observation");
   if (!count(x.opened_turn) || x.opened_turn > x.source_turn) return bad("misdated opening");
@@ -166,7 +185,8 @@ export function readWatershed(snapshot: TurnSnapshot | null | undefined, regionC
   const statics: WatershedStatic = { opened_turn: x.opened_turn, graph: x.graph as unknown as WatershedGraph,
     parameters: x.parameters as WatershedStatic["parameters"], units: x.units as Record<string, string> };
   const down = statics.graph.down;
-  if (!object(x.counters) || !sameKeys(x.counters, COUNTER_KEYS) || !Object.values(x.counters).every(count))
+  if (!object(x.counters) || !sameKeys(x.counters, flow ? [...COUNTER_KEYS, ...FLOW_COUNTER_KEYS] : COUNTER_KEYS)
+    || !Object.values(x.counters).every(count))
     return bad("malformed counters");
   const cum = x.cumulative;
   if (!object(cum) || !sameKeys(cum, CUMULATIVE_KEYS) || !Object.values(cum).every(finite)) return bad("malformed cumulative totals");
@@ -180,7 +200,7 @@ export function readWatershed(snapshot: TurnSnapshot | null | undefined, regionC
     if (!near("unobserved storage", sum(x.storage as number[]), k.storage, regionCount + 1, k.storage))
       return bad("storage differs from the cumulative account");
     return x.regions === null && x.floods === null && x.droughts === null && x.totals === null && x.external === null
-      && x.phase === null && x.stale_baseline === null
+      && x.phase === null && x.stale_baseline === null && (!flow || x.superseded === null)
       ? { status: "unobserved", record: x as unknown as WatershedRecord, statics } : bad("an unobserved turn with values");
   }
   if (x.storage !== null) return bad("a settled turn repeats its storage outside its columns");
@@ -250,8 +270,20 @@ export function readWatershed(snapshot: TurnSnapshot | null | undefined, regionC
   }
   if (!Array.isArray(x.floods)) return bad("malformed floods");
   for (const f of x.floods) {
-    const problem = floodProblem(f, regionCount, down, outflow, x.source_turn, near);
+    const problem = floodProblem(f, regionCount, down, outflow, x.source_turn, near, flow);
     if (problem) return bad(problem);
+  }
+  if (flow) {
+    if (!Array.isArray(x.superseded)) return bad("malformed superseded floods");
+    for (const e of x.superseded) {
+      if (!object(e) || !sameKeys(e, ["turn", "region", "duration"]) || e.turn !== x.source_turn || !count(e.region)
+        || e.region >= regionCount || !count(e.duration) || e.duration < 1) return bad("malformed superseded flood");
+    }
+    for (let i = 0; i < regionCount; i += 1) {
+      // The index the simulation used is the one the account wrote, up to the native rounding.
+      if (!near("flow index", c.index_observed[i], c.index_derived[i], 2 + NATIVE_ROUNDING / HALF_DIGIT))
+        return bad("in flow the index used differs from the derived index");
+    }
   }
   const d = x.droughts;
   if (!object(d) || !sameKeys(d, ["declared", "open", "ended"]) || !Array.isArray(d.declared) || !Array.isArray(d.open)
