@@ -1,0 +1,13 @@
+source a732382e400d49f6aad4189725979587699ae139
+dirty 0 tracked files
+dirty-code 0 tracked code files
+chronicler /home/user/wt/c1b-migration/src/chronicler/__init__.py
+native /root/.venvs/native-c1b/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so e724072d7888888ede86acccb8db745c219c445fd47644ec9abe8ed5493e865b
+interpreter /root/.venvs/native-c1b/bin/python
+runner 413301768935f70c8d1f79ef4309455775d3ef8d9133aa0a2f440e4143bf1164 scripts/screen_runner.py
+screens 3567a33ba0b1407616808d52226e584782c7c4c16a4f7bac50336542891e753b scripts/connected_world_screens.py
+registry ecbed4e5ed72bddd54fb6c8494e172baa5130a90cbd23faa70a1000122b328c9 scripts/seed_registry.json
+registry-content a703a8502cb688181662d323ff482822a3fec6df292d23ebccc42f05751b2cfe (cohorts and seeds)
+run: screen CW4b; cohort pilot; seeds all; arms QC,QR,QRM; jobs 2; worlds -; turns -; rows already written 0
+started 2026-11-06T23:16:30Z
+finished 2026-11-06T23:17:06Z: 6 runs, 0 failed, 71 s of simulation and extraction (0.020 core-hours in all), 36.6 s wall
