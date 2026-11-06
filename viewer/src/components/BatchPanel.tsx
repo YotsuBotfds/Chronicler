@@ -239,6 +239,7 @@ export function BatchPanel({
         agents={agents}
         onAgentsChange={(next) => setAgents(asAgentMode(next))}
         disabled={batchState === "running"}
+        world={{ regions: typeof runDefaults?.regions === "number" ? runDefaults.regions : null }}
       />
 
       {/* Progress bar */}

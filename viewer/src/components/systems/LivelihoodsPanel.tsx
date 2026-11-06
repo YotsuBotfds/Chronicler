@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { hasRecoveryChain, packagesOn } from "../../lib/recoveryChain";
+import { watershedOn } from "../../lib/watershed";
 import type { SystemPanelProps } from "../../lib/systems";
 import { ClearingProtection } from "./ClearingProtection";
 import { Remittances } from "./Remittances";
@@ -20,6 +21,7 @@ import { Relocation } from "./Relocation";
 import { TimberStock } from "./TimberStock";
 import { TimberSupply } from "./TimberSupply";
 import { WorkshopFinance } from "./WorkshopFinance";
+import { Watershed } from "./Watershed";
 import { Workshops } from "./Workshops";
 
 /**
@@ -29,7 +31,7 @@ import { Workshops } from "./Workshops";
 const PACKAGES = ["workshops", "workshop_payroll", "food_allocation", "timber_stock", "grain_convoys",
   "commons_rules", "learning_cohorts", "relocation_costs", "local_budgets", "clearing_protection",
   "remittances", "apprenticeship", "veteran_reintegration", "repair_projects", "operating_wear", "timber_supply",
-  "recovery_crews", "maintenance_obligation", "household_retail"];
+  "recovery_crews", "maintenance_obligation", "household_retail", "watershed"];
 
 export function LivelihoodsPanel(panelProps: SystemPanelProps) {
   const { bundle, snapshot, currentTurn, onSelectRegion } = panelProps;
@@ -38,6 +40,8 @@ export function LivelihoodsPanel(panelProps: SystemPanelProps) {
   // RL8: these panels tell an absent record (unknown at this snapshot) from a malformed one, so they mount
   // whenever the run records their package, not only at snapshots that carry it.
   const on = useMemo(() => packagesOn(Array.isArray(bundle?.history) ? bundle.history : []), [bundle]);
+  // The watershed panel also mounts on the run's records, so a snapshot without one reads as absent.
+  const watershed = useMemo(() => watershedOn(bundle.history), [bundle]);
   const row = snapshot as unknown as Record<string, unknown> | null;
   const raw = row?.livelihoods ?? null;
   const readable = typeof raw === "object" && raw !== null && !Array.isArray(raw)
@@ -71,6 +75,7 @@ export function LivelihoodsPanel(panelProps: SystemPanelProps) {
     {record?.timber_supply != null ? <TimberSupply {...props} /> : null}
     {record?.maintenance_obligation != null ? <MaintenanceObligation {...props} /> : null}
     {mount("remittances") ? <Remittances {...props} /> : null}
+    {watershed ? <Watershed {...props} /> : null}
     {raw === null ? <p className="systems-note">No livelihoods observation is recorded at snapshot {at}.</p> : null}
   </div>;
 }
