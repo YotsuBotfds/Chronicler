@@ -17,8 +17,16 @@
 - **Headline development-world finding (A2, not yet held):** with retail enrollment fixed, the
   paid crews' wage raised money credited to households in 5 of 5 worlds; checkpoint 3's fall came
   from wider `paid_work` enrollment replacing more farm income. The CW1 held screen tests it.
-- **PR 1** (`claude/cw-pr1-tooling`): plan, board, audits and lane E1 — seed registry, generic
-  screen runner, compatibility matrix, RL8 viewer readers. No simulation change.
+- **PR #83 merged** at `1d4141d7` (tree `cd0eb07b` = reviewed head `7faebe73`; premerge Tests
+  42274171595 and main Tests 42275935233 green on all nine jobs): plan, board, audits and lane E1 —
+  seed registry, generic screen runner, compatibility matrix, RL8 viewer readers. No simulation
+  change.
+- **PR 2** (`claude/cw-pr2-watershed`): lane B1, `--watershed` mode `record_only` — drainage graph
+  rebuilt from procedural elevation (reproduces every saved river step), a conserved per-region
+  water account with closure checks, flood and drought records, a viewer panel; procedural worlds
+  only; no effect on the simulation (record_only identity holds on the full RS/PL stack). The
+  development calibration shows the declared constants lose water (storage 34 → 10–14 wu), to be
+  recalibrated before `flow` mode.
 - **Lanes in flight** (each on its own branch, provisional witness layers regenerated at
   integration): A5 retail rules v2, war reaches owned stock once per event (RL1–RL3; review
   merge-ready); A1 `--wealth-accounting` observation ledger (RL7; review fixes); B1 `--watershed

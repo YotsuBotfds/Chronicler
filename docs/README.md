@@ -85,7 +85,8 @@ link to these by path, so keep their names stable.
 - **Connected-world program (experimental, every switch default off):**
   [plan](superpowers/roadmaps/connected-world-program.md)
   ([board](superpowers/progress/connected-world.json));
-  [screens, seed registry, harm panel and compatibility matrix](integration/connected-world-screens.md).
+  [screens, seed registry, harm panel and compatibility matrix](integration/connected-world-screens.md);
+  [watershed account (B1, record only)](integration/watershed.md).
 - **World generation:** [geography 2.0](integration/geography-2.md),
   [procedural gates](integration/procedural-gates.md).
 

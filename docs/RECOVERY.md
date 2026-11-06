@@ -1,6 +1,6 @@
 # Source, recovery and archive index
 
-Updated 2026-11-06 after PRs #73, #74, #76, #78, #80 and #81. This is the starting map for future agents;
+Updated 2026-11-06 after PRs #73, #74, #76, #78, #80, #81 and #83. This is the starting map for future agents;
 dated reports keep their original source, platform and qualification limits.
 
 ## Current source and evidence
@@ -54,6 +54,15 @@ Use fetched `main` for new work.
   - Its tree, `6f9af7a2`, equals the tree of the reviewed head `b36c1ef8`.
   - Premerge Tests run 42174674039 on that head passed all nine jobs.
   - [Main Tests run 42176103870](https://github.com/YotsuBotfds/Chronicler/actions/runs/42176103870)
+    tested the merge SHA on `push`, attempt 1: success, all nine jobs.
+
+- [PR #83](https://github.com/YotsuBotfds/Chronicler/pull/83) (connected-world program S0: the
+  program plan, board and contract audits, and lane E1 — seed registry, generic screen runner,
+  compatibility matrix and the RL8 viewer readers; no simulation change) merged on 2026-11-06 at
+  `1d4141d787929d9cf1143b27e9745fcf8685d2c9`.
+  - Its tree, `cd0eb07b`, equals the tree of the reviewed head `7faebe73`.
+  - Premerge Tests run 42274171595 on that head passed all nine jobs.
+  - [Main Tests run 42275935233](https://github.com/YotsuBotfds/Chronicler/actions/runs/42275935233)
     tested the merge SHA on `push`, attempt 1: success, all nine jobs.
 
 Every livelihoods, recovery-skills and productive-recovery switch is off by default. These merges do not complete the 200-seed or

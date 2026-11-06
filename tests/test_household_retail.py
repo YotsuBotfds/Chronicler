@@ -502,7 +502,8 @@ def test_switch_registry_cli_and_prerequisites():
     # observation ledger (A1) is last: the full order is pinned in test_wealth_accounting.py.
     from tests.test_wealth_accounting import SWITCH_ORDER
     assert LIVELIHOODS_SWITCHES == SWITCH_ORDER
-    assert LIVELIHOODS_SWITCHES[-2:] == ("household_retail", "wealth_accounting")
+    assert LIVELIHOODS_SWITCHES.index("household_retail") == LIVELIHOODS_SWITCHES.index("maintenance_obligation") + 1
+    assert LIVELIHOODS_SWITCHES[-1] == "wealth_accounting"
     assert LIVELIHOODS_SWITCHES.index("food_allocation") < LIVELIHOODS_SWITCHES.index("household_retail")
     start = LV.LIVELIHOODS_ARG_KEYS.index("household_retail")
     assert LV.LIVELIHOODS_ARG_KEYS[start:start + 4] == ("household_retail", "household_retail_mode",

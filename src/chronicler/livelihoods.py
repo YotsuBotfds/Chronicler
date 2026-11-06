@@ -43,6 +43,8 @@ The productive-recovery phase appends:
 
 The connected-world program appends:
 
+* ``--watershed`` (B1): a conserved water account on the drainage graph of a
+  procedural world; mode ``record_only`` changes nothing outside its record.
 * ``--wealth-accounting`` (A1): an observation-only ledger of agent wealth per
   region and turn (opening, typed flows from the packages' receipts, closing,
   the labelled native-model residual); appended last so its Phase 2 and Phase 10
@@ -105,6 +107,7 @@ LIVELIHOODS_CHOICES: dict[str, tuple[str, ...]] = {
     "household_retail_mode": ("retail", "no_relief", "free_exchange", "record_only"),
     "household_retail_boundary": ("market", "paid_work", "all", "schedule"),
     "household_retail_rules": ("2", "1"),
+    "watershed_mode": ("record_only",),
 }
 #: All parser destinations owned here (``batch_manifest.SIMULATION_ARG_KEYS``).
 LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
@@ -128,6 +131,7 @@ LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     "maintenance_obligation", "maintenance_obligation_mode",
     "household_retail", "household_retail_mode", "household_retail_boundary",
     "household_retail_rules",
+    "watershed", "watershed_mode",
     "wealth_accounting",
 )
 #: Options that take a file path (A2R), parser destinations owned here too
@@ -344,6 +348,18 @@ _HELP = {
         "openings replayed in another: scripts/retail_schedule.py extracts them from a bundle). The "
         "schedule and its SHA-256 are saved with the state; a resume keeps it and refuses a different one"
     ),
+    "watershed": (
+        "Watershed account (B1): a conserved water account on the drainage graph rebuilt from the "
+        "world's saved procedural elevation (precipitation, storage, evaporation, irrigation "
+        "withdrawal, downstream transfer, outflow to the sea), with closure checked every turn, "
+        "floods and droughts recorded with their conditions, and the water index the account would "
+        "derive recorded beside the one the simulation uses; requires a procedural world (template "
+        "worlds have no elevation); opens with a new world (default off)"
+    ),
+    "watershed_mode": (
+        "record_only (default, the only mode of this slice): the account runs beside the existing "
+        "water index and changes nothing outside its own record"
+    ),
     "wealth_accounting": (
         "Wealth accounting (A1): an observation-only ledger of agent wealth; each turn and region it "
         "reads the balance at the Phase 2 opening (checked bit for bit against the last closing) and "
@@ -468,6 +484,11 @@ def _grain_storage_on(world: Any) -> bool:
 
 
 def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = None) -> None:
+    if values["watershed"] is not None or getattr(livelihoods_state(world), "watershed", None) is not None:
+        # Procedural geography; opens with a new world; a resume cannot end it
+        # or change its mode (chronicler.watershed.check_request).
+        from chronicler.watershed import check_request
+        check_request(world, values["watershed"], args)
     if values["workshops"] is True:
         if agent_mode != "hybrid":
             raise ValueError("--workshops requires --agents hybrid")
@@ -629,6 +650,7 @@ _CHOICE_FIELDS: dict[str, tuple[str, str]] = {
     "household_retail_mode": ("household_retail", "mode"),
     "household_retail_boundary": ("household_retail", "boundary"),
     "household_retail_rules": ("household_retail", "rules"),
+    "watershed_mode": ("watershed", "mode"),
 }
 
 

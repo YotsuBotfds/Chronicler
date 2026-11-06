@@ -87,19 +87,22 @@ def _state(world) -> WealthAccountingState:
 # --- registry, CLI, catalog, manifest ------------------------------------------
 
 #: The livelihoods switches in declaration order (hook order in every phase):
-#: append only; household retail runs after L2, the observation ledger last.
+#: append only; household retail runs after L2, B1's watershed after it, the
+#: observation ledger last (its hooks run after every payer).
 SWITCH_ORDER = ("workshops", "food_allocation", "timber_stock", "grain_convoys", "commons_rules",
         "learning_cohorts", "workshop_payroll", "relocation_costs", "local_budgets", "apprenticeship",
         "repair_projects", "veteran_reintegration", "remittances", "clearing_protection", "operating_wear",
-        "timber_supply", "recovery_crews", "maintenance_obligation", "household_retail", "wealth_accounting")
+        "timber_supply", "recovery_crews", "maintenance_obligation", "household_retail", "watershed",
+        "wealth_accounting")
 
 
 def test_switch_is_appended_last_with_cli_catalog_and_manifest_keys():
     assert LIVELIHOODS_SWITCHES == SWITCH_ORDER and LIVELIHOODS_SWITCHES[-1] == "wealth_accounting"
     assert LV.LIVELIHOODS_ARG_KEYS[-1] == "wealth_accounting"
     # Every switch's own keys come right after it (a choice belongs to the switch before it).
-    assert LV.LIVELIHOODS_ARG_KEYS[-5:] == ("household_retail", "household_retail_mode", "household_retail_boundary",
-                                            "household_retail_rules", "wealth_accounting")
+    assert LV.LIVELIHOODS_ARG_KEYS[-7:] == ("household_retail", "household_retail_mode", "household_retail_boundary",
+                                            "household_retail_rules", "watershed", "watershed_mode",
+                                            "wealth_accounting")
     assert "wealth_accounting" not in LV.LIVELIHOODS_CHOICES            # no modes in slice 1
     assert REQUIREMENTS["wealth_accounting"] == ({"agents": ["hybrid"]},)
     assert "wealth_accounting" in SIMULATION_ARG_KEYS
