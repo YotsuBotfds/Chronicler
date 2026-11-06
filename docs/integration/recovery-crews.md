@@ -198,7 +198,11 @@ wage_milli, wage_residual_milli, income_replaced`), `coin_cost_milli,
 wages_due_milli, wages_milli, wage_residual_milli, sunk_milli,
 farm_time_removed`. At most `MAX_FRAME_ROWS` (64) receipts per frame.
 
-No viewer reader exists yet (PL5).
+Viewer (PL5a): `viewer/src/lib/recoveryCrews.ts` (`readRecoveryCrews`) and the panel
+`RecoveryCrews.tsx`. The reader checks the closure above for every receipt, member and
+civ ledger (the ledger as the sum of the civ's granary crews while the frame is not
+truncated), a person on at most one crew, farm time against the work done, and no wage in
+`unpaid`. The panel shows wages paid against the coins that would otherwise be sunk.
 
 ## Declared constants (uncalibrated)
 

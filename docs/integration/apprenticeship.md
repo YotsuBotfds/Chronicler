@@ -791,8 +791,13 @@ to the earlier screen. Sums over the six worlds of each stratum:
   so a graduate who lives outside the box cannot do upkeep or teach until they live in
   it again. A crew pool drawn from the region would need a native change, which this
   lane did not make.
-- **The viewer reads schema 1 only.** `viewer/src/lib/apprenticeship.ts` reports a
-  version-2 record as malformed, never misread; PL5 adds a version-2 reader.
+- **Viewer (PL5a, 2026-11-06).** `viewer/src/lib/apprenticeship.ts` reads schema 1 as
+  before and schema 2 (`rules_version` 2): crew and attached seats, transfers, `absent`,
+  `long_absence` and `stalled` (bounded by `max_pause`), graduates, detached records and
+  the useful-work receipts, each checked to close (attended = on crew + attached; covered,
+  full offset and the offset by route against the receipt). The panel shows the rules
+  version, how each apprentice was aboard and who kept each site. It refuses a schema-2
+  record without `rules_version` and a schema-1 record carrying version-2 fields.
 - **Version 1 keeps its own behaviour.** `--apprenticeship-rules 1` reproduces the
   merged rules exactly, including what review B fixed in version 2 only: the control
   re-enrolling graduates, and the unbounded pause. Version 1 has its own dropout.

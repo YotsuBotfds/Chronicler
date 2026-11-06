@@ -61,13 +61,15 @@ export interface RepairProjectsRecord {
   parameters: Record<string, number>;
 }
 
-export const REASONS = ["no_timber", "no_coins", "no_labor", "no_envelope", "unqualified"] as const;
+/** Declaration order (append only); ``no_people`` is the PL3 correction: a granary
+ * project suspended while its region has no farmer. */
+export const REASONS = ["no_timber", "no_coins", "no_labor", "no_envelope", "unqualified", "no_people"] as const;
 const KINDS = ["granary", "workshop"];
 const CAUSES = ["wear", "war"];
 const MODES = ["repair", "cost_only"];
 const EVENTS = ["conquest", "sack", "seizure"];
 const ABANDON = ["asset_closed", "no_controller", "switched_off"];
-const UNMET = ["no_controller", "zero_capacity", "building"];
+const UNMET = ["no_controller", "zero_capacity", "building", "no_people"];
 const MAX_CREW = 4;
 const EPS = 1e-6;
 

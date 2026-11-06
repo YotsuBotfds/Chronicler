@@ -71,6 +71,22 @@ describe("repair projects reader", () => {
     expect(repairProjectsAt(snap({ ...record, damages: [half] }), 3, 2)).toBeNull();
   });
 
+  it("accepts the PL3 no_people correction: a suspended granary stall and an unmet need", () => {
+    // A granary project whose region has no farmer asks for nothing: a stall with the single reason no_people.
+    const suspended = { ...work, status: "stalled", reasons: ["no_people"], requested: 0, delivered: 0, credited: 0,
+      timber_held: 0, timber_used: 0, timber_returned: 0, coin_cost_milli: 0, condition_after: 0.5, remaining_after: 20 };
+    const quiet = { ...record, projects: [{ ...granary, stalls: { no_people: 3 } }], receipts: [suspended],
+      ledger: [{ ...ledger, projects: 1, work_delivered: 0, timber_used: 0, coin_cost_milli: 0, wages_due_milli: 0,
+        wages_applied_milli: 0, charged: 0, prepaid_before_milli: 0, prepaid_after_milli: 0 }], prepaid: {},
+      unmet: [{ kind: "granary", asset: 2, region: 2, condition: 0.1, reason: "no_people" }] };
+    const parsed = repairProjectsAt(snap(quiet), 3, 2);
+    expect(parsed?.receipts?.[0].reasons).toEqual(["no_people"]);
+    expect(parsed?.unmet?.[0].reason).toBe("no_people");
+    expect(parsed?.projects[0].stalls).toEqual({ no_people: 3 });
+    expect(repairProjectsAt(snap({ ...quiet, receipts: [{ ...suspended, reasons: ["no_farmers"] }] }), 3, 2)).toBeNull();
+    expect(repairProjectsAt(snap({ ...quiet, unmet: [{ ...quiet.unmet[0], reason: "nobody" }] }), 3, 2)).toBeNull();
+  });
+
   it("keeps an unobserved turn unknown, not zero, and orders the funnel", () => {
     const unknown = repairProjectsAt(snap({ ...record, receipts: null, ledger: null, unmet: null, suspended: null }), 3, 2);
     expect(unknown?.receipts).toBeNull();

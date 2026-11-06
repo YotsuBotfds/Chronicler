@@ -181,4 +181,7 @@ and the identity checks.
 - The wear rate is declared, not calibrated. This switch only makes the assumption
   explicit and shared across arms.
 - Workshop repair is still the L1 lump or RS2. Timber, not money, binds RS2 (D1).
-- The viewer does not read this record yet (PL5).
+- Viewer (PL5a): `viewer/src/lib/operatingWear.ts` (`readOperatingWear`) and the panel
+  `OperatingWear.tsx` on the Livelihoods tab. The reader checks every receipt's wear,
+  offset, net wear, full-offset flag and condition, and the lifetime counters; an offset
+  without apprenticeship is refused.

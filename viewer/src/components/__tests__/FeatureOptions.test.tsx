@@ -146,6 +146,83 @@ describe("FeatureOptions", () => {
     expect(box(/^Local budgets/).disabled).toBe(false);
   });
 
+  it("offers the productive-recovery switches off, each disabled until its prerequisites are met", () => {
+    const onChange = vi.fn();
+    render(<Harness catalog={served} onChange={onChange} />);
+    open();
+    const wear = box(/^Operating wear --operating-wear$/);
+    const timber = box(/^Timber supply --timber-supply$/);
+    const crews = box(/^Recovery crews --recovery-crews$/);
+    const obligation = box(/^Maintenance obligation --maintenance-obligation$/);
+    for (const control of [wear, timber, crews, obligation]) {
+      expect(control.checked).toBe(false);
+      expect(control.disabled).toBe(true);
+    }
+    for (const mode of [/Timber supply mode/, /Recovery crew mode/, /Maintenance obligation mode/]) {
+      expect(screen.queryByRole("combobox", { name: mode })).toBeNull();
+    }
+    expect(description(wear)).toMatch(/Unavailable: requires --workshops\.$/);   // an unset mode is its default, operate
+    expect(description(timber)).toMatch(/Unavailable: requires --repair-projects; requires --timber-stock\./);
+    expect(description(crews)).toMatch(/Unavailable: requires --repair-projects\./);
+    expect(description(obligation)).toMatch(/Unavailable: requires --local-budgets; requires --repair-projects\./);
+
+    fireEvent.click(box(/^Workshops --workshops$/));
+    expect(wear.disabled).toBe(false);
+    fireEvent.click(box(/^Repair projects --repair-projects$/));
+    expect(crews.disabled).toBe(false);
+    expect(timber.disabled).toBe(true);                                   // still needs the timber stock
+    expect(description(timber)).toMatch(/Unavailable: requires --timber-stock\./);
+    fireEvent.click(box(/^Timber stock --timber-stock$/));
+    expect(timber.disabled).toBe(false);
+    expect(obligation.disabled).toBe(true);
+    fireEvent.click(box(/^Grain reserves --grain-reserves$/));
+    fireEvent.click(box(/^Local budgets --local-budgets$/));
+    expect(obligation.disabled).toBe(false);
+    for (const control of [wear, timber, crews, obligation]) fireEvent.click(control);
+    const modes: Array<[RegExp, string[]]> = [[/Timber supply mode/, ["supply (default)", "cost_only"]],
+      [/Recovery crew mode/, ["paid (default)", "unpaid"]], [/Maintenance obligation mode/, ["reserve (default)", "reserve_only"]]];
+    for (const [name, options] of modes) {
+      const select = screen.getByRole("combobox", { name }) as HTMLSelectElement;
+      expect([...select.options].map((option) => option.textContent)).toEqual(options);
+      fireEvent.change(select, { target: { value: options[1] } });
+    }
+    expect(onChange).toHaveBeenLastCalledWith({ workshops: true, repair_projects: true, timber_stock: true,
+      grain_reserves: true, local_budgets: true, operating_wear: true, timber_supply: true, recovery_crews: true,
+      maintenance_obligation: true, timber_supply_mode: "cost_only", recovery_crew_mode: "unpaid",
+      maintenance_obligation_mode: "reserve_only" });
+    expect(screen.getByText(/--timber-supply-mode=cost_only/)).toBeTruthy();
+
+    // Dropping a prerequisite drops what depends on it, and its mode.
+    fireEvent.click(box(/^Timber stock --timber-stock$/));
+    expect(timber.checked).toBe(false);
+    expect(screen.queryByRole("combobox", { name: /Timber supply mode/ })).toBeNull();
+    fireEvent.click(box(/^Grain reserves --grain-reserves$/));
+    expect(obligation.checked).toBe(false);
+    fireEvent.click(box(/^Repair projects --repair-projects$/));
+    expect(crews.checked).toBe(false);
+    expect(wear.checked).toBe(true);
+    fireEvent.click(box(/^Workshops --workshops$/));
+    expect(onChange).toHaveBeenLastCalledWith({});
+  });
+
+  it("offers RS1's rules version under apprenticeship, version 2 by default, sent only when changed", () => {
+    const onChange = vi.fn();
+    render(<Harness catalog={served} onChange={onChange} />);
+    open();
+    expect(screen.queryByRole("combobox", { name: /Apprenticeship rules/ })).toBeNull();
+    fireEvent.click(box(/^Workshops --workshops$/));
+    fireEvent.click(box(/^Apprenticeship --apprenticeship$/));
+    const rules = screen.getByRole("combobox", { name: /Apprenticeship rules --apprenticeship-rules/ }) as HTMLSelectElement;
+    expect([...rules.options].map((option) => option.textContent)).toEqual(["2 (default)", "1"]);
+    expect(onChange).toHaveBeenLastCalledWith({ workshops: true, apprenticeship: true });
+    fireEvent.change(rules, { target: { value: "1" } });
+    expect(onChange).toHaveBeenLastCalledWith({ workshops: true, apprenticeship: true, apprenticeship_rules: "1" });
+    expect(screen.getByText(/--apprenticeship-rules=1/)).toBeTruthy();
+    fireEvent.click(box(/^Workshops --workshops$/));
+    expect(onChange).toHaveBeenLastCalledWith({});
+    expect(screen.queryByRole("combobox", { name: /Apprenticeship rules/ })).toBeNull();
+  });
+
   it("disables everything with the reason when requests are unavailable", () => {
     render(<Harness catalog={served} unavailable="Feature options apply to new worlds only." />);
     open();

@@ -345,9 +345,8 @@ region has no farmers.
   covers suspension, the L9 proposal and the resumption. The real-extension
   run in `tests/test_recovery_crews_native.py` sees both reasons natively.
 - **Viewer.** The strict reader `viewer/src/lib/repairProjects.ts` lists
-  `REASONS` and `UNMET` literally; both need `"no_people"` appended, or it
-  returns null for a snapshot that holds the new reason (a PL5 follow-up; this
-  lane is Python only).
+  `REASONS` and `UNMET` literally; PL5a appended `"no_people"` to both, and the
+  panel names the stall "no farmer in the region (suspended)".
 
 PL3 also adds two packages on RS2's seams, each inert while off:
 [recovery crews](recovery-crews.md) (named, paid granary crews and the wider
