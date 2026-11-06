@@ -1192,8 +1192,8 @@ def _paired_cp2() -> list:
                 (f"{A} food shortfall after relief in {A}'s pilot regions, food ({A} - L2)", A, "L2", _over(key, "food")),
                 (f"{A} mean ration per Phase-2 person in {A}'s pilot regions ({A} - L2)", A, "L2",
                  _over(key, "mean_ration")),
-                (f"{A} ration shortfall in {A}'s pilot regions, rations ({A} - L2)", A, "L2",
-                 _over(key, "ration_short")),
+                (f"{primary if A == R else ''}{A} ration shortfall in {A}'s pilot regions, rations ({A} - L2)",
+                 A, "L2", _over(key, "ration_short")),
                 (f"{A} population ({A} - L2)", A, "L2", lambda r: r.get("population")),
             ]
             if A != R:

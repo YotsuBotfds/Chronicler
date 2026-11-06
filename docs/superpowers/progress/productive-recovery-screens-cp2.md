@@ -324,38 +324,27 @@ None yet. Any change to the arms, outcomes, analysis or budget after the lead fr
 this file is recorded here as a dated amendment with its reason, and only before the
 first held run.
 
-## Open questions for the lead
+## Lead decisions (2026-11-06, before freezing)
 
-1. **A primary for R − L2?** None is proposed. The candidate is the ration shortfall over
-   R's pilot regions (what people ate, exact in both arms); the food-accounting
-   shortfall measures food on hand in a pilot region, not what people ate.
-2. **Mean adult wealth in pilot regions** is not in the snapshot. Accept the declared
-   stand-ins (treasury and civilization wealth Gini, R − L2; money into households, R),
-   or commission a snapshot field in a separate simulation lane before the freeze.
-3. **Money into households.** Household purchases only move money between households,
-   so retail's net effect on household cash is procurement credited minus the farm
-   income it replaces. On the pilot worlds that is −1,750 (template) and −4,342
-   (procedural) coins per world over 200 turns, with 1–16 coins of procurement credit.
-   Owners' revenue is 1.08–1.23 times the income replaced, but it comes from other
-   households. This is the design's rule (§7), not a defect; it bears on how R − L2
-   wealth outcomes should be read.
-4. **Withheld-dead counts.** Native status 1 (priced out) takes precedence over status 3
-   (withheld dead), so a person counted as priced out in R can count as withheld dead in
-   `free_exchange`. The R − R_free withheld-dead difference is therefore not like for
-   like (pilot: +15 template, −377 procedural). Keep it as secondary, or drop it?
-5. **Region sets.** Comparisons with L2 use the treatment arm's pilot regions over every
-   turn (checkpoint 1's rule); pilot turns cover 84% of those region-turns at the market
-   boundary and 91–99% at the all boundary on the pilot worlds. A per-region-turn rule
-   would need every L2 row to carry region-by-turn totals (an estimated 0.1–0.3 MB per
-   row, against about 3.5 KB per row now). Keep the region rule?
-6. **The owned-food bound** sums the owned stock left each turn (17,700 template, 65,300
-   procedural food) and so counts carried stock repeatedly; the realized change in
-   commons departures from the pilot regions (R − R_rec) is −520 and −2,144 food. Keep
-   both, with the bound labelled loose?
-7. **Primaries under the all boundary.** None are marked; they are the same outcomes
-   under stress. Mark them as primary for that stratum of the question?
-8. **Identity failure rule.** Proposed: a nonzero or unknown R_rec − L2 value is a
-   finding; while it stands, comparisons with L2 are reported but not interpreted.
-9. **Source to freeze.** The runner and this file are on `claude/pl6c-retail-screens`
-   (from `fdc1dfbc`). Merge them into the checkpoint-2 integration branch first, so that
-   the held run uses the frozen runner on the frozen source and records one commit.
+1. **R − L2 has a primary: the ration shortfall** over R's pilot regions, in rations (what
+   people ate, exact in both arms). It asks directly whether retail makes hunger worse
+   than free allocation. The food-accounting shortfall stays secondary.
+2. **Wealth stand-ins are accepted** (treasury and civilization wealth Gini, R − L2; money
+   into households, R). No new snapshot field is added in this checkpoint; the gap is a
+   declared limit.
+3. **Money into households is reported as a headline finding, not a defect.** Retail
+   replaces farm income the model created with sales that only move money between
+   households, so pilot households' total cash falls by about the replaced income, net of
+   procurement credit. Every R − L2 outcome is read with that in mind.
+4. **Withheld-dead counts are kept as secondary** and labelled not like for like (status 1
+   takes precedence over status 3).
+5. **The region rule is kept** (the treatment arm's pilot regions over every turn), with
+   coverage reported.
+6. **Departures:** the realized change in commons departures (R − R_rec) is the measure
+   read; the owned-food bound stays as a labelled loose bound.
+7. **No primaries under the all boundary**; those arms are the same questions under
+   stress, reported descriptively, to keep the number of primaries small.
+8. **Identity failure rule adopted**: a nonzero or unknown R_rec − L2 value is a finding,
+   and while it stands comparisons with L2 are reported but not interpreted.
+9. **Merged first**: the runner and this file are on the checkpoint-2 integration branch
+   before the freeze.

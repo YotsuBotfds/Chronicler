@@ -317,7 +317,8 @@ def test_every_identity_outcome_compares_r_rec_with_l2(S):
     assert len(ident) == 17 and all((a, c) == ("R_rec", "L2") for _l, a, c in ident)
     primaries = [label for label, *_ in S.CP2.PAIRED if label.startswith("[primary]")]
     assert primaries == ["[primary] R priced-out person-turns in its pilot regions (R - R_free)",
-                         "[primary] R_norelief priced-out person-turns (R_norelief - R; what relief protects)"]
+                         "[primary] R_norelief priced-out person-turns (R_norelief - R; what relief protects)",
+                         "[primary] R ration shortfall in R's pilot regions, rations (R - L2)"]
 
 
 # --- Extraction of constructed bundles ------------------------------------------------
