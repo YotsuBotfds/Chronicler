@@ -28,7 +28,8 @@
   only; no effect on the simulation (record_only identity holds on the full RS/PL stack). The
   development calibration shows the declared constants lose water (storage 34 → 10–14 wu), to be
   recalibrated before `flow` mode.
-- **PR 3** (`claude/cw-cw4-screen`): lane C1 `--quarantine-mode legacy|none|cost_only|closure`
+- **PR #85 merged** at `8286804c` (tree `0c738587` = reviewed head `020b27b7`; premerge Tests
+  42286466762 and main Tests 42288620571 green): lane C1 `--quarantine-mode legacy|none|cost_only|closure`
   (omitted = legacy, byte-identical; new modes close trade routes and the merchant graph to polities
   with reported outbreaks, no import multiplier, an enforcement cost instead of the flat charge;
   relief convoys, armies and hostages exempt) and the **CW4 held screen** (template 761–766,
@@ -38,6 +39,14 @@
   unwinds, more food shortfall after relief (procedural 5 of 6), more migration. A trade-only closure
   does not cut arrivals in hybrid worlds, where migrants carry most cross-polity contact; migration
   closure (C1b) is the next public-health slice.
+- **S1 PR** (`claude/cw-s1-accounting`): A5 retail rules v2 (war reaches owned stock once per event;
+  RL1–RL3), A2R (interval schedule boundary replayed exactly, persistent opening intervals,
+  household-group cohorts RL5, storage-cap cut RL4 pro rata), A1 `--wealth-accounting` (observation-
+  only ledger; RL7), one layer `cws1`; and the **CW1 held screen** (template 731–736, procedural
+  831–836; 108 runs, 0 failed, 0.584 core-hours): at fixed enrollment the wage **raised** money
+  credited to households in every activated world; wider `paid_work` enrollment alone **lowered**
+  it in every activated world (mostly replaced farm income, partly lower remittances); the wage's
+  effect on the priced-out rate was null.
 - **Lanes in flight** (each on its own branch, provisional witness layers regenerated at
   integration): A5 retail rules v2, war reaches owned stock once per event (RL1–RL3; review
   merge-ready); A1 `--wealth-accounting` observation ledger (RL7; review fixes); B1 `--watershed

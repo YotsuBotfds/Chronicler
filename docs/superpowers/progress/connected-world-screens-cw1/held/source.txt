@@ -1,0 +1,39 @@
+source 2353ac0a5859c8c8cc0c49dbf2e4dddcde49791b
+dirty 0 tracked files
+dirty-code 0 tracked code files
+chronicler /home/user/wt/s1/src/chronicler/__init__.py
+native /root/.venvs/chronicler-native/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so 101a4cd5b928b14f43539f925fa565036b94e38d91b9698071c80fa3656e0df3
+interpreter /root/.venvs/chronicler-native/bin/python
+runner 891b65475a07bb62e8108a693957569e68558b42e182a187528633e1baf0e4f5 scripts/screen_runner.py
+screens 833c48cff8c9af33e7849370fce1a5cea4a2451db6781dd0b13dc1791040883a scripts/connected_world_screens.py
+registry 1c9632e7fc9b90420a191fe5b5deca4cf5e89940026a3ae1f4dad9c3e81cac50 scripts/seed_registry.json
+registry-content dc16f3c3b366699029de253da0a04d90394530b002ba3203b0e29b17ef7a98f8 (cohorts and seeds)
+preregistration 81701ebfced2a1f0144b67e088e5ac52246d5491cee49c3856702993c30c56e2 docs/superpowers/progress/connected-world-screens-cw1.md
+run: screen CW1; cohort held; seeds all; arms A,B,C,D,E,F,G,H,CH_noTS; jobs 2; worlds -; turns -; rows already written 0
+pilot docs/superpowers/progress/connected-world-screens-cw1/pilot/metrics.jsonl sha256 0fd5f729da5e8defc8ea05e1bf3ad98148e98c4c9b2d2696db41fecd4ff5f379; projected 0.730 core-hours; ceiling 1.46 core-hours; expected seconds per run: max of the pilot mean per arm and stratum (A p 41.5, A t 14.0, B p 34.4, B t 15.9, C p 44.0, C t 11.8, CH_noTS p 32.8, CH_noTS t 8.5, D p 35.8, D t 9.5, E p 41.4, E t 10.0, F p 33.9, F t 10.5, G p 38.4, G t 10.3, H p 34.9, H t 10.2) and the finished runs' mean per stratum
+started 2026-11-06T22:24:53Z
+derived S_B p831 (from arm B): sha256 cf642a121b0a19fe99ea2a2b2bd8bd86c08b217b97831fe41544b6969c6c83e4 derived/S_B-p831.json
+derived S_A p831 (from arm A): sha256 85fd212eb34e7e79534eb05c2af4f7affa995d204d3ef83393aa1e66ee876ea1 derived/S_A-p831.json
+derived S_A p832 (from arm A): sha256 40a7c0fe89d083f71810954861dfc57e47774ca1efeb9f724747ae57d92389bf derived/S_A-p832.json
+derived S_B p832 (from arm B): sha256 bb0f40035ee355d733742f700a160a00280d5dd9ef3ce055e65e4d447f1031d6 derived/S_B-p832.json
+derived S_A p833 (from arm A): sha256 faffe3714a83e431b9ba4da83b0f5319e695ebad6d5c247833209c124232f81e derived/S_A-p833.json
+derived S_B p833 (from arm B): sha256 941dd992175be7c5bb7c6ff961744cb93e3151b284ceaac82663ab6797695a40 derived/S_B-p833.json
+derived S_A p834 (from arm A): sha256 75a6ed8750df94650ea4f5952efc81ca425e060c961739ac1a45fa2430d92c10 derived/S_A-p834.json
+derived S_B p834 (from arm B): sha256 1a09128e4025f873551282ccb375f3f3515d6c8c86637978047549e6efd947ec derived/S_B-p834.json
+derived S_A p835 (from arm A): sha256 84e1dbe451430f0344f8260a169d3e281705deb69932dd06e0eff26c15bab662 derived/S_A-p835.json
+derived S_B p835 (from arm B): sha256 936cc9b592e2bbbbe512ded6ae81f80afc46f79fafeccc008bf6bac3c501a9d7 derived/S_B-p835.json
+derived S_A p836 (from arm A): sha256 cc4471773993df7875e81e4ab1ac69ed6006b18eaf4662bc70eebd48ac3dc3d3 derived/S_A-p836.json
+derived S_B p836 (from arm B): sha256 83e4343dd533566fa45e1b1524b03cdaf0d11d17a52f882732d543a985c02229 derived/S_B-p836.json
+derived S_A t731 (from arm A): sha256 e522d35047c0cf43f8bc39c856444334157ea5587c142ce96115bc4a531a8583 derived/S_A-t731.json
+derived S_B t731 (from arm B): sha256 1beec1d4ed199c7acd36c415f56b0390f31c468bd715e928a80148d1a61fa0c3 derived/S_B-t731.json
+derived S_A t732 (from arm A): sha256 21d820ddbf7c5b648d68ed2ce19f3892a7aec8818ea27b43a7fee52bba4efc40 derived/S_A-t732.json
+derived S_B t732 (from arm B): sha256 d61221d521506cc50edc72b7fb2f3e6bb5310772b3b25fc0ff221d057aa59ff6 derived/S_B-t732.json
+derived S_A t733 (from arm A): sha256 8722477b5f97ba0ca578d1c6ebf70215436f06d2d6abd3353678025635f2dd64 derived/S_A-t733.json
+derived S_B t733 (from arm B): sha256 415e824bfc438bba2f61c24239d56c7c8024268b0bda8d2f7e5ab6865f639402 derived/S_B-t733.json
+derived S_A t734 (from arm A): sha256 44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a derived/S_A-t734.json
+derived S_B t734 (from arm B): sha256 44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a derived/S_B-t734.json
+derived S_A t735 (from arm A): sha256 87fcb4ac7ff74ed5b8bb483cd6a33f67a04fd188af79aeea1dad82d4a33f0d79 derived/S_A-t735.json
+derived S_B t735 (from arm B): sha256 e8a0970a26185b7a4bebe25b745341f71566b74676e9d279c4e62e3bcfc164e3 derived/S_B-t735.json
+derived S_A t736 (from arm A): sha256 12c6dd62a66aa6d0e0ec31966487015b2b216721e3b4f32d3dbfc291546e7c39 derived/S_A-t736.json
+derived S_B t736 (from arm B): sha256 d33f89ad4bb20042831c023dfd607b5f038d1f4feb9b6a7760b128336ff12fe5 derived/S_B-t736.json
+finished 2026-11-06T22:42:34Z: 108 runs, 0 failed, 2103 s of simulation and extraction (0.584 core-hours in all), 1061.4 s wall
