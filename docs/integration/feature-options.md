@@ -25,8 +25,8 @@ the same catalog, so they cannot drift. Its shape (`schema_version` 1):
 
 | Field | Meaning |
 | --- | --- |
-| `features[]` | One entry per CLI parser destination. Fields: `key`, `flag`, `label`, `help`, `kind` (`bool` or `choice`), `choices` (a mode's choices, the first being the run's default once its switch is on), `default` (always `null`: not forwarded), `parent` (the switch a mode belongs to), `requires`, `group` (`Livelihoods` or `Prerequisites`), `experimental`. |
-| `settings` | Server settings a request cannot change (`cities`, `techniques`, `no_household_mobility_liquid_requirement`), with what each means. |
+| `features[]` | One entry per CLI parser destination. Fields: `key`, `flag`, `label`, `help`, `kind` (`bool` or `choice`), `choices` (a mode's choices, the first being the run's default once its switch is on), `default` (always `null`: not forwarded), `parent` (the switch a mode belongs to), `requires`, `group` (`Livelihoods`, `Prerequisites` or `Public health`), `experimental`. |
+| `settings` | Server settings a request cannot change (`cities`, `techniques`, `no_household_mobility_liquid_requirement`, `epidemiology`), with what each means. |
 | `surfaces.live`, `surfaces.batch` | What a request inherits on that surface: `agents`, `agent_modes` (just the server's mode for live; all four for Batch Lab), `values` (catalog keys the server's command line already sets), `settings` (true or false), `new_worlds_only`. |
 
 Where the entries come from:
@@ -38,6 +38,12 @@ Where the entries come from:
 - **Prerequisites.** These are listed in `PREREQUISITES`: `grain_reserves`,
   `public_grain_shipments`, `grain_storage` (with `grain_storage_policy`),
   `scholarship` and `academy_services`.
+- **Public health.** `PUBLIC_HEALTH` lists top-level choices with no boolean
+  switch: `quarantine_mode` ([quarantine rules](quarantine-rules.md)), whose
+  first choice (`legacy`) is the run's rule when unset. It declares
+  `REQUIREMENTS` like a switch (the `epidemiology` setting: epidemiology with
+  the contact ledger), and `test_public_health_choices_agree_with_the_run`
+  checks every value against the real configuration path.
 - **Flags, help and choices.** These are read from the CLI parser itself.
 
 Each requirement is an object with a `reason`. It is one of:
@@ -49,7 +55,8 @@ Each requirement is an object with a `reason`. It is one of:
 - `{"setting": name}`
 - `{"any": [...]}`
 
-`REQUIREMENTS` declares them for every boolean entry. A mode requires its switch.
+`REQUIREMENTS` declares them for every boolean entry and every public-health
+choice. A mode requires its switch.
 
 ## Agreement with the run's own checks
 
