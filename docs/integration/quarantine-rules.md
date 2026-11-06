@@ -321,9 +321,13 @@ stale closure before each install and releases the install after the tick whatev
 
 **Units.** A receipt counts the persons refused that tick (each at most once per tick). A refused
 agent decides afresh the next tick and may be refused again, so the totals sum **refusals**
-(person-ticks); the distinct persons refused are counted by stable agent id
-(`QuarantineRulesState.refused_ids`, persisted while the channel is on). A rebuilt native pool
-(a JSON resume) starts a new id space, so after one the distinct count is a lower bound.
+(person-ticks), and count **refusal spells**: an agent refused on consecutive ticks counts once
+per unbroken spell, so the spells lie between the distinct persons refused and the refusals.
+The only memory this needs is the stable ids refused at the last observed tick
+(`QuarantineRulesState.refused_last_tick` and `refused_turn`, replaced every tick), so the
+persisted state stays bounded by one tick's refusals however long the run (an exact distinct
+count would keep every id ever refused). A rebuilt native pool (a JSON resume) starts a new id
+space, so the first tick after one may misread a spell boundary.
 
 **Older checkpoints.** Every C1b field is read with `getattr` defaults: a checkpoint pickled by
 `main` (any rules mode) lacks them and resumes unchanged on this branch, including through
@@ -338,17 +342,17 @@ against the origin polity), else the origin polity's closure against the destina
 | Field | Where | Meaning |
 | --- | --- | --- |
 | `migrants_blocked` | receipt (state) | rows (closure id, origin region, destination region, driver, persons); None while no native receipt was read this turn |
-| `migrants_refused_first` | receipt (state) | agents refused this tick for the first time in the run |
-| `receipt.migrants_blocked`, `_flight`, `_hunger`, `receipt.migrants_refused_first` | snapshot | persons refused this tick, of them fleeing war, famine or persecution, of them hunger-driven, and of them refused for the first time; null: not observed |
+| `migrants_refused_new` | receipt (state) | agents refused this tick who were not refused at the previous tick (new spells) |
+| `receipt.migrants_blocked`, `_flight`, `_hunger`, `receipt.migrants_refused_new` | snapshot | persons refused this tick, of them fleeing war, famine or persecution, of them hunger-driven, and of them starting a new spell; null: not observed |
 | `receipt.migration_refusals` | snapshot | the rows with region names: `{closure, from, to, driver, persons}`; null: not observed, `[]`: a recorded zero |
 | `totals.migrants_blocked`, `_flight`, `_hunger` | snapshot, state, analytics | refusals (person-ticks) folded per receipt; absent without the channel |
-| `totals.migrants_refused_persons` | snapshot, state, analytics | distinct persons refused (stable ids) |
+| `totals.migrants_refusal_spells` | snapshot, state, analytics | refusal spells (consecutive refusals of one agent count once) |
 
 The event text names the channel: "X closes its borders to trade and migration with Y against
 ...". Viewer: the Epidemics panel's quarantine section shows a "Migrants refused" tile (not
 restricted without the channel; "not observed" for a null receipt; a recorded zero; otherwise
 the persons refused this tick with the flight, hunger and first-time shares), a table of refusals
-by closure and the totals (refusals as person-ticks, and distinct persons). Feature catalog:
+by closure and the totals (refusals as person-ticks, and refusal spells). Feature catalog:
 `quarantine_channels`, a second top-level choice of the Public health group (requires
 `--quarantine-channels trade`, or `--quarantine-mode closure` and `--agents hybrid` or
 `demographics-only`). Batch

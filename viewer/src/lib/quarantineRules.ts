@@ -14,7 +14,8 @@
  * totals; a trade-only record carries neither (migrants are not restricted).
  * Units: a receipt counts the persons refused that tick; the totals sum those
  * refusals over ticks (person-ticks: an agent refused on k ticks counts k
- * times) and count the distinct persons refused separately.
+ * times) and count refusal spells separately (an agent refused on consecutive
+ * ticks counts once per unbroken spell).
  */
 
 export type QuarantineMode = "none" | "cost_only" | "closure";
@@ -62,8 +63,8 @@ export interface QuarantineReceiptRecord {
   migrants_blocked_flight: number | null;
   /** C1b: of them, hunger-driven (food opportunity, material need). */
   migrants_blocked_hunger: number | null;
-  /** C1b: of them, refused for the first time in the run. */
-  migrants_refused_first: number | null;
+  /** C1b: of them, not refused at the previous tick (a new refusal spell). */
+  migrants_refused_new: number | null;
   migration_refusals: MigrationRefusalRecord[] | null;
 }
 
@@ -82,8 +83,8 @@ export interface QuarantineTotalsRecord {
   migrants_blocked: number | null;
   migrants_blocked_flight: number | null;
   migrants_blocked_hunger: number | null;
-  /** C1b: distinct persons refused (stable agent ids). */
-  migrants_refused_persons: number | null;
+  /** C1b: refusal spells (consecutive refusals of one agent count once). */
+  migrants_refusal_spells: number | null;
 }
 
 export interface QuarantineRulesRecord {
@@ -236,8 +237,8 @@ function readReceipt(raw: unknown, migration: boolean): QuarantineReceiptRecord 
       ? nullable(raw.migrants_blocked_flight, int, "receipt.migrants_blocked_flight") : null,
     migrants_blocked_hunger: migration
       ? nullable(raw.migrants_blocked_hunger, int, "receipt.migrants_blocked_hunger") : null,
-    migrants_refused_first: migration
-      ? nullable(raw.migrants_refused_first, int, "receipt.migrants_refused_first") : null,
+    migrants_refused_new: migration
+      ? nullable(raw.migrants_refused_new, int, "receipt.migrants_refused_new") : null,
     migration_refusals: refusals,
   };
 }
@@ -254,8 +255,8 @@ function readTotals(raw: unknown, migration: boolean): QuarantineTotalsRecord {
   out.migrants_blocked = migration ? int(raw.migrants_blocked, "totals.migrants_blocked") : null;
   out.migrants_blocked_flight = migration ? int(raw.migrants_blocked_flight, "totals.migrants_blocked_flight") : null;
   out.migrants_blocked_hunger = migration ? int(raw.migrants_blocked_hunger, "totals.migrants_blocked_hunger") : null;
-  out.migrants_refused_persons = migration
-    ? int(raw.migrants_refused_persons, "totals.migrants_refused_persons") : null;
+  out.migrants_refusal_spells = migration
+    ? int(raw.migrants_refusal_spells, "totals.migrants_refusal_spells") : null;
   return out;
 }
 

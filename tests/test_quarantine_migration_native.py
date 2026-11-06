@@ -42,9 +42,9 @@ def _world(seed: int = 7, mode: str = "closure", migration: bool = True, agents:
     ep.set_epidemiology_enabled(world, True)
     rules = world.epidemics.quarantine_rules = qr.QuarantineRulesState(mode=mode, migration=migration)
     if migration:
-        rules.refused_ids = []
+        rules.refused_last_tick = []
         for name in ("migrants_blocked", "migrants_blocked_flight", "migrants_blocked_hunger",
-                     "migrants_refused_persons"):
+                     "migrants_refusal_spells"):
             setattr(rules.totals, name, 0)
     return world
 
@@ -171,9 +171,10 @@ def test_hybrid_migration_closure_refuses_every_crossing_of_a_pair_closed_for_it
     rules = closed.epidemics.quarantine_rules
     totals = rules.totals
     assert totals.migrants_blocked + qr.blocked_counts(rules.receipt.migrants_blocked)[0] == refused
-    # Distinct persons: never more than the refusals (person-ticks), one stable id each.
-    persons = totals.migrants_refused_persons + rules.receipt.migrants_refused_first
-    assert 0 < persons <= refused and persons == len(rules.refused_ids)
+    # Refusal spells: never more than the refusals (person-ticks); the memory is the last tick's ids.
+    spells = totals.migrants_refusal_spells + rules.receipt.migrants_refused_new
+    assert 0 < spells <= refused
+    assert len(rules.refused_last_tick) == qr.blocked_counts(rules.receipt.migrants_blocked)[0]
     assert trade.epidemics.quarantine_rules.totals.migrants_blocked is None
 
 

@@ -5,7 +5,7 @@ option validation and refusals, the default ``trade`` as the omitted option,
 serialization (absent while off), the native install and receipt seam with a
 fake simulator (attribution, flight drivers, malformed or missing receipts),
 the snapshot's distinct states, the totals (refusals, flight, hunger and
-distinct persons), forwarding, the manifest, the feature catalog, resume
+refusal spells), forwarding, the manifest, the feature catalog, resume
 conflicts, the release of the install when the tick raises and states
 pickled with main's (C1) classes. The real extension is exercised in
 ``tests/test_quarantine_migration_native.py``.
@@ -37,9 +37,9 @@ def _world(migration: bool = True) -> WorldState:
     world.epidemics.quarantine_rules = qr.QuarantineRulesState(mode="closure", migration=migration)
     if migration:
         rules = world.epidemics.quarantine_rules
-        rules.refused_ids = []
+        rules.refused_last_tick = []
         for name in ("migrants_blocked", "migrants_blocked_flight", "migrants_blocked_hunger",
-                     "migrants_refused_persons"):
+                     "migrants_refusal_spells"):
             setattr(rules.totals, name, 0)
     return world
 
@@ -157,8 +157,8 @@ def test_migration_channel_requires_a_mode_where_the_native_pool_owns_the_popula
         assert rules.mode == "closure" and rules.migration is True
         assert qr.channels_of(rules) == ["trade", "migration"]
         assert (rules.totals.migrants_blocked, rules.totals.migrants_blocked_flight,
-                rules.totals.migrants_blocked_hunger, rules.totals.migrants_refused_persons) == (0, 0, 0, 0)
-        assert rules.refused_ids == []
+                rules.totals.migrants_blocked_hunger, rules.totals.migrants_refusal_spells) == (0, 0, 0, 0)
+        assert rules.refused_last_tick == [] and rules.refused_turn is None
 
 
 @pytest.mark.parametrize("mode", [None, "legacy", "none", "cost_only", "closure"])
@@ -194,9 +194,9 @@ def test_the_flag_and_totals_are_absent_while_off_and_old_states_load():
     assert "migration" not in dumped and set(dumped["totals"]) == set(qr.QuarantineTotals().model_dump())
     assert "migrants_blocked" not in dumped["totals"]
     on = json.loads(_world().epidemics.model_dump_json())["quarantine_rules"]
-    assert on["migration"] is True and on["refused_ids"] == []
+    assert on["migration"] is True and on["refused_last_tick"] == [] and "refused_turn" not in on
     assert on["totals"]["migrants_blocked"] == 0 and on["totals"]["migrants_blocked_flight"] == 0
-    assert "refused_ids" not in dumped
+    assert "refused_last_tick" not in dumped
     # A C1 rules state (no field) loads as trade only.
     restored = qr.QuarantineRulesState.model_validate(dumped)
     assert restored.migration is False and restored.totals.migrants_blocked is None
@@ -279,7 +279,8 @@ def test_the_receipt_is_attributed_to_the_border_the_mover_would_enter():
         (3, 3, 4, "famine_memory", 2), (3, 3, 4, "wage", 1), (4, 5, 2, "opp_food", 4), (4, 6, 1, "unattributed", 1)]
     # Flight excludes the hunger-driven line (food opportunity, material need).
     assert qr.blocked_counts(rules.receipt.migrants_blocked) == (8, 2, 4)
-    assert rules.receipt.migrants_refused_first == 8 and rules.refused_ids == list(range(1000, 1008))
+    assert rules.receipt.migrants_refused_new == 8 and rules.refused_last_tick == list(range(1000, 1008))
+    assert rules.refused_turn == world.turn
 
 
 def test_a_one_sided_closure_takes_both_directions():
@@ -313,17 +314,45 @@ def test_rows_and_refused_ids_must_agree(ids, message):
         qr.take_migration_receipt(world, sim, qr.install_migration_closure(world, sim))
 
 
-def test_distinct_persons_count_each_agent_once_across_ticks():
-    world, rules = _receipt_world([(1, 0, 1)])
-    for ids in ([7, 8, 9], [8, 9, 10], [10]):
-        rules.receipt = qr.QuarantineReceipt(turn=world.turn)
-        sim = FakeSim([(3, 4, "famine_memory", len(ids))], ids=ids)
-        qr.take_migration_receipt(world, sim, qr.install_migration_closure(world, sim))
-        qr._fold(rules.totals, rules.receipt)
+def _refusal_ticks(world, rules, ticks):
+    """Take one receipt per tick (ids per tick; a None entry skips the turn)."""
+    news = []
+    for ids in ticks:
+        if ids is not None:
+            rules.receipt = qr.QuarantineReceipt(turn=world.turn)
+            rows = [(3, 4, "famine_memory", len(ids))] if ids else []
+            sim = FakeSim(rows, ids=ids)
+            qr.take_migration_receipt(world, sim, qr.install_migration_closure(world, sim))
+            qr._fold(rules.totals, rules.receipt)
+            news.append(rules.receipt.migrants_refused_new)
         world.turn += 1
-    # 7 refusals (person-ticks) of 4 distinct persons; 3, 1 and 0 refused for the first time.
-    assert (rules.totals.migrants_blocked, rules.totals.migrants_refused_persons) == (7, 4)
-    assert rules.refused_ids == [7, 8, 9, 10] and rules.receipt.migrants_refused_first == 0
+    return news
+
+
+@pytest.mark.parametrize("ticks, news, spells, last", [
+    # Consecutive refusals of one person are one spell.
+    ([[7, 8, 9], [8, 9, 10], [10]], [3, 1, 0], 4, [10]),
+    # A gap ends a spell: refused again later counts again.
+    ([[7], [], [7]], [1, 0, 1], 2, [7]),
+    # A turn without a receipt is a gap too (the memory names its turn).
+    ([[7], None, [7]], [1, 1], 2, [7]),
+])
+def test_refusal_spells_need_only_the_last_ticks_ids(ticks, news, spells, last):
+    world, rules = _receipt_world([(1, 0, 1)])
+    assert _refusal_ticks(world, rules, ticks) == news
+    assert rules.totals.migrants_refusal_spells == spells
+    assert rules.totals.migrants_blocked == sum(len(t) for t in ticks if t)
+    # Bounded memory: only the last observed tick's ids are kept.
+    assert rules.refused_last_tick == last
+
+
+def test_the_refusal_memory_stays_bounded_over_a_long_run():
+    world, rules = _receipt_world([(1, 0, 1)])
+    ticks = [list(range(100 * t, 100 * t + 50)) for t in range(40)]   # 2,000 distinct persons
+    _refusal_ticks(world, rules, ticks)
+    assert len(rules.refused_last_tick) == 50 and rules.totals.migrants_refusal_spells == 2000
+    saved = json.loads(world.epidemics.model_dump_json())["quarantine_rules"]
+    assert len(saved["refused_last_tick"]) == 50
 
 
 class _Boom(Exception):
@@ -373,7 +402,7 @@ C1_RECEIPT_KEYS = {"turn", "decided", "continued", "closed_last_tick", "opened",
                    "enforcement", "phase2_observed", "routes_removed", "forgone_income",
                    "merchant_edges_removed", "leaked_deliveries", "leaked_quantity"}
 C1B_RECEIPT_KEYS = {"migrants_blocked", "migrants_blocked_flight", "migrants_blocked_hunger",
-                    "migrants_refused_first", "migration_refusals"}
+                    "migrants_refused_new", "migration_refusals"}
 
 
 def test_trade_only_snapshots_keep_c1s_shape():
@@ -393,33 +422,33 @@ def test_snapshot_keeps_not_observed_recorded_zero_and_refusals_distinct():
     receipt = summary["receipt"]
     assert set(receipt) == C1_RECEIPT_KEYS | C1B_RECEIPT_KEYS
     assert receipt["migrants_blocked"] is None and receipt["migration_refusals"] is None   # not observed
-    assert receipt["migrants_refused_first"] is None
+    assert receipt["migrants_refused_new"] is None
     sim = FakeSim([])
     qr.take_migration_receipt(world, sim, qr.install_migration_closure(world, sim))
     receipt = qr.snapshot_summary(world)["receipt"]
     assert (receipt["migrants_blocked"], receipt["migrants_blocked_flight"], receipt["migrants_blocked_hunger"],
-            receipt["migrants_refused_first"], receipt["migration_refusals"]) == (0, 0, 0, 0, [])
+            receipt["migrants_refused_new"], receipt["migration_refusals"]) == (0, 0, 0, 0, [])
     rules.receipt = qr.QuarantineReceipt(turn=world.turn)
     sim = FakeSim([(4, 3, "persecution", 3), (5, 2, "frontier", 1)])
     qr.take_migration_receipt(world, sim, qr.install_migration_closure(world, sim))
     summary = qr.snapshot_summary(world)
     assert summary["receipt"]["migrants_blocked"] == 4 and summary["receipt"]["migrants_blocked_flight"] == 3
-    assert summary["receipt"]["migrants_blocked_hunger"] == 0 and summary["receipt"]["migrants_refused_first"] == 4
+    assert summary["receipt"]["migrants_blocked_hunger"] == 0 and summary["receipt"]["migrants_refused_new"] == 4
     assert summary["receipt"]["migration_refusals"][0] == {
         "closure": 1, "from": world.regions[4].name, "to": world.regions[3].name, "driver": "persecution",
         "persons": 3}
     assert (summary["totals"]["migrants_blocked"], summary["totals"]["migrants_blocked_flight"],
-            summary["totals"]["migrants_refused_persons"]) == (4, 3, 4)
+            summary["totals"]["migrants_refusal_spells"]) == (4, 3, 4)
 
 
 def test_totals_fold_each_receipt_once():
     totals = qr.QuarantineTotals(migrants_blocked=0, migrants_blocked_flight=0)
     for rows in ([(1, 0, 4, "famine_memory", 2)], None, [], [(1, 4, 0, "wage", 5)], [(1, 4, 0, "material_need", 1)]):
         receipt = qr.QuarantineReceipt(turn=1, migrants_blocked=rows,
-                                       migrants_refused_first=None if rows is None else len(rows))
+                                       migrants_refused_new=None if rows is None else len(rows))
         qr._fold(totals, receipt)
     assert (totals.migrants_blocked, totals.migrants_blocked_flight, totals.migrants_blocked_hunger,
-            totals.migrants_refused_persons, totals.receipts) == (8, 2, 1, 3, 5)
+            totals.migrants_refusal_spells, totals.receipts) == (8, 2, 1, 3, 5)
     plain = qr.QuarantineTotals()
     qr._fold(plain, qr.QuarantineReceipt(turn=1))
     assert plain.migrants_blocked is None
@@ -439,7 +468,7 @@ def test_metrics_carry_the_migration_totals():
     sim = FakeSim([(4, 3, "famine_memory", 2)])
     qr.take_migration_receipt(world, sim, qr.install_migration_closure(world, sim))
     metrics = qr.extract_metrics([{"quarantine_rules": qr.snapshot_summary(world)}])
-    assert (metrics["migrants_blocked"], metrics["migrants_blocked_flight"], metrics["migrants_refused_persons"]) == (2, 2, 2)
+    assert (metrics["migrants_blocked"], metrics["migrants_blocked_flight"], metrics["migrants_refusal_spells"]) == (2, 2, 2)
 
 
 # --- forwarding, manifest, catalog -------------------------------------------------------------

@@ -58,16 +58,16 @@ describe("readQuarantineRules", () => {
     expect(reading.record.receipt?.migrants_blocked).toBe(9);
     expect(reading.record.receipt?.migrants_blocked_flight).toBe(1);
     expect(reading.record.receipt?.migrants_blocked_hunger).toBe(0);
-    expect(reading.record.receipt?.migrants_refused_first).toBe(9);
+    expect(reading.record.receipt?.migrants_refused_new).toBe(9);
     expect(reading.record.receipt?.migration_refusals?.map((r) => [r.closure, r.persons])).toEqual([[1, 1], [3, 8]]);
     expect(reading.record.totals.migrants_blocked).toBe(11);
-    expect(reading.record.totals.migrants_refused_persons).toBe(11);
+    expect(reading.record.totals.migrants_refusal_spells).toBe(11);
     expect(reading.record.exempt).not.toContain("migrants");
     // Not observed (null) and a recorded zero stay apart.
     const receipt = migrationRecord().receipt as Record<string, unknown>;
     const unobserved = readQuarantineRules({ quarantine_rules: migrationRecord({ receipt: {
       ...receipt, migrants_blocked: null, migrants_blocked_flight: null, migrants_blocked_hunger: null,
-      migrants_refused_first: null, migration_refusals: null } }) });
+      migrants_refused_new: null, migration_refusals: null } }) });
     expect(unobserved.state === "recorded" && unobserved.record.receipt?.migrants_blocked).toBeNull();
     const zero = readQuarantineRules({ quarantine_rules: migrationRecord({ receipt: {
       ...receipt, migrants_blocked: 0, migrants_blocked_flight: 0, migration_refusals: [] } }) });
@@ -77,7 +77,7 @@ describe("readQuarantineRules", () => {
     expect(trade.state === "recorded" && migrationClosed(trade.record)).toBe(false);
     expect(trade.state === "recorded" && trade.record.receipt?.migrants_blocked).toBeNull();
     expect(trade.state === "recorded" && trade.record.totals.migrants_blocked).toBeNull();
-    expect(trade.state === "recorded" && trade.record.totals.migrants_refused_persons).toBeNull();
+    expect(trade.state === "recorded" && trade.record.totals.migrants_refusal_spells).toBeNull();
   });
 
   it("refuses a malformed migration record", () => {
@@ -91,8 +91,8 @@ describe("readQuarantineRules", () => {
         "receipt.migrants_blocked and receipt.migration_refusals must both be recorded or both be null"],
       [{ receipt: { ...receipt, migration_refusals: [{ closure: 1 }] } }, "receipt.migration_refusals[0].from must be a string"],
       [{ totals: { ...(migrationRecord().totals as object), migrants_blocked: undefined } }, "totals.migrants_blocked must be an integer"],
-      [{ totals: { ...(migrationRecord().totals as object), migrants_refused_persons: undefined } },
-        "totals.migrants_refused_persons must be an integer"],
+      [{ totals: { ...(migrationRecord().totals as object), migrants_refusal_spells: undefined } },
+        "totals.migrants_refusal_spells must be an integer"],
     ] as const) {
       expect(readQuarantineRules({ quarantine_rules: migrationRecord(overrides) })).toEqual(
         { state: "malformed", error: message });

@@ -206,9 +206,10 @@ class QuarantineReceipt(BaseModel):
     #: origin region, destination region, driver, persons), sorted; None
     #: while no native migration receipt was read this turn.
     migrants_blocked: list[tuple[int, int, int, str, int]] | None = Field(default=None, exclude_if=_is_none)
-    #: Agent tick (C1b): agents refused this tick for the first time in the
-    #: run (by stable id); None with ``migrants_blocked``.
-    migrants_refused_first: int | None = Field(default=None, exclude_if=_is_none)
+    #: Agent tick (C1b): agents refused this tick who were not refused at the
+    #: previous tick (the start of a refusal spell, by stable id); None with
+    #: ``migrants_blocked``.
+    migrants_refused_new: int | None = Field(default=None, exclude_if=_is_none)
 
 
 class QuarantineTotals(BaseModel):
@@ -227,11 +228,13 @@ class QuarantineTotals(BaseModel):
     #: C1b migration channel only (None otherwise, omitted): refusals summed
     #: over ticks (person-ticks: an agent refused on k ticks counts k times),
     #: of them fleeing war, famine or persecution (``FLIGHT_DRIVERS``) and
-    #: hunger-driven (``HUNGER_DRIVERS``), and the distinct agents refused.
+    #: hunger-driven (``HUNGER_DRIVERS``), and the refusal spells (an agent
+    #: refused on consecutive ticks counts once per unbroken spell: at most
+    #: the refusals, at least the distinct persons refused).
     migrants_blocked: int | None = Field(default=None, exclude_if=_is_none)
     migrants_blocked_flight: int | None = Field(default=None, exclude_if=_is_none)
     migrants_blocked_hunger: int | None = Field(default=None, exclude_if=_is_none)
-    migrants_refused_persons: int | None = Field(default=None, exclude_if=_is_none)
+    migrants_refusal_spells: int | None = Field(default=None, exclude_if=_is_none)
 
 
 class QuarantineRulesState(BaseModel):
@@ -241,10 +244,13 @@ class QuarantineRulesState(BaseModel):
     #: C1b: closures also refuse migration (``--quarantine-channels
     #: trade,migration``; ``closure`` only). Omitted while False.
     migration: bool = Field(default=False, exclude_if=_is_false)
-    #: C1b: stable ids of every agent refused so far, ascending (distinct
-    #: persons); None without the migration channel. A rebuilt native pool
-    #: (a JSON resume) starts a new id space, so the count is then a lower bound.
-    refused_ids: list[int] | None = Field(default=None, exclude_if=_is_none)
+    #: C1b: stable ids of the agents refused at the last observed tick
+    #: (``refused_turn``), ascending, replaced every tick: the only memory the
+    #: refusal spells need, bounded by one tick's refusals. None without the
+    #: migration channel. A rebuilt native pool (a JSON resume) starts a new
+    #: id space, so the first tick after one may misread a spell boundary.
+    refused_last_tick: list[int] | None = Field(default=None, exclude_if=_is_none)
+    refused_turn: int | None = Field(default=None, exclude_if=_is_none)
     next_closure_id: int = 1
     closures: list[QuarantineClosure] = Field(default_factory=list)
     receipt: QuarantineReceipt | None = Field(default=None, exclude_if=_is_none)
@@ -506,10 +512,12 @@ def take_migration_receipt(world: Any, sim: Any, token: tuple | None) -> None:
         out.append((closure_id, frm, to, str(driver), persons))
     if sum(r[4] for r in out) != len(ids):
         raise RuntimeError("native migration closure rows and refused ids disagree")
-    known = set(getattr(rules, "refused_ids", None) or [])
+    previous = (set(getattr(rules, "refused_last_tick", None) or [])
+                if getattr(rules, "refused_turn", None) == turn - 1 else set())
     receipt.migrants_blocked = sorted(out)
-    receipt.migrants_refused_first = sum(1 for i in ids if i not in known)
-    rules.refused_ids = sorted(known.union(ids))
+    receipt.migrants_refused_new = sum(1 for i in ids if i not in previous)
+    rules.refused_last_tick = sorted(ids)
+    rules.refused_turn = turn
 
 
 def migration_closure_tick(world: Any, sim: Any, tick):
@@ -560,8 +568,8 @@ def _fold(totals: QuarantineTotals, receipt: QuarantineReceipt) -> None:
         totals.migrants_blocked = (getattr(totals, "migrants_blocked", None) or 0) + persons
         totals.migrants_blocked_flight = (getattr(totals, "migrants_blocked_flight", None) or 0) + flight
         totals.migrants_blocked_hunger = (getattr(totals, "migrants_blocked_hunger", None) or 0) + hunger
-        totals.migrants_refused_persons = ((getattr(totals, "migrants_refused_persons", None) or 0)
-                                           + (getattr(receipt, "migrants_refused_first", None) or 0))
+        totals.migrants_refusal_spells = ((getattr(totals, "migrants_refusal_spells", None) or 0)
+                                          + (getattr(receipt, "migrants_refused_new", None) or 0))
 
 
 def decide(world: Any, state: Any, rules: QuarantineRulesState, reports: dict, acc) -> list:
@@ -727,8 +735,8 @@ def snapshot_summary(world: Any) -> dict | None:
             out["receipt"]["migrants_blocked"] = persons
             out["receipt"]["migrants_blocked_flight"] = flight
             out["receipt"]["migrants_blocked_hunger"] = hunger
-            out["receipt"]["migrants_refused_first"] = (
-                None if rows is None else getattr(receipt, "migrants_refused_first", None) or 0)
+            out["receipt"]["migrants_refused_new"] = (
+                None if rows is None else getattr(receipt, "migrants_refused_new", None) or 0)
             out["receipt"]["migration_refusals"] = None if rows is None else [
                 {"closure": c, "from": region(a), "to": region(b), "driver": d, "persons": p}
                 for c, a, b, d, p in rows]
@@ -874,9 +882,10 @@ def _configure_channels(world: Any, channels: str | None, agent_mode: str | None
         raise ValueError(f"--quarantine-channels {channels} conflicts with the saved world (saved: "
                          f"{_channels_name(saved)}); a world keeps its quarantine rules for its whole run")
     rules.migration = want
-    rules.refused_ids = [] if want else None
+    rules.refused_last_tick = [] if want else None
+    rules.refused_turn = None
     for name in ("migrants_blocked", "migrants_blocked_flight", "migrants_blocked_hunger",
-                 "migrants_refused_persons"):
+                 "migrants_refusal_spells"):
         setattr(rules.totals, name, 0 if want else None)
 
 
