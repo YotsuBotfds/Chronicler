@@ -71,7 +71,8 @@ def _l2_row(rid, turn):
 
 def _counters(name, mode):
     if name == "repair_projects":
-        return {"stalled_no_timber": 9 if mode == "cut" else 7, "wages_milli": 1500, "timber_used": 4.0}
+        return {"stalled_no_timber": 9 if mode == "cut" else 7, "wages_milli": 1500, "timber_used": 4.0,
+                "income_replaced": 0.2}
     if name == "timber_supply":
         cut = mode == "cost_only"
         return {"launched": 2, "ended": 2, "cut": 0.0 if cut else 6.0, "delivered": 0.0 if cut else 5.0,
@@ -386,7 +387,8 @@ def test_an_undeclared_comparison_is_refused(S, monkeypatch):
 
 def test_the_primaries_and_comparisons_are_the_preregistered_ones(S):
     primaries = [label for label, *_ in S.CP3.PAIRED if label.startswith("[primary]")]
-    assert primaries == ["[primary] CH priced-out person-turns in the pilot regions of either arm (CH - CH_unpaid)",
+    assert primaries == ["[primary] CH priced-out person-turns per pilot person-turn in the pilot regions of "
+                         "either arm (CH - CH_unpaid)",
                          "[primary] CH granary mean condition, run mean (CH - CH_cut)"]
     pairs = {(a, c) for _l, a, c, _f in S.CP3.PAIRED if c}
     assert pairs == {("CH", "CH_unpaid"), ("CH", "CH_cut"), ("CH", "CH_free"), ("CH", "CH_L2"), ("CH", "C0")}
@@ -577,7 +579,8 @@ def test_a_complete_pilot_extracts_and_reports(short, tmp_path, monkeypatch, cap
     assert S.main(["report", str(out / "metrics.jsonl"), "--checkpoint", "3"]) == 0
     text = capsys.readouterr().out
     assert "Projected held run time from this pilot" in text and "for 72 runs" in text
-    assert "[primary] CH priced-out person-turns in the pilot regions of either arm (CH - CH_unpaid)" in text
+    assert ("[primary] CH priced-out person-turns per pilot person-turn in the pilot regions of either arm "
+            "(CH - CH_unpaid)") in text
     assert "[primary] CH granary mean condition, run mean (CH - CH_cut)" in text
     S.annotate_pairs_cp3(rows)
     by = {(r["arm"], r["stratum"]): r for r in rows}
@@ -592,8 +595,10 @@ def test_a_complete_pilot_extracts_and_reports(short, tmp_path, monkeypatch, cap
     ch, unpaid = by[("CH", "t")]["pair"]["CH|CH_unpaid"], by[("CH_unpaid", "t")]["pair"]["CH|CH_unpaid"]
     assert ch["regions"] == unpaid["regions"] == 3
     assert (ch["priced_out_persons"], unpaid["priced_out_persons"]) == (8.0, 10.0)
-    assert diff("[primary] CH priced-out person-turns in the pilot regions of either arm (CH - CH_unpaid)",
+    assert diff("CH priced-out person-turns in the pilot regions of either arm (CH - CH_unpaid)",
                 "CH", "CH_unpaid") == -2.0
+    assert diff("[primary] CH priced-out person-turns per pilot person-turn in the pilot regions of either arm "
+                "(CH - CH_unpaid)", "CH", "CH_unpaid") == pytest.approx(8 / 50 - 10 / 40)
     # Only region 0 is a pilot region in both arms: 6 priced out in each.
     assert (ch["both_regions"], ch["both_priced_out_persons"], unpaid["both_priced_out_persons"]) == (1, 6.0, 6.0)
     assert (ch["pilot_region_turns"], unpaid["pilot_region_turns"]) == (5.0, 4.0)
@@ -602,8 +607,20 @@ def test_a_complete_pilot_extracts_and_reports(short, tmp_path, monkeypatch, cap
     # Ration shortfall over the set: CH 3 + 2 + 1.5; CH_unpaid 3 + 1.5 + (0.5 + 0.5 + 1).
     assert (ch["ration_short"], unpaid["ration_short"]) == (pytest.approx(6.5), pytest.approx(6.5))
     assert diff("CH granary-crew wages paid to named members, coins (CH - CH_unpaid)", "CH", "CH_unpaid") == 2.0
-    assert diff("CH money into households: named wages + remittances + procurement - income replaced, coins "
-                "(CH - CH_unpaid)", "CH", "CH_unpaid") == pytest.approx((8.0 + 1.3 - 2.5) - (6.0 + 1.3 - 2.0))
+    assert diff("CH money credited to households (gross): named wages + remittances credited + procurement - "
+                "income replaced by retail, coins (CH - CH_unpaid)", "CH", "CH_unpaid") == \
+        pytest.approx((8.0 + 1.3 - 2.5) - (6.0 + 1.3 - 2.0))
+    # The crews' withheld ordinary income and the senders' net debit, read beside it
+    # (each package's own counter; structural zero in C0, which has none of them).
+    own = {"CH ordinary income withheld for RS2 workshop crews' paid shares, coins (CH - CH_unpaid)": 0.2,
+           "CH ordinary income withheld for PL1 woodcutters' paid shares, coins (CH - CH_unpaid)": 0.4,
+           "CH ordinary income withheld for PL3 crews' paid shares (granary and workshop), coins (CH - CH_unpaid)":
+               0.3,
+           "CH remittance senders' net debit: credited + courier fee, coins (CH - CH_unpaid)": 0.95}
+    for label, value in own.items():
+        assert paired[label](by[("CH", "t")]) == pytest.approx(value), label
+    for label in list(own)[1:]:
+        assert paired[label](by[("C0", "t")]) == 0.0, label
     # CH - CH_cut: granary run mean 0.6 - 0.5; the woodcutting home regions of either
     # arm are {1, 2}: food shortfall 3 + 3 in both.
     assert diff("[primary] CH granary mean condition, run mean (CH - CH_cut)", "CH", "CH_cut") == pytest.approx(0.1)
@@ -640,8 +657,9 @@ def test_a_failed_control_leaves_its_pair_unknown(short, tmp_path, monkeypatch):
     by = {r["arm"]: r for r in rows}
     assert by["CH"]["pair"]["CH|CH_unpaid"] is None
     text = "\n".join(S.report_lines(rows, S.CP3))
-    label = "[primary] CH priced-out person-turns in the pilot regions of either arm (CH - CH_unpaid)"
-    assert f"| {label} | t | 5: failed" in text
+    for label in ("[primary] CH priced-out person-turns per pilot person-turn in the pilot regions of either arm "
+                  "(CH - CH_unpaid)", "CH priced-out person-turns in the pilot regions of either arm (CH - CH_unpaid)"):
+        assert f"| {label} | t | 5: failed" in text
 
 
 def test_rows_of_another_checkpoint_are_refused(short, tmp_path, monkeypatch):

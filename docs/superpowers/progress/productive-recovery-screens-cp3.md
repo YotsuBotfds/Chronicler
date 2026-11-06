@@ -109,7 +109,7 @@ arm's own value where no control is named. The report prints every world's value
 stratum, the mean, the range and the number of worlds above, below and at zero; a world
 whose arm or control failed, or whose value is unknown, is listed as such (`failed`,
 `unknown`, `not run`). **Primary** outcomes are marked; the rest are secondary. The
-executable list is `CP3.PAIRED` in the runner (66 outcomes, 2 primary).
+executable list is `CP3.PAIRED` in the runner (69 outcomes, 2 primary).
 
 ### Definitions
 
@@ -146,17 +146,20 @@ executable list is `CP3.PAIRED` in the runner (66 outcomes, 2 primary).
   which includes PL3's wider workshop pool), PL3 granary-crew wages
   (`recovery_crews.granary_wages_milli`) and PL1 woodcutting wages
   (`timber_supply.wages_milli`), coins.
-- **Money into households.** Wages to named repair workers + remittances credited to
-  recipients (`remittances.credited_milli`) + granary procurement credited to owners
-  (`household_retail.procurement_credited_milli`) − ordinary farm income replaced by retail
-  (`income_replaced_total`), coins. It extends checkpoint 2's measure (procurement credited −
-  income replaced) with the chain's wage and remittance channels. Household purchases move
-  money between households and are not in it. Remittances also move money between
-  households: the senders' debit (credited + the courier fee) is not subtracted, so this
-  counts money arriving in recipient households, not a net change of all household wealth.
-  The named crews' withheld ordinary income is not subtracted either (open question 3);
-  PL3's counter for it (`recovery_crews.income_replaced`, granary and workshop crews
-  together) is reported separately.
+- **Money credited to households (gross).** Wages to named repair workers + remittances
+  credited to recipients (`remittances.credited_milli`) + granary procurement credited to
+  owners (`household_retail.procurement_credited_milli`) − ordinary farm income replaced by
+  retail (`income_replaced_total`), coins. It extends checkpoint 2's measure (procurement
+  credited − income replaced) with the chain's wage and remittance channels. Household
+  purchases move money between households and are not in it. It is **gross** in two ways
+  (lead decision 3): remittances also move money between households, and the senders' net
+  debit (credited + the courier fee, which RS4 checks equals sent − refunded) is not
+  subtracted; and the named crews' ordinary income withheld for their paid shares is not
+  subtracted. Both are reported beside it as their own outcomes: the senders' net debit, and
+  each package's withheld-income counter (PL1 `timber_supply.income_withheld`, RS2
+  `repair_projects.income_replaced`, PL3 `recovery_crews.income_replaced`). PL3's counter
+  covers its granary and workshop crews together, and its workshop part overlaps RS2's, so
+  the three are not summed into a net figure.
 - **Counters** are lifetime counters of the last snapshot's package record. A declared
   counter absent from an enabled package's record was never incremented and is 0 (the
   sprint-3 rule).
@@ -171,19 +174,25 @@ executable list is `CP3.PAIRED` in the runner (66 outcomes, 2 primary).
 
 ### CH − CH_unpaid: does the wage reach food?
 
-- **Primary:** priced-out person-turns in the pilot regions of either arm.
-- Priced-out child-turns and deficit; priced-out person-turns in the regions pilot in both
-  arms; priced-out person-turns per pilot person-turn; pilot person-turns; pilot region-turns
-  in the set, and each arm's coverage; ration shortfall and mean ration per Phase-2 person
-  over the set.
+- **Primary:** priced-out person-turns per pilot person-turn in the pilot regions of either
+  arm (lead decision 1).
+- Priced-out person-turns (the whole count) and child-turns and deficit; priced-out
+  person-turns in the regions pilot in both arms; pilot person-turns; pilot region-turns in
+  the set, and each arm's coverage; ration shortfall and mean ration per Phase-2 person over
+  the set.
 - Granary-crew wages paid to named members; granary coins sunk; wages to named repair
   workers; remittances credited; procurement credited; ordinary farm income replaced; money
-  into households; PL3 crews' withheld ordinary income; granary mean condition (run mean;
-  expected nearly unchanged, as checkpoint 1 found for RC − RC_unpaid).
+  credited to households (gross); the ordinary income withheld for PL3 crews', RS2 workshop
+  crews' and PL1 woodcutters' paid shares; remittance senders' net debit; granary mean
+  condition (run mean; expected nearly unchanged, as checkpoint 1 found for RC − RC_unpaid).
 - **Reading it.** Under `paid_work` a region joins the pilot when a crew is paid there, so
   `CH`'s paid granary crews bring regions under retail prices that `CH_unpaid` leaves under
-  L2. The primary therefore mixes more people facing prices (coverage) with the wage's effect
-  on those who do. The both-arms set and the rate separate the two and are read beside it.
+  L2. The whole count therefore mixes more people facing prices (coverage) with the wage's
+  effect on those who do; the rate divides by the people facing prices, and the both-arms set
+  compares like regions. The rate still carries a composition effect: the regions the wage
+  adds hold the paid crews' households, so a lower rate there is partly the wage reaching
+  those households and partly who was added. The whole count, the both-arms set and each
+  arm's coverage are read beside it.
 
 ### CH − CH_cut: does timber matter?
 
@@ -205,13 +214,13 @@ executable list is `CP3.PAIRED` in the runner (66 outcomes, 2 primary).
 
 - Ration shortfall over CH's pilot regions (the set reduces to them); population; food
   shortfall after relief and mean ration per Phase-2 person over the set; CH's coverage of its
-  own pilot regions. No primary is proposed (open question 2).
+  own pilot regions. No primary (lead decision 2).
 
 ### CH − C0: the chain's total
 
 - Granary mean condition (run mean); priced-out person-turns and ration shortfall over the
   pilot regions of either arm; pilot region-turns in the set; wages to named repair workers;
-  money into households; population. C0's pilot regions come only from RS2 workshop wages,
+  money credited to households (gross); population. C0's pilot regions come only from RS2 workshop wages,
   so coverage differs most here.
 
 ### Coverage per arm and shared outcomes
@@ -315,8 +324,8 @@ choose arms, outcomes or parameters.
   constructed bundle a snapshot without L3 totals read as no extraction in the shared metrics
   (only a missing record failed). The checkpoint-3 extractor now names it (`timber_stock:
   totals missing at turns […]`); every real snapshot carries totals.
-- **Definitional point found while checking the report, recorded as open question 1, not
-  changed:** as the design anticipated, the arms' coverage differs (on the pilot worlds CH had
+- **Definitional point found while checking the report, recorded as open question 1 (settled
+  by lead decision 1), not changed by the lane:** as the design anticipated, the arms' coverage differs (on the pilot worlds CH had
   more pilot region-turns than CH_unpaid and several times C0's). The either-arm sets, the
   both-arms set and the rate were defined before the pilot.
 - The lane read the pilot report while checking for defects and changed no arm, outcome,
@@ -328,26 +337,34 @@ None yet. Any change to the arms, outcomes, analysis or budget after the lead fr
 file is recorded here as a dated amendment with its reason, and only before the first held
 run.
 
-## Lead decisions (pending)
+## Lead decisions (2026-11-06, before the freeze)
 
-Open questions for the lead before freezing:
+The lane's six open questions, settled by the lead on the checkpoint-3 integration branch
+(`claude/productive-recovery-cp3`), before any held run. The pilot was rerun on the final
+source after them (Timing pilot, below).
 
-1. **The primary for `CH − CH_unpaid`.** As drafted it is priced-out person-turns over the
-   pilot regions of either arm, which equals each arm's whole count and so includes the
-   coverage `CH`'s paid crews add. The alternatives already computed are the regions pilot in
-   both arms (like for like, smaller) and the rate per pilot person-turn. Which is primary?
-2. **A primary for `CH − CH_L2`?** Checkpoint 2 made the ration shortfall primary for `R −
-   L2`; none is proposed here, to keep two primaries.
-3. **Money into households.** Should it also subtract the named crews' withheld ordinary
-   income (the paid share's income the wage replaces; PL1 `income_withheld`, PL3 and RS2
-   `income_replaced`, whose workshop parts overlap), and should remittances count only
-   credits or credits less the senders' debit? As drafted: credits, no withheld income.
-4. **The union rule.** Checkpoint 2 used the treatment arm's pilot regions; the draft uses the
-   union of both arms' (identical when the control has none). Keep the union?
-5. **No identity control.** Checkpoint 3 has none (feature-off identity and resume are tested
-   elsewhere). Should a `record_only` arm be added?
-6. **Merged first**: as for checkpoint 2, the runner and this file go on the checkpoint-3
-   integration branch before the freeze.
+1. **The primary for `CH − CH_unpaid` is the rate**: priced-out person-turns per pilot
+   person-turn in the pilot regions of either arm. The question is whether the wage reaches
+   food for the people who face prices; the whole count also counts the people the paid
+   crews bring under prices, which is the `paid_work` boundary's coverage, not the wage's
+   effect on those households. The whole count, the both-arms set and the coverage stay as
+   secondaries, and the rate's own composition effect is stated where it is read.
+2. **No primary for `CH − CH_L2`.** Checkpoint 2 already made retail against L2 primary
+   (`R − L2` ration shortfall); two primaries keep this screen about the chain's links.
+3. **Money stays gross and is renamed** "money credited to households (gross)". The crews'
+   withheld ordinary income is reported beside it as three counters (PL1, RS2, PL3), not
+   subtracted, because PL3's counter does not split its granary and workshop crews and its
+   workshop part overlaps RS2's; a sum would double-count. The remittance senders' net debit
+   (credited + fee) is a new secondary, so the wage-against-withheld and
+   credited-against-debited comparisons can be read from the report.
+4. **The union rule is kept**: it reduces to checkpoint 2's rule when the control has no
+   pilot region and is checkpoint 1's either-arm rule otherwise.
+5. **No identity control.** Checkpoint 2's held identity control (`R_rec − L2`, exact in
+   12/12 worlds) covered retail's `record_only` mode, and feature-off identity and exact
+   resume of the integrated source are checked with the repository's identity tools before
+   the merge, not as a screen arm.
+6. **Merged first**: the runner, its tests and this file are on the integration branch
+   (merged with `main` `96c20439`) before the freeze, and the frozen commit is recorded below.
 
 ## Results
 

@@ -1613,8 +1613,16 @@ def _pilot_regions(r):
     return sum(1 for v in turns if v) if isinstance(turns, list) else None
 
 
+def _remit_debit(r):
+    """Coins remittance senders lost net of refunds: credited to recipients plus the
+    courier fee (RS4 checks debited = credited + fee = sent - refunded; structural zero
+    without RS4)."""
+    credited, fee = _z(r, "remittances", "credited_milli"), _z(r, "remittances", "fee_milli")
+    return None if credited is None or fee is None else (credited + fee) / 1000
+
+
 def _money_cp3(r):
-    """Money into households, coins: wages to named repair workers (RS2 workshop crews,
+    """Money credited to households (gross), coins: wages to named repair workers (RS2 workshop crews,
     PL3 granary crews, PL1 woodcutters) + remittances credited to recipients + granary
     procurement credited to owners - ordinary farm income replaced by retail. Purchases
     and the crews' withheld ordinary income are not in it (see the preregistration)."""
@@ -1640,12 +1648,12 @@ def _paired_cp3() -> list:
 
     out = [
         # CH - CH_unpaid: does the wage reach food?
-        (f"[primary] CH priced-out person-turns in {either} (CH - {U})", "CH", U, over(U, "priced_out_persons")),
+        (f"CH priced-out person-turns in {either} (CH - {U})", "CH", U, over(U, "priced_out_persons")),
         (f"CH priced-out child-turns in {either} (CH - {U})", "CH", U, over(U, "priced_out_children")),
         (f"CH priced-out deficit in {either}, rations (CH - {U})", "CH", U, over(U, "priced_out_deficit")),
         (f"CH priced-out person-turns in the regions that are pilot regions in both arms (CH - {U})", "CH", U,
          over(U, "both_priced_out_persons")),
-        (f"CH priced-out person-turns per pilot person-turn in {either} (CH - {U})", "CH", U,
+        (f"[primary] CH priced-out person-turns per pilot person-turn in {either} (CH - {U})", "CH", U,
          over(U, "priced_out_rate")),
         (f"CH pilot person-turns in {either} (CH - {U}; the denominator)", "CH", U, over(U, "persons")),
         (f"CH pilot region-turns in {either} (CH - {U}; coverage)", "CH", U, over(U, "pilot_region_turns")),
@@ -1664,10 +1672,16 @@ def _paired_cp3() -> list:
         (f"CH granary procurement credited to owners, coins (CH - {U})", "CH", U,
          coins("household_retail", "procurement_credited_milli")),
         (f"CH ordinary farm income replaced by retail, coins (CH - {U})", "CH", U, lambda r: r.get("income_replaced")),
-        (f"CH money into households: named wages + remittances + procurement - income replaced, coins (CH - {U})",
-         "CH", U, _money_cp3),
-        (f"CH ordinary income withheld for PL3 crews' paid shares, coins (CH - {U})", "CH", U,
+        (f"CH money credited to households (gross): named wages + remittances credited + procurement - income "
+         f"replaced by retail, coins (CH - {U})", "CH", U, _money_cp3),
+        (f"CH ordinary income withheld for PL3 crews' paid shares (granary and workshop), coins (CH - {U})", "CH", U,
          lambda r: _z(r, "recovery_crews", "income_replaced")),
+        (f"CH ordinary income withheld for RS2 workshop crews' paid shares, coins (CH - {U})", "CH", U,
+         lambda r: _z(r, "repair_projects", "income_replaced")),
+        (f"CH ordinary income withheld for PL1 woodcutters' paid shares, coins (CH - {U})", "CH", U,
+         lambda r: _z(r, "timber_supply", "income_withheld")),
+        (f"CH remittance senders' net debit: credited + courier fee, coins (CH - {U})", "CH", U,
+         lambda r: _remit_debit(r)),
         (f"CH granary mean condition, run mean (CH - {U})", "CH", U, _GR),
         # CH - CH_cut: does timber matter?
         (f"[primary] CH granary mean condition, run mean (CH - {X})", "CH", X, _GR),
@@ -1712,7 +1726,7 @@ def _paired_cp3() -> list:
         (f"CH ration shortfall in {either}, rations (CH - {Z})", "CH", Z, over(Z, "ration_short")),
         (f"CH pilot region-turns in {either} (CH - {Z}; coverage)", "CH", Z, over(Z, "pilot_region_turns")),
         (f"CH wages to named repair workers, coins (CH - {Z})", "CH", Z, _wages),
-        (f"CH money into households, coins (CH - {Z})", "CH", Z, _money_cp3),
+        (f"CH money credited to households (gross), coins (CH - {Z})", "CH", Z, _money_cp3),
         (f"CH population (CH - {Z})", "CH", Z, lambda r: r.get("population")),
     ]
     # Coverage per arm: the paid_work boundary depends on wages.
@@ -1782,7 +1796,7 @@ class CP3:
     #: Counters the outcomes and funnels read (validated against each package's COUNTERS).
     OUTCOMES: dict[str, tuple[str, ...]] = {
         "household_retail": CP2.OUTCOMES["household_retail"],
-        "repair_projects": OUTCOMES["repair_projects"],
+        "repair_projects": (*OUTCOMES["repair_projects"], "income_replaced"),
         "timber_supply": OUTCOMES["timber_supply"],
         "recovery_crews": OUTCOMES["recovery_crews"],
         "remittances": ("turns", "eligible_sender_turns", "linked_sender_turns", "rows_applied", "rows_limited",
