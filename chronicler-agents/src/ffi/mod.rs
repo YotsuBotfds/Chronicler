@@ -1734,6 +1734,7 @@ impl AgentSimulator {
         if self.pool.retail_income.as_ref().is_some_and(|p| p.turn != turn) {
             return Err(PyValueError::new_err("retail income must be installed for this tick"));
         }
+        crate::provisioning::check_retail_tick(&self.pool, turn).map_err(PyValueError::new_err)?;
         if self.pool.work_reservations.iter().any(|r| r.turn == turn) {
             // Livelihoods: one person, one work commitment per turn.
             let clash = crate::workshop_work::conflicts(&self.pool, turn);

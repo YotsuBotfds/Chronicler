@@ -490,7 +490,11 @@ pub struct RetailRegionInput {
 }
 
 /// One pilot region's owned-stock flows (goods units, food slots only):
-/// `owned_close = owned_open + titled - owned_decay - owned_overflow`.
+/// `owned_close = owned_open + titled - owned_decay - owned_overflow`. The
+/// decay and overflow fall on the stock carried into the turn (`owned_open`),
+/// before sufficiency; this turn's title is on offer whole at phase 0.7, so
+/// `owned_close` is exactly the owned food sufficiency counted. (In the food
+/// ledger the owned decay and overflow precede `food_pre_consumption`.)
 /// `commons_consumed` is the draw-down (all of it from the commons, equal to
 /// `food_ledger[6]`); `commons_sufficiency` is the pre-consumption commons
 /// over demand, clamped 0..2 like `food_sufficiency`.
@@ -502,6 +506,45 @@ pub struct RetailRegionResult {
     pub owned_overflow: [f32; NUM_GOODS],
     pub commons_consumed: f64,
     pub commons_sufficiency: f32,
+}
+
+/// L6b retail: the owned stock carried into the turn (last turn's unsold),
+/// after its storage decay and its share of the per-good cap, before this
+/// turn's title (which is not decayed or capped before it can be eaten, so
+/// sufficiency counts exactly the food offered at phase 0.7). Salt preserves
+/// at the effective rate of the food on hand at opening (commons and owned);
+/// owned food keeps its pro-rata share of the cap against the commons on hand
+/// (the commons are capped at close, as in every region). Returns (owned
+/// after, decay, overflow) by good.
+fn retail_carried_owned(inp: &EconomyRegionInput, rt: &RetailRegionInput, config: &EconomyConfig)
+    -> ([f32; NUM_GOODS], [f32; NUM_GOODS], [f32; NUM_GOODS]) {
+    let mut owned = [0.0f32; NUM_GOODS];
+    for g in 0..NUM_GOODS {
+        if IS_FOOD[g] { owned[g] = rt.owned[g]; }
+    }
+    let excl_salt: f32 = (0..NUM_GOODS).filter(|&g| IS_FOOD[g] && g != SLOT_SALT)
+        .map(|g| inp.stockpile[g] + owned[g]).sum();
+    let salt_ratio = (inp.stockpile[SLOT_SALT] + owned[SLOT_SALT]) / excl_salt.max(0.1);
+    let preservation = (salt_ratio * config.salt_preservation_factor).min(config.max_preservation);
+    let cap = config.per_good_cap_factor * inp.storage_population as f32;
+    let (mut decay, mut overflow) = ([0.0f32; NUM_GOODS], [0.0f32; NUM_GOODS]);
+    for g in 0..NUM_GOODS {
+        if !IS_FOOD[g] {
+            continue;
+        }
+        if g != SLOT_SALT && STORAGE_DECAY[g] > 0.0 {
+            let held = owned[g];
+            owned[g] *= 1.0 - STORAGE_DECAY[g] * (1.0 - preservation);
+            decay[g] = held - owned[g];
+        }
+        let total = inp.stockpile[g] + owned[g];
+        if total > cap {
+            let keep = (owned[g] * (cap / total)).clamp(0.0, owned[g]);
+            overflow[g] = owned[g] - keep;
+            owned[g] = keep;
+        }
+    }
+    (owned, decay, overflow)
 }
 
 // ---------------------------------------------------------------------------
@@ -1132,8 +1175,10 @@ pub fn tick_economy_core_with_woodcut(
 /// `Some` for a pilot region) splits each pilot region's food production
 /// into the titled share θ (owned stock) and the commons, counts owned stock
 /// in availability, prices and sufficiency, draws consumption from the
-/// commons only, and applies decay and the per-good cap to both pools
-/// (overflow pro rata). `None`, or `None` for a region, executes none of that
+/// commons only, and applies decay and the per-good cap to the owned stock
+/// carried into the turn before sufficiency is derived (`retail_carried_owned`;
+/// the commons decay after consumption and are capped at close, as in every
+/// region). `None`, or `None` for a region, executes none of that
 /// arithmetic. Hybrid economy only: the abstract path is refused.
 #[allow(clippy::too_many_arguments)]
 pub fn tick_economy_core_with_retail(
@@ -1178,6 +1223,10 @@ pub fn tick_economy_core_with_inputs(
     assert!(retail.is_none_or(|r| r.len() == region_inputs.len()), "retail rows must match the regions");
     assert!(retail.is_none() || hybrid_delivery.is_some(), "household retail requires the hybrid economy");
     let retail_at = |i: usize| retail.and_then(|r| r[i]);
+    // L6b retail: each pilot region's carried owned stock after its decay and cap.
+    let retail_carried: Vec<Option<([f32; NUM_GOODS], [f32; NUM_GOODS], [f32; NUM_GOODS])>> =
+        (0..region_inputs.len()).map(|i| retail_at(i).map(|rt| retail_carried_owned(&region_inputs[i], &rt, config)))
+            .collect();
     let mut retail_results: Option<Vec<Option<RetailRegionResult>>> = retail.map(|r| Vec::with_capacity(r.len()));
     assert!(granary_work_requested.is_empty() || granary_work_requested.len() == region_inputs.len());
     assert!(granary_work_requested.iter().all(|v| v.is_finite() && *v >= 0.0));
@@ -1317,9 +1366,9 @@ pub fn tick_economy_core_with_inputs(
             available[GOOD_CATEGORY[g]] += inp.stockpile[g];
         }
         // L6b retail: owned food on hand is supply too (prices see all food).
-        if let Some(rt) = retail_at(i) {
+        if let Some((carried, _, _)) = &retail_carried[i] {
             for g in 0..NUM_GOODS {
-                if IS_FOOD[g] { available[GOOD_CATEGORY[g]] += rt.owned[g]; }
+                if IS_FOOD[g] { available[GOOD_CATEGORY[g]] += carried[g]; }
             }
         }
 
@@ -1746,9 +1795,9 @@ pub fn tick_economy_core_with_inputs(
                 // Step 1: stockpile + production - exports + imports.
                 let mut shadow_stockpile = region_inputs[ri].stockpile;
                 // L6b retail: the shadow's food on hand includes owned stock.
-                if let Some(rt) = retail_at(ri) {
+                if let Some((carried, _, _)) = &retail_carried[ri] {
                     for g in 0..NUM_GOODS {
-                        if IS_FOOD[g] { shadow_stockpile[g] += rt.owned[g]; }
+                        if IS_FOOD[g] { shadow_stockpile[g] += carried[g]; }
                     }
                 }
                 for g in 0..NUM_GOODS {
@@ -1840,15 +1889,22 @@ pub fn tick_economy_core_with_inputs(
                 stockpile[g] = new_val;
             }
         }
-        // L6b retail: owned stock at opening plus this turn's title.
+        // L6b retail: the carried owned stock (after its decay and cap) plus
+        // this turn's title; the opening counts the owned stock before both.
         let mut owned = [0.0f32; NUM_GOODS];
-        if let (Some(rt), Some(row)) = (pilot, &retail_row) {
+        if let (Some(rt), Some(row), Some((carried, decay, overflow))) = (pilot, retail_row.as_mut(), &retail_carried[ri]) {
             for g in 0..NUM_GOODS {
                 if IS_FOOD[g] {
-                    owned[g] = rt.owned[g] + row.titled[g];
+                    owned[g] = carried[g] + row.titled[g];
                     food_ledger[0] += rt.owned[g] as f64;
+                    food_ledger[7] += decay[g] as f64;
+                    food_ledger[8] += overflow[g] as f64;
+                    conservation.storage_loss += decay[g] as f64;
+                    conservation.cap_overflow += overflow[g] as f64;
                 }
             }
+            row.owned_decay = *decay;
+            row.owned_overflow = *overflow;
         }
 
         // Step 2: Derive food_sufficiency from pre-consumption stockpile.
@@ -1939,37 +1995,11 @@ pub fn tick_economy_core_with_inputs(
                 stockpile[g] *= 1.0 - effective_rate;
                 conservation.storage_loss += (old - stockpile[g]) as f64;
                 if IS_FOOD[g] { food_ledger[7] += (old - stockpile[g]) as f64; }
-                if let (Some(row), true) = (retail_row.as_mut(), IS_FOOD[g]) {
-                    // L6b retail: owned stock decays at the same effective rate.
-                    let held = owned[g];
-                    owned[g] *= 1.0 - effective_rate;
-                    row.owned_decay[g] = held - owned[g];
-                    conservation.storage_loss += row.owned_decay[g] as f64;
-                    food_ledger[7] += row.owned_decay[g] as f64;
-                }
             }
         }
 
         // Step 5: Cap stockpile.
         let cap = config.per_good_cap_factor * inp.storage_population as f32;
-        if let Some(row) = retail_row.as_mut() {
-            // L6b retail: the cap holds commons and owned food together; the
-            // overflow is split pro rata (owned keeps its share of the cap).
-            for g in 0..NUM_GOODS {
-                let total = stockpile[g] + owned[g];
-                if !IS_FOOD[g] || total <= cap {
-                    continue;
-                }
-                let owned_keep = (owned[g] * (cap / total)).clamp(0.0, owned[g]);
-                let commons_keep = (cap - owned_keep).clamp(0.0, stockpile[g]);
-                row.owned_overflow[g] = owned[g] - owned_keep;
-                let commons_overflow = stockpile[g] - commons_keep;
-                conservation.cap_overflow += commons_overflow as f64 + row.owned_overflow[g] as f64;
-                food_ledger[8] += commons_overflow as f64 + row.owned_overflow[g] as f64;
-                owned[g] = owned_keep;
-                stockpile[g] = commons_keep;
-            }
-        }
         for g in 0..NUM_GOODS {
             if stockpile[g] > cap {
                 conservation.cap_overflow += (stockpile[g] - cap) as f64;
