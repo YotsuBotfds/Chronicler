@@ -37,7 +37,9 @@ MODES: tuple[str, ...] = ("supply", "cost_only")
 #: The legs of an expedition, in order (``outbound`` and ``returning`` take
 #: one turn per hop; a forest in the home region has neither).
 STAGES: tuple[str, ...] = ("outbound", "cutting", "returning")
-STATUSES: tuple[str, ...] = ("live", "delivered", "abandoned")
+#: ``returned``: the crew came home with nothing to deliver (cost_only, or
+#: nothing cut), never counted as a delivery.
+STATUSES: tuple[str, ...] = ("live", "delivered", "abandoned", "returned")
 #: Why no expedition was launched for a region with a gap (the first check
 #: that failed, in this order).
 REFUSALS: tuple[str, ...] = ("no_forest", "too_far", "forest_depleted", "forest_busy", "no_crew", "no_coins")
@@ -65,6 +67,7 @@ COUNTERS: frozenset[str] = frozenset({
     "pool_resets", "launched_veterans",
     "abandoned_cargo", "unpaid_turns", "recalls", "ended", "ended_wages_milli", "ended_person_turns",
     "ended_away", "ended_cut", "ended_delivered", "ended_unpaid_turns",
+    "returned_expeditions", "soldier_veterans", "switched_off_cargo", "switched_off_store",
     *(f"refused_{reason}" for reason in REFUSALS),
     *(f"abandoned_{reason}" for reason in END_REASONS),
     *(f"dropped_{reason}" for reason in DROP_REASONS),
@@ -96,7 +99,7 @@ class Expedition(BaseModel):
     slot: int
     hops: int
     launched_turn: int
-    status: Literal["live", "delivered", "abandoned"] = "live"
+    status: Literal["live", "delivered", "abandoned", "returned"] = "live"
     stage: Literal["outbound", "cutting", "returning"]
     #: Worked turns in the current stage.
     stage_turns: int = 0
@@ -110,6 +113,9 @@ class Expedition(BaseModel):
     launched_crew: list[int] = Field(default_factory=list)
     #: Crew members who held an open RS3 record at launch.
     veterans: list[int] = Field(default_factory=list)
+    #: Veterans admitted while of Soldier occupation (RS3's priority list,
+    #: on no army roster); Soldier occupation alone does not drop them.
+    soldier_veterans: list[int] = Field(default_factory=list)
     #: The home region's gap (timber a turn) the expedition was launched for.
     need: float = 0.0
     cargo: float = 0.0
@@ -260,6 +266,9 @@ class TimberSupplyState(BaseModel):
     pending_deposits: dict[int, float] = Field(default_factory=dict)
     needs: list[NeedRow] = Field(default_factory=list)
     needs_dropped: int = 0
+    #: (turn, expeditions ended, cargo deposited, store released) of each
+    #: ``--no-timber-supply``, the last 8.
+    switched_off: list[tuple[int, int, float, float]] = Field(default_factory=list)
     last_settled_turn: int | None = None
     #: Scalar lifetime counters (bounded: the fixed ``COUNTERS`` key set).
     counters: dict[str, float] = Field(default_factory=dict)

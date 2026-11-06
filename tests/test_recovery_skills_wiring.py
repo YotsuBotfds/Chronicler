@@ -80,8 +80,11 @@ def test_switches_are_appended_in_order_with_their_choices():
     assert {k: LIVELIHOODS_CHOICES[k] for k in MODES} == MODES
     assert list(LIVELIHOODS_CHOICES)[8:13] == list(MODES)
     tail = tuple(k for name in RS for k in (name, MODE_KEYS[name]))
+    # PL2 review: RS1's rules version sits beside its switch, after its mode.
+    tail = tail[:2] + ("apprenticeship_rules",) + tail[2:]
     start = LIVELIHOODS_ARG_KEYS.index(RS[0])
-    assert LIVELIHOODS_ARG_KEYS[start:start + 10] == tail and start == 17
+    assert LIVELIHOODS_ARG_KEYS[start:start + 11] == tail and start == 17
+    assert list(LIVELIHOODS_CHOICES)[-1] == "apprenticeship_rules"
     assert set(LIVELIHOODS_ARG_KEYS) <= set(SIMULATION_ARG_KEYS)
     # Each switch has its module, state field and protocol functions.
     for name, module in MODULES.items():

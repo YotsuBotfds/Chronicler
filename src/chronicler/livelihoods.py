@@ -50,6 +50,8 @@ Package module protocol (each function optional unless noted):
 
 ``set_<name>_enabled(world, value, *, args, agent_mode)`` (required),
 ``<name>_active(world)`` (required), ``snapshot_summary(world)`` (required),
+``reserve_first(world, agent_bridge, snapshot)`` (Phase 2, before every
+package's ``prepare_phase2``: reservations of work held across turns),
 ``prepare_phase2(world, region_input, agent_bridge, snapshot, acc)`` returning
 the region batch, ``finish_phase2(world, economy_result, agent_bridge, acc)``,
 ``rollback_phase2(world)``, ``before_agent_tick(world, agent_bridge,
@@ -88,6 +90,7 @@ LIVELIHOODS_CHOICES: dict[str, tuple[str, ...]] = {
     "timber_supply_mode": ("supply", "cost_only"),
     "recovery_crew_mode": ("paid", "unpaid"),
     "maintenance_obligation_mode": ("reserve", "reserve_only"),
+    "apprenticeship_rules": ("2", "1"),
 }
 #: All parser destinations owned here (``batch_manifest.SIMULATION_ARG_KEYS``).
 LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
@@ -98,6 +101,9 @@ LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     "relocation_costs", "relocation_mode",
     "local_budgets", "local_budget_mode",
     "apprenticeship", "apprenticeship_mode",
+    # PL2 review: inserted beside its switch (a choice belongs to the switch
+    # declared before it, ``feature_catalog``), not appended.
+    "apprenticeship_rules",
     "repair_projects", "repair_mode",
     "veteran_reintegration", "veteran_mode",
     "remittances", "remittance_mode",
@@ -197,6 +203,12 @@ _HELP = {
     "apprenticeship_mode": (
         "train (default): completion grants the qualification; no_qualification: the "
         "cost-retaining control (same wear, attendance and costs, no new qualifications)"
+    ),
+    "apprenticeship_rules": (
+        "RS1 rules version of a new apprenticeship state: 2 (default): attendance by region, "
+        "portable progress, training on the job (PL2); 1: the recovery-skills phase's rules "
+        "exactly (presence in the city box, seats before the crew, the consecutive-miss "
+        "dropout). A saved state keeps its version; a conflicting value is refused on resume"
     ),
     "repair_projects": (
         "Repair projects (RS2): paid projects rebuild workshop sites and granaries from their "
@@ -408,10 +420,15 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
     if values["operating_wear"] is True:
         if agent_mode != "hybrid" or not _workshops_operate(world, values, args):
             raise ValueError("--operating-wear requires --workshops in operate mode (--agents hybrid)")
-    if values["timber_supply"] is True:
+    if _on(world, values, "timber_supply"):
+        # Also when only saved (review A, 2026-11-06): a resume that turns RS2 or
+        # L3 off would otherwise freeze the store and the live cargo unseen;
+        # --no-timber-supply releases the store and deposits the cargo, dated.
         if agent_mode != "hybrid" or not _on(world, values, "repair_projects") \
                 or not _on(world, values, "timber_stock"):
-            raise ValueError("--timber-supply requires --agents hybrid, --repair-projects and --timber-stock")
+            saved = values["timber_supply"] is not True
+            raise ValueError("--timber-supply requires --agents hybrid, --repair-projects and --timber-stock"
+                             + ("; this world has it on: pass --no-timber-supply to end it" if saved else ""))
 
 
 def configure_livelihoods(world: Any, args: Any, *, agent_mode: str) -> None:
@@ -463,6 +480,7 @@ _CHOICE_FIELDS: dict[str, tuple[str, str]] = {
     "timber_supply_mode": ("timber_supply", "mode"),
     "recovery_crew_mode": ("recovery_crews", "mode"),
     "maintenance_obligation_mode": ("maintenance_obligation", "mode"),
+    "apprenticeship_rules": ("apprenticeship", "rules"),
 }
 
 
@@ -571,8 +589,12 @@ def paid_work_receipt(world, sim) -> dict[int, tuple[float, float, float]] | Non
 
 
 def prepare_phase2(world, region_input, agent_bridge, snapshot, *, acc=None):
-    """Before the native economy tick: may replace columns; charges nothing."""
+    """Before the native economy tick: may replace columns; charges nothing.
+    Work held across turns (PL1 expedition crews, away from home) is reserved
+    first (``reserve_first``), so every package's planner sees it as held."""
     bind_native_pool(world, agent_bridge)
+    for fn in _hooks(world, "reserve_first"):
+        fn(world, agent_bridge, snapshot)
     for fn in _hooks(world, "prepare_phase2"):
         region_input = fn(world, region_input, agent_bridge, snapshot, acc)
     return region_input

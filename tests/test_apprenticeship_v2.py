@@ -413,6 +413,10 @@ def test_completion_grants_in_train_only_and_graduates_keep_the_site(quick):
         _turn(world, sim)
     tw, nw = runs["train"][0], runs["no_qualification"][0]
     t, n = _receipt(tw), _receipt(nw)
+    # Graduates on the crew as graduates, not as apprentices again: both arms take on
+    # the same new apprentice (review B 2026-11-06: the control re-enrolled 3 and 4).
+    assert {a.agent_id for a in _state(tw).apprenticeships} == {a.agent_id for a in _state(nw).apprenticeships} == {2}
+    assert [s.agent_id for s in t.seats if s.new] == [s.agent_id for s in n.seats if s.new] == [2]
     assert t.graduates_on_crew == [3, 4] and n.graduates_on_crew == [3, 4]
     assert t.qualified_on_crew == [1, 3, 4] and n.qualified_on_crew == [1]
     assert t.covered and n.covered and t.full_offset and not n.full_offset
@@ -622,3 +626,175 @@ def test_feature_off_has_no_state_and_the_reference_crew_is_unchanged():
     assert "apprenticeship" not in L.livelihoods_snapshot_fields(world).get("livelihoods", {})
     assert all(plan["priority"] == [] for plan in sim.plans)
     assert _site(world).condition == 1.0 and W.OPERATE_CONDITION == 0.5
+
+
+# --- Review B (2026-11-06) regressions ----------------------------------------------------
+
+
+def test_the_control_never_takes_its_graduates_on_again_and_costs_match_train(quick):
+    """MAJOR: in no_qualification a graduate holds no qualification, so it passed the
+    candidate filter and (youngest first) was taken on again the next turn, spending
+    seats, mentor time and stipends that train does not."""
+    runs = {mode: _graduating(mode) for mode in ("train", "no_qualification")}
+    for world, sim in runs.values():
+        for _ in range(4):
+            _turn(world, sim)
+    t, n = (_state(runs[m][0]) for m in ("train", "no_qualification"))
+    for state in (t, n):
+        assert not {a.agent_id for a in state.apprenticeships} & {3, 4}
+        done = [a.agent_id for a in state.archive if a.ended_reason == "completed"]
+        assert done[:2] == [3, 4] and len(done) == len(set(done))           # nobody completes twice
+        assert state.counters["graduates"] == state.counters["completions"] == len(done)
+    for key in ("enrolled", "apprentice_turns_attended", "teaching_work", "stipends_due", "completions"):
+        assert t.counters.get(key) == n.counters.get(key), key
+
+
+def test_an_archived_completion_without_a_graduate_record_is_not_taken_on_again(quick, monkeypatch):
+    monkeypatch.setattr(A, "MAX_QUALIFIED", 1)          # one qualification (the mentor's), one graduate record
+    world, sim = _graduating("train")
+    state = _state(world)
+    assert [g.agent_id for g in state.graduates] == [3] and state.counters["graduates_refused_cap"] == 1
+    assert not any(q.via == "apprenticeship" for q in state.qualifications)     # both grants refused
+    _turn(world, sim)
+    # 4 has neither a qualification nor a graduate record: only its archived
+    # completion keeps it from being taken on again.
+    assert not {a.agent_id for a in state.apprenticeships} & {3, 4}
+
+
+def test_a_second_completion_never_replaces_a_graduate_record(quick):
+    """A state saved before the fix can hold a graduate apprenticed again; its
+    second completion keeps the first record (and counts no new graduate)."""
+    from chronicler.apprenticeship_state import Apprenticeship
+    world, sim = _graduating("no_qualification")
+    _turn(world, sim)
+    state = _state(world)
+    first = next(g for g in state.graduates if g.agent_id == 3).model_copy()
+    assert first.crew_turns == 1
+    state.apprenticeships.append(Apprenticeship(
+        agent_id=3, site=0, settlement_id=SETTLEMENT, region=SITE_REGION, started_turn=world.turn - 1,
+        attended=A.COMPLETION_TURNS - 1, absent=0, first_site=0, entry_age=21, transfers=0, on_crew=0, attached=0))
+    _turn(world, sim)
+    assert [a.agent_id for a in state.archive if a.ended_reason == "completed"][-1] == 3
+    record = next(g for g in state.graduates if g.agent_id == 3)
+    assert (record.completed_turn, record.site) == (first.completed_turn, first.site)
+    assert record.crew_turns == first.crew_turns + 1 and state.counters["graduates"] == 2
+
+
+def test_rural_health_work_is_unavailable_not_a_refused_reservation(quick):
+    """Minor: patients and carers of rural health work hold a work commitment the
+    native registry refuses; v2 counts them unavailable (and never eligible), not
+    as refused reservations or refused seats."""
+    world, sim = _world(rules=2), _old(FakeSim(range(1, 4)))
+    sim.add(30, settlement=0, age=22)
+    sim.add(31, settlement=0, age=21)
+    sim.people[31].occupation = 2                                  # not a candidate yet
+    _built(world, sim)
+    _qualify(world, sim, [1])
+    _turn(world, sim)
+    assert _seats(world)[30].aboard == "attached"
+    sim.people[31].occupation = 0
+    world.health_care = SimpleNamespace(_prepared=[(30, SITE_REGION, 0, 0.0), (2, SITE_REGION, 31, 0.5)])
+    sim.health = {30, 31}                                          # what the native registry refuses
+    before = _state(world).counters.get("seat_refused", 0)
+    _turn(world, sim)
+    seat = _seats(world)[30]
+    assert (seat.outcome, seat.reason) == ("missed", "unavailable")
+    assert 31 not in _seats(world) and _receipt(world).eligible == 0
+    assert _state(world).counters.get("seat_refused", 0) == before
+    assert _state(world).counters.get("miss_reservation_refused", 0) == 0
+
+
+def test_veterans_keep_rs3_order_before_the_age_order(quick, monkeypatch):
+    """Minor (doc): veterans are taken in RS3's priority order (earliest release
+    first), not youngest first; the age rule still bounds who is eligible."""
+    from chronicler import veteran_reintegration as VR
+    world, sim = _world(rules=2), _old(FakeSim(range(1, 3)))
+    for aid, age in ((30, 20), (31, 21), (32, 40), (33, 55)):
+        sim.add(aid, settlement=0, age=age)
+    VR.set_veteran_reintegration_enabled(world, True, args=None)
+    for hook in ("prepare_phase2", "finish_phase2", "rollback_phase2", "rollback_agent_tick", "phase10",
+                 "on_pool_reset"):
+        if hasattr(VR, hook):
+            monkeypatch.delattr(VR, hook)
+    monkeypatch.setattr(VR, "priority_ids", lambda w, region: [33, 32, 31] if region == SITE_REGION else [])
+    monkeypatch.setattr(VR, "note_outcome", lambda *a, **k: None)
+    _built(world, sim)
+    _qualify(world, sim, [1, 2])
+    _turn(world, sim)
+    # 33 is too old for the age rule (55 > 57 - 3 is false here: max age 57), so it
+    # is a veteran too: RS3's order 33, 32, 31, then the youngest other resident.
+    assert list(_seats(world)) == [33, 32, 31, 30]
+
+
+def test_long_pauses_end_as_stalled_and_free_the_place(quick, monkeypatch):
+    """Minor: missed turns pause, but more than MAX_PAUSE in a row end the
+    apprenticeship (``stalled``, dated) so it stops holding a PER_SITE place."""
+    monkeypatch.setattr(A, "COMPLETION_TURNS", 30)                 # max entry age 30
+    monkeypatch.setattr(A, "MAX_PAUSE", 6)
+    world, sim = _world(rules=2), _old(FakeSim(range(1, 4)))
+    sim.add(30, settlement=0, age=20)
+    _built(world, sim)
+    _qualify(world, sim, [1])
+    _turn(world, sim)
+    sim.people[1].alive = False                                    # no mentor from now on
+    for i in range(A.MAX_PAUSE):
+        _turn(world, sim)
+        assert _seats(world)[30].reason == "no_mentor" and _record(world, 30).gap == i + 1
+    _turn(world, sim)
+    ended = _ended(world, 30)
+    assert (ended.ended_reason, ended.ended_turn, ended.gap) == ("stalled", world.turn - 1, A.MAX_PAUSE + 1)
+    assert _seats(world)[30].ending == "stalled" and _state(world).apprenticeships == []
+    assert _state(world).counters["end_stalled"] == 1
+    assert A.snapshot_summary(world)["parameters"]["max_pause"] == A.MAX_PAUSE
+
+
+def test_the_rules_option_selects_records_and_refuses_a_conflicting_resume():
+    """Minor: ``--apprenticeship-rules {2,1}`` chooses the rules of a new state,
+    is recorded in the manifest keys when given, and a saved state keeps its
+    version: a conflicting value is refused on resume, a v1 state resumes as v1."""
+    from chronicler.batch_manifest import SIMULATION_ARG_KEYS, simulation_config
+    from chronicler.feature_catalog import feature_entries
+    from chronicler.main import _build_parser
+    parse = _build_parser().parse_args
+    assert parse([]).apprenticeship_rules is None
+    assert parse(["--apprenticeship-rules", "1"]).apprenticeship_rules == "1"
+    with pytest.raises(SystemExit):
+        parse(["--apprenticeship-rules", "3"])
+    assert L.LIVELIHOODS_CHOICES["apprenticeship_rules"] == ("2", "1")
+    entry = next(e for e in feature_entries() if e["key"] == "apprenticeship_rules")
+    assert (entry["parent"], entry["choices"]) == ("apprenticeship", ["2", "1"])
+    assert "apprenticeship_rules" in SIMULATION_ARG_KEYS
+    assert "apprenticeship_rules" not in simulation_config(parse([]))
+    assert simulation_config(parse(["--apprenticeship", "--apprenticeship-rules", "1"]))["apprenticeship_rules"] == "1"
+    assert L.livelihoods_arguments(parse(["--apprenticeship-rules", "1"])) == ["--apprenticeship-rules=1"]
+
+    def fresh(rules):
+        world = _world(rules=2)
+        world.livelihoods.apprenticeship = None
+        A.set_apprenticeship_enabled(world, True, args=SimpleNamespace(apprenticeship_rules=rules))
+        return world
+
+    assert fresh(None).livelihoods.apprenticeship.rules_version == A.RULES_VERSION == 2
+    assert fresh("2").livelihoods.apprenticeship.rules == "2"
+    v1 = fresh("1")
+    assert v1.livelihoods.apprenticeship.rules_version == 1 and v1.livelihoods.apprenticeship.graduates is None
+    with pytest.raises(ValueError, match="conflicts with the saved RS1 state"):
+        A.set_apprenticeship_enabled(v1, True, args=SimpleNamespace(apprenticeship_rules="2"))
+    A.set_apprenticeship_enabled(v1, True, args=SimpleNamespace(apprenticeship_rules=None))
+    assert v1.livelihoods.apprenticeship.rules_version == 1
+
+    def given(**kw):
+        args = SimpleNamespace(**{k: None for k in L.LIVELIHOODS_ARG_KEYS})
+        for k, v in kw.items():
+            setattr(args, k, v)
+        return args
+
+    assert L.livelihoods_resume_conflicts(v1, given(apprenticeship_rules="2"), {}) == [
+        "--apprenticeship-rules '2' conflicts with the checkpoint (saved: '1')"]
+    assert L.livelihoods_resume_conflicts(v1, given(apprenticeship_rules="1"), {}) == []
+    assert L.livelihoods_resume_conflicts(v1, given(), {}) == []
+    v2 = fresh(None)
+    assert L.livelihoods_resume_conflicts(v2, given(apprenticeship_rules="1"), {}) == [
+        "--apprenticeship-rules '1' conflicts with the checkpoint (saved: '2')"]
+    # A recorded value is left to the generic adoption of the checkpoint's configuration.
+    assert L.livelihoods_resume_conflicts(v2, given(apprenticeship_rules="1"), {"apprenticeship_rules": "1"}) == []

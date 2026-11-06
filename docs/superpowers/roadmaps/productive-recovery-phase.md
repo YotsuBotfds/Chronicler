@@ -237,9 +237,10 @@ Grounded in D2; no constant is changed to raise a counter.
 
 - **`--operating-wear`** (new, requires `--workshops` in `operate`). Funded operating
   sites lose `OPERATING_WEAR` (0.02, moved unchanged from RS1) per turn, offset only by
-  qualified upkeep. RS1 keeps implying it, so every existing RS1 command keeps its
-  trajectory; `--workshops --operating-wear` is the reference arm `W_wear` that the
-  held screens lacked.
+  qualified upkeep. RS1 keeps implying it, so RS1 runs keep the same wear; `--workshops
+  --operating-wear` without RS1 is the reference arm `W_wear` that the held screens
+  lacked. (Review B: RS1 trajectories do change under the version-2 rules below;
+  `--apprenticeship-rules 1` reproduces version 1 byte for byte.)
 - **RS1 rules version 2** (`train` and `no_qualification` both).
   - Attendance counts presence in the site's **region** (the community RS1 already
     names), not the positional city box.

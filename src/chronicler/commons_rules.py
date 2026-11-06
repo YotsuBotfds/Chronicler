@@ -213,6 +213,16 @@ def bill_for(share: float) -> int:
 
 # --- Pending bills (never spend the same coins twice) ---------------------------
 
+def _woodcut_output(world, economy_result, rid: int, slot: int) -> float:
+    """PL1 seam: the woodcutting crews' harvest in that slot's output this turn
+    (the region's first timber slot; 0.0 without ``--timber-supply``)."""
+    cut = getattr(economy_result, "woodcut_output", None)
+    if not cut or not cut.get(rid):
+        return 0.0
+    from chronicler.timber_supply import _timber_slot
+    return float(cut[rid]) if _timber_slot(world.regions[rid]) == slot else 0.0
+
+
 def pending_phase2_bills(world) -> list[int]:
     """What other Phase 2 spenders have planned against each civ's projected
     treasury and not yet charged: grain storage's pending plan (an upper bound)
@@ -449,7 +459,11 @@ def finish_phase2(world, economy_result, agent_bridge, acc) -> list:
                 raise RuntimeError(
                     f"the economy harvested {extraction!r} timber in region {region.name!r} slot {slot} "
                     f"against a commons limit of {row.limit!r}")
-            binding = bool(row.applied and (extraction >= row.limit if row.limit > 0.0 else bool(row.possible)))
+            # PL1 seam: a woodcutting crew from elsewhere harvests after the
+            # residents, under the same limit; the rule binds (and the city's
+            # grievance rises) only when the residents' own harvest reaches it.
+            resident = extraction - _woodcut_output(world, economy_result, rid, slot)
+            binding = bool(row.applied and (resident >= row.limit if row.limit > 0.0 else bool(row.possible)))
         elif row.applied:
             excess = max(0.0, extraction - row.limit)
         city = carrier_city(world, rid)

@@ -10,7 +10,9 @@ qualify it scientifically.
 Enable with `--agents hybrid --workshops --operating-wear` (`--workshops` must be in
 `operate` mode, its default). The switch has no modes: its control is the arm without
 it. A world that never enabled it has no container, snapshot key, checkpoint flag or
-manifest entry. `--no-operating-wear` stops the wear and keeps the record.
+manifest entry. `--no-operating-wear` keeps the record and stops this switch, but it
+stops the wear only without `--apprenticeship`: RS1 implies the same wear and keeps
+applying it (`test_no_operating_wear_under_apprenticeship_keeps_rs1s_wear_and_only_stops_the_records`).
 
 ## Why a switch
 

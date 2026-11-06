@@ -360,6 +360,7 @@ CHUNKS = {
     "productive-recovery-pl3": [
         "tests/test_recovery_crews.py",
         "tests/test_maintenance_obligation.py",
+        "tests/test_productive_recovery_screens.py",
     ],
     "expansion-wiring": [
         "tests/test_expansion_feature_wiring.py",

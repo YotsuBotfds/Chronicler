@@ -38,13 +38,27 @@ the forest's own L3 account.
 The crew stays in the native pool at home: no agent moves, no residence
 changes, no new native state. Only the home economy loses their labour:
 
-- **Reservation.** Each turn of the expedition, in Phase 2, each member is
-  reserved for the whole turn (`reserve_work(turn, 3, [(id, 1.0)])`, category
-  `repair`) after every earlier work consumer of the turn (L1 crews, RS1 seats,
-  RS2 crews, health care, teaching). The registry is region-blind, so the
-  reservation needs no notion of where the work is done. A member who already
-  holds work that turn leaves the crew (`other_work`); reservations are made
-  one member at a time, so one refusal does not cost the others theirs.
+- **Reservation, first (review A, 2026-11-06).** The crew is away, so no other
+  planner may take its members while the expedition is live. Each turn, at
+  the livelihoods seam `reserve_first`, which runs before every package's
+  `prepare_phase2`, each member is re-checked and reserved for the whole turn
+  (`reserve_work(turn, 3, [(id, 1.0)])`, category `repair`). Every later
+  planner excludes registry holders, so none of them can name a member:
+  the L1 workshop crews, RS1 seats and v2 attached apprentices, RS2 workshop
+  repair crews and PL3's granary and workshop crews. **Phase 2 order:** rural
+  health work and a teaching plan (prepared before the livelihoods hooks), then
+  PL1's live crews, then the L1 and RS1 planners, RS2 and PL3 crews, then PL1's
+  wages and columns (`prepare_phase2`, which plans its wages after every
+  earlier bill, so a turn the treasury cannot pay recalls the crew). A member
+  already holding health or teaching work that turn leaves the crew
+  (`other_work`). The registry is region-blind, so the reservation needs no
+  notion of where the work is done. Before this fix PL1 reserved after RS2 and
+  PL3, whose crews picked the same lowest-id adults: on template 23 with every
+  switch, 39 members were dropped `other_work` and 53% of the cut was
+  abandoned; on procedural 7 (review C), 24 granary and 11 workshop
+  member-turns went to people on live expeditions. After it, review C's probe
+  on procedural 7 with PL1 and PL3 (120 turns) finds 0 such member-turns, 0
+  `other_work` drops and 4 of 32 expeditions lost to `crew_lost`.
 - **Pay.** Wages are paid by stable id through `transfer_wealth` (purpose 3
   `repair_wage`, batch `WAGE_BATCH` = 2; RS2's workshop repair wages use batch 0 and PL3's granary crews batch 1), which is also
   region-blind. The same share (1.0) is armed with `extend_paid_work`, so the
@@ -64,8 +78,9 @@ changes, no new native state. Only the home economy loses their labour:
 - **What the pool still sees.** Because the people stay at home, the native
   agent tick can still move, kill or enlist them. Every Phase 2 and every
   post-tick Phase 10 checks each member against the snapshot: absent (`died`),
-  resident elsewhere (`migrated`), Soldier or on an army roster (`enlisted`),
-  away on a merchant trip (`on_trip`). A dropped member is dated on the
+  resident elsewhere (`migrated`), on an army roster or newly of Soldier
+  occupation (`enlisted`; a veteran admitted as a Soldier leaves only when on a
+  roster again), away on a merchant trip (`on_trip`). A dropped member is dated on the
   expedition. Members reserved in Phase 2 cannot be drafted in Phase 5
   (`select_recruits` skips registry holders).
 
@@ -97,6 +112,9 @@ For each region with open RS2 projects of a controlling civ:
   home's decay;
 - **gap** = want - free - in transit.
 
+A granary project RS2 suspends `no_people` (no farm labour in its region at
+this Phase 10, PL3's correction) uses nothing and adds no want.
+
 A gap of at least `MIN_GAP` (0.5) without a live expedition for the region
 launches one, or is refused with the first failing check:
 
@@ -118,10 +136,15 @@ the larger standing stock, then the lower region index.
 ### Who goes
 
 At most `CREW_CAP` living adults (age at least 20) resident in the home region,
-of any occupation but Soldier, not on an army roster, not on a merchant trip and
-not on another crew: eligible RS3 veterans first
-(`veteran_reintegration.priority_ids`; none in RS3's `record_only`), then by
-ascending stable id. Veterans on a crew (by open RS3 record) are noted
+not on an army roster, not on a merchant trip and not on another crew: of any
+occupation but Soldier, and RS3's priority veterans of any occupation,
+Soldier included (the plan's "any non-enlisted occupation": released and on no
+roster; D3 put about 40% of veterans at Soldier occupation). RS3 veterans come
+first (`veteran_reintegration.priority_ids`), then ascending stable id. Until
+RS3 has a public eligibility list for both modes, a Soldier veteran is admitted
+only in RS3's `priority` mode (its `record_only` list is empty); the lead
+reconciles this with PL3's `eligible_ids`. A Soldier veteran farms nothing at
+home; the paid share withholds their ordinary income. Veterans on a crew (by open RS3 record) are noted
 `placed:repair` with `{expedition, region, forest}` for each turn they worked.
 
 ### Schedule, cutting and cargo
@@ -181,8 +204,8 @@ member remains. It ends without delivering only when:
 
 | End | When |
 | --- | --- |
-| `crew_lost` | no member is left (observed in Phase 2 or after the agent tick) |
-| `home_lost` | the home region changed hands or lost its controller |
+| `crew_lost` | no member is left (observed in Phase 2 or after the agent tick) before the crew is home |
+| `home_lost` | the home region changed hands or lost its controller (cargo deposited at home if the crew had arrived) |
 | `forest_lost` | the forest fell to another civ before the crew got there (no cargo yet) |
 | `pool_reset` | a rebuilt native pool: saved ids name strangers (stores are kept) |
 | `switched_off` | `--no-timber-supply` |
@@ -197,6 +220,25 @@ caused by a pool rebuild, which can be noticed after the economy batch was
 packed, waits in `pending_deposits` until that turn's Phase 10. Only transit
 decay is a loss. `no_coins` stays in the declared end reasons but no longer
 ends an expedition.
+
+**An arrived crew delivers first (review A).** A crew that completed its walk
+home in Phase 2 has `arrived`; in Phase 10 it delivers before the agent tick's
+deaths, moves and enlistments are observed, so losing the last members in the
+tick of the arrival turn no longer sends the cargo back to the forest. If the
+home region changed hands on the way, the cargo (less the way home's decay) is
+deposited in the **home** region's stockpile as commons, `home_lost`. A crew
+home with nothing to deliver (every `cost_only` expedition, or one recalled
+before cutting) ends `returned`, not `delivered` (`returned_expeditions`).
+
+**A resume that leaves PL1 on without its prerequisites is refused.** If a
+world was saved with `--timber-supply` on and a resume turns `--repair-projects`
+or `--timber-stock` off (or leaves `--agents hybrid`) without
+`--no-timber-supply`, configuration raises and says to pass it. Otherwise PL1
+would stay enabled but inactive, its store and live cargo frozen out of every
+record. `--no-timber-supply` ends live expeditions (cargo deposited at the
+forest, dated in `deposits`), releases every store to its region's stockpile
+and records `(turn, expeditions ended, cargo deposited, store released)` in
+`switched_off`.
 
 ### `cost_only`: matched per expedition, not in total
 
@@ -407,9 +449,12 @@ from a pickle equal to the uninterrupted run.
 
 Real extension (`tests/test_timber_supply_native.py`):
 
-- template seed 3, 60 turns, `CHRONICLER_CHECK_RESOURCES=1`: every crew member
-  holds a category-3 whole-turn reservation and is a resident adult non-soldier of
-  the home region, with no registry conflicts; every wage transfer moves real
+- template seed 23, 60 turns, with `--recovery-crews --apprenticeship
+  --veteran-reintegration` (review A), `CHRONICLER_CHECK_RESOURCES=1`: every crew
+  member holds a category-3 whole-turn reservation and is a resident adult of the
+  home region (a Soldier only as an admitted veteran), with no registry
+  conflicts; no member is on an L1, RS2 or PL3 crew of the same turn and none is
+  dropped `other_work`; every wage transfer moves real
   wealth once (a repeated key is refused); `woodcut_outflow` equals the sum of
   `woodcut_output`; the L3 extraction of each cut slot is the economy's slot output
   and includes the cut; wages, stores and expeditions close, with `cut == cargo +
@@ -441,6 +486,34 @@ Template seed 1 with the switch on never launched an expedition, and its whole
 history and world state equal the run without the switch (apart from the
 package's own key).
 
+### Review A fixes (2026-11-06, branch `claude/pl1-fixes` from `486c7a12`)
+
+Each fix has a regression test that fails on `486c7a12` (11 offline, checked
+against an exported copy of that source; the 2 native crew-order checks fail
+there on the `other_work` assertion):
+
+| Finding | Fix | Test |
+| --- | --- | --- |
+| Home repair crews took expedition members (major) | `reserve_first` seam ahead of every planner | `test_live_crews_are_reserved_before_pl3_granary_crews_in_the_home_region`, `test_prepare_refuses_live_crews_that_were_not_reserved_first`, native `test_live_crews_are_never_named_to_home_crews_with_every_planner_on` and the all-planner closure test |
+| An arrived crew lost its cargo (major) | arrivals deliver before the crew is observed; `home_lost` arrivals deposit at home | `test_a_crew_that_walked_home_delivers_although_it_is_lost_in_that_tick[migrate, die]`, `test_an_arrival_whose_home_changed_hands_deposits_at_home` |
+| A resume with a prerequisite off froze the store and cargo | refused unless `--no-timber-supply`, whose release and deposit are dated | `test_a_resume_with_a_prerequisite_off_is_refused_and_switching_off_is_dated` |
+| `delivered` recorded for zero deliveries | `returned` status | `test_cost_only_keeps_crews_wages_and_home_labour_but_cuts_nothing`, the recall test, native cost-only check |
+| L8 blamed residents for the crew's harvest | binding and grievance on residents' output (`slot_output - woodcut_output`); `commons_rules.py` is not pinned | `test_commons_rules.py::test_a_woodcutting_crew_reaching_the_limit_is_not_the_residents_binding` |
+| Need counted suspended `no_people` granaries | skipped | `test_a_suspended_no_people_granary_adds_no_need` |
+| Soldier-occupation veterans excluded (addendum) | RS3 priority veterans on no roster admitted | `test_released_soldier_veterans_on_no_roster_are_eligible` |
+
+Review C's probe (`scratch/rev-c/probe.py`) on procedural 7, 120 turns, PL1 and
+PL3: 459 granary and 63 workshop crew member-turns, none on a live expedition
+(before: 24 and 11); 0 `other_work` drops; 4 of 32 expeditions `crew_lost`
+(before: 15 of 34); 150.6 of 184.8 cut timber delivered, 32.5 deposited as
+commons.
+
+The development screens below ran on `308422f2`, before these fixes, and were
+not rerun. Without PL3 the crew-order fix changes nothing there, but the
+arrival-first rule, the `returned` status and Soldier veterans would move some
+numbers: "came home" counts every arrival, including the `cost_only`
+expeditions, which deliver nothing and now end `returned`.
+
 ### Development worlds (natural, 200 turns)
 
 Arms: `base` (prerequisites only), `supply`, `cost_only`, each with
@@ -452,7 +525,7 @@ and deposit rules); `base` has the switch off and is unchanged since `7c16e9ce`
 (identity above). Single worlds: trajectories diverge once spending differs, so
 differences between arms are not effect estimates.
 
-| World | Launched (delivered) supply / cost only | Cut, delivered, transit decay, abandoned, released (supply) | RS2 used from store | Wages, coins: supply / cost only | Farmer-turns away (supply) | RS2 `no_timber` stalls: base / supply / cost only | RS2 timber used: base / supply / cost only | Granary mean condition: base / supply / cost only | L3 extraction: base / supply / cost only |
+| World | Launched (came home) supply / cost only | Cut, delivered, transit decay, abandoned, released (supply) | RS2 used from store | Wages, coins: supply / cost only | Farmer-turns away (supply) | RS2 `no_timber` stalls: base / supply / cost only | RS2 timber used: base / supply / cost only | Granary mean condition: base / supply / cost only | L3 extraction: base / supply / cost only |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | T1 | 0 / 0 | none | 0 | 0 / 0 | 0 | 790 / 790 / 790 | 40.8 / 40.8 / 40.8 | 0.301 / 0.301 / 0.301 | 70.6 (all) |
 | T3 | 7 (5) / 19 (13) | 14.9, 14.2, 0, 0.7, 0 | 10.8 | 22.5 / 75.0 | 17 | 738 / 813 / 826 | 106.2 / 95.8 / 88.1 | 0.383 / 0.367 / 0.370 | 316.5 / 304.6 / 295.3 |
@@ -549,10 +622,12 @@ Failing witness tests (9, all from these edits; no fixture was touched):
   death, drafting between reservations and trips take members away mid-trip
   (12-174 drops per world in `supply`). That is honest about the model, and it
   makes expeditions fragile.
-- **Placement order.** PL1 reserves after the workshop, RS1 and RS2 planners, so
-  an L1 crew can take an expedition member who is in a workshop city that turn
-  (`other_work`, up to 58 drops per world). Reserving earlier needs a seam in
-  `workshops.py` or `repair_projects.before_crews`, not done.
+- **Placement order.** Live crews are reserved before every livelihoods planner
+  (review A). Rural health work and a teaching plan still come first; a member
+  holding one is dropped `other_work`. L1 crews in `observe` mode reserve nobody
+  and so can list an expedition member as available (an observation only). A
+  recall at home found in `prepare_phase2` leaves that turn's early reservation
+  unworked and unpaid.
 - **Wages outside L9 and later planners.** Expedition wages are not under the L9
   `repairs` envelope, and planners that run after PL1 in Phase 2 do not see them
   yet (`pending_bills` is provided for the lead to wire).
