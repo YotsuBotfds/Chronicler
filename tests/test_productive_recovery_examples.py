@@ -283,3 +283,198 @@ def test_main_prints_each_kind_from_a_written_bundle(E, tmp_path, capsys):
     out = capsys.readouterr().out
     assert "  PL1 timber_supply: not recorded in this run" in out
     assert "    success: wages paid to a named granary crew: none found" in out
+
+
+# --- Checkpoint 3: the chain mode (PL6d, ``--chain``) -----------------------------------
+
+CHAIN_TURNS = 10
+
+
+def _chain_bundle():
+    """A constructed chain. Granary project 0 (region 1) stalls ``no_timber`` at
+    snapshots 2-3; expedition 5 from region 1 (launched turn 2, crew 10 and 11) cuts at
+    forest 2 and delivers 4.0 at turn 5; RS2 holds it from the store at snapshots 7-8
+    (project 0 the only holder), PL3 pays crew 20 and 21 there; region 1 (a paid_work
+    pilot from turn 6) buys food at snapshots 8-9; crew member 20 is fed in the sample at
+    snapshot 9 and the household keyed by 21 is priced out there. Near misses: project 1
+    (region 2) gets no expedition; project 2 (region 1) stalls after the launch; crew
+    member 21 priced out in the very turn he was paid (snapshot 7) is not a hit."""
+    hist = []
+    for turn in range(1, CHAIN_TURNS + 1):
+        liv = {"schema_version": 1}
+        for name, mode in (("repair_projects", "repair"), ("timber_supply", "supply"), ("recovery_crews", "paid"),
+                           ("household_retail", "retail"), ("timber_stock", None)):
+            rec = {"schema_version": 1, "source_turn": turn - 1, "counters": {}}
+            if mode:
+                rec["mode"] = mode
+            liv[name] = rec
+        liv["household_retail"].update(boundary="paid_work", sample=[],
+                                       sample_columns=["agent_id", "region", "household", "ration", "fair_share",
+                                                       "status"])
+        food = [{"region_id": i, "native": {"demand": 10.0}, "sufficiency_after_relief": 1.0} for i in range(4)]
+        hist.append({"turn": turn, "livelihoods": liv, "food_accounting": {"source_turn": turn - 1, "regions": food}})
+
+    def put(T, name, **rows):
+        _put(hist, T, name, **rows)
+
+    def rs2(T, pid, region, status, reasons, used=0.0, kind="granary"):
+        return {"turn": T - 1, "pid": pid, "kind": kind, "asset": 3 + pid, "region": region, "status": status,
+                "reasons": reasons, "condition_before": 0.6, "condition_after": 0.6 + 0.025 * used,
+                "timber_held": used, "timber_used": used, "crew": [], "wages_milli": 0}
+
+    for T in (2, 3):
+        put(T, "repair_projects", receipts=[rs2(T, 0, 1, "stalled", ["no_timber"]),
+                                            rs2(T, 1, 2, "stalled", ["no_timber", "no_coins"])])
+    put(3, "repair_projects", projects=[{"pid": 0, "region": 1}, {"pid": 1, "region": 2}])
+    put(3, "timber_supply", needs=[{"region": 1, "want": 4.0, "free": 0.0, "gap": 4.0, "status": "launched", "eid": 5}])
+    stages = {3: "outbound", 4: "cutting", 5: "cutting", 6: "returning"}
+    for T, stage in stages.items():
+        rx = {"turn": T - 1, "eid": 5, "home": 1, "forest": 2, "slot": 0, "stage": stage, "crew": [10, 11],
+              "wages_milli": 1000, "away_delivered": 2.0 if T == 4 else 0.0, "cut": 2.05 if stage == "cutting" else 0.0,
+              "cut_end": None, "cargo_after": 0.0}
+        if stage == "cutting":
+            rx.update(stock_before=100.0 if T == 4 else 99.0, stock_after=99.5 if T == 4 else 97.5, capacity=100.0)
+        put(T, "timber_supply", receipts=[rx])
+    for T in (4, 5):
+        put(T, "timber_stock", regions=[{"region_id": 2, "slot": 0, "opening": 100.0, "cleared": 0.0,
+                                         "extraction": 2.05, "regrowth": 0.5, "stock": 98.45, "capacity": 100.0}])
+    hist[3]["food_accounting"]["regions"][1]["sufficiency_after_relief"] = 0.8      # snapshot 4: region 1 short
+    expedition = {"eid": 5, "civ": 0, "home": 1, "forest": 2, "hops": 1, "launched_turn": 2, "ended_turn": 5,
+                  "status": "delivered", "launched_crew": [10, 11, 12], "crew": [10, 11], "cut": 4.1,
+                  "delivered": 4.0, "wages_milli": 4000, "away_delivered": 2.0}
+    for T in range(6, CHAIN_TURNS + 1):
+        put(T, "timber_supply", closed=[expedition])
+    put(6, "timber_supply", stores=[{"region": 1, "opening": 0.0, "held": 0.0, "delivered": 4.0, "released": 0.0,
+                                     "closing": 4.0}])
+    put(7, "timber_supply", stores=[{"region": 1, "opening": 4.0, "held": 2.0, "delivered": 0.0, "released": 0.0,
+                                     "closing": 2.0}])
+    put(8, "timber_supply", stores=[{"region": 1, "opening": 2.0, "held": 2.0, "delivered": 0.0, "released": 0.0,
+                                     "closing": 0.0}])
+    for T in (7, 8):
+        put(T, "repair_projects", receipts=[rs2(T, 0, 1, "progress", [], used=2.0)])
+        members = [{"agent_id": 20, "origin": "rural_farmer", "wage_milli": 2000},
+                   {"agent_id": 21, "origin": "rural_farmer", "wage_milli": 1500}]
+        put(T, "recovery_crews", receipts=[{"turn": T - 1, "pid": 0, "kind": "granary", "region": 1,
+                                            "members": members}])
+    put(9, "repair_projects", receipts=[rs2(9, 2, 1, "stalled", ["no_timber"])],
+        closed=[{"pid": 0, "region": 1, "status": "completed", "closed_turn": 8}])
+    put(10, "repair_projects", closed=[{"pid": 0, "region": 1, "status": "completed", "closed_turn": 8}])
+    for T in (7, 8, 9):
+        prov = {"persons": 20.0, "priced_out_persons": 1.0, "sold_milli": 3000.0,
+                "paid_milli": 0.0 if T == 7 else 3000.0}
+        put(T, "household_retail", regions=[{"region": 1, "price_milli": 400, "provisioning": prov}])
+    put(7, "household_retail", sample=[[21, 1, 21, 0.5, 0.8, 1]])                  # paid that same turn: no hit
+    put(9, "household_retail", sample=[[20, 1, 20, 1.0, 1.0, 0], [30, 1, 21, 0.5, 0.8, 1]])
+    for T in range(7, CHAIN_TURNS + 1):
+        put(T, "household_retail", log=[{"turn": 6, "region": 1, "kind": "pilot_opened", "note": "paid_work"}])
+    return {"metadata": {"seed": 3}, "history": hist}
+
+
+def test_the_chain_is_traced_link_by_link_with_ids_and_regions(E):
+    found = E.find_chain(_chain_bundle())
+    chain = found["chain"]
+    inst = chain["instance"]
+    assert (inst["pid"], inst["region"], inst["depth"], inst["id_to_food"], inst["id_to_food_in_region"]) == \
+        (0, 1, 5, True, True)
+    l1, l2, l3, l4, l5 = inst["links"]
+    assert (l1["snapshot"], l1["pid"], l1["stalled_no_timber_snapshots"], l1["by"]) == (2, 0, 2, "id (pid)")
+    assert (l2["snapshot"], l2["eid"], l2["launched_turn"], l2["delivered"]) == (6, 5, 2, 4.0)
+    assert l2["need_at_launch"] == {"want": 4.0, "free": 0.0, "gap": 4.0, "status": "launched"}
+    assert l2["open_projects_in_region_at_launch"] == [0] and l2["project_was_the_region_s_only_open_project"]
+    assert l2["by"].startswith("id (eid, crew); region for the project")
+    assert (l3["snapshots"], l3["store_held"], l3["project_timber_used"], l3["completed_snapshot"]) == \
+        ([7, 8], 4.0, 4.0, 9)
+    assert l3["by"].startswith("id (pid; the project was the only one")
+    assert l4["snapshot"] == 7 and l4["expedition_crew_first_paid_snapshot"] == 3
+    assert l4["repair_crew"] == {20: {"first_snapshot": 7, "wage_milli": 4000, "origin": "rural_farmer"},
+                                 21: {"first_snapshot": 7, "wage_milli": 3000, "origin": "rural_farmer"}}
+    assert l4["expedition_crew"][10] == {"first_snapshot": 3, "paid_turns": 4, "wage_milli": 2000}
+    # Purchases after the repair crew's first wage (snapshot 7): snapshots 8 and 9.
+    assert (l5["snapshot"], l5["region_purchase_snapshots"], l5["region_paid_milli"]) == (8, 2, 6000.0)
+    assert l5["region_pilot_opened"] == {"turn": 6, "note": "paid_work"}
+    assert l5["first_purchase"] == {"snapshot": 8, "price_milli": 400, "persons": 20.0, "priced_out_persons": 1.0,
+                                    "sold_milli": 3000.0, "paid_milli": 3000.0}
+    assert [(h["snapshot"], h["agent_id"], h["who"], h["status"]) for h in l5["sample"]] == \
+        [(9, 20, "self", "fed"), (9, 30, "household", "priced_out")]
+    assert l5["by"].startswith("region (purchases) and id (the person sample")
+    assert chain["funnel"] == {"projects stalled no_timber": 3,
+                               "an expedition from the region delivered after the stall": 1,
+                               "the repair used the delivered timber": 1, "named workers paid": 1,
+                               "the region's households bought food later": 1,
+                               "a paid crew member or their household in the retail sample later": 1,
+                               "... in the chain's region": 1, "... the repair crew there after its repair wage": 1,
+                               "the store link joined by id (the project the region's only holder)": 1}
+    # The repair crew (paid from snapshot 7) is in the sample at snapshot 9: 20 itself
+    # and the household keyed by 21.
+    assert l5["repair_crew_sample_hits_in_region"] == 2 and inst["repair_crew_to_food_in_region"]
+    assert E._id_links(inst) == 3
+
+
+def test_a_missing_link_is_named_and_a_shared_store_is_traced_by_region(E):
+    bundle = _chain_bundle()
+    hist = bundle["history"]
+    # Another project in the region holds timber in the repair turn: the store link is regional.
+    hist[6]["livelihoods"]["repair_projects"]["receipts"].append(
+        {"turn": 6, "pid": 9, "kind": "workshop", "asset": 1, "region": 1, "status": "progress", "reasons": [],
+         "condition_before": 0.4, "condition_after": 0.5, "timber_held": 1.0, "timber_used": 1.0, "crew": [],
+         "wages_milli": 0})
+    l3 = E.find_chain(bundle)["chain"]["instance"]["links"][2]
+    assert l3["by"].startswith("region") and l3["other_projects_holding_timber"] == [9]
+    # Without the store hold the chain stops at link 2, with the reason.
+    for T in (7, 8):
+        hist[T - 1]["livelihoods"]["timber_supply"]["stores"] = []
+    inst = E.find_chain(bundle)["chain"]["instance"]
+    assert inst["depth"] == 2 and inst["missing"].startswith("the delivered timber was not used by this project")
+    # Without the delivery it stops at link 1.
+    for snap in hist:
+        snap["livelihoods"]["timber_supply"]["closed"] = []
+    inst = E.find_chain(bundle)["chain"]["instance"]
+    assert inst["depth"] == 1 and inst["missing"].startswith("no expedition from the region delivered")
+
+
+def test_the_chain_tradeoffs_are_found_with_their_ids(E):
+    trade = E.find_chain(_chain_bundle())["tradeoffs"]
+    turn, away = trade["tradeoff: crew farm labour away while the home region was short of food (first with home "
+                       "pilot persons priced out that turn, else the first short)"]
+    assert (turn, away["eid"], away["crew"], away["home_shortfall"]) == (4, 5, [10, 11], pytest.approx(2.0))
+    turn, cut = trade["tradeoff: the forest stand drawn down by a cut (the largest one-turn fall of the L3 stock "
+                      "while cutting)"]
+    assert (turn, cut["eid"], cut["stock_fall"], cut["l3_row"]["extraction"]) == (5, 5, 1.5, 2.05)
+    assert trade["tradeoff: the guard ended a cutting stage (forest_depleted)"] is None
+    turn, family = trade["tradeoff: a family priced out after its crew member's wages ended"]
+    assert (turn, family["crew_member"], family["who"], family["priced_out_person"]) == (9, 21, "household", 30)
+    assert (family["wage_snapshots"], family["wage_sources"], family["wages_milli"]) == ([7, 8], ["pl3_granary"], 3000)
+    assert family["wage_regions"] == [1]
+    assert (family["last_wage_snapshot"], family["turns_since_last_wage"], family["paid_again_later"]) == (8, 1, False)
+    assert trade["counts"] == {"away crew-turns": 1, "away crew-turns with the home region short": 1,
+                               "cutting turns": 2, "cutting turns whose L3 stock fell": 2,
+                               "priced-out sample rows after a crew member's wages ended": 1}
+
+
+def test_the_chain_mode_says_what_a_run_does_not_record(E):
+    hist = _history(["timber_supply", "repair_projects"])
+    found = E.find_chain({"history": hist})
+    assert found["chain"] == "not recorded in this run (no household_retail record)"
+    assert found["tradeoffs"]["tradeoff: a family priced out after its crew member's wages ended"] \
+        == "not applicable (no household_retail person sample)"
+    found = E.find_chain({"history": _history(["recovery_crews"])})
+    assert found["tradeoffs"] == "not recorded in this run (no timber_supply record)"
+    # Only dated records are read: a final state holding a chain changes nothing.
+    bundle = _chain_bundle()
+    bundle["world_state"] = {"livelihoods": {"timber_supply": {"closed": []}, "repair_projects": {"receipts": []}}}
+    assert E.find_chain(bundle)["chain"]["instance"]["depth"] == 5
+
+
+def test_main_prints_the_chain_from_a_written_bundle(E, tmp_path, capsys):
+    from chronicler.bundle_codec import dumps_bundle
+    path = tmp_path / "chronicle_bundle.json"
+    path.write_text(dumps_bundle(_chain_bundle()), encoding="utf-8")
+    assert E.main(["--chain"]) == 2
+    capsys.readouterr()
+    assert E.main(["--chain", str(path)]) == 0
+    out = capsys.readouterr().out
+    assert "(seed 3, 10 snapshots; natural;" in out and '"household_retail_boundary": "paid_work"' in out
+    assert "  chain: project 0 (region 1), 5 of 5 links" in out
+    assert "    link 3 (id (pid; the project was the only one in the region holding timber)): snapshot 7: {" in out
+    assert "    tradeoff: a family priced out after its crew member's wages ended: snapshot 9: {" in out
+    assert "    tradeoff: the guard ended a cutting stage (forest_depleted): none found" in out

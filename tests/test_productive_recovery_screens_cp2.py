@@ -160,7 +160,7 @@ def test_base_and_arms_are_the_preregistered_ones(S):
     assert (S.CP2.CHECKPOINT, S.CP2.ROOT, S.CP2.TURNS) == (2, "L2", 200)
     # Checkpoint 1 keeps its own arms, base and preregistration.
     assert len(S.ARMS) == 14 and S.ARMS["W"] == ([], None) and "--workshops" in S.BASE
-    assert S.CHECKPOINTS == {1: S.CP1, 2: S.CP2} and S.CP1.ARMS is S.ARMS
+    assert S.CHECKPOINTS[1] is S.CP1 and S.CHECKPOINTS[2] is S.CP2 and S.CP1.ARMS is S.ARMS
 
 
 def test_every_arm_parses_and_passes_the_livelihoods_prerequisites(S):
