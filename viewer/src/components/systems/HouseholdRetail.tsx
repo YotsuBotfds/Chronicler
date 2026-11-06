@@ -3,6 +3,9 @@ import {
   COMMONS_REASONS, RETAIL_MODE_LABEL, RETAIL_STATUSES, RISKS, commonsOf, commonsShare, flowOf, ownedTitle, readHouseholdRetail, riskTotals,
   type HouseholdRetailRecord, type RetailRegionFrame, type Risk,
 } from "../../lib/householdRetail";
+import {
+  COHORT_GROUPS, COHORT_LABEL, readCohorts, readWarLosses, rulesVersion, WAR_CAUSES, type CohortField, type CohortGroup,
+} from "../../lib/householdRetailEvidence";
 
 const number = (value: number, digits = 3) =>
   (Math.abs(value) < 5e-7 ? 0 : value).toLocaleString(undefined, { maximumFractionDigits: digits });
@@ -23,7 +26,37 @@ const BOUNDARY_NOTE: Record<string, string> = {
   market: "market: each ruling civilization's capital region, from the turn it first qualifies",
   paid_work: "paid_work: regions where paid work has been done (an open workshop firm, a paid repair or granary crew, or the home of a paid woodcutting crew)",
   all: "all: every controlled region (a stress setting)",
+  schedule: "schedule: the regions of a frozen schedule (another run's recorded openings, for example), each from its opening turn",
 };
+const CAUSE_LABEL: Record<string, string> = { conquest: "conquest", siege: "siege turn", occupation: "occupation start" };
+const ACTOR_ROLE: Record<string, string> = { conquest: "conqueror", siege: "besieger", occupation: "occupier" };
+
+/** The turn's cohorts summed over provisioned regions; a field is unknown when any region's is. */
+function cohortTotals(record: HouseholdRetailRecord) {
+  const totals = {} as Record<CohortGroup, Record<CohortField, number | null>>;
+  const unknown: string[] = [];
+  const states = { disabled: 0, absent: 0, malformed: [] as string[], ok: 0 };
+  for (const g of COHORT_GROUPS) {
+    totals[g] = { persons: 0, priced_out: 0, paid_milli: 0, refunded_milli: 0, credited_milli: 0, income_replaced: 0, wages_milli: 0 };
+  }
+  for (const r of record.regions ?? []) {
+    const reading = readCohorts(record, r);
+    if (reading.status !== "ok") {
+      if (reading.status === "malformed") states.malformed.push(`region ${r.region}: ${reading.reason}`);
+      else if (reading.status !== "unobserved") states[reading.status] += 1;
+      continue;
+    }
+    states.ok += 1;
+    for (const g of COHORT_GROUPS) {
+      for (const f of Object.keys(totals[g]) as CohortField[]) {
+        const v = reading.cohorts.groups[g][f];
+        totals[g][f] = v === null || totals[g][f] === null ? null : (totals[g][f] as number) + v;
+      }
+    }
+    for (const [f, why] of Object.entries(reading.cohorts.unknown)) unknown.push(`${r.region}|${f.replace(/_/g, " ")}: ${why}`);
+  }
+  return { totals, unknown, states };
+}
 const RISK_LABEL: Record<Risk, string> = {
   priced_out: "Priced out (cash ran out)",
   offer_short: "Offer short (not enough food on offer)",
@@ -113,10 +146,49 @@ export function HouseholdRetail({ bundle, snapshot, currentTurn, onSelectRegion 
   const counts = (kind: string) => thisTurn.filter((e) => e.kind === kind).length;
   const notable = record.log.filter((e) => !["inherited", "escheat"].includes(e.kind)).slice(-8);
   const theta = p.theta;
+  const v2 = rulesVersion(record) === 2;
+  const schedule = (record as unknown as { schedule?: { sha256: string; turns: Record<string, number> } }).schedule;
+  const cohorts = cohortTotals(record);
+  const cell = (v: number | null, f: CohortField) => v === null ? "Unknown"
+    : f === "persons" || f === "priced_out" ? number(v) : f === "income_replaced" ? number(v) : coins(v);
+  const cohortSection = provisioned.length === 0 ? null : !v2
+    ? <p className="systems-note">Household groups (crew members, their children, children alone, non-farm adults, other farm households) are recorded under retail rules version 2 only; this record is version 1, so who bought and who was priced out by group is not recorded (unknown, not zero).</p>
+    : cohorts.states.ok === 0 && cohorts.states.malformed.length === 0
+      ? <p className="systems-note">This run recorded no household groups (a rules-version-2 record written before them): unknown, not zero.</p>
+      : <>
+        <div className="systems-table-wrap"><table className="systems-table" aria-label={`Household groups at snapshot ${turn}`}>
+          <caption>Household groups of the people provisioned in {plural(cohorts.states.ok, "pilot region")}: persons, priced out, money (paid · refunded · credited for food sold), farm income replaced, crew wages. Unknown: a value the run could not attribute exactly (reasons below), never zero.</caption>
+          <thead><tr><th>Group</th><th>Persons</th><th>Priced out</th><th>Paid · refunded</th><th>Credited</th><th>Income replaced</th><th>Crew wages</th></tr></thead>
+          <tbody>{COHORT_GROUPS.map((g) => <tr key={g}>
+            <td>{COHORT_LABEL[g]}</td><td>{cell(cohorts.totals[g].persons, "persons")}</td><td>{cell(cohorts.totals[g].priced_out, "priced_out")}</td>
+            <td>{cell(cohorts.totals[g].paid_milli, "paid_milli")} · {cell(cohorts.totals[g].refunded_milli, "refunded_milli")}</td>
+            <td>{cell(cohorts.totals[g].credited_milli, "credited_milli")}</td><td>{cell(cohorts.totals[g].income_replaced, "income_replaced")}</td>
+            <td>{cell(cohorts.totals[g].wages_milli, "wages_milli")}</td>
+          </tr>)}</tbody>
+        </table></div>
+        <p className="systems-note">Credited goes by the region of the claim sold; sellers provisioned in no pilot region are outside these groups. Crew wages are those of woodcutting, granary and repair crews (workshop firm wages are not attributed by person).</p>
+        {cohorts.unknown.length > 0 ? <p className="systems-note">Not attributable exactly: {cohorts.unknown.map((u) => { const [rid, why] = u.split("|"); return `${region(Number(rid))} ${why}`; }).join("; ")}.</p> : null}
+        {cohorts.states.malformed.length > 0 ? <p className="systems-note">Household groups rejected as malformed: {cohorts.states.malformed.join("; ")}.</p> : null}
+      </>;
+  const wars = readWarLosses(record, bundle.world_state.civilizations?.length ?? 0);
+  const warThisTurn = wars.status === "ok" ? wars.losses.filter((w) => w.turn === record.source_turn) : [];
+  const civ = (index: number | null, label: string | null) => label ?? (index === null ? "Unknown" : `Civilization ${index}`);
+  const warSection = wars.status === "malformed"
+    ? <p className="systems-note">The war losses of owned food were rejected as malformed: {wars.reason}.</p>
+    : wars.status === "disabled"
+      ? (thisTurn.some((e) => e.kind === "war_loss") ? <p className="systems-note">Rules version 1 records conquest losses of owned food without their cause, actor or victim (not recorded, unknown); sieges and occupations do not reach owned food there.</p> : null)
+      : warThisTurn.length > 0 ? <div className="systems-table-wrap"><table className="systems-table" aria-label={`War losses of owned food at snapshot ${turn}`}>
+        <caption>War events in pilot regions this turn: each destroys the share of owned food it destroys of the commons, once{control ? " (the record-only control holds no food: each event is recorded with no loss)" : ""}.</caption>
+        <thead><tr><th>Region</th><th>Cause</th><th>Actor</th><th>Victim (the region's ruler)</th><th>Owned food destroyed</th></tr></thead>
+        <tbody>{warThisTurn.map((w, i) => <tr key={`${w.region}-${i}`}>
+          <td>{link(w.region)}</td><td>{CAUSE_LABEL[w.cause]}</td><td>{civ(w.actor, w.actorName)} ({ACTOR_ROLE[w.cause]})</td>
+          <td>{civ(w.victim, w.victimName)}</td><td>{w.milli ? food(w.milli) : control ? "none (nothing held)" : "none (no owned food)"}</td>
+        </tr>)}</tbody>
+      </table></div> : null;
   return <section className="systems-section" aria-label="Household retail">
     <h3>Household retail · snapshot {turn}</h3>
     <p className="systems-note">Simulation turn {record.source_turn}. {MODE_NOTE[record.mode]}</p>
-    <p className="systems-note">Mode: {RETAIL_MODE_LABEL[record.mode]}. Pilot boundary: {BOUNDARY_NOTE[record.boundary]}; a region leaves only when it has no controller, and its owned food then returns to its commons. Title share θ = {number(theta)}: {number((1 - theta) * 100, 1)}% of each pilot harvest stays commons. The price is the market food price clamped to {number(p.price_floor)}–{number(p.price_cap)}, times the ration. At most {number(p.max_claims)} claims are held; a farmer or heir beyond that is refused and the share stays commons. Food in food units (two rations each), money in wealth units, deficits in rations.</p>
+    <p className="systems-note">Mode: {RETAIL_MODE_LABEL[record.mode]}. Pilot boundary: {BOUNDARY_NOTE[record.boundary]}{schedule ? ` (${plural(Object.keys(schedule.turns).length, "region")}, schedule sha256 ${schedule.sha256.slice(0, 12)})` : ""}; a region leaves only when it has no controller, and its owned food then returns to its commons. Title share θ = {number(theta)}: {number((1 - theta) * 100, 1)}% of each pilot harvest stays commons. The price is the market food price clamped to {number(p.price_floor)}–{number(p.price_cap)}, times the ration. At most {number(p.max_claims)} claims are held; a farmer or heir beyond that is refused and the share stays commons. Food in food units (two rations each), money in wealth units, deficits in rations. Retail rules version {v2 ? "2: each conquest, siege turn and occupation start reaches owned food once, recorded with its cause, actor and victim" : "1 (checkpoints 2–3): a conquest's share once per turn; sieges and occupations leave owned food alone"}.</p>
     {frames === null ? <p className="systems-note">The retail frame of simulation turn {record.source_turn} was not recorded: who ate, sold and paid, and who fell below their fair share, are unknown, not zero.</p>
       : frames.length === 0 ? <p className="systems-note">No region is in the pilot at simulation turn {record.source_turn}.</p> : <>
         {control ? <p className="systems-note">Nobody is provisioned by retail in this control; the food allocation section shows what people ate.</p> : <>
@@ -138,6 +210,7 @@ export function HouseholdRetail({ bundle, snapshot, currentTurn, onSelectRegion 
           </table></div> : null}
           {sampled.length > 0 || record.sample_dropped ? <p className="systems-note">The person sample holds at most 24 people, those below their fair share first{record.sample_dropped ? `; ${record.sample_dropped} more were not sampled` : ""}. The region counts above are complete.</p> : null}
           {unprovisioned.length > 0 ? <p className="systems-note">Not provisioned by retail this turn (nothing installed there, or the tick took no install; its people were fed under the food allocation rule, in that section): {unprovisioned.map((r) => region(r.region)).join(", ")}.</p> : null}
+          {cohortSection}
         </>}
         {control ? <div className="systems-table-wrap"><table className="systems-table" aria-label={`Would-be retail at snapshot ${turn}`}>
           <thead><tr><th>Region</th><th>Would-be title</th><th>Owners of farmers</th><th>Kept commons (no farmer)</th><th>Would-be price a ration</th><th>Merchants: commons out</th></tr></thead>
@@ -152,7 +225,7 @@ export function HouseholdRetail({ bundle, snapshot, currentTurn, onSelectRegion 
           <div className="systems-table-wrap"><table className="systems-table" aria-label={`Owned food at snapshot ${turn}`}>
             <thead><tr><th>Region</th><th>Owned: open → close (owners)</th><th>Titled (≈ commons share)</th>
               <th>Eaten · sold · unsold</th><th>Free food given</th><th>Decay · overflow</th>
-              <th>To granaries · conquest</th><th>To commons</th><th>Inherited</th></tr></thead>
+              <th>To granaries · {v2 ? "war loss" : "conquest"}</th><th>To commons</th><th>Inherited</th></tr></thead>
             <tbody>{frames.map((r) => {
               const q = r.provisioning;
               const share = commonsShare(r, theta);
@@ -164,7 +237,7 @@ export function HouseholdRetail({ bundle, snapshot, currentTurn, onSelectRegion 
                 <td>{food(ownedTitle(r))}{kept ? ` (+${food(kept)} titled but kept commons)` : ""} ({share === null ? "Unknown" : `≈${food(share)}`})</td>
                 <td>{q ? `${food(flowOf(r, "own_eaten"))} · ${food(flowOf(r, "sold"))} · ${food(q.unsold_milli)}` : "not provisioned"}</td>
                 <td>{q ? `${number(q.free_given)} of ${number(q.free_rations)}` : "not provisioned"}</td>
-                <td>{food(flowOf(r, "decay"))} · {food(flowOf(r, "overflow"))}</td>
+                <td>{food(flowOf(r, "decay"))} · {food(flowOf(r, "overflow"))}{flowOf(r, "cap_overflow") ? ` (+${food(flowOf(r, "cap_overflow"))} above the cap before granaries)` : ""}</td>
                 <td>{food(flowOf(r, "procured"))} · {food(flowOf(r, "war_loss"))}</td>
                 <td>{why.length ? why.join("; ") : "none"}</td>
                 <td>{food(flowOf(r, "inherited_in"))}</td>
@@ -190,6 +263,7 @@ export function HouseholdRetail({ bundle, snapshot, currentTurn, onSelectRegion 
             : `Granaries bought ${food((frames ?? []).reduce((a, r) => a + flowOf(r, "procured"), 0))} of owners' grain in ${procurement.procurement_flows} purchases; owners were credited ${coins(procurement.procurement_credited_milli)}${procurement.procurement_residual_milli ? ` (${coins(procurement.procurement_residual_milli)} refused by the wealth ceiling)` : ""}.`}</p> : null}
         </>}
       </>}
+    {warSection}
     {thisTurn.length > 0 ? <p className="systems-note">Records this turn: {["pilot_opened", "pilot_closed", "war_loss", "inherited", "escheat", "pool_reset", "claims_refused", "switch_off"]
       .filter((k) => counts(k) > 0).map((k) => `${words(k)} ${counts(k)}`).join(", ")}.</p> : null}
     <div className="systems-table-wrap"><table className="systems-table" aria-label={`Household retail to snapshot ${turn}`}>
@@ -199,14 +273,18 @@ export function HouseholdRetail({ bundle, snapshot, currentTurn, onSelectRegion 
         <tr><td>Turns settled · installs not taken · unobserved</td><td>{number(c("turns_settled"))} · {number(c("turns_not_taken"))} · {number(c("turns_unobserved"))}</td></tr>
         <tr><td>Titled to owners (titled but kept commons)</td><td>{food(c("titled_milli"))} ({food(c("untitled_milli"))})</td></tr>
         <tr><td>Own food eaten · sold to neighbours · sold to granaries</td><td>{food(c("own_eaten_milli"))} · {food(c("sold_milli"))} · {food(c("procured_milli"))}</td></tr>
-        <tr><td>Decay · storage overflow · conquest loss</td><td>{food(c("decay_milli"))} · {food(c("overflow_milli"))} · {food(c("war_loss_milli"))}</td></tr>
+        {v2 ? <>
+          <tr><td>Decay · storage overflow</td><td>{food(c("decay_milli"))} · {food(c("overflow_milli"))}</td></tr>
+          <tr><td>War loss: conquest · siege · occupation (war events)</td><td>{WAR_CAUSES.map((k) => food(c(`war_loss_${k}_milli`))).join(" · ")} ({number(c("war_events"))})</td></tr>
+        </> : <tr><td>Decay · storage overflow · conquest loss</td><td>{food(c("decay_milli"))} · {food(c("overflow_milli"))} · {food(c("war_loss_milli"))}</td></tr>}
         <tr><td>To commons (of it, no heir)</td><td>{food(c("to_commons_milli"))} ({food(c("escheat_milli"))})</td></tr>
         <tr><td>Inherited · owners who died</td><td>{food(c("inherited_milli"))} · {number(c("deaths"))}</td></tr>
         <tr><td>Paid · credited · refunded</td><td>{coins(c("paid_milli"))} · {coins(c("credited_milli"))} · {coins(c("refunded_milli"))}</td></tr>
         <tr><td>Granary purchases: credited · refused by the ceiling · unpaid</td><td>{coins(c("procurement_credited_milli"))} · {coins(c("procurement_residual_milli"))} · {coins(c("procurement_unpaid_milli"))}</td></tr>
         <tr><td>Farm income replaced (farmer-turns)</td><td>{number(record.income_replaced_total)} ({number(c("income_replaced_rows"))})</td></tr>
         <tr><td>Person-turns priced out · offer short</td><td>{number(c("priced_out_persons"))} · {number(c("offer_short_persons"))}</td></tr>
-        <tr><td>Claims refused (cap) · region-turns exempt from requisition</td><td>{number(c("claims_refused"))} · {number(c("requisition_exempt_region_turns"))}</td></tr>
+        <tr><td>Claims refused (cap) · region-turns exempt from requisition</td><td>{number(c("claims_refused"))} · {v2 ? "not applicable (rules version 2 applies sieges and occupations to owned food)" : number(c("requisition_exempt_region_turns"))}</td></tr>
+        {v2 ? <tr><td>Owned grain above the storage cap, lost before granaries buy</td><td>{food(c("owned_grain_above_cap_milli"))}</td></tr> : null}
         <tr><td>Crew farm time paid as wages, not titled (person-turns)</td><td>{number(c("crew_farm_time_person_turns"))}</td></tr>
       </tbody>
     </table></div>

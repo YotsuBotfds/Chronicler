@@ -22,9 +22,21 @@ Modules: `chronicler/household_retail.py` (hooks, rules, checks) and
   `food_allocation` (so L2's hooks run first in every phase).
 - `--household-retail-mode`: `retail` (default), `no_relief`, `free_exchange`,
   `record_only`.
-- `--household-retail-boundary`: `market` (default), `paid_work`, `all`.
+- `--household-retail-boundary`: `market` (default), `paid_work`, `all`, `schedule` (A2R,
+  command line only; see [The schedule boundary](#the-schedule-boundary-a2r)).
+- `--household-retail-schedule PATH` (A2R): the `schedule` boundary's JSON file.
+- `--household-retail-rules` (A5-1): `2` (the default of a new retail state) or `1`. See
+  [War](#war-rules-version-2-a5-1). A saved state keeps the version it recorded: a state
+  saved before A5 has no version field and reads as `1`. A conflicting value is refused
+  before any change, given with or without the switch, on a legacy resume
+  (`_check_prerequisites`) and on an exact resume (`livelihoods_resume_conflicts`, choice
+  field `rules`). The catalog lists it as a choice of the switch (`feature_catalog`; a
+  choice needs no `REQUIREMENTS` entry). Version 1 is byte-identical to checkpoints 2-3,
+  so the checkpoint-2 and -3 screen definitions (`scripts/productive_recovery_screens.py`,
+  `CP2.RULES`, `CP3.RULES`) pass `--household-retail-rules 1` to every retail run and a
+  rerun keeps their rules.
 - Prerequisites (`livelihoods._check_prerequisites`, `feature_catalog.REQUIREMENTS`):
-  `--agents hybrid` and `--food-allocation` (given or saved). The three keys are in
+  `--agents hybrid` and `--food-allocation` (given or saved). The four keys are in
   `batch_manifest.SIMULATION_ARG_KEYS` and are omitted from a manifest when unset, so
   feature-off manifests keep their bytes. A mode or boundary given without the switch
   is ignored (the existing livelihoods limit); an exact resume refuses one that
@@ -34,6 +46,31 @@ Modules: `chronicler/household_retail.py` (hooks, rules, checks) and
   `--no-household-retail`. Passing it closes every claim to its region's commons, with
   a dated `switch_off` record per region, so no claim, owned food or pilot region drops
   out unseen.
+- RL3 (A5-1): a saved, enabled `--food-allocation` resumed outside `--agents hybrid` is
+  refused too ("resume with --agents hybrid, or pass --no-food-allocation to end it");
+  before, it ran silently inert in aggregate mode. Both saved-switch refusals raise
+  `livelihoods.LivelihoodsRefusal`, a plain `ValueError` subclass for every caller
+  (library code, the live lobby, batch workers, threads, asyncio tasks). Only at the
+  command line, where nothing catches it, it is shown as one line: constructing a refusal
+  installs an exception hook (`livelihoods._install_refusal_excepthook`) that prints
+  `Error: <message>` for an uncaught refusal and leaves every other exception to the
+  previous hook; the interpreter then exits with status 1, without a traceback (`main.py`
+  is pinned and untouched). A5's first version also subclassed `SystemExit`, which a
+  thread swallows and asyncio takes for a shutdown, and which ended a live server on a
+  lobby resume (review A5, finding 4). The live lobby now reports a resumed world's
+  refusal as `Start field 'resume_state': <message>` and reopens (a four-line edit to the
+  pinned `live.py`, in witness layer `cwa2r`); a refusal of no requested features that is
+  not a `LivelihoodsRefusal` still ends the run, as before. Explicit requests
+  (`--food-allocation` or `--household-retail` without hybrid) keep their plain
+  `ValueError`. Open item (default path, unchanged): an
+  agents-off legacy resume of a hybrid save without livelihoods switches still leaves
+  `world.agent_mode == "hybrid"` in `state.json` and the bundle, because
+  `main._configure_run` assigns the mode only for agent modes; fixing it changes
+  default-path output, so it is left to the lead and the owner.
+- A legacy state-file resume **with** `--agents hybrid` runs both L2 and retail: the
+  rebuilt pool closes every claim to the commons on the first resumed turn
+  (`pool_reset`, dated) and retail settles every resumed turn (RL3's original wording,
+  "runs neither", does not hold for a correctly given resume).
 
 ### State
 
@@ -53,6 +90,16 @@ Modules: `chronicler/household_retail.py` (hooks, rules, checks) and
   entry beyond it is refused (`claims_refused`); that share goes to the commons.
 - A transient `_turn` (books, installs, spouse reads, procurement records) that is never
   pickled and is empty at every turn boundary.
+- Rules version 2 only (each omitted while unset, so a version-1 state serializes
+  exactly the checkpoint-3 fields): `rules_version` (omitted while 1), per pilot region
+  `war_events` (war events observed, monotone), and on `war_loss` records `cause`,
+  `actor`, `actor_name`, `victim`, `victim_name`. Pickles written before A5 restore with
+  these at their defaults (version 1).
+- A2R, each omitted while unset: `schedule` (region index → opening turn) and
+  `schedule_sha256` for the `schedule` boundary (any rules version); version 2 only,
+  `opened_turn` (region index → its first pilot turn, kept after a closure; a version-2
+  state saved before A2R starts it from its open regions at its next boundary update)
+  and, on each frame row of a provisioned region, `cohorts` (RL5).
 
 Owned food is never in `region.stockpile`: that is the commons.
 
@@ -60,9 +107,10 @@ Owned food is never in `region.stockpile`: that is the commons.
 
 | Where | Hook | What Python does |
 | --- | --- | --- |
-| Phase 2, before the economy | `prepare_phase2` | Boundary update: a pilot region without a controller closes (holdings to the commons, `pilot_closed`); newly qualifying regions open. A conquest since the last agent tick takes its share of owned stock. Commons written after the region batch was built (closure, pool reset) are patched into its `stockpile_<good>` columns. Title weights from the Phase 2 snapshot. Unless `record_only`, and only when a pilot region exists, appends `retail_title_share` (θ; null outside the pilot) and `retail_owned_<good>` (owned stock / 1000). |
+| Phase 2, before the economy | `prepare_phase2` | Boundary update: a pilot region without a controller closes (holdings to the commons, `pilot_closed`); newly qualifying regions open. Version 1: a conquest since the last agent tick takes its share of owned stock; version 2: checks that every conquest was observed at its event. Commons written after the region batch was built (closure, pool reset) are patched into its `stockpile_<good>` columns. Title weights from the Phase 2 snapshot. Unless `record_only`, and only when a pilot region exists, appends `retail_title_share` (θ; null outside the pilot) and `retail_owned_<good>` (owned stock / 1000). |
 | Phase 2, after the economy | `finish_phase2` | Checks the pilot region's native food ledger and the title weights against the farm labour after named crews. Title, once per turn: each good's `retail_titled_<good>` (to the nearest milli-food) split over the region's Phase 2 farmers by largest remainder, ties by ascending id. Then the native owned decay and overflow per good, applied to claims pro rata. Untitled and refused shares decay with the pool and then go to the commons. Records each pilot region's controller. |
-| Before the agent tick | `before_agent_tick` | Conquest loss for a pilot region conquered since Phase 2. Spouse of every owner (`get_agent_relationships`, one call per owner). Installs `set_household_retail(turn, mode, regions, claims)` and, except in `free_exchange`, `install_retail_income(turn, regions)`. |
+| Phase 5 and 5b (war) | `on_conquest`, `on_war_loss` (version 2) | Each conquest (`action_engine.apply_region_conquest`), siege turn and occupation start (`war.occupation._requisition`) of a pilot region destroys the share of owned stock it destroys of the commons, at the event, once, recorded with cause, actor and victim. See [War](#war-rules-version-2-a5-1). |
+| Before the agent tick | `before_agent_tick` | Version 1: conquest loss for a pilot region conquered since Phase 2, and the `requisition_exempt_region_turns` count; version 2: the observed-conquest check. Spouse of every owner (`get_agent_relationships`, one call per owner). Installs `set_household_retail(turn, mode, regions, claims)` and, except in `free_exchange`, `install_retail_income(turn, regions)`. |
 | After the agent tick | `after_agent_tick` | Takes the frame and income receipt once, refuses a stale, repeated or partial pair, checks the frame, debits own-eaten and sold food from the claims, records money, then settles dead owners' claims. |
 | Phase 10 | (seam in `tick_grain_reserves`) | Owners' grain sold to their ruler's granaries is debited from claims as it is bought. |
 | Phase 10 | `phase10` | Credits those owners once (`transfer_wealth`, purpose 6), records merchant food departures and the owned food merchants could not load, then closes the turn's frame. |
@@ -90,6 +138,8 @@ configuration, recorded `switch_off`).
   - the home region of a paid PL1 woodcutting crew (`timber_supply.receipts`,
     `wages_milli > 0`).
 - `all`: every region whose controller rules at least one region.
+- `schedule` (A2R): every region of the frozen schedule whose opening turn has come
+  (`turn ≤ world.turn`); see [The schedule boundary](#the-schedule-boundary-a2r).
 
 ### Title weights
 
@@ -147,15 +197,317 @@ stay commons.
   live and eats from it only when present.
 - **Household split, rejoin, remarriage.** Claims are personal; households are never
   stored, so nothing is created or lost.
-- **Conquest.** `v − floor(v × CONQUEST_STOCKPILE_SURVIVAL)` of each owned good is
-  destroyed (`war_loss`), claims pro rata, once per conquest event. The event is the
-  region's `last_conquered_turn`, set by `action_engine.apply_region_conquest` (the path
-  that destroys market stock, annexed occupations included), when it is newer than the
-  last loss applied. It is checked before the economy and before the agent tick, so a
-  conquest in any phase is applied before the next sale. A change of controller without
-  a conquest (peaceful transfer, abandonment) destroys nothing. Occupation and siege requisitions do not
-  reach owned stock (declared limit, counted in `requisition_exempt_region_turns`).
+- **War, version 2** (the default of a new state): see
+  [War](#war-rules-version-2-a5-1). Each conquest, siege turn and occupation start takes
+  its share once, at the event.
+- **Conquest, version 1** (checkpoints 2-3, `--household-retail-rules 1`):
+  `v − floor(v × CONQUEST_STOCKPILE_SURVIVAL)` of each owned good is destroyed
+  (`war_loss`), claims pro rata, once per conquest turn. The event is the region's
+  `last_conquered_turn`, set by `action_engine.apply_region_conquest` (the path that
+  destroys market stock, annexed occupations included), when it is newer than the last
+  loss applied. It is checked before the economy and before the agent tick, so a
+  conquest in any phase is applied before the next sale. Two conquests of one region in
+  one turn (reachable with `--no-campaigns`) destroy it once, and the record names the
+  last controller (RL1). Occupation and siege requisitions do not reach owned stock
+  (declared limit, counted in `requisition_exempt_region_turns`; RL2).
+- **Controller change without a conquest** (peaceful transfer, abandonment, secession):
+  destroys nothing, in both versions.
 - **Pool reset.** Every claim to the commons, dated.
+
+### War (rules version 2, A5-1)
+
+Version 2 makes owned stock follow the commons authority **per event** (recorded limits
+RL1 and RL2; the board's section 4 has the dispositions).
+
+- **Conquest.** `action_engine.apply_region_conquest` calls `on_conquest(world, region,
+  attacker, defender, via=...)` next to RS2's `region_conquered`, before
+  `last_conquered_turn` is set. A pilot region loses `v − floor(v × 0.5)` of each owned
+  good at once, as its commons are halved, once per call: two conquests in one turn take
+  it twice, as they take the commons to a quarter. `via` names the path for the record:
+  an aggregate WAR win (`war`), or an annexation (`treaty`, `consolidated`,
+  `owner_gone`, passed by `war.occupation.annex_occupation`).
+- **Siege and occupation.** `war.occupation._requisition(region, factor, world, *,
+  cause, actor)` multiplies the commons food by `factor`, seizes the granary share, then
+  calls `on_war_loss`: a pilot region loses `v − floor(v × factor)` of each owned good,
+  once per call. `war.battles.siege_turn` passes `cause="siege"` (0.85, every siege
+  turn) and the besieger; `start_occupation` passes `cause="occupation"` (0.8) and the
+  occupier. The per-turn occupation tick takes nothing from food (as for the commons).
+- **Kind.** War loss is **destruction** (flow `war_loss`), as the commons requisition
+  is today: the food goes nowhere (army rations are minted by `war.logistics`). Turning
+  requisition into a transfer to the army, with restitution, is D4.
+- **Rounding.** Per good, `v − floor(v × f)` with `f` read as its decimal value (0.85 is
+  17/20), so binary rounding never takes an extra milli; claims pro rata by largest
+  remainder, ties to the smaller id. Owned stock can lose at most 1 milli per good per
+  event more than the float commons. No randomness.
+- **Records.** Every event observed in a pilot region counts (`war_events` on the entry
+  and the counter) and is logged as a `war_loss` record with `cause` (`conquest`, `siege`,
+  `occupation`), `actor`/`actor_name` (the conqueror, besieger or occupier: index in
+  `world.civilizations` and name at the event), `victim`/`victim_name` (the region's ruler
+  at the event: the defender for a conquest), the milli-food destroyed and a note. An
+  event that destroys nothing (no owned food) is logged too, with milli 0 (review A5,
+  finding 3; before, it was only counted). Counters appended: `war_loss_conquest_milli`, `war_loss_siege_milli`,
+  `war_loss_occupation_milli`, `war_events`; `war_loss_milli` keeps the total. The
+  turn's frame shows the loss in `flows.war_loss`.
+- **Exactly once.** Each hook call applies its share once and checks the region's books
+  (`check_region`, `check_owner`). Phase 2 and the pre-tick hook no longer infer
+  conquests: they refuse a `last_conquered_turn` newer than the last conquest the hook
+  observed ("conquest not observed"). A war loss after the turn's frame was closed is
+  refused. `record_only` holds nothing: each event is counted and logged with its cause,
+  actor and victim, milli 0 and the note suffix `(record_only: nothing held)`, so a
+  control arm keeps its war exposure (review A5, finding 2; version 1's `record_only`
+  keeps its one zero-loss conquest record per turn). The hooks are no-ops for version 1,
+  a disabled or inactive switch and a region outside the pilot.
+- **Same turn with other lifecycles.** War comes in Phase 5/5b, before the agent tick:
+  provisioning installs the reduced claims, a dead owner's heir inherits the reduced
+  claim, and a region that loses its controller after a conquest closes at the next
+  Phase 2 (`pilot_closed`, once).
+- **Checkpoint.** Events land inside the turn's books; checkpoints are at turn
+  boundaries. An exact resume inside a live siege or occupation equals the straight run
+  (`tests/test_household_retail_war_native.py`).
+
+Boundaries, recorded as decisions:
+
+- **Treaty cessions and annexations** go through `apply_region_conquest`, so they
+  destroy half of the commons and of owned stock even after siege and occupation
+  losses. Owned stock is handled exactly as the commons; the record names the path
+  (`ceded by treaty`, `annexed after a long occupation`, ...). Whether a cession should
+  be a transfer rather than a second destruction is an open D4 requisition question.
+- **A pilot region without a controller** (collapse, abandonment) still confiscates
+  every claim to its commons at the next Phase 2, owners alive or not: an intentional
+  boundary (no market or ruler remains to provision through).
+- **The PL1 timber store** is untouched by conquest, siege and occupation: an
+  intentional boundary for now (B/A4 own it later).
+- **Soldiers at home.** Enlisted people keep their claims and home food demand; nothing
+  here changes that (D3/D4).
+
+Verification (2026-11-06, simulation source `b9e64330`, native `101a4cd5…` built from Rust
+identical to `8abc1acb`; development worlds only):
+
+- Offline lane: PASS, 64 chunks, 6,735 passed, 69 skipped, 0 failed, 240.8 s (chunk
+  `household-retail-war`: 27 passed, 1.2 s). Witness tests with layer `cwa5`: 509 passed
+  and 61 subtests.
+- Native (`CHRONICLER_REQUIRE_RETAIL_NATIVE=1`): `test_household_retail*.py` and
+  `test_livelihoods_closure_native.py` 127 passed; L2, work authority, PL3, RS2, PL1,
+  checkpoint and war suites 77 passed.
+- Feature-off `turn_speed_identity` against `8abc1acb` (also the preceding `main`): 9
+  cases, 399 files, 0 differences. With grain reserves, shipments, storage, workshops and
+  L2 on: retail absent, and `--no-household-retail`, 205 files, 0 differences each;
+  retail on in every region, `8abc1acb` against `--household-retail-rules 1`, 205 files,
+  0 differences (version 2 differs in 194, as intended). A scripted harness scenario
+  (conquests, deaths, a closure) gives byte-identical world JSON, retail `model_dump` and
+  snapshot under `8abc1acb` and under `--household-retail-rules 1`.
+- All-switch `checkpoint_identity` with retail version 2 in every region:
+  `hybrid_s42_long` PASS at 19 resume points, and at 11 and 12 (inside an occupation, before
+  a siege and a conquest of pilot regions holding owned food); `proc32_hybrid_s11` PASS at
+  39 resume points (an occupation start on turn 17).
+- Natural activation (checkpoint-3 base, retail in every region, 200 turns): an owned-stock
+  war loss in 11 of 13 development worlds (none in template 7 and 23): 183 losses (siege
+  134, occupation 29, conquest 20) and 219 events; no region was conquered twice in one
+  turn (campaigns on).
+- `CHRONICLER_CHECK_RESOURCES=1`, procedural 13, 200 turns: PASS, with 38 losses (siege 29,
+  occupation 5, conquest 4).
+
+### The schedule boundary (A2R)
+
+Lane A2R (connected-world program, Program A2: the wage against the `paid_work`
+enrollment). Under `paid_work`, payment decides which regions retail enrolls (a PL3
+granary crew qualifies its region only when `wages_milli > 0`), so checkpoint 3's
+`CH − CH_unpaid` mixes the wage with the enrollment (audit A, D6). The `schedule`
+boundary freezes the enrollment so the two can be separated: an arm replays another
+arm's recorded openings.
+
+- `--household-retail-boundary schedule --household-retail-schedule PATH`. The file is a
+  JSON object `{"<region index>": <opening turn>}`: keys are decimal region indices of
+  the world (no sign, no leading zero), values non-negative integers; a repeated key, an
+  unknown region, a negative, fractional, boolean or string turn, an unreadable file or
+  non-JSON is refused before any change (`household_retail.load_schedule`). An empty
+  object is a valid schedule (nothing ever opens).
+- Refused: the file without `--household-retail` (given or saved), the file with
+  another boundary (given, saved or the default `market`), and the `schedule` boundary
+  without a file unless the saved state has a schedule
+  (`household_retail.check_schedule_request`, from `livelihoods._check_prerequisites` and
+  again when the state is written). A boundary given without the switch is ignored, as
+  every retail option is.
+- The state keeps the schedule (ascending region) and `schedule_sha256`, the SHA-256 of
+  its canonical JSON (compact, ascending region: `{"0":13,"2":10}`), for its whole life;
+  both are omitted while unset, so other states keep their bytes. The schedule is fixed:
+  a legacy (state-file) resume given a file with another digest is refused before any
+  change; an exact resume is refused too (`livelihoods_resume_conflicts`: the file is
+  compared by its schedule's digest, not its path, so the same schedule read from
+  another file is no conflict and the checkpoint's recorded path is then left out of the
+  generic path comparison). Changing the boundary away from `schedule` keeps the schedule
+  stored, unused; coming back uses it.
+- `_qualifying` returns each scheduled region whose turn has come. The controller
+  filter, sticky closure (a region without a controller closes, holdings to its commons)
+  and reopening are the other boundaries': a closed scheduled region reopens as soon as
+  it has a controller again, where `paid_work` waits for new paid work. A replay is
+  therefore exact when the source arm closed no region (the extraction lists closures).
+- Rules versions: the boundary works under both; version 1 records no `opened_turn` and
+  no cohorts (below).
+- Registration: `household_retail_schedule` is a simulation manifest key after
+  `household_retail_rules`, omitted when unset (`batch_manifest`, pinned: layer `cwa2r`);
+  batch children receive it as an absolute path (`livelihoods.livelihoods_arguments`,
+  path options in `LIVELIHOODS_PATH_KEYS`). The feature catalog does not serve it: a
+  browser cannot hand the server a file, so `schedule` is a command-line-only choice
+  (`feature_catalog.CLI_ONLY_CHOICES`) and a `features` request naming it is refused as an
+  unknown choice.
+- The snapshot adds `schedule: {sha256, turns}` after the boundary when the state has one.
+
+### Opened turns and schedule extraction (A2R)
+
+Before A2R, openings lived only in the rolling 64-record log. A version-2 state keeps
+`opened_turn` (region index → the turn it first entered the pilot, kept when the region
+closes) and the snapshot copies it (`opened_turn`, string keys, after `rules_version`).
+`household_retail.extract_schedule(bundle)` returns `{schedule, source, closures,
+sha256, regions_closed}`: the last record's `opened_turn` (rules 2), or in a version-1
+bundle the first completed-turn frame of each region, cross-checked when both exist.
+`scripts/retail_schedule.py BUNDLE --output S.json [--strict]` writes the canonical JSON
+(its SHA-256 equals the digest the replaying run records) and prints the digest, the
+source and any closures; `--strict` refuses a bundle with a closure.
+
+Replay results (native `101a4cd5…`, development worlds, the checkpoint-3 base; `CH` =
+`--timber-supply --recovery-crews --remittances`, `U` = the same with
+`--recovery-crew-mode unpaid`): see [Verification (A2R)](#verification-a2r).
+
+### Household-group cohorts (RL5, A2R)
+
+Recorded limit RL5 ("purchases by person are not in the snapshot", an evidence gap).
+Under rules version 2 each provisioned pilot region-turn's frame row carries `cohorts`:
+aggregates of the people provisioned there, by household group, computed in Python at
+settlement from data already available. No id leaves the snapshot.
+
+- **Groups** (`COHORT_GROUPS`, a partition of the people provisioned, from the Phase 2
+  roster: id, region, age, occupation, parents):
+  - `crew`: named on one of this turn's crews, paid or not (PL3 granary and workshop
+    crews, PL1 woodcutting crews, RS2 workshop repair crews, from the packages' staged
+    receipts before their Phase 10 row cap). L6a firm workers are not crews here: the
+    payroll pays owed wages pro rata to firm cash at Phase 10, former workers included,
+    and records no per-person split;
+  - `crew_children`: a child (under 20) with a crew parent in the region;
+  - `children_alone`: a child with no adult parent in the region (L2's household of its
+    own, whose members pay);
+  - `nonfarm_adults`: an adult off the crews who is not a farmer;
+  - `other`: an adult farmer off the crews, or a child living with an adult parent, none
+    of them on a crew.
+- **Fields** (`COHORT_FIELDS`): `persons`, `priced_out`, `paid_milli`, `refunded_milli`,
+  `credited_milli`, `income_replaced` (food units of ordinary farm income), `wages_milli`
+  (crew wages).
+- **Exact or unknown.** A value is a number only when it is attributable exactly;
+  otherwise `null`, with the reason in `unknown` (never zero). The people provisioned in
+  a region at phase 0.7 are its Phase 2 roster less those who die before provisioning
+  (nobody moves between Phase 2 and phase 0.7; deaths before it are the tick's
+  catastrophe and queued war deaths, which Python cannot name):
+  - `persons` are exact when the roster's count equals the frame's `persons` (and its
+    children the frame's `children`, its count `phase2_alive`); otherwise all groups'
+    persons are unknown;
+  - `priced_out` is exact when the native sample (256 rows, unfed first) holds every
+    priced-out person of the region and each one's group is certain;
+  - a child's group is uncertain when an adult parent in the region is not alive after
+    the tick (it may have died before provisioning); a sum such a child contributes to is
+    unknown for the three child-dependent groups (`crew_children`, `children_alone`,
+    `other`), while `crew` and `nonfarm_adults` stay exact;
+  - money is per person (native money rows): `paid` and `refunded` by the payer's region
+    (they must equal the region's totals); `credited` by the region of the claim sold, to
+    the seller's group, with `credited_outside_milli` for sellers provisioned in no pilot
+    region (the groups plus outside must equal the region's credit). A seller who sold
+    claims of several regions in one turn has one money row: the region's part is its
+    credit less its one-region sellers', attributed when all such sellers of the region
+    share a group;
+  - income replaced per person (the receipt), by the farmer's Phase 2 region, must equal
+    the region's `income_replaced`;
+  - wages: PL3 per member; PL1 and RS2 per crew, attributed when the whole crew lives in
+    one region; a receipt without a wage field is unknown.
+  A failed check makes that field unknown, with the sums named in the reason.
+- Not written in version 1 (its bytes are checkpoint 3's), in `record_only` (nobody is
+  provisioned), or for a region without a provisioning row.
+- Cost: one pass over the Phase 2 roster of the pilot regions and the turn's money rows
+  per turn; nothing native.
+
+### Storage-cap timing (RL4, A2R)
+
+Recorded limit RL4: "a pilot region can hold up to one turn's harvest above the storage
+cap between close and the next opening". Reproduced with a scratch probe (checkpoint-3
+base, retail in every region, rules 2 as A5 left them, 200 turns; development worlds
+template 7 and 42, procedural 13 and 21): at Phase 10, before the granaries buy, the
+combined grain of a pilot region (commons plus owned) exceeded `2.5 × population` in 37,
+15, 166 and 86 of 1,590, 1,572, 5,798 and 5,562 pilot region-turns (by up to 29.5,
+27.8, 91.9 and 72.4 food units), and granary procurement bought 25.0, 17.6, 305.2 and
+42.1 food units of owned grain from that excess: 36-54% of all owned grain the granaries
+bought (46.7, 53.4, 696.3, 88.0).
+
+Classification: **defect** (narrow). This turn's title is on offer at phase 0.7 whole
+and the native caps the two pools together only at the next opening, which mirrors the
+commons' cap after consumption and is intended. But between the agent tick and the next
+opening, Phase 10 granary procurement could buy owned grain the storage cap destroys: a
+market without retail, capped at Phase 2 close, cannot sell such grain, and grain is
+fungible, so any purchase from a pool above the cap shrinks the next opening's cut by as
+much. War losses are not part of it: sieges, occupations and conquests come at Phase
+5/5b, before the title is eaten, so the stock they reach is not doomed by the cap.
+
+Fix, rules version 2 only (version 1 unchanged, as at checkpoints 2-3):
+`household_retail.phase10_before_reserves` (the livelihoods hook just before
+`tick_grain_reserves`), when granaries are on, cuts each pilot market's owned grain
+above `max(0, cap − commons grain)` before procurement, claims pro rata, as the flow
+`cap_overflow` (its own kind, so `overflow` stays the native opening's) and the counter
+`owned_grain_above_cap_milli`. `cap` is the native `per_good_cap_factor ×
+storage_population` of this turn's economy batch (f32; from the current population when
+this turn's Phase 2 recorded none). The commons met the cap alone at close, so the excess
+is owned title. Without granaries nothing can buy it and the next opening cuts it, as
+before; `record_only` holds nothing.
+
+After the fix (same four worlds, `CHRONICLER_CHECK_RESOURCES=1`, all four PASS): no owned
+grain was bought from above this turn's cap (probe with this turn's cap: 0.000 food units
+on template 7 and procedural 21); the cut removed 399.1, 202.6, 2,886.1 and 1,152.5 food
+units over 200 turns, and granaries bought 38.7, 40.1, 747.9 and 154.2 food units of
+owned grain (trajectories differ from the unfixed runs, so these are not paired
+differences). Residual boundaries, as for a market without retail: a population that
+falls between Phase 2 and Phase 10 lowers the next opening's cap below this turn's, and
+commons raised above the cap after the tick by an escheat can be bought (the seam is in
+pinned `grain_reserves.py`). Tests:
+`test_household_retail_evidence.py::test_owned_grain_above_the_cap_is_lost_before_the_granaries_buy`,
+`::test_without_granaries_or_within_the_cap_nothing_is_cut`,
+`::test_the_cap_of_a_turn_without_phase2_comes_from_the_population`.
+
+### Verification (A2R)
+
+2026-11-06, source `8f567be4` (`src/` as at `6956da67`), native `101a4cd5…` (built
+from Rust identical to `8abc1acb`; no Rust change in A2R); development worlds only.
+
+- Offline lane (`scripts/run_python_oracle_checks.py`, 110-second limit kept): PASS, 65
+  chunks, 6,787 passed, 69 skipped, 0 failed, 234.2 s; chunks `household-retail` 125
+  passed (2.0 s), `household-retail-war` 37 (1.4 s), `household-retail-evidence` 42
+  (1.1 s). Witness tests with layer `cwa2r` (the V2 set): 509 passed and 61 subtests.
+- Native (`CHRONICLER_REQUIRE_RETAIL_NATIVE=1`): `test_household_retail*.py` and
+  `test_livelihoods_closure_native.py` 186 passed; L2, work authority, PL3, RS2, PL1,
+  run and live checkpoint suites with `test_feature_catalog.py` and
+  `test_native_ci_shards.py` 277 passed.
+- Viewer: 147 files, 1,463 tests passed; lint clean; build passes (the existing
+  large-bundle warning).
+- Feature-off `turn_speed_identity` against `8abc1acb`: 9 cases, 399 files, 0
+  differences; the preceding `main` (`1d4141d7`, PR #83, `src/` differs from `8abc1acb`
+  only in `feature_catalog.py`, Rust identical) against `8abc1acb`: 9 cases, 399 files, 0
+  differences. With grain reserves, shipments, storage, workshops and L2 on and retail
+  absent: 205 files, 0 differences; retail in every region, `8abc1acb` against
+  `--household-retail-rules 1`: 205 files, 0 differences.
+- All-switch `checkpoint_identity` `hybrid_s42_long` with the `schedule` boundary
+  (`{"0":0,"1":100,"2":0,"3":3,"4":60,"5":10,"6":150,"7":30}`, sha256 `191c89be…`): PASS
+  at 19 resume points (writing checkpoints changes nothing, 112 files); the run's
+  `opened_turn` equals the schedule, every one of 1,247 pilot region-turns has cohorts,
+  17 have an RL4 cut (247.8 food units).
+- Replay (`CH`/`U` at `paid_work`, 200 turns, rules 2): each arm's openings replayed in
+  the other reproduce its per-region pilot region-turns exactly in 6 of 6 replays
+  (template 7: 990 and 634 region-turns; template 23: 705 and 531; procedural 7: 2,411
+  and 1,240), no source arm closed a region. Cohort exactness over those 12 runs
+  (13,022 provisioned region-turns): priced out, refunds and crew wages exact in 100%,
+  paid 99.7%, income replaced 89.7%, persons 84.5%, credited 73.8%, every field 62.9%.
+  Priced-out person-turns by group where exact: crew members 0 in every run; non-farm
+  adults and children without a co-resident adult carry nearly all (exploratory, not a
+  screen).
+- RL4: see [Storage-cap timing](#storage-cap-timing-rl4-a2r) (`CHRONICLER_CHECK_RESOURCES=1`
+  PASS on template 7 and 42 and procedural 13 and 21, 200 turns).
+- Not run here: the procedural qualification and 200-seed gates (restricted), a held
+  screen of the wage contrast (the schedule makes it possible; it needs a preregistered
+  cohort), browser QA of the panel, `cargo test` (no Rust change).
 
 ### Merchants, procurement and the controls
 
@@ -230,7 +582,10 @@ free rations, the native Phase 2 columns and provisioning row, income replaced (
 rows) for its farmers, merchant food departing and owned food unloadable, plus money,
 income,
 the sample, the log, counters and parameters. A turn without a frame reads `None`
-(unknown, not zero).
+(unknown, not zero). A version-2 state adds `rules_version: 2` after the boundary, and
+its `war_loss` records carry the cause, actor and victim fields; a version-1 summary is
+unchanged. A2R: `schedule` (after the boundary, when the state has one), `opened_turn`
+(after `rules_version`, version 2) and each provisioned frame row's `cohorts` (version 2).
 
 ## Accounting
 
@@ -242,7 +597,8 @@ every turn, so f32 differences do not accumulate.
 Raised on failure (`RetailAccountingError`, a `RuntimeError`):
 
 - **`check_region`** after every mutation, per pilot region and good: `close = open +
-  titled − own_eaten − sold − procured − decay − overflow − war_loss − to_commons`.
+  titled − own_eaten − sold − procured − decay − overflow − war_loss − to_commons`
+  (− `cap_overflow` under rules version 2 with granaries on, RL4).
   Also `sum(claims) == sum(goods)`, and nothing is negative.
 - **`check_owner`**, per owner, untitled and refused shares included: `claim_close =
   claim_open + titled − own_eaten − sold − procured − decay − overflow − war_loss −
@@ -307,13 +663,47 @@ Python cannot see, and leaves to the native lane:
   `commons_sufficiency` result columns. Without this, Python cannot read the contract's
   result columns.
 - `src/chronicler/batch_manifest.py`: the three keys in `SIMULATION_ARG_KEYS` and in
-  `simulation_config`'s omit-when-unset list.
-- `tests/test_batch_manifest.py`: the three keys.
+  `simulation_config`'s omit-when-unset list; A5-1 appends `household_retail_rules` to
+  both (provisional layer `cwa5`, which the lead may rebuild at integration); A2R appends
+  `household_retail_schedule` to both (provisional layer `cwa2r`, parent `1370ae7a`).
+- `tests/test_batch_manifest.py`: the three keys, A5-1's fourth and A2R's fifth.
+- `src/chronicler/live.py` (A2R, review A5 finding 4): the lobby loop reopens on a resumed
+  world's `LivelihoodsRefusal` (layer `cwa2r`).
 
 ### Tests
 
 - `tests/test_household_retail.py` (offline, chunk `household-retail`): a stand-in
-  native implements the contract with simple rules.
+  native implements the contract with simple rules. Its version-1 conquest, occupation
+  and siege tests run with `--household-retail-rules 1`.
+- `tests/test_household_retail_war.py` (offline, chunk `household-retail-war`, shard 0):
+  rules version 2 on the same stand-in: two conquests in one turn, duplicate processing,
+  unobserved conquests, sieges and occupations through the real war functions, rounding,
+  death and loss of the controller in the same turn, no-ops, serialization, the rules
+  option and the RL3 refusals (including `main` on a saved state file).
+- `tests/test_household_retail_war_native.py` (native, shard 0): the legacy state-file
+  resume with hybrid (and the clean refusal without it, in a child process), an exact
+  resume inside a natural siege and occupation, and the resource checks with campaigns
+  on a procedural development world.
+- `tests/test_household_retail_evidence.py` (offline, chunk `household-retail-evidence`,
+  shard 0; A2R): schedule validation, refusals, storage and digest, the manifest key and
+  forwarding, the catalog's refusal, the boundary's turns, controller filter, closure and
+  reopening, `opened_turn` (and a version-2 state saved before it), an offline replay of a
+  `paid_work` arm's openings (pilot region-turns and the whole retail record equal, labels
+  aside), extraction from frames and closures, the script, exact and legacy resumes, the
+  cohorts (partition and region sums, a death before provisioning, a short sample, a crew
+  in two regions, a receipt without wages, sellers with claims in two regions of one or
+  two groups, version 1, `record_only`, `free_exchange`) and RL4.
+- `tests/test_household_retail_evidence_native.py` (native, shard 0; A2R): the replay on
+  template 7 and 23 and procedural 7 (80 turns; `U` at `CH`'s openings reproduces `CH`'s
+  pilot region-turns; on template 7 `CH` at its own openings reproduces its whole history
+  and final world, labels aside; on template 23 the reverse direction), an exact resume
+  with the schedule at turns 6 and 9 (the second from another file with the same schedule)
+  and the refusal of another schedule (exit status 2), and cohorts on a natural run.
+- `tests/test_household_retail_war.py` also covers A5's review fixes: the version-1 bytes
+  of a war history against `8abc1acb` (a digest recorded from the reference),
+  `record_only` war records, the treaty/consolidated/owner_gone notes, a re-conquest by
+  the original owner then an occupation in one turn, the refusal hook at the command
+  line, in a thread and in an asyncio task, and the live lobby's reopening.
 - `tests/test_household_retail_native.py` (native shard 1): gated rather than skipped.
   It collects only an all-or-none check of the retail methods until they exist, and
   the integration tests once they do. `CHRONICLER_REQUIRE_RETAIL_NATIVE=1` makes their
@@ -430,7 +820,10 @@ and absent inputs execute none of it):
   - The cap therefore holds both pools together **at opening**. Between Phase 2 close
     and the next opening, a pilot region may hold up to one turn's harvest above the
     cap: this turn's title, plus the commons' growth since the opening cut (themselves
-    capped at close). Phase 10 procurement or a conquest can reach that stock.
+    capped at close). Phase 10 procurement or a conquest can reach that stock (recorded
+    limit RL4; disposition in [Storage-cap timing](#storage-cap-timing-rl4-a2r): under rules
+    version 2 with granaries on, owned grain above the cap is cut before Phase 10
+    procurement).
 - Phase A: the commons and the carried owned stock after the opening (decay and cap)
   are food `available`, so pre- and post-trade prices, `market_supply_food` and the farmer income
   modifier see all food on hand. The oracle shadow's food on hand also includes it.
@@ -819,6 +1212,29 @@ N − 1. In this order:
 `record_only` shows the would-be title, owners of farmers, the untitled share and the
 would-be price instead of tables 2–4.
 
+A2R additions (reader `viewer/src/lib/householdRetailEvidence.ts`; `types.ts` and the
+granary files untouched; the strict reader accepts the `schedule` boundary):
+
+- **Household groups** (rules 2), after the people below their fair share: the turn's
+  cohorts summed over provisioned regions (a field unknown in any region is Unknown),
+  with the reasons per region, and a note that credited goes by the claim's region and
+  that workshop firm wages are not attributed by person. Kept apart: version 1 ("recorded
+  under retail rules version 2 only … unknown, not zero"), a version-2 record without
+  cohorts ("recorded no household groups … unknown"), regions not provisioned (listed as
+  before), malformed cohorts (named per region, the rest of the record still read) and
+  recorded zeros (0).
+- **War losses** (rules 2): this turn's war events of pilot regions with cause (conquest,
+  siege turn, occupation start), actor and role, victim and owned food destroyed; "none
+  (nothing held)" in `record_only` and "none (no owned food)" for a zero-loss event.
+  Version 1 says its conquest losses carry no cause, actor or victim.
+- Review A5, finding 1: under version 2 the lifetime war loss is labelled by cause
+  (conquest · siege · occupation, with the war events) instead of "conquest loss", the
+  requisition exemption reads "not applicable" instead of a recorded 0, and the owned
+  food table's column reads "war loss". The settings note names the rules version, the
+  schedule boundary's region count and digest, the owned food table the `cap_overflow`
+  cut beside the overflow, and the lifetime table the owned grain lost above the storage
+  cap before granaries buy (RL4).
+
 ### Options
 
 `--household-retail`, `--household-retail-mode` and `--household-retail-boundary` come
@@ -842,6 +1258,15 @@ request (namespace and manifest), and the refusal without `--food-allocation`.
   records (labelled) with a refund, an offer shortfall and a pilot closure read.
 - `viewer/src/components/systems/__tests__/HouseholdRetail.test.tsx`, and household
   retail cases in `featureCatalog.test.ts` and `FeatureOptions.test.tsx`.
+- A2R: `viewer/src/__fixtures__/household_retail_v2_records.json`, six natural records
+  written on `claude/cw-a2r-retail-cohorts` with the extension `101a4cd5…` (development
+  seeds; commands in its `note`): template 3 boundary `all` at a siege and occupation and
+  at the treaty cession, the same in `record_only`, procedural 7 `paid_work` with paid
+  crews (cohorts with crew wages and unknowns), the same world at that run's openings
+  (`schedule`, crews unpaid) and under rules 1. Tests:
+  `viewer/src/lib/__tests__/householdRetailEvidence.test.ts` (the readers' states and
+  refusals) and `viewer/src/components/systems/__tests__/HouseholdRetailEvidence.test.tsx`
+  (the panel).
 
 ### Browser QA
 

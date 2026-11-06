@@ -112,7 +112,12 @@ def test_a_new_group_is_listed_after_livelihoods_without_touching_existing_entri
     monkeypatch.setitem(fc.REQUIREMENTS, "test_quarantine", ())
     entries = fc.feature_entries()
     keys = [e["key"] for e in entries]
-    assert keys == [*REFERENCE_KEYS, "test_water_model", "test_water_mode", "test_quarantine"]
+    # The reference entries first, then any later livelihoods keys (A5's rules option, ...),
+    # then the new groups.
+    from chronicler.livelihoods import LIVELIHOODS_ARG_KEYS
+    prerequisites = [k for key, options in fc.PREREQUISITES.items() for k in (key, *options)]
+    assert keys[:len(REFERENCE_KEYS)] == list(REFERENCE_KEYS)
+    assert keys == [*prerequisites, *LIVELIHOODS_ARG_KEYS, "test_water_model", "test_water_mode", "test_quarantine"]
     by = {e["key"]: e for e in entries}
     assert by["test_water_model"] == {
         "key": "test_water_model", "flag": "--test-water-model", "label": "Test water model",

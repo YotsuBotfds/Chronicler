@@ -368,6 +368,12 @@ CHUNKS = {
         "tests/test_productive_recovery_screens_cp2.py",
         "tests/test_productive_recovery_screens_cp3.py",
     ],
+    "household-retail-war": [
+        "tests/test_household_retail_war.py",
+    ],
+    "household-retail-evidence": [
+        "tests/test_household_retail_evidence.py",
+    ],
     "expansion-wiring": [
         "tests/test_expansion_feature_wiring.py",
         "tests/test_expansion_experiment.py",

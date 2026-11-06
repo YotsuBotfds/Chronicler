@@ -66,14 +66,19 @@ def test_catalog_is_generated_from_the_registry_and_the_cli_parser():
             parent = key
         else:
             assert entry["kind"] == "choice"
-            assert entry["choices"] == list(action.choices) and entry["choices"]
+            # Choices that need a file (A2R: the retail schedule) are command line only.
+            served = [c for c in action.choices if c not in fc.CLI_ONLY_CHOICES.get(key, ())]
+            assert entry["choices"] == served and entry["choices"]
             # A mode belongs to the switch declared before it.
             assert entry["parent"] == parent
             assert entry["requires"] == [{"feature": parent, "reason": "requires " + fc._flag(parent)}]
     for switch in LIVELIHOODS_SWITCHES:
         assert next(e for e in entries if e["key"] == switch)["kind"] == "bool"
     for key, choices in LIVELIHOODS_CHOICES.items():
-        assert next(e for e in entries if e["key"] == key)["choices"] == list(choices)
+        assert next(e for e in entries if e["key"] == key)["choices"] == [
+            c for c in choices if c not in fc.CLI_ONLY_CHOICES.get(key, ())]
+    assert fc.CLI_ONLY_CHOICES == {"household_retail_boundary": ("schedule",)}
+    assert "household_retail_schedule" not in keys                  # a path option: command line only
     json.dumps(entries)  # JSON-ready
 
 
