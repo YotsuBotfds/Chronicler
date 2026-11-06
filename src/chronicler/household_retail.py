@@ -108,7 +108,7 @@ FRAME_COLUMNS: tuple[str, ...] = (
     "region", "price_milli", "free_rations", "free_given", "free_unallocated",
     "offered_milli", "own_eaten_milli", "sold_milli", "unsold_milli",
     "paid_milli", "credited_milli", "refunded_milli", "rations", "persons",
-    "priced_out_persons", "offer_short_persons",
+    "priced_out_persons", "offer_short_persons", "withheld_dead_claims", "withheld_dead_milli",
 )
 #: Tolerances: rations (f64 sums of f32 rations) and the f32 owned stock.
 RATION_TOL = 1e-4
@@ -928,6 +928,11 @@ def _settle_frame(world, state, t: _Turn, installed: _Installed, frame, receipt,
             eaten[key[1]][key[0]] = own
         if sale:
             sold[key[1]][key[0]] = sale
+    if seen != set(installed.claims):
+        raise RuntimeError("household retail frame lacks the row of an installed claim")
+    eaten_or_sold = {(aid, rid) for rid in installed.regions for aid in (*eaten[rid], *sold[rid])}
+    if alive is None:
+        raise RuntimeError("household retail settlement requires the post-tick people")
     # Money rows: whole milli-units, debits = credits + refunds.
     money = {"paid": 0, "credited": 0, "refunded": 0}
     ids = set()
@@ -947,17 +952,18 @@ def _settle_frame(world, state, t: _Turn, installed: _Installed, frame, receipt,
     totals = {"paid_milli": 0, "credited_milli": 0, "refunded_milli": 0}
     for rid, r in sorted(by_region.items()):
         price, free = installed.regions[rid]
-        installed_total = sum(v for (aid, reg), v in installed.claims.items() if reg == rid)
-        # A claim whose owner died before provisioning is withheld whole from
-        # the offer (neither eaten nor sold) and inherited after the tick. Only
-        # such claims may be missing: owners dead after the tick, with no row.
-        quiet_dead = sum(v for (aid, reg), v in installed.claims.items()
-                         if reg == rid and (aid, reg) not in seen and alive is not None and aid not in alive)
-        offered = int(r["offered_milli"])
-        withheld = installed_total - offered
+        offered = sum(v for (aid, reg), v in installed.claims.items() if reg == rid)
         own, sale = sum(eaten[rid].values()), sum(sold[rid].values())
+        # A claim whose owner died before provisioning is withheld whole (its row
+        # reads 0, 0; it stays in the offer and counts as unsold) and is
+        # inherited after the tick. The withheld claims must be exactly some of
+        # the zero rows of owners dead after the tick: natural deaths come after
+        # phase 0.7, so a dead owner may also have been alive to sell.
+        dead_zero = [v for (aid, reg), v in sorted(installed.claims.items())
+                     if reg == rid and aid not in alive and (aid, reg) not in eaten_or_sold]
         ints = {k: r[k] for k in ("price_milli", "offered_milli", "own_eaten_milli", "sold_milli", "unsold_milli",
-                                   "paid_milli", "credited_milli", "refunded_milli")}
+                                   "paid_milli", "credited_milli", "refunded_milli", "withheld_dead_claims",
+                                   "withheld_dead_milli")}
         if any(v != math.floor(v) or v < 0 for v in ints.values()):
             raise RetailAccountingError(f"region {rid}: provisioning milli columns are not whole")
         checks = (
@@ -966,9 +972,10 @@ def _settle_frame(world, state, t: _Turn, installed: _Installed, frame, receipt,
             (abs(r["free_given"] + r["free_unallocated"] - r["free_rations"]) <= RATION_TOL * max(1.0, free),
              "free_given + free_unallocated != free_rations"),
             (min(r["free_given"], r["free_unallocated"]) >= -RATION_TOL, "negative free rations"),
-            (0 <= withheld <= quiet_dead, "offered differs from the installed claims of owners alive to sell"),
-            ("withheld_milli" not in r or int(r["withheld_milli"]) == withheld,
-             "withheld differs from the installed claims not offered"),
+            (int(r["offered_milli"]) == offered, "offered differs from the installed claims"),
+            (int(r["withheld_dead_milli"]) <= int(r["unsold_milli"]), "withheld dead claims exceed the unsold"),
+            (_exact_subset(dead_zero, int(r["withheld_dead_claims"]), int(r["withheld_dead_milli"])),
+             "withheld dead claims are not the claims of owners dead before selling"),
             (int(r["own_eaten_milli"]) == own and int(r["sold_milli"]) == sale, "claim rows differ from the totals"),
             (own + sale == offered - int(r["unsold_milli"]), "own_eaten + sold != offered - unsold"),
             (int(r["paid_milli"]) == int(r["credited_milli"]) + int(r["refunded_milli"]), "payments do not balance"),
@@ -1023,6 +1030,18 @@ def _settle_frame(world, state, t: _Turn, installed: _Installed, frame, receipt,
         t.income = {"rows": len(seen_ids), "replaced": round(replaced, 6)}
         state.income_replaced_total = round(state.income_replaced_total + replaced, 6)
         _bump(state, "income_replaced_rows", len(seen_ids))
+
+
+def _exact_subset(values: list[int], count: int, total: int) -> bool:
+    """Whether exactly ``count`` of ``values`` sum to exactly ``total``."""
+    if count < 0 or total < 0 or count > len(values):
+        return False
+    reach: dict[int, set[int]] = {0: {0}}
+    for v in values:
+        for k in sorted(reach, reverse=True):
+            if k < count:
+                reach.setdefault(k + 1, set()).update(t + v for t in reach[k] if t + v <= total)
+    return total in reach.get(count, set())
 
 
 def _people_after(sim) -> dict[int, tuple[int, int, int]]:
