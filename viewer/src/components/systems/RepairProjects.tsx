@@ -14,6 +14,7 @@ const MODE_NOTE: Record<string, string> = {
 const REASON: Record<string, string> = {
   no_timber: "no free timber", no_coins: "treasury short", no_labor: "not enough labour",
   no_envelope: "no repairs envelope", unqualified: "no qualified repairer (reduced rate)",
+  no_people: "no farmer in the region (suspended)",
 };
 
 /** Completed-turn repair projects only; never reads final-world state. */

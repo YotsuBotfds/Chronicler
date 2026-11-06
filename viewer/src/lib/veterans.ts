@@ -127,12 +127,16 @@ function validFrame(x: unknown, regions: number, source: number, control: boolea
     || !object(x.counts) || !Object.values(x.counts).every(count)) return false;
   if (x.offered !== null && !(Array.isArray(x.offered) && x.offered.every((row) => Array.isArray(row)
     && row.length === 2 && within(row[0], regions) && Array.isArray(row[1]) && row[1].every(count)))) return false;
+  // One placement per person and kind of opening: under RS1 rules version 2 an
+  // apprentice on the planned crew is placed both on the crew and as an apprentice.
   const placed = new Set<number>();
+  const placements = new Set<string>();
   for (const p of x.placed as unknown[]) {
-    if (!object(p) || !count(p.agent_id) || placed.has(p.agent_id) || !among(PLACEMENTS)(p.kind)
+    if (!object(p) || !count(p.agent_id) || !among(PLACEMENTS)(p.kind) || placements.has(`${p.agent_id}:${p.kind}`)
       || !within(p.region, regions) || !maybe(count)(p.site) || typeof p.prioritised !== "boolean"
       || (control && p.prioritised) || typeof p.new_spell !== "boolean") return false;
     placed.add(p.agent_id);
+    placements.add(`${p.agent_id}:${p.kind}`);
   }
   return (x.waiting as unknown[]).every((w) => object(w) && count(w.agent_id) && !placed.has(w.agent_id)
     && within(w.region, regions) && among(UNMET)(w.reason))

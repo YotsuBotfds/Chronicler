@@ -20,6 +20,52 @@ function read(raw: unknown): FeatureCatalog {
   return reading.catalog;
 }
 
+describe("productive-recovery switches in the served catalog", () => {
+  it("declares the four switches, their control modes and their dependencies", () => {
+    const catalog = read(served);
+    const entry = (key: string) => catalog.features.find((e) => e.key === key)!;
+    const needs = (key: string) => entry(key).requires.map((r) => r.kind === "feature" ? r.key : r.kind === "choice" ? `${r.key}=${r.values.join("|")}` : r.kind);
+    expect(needs("operating_wear")).toEqual(["agents", "workshops", "workshop_mode=operate"]);
+    expect(needs("timber_supply")).toEqual(["agents", "repair_projects", "timber_stock"]);
+    expect(needs("recovery_crews")).toEqual(["agents", "repair_projects"]);
+    expect(needs("maintenance_obligation")).toEqual(["local_budgets", "repair_projects"]);
+    expect(entry("operating_wear").kind).toBe("bool");
+    expect(catalog.features.some((e) => e.parent === "operating_wear")).toBe(false);   // no modes: its control is the run without it
+    expect(entry("timber_supply_mode")).toMatchObject({ parent: "timber_supply", choices: ["supply", "cost_only"] });
+    expect(entry("recovery_crew_mode")).toMatchObject({ parent: "recovery_crews", choices: ["paid", "unpaid"] });
+    expect(entry("maintenance_obligation_mode")).toMatchObject({ parent: "maintenance_obligation", choices: ["reserve", "reserve_only"] });
+    // RS1's rules version: a choice of the apprenticeship switch, version 2 first (the default).
+    expect(entry("apprenticeship_rules")).toMatchObject({ kind: "choice", parent: "apprenticeship", choices: ["2", "1"],
+      flag: "--apprenticeship-rules" });
+    for (const key of ["operating_wear", "timber_supply", "recovery_crews", "maintenance_obligation"]) {
+      expect(entry(key)).toMatchObject({ group: "Livelihoods", experimental: true });
+      expect(served.features.find((e) => e.key === key)?.default).toBeNull();     // never forwarded unless chosen
+    }
+  });
+
+  it("refuses unmet dependencies and sends only what is selected", () => {
+    const catalog = read(served);
+    const live = catalog.surfaces.live;
+    const unmet = (key: string, selection: Record<string, boolean | string>) =>
+      unmetRequirements(catalog, catalog.features.find((e) => e.key === key)!, effectiveValues(live, selection), live, live.agents)
+        .map((r) => r.reason);
+    expect(unmet("timber_supply", { repair_projects: true })).toEqual(["requires --timber-stock"]);
+    expect(unmet("maintenance_obligation", { repair_projects: true })).toEqual(["requires --local-budgets"]);
+    expect(unmet("operating_wear", { workshops: true, workshop_mode: "observe" })).toEqual(["requires --workshop-mode operate"]);
+    const full = { workshops: true, repair_projects: true, timber_stock: true, grain_reserves: true, local_budgets: true,
+      timber_supply: true, timber_supply_mode: "cost_only", recovery_crews: true, maintenance_obligation: true };
+    expect(normalizeSelection(catalog, live, live.agents, full)).toEqual(full);
+    // Dropping RS2 drops all three of its dependants and the mode.
+    const without: Record<string, boolean | string> = { ...full };
+    delete without.repair_projects;
+    expect(normalizeSelection(catalog, live, live.agents, without)).toEqual({ workshops: true, timber_stock: true,
+      grain_reserves: true, local_budgets: true });
+    expect(selectionFlags(catalog, full)).toContain("--timber-supply-mode=cost_only");
+    expect(featurePayload({ recovery_crews: true })).toEqual({ recovery_crews: true });
+    expect(featurePayload({})).toBeUndefined();                           // nothing selected: nothing sent
+  });
+});
+
 describe("readFeatureCatalog", () => {
   it("reads the catalog the server serves", () => {
     const catalog = read(served);

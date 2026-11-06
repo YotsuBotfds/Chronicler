@@ -302,6 +302,58 @@ regression test that fails on the previous code:
 - **Mentors.** Mentors RS1 seated apprentices on this turn
   (`apprenticeship.seated_mentors`) are left off repair crews.
 
+## PL3 correction: no granary project without farm labour (2026-11-05)
+
+Productive-recovery lane PL3 (D3 in the
+[phase plan](../superpowers/roadmaps/productive-recovery-phase.md)). This is a
+correction of RS2-on behaviour, unconditional while RS2 is on; it is not an
+optimization, and it changes RS2-on trajectories in worlds where a granary
+region has no farmers.
+
+- **Finding.** RS2 opened and kept granary projects in regions whose native
+  farm labour was 0. The storage channel delivers `min(request, farmers x
+  farm_labor_factor)`, so those projects held timber and planned coins every
+  turn, delivered nothing and read as `no_labor` (63% of granary project-turns
+  in template and 31% in procedural development worlds, D3), and their L9
+  proposals asked envelopes for work nobody could do.
+- **Correction.**
+  - Opening (Phase 10): a granary whose region has no farmer in the post-tick
+    agent rows (the pool the next Phase 2's economy reads, children included,
+    as the native count is) gets no project; it is an unmet need with reason
+    `no_people` (appended to `UNMET_REASONS`).
+  - Suspension (Phase 2): an open granary project whose region has no farmer
+    in the Phase 2 agent rows asks for no work, timber or coins. Its receipt
+    is a stall with the single reason `no_people` (appended to `REASONS`), the
+    project stays open, its storage request stays suspended, and it resumes
+    when farmers are present again. The transitions are dated in the project
+    history (`suspended_no_people`, `resumed`) and counted (`suspensions`,
+    `resumptions`). They are read from the project's own persisted
+    `suspended` flag (present in its record only while true), which only a
+    settled turn changes; a frame left unsettled by a turn without a settled
+    Phase 2 neither repeats a suspension nor hides a resumption (review C,
+    2026-11-06; the first version read the previous frame).
+  - L9: a granary project in a region without farmers at the decision's
+    observation is not proposed (and not planned for the maintenance
+    obligation).
+  - Without an agent snapshot (constructed tests) the signal is unknown and
+    the earlier rule applies.
+- **Regression tests** (`tests/test_recovery_crews.py`; the unsettled-frame
+  case is `test_suspension_and_resumption_survive_a_turn_without_a_settled_phase2`):
+  `test_no_granary_project_opens_in_a_region_without_farm_labour` fails on the
+  earlier code (a project opens in the empty region);
+  `test_an_open_granary_project_is_suspended_without_farm_labour_and_resumes`
+  covers suspension, the L9 proposal and the resumption. The real-extension
+  run in `tests/test_recovery_crews_native.py` sees both reasons natively.
+- **Viewer.** The strict reader `viewer/src/lib/repairProjects.ts` lists
+  `REASONS` and `UNMET` literally; PL5a appended `"no_people"` to both, and the
+  panel names the stall "no farmer in the region (suspended)".
+
+PL3 also adds two packages on RS2's seams, each inert while off:
+[recovery crews](recovery-crews.md) (named, paid granary crews and the wider
+workshop repair pool, in RS2's crew sections) and the
+[maintenance obligation](maintenance-obligation.md) (RS2's spending limit,
+proposal and settlement under a reservation).
+
 ## Files and seams
 
 - Owned: `repair_projects.py`, `repair_projects_state.py`, the tests, and the

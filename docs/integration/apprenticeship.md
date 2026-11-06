@@ -5,6 +5,14 @@ Recovery-skills phase, package RS1
 This page records what the package implements, what it does not, and its evidence.
 Merging it does not qualify it scientifically.
 
+> **Rules version 2 (PL2, 2026-11-05).** Every new RS1 state now runs
+> [RS1 rules version 2](#rs1-rules-version-2-pl2): attendance by region, portable
+> progress that pauses and ends only after a long absence, and training on the job.
+> The sections up to "Limits and open work" describe **version 1**, which a state saved
+> before PL2 (an exact checkpoint or a state file) keeps and resumes under, unchanged.
+> The operating wear is now the [`--operating-wear`](operating-wear.md) assumption,
+> which `--apprenticeship` implies.
+
 Enable with `--agents hybrid --workshops --apprenticeship` (`--workshops` must be in
 `operate` mode, its default). `--apprenticeship-mode` chooses `train` (the default)
 or `no_qualification`, the cost-retaining control. A world that never enabled the
@@ -401,3 +409,398 @@ PYTHONHASHSEED=0 RAYON_NUM_THREADS=1 python -m chronicler.main --seed 21 --turns
   so stipends were never paid naturally; only the constructed test pays them.
 - **Not run:** the RS7 held screens, and the 200-seed and procedural qualification
   gates.
+
+## RS1 rules version 2 (PL2)
+
+Productive-recovery phase, package PL2
+([phase plan](../superpowers/roadmaps/productive-recovery-phase.md), sections 1 "D2"
+and 2 "PL2"). Version 2 applies to `train` and `no_qualification` alike. It is the
+rules version of every new state.
+
+### Why
+
+The D2 diagnosis (84 runs on 12 development worlds) found:
+
+- **People leave because of the city box, not because of apprenticeship.** Attendance
+  required presence in the site's *city*, and city membership is re-derived from grid
+  position every tick, so 24–27% of a workshop city's adults leave the box each turn
+  while staying in the region. The rate is the same for crew, apprentices and qualified
+  people.
+- **Endings** (template / procedural): migrated 42% / 38%, departed 22% / 25%, died
+  10% / 12%, dropout 7% / 7%, completed 3% / 1%.
+- **The exclusive seat displaced crew.** It was reserved before the crew planner, which
+  displaced about 170 crew-turns per world.
+- **Graduates did almost no useful work.** They were aboard 4.2% / 0.9% of operating
+  site-turns, and 80% of qualifications ended in death within the run.
+- **The extra repairs were the wear.** They came from the maintenance assumption, not
+  from training; that assumption is now [`--operating-wear`](operating-wear.md).
+
+No constant changed to raise a counter. `COMPLETION_TURNS` (10 attended turns) keeps
+its meaning. `MAX_GAP` (4) keeps its value with a version-2 meaning, below.
+
+### Rules version, checkpoints and serialization
+
+- `ApprenticeshipState.schema_version` is the rules version (`rules_version`).
+  - A new state gets `apprenticeship.RULES_VERSION` (2).
+  - A state saved before PL2 carries 1. It resumes under the version-1 rules,
+    unchanged, from an exact checkpoint (pickle) or a state file (JSON).
+- Version-1 records serialize exactly as before. Every field version 2 added is `None`
+  in them and omitted from every dump.
+- Pickles written before PL2 lack those fields. `__setstate__` restores them as `None`
+  (`tests/test_apprenticeship_v2.py`).
+- The snapshot of a version-1 state is schema 1 with the same keys. A version-2 state
+  writes schema 2 with `rules_version: 2`.
+- Validation refuses a version-1 state carrying version-2 records, and an unknown
+  version.
+- **`--apprenticeship-rules {2,1}`** (review B, 2026-11-06) chooses the rules of a
+  *new* state: 2 by default when RS1 is on; 1 reproduces the recovery-skills phase's
+  rules exactly. A native test checks `--apprenticeship-rules 1` byte for byte against
+  a version-1 state on template seed 7.
+  - Given values are recorded with the manifest keys (`SIMULATION_ARG_KEYS`) and the
+    checkpoint's recorded configuration. An unset option is not recorded; the state
+    and its snapshot (`rules_version`, or schema 1) still say which rules ran. Pass the
+    option explicitly for a self-describing manifest.
+  - A saved state never changes its version. A resume or fork with a conflicting value
+    is refused (`livelihoods_resume_conflicts` via `_CHOICE_FIELDS`, or the
+    checkpoint's recorded value), and a version-1 state resumes as version 1.
+  - The existing RS1 tests pin version 1 to keep that path tested
+    (`tests/test_apprenticeship.py`, `tests/test_apprenticeship_native.py`, including
+    the exact native checkpoint resume).
+
+### The rules
+
+1. **Crews stay as planned.** The native planner draws adult urban farmers of the
+   site's city (`workshop_work.rs` `plan_crews_with_priority`, about lines 212–231). Its
+   order is unchanged: qualified first (`_crew_priority`), then RS3 veterans, then
+   ascending id. Nobody is reserved before it, so apprentices never displace crew.
+2. **Presence is by region.** An open apprenticeship is present when the apprentice
+   lives in the region of an open site, inside the city box or not.
+   - **Portable progress.** A migrant who now lives in another open site's region
+     transfers to that site, with progress kept (`transfers`, `transferred_from`).
+   - A site holds at most `PER_SITE` apprenticeships. A move is accepted only into room
+     that exists when it is decided; moves are decided in enrolment order, so no site
+     ever exceeds `PER_SITE`. Otherwise the turn is missed as `no_room`.
+3. **Training on the job.** The native crew cannot include anyone outside the city box,
+   so the closest Python-only rule is this. At an operating site, after its crew was
+   planned (`crew_maintenance`), each present apprentice is **aboard** in one of two
+   ways:
+   - **`crew`**: they are on the planned crew and train on crew time. Nothing more is
+     reserved or withheld, and no stipend is paid. Their time is crew time, paid once
+     (an L6a wage when payroll is on). They also accrue service crew-turns.
+   - **`attached`**: they live in the region but are not on the crew (outside the city
+     box, or not picked). They are reserved in the work registry (category 2) for
+     `APPRENTICE_FRACTION` after the crew was planned. That share of their ordinary
+     income is withheld (`extend_paid_work`), and with L6a their firm stipend is paid
+     from cash as in version 1. Attached time adds no craft work, and attached
+     apprentices accrue no service.
+   - **When a turn counts.** Teaching capacity is `PER_MENTOR` per qualified member of
+     this turn's crew. A turn counts when the site operated, the apprentice was aboard,
+     a qualified crew member taught them (`TEACH_SHARE` of the mentor's crew time,
+     taken from craft work), and they survived the tick.
+   - **Who is taught first.** Continuing apprentices come first, in enrolment order;
+     transfers come after the site's own apprentices. New apprentices fill what remains,
+     up to `PER_SITE` open.
+4. **Missed turns pause progress.** The reasons are:
+   - `no_mentor`; `unavailable` (a trip, other work in the registry, or rural health
+     work as a patient or carer: the native registry refuses those too, so they are
+     counted here rather than as a refused reservation; teaching work is prepared later,
+     at the agent tick, for Scholars only); `reservation_refused` (any other native
+     refusal); and `site_not_operating`. These pause progress;
+   - `absent` (no open site in the apprentice's region) and `no_room`, which pause it
+     too but count toward a long absence.
+   - **Bounded pause** (review B): more than `MAX_PAUSE` (20, twice
+     `COMPLETION_TURNS`; declared, not tuned) consecutive missed turns of any reason end
+     the apprenticeship as `stalled`, dated. A record that has not attended for as long
+     as two whole apprenticeships stops holding one of `PER_SITE` places.
+5. **Long absence.** More than `MAX_GAP` consecutive absent turns end the apprenticeship
+   as `long_absence`. The consecutive-miss dropout and the `away`/`departed`/`migrated`
+   endings of version 1 are gone. When a site closes, its apprentices become absent
+   (shown in `detached`) until they reach another site's region or the long absence ends
+   them.
+6. **Other endings stay.** `died` (before the turn, or in the tick, when that turn does
+   not count), `occupation_changed`, `remobilised`, `service_qualified` (a crew
+   apprentice who reaches `SERVICE_TURNS` first), `completed`, `pool_reset` and
+   `disabled`; version 2 adds `long_absence` and `stalled`.
+7. **A change of controller** does not end an apprenticeship, as in version 1.
+8. **Who is taken on.** New apprentices are adult farmers of the site's region, not
+   qualified, not apprenticed, not enlisted, and not travelling or holding work.
+   - **Nobody completes twice** (review B, major). People who have already completed
+     are never taken on again, in either mode: living graduates and archived
+     completions are excluded. Before this fix the control re-enrolled its own
+     graduates (they hold no qualification). On template 3, 7, 11 and 23 that was 10
+     of 72 completions, spending seats, mentor time and stipends that `train` did not.
+     A second completion also never replaces a `GraduateRecord`.
+
+   The order is:
+   - RS3 veterans, in RS3's own priority order (earliest release first, `priority_ids`).
+     RS3 promises veterans that order on every opening it prioritises (workshop crews,
+     repair crews, apprenticeships), so RS1 does not re-sort them by age.
+   - then members of this turn's crew, youngest first, because the qualification is used
+     only on the crew (upkeep and teaching);
+   - then the region's other residents, attached, youngest first.
+
+   **The age rule.** Nobody older than `max_entry_age() = AGE_ELDER − COMPLETION_TURNS`
+   (50) is taken on. They would reach `AGE_ELDER` (60) before completing, and elder
+   mortality is 0.016 a turn against 0.0025 for adults (`agent.rs`). D2 found 80% of
+   qualifications ending in death within the run. The rule rests on that finding and
+   the mortality bands, not on held outcomes.
+9. **The control.** `no_qualification` keeps every seat, attachment, crew time, stipend,
+   withheld income and record. It grants no qualification at completion. Its graduates
+   stay unqualified and can still qualify by service, so crowding out between the two
+   routes shows.
+
+Interactions:
+
+- **RS2.** `seated_mentors` keeps the mentors that the present continuing apprentices
+  rely on off repair crews. RS2 can draw a continuing apprentice who lives in the city
+  onto a repair crew; that turn is `unavailable` and pauses progress.
+- **RS3.** Every apprentice aboard in a turn is reported to RS3 with `note_outcome`.
+- **Wear, upkeep, service and the qualification** are as in version 1.
+
+### Useful-work records (version 2)
+
+Per operating site-turn (`receipts[]`):
+
+- `qualified_on_crew`;
+- `graduates_on_crew` (people who completed an apprenticeship, in either mode, on the
+  crew);
+- `covered` (at least one qualified crew member);
+- `full_offset` (the wear was fully offset);
+- `offset_by_via` (the upkeep offset delivered by `apprenticeship` and by `service`
+  qualifications; attributed in crew order, each member giving up to `UPKEEP_SHARE`);
+- `offset_by_graduates`.
+
+`graduates` lists every living person who completed, with `granted`, crew-turns and
+upkeep since. Each seat has `aboard` and `transferred_from`. Each record has `absent`,
+`first_site`, `entry_age`, `transfers`, `on_crew` and `attached`.
+
+The counters add:
+
+- `graduate_crew_turns`, `covered_site_turns`, `full_offset_site_turns` and
+  `qualified_crew_turns`;
+- `upkeep_offset_apprenticeship`, `upkeep_offset_service` and
+  `upkeep_offset_graduates`;
+- `graduates`, `graduates_died` and `graduates_refused_cap`;
+- `transferred`, `apprentice_turns_on_crew` and `apprentice_turns_attached`;
+- `miss_absent`, `miss_no_room` and `end_long_absence`.
+
+The success measure in the plan is graduate crew-turns on operating sites and operating
+site-turns covered by a qualified member, TR against NQ under the shared wear.
+
+### Declared parameters (version 2)
+
+| Constant | Value | Version-2 meaning |
+| --- | --- | --- |
+| `MAX_GAP` | 4 (unchanged) | consecutive *absent* turns tolerated; one more ends it (`long_absence`); other misses pause |
+| `COMPLETION_TURNS` | 10 (unchanged) | attended turns to complete |
+| `max_entry_age()` | 50 (derived) | `AGE_ELDER − COMPLETION_TURNS` |
+| `MAX_PAUSE` | 20 (new, review B) | consecutive missed turns of any reason tolerated; one more ends it (`stalled`) |
+| all others | unchanged | as in the version-1 table |
+
+### Tests
+
+- `tests/test_apprenticeship_v2.py` (offline, oracle chunk `recovery-skills`) covers:
+  - region residents outside the city attend attached, without displacing the crew,
+    with the reservation and withheld income checked;
+  - on-the-job counting with and without a mentor aboard, and pause;
+  - capacity;
+  - a migrant transferring;
+  - absence and return, and the long absence;
+  - `no_room`;
+  - unavailable turns pausing;
+  - death, occupation, army and death in the tick;
+  - site closure, then transfer or long absence;
+  - a change of controller;
+  - the age rule and the crew-first order, and veterans first;
+  - completion in both modes with the useful-work records and graduates;
+  - stipends for attached time only;
+  - a failed tick;
+  - `seated_mentors`;
+  - exact JSON and pickle round trips inside live apprenticeships;
+  - a version-1 state (and an emulated pre-PL2 pickle) resuming under version 1 and
+    serializing exactly as before;
+  - inconsistent versions refused;
+  - the dated snapshot;
+  - feature-off worlds have no state.
+- `tests/test_apprenticeship_v2_native.py` (real extension, template seed 7, 72 turns)
+  covers:
+  - every taught apprentice is a living adult farmer of the site's region holding
+    exactly one commitment (its crew reservation, or an apprentice reservation of 0.5),
+    with no conflicts;
+  - apprentices complete (turns 66, 67 and 70) with attended turns while living in the
+    region outside the city box, and with transfers;
+  - crew time and wear close;
+  - an exact checkpoint at turn 62, inside live attached apprenticeships with
+    `--operating-wear`, resumes byte for byte;
+  - `W_wear` against `W_operate`;
+  - the switch adds only records to an RS1 run.
+
+### Development worlds (PL2)
+
+> **Review B fixes (2026-11-06).** The figures below come from source `6b32fd26`,
+> before the review-B fixes. Those fixes change version-2 trajectories: the control
+> no longer re-enrols its graduates, pauses are bounded, and health-work exclusion
+> applies only with `--health-care`, which these runs do not use. See
+> "Development worlds after review B" below for the rerun.
+
+200 turns on 12 development worlds (template 3, 7, 9, 11, 23 and 42; procedural 32 × 10
+worlds 7, 11, 13, 17, 21 and 31: the D2 set), one run per arm and world. The base
+flags, as in D2, are `--grain-reserves --public-grain-shipments --scholarship
+--techniques --academy-services --grain-storage --workshops`. Run with
+`PYTHONHASHSEED=0 RAYON_NUM_THREADS=1` on native extension `6c675042…` and source
+`6b32fd26` plus this documentation.
+
+The version-1 arms (NQ v1, TR v1) run this source with a version-1 state (the rules a
+pre-PL2 checkpoint resumes under). Its results equal D2's on `main`: TR v1 has 538 and
+464 enrolments with 15 and 5 completions, exactly D2's figures. These are development
+worlds, so they are evidence about the mechanism, not of an effect. Sums over the six
+worlds of each stratum.
+
+| Arm | Stratum | Operating site-turns | Lump repairs | Mean condition | Covered by a qualified member | Graduate crew-turns | Site-turns with a graduate aboard | Completions (granted) | Qualified by service / apprenticeship | Upkeep offset / wear | Full-offset site-turns |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| W_operate | template | 2554 | 3 | 0.956 | — | — | — | — | — | 0 / 0 | — |
+| W_wear | template | 2531 | 96 | 0.766 | 0 | — | — | — | — | 0 / 50.6 | 0 |
+| NQ v2 | template | 2441 | 71 | 0.763 | 728 (29.8%) | 336 | 279 (11.4%) | 72 (0) | 208 / 0 | 9.8 / 48.8 | 209 |
+| TR v2 | template | 2472 | 67 | 0.769 | 818 (33.1%) | 328 | 282 (11.4%) | 80 (80) | 166 / 80 | 11.3 / 49.4 | 252 |
+| NQ v1 | template | 2504 | 75 | 0.757 | 703 (28.1%) | 13 | 13 (0.5%) | 7 (0) | 162 / 0 | 9.4 / 50.1 | — |
+| TR v1 | template | 2534 | 73 | 0.757 | 771 (30.4%) | 114 | 106 (4.2%) | 15 (15) | 156 / 15 | 10.4 / 50.7 | — |
+| W_operate | procedural | 3139 | 18 | 0.912 | — | — | — | — | — | 0 / 0 | — |
+| W_wear | procedural | 3169 | 121 | 0.732 | 0 | — | — | — | — | 0 / 63.4 | 0 |
+| NQ v2 | procedural | 2939 | 97 | 0.727 | 673 (22.9%) | 132 | 117 (4.0%) | 43 (0) | 200 / 0 | 9.6 / 58.8 | 197 |
+| TR v2 | procedural | 3156 | 93 | 0.735 | 936 (29.7%) | 363 | 275 (8.7%) | 81 (81) | 204 / 81 | 14.4 / 63.1 | 393 |
+| NQ v1 | procedural | 3395 | 113 | 0.722 | 679 (20.0%) | 57 | 51 (1.5%) | 8 (0) | 172 / 0 | 9.1 / 67.9 | — |
+| TR v1 | procedural | 3278 | 111 | 0.719 | 568 (17.3%) | 40 | 31 (0.9%) | 5 (5) | 158 / 5 | 7.6 / 65.6 | — |
+
+Notes on the columns:
+
+- *Graduate crew-turns* are crew-turns on operating sites by people who completed an
+  apprenticeship in an earlier turn, granted or not.
+- *Full-offset* site-turns are recorded only by version 2; the version-1 cells are not
+  measured.
+- **Upkeep offset by route** (version 2): TR v2 apprenticeship qualifications delivered
+  3.1 / 3.0 (template / procedural) of 11.3 / 14.4. NQ v2 graduates delivered 1.4 / 0.4,
+  after qualifying by service.
+
+Endings of every apprenticeship enrolled, by reason, and attended turns at the end
+(still open at turn 200 included):
+
+| Arm | Stratum | Enrolled | Completed | Long absence | Migrated | Departed | Dropout | Died | Occupation changed | Service qualified | Other | Open | Attended 1–2 | 3–5 | 6–9 | 10 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| NQ v2 | template | 350 | 20.6% | 24.0% | — | — | — | 9.1% | 25.1% | 12.3% | 0.6% | 8.3% | 28.6% | 34.3% | 15.1% | 20.6% |
+| TR v2 | template | 382 | 20.9% | 20.9% | — | — | — | 10.5% | 24.3% | 11.5% | 0.0% | 11.8% | 29.3% | 28.8% | 19.1% | 20.9% |
+| NQ v1 | template | 512 | 1.4% | — | 45.1% | 20.5% | 8.2% | 9.2% | 8.4% | 3.1% | 0.6% | 3.5% | 64.8% | 23.6% | 7.2% | 1.4% |
+| TR v1 | template | 538 | 2.8% | — | 42.4% | 22.3% | 7.1% | 10.2% | 8.2% | 3.2% | 0.6% | 3.3% | 61.5% | 24.5% | 8.6% | 2.8% |
+| NQ v2 | procedural | 370 | 11.6% | 37.6% | — | — | — | 15.7% | 15.1% | 11.4% | 0.8% | 7.8% | 41.4% | 27.3% | 18.1% | 11.6% |
+| TR v2 | procedural | 485 | 16.7% | 37.3% | — | — | — | 14.2% | 17.1% | 8.2% | 0.2% | 6.2% | 34.0% | 27.4% | 20.2% | 16.7% |
+| NQ v1 | procedural | 512 | 1.6% | — | 38.7% | 26.0% | 7.4% | 9.6% | 9.2% | 3.3% | 1.2% | 3.1% | 63.1% | 23.8% | 6.1% | 1.6% |
+| TR v1 | procedural | 464 | 1.1% | — | 37.9% | 25.2% | 7.1% | 11.6% | 9.3% | 3.9% | 1.5% | 2.4% | 65.1% | 22.6% | 4.1% | 1.1% |
+
+In the table above:
+
+- "Other" is `site_closed` and `remobilised`.
+- 1–7% of records ended with 0 attended turns (death in the first tick); they are
+  omitted from the attended columns.
+- **Transfers between sites** (version 2): 201 / 240 template and 85 / 97 procedural
+  (NQ / TR).
+- **Attended turns on the crew / attached**: NQ v2 731 / 978 and TR v2 768 / 1141
+  (template); NQ v2 708 / 821 and TR v2 1011 / 1269 (procedural).
+
+What this shows (development worlds; a held screen is the evidence):
+
+- **The maintenance assumption is most of the repairs.** `W_wear` − `W_operate` is
+  +93 / +103 lump repairs and −0.19 / −0.18 mean condition.
+- **Training against the control.** Under the shared wear, TR v2 needs 4 / 4 fewer
+  repairs than NQ v2. This is the comparison training is judged by.
+- **Region attendance and portable progress retain apprentices.** Completions rise
+  from 1–3% of enrolments (version 1) to 12–21% (version 2), and endings after 1–2
+  attended turns fall from 62–65% to 29–41%. The `migrated` and `departed` endings
+  (63–66% in version 1) are replaced by the long absence, at 21–24% template and 37%
+  procedural.
+- **Graduates do more useful work in version 2.** In TR v2 they are aboard 11.4% /
+  8.7% of operating site-turns (TR v1: 4.2% / 0.9%), with 328 / 363 graduate crew-turns
+  (TR v1: 114 / 40).
+- **The primary measure against NQ v2 under the shared wear.** Covered site-turns are
+  33.1% against 29.8% (template) and 29.7% against 22.9% (procedural). Graduate
+  crew-turns are 328 against 336 (template) and 363 against 132 (procedural).
+  - In template worlds NQ graduates stay on the crew about as often but cannot keep the
+    site.
+  - Full-offset site-turns are 252 / 393 against 209 / 197.
+  - **Crowding out.** Service qualifications fall from 208 to 166 (template) as
+    graduates qualify by apprenticeship instead; procedural service qualifications are
+    unchanged (200 / 204).
+- **Occupation change is now the largest single ending in template worlds** (24–25%).
+  The native occupation model moves farmers to other trades, and both arms show it.
+  Nothing was tuned.
+
+Reproduce one arm (any directory; drop `--apprenticeship …` for `W_operate`, add
+`--operating-wear` alone for `W_wear`):
+
+```sh
+PYTHONHASHSEED=0 RAYON_NUM_THREADS=1 python -m chronicler.main --seed 7 --turns 200 \
+  --agents hybrid --simulate-only --grain-reserves --public-grain-shipments --scholarship \
+  --techniques --academy-services --grain-storage --workshops --apprenticeship \
+  [--apprenticeship-mode no_qualification] --output out/chronicle.md --state out/state.json
+```
+
+Feature-off and version-1 identity (`6b32fd26` against the phase head `bec63b5b`,
+each importing its own `src`, native `6c675042…`):
+
+- 7 cases, 82 files, 0 differences (bundles compared without `metadata.generated_at`):
+  - template seeds 7 and 11 with no switch;
+  - seed 7 with `--workshops`;
+  - seed 7 with `--workshops --workshop-payroll --scholarship --techniques
+    --academy-services`;
+  - procedural seed 21 with the base flags and `--workshops`;
+  - RS1 version 1 on template 7 (90 turns, against the base's RS1);
+  - RS1 version 1 on procedural 21 (`no_qualification` with payroll).
+
+### Development worlds after review B
+
+The version-2 arms were rerun on the same 12 worlds and base flags. The source is
+`49bf01f7` (the phase head `486c7a12` plus the review-B fixes), with native extension
+`native-pl1`.
+
+The reference arms are unchanged and were not rerun: `W_operate` (template 7) and
+`W_wear` (procedural 21) on this source and extension write byte-identical `state.json`
+to the earlier screen. Sums over the six worlds of each stratum:
+
+| Arm | Stratum | Operating site-turns | Lump repairs | Covered by a qualified member | Graduate crew-turns | Site-turns with a graduate aboard | Completions (distinct graduates) | Qualified by service / apprenticeship | Full-offset site-turns | Ended `stalled` |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| W_operate | template | 2554 | 3 | — | — | — | — | — | — | — |
+| W_wear | template | 2531 | 96 | 0 | — | — | — | — | 0 | — |
+| NQ v2 | template | 2486 | 71 | 733 (29.5%) | 275 | 234 (9.4%) | 74 (74) | 197 / 0 | 195 | 14 of 341 |
+| TR v2 | template | 2477 | 68 | 813 (32.8%) | 330 | 279 (11.3%) | 84 (84) | 172 / 84 | 275 | 6 of 384 |
+| W_operate | procedural | 3139 | 18 | — | — | — | — | — | — | — |
+| W_wear | procedural | 3169 | 121 | 0 | — | — | — | — | 0 | — |
+| NQ v2 | procedural | 3047 | 102 | 688 (22.6%) | 175 | 149 (4.9%) | 42 (42) | 200 / 0 | 203 | 11 of 389 |
+| TR v2 | procedural | 3162 | 93 | 942 (29.8%) | 370 | 279 (8.8%) | 80 (80) | 206 / 80 | 401 | 10 of 494 |
+
+- **Nobody completes twice.** Completions equal distinct graduates in every arm. The
+  control's graduate crew-turns fell (template 336 → 275), because its graduates are
+  no longer counted on crews as apprentices again.
+- **Against the control under the shared wear**, TR v2 has more covered site-turns
+  (32.8% / 29.8% against 29.5% / 22.6%) and more graduate crew-turns (330 / 370 against
+  275 / 175). It also has more full-offset site-turns (275 / 401 against 195 / 203) and
+  slightly fewer lump repairs (68 / 93 against 71 / 102).
+- **Long absence** remains the largest ending in procedural worlds (36–39%).
+- These are development worlds; a held screen is the evidence.
+
+### Limits (version 2)
+
+- **The crew is still the city box.** Natively only city residents can be on a crew,
+  so a graduate who lives outside the box cannot do upkeep or teach until they live in
+  it again. A crew pool drawn from the region would need a native change, which this
+  lane did not make.
+- **Viewer (PL5a, 2026-11-06).** `viewer/src/lib/apprenticeship.ts` reads schema 1 as
+  before and schema 2 (`rules_version` 2): crew and attached seats, transfers, `absent`,
+  `long_absence` and `stalled` (bounded by `max_pause`), graduates, detached records and
+  the useful-work receipts, each checked to close (attended = on crew + attached; covered,
+  full offset and the offset by route against the receipt). The panel shows the rules
+  version, how each apprentice was aboard and who kept each site. It refuses a schema-2
+  record without `rules_version` and a schema-1 record carrying version-2 fields.
+- **Version 1 keeps its own behaviour.** `--apprenticeship-rules 1` reproduces the
+  merged rules exactly, including what review B fixed in version 2 only: the control
+  re-enrolling graduates, and the unbounded pause. Version 1 has its own dropout.
+- **The age rule and the crew-first order** are part of version 2, not separate
+  switches.
+- **Not run:** held screens, and the 200-seed and procedural qualification gates.

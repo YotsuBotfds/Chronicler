@@ -123,6 +123,7 @@ PROVIDERS: tuple[str, ...] = (
     "chronicler.local_budgets:RELOCATION",
     "chronicler.clearing_protection:BUDGET_PROVIDER",
     "chronicler.local_budgets:REPAIRS",
+    "chronicler.maintenance_obligation:BUDGET_PROVIDER",
 )
 
 
@@ -1379,8 +1380,19 @@ def _decide(world, state: LocalBudgetState, obs, providers, acc) -> None:
             if amount:
                 key = p.group or type(p).__name__
                 reserved[key] = reserved.get(key, 0) + amount
-        obligations = sum(reserved.values())
         committed = sum(c.amount for c in state.open if c.civ == ci)
+        for p in providers:
+            # A capped obligation (PL3 maintenance) reserves after every other
+            # obligation, given the budget the civ would have without it.
+            capped = getattr(p, "capped_obligation", None)
+            if capped is None:
+                continue
+            before = max(0, int(projected[ci]) - int(params["floor"]) - sum(reserved.values()) - committed)
+            amount = int(capped(world, ci, obs, int(math.floor(params["envelope_share"] * before + EPS))))
+            if amount:
+                key = p.group or type(p).__name__
+                reserved[key] = reserved.get(key, 0) + amount
+        obligations = sum(reserved.values())
         disposable = max(0, int(projected[ci]) - int(params["floor"]) - obligations - committed)
         budget = int(math.floor(params["envelope_share"] * disposable + EPS))
         raw = []

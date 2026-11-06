@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "layer": "pl2b",
+  "parent": "b7d01d00ba1385df5040c27234f9825d1bfc461b",
+  "files": {
+    "src/chronicler/batch_manifest.py": {
+      "sha256": "28df1887d05556661db255e692fc8a1da4e6ff9b142e933ff9063c41a3b25abf",
+      "current_sha256": "24a88af0b6c3aae5b3a27e143fa69a19f504abd82447e9719bc8b6efb6c359b0",
+      "patches": [
+        {
+          "old": "    \"recovery_crew_mode\",\n    \"maintenance_obligation\",\n    \"maintenance_obligation_mode\",\n    \"tuning\",\n    \"preset\",\n    \"aggression_bias\",\n",
+          "new": "    \"recovery_crew_mode\",\n    \"maintenance_obligation\",\n    \"maintenance_obligation_mode\",\n    \"apprenticeship_rules\",\n    \"tuning\",\n    \"preset\",\n    \"aggression_bias\",\n"
+        },
+        {
+          "old": "                             \"clearing_protection\", \"clearing_protection_mode\", \"operating_wear\",\n                             \"timber_supply\", \"timber_supply_mode\",\n                             \"recovery_crews\", \"recovery_crew_mode\", \"maintenance_obligation\",\n                             \"maintenance_obligation_mode\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n    config[\"tuning_overrides\"] = _json_value(overrides or {})\n",
+          "new": "                             \"clearing_protection\", \"clearing_protection_mode\", \"operating_wear\",\n                             \"timber_supply\", \"timber_supply_mode\",\n                             \"recovery_crews\", \"recovery_crew_mode\", \"maintenance_obligation\",\n                             \"maintenance_obligation_mode\", \"apprenticeship_rules\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n    config[\"tuning_overrides\"] = _json_value(overrides or {})\n"
+        }
+      ]
+    },
+    "tests/test_batch_manifest.py": {
+      "sha256": "c1a8907d449b7f08fee6a2a7b18f7ebedf6e34ef1b07d16929df2e76ee4e5867",
+      "current_sha256": "345ee68507d7342557b3a748b097001edce6f76e348b0f78b4bf41fb274c8f11",
+      "patches": [
+        {
+          "old": "                                                           \"clearing_protection\", \"clearing_protection_mode\", \"operating_wear\",\n                                                           \"timber_supply\", \"timber_supply_mode\",\n                                                           \"recovery_crews\", \"recovery_crew_mode\", \"maintenance_obligation\",\n                                                           \"maintenance_obligation_mode\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n    assert manifest[\"outputs\"][\"simulate_only\"] is True\n    environment = manifest[\"environment\"]\n",
+          "new": "                                                           \"clearing_protection\", \"clearing_protection_mode\", \"operating_wear\",\n                                                           \"timber_supply\", \"timber_supply_mode\",\n                                                           \"recovery_crews\", \"recovery_crew_mode\", \"maintenance_obligation\",\n                                                           \"maintenance_obligation_mode\", \"apprenticeship_rules\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n    assert manifest[\"outputs\"][\"simulate_only\"] is True\n    environment = manifest[\"environment\"]\n"
+        }
+      ]
+    }
+  }
+}

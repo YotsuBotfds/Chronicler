@@ -1,0 +1,196 @@
+{
+  "schema_version": 3,
+  "board_version": 3,
+  "title": "Productive recovery and household livelihoods (PL0-PL6) operational board",
+  "plan": "docs/superpowers/roadmaps/productive-recovery-phase.md",
+  "owner_instruction": "2026-11-05 (after #77): make recovery work (timber supply and delivery with real labour and ecological costs; apprenticeship exits and maintenance assumptions separated before tuning, success = graduates doing useful work; budgets and opportunities after timber), then real household food retail (producer ownership, inventories, payments, consumption timing; care for poorer households and public relief); consecutive checkpoints of one assignment with independent review and evidence; qualification gates and default promotion remain separate decisions.",
+  "durable_location": {
+    "branch": "claude/productive-recovery",
+    "base": "main at 1ec0876e (after #76 c4e259b6, #77 1ec0876e)"
+  },
+  "status_values": [
+    "proposed",
+    "ready",
+    "active",
+    "blocked",
+    "integrated",
+    "evaluated",
+    "deferred"
+  ],
+  "seeds": {
+    "development": {
+      "template": [
+        1,
+        3,
+        7,
+        9,
+        11,
+        23,
+        42
+      ],
+      "procedural": [
+        7,
+        11,
+        13,
+        17,
+        21,
+        31,
+        302,
+        303
+      ]
+    },
+    "pilot": {
+      "template": [
+        5
+      ],
+      "procedural": [
+        19
+      ]
+    },
+    "held": {
+      "checkpoint_1": {
+        "template": [
+          701,
+          702,
+          703,
+          704,
+          705,
+          706
+        ],
+        "procedural": [
+          801,
+          802,
+          803,
+          804,
+          805,
+          806
+        ]
+      },
+      "checkpoint_2": {
+        "template": [
+          711,
+          712,
+          713,
+          714,
+          715,
+          716
+        ],
+        "procedural": [
+          811,
+          812,
+          813,
+          814,
+          815,
+          816
+        ]
+      },
+      "checkpoint_3": {
+        "template": [
+          721,
+          722,
+          723,
+          724,
+          725,
+          726
+        ],
+        "procedural": [
+          821,
+          822,
+          823,
+          824,
+          825,
+          826
+        ]
+      }
+    }
+  },
+  "packages": [
+    {
+      "id": "PL0",
+      "status": "integrated",
+      "lane": "lead",
+      "switch": null,
+      "summary": "Diagnosis D1-D4 on development worlds (plan section 1), plan, board, registry integration, witness layers."
+    },
+    {
+      "id": "PL1",
+      "status": "evaluated",
+      "lane": "claude/pl1-timber (71a4d9e3)",
+      "switch": "--timber-supply (supply | cost_only)",
+      "summary": "Named, paid woodcutting expeditions from the community that needs timber to a forest of its civ; native woodcut labour columns; earmarked store; L3 debits the harvest.",
+      "held_outcome": "Held cp1: granary condition +0.051 t (5/0/1) / +0.094 p (6/0/0) vs cost_only; 52 t / 270 p timber delivered per world; L3 min stock share >= 0.51; no detectable food cost."
+    },
+    {
+      "id": "PL2",
+      "status": "evaluated",
+      "lane": "claude/pl2-apprenticeship (767e6cb1)",
+      "switch": "--operating-wear; RS1 rules v2",
+      "summary": "Operating wear as a workshop maintenance assumption the reference arm can carry; attendance by region, portable progress, training on the job.",
+      "held_outcome": "Held cp1: W_wear - W +14.7 t / +19.7 p lump repairs (the assumption); TR2 - NQ2 covered share +0.017 t (null) / +0.026 p; +23 t / +6.2 p apprenticeship qualifications."
+    },
+    {
+      "id": "PL3",
+      "status": "evaluated",
+      "lane": "claude/pl3-crews (7707f672)",
+      "switch": "--recovery-crews (paid | unpaid); --maintenance-obligation (reserve | reserve_only)",
+      "summary": "Named paid granary crews from existing repair coins; wider workshop repair pool and veterans; empty-region RS2 correction; L9 maintenance obligation.",
+      "held_outcome": "Held cp1: RC - RC_unpaid wages +132 t / +599 p coins per world; MO - MO_ro granary +0.031 t / +0.065 p, workshop null t / +0.030 p; L9 penalty workshop -0.35 t / -0.22 p."
+    },
+    {
+      "id": "PL4",
+      "status": "active",
+      "lane": "claude/pl4-retail-native (76f7554d) + claude/pl4-retail-python (5a2ff552); integrates at checkpoint 2",
+      "switch": "--household-retail (retail | no_relief | free_exchange | record_only)",
+      "summary": "Producer title of new harvest, owned food ledger, paid provisioning with fair-share and open rounds, farm income replacement, relief default (docs/integration/household-retail-design.md)."
+    },
+    {
+      "id": "PL5",
+      "status": "active",
+      "lane": "claude/pl5a-viewer (checkpoint 1 merged); checkpoint 2-3 viewer later",
+      "switch": null,
+      "summary": "Integrated chain, viewer panels, Batch Lab and live options, browser QA."
+    },
+    {
+      "id": "PL6",
+      "status": "active",
+      "lane": "claude/pl6a-screens (cp1 screens done); claude/pl6b-examples",
+      "switch": null,
+      "summary": "Examples and preregistered held screens per checkpoint; handoff."
+    }
+  ],
+  "layers": [
+    "pl2",
+    "pl1",
+    "pl3",
+    "pl2b"
+  ],
+  "merge": null,
+  "next": "Checkpoint-1 examples (PL6b), viewer checks, checkpoint-1 PR and merge; then checkpoint 2 (PL4 retail) integration with its own review and cohort 2.",
+  "native_extension": {
+    "source_commit": "PL1 Rust (claude/pl1-timber; unchanged on the phase branch)",
+    "sha256_prefix": "fdcb0ca0"
+  },
+  "integration_fixes": [
+    "8f7a6718 PL1 and PL3 both paid repair_wage under transfer batch 1 (the native key refuses a repeat); PL1 now pays batch 2, with a test keeping the three payers distinct",
+    "18f5ad01 operating-wear registry test checked the last slot; now its position after the recovery-skills block"
+  ],
+  "review_fixes": [
+    "PL1 (review A): expedition crews reserved first (reserve_first hook); arrived cargo delivered before the crew is observed; resume with a prerequisite off refused; 'returned' status; L8 uses residents' harvest; suspended projects add no need; Soldier veterans eligible",
+    "PL2 (review B): the control no longer re-enrols graduates; health holders unavailable; bounded pauses (MAX_PAUSE 20); --apprenticeship-rules {2,1} recorded and resume-checked",
+    "PL3 (review C): sub-MIN_SHARE remainders covered; pro-rata obligation split; public RS3 eligible_ids; persisted suspension flag",
+    "integration: distinct repair_wage transfer batches (RS2 0, PL3 1, PL1 2); RS3-eligible Soldier veterans join expeditions in both RS3 modes; operating-wear registry test position"
+  ],
+  "final_source": {
+    "commit": "0cffa89e",
+    "native_sha256_prefix": "fdcb0ca0",
+    "verification": "offline lane PASS (62 chunks); native suites 64 passed; turn_speed_identity vs main 1ec0876e: 9 cases 399 files 0 differences; all-switch checkpoint_identity hybrid_s42_long PASS (19) and proc32_hybrid_s11 PASS (9, inside a live expedition)"
+  },
+  "compute_budget": {
+    "checkpoint_1": {
+      "core_hours": 2.0,
+      "concurrency": 3,
+      "pilot": "template 5, procedural 19: 28 runs, 0 failed (rerun on the frozen source)",
+      "held": "168 runs, 0 failed, 0.60 core-hours, frozen source 0cffa89e run from c5833e98"
+    }
+  }
+}

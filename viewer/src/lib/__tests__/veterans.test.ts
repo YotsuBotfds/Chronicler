@@ -74,6 +74,14 @@ describe("veterans reader", () => {
     expect(veteransAt(snap({ ...record, frame: { ...frame, turn: 5 } }), 3)).toBeNull();
   });
 
+  it("accepts one veteran placed on the crew and as an apprentice in one turn (RS1 rules version 2)", () => {
+    // Version 2 trains an apprentice on the planned crew, so both placements are dated the same turn.
+    const both = { ...frame, placed: [...frame.placed, { ...frame.placed[0], kind: "placed:apprentice", new_spell: true }] };
+    expect(veteransAt(snap({ ...record, frame: both }), 3)?.frame?.placed).toHaveLength(2);
+    const twice = { ...frame, placed: [...frame.placed, { ...frame.placed[0] }] };
+    expect(veteransAt(snap({ ...record, frame: twice }), 3)).toBeNull();     // the same opening twice
+  });
+
   it("keeps an unobserved turn unknown, not zero, and counts outcomes", () => {
     const parsed = veteransAt(snap({ ...record, frame: null }), 3)!;
     expect(parsed.frame).toBeNull();

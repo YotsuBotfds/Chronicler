@@ -62,13 +62,22 @@ link to these by path, so keep their names stable.
   [clearing protection](integration/clearing-protection.md),
   [workshop apprenticeship](integration/apprenticeship.md),
   [repair projects](integration/repair-projects.md),
+  [recovery crews](integration/recovery-crews.md),
+  [maintenance obligation](integration/maintenance-obligation.md),
   [veteran reintegration](integration/veteran-reintegration.md),
   [remittances and the diaspora ledger](integration/remittances.md),
+  [workshop operating wear](integration/operating-wear.md),
+  [timber supply (woodcutting expeditions)](integration/timber-supply.md),
+  [household food retail (design)](integration/household-retail-design.md),
   [feature options in Batch Lab and live setup](integration/feature-options.md); plans in
   [sprint 1](superpowers/roadmaps/livelihoods-commons-sprint1.md),
   [sprint 2](superpowers/roadmaps/livelihoods-commons-sprint2.md) and the
   [recovery-skills phase](superpowers/roadmaps/recovery-skills-phase.md)
-  ([screens](superpowers/progress/recovery-skills-screens.md)).
+  ([screens](superpowers/progress/recovery-skills-screens.md)) and the
+  [productive-recovery phase](superpowers/roadmaps/productive-recovery-phase.md)
+  ([board](superpowers/progress/productive-recovery.json),
+  [checkpoint-1 screens](superpowers/progress/productive-recovery-screens-cp1.md),
+  [checkpoint-1 examples](superpowers/progress/productive-recovery-examples.md)).
 - **World generation:** [geography 2.0](integration/geography-2.md),
   [procedural gates](integration/procedural-gates.md).
 

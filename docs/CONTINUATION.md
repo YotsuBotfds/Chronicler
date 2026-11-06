@@ -1,4 +1,60 @@
-# Current continuation — recovery-skills phase merged (PR #76), 2026-11-05
+# Current continuation — productive recovery, checkpoint 1, 2026-11-06
+
+## Productive recovery and household livelihoods: checkpoint 1 (recovery)
+
+Owner instruction (2026-11-05, after #77): make recovery work (timber supply, apprenticeship
+and maintenance, budgets and opportunities), then real household food retail, as
+consecutive checkpoints with independent review and evidence. Plan:
+[productive-recovery-phase.md](superpowers/roadmaps/productive-recovery-phase.md). Board:
+[productive-recovery.json](superpowers/progress/productive-recovery.json).
+
+- **Branch** `claude/productive-recovery` from `main` `1ec0876e`. Checkpoint 1 merges by PR;
+  household retail (PL4, built on `claude/pl4-retail-native` and `claude/pl4-retail-python`)
+  integrates after it as checkpoint 2.
+- **Diagnosis first** (plan section 1, development worlds only): timber stalls come from
+  production (63%; 54% in civs with no timber slot), not placement; RS1's extra repairs were
+  its own operating-wear assumption, and people left because attendance used the positional
+  city box; with timber ample, funding binds only under L9, whose valuation ignores
+  maintenance before failure; veterans mostly have no opening where they live.
+- **New switches, all off by default, none promoted.**
+  - `--timber-supply` (PL1, `supply` | `cost_only`): named, paid woodcutting expeditions from
+    the needing region to a forest of its civ; a native woodcut seam in `economy.rs` (the
+    crew's marginal harvest, debited from L3, never stockpiled); an earmarked store for RS2.
+  - `--operating-wear` (PL2): the maintenance assumption as a workshop option the reference arm
+    can carry; RS1 rules version 2 (attendance by region, portable progress, training on the
+    job, bounded pauses); `--apprenticeship-rules 1` reproduces version 1 byte for byte.
+  - `--recovery-crews` (PL3, `paid` | `unpaid`): named granary crews paid the granary's
+    existing coins; a region-wide workshop repair pool that admits veterans.
+  - `--maintenance-obligation` (PL3, `reserve` | `reserve_only`): a capped L9 obligation for
+    RS2's planned charges, split pro rata with the envelope.
+  - RS2 correction (while RS2 is on): no granary project where nobody farms (`no_people`).
+- **Independent review** (A: PL1, B: PL2, C: PL3), from the code: no blocker; five majors, all
+  fixed with regression tests (expedition crews taken by home planners, cargo lost on arrival,
+  the RS1 control re-enrolling graduates, PL3 crews on live expeditions, the RS2 viewer reader).
+  Integration found two more: PL1 and PL3 shared a `repair_wage` transfer batch, and the RS1
+  control could not admit Soldier veterans to expeditions.
+- **Verification of simulation source `0cffa89e`** (native `fdcb0ca0…`, PL1's Rust):
+  - offline oracle lane PASS (62 chunks); relevant native suites 64 passed;
+  - feature-off `turn_speed_identity` against `main` `1ec0876e` (each with its own extension,
+    checkout roots): 9 cases, 399 files, 0 differences;
+  - all-switch `checkpoint_identity`: `hybrid_s42_long` PASS (19 resume points) and
+    `proc32_hybrid_s11` PASS (9 resume points, five inside a live expedition);
+  - an all-switch procedural run with `CHRONICLER_CHECK_RESOURCES=1` passes.
+- **Held screens** (cohort 1, template 701–706, procedural 801–806, preregistered and frozen
+  before running): 168 runs, 0 failed, 0.60 core-hours.
+  [Results](superpowers/progress/productive-recovery-screens-cp1.md#results-held-cohort-2026-11-06):
+  timber supply raised granary condition (+0.051 t, +0.094 p) and delivered 52 t / 270 p timber
+  per world; named crews paid households 132 t / 599 p coins per world from coins that were sunk;
+  the obligation recovered most of L9's granary penalty in procedural worlds; veterans gained
+  27.5 placements per procedural world, through new openings; training's maintenance effect is a
+  null in template and small in procedural; the operating-wear assumption itself costs 15–20 lump
+  repairs per world; RS2 under that wear lowers workshop condition. No food cost of expeditions
+  was detectable at this size.
+- **Limits carried forward:** template worlds remain timber-poor; cross-civ timber trade, a
+  harvest-driven cover loss and infrastructure repair are not built; every constant is declared,
+  not calibrated; the 200-seed and procedural qualification gates were not run.
+
+# 2026-11-05 — recovery-skills phase merged (PR #76)
 
 ## Recovery, skills and resilient local economies (2026-11-05)
 

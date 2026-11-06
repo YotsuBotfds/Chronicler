@@ -9,8 +9,12 @@ import { FoodAllocation } from "./FoodAllocation";
 import { GrainConvoys } from "./GrainConvoys";
 import { LearningCohorts } from "./LearningCohorts";
 import { LocalBudgets } from "./LocalBudgets";
+import { MaintenanceObligation } from "./MaintenanceObligation";
+import { OperatingWear } from "./OperatingWear";
+import { RecoveryCrews } from "./RecoveryCrews";
 import { Relocation } from "./Relocation";
 import { TimberStock } from "./TimberStock";
+import { TimberSupply } from "./TimberSupply";
 import { WorkshopFinance } from "./WorkshopFinance";
 import { Workshops } from "./Workshops";
 
@@ -20,7 +24,8 @@ import { Workshops } from "./Workshops";
  */
 const PACKAGES = ["workshops", "workshop_payroll", "food_allocation", "timber_stock", "grain_convoys",
   "commons_rules", "learning_cohorts", "relocation_costs", "local_budgets", "clearing_protection",
-  "remittances", "apprenticeship", "veteran_reintegration", "repair_projects"];
+  "remittances", "apprenticeship", "veteran_reintegration", "repair_projects", "operating_wear", "timber_supply",
+  "recovery_crews", "maintenance_obligation"];
 
 export function LivelihoodsPanel({ bundle, snapshot, currentTurn, onSelectRegion }: SystemPanelProps) {
   const row = snapshot as unknown as Record<string, unknown> | null;
@@ -45,8 +50,12 @@ export function LivelihoodsPanel({ bundle, snapshot, currentTurn, onSelectRegion
     {record?.local_budgets != null ? <LocalBudgets {...props} /> : null}
     {record?.clearing_protection != null ? <ClearingProtection {...props} /> : null}
     {record?.apprenticeship != null ? <Apprenticeship {...props} /> : null}
+    {record?.operating_wear != null ? <OperatingWear {...props} /> : null}
     {record?.veteran_reintegration != null ? <Veterans {...props} /> : null}
     {record?.repair_projects != null ? <RepairProjects {...props} /> : null}
+    {record?.recovery_crews != null ? <RecoveryCrews {...props} /> : null}
+    {record?.timber_supply != null ? <TimberSupply {...props} /> : null}
+    {record?.maintenance_obligation != null ? <MaintenanceObligation {...props} /> : null}
     {record?.remittances != null ? <Remittances {...props} /> : null}
     {raw === null ? <p className="systems-note">No livelihoods observation is recorded at snapshot {at}.</p> : null}
   </div>;

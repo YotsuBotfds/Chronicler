@@ -159,7 +159,16 @@ class _Work:
     """One project's planned work this turn (never persisted)."""
 
     __slots__ = ("project", "kind", "payer", "region", "reasons", "request", "rate", "crew", "share",
-                 "wage", "qualified", "veterans", "hold", "envelope", "condition_before", "planned_milli")
+                 "wage", "qualified", "veterans", "hold", "envelope", "condition_before", "planned_milli",
+                 # PL3 recovery crews (``recovery_crews``): the named granary crew
+                 # [(id, origin, share, veteran)], the work planned before it was
+                 # named, its farm time, eligible counts, and per workshop member
+                 # the origin and the farm time removed.
+                 "named", "planned", "capacity", "eligible", "eligible_site_city", "origins", "removed",
+                 # whether the free adult farmers ran short of the planned work
+                 # (``recovery_crews.plan_granary_crew``), and whether this turn
+                 # suspends the granary project for ``no_people``.
+                 "short", "suspended")
 
     def __init__(self, project, payer, condition_before):
         self.project, self.kind, self.payer = project, project.kind, payer
@@ -176,6 +185,15 @@ class _Work:
         self.envelope = None
         self.condition_before = condition_before
         self.planned_milli = 0
+        self.named: list = []
+        self.planned = 0.0
+        self.capacity = 0.0
+        self.eligible = 0
+        self.eligible_site_city = None
+        self.origins: dict = {}
+        self.removed: dict = {}
+        self.short = False
+        self.suspended = False
 
 
 class _Turn:
@@ -193,6 +211,7 @@ class _Turn:
         self.receipts: list[RepairReceipt] = []
         self.ledger: list[CivLedger] = []
         self.suspended: list[int] = []
+        self.store_holds: dict[int, float] = {}   # PL1: the part of each hold taken from the store
 
 
 def _state(world) -> RepairProjectsState | None:
@@ -367,12 +386,70 @@ def _free_timber(world, region: int, commitments: dict, held: float) -> float:
     committed = float(commitments.get(r.name, {}).get("timber", 0.0))
     if not all(math.isfinite(x) and x >= 0 for x in (stock, committed)):
         raise ValueError("invalid timber stock or merchant commitment")
+    store = _store(world, region)
+    if store > 0.0:
+        # PL1: the woodcutters' earmarked store is read ahead of the stockpile.
+        return max(0.0, max(0.0, stock - committed) + store - held)
     return max(0.0, stock - committed - held)
+
+
+def _store(world, region: int) -> float:
+    """PL1 seam: the region's earmarked timber store (``timber_supply``), free
+    timber only RS2 may use; 0.0 unless timber supply is active."""
+    if not _lane_active(world, "timber_supply"):
+        return 0.0
+    from chronicler.timber_supply import store_free
+    return store_free(world, region)
+
+
+def _take_store(world, t, region: int, amount: float) -> float:
+    """PL1 seam: a region's hold takes from the store first; returns that part."""
+    if not _lane_active(world, "timber_supply"):
+        return 0.0
+    from chronicler.timber_supply import take_store
+    taken = take_store(world, region, amount)
+    if taken:
+        t.store_holds[region] = taken
+    return taken
+
+
+def _return_store(world, t, region: int, returned: float) -> float:
+    """PL1 seam: the store's part of unused held timber goes back to it."""
+    if not t.store_holds.get(region):
+        return 0.0
+    from chronicler.timber_supply import return_store
+    return return_store(world, region, returned)
+
+
+def _restore_store(world, t, region: int) -> float:
+    """PL1 seam (a failed Phase 2): the store's part of a hold goes back to it."""
+    if not t.store_holds.get(region):
+        return 0.0
+    from chronicler.timber_supply import restore_store
+    return restore_store(world, region)
 
 
 def _envelope(world, civ: int) -> int | None:
     from chronicler.local_budgets import envelope   # L9 repairs envelope (None: no budget rule)
-    return envelope(world, civ, "repairs")
+    amount = envelope(world, civ, "repairs")
+    if amount is not None and _lane_active(world, "maintenance_obligation"):
+        # PL3: the spending limit adds the civ's maintenance reservation
+        # (``reserve`` mode; ``reserve_only`` keeps the envelope alone).
+        from chronicler.maintenance_obligation import repairs_limit
+        amount = repairs_limit(world, civ, amount)
+    return amount
+
+
+def _crews_active(world) -> bool:
+    """PL3 ``--recovery-crews``: named granary crews and the wider workshop pool."""
+    return _lane_active(world, "recovery_crews")
+
+
+def _farm_labour(world, snapshot) -> list[int] | None:
+    """Living farmers per region in an agent snapshot (the native farm labour
+    is that count times ``farm_labor_factor``), or None when unknown."""
+    from chronicler.recovery_crews import farm_labour
+    return farm_labour(world, snapshot)
 
 
 # ---------------------------------------------------------------------------
@@ -428,6 +505,14 @@ def _native(agent_bridge):
     if sim is None or not all(callable(getattr(sim, name, None)) for name in _NATIVE):
         raise RuntimeError("repair projects require a fresh native build with the RS0 work registry")
     return sim
+
+
+def _veteran_priority(world, region: int) -> list[int]:
+    """RS3's priority list of ``region`` (empty unless RS3 is in priority mode)."""
+    if not _lane_active(world, "veteran_reintegration"):
+        return []
+    from chronicler.veteran_reintegration import priority_ids
+    return [int(a) for a in priority_ids(world, region)]
 
 
 def _priority(world, regions) -> tuple[list[int], set[int], set[int]]:
@@ -526,7 +611,10 @@ def before_crews(world, sim, requests: list, acc=None) -> None:
         open_veterans = frozenset()
     asks = [(sites[p.asset].site, sites[p.asset].region, sites[p.asset].settlement_id,
              float(_diverted(world, sites[p.asset])), 8) for p in projects]
-    if priority:
+    crews = _crews_active(world)
+    if crews:
+        planned = [None] * len(asks)          # PL3: the region-wide pool replaces the city planner
+    elif priority:
         planned = sim.plan_workshop_crews(asks, _enlisted(world), None, priority_ids=priority)
     else:
         planned = sim.plan_workshop_crews(asks, _enlisted(world), None)
@@ -536,7 +624,18 @@ def before_crews(world, sim, requests: list, acc=None) -> None:
         payer = _controller(world, site.region)
         w = t.work[p.pid] = _Work(p, payer, float(site.condition))
         d = ask[3]
-        candidates = [int(a) for a in row[8] if int(a) not in held]
+        if crews:
+            # PL3: adult farmers of the site's region and eligible veterans of
+            # any non-enlisted occupation, in the same priority order.
+            from chronicler.recovery_crews import workshop_candidates
+            pool = [r for r in workshop_candidates(world, sim, site, d, priority)[0] if r[0] not in held]
+            candidates = [aid for aid, _origin, _farm in pool]
+            w.eligible = len(pool)
+            w.eligible_site_city = sum(1 for r in pool if r[1] == "site_city")
+            w.origins = {aid: origin for aid, origin, _farm in pool}
+            w.removed = {aid: farm for aid, _origin, farm in pool}
+        else:
+            candidates = [int(a) for a in row[8] if int(a) not in held]
         rate = 1.0 if candidates and candidates[0] in qualified else UNQUALIFIED_RATE
         remaining = max(0.0, p.scope - p.delivered)
         per = d * rate
@@ -565,6 +664,9 @@ def before_crews(world, sim, requests: list, acc=None) -> None:
         sim.reserve_work(turn, CATEGORY_REPAIR, [(aid, d) for aid in crew])
         held.update(crew)
         w.crew = crew
+        if crews:
+            w.origins = {aid: w.origins[aid] for aid in crew}
+            w.removed = {aid: w.removed[aid] for aid in crew}
         w.request = min(n * per, remaining, free / WORKSHOP_TIMBER_PER_WORK)
         w.hold = w.request * WORKSHOP_TIMBER_PER_WORK
         t.holds[site.region] = t.holds.get(site.region, 0.0) + w.hold
@@ -717,6 +819,10 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
     suspended = set(getattr(plan, "suspended", ()) or ()) if plan is not None else set()
     t.suspended = sorted(suspended)
     granaries = [p for p in state.projects if p.kind == "granary"]
+    # PL3 correction: the native farm labour of each region (farmers in the
+    # agent rows the economy reads); None when the snapshot is unavailable.
+    labour = _farm_labour(world, snapshot) if granaries else None
+    crews = _crews_active(world)
     for p in list(granaries):
         if storage is None or storage.assets[p.asset] is None:
             _close(state, p, world.turn, "abandoned", "asset_closed")
@@ -757,6 +863,17 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
             payer = _controller(world, p.region)
             asset = storage.assets[p.asset]
             w = t.work[p.pid] = _Work(p, payer, float(asset.condition))
+            if labour is not None and labour[p.region] == 0:
+                # PL3 correction: no farm labour in the region. The project is
+                # suspended: it asks for no work, timber or coins (stall
+                # ``no_people``) and resumes when farmers are present again.
+                # The transition is recorded when the turn settles
+                # (``finish_phase2``, the project's ``suspended`` flag).
+                w.reasons = ["no_people"]
+                w.suspended = True
+                if requested[p.region] != 0.0:
+                    raise RuntimeError("storage requested work in a region under a repair project")
+                continue
             remaining = max(0.0, p.scope - p.delivered)
             want = min(per_turn, remaining)
             free = _free_timber(world, p.region, commitments, t.holds.get(p.region, 0.0))
@@ -770,6 +887,15 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
             w.reasons = [reason for reason, value in limits.items() if value + EPS < want]
             if requested[p.region] != 0.0:
                 raise RuntimeError("storage requested work in a region under a repair project")
+            if crews and amount > 0:
+                # PL3: the work is a named crew's farm time; the request is
+                # at most what the free adult farmers of the region farm.
+                from chronicler.recovery_crews import plan_granary_crew
+                planned = amount
+                amount = plan_granary_crew(world, w, planned, sim=sim, snapshot=snapshot,
+                                           priority=_veteran_priority(world, p.region))
+                if w.short and "no_labor" not in w.reasons:
+                    w.reasons.append("no_labor")
             w.request = amount
             w.hold = amount * timber_rate
             if amount > 0:
@@ -781,6 +907,18 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
         idx = names.index("granary_work_requested")
         region_input = region_input.set_column(idx, "granary_work_requested",
                                                pa.array(requested, type=pa.float32()))
+    if crews:
+        # PL3: workshop crew members who are not urban farmers of the site's
+        # city give farm time; it leaves the region's farm labour.
+        removal: dict[int, float] = {}
+        for w in t.work.values():
+            if w.kind == "workshop" and w.crew:
+                amount = math.fsum(w.removed.get(aid, 0.0) for aid in w.crew)
+                if amount > 0:
+                    removal[w.region] = removal.get(w.region, 0.0) + amount
+        if removal:
+            from chronicler.recovery_crews import remove_farm_time
+            region_input = remove_farm_time(world, region_input, snapshot, removal, sim=sim)
     if any(v > 0 for v in t.holds.values()):
         import pyarrow as pa
         names = region_input.schema.names
@@ -790,6 +928,11 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
         column = region_input.column(idx).to_pylist()
         for region, amount in sorted(t.holds.items()):
             if amount > 0:
+                taken = _take_store(world, t, region, amount)     # PL1: the store first
+                if taken:
+                    amount = amount - taken
+                    if not amount > 0:
+                        continue
                 goods = world.regions[region].stockpile.goods
                 goods["timber"] = goods.get("timber", 0.0) - amount
                 column[region] = goods["timber"]
@@ -854,6 +997,14 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
             # here means another spender was missed.
             raise RuntimeError("repair bill exceeds the projected treasury at settlement")
     rows = sorted((aid, w.share) for w in t.work.values() if w.kind == "workshop" for aid in w.crew)
+    crews = _crews_active(world)
+    named = [w for _pid, w in sorted(t.work.items()) if w.kind == "granary" and w.named] if crews else []
+    if named:
+        # PL3: each granary crew member's worked share is withheld from
+        # ordinary income, in the same install as the workshop crews'.
+        from chronicler.recovery_crews import granary_shares
+        rows = sorted(rows + [(aid, share) for w in named for aid, share in granary_shares(w, work[w.project.pid])
+                              if share > 0])
     if rows:
         sim.extend_paid_work(world.turn, rows)
         t.installed = True
@@ -864,6 +1015,12 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
         for aid, requested, got, residual, status in sim.transfer_wealth(
                 world.turn, PURPOSE_REPAIR_WAGE, 0, wages):
             applied[int(aid)] = (int(got), int(residual) if status != 2 else int(requested))
+    crew_pay = {}
+    if named:
+        # PL3 paid mode: the granary's coins of the delivered work go to its
+        # crew by stable id (the charge below is unchanged).
+        from chronicler.recovery_crews import pay_granary_crews
+        crew_pay = pay_granary_crews(world, sim, named, work, _coin_milli)
     ledger: dict[int, dict] = {}
     receipts = []
     mode_repairs = state.mode == "repair"
@@ -883,8 +1040,10 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
             raise RuntimeError("repair work used more timber than it held")
         returned = max(0.0, returned)
         if returned:
-            goods = world.regions[w.region].stockpile.goods
-            goods["timber"] = goods.get("timber", 0.0) + returned
+            to_store = _return_store(world, t, w.region, returned)   # PL1: 0.0 without a store hold
+            if to_store < returned:
+                goods = world.regions[w.region].stockpile.goods
+                goods["timber"] = goods.get("timber", 0.0) + (returned - to_store if to_store else returned)
         before = _condition(world, p.kind, p.asset)
         credit = done if mode_repairs else 0.0
         if credit:
@@ -903,6 +1062,14 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
             p.controller = w.payer
         if w.kind == "workshop":
             p.last_crew = list(w.crew)
+        if w.kind == "granary" and w.suspended != p.suspended:
+            # PL3 correction: a dated suspension or resumption, read from the
+            # project's own persisted flag (review C 2026-11-06: the previous
+            # frame, unsettled after a turn without Phase 2, re-noted the
+            # suspension and missed the resumption).
+            _note(p, world.turn, "suspended_no_people" if w.suspended else "resumed", w.payer)
+            _bump(state, "suspensions" if w.suspended else "resumptions")
+            p.suspended = w.suspended
         status = "progress" if done > 0 else "stalled"
         if done > 0:
             p.work_turns += 1
@@ -938,6 +1105,10 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
         if w.crew:
             _bump(state, "crew_person_turns", len(w.crew))
             _bump(state, "qualified_crew_turns" if w.rate == 1.0 else "unqualified_crew_turns")
+        if crews and (w.kind == "workshop" and w.crew or w.kind == "granary" and w.planned > 0):
+            from chronicler.recovery_crews import record
+            record(world, w, sim=sim, turn=world.turn, delivered=done, coin_cost_milli=cost,
+                   paid=crew_pay.get(pid))
         if remaining <= DONE:
             _close(state, p, world.turn, "completed", None)
     out = []
@@ -974,6 +1145,9 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
             raise RuntimeError("repair spending beyond the civ's repairs envelope")
     t.receipts, t.ledger = receipts, out
     t.finished = True
+    if crews:
+        from chronicler.recovery_crews import finish_turn
+        finish_turn(world, sim)
     if _lane_active(world, "veteran_reintegration"):
         from chronicler.veteran_reintegration import note_outcome
         for r in receipts:
@@ -981,6 +1155,12 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
                 note_outcome(world, aid, "placed:repair", turn=world.turn,
                              detail={"site": r.asset, "region": r.region})
                 _bump(state, "veterans_placed")
+        for w in named:
+            # PL3: veterans who worked on a granary crew (no site: the granary).
+            for aid, share in granary_shares(w, work[w.project.pid]):
+                if share > 0 and any(m[0] == aid and m[3] for m in w.named):
+                    note_outcome(world, aid, "placed:repair", turn=world.turn,
+                                 detail={"site": None, "region": w.region})
     return []
 
 
@@ -1004,6 +1184,11 @@ def rollback_phase2(world) -> None:
     if t.prepared and not t.finished:
         for region, amount in sorted(t.holds.items()):
             if amount > 0:
+                restored = _restore_store(world, t, region)       # PL1: the store's part
+                if restored:
+                    amount = amount - restored
+                    if not amount > 0:
+                        continue
                 goods = world.regions[region].stockpile.goods
                 goods["timber"] = goods.get("timber", 0.0) + amount
     if t.installed and t.sim is not None:
@@ -1066,11 +1251,24 @@ def _assets(world):
         yield "workshop", site.site, site.region, float(site.condition), _built(site), None
 
 
+def _observed_labour(world, agent_bridge) -> list[int] | None:
+    """Farmers per region after this turn's agent tick (the pool the next
+    Phase 2's economy reads), or None when no snapshot can be read."""
+    getter = getattr(agent_bridge, "get_snapshot", None) if agent_bridge is not None else None
+    if not callable(getter) or _storage(world) is None:
+        return None
+    return _farm_labour(world, getter())
+
+
 def phase10_before_reserves(world, acc, economy_result, agent_bridge):
     """Abandon projects whose asset or controller is gone, note inherited
-    projects and open new ones (before the L9 decision of this Phase 10)."""
+    projects and open new ones (before the L9 decision of this Phase 10).
+    PL3 correction: no granary project opens while its region has no farm
+    labour (unmet ``no_people``)."""
     state = _state(world)
     turn = world.turn
+    labour = _observed_labour(world, agent_bridge)
+    state._labour = (turn, labour)
     live = {(kind, asset): (region, cond) for kind, asset, region, cond, _b, _c in _assets(world)}
     for p in list(state.projects):
         if (p.kind, p.asset) not in live:
@@ -1092,7 +1290,9 @@ def phase10_before_reserves(world, acc, economy_result, agent_bridge):
             continue
         ctrl = _controller(world, region)
         reason = ("no_controller" if ctrl < 0 else "zero_capacity" if capacity is not None and capacity <= 0
-                  else "building" if not built else None)
+                  else "building" if not built
+                  else "no_people" if kind == "granary" and labour is not None and labour[region] == 0
+                  else None)
         if reason is not None:
             unmet.append(UnmetNeed(kind=kind, asset=asset, region=region, condition=cond, reason=reason))
             _bump(state, f"unmet_{reason}")
@@ -1181,13 +1381,34 @@ def budget_proposal(world, civ: int, obs) -> list[dict]:
     its open projects at their current inputs, its cost in whole units (one
     whole-unit charge) and the burden it relieves (commons: granary spoilage and the
     reserve target worn capacity cannot hold; patricians: workshop crew work
-    standing idle at a site shut for repair), from dated observations."""
+    standing idle at a site shut for repair), from dated observations. With
+    ``--maintenance-obligation reserve`` it asks only for the part beyond the
+    civ's reservation (``maintenance_obligation.after_reservation``)."""
+    rows = _repairs_proposal(world, civ, obs)
+    if rows and _lane_active(world, "maintenance_obligation"):
+        from chronicler.maintenance_obligation import after_reservation
+        rows = after_reservation(world, civ, obs, rows)
+    return rows
+
+
+def planned_cost(world, civ: int, obs) -> int:
+    """RS2's planned per-turn charges of the civ's open projects, in whole
+    units: the cost of its full ``repairs`` proposal (0 without one)."""
+    rows = _repairs_proposal(world, civ, obs)
+    return int(rows[0]["cost"]) if rows else 0
+
+
+def _repairs_proposal(world, civ: int, obs) -> list[dict]:
     state = _state(world)
     if state is None or not repair_projects_active(world) or obs.economy is None:
         return []
     projects = [p for p in state.projects if _controller(world, p.region) == civ]
     if not projects:
         return []
+    # PL3 correction: a granary project in a region without farm labour is
+    # suspended next turn; it is not proposed.
+    seen = state._labour
+    labour = seen[1] if seen is not None and seen[0] == world.turn else None
     per_condition, per_turn, timber_rate, _coins = _storage_rules()
     from chronicler.grain_storage import EXTRA_SPOILAGE
     from chronicler.workshops import OPERATE_CONDITION
@@ -1205,6 +1426,8 @@ def budget_proposal(world, civ: int, obs) -> list[dict]:
         free = _free_timber(world, p.region, obs.held, held.get(p.region, 0.0))
         cond = _condition(world, p.kind, p.asset)
         if cond is None or remaining <= DONE:
+            continue
+        if p.kind == "granary" and labour is not None and labour[p.region] == 0:
             continue
         if p.kind == "granary":
             asset = storage.assets[p.asset]
@@ -1264,11 +1487,23 @@ def budget_settlement(world, c, obs) -> dict:
     if row is None or not mine:
         return {"outcome": "deferred", "reason": "recipient_lost", "spent": 0, "delivered": 0.0, "ratio": 0.0}
     spent, delivered = int(row.charged), float(row.work_delivered)
+    used = 0
+    if _lane_active(world, "maintenance_obligation"):
+        # PL3: the charge and the work are split between the civ's maintenance
+        # reservation and this envelope pro rata to their amounts
+        # (``maintenance_obligation.split_charge``); the envelope keeps its part.
+        from chronicler.maintenance_obligation import reservation_split
+        used, share = reservation_split(world, c.civ)
+        if used or share < 1.0:
+            delivered = delivered * share
+            spent -= used
     # Nothing expected is never kept by default (review C: a 0-work envelope
     # read as ratio 1.0).
     ratio = min(1.0, delivered / c.expected) if c.expected > EPS else 0.0
     done = all(r.remaining_after <= DONE for r in mine)
-    detail = {"projects": len(mine), "charged": spent, "prepaid_after_milli": row.prepaid_after_milli}
+    detail = {"projects": len(mine), "charged": int(row.charged), "prepaid_after_milli": row.prepaid_after_milli}
+    if used:
+        detail["reservation_used"] = used
     if ratio >= KEPT_RATIO or spent >= KEPT_RATIO * c.amount or done:
         return {"outcome": "kept", "reason": None, "spent": spent, "delivered": delivered,
                 "ratio": 1.0 if done else ratio, "detail": detail}

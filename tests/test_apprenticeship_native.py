@@ -4,6 +4,10 @@ Natural activation (simulation turns): seed 7's workshop sites operate from
 turn 22; the first service qualification comes at turn 40, apprentices are
 seated from turn 41 and the first apprenticeship completes at turn 73
 (docs/integration/apprenticeship.md, "Development measurement").
+
+These cases pin RS1 rules version 1 (``RULES_VERSION`` 1 for the new state):
+the merged rules, which a state saved before PL2 resumes under. Version 2 runs
+on the real extension in ``tests/test_apprenticeship_v2_native.py``.
 """
 from __future__ import annotations
 
@@ -16,6 +20,12 @@ pytest.importorskip("chronicler_agents")
 pytestmark = pytest.mark.native
 
 BASE = ["--civs", "4", "--regions", "8", "--agents", "hybrid", "--simulate-only"]
+
+
+@pytest.fixture(autouse=True)
+def _rules_version_1(monkeypatch):
+    from chronicler import apprenticeship as A
+    monkeypatch.setattr(A, "RULES_VERSION", 1)
 
 
 def _run(folder, *extra, seed=7, turns=60):

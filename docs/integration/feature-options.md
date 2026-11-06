@@ -169,6 +169,12 @@ How the section behaves:
 - **Resumed saves.** While a saved world is loaded, the section is disabled with
   a note, and no `features` are sent.
 - **Phone width.** Text and selects wrap.
+- **Productive recovery (PL5a).** The catalog generates `--timber-supply`,
+  `--operating-wear`, `--recovery-crews` and `--maintenance-obligation` with their
+  modes, and `--apprenticeship-rules` as a choice of `--apprenticeship`; nothing in
+  `live.py` or the viewer is specific to them. Viewer tests check them from the served
+  fixture, and `viewer/scripts/qa-productive-recovery.mjs` checks them in a live
+  session and Batch Lab.
 
 `viewer/src/__fixtures__/featureCatalog.json` is the catalog for
 `--live --agents hybrid`. `test_viewer_fixture_has_the_shape_the_server_sends`
