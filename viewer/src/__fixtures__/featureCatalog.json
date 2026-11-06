@@ -567,6 +567,27 @@
       "experimental": true
     },
     {
+      "key": "apprenticeship_rules",
+      "flag": "--apprenticeship-rules",
+      "label": "Apprenticeship rules",
+      "help": "RS1 rules version of a new apprenticeship state: 2 (default): attendance by region, portable progress, training on the job (PL2); 1: the recovery-skills phase's rules exactly (presence in the city box, seats before the crew, the consecutive-miss dropout). A saved state keeps its version; a conflicting value is refused on resume",
+      "kind": "choice",
+      "choices": [
+        "2",
+        "1"
+      ],
+      "default": null,
+      "parent": "apprenticeship",
+      "requires": [
+        {
+          "feature": "apprenticeship",
+          "reason": "requires --apprenticeship"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
       "key": "repair_projects",
       "flag": "--repair-projects",
       "label": "Repair projects",

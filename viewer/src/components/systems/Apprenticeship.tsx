@@ -15,7 +15,7 @@ const MODE_NOTE: Record<string, string> = {
 
 const RULES_NOTE: Record<number, string> = {
   1: "RS1 rules version 1 (a state saved before PL2): presence in the workshop's city, a seat reserved before the crew, and a dropout after too many misses.",
-  2: "RS1 rules version 2: presence anywhere in the site's region; an apprentice trains on the crew (crew time) or attached beside it (reserved, with income withheld and a stipend from a paying firm); progress travels to another site's region; only a long absence ends it.",
+  2: "RS1 rules version 2: presence anywhere in the site's region; an apprentice trains on the crew (crew time) or attached beside it (reserved, with income withheld and a stipend from a paying firm); progress travels to another site's region; missed turns pause it, and only a long absence or a long pause (stalled) ends it.",
 };
 
 function seatText(s: SeatRecord): string {
@@ -105,7 +105,7 @@ export function Apprenticeship({ bundle, snapshot, currentTurn, onSelectRegion }
         <thead><tr><th>Apprentice</th><th>Site</th><th>Since</th><th>Attended</th><th>Missed in a row</th>{v2 ? <><th>Absent in a row</th><th>On crew / attached</th><th>Transfers</th></> : null}<th>Mentors</th><th>Income given up</th></tr></thead>
         <tbody>{record.apprenticeships.map((a) => <tr key={a.agent_id}>
           <td>{a.agent_id}{a.veteran ? " (veteran)" : ""}{v2 && a.entry_age !== undefined ? `, entered at ${a.entry_age}` : ""}</td><td>{site(a.site)}</td><td>turn {a.started_turn}</td>
-          <td>{a.attended}{completion ? ` of ${completion}` : ""}</td><td>{a.gap}</td>
+          <td>{a.attended}{completion ? ` of ${completion}` : ""}</td><td>{a.gap}{v2 && record.parameters.max_pause !== undefined ? ` (stalls after ${record.parameters.max_pause})` : ""}</td>
           {v2 ? <><td>{show(a.absent)}{record.parameters.long_absence_turns !== undefined ? ` (ends after ${record.parameters.long_absence_turns})` : ""}</td>
             <td>{show(a.on_crew)} / {show(a.attached)}</td><td>{show(a.transfers)}</td></> : null}
           <td>{people(a.mentors)}</td>

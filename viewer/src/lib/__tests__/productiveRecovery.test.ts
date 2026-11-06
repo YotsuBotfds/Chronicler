@@ -8,7 +8,7 @@ import { readApprenticeship } from "../apprenticeship";
 import { repairProjectsAt } from "../repairProjects";
 import { localBudgetsAt } from "../localBudgets";
 import {
-  cutReceipt, decisions, granaryCrew, liveCutting, maintenanceObligation, needs, operatingWear, recoveryCrews,
+  abandoned, cutReceipt, decisions, delivered, granaryCrew, liveCutting, maintenanceObligation, needs, operatingWear, recoveryCrews,
   snapWith, timberLedger, timberSupply, unpaidReceipt, uses, wearReceipts, workshopCrew,
 } from "./productiveRecoveryFixture";
 
@@ -84,6 +84,24 @@ describe("timber supply reader", () => {
     expect(why(read({ ...control, receipts: [cutReceipt, control.receipts[1]] }))).toBe("crew labour on the forest outside supplied cutting");
   });
 
+  it("reads a crew that came home empty as returned, never as a delivery, and counts every ending", () => {
+    const empty = { ...delivered, eid: 5, status: "returned", cut: 0, delivered: 0, lost: 0 };
+    const counters = { ...timberSupply.counters, ended: 3, returned_expeditions: 1, ended_cut: 4, ended_delivered: 2.97 };
+    const perExpedition = { ended: 3, wages_milli: 2500, person_turns: 5, farm_labor_away: 4 / 3 * 2.5, unpaid_turns: 0,
+      cut: 4 / 3, delivered: 0.99 };
+    const withReturn = { closed: [delivered, abandoned, empty], counters: { ...counters, ended_wages_milli: 7500 },
+      per_expedition: perExpedition };
+    expect(with_(withReturn)).toBe("ok");
+    expect(with_({ ...withReturn, closed: [delivered, abandoned, { ...empty, cut: 0.5, delivered: 0.5 }] }))
+      .toMatch(/returned expedition carried timber|lifetime timber/);
+    expect(with_({ ...withReturn, counters: { ...withReturn.counters, returned_expeditions: 0 } })).toBe("lifetime endings do not add up");
+    expect(with_({ counters: { ...timberSupply.counters, abandoned_crew_lost: 0 } })).toBe("lifetime endings do not add up");
+    // Cargo deposited at home when home changed hands on the way: the transit decay is still the only loss.
+    const homeLost = { ...abandoned, end_reason: "home_lost", cut: 1, lost: 0.01, abandoned: 0.99 };
+    expect(with_({ closed: [delivered, homeLost], counters: { ...timberSupply.counters, lost: 0.04, abandoned_cargo: 0.99,
+      abandoned_crew_lost: 0, abandoned_home_lost: 1 } })).toBe("ok");
+  });
+
   it("keeps an unobserved turn unknown, and counts refusals and losses", () => {
     const blank = { ...timberSupply, receipts: null, ledger: null, stores: null, needs: null, needs_dropped: null, deposits: null };
     const reading = read(blank);
@@ -92,7 +110,7 @@ describe("timber supply reader", () => {
     expect(why(read({ ...timberSupply, per_expedition: null }))).toBe("ended expeditions without per-expedition means");
     expect(why(read({ ...timberSupply, per_expedition: { ...timberSupply.per_expedition, wages_milli: 3000 } })))
       .toBe("per-expedition means disagree with the counters");
-    const record = (read(timberSupply) as { record: never }).record;
+    const record = (read(timberSupply) as unknown as { record: never }).record;
     expect(refusalCounts(record)).toEqual([["no_forest", 5], ["forest_busy", 3]]);
     expect(lossCounts(record)).toEqual({ abandoned: [["crew_lost", 1]], dropped: [["died", 2], ["migrated", 1]] });
   });
@@ -109,7 +127,7 @@ describe("operating wear reader", () => {
     expect(why(readOperatingWear(snap({ operating_wear: operatingWear }, 9), 4))).toBe("misdated observation");
     expect(why(read(operatingWear, 3))).toBe("malformed wear receipt");
     expect(with_({ stage: "PL3" })).toBe("unknown operating-wear schema");
-    const totals = wearTotals((reading as { record: never }).record)!;
+    const totals = wearTotals((reading as unknown as { record: never }).record)!;
     expect(totals).toMatchObject({ sites: 3, fullOffset: 1, covered: 2, stopping: 1 });
     expect(totals.net).toBeCloseTo(0.035);
   });
@@ -148,7 +166,7 @@ describe("recovery crews reader", () => {
     expect(readRecoveryCrews(snap({}), 4, 2)).toEqual({ status: "absent" });
     expect(why(readRecoveryCrews(snap({ recovery_crews: recoveryCrews }, 11), 4, 2))).toBe("misdated observation");
     expect(with_({ mode: "volunteer" })).toBe("unknown recovery-crews schema");
-    const totals = crewTotals((reading as { record: never }).record)!;
+    const totals = crewTotals((reading as unknown as { record: never }).record)!;
     expect(totals).toMatchObject({ coins: 3600, wages: 3500, sunk: 100, residual: 100, granaryCrews: 2, workshopCrews: 1,
       people: 5, short: 1, empty: 1 });
     expect(totals.withheld).toBeCloseTo(0.59);
@@ -205,7 +223,7 @@ describe("maintenance obligation reader", () => {
     expect(readMaintenanceObligation(snap({}), 2)).toEqual({ status: "absent" });
     expect(why(readMaintenanceObligation(snap({ maintenance_obligation: maintenanceObligation }, 12), 2))).toBe("misdated observation");
     expect(why(read(maintenanceObligation, 1))).not.toBe("ok");
-    expect(obligationTotals((reading as { record: never }).record)).toEqual({ planned: 8, reserved: 7, capped: 1, used: 5,
+    expect(obligationTotals((reading as unknown as { record: never }).record)).toEqual({ planned: 8, reserved: 7, capped: 1, used: 5,
       returned: 2, envelopeSpent: 2, charged: 7 });
   });
 
@@ -238,51 +256,60 @@ describe("maintenance obligation reader", () => {
 
 describe("productive-recovery readers on natural records", () => {
   it("accept every record of a default-mode, a control-mode and a graduates snapshot", async () => {
+    type Natural = { turn: number; region_count: number; civ_count: number; livelihoods: Record<string, unknown> };
     const fixture = (await import("../../__fixtures__/productive_recovery_natural_records.json")).default as unknown as {
-      region_count: number; civ_count: number; snapshots: Array<{ turn: number; livelihoods: Record<string, unknown> }> };
-    const { region_count: regions, civ_count: civs } = fixture;
-    const [main, control, graduates] = fixture.snapshots.map((s) => s as unknown as TurnSnapshot);
-    for (const s of [main, control]) {
-      for (const reading of [readTimberSupply(s, regions, civs), readOperatingWear(s, regions), readRecoveryCrews(s, regions, civs),
-        readMaintenanceObligation(s, civs), readApprenticeship(s, regions)]) expect(why(reading)).toBe("ok");
-      expect(localBudgetsAt(s, civs)).not.toBeNull();
+      snapshots: Natural[] };
+    const [main, control, graduates] = fixture.snapshots;
+    const at = (n: Natural) => n as unknown as TurnSnapshot;
+    for (const n of [main, control]) {
+      const s = at(n);
+      for (const reading of [readTimberSupply(s, n.region_count, n.civ_count), readOperatingWear(s, n.region_count),
+        readRecoveryCrews(s, n.region_count, n.civ_count), readMaintenanceObligation(s, n.civ_count),
+        readApprenticeship(s, n.region_count)]) expect(why(reading)).toBe("ok");
+      expect(localBudgetsAt(s, n.civ_count)).not.toBeNull();
     }
-    // Default modes: timber cut and carried, paid crews, a reservation spent, RS1 schema 2 and RS2's no_people stall.
-    const supply = readTimberSupply(main, regions, civs);
+    const regions = main.region_count;
+    const civs = main.civ_count;
+    // Default modes: timber cut and delivered, paid crews, a reservation spent, RS1 schema 2 and RS2's no_people stall.
+    const supply = readTimberSupply(at(main), regions, civs);
     expect(supply.status === "ok" && supply.record.mode).toBe("supply");
     expect(supply.status === "ok" && supply.record.counters.cut).toBeGreaterThan(0);
-    const crews = readRecoveryCrews(main, regions, civs);
+    expect(supply.status === "ok" && supply.record.closed.some((e) => e.status === "delivered" && e.delivered > 0)).toBe(true);
+    const crews = readRecoveryCrews(at(main), regions, civs);
     expect(crews.status === "ok" && crews.record.receipts!.some((r) => r.kind === "granary" && r.wages_milli > 0)).toBe(true);
-    const repair = repairProjectsAt(main, regions, civs);
+    const repair = repairProjectsAt(at(main), regions, civs);
     expect(repair?.receipts?.some((r) => r.reasons.includes("no_people"))).toBe(true);
-    const rs1 = readApprenticeship(main, regions);
+    const rs1 = readApprenticeship(at(main), regions);
     expect(rs1.status === "ok" && rs1.record.schema_version).toBe(2);
     expect(rs1.status === "ok" && rs1.record.receipts!.some((r) => r.seats.some((s) => s.aboard === "attached"))).toBe(true);
-    // Controls: nothing cut, crews unpaid with the coins sunk, reservations all returned.
-    const costOnly = readTimberSupply(control, regions, civs);
+    // Controls: nothing cut (crews come home empty: returned), crews unpaid with the coins sunk, reservations returned.
+    const c = (n: Natural) => [at(n), n.region_count, n.civ_count] as const;
+    const costOnly = readTimberSupply(...c(control));
     expect(costOnly.status === "ok" && [costOnly.record.mode, costOnly.record.counters.cut ?? 0]).toEqual(["cost_only", 0]);
     expect(costOnly.status === "ok" && costOnly.record.counters.wages_milli).toBeGreaterThan(0);
-    const unpaid = readRecoveryCrews(control, regions, civs);
+    expect(costOnly.status === "ok" && costOnly.record.closed.some((e) => e.status === "returned")).toBe(true);
+    expect(costOnly.status === "ok" && costOnly.record.closed.every((e) => e.status !== "delivered")).toBe(true);
+    const unpaid = readRecoveryCrews(...c(control));
     expect(unpaid.status === "ok" && unpaid.record.mode).toBe("unpaid");
     expect(unpaid.status === "ok" && unpaid.record.ledger!.every((l) => l.wages_milli === 0 && l.sunk_milli === l.coin_cost_milli)).toBe(true);
-    const reserveOnly = readMaintenanceObligation(control, civs);
+    const reserveOnly = readMaintenanceObligation(at(control), control.civ_count);
     expect(reserveOnly.status === "ok" && reserveOnly.record.uses!.every((u) => u.used === 0 && u.returned === u.reserved)).toBe(true);
-    const nq = readApprenticeship(control, regions);
+    const nq = readApprenticeship(at(control), control.region_count);
     expect(nq.status === "ok" && nq.record.mode).toBe("no_qualification");
     // The reservation lowers the bargained budget by at most the reservation.
-    for (const s of [main, control]) {
-      const mo = readMaintenanceObligation(s, civs);
-      const l9 = localBudgetsAt(s, civs)!;
+    for (const n of [main, control]) {
+      const mo = readMaintenanceObligation(at(n), n.civ_count);
+      const l9 = localBudgetsAt(at(n), n.civ_count)!;
       for (const d of mo.status === "ok" ? mo.record.decisions! : []) {
         const budget = l9.decisions!.find((x) => x.civ === d.civ && x.turn === d.turn)!.budget;
         expect(d.budget_before - budget).toBeGreaterThanOrEqual(0);
         expect(d.budget_before - budget).toBeLessThanOrEqual(d.reserved);
       }
     }
-    const grads = readApprenticeship(graduates, regions);
+    const grads = readApprenticeship(at(graduates), graduates.region_count);
     expect(grads.status === "ok" && grads.record.graduates!.length).toBeGreaterThan(0);
-    // The same records misdated, or with an identity broken, are refused.
-    const shifted = { ...main, turn: main.turn + 1 } as TurnSnapshot;
+    // The same records misdated are refused.
+    const shifted = { ...main, turn: main.turn + 1 } as unknown as TurnSnapshot;
     expect(why(readTimberSupply(shifted, regions, civs))).toBe("misdated observation");
     expect(why(readRecoveryCrews(shifted, regions, civs))).toBe("misdated observation");
   });

@@ -122,7 +122,13 @@ describe("apprenticeship reader, RS1 rules version 2 (schema 2)", () => {
     expect(v2({ apprenticeships: [{ ...open[0], on_crew: 1 }, ...open.slice(1)] })).toBe("malformed apprenticeships");
     expect(v2({ apprenticeships: [{ ...open[0], absent: 5 }, ...open.slice(1)] })).toBe("malformed apprenticeships");
     expect(v2({ apprenticeships: [{ ...open[0], entry_age: 55 }, ...open.slice(1)] })).toBe("malformed apprenticeships");
-    expect(v2({ apprenticeships: [{ ...open[0], gap: 6 }, ...open.slice(1)] })).toBe("ok");   // misses pause, never end
+    expect(v2({ apprenticeships: [{ ...open[0], gap: 6 }, ...open.slice(1)] })).toBe("ok");   // misses pause
+    // A pause longer than max_pause ends the record as stalled; an open record past it does not close.
+    const paused = { parameters: { ...v2Record.parameters, max_pause: 20 } };
+    expect(v2({ ...paused, apprenticeships: [{ ...open[0], gap: 20 }, ...open.slice(1)] })).toBe("ok");
+    expect(v2({ ...paused, apprenticeships: [{ ...open[0], gap: 21 }, ...open.slice(1)] })).toBe("malformed apprenticeships");
+    expect(v2({ ...paused, archive: [{ ...v2Record.archive[1], ended_reason: "stalled", absent: 0 }] })).toBe("ok");
+    expect(reason({ ...record, archive: [{ ...record.archive[1], ended_reason: "stalled" }] })).toBe("malformed archive");
   });
 
   it("refuses graduates and detached records that disagree, and keeps unobserved turns unknown", () => {

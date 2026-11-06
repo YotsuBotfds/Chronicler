@@ -110,9 +110,10 @@ const END_REASONS = ["completed", "dropout", "died", "migrated", "departed", "oc
   "remobilised", "pool_reset", "disabled", "service_qualified"];
 const MISS_REASONS = ["unavailable", "no_mentor", "site_not_operating", "reservation_refused", "away"];
 /** Rules version 2: presence by region replaces the city-box endings (away, dropout, migrated, departed);
- * a long absence ends a record; absent and no_room pause it. */
+ * a long absence ends a record; absent and no_room pause it, and a pause longer than ``max_pause``
+ * consecutive missed turns of any reason ends it as ``stalled``. */
 const END_REASONS_V2 = ["completed", "died", "occupation_changed", "site_closed", "remobilised", "pool_reset",
-  "disabled", "service_qualified", "long_absence"];
+  "disabled", "service_qualified", "long_absence", "stalled"];
 const MISS_REASONS_V2 = ["unavailable", "no_mentor", "site_not_operating", "reservation_refused", "absent", "no_room"];
 const ABOARD = ["crew", "attached"];
 /** Reason lists of a rules version (declaration order, append only). */
@@ -152,6 +153,7 @@ function validApprentice(x: unknown, regions: number, open: boolean, p: Record<s
     return x.status === "active" && x.ended_turn === null
       && (version === 2 || p.max_gap === undefined || x.gap <= p.max_gap)
       && (longAbsence === undefined || (x.absent as number) <= longAbsence)
+      && (version !== 2 || p.max_pause === undefined || x.gap <= p.max_pause)
       && (p.completion_turns === undefined || x.attended < p.completion_turns);
   }
   if (!count(x.ended_turn) || !end.includes(x.ended_reason as string)) return false;

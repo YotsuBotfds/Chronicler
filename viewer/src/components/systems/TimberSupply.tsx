@@ -38,6 +38,13 @@ function flags(r: ExpeditionReceiptRecord): string {
   return out.join("; ") || "—";
 }
 
+function ended(e: ExpeditionRecord): string {
+  if (e.status === "delivered") return `delivered ${show(e.delivered)} of ${show(e.cut)} cut`;
+  if (e.status === "returned") return "came home with nothing to deliver";
+  const where = e.end_reason === "home_lost" ? "left at home as commons" : "left at the forest as commons";
+  return `${END[e.end_reason ?? ""] ?? words(e.end_reason)}, ${show(e.abandoned)} ${where}`;
+}
+
 function needText(n: TimberNeedRecord): string {
   if (n.status === "refused") return `Refused: ${REFUSAL[n.reason ?? ""] ?? words(n.reason)}`;
   if (n.status === "launched") return `Launched expedition #${n.eid}`;
@@ -77,16 +84,16 @@ export function TimberSupply({ bundle, snapshot, currentTurn, onSelectRegion }: 
   return <section className="systems-section" aria-label="Timber supply">
     <h3>Timber supply · snapshot {turn}</h3>
     <p className="systems-note">Simulation turn {record.source_turn}. {MODE_NOTE[record.mode]}</p>
-    <p className="systems-note">Crews of at most {show(p.crew_cap)} adults stay residents of their home region: each turn away they are reserved for the whole turn, paid {coins(p.wage_milli)} a person-turn from the ruler&apos;s treasury in place of their ordinary income, and their farm labour leaves the home land. A trip takes one turn a hop each way (at most {show(p.max_hops)} hops) and {show(p.cut_turns)} turns of cutting; cutting stops below {show(p.guard_share)} of the forest&apos;s capacity. The harvest is debited from the forest&apos;s timber stock; {show(p.transit_decay * 100)}% a hop decays on the way home. Cargo of a crew lost on the way is left at the forest as commons, never destroyed.</p>
+    <p className="systems-note">Crews of at most {show(p.crew_cap)} adults stay residents of their home region: each turn away they are reserved for the whole turn, paid {coins(p.wage_milli)} a person-turn from the ruler&apos;s treasury in place of their ordinary income, and their farm labour leaves the home land. A trip takes one turn a hop each way (at most {show(p.max_hops)} hops) and {show(p.cut_turns)} turns of cutting; cutting stops below {show(p.guard_share)} of the forest&apos;s capacity. The harvest is debited from the forest&apos;s timber stock; {show(p.transit_decay * 100)}% a hop decays on the way home. Cargo of a crew lost on the way is left at the forest as commons (at home if home changed hands), never destroyed.</p>
     <div className="systems-table-wrap"><table className="systems-table" aria-label={`Timber supply accounts to snapshot ${turn}`}>
       <thead><tr><th>Lifetime</th><th>Amount</th></tr></thead>
       <tbody>
         <tr><td>Expeditions launched (veterans aboard)</td><td>{show(c("launched"))} ({show(c("launched_veterans"))})</td></tr>
-        <tr><td>Expeditions delivered · ended without delivering</td><td>{show(c("delivered_expeditions"))} · {show(c("ended") - c("delivered_expeditions"))}</td></tr>
+        <tr><td>Expeditions delivered · came home empty · ended without delivering</td><td>{show(c("delivered_expeditions"))} · {show(c("returned_expeditions"))} · {show(c("ended") - c("delivered_expeditions") - c("returned_expeditions"))}</td></tr>
         <tr><td>Timber cut (debited from forest stocks)</td><td>{show(c("cut"))}</td></tr>
         <tr><td>Delivered to repair stores</td><td>{show(c("delivered"))}</td></tr>
         <tr><td>Lost to transit decay</td><td>{show(c("lost"))}</td></tr>
-        <tr><td>Abandoned at the forest as commons</td><td>{show(c("abandoned_cargo"))}</td></tr>
+        <tr><td>Abandoned as commons (at the forest, or at home if it changed hands)</td><td>{show(c("abandoned_cargo"))}</td></tr>
         <tr><td>Released from stores to stockpiles (no open repair)</td><td>{show(c("released"))}</td></tr>
         <tr><td>Used by repairs from stores (held − returned)</td><td>{show(c("store_held") - c("store_returned"))}</td></tr>
         <tr><td>Wages paid (refused by the wealth ceiling)</td><td>{coins(c("wages_milli"))} ({coins(c("wage_residual_milli"))})</td></tr>
@@ -157,10 +164,10 @@ export function TimberSupply({ bundle, snapshot, currentTurn, onSelectRegion }: 
           <td>{show(s.delivered)}</td><td>{show(s.released)}</td><td>{show(s.closing)}</td>
         </tr>)}</tbody>
       </table></div> : <p className="systems-note">No region holds timber reserved for repairs.</p>}
-      {(record.deposits ?? []).length > 0 ? <p className="systems-note">Cargo left at the forest as commons this turn: {(record.deposits ?? []).map(([, eid, rid, amount]) =>
+      {(record.deposits ?? []).length > 0 ? <p className="systems-note">Cargo left as commons this turn: {(record.deposits ?? []).map(([, eid, rid, amount]) =>
         `${show(amount)} from expedition #${eid} in ${region(rid)}`).join("; ")}.</p> : null}
     </>}
     {record.closed.length > 0 ? <p className="systems-note">Recently ended: {record.closed.slice(-8).map((e) =>
-      `#${e.eid} ${region(e.home)} (${e.status === "delivered" ? `delivered ${show(e.delivered)} of ${show(e.cut)} cut` : `${END[e.end_reason ?? ""] ?? words(e.end_reason)}, ${show(e.abandoned)} left at the forest`}, turn ${e.ended_turn}, wages ${coins(e.wages_milli)})`).join("; ")}.</p> : null}
+      `#${e.eid} ${region(e.home)} (${ended(e)}, turn ${e.ended_turn}, wages ${coins(e.wages_milli)})`).join("; ")}.</p> : null}
   </section>;
 }

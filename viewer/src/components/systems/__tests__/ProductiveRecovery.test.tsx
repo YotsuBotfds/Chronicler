@@ -19,6 +19,9 @@ function props(livelihoods: Record<string, unknown> | null, turn = 10) {
   return { bundle: { world_state: { regions: REGIONS, civilizations: [{ name: "Selurian" }, { name: "Varn" }] } } as unknown as Bundle,
     snapshot, currentTurn: turn, onSelectRegion: vi.fn() };
 }
+/** The Livelihoods tab's props: the shell's callbacks are not used by these sections. */
+const panel = (livelihoods: Record<string, unknown> | null, turn = 10) =>
+  ({ ...props(livelihoods, turn), onSeek: vi.fn(), onSelectEvent: vi.fn(), onSelectCivilization: vi.fn() });
 const table = (name: string) => within(screen.getByRole("table", { name }));
 const row = (name: string, label: RegExp) => table(name).getByRole("row", { name: label });
 
@@ -30,7 +33,8 @@ it("timber supply shows the gains with their costs: labour away, wages, stock de
   const totals = "Timber supply accounts to snapshot 10";
   expect(row(totals, /Timber cut/)).toHaveTextContent("6.5");
   expect(row(totals, /Lost to transit decay/)).toHaveTextContent("0.03");
-  expect(row(totals, /Abandoned at the forest/)).toHaveTextContent("1");
+  expect(row(totals, /Abandoned as commons/)).toHaveTextContent("1");
+  expect(row(totals, /came home empty/)).toHaveTextContent("1 · 0 · 1");
   expect(row(totals, /Farm labour away from home/)).toHaveTextContent("12 of 12");
   expect(row(totals, /Wages paid/)).toHaveTextContent("9 (0)");
   expect(row(totals, /Recalls/)).toHaveTextContent("1 · 1");
@@ -194,22 +198,22 @@ it("mounts the productive-recovery panels only when recorded, and re-dates them 
   const all = { timber_supply: timberSupply, operating_wear: operatingWear, recovery_crews: recoveryCrews,
     maintenance_obligation: maintenanceObligation, local_budgets: localBudgets };
   const headings = ["Operating wear", "Recovery crews", "Timber supply", "Maintenance obligation"];
-  const { rerender } = render(<LivelihoodsPanel {...props(all)} />);
+  const { rerender } = render(<LivelihoodsPanel {...panel(all)} />);
   for (const h of headings) expect(screen.getByRole("heading", { name: `${h} · snapshot 10` })).toBeInTheDocument();
   expect(screen.queryByText(/names no package this viewer reads/)).toBeNull();
   // An older snapshot of the same run, before these records existed: nothing mounted, nothing borrowed.
-  rerender(<LivelihoodsPanel {...props({ local_budgets: { ...localBudgets, source_turn: 3, decisions: null } }, 4)} />);
+  rerender(<LivelihoodsPanel {...panel({ local_budgets: { ...localBudgets, source_turn: 3, decisions: null } }, 4)} />);
   for (const h of headings) expect(screen.queryByRole("heading", { name: new RegExp(`^${h}`) })).toBeNull();
   // The same records at a later snapshot are refused as misdated, never shown with the old date.
-  rerender(<LivelihoodsPanel {...props(all, 11)} />);
+  rerender(<LivelihoodsPanel {...panel(all, 11)} />);
   for (const h of headings) {
     expect(screen.getByRole("heading", { name: h })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: `${h} · snapshot 10` })).toBeNull();
   }
   expect(screen.getAllByText(/rejected as malformed: misdated observation/)).toHaveLength(4);
-  rerender(<LivelihoodsPanel {...props({ operating_wear: operatingWear })} />);
+  rerender(<LivelihoodsPanel {...panel({ operating_wear: operatingWear })} />);
   expect(screen.getByRole("heading", { name: "Operating wear · snapshot 10" })).toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: /^Timber supply/ })).toBeNull();
-  rerender(<LivelihoodsPanel {...props(null)} />);
+  rerender(<LivelihoodsPanel {...panel(null)} />);
   expect(screen.getByText("No livelihoods observation is recorded at snapshot 10.")).toBeInTheDocument();
 });

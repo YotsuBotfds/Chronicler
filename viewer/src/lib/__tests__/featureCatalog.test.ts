@@ -34,6 +34,9 @@ describe("productive-recovery switches in the served catalog", () => {
     expect(entry("timber_supply_mode")).toMatchObject({ parent: "timber_supply", choices: ["supply", "cost_only"] });
     expect(entry("recovery_crew_mode")).toMatchObject({ parent: "recovery_crews", choices: ["paid", "unpaid"] });
     expect(entry("maintenance_obligation_mode")).toMatchObject({ parent: "maintenance_obligation", choices: ["reserve", "reserve_only"] });
+    // RS1's rules version: a choice of the apprenticeship switch, version 2 first (the default).
+    expect(entry("apprenticeship_rules")).toMatchObject({ kind: "choice", parent: "apprenticeship", choices: ["2", "1"],
+      flag: "--apprenticeship-rules" });
     for (const key of ["operating_wear", "timber_supply", "recovery_crews", "maintenance_obligation"]) {
       expect(entry(key)).toMatchObject({ group: "Livelihoods", experimental: true });
       expect(served.features.find((e) => e.key === key)?.default).toBeNull();     // never forwarded unless chosen

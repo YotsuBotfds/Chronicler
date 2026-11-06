@@ -205,6 +205,24 @@ describe("FeatureOptions", () => {
     expect(onChange).toHaveBeenLastCalledWith({});
   });
 
+  it("offers RS1's rules version under apprenticeship, version 2 by default, sent only when changed", () => {
+    const onChange = vi.fn();
+    render(<Harness catalog={served} onChange={onChange} />);
+    open();
+    expect(screen.queryByRole("combobox", { name: /Apprenticeship rules/ })).toBeNull();
+    fireEvent.click(box(/^Workshops --workshops$/));
+    fireEvent.click(box(/^Apprenticeship --apprenticeship$/));
+    const rules = screen.getByRole("combobox", { name: /Apprenticeship rules --apprenticeship-rules/ }) as HTMLSelectElement;
+    expect([...rules.options].map((option) => option.textContent)).toEqual(["2 (default)", "1"]);
+    expect(onChange).toHaveBeenLastCalledWith({ workshops: true, apprenticeship: true });
+    fireEvent.change(rules, { target: { value: "1" } });
+    expect(onChange).toHaveBeenLastCalledWith({ workshops: true, apprenticeship: true, apprenticeship_rules: "1" });
+    expect(screen.getByText(/--apprenticeship-rules=1/)).toBeTruthy();
+    fireEvent.click(box(/^Workshops --workshops$/));
+    expect(onChange).toHaveBeenLastCalledWith({});
+    expect(screen.queryByRole("combobox", { name: /Apprenticeship rules/ })).toBeNull();
+  });
+
   it("disables everything with the reason when requests are unavailable", () => {
     render(<Harness catalog={served} unavailable="Feature options apply to new worlds only." />);
     open();

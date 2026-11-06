@@ -6,7 +6,8 @@ export type ExpeditionStage = "outbound" | "cutting" | "returning";
  * Timber in goods, money in milli-units, labour in headcount. */
 export interface ExpeditionRecord {
   eid: number; civ: number; home: number; forest: number; slot: number; hops: number; launched_turn: number;
-  status: "live" | "delivered" | "abandoned"; stage: ExpeditionStage; stage_turns: number; travelled: number;
+  /** ``returned``: the crew came home with nothing to deliver (cost_only, or nothing cut); never a delivery. */
+  status: "live" | "delivered" | "abandoned" | "returned"; stage: ExpeditionStage; stage_turns: number; travelled: number;
   return_hops: number; arrived: boolean; crew: number[]; launched_crew: number[]; veterans: number[];
   need: number; cargo: number; cut: number; cut_turns: number; cut_end: string | null; worked_turns: number;
   person_turns: number; wages_milli: number; wage_residual_milli: number; income_withheld: number;
@@ -122,7 +123,10 @@ function expeditionProblem(x: unknown, regions: number, civs: number, crewCap: n
     return null;
   }
   if (!count(r.ended_turn)) return "a closed expedition has no end";
+  // A record written before the "returned" status (phase head 8f7a6718) may call an empty arrival delivered.
   if (r.status === "delivered") return r.end_reason === null && r.cargo === 0 ? null : "a delivered expedition kept cargo";
+  if (r.status === "returned") return r.end_reason === null && r.cargo === 0 && r.delivered === 0 && r.abandoned === 0
+    ? null : "a returned expedition carried timber";
   if (r.status !== "abandoned" || !END_REASONS.includes(r.end_reason as never) || r.cargo !== 0 || r.delivered !== 0)
     return "malformed abandoned expedition";
   return null;
@@ -218,6 +222,9 @@ export function readTimberSupply(snapshot: TurnSnapshot | null, regionCount: num
     + [...(x.expeditions as unknown[] ?? [])].reduce<number>((a, e) => a + (object(e) && amount(e.cargo) ? e.cargo : 0), 0), get("cut")))
     return bad("lifetime timber does not close (cut = delivered + lost + abandoned + cargo on the road)");
   if (x.mode === "cost_only" && (get("cut") !== 0 || get("crew_labor") !== 0)) return bad("the cost-only control cut timber");
+  // Every ended expedition delivered, came home empty (returned) or was abandoned for one reason.
+  if (get("ended") !== get("delivered_expeditions") + get("returned_expeditions")
+    + END_REASONS.reduce((a, k) => a + get(`abandoned_${k}`), 0)) return bad("lifetime endings do not add up");
   for (const [key, list, max, live] of [["expeditions", x.expeditions, regionCount, true],
     ["closed", x.closed, MAX_CLOSED, false]] as const) {
     if (!Array.isArray(list) || list.length > max) return bad(`malformed ${key}`);
