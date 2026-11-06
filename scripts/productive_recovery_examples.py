@@ -441,9 +441,10 @@ def _chain_index(hist) -> dict:
     observes the completed turn ``T - 1``)."""
     ix = {k: {} for k in ("stall", "rs2", "rs2_at", "closed", "open_at", "delivered", "launch", "ts_rx", "stores",
                           "crews", "frames", "sample", "opened", "food", "l3")}
-    ix["ts_list"], ix["crew_list"], ix["rs2_list"] = [], [], []
+    ix["ts_list"], ix["crew_list"], ix["rs2_list"], ix["snapshots"] = [], [], [], []
     for snap in hist:
         T = snap.get("turn")
+        ix["snapshots"].append(T)
         rp, ts = _liv(snap, "repair_projects"), _liv(snap, "timber_supply")
         rc, hr = _liv(snap, "recovery_crews"), _liv(snap, "household_retail")
         for r in _rows(rp, "receipts"):
@@ -491,12 +492,24 @@ def _l3(ix, T, r) -> dict | None:
     return None if row is None else _pick(row, "opening", "cleared", "extraction", "regrowth", "stock", "capacity")
 
 
+def _split(milli: int, crew: list[int]) -> list[tuple[int, int]]:
+    """A receipt's wages over its crew: equal shares, the remainder one milli each in
+    crew order. RS2 pays every repairer of a site the same wage and PL1 every member the
+    same rate, so this is exact unless the wealth ceiling refused one member's wage (the
+    receipt does not say whose)."""
+    each, rest = divmod(milli, len(crew))
+    return [(aid, each + (1 if i < rest else 0)) for i, aid in enumerate(crew)]
+
+
 def _wage_snapshots(ix) -> dict[int, dict[int, list]]:
     """Stable id -> {snapshot: [repair_wage milli, [sources], [regions]]} for every named
-    repair worker paid: PL3 crew members (``pl3_granary`` / ``pl3_workshop``, by member,
-    in the project's region), RS2 workshop crews (``rs2_workshop``, the receipt's wages
-    split evenly) and PL1 woodcutting crews (``pl1_woodcut``, likewise, in the home
-    region; one rate per person-turn)."""
+    repair worker paid, each wage counted once from the record that carries it:
+    PL3 granary crews (``pl3_granary``: the members' own ``wage_milli``), RS2 workshop
+    crews (``rs2_workshop``: the RS2 receipt's ``wages_milli`` over its crew; PL3 records
+    the crews it widened but pays them nothing itself, so its workshop members carry
+    ``wage_milli`` 0) and PL1 woodcutting crews (``pl1_woodcut``, in the home region).
+    A PL3 receipt whose members do carry wages is counted, and then its RS2 receipt of the
+    same turn and project is not."""
     paid: dict[int, dict[int, list]] = {}
 
     def add(aid, T, milli, source, region):
@@ -506,43 +519,57 @@ def _wage_snapshots(ix) -> dict[int, dict[int, list]]:
             cell[1].append(source)
             cell[2].append(region)
 
-    pl3 = set()
+    pl3_paid = set()
     for T, r in ix["crew_list"]:
-        for m in _rows(r, "members"):
-            add(m["agent_id"], T, m.get("wage_milli") or 0, f"pl3_{r.get('kind')}", r.get("region"))
-            pl3.add((T, r["pid"]))
+        members = _rows(r, "members")
+        if any((m.get("wage_milli") or 0) > 0 for m in members):
+            pl3_paid.add((T, r["pid"]))
+            for m in members:
+                add(m["agent_id"], T, m.get("wage_milli") or 0, f"pl3_{r.get('kind')}", r.get("region"))
     for T, r in ix["rs2_list"]:
-        # PL3 lists the RS2 workshop crews it widened; count each wage once.
-        if (T, r["pid"]) not in pl3 and r.get("crew") and (r.get("wages_milli") or 0) > 0:
-            each, rest = divmod(r["wages_milli"], len(r["crew"]))
-            for i, aid in enumerate(r["crew"]):
-                add(aid, T, each + (1 if i < rest else 0), "rs2_workshop", r.get("region"))
+        if (T, r["pid"]) not in pl3_paid and r.get("crew") and (r.get("wages_milli") or 0) > 0:
+            for aid, milli in _split(r["wages_milli"], r["crew"]):
+                add(aid, T, milli, f"rs2_{r.get('kind')}", r.get("region"))
     for T, r in ix["ts_list"]:
         if r.get("crew") and (r.get("wages_milli") or 0) > 0:
-            each, rest = divmod(r["wages_milli"], len(r["crew"]))
-            for i, aid in enumerate(r["crew"]):
-                add(aid, T, each + (1 if i < rest else 0), "pl1_woodcut", r.get("home"))
+            for aid, milli in _split(r["wages_milli"], r["crew"]):
+                add(aid, T, milli, "pl1_woodcut", r.get("home"))
     return paid
 
 
+def _matches(row: dict, ok) -> list[tuple[str, int]]:
+    """The paid workers a sample row belongs to: the person themself, and the worker whose
+    id keys the person's household (a household's key is the smaller id of a co-resident
+    couple, and a child takes a parent's key). ``ok(id)`` says whether an id counts."""
+    out = []
+    for who, aid in (("self", row.get("agent_id")), ("household", row.get("household"))):
+        if who == "household" and aid == row.get("agent_id"):
+            continue
+        if ok(aid):
+            out.append((who, aid))
+    return out
+
+
 def _sample_hits(ix, people: dict[int, int], region=None) -> list[dict]:
-    """Retail sample rows after each person's first wage (``people``: id -> snapshot of
-    the first wage): the person themself, or a member of the household keyed by their
-    id (a household's key is the smaller id of a co-resident couple, and a child takes
-    a parent's key)."""
+    """Retail sample rows after a paid worker's first wage (``people``: id -> snapshot of
+    the first wage), one hit per row: the person themself, or a member of the household
+    keyed by a worker's id. A row that belongs to two workers (the person and the
+    household key) counts once and names both (``crew_members``)."""
     hits = []
     for T in sorted(ix["sample"]):
         for row in ix["sample"][T]:
-            for who, aid in (("self", row.get("agent_id")), ("household", row.get("household"))):
-                if who == "household" and aid == row.get("agent_id"):
-                    continue
-                if aid in people and T > people[aid] and (region is None or row.get("region") == region):
-                    status = row.get("status")
-                    hits.append({"snapshot": T, "crew_member": aid, "who": who, "agent_id": row.get("agent_id"),
-                                 "household": row.get("household"), "region": row.get("region"),
-                                 "ration": row.get("ration"), "fair_share": row.get("fair_share"),
-                                 "status": SAMPLE_STATUS_NAMES[status] if isinstance(status, int)
-                                 and 0 <= status < len(SAMPLE_STATUS_NAMES) else status})
+            if region is not None and row.get("region") != region:
+                continue
+            found = _matches(row, lambda aid: aid in people and T > people[aid])
+            if not found:
+                continue
+            status = row.get("status")
+            hits.append({"snapshot": T, "crew_member": found[0][1], "who": found[0][0],
+                         "crew_members": [aid for _w, aid in found], "agent_id": row.get("agent_id"),
+                         "household": row.get("household"), "region": row.get("region"),
+                         "ration": row.get("ration"), "fair_share": row.get("fair_share"),
+                         "status": SAMPLE_STATUS_NAMES[status] if isinstance(status, int)
+                         and 0 <= status < len(SAMPLE_STATUS_NAMES) else status})
     return hits
 
 
@@ -582,22 +609,57 @@ def _trace(ix, pid: int) -> dict:
     # 3. The asset's repair used the delivered timber: the region's store held for RS2
     #    after the delivery, and the project's receipt used timber that turn.
     uses, others, released = [], set(), 0.0
+    # What became of the store over the window (stated when the project used none of it).
+    fate = {"held_with_other_holders": 0.0, "other_holders": set(), "held_project_unused": 0.0, "returned": 0.0,
+            "statuses": {}, "window": None, "end": None, "left_in_store": None}
     T = e["ended_turn"] + 2
     while True:
         row = ix["stores"].get((T, R))
         if row is None or (row.get("delivered") or 0) > 0 and uses:
+            fate["end"] = ("the run ended" if T > max(ix["snapshots"], default=0)
+                           else "no store row (the store was empty)" if row is None else "a new delivery")
             break
+        fate["window"] = [fate["window"][0] if fate["window"] else T, T]
+        fate["left_in_store"] = row.get("closing")
         released += row.get("released") or 0.0
-        mine = [r for r in ix["rs2_at"].get((T, R), []) if r["pid"] == pid]
-        holders = [r["pid"] for r in ix["rs2_at"].get((T, R), []) if (r.get("timber_held") or 0) > 0]
+        fate["returned"] += row.get("returned") or 0.0
+        here = ix["rs2_at"].get((T, R), [])
+        mine = [r for r in here if r["pid"] == pid]
+        holders = [r["pid"] for r in here if (r.get("timber_held") or 0) > 0]
+        if mine:
+            key = f"{mine[0].get('status')}: {', '.join(mine[0].get('reasons') or []) or '-'}"
+            fate["statuses"][key] = fate["statuses"].get(key, 0) + 1
         if (row.get("held") or 0) > 0 and mine and (mine[0].get("timber_used") or 0) > 0:
             others.update(p for p in holders if p != pid)
             uses.append((T, row, mine[0]))
+        elif (row.get("held") or 0) > 0:
+            if any(p != pid for p in holders):
+                fate["held_with_other_holders"] += row["held"]
+                fate["other_holders"].update(p for p in holders if p != pid)
+            else:
+                fate["held_project_unused"] += row["held"]
         if (row.get("closing") or 0) <= 0:
+            fate["end"] = "the store emptied"
             break
         T += 1
     if not uses:
-        out["missing"] = "the delivered timber was not used by this project (released, or held by another project)"
+        causes = []
+        if released > 0:
+            causes.append(f"{released:.4g} released to the region's stockpile (no open project)")
+        if fate["held_with_other_holders"] > 0:
+            causes.append(f"{fate['held_with_other_holders']:.4g} held from the store while other projects "
+                          f"{sorted(fate['other_holders'])} held timber and this one used none")
+        if fate["held_project_unused"] > 0:
+            causes.append(f"{fate['held_project_unused']:.4g} held for this project and returned unused")
+        if fate["left_in_store"] and fate["end"] != "the store emptied":
+            causes.append(f"{fate['left_in_store']:.4g} still in the store, unused, when {fate['end']}")
+        out["missing"] = ("the delivered timber was not used by this project: "
+                          + ("; ".join(causes) if causes else "no store row after the delivery"))
+        out["link3_window"] = {"snapshots": fate["window"], "ended_by": fate["end"],
+                               "released": round(released, 6), "returned": round(fate["returned"], 6),
+                               "left_in_store": fate["left_in_store"], "other_holders": sorted(fate["other_holders"]),
+                               "project_receipts": fate["statuses"],
+                               "project_closed": None if closed is None else _pick(closed[1], "status", "closed_turn")}
         return out
     completed = closed is not None and closed[1].get("status") == "completed"
     links.append({"link": 3, "what": "the asset's repair used the delivered timber", "snapshot": uses[0][0],
@@ -621,18 +683,19 @@ def _trace(ix, pid: int) -> dict:
                     crew.setdefault(m["agent_id"], {"first_snapshot": T, "wage_milli": 0, "origin": m.get("origin")})
                     crew[m["agent_id"]]["wage_milli"] += m["wage_milli"]
     if not crew and r1["kind"] == "workshop":
+        # RS2 carries the workshop crew's wages (PL3's workshop members carry none).
         for T, r in ix["rs2"].get(pid, []):
             if T in repair_turns and r.get("crew") and (r.get("wages_milli") or 0) > 0:
-                for aid in r["crew"]:
+                for aid, milli in _split(r["wages_milli"], r["crew"]):
                     crew.setdefault(aid, {"first_snapshot": T, "wage_milli": 0, "origin": "rs2_workshop_crew"})
-                    crew[aid]["wage_milli"] += r["wages_milli"] // len(r["crew"])
+                    crew[aid]["wage_milli"] += milli
     woodcutters = {}
     for T, r in ix["ts_rx"].get(eid, []):
         if r.get("crew") and (r.get("wages_milli") or 0) > 0:
-            for aid in r["crew"]:
+            for aid, milli in _split(r["wages_milli"], r["crew"]):
                 woodcutters.setdefault(aid, {"first_snapshot": T, "paid_turns": 0, "wage_milli": 0})
                 woodcutters[aid]["paid_turns"] += 1
-                woodcutters[aid]["wage_milli"] += r["wages_milli"] // len(r["crew"])
+                woodcutters[aid]["wage_milli"] += milli
     if not crew and not woodcutters:
         out["missing"] = "no named worker was paid for this repair or expedition"
         return out
@@ -738,18 +801,28 @@ def _tradeoffs(hist, ix=None) -> dict:
         if away is None and (prov.get("priced_out_persons") or 0) > 0:
             away = hit
     cut = guard = None
-    cutting = falls = 0
+    cutting = falls = l3_falls = 0
     for T, r in ix["ts_list"]:
         if r.get("stage") == "cutting" and isinstance(r.get("capacity"), (int, float)) and r["capacity"] > 0 \
                 and isinstance(r.get("stock_after"), (int, float)) and isinstance(r.get("stock_before"), (int, float)):
             cutting += 1
+            # The receipt's stock_before is the stand within this turn's capacity (L3's
+            # opening less its cover loss), so this fall is extraction (the crew's cut and
+            # any residents') net of regrowth; L3's own change adds the cover loss.
             fall = r["stock_before"] - r["stock_after"]
             falls += fall > 0
-            if fall > 0 and (cut is None or fall > cut[1]["stock_fall"]):
+            l3 = _l3(ix, T, r)
+            l3_fall = (l3["opening"] - l3["stock"]) if l3 and None not in (l3.get("opening"), l3.get("stock")) else None
+            l3_falls += bool(l3_fall and l3_fall > 0)
+            if fall > 0 and (cut is None or fall > cut[1]["harvest_fall"]):
+                cleared = (l3 or {}).get("cleared") or 0.0
                 cut = (T, {**_pick(r, "eid", "home", "forest", "slot", "crew", "cut", "stock_before", "stock_after",
                                    "capacity"),
-                           "stock_fall": round(fall, 6), "share_before": round(r["stock_before"] / r["capacity"], 6),
-                           "share_after": round(r["stock_after"] / r["capacity"], 6), "l3_row": _l3(ix, T, r)})
+                           "harvest_fall": round(fall, 6), "share_before": round(r["stock_before"] / r["capacity"], 6),
+                           "share_after": round(r["stock_after"] / r["capacity"], 6), "l3_row": l3,
+                           "l3_fall": None if l3_fall is None else round(l3_fall, 6),
+                           "l3_fall_driven_by": None if l3_fall is None else
+                           ("cover loss (cleared)" if cleared > fall else "extraction net of regrowth")})
         if guard is None and r.get("cut_end") == "forest_depleted":
             worked = [(t, x) for t, x in ix["ts_rx"].get(r["eid"], []) if t < T and x.get("stage") == "cutting"]
             last = [(t, x) for t, x in worked
@@ -776,32 +849,37 @@ def _tradeoffs(hist, ix=None) -> dict:
             for row in ix["sample"][T]:
                 if row.get("status") != PRICED_OUT:
                     continue
-                for who, aid in (("self", row.get("agent_id")), ("household", row.get("household"))):
-                    if who == "household" and aid == row.get("agent_id"):
-                        continue
-                    wages = paid.get(aid) or {}
-                    prior = [w for w in wages if w < T]
-                    if prior and T not in wages:
-                        hits += 1
-                        if family is None:
-                            last = max(prior)
-                            family = (T, {"crew_member": aid, "who": who, "priced_out_person": row.get("agent_id"),
-                                          "household": row.get("household"), "region": row.get("region"),
-                                          "ration": row.get("ration"), "fair_share": row.get("fair_share"),
-                                          "wage_snapshots": sorted(prior),
-                                          "wage_sources": sorted({x for w in prior for x in wages[w][1]}),
-                                          "wage_regions": sorted({x for w in prior for x in wages[w][2]}),
-                                          "wages_milli": sum(wages[w][0] for w in prior),
-                                          "last_wage_snapshot": last, "turns_since_last_wage": T - last,
-                                          "paid_again_later": any(w > T for w in wages)})
+                # Paid before this turn and not this turn: the wages had ended. One hit per row.
+                found = _matches(row, lambda aid: aid in paid and T not in paid[aid] and min(paid[aid]) < T)
+                if not found:
+                    continue
+                hits += 1
+                if family is None:
+                    who, aid = found[0]
+                    wages = paid[aid]
+                    prior = sorted(w for w in wages if w < T)
+                    last = prior[-1]
+                    family = (T, {"crew_member": aid, "who": who, "crew_members": [a for _w, a in found],
+                                  "priced_out_person": row.get("agent_id"),
+                                  "household": row.get("household"), "region": row.get("region"),
+                                  "ration": row.get("ration"), "fair_share": row.get("fair_share"),
+                                  "wage_snapshots": prior,
+                                  "wage_sources": sorted({x for w in prior for x in wages[w][1]}),
+                                  "wage_regions": sorted({x for w in prior for x in wages[w][2]}),
+                                  "wages_milli": sum(wages[w][0] for w in prior),
+                                  "last_wage_snapshot": last, "turns_since_last_wage": T - last,
+                                  "paid_again_later": any(w > T for w in wages)})
     return {
         "tradeoff: crew farm labour away while the home region was short of food (first with home pilot persons "
         "priced out that turn, else the first short)": away or short,
-        "tradeoff: the forest stand drawn down by a cut (the largest one-turn fall of the L3 stock while cutting)": cut,
+        "tradeoff: the forest stand drawn down by a cut (the largest one-turn harvest fall while cutting: the stand "
+        "within capacity before minus after, i.e. extraction net of regrowth; L3's whole change, cover loss "
+        "included, beside it)": cut,
         "tradeoff: the guard ended a cutting stage (forest_depleted)": guard,
         "tradeoff: a family priced out after its crew member's wages ended": family,
         "counts": {"away crew-turns": cells, "away crew-turns with the home region short": shorts,
-                   "cutting turns": cutting, "cutting turns whose L3 stock fell": falls,
+                   "cutting turns": cutting, "cutting turns whose stand fell by harvest net of regrowth": falls,
+                   "cutting turns whose L3 stock fell in all (cover loss included)": l3_falls,
                    "priced-out sample rows after a crew member's wages ended": hits},
     }
 
