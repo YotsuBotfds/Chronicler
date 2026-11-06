@@ -68,7 +68,7 @@ it("shows projects with cause, crew, funding, stalls and dated outcomes", () => 
 
 it("says so when the record is missing and keeps an unobserved turn unknown", () => {
   render(<RepairProjects {...props(record, 9)} />);
-  expect(screen.getByText(/not observed or are unavailable at snapshot 9/)).toBeInTheDocument();
+  expect(screen.getByText(/Repair projects: the record at snapshot 9 was rejected as malformed/)).toBeInTheDocument();
   cleanup();
   render(<RepairProjects {...props({ ...record, receipts: null, ledger: null, unmet: null, suspended: null })} />);
   expect(screen.getByText(/unknown, not zero/)).toBeInTheDocument();

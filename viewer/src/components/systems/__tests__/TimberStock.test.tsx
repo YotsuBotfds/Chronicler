@@ -56,8 +56,8 @@ it("keeps unobserved and malformed records unknown", () => {
   expect(screen.queryByRole("table")).not.toBeInTheDocument();
   cleanup();
   render(<TimberStock {...props({ ...record(), source_turn: 5 })} />);
-  expect(screen.getByText(/not observed or is unavailable at snapshot 5/)).toBeInTheDocument();
+  expect(screen.getByText(/the record at snapshot 5 was rejected as malformed/)).toBeInTheDocument();
   cleanup();
   render(<TimberStock {...props(record(), 6)} />);
-  expect(screen.getByText(/not observed or is unavailable at snapshot 6/)).toBeInTheDocument();
+  expect(screen.getByText(/the record at snapshot 6 was rejected as malformed/)).toBeInTheDocument();
 });

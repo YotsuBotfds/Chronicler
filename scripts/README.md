@@ -52,6 +52,13 @@ source). `livelihoods_screens.py report OUT/metrics.jsonl --sprint N` summarizes
 worlds as the units and each arm paired with its declared control arm. `--sprint` defaults
 to 1. The committed sprint-1 metrics are in `docs/superpowers/progress/livelihoods-sprint1-screens/`.
 
+`connected_world_screens.py run|report|check|registry` runs the connected-world program's
+screens through the generic `screen_runner.py` (seeds checked against `seed_registry.json`,
+2-3 primaries, a frozen preregistration with a machine-read compute ceiling, the fixed harm
+panel, activation before effects, identities); CW1-CW6 are stubs until their slices fill them
+in. `feature_matrix.py` generates the switch compatibility matrix from the feature catalog.
+See [connected-world screens](../docs/integration/connected-world-screens.md).
+
 ## Bundles and viewer fixtures
 
 `bundle_v6.py` converts, decodes and compares bundles;
