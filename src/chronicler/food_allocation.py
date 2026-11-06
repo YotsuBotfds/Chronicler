@@ -132,6 +132,11 @@ def after_agent_tick(world, agent_bridge) -> list:
     if turn != installed or REGIMES[regime] != state.regime:
         raise RuntimeError("native food allocation receipts do not match the request")
     rows = [dict(zip(columns, row)) for row in rows]
+    retail = _retail_regions(world)
+    if retail:
+        # Household retail (L6b) provisioned these regions this tick; its own
+        # receipts close them (``household_retail.after_agent_tick``).
+        rows = [r for r in rows if int(r["region"]) not in retail]
     for r in rows:
         if unknown_pre[int(r["region"])]:
             r["relief_available"] = r["relief_to_targeted"] = 0.0      # excluded from totals; unknown below
@@ -167,6 +172,13 @@ def after_agent_tick(world, agent_bridge) -> list:
     state.counters["allocated_turns"] = state.counters.get("allocated_turns", 0) + 1
     state.counters["scarce_region_turns"] = state.counters.get("scarce_region_turns", 0) + totals["scarce_regions"]
     return []
+
+
+def _retail_regions(world) -> set[int]:
+    if getattr(getattr(world, "livelihoods", None), "household_retail", None) is None:
+        return set()
+    from chronicler.household_retail import provisioned_regions
+    return provisioned_regions(world)
 
 
 def snapshot_summary(world) -> dict:

@@ -175,6 +175,13 @@ How the section behaves:
   `live.py` or the viewer is specific to them. Viewer tests check them from the served
   fixture, and `viewer/scripts/qa-productive-recovery.mjs` checks them in a live
   session and Batch Lab.
+- **Household retail (PL5b).** The catalog generates `--household-retail` with
+  `--household-retail-mode` and `--household-retail-boundary`; it requires
+  `--food-allocation` and hybrid agents. Nothing in `live.py` or the viewer is specific
+  to it. Viewer tests check it from the served fixture, `tests/test_feature_catalog.py`
+  checks its live and Batch Lab forwarding, and `viewer/scripts/qa-household-retail.mjs`
+  checks it in a live session and Batch Lab (see
+  [household-retail.md](household-retail.md), Viewer).
 
 `viewer/src/__fixtures__/featureCatalog.json` is the catalog for
 `--live --agents hybrid`. `test_viewer_fixture_has_the_shape_the_server_sends`

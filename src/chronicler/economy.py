@@ -618,6 +618,9 @@ class EconomyResult:
     # Exact already-computed native post-trade Float32 prices. Missing complete
     # columns in older extensions remain unknown, never reconstructed in f64.
     market_prices: dict[str, dict[str, float]] = field(default_factory=dict)
+    # Household retail (L6b, opt-in): the native retail result columns by
+    # stable region index, present only when the retail inputs were sent.
+    household_retail: dict[int, dict[str, float]] = field(default_factory=dict)
 
 
 def compute_production(
@@ -1579,6 +1582,13 @@ def reconstruct_economy_result(
         cut = pylist(region_result_batch.column("woodcut_output"))
         result.woodcut_labor_away_delivered = {rid: float(away[i]) for i, rid in enumerate(rr_ids)}
         result.woodcut_output = {rid: float(cut[i]) for i, rid in enumerate(rr_ids)}
+
+    retail = [c for c in schema_names(region_result_batch)
+              if c.startswith("retail_") or c in ("commons_consumed", "commons_sufficiency")]
+    if retail:
+        values = {c: pylist(region_result_batch.column(c)) for c in retail}
+        result.household_retail = {rid: {c: None if values[c][i] is None else float(values[c][i]) for c in retail}
+                                   for i, rid in enumerate(rr_ids)}
 
     trc_vals = pylist(region_result_batch.column("trade_route_count"))
     for i, rid in enumerate(rr_ids):

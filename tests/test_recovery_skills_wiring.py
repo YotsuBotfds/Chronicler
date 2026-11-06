@@ -72,7 +72,7 @@ def parse(*argv):
 
 
 def test_switches_are_appended_in_order_with_their_choices():
-    # Later phases append after RS5 (PL2, PL1, PL3), so RS sits at 9..13.
+    # Later phases append after RS5 (PL2, PL1, PL3, PL4), so RS sits at 9..13.
     assert LIVELIHOODS_SWITCHES[9:14] == RS
     assert LIVELIHOODS_SWITCHES[:9] == ("workshops", "food_allocation", "timber_stock", "grain_convoys",
                                         "commons_rules", "learning_cohorts", "workshop_payroll",
@@ -84,7 +84,8 @@ def test_switches_are_appended_in_order_with_their_choices():
     tail = tail[:2] + ("apprenticeship_rules",) + tail[2:]
     start = LIVELIHOODS_ARG_KEYS.index(RS[0])
     assert LIVELIHOODS_ARG_KEYS[start:start + 11] == tail and start == 17
-    assert list(LIVELIHOODS_CHOICES)[-1] == "apprenticeship_rules"
+    choices = list(LIVELIHOODS_CHOICES)
+    assert choices.index("apprenticeship_rules") == choices.index("maintenance_obligation_mode") + 1
     assert set(LIVELIHOODS_ARG_KEYS) <= set(SIMULATION_ARG_KEYS)
     # Each switch has its module, state field and protocol functions.
     for name, module in MODULES.items():

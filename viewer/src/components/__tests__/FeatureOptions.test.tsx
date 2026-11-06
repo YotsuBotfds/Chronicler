@@ -205,6 +205,35 @@ describe("FeatureOptions", () => {
     expect(onChange).toHaveBeenLastCalledWith({});
   });
 
+  it("offers household retail off, disabled until food allocation, with its mode and boundary (PL5b)", () => {
+    const onChange = vi.fn();
+    render(<Harness catalog={served} onChange={onChange} />);
+    open();
+    const retail = box(/^Household retail --household-retail$/);
+    expect(retail.checked).toBe(false);
+    expect(retail.disabled).toBe(true);
+    expect(description(retail)).toMatch(/Unavailable: requires --food-allocation\.$/);
+    for (const name of [/Household retail mode/, /Household retail boundary/]) expect(screen.queryByRole("combobox", { name })).toBeNull();
+    fireEvent.click(box(/^Food allocation --food-allocation$/));
+    expect(retail.disabled).toBe(false);
+    fireEvent.click(retail);
+    const mode = screen.getByRole("combobox", { name: /Household retail mode --household-retail-mode/ }) as HTMLSelectElement;
+    const boundary = screen.getByRole("combobox", { name: /Household retail boundary --household-retail-boundary/ }) as HTMLSelectElement;
+    expect([...mode.options].map((o) => o.textContent)).toEqual(["retail (default)", "no_relief", "free_exchange", "record_only"]);
+    expect([...boundary.options].map((o) => o.textContent)).toEqual(["market (default)", "paid_work", "all"]);
+    expect(onChange).toHaveBeenLastCalledWith({ food_allocation: true, household_retail: true });
+    fireEvent.change(mode, { target: { value: "record_only" } });
+    fireEvent.change(boundary, { target: { value: "paid_work" } });
+    expect(onChange).toHaveBeenLastCalledWith({ food_allocation: true, household_retail: true,
+      household_retail_mode: "record_only", household_retail_boundary: "paid_work" });
+    expect(screen.getByText(/--household-retail-mode=record_only/)).toBeTruthy();
+    // Dropping food allocation drops the switch and both options.
+    fireEvent.click(box(/^Food allocation --food-allocation$/));
+    expect(retail.checked).toBe(false);
+    expect(screen.queryByRole("combobox", { name: /Household retail mode/ })).toBeNull();
+    expect(onChange).toHaveBeenLastCalledWith({});
+  });
+
   it("offers RS1's rules version under apprenticeship, version 2 by default, sent only when changed", () => {
     const onChange = vi.fn();
     render(<Harness catalog={served} onChange={onChange} />);

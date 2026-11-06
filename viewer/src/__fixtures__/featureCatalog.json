@@ -941,6 +941,75 @@
       ],
       "group": "Livelihoods",
       "experimental": true
+    },
+    {
+      "key": "household_retail",
+      "flag": "--household-retail",
+      "label": "Household retail",
+      "help": "Household food retail (L6b): in pilot regions most of each new harvest belongs to its farmers by stable id; owners' households eat their own food and sell the rest to neighbours at the clamped market price, buyers pay from their wealth, farmers' ordinary farm income is replaced by their sales; commons and granary releases stay free; requires --agents hybrid and --food-allocation (default off)",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "agents": [
+            "hybrid"
+          ],
+          "reason": "requires --agents hybrid"
+        },
+        {
+          "feature": "food_allocation",
+          "reason": "requires --food-allocation"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "household_retail_mode",
+      "flag": "--household-retail-mode",
+      "label": "Household retail mode",
+      "help": "retail (default); no_relief: the whole harvest titled, L2's rule on the commons, no means test; free_exchange: the same title and rounds at price 0 with farm income kept; record_only: the control that computes the pilot and the would-be title and changes nothing",
+      "kind": "choice",
+      "choices": [
+        "retail",
+        "no_relief",
+        "free_exchange",
+        "record_only"
+      ],
+      "default": null,
+      "parent": "household_retail",
+      "requires": [
+        {
+          "feature": "household_retail",
+          "reason": "requires --household-retail"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "household_retail_boundary",
+      "flag": "--household-retail-boundary",
+      "label": "Household retail boundary",
+      "help": "market (default): each ruler's capital region, sticky; paid_work: regions where paid work has been done (an open workshop firm, a paid repair or granary crew, or the home of a paid woodcutting crew), sticky; all: every controlled region (stress)",
+      "kind": "choice",
+      "choices": [
+        "market",
+        "paid_work",
+        "all"
+      ],
+      "default": null,
+      "parent": "household_retail",
+      "requires": [
+        {
+          "feature": "household_retail",
+          "reason": "requires --household-retail"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
     }
   ],
   "settings": {

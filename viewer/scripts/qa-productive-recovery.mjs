@@ -55,7 +55,7 @@
  *   its bundle is opened: the panels must read and be dated.
  * - batch: a second live session (cwd `--out/batch`); Batch Lab lists the
  *   four switches unchecked; `--agents off` disables them with the runs' mode
- *   named. A 3-seed, 10-turn, 1-worker batch with every switch (timber supply
+ *   named. A 3-seed (template 12-14, development seeds for viewer QA), 10-turn, 1-worker batch with every switch (timber supply
  *   cost_only, crews unpaid, obligation reserve_only) is started and
  *   cancelled: Run Batch returns with no error banner, the options are kept,
  *   and the batch manifest is cancelled with the switches and modes
@@ -799,6 +799,8 @@ async function partBatch(browser, origin) {
     !(await workshops.isChecked()) && await wear.isDisabled() && /requires --agents hybrid \(these runs use --agents off\)/.test(wearWhy), wearWhy);
   await agents.selectOption("");
   const field = (label) => page.locator("label", { hasText: new RegExp(`^${label.replace(/[()]/g, "\\$&")}$`) }).locator("xpath=following-sibling::input");
+  // Template seeds 12-14: development seeds declared for viewer QA (never a cohort or pilot seed).
+  await field("Start Seed").fill("12");
   await field("Seed Count").fill("3");
   await field("Turns").fill("10");
   await field("Workers (0 = auto)").fill("1");

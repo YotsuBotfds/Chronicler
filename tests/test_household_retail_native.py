@@ -1,0 +1,528 @@
+"""L6b household food retail on the real compiled extension.
+
+Gated, not skipped: the PL4 native methods (``household_retail.NATIVE_METHODS``)
+land in a separate lane. Until the installed extension has all of them, this
+module collects only the contract check below, which fails on a partial
+build (some methods without the others) and, with
+``CHRONICLER_REQUIRE_RETAIL_NATIVE=1``, on their absence. Once they exist the
+integration tests are collected and run; no skip is registered for them in
+``scripts/testing/native_shards_manifest.json``.
+
+Template seed 7 (the default template world), the development seed. Native
+decisions, deaths, trips, prices and the provisioning step are not mocked;
+constructed steps are named where they occur (direct native credits before a
+forked tick, raised granary targets).
+"""
+from __future__ import annotations
+
+import os
+import random
+
+import pyarrow as pa
+import pytest
+
+pytest.importorskip("chronicler_agents")
+
+from chronicler import household_retail as HR
+from chronicler.run_checkpoint import RunState, read_checkpoint, write_checkpoint
+
+pytestmark = pytest.mark.native
+
+BASE = ["--seed", "7", "--civs", "4", "--regions", "8", "--agents", "hybrid", "--simulate-only"]
+RETAIL = ["--food-allocation", "--household-retail"]
+
+
+def _native_class():
+    from chronicler_agents import AgentSimulator
+    return AgentSimulator
+
+
+_PRESENT = {name: callable(getattr(_native_class(), name, None)) for name in HR.NATIVE_METHODS}
+READY = all(_PRESENT.values())
+
+
+def test_retail_native_methods_are_all_present_or_all_absent():
+    """The gate itself: a partial extension is refused, never silently gated."""
+    present = sorted(name for name, ok in _PRESENT.items() if ok)
+    assert not present or READY, f"partial household retail extension: only {present}"
+    purposes = list(_native_class().wealth_transfer_purposes())
+    if READY:
+        assert purposes[HR.PURPOSE_FOOD_PURCHASE] == "food_purchase"
+        assert purposes[HR.PURPOSE_FOOD_PROCUREMENT] == "food_procurement"
+    else:
+        assert "food_purchase" not in purposes and "food_procurement" not in purposes
+    if os.environ.get("CHRONICLER_REQUIRE_RETAIL_NATIVE") == "1":
+        assert READY, "CHRONICLER_REQUIRE_RETAIL_NATIVE=1: the retail native methods are missing"
+
+
+def _cli(tmp_path, *extra, turns=12):
+    from chronicler.bundle_codec import load_bundle
+    from chronicler.main import _build_parser, execute_run
+    args = _build_parser().parse_args([*BASE, "--turns", str(turns), *extra,
+                                       "--output", str(tmp_path / "chronicle.md"),
+                                       "--state", str(tmp_path / "state.json")])
+    execute_run(args)
+    bundle = load_bundle(tmp_path / "chronicle_bundle.json")
+    bundle["metadata"].pop("generated_at")
+    return bundle
+
+
+def _records(bundle):
+    return [s["livelihoods"]["household_retail"] for s in bundle["history"]
+            if (s.get("livelihoods") or {}).get("household_retail")]
+
+
+def _world(*flags, grain_reserves=False):
+    from chronicler.agent_bridge import AgentBridge
+    from chronicler.livelihoods import configure_livelihoods
+    from chronicler.main import _build_parser
+    from chronicler.world_gen import generate_world
+    world = generate_world(seed=7)
+    world.agent_mode = "hybrid"
+    if grain_reserves:
+        from chronicler.grain_reserves import set_grain_reserves_enabled
+        set_grain_reserves_enabled(world, True)
+    bridge = AgentBridge(world, mode="hybrid")
+    configure_livelihoods(world, _build_parser().parse_args([*RETAIL, *flags]), agent_mode="hybrid")
+    return world, bridge
+
+
+def _turn(world, bridge):
+    from chronicler.action_engine import ActionEngine
+    from chronicler.simulation import run_turn_result
+    engine = ActionEngine(world)
+    run_turn_result(world, lambda c, w: engine.select_action(c, seed=w.seed), lambda w, e: "",
+                    seed=world.seed + world.turn, agent_bridge=bridge)
+    return world.livelihoods.household_retail
+
+
+def _agents(sim):
+    return {r["id"]: r for r in pa.record_batch(sim.get_snapshot()).to_pylist()}
+
+
+def _state(world, bridge, turns=40):
+    return RunState(world=world, agent_bridge=bridge, memories={}, history=[], chronicle_entries=[],
+                    era_reflections={}, pending_injections=[], start_turn=0, seed=world.seed, num_turns=turns)
+
+
+def _capture(monkeypatch):
+    """Record every settled frame with the pre-tick pool it was installed on."""
+    seen = []
+    before = HR.before_agent_tick
+    settle = HR._settle_frame
+
+    def spy_before(world, agent_bridge, economy_result):
+        seen.append({"turn": world.turn, "pre": _agents(agent_bridge._sim)})
+        before(world, agent_bridge, economy_result)
+
+    def spy_settle(world, state, t, installed, frame, receipt, alive=None):
+        seen[-1].update(installed=installed, frame=frame, receipt=receipt)
+        settle(world, state, t, installed, frame, receipt, alive)
+
+    monkeypatch.setattr(HR, "before_agent_tick", spy_before)
+    monkeypatch.setattr(HR, "_settle_frame", spy_settle)
+    return seen
+
+
+if READY:
+
+    def test_install_validation_refuses_before_mutation_and_cancels_once():
+        world, bridge = _world()
+        sim = bridge._sim
+        _turn(world, bridge)
+        before = bytes(sim.checkpoint_state())
+        for regions, claims in (([(99, 300, 1.0)], []), ([(2, -1, 1.0)], []), ([(2, 300, -1.0)], []),
+                                ([(2, 300, 1.0), (2, 300, 1.0)], []), ([(2, 300, 1.0)], [(1, 2, -5)])):
+            with pytest.raises(ValueError):
+                sim.set_household_retail(world.turn, 0, regions, claims)
+        assert bytes(sim.checkpoint_state()) == before
+        sim.set_household_retail(world.turn, 0, [(2, 300, 1.0)], [])
+        with pytest.raises(ValueError):
+            sim.set_household_retail(world.turn, 0, [(2, 300, 1.0)], [])     # a pending install
+        assert sim.cancel_household_retail() is True and sim.cancel_household_retail() is False
+        sim.install_retail_income(world.turn, [2])
+        assert sim.cancel_retail_income() is True and sim.cancel_retail_income() is False
+        assert sim.take_household_retail_frame() is None and sim.take_retail_income_receipt() is None
+        bridge.close()
+
+    def test_title_sale_payment_ration_and_income_move_once_and_close(monkeypatch):
+        """A pilot run: every frame is taken once, closes in Python, and its
+        income receipt names only the pilot's pre-tick farmers."""
+        monkeypatch.setenv("CHRONICLER_CHECK_RESOURCES", "1")
+        seen = _capture(monkeypatch)
+        world, bridge = _world()
+        sim = bridge._sim
+        sold = paid = replaced = 0
+        for _ in range(12):
+            state = _turn(world, bridge)
+            assert sim.take_household_retail_frame() is None and sim.take_retail_income_receipt() is None
+            for reg in state.regions:
+                assert sum(reg.claims.values()) == sum(reg.goods)
+            rec = seen[-1]
+            if "frame" not in rec:
+                continue
+            pilots = set(rec["installed"].regions)
+            farmers = {aid for aid, p in rec["pre"].items() if p["occupation"] == 0 and p["region"] in pilots}
+            turn, rows = rec["receipt"]
+            assert turn == rec["turn"] and {aid for aid, _ in rows} <= farmers
+            assert all(v >= 0 for _, v in rows)
+            replaced += len(rows)
+            for aid, region, _hh, ration, fair, status in rec["frame"][5]:
+                assert region in pilots and 0.0 <= ration <= 1.0 + 1e-6 and status in (0, 1, 2)
+            sold += sum(r.provisioning["sold_milli"] for r in state.frame if r.provisioning)
+            paid += state.money.get("paid_milli", 0)
+        assert sold > 0 and paid > 0 and replaced > 0
+        assert world.livelihoods.household_retail.counters["turns_settled"] >= 10
+        bridge.close()
+
+    def _priced_out_fork(tmp_path, monkeypatch, credit):
+        """Fork one exact checkpoint into a control and an arm whose cash-limited
+        buyer is credited ``credit(sim, turn, buyer)`` before the tick."""
+        seen = _capture(monkeypatch)
+        world, bridge = _world()
+        for _ in range(4):
+            _turn(world, bridge)
+        path = tmp_path / "fork.ckpt"
+        write_checkpoint(path, _state(world, bridge))
+        bridge.close()
+        for _ in range(12):
+            control, arm = read_checkpoint(path).state, read_checkpoint(path).state
+            rng = random.getstate()
+            _turn(control.world, control.agent_bridge)
+            rec = seen[-1]
+            buyers = sorted(aid for aid, _r, _h, _ration, _f, status in rec.get("frame", (None,) * 6)[5] or ()
+                            if status == 1)
+            if buyers:
+                random.setstate(rng)
+                credit(arm.agent_bridge._sim, arm.world.turn, buyers[0])
+                _turn(arm.world, arm.agent_bridge)
+                money = {row[0]: row for row in seen[-1]["frame"][4]}
+                control_money = {row[0]: row for row in rec["frame"][4]}
+                got = money.get(buyers[0], (0, 0, 0, 0))[1]
+                had = control_money.get(buyers[0], (0, 0, 0, 0))[1]
+                control.agent_bridge.close()
+                arm.agent_bridge.close()
+                return had, got
+            write_checkpoint(path, control)
+            control.agent_bridge.close()
+            arm.agent_bridge.close()
+        pytest.fail("a cash-limited buyer was expected within twelve turns")
+
+    def test_a_workshop_wage_raises_a_cash_limited_buyers_purchase(tmp_path, monkeypatch):
+        """Constructed: the L6a wage seam (purpose ``workshop_wage``) credits a
+        priced-out buyer before the forked tick; that buyer then pays more."""
+        def wage(sim, turn, buyer):
+            rows = sim.transfer_wealth(turn, 0, 900, [(buyer, 5000)])
+            assert rows[0][2] > 0
+        had, got = _priced_out_fork(tmp_path, monkeypatch, wage)
+        assert got > had
+
+    def test_a_remittance_raises_the_recipients_purchase(tmp_path, monkeypatch):
+        """Constructed: an RS4 remittance (``remit_wealth``) from the wealthiest
+        living person reaches a priced-out buyer before the forked tick."""
+        def remit(sim, turn, buyer):
+            people = _agents(sim)
+            sender = max((aid for aid in people if aid != buyer), key=lambda a: (people[a]["wealth"], -a))
+            rows = sim.remit_wealth(turn, 900, [(sender, buyer, 4000, 0)])
+            assert rows[0][4] > 0
+        had, got = _priced_out_fork(tmp_path, monkeypatch, remit)
+        assert got > had
+
+    class _Recorder:
+        """Delegates to the simulator, recording its ``transfer_wealth`` calls."""
+
+        def __init__(self, sim):
+            self._real, self.calls = sim, []
+
+        def transfer_wealth(self, *args):
+            out = self._real.transfer_wealth(*args)
+            self.calls.append((args, out))
+            return out
+
+        def __getattr__(self, name):
+            return getattr(self._real, name)
+
+    def _construct_owned_surplus(world, bridge):
+        """Constructed: in the pilot region with the most owners, owned grain near
+        its storage cap (2.5 x population, five turns of demand per good) split
+        over the owners pro rata, and four turns of demand of commons salt (no
+        decay) in its market. The keep (four turns of the market's food demand,
+        commons plus owned grain) is then held by the commons, and the owners'
+        grain stands above it. The ruler's treasury is raised so a purchase is
+        affordable. The ledger stays exact (claims == goods). Returns the region."""
+        state = world.livelihoods.household_retail
+        reg = max((r for r in state.regions if r.claims), key=lambda r: (len(r.claims), -r.region))
+        region = world.regions[reg.region]
+        agents = sum(1 for p in _agents(bridge._sim).values() if p["region"] == reg.region)
+        add = max(0, int(0.95 * 2.5 * region.population * 1000) - reg.goods[0])
+        for aid, v in HR.largest_remainder(add, reg.claims.items()).items():
+            reg.claims[aid] += v
+        reg.goods[0] += add
+        assert sum(reg.claims.values()) == sum(reg.goods) and reg.goods[0] > 0
+        region.stockpile.goods["salt"] = region.stockpile.goods.get("salt", 0.0) + 4.0 * 0.5 * agents
+        ruler = next(c for c in world.civilizations if c.name == region.controller)
+        ruler.treasury = max(ruler.treasury, 500)
+        return reg.region
+
+    def test_granary_procurement_pays_owners_by_id_once_and_the_ledger_closes(monkeypatch):
+        """Seed 7's pilot owners hold no grain of their own on these turns, so the
+        surplus is constructed (``_construct_owned_surplus``); every granary wants
+        four turns of demand. The purchase takes owners' grain first and pays
+        them in one transfer, by id, exactly what each gave; a second transfer
+        of the turn is refused by both books; the resource ledgers close."""
+        import chronicler.grain_reserves as G
+        from chronicler.grain_reserves_state import BOUGHT
+        monkeypatch.setenv("CHRONICLER_CHECK_RESOURCES", "1")
+        monkeypatch.setattr(G, "target_grain", lambda granary, demand: 4.0 * demand)
+        paid = []
+        original = HR._credit_procurement
+
+        def spy(world, state, t, agent_bridge):
+            real = agent_bridge._sim
+            debits: dict[int, int] = {}
+            for p in t.procured:
+                for aid, v in p.owners.items():
+                    debits[aid] = debits.get(aid, 0) + v
+            before = _agents(real)
+            agent_bridge._sim = recorder = _Recorder(real)
+            try:
+                summary = original(world, state, t, agent_bridge)
+            finally:
+                agent_bridge._sim = real
+            after = _agents(real)
+            calls = [c for c in recorder.calls if c[0][1] == HR.PURPOSE_FOOD_PROCUREMENT]
+            assert len(calls) == (1 if summary["owed_milli"] else 0)
+            with pytest.raises(RuntimeError, match="already credited"):
+                original(world, state, t, agent_bridge)
+            if calls:
+                (args, rows), = calls
+                with pytest.raises(ValueError, match="already applied"):
+                    real.transfer_wealth(*args)
+                paid.append((world.turn, summary, rows, debits, before, after))
+            return summary
+
+        monkeypatch.setattr(HR, "_credit_procurement", spy)
+        world, bridge = _world(grain_reserves=True)
+        for _ in range(4):
+            _turn(world, bridge)
+        rid = _construct_owned_surplus(world, bridge)
+        claims_before = dict(world.livelihoods.household_retail.region(rid).claims)
+        _turn(world, bridge)
+        state = world.livelihoods.household_retail
+        assert paid and paid[0][0] == world.turn - 1, "the constructed surplus was expected to be procured"
+        turn, summary, rows, debits, before, after = paid[0]
+        assert summary["credited_milli"] > 0 and summary["credited_milli"] + summary["residual_milli"] \
+            == summary["owed_milli"]
+        # By id: every credited owner gave grain; each one's wealth rose by what was applied.
+        assert {aid for aid, *_ in rows} <= set(debits) <= set(claims_before)
+        for aid, requested, applied, residual, _status in rows:
+            assert applied + residual == requested and applied >= 0
+            assert after[aid]["wealth"] - before[aid]["wealth"] == pytest.approx(applied / 1000, abs=2e-4)
+        untouched = [a for a in after if a in before and a not in {r[0] for r in rows}]
+        assert all(after[a]["wealth"] == before[a]["wealth"] for a in untouched)
+        # The grain left the owners' claims and came from a purchase in their own market.
+        frame = next(f for f in state.frame if f.region == rid)
+        assert frame.flows["procured"] == sum(debits.values()) > 0
+        bought = [f for f in world.grain_reserves.flows if f.kind == BOUGHT and f.source == rid]
+        assert bought and all(f.seller == f.buyer for f in bought)
+        signed = sum(HR.FLOW_SIGNS[k] * v for k, v in frame.flows.items())
+        assert frame.open_milli + signed == frame.close_milli == sum(state.region(rid).goods)
+        assert state.last_procured_turn == turn
+        bridge.close()
+
+    def test_exact_resume_mid_pilot_is_byte_identical(tmp_path, monkeypatch):
+        import sys
+        from chronicler.bundle_codec import load_bundle
+        from chronicler.main import main
+        straight = tmp_path / "straight"
+        _cli(straight, *RETAIL, "--grain-reserves", "--checkpoint-every", "1",
+             "--checkpoint", str(tmp_path / "ck" / "turn_{turn:04d}.ckpt"), turns=14)
+        ck = read_checkpoint(tmp_path / "ck" / "turn_0007.ckpt").state
+        assert any(r.claims for r in ck.world.livelihoods.household_retail.regions)   # live claims
+        ck.agent_bridge.close()
+        resumed = tmp_path / "resumed"
+        monkeypatch.setattr(sys, "argv", ["chronicler", "--resume", str(tmp_path / "ck" / "turn_0007.ckpt"),
+                                          "--output", str(resumed / "chronicle.md"),
+                                          "--state", str(resumed / "state.json")])
+        main()
+        a = load_bundle(straight / "chronicle_bundle.json")
+        b = load_bundle(resumed / "chronicle_bundle.json")
+        assert a["history"] == b["history"] and a["world_state"] == b["world_state"]
+
+    def test_feature_off_identity(tmp_path):
+        off = _cli(tmp_path / "off", "--food-allocation", turns=12)
+        disabled = _cli(tmp_path / "disabled", "--food-allocation", "--no-household-retail", turns=12)
+        assert off == disabled
+        assert all("household_retail" not in (s.get("livelihoods") or {}) for s in off["history"])
+
+    def test_record_only_trajectory_equals_l2_alone(tmp_path):
+        alone = _cli(tmp_path / "alone", "--food-allocation", turns=12)
+        shadow = _cli(tmp_path / "shadow", *RETAIL, "--household-retail-mode", "record_only", turns=12)
+        records = _records(shadow)
+        assert records and any(f["would_be"] for r in records for f in r["regions"] or ())
+        for a, b in zip(alone["history"], shadow["history"], strict=True):
+            b = dict(b, livelihoods=dict(b["livelihoods"]))
+            b["livelihoods"].pop("household_retail")
+            assert a == b
+        world = dict(shadow["world_state"], livelihoods=dict(shadow["world_state"]["livelihoods"]))
+        world["livelihoods"].pop("household_retail")
+        assert world == alone["world_state"]
+
+    @pytest.mark.parametrize("mode", ["retail", "no_relief", "free_exchange"])
+    @pytest.mark.parametrize("boundary", ["market", "paid_work", "all"])
+    def test_every_mode_and_boundary_balances_under_the_resource_checks(tmp_path, monkeypatch, mode, boundary):
+        monkeypatch.setenv("CHRONICLER_CHECK_RESOURCES", "1")
+        bundle = _cli(tmp_path, *RETAIL, "--grain-reserves", "--public-grain-shipments", "--remittances",
+                      "--household-retail-mode", mode, "--household-retail-boundary", boundary, turns=10)
+        records = _records(bundle)
+        assert records and all(r["mode"] == mode and r["boundary"] == boundary for r in records)
+        for r in records:
+            for f in r["regions"] or ():
+                signed = sum(HR.FLOW_SIGNS[k] * v for k, v in f["flows"].items())
+                assert f["open_milli"] + signed == f["close_milli"] == sum(f["goods_close"])
+            if mode == "free_exchange" and r["money"]:
+                assert r["money"].get("paid_milli", 0) == 0
+
+    def test_inheritance_agrees_with_the_native_estate_rule_for_spouses(monkeypatch):
+        """Lead decision 6, against the native estate rule (``household.rs``: the
+        spouse first, when alive after the tick), read independently of Python's
+        own spouse lookup: before each tick the native relationship batch names
+        each owner's spouse (one Marriage partner at most) and the pool their
+        wealth. After it, every dead owner whose spouse lives passes the claim
+        to that spouse, and the native estate step reports at least as many
+        spouse transfers as such owners who held a clear estate. A child case
+        may differ (Python: living children in the claim's region, equally;
+        native: dependants first, then all children, anywhere): counted, not
+        refused, and documented in docs/integration/household-retail.md."""
+        from chronicler.ffi_constants import BOND_MARRIAGE
+        pre = []
+        original = HR.before_agent_tick
+
+        def spy(world, agent_bridge, economy_result):
+            sim = agent_bridge._sim
+            rows = pa.record_batch(sim.get_all_relationships()).to_pylist()
+            marriages = [(r["agent_id"], r["target_id"]) for r in rows if r["bond_type"] == BOND_MARRIAGE]
+            assert len({a for a, _b in marriages}) == len(marriages)
+            spouse = dict(marriages)
+            pre.append((world.turn, spouse, _agents(sim)))
+            original(world, agent_bridge, economy_result)
+            read = world.livelihoods.household_retail._turn.spouses or {}
+            assert read == {aid: spouse.get(aid) for aid in read}   # Python's read is the native partner
+
+        monkeypatch.setattr(HR, "before_agent_tick", spy)
+        world, bridge = _world("--household-retail-boundary", "all")
+        spouse_cases = child_cases = child_differs = 0
+        for _ in range(40):
+            state = _turn(world, bridge)
+            turn, spouse, before = pre[-1]
+            alive = _agents(bridge._sim)
+            stats = bridge._sim.get_household_stats()
+            dead = sorted({r.owner for r in state.log if r.turn == turn and r.kind in ("inherited", "escheat")})
+            estates = 0
+            for owner in dead:
+                heirs = sorted({r.other for r in state.log
+                                if r.turn == turn and r.owner == owner and r.kind == "inherited"})
+                partner = spouse.get(owner)
+                if partner is not None and partner in alive:
+                    assert heirs == [partner]
+                    spouse_cases += 1
+                    estates += before[owner]["wealth"] > 2.0          # a clear estate at death
+                    continue
+                children = sorted(a for a, p in alive.items() if owner in (p["parent_id_0"], p["parent_id_1"]))
+                dependants = [a for a in children if alive[a]["age"] < HR.ADULT_AGE]
+                child_cases += 1
+                child_differs += heirs != (dependants or children)
+            assert stats["inheritance_transfers_spouse"] >= estates
+            if spouse_cases >= 3:
+                break
+        assert spouse_cases >= 1, "an owner was expected to die with a living spouse"
+        assert child_differs <= child_cases
+        bridge.close()
+
+    CREWS = ["--grain-reserves", "--grain-storage", "--repair-projects", "--recovery-crews", "--timber-stock",
+             "--timber-supply"]
+
+    def test_named_crews_farm_time_is_paid_not_titled_on_the_real_extension(tmp_path, monkeypatch):
+        """PL1 woodcutters and PL3 granary and workshop crews in pilot regions:
+        each member's weight is ``max(0, u (1 - h) - r)`` for the farm time the
+        crew took, a member away for all of it holds no new title that turn,
+        and every turn the weights sum to the economy's farm labour after the
+        removals (``check_farm_labour`` raises otherwise)."""
+        seen = []
+        original = HR.finish_phase2
+
+        def spy(world, economy_result, agent_bridge, acc):
+            out = original(world, economy_result, agent_bridge, acc)
+            t = world.livelihoods.household_retail._turn
+            if t is not None and t.phase2 is not None and t.phase2.work:
+                removed, _granary = HR.crew_farm_time(world, t.phase2, economy_result)
+                for rid, rows in t.phase2.work.items():
+                    weights = dict(t.phase2.farmers.get(rid, []))
+                    titled = t.books[rid].owners.get("titled", {}) if rid in t.books else {}
+                    for aid, u, h in rows:
+                        r = removed.get(aid, 0.0)
+                        if r > 0:
+                            seen.append((world.turn, rid, aid, u, h, r, weights[aid], titled.get(aid, 0)))
+            return out
+
+        monkeypatch.setattr(HR, "finish_phase2", spy)
+        _cli(tmp_path, *RETAIL, *CREWS, "--household-retail-boundary", "all", turns=30)
+        assert seen, "crew members were expected in pilot regions within thirty turns"
+        for _turn_, _rid, _aid, u, h, r, w, titled in seen:
+            assert w == int(round(max(0.0, u * (1.0 - h) - r) * 1_000_000))
+            if u * (1.0 - h) - r <= 1e-9:
+                assert w == 0 and titled == 0
+
+    def test_paid_work_admits_paid_granary_crews_and_woodcutters_home_regions(tmp_path, monkeypatch):
+        """With the real PL1 and PL3 receipts: every region a paid crew worked in
+        (PL3 granary) or came from (PL1) enters the pilot at the next Phase 2."""
+        expected, opened = [], set()
+        original = HR.prepare_phase2
+
+        def spy(world, region_input, agent_bridge, snapshot, acc):
+            lv = world.livelihoods
+            crews = {r.region for r in lv.recovery_crews.receipts or () if r.kind == "granary" and r.wages_milli > 0}
+            wood = {r.home for r in lv.timber_supply.receipts or () if r.wages_milli > 0}
+            rulers = {c.name for c in world.civilizations if c.regions}
+            want = {rid for rid in crews | wood if world.regions[rid].controller in rulers}
+            out = original(world, region_input, agent_bridge, snapshot, acc)
+            pilots = set(HR.pilot_regions(world))
+            assert want <= pilots
+            expected.append(want)
+            opened.update(pilots)
+            return out
+
+        monkeypatch.setattr(HR, "prepare_phase2", spy)
+        _cli(tmp_path, *RETAIL, *CREWS, "--household-retail-boundary", "paid_work", turns=30)
+        assert any(expected), "a paid crew was expected within thirty turns"
+
+    def test_exact_resume_with_crews_and_procurement_on_a_procedural_world(tmp_path, monkeypatch):
+        """Procedural development world 11 (32 x 10), crews, granaries and retail
+        on every controlled region: a resume inside live claims and crew work is
+        byte-identical to the straight run."""
+        import sys
+        from chronicler.bundle_codec import load_bundle
+        from chronicler.main import _build_parser, execute_run, main
+        base = ["--seed", "11", "--worldgen", "procedural", "--regions", "32", "--civs", "10",
+                "--agents", "hybrid", "--simulate-only", *RETAIL, *CREWS, "--household-retail-boundary", "all"]
+        straight = tmp_path / "straight"
+        ck = tmp_path / "ck"
+        execute_run(_build_parser().parse_args([*base, "--turns", "12", "--checkpoint-every", "1",
+                                                "--checkpoint", str(ck / "turn_{turn:04d}.ckpt"),
+                                                "--output", str(straight / "chronicle.md"),
+                                                "--state", str(straight / "state.json")]))
+        state = read_checkpoint(ck / "turn_0006.ckpt").state
+        retail = state.world.livelihoods.household_retail
+        assert any(r.claims for r in retail.regions)                 # live claims at the resume point
+        state.agent_bridge.close()
+        resumed = tmp_path / "resumed"
+        monkeypatch.setattr(sys, "argv", ["chronicler", "--resume", str(ck / "turn_0006.ckpt"),
+                                          "--output", str(resumed / "chronicle.md"),
+                                          "--state", str(resumed / "state.json")])
+        main()
+        a = load_bundle(straight / "chronicle_bundle.json")
+        b = load_bundle(resumed / "chronicle_bundle.json")
+        assert a["history"] == b["history"] and a["world_state"] == b["world_state"]
+        records = [s["livelihoods"] for s in a["history"] if s.get("livelihoods")]
+        assert any((r.get("recovery_crews") or {}).get("receipts") or (r.get("timber_supply") or {}).get("receipts")
+                   for r in records), "crew work was expected in the run"

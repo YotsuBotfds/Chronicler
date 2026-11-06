@@ -576,6 +576,64 @@ def test_a_refusal_without_features_still_fails_the_run(tmp_path, monkeypatch):
     assert server.reopened == []
 
 
+def test_household_retail_is_offered_and_forwarded_with_its_options(tmp_path, monkeypatch):
+    """PL5b: ``--household-retail`` (L6b), its mode and its boundary are served
+    from the registry, require --agents hybrid and --food-allocation, and reach
+    the live run's namespace and world and the batch namespace and manifest
+    through the generic forwarding, exactly as the CLI flags would."""
+    from chronicler.batch_manifest import simulation_config
+    from chronicler.live import LiveServer
+    entries = {entry["key"]: entry for entry in fc.feature_entries()}
+    assert [entries[k]["flag"] for k in ("household_retail", "household_retail_mode", "household_retail_boundary")] == [
+        "--household-retail", "--household-retail-mode", "--household-retail-boundary"]
+    assert entries["household_retail"]["requires"] == [
+        {"agents": ["hybrid"], "reason": "requires --agents hybrid"},
+        {"feature": "food_allocation", "reason": "requires --food-allocation"}]
+    assert entries["household_retail_mode"]["choices"] == ["retail", "no_relief", "free_exchange", "record_only"]
+    assert entries["household_retail_boundary"]["choices"] == ["market", "paid_work", "all"]
+    assert {entries[k]["parent"] for k in ("household_retail_mode", "household_retail_boundary")} == {"household_retail"}
+    assert all(entries[k]["default"] is None and entries[k]["experimental"]
+               for k in ("household_retail", "household_retail_mode", "household_retail_boundary"))
+    assert fc.validate_features({"household_retail": True}, HYBRID) == (
+        "'household_retail' (--household-retail) requires --food-allocation")
+    assert fc.validate_features({"household_retail_boundary": "all"}, HYBRID) == (
+        "'household_retail_boundary' (--household-retail-boundary) requires --household-retail")
+    assert fc.validate_features({"food_allocation": True, "household_retail": True},
+                                fc.live_surface(None)).endswith("(this run uses --agents off)")
+    features = {"food_allocation": True, "household_retail": True, "household_retail_mode": "free_exchange",
+                "household_retail_boundary": "paid_work"}
+    assert fc.validate_features(features, HYBRID) is None
+    flags = fc.feature_cli_arguments(features)
+    assert flags == ["--food-allocation", "--household-retail", "--household-retail-mode=free_exchange",
+                     "--household-retail-boundary=paid_work"]
+
+    # Live start: the requested values reach the namespace and the world.
+    server = _LobbyServer([{"turns": 3, "civs": 2, "regions": 3, "seed": 7, "features": features}])
+    args, seen = _run_live_until_execute(tmp_path, monkeypatch, server, "--agents", "hybrid")
+    assert server.replies == [None] and server.reopened == []
+    parsed = _parser().parse_args(["--live", *_base(tmp_path, "--agents", "hybrid", *flags)])
+    for key in fc.catalog_keys():
+        assert getattr(seen["args"], key) == getattr(parsed, key), key
+    state = seen["world"].livelihoods.household_retail
+    assert (state.enabled, state.mode, state.boundary, state.regions) == (True, "free_exchange", "paid_work", [])
+    assert seen["world"].livelihoods.food_allocation is not None
+    recorded = simulation_config(seen["args"])
+    assert {key: recorded[key] for key in features} == features
+
+    # Batch Lab: the namespace every child run copies, and its manifest.
+    error, received = _capture_batch(monkeypatch, LiveServer(), {"agents": "hybrid", "features": features})
+    assert error is None and len(received) == 1
+    for key in fc.catalog_keys():
+        assert getattr(received[0], key, None) == getattr(parsed, key), key
+    recorded = simulation_config(received[0])
+    assert {key: recorded[key] for key in features} == features
+    error, plain = _capture_batch(monkeypatch, LiveServer(), {"agents": "hybrid"})
+    assert error is None and not any(key in simulation_config(plain[0]) for key in features)
+    error, refused = _capture_batch(monkeypatch, LiveServer(), {"agents": "hybrid", "features": {"household_retail": True}})
+    assert error == {"type": "batch_error", "message": "batch_start config 'features': 'household_retail' "
+                     "(--household-retail) requires --food-allocation"} and refused == []
+
+
 def test_viewer_fixture_has_the_shape_the_server_sends():
     """viewer/src/__fixtures__/featureCatalog.json (lobby_feature_catalog for
     ``--live --agents hybrid``) drives the viewer's tests: it must keep the
