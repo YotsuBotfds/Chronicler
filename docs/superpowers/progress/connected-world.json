@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "board_version": 5,
+  "board_version": 6,
   "title": "Connected-world program (A livelihoods and trade, B watersheds and infrastructure, C public health, D institutions and war, E stories and evidence) operational board",
   "plan": "docs/superpowers/roadmaps/connected-world-program.md",
   "owner_instruction": "2026-11-06 (after #82): own the A-E program end to end with parallel workers, integrating and evaluating each slice and continuing across slice boundaries; merges of this program authorized after independent review, green premerge Tests on the reviewed head and verified main CI; new systems opt-in and off by default; no default promotion; full 200-seed and procedural qualification gates restricted; bounded held screens (procedural included) authorized; no purchases, paid credits, paid narration APIs, deployments, credential or sharing changes. Amendment (same day): tiers sequence work and are not stopping points; failures block the affected merge, not the program; pin 8abc1acb as the original reference; default-path changes behind a switch or rules version.",
@@ -62,7 +62,11 @@
       "id": "A5",
       "branch": "claude/cw-a5-owned-stock",
       "scope": "retail rules v2: war reaches owned stock once per event; RL1-RL3 dispositions",
-      "status": "active"
+      "status": "implemented; independent review running",
+      "head": "1370ae7a",
+      "source": "36d1a040",
+      "layer": "b9e64330 (provisional cwa5)",
+      "verification": "offline lane PASS 64 chunks 240.8 s; witness 509 passed; native retail 127 passed; feature-off identity vs 8abc1acb 9 cases 399 files 0 differences; retail rules 1 vs reference 205 files 0 differences; exact resume hybrid_s42_long 19+2 points, proc32_hybrid_s11 39 points PASS; natural war losses in 11 of 13 development worlds; CHECK_RESOURCES PASS"
     },
     {
       "id": "A1",
@@ -81,38 +85,48 @@
       "branch": "claude/cw-c1-quarantine",
       "scope": "--quarantine-mode none|cost_only|closure: trade closure with dated effect, enforcement cost, no multiplier in new modes",
       "status": "active"
+    },
+    {
+      "id": "A2R",
+      "branch": "claude/cw-a2r-retail-cohorts",
+      "base": "A5 head 1370ae7a",
+      "scope": "schedule boundary, persistent opened_turn map, household-group cohorts (RL5), storage-cap timing (RL4), viewer war-loss and cohort display",
+      "status": "active"
     }
   ],
   "recorded_limits": [
     {
       "id": "RL1",
       "limit": "two conquests in one turn destroy owned stock once",
-      "class": "pending",
-      "slice": "S2"
+      "class": "defect (only with --no-campaigns)",
+      "slice": "S2",
+      "disposition": "fixed under retail rules v2: per-event conquest hook (lane A5)"
     },
     {
       "id": "RL2",
       "limit": "occupation and siege do not requisition owned stock",
       "class": "missing capability",
-      "slice": "S2/S4"
+      "slice": "S2/S4",
+      "disposition": "owned stock loses the same share as the commons at each siege turn and occupation start, recorded by cause and actor (lane A5); transfer to army rations is D4"
     },
     {
       "id": "RL3",
       "limit": "legacy JSON state-file resume runs neither L2 nor retail hooks",
-      "class": "pending",
-      "slice": "S2"
+      "class": "evidence gap + defect + intentional boundary",
+      "slice": "S2",
+      "disposition": "with --agents hybrid both hooks run (evidence); saved L2 outside hybrid and saved retail outside hybrid now refused cleanly (defect fixed); an inexact resume returns claims to the commons (boundary)"
     },
     {
       "id": "RL4",
       "limit": "pilot region can exceed the storage cap by up to one turn's harvest between close and next opening",
       "class": "pending",
-      "slice": "S1/S2"
+      "slice": "S1 (lane A2R)"
     },
     {
       "id": "RL5",
       "limit": "purchases by person not in the snapshot",
       "class": "evidence gap",
-      "slice": "S1 (retail cohort aggregates, after A5)"
+      "slice": "S1 (lane A2R)"
     },
     {
       "id": "RL6",
