@@ -500,7 +500,8 @@ def test_switch_registry_cli_and_prerequisites():
     from chronicler.livelihoods_state import LIVELIHOODS_SWITCHES
     assert LIVELIHOODS_SWITCHES[-1] == "household_retail"
     assert LIVELIHOODS_SWITCHES.index("food_allocation") < LIVELIHOODS_SWITCHES.index("household_retail")
-    assert LV.LIVELIHOODS_ARG_KEYS[-3:] == ("household_retail", "household_retail_mode", "household_retail_boundary")
+    assert LV.LIVELIHOODS_ARG_KEYS[-4:] == ("household_retail", "household_retail_mode", "household_retail_boundary",
+                                            "household_retail_rules")             # A5-1 appended the rules version
     assert LV.LIVELIHOODS_CHOICES["household_retail_mode"] == MODES
     assert LV.LIVELIHOODS_CHOICES["household_retail_boundary"] == ("market", "paid_work", "all")
     assert {"household_retail", "household_retail_mode", "household_retail_boundary"} <= set(SIMULATION_ARG_KEYS)
@@ -990,8 +991,13 @@ def _conquer(h, rid, attacker):
     apply_region_conquest(winner, defender, region, world, seed=1)
 
 
+# Rules version 1 (checkpoints 2-3), reproduced exactly by --household-retail-rules 1;
+# version 2's war lifecycle is tests/test_household_retail_war.py.
+V1 = ("--household-retail-rules", "1")
+
+
 def test_conquest_destroys_the_conquest_share_of_owned_stock():
-    h = Harness()
+    h = Harness(*V1)
     _people(h, VERDANT, (1, 2), wealth=0.0)
     h.turn({VERDANT: {"grain": 8.0}})
     goods = []
@@ -1010,7 +1016,7 @@ def test_conquest_destroys_the_conquest_share_of_owned_stock():
 
 
 def test_a_conquest_after_the_agent_tick_is_applied_before_the_next_sale():
-    h = Harness()
+    h = Harness(*V1)
     _people(h, VERDANT, (1, 2), wealth=0.0)
     h.turn({VERDANT: {"grain": 8.0}})
     owned = []
@@ -1027,9 +1033,10 @@ def test_a_conquest_after_the_agent_tick_is_applied_before_the_next_sale():
     assert sent == pytest.approx((owned[0] - (owned[0] - math.floor(owned[0] * 0.5))) / 1000, abs=1e-3)
 
 
+@pytest.mark.parametrize("rules", ["1", "2"])
 @pytest.mark.parametrize("change", ["transfer", "abandon"])
-def test_a_controller_change_without_a_conquest_destroys_nothing(change):
-    h = Harness()
+def test_a_controller_change_without_a_conquest_destroys_nothing(change, rules):
+    h = Harness("--household-retail-rules", rules)
     _people(h, VERDANT, (1, 2), wealth=0.0)
     h.turn({VERDANT: {"grain": 8.0}})
     owned = sum(h.state.region(VERDANT).goods)
@@ -1412,7 +1419,7 @@ def test_an_heir_beyond_the_claims_cap_is_refused_and_the_share_escheats(monkeyp
 
 
 def test_occupation_and_siege_do_not_reach_owned_stock_but_are_counted():
-    h = Harness()
+    h = Harness(*V1)
     _people(h, VERDANT, (1, 2), wealth=0.0)
     h.turn({VERDANT: {"grain": 8.0}})
     h.world.regions[VERDANT].occupied_by = "Kethani Empire"

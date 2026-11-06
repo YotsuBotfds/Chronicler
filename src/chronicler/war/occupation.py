@@ -33,7 +33,12 @@ def occupation_of(world, region_name: str) -> "Occupation | None":
     return None
 
 
-def _requisition(region: "Region", factor: float, world=None) -> None:
+def _requisition(region: "Region", factor: float, world=None, *, cause: str | None = None,
+                 actor: "Civilization | None" = None) -> None:
+    """The army's requisition at a siege turn or an occupation start: the
+    region's commons food keeps ``factor``. ``cause`` (``siege`` or
+    ``occupation``) and ``actor`` (the besieger or occupier) are recorded where
+    the event reaches owned stock."""
     from chronicler.economy import FOOD_GOODS
     for good in FOOD_GOODS:
         if good in region.stockpile.goods:
@@ -47,6 +52,11 @@ def _requisition(region: "Region", factor: float, world=None) -> None:
             # granary (no-op unless active; nothing taken is no seizure).
             from chronicler.repair_projects import granary_seized
             granary_seized(world, region, taken)
+    if world is not None and getattr(world, "livelihoods", None) is not None:
+        # --household-retail rules version 2 (A5-1): the same share of the
+        # region's owned stock, once per call (a no-op unless active in v2).
+        from chronicler.household_retail import on_war_loss
+        on_war_loss(world, region, factor, cause=cause, actor=actor)
 
 
 def start_occupation(ctx: WarContext, region: "Region", occupier: "Civilization",
@@ -64,7 +74,7 @@ def start_occupation(ctx: WarContext, region: "Region", occupier: "Civilization"
     world.war_state.occupations.append(occ)
     region.occupied_by = occupier.name
     region._war_won_this_turn = True
-    _requisition(region, FOOD_REQUISITION, world)
+    _requisition(region, FOOD_REQUISITION, world, cause="occupation", actor=occupier)
     plunder = region.population // 10
     if plunder:
         add_stat(ctx, occupier, "treasury", plunder, "keep")
@@ -126,7 +136,7 @@ def annex_occupation(ctx: WarContext, occ: "Occupation", reason: str) -> bool:
     owner = world.civ_map.get(region.controller) if region.controller else None
     if owner is not None and owner.name != occupier.name and region.name in owner.regions:
         seed = stable_hash_int("war", "annex", world.seed, world.turn, region.name)
-        apply_region_conquest(occupier, owner, region, world, seed)
+        apply_region_conquest(occupier, owner, region, world, seed, via=reason)
     elif region.controller != occupier.name:
         region.controller = occupier.name
         if region.name not in occupier.regions:

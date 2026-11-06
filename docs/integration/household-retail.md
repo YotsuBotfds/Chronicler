@@ -23,8 +23,18 @@ Modules: `chronicler/household_retail.py` (hooks, rules, checks) and
 - `--household-retail-mode`: `retail` (default), `no_relief`, `free_exchange`,
   `record_only`.
 - `--household-retail-boundary`: `market` (default), `paid_work`, `all`.
+- `--household-retail-rules` (A5-1): `2` (the default of a new retail state) or `1`. See
+  [War](#war-rules-version-2-a5-1). A saved state keeps the version it recorded: a state
+  saved before A5 has no version field and reads as `1`. A conflicting value is refused
+  before any change, given with or without the switch, on a legacy resume
+  (`_check_prerequisites`) and on an exact resume (`livelihoods_resume_conflicts`, choice
+  field `rules`). The catalog lists it as a choice of the switch (`feature_catalog`; a
+  choice needs no `REQUIREMENTS` entry). Version 1 is byte-identical to checkpoints 2-3,
+  so the checkpoint-2 and -3 screen definitions (`scripts/productive_recovery_screens.py`,
+  `CP2.RULES`, `CP3.RULES`) pass `--household-retail-rules 1` to every retail run and a
+  rerun keeps their rules.
 - Prerequisites (`livelihoods._check_prerequisites`, `feature_catalog.REQUIREMENTS`):
-  `--agents hybrid` and `--food-allocation` (given or saved). The three keys are in
+  `--agents hybrid` and `--food-allocation` (given or saved). The four keys are in
   `batch_manifest.SIMULATION_ARG_KEYS` and are omitted from a manifest when unset, so
   feature-off manifests keep their bytes. A mode or boundary given without the switch
   is ignored (the existing livelihoods limit); an exact resume refuses one that
@@ -34,6 +44,22 @@ Modules: `chronicler/household_retail.py` (hooks, rules, checks) and
   `--no-household-retail`. Passing it closes every claim to its region's commons, with
   a dated `switch_off` record per region, so no claim, owned food or pilot region drops
   out unseen.
+- RL3 (A5-1): a saved, enabled `--food-allocation` resumed outside `--agents hybrid` is
+  refused too ("resume with --agents hybrid, or pass --no-food-allocation to end it");
+  before, it ran silently inert in aggregate mode. Both saved-switch refusals raise
+  `livelihoods.LivelihoodsRefusal`, a `ValueError` that is also a `SystemExit`: uncaught
+  at the command line it prints `Error: <message>` and exits with status 1, without the
+  traceback a plain `ValueError` gave (`main.py` is pinned, so the clean exit lives in
+  the exception). Explicit requests (`--food-allocation` or `--household-retail` without
+  hybrid) keep their plain `ValueError`. Open item (default path, unchanged): an
+  agents-off legacy resume of a hybrid save without livelihoods switches still leaves
+  `world.agent_mode == "hybrid"` in `state.json` and the bundle, because
+  `main._configure_run` assigns the mode only for agent modes; fixing it changes
+  default-path output, so it is left to the lead and the owner.
+- A legacy state-file resume **with** `--agents hybrid` runs both L2 and retail: the
+  rebuilt pool closes every claim to the commons on the first resumed turn
+  (`pool_reset`, dated) and retail settles every resumed turn (RL3's original wording,
+  "runs neither", does not hold for a correctly given resume).
 
 ### State
 
@@ -53,6 +79,11 @@ Modules: `chronicler/household_retail.py` (hooks, rules, checks) and
   entry beyond it is refused (`claims_refused`); that share goes to the commons.
 - A transient `_turn` (books, installs, spouse reads, procurement records) that is never
   pickled and is empty at every turn boundary.
+- Rules version 2 only (each omitted while unset, so a version-1 state serializes
+  exactly the checkpoint-3 fields): `rules_version` (omitted while 1), per pilot region
+  `war_events` (war events observed, monotone), and on `war_loss` records `cause`,
+  `actor`, `actor_name`, `victim`, `victim_name`. Pickles written before A5 restore with
+  these at their defaults (version 1).
 
 Owned food is never in `region.stockpile`: that is the commons.
 
@@ -60,9 +91,10 @@ Owned food is never in `region.stockpile`: that is the commons.
 
 | Where | Hook | What Python does |
 | --- | --- | --- |
-| Phase 2, before the economy | `prepare_phase2` | Boundary update: a pilot region without a controller closes (holdings to the commons, `pilot_closed`); newly qualifying regions open. A conquest since the last agent tick takes its share of owned stock. Commons written after the region batch was built (closure, pool reset) are patched into its `stockpile_<good>` columns. Title weights from the Phase 2 snapshot. Unless `record_only`, and only when a pilot region exists, appends `retail_title_share` (θ; null outside the pilot) and `retail_owned_<good>` (owned stock / 1000). |
+| Phase 2, before the economy | `prepare_phase2` | Boundary update: a pilot region without a controller closes (holdings to the commons, `pilot_closed`); newly qualifying regions open. Version 1: a conquest since the last agent tick takes its share of owned stock; version 2: checks that every conquest was observed at its event. Commons written after the region batch was built (closure, pool reset) are patched into its `stockpile_<good>` columns. Title weights from the Phase 2 snapshot. Unless `record_only`, and only when a pilot region exists, appends `retail_title_share` (θ; null outside the pilot) and `retail_owned_<good>` (owned stock / 1000). |
 | Phase 2, after the economy | `finish_phase2` | Checks the pilot region's native food ledger and the title weights against the farm labour after named crews. Title, once per turn: each good's `retail_titled_<good>` (to the nearest milli-food) split over the region's Phase 2 farmers by largest remainder, ties by ascending id. Then the native owned decay and overflow per good, applied to claims pro rata. Untitled and refused shares decay with the pool and then go to the commons. Records each pilot region's controller. |
-| Before the agent tick | `before_agent_tick` | Conquest loss for a pilot region conquered since Phase 2. Spouse of every owner (`get_agent_relationships`, one call per owner). Installs `set_household_retail(turn, mode, regions, claims)` and, except in `free_exchange`, `install_retail_income(turn, regions)`. |
+| Phase 5 and 5b (war) | `on_conquest`, `on_war_loss` (version 2) | Each conquest (`action_engine.apply_region_conquest`), siege turn and occupation start (`war.occupation._requisition`) of a pilot region destroys the share of owned stock it destroys of the commons, at the event, once, recorded with cause, actor and victim. See [War](#war-rules-version-2-a5-1). |
+| Before the agent tick | `before_agent_tick` | Version 1: conquest loss for a pilot region conquered since Phase 2, and the `requisition_exempt_region_turns` count; version 2: the observed-conquest check. Spouse of every owner (`get_agent_relationships`, one call per owner). Installs `set_household_retail(turn, mode, regions, claims)` and, except in `free_exchange`, `install_retail_income(turn, regions)`. |
 | After the agent tick | `after_agent_tick` | Takes the frame and income receipt once, refuses a stale, repeated or partial pair, checks the frame, debits own-eaten and sold food from the claims, records money, then settles dead owners' claims. |
 | Phase 10 | (seam in `tick_grain_reserves`) | Owners' grain sold to their ruler's granaries is debited from claims as it is bought. |
 | Phase 10 | `phase10` | Credits those owners once (`transfer_wealth`, purpose 6), records merchant food departures and the owned food merchants could not load, then closes the turn's frame. |
@@ -147,15 +179,85 @@ stay commons.
   live and eats from it only when present.
 - **Household split, rejoin, remarriage.** Claims are personal; households are never
   stored, so nothing is created or lost.
-- **Conquest.** `v − floor(v × CONQUEST_STOCKPILE_SURVIVAL)` of each owned good is
-  destroyed (`war_loss`), claims pro rata, once per conquest event. The event is the
-  region's `last_conquered_turn`, set by `action_engine.apply_region_conquest` (the path
-  that destroys market stock, annexed occupations included), when it is newer than the
-  last loss applied. It is checked before the economy and before the agent tick, so a
-  conquest in any phase is applied before the next sale. A change of controller without
-  a conquest (peaceful transfer, abandonment) destroys nothing. Occupation and siege requisitions do not
-  reach owned stock (declared limit, counted in `requisition_exempt_region_turns`).
+- **War, version 2** (the default of a new state): see
+  [War](#war-rules-version-2-a5-1). Each conquest, siege turn and occupation start takes
+  its share once, at the event.
+- **Conquest, version 1** (checkpoints 2-3, `--household-retail-rules 1`):
+  `v − floor(v × CONQUEST_STOCKPILE_SURVIVAL)` of each owned good is destroyed
+  (`war_loss`), claims pro rata, once per conquest turn. The event is the region's
+  `last_conquered_turn`, set by `action_engine.apply_region_conquest` (the path that
+  destroys market stock, annexed occupations included), when it is newer than the last
+  loss applied. It is checked before the economy and before the agent tick, so a
+  conquest in any phase is applied before the next sale. Two conquests of one region in
+  one turn (reachable with `--no-campaigns`) destroy it once, and the record names the
+  last controller (RL1). Occupation and siege requisitions do not reach owned stock
+  (declared limit, counted in `requisition_exempt_region_turns`; RL2).
+- **Controller change without a conquest** (peaceful transfer, abandonment, secession):
+  destroys nothing, in both versions.
 - **Pool reset.** Every claim to the commons, dated.
+
+### War (rules version 2, A5-1)
+
+Version 2 makes owned stock follow the commons authority **per event** (recorded limits
+RL1 and RL2; the board's section 4 has the dispositions).
+
+- **Conquest.** `action_engine.apply_region_conquest` calls `on_conquest(world, region,
+  attacker, defender, via=...)` next to RS2's `region_conquered`, before
+  `last_conquered_turn` is set. A pilot region loses `v − floor(v × 0.5)` of each owned
+  good at once, as its commons are halved, once per call: two conquests in one turn take
+  it twice, as they take the commons to a quarter. `via` names the path for the record:
+  an aggregate WAR win (`war`), or an annexation (`treaty`, `consolidated`,
+  `owner_gone`, passed by `war.occupation.annex_occupation`).
+- **Siege and occupation.** `war.occupation._requisition(region, factor, world, *,
+  cause, actor)` multiplies the commons food by `factor`, seizes the granary share, then
+  calls `on_war_loss`: a pilot region loses `v − floor(v × factor)` of each owned good,
+  once per call. `war.battles.siege_turn` passes `cause="siege"` (0.85, every siege
+  turn) and the besieger; `start_occupation` passes `cause="occupation"` (0.8) and the
+  occupier. The per-turn occupation tick takes nothing from food (as for the commons).
+- **Kind.** War loss is **destruction** (flow `war_loss`), as the commons requisition
+  is today: the food goes nowhere (army rations are minted by `war.logistics`). Turning
+  requisition into a transfer to the army, with restitution, is D4.
+- **Rounding.** Per good, `v − floor(v × f)` with `f` read as its decimal value (0.85 is
+  17/20), so binary rounding never takes an extra milli; claims pro rata by largest
+  remainder, ties to the smaller id. Owned stock can lose at most 1 milli per good per
+  event more than the float commons. No randomness.
+- **Records.** Every event observed in a pilot region counts (`war_events` on the entry
+  and the counter); an event that destroys something is logged as a `war_loss` record
+  with `cause` (`conquest`, `siege`, `occupation`), `actor`/`actor_name` (the conqueror,
+  besieger or occupier: index in `world.civilizations` and name at the event),
+  `victim`/`victim_name` (the region's ruler at the event: the defender for a conquest),
+  and a note. Counters appended: `war_loss_conquest_milli`, `war_loss_siege_milli`,
+  `war_loss_occupation_milli`, `war_events`; `war_loss_milli` keeps the total. The
+  turn's frame shows the loss in `flows.war_loss`.
+- **Exactly once.** Each hook call applies its share once and checks the region's books
+  (`check_region`, `check_owner`). Phase 2 and the pre-tick hook no longer infer
+  conquests: they refuse a `last_conquered_turn` newer than the last conquest the hook
+  observed ("conquest not observed"). A war loss after the turn's frame was closed is
+  refused. `record_only` holds nothing, so the hooks are no-ops there (the observed
+  marker follows the conquest); so are version 1, a disabled or inactive switch and a
+  region outside the pilot.
+- **Same turn with other lifecycles.** War comes in Phase 5/5b, before the agent tick:
+  provisioning installs the reduced claims, a dead owner's heir inherits the reduced
+  claim, and a region that loses its controller after a conquest closes at the next
+  Phase 2 (`pilot_closed`, once).
+- **Checkpoint.** Events land inside the turn's books; checkpoints are at turn
+  boundaries. An exact resume inside a live siege or occupation equals the straight run
+  (`tests/test_household_retail_war_native.py`).
+
+Boundaries, recorded as decisions:
+
+- **Treaty cessions and annexations** go through `apply_region_conquest`, so they
+  destroy half of the commons and of owned stock even after siege and occupation
+  losses. Owned stock is handled exactly as the commons; the record names the path
+  (`ceded by treaty`, `annexed after a long occupation`, ...). Whether a cession should
+  be a transfer rather than a second destruction is an open D4 requisition question.
+- **A pilot region without a controller** (collapse, abandonment) still confiscates
+  every claim to its commons at the next Phase 2, owners alive or not: an intentional
+  boundary (no market or ruler remains to provision through).
+- **The PL1 timber store** is untouched by conquest, siege and occupation: an
+  intentional boundary for now (B/A4 own it later).
+- **Soldiers at home.** Enlisted people keep their claims and home food demand; nothing
+  here changes that (D3/D4).
 
 ### Merchants, procurement and the controls
 
@@ -230,7 +332,9 @@ free rations, the native Phase 2 columns and provisioning row, income replaced (
 rows) for its farmers, merchant food departing and owned food unloadable, plus money,
 income,
 the sample, the log, counters and parameters. A turn without a frame reads `None`
-(unknown, not zero).
+(unknown, not zero). A version-2 state adds `rules_version: 2` after the boundary, and
+its `war_loss` records carry the cause, actor and victim fields; a version-1 summary is
+unchanged.
 
 ## Accounting
 
@@ -307,13 +411,24 @@ Python cannot see, and leaves to the native lane:
   `commons_sufficiency` result columns. Without this, Python cannot read the contract's
   result columns.
 - `src/chronicler/batch_manifest.py`: the three keys in `SIMULATION_ARG_KEYS` and in
-  `simulation_config`'s omit-when-unset list.
-- `tests/test_batch_manifest.py`: the three keys.
+  `simulation_config`'s omit-when-unset list; A5-1 appends `household_retail_rules` to
+  both (provisional layer `cwa5`, which the lead may rebuild at integration).
+- `tests/test_batch_manifest.py`: the three keys, and A5-1's fourth.
 
 ### Tests
 
 - `tests/test_household_retail.py` (offline, chunk `household-retail`): a stand-in
-  native implements the contract with simple rules.
+  native implements the contract with simple rules. Its version-1 conquest, occupation
+  and siege tests run with `--household-retail-rules 1`.
+- `tests/test_household_retail_war.py` (offline, chunk `household-retail-war`, shard 0):
+  rules version 2 on the same stand-in: two conquests in one turn, duplicate processing,
+  unobserved conquests, sieges and occupations through the real war functions, rounding,
+  death and loss of the controller in the same turn, no-ops, serialization, the rules
+  option and the RL3 refusals (including `main` on a saved state file).
+- `tests/test_household_retail_war_native.py` (native, shard 0): the legacy state-file
+  resume with hybrid (and the clean refusal without it, in a child process), an exact
+  resume inside a natural siege and occupation, and the resource checks with campaigns
+  on a procedural development world.
 - `tests/test_household_retail_native.py` (native shard 1): gated rather than skipped.
   It collects only an all-or-none check of the retail methods until they exist, and
   the integration tests once they do. `CHRONICLER_REQUIRE_RETAIL_NATIVE=1` makes their

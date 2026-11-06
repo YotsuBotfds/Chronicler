@@ -95,6 +95,7 @@ LIVELIHOODS_CHOICES: dict[str, tuple[str, ...]] = {
     "apprenticeship_rules": ("2", "1"),
     "household_retail_mode": ("retail", "no_relief", "free_exchange", "record_only"),
     "household_retail_boundary": ("market", "paid_work", "all"),
+    "household_retail_rules": ("2", "1"),
 }
 #: All parser destinations owned here (``batch_manifest.SIMULATION_ARG_KEYS``).
 LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
@@ -117,6 +118,7 @@ LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     "recovery_crews", "recovery_crew_mode",
     "maintenance_obligation", "maintenance_obligation_mode",
     "household_retail", "household_retail_mode", "household_retail_boundary",
+    "household_retail_rules",
 )
 _AGENT_ECONOMY = ("hybrid", "shadow", "demographics-only")
 
@@ -312,6 +314,13 @@ _HELP = {
         "been done (an open workshop firm, a paid repair or granary crew, or the home of a paid "
         "woodcutting crew), sticky; all: every controlled region (stress)"
     ),
+    "household_retail_rules": (
+        "Retail rules version of a new retail state: 2 (default): each conquest, siege turn and "
+        "occupation start destroys the share of pilot regions' owned food it destroys of their commons, "
+        "once per event, recorded with its cause, actor and victim; 1: checkpoints 2-3 exactly (the "
+        "conquest share once per turn, siege and occupation leave owned food alone). A saved state "
+        "keeps its version; a conflicting value is refused"
+    ),
 }
 
 
@@ -344,6 +353,23 @@ def livelihoods_arguments(args: Any) -> list[str]:
         else:
             raise ValueError(f"{name} must be a boolean or None")
     return flags
+
+
+class LivelihoodsRefusal(ValueError, SystemExit):
+    """A refused resume of a saved livelihoods switch (RL3): the run cannot
+    honour the saved state and names the option that ends it.
+
+    It is a ``ValueError`` to every caller that handles one (tests, the live
+    lobby, batch workers). Uncaught at the command line it is also a
+    ``SystemExit`` whose code is ``Error: <message>``: the interpreter prints
+    that line and exits with status 1, without a traceback, as ``main``'s own
+    refusals do (``main.py`` is pinned, so the clean refusal lives here). Raise
+    it only on the main configuration path: a thread or an asyncio task treats
+    a ``SystemExit`` as a shutdown."""
+
+    def __init__(self, message: str):
+        super().__init__(message)
+        self.code = f"Error: {message}"
 
 
 def livelihoods_state(world: Any) -> LivelihoodsState | None:
@@ -457,9 +483,21 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
         # unseen; --no-household-retail closes every claim to the commons, dated.
         if agent_mode != "hybrid" or not _on(world, values, "food_allocation"):
             saved = values["household_retail"] is not True
-            raise ValueError("--household-retail requires --agents hybrid and --food-allocation"
-                             + ("; this world has it on: pass --no-household-retail to end it (every claim "
-                                "returns to its region's commons, dated)" if saved else ""))
+            message = ("--household-retail requires --agents hybrid and --food-allocation"
+                       + ("; this world has it on: pass --no-household-retail to end it (every claim "
+                          "returns to its region's commons, dated)" if saved else ""))
+            raise (LivelihoodsRefusal if saved else ValueError)(message)
+    rules = getattr(args, "household_retail_rules", None) if args is not None else None
+    retail = getattr(livelihoods_state(world), "household_retail", None)
+    if rules is not None and retail is not None and str(rules) != retail.rules:
+        # A saved state keeps the rules it recorded (refused before any change).
+        from chronicler.household_retail import rules_conflict
+        raise ValueError(rules_conflict(rules, retail))
+    if agent_mode != "hybrid" and values["food_allocation"] is None and _on(world, values, "food_allocation"):
+        # RL3: a saved L2 outside hybrid would otherwise run silently inert (no
+        # bridge, no hooks) while the world still says it is on.
+        raise LivelihoodsRefusal("--food-allocation requires --agents hybrid; this world has it on: resume with "
+                                 "--agents hybrid, or pass --no-food-allocation to end it")
 
 
 def configure_livelihoods(world: Any, args: Any, *, agent_mode: str) -> None:
@@ -514,6 +552,7 @@ _CHOICE_FIELDS: dict[str, tuple[str, str]] = {
     "apprenticeship_rules": ("apprenticeship", "rules"),
     "household_retail_mode": ("household_retail", "mode"),
     "household_retail_boundary": ("household_retail", "boundary"),
+    "household_retail_rules": ("household_retail", "rules"),
 }
 
 

@@ -20,6 +20,16 @@ Owned food is never in ``region.stockpile`` (that is the commons).
 The ledger is id-bound: a rebuilt native pool closes every claim to the
 commons, dated (``household_retail.on_pool_reset``).
 
+Rules versions (A5-1, ``--household-retail-rules``). Version 1 is the
+checkpoint-2/3 rules: a conquest's share of owned stock is applied once per
+turn, inferred from ``Region.last_conquered_turn``, and occupation and siege
+do not reach owned stock. Version 2 (the default of every new state) applies
+each war event once, at the event, with its cause, actor and victim
+(``household_retail.on_conquest`` and ``on_war_loss``). A state saved before
+A5 has no version field and reads as version 1, and a version-1 state omits
+the field and every version-2 field, so its JSON keeps its bytes; pickles
+written before A5 restore with the version-2 fields at their defaults.
+
 Tuple orders below are declaration orders: append new values at the end,
 never reorder.
 """
@@ -63,6 +73,15 @@ RECORD_KINDS: tuple[str, ...] = (
 )
 #: Person sample statuses (native code order).
 SAMPLE_STATUSES: tuple[str, ...] = ("fed", "priced_out", "offer_short")
+#: Rules versions (``--household-retail-rules`` choices are their strings);
+#: the last is the default of a new state.
+RULES_VERSIONS: tuple[int, ...] = (1, 2)
+RULES_VERSION = 2
+#: Version 2: causes of a war loss of owned stock, each applied once per event
+#: (``conquest``: ``action_engine.apply_region_conquest``, aggregate WAR wins,
+#: annexed occupations and treaty cessions alike; ``siege`` and
+#: ``occupation``: ``war.occupation._requisition``).
+WAR_CAUSES: tuple[str, ...] = ("conquest", "siege", "occupation")
 
 MAX_CLAIMS = 4096
 MAX_LOG = 64
@@ -81,11 +100,17 @@ COUNTERS: tuple[str, ...] = (
     "procurement_unpaid_milli", "requisition_exempt_region_turns",
     "priced_out_persons", "offer_short_persons", "income_replaced_rows",
     "crew_farm_time_person_turns", "crew_farm_time_micro",
+    # Rules version 2 (A5-1): war losses by cause and the war events observed.
+    "war_loss_conquest_milli", "war_loss_siege_milli", "war_loss_occupation_milli", "war_events",
 )
 
 
 def _is_none(value) -> bool:
     return value is None
+
+
+def _is_one(value) -> bool:
+    return value == 1
 
 
 class _Backfilled(BaseModel):
@@ -110,11 +135,15 @@ class RetailRegion(_Backfilled):
     claims: dict[int, int] = Field(default_factory=dict)
     #: Lifetime flows of this pilot entry, milli-food (FLOW_KINDS keys).
     totals: dict[str, int] = Field(default_factory=dict)
-    #: ``last_conquered_turn`` of the last conquest whose loss was applied.
+    #: ``last_conquered_turn`` of the last conquest whose loss was applied
+    #: (version 2: of the last conquest the hook observed, loss or not).
     war_loss_turn: int = -1
+    #: Version 2: war events observed in this pilot entry (monotone; None and
+    #: omitted in a version-1 state).
+    war_events: int | None = Field(default=None, exclude_if=_is_none)
 
 
-class RetailRecord(BaseModel):
+class RetailRecord(_Backfilled):
     """A dated record: openings, closures, war losses, inheritance, escheat."""
 
     turn: int
@@ -124,6 +153,15 @@ class RetailRecord(BaseModel):
     owner: int | None = None                            # the owner concerned (the deceased for inheritance)
     other: int | None = None                            # the heir
     note: str | None = None
+    #: Version 2 war losses (omitted when None, so version-1 logs keep their
+    #: bytes): the cause (WAR_CAUSES), the acting civilization (conqueror,
+    #: besieger or occupier) and the victim (the region's ruler at the event),
+    #: each as its index in ``world.civilizations`` and its name at the event.
+    cause: str | None = Field(default=None, exclude_if=_is_none)
+    actor: int | None = Field(default=None, exclude_if=_is_none)
+    actor_name: str | None = Field(default=None, exclude_if=_is_none)
+    victim: int | None = Field(default=None, exclude_if=_is_none)
+    victim_name: str | None = Field(default=None, exclude_if=_is_none)
 
 
 class RegionFrame(_Backfilled):
@@ -164,6 +202,9 @@ class HouseholdRetailState(BaseModel):
     enabled: bool = True
     mode: Literal["retail", "no_relief", "free_exchange", "record_only"] = "retail"
     boundary: Literal["market", "paid_work", "all"] = "market"
+    #: Retail rules version (RULES_VERSIONS). 1 when absent (a state saved
+    #: before A5) and omitted while 1; a saved state keeps its version.
+    rules_version: Literal[1, 2] = Field(default=1, exclude_if=_is_one)
     #: Open pilot regions, ascending region index.
     regions: list[RetailRegion] = Field(default_factory=list)
     #: Exactly-once guards (persisted): the last turn whose harvest was
@@ -204,6 +245,11 @@ class HouseholdRetailState(BaseModel):
             object.__setattr__(self, "__pydantic_private__", {"_turn": None})
         else:
             self.__pydantic_private__.setdefault("_turn", None)
+
+    @property
+    def rules(self) -> str:
+        """The rules version as the ``--household-retail-rules`` choice ("2" or "1")."""
+        return str(self.rules_version)
 
     def claims_count(self) -> int:
         return sum(len(r.claims) for r in self.regions)

@@ -42,10 +42,19 @@ before the tick, alive after it), else equally to living children in the
 claim's region (largest remainder, ascending id), else to the commons
 (``escheat``). A migrant's claim stays in the origin's pool (sold there, eaten
 only when present). Households are never stored, so a split or rejoin
-creates nothing. A pilot region whose controller changed between Phase 2 and
-the agent tick loses the conquest share of owned stock (``war_loss``);
-occupation and siege requisitions do not reach owned stock (declared limit,
-counted). A rebuilt native pool closes every claim to the commons.
+creates nothing. A rebuilt native pool closes every claim to the commons.
+
+War (``--household-retail-rules``, :data:`RULES_VERSION` for a new state; a
+saved state keeps its version). Version 2: every war event that destroys the
+region's commons food takes the same share of its owned stock, once per event,
+at the event: a conquest (``action_engine.apply_region_conquest`` calls
+:func:`on_conquest`: half of each good) and each siege turn and occupation
+start (``war.occupation._requisition`` calls :func:`on_war_loss`: 15% and
+20%), recorded with its cause, actor and victim. Version 1 (checkpoints 2-3):
+a pilot region conquered since Phase 2 or since the agent tick loses the
+conquest share once per turn (``war_loss``, inferred from
+``last_conquered_turn``), and occupation and siege requisitions do not reach
+owned stock (declared limit, counted).
 
 Granary procurement (pinned seam in ``grain_reserves.tick_grain_reserves``):
 a pilot market's sellable surplus counts commons plus owned grain; grain the
@@ -70,10 +79,12 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
+from fractions import Fraction
 
 from chronicler.household_retail_state import (
     BOUNDARIES, COMMONS_REASONS, COUNTERS, FLOW_KINDS, FLOW_SIGNS, MAX_CLAIMS, MAX_LOG, MAX_SAMPLE,
-    MODES, NATIVE_MODES, RETAIL_GOODS, HouseholdRetailState, RegionFrame, RetailRecord, RetailRegion,
+    MODES, NATIVE_MODES, RETAIL_GOODS, RULES_VERSION, WAR_CAUSES, HouseholdRetailState, RegionFrame,
+    RetailRecord, RetailRegion,
 )
 
 #: Titled share of each pilot harvest (``no_relief``: 1).
@@ -144,15 +155,21 @@ def _log(state: HouseholdRetailState, record: RetailRecord) -> None:
 
 
 def set_household_retail_enabled(world, value: bool, *, args=None, agent_mode=None) -> None:
-    """Enable (with ``--household-retail-mode`` and ``--household-retail-boundary``)
-    or disable; omitted options keep the saved ones. Disabling, or switching to
+    """Enable (with ``--household-retail-mode``, ``--household-retail-boundary``
+    and ``--household-retail-rules``, default :data:`RULES_VERSION`) or disable;
+    omitted options keep the saved ones. A saved state's rules version never
+    changes (a conflicting value is refused). Disabling, or switching to
     ``record_only``, closes every holding to its region's commons, dated."""
     mode = getattr(args, "household_retail_mode", None) if args is not None else None
     boundary = getattr(args, "household_retail_boundary", None) if args is not None else None
+    rules = getattr(args, "household_retail_rules", None) if args is not None else None
     state = _state(world)
+    if state is not None and rules is not None and str(rules) != state.rules:
+        raise ValueError(rules_conflict(rules, state))
     if state is None:
         world.livelihoods.household_retail = state = HouseholdRetailState(
-            mode=mode or MODES[0], boundary=boundary or BOUNDARIES[0])
+            mode=mode or MODES[0], boundary=boundary or BOUNDARIES[0],
+            rules_version=int(rules) if rules is not None else RULES_VERSION)
     else:
         if mode is not None:
             state.mode = mode
@@ -165,9 +182,18 @@ def set_household_retail_enabled(world, value: bool, *, args=None, agent_mode=No
             _close_region(world, state, reg, "switch_off", note=note)
 
 
+def rules_conflict(rules, state: HouseholdRetailState) -> str:
+    return (f"--household-retail-rules {rules} conflicts with the saved retail state (rules version "
+            f"{state.rules_version}, which it keeps)")
+
+
 def household_retail_active(world) -> bool:
     state = _state(world)
     return state is not None and state.enabled and getattr(world, "agent_mode", None) == "hybrid"
+
+
+def _v2(state: HouseholdRetailState) -> bool:
+    return state.rules_version >= 2
 
 
 # ---------------------------------------------------------------------------
@@ -491,14 +517,19 @@ def _qualifying(world, state) -> list[tuple[int, str]]:
 
 
 def _apply_conquests(world, state) -> None:
-    """A conquest destroys the conquest share of each pilot region's owned
-    stock, once per conquest event: the region's ``last_conquered_turn`` (set
+    """Version 2: :func:`_check_conquests_observed`. Version 1 (checkpoints
+    2-3): a conquest destroys the conquest share of each pilot region's owned
+    stock, once per conquest turn: the region's ``last_conquered_turn`` (set
     by ``action_engine.apply_region_conquest``, the path that destroys the
     market's stock, also for annexed occupations) is newer than the last loss
     applied and not before the region joined the pilot. A change of
     controller without a conquest (peaceful transfer, abandonment) destroys
     nothing. Checked before the economy and before the agent tick, so a
-    conquest in any phase is applied before the next sale."""
+    conquest in any phase is applied before the next sale. Two conquests of
+    one region in one turn (``--no-campaigns``) destroy it once (RL1)."""
+    if _v2(state):
+        _check_conquests_observed(world, state)
+        return
     from chronicler.economy import CONQUEST_STOCKPILE_SURVIVAL
     for reg in state.regions:
         region = world.regions[reg.region]
@@ -515,12 +546,150 @@ def _apply_conquests(world, state) -> None:
                                  note=f"conquered by {region.controller} on turn {when}"))
 
 
+def _check_conquests_observed(world, state) -> None:
+    """Version 2: every conquest of a pilot region since it opened was applied
+    by :func:`on_conquest` at the event; a ``last_conquered_turn`` newer than
+    the last observed conquest is a conquest the hook never saw. In
+    ``record_only`` nothing is held, so nothing was owed: the marker follows."""
+    for reg in state.regions:
+        when = int(getattr(world.regions[reg.region], "last_conquered_turn", -1))
+        if when >= reg.opened_turn and when > reg.war_loss_turn:
+            if state.mode == "record_only":
+                reg.war_loss_turn = when
+                continue
+            raise RetailAccountingError(f"region {reg.region}: conquest on turn {when} not observed "
+                                        f"(the last observed was turn {reg.war_loss_turn})")
+
+
+def _war_share(goods: list[int], survival: float) -> list[int]:
+    """Per good, the milli-food a war event destroys: ``v - floor(v x f)``,
+    ``f`` read as its decimal value (0.85 is 17/20), so binary rounding never
+    takes an extra milli; no randomness."""
+    keep = Fraction(repr(float(survival)))
+    if not 0 <= keep <= 1:
+        raise ValueError(f"war survival factor {survival!r} is not in [0, 1]")
+    return [v - (v * keep.numerator) // keep.denominator for v in goods]
+
+
+def _civ(world, civ) -> tuple[int | None, str | None]:
+    """A civilization (object or name) as (its index in ``world.civilizations``, its name)."""
+    if civ is None:
+        return None, None
+    name = civ if isinstance(civ, str) else civ.name
+    for i, c in enumerate(world.civilizations):
+        if c is civ:
+            return i, name
+    return next((i for i, c in enumerate(world.civilizations) if c.name == name), None), name
+
+
+def _region_index(world, region) -> int:
+    for i, r in enumerate(world.regions):
+        if r is region:
+            return i
+    names = [i for i, r in enumerate(world.regions) if r.name == region.name]
+    if len(names) != 1:
+        raise RetailAccountingError(f"region {region.name!r} is not one region of the world")
+    return names[0]
+
+
+def _war_entry(world, region) -> tuple[HouseholdRetailState, RetailRegion] | None:
+    """The version-2 pilot entry a war event in ``region`` reaches, or None
+    (retail off, inactive, ``record_only`` or version 1; the region outside
+    the pilot)."""
+    state = _state(world)
+    if state is None or not _v2(state) or state.mode == "record_only" or not household_retail_active(world):
+        return None
+    reg = state.region(_region_index(world, region))
+    if reg is None:
+        return None
+    if state.frame_turn is not None and state.frame_turn >= world.turn:
+        raise RuntimeError("household retail war loss after this turn's frame was closed")
+    return state, reg
+
+
+def _apply_war_loss(world, state, reg: RetailRegion, survival: float, cause: str, actor, victim,
+                    note: str) -> int:
+    """Destroy ``v - floor(v x survival)`` of each owned good of ``reg``, claims
+    pro rata (largest remainder, ties by id), once; count the event and log
+    the loss (cause, actor and victim by index and name at the event)."""
+    if cause not in WAR_CAUSES:
+        raise ValueError(f"unknown war loss cause {cause!r}")
+    book = _book(state, world, reg)
+    per_good = _war_share(reg.goods, survival)
+    total = sum(per_good)
+    if total:
+        _debit(state, world, reg, "war_loss", _pro_rata(total, reg.claims), per_good)
+        _bump(state, "war_loss_milli", total)
+        _bump(state, f"war_loss_{cause}_milli", total)
+    reg.war_events = (reg.war_events or 0) + 1
+    _bump(state, "war_events")
+    if total:
+        # Every event is counted; an event that found nothing owned is not logged.
+        actor_id, actor_name = _civ(world, actor)
+        victim_id, victim_name = _civ(world, victim)
+        _log(state, RetailRecord(turn=int(world.turn), region=reg.region, kind="war_loss", milli=total, note=note,
+                                 cause=cause, actor=actor_id, actor_name=actor_name,
+                                 victim=victim_id, victim_name=victim_name))
+    check_region(reg, book)
+    check_owner(reg, book)
+    return total
+
+
+#: How a conquest came about (``via``), for the record's note.
+_CONQUEST_VIA = {
+    "war": "won in war",
+    "treaty": "ceded by treaty",
+    "consolidated": "annexed after a long occupation",
+    "owner_gone": "annexed as its former rulers vanish",
+}
+
+
+def on_conquest(world, region, attacker, defender, *, via: str = "war") -> int:
+    """``action_engine.apply_region_conquest`` hook (version 2): the conquest
+    destroys ``v - floor(v x CONQUEST_STOCKPILE_SURVIVAL)`` of each owned good
+    of a pilot region at once, as it halves the commons, once per call (two
+    conquests in one turn take it twice). ``via`` names the path (an aggregate
+    WAR win, or an annexation: ``treaty``, ``consolidated``, ``owner_gone``).
+    Returns the milli-food destroyed; a no-op outside version 2 or the pilot."""
+    found = _war_entry(world, region)
+    if found is None:
+        return 0
+    from chronicler.economy import CONQUEST_STOCKPILE_SURVIVAL
+    state, reg = found
+    reg.war_loss_turn = int(world.turn)
+    how = _CONQUEST_VIA.get(via, via)
+    _, attacker_name = _civ(world, attacker)
+    _, defender_name = _civ(world, defender)
+    return _apply_war_loss(world, state, reg, CONQUEST_STOCKPILE_SURVIVAL, "conquest", attacker, defender,
+                           f"conquered by {attacker_name} from {defender_name} ({how})")
+
+
+def on_war_loss(world, region, survival: float, *, cause: str | None, actor=None) -> int:
+    """``war.occupation._requisition`` hook (version 2): a siege turn
+    (``cause="siege"``) or an occupation start (``"occupation"``) destroys
+    ``v - floor(v x survival)`` of each owned good of a pilot region, the share
+    it takes of the commons, once per call. ``actor`` is the besieger or
+    occupier; the victim is the region's ruler. Returns the milli-food
+    destroyed; a no-op outside version 2 or the pilot."""
+    found = _war_entry(world, region)
+    if found is None:
+        return 0
+    if cause not in ("siege", "occupation"):
+        raise ValueError(f"a requisition of owned stock needs its cause (siege or occupation), not {cause!r}")
+    state, reg = found
+    _, actor_name = _civ(world, actor)
+    verb = "besieged" if cause == "siege" else "occupied"
+    return _apply_war_loss(world, state, reg, survival, cause, actor, region.controller,
+                           f"{verb} by {actor_name}")
+
+
 def _update_boundary(world, state) -> None:
     for reg in list(state.regions):
         if world.regions[reg.region].controller is None:
             _close_region(world, state, reg, "pilot_closed", note="no controller")
     for rid, reason in _qualifying(world, state):
-        reg = RetailRegion(region=rid, opened_turn=int(world.turn), reason=reason)
+        reg = RetailRegion(region=rid, opened_turn=int(world.turn), reason=reason,
+                           **({"war_events": 0} if _v2(state) else {}))
         state.regions.append(reg)
         _bump(state, "regions_opened")
         _log(state, RetailRecord(turn=int(world.turn), region=rid, kind="pilot_opened", note=reason))
@@ -985,17 +1154,20 @@ def before_agent_tick(world, agent_bridge, economy_result) -> None:
     sim = agent_bridge._sim
     t.installed = None
     p2 = t.phase2 if t.phase2 is not None and t.phase2.turn == world.turn and t.phase2.titled else None
-    # Conquest (this turn's war phase): the conquest share of owned stock.
+    # Conquest (this turn's war phase): version 1 applies the conquest share of
+    # owned stock now; version 2 applied it at the event and checks it saw it.
     _apply_conquests(world, state)
-    # Declared limit: occupation and siege requisitions do not reach owned stock.
-    armies = getattr(getattr(world, "war_state", None), "armies", [])
-    for reg in state.regions:
-        region = world.regions[reg.region]
-        occupied = region.occupied_by is not None and region.occupied_by != region.controller
-        besieged = any(a.phase == "sieging" and a.region == region.name and a.civ != region.controller
-                       for a in armies)
-        if sum(reg.goods) and (occupied or besieged):
-            _bump(state, "requisition_exempt_region_turns")
+    if not _v2(state):
+        # Version 1's declared limit: occupation and siege requisitions do not
+        # reach owned stock (version 2 applies them at the event).
+        armies = getattr(getattr(world, "war_state", None), "armies", [])
+        for reg in state.regions:
+            region = world.regions[reg.region]
+            occupied = region.occupied_by is not None and region.occupied_by != region.controller
+            besieged = any(a.phase == "sieging" and a.region == region.name and a.civ != region.controller
+                           for a in armies)
+            if sum(reg.goods) and (occupied or besieged):
+                _bump(state, "requisition_exempt_region_turns")
     # Spouses of every owner, before the tick (inheritance after it).
     owners = sorted({aid for reg in state.regions for aid in reg.claims})
     if owners and not callable(getattr(sim, "get_agent_relationships", None)):
@@ -1517,6 +1689,7 @@ def snapshot_summary(world) -> dict:
     observed = state.frame_turn == source
     return {
         "schema_version": 1, "stage": "L6b", "mode": state.mode, "boundary": state.boundary,
+        **({"rules_version": state.rules_version} if _v2(state) else {}),
         "source_turn": source,
         "regions": [f.model_dump() for f in state.frame] if observed else None,
         "money": dict(state.money) if observed else None,
