@@ -334,3 +334,91 @@ first held run.
   still incomplete when the budget is spent are reported as incomplete.
 - **Extension**: the held run uses an extension whose Rust equals the frozen commit's
   Rust, verified by the source identity recorded in `source.txt`.
+
+## Results (held cohort, 2026-11-06)
+
+Run on the frozen source from a separate worktree at `c5833e98` (simulation source
+`0cffa89e`), native `fdcb0ca0…`, 3 concurrent processes: **168 runs, 0 failed, every
+outcome extracted**, 1829 s of simulation and 327 s of extraction (**0.60 of the 2.0
+core-hours**), 12 minutes of wall time. No amendment was made. Raw outputs were deleted
+after extraction; [`metrics.jsonl`, `report.md` and `source.txt`](productive-recovery-screens-cp1/)
+are the evidence, and `scripts/productive_recovery_screens.py report` re-summarizes them.
+
+Each line gives the mean per world, its range, and the worlds above / below / at zero,
+template (t, 701–706) then procedural (p, 801–806). Six worlds per stratum support
+means, ranges and sign counts only. Population and treasury differences diverge and are
+not attributed.
+
+**PL2: the maintenance assumption and training.**
+- *The assumption carries a cost of its own.* `W_wear − W` lump repairs **+14.7 t
+  [+8, +19] (6/0/0), +19.7 p [+16, +22] (6/0/0)**; workshop mean condition −0.19 t
+  (1/5/0), −0.14 p (0/6/0). The previous phase's "RS1 adds repairs" was this assumption.
+- *RS1's apparatus under the shared wear* (`NQ2 − W_wear`, service qualifications and
+  attachment, no apprenticeship grant): lump repairs −5.0 t (0/6/0), −4.2 p (0/6/0).
+- *Training itself* (`TR2 − NQ2`). **Primary, share of operating site-turns covered by a
+  qualified crew member: +0.017 t [−0.091, +0.143] (2/3/1), a null; +0.026 p [−0.036,
+  +0.098] (4/1/1), small.** Apprenticeship qualifications +23 t (6/0/0) and +6.2 p
+  (5/0/1); graduate crew-turns +72 t (3/2/1), +11 p (3/0/3); full-offset site-turns
+  +30 t, +11 p; upkeep offset +0.48 t, +0.26 p; lump repairs −0.2 t (1/2/3), −1.3 p
+  (0/3/3); workshop condition ±0.001. Service qualifications are crowded out in template
+  (−5.2, 0/6/0), not in procedural (+1.0). Graduates do some useful crew work, but the
+  maintenance effect is small and inconsistent.
+
+**PL1: timber supply** (`TS − TS_cost`).
+- **Primary, granary mean condition: +0.051 t [0, +0.092] (5/0/1), +0.094 p [+0.046,
+  +0.150] (6/0/0).** At the end of the run: +0.076 t, +0.123 p.
+- Timber delivered +52 t (5/0/1), +270 p (6/0/0) per world; RS2 timber used +41 t,
+  +207 p; `no_timber` stalled project-turns −86 t (1/4/1), −334 p (1/5/0).
+- *Ecological cost:* L3 extraction +78 t, +255 p per world; the lowest stock share after
+  any cutting turn stayed at 0.52–0.99 t and 0.51–0.70 p (the guard holds at 0.5).
+- *Losses:* transit decay +0.9 t, +2.9 p; cargo abandoned to the forest commons when a
+  crew was lost +3.3 t (2/0/4), +26.7 p (6/0/0).
+- *Labour and wages:* the control keeps launching because its need is never met, so in
+  total `TS` used fewer farmer-turns away (−16 t, −261 p) and paid less (−23 t, −262 p
+  coins) than `TS_cost`. Per ended expedition the costs match within a few coins and
+  person-turns, as the control intends.
+- *Food:* food shortfall after relief in the crews' home regions, `TS − TS_cost` −104 t
+  (1/4/1), +52 p (4/2/0); `TS_cost − RP` (the expeditions' cost without timber) +36 t
+  (3/2/1), +21 p (3/3/0). **No food cost or benefit is detectable at this size**; this
+  is a null, not evidence that the labour cost is zero. Home regions were short on
+  27% (t) and 16% (p) of the turns their crews were away.
+- Template 706 never launched (no usable forest within reach), and template 701–702
+  delivered under 8 timber: in template worlds timber remains mostly unavailable.
+
+**PL3: recovery crews and the maintenance obligation.**
+- **Primary, `RC − RC_unpaid` granary-crew wages paid to named members: +132 t [0, +248]
+  (5/0/1), +599 p [+372, +822] (6/0/0) coins per world**, with the same coins no longer
+  sunk (−160 t, −546 p). Granary condition: −0.027 t (0/5/1), +0.009 p (6/0/0), small
+  in both directions.
+- *Named crews' labour limit* (`RC_unpaid − RP`): granary condition −0.011 t, −0.010 p,
+  mostly lower; the wider workshop pool shows no consistent gain (−0.064 t, −0.003 p).
+- **Primary, `MO − MO_ro`: workshop mean condition −0.021 t [−0.171, +0.079] (2/3/1), a
+  null; +0.030 p (6/0/0). Granary mean condition +0.031 t (4/1/1), +0.065 p (6/0/0).**
+  `no_envelope` stalls −57 t, −245 p; reservation used +110 t, +465 p coins.
+- *L9's own penalty* (`L9 − RP`): workshop condition −0.35 t (0/6/0), −0.22 p (0/6/0);
+  granary −0.085 t, −0.069 p. In procedural worlds the obligation recovers most of the
+  granary penalty and little of the workshop one.
+- *Crowding out* (`MO_ro − L9`): other L9 envelopes awarded −109 t (0/4/2), −58 p
+  (2/4/0) coins, mostly workshop envelopes.
+
+**Chain and veterans** (`CH`: timber supply, recovery crews and RS3 together).
+- **Primary, `CH − CH_rec` veteran placements: +3.0 t (2/1/3), +27.5 p [+6, +84]
+  (6/0/0)**; people placed +0.5 t, +15.8 p; repair placements +2.8 t, +26.7 p.
+- **Primary, `CH − RP` granary mean condition: +0.024 t (3/3/0), +0.060 p (6/0/0)**;
+  wages to named repair workers +296 t, +1285 p coins; timber delivered +42 t, +285 p.
+
+**Adverse effects and other findings.**
+- RS2 under operating wear (`RP − W_wear`) raises granary condition (+0.139 t, +0.118 p)
+  but **lowers workshop mean condition (−0.165 t, −0.248 p, 0/6/0 in both)**: RS2
+  replaces L1's free lump restoration with paid projects that stall for timber.
+- The maintenance assumption (`--operating-wear`) is the largest single cost in the
+  workshop arms; training offsets a small share of it.
+
+**What this does and does not show.** On fresh worlds, timber supply delivers real
+timber and measurably raises granary condition, most in the procedural worlds where
+forests exist; named crews move repair coins to households as wages; the obligation
+removes most of L9's granary penalty in procedural worlds; and veterans gain placements
+mainly through the new openings. Template worlds remain timber-poor. Training qualifies
+people who then work, but its maintenance effect is a null in template and small in
+procedural. None of this is qualification: the 200-seed and procedural gates stay
+unrun, nothing is promoted, and no constant was tuned.

@@ -1,0 +1,7 @@
+source c5833e988c43edc7f91b10b8743d3a01adc4767f
+chronicler /home/user/wt/held1/src/chronicler/__init__.py
+native /root/.venvs/native-pl1/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so fdcb0ca0f5d2c4ea2326579b1ce4ce55d647735928ea9900b9ff2d2d20f082db
+interpreter /root/.venvs/native-pl1/bin/python
+cohort held; seeds all; arms W,W_wear,TR2,NQ2,RP,TS,TS_cost,RC,RC_unpaid,L9,MO,MO_ro,CH,CH_rec; jobs 3; rows already written 0
+started 2026-11-06T01:19:10Z
+finished 2026-11-06T01:31:17Z: 168 runs, 0 failed, 1829 s of simulation, 327 s of extraction, 727.4 s wall
