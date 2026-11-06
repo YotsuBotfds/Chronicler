@@ -117,9 +117,10 @@ export const decisions = [
   { turn: 9, civ: 0, planned: 6, budget_before: 10, cap: 5, reserved: 5 },
   { turn: 9, civ: 1, planned: 2, budget_before: 30, cap: 15, reserved: 2 },
 ];
+/** The charge split pro rata (PL3 review C): civ 0 pays floor(6 x 4 / 7) = 3 from its reservation. */
 export const uses = [
-  { turn: 9, civ: 0, reserved: 4, envelope: 3, charged: 6, used: 4, returned: 0, envelope_spent: 2 },
-  { turn: 9, civ: 1, reserved: 3, envelope: null, charged: 1, used: 1, returned: 2, envelope_spent: 0 },
+  { turn: 9, civ: 0, reserved: 4, envelope: 3, charged: 6, used: 3, returned: 1, envelope_spent: 3, envelope_share: 3 / 7 },
+  { turn: 9, civ: 1, reserved: 3, envelope: null, charged: 1, used: 1, returned: 2, envelope_spent: 0, envelope_share: 0 },
 ];
 export const maintenanceObligation = { schema_version: 1, stage: "PL3", mode: "reserve", source_turn: 9,
   units: { money: "treasury_units" }, decisions, uses,

@@ -5,7 +5,7 @@ import { obligationTotals, readMaintenanceObligation } from "../../lib/maintenan
 const show = (value: number | null | undefined) =>
   value === null || value === undefined ? "Unknown" : value.toLocaleString(undefined, { maximumFractionDigits: 3 });
 const MODE_NOTE: Record<string, string> = {
-  reserve: "Reserve: before the budget is bargained, each ruler sets aside its planned repair charges, up to a declared share of the budget it would otherwise bargain. Repairs spend the reservation first and ask the bargained budget only for the rest.",
+  reserve: "Reserve: before the budget is bargained, each ruler sets aside its planned repair charges, up to a declared share of the budget it would otherwise bargain. Repairs ask the bargained budget only for the rest and may spend the reservation beyond their envelope; each turn's charge is split between the reservation and the envelope pro rata to their amounts.",
   reserve_only: "Reserve-only control: the same reservation, and so the same smaller budget for every bargained service, but repairs stay held to their bargained envelope and the whole reservation is returned unspent. It shows the crowding-out without the repair benefit.",
 };
 
@@ -71,10 +71,11 @@ export function MaintenanceObligation({ bundle, snapshot, currentTurn }: {
       ? <p className="systems-note">No repair charge was settled in simulation turn {record.source_turn}; how reservations were used is unknown, not zero.</p>
       : record.uses.length === 0 ? <p className="systems-note">No ruler held a reservation or a repair charge this turn.</p> : <>
         <div className="systems-table-wrap"><table className="systems-table" aria-label={`Reservations used at snapshot ${turn}`}>
-          <thead><tr><th>Ruler</th><th>Reserved</th><th>Repairs charged</th><th>Paid from the reservation</th><th>Paid from the envelope (of it)</th><th>Returned unspent</th></tr></thead>
+          <thead><tr><th>Ruler</th><th>Reserved</th><th>Repairs charged</th><th>Paid from the reservation</th><th>Paid from the envelope (of it)</th><th>Envelope&apos;s share of the work</th><th>Returned unspent</th></tr></thead>
           <tbody>{record.uses.map((u) => <tr key={u.civ}>
             <td>{civ(u.civ)}</td><td>{u.reserved}</td><td>{u.charged}</td><td>{u.used}</td>
-            <td>{u.envelope_spent} ({u.envelope === null ? "no envelope" : u.envelope})</td><td>{u.returned}</td>
+            <td>{u.envelope_spent} ({u.envelope === null ? "no envelope" : u.envelope})</td>
+            <td>{u.envelope_share === undefined ? "Not recorded (reservation paid first)" : show(u.envelope_share)}</td><td>{u.returned}</td>
           </tr>)}</tbody>
         </table></div>
         <p className="systems-note">Used this turn: {show(totals.used)} from reservations and {show(totals.envelopeSpent)} from envelopes of {show(totals.charged)} charged; {show(totals.returned)} returned{record.mode === "reserve_only" ? " (the control returns everything it reserved)" : ""}.</p>

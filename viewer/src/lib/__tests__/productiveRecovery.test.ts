@@ -187,6 +187,19 @@ describe("recovery crews reader", () => {
     expect(with_({ counters: { ...recoveryCrews.counters, granary_sunk_milli: 0 } })).toBe("lifetime granary money does not close");
   });
 
+  it("checks the recorded shortage flag against the planned work and the crew (PL3 review C)", () => {
+    // Planned 2, crew farm time 1.8: 0.2 of the work is left, at least min_share, so the crew is short.
+    expect(with_(receipts({ short: true }))).toBe("ok");
+    expect(with_(receipts({ short: false }))).toBe("the shortage flag disagrees with the planned work and the crew");
+    // A remainder below min_share names nobody and counts as covered.
+    const covered = { planned: 1.8005, short: false };
+    expect(with_(receipts(covered))).toBe("ok");
+    expect(with_(receipts({ ...covered, short: true }))).toBe("the shortage flag disagrees with the planned work and the crew");
+    const reading = read({ ...recoveryCrews, ...receipts(covered) });
+    expect(reading.status === "ok" && crewTotals(reading.record)?.short).toBe(0);
+    expect(with_({ receipts: [granaryCrew, recoveryCrews.receipts[1], { ...workshopCrew, short: true }] })).toBe("a workshop crew marked short");
+  });
+
   it("refuses a person on two crews and workshop money on the crew receipt", () => {
     const twice = { ...workshopCrew, members: [{ ...workshopCrew.members[0], agent_id: 30 }, ...workshopCrew.members.slice(1)] };
     expect(with_({ receipts: [granaryCrew, recoveryCrews.receipts[1], twice] })).toBe("a person is on two crews");
@@ -223,8 +236,8 @@ describe("maintenance obligation reader", () => {
     expect(readMaintenanceObligation(snap({}), 2)).toEqual({ status: "absent" });
     expect(why(readMaintenanceObligation(snap({ maintenance_obligation: maintenanceObligation }, 12), 2))).toBe("misdated observation");
     expect(why(read(maintenanceObligation, 1))).not.toBe("ok");
-    expect(obligationTotals((reading as unknown as { record: never }).record)).toEqual({ planned: 8, reserved: 7, capped: 1, used: 5,
-      returned: 2, envelopeSpent: 2, charged: 7 });
+    expect(obligationTotals((reading as unknown as { record: never }).record)).toEqual({ planned: 8, reserved: 7, capped: 1, used: 4,
+      returned: 3, envelopeSpent: 3, charged: 7 });
   });
 
   it("refuses reservations beyond the cap and uses that do not close", () => {
@@ -232,11 +245,23 @@ describe("maintenance obligation reader", () => {
       .toBe("a reservation is not the planned charges within the cap");
     expect(with_({ decisions: [{ ...decisions[0], cap: 6, reserved: 6 }, decisions[1]] }))
       .toBe("the cap is not the declared share of the budget");
-    expect(with_({ uses: [{ ...uses[0], returned: 1 }, uses[1]] })).toBe("reserved is not used plus returned");
-    expect(with_({ uses: [{ ...uses[0], envelope_spent: 1 }, uses[1]] }))
+    expect(with_({ uses: [{ ...uses[0], returned: 2 }, uses[1]] })).toBe("reserved is not used plus returned");
+    expect(with_({ uses: [{ ...uses[0], envelope_spent: 2 }, uses[1]] }))
       .toBe("the charge is not the reservation's part plus the envelope's");
     expect(with_({ uses: [{ ...uses[0], envelope: 1 }, uses[1]] })).toBe("repairs spent beyond their envelope");
-    expect(with_({ uses: [{ ...uses[0], used: 3, returned: 1, envelope_spent: 3 }, uses[1]] })).toBe("the reservation was not spent first");
+    // Pro rata, not the reservation first; the envelope's share of the work is recorded.
+    expect(with_({ uses: [{ ...uses[0], used: 4, returned: 0, envelope_spent: 2 }, uses[1]] })).toBe("the charge is not split pro rata");
+    expect(with_({ uses: [{ ...uses[0], envelope_share: 0.5 }, uses[1]] })).toBe("the charge is not split pro rata");
+    expect(with_({ uses: [{ ...uses[0], envelope_share: 1.5 }, uses[1]] })).toBe("malformed reservation use");
+    expect(with_({ uses: [{ ...uses[0], charged: 8, envelope_spent: 5 }, uses[1]] })).not.toBe("ok");
+    // A record written before the split (no envelope_share) paid from the reservation first.
+    const earlier = (u: typeof uses[number], used: number) => {
+      const rest: Record<string, unknown> = { ...u, used, returned: u.reserved - used, envelope_spent: u.charged - used };
+      delete rest.envelope_share;
+      return rest;
+    };
+    expect(with_({ uses: [earlier(uses[0], 4), earlier(uses[1], 1)] })).toBe("ok");
+    expect(with_({ uses: [earlier(uses[0], 3), earlier(uses[1], 1)] })).toBe("the reservation was not spent first");
     expect(with_({ uses: [uses[0], uses[0]] })).toBe("a civ has two uses");
     expect(with_({ counters: { ...maintenanceObligation.counters, charged_coins: 11 } })).toBe("lifetime charges do not close");
   });
@@ -244,10 +269,13 @@ describe("maintenance obligation reader", () => {
   it("holds the reserve-only control to returning everything, and keeps unobserved turns unknown", () => {
     expect(with_({ mode: "reserve_only" })).not.toBe("ok");
     const control = { ...maintenanceObligation, mode: "reserve_only",
-      uses: [{ ...uses[0], used: 0, returned: 4, envelope_spent: 6, envelope: 6 }, { ...uses[1], used: 0, returned: 3, envelope_spent: 1, envelope: 1 }],
+      uses: [{ ...uses[0], used: 0, returned: 4, envelope_spent: 6, envelope: 6, envelope_share: 1 },
+        { ...uses[1], used: 0, returned: 3, envelope_spent: 1, envelope: 1, envelope_share: 1 }],
       counters: { reserved_coins: 15, returned_coins: 15, envelope_spent_coins: 7, charged_coins: 7 } };
     expect(why(read(control))).toBe("ok");
     expect(why(read({ ...control, uses: [{ ...control.uses[0], used: 1, returned: 3, envelope_spent: 5 }, control.uses[1]] })))
+      .toBe("the reserve-only control spent its reservation");
+    expect(why(read({ ...control, uses: [{ ...control.uses[0], envelope_share: 0.6 }, control.uses[1]] })))
       .toBe("the reserve-only control spent its reservation");
     const unknown = read({ ...maintenanceObligation, decisions: null, uses: null });
     expect(unknown.status === "ok" && obligationTotals(unknown.record).reserved).toBeNull();

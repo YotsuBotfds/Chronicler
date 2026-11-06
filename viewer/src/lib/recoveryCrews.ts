@@ -25,6 +25,9 @@ export interface CrewReceiptRecord {
   /** Granary: the coins RS2 charged for the delivered work; wages reach the crew, the rest is sunk. */
   coin_cost_milli: number; wages_due_milli: number; wages_milli: number; wage_residual_milli: number;
   sunk_milli: number; farm_time_removed: number;
+  /** Granary (PL3 review C): the free adult farmers ran out with at least ``min_share`` of the planned work left.
+   * Absent in records written before it. */
+  short?: boolean;
 }
 
 export interface CrewLedgerRecord {
@@ -70,7 +73,8 @@ function memberProblem(x: unknown): string | null {
   return null;
 }
 
-function receiptProblem(x: unknown, regions: number, civs: number, source: number, mode: string): string | null {
+function receiptProblem(x: unknown, regions: number, civs: number, source: number, mode: string,
+  minShare: number): string | null {
   if (!object(x) || x.turn !== source || !count(x.pid) || (x.kind !== "granary" && x.kind !== "workshop")
     || !count(x.region) || x.region >= regions || !count(x.payer) || x.payer >= civs || !count(x.eligible)
     || ![x.planned, x.capacity, x.requested, x.delivered, x.farm_time_removed].every(amount)
@@ -100,6 +104,11 @@ function receiptProblem(x: unknown, regions: number, civs: number, source: numbe
     if (sum((m) => m.worked) > r.requested + 1e-5) return "a granary crew worked beyond its request";
     if (!members.every((m) => Math.abs(m.farm_time - m.worked) <= EPS)) return "farm time is not the work done";
     if (Math.abs(r.farm_time_removed - r.delivered) > EPS * Math.max(1, r.delivered)) return "farm time does not close";
+    if (r.short !== undefined) {
+      const left = r.planned - r.capacity;
+      if (typeof r.short !== "boolean" || (r.short ? left < minShare - EPS : left >= minShare + EPS))
+        return "the shortage flag disagrees with the planned work and the crew";
+    }
   } else {
     if (!count(r.eligible_site_city) || r.eligible_site_city > r.eligible) return "malformed workshop pool";
     if (members.length > MAX_CREW) return "a workshop crew beyond its size";
@@ -108,6 +117,7 @@ function receiptProblem(x: unknown, regions: number, civs: number, source: numbe
     if (members.some((m) => (m.origin === "site_city" || m.origin === "veteran") && m.farm_time !== 0))
       return "farm time removed for time already off the farm";
     if (Math.abs(r.farm_time_removed - sum((m) => m.farm_time)) > EPS) return "farm time does not close";
+    if (r.short !== undefined && r.short !== false) return "a workshop crew marked short";
   }
   return null;
 }
@@ -147,7 +157,8 @@ export function readRecoveryCrews(snapshot: TurnSnapshot | null, regionCount: nu
     const max = (x.parameters as Record<string, number>).max_frame_rows ?? 64;
     if (!Array.isArray(x.receipts) || x.receipts.length > max || !Array.isArray(x.ledger)) return bad("malformed receipts");
     for (const r of x.receipts) {
-      const why = receiptProblem(r, regionCount, civCount, x.source_turn, x.mode as string);
+      const why = receiptProblem(r, regionCount, civCount, x.source_turn, x.mode as string,
+        (x.parameters as Record<string, number>).min_share ?? 0.001);
       if (why) return bad(why);
     }
     for (const l of x.ledger) {
@@ -177,6 +188,12 @@ export function readRecoveryCrews(snapshot: TurnSnapshot | null, regionCount: nu
   return { status: "ok", record: x as unknown as RecoveryCrewsRecord };
 }
 
+/** A granary crew short of the planned work (the recorded flag; before it, any shortfall with a crew named). */
+export function isShort(r: CrewReceiptRecord): boolean {
+  if (r.kind !== "granary") return false;
+  return r.short ?? (r.members.length > 0 && r.requested + EPS < r.planned);
+}
+
 /** This turn's granary money and crew sizes; null when the turn is unknown. */
 export function crewTotals(record: RecoveryCrewsRecord): {
   coins: number; wages: number; sunk: number; residual: number; withheld: number | null;
@@ -196,7 +213,7 @@ export function crewTotals(record: RecoveryCrewsRecord): {
     workshopCrews: rows.filter((r) => r.kind === "workshop").length,
     people: members.length,
     farmTime: rows.reduce((a, r) => a + r.farm_time_removed, 0),
-    short: rows.filter((r) => r.kind === "granary" && r.members.length > 0 && r.requested + EPS < r.planned).length,
+    short: rows.filter(isShort).length,
     empty: rows.filter((r) => r.kind === "granary" && r.members.length === 0).length,
   };
 }

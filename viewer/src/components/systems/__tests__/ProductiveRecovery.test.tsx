@@ -135,8 +135,9 @@ it("maintenance obligation shows reserved, used and returned, and the budget it 
   expect(decided[1]).toHaveTextContent("Selurian6105 (binding)591");
   expect(screen.getByText(/Bargained budgets are 2 lower in all than without the reservations/)).toBeInTheDocument();
   const used = table("Reservations used at snapshot 10").getAllByRole("row");
-  expect(used[1]).toHaveTextContent("Selurian4642 (3)0");
-  expect(used[2]).toHaveTextContent("0 (no envelope)2");
+  expect(used[1]).toHaveTextContent("Selurian4633 (3)0.4291");                 // pro rata: floor(6 x 4 / 7) from the reservation
+  expect(used[2]).toHaveTextContent("0 (no envelope)02");
+  expect(screen.getByText(/split between the reservation and the envelope pro rata/)).toBeInTheDocument();
   expect(row("Maintenance obligation to snapshot 10", /Used by repairs/)).toHaveTextContent("9 · 4");
   cleanup();
   // Without a readable L9 decision the crowding-out is unknown, not zero.

@@ -17,8 +17,18 @@ export interface ReservationUseRecord {
   turn: number; civ: number; reserved: number;
   /** The bargained repairs envelope; null when none was awarded. */
   envelope: number | null;
-  /** RS2's whole-unit charge to the civ: paid by the reservation first, the envelope the rest. */
+  /** RS2's whole-unit charge to the civ, split between the reservation and the envelope pro rata to their amounts. */
   charged: number; used: number; returned: number; envelope_spent: number;
+  /** The envelope's share of the delivered work, envelope / (reserved + envelope); 1 without a reservation in use.
+   * Absent in records written before the pro-rata split (PL3 review C), which paid from the reservation first. */
+  envelope_share?: number;
+}
+
+/** PL3 review C: the charge split pro rata, as ``maintenance_obligation.split_charge``. */
+export function splitCharge(charged: number, reserved: number, envelope: number): [number, number] {
+  const whole = reserved + envelope;
+  if (reserved <= 0 || whole <= 0) return [0, 1];
+  return [Math.floor(charged * reserved / whole), envelope / whole];
 }
 
 export interface MaintenanceObligationRecord {
@@ -59,8 +69,19 @@ function useProblem(x: unknown, civs: number, source: number, mode: string): str
   if (r.reserved !== r.used + r.returned) return "reserved is not used plus returned";
   if (r.used + r.envelope_spent !== r.charged) return "the charge is not the reservation's part plus the envelope's";
   if (r.envelope !== null && r.envelope_spent > r.envelope) return "repairs spent beyond their envelope";
-  if (mode === "reserve_only" ? r.used !== 0 : r.used !== Math.min(r.charged, r.reserved))
-    return mode === "reserve_only" ? "the reserve-only control spent its reservation" : "the reservation was not spent first";
+  if (r.envelope_share !== undefined && !(finite(r.envelope_share) && r.envelope_share >= 0 && r.envelope_share <= 1))
+    return "malformed reservation use";
+  if (mode === "reserve_only") {
+    return r.used === 0 && (r.envelope_share === undefined || r.envelope_share === 1)
+      ? null : "the reserve-only control spent its reservation";
+  }
+  if (r.envelope_share === undefined) {
+    // Written before the pro-rata split: the reservation paid first.
+    return r.used === Math.min(r.charged, r.reserved) ? null : "the reservation was not spent first";
+  }
+  if (r.charged > r.reserved + (r.envelope ?? 0)) return "repairs charged beyond the reservation and envelope";
+  const [used, share] = splitCharge(r.charged, r.reserved, r.envelope ?? 0);
+  if (r.used !== used || Math.abs(r.envelope_share - share) > 1e-9) return "the charge is not split pro rata";
   return null;
 }
 

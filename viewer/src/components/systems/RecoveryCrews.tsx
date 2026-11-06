@@ -1,5 +1,5 @@
 import type { Bundle, TurnSnapshot } from "../../types";
-import { crewTotals, readRecoveryCrews, type CrewMemberRecord, type CrewReceiptRecord } from "../../lib/recoveryCrews";
+import { crewTotals, isShort, readRecoveryCrews, type CrewMemberRecord, type CrewReceiptRecord } from "../../lib/recoveryCrews";
 
 const show = (value: number | null | undefined, digits = 3) =>
   value === null || value === undefined ? "Unknown" : value.toLocaleString(undefined, { maximumFractionDigits: digits });
@@ -20,7 +20,7 @@ function member(m: CrewMemberRecord): string {
 
 function work(r: CrewReceiptRecord): string {
   if (r.kind === "workshop") return `${show(r.delivered)} repair work (share ${show(r.members[0]?.share)} each)`;
-  const short = r.members.length === 0 ? "no free adult farmer" : r.requested + 1e-6 < r.planned ? "crew short of the plan" : "";
+  const short = r.members.length === 0 && r.planned > 0 ? "no free adult farmer" : isShort(r) ? "crew short of the plan" : "";
   return `${show(r.planned)} planned → ${show(r.requested)} asked → ${show(r.delivered)} done${short ? ` (${short})` : ""}`;
 }
 
