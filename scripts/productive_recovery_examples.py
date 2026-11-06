@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-"""Find natural success and failure examples of the productive-recovery checkpoint-1 packages.
+"""Find natural success and failure examples of the productive-recovery checkpoint-1 packages,
+and (``--chain``) natural instances of the checkpoint-3 chain and its tradeoffs.
 
     python scripts/productive_recovery_examples.py BUNDLE [BUNDLE ...]
+    python scripts/productive_recovery_examples.py --chain BUNDLE [BUNDLE ...]
 
 Scans each run's dated livelihoods records (``history[i]["livelihoods"][<package>]``;
 never the final world state) and prints, per package, the first natural instance of
@@ -10,6 +12,13 @@ found". The packages are PL1 timber supply, PL2 (RS1 rules version 2 and
 ``--operating-wear``), PL3 recovery crews and the maintenance obligation, and RS2's
 ``no_people`` correction. A snapshot is dated by its ``turn``; every record in it
 observes the completed turn before (``source_turn``).
+
+``--chain`` follows each RS2 project that stalled ``no_timber`` through a PL1 expedition
+from its region, the repair that used the delivered timber, the named workers paid
+``repair_wage`` and the region's later food purchases (PL4 retail), and says for each link
+whether the records join it by stable id or only by region; it also prints the chain's
+natural tradeoffs (farm labour away, the forest stock drawn down, a family priced out
+after its crew member's wages ended).
 
 A bundle carries no CLI flags, so the reproducing command is the one that wrote it
 (docs/superpowers/progress/productive-recovery-examples.md lists them). Constructed
@@ -22,6 +31,7 @@ as ``productive_recovery_screens.check_extractor`` checks the counters it reads.
 from __future__ import annotations
 
 import json
+import re
 import sys
 from itertools import pairwise
 from pathlib import Path
@@ -406,10 +416,415 @@ VALUES_READ = {
 HISTORY_EVENTS = ("suspended_no_people", "resumed")
 
 
+# --- Checkpoint 3: the chain, traced by stable id (PL6d, ``--chain``) -------------------
+#
+# The phase's story: a community needs timber (an RS2 project stalls ``no_timber``), sends
+# a named, paid crew to cut it (PL1), repairs the asset (RS2), pays named workers (PL3
+# granary crews, RS2 workshop crews, the PL1 crew) and those households buy food (PL4
+# retail, here at the ``paid_work`` boundary). Each link says whether the records join it
+# to the previous one by stable id or only by region.
+
+#: Retail person-sample statuses, native codes (``household_retail_state.SAMPLE_STATUSES``
+#: plus the native withheld-dead status 3).
+SAMPLE_STATUS_NAMES = ("fed", "priced_out", "offer_short", "withheld_dead")
+PRICED_OUT = 1
+#: The sample's columns when a record does not state them (``household_retail.snapshot_summary``).
+SAMPLE_COLUMNS = ("agent_id", "region", "household", "ration", "fair_share", "status")
+#: Native retail provisioning columns read (``RETAIL_REGION_COLUMNS`` in provisioning.rs).
+PROVISIONING_READ = ("persons", "priced_out_persons", "sold_milli", "paid_milli")
+#: The most sample hits and samples listed per instance.
+MAX_HITS = 3
+
+
+def _chain_index(hist) -> dict:
+    """One pass over the dated records, keyed by snapshot turn ``T`` (each record
+    observes the completed turn ``T - 1``)."""
+    ix = {k: {} for k in ("stall", "rs2", "rs2_at", "closed", "open_at", "delivered", "launch", "ts_rx", "stores",
+                          "crews", "frames", "sample", "opened", "food")}
+    ix["ts_list"], ix["crew_list"], ix["rs2_list"] = [], [], []
+    for snap in hist:
+        T = snap.get("turn")
+        rp, ts = _liv(snap, "repair_projects"), _liv(snap, "timber_supply")
+        rc, hr = _liv(snap, "recovery_crews"), _liv(snap, "household_retail")
+        for r in _rows(rp, "receipts"):
+            ix["rs2"].setdefault(r["pid"], []).append((T, r))
+            ix["rs2_at"].setdefault((T, r["region"]), []).append(r)
+            ix["rs2_list"].append((T, r))
+            if r.get("status") == "stalled" and "no_timber" in (r.get("reasons") or []):
+                ix["stall"].setdefault(r["pid"], (T, r))
+        for p in _rows(rp, "projects"):
+            ix["open_at"].setdefault(T, {}).setdefault(p["region"], []).append(p["pid"])
+        for p in _rows(rp, "closed"):
+            ix["closed"].setdefault(p["pid"], (T, p))
+        for e in _rows(ts, "closed"):
+            if e.get("status") == "delivered" and (e.get("delivered") or 0) > 0:
+                ix["delivered"].setdefault(e["eid"], (T, e))
+        for n in _rows(ts, "needs"):
+            if n.get("status") == "launched" and n.get("eid") is not None:
+                ix["launch"].setdefault(n["eid"], (T, n))
+        for r in _rows(ts, "receipts"):
+            ix["ts_rx"].setdefault(r["eid"], []).append((T, r))
+            ix["ts_list"].append((T, r))
+        for row in _rows(ts, "stores"):
+            ix["stores"][(T, row["region"])] = row
+        for r in _rows(rc, "receipts"):
+            ix["crews"].setdefault(r["pid"], []).append((T, r))
+            ix["crew_list"].append((T, r))
+        for f in _rows(hr, "regions"):
+            ix["frames"][(T, f["region"])] = f
+        if hr is not None and isinstance(hr.get("sample"), list):
+            cols = hr.get("sample_columns") or SAMPLE_COLUMNS
+            ix["sample"][T] = [dict(zip(cols, row)) for row in hr["sample"]]
+        for rec in _rows(hr, "log"):
+            if rec.get("kind") == "pilot_opened":
+                ix["opened"].setdefault(rec["region"], rec)
+        for row in (snap.get("food_accounting") or {}).get("regions") or []:
+            ix["food"][(T, row.get("region_id"))] = row
+    return ix
+
+
+def _wage_snapshots(ix) -> dict[int, dict[int, list]]:
+    """Stable id -> {snapshot: [repair_wage milli, [sources]]} for every named repair
+    worker paid: PL3 crew members (``pl3_granary`` / ``pl3_workshop``, by member), RS2
+    workshop crews (``rs2_workshop``, the receipt's wages split evenly) and PL1
+    woodcutting crews (``pl1_woodcut``, likewise; one rate per person-turn)."""
+    paid: dict[int, dict[int, list]] = {}
+
+    def add(aid, T, milli, source):
+        if milli > 0:
+            cell = paid.setdefault(aid, {}).setdefault(T, [0, []])
+            cell[0] += milli
+            cell[1].append(source)
+
+    pl3 = set()
+    for T, r in ix["crew_list"]:
+        for m in _rows(r, "members"):
+            add(m["agent_id"], T, m.get("wage_milli") or 0, f"pl3_{r.get('kind')}")
+            pl3.add((T, r["pid"]))
+    for T, r in ix["rs2_list"]:
+        # PL3 lists the RS2 workshop crews it widened; count each wage once.
+        if (T, r["pid"]) not in pl3 and r.get("crew") and (r.get("wages_milli") or 0) > 0:
+            each, rest = divmod(r["wages_milli"], len(r["crew"]))
+            for i, aid in enumerate(r["crew"]):
+                add(aid, T, each + (1 if i < rest else 0), "rs2_workshop")
+    for T, r in ix["ts_list"]:
+        if r.get("crew") and (r.get("wages_milli") or 0) > 0:
+            each, rest = divmod(r["wages_milli"], len(r["crew"]))
+            for i, aid in enumerate(r["crew"]):
+                add(aid, T, each + (1 if i < rest else 0), "pl1_woodcut")
+    return paid
+
+
+def _sample_hits(ix, people: dict[int, int], region=None) -> list[dict]:
+    """Retail sample rows after each person's first wage (``people``: id -> snapshot of
+    the first wage): the person themself, or a member of the household keyed by their
+    id (a household's key is the smaller id of a co-resident couple, and a child takes
+    a parent's key)."""
+    hits = []
+    for T in sorted(ix["sample"]):
+        for row in ix["sample"][T]:
+            for who, aid in (("self", row.get("agent_id")), ("household", row.get("household"))):
+                if who == "household" and aid == row.get("agent_id"):
+                    continue
+                if aid in people and T > people[aid] and (region is None or row.get("region") == region):
+                    status = row.get("status")
+                    hits.append({"snapshot": T, "crew_member": aid, "who": who, "agent_id": row.get("agent_id"),
+                                 "household": row.get("household"), "region": row.get("region"),
+                                 "ration": row.get("ration"), "fair_share": row.get("fair_share"),
+                                 "status": SAMPLE_STATUS_NAMES[status] if isinstance(status, int)
+                                 and 0 <= status < len(SAMPLE_STATUS_NAMES) else status})
+    return hits
+
+
+def _trace(ix, pid: int) -> dict:
+    """The chain from one project's first ``no_timber`` stall, link by link, until a
+    link is not found (its reason stated)."""
+    s1, r1 = ix["stall"][pid]
+    R, t_stall = r1["region"], r1["turn"]
+    closed = ix["closed"].get(pid)
+    closed_turn = closed[1].get("closed_turn") if closed else None
+    links = [{"link": 1, "what": "RS2 project stalled no_timber", "snapshot": s1, "by": "id (pid)",
+              **_pick(r1, "pid", "kind", "asset", "region", "reasons", "condition_before"),
+              "stalled_no_timber_snapshots": sum(1 for _T, r in ix["rs2"][pid]
+                                                 if r.get("status") == "stalled"
+                                                 and "no_timber" in (r.get("reasons") or []))}]
+    out = {"pid": pid, "region": R, "links": links, "depth": 1, "id_to_food": False}
+    # 2. A woodcutting expedition from the region, launched after the stall, delivered
+    #    while the project was still open.
+    exps = sorted((e["launched_turn"], eid) for eid, (_T, e) in ix["delivered"].items()
+                  if e["home"] == R and e["launched_turn"] >= t_stall
+                  and (closed_turn is None or e["ended_turn"] < closed_turn))
+    if not exps:
+        out["missing"] = "no expedition from the region delivered timber after the stall while the project was open"
+        return out
+    eid = exps[0][1]
+    T_d, e = ix["delivered"][eid]
+    launched = ix["launch"].get(eid)
+    at_launch = ix["open_at"].get(e["launched_turn"] + 1, {}).get(R, [])
+    links.append({"link": 2, "what": "PL1 expedition from that region launched, cut and delivered", "snapshot": T_d,
+                  "by": "id (eid, crew); region for the project (PL1's need is per region)",
+                  **_pick(e, "eid", "civ", "home", "forest", "hops", "launched_turn", "ended_turn", "launched_crew",
+                          "crew", "cut", "delivered", "wages_milli", "away_delivered"),
+                  "need_at_launch": None if launched is None else _pick(launched[1], "want", "free", "gap", "status"),
+                  "open_projects_in_region_at_launch": at_launch,
+                  "project_was_the_region_s_only_open_project": at_launch == [pid]})
+    out["depth"] = 2
+    # 3. The asset's repair used the delivered timber: the region's store held for RS2
+    #    after the delivery, and the project's receipt used timber that turn.
+    uses, others, released = [], set(), 0.0
+    T = e["ended_turn"] + 2
+    while True:
+        row = ix["stores"].get((T, R))
+        if row is None or (row.get("delivered") or 0) > 0 and uses:
+            break
+        released += row.get("released") or 0.0
+        mine = [r for r in ix["rs2_at"].get((T, R), []) if r["pid"] == pid]
+        holders = [r["pid"] for r in ix["rs2_at"].get((T, R), []) if (r.get("timber_held") or 0) > 0]
+        if (row.get("held") or 0) > 0 and mine and (mine[0].get("timber_used") or 0) > 0:
+            others.update(p for p in holders if p != pid)
+            uses.append((T, row, mine[0]))
+        if (row.get("closing") or 0) <= 0:
+            break
+        T += 1
+    if not uses:
+        out["missing"] = "the delivered timber was not used by this project (released, or held by another project)"
+        return out
+    completed = closed is not None and closed[1].get("status") == "completed"
+    links.append({"link": 3, "what": "the asset's repair used the delivered timber", "snapshot": uses[0][0],
+                  "by": "id (pid; the project was the only one in the region holding timber)" if not others
+                  else "region (the store is per region; other projects held timber too)",
+                  "snapshots": [u[0] for u in uses], "store_held": round(sum(u[1]["held"] for u in uses), 6),
+                  "project_timber_used": round(sum(u[2]["timber_used"] for u in uses), 6),
+                  "condition": [uses[0][2].get("condition_before"), uses[-1][2].get("condition_after")],
+                  "other_projects_holding_timber": sorted(others),
+                  "store_released_to_the_stockpile": round(released, 6),
+                  "completed_snapshot": closed[0] if completed else None})
+    out["depth"] = 3
+    # 4. Named workers paid repair_wage: the project's crew in those turns, and the
+    #    expedition's own crew.
+    repair_turns = {u[0] for u in uses}
+    crew = {}
+    for T, r in ix["crews"].get(pid, []):
+        if T in repair_turns:
+            for m in _rows(r, "members"):
+                if (m.get("wage_milli") or 0) > 0:
+                    crew.setdefault(m["agent_id"], {"first_snapshot": T, "wage_milli": 0, "origin": m.get("origin")})
+                    crew[m["agent_id"]]["wage_milli"] += m["wage_milli"]
+    if not crew and r1["kind"] == "workshop":
+        for T, r in ix["rs2"].get(pid, []):
+            if T in repair_turns and r.get("crew") and (r.get("wages_milli") or 0) > 0:
+                for aid in r["crew"]:
+                    crew.setdefault(aid, {"first_snapshot": T, "wage_milli": 0, "origin": "rs2_workshop_crew"})
+                    crew[aid]["wage_milli"] += r["wages_milli"] // len(r["crew"])
+    woodcutters = {}
+    for T, r in ix["ts_rx"].get(eid, []):
+        if r.get("crew") and (r.get("wages_milli") or 0) > 0:
+            for aid in r["crew"]:
+                woodcutters.setdefault(aid, {"first_snapshot": T, "paid_turns": 0, "wage_milli": 0})
+                woodcutters[aid]["paid_turns"] += 1
+                woodcutters[aid]["wage_milli"] += r["wages_milli"] // len(r["crew"])
+    if not crew and not woodcutters:
+        out["missing"] = "no named worker was paid for this repair or expedition"
+        return out
+    # The repair crew's wages follow the delivery; the expedition's were paid on the way.
+    paid_from = min(v["first_snapshot"] for v in (crew or woodcutters).values())
+    links.append({"link": 4, "what": "named workers paid repair_wage", "by": "id (stable ids, per receipt)",
+                  "snapshot": paid_from, "repair_crew": crew, "expedition_crew": woodcutters,
+                  "expedition_crew_first_paid_snapshot": min((v["first_snapshot"] for v in woodcutters.values()),
+                                                             default=None)})
+    out["depth"] = 4
+    # 5. Those households, or the region's pilot households, bought food later.
+    people = {}
+    for aid, v in (*woodcutters.items(), *crew.items()):
+        people[aid] = min(people.get(aid, v["first_snapshot"]), v["first_snapshot"])
+    bought = [(T, f) for (T, rid), f in sorted(ix["frames"].items())
+              if rid == R and T > paid_from and ((f.get("provisioning") or {}).get("paid_milli") or 0) > 0]
+    hits = sorted(_sample_hits(ix, people), key=lambda h: (h["region"] != R, h["who"] != "self", h["snapshot"]))
+    here = [h for h in hits if h["region"] == R]
+    opened = ix["opened"].get(R)
+    if not bought and not hits:
+        out["missing"] = "the region's households bought no food after the wages, and no crew member is in the sample"
+        return out
+    first = bought[0] if bought else None
+    statuses = {}
+    for h in hits:
+        statuses[h["status"]] = statuses.get(h["status"], 0) + 1
+    links.append({"link": 5, "what": "those households, or the region's pilot households, bought food later",
+                  "by": ("region (purchases) and id (the person sample: ration and status, not purchases)" if hits
+                         else "region only (purchases; no crew member or their household is in the person sample)"),
+                  "snapshot": first[0] if first else hits[0]["snapshot"],
+                  "region_pilot_opened": None if opened is None else _pick(opened, "turn", "note"),
+                  "region_purchase_snapshots": len(bought),
+                  "region_paid_milli": sum(f["provisioning"]["paid_milli"] for _T, f in bought),
+                  "first_purchase": None if first is None else {
+                      "snapshot": first[0], "price_milli": first[1].get("price_milli"),
+                      **_pick(first[1]["provisioning"], *PROVISIONING_READ)},
+                  "sample_hits": len(hits), "sample_hits_in_region": len(here), "sample_statuses": statuses,
+                  "sample": hits[:MAX_HITS]})
+    out["depth"] = 5
+    out["id_to_food"] = bool(hits)
+    out["id_to_food_in_region"] = bool(here)
+    return out
+
+
+def _chain(hist) -> dict:
+    """The best natural chain instance (the deepest, then traced to food by id, then the
+    earliest stall), and a funnel over every project that stalled ``no_timber``."""
+    ix = _chain_index(hist)
+    traces = [_trace(ix, pid) for pid in sorted(ix["stall"], key=lambda p: (ix["stall"][p][0], p))]
+    funnel = {"projects stalled no_timber": len(traces)}
+    for depth, label in ((2, "an expedition from the region delivered after the stall"),
+                         (3, "the repair used the delivered timber"), (4, "named workers paid"),
+                         (5, "the region's households bought food later")):
+        funnel[label] = sum(1 for t in traces if t["depth"] >= depth)
+    funnel["a paid crew member or their household in the retail sample later"] = sum(1 for t in traces
+                                                                                     if t["id_to_food"])
+    funnel["... in the chain's region"] = sum(1 for t in traces if t.get("id_to_food_in_region"))
+    best = max(traces, key=lambda t: (t["depth"], t.get("id_to_food_in_region", False), t["id_to_food"]),
+               default=None)
+    return {"instance": best, "funnel": funnel}
+
+
+def _tradeoffs(hist, ix=None) -> dict:
+    """Natural tradeoff instances: a crew's farm labour away while its home region was
+    short of food; the forest stand drawn down by a cut (and the guard ending one); a
+    family priced out after its crew member's wages ended."""
+    ix = ix or _chain_index(hist)
+    away = short = None
+    cells = shorts = 0
+    for T, r in ix["ts_list"]:
+        if (r.get("away_delivered") or 0) <= 0:
+            continue
+        cells += 1
+        food = ix["food"].get((T, r["home"]))
+        s = (food or {}).get("sufficiency_after_relief")
+        if s is None or s >= 1.0:
+            continue
+        shorts += 1
+        demand = (food.get("native") or {}).get("demand") or 0.0
+        prov = (ix["frames"].get((T, r["home"])) or {}).get("provisioning") or {}
+        hit = (T, {**_pick(r, "eid", "home", "forest", "stage", "crew", "away_delivered"),
+                   "home_demand": demand, "home_sufficiency_after_relief": s,
+                   "home_shortfall": round(demand * (1 - s), 6),
+                   "home_priced_out_persons": prov.get("priced_out_persons"), "home_pilot_persons": prov.get("persons")})
+        short = short or hit
+        if away is None and (prov.get("priced_out_persons") or 0) > 0:
+            away = hit
+    cut = guard = None
+    cutting = falls = 0
+    for T, r in ix["ts_list"]:
+        if r.get("stage") == "cutting" and isinstance(r.get("capacity"), (int, float)) and r["capacity"] > 0 \
+                and isinstance(r.get("stock_after"), (int, float)) and isinstance(r.get("stock_before"), (int, float)):
+            cutting += 1
+            fall = r["stock_before"] - r["stock_after"]
+            falls += fall > 0
+            if fall > 0 and (cut is None or fall > cut[1]["stock_fall"]):
+                cut = (T, {**_pick(r, "eid", "home", "forest", "crew", "cut", "stock_before", "stock_after", "capacity"),
+                           "stock_fall": round(fall, 6), "share_before": round(r["stock_before"] / r["capacity"], 6),
+                           "share_after": round(r["stock_after"] / r["capacity"], 6)})
+        if guard is None and r.get("cut_end") == "forest_depleted":
+            last = [(t, x) for t, x in ix["ts_rx"].get(r["eid"], []) if t < T and x.get("stage") == "cutting"
+                    and isinstance(x.get("stock_after"), (int, float)) and (x.get("capacity") or 0) > 0]
+            guard = (T, {**_pick(r, "eid", "home", "forest", "stage", "cut_end", "cargo_after"),
+                         "last_cutting_snapshot": last[-1][0] if last else None,
+                         "last_cutting_share_after": round(last[-1][1]["stock_after"] / last[-1][1]["capacity"], 6)
+                         if last else None})
+    family = None
+    hits = 0
+    if not ix["sample"]:
+        family = "not applicable (no household_retail person sample)"
+    else:
+        paid = _wage_snapshots(ix)
+        for T in sorted(ix["sample"]):
+            for row in ix["sample"][T]:
+                if row.get("status") != PRICED_OUT:
+                    continue
+                for who, aid in (("self", row.get("agent_id")), ("household", row.get("household"))):
+                    if who == "household" and aid == row.get("agent_id"):
+                        continue
+                    wages = paid.get(aid) or {}
+                    prior = [w for w in wages if w < T]
+                    if prior and T not in wages:
+                        hits += 1
+                        if family is None:
+                            last = max(prior)
+                            family = (T, {"crew_member": aid, "who": who, "priced_out_person": row.get("agent_id"),
+                                          "household": row.get("household"), "region": row.get("region"),
+                                          "ration": row.get("ration"), "fair_share": row.get("fair_share"),
+                                          "wage_snapshots": sorted(prior),
+                                          "wage_sources": sorted({x for w in prior for x in wages[w][1]}),
+                                          "wages_milli": sum(wages[w][0] for w in prior),
+                                          "last_wage_snapshot": last, "turns_since_last_wage": T - last,
+                                          "paid_again_later": any(w > T for w in wages)})
+    return {
+        "tradeoff: crew farm labour away while the home region was short of food (first with home pilot persons "
+        "priced out that turn, else the first short)": away or short,
+        "tradeoff: the forest stand drawn down by a cut (the largest one-turn fall of the L3 stock while cutting)": cut,
+        "tradeoff: the guard ended a cutting stage (forest_depleted)": guard,
+        "tradeoff: a family priced out after its crew member's wages ended": family,
+        "counts": {"away crew-turns": cells, "away crew-turns with the home region short": shorts,
+                   "cutting turns": cutting, "cutting turns whose L3 stock fell": falls,
+                   "priced-out sample rows after a crew member's wages ended": hits},
+    }
+
+
+#: Record fields the chain mode reads: (module, model) -> fields.
+CHAIN_FIELDS_READ = {
+    ("repair_projects_state", "RepairReceipt"): {"turn", "pid", "kind", "asset", "region", "status", "reasons",
+                                                 "condition_before", "condition_after", "timber_held", "timber_used",
+                                                 "crew", "wages_milli"},
+    ("repair_projects_state", "RepairProject"): {"pid", "region", "status", "closed_turn"},
+    ("timber_supply_state", "Expedition"): {"eid", "civ", "home", "forest", "hops", "launched_turn", "ended_turn",
+                                            "launched_crew", "crew", "cut", "delivered", "wages_milli",
+                                            "away_delivered", "status"},
+    ("timber_supply_state", "ExpeditionReceipt"): {"eid", "home", "forest", "stage", "crew", "wages_milli",
+                                                   "away_delivered", "cut", "stock_before", "stock_after",
+                                                   "capacity", "cut_end", "cargo_after"},
+    ("timber_supply_state", "StoreRow"): {"region", "held", "delivered", "closing"},
+    ("timber_supply_state", "NeedRow"): {"want", "free", "gap", "status", "eid"},
+    ("recovery_crews_state", "CrewReceipt"): {"pid", "members"},
+    ("recovery_crews_state", "CrewMember"): {"agent_id", "origin", "wage_milli"},
+    ("household_retail_state", "RegionFrame"): {"region", "provisioning", "price_milli"},
+    ("household_retail_state", "RetailRecord"): {"turn", "region", "kind", "note"},
+}
+CHAIN_VALUES_READ = {
+    ("repair_projects_state", "REASONS"): {"no_timber"},
+    ("repair_projects_state", "PROJECT_STATUSES"): {"completed"},
+    ("timber_supply_state", "STATUSES"): {"delivered"},
+    ("timber_supply_state", "NEED_STATUSES"): {"launched"},
+    ("timber_supply_state", "STAGES"): {"cutting"},
+    ("timber_supply_state", "CUT_ENDS"): {"forest_depleted"},
+    ("household_retail_state", "RECORD_KINDS"): {"pilot_opened"},
+}
+
+
+def _chain_problems(import_module) -> list[str]:
+    problems = []
+    for (module, model), fields in CHAIN_FIELDS_READ.items():
+        declared = set(getattr(import_module(f"chronicler.{module}"), model).model_fields)
+        problems += [f"{model}.{f} is not a field" for f in sorted(fields - declared)]
+    for (module, name), values in CHAIN_VALUES_READ.items():
+        declared = set(getattr(import_module(f"chronicler.{module}"), name))
+        problems += [f"{module}.{name} does not declare {v!r}" for v in sorted(values - declared)]
+    statuses = tuple(import_module("chronicler.household_retail_state").SAMPLE_STATUSES)
+    if statuses != SAMPLE_STATUS_NAMES[:len(statuses)] or SAMPLE_STATUS_NAMES[PRICED_OUT] != "priced_out":
+        problems.append(f"SAMPLE_STATUSES {statuses} do not lead SAMPLE_STATUS_NAMES {SAMPLE_STATUS_NAMES}")
+    retail = (REPO / "src" / "chronicler" / "household_retail.py").read_text(encoding="utf-8")
+    if f'"sample_columns": {json.dumps(list(SAMPLE_COLUMNS))}' not in retail:
+        problems.append("household_retail.snapshot_summary declares other sample_columns")
+    rust = (REPO / "chronicler-agents" / "src" / "provisioning.rs").read_text(encoding="utf-8")
+    m = re.search(r"pub const RETAIL_REGION_COLUMNS: \[&str; \d+\] = \[(.*?)\];", rust, re.S)
+    declared = set(re.findall(r'"([^"]+)"', m.group(1))) if m else set()
+    problems += [f"provisioning column {c} is not in RETAIL_REGION_COLUMNS" for c in PROVISIONING_READ
+                 if c not in declared]
+    return problems
+
+
 def check_fields() -> None:
     """Every record field and declared value this script reads exists in this
-    checkout's source (its models, reason tuples and RS2's dated notes), and the
-    fallback operating floor is the workshops' own. Raises SystemExit naming each problem."""
+    checkout's source (its models, reason tuples, RS2's dated notes, the retail sample
+    columns and the native provisioning columns), and the fallback operating floor is
+    the workshops' own. Raises SystemExit naming each problem."""
     if str(REPO / "src") not in sys.path:
         sys.path.insert(0, str(REPO / "src"))
     from importlib import import_module
@@ -424,8 +839,74 @@ def check_fields() -> None:
     problems += [f"repair_projects.py notes no {e!r} event" for e in HISTORY_EVENTS if f'"{e}"' not in source]
     if import_module("chronicler.workshops").OPERATE_CONDITION != OPERATE_CONDITION:
         problems.append("OPERATE_CONDITION differs from workshops.OPERATE_CONDITION")
+    problems += _chain_problems(import_module)
     if problems:
         raise SystemExit("productive-recovery examples do not match the source: " + "; ".join(problems))
+
+
+#: The packages the chain mode needs, and the tradeoffs.
+CHAIN_NEEDS = ("repair_projects", "timber_supply", "household_retail")
+
+
+def find_chain(bundle: dict) -> dict:
+    """{"chain": {...} | note, "tradeoffs": {...} | note} for one run (dated records only)."""
+    hist = bundle.get("history") or []
+    missing = [name for name in CHAIN_NEEDS if not _has(hist, name)]
+    ix = _chain_index(hist)
+    out = {"chain": f"not recorded in this run (no {', '.join(missing)} record)" if missing else _chain(hist)}
+    out["tradeoffs"] = (_tradeoffs(hist, ix) if _has(hist, "timber_supply")
+                        else "not recorded in this run (no timber_supply record)")
+    return out
+
+
+def chain_main(argv: list[str]) -> int:
+    if not argv:
+        print(__doc__)
+        return 2
+    sys.path.insert(0, str(REPO / "src"))
+    from chronicler.bundle_codec import load_bundle
+    for path in argv:
+        b = load_bundle(Path(path))
+        hist = b.get("history") or []
+        modes = {}
+        for name in ("timber_supply", "recovery_crews", "repair_projects", "household_retail", "remittances"):
+            first = next(_records(hist, name), None)
+            if first is not None:
+                modes[name] = first[1].get("mode")
+                if name == "household_retail":
+                    modes["household_retail_boundary"] = first[1].get("boundary")
+        print(f"== {path} (seed {(b.get('metadata') or {}).get('seed')}, {len(hist)} snapshots; natural; "
+              f"modes {json.dumps(modes, sort_keys=True)})")
+        found = find_chain(b)
+        chain = found["chain"]
+        if isinstance(chain, str):
+            print(f"  chain: {chain}")
+        else:
+            inst = chain["instance"]
+            if inst is None:
+                print("  chain: none found (no project stalled no_timber)")
+            else:
+                print(f"  chain: project {inst['pid']} (region {inst['region']}), {inst['depth']} of 5 links"
+                      + (f"; link {inst['depth'] + 1} not found: {inst['missing']}" if inst.get("missing") else ""))
+                for link in inst["links"]:
+                    print(f"    link {link['link']} ({link['by']}): snapshot {link['snapshot']}: "
+                          f"{json.dumps(link, sort_keys=True)}")
+            print(f"  chain funnel: {json.dumps(chain['funnel'])}")
+        trade = found["tradeoffs"]
+        if isinstance(trade, str):
+            print(f"  tradeoffs: {trade}")
+            continue
+        print("  tradeoffs")
+        for kind, hit in trade.items():
+            if kind == "counts":
+                print(f"    counts: {json.dumps(hit)}")
+            elif hit is None:
+                print(f"    {kind}: none found")
+            elif isinstance(hit, str):
+                print(f"    {kind}: {hit}")
+            else:
+                print(f"    {kind}: snapshot {hit[0]}: {json.dumps(hit[1], sort_keys=True)}")
+    return 0
 
 
 def find(bundle: dict) -> dict:
@@ -447,6 +928,8 @@ def rules_version(bundle: dict):
 
 
 def main(argv: list[str]) -> int:
+    if argv[:1] == ["--chain"]:
+        return chain_main(argv[1:])
     if not argv:
         print(__doc__)
         return 2
