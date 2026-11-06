@@ -29,6 +29,11 @@ Modules: `chronicler/household_retail.py` (hooks, rules, checks) and
   feature-off manifests keep their bytes. A mode or boundary given without the switch
   is ignored (the existing livelihoods limit); an exact resume refuses one that
   conflicts with the checkpoint (`livelihoods_resume_conflicts`).
+- A saved, enabled switch is checked too. A resume that turns `--food-allocation` off,
+  or runs outside `--agents hybrid`, is refused with a message naming
+  `--no-household-retail`. Passing it closes every claim to its region's commons, with
+  a dated `switch_off` record per region, so no claim, owned food or pilot region drops
+  out unseen.
 
 ### State
 
@@ -105,7 +110,11 @@ imports, convoy and granary grain stay commons.
   to the spouse read before the tick, if alive; else equally to the living children
   (either parent id) in the claim's region, largest remainder, ascending id; else to
   that region's commons (`escheat`). An heir beyond the claims cap is refused and that
-  share escheats. A dead owner's claim is still offered in the tick that killed them.
+  share escheats. A claim whose owner died before phase 0.7 is withheld whole from the
+  offer, neither eaten nor sold (the native rule), so the heir inherits all of it.
+  Settlement accepts an offer smaller than the installed claims only by claims of owners
+  who are dead after the tick and have no claim row (exactly the frame's
+  `withheld_milli` when the native reports it); any other shortfall is refused.
   - Native estate order (`household.rs`): spouse first, then dependants anywhere, then
     all children anywhere. Python follows lead decision 6: children in the claim's
     region only, all ages, equally. The spouse case agrees. Child cases can differ;
@@ -118,6 +127,20 @@ imports, convoy and granary grain stay commons.
   destroyed (`war_loss`), claims pro rata. Occupation and siege requisitions do not
   reach owned stock (declared limit, counted in `requisition_exempt_region_turns`).
 - **Pool reset.** Every claim to the commons, dated.
+
+### Merchants, procurement and the controls
+
+- **Merchants** load only commons (lead decision 7). Owned food is never in
+  `region.stockpile`, so no merchant carries or pays for it; Python records no separate
+  count of the exports foregone.
+- **Foreign purchases and public grain shipments** buy commons only. Owners' grain is
+  sold only to their own ruler's granaries. A foreign buyer pays the seller's ruler as
+  before (`finance.transfer`); owners neither lose grain nor are paid.
+- **`free_exchange`.** Buyers are not charged: Python installs price 0, the native runs
+  mode 2 at price 0, and Python refuses a frame that moved money. Farm income is kept.
+  Granaries still buy owners' grain as in `retail`, but procured owner grain is not paid
+  for: the treasury's cost goes to the old sink ("producers outside the treasury
+  accounts"), exactly as with retail off, and is counted as `procurement_unpaid_milli`.
 
 ### Granary procurement (pinned seam in `grain_reserves.py`)
 
@@ -194,7 +217,8 @@ Raised on failure (`RetailAccountingError`, a `RuntimeError`):
   - `free_given + free_unallocated = free_rations`, and `free_rations` equals the
     install;
   - `own_eaten + sold = offered − unsold`;
-  - `offered` equals the installed claims;
+  - `offered` equals the installed claims, less only the withheld claims of owners
+    dead after the tick with no claim row (equal to `withheld_milli` when reported);
   - the claim rows sum to the region's `own_eaten` and `sold`;
   - `sum(person rations) = free_given + (own_eaten + sold) / ration`, each ration at
     most 1.
