@@ -30,13 +30,14 @@ describe("household retail panel", () => {
     expect(notes[1]).toMatch(/θ = 1: 0% of each pilot harvest stays commons/);
     // Children first, then persons and households, each cause with its deficit.
     expect(notes[2]).toBe("141 people (34 children) were provisioned in 4 pilot regions. Below their fair share: priced out, "
-      + "4 children among 16 people in 14 households (deficit 8.7 rations).");
+      + "4 children among 16 people in 14 households (deficit 8.7 rations). Nobody was short of the offer or short of a claim "
+      + "withheld for heirs.");
     const risk = "People below their fair share at snapshot 10";
-    expect(table(risk).getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Region", "Fair share (regional sufficiency)",
-      "Priced out (cash ran out): children · persons · households (deficit)",
-      "Offer short (not enough food on offer): children · persons · households (deficit)",
-      "Withheld (a dead owner's claim held for the heirs): children · persons · households (deficit)"]);
-    expect(rowOf(risk, "Saltreach")).toHaveTextContent("1 (1.877)1 · 8 · 7 (5.404)nonenone");
+    // Only the causes someone was short of get a column.
+    expect(table(risk).getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Region (fair share)", "Priced out"]);
+    expect(screen.getByRole("table", { name: risk }).querySelector("caption")?.textContent).toBe("Children · persons · households "
+      + "below their fair share (deficit in rations), by cause: Priced out (cash ran out).");
+    expect(rowOf(risk, "Saltreach")).toHaveTextContent(/^Saltreach \(1\)1 · 8 · 7 \(5\.404\)$/);
     expect(rowOf(risk, "Bram Fen")).toHaveTextContent("2 · 2 · 2 (0.343)");
     // Every risk row comes before the food and money tables in the section.
     const tables = [...container.querySelectorAll("table")].map((t) => t.getAttribute("aria-label"));
@@ -54,9 +55,9 @@ describe("household retail panel", () => {
     expect(rowOf(food, "Ashford Vale")).toHaveTextContent("21.98 (≈2.442)16.757 · 5.889 · 10.894");
     expect(note(/^141 people \(30 children\) were provisioned in 6 pilot regions\. Below their fair share: withheld for heirs, 0 children among 9 people/))
       .toBeInTheDocument();
-    expect(rowOf("People below their fair share at snapshot 81", "Oldmere")).toHaveTextContent("nonenone0 · 9 · 7 (0.26)");
+    expect(rowOf("People below their fair share at snapshot 81", "Oldmere")).toHaveTextContent(/^Oldmere \(0\.382\)0 · 9 · 7 \(0\.26\)$/);
     expect(table("Sampled people below their fair share at snapshot 81").getAllByRole("row")[1])
-      .toHaveTextContent("45Oldmere450.368 of 0.382withheld (dead owner's claim)");
+      .toHaveTextContent("45 (45), Oldmere0.368 of 0.382withheld (dead owner's claim)");
     expect(note(/117 more were not sampled\. The region counts above are complete\./)).toBeInTheDocument();
     expect(note(/^Records this turn: inherited 2\.$/)).toBeInTheDocument();
   });
@@ -64,11 +65,11 @@ describe("household retail panel", () => {
   it("shows price, payments, income replaced and the merchant bound, labelled as a bound", () => {
     render(<HouseholdRetail {...natural("t7")} />);
     const money = "Food money at snapshot 81";
-    expect(table(money).getAllByRole("columnheader").map((h) => h.textContent)).toContain(
-      "Merchant food departing from the commons · owned food merchants could not load (foregone departures at most)");
-    expect(rowOf(money, "Ashford Vale")).toHaveTextContent("0.361 a ration4.258 · 4.258 · 04.105 (27 farmers)0 · at most 10.894");
+    expect(table(money).getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Region", "Price a ration",
+      "Paid · credited · refunded", "Income replaced (farmers)", "Merchants: commons out · owned left (bound)"]);
+    expect(rowOf(money, "Ashford Vale")).toHaveTextContent("Ashford Vale0.3614.258 · 4.258 · 04.105 (27 farmers)0 · at most 10.894");
     expect(rowOf(money, "Bram Fen")).toHaveTextContent("none (no farmer rows)");
-    expect(note(/the owned food they could not load bounds the departures foregone; it is not a measured loss/)).toBeInTheDocument();
+    expect(note(/that owned food is an upper bound on the departures foregone, not a measured loss/)).toBeInTheDocument();
     const lifetime = "Household retail to snapshot 81";
     expect(rowOf(lifetime, "Paid · credited · refunded")).toHaveTextContent("1,083.841 · 1,083.841 · 0");
     expect(rowOf(lifetime, "Granary purchases")).toHaveTextContent("5 · 0 · 0");
@@ -78,7 +79,10 @@ describe("household retail panel", () => {
   it("shows refunds and offer shortfalls (constructed records that close)", () => {
     render(<HouseholdRetail {...props(refundAndOfferShort())} />);
     expect(rowOf("Food money at snapshot 81", "Kestrel Moor")).toHaveTextContent("1.603 · 1.5 · 0.103");
-    expect(rowOf("People below their fair share at snapshot 81", "Wyrmgate")).toHaveTextContent("none1 · 3 · 2 (0.4)none");
+    const risk = "People below their fair share at snapshot 81";
+    expect(table(risk).getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Region (fair share)", "Offer short", "Withheld for heirs"]);
+    expect(rowOf(risk, "Wyrmgate")).toHaveTextContent(/^Wyrmgate \(1\)1 · 3 · 2 \(0\.4\)none$/);
+    expect(rowOf(risk, "Oldmere")).toHaveTextContent(/^Oldmere \(0\.382\)none0 · 9 · 7 \(0\.26\)$/);
     expect(note(/offer short, 1 child among 3 people in 2 households \(deficit 0\.4 rations\); withheld for heirs/)).toBeInTheDocument();
   });
 
@@ -110,7 +114,7 @@ describe("household retail panel", () => {
     render(<HouseholdRetail {...natural("ro7")} />);
     expect(note(/^Simulation turn 59\. Record-only control \(identity control, nothing applied\)/)).toBeInTheDocument();
     expect(note(/^Mode: record_only \(identity control, nothing applied\)\./)).toBeInTheDocument();
-    expect(rowOf("Would-be retail at snapshot 60", "Ashford Vale")).toHaveTextContent("14.00730 of 3000.803 a ration");
+    expect(rowOf("Would-be retail at snapshot 60", "Ashford Vale")).toHaveTextContent("Ashford Vale14.00730 of 3000.8030");
     expect(screen.queryByRole("table", { name: /Owned food at/ })).toBeNull();
     expect(screen.queryByRole("table", { name: /Food money at/ })).toBeNull();
     cleanup();

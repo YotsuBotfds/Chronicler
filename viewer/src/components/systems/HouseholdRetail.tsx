@@ -29,6 +29,10 @@ const RISK_LABEL: Record<Risk, string> = {
   offer_short: "Offer short (not enough food on offer)",
   withheld_dead: "Withheld (a dead owner's claim held for the heirs)",
 };
+const RISK_HEAD: Record<Risk, string> = { priced_out: "Priced out", offer_short: "Offer short", withheld_dead: "Withheld for heirs" };
+const RISK_ABSENT: Record<Risk, string> = {
+  priced_out: "priced out", offer_short: "short of the offer", withheld_dead: "short of a claim withheld for heirs",
+};
 const RISK_SHORT: Record<Risk, string> = { priced_out: "priced out", offer_short: "offer short", withheld_dead: "withheld for heirs" };
 const plural = (n: number, one: string, many = `${one}s`) => `${number(n)} ${n === 1 ? one : many}`;
 const STATUS_LABEL: Record<string, string> = {
@@ -54,7 +58,8 @@ function riskSentence(record: HouseholdRetailRecord): string | null {
   const head = `${plural(persons, "person", "people")} (${plural(children, "child", "children")}) were provisioned in ${plural(provisioned.length, "pilot region")}.`;
   const below = RISKS.filter((k) => totals[k].persons > 0);
   if (!below.length) return `${head} Everyone reached their fair share.`;
-  return `${head} Below their fair share: ${below.map((k) => `${RISK_SHORT[k]}, ${plural(totals[k].children, "child", "children")} among ${plural(totals[k].persons, "person", "people")} in ${plural(totals[k].households, "household")} (deficit ${number(totals[k].deficit)} rations)`).join("; ")}.`;
+  const absent = RISKS.filter((k) => totals[k].persons === 0);
+  return `${head} Below their fair share: ${below.map((k) => `${RISK_SHORT[k]}, ${plural(totals[k].children, "child", "children")} among ${plural(totals[k].persons, "person", "people")} in ${plural(totals[k].households, "household")} (deficit ${number(totals[k].deficit)} rations)`).join("; ")}.${absent.length ? ` Nobody was ${absent.map((k) => RISK_ABSENT[k]).join(" or ")}.` : ""}`;
 }
 
 function incomeCell(record: HouseholdRetailRecord, r: RetailRegionFrame): string {
@@ -68,7 +73,7 @@ function incomeCell(record: HouseholdRetailRecord, r: RetailRegionFrame): string
 function priceCell(record: HouseholdRetailRecord, r: RetailRegionFrame): string {
   if (r.price_milli === null) return "not installed";
   if (record.mode === "free_exchange") return "not charged";
-  return `${coins(r.price_milli)} a ration`;
+  return coins(r.price_milli);
 }
 
 /** Completed-turn household retail only; never reads final-world state. */
@@ -100,6 +105,8 @@ export function HouseholdRetail({ bundle, snapshot, currentTurn, onSelectRegion 
   const provisioned = (frames ?? []).filter((r) => r.provisioning !== null);
   const unprovisioned = control ? [] : (frames ?? []).filter((r) => r.provisioning === null);
   const atRisk = provisioned.filter((r) => RISKS.some((k) => r.provisioning![`${k}_persons`] > 0));
+  /** Only the causes someone was short of this turn get a column (the sentence names the others as none). */
+  const causes = RISKS.filter((k) => atRisk.some((r) => r.provisioning![`${k}_persons`] > 0));
   const sampled = (record.sample ?? []).filter((s) => s[5] !== 0);
   const money = record.money ?? {};
   const procurement = "procurement_flows" in money ? money : null;
@@ -115,17 +122,17 @@ export function HouseholdRetail({ bundle, snapshot, currentTurn, onSelectRegion 
         {control ? <p className="systems-note">Nobody is provisioned by retail in this control; the food allocation section shows what people ate.</p> : <>
           <p className="systems-note">{riskSentence(record) ?? "No pilot region was provisioned this turn."}</p>
           {atRisk.length > 0 ? <div className="systems-table-wrap"><table className="systems-table" aria-label={`People below their fair share at snapshot ${turn}`}>
-            <thead><tr><th>Region</th><th>Fair share (regional sufficiency)</th>
-              {RISKS.map((k) => <th key={k}>{RISK_LABEL[k]}: children · persons · households (deficit)</th>)}</tr></thead>
+            <caption>Children · persons · households below their fair share (deficit in rations), by cause: {causes.map((k) => RISK_LABEL[k]).join("; ")}.</caption>
+            <thead><tr><th>Region (fair share)</th>{causes.map((k) => <th key={k}>{RISK_HEAD[k]}</th>)}</tr></thead>
             <tbody>{atRisk.map((r) => <tr key={r.region}>
-              <td>{name(r)}</td><td>{number(r.provisioning!.fair_share)} ({number(r.provisioning!.sufficiency)})</td>
-              {RISKS.map((k) => <td key={k}>{riskCell(r.provisioning, k)}</td>)}
+              <td>{name(r)} ({number(r.provisioning!.fair_share)})</td>
+              {causes.map((k) => <td key={k}>{riskCell(r.provisioning, k)}</td>)}
             </tr>)}</tbody>
           </table></div> : null}
           {sampled.length > 0 ? <div className="systems-table-wrap"><table className="systems-table" aria-label={`Sampled people below their fair share at snapshot ${turn}`}>
-            <thead><tr><th>Person</th><th>Region</th><th>Household</th><th>Ration of fair share</th><th>Why</th></tr></thead>
+            <thead><tr><th>Person (household), region</th><th>Ration of fair share</th><th>Why</th></tr></thead>
             <tbody>{sampled.map(([id, rid, household, ration, fair, status]) => <tr key={`${rid}-${id}`}>
-              <td>{id}</td><td>{link(rid)}</td><td>{household}</td><td>{number(ration)} of {number(fair)}</td>
+              <td>{id} ({household}), {link(rid)}</td><td>{number(ration)} of {number(fair)}</td>
               <td>{STATUS_LABEL[RETAIL_STATUSES[status]]}</td>
             </tr>)}</tbody>
           </table></div> : null}
@@ -133,19 +140,19 @@ export function HouseholdRetail({ bundle, snapshot, currentTurn, onSelectRegion 
           {unprovisioned.length > 0 ? <p className="systems-note">Not provisioned by retail this turn (nothing installed there, or the tick took no install; its people were fed under the food allocation rule, in that section): {unprovisioned.map((r) => region(r.region)).join(", ")}.</p> : null}
         </>}
         {control ? <div className="systems-table-wrap"><table className="systems-table" aria-label={`Would-be retail at snapshot ${turn}`}>
-          <thead><tr><th>Region</th><th>Would-be title</th><th>Owners of farmers</th><th>Would stay commons (no farmer)</th><th>Would-be price</th><th>Merchant food departing</th></tr></thead>
+          <thead><tr><th>Region</th><th>Would-be title</th><th>Owners of farmers</th><th>Kept commons (no farmer)</th><th>Would-be price a ration</th><th>Merchants: commons out</th></tr></thead>
           <tbody>{frames.map((r) => <tr key={r.region}>
             <td>{name(r)}</td><td>{food(r.would_be?.titled_milli)}</td>
             <td>{r.would_be ? `${number(r.would_be.owners)} of ${number(r.would_be.farmers)}` : "Unknown"}</td>
             <td>{food(r.would_be?.untitled_milli)}</td>
-            <td>{r.would_be?.price_milli === undefined ? "Unknown" : `${coins(r.would_be.price_milli)} a ration`}</td>
+            <td>{r.would_be?.price_milli === undefined ? "Unknown" : coins(r.would_be.price_milli)}</td>
             <td>{show(r.merchant_food_departing)}</td>
           </tr>)}</tbody>
         </table></div> : <>
           <div className="systems-table-wrap"><table className="systems-table" aria-label={`Owned food at snapshot ${turn}`}>
-            <thead><tr><th>Region</th><th>Owned open → close (owners)</th><th>Titled to owners (≈ the harvest's commons share)</th>
-              <th>Own food eaten · sold · unsold</th><th>Free food given (of free rations)</th><th>Decay · overflow</th>
-              <th>Sold to granaries · conquest loss</th><th>To commons (why)</th><th>Inherited</th></tr></thead>
+            <thead><tr><th>Region</th><th>Owned: open → close (owners)</th><th>Titled (≈ commons share)</th>
+              <th>Eaten · sold · unsold</th><th>Free food given</th><th>Decay · overflow</th>
+              <th>To granaries · conquest</th><th>To commons</th><th>Inherited</th></tr></thead>
             <tbody>{frames.map((r) => {
               const q = r.provisioning;
               const share = commonsShare(r, theta);
@@ -165,8 +172,8 @@ export function HouseholdRetail({ bundle, snapshot, currentTurn, onSelectRegion 
             })}</tbody>
           </table></div>
           <div className="systems-table-wrap"><table className="systems-table" aria-label={`Food money at snapshot ${turn}`}>
-            <thead><tr><th>Region</th><th>Price</th><th>Paid · credited · refunded</th><th>Farm income replaced (farmers)</th>
-              <th>Merchant food departing from the commons · owned food merchants could not load (foregone departures at most)</th></tr></thead>
+            <thead><tr><th>Region</th><th>Price a ration</th><th>Paid · credited · refunded</th><th>Income replaced (farmers)</th>
+              <th>Merchants: commons out · owned left (bound)</th></tr></thead>
             <tbody>{frames.map((r) => {
               const q = r.provisioning;
               return <tr key={r.region}>
@@ -177,7 +184,7 @@ export function HouseholdRetail({ bundle, snapshot, currentTurn, onSelectRegion 
               </tr>;
             })}</tbody>
           </table></div>
-          <p className="systems-note">Commons share: the part of each pilot harvest that stays commons (1 − θ), derived from the title. Merchants load only the commons: the owned food they could not load bounds the departures foregone; it is not a measured loss.</p>
+          <p className="systems-note">Titled: the owned share of this turn's harvest, with the part titled but kept commons (no farmer, or the claims cap); the commons share (1 − θ of the harvest) is derived from it. Eaten and sold are owners' claims debited; free food given is in rations, of the free rations installed (commons draw-down and granary release). Merchants: the food they committed from the commons, then the owned food they could not load. Merchants load only the commons, so that owned food is an upper bound on the departures foregone, not a measured loss.</p>
           {procurement ? <p className="systems-note">{record.mode === "free_exchange"
             ? `Granaries bought ${food((frames ?? []).reduce((a, r) => a + flowOf(r, "procured"), 0))} of owners' grain in ${procurement.procurement_flows} purchases; in this control nobody was paid (${coins(procurement.procurement_unpaid_milli)} stays with the treasury's old sink).`
             : `Granaries bought ${food((frames ?? []).reduce((a, r) => a + flowOf(r, "procured"), 0))} of owners' grain in ${procurement.procurement_flows} purchases; owners were credited ${coins(procurement.procurement_credited_milli)}${procurement.procurement_residual_milli ? ` (${coins(procurement.procurement_residual_milli)} refused by the wealth ceiling)` : ""}.`}</p> : null}
