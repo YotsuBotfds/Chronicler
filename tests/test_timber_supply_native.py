@@ -1,6 +1,6 @@
 """PL1 timber supply on the real compiled extension.
 
-Development activation (template seed 3, 8 regions x 4 civs): the civ that
+Development activation (template seed 23, 8 regions x 4 civs, with PL3, RS1 and RS3 on): the civ that
 holds the world's forests opens RS2 granary projects it cannot supply from
 its stockpile, so named crews cut at the forest, carry the timber home and
 RS2 draws on the store (docs/integration/timber-supply.md). A constructed
@@ -17,9 +17,13 @@ import pytest
 pytest.importorskip("chronicler_agents")
 pytestmark = pytest.mark.native
 
-FLAGS = ["--agents", "hybrid", "--simulate-only", "--grain-reserves", "--public-grain-shipments",
-         "--grain-storage", "--workshops", "--repair-projects", "--timber-stock", "--timber-supply"]
-SEED, TURNS = 3, 60
+BASE_FLAGS = ["--agents", "hybrid", "--simulate-only", "--grain-reserves", "--public-grain-shipments",
+              "--grain-storage", "--workshops", "--repair-projects", "--timber-stock", "--timber-supply"]
+#: Review A (2026-11-06): with the planners that name crews from the same people.
+FLAGS = [*BASE_FLAGS, "--recovery-crews", "--apprenticeship", "--veteran-reintegration"]
+#: Template seed 23 activates expeditions with every planner on; seed 3 holds a
+#: live expedition at turn 52 with the base flags (the checkpoint case).
+SEED, TURNS = 23, 60
 
 
 def _cli(monkeypatch, folder, *argv):
@@ -54,11 +58,27 @@ def _instrument(monkeypatch, seen):
         snap = sim.get_snapshot()
         cols = {n: snap.column(n).to_pylist() for n in ("id", "region", "occupation", "age")}
         rows = {cols["id"][i]: i for i in range(len(cols["id"]))}
+        soldiers = {a for e in world.livelihoods.timber_supply.expeditions + world.livelihoods.timber_supply.closed
+                    for a in e.soldier_veterans}
+        # No other planner named anyone on a live expedition this turn: the L1
+        # crews, RS2 workshop repair crews and PL3 granary and workshop crews.
+        live = {aid for r in t.receipts for aid in r.crew}
+        others = set()
+        rp_turn = world.livelihoods.repair_projects._turn
+        for w in (rp_turn.work.values() if rp_turn is not None and rp_turn.turn == turn else ()):
+            others |= set(w.crew or []) | {m[0] for m in (getattr(w, "named", None) or [])}
+        ws = world.livelihoods.workshops
+        for receipt in (ws.frame if ws.frame_turn == turn else ()):
+            others |= set(receipt.crew)
+        assert not live & others, sorted(live & others)
+        seen["others"] += len(others)
         for r in t.receipts:
+            assert not any(reason == "other_work" for _aid, reason in r.dropped)
             for aid in r.crew:
                 assert registry[aid] == (TSU.CATEGORY_REPAIR, pytest.approx(1.0))
                 i = rows[aid]
-                assert cols["region"][i] == r.home and cols["age"][i] >= 20 and cols["occupation"][i] != 1
+                assert cols["region"][i] == r.home and cols["age"][i] >= 20
+                assert cols["occupation"][i] != 1 or aid in soldiers
             assert 0.0 <= r.away_delivered <= r.away_requested + 1e-6
             assert r.wages_milli + r.wage_residual_milli == r.wages_due_milli
             if r.cut > 0:
@@ -104,7 +124,7 @@ def test_expeditions_cut_carry_deliver_and_feed_rs2_with_closed_books(tmp_path, 
     from chronicler import timber_supply as TSU
     from chronicler.bundle_codec import load_bundle
     from chronicler.timber_supply_state import StoreRow, WageLedger
-    seen = {"turns": 0, "crew": 0, "transfers": 0, "cut": 0.0, "outflow": 0.0, "resident": []}
+    seen = {"turns": 0, "crew": 0, "transfers": 0, "cut": 0.0, "outflow": 0.0, "resident": [], "others": 0}
     _instrument(monkeypatch, seen)
     monkeypatch.setenv("CHRONICLER_CHECK_RESOURCES", "1")
     _cli(monkeypatch, tmp_path, "--seed", str(SEED), "--turns", str(TURNS), *FLAGS)
@@ -257,6 +277,9 @@ def test_constructed_cost_only_cuts_nothing_but_pays_and_takes_the_same_crew(mon
     assert all(row["l3"].extraction == 0.0 for row in rows_c)
     assert all(row["store"] == {} for row in rows_c)
     assert c.counters.get("cut", 0.0) == 0.0 and c.counters.get("delivered", 0.0) == 0.0
+    # Review A: a control crew home with nothing is "returned", never "delivered".
+    assert c.counters.get("delivered_expeditions", 0) == 0 and c.counters["returned_expeditions"] >= 1
+    assert all(e.status != "delivered" for e in c.closed)
     assert sum(r.wages_milli for r in receipts_c) == sum(r.wages_milli for r in receipts_s) > 0
     assert c.counters["launched"] > s.counters["launched"]
 
@@ -264,7 +287,7 @@ def test_constructed_cost_only_cuts_nothing_but_pays_and_takes_the_same_crew(mon
 def test_exact_checkpoint_resume_inside_a_live_expedition(tmp_path, monkeypatch):
     from chronicler.bundle_codec import load_bundle
     straight = tmp_path / "straight"
-    _cli(monkeypatch, straight, "--seed", str(SEED), "--turns", "56", *FLAGS, "--checkpoint-turns", "52")
+    _cli(monkeypatch, straight, "--seed", "3", "--turns", "56", *BASE_FLAGS, "--checkpoint-turns", "52")
     ckpt = straight / "checkpoint_turn_52.ckpt"
     assert ckpt.exists()
     resumed = tmp_path / "resumed"
@@ -276,3 +299,17 @@ def test_exact_checkpoint_resume_inside_a_live_expedition(tmp_path, monkeypatch)
     assert record["expeditions"], "the checkpoint must hold a live expedition"
     assert a["history"] == b["history"] and a["world_state"] == b["world_state"]
     assert (straight / "state.json").read_bytes() == (resumed / "state.json").read_bytes()
+
+
+def test_live_crews_are_never_named_to_home_crews_with_every_planner_on(tmp_path, monkeypatch):
+    """Review A (2026-11-06), template seed 23: PL3's region-wide repair pools
+    and granary crews and the L1 crews took expedition members mid-trip (39
+    ``other_work`` drops in 120 turns, half the cut abandoned). Live crews are
+    now reserved first: no drop for other work, no overlap with any crew."""
+    from chronicler.bundle_codec import load_bundle
+    seen = {"turns": 0, "crew": 0, "transfers": 0, "cut": 0.0, "outflow": 0.0, "resident": [], "others": 0}
+    _instrument(monkeypatch, seen)
+    _cli(monkeypatch, tmp_path, "--seed", "23", "--turns", "60", *FLAGS, "--operating-wear")
+    counters = load_bundle(tmp_path / "chronicle_bundle.json")["history"][-1]["livelihoods"]["timber_supply"]["counters"]
+    assert counters["launched"] > 0 and seen["crew"] > 0 and seen["others"] > 0
+    assert counters.get("dropped_other_work", 0) == 0
