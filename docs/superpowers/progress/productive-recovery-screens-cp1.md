@@ -1,11 +1,19 @@
 # Productive recovery, checkpoint 1: preregistered held screens (PL6a)
 
-Status: **DRAFT, not frozen**. The lead freezes this file on the final checkpoint-1
-source, before any held run. `scripts/productive_recovery_screens.py run --cohort held`
-refuses to start until this status line reads FROZEN.
+Status: **FROZEN** by the lead on 2026-11-06, before any held run, on simulation source
+`0cffa89e` (branch `claude/productive-recovery`) with native extension `fdcb0ca0…` (built
+from PL1's Rust, the phase branch's Rust since; no later Rust change). Code may change
+between this freeze and the held run only to fix a defect, listed as an amendment; no
+arm, outcome or parameter may change in response to held outcomes.
 
 Drafted 2026-11-06 by lane PL6a on `claude/pl6a-screens` (from the phase head
-`8f7a6718`). No held seed has been run by this lane.
+`8f7a6718`); the lead's decisions are recorded below. No held seed was run before the
+freeze.
+
+**Pilot on the frozen source.** The timing pilot was rerun on `0cffa89e` after the
+review fixes: 28 runs, 0 failed, every outcome extracted; 387 s of simulation and 85 s
+of extraction at 2 concurrent processes, projecting the 168 held runs at about 0.79
+core-hours. Its outcomes were not read for any decision.
 
 ## Purpose and limits
 
