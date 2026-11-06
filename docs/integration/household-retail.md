@@ -317,10 +317,19 @@ boundary freezes the enrollment so the two can be separated: an arm replays anot
 arm's recorded openings.
 
 - `--household-retail-boundary schedule --household-retail-schedule PATH`. The file is a
-  JSON object `{"<region index>": <opening turn>}`: keys are decimal region indices of
-  the world (no sign, no leading zero), values non-negative integers; a repeated key, an
-  unknown region, a negative, fractional, boolean or string turn, an unreadable file or
-  non-JSON is refused before any change (`household_retail.load_schedule`). An empty
+  JSON object keyed by decimal region indices of the world (no sign, no leading zero).
+  Each value is either:
+  - **intervals** (exact; S1, A2R review 1): `[[open, close], ..., [open, null]]`,
+    ascending and non-overlapping, `open < close`, only the last open-ended: the region
+    is eligible on the turns `open ≤ turn < close` and closes at `close` (holdings to its
+    commons, `pilot_closed`, "schedule interval ended") even where it still has a
+    controller; or
+  - an **opening turn** (A2R's first format, kept readable; approximate): the region is
+    eligible from that turn on, and a closed region reopens as soon as it has a
+    controller again (where `paid_work` waits for new paid work).
+  A repeated key, an unknown region, a negative, fractional, boolean or string turn, a
+  malformed interval, an unreadable file or non-JSON is refused before any change
+  (`household_retail.load_schedule`; a UTF-8 byte order mark is accepted). An empty
   object is a valid schedule (nothing ever opens).
 - Refused: the file without `--household-retail` (given or saved), the file with
   another boundary (given, saved or the default `market`), and the `schedule` boundary
@@ -329,19 +338,23 @@ arm's recorded openings.
   again when the state is written). A boundary given without the switch is ignored, as
   every retail option is.
 - The state keeps the schedule (ascending region) and `schedule_sha256`, the SHA-256 of
-  its canonical JSON (compact, ascending region: `{"0":13,"2":10}`), for its whole life;
+  its canonical JSON (compact, ascending region: `{"0":13,"4":[[12,14],[16,null]]}`; a
+  first-turn schedule keeps A2R's bytes and digest), for its whole life;
   both are omitted while unset, so other states keep their bytes. The schedule is fixed:
   a legacy (state-file) resume given a file with another digest is refused before any
   change; an exact resume is refused too (`livelihoods_resume_conflicts`: the file is
   compared by its schedule's digest, not its path, so the same schedule read from
   another file is no conflict and the checkpoint's recorded path is then left out of the
   generic path comparison). Changing the boundary away from `schedule` keeps the schedule
-  stored, unused; coming back uses it.
-- `_qualifying` returns each scheduled region whose turn has come. The controller
-  filter, sticky closure (a region without a controller closes, holdings to its commons)
-  and reopening are the other boundaries': a closed scheduled region reopens as soon as
-  it has a controller again, where `paid_work` waits for new paid work. A replay is
-  therefore exact when the source arm closed no region (the extraction lists closures).
+  stored, unused; coming back uses it. Switching a resumed world to `schedule` keeps the
+  pilot regions it already had that the schedule does not name (the boundary is sticky).
+- `_qualifying` returns each scheduled region eligible this turn, and `_update_boundary`
+  closes a scheduled region whose interval has ended. The controller filter (only a
+  region with a controller opens) and the closure of a region without one are the other
+  boundaries'. So an interval schedule extracted from a run enrolls each region on
+  exactly that run's pilot turns wherever the replaying world gives it a controller; in
+  the replaying arm a region can only be enrolled on fewer turns (no controller), never
+  on more. A first-turn schedule is exact only when the source closed no region.
 - Rules versions: the boundary works under both; version 1 records no `opened_turn` and
   no cohorts (below).
 - Registration: `household_retail_schedule` is a simulation manifest key after
@@ -353,17 +366,24 @@ arm's recorded openings.
   unknown choice.
 - The snapshot adds `schedule: {sha256, turns}` after the boundary when the state has one.
 
-### Opened turns and schedule extraction (A2R)
+### Opened turns, intervals and schedule extraction (A2R, S1)
 
 Before A2R, openings lived only in the rolling 64-record log. A version-2 state keeps
 `opened_turn` (region index → the turn it first entered the pilot, kept when the region
-closes) and the snapshot copies it (`opened_turn`, string keys, after `rules_version`).
-`household_retail.extract_schedule(bundle)` returns `{schedule, source, closures,
-sha256, regions_closed}`: the last record's `opened_turn` (rules 2), or in a version-1
-bundle the first completed-turn frame of each region, cross-checked when both exist.
-`scripts/retail_schedule.py BUNDLE --output S.json [--strict]` writes the canonical JSON
-(its SHA-256 equals the digest the replaying run records) and prints the digest, the
-source and any closures; `--strict` refuses a bundle with a closure.
+closes) and, since S1, `intervals` (region index → `[[open, close or null], ...]`, the
+close being the turn whose Phase 2 closed it); the snapshot copies both (string keys,
+after `rules_version`). A version-2 state saved before them starts them from its open
+regions. `household_retail.extract_schedule(bundle)` returns `{schedule, source, exact,
+closures, sha256, regions_closed}`, the schedule always as intervals: exact from the
+last record's `intervals` (checked against the completed-turn frames), else the
+intervals the frames imply (`source` `frames`, approximate: a run of framed turns ends
+where its last frame shows the holdings leaving as `pilot_closed`, else a turn later; a
+closure with nothing held leaves no frame row). When `opened_turn` is present each
+region's first interval must open on it. `scripts/retail_schedule.py BUNDLE --output
+S.json [--strict]` writes the canonical JSON (its SHA-256 equals the digest the
+replaying run records), prints the digest, the source and any closures, warns when the
+schedule is approximate, and with `--strict` refuses it. Nothing ties a schedule to the
+world it came from beyond the region count: replay it on the same seed and world.
 
 Replay results (native `101a4cd5…`, development worlds, the checkpoint-3 base; `CH` =
 `--timber-supply --recovery-crews --remittances`, `U` = the same with
@@ -396,7 +416,7 @@ settlement from data already available. No id leaves the snapshot.
   otherwise `null`, with the reason in `unknown` (never zero). The people provisioned in
   a region at phase 0.7 are its Phase 2 roster less those who die before provisioning
   (nobody moves between Phase 2 and phase 0.7; deaths before it are the tick's
-  catastrophe and queued war deaths, which Python cannot name):
+  catastrophe deaths, which Python cannot name, and the war deaths it queued by id):
   - `persons` are exact when the roster's count equals the frame's `persons` (and its
     children the frame's `children`, its count `phase2_alive`); otherwise all groups'
     persons are unknown;
@@ -416,8 +436,12 @@ settlement from data already available. No id leaves the snapshot.
   - income replaced per person (the receipt), by the farmer's Phase 2 region, must equal
     the region's `income_replaced`;
   - wages: PL3 per member; PL1 and RS2 per crew, attributed when the whole crew lives in
-    one region; a receipt without a wage field is unknown.
-  A failed check makes that field unknown, with the sums named in the reason.
+    one region; a receipt without a wage field is unknown. Wages are exact by
+    construction from the applied receipts, but no region total exists to check them
+    against; they go to the Phase 2 roster's crew members, so a crew member who died
+    before provisioning (paid at Phase 2) still counts in `crew` wages.
+  A failed check makes that field unknown, with the sums named in the reason. `persons`
+  is checked by count (equal counts mean equal sets here, since only deaths intervene).
 - Not written in version 1 (its bytes are checkpoint 3's), in `record_only` (nobody is
   provisioned), or for a region without a provisioning row.
 - Cost: one pass over the Phase 2 roster of the pilot regions and the turn's money rows
@@ -446,27 +470,44 @@ much. War losses are not part of it: sieges, occupations and conquests come at P
 
 Fix, rules version 2 only (version 1 unchanged, as at checkpoints 2-3):
 `household_retail.phase10_before_reserves` (the livelihoods hook just before
-`tick_grain_reserves`), when granaries are on, cuts each pilot market's owned grain
-above `max(0, cap − commons grain)` before procurement, claims pro rata, as the flow
-`cap_overflow` (its own kind, so `overflow` stays the native opening's) and the counter
-`owned_grain_above_cap_milli`. `cap` is the native `per_good_cap_factor ×
-storage_population` of this turn's economy batch (f32; from the current population when
-this turn's Phase 2 recorded none). The commons met the cap alone at close, so the excess
-is owned title. Without granaries nothing can buy it and the next opening cuts it, as
-before; `record_only` holds nothing.
+`tick_grain_reserves`), when granaries are on and a pilot market holds owned grain, cuts
+the market's grain above this turn's storage cap before procurement, **split pro rata
+between the two pools as the native opening cap splits it** (each keeps `pool × cap /
+(commons + owned)`, owned in whole milli rounded down; S1, A2R review 2: A2R's first fix
+charged the owners alone), once per turn. The owned share is the flow `cap_overflow`
+(its own kind, so `overflow` stays the native opening's), claims pro rata, and the
+counter `owned_grain_above_cap_milli`; the commons share leaves `region.stockpile` and
+is counted in `commons_grain_above_cap_milli`; both are on the frame's `cap_cut`. `cap`
+is the native `per_good_cap_factor × storage_population` of this turn's economy batch
+(f32; from the current population when this turn's Phase 2 recorded none).
+
+What this changes, stated plainly: the cut comes at Phase 10, before the next opening's
+decay (the native decays the carried stock first and then caps), and it fires whenever
+the market is above the cap with granaries on, whether or not a granary then buys
+there; so owned grain is cut slightly differently with granaries on than off (on natural
+development runs the commons is nearly always empty when it fires, and the shares agree
+within about 0.5%). The commons is not always within the cap at Phase 10: with
+`--grain-convoys` a convoy can return, strand or be captured into a pilot market in
+`grain_convoys.phase10_before_reserves`, which runs first; the pro-rata split covers
+that case (`test_a_convoy_returned_into_a_pilot_market_before_retails_hook_is_cut_pro_rata`).
+Without granaries nothing can buy it and the next opening cuts it, as before; a market
+without owned grain and `record_only` are left alone.
 
 After the fix (same four worlds, `CHRONICLER_CHECK_RESOURCES=1`, all four PASS): no owned
 grain was bought from above this turn's cap (probe with this turn's cap: 0.000 food units
 on template 7 and procedural 21); the cut removed 399.1, 202.6, 2,886.1 and 1,152.5 food
 units over 200 turns, and granaries bought 38.7, 40.1, 747.9 and 154.2 food units of
 owned grain (trajectories differ from the unfixed runs, so these are not paired
-differences). Residual boundaries, as for a market without retail: a population that
-falls between Phase 2 and Phase 10 lowers the next opening's cap below this turn's, and
-commons raised above the cap after the tick by an escheat can be bought (the seam is in
-pinned `grain_reserves.py`). Tests:
+differences; measured with A2R's owners-only cut, before the pro-rata split). Residual
+boundaries, as for a market without retail: a population that falls between Phase 2 and
+Phase 10 lowers the next opening's cap below this turn's, and a market without owned
+grain whose commons rose above the cap after the tick (an escheat, a convoy) can sell it
+(the seam is in pinned `grain_reserves.py`). Tests:
 `test_household_retail_evidence.py::test_owned_grain_above_the_cap_is_lost_before_the_granaries_buy`,
 `::test_without_granaries_or_within_the_cap_nothing_is_cut`,
-`::test_the_cap_of_a_turn_without_phase2_comes_from_the_population`.
+`::test_the_cap_of_a_turn_without_phase2_comes_from_the_population`,
+`::test_the_rl4_cut_splits_the_excess_pro_rata_and_runs_once_a_turn`,
+`::test_a_convoy_returned_into_a_pilot_market_before_retails_hook_is_cut_pro_rata`.
 
 ### Verification (A2R)
 
@@ -1227,14 +1268,19 @@ granary files untouched; the strict reader accepts the `schedule` boundary):
 - **War losses** (rules 2): this turn's war events of pilot regions with cause (conquest,
   siege turn, occupation start), actor and role, victim and owned food destroyed; "none
   (nothing held)" in `record_only` and "none (no owned food)" for a zero-loss event.
-  Version 1 says its conquest losses carry no cause, actor or victim.
+  Version 1 says its conquest losses carry no cause, actor or victim. The table reads
+  the rolling 64-record log: when the previous snapshot's `war_events` counter shows more
+  events this turn than the log kept, or (without it) the log dropped records of this
+  turn, a note says so (S1, A2R review 3a).
 - Review A5, finding 1: under version 2 the lifetime war loss is labelled by cause
   (conquest · siege · occupation, with the war events) instead of "conquest loss", the
   requisition exemption reads "not applicable" instead of a recorded 0, and the owned
   food table's column reads "war loss". The settings note names the rules version, the
   schedule boundary's region count and digest, the owned food table the `cap_overflow`
-  cut beside the overflow, and the lifetime table the owned grain lost above the storage
-  cap before granaries buy (RL4).
+  cut beside the overflow (with the commons' share), and the lifetime table the grain
+  lost above the storage cap before granaries buy, owned · commons (RL4): "not recorded"
+  in a version-2 record written before the cut (no `opened_turn`) or, for the commons,
+  before the pro-rata split (no `intervals`), never a recorded 0 (S1, A2R review 3b).
 
 ### Options
 
