@@ -5,7 +5,8 @@ import type { WatershedDrought, WatershedRecord } from "../../watershedTypes";
 
 const show = (value: number | null | undefined, digits = 3) =>
   value === null || value === undefined ? "Unknown" : value.toLocaleString(undefined, { maximumFractionDigits: digits });
-const signed = (value: number) => `${value > 0 ? "+" : ""}${show(value)}`;
+/** A signed difference at display precision ("0", never "-0"). */
+const signed = (value: number) => Math.abs(value) < 0.0005 ? "0" : `${value > 0 ? "+" : ""}${show(value)}`;
 
 const TOTALS: Array<[keyof NonNullable<WatershedRecord["totals"]>, string]> = [
   ["precipitation", "Precipitation (and tundra melt)"],

@@ -25,6 +25,8 @@ it("shows the turn's account, each region's indices, a flood with its causes and
   const rows = within(screen.getByRole("table", { name: "Watershed regions at snapshot 1" })).getAllByRole("row");
   expect(rows).toHaveLength(natural.regions.length + 1);
   expect(rows[1]).toHaveTextContent(natural.regions[0]);
+  // A difference below display precision reads 0, never -0 (Viskiros Icefields at snapshot 1).
+  expect(rows.some((row) => within(row).queryAllByRole("cell").some((cell) => cell.textContent === "-0"))).toBe(false);
   const floods = within(screen.getByRole("table", { name: "Floods at snapshot 1" })).getAllByRole("row");
   expect(floods).toHaveLength(2);
   expect(screen.getByText(/No region is in a declared drought this turn \(recorded: none\)/)).toBeInTheDocument();
