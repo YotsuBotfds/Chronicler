@@ -252,6 +252,27 @@ open questions follow each summary.
   data seed registry (lane E1) replace copying the frozen productive-recovery runner. Feature-off
   identity uses `turn_speed_identity.py` with each side's own `git archive` tree and extension.
 
+### 5.6 A3 workshop economics ([audit](../audits/connected-world/audit-a3-workshop-economics.md))
+
+- A workshop today is a state-owned asset (the ruler pays build and upkeep into a declared sink)
+  with a crew of up to 8 named city farmers; workshop payroll adds a firm by stable site id with
+  cash, arrears and closure after 6 insolvent turns, whose only customer is academies paid from the
+  treasury. Free or model-created parts: raw timber and ore are never paid for; 47.5% of the firm
+  region's output is used free before the firm takes title; sites without a firm still produce with
+  free inputs; the asset subsidy is off the firm's books. No money is minted into firm cash.
+- Non-academy demand exists (0.01 wares per head per turn) but is drawn free from the shared stock.
+- Central risk (development world): the wares price beat the raw-material price in only 12.6% of
+  operating turns at firm cities; paid inputs will close most firms unless A4 opens scarce markets.
+  This is reported as found, not tuned away.
+- **Decisions:** `--workshop-economics` (requires `--workshop-payroll`; modes `market`,
+  `free_inputs`, `academy_only`) with the shared `money.py` payment seam; inputs priced at the
+  region's existing market price for the raw good and paid to the ruler as owner of the shared stock
+  (producers as sellers later); the ruler keeps carrying asset build and upkeep, recorded as a
+  subsidy in the ledger; one-off starting capital from the ruler, no rescue; households buy by id
+  from adults' wealth; the module runs before `wealth_accounting`; A3-1 appends one native transfer
+  purpose (`wares_purchase`); A3-2's native column that keeps firm output out of the shared stock is
+  batched with A4's merchant payment operation into one later native build. CW2 runs after A3-2.
+
 ## 6. Turn-order table
 
 Maintained as slices land.

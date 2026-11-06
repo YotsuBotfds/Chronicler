@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "board_version": 7,
+  "board_version": 8,
   "title": "Connected-world program (A livelihoods and trade, B watersheds and infrastructure, C public health, D institutions and war, E stories and evidence) operational board",
   "plan": "docs/superpowers/roadmaps/connected-world-program.md",
   "owner_instruction": "2026-11-06 (after #82): own the A-E program end to end with parallel workers, integrating and evaluating each slice and continuing across slice boundaries; merges of this program authorized after independent review, green premerge Tests on the reviewed head and verified main CI; new systems opt-in and off by default; no default promotion; full 200-seed and procedural qualification gates restricted; bounded held screens (procedural included) authorized; no purchases, paid credits, paid narration APIs, deployments, credential or sharing changes. Amendment (same day): tiers sequence work and are not stopping points; failures block the affected merge, not the program; pin 8abc1acb as the original reference; default-path changes behind a switch or rules version.",
@@ -56,14 +56,14 @@
       "id": "E1",
       "branch": "claude/cw-e1-tooling",
       "scope": "seed registry, generic screen runner, compatibility matrix, RL8 viewer readers",
-      "status": "implemented; independent review running; PR 1 branch claude/cw-pr1-tooling",
+      "status": "review: approve with changes (M1 ceiling overrun + minors); fixes in progress",
       "head": "1619edc9"
     },
     {
       "id": "A5",
       "branch": "claude/cw-a5-owned-stock",
       "scope": "retail rules v2: war reaches owned stock once per event; RL1-RL3 dispositions",
-      "status": "implemented; independent review running",
+      "status": "review: merge-ready (6 minor, folded into A2R)",
       "head": "1370ae7a",
       "source": "36d1a040",
       "layer": "b9e64330 (provisional cwa5)",
@@ -82,7 +82,7 @@
       "id": "B1",
       "branch": "claude/cw-b1-watershed",
       "scope": "--watershed record_only: drainage graph, conserved water account, closure checks, viewer panel (procedural only)",
-      "status": "implemented; independent review running",
+      "status": "review: approve after gate (all-switch evidence) + minors; fixes in progress",
       "head": "54147ffa",
       "layer": "54147ffa (provisional cwb1)",
       "verification": "offline lane PASS 64 chunks 241.5 s; feature-off identity 9 cases 399 files 0 differences; record_only vs off 0 differences on 6 runs; exact resume proc32_hybrid_s11 39 PASS; viewer 1463 tests, lint, build; browser desktop+phone 23/23",
@@ -102,8 +102,10 @@
       "status": "active"
     },
     {
-      "id": "A3-audit",
-      "scope": "workshop economics design audit and money.py seam",
+      "id": "A3",
+      "branch": "claude/cw-a3-workshop-economics",
+      "base": "A1 head fee5de7f",
+      "scope": "--workshop-economics A3-1: money.py seam, paid inputs, firm cash, household customers, arrears, idle closure; one native purpose append",
       "status": "active"
     }
   ],
@@ -219,6 +221,10 @@
     "C": "docs/superpowers/audits/connected-world/audit-c-public-health.md",
     "D": "docs/superpowers/audits/connected-world/audit-d-institutions-war-owned-stock.md",
     "E": "docs/superpowers/audits/connected-world/audit-e-verification-playbook.md",
-    "A1-A2": "docs/superpowers/audits/connected-world/audit-a1-a2-income-wealth.md"
+    "A1-A2": "docs/superpowers/audits/connected-world/audit-a1-a2-income-wealth.md",
+    "A3": "docs/superpowers/audits/connected-world/audit-a3-workshop-economics.md"
+  },
+  "decisions": {
+    "livelihoods_switch_order": "existing switches, then household_retail, watershed, workshop_economics, wealth_accounting last (observer after every payer); pinned by a test at integration"
   }
 }
