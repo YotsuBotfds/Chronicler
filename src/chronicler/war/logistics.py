@@ -96,7 +96,8 @@ def logistics_step(ctx: WarContext, army: "Army", civ: "Civilization", sources: 
     army.rations = min(capacity, army.rations + refill + forage)
 
     # Consume.
-    demand = army.soldiers * POLICY.ration_demand
+    from chronicler.war_requisition import ration_demand
+    demand = ration_demand(world, army, army.soldiers * POLICY.ration_demand)
     consumed = min(army.rations, demand)
     army.rations -= consumed
     from chronicler.war_requisition import note_consumption
@@ -104,7 +105,7 @@ def logistics_step(ctx: WarContext, army: "Army", civ: "Civilization", sources: 
 
     # Stress (kernel arithmetic, cohort demand).
     hunger, dist_stress, needs, info = stress_components(
-        POLICY, demand=max(1, demand), consumed=consumed, distance=distance,
+        POLICY, demand=max(1, demand), consumed=consumed if demand else 1, distance=distance,
         unmet_needs=unmet, information_quality=_information_quality(ctx, civ, army))
     stress = hunger + dist_stress + needs + info
     army.morale = next_morale(POLICY, army.morale, stress)

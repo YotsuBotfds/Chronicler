@@ -180,6 +180,8 @@ def test_native_service_uses_actual_meal_and_preserves_released_ids_for_this_tic
     army = place_army(world, "A", "Avalon", 4, war.war_key, roster=[(7, 0), (8, 0), (9, 1), (10, 1)])
     army.rations = 2
     assert WR.enlisted_service_rows(world) == [(7, 0.0), (8, 0.0), (9, 0.0), (10, 0.0)]
+    army.rations -= 2
+    WR.note_consumption(world, army, 2, 4)
     assert WR.enlisted_service_rows(world, after_logistics=True) == [(7, .5), (8, .5), (9, .5), (10, .5)]
     assert army.rations == 0
     army.roster = [(7, 0), (8, 0)]
@@ -220,3 +222,23 @@ def test_timber_seizure_only_records_acquisition_liability_without_creating_food
     assert state.claims[0].source == "timber" and state.claims[0].due_milli == 1200
     assert state.events[-1]["package"] == "timber_orders"
     assert state.events[-1]["quantity_milli"] == 5000
+
+
+def test_phase5_recruit_keeps_civilian_meal_and_starts_army_meals_next_turn():
+    world, ctx, war = _world()
+    assert WR.enlisted_service_rows(world) == []  # Phase 2 census before muster
+    army = place_army(world, "A", "Avalon", 3, war.war_key, roster=[(1, 0), (2, 0), (3, 0)])
+    old_rations = army.rations
+    assert WR.enlisted_ids(world) == []
+    assert WR.ration_demand(world, army, 3) == 0
+    assert WR.enlisted_service_rows(world, after_logistics=True) == []
+    assert army.rations == old_rations  # before-tick input never consumes a meal
+    world.turn += 1
+    assert WR.enlisted_service_rows(world) == [(1, 0.0), (2, 0.0), (3, 0.0)]
+    assert WR.ration_demand(world, army, 3) == 3
+
+
+def test_post_logistics_food_input_requires_a_phase2_census():
+    world, _, _ = _world()
+    with pytest.raises(RuntimeError, match="Phase 2"):
+        WR.enlisted_service_rows(world, after_logistics=True)

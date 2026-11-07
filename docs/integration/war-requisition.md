@@ -42,14 +42,16 @@ native trips and titled carriers, but has no roster exclusion. The A6 audit's
 and native migration remain authoritative; a Python army attachment is a
 separate record. D4 never moves a native agent or writes X1.
 
-All live roster ids are excluded from civilian farm work, title and civilian
-food demand under the opt-in native service input. Army consumption is dated
+The roster ids frozen at Phase 2 are excluded from civilian farm work, title
+and civilian food demand under the opt-in native service input. Later recruits
+remain in the civilian work/food census until the next turn. Army consumption is dated
 and supplies the native food term its actual `consumed / demand` fraction,
 including hunger. Released people retain that turn's already-consumed meal so
 a release cannot yield both an army meal and a civilian meal. Phase 2 uses the
 last dated meal and live roster for work exclusion; the before-tick input is
-refreshed after logistics. A new army that missed logistics consumes its
-existing kits once before the tick. This changes neither mortality authority
+refreshed after logistics without consuming food. A new army raised after
+Phase 2 consumes no military meal until the following turn, since its people
+already counted toward civilian food and production this turn. This changes neither mortality authority
 nor native residence. D3 may suppress the existing general Soldier war
 mortality multiplier only through its own explicit rules path.
 

@@ -48,6 +48,8 @@ class WarRequisitionState(BaseModel):
     feeding_turn: int | None = None
     feeding: dict[str, float] = Field(default_factory=dict)
     fed_ids: dict[int, float] = Field(default_factory=dict)
+    census_turn: int | None = None
+    census_ids: list[int] = Field(default_factory=list)
 
     def __setstate__(self, state):
         super().__setstate__(state)

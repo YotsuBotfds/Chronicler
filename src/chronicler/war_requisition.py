@@ -357,15 +357,35 @@ def snapshot_summary(world):
             "counters": {k: state.counters.get(k, 0) for k in COUNTERS}}
 
 
-def enlisted_ids(world):
-    """Stable ids whose civilian food and farm work the native seam suppresses.
+def _ensure_service_census(world, state):
+    if state.census_turn != world.turn:
+        state.census_turn = int(world.turn)
+        state.census_ids = sorted({int(aid) for army in world.war_state.armies for aid, _ in army.roster})
 
-    Army attachment applies even when residence equals the army region: the
-    army logistics already provisions these people. Migration stays native.
+
+def enlisted_ids(world):
+    """Frozen Phase 2 roster: the sole civilian food/work exclusion of T.
+
+    A later recruit already contributed to civilian Phase 2 food and work,
+    so its first army meal and civilian-work exclusion start next turn. A
+    later release keeps this turn's exclusion and actual army meal.
     """
     if not war_requisition_active(world):
         return []
-    return sorted({int(aid) for army in world.war_state.armies for aid, _ in army.roster})
+    state = _state(world)
+    _ensure_service_census(world, state)
+    return list(state.census_ids)
+
+
+def ration_demand(world, army, legacy_demand):
+    if not war_requisition_active(world):
+        return legacy_demand
+    from chronicler.war.params import POLICY
+    state = _state(world)
+    if state.census_turn != world.turn:
+        raise RuntimeError("army food requires the Phase 2 service census")
+    census = set(state.census_ids)
+    return sum(int(aid) in census for aid, _ in army.roster) * POLICY.ration_demand
 
 
 def note_consumption(world, army, consumed, demand):
@@ -383,41 +403,32 @@ def note_consumption(world, army, consumed, demand):
         raise RuntimeError("army ration consumption observed twice")
     fraction = min(1.0, max(0.0, consumed / demand)) if demand > 0 else 0.0
     state.feeding[army.army_id] = fraction
+    census = set(state.census_ids) if state.census_turn == world.turn else set()
     for aid, _ in army.roster:
-        state.fed_ids[int(aid)] = fraction
+        if int(aid) in census:
+            state.fed_ids[int(aid)] = fraction
     _event(world, state, kind="consumption", army=army.army_id,
            consumed_rations=int(consumed), demanded_rations=int(demand), adequacy=fraction)
 
 
 def enlisted_service_rows(world, *, after_logistics=False):
-    """Native service input, refreshed before economy and before agent tick.
+    """Freeze Phase 2 service once, then refresh only its actual meal data.
 
-    The Phase 2 read supplies the last meal and excludes this turn's live
-    enlisted labour. The before-tick read uses this turn's actual consumption;
-    a newly raised army that skipped logistics consumes existing kits once.
-    Roster releases after a meal keep their service row through this tick, so
-    demobilization/desertion cannot create a second civilian meal.
+    The before-tick call never consumes food. In particular a Phase 5 recruit
+    retains its civilian meal this turn and must not eat an extra army meal.
+    Missing post-logistics evidence yields zero coverage, not assumed feeding.
     """
     if not war_requisition_active(world):
         return []
-    from chronicler.war.params import POLICY
     state = _state(world)
     if after_logistics:
-        for army in sorted(world.war_state.armies, key=lambda a: a.army_id):
-            if state.feeding_turn == world.turn and army.army_id in state.feeding:
-                continue
-            demand = army.soldiers * POLICY.ration_demand
-            consumed = min(max(0, army.rations), demand)
-            army.rations -= consumed
-            note_consumption(world, army, consumed, demand)
-        rows = dict(state.fed_ids) if state.feeding_turn == world.turn else {}
-    else:
-        rows = {}
-    for army in world.war_state.armies:
-        fraction = state.feeding.get(army.army_id, 0.0) if state.feeding_turn in (world.turn, world.turn - 1) else 0.0
-        for aid, _ in army.roster:
-            rows.setdefault(int(aid), fraction)
-    return sorted(rows.items())
+        if state.census_turn != world.turn:
+            raise RuntimeError("army food requires the Phase 2 service census")
+        fed = state.fed_ids if state.feeding_turn == world.turn else {}
+        return [(aid, fed.get(aid, 0.0)) for aid in state.census_ids]
+    _ensure_service_census(world, state)
+    prior = state.fed_ids if state.feeding_turn in (world.turn - 1, world.turn) else {}
+    return [(aid, prior.get(aid, 0.0)) for aid in state.census_ids]
 
 
 def note_cargo_seizure(world, *, owner, region, actor, value_milli, shipment, goods="timber", quantity_milli=0):
