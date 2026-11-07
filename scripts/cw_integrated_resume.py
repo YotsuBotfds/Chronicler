@@ -41,8 +41,8 @@ def transition_points(bundle):
         moving = any(o.get("status") == "moving" and o.get("cargo_milli", 0) > 0 and o.get("cash", 0) > 0
                      for o in orders.get("orders") or [])
         infrastructure = lv.get("infrastructure_condition") or {}
-        paid_work = any(r.get("delivered", 0) > 0 and r.get("coin_cost_milli", 0) > 0
-                        for r in infrastructure.get("receipts") or [])
+        paid_work = any(r.get("delivered", 0) > 0 and any(m.get("worked", 0) > 0 and m.get("wages_milli", 0) > 0
+                        for m in r.get("members") or []) for r in infrastructure.get("receipts") or [])
         ph = lv.get("public_health") or {}
         pending_reports = any(r.get("delivery", -1) > turn - 1 for r in ph.get("reports") or [])
         guards = any(member.get("wage_paid_milli", 0) > 0
@@ -88,6 +88,7 @@ def make_plan(bundle_path, stratum, seed):
         raise ValueError("cannot choose resume transitions from invalid pilot: " + "; ".join(problems))
     return {"schema_version": 1, "stratum": stratum, "seed": seed, "turns": metrics["turns"],
             "bundle": str(path), "bundle_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            "event_sidecar": metrics["event_sidecar"],
             "source_identity": CW.SR.source_identity(CW.SCREEN), "transitions": transition_points(bundle),
             "cli": cli_for(stratum, seed), "comparator": "checkpoint_identity.run_case / cities_identity.compare"}
 
@@ -130,6 +131,7 @@ def run_plan(plan_path, output):
     report = CI.run_case(output, name, ks=plan["transitions"]["ks"], jobs=1, extra=[], keep=False, resume_hash_seed="0")
     report["active_transitions"] = plan["transitions"]
     report["bundle_sha256"] = plan["bundle_sha256"]
+    report["event_sidecar"] = plan["event_sidecar"]
     (output / "report.json").write_text(json.dumps(report, indent=2) + "\n")
     return report
 
@@ -143,6 +145,9 @@ def validate_plan_configuration(plan, bundle):
         raise ValueError("resume plan does not describe the complete 200-turn integrated pilot")
     if plan.get("transitions") != transition_points(bundle):
         raise ValueError("resume plan selected transitions differ from the actual pilot states")
+    sidecar = plan.get("event_sidecar")
+    if not isinstance(sidecar, dict) or sidecar.get("present") is not True or sidecar != bundle.get("_cw6_events"):
+        raise ValueError("resume plan event sidecar identity differs from the validated pilot")
 
 
 def main(argv=None):

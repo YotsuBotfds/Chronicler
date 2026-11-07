@@ -139,6 +139,10 @@ def test_resume_selects_actual_live_state_and_keeps_missing_coverage_explicit(CW
     assert "--turns" not in cli and "--simulate-only" not in cli
     b["history"][4]["livelihoods"]["public_health"] = {"guards": [{"members": [{"wage_paid_milli": 250}]}]}
     assert module.transition_points(b)["categories"]["dated_health_report_or_guard"] == 5
+    b["history"][4]["livelihoods"]["infrastructure_condition"] = {"receipts": [{"delivered": 1, "coin_cost_milli": 10}]}
+    assert "paid_infrastructure_work" in module.transition_points(b)["missing"]
+    b["history"][4]["livelihoods"]["infrastructure_condition"]["receipts"][0]["members"] = [{"worked": .5, "wages_milli": 100}]
+    assert module.transition_points(b)["categories"]["paid_infrastructure_work"] == 5
     pilot = {"metadata": {"seed": 5}, "world_state": {"seed": 5, "regions": [{}] * 8}}
     module.validate_pilot_world(pilot, "template", 5)
     with pytest.raises(ValueError, match="seed differs"):
@@ -156,22 +160,24 @@ def test_absent_sidecar_is_unknown_evidence_even_without_migration(CW):
     assert any("absent or missing valid identity" in reason for reason in problems)
 
 
-@pytest.mark.parametrize("changed", ["cli", "turns", "transitions"])
+@pytest.mark.parametrize("changed", ["cli", "turns", "transitions", "sidecar"])
 def test_resume_rejects_modified_plan_configuration(CW, changed):
     path = Path(__file__).resolve().parents[1] / "scripts/cw_integrated_resume.py"
     spec = importlib.util.spec_from_file_location("cw_integrated_resume_plan_under_test", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     b = {"metadata": {"seed": 5, "total_turns": 200}, "world_state": {"seed": 5, "regions": [{}] * 8},
-         "history": [{"turn": t, "livelihoods": {}} for t in range(1, 201)]}
+         "history": [{"turn": t, "livelihoods": {}} for t in range(1, 201)], "_cw6_events": {"present": True, "sha256": "a" * 64}}
     plan = {"stratum": "template", "seed": 5, "turns": 200, "cli": module.cli_for("template", 5),
-            "transitions": module.transition_points(b)}
+            "transitions": module.transition_points(b), "event_sidecar": deepcopy(b["_cw6_events"])}
     module.validate_plan_configuration(plan, b)
     if changed == "cli":
         plan["cli"].append("--no-adaptive-livelihoods")
     elif changed == "turns":
         plan["turns"] = 100
-    else:
+    elif changed == "transitions":
         plan["transitions"]["ks"] = [2]
+    else:
+        b["_cw6_events"]["sha256"] = "b" * 64
     with pytest.raises(ValueError, match="resume plan"):
         module.validate_plan_configuration(plan, b)
