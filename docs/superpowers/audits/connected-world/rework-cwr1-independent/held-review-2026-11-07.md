@@ -151,6 +151,47 @@ enrolled world. Eligibility labels are not actual mechanism activation.
 The [compact observability/harm readback](held-observations-summary.json)
 preserves every world in seed order, nulls, controls, uncertainty boundaries,
 242 rendered harm checks and resource hashes. Its full original receipt is
-retained externally and reproducible with `check-held-observations.py`.
+retained externally. The following recipe reproduces the readback from the
+committed compact artifacts, without needing the original execution directory.
+
+## Reproduce the readback from committed artifacts
+
+Run from this checkout or one of its subdirectories after the producer and
+independent-review packets are present. The helper expects execution-directory
+names `receipt.json` and `held-run.json`; the committed packet deliberately
+retains them as `closure-receipt.json` and `start.json`. Copy them under the
+expected names into a **new temporary directory**. The originals and their
+hashes stay unchanged; this does not regenerate the report or run a simulation.
+The helper uses Python's standard library and imports no Chronicler/agent module.
+
+```sh
+set -eu
+cwr_recipe_repo="$(git rev-parse --show-toplevel)"
+cwr_recipe_packet="$cwr_recipe_repo/docs/superpowers/audits/connected-world/rework-cwr1-held"
+cwr_recipe_stage="$(mktemp -d "${TMPDIR:-/tmp}/cwr1-held-readback.XXXXXX")"
+cp "$cwr_recipe_packet/metrics.jsonl" "$cwr_recipe_stage/metrics.jsonl"
+cp "$cwr_recipe_packet/report.md" "$cwr_recipe_stage/report.md"
+cp "$cwr_recipe_packet/closure-receipt.json" "$cwr_recipe_stage/receipt.json"
+cp "$cwr_recipe_packet/start.json" "$cwr_recipe_stage/held-run.json"
+cp "$cwr_recipe_packet/resource-measurement.json" "$cwr_recipe_stage/resource-measurement.json"
+python3 -I "$cwr_recipe_repo/docs/superpowers/audits/connected-world/rework-cwr1-independent/check-held-observations.py" \
+  --directory "$cwr_recipe_stage" \
+  --arithmetic "$cwr_recipe_packet/independent-arithmetic.json" \
+  --protocol "$cwr_recipe_repo/docs/superpowers/progress/connected-world-rework-prereg-draft.md" \
+  --receipt "$cwr_recipe_stage/held-observations-readback.json"
+printf 'Readback directory: %s\n' "$cwr_recipe_stage"
+```
+
+Expected output includes `status: PASS`, 242 checked fixed-harm rows and
+`counted_core_hours: 0.9291111111111111`. The helper refuses an existing output
+receipt; each invocation above uses a fresh directory. Keep the printed
+directory to inspect its new receipt. The recorded CPU/wall measurements for
+the historical simulation are checked, not repeated. Review execution timings
+in the new receipt naturally vary. The
+[staging validation receipt](held-reproduction-staging-receipt.json) records
+an actual fresh-directory execution of these unchanged shell commands and
+matching input hashes, including the unchanged raw report `e5d64f…`. Its
+recipe hash excludes fence markers and surrounding whitespace.
+
 Root alone records cohort consumption in the registry. Defaults remain off;
 restricted qualification and default promotion remain unrun.
