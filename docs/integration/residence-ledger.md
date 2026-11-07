@@ -184,10 +184,13 @@ roster)). The bundle carries the dated frames and events; the person rows are no
 | --- | --- | --- | --- |
 | ledger off | 0.68 MB | 0.71 MB | 5.41 MB |
 | ledger on, rows in JSON (first implementation) | 9.92 MB | 18.19 MB | 5.99 MB |
-| ledger on, rows in checkpoints only (now) | 1.49 MB | 0.85 MB | 5.99 MB |
+| ledger on, rows in checkpoints only (after the lead's decision) | 1.49 MB | 0.85 MB | 5.99 MB |
+| ledger on, after the review (slotted rows, splits, frame and events out of JSON) | 1.50 MB | 0.71 MB | 5.95 MB |
 
 The rows cost about 200 bytes a person in JSON and add about 0.6 MB (compressed) to the
-checkpoint. Over 200 turns the record (frames and events) adds RECORD_COST.
+checkpoint. Over 200 turns the record (frames and events) adds 0.48 MB to hybrid_s42's bundle
+(3.19 → 3.67 MB) and 1.27 MB to proc48_hybrid_s42's (9.11 → 10.38 MB); the state file grows by
+a few KB (the region watch, counters and log).
 
 CPU and memory on the same case (whole run, 20 turns, `RAYON_NUM_THREADS=1`, two repeats each):
 
@@ -315,37 +318,35 @@ living), as audit 14 question 6 anticipated; this turn's displaced arrivals are 
 it. A resettlement comes `REHOME_TURNS` after the last move, so a spell with onward moves lasts
 longer than 20 turns (median 25 on template 7).
 
-## Verification (lane X1, 2026-11-07; final source `9b58ab0c`; Linux, Python 3.13, native extension `20e77f99…` = main's Rust, no native change)
+## Verification (lane X1, 2026-11-07; merged head with main `d8a5277b`; Linux, Python 3.13, native extension `20e77f99…` = main's Rust, no native change)
 
-- **Offline**: `tests/test_residence_ledger.py` (40) and `tests/test_residence_ledger_guard.py` (7)
-  in the new oracle chunk `connected-world-x`; the D2 provenance guard extended; the focused,
-  order, catalog, manifest, shard and witness suites: 699 passed. `scripts/run_python_oracle_checks.py`:
-  PASS, 71 chunks in 292.8 s (slowest chunk 31.2 s of 110 s; `connected-world-x` 5.9 s, 47 passed).
+- **Offline**: `tests/test_residence_ledger.py` (47) and `tests/test_residence_ledger_guard.py` (7)
+  in the oracle chunk `connected-world-x`; the D2 provenance guard extended; C2's ordering test
+  expects the record-only ledger after `epidemic_care`; the focused, order, catalog, matrix,
+  manifest, shard, C2 and witness suites: 791 passed. `scripts/run_python_oracle_checks.py`: PASS,
+  72 chunks in 304.7 s (slowest chunk 35.8 s of 110 s; `connected-world-x` 6.0 s, 54 passed).
 - **Native** (`tests/test_residence_ledger_native.py`, shard 0, 7 tests): record-only identity on
-  template 7 (with RS4) and procedural 13 (40 turns each: history, world state, `state.json`,
-  chronicle and agent events equal after removing the record); frame invariants on 60-turn runs
-  (region rows sum to the totals, the stock moves by openings minus closures, the events match the
-  counts, no unexplained relocation); RS4 agreement; an exact resume at turn 12 inside open
-  spells; a legacy state-file resume (pool reset counted from the held spells, nothing carried
-  over); separation read at the next turn before its tick. With the D2, A1, RS4 native suites and
-  the feature matrix: 100 passed. Offline lane: the module skips.
-- **Witness**: layer `cwx1` (parent `bac45cb5`) inverts the two pinned edits
-  (`batch_manifest.py`, `tests/test_batch_manifest.py`), appended last in `LAYERS`; the
-  livelihoods sprint witness and every chained witness suite pass.
+  template 7 (with RS4) and procedural 13; frame invariants on 60-turn runs; RS4 agreement; an
+  exact resume inside open spells; a legacy state-file resume; separation at the next turn. With
+  the D2, A1, RS4 and C2 native suites and the feature matrix: 112 passed. Offline lane: the
+  module skips.
+- **Witness**: layer `cwx1` rebuilt against `d8a5277b` and appended last (after `cwc2`); it
+  inverts the two pinned edits (`batch_manifest.py`, `tests/test_batch_manifest.py`); every
+  chained witness suite passes.
 - **Feature-off identity** (`scripts/turn_speed_identity.py`, 9 cases, each side its own source
-  tree): against the `8abc1acb` reference outputs: 399 files, 0 differences; against `main`
-  `bac45cb5`: 399 files, 0 differences; explicit `--no-residence-ledger` (hybrid_s42,
+  tree): against the `8abc1acb` reference outputs, against `bac45cb5` and against `main`
+  `d8a5277b`: 399 files, 0 differences each; explicit `--no-residence-ledger` (hybrid_s42,
   proc48_hybrid_s42): 203 files, 0 differences.
 - **Record-only identity**: ledger on against off, every file equal after removing only the
-  record: the six hybrid cases (hybrid_s42, hybrid_s7, hybrid_s1234, proc48_hybrid_s42,
-  scaled22k_s42, scaled52k_s7): 366 files, 0 differences (800 snapshots carry the record); with
-  every catalog switch on (all-enabled sets, retail in every region, D2, A1, quarantine closure
-  with the migration channel): 205 files, 0 differences.
+  record: the six hybrid cases: 366 files, 0 differences (800 snapshots carry the record); every
+  catalog switch on with A1 (the matrix's all-enabled hybrid set): 205 files, 0 differences; the
+  same with C2's `--epidemic-care` in place of A1 (they exclude each other): 205 files, 0
+  differences.
 - **Exact resume** (`scripts/checkpoint_identity.py`, `--cli-arg=--residence-ledger`):
-  `hybrid_s42_long` PASS at 19 resume points (16 with open spells, 6 with armies on campaign);
-  `proc32_hybrid_s11` PASS at all 39 (37 with open spells, 23 with armies); writing checkpoints
-  changes nothing (111 and 40 files, 0 differences).
-- **Viewer**: `npx vitest run --maxWorkers=1` 163 files, 1,626 passed, 2 skipped; `npm run lint`
+  `hybrid_s42_long` PASS at 19 resume points (16 with open spells, 14 with war-anchored spells,
+  6 with armies on campaign); `proc32_hybrid_s11` PASS at all 39 (37 with open spells, 23 with
+  armies); writing checkpoints changes nothing (111 and 40 files, 0 differences).
+- **Viewer**: `npx vitest run --maxWorkers=1` 165 files, 1,636 passed, 2 skipped; `npm run lint`
   clean; `npm run build` passes (the existing large-chunk warning).
 - **Preflight** (`refactor_preflight.py --git-diff origin/main`): content pins only on
   `batch_manifest.py` and `tests/test_batch_manifest.py` (covered by `cwx1`); the other enforced
