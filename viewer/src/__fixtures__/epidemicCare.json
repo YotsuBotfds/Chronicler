@@ -1,5 +1,5 @@
 {
- "source": "development run of the C2 branch: template world, seed 42, 60 turns, --agents hybrid --grain-reserves --local-budgets --epidemic-care",
+ "source": "development run of the C2 branch (source 120d8c46): template world, seed 42, 60 turns, --agents hybrid --grain-reserves --local-budgets --epidemic-care",
  "regions": [
   "Frostholm Tundra",
   "Iron Peaks",
@@ -104,8 +104,8 @@
      "paid_milli": 118,
      "residual_milli": 0,
      "treasury_units": 1,
-     "carry_before": 29,
-     "carry_after": 911,
+     "carry_before": 26,
+     "carry_after": 908,
      "status": "paid"
     }
    ],
@@ -129,8 +129,8 @@
     "care_time": 4.042032,
     "patients": 20.210162,
     "farm_time_removed": 4.042032,
-    "wages_due_milli": 2016,
-    "wages_paid_milli": 2016,
+    "wages_due_milli": 2022,
+    "wages_paid_milli": 2022,
     "wage_residual_milli": 0,
     "treasury_units": 4,
     "income_withheld": 0.200218,
