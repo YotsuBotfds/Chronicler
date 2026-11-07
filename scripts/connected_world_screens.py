@@ -1381,8 +1381,9 @@ SCREENS["CW3"] = SR.Screen(
 # real (non-academy) demand compared with the L6a payroll status quo, and at what
 # cost? Arms (root P): P the L6a payroll without workshop economics; E1 workshop
 # economics, rules 1 (A3-1); E2 rules 2 (A3-2); E2f E2 with free inputs (the input-cost
-# control: every rule as E2, inputs recorded and not charged); E2a E2 with academy
-# customers only (the demand-collapse case: households cannot buy wares). Every arm:
+# control, diagnostic only: free inputs are not a supported feature, and E2f is never read
+# as an option); E2a E2 with academy customers only (the demand-collapse case: households
+# cannot buy wares). Every arm:
 # hybrid, the academy chain, workshops and payroll, grain reserves and public shipments,
 # the A1 ledger. Snapshot s records world turn s - 1. Firms are identified by (site,
 # opening turn); a firm's receipt exists from its opening turn to its closing turn.
@@ -1394,7 +1395,8 @@ CW_LEDGER = ("livelihoods", "wealth_accounting")
 #: workshop_payroll_state.FIRM_CLOSE_REASONS (append-only there).
 CW2_CLOSE_REASONS = ("insolvent", "city_fell", "city_missing", "region_changed", "idle")
 CW2_ECON_COUNTERS = ("firms_opened", "operating_firm_turns", "inputs_used", "inputs_charged", "academy_sales",
-                     "household_sales", "household_delivered", "free_use_upper_bound", "closed_idle",
+                     "household_sales", "household_delivered", "free_use_upper_bound", "priced_out_households",
+                     "closed_idle",
                      "closed_insolvent", "closed_other", "owned_output", "liquidation_to_owner")
 
 
@@ -1573,6 +1575,7 @@ def cw2_extract(bundle: dict, flags) -> tuple[dict, list[str]]:
         m["owned_output"] = get("owned_output") / 1000.0
         m["liquidation_to_owner"] = get("liquidation_to_owner") / 1000.0
         m["free_use_upper_bound"] = get("free_use_upper_bound") / 1000.0
+        m["priced_out_households"] = get("priced_out_households")
         if abs(household_sold - get("household_delivered")) > 0:
             problems.append(f"payroll receipts deliver {household_sold} milli-loads to households, "
                             f"workshop economics {get('household_delivered')}")
@@ -1602,7 +1605,7 @@ def cw2_extract(bundle: dict, flags) -> tuple[dict, list[str]]:
             problems.append("a workshop economics record without the switch")
         for key in ("econ_firms_opened", "household_delivered", "household_paid", "household_price_per_load",
                     "academy_sales", "inputs_used", "inputs_charged", "owned_output", "liquidation_to_owner",
-                    "free_use_upper_bound", "inputs_converted_unpaid"):
+                    "free_use_upper_bound", "inputs_converted_unpaid", "priced_out_households"):
             m[key] = None
         if household_sold:
             problems.append("household wares sales without workshop economics")
@@ -1645,19 +1648,22 @@ _CW2_E2 = ("--workshop-economics", "--workshop-economics-rules", "2")
 
 
 def _cw2_outcomes() -> tuple[SR.Outcome, ...]:
-    active, wages, served = _m("active_share"), _m("wages_credited"), _m("household_delivered")
+    active, wages, sold = _m("active_share"), _m("wages_credited"), _m("household_delivered")
     harm = (lambda key: (lambda r: SR.harm_value(r, key)))
     return (
         # Primaries: the firms' operating outcome under the owned-output rule against A3-1 (the
         # share is undefined in P on a world where L6a opens no firm, so P is not its control),
         # the households' wages against the L6a status quo (a recorded zero where no firm
-        # opens), and the households served by sale against A3-1's free-use rule.
+        # opens), and the wares sold to households against A3-1 (partly mechanical: in E1 the
+        # people also draw part of the output free from the commons, its upper bound below).
         SR.Outcome("cw2_active_share", "Share of firm-turns since opening in which the firm produced or sold "
                    "(idle and closed turns count against it) (E2 - E1)", "E2", "E1", active, primary=True),
         SR.Outcome("cw2_wages", "Workshop wages credited to households over the run, units (A1 ledger) (E2 - P)",
                    "E2", "P", wages, primary=True),
-        SR.Outcome("cw2_served", "Wares delivered to households by sale over the run, loads (E2 - E1)", "E2", "E1",
-                   served, primary=True),
+        SR.Outcome("cw2_wares_sold", "Wares sold to households over the run, loads (E2 - E1)", "E2", "E1",
+                   sold, primary=True),
+        SR.Outcome("cw2_free_use_e1", "Firm output the people could draw free from the commons before title, "
+                   "upper bound, loads (E1; rules 1 only, none in E2)", "E1", None, _m("free_use_upper_bound")),
         # A3-1 against the status quo, and A3-2 against A3-1.
         SR.Outcome("cw2_active_share_p", "Active share of firm-turns (E2 - P; worlds where L6a opens a firm)", "E2",
                    "P", active),
@@ -1680,7 +1686,7 @@ def _cw2_outcomes() -> tuple[SR.Outcome, ...]:
         SR.Outcome("cw2_cost_active", "Active share of firm-turns (E2 - E2f: the input cost)", "E2f", "E2", active),
         SR.Outcome("cw2_cost_firms", "Firms opened (E2f - E2)", "E2f", "E2", _m("firms_opened")),
         SR.Outcome("cw2_cost_closed_idle", "Firms closed idle (E2f - E2)", "E2f", "E2", _m("closed_idle")),
-        SR.Outcome("cw2_cost_served", "Wares delivered to households (E2f - E2)", "E2f", "E2", served),
+        SR.Outcome("cw2_cost_sold", "Wares sold to households (E2f - E2; diagnostic)", "E2f", "E2", sold),
         SR.Outcome("cw2_cost_wages", "Workshop wages credited (E2f - E2)", "E2f", "E2", wages),
         SR.Outcome("cw2_cost_treasury", "Treasury at the end (E2f - E2)", "E2f", "E2", harm("treasury")),
         # The demand collapse (E2a: academy customers only, no household demand).
@@ -1715,6 +1721,10 @@ def _cw2_outcomes() -> tuple[SR.Outcome, ...]:
                    _m("asset_arrears_end")),
         SR.Outcome("cw2_h_unsold", "Unsold firm inventory at the end, loads (E2 - P)", "E2", "P",
                    _m("unsold_inventory_end")),
+        SR.Outcome("cw2_h_priced_out", "Household-turns priced out of firm wares (E2 - E1; none recorded in P)",
+                   "E2", "E1", _m("priced_out_households")),
+        SR.Outcome("cw2_h_priced_out_e2", "Household-turns priced out of firm wares (E2)", "E2", None,
+                   _m("priced_out_households")),
         SR.Outcome("cw2_h_farm_time", "Farm time diverted to crews, work units (E2 - P)", "E2", "P",
                    _m("farm_time_diverted")),
         SR.Outcome("cw2_h_treasury", "Treasury at the end (E2 - P)", "E2", "P", harm("treasury")),

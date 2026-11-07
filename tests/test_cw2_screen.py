@@ -67,6 +67,7 @@ def _bundle(econ=True, *, rules=2, mode="market", turns=6, close_at=4, household
                                     "lifetime": {"workshop_wage_in_milli": 500, "withheld_workshop_payroll": 0.2}}}
         if econ:
             ec = {"firms_opened": 1, "operating_firm_turns": 2, "inputs_used": 1000, "inputs_charged": charged,
+                  "priced_out_households": 3,
                   "household_delivered": hh_total, "household_sales": hh_total // 4, "free_use_upper_bound": free_use,
                   "owned_output": 800 if rules == 2 else 0, "academy_sales": 50}
             econ_receipts = [{"operating": r["operating"], "produced": 400, "titled": 400,
@@ -87,7 +88,7 @@ def test_the_screen_declares_five_arms_three_primaries_and_both_cohorts(CW):
     assert s.held == {"template": tuple(range(741, 747)), "procedural": tuple(range(841, 847))}
     primaries = s.primaries()
     assert [(o.id, o.arm, o.control) for o in primaries] == [
-        ("cw2_active_share", "E2", "E1"), ("cw2_wages", "E2", "P"), ("cw2_served", "E2", "E1")]
+        ("cw2_active_share", "E2", "E1"), ("cw2_wages", "E2", "P"), ("cw2_wares_sold", "E2", "E1")]
     assert "--wealth-accounting" in s.base and "--workshop-payroll" in s.base
 
 
@@ -104,11 +105,13 @@ def test_firm_turns_by_state_count_closed_turns_against_the_firm(CW):
     assert m["household_delivered"] == pytest.approx(0.5) and m["wages_credited"] == pytest.approx(0.5)
     assert m["household_net_income"] == pytest.approx(0.3) and m["wage_arrears"] == pytest.approx(0.1)
     assert m["farm_time_diverted"] == 1.5 and m["asset_arrears_end"] == 2 and m["stability_end"] == 40
+    assert m["priced_out_households"] == 3 and m["free_use_upper_bound"] == 0.0
 
 
 def test_the_status_quo_has_no_household_customers(CW):
     m, problems = CW.cw2_extract(_bundle(econ=False, household=()), ())
     assert problems == [] and m["household_delivered"] is None and m["inputs_charged"] is None
+    assert m["priced_out_households"] is None
     assert m["active_share"] == pytest.approx(3 / 5)        # the same firm-turn states without economics
     stray = _bundle(econ=True)
     assert any("without the switch" in p for p in CW.cw2_extract(stray, ())[1])

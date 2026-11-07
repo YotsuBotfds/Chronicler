@@ -396,8 +396,9 @@ _HELP = {
         "produces nothing; firms close when insolvent or idle; requires --workshop-payroll (default off)"
     ),
     "workshop_economics_mode": (
-        "market (default); free_inputs: the cost control, every rule as market except that the input "
-        "charge is recorded and not taken; academy_only: the demand control with no household customers"
+        "market (default); free_inputs: a diagnostic cost control only (free inputs are not a supported "
+        "feature): every rule as market except that the input charge is recorded and not taken; "
+        "academy_only: the demand control with no household customers"
     ),
     "workshop_economics_rules": (
         "Workshop economics rules version of a new state: 1 (default): A3-1 exactly (the tick's output "

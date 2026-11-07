@@ -617,7 +617,8 @@ Reading (development-only):
   food pressure, not the withheld income; the review's re-check). The rule
   that carriers take no decision while reserved replaced this (the rerun above).
 
-All-on development run after the review (template 7, titled trade with A3-2
+All-on development run after the review, before the carrier rule (so it predates the rule that
+carriers take no decision while reserved; template 7, titled trade with A3-2
 owned output and the A3 academy flags): 145 shipments (116 delivered, 23
 released and returned, 1 escheated, 5 live), 181.4 food bought for 97.1, net
 money +53.5 against 1.2 withheld; 5 firms, 97.3 loads of owned output (free

@@ -36,7 +36,7 @@ A3:
 | Mode (`--workshop-economics-mode`) | Inputs | Customers | Role |
 | --- | --- | --- | --- |
 | `market` (default) | bought from the ruler at the plan price before conversion | academies, then households | the mechanism |
-| `free_inputs` | the same budget, plan price, crew sizing and ceiling as `market`; the cost is recorded (`not_charged_milli`) and not taken | academies, then households | cost control: the input charge alone |
+| `free_inputs` | the same budget, plan price, crew sizing and ceiling as `market`; the cost is recorded (`not_charged_milli`) and not taken | academies, then households | diagnostic cost control only (free inputs are not a supported feature): the input charge alone |
 | `academy_only` | bought | academies only | demand control: no household customers |
 
 Any payroll mode is accepted: `--workshop-payroll-mode no_customer` is the
