@@ -49,7 +49,7 @@ scheduled explicitly, unchanged 110-second offline chunk limit.
 | Integration | Preserve original witness pins; append reviewed inverse, run appropriate full gates and both-reference feature-off identity, enabled active resumes, draft PR review, exact-head green CI, PR merge and exact main CI. |
 
 Current checkpoint (2026-11-07): explicit corrected contracts are implemented
-and independently approved, with 39 physical-arrival regressions, 418 scoped
+and independently approved, with 41 physical-arrival/downstream epidemic regressions, 418 initial scoped
 checks and 1,339 Rust tests passing (two pre-existing manual benches ignored).
 Clean native release is `b1d3ea5a`; all old feature and version defaults remain.
 PR #98 merged at `125a6906` after all nine Tests jobs passed on reviewed head
@@ -61,13 +61,28 @@ admitted by paired complete-output evidence.
 CWR1 seeds 4101–4106 / 4201–4206 are reserved after a fresh 52-ref, 13-registry
 collision audit. No held seed has run. The development schema smoke found that
 `no_relief` retains a free pool without means-tested priority; the new extractor
-and protocol are being corrected to match this existing native behavior.
+and protocol now match that existing native behavior. All 13 corrected eight-turn
+development cases pass, as do 48 extractor checks. This is not the official
+120-turn timing/schema pilot and spends no held seeds.
 
-Next executable task: pass corrected development extraction, freeze the
-unoptimized corrected comparator, admit and measure the timber optimization,
-then complete the 24-run timing/schema pilot and freeze the causal protocol
-before any held execution. Broad compatibility, active exact resume, all
-required local/CI checks and final integrated review remain gates.
+Matched performance source is frozen at `09403c15` (corrected unoptimized)
+versus `a1fcb482` (only the reviewed timber candidate). All ten before cases
+pass. The matched after matrix is running; complete-output admission remains
+pending. The template timing pilot has a null whole-run CPU change (+0.044%)
+and a 64% timber-stage reduction, with 111 byte-identical non-bundle outputs
+and four exact same-source checkpoint exports. The 18,801-agent baseline still
+costs 6.27× OFF; a same-scale, 450-CPU-second diagnostic is authorized after
+matched timing to attribute that residual. No world-size or horizon reduction.
+
+Draft #99 carries the reviewed backend/UI work; initial-head CI is running as
+`42417373801`. Final evidence and source may still change. The main run after
+#98 is `42417310582`, still pending. No further feature merge until verified.
+
+Next executable task: finish matched performance admission and residual
+diagnosis, then settle any measured local optimization before freezing the
+final runtime. Complete the official 24×120-turn pilot and freeze the causal
+protocol before fresh held execution. Active exact resume, both-reference
+feature-off identity, final review/CI and verified main remain mandatory.
 
 The board's original completion describes its historical adopted implementation,
 not completion of this rework. Ports lack a maritime service consumer. Owned
