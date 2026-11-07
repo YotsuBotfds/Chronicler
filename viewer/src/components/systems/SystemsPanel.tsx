@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   preferredSystem, presentSystems, SYSTEM_LABELS, type SystemKey, type SystemPanelProps,
 } from "../../lib/systems";
@@ -19,6 +19,7 @@ import { MovementsPanel } from "./MovementsPanel";
 import { NomadsPanel } from "./NomadsPanel";
 import { TechniquesPanel } from "./TechniquesPanel";
 import { WarsPanel } from "./WarsPanel";
+import { ENTITY_HISTORY_REQUEST,peekEntityHistoryRequest } from "../../lib/entityHistoryNavigation";
 import "./systems.css";
 
 const PANELS: Record<SystemKey, (props: SystemPanelProps) => React.ReactElement> = {
@@ -50,6 +51,12 @@ export function SystemsPanel(props: SystemPanelProps & { surface: string }) {
   const present = useMemo(
     () => presentSystems(bundle.history, bundle.events_timeline, hasFaithRecord(bundle)), [bundle]);
   const [chosen, setChosen] = useState<SystemKey | null>(null);
+  const onSeek = panelProps.onSeek;
+  useEffect(()=>{
+    const open=()=>{const request=peekEntityHistoryRequest();if(request&&present.includes("livelihoods")){setChosen("livelihoods");onSeek(request.turn);}};
+    window.addEventListener(ENTITY_HISTORY_REQUEST,open);
+    return ()=>window.removeEventListener(ENTITY_HISTORY_REQUEST,open);
+  },[present,onSeek]);
   if (present.length === 0) {
     return null;
   }

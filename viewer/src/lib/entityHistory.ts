@@ -75,7 +75,7 @@ export function indexEntityHistory(bundle: Bundle): EntityHistoryIndex {
         entity=scoped(entity,identityTurn);
         related=related.map(e=>scoped(e,identityTurn));
         frame.rows.push({ entity, turn: snapshot.turn, sourceTurn, package: key, join, state, text, source: source + path, region, related });
-        for (const e of [entity, ...related]) entities.set(entityKey(e), e);
+        for (const e of [entity, ...related, ...(region===null?[]:[ref("region",region)])]) entities.set(entityKey(e), e);
       };
       if (key === "recovery_crews") {
         const r = readRecoveryCrews(snapshot, regions, civs);
@@ -261,7 +261,11 @@ export function entityHistory(index: EntityHistoryIndex, entity: EntityRef, thro
     const direct: EntityHistoryRow[] = [];
     for (const key of HISTORY_PACKAGES) {
       const frame = frames[key];
-      const rows = frame.rows.filter((r) => entityKey(r.entity) === entityKey(entity));
+      const directRows = frame.rows.filter((r) => entityKey(r.entity) === entityKey(entity));
+      const context = entity.kind === "region" ? frame.rows.filter((r)=>r.region===entity.id&&r.entity.kind!=="region") : [];
+      const seen = new Set(directRows.map(r=>r.source));
+      const rows=[...directRows];
+      for(const row of context)if(!seen.has(row.source)){seen.add(row.source);rows.push({...row,entity,join:"region",text:`Regional context; named ${entityLabel(row.entity)}: ${row.text}`,related:[row.entity,...row.related]});}
       direct.push(...rows);
       if (!rows.length && (entity.kind === "person" || entity.kind === "household" && key === "household_retail" || entity.kind === "firm" && (key === "workshop_economics" || key === "workshop_payroll"))) {
         const crossed=(entity.kind==="person"||entity.kind==="household")&&entity.epoch!==epoch;

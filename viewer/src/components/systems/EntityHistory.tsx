@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { SystemPanelProps } from "../../lib/systems";
 import { entityHistory, entityKey, entityLabel, indexEntityHistory, type EntityRef, type HistoryState } from "../../lib/entityHistory";
 
@@ -6,27 +6,37 @@ const LABELS: Record<HistoryState, string> = {
   disabled: "Off or unrecorded", unknown: "Unknown, not zero", malformed: "Rejected as malformed",
   not_sampled: "Not in sample", truncated: "Truncated evidence", recorded_zero: "Recorded: none", recorded: "Recorded",
 };
+import { ENTITY_HISTORY_REQUEST,takeEntityHistoryRequest } from "../../lib/entityHistoryNavigation";
 const PAGE = 24;
 /** Saved observations only: stable-id links and regional context stay visibly distinct. */
 export function EntityHistory({ bundle, currentTurn, onSeek, onSelectRegion }: SystemPanelProps) {
   const index = useMemo(() => indexEntityHistory(bundle), [bundle]);
-  const [selected, setSelected] = useState<EntityRef | null>(null);
+  const [selected, setSelected] = useState<EntityRef | null>(()=>takeEntityHistoryRequest()?.entity??null);
+  const section=useRef<HTMLElement>(null);
   const [limit, setLimit] = useState(PAGE);
   const picker = useId();
+  useEffect(()=>{
+    const open=()=>{const request=takeEntityHistoryRequest();if(request){setSelected(request.entity);setLimit(PAGE);onSeek(request.turn);}};
+    window.addEventListener(ENTITY_HISTORY_REQUEST,open);
+    return ()=>window.removeEventListener(ENTITY_HISTORY_REQUEST,open);
+  },[onSeek]);
+  useEffect(()=>{if(selected)section.current?.scrollIntoView?.({block:"start"});},[selected]);
   const available = useMemo(() => {
     const named = new Map<string, EntityRef>();
     for (const { snapshot, frames } of index.snapshots) if (snapshot.turn <= currentTurn)
       for (const frame of Object.values(frames)) for (const row of frame.rows)
-        for (const item of [row.entity, ...row.related]) named.set(entityKey(item), item);
+        for (const item of [row.entity, ...row.related, ...(row.region===null?[]:[{kind:"region" as const,id:row.region}])]) named.set(entityKey(item), item);
     return [...named.values()].sort((a, b) => a.kind.localeCompare(b.kind) || String(a.id).localeCompare(String(b.id), undefined, { numeric: true }));
   }, [index, currentTurn]);
+  const requestedMissing=selected!==null&&!available.some(e=>entityKey(e)===entityKey(selected));
   const entity = selected && available.some((e) => entityKey(e) === entityKey(selected)) ? selected : available.find((e) => e.kind === "person") ?? available[0];
   const rows = useMemo(() => entity ? entityHistory(index, entity, currentTurn) : [], [index, entity, currentTurn]);
   if (!entity) return null;
   const choose = (next: EntityRef) => { setSelected(next); setLimit(PAGE); };
-  return <section className="systems-section" aria-label="Linked histories">
+  return <section ref={section} className="systems-section" aria-label="Linked histories">
     <h3>Linked histories</h3>
     <p className="systems-note">Saved completed-turn observations joined by stable id. These links show participation and co-occurrence, not causation. Regional totals are context and are never assigned to a person. Gaps are not interpolated; an absent id does not prove death, migration, or inactivity outside the named frame. A recorded pool rebuild or non-exact continuation starts a separately labelled personal identity segment; the viewer does not join the reused numeric id to its former person.</p>
+    {requestedMissing ? <p role="status" className="systems-note">Requested {entityLabel(selected!)} has no accepted named observation at or before this snapshot. It is unknown, not evidence that it did not exist; another recorded entity is shown.</p> : null}
     <label htmlFor={picker}>Recorded entity</label>{" "}
     <select id={picker} value={entityKey(entity)} onChange={(e) => {
       const next = available.find((item) => entityKey(item) === e.target.value);

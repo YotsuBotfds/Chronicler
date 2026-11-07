@@ -86,3 +86,5 @@ identity segments. The numeric native id remains unchanged. Missing facts
 across that boundary are unknown, not inactivity; retained cargo/claims stay
 with the identity segment in which their lifecycle began. Exact checkpoints
 create no artificial identity boundary.
+
+Identity links are reachable from the recovery-chain inspector's explicitly recorded people, household keys, projects and expeditions, and from region inspection and historical region search. Opening a link selects Livelihoods, seeks its recorded snapshot and opens the requested history. A region history includes named rows as visibly labelled regional context; it never reallocates those observations to residents. An identity absent from accepted records produces an explicit unknown message before a recorded fallback is shown.

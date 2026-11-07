@@ -7,6 +7,8 @@ import {
 } from "../../lib/recoveryChain";
 import type { TimberStoreRecord } from "../../lib/timberSupply";
 import { StripLegend, TurnStrip } from "./SystemParts";
+import { requestEntityHistory } from "../../lib/entityHistoryNavigation";
+import { entityKey,entityLabel,type EntityRef } from "../../lib/entityHistory";
 
 const num = (value: number, digits = 2) =>
   (Math.abs(value) < 5e-7 ? 0 : value).toLocaleString(undefined, { maximumFractionDigits: digits });
@@ -351,6 +353,13 @@ export function RecoveryChain({ bundle, snapshot, currentTurn, onSeek, onSelectR
   const name = names.region(region);
   const at = snapshot?.turn ?? currentTurn;
   const now = turns.find((t) => t.turn === at) ?? null;
+  const named=new Map<string,EntityRef>();
+  const remember=(kind:EntityRef["kind"],id:number)=>{const entity={kind,id};named.set(entityKey(entity),entity);};
+  remember("region",region);
+  if(now?.repair.state==="known")now.repair.value.projects.forEach(p=>remember("project",p.pid));
+  if(now?.expedition.state==="known")now.expedition.value.expeditions.forEach(e=>remember("expedition",e.eid));
+  if(now?.wages.state==="known")for(const cell of [now.wages.value.pl3,now.wages.value.rs2,now.wages.value.pl1])if(cell.state==="known")cell.value.rows.forEach(row=>row.people.forEach(id=>remember("person",id)));
+  if(now?.retail.state==="known")now.retail.value.matches.forEach(p=>{remember("person",p.agentId);remember("household",p.household);});
   const links = useMemo(() => LINKS.filter((l) => turns.some((t) => linkState(t, l.key) !== "off")), [turns]);
   const offLinks = LINKS.filter((l) => !links.includes(l));
   const on = CHAIN_PACKAGES.filter((k) => read.on[k]);
@@ -381,6 +390,7 @@ export function RecoveryChain({ bundle, snapshot, currentTurn, onSeek, onSelectR
         {regions.map((r, index) => <option key={index} value={index}>{r.name}{index === fullest ? " (fullest chain)" : ""}</option>)}
       </select>
     </div>
+    <details><summary>Linked histories of identities recorded in this chain</summary><div className="systems-inline-list">{[...named.values()].map(entity=><button type="button" className="systems-link" key={entityKey(entity)} onClick={()=>requestEntityHistory(entity,at)}>History: {entityLabel(entity)}</button>)}</div><p className="systems-note">Each identity link opens saved observations. Regional co-occurrence is not an individual causal history.</p></details>
     <p className="systems-note">
       <button type="button" className="systems-link" onClick={() => onSelectRegion(name)}>{name}</button>
       {turns.length ? ` over snapshots ${first}-${last}: ${summary(totals, read.on, links)}` : " no snapshots are recorded."}

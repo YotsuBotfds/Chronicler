@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import type { Bundle } from "../types";
 import { buildHistoricalSearchIndex, searchHistoricalEntities, type HistoricalSearchKind, type HistoricalSearchResult } from "../lib/historicalSearch";
+import { requestEntityHistory } from "../lib/entityHistoryNavigation";
 import "./historical-search.css";
 
 export interface HistoricalSearchProps {
@@ -34,6 +35,7 @@ export function HistoricalSearch({ bundle, currentTurn, onInspect, onViewRecorde
       <p>{item.status}</p>{item.ambiguity && <p className="historical-search-ambiguity">{item.ambiguity}</p>}
       <p>{item.aliases.length ? `Dated names: ${item.aliases.map((alias) => `${alias.name} (turn ${alias.turn})`).join("; ")}` : "Dated aliases unknown."}</p>
       <div className="historical-search-actions"><button type="button" onClick={() => onInspect(item)}>Inspect: {item.name}</button>
+        {item.identity?.namespace==="region" && <button type="button" onClick={()=>requestEntityHistory({kind:"region",id:item.identity!.index},item.turn??currentTurn)}>Linked system history: {item.name}</button>}
         {onViewRecordedTurn && item.turn !== null && item.turn !== currentTurn && <button type="button" onClick={() => onViewRecordedTurn(item)}>View recorded turn {item.turn}: {item.name}</button>}
       </div>
     </li>)}</ul>

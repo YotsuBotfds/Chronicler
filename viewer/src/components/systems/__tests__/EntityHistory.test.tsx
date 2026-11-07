@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { EntityHistory } from "../EntityHistory";
+import { requestEntityHistory } from "../../../lib/entityHistoryNavigation";
 import { chainBundle, snapshotOf } from "../../../lib/__tests__/recoveryChainFixture";
 afterEach(cleanup);
 
@@ -23,4 +24,12 @@ describe("linked history navigation", () => {
     const { container } = render(<EntityHistory bundle={bundle} snapshot={bundle.history[0]} currentTurn={28} onSeek={vi.fn()} onSelectRegion={vi.fn()} onSelectCivilization={vi.fn()} onSelectEvent={vi.fn()}/>);
     expect(container).toBeEmptyDOMElement();
   });
+});
+
+it("accepts a stable-id request from another view and seeks its recorded snapshot",()=>{
+ const bundle=chainBundle(),onSeek=vi.fn();
+ render(<EntityHistory bundle={bundle} snapshot={snapshotOf(bundle,28)} currentTurn={28} onSeek={onSeek} onSelectRegion={vi.fn()} onSelectCivilization={vi.fn()} onSelectEvent={vi.fn()}/>);
+ act(()=>requestEntityHistory({kind:"project",id:0},22));
+ expect(screen.getByLabelText("Recorded entity")).toHaveValue("project:0");
+ expect(onSeek).toHaveBeenCalledWith(22);
 });
