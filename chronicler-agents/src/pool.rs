@@ -212,6 +212,10 @@ pub struct AgentPool {
     /// (taken once by Python); transient, never checkpointed.
     pub relocation_policy: Option<crate::relocation::RelocationPolicy>,
     pub relocation_receipt: Option<crate::relocation::RelocationReceipt>,
+    /// Connected-world C1b: one-tick quarantine migration closure and its
+    /// receipt (taken once by Python); transient, never checkpointed.
+    pub migration_closure: Option<crate::migration_closure::MigrationClosure>,
+    pub migration_closure_receipt: Option<crate::migration_closure::MigrationClosureReceipt>,
     /// Livelihoods L6b household retail: one-tick provisioning install and
     /// its frame, one-tick farm income replacement and its receipt (each
     /// taken once by Python); transient, never checkpointed.
@@ -309,6 +313,8 @@ impl AgentPool {
             wealth_transfer_log: Vec::new(),
             relocation_policy: None,
             relocation_receipt: None,
+            migration_closure: None,
+            migration_closure_receipt: None,
             retail_config: None,
             retail_frame: None,
             retail_income: None,
@@ -1882,4 +1888,4 @@ crate::persist_struct!(AgentPool {
 } transient { health_work_loss /* CAREOBS_TRANSIENT_BEGIN */, health_care_observation /* CAREOBS_TRANSIENT_END */, teaching_plan,
     food_allocation_config, food_access, food_access_ids, food_access_regions, provision_frame,
     work_reservations, learning_attendance, paid_work, paid_work_receipt, wealth_transfer_log,
-    relocation_policy, relocation_receipt, retail_config, retail_frame, retail_income, retail_income_receipt });
+    relocation_policy, relocation_receipt, migration_closure, migration_closure_receipt, retail_config, retail_frame, retail_income, retail_income_receipt });

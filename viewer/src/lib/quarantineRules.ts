@@ -7,6 +7,15 @@
  * rule, which closes no route), a malformed record, and a recorded mode
  * (whose counts may be a recorded zero). The reader is strict: it reports a
  * malformed record instead of guessing. Types live here, not in types.ts.
+ *
+ * C1b (`--quarantine-channels trade,migration`): a record whose channels
+ * include "migration" carries refused migrants in each receipt (null: no
+ * native migration receipt read that turn; 0: a recorded zero) and in the
+ * totals; a trade-only record carries neither (migrants are not restricted).
+ * Units: a receipt counts the persons refused that tick; the totals sum those
+ * refusals over ticks (person-ticks: an agent refused on k ticks counts k
+ * times) and count refusal spells separately (an agent refused on consecutive
+ * ticks counts once per unbroken spell).
  */
 
 export type QuarantineMode = "none" | "cost_only" | "closure";
@@ -18,6 +27,16 @@ export interface QuarantineClosureRecord {
   opened_turn: number;
   last_renewed_turn: number;
   cause: string;
+}
+
+/** One refused move group of a migration closure (C1b). */
+export interface MigrationRefusalRecord {
+  closure: number;
+  from: string;
+  to: string;
+  /** The movers' migration driver (native term name, or "unattributed"). */
+  driver: string;
+  persons: number;
 }
 
 export interface QuarantineReceiptRecord {
@@ -38,6 +57,15 @@ export interface QuarantineReceiptRecord {
   /** Deliveries of the last tick across a pair closed during it; null: none read that turn. */
   leaked_deliveries: number | null;
   leaked_quantity: number | null;
+  /** C1b: persons refused at a closed border this turn; null: not observed (or no migration channel). */
+  migrants_blocked: number | null;
+  /** C1b: of them, fleeing war, famine or persecution (hunger-driven moves excluded). */
+  migrants_blocked_flight: number | null;
+  /** C1b: of them, hunger-driven (food opportunity, material need). */
+  migrants_blocked_hunger: number | null;
+  /** C1b: of them, not refused at the previous tick (a new refusal spell). */
+  migrants_refused_new: number | null;
+  migration_refusals: MigrationRefusalRecord[] | null;
 }
 
 export interface QuarantineTotalsRecord {
@@ -51,6 +79,12 @@ export interface QuarantineTotalsRecord {
   merchant_edges_removed: number;
   leaked_deliveries: number;
   leaked_quantity: number;
+  /** C1b only (null without the migration channel): refusals summed over ticks (person-ticks). */
+  migrants_blocked: number | null;
+  migrants_blocked_flight: number | null;
+  migrants_blocked_hunger: number | null;
+  /** C1b: refusal spells (consecutive refusals of one agent count once). */
+  migrants_refusal_spells: number | null;
 }
 
 export interface QuarantineRulesRecord {
@@ -75,6 +109,20 @@ export const QUARANTINE_MODE_LABEL: Record<QuarantineMode | "legacy", string> = 
   cost_only: "Cost only (nothing closed)",
   closure: "Closure (trade closed)",
 };
+
+/** The mode label, naming migration when the record's closures also refuse it. */
+export function quarantineModeLabel(record: QuarantineRulesRecord): string {
+  return migrationClosed(record) ? "Closure (trade and migration closed)" : QUARANTINE_MODE_LABEL[record.mode];
+}
+
+/** Whether the record's closures refuse migration (C1b). */
+export function migrationClosed(record: QuarantineRulesRecord): boolean {
+  return record.mode === "closure" && record.channels.includes("migration");
+}
+
+export const MIGRATION_CLOSURE_NOTE = "Native migrations between the two polities of each closed pair are refused "
+  + "at the border, either way; the movers stay home with their households (they are not sent elsewhere). Moves "
+  + "made before the closure stay made, and refugees are refused like other migrants (counted apart).";
 
 export const QUARANTINE_MODE_NOTE: Record<QuarantineMode | "legacy", string> = {
   legacy: "The legacy rule: a closed state's foreign import pressure is multiplied away (70–90%) and it pays "
@@ -140,10 +188,35 @@ function amounts(value: unknown, where: string): Record<string, number> {
   return out;
 }
 
-function readReceipt(raw: unknown): QuarantineReceiptRecord | null {
+function readRefusals(value: unknown): MigrationRefusalRecord[] | null {
+  if (value === null || value === undefined) return null;
+  if (!Array.isArray(value)) fail("receipt.migration_refusals must be a list or null");
+  return value.map((item, i) => {
+    const where = `receipt.migration_refusals[${i}]`;
+    if (!isRecord(item)) fail(`${where} must be an object`);
+    return {
+      closure: int(item.closure, `${where}.closure`),
+      from: text(item.from, `${where}.from`),
+      to: text(item.to, `${where}.to`),
+      driver: text(item.driver, `${where}.driver`),
+      persons: int(item.persons, `${where}.persons`),
+    };
+  });
+}
+
+function readReceipt(raw: unknown, migration: boolean): QuarantineReceiptRecord | null {
   if (raw === null) return null;
   if (!isRecord(raw)) fail("receipt must be an object or null");
   if (typeof raw.phase2_observed !== "boolean") fail("receipt.phase2_observed must be a boolean");
+  if (migration && !("migrants_blocked" in raw)) fail("receipt.migrants_blocked is missing for the migration channel");
+  const refusals = migration ? readRefusals(raw.migration_refusals) : null;
+  const blocked = migration ? nullable(raw.migrants_blocked, int, "receipt.migrants_blocked") : null;
+  if ((blocked === null) !== (refusals === null)) {
+    fail("receipt.migrants_blocked and receipt.migration_refusals must both be recorded or both be null");
+  }
+  if (blocked !== null && blocked !== refusals!.reduce((sum, r) => sum + r.persons, 0)) {
+    fail("receipt.migrants_blocked must equal the persons of its refusals");
+  }
   return {
     turn: int(raw.turn, "receipt.turn"),
     decided: pairs(raw.decided, "receipt.decided"),
@@ -159,6 +232,14 @@ function readReceipt(raw: unknown): QuarantineReceiptRecord | null {
     merchant_edges_removed: nullable(raw.merchant_edges_removed, int, "receipt.merchant_edges_removed"),
     leaked_deliveries: nullable(raw.leaked_deliveries, int, "receipt.leaked_deliveries"),
     leaked_quantity: nullable(raw.leaked_quantity, num, "receipt.leaked_quantity"),
+    migrants_blocked: blocked,
+    migrants_blocked_flight: migration
+      ? nullable(raw.migrants_blocked_flight, int, "receipt.migrants_blocked_flight") : null,
+    migrants_blocked_hunger: migration
+      ? nullable(raw.migrants_blocked_hunger, int, "receipt.migrants_blocked_hunger") : null,
+    migrants_refused_new: migration
+      ? nullable(raw.migrants_refused_new, int, "receipt.migrants_refused_new") : null,
+    migration_refusals: refusals,
   };
 }
 
@@ -167,10 +248,15 @@ const TOTALS: (keyof QuarantineTotalsRecord)[] = [
   "route_turns_removed", "forgone_income", "merchant_edges_removed", "leaked_deliveries",
 ];
 
-function readTotals(raw: unknown): QuarantineTotalsRecord {
+function readTotals(raw: unknown, migration: boolean): QuarantineTotalsRecord {
   if (!isRecord(raw)) fail("totals must be an object");
   const out = { leaked_quantity: num(raw.leaked_quantity ?? 0, "totals.leaked_quantity") } as QuarantineTotalsRecord;
   for (const key of TOTALS) out[key] = int(raw[key], `totals.${key}`);
+  out.migrants_blocked = migration ? int(raw.migrants_blocked, "totals.migrants_blocked") : null;
+  out.migrants_blocked_flight = migration ? int(raw.migrants_blocked_flight, "totals.migrants_blocked_flight") : null;
+  out.migrants_blocked_hunger = migration ? int(raw.migrants_blocked_hunger, "totals.migrants_blocked_hunger") : null;
+  out.migrants_refusal_spells = migration
+    ? int(raw.migrants_refusal_spells, "totals.migrants_refusal_spells") : null;
   return out;
 }
 
@@ -198,16 +284,18 @@ export function readQuarantineRules(epidemics: unknown): QuarantineReading {
         cause: text(item.cause, `closures[${i}].cause`),
       };
     });
+    const channels = strings(raw.channels, "channels");
+    const migration = raw.mode === "closure" && channels.includes("migration");
     return {
       state: "recorded",
       record: {
         mode: raw.mode,
-        channels: strings(raw.channels, "channels"),
+        channels,
         exempt: strings(raw.exempt, "exempt"),
         enforcement_cost: int(raw.enforcement_cost, "enforcement_cost"),
         closures,
-        receipt: readReceipt(raw.receipt ?? null),
-        totals: readTotals(raw.totals),
+        receipt: readReceipt(raw.receipt ?? null, migration),
+        totals: readTotals(raw.totals, migration),
       },
     };
   } catch (error) {
