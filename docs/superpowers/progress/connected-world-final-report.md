@@ -55,8 +55,8 @@ chunk limit was retained.
 | V5 default identity | Both original `8abc1acb` and preceding reviewed `11467a46` (tree equals main #95): nine cases, 399 compared files, zero differences each. Only the declared generated timestamp normalization applies. |
 | V6 enabled exact resume | 22 active-event and 58 canonical branches: all 80 passed, including raw Arrow comparisons. Canonical cases retain 200-turn hybrid seed 42 and 32-region/8-civilization, 40-turn procedural seed 11. Four additional health active resumes passed. Precheckpoint per-turn JSON is not regenerated; compare scopes/exclusions are explicit in the receipts. |
 | V7 catalog/compatibility | Feature requirements, invalid-mode refusals, persisted state, append-only manifests and compatibility tests are enrolled in the complete offline/native gates. |
-| V8 viewer/browser/old bundles | Viewer unit/TypeScript/lint/build checks; real desktop and phone: 30 connected-history, 38 branch and 82 health checks. Missing-polity/minimal bundle and future-firm guards fixed. Actual source and asset hashes retained. |
-| V9 provenance/examples | Accepted 120-turn natural bundle: 1,200 strict reader observations, zero malformed; 21/24 exact-record example categories, three honest nulls, zero schema/audit errors. No paid narrator. |
+| V8 viewer/browser/old bundles | Viewer unit/TypeScript/lint/build checks; real desktop and phone: 30 natural connected-history, 34 explicitly constructed, 38 branch and 82 health checks. Missing-polity/minimal bundle and future-firm guards fixed. Actual source and asset hashes retained. |
+| V9 provenance/examples | Accepted 120-turn natural bundle: 1,200 strict reader observations, zero malformed; 21/24 exact-record example categories, three honest nulls, zero schema/audit errors. A separately labeled derived visibility demonstration also passes 1,200 reader checks and two exact edited-record citations with zero audit flags. No paid narrator. |
 | V10 held evaluation | D1: 60/60; health: 36/36 at 200 turns; integrated CW6: 60/60 at 120 turns, 131 outcomes per run, zero missing/malformed outcomes. Independent raw and report arithmetic review. Historical failures, nulls and adverse outcomes preserved. |
 | V11 scale/cost | Seven OFF/FULL pairs, 14 runs, 52 strict checkpoint readbacks; actual peak 53,138 native agents. CPU 1.81–6.90×, bundle bytes 2.13–3.94×, peak RSS +60–1,010 MiB. Largest process RSS 1,941.7 MiB; checkpoint write/read maxima 3.348/4.216 seconds. Material costs accepted only for the experimental opt-in path. |
 | V12 review/CI/merge | Actual-source/native, inverse, profile/identity, held arithmetic, browser and final test-contract independent reviews retained. #94 main Tests 42382492574 and #95 main Tests 42386261493 passed all nine jobs. Final #96 Tests 42391897267 passed all nine jobs on reviewed c32c2bbd; merge tree equality verified. Exact main Tests 42393043134 passed all nine jobs, independently verified. |
@@ -102,6 +102,19 @@ Procedural arrivals were 20.833 higher against shuffled reports (PA−PS);
 food shortfall increased in both strata against cost-only care. D1 relief activation was sparse and its
 primary summary is suppressed; league results were mixed. Invalid historical
 relief lower bounds were withdrawn without rewriting raw evidence.
+
+A [constructed visibility demonstration](connected-world-e-history/constructed/README.md)
+now positively exercises the production banner and exact source/edit disclosure:
+34 desktop/phone checks pass. Its three reversible edits redact person 13's
+individual income-cost observation and the matching A6 withholding/source;
+the 2.000-coin wage remains observed and unknown net income remains unknown.
+All 1,200 strict reader checks and two edited-record provenance entries pass.
+Original raw SHA256 `f6cb5562…` is unchanged; derived SHA256 is
+`019f4b17c49f4e5960e5130b747e3790680312483e95d23eed50b33b29066d89`.
+The compact manifest/reproducer recreates the labeled copy. This is a visibility
+illustration, not an alternative simulation, natural activation or policy
+counterfactual; original held/profile/resume evidence and model choices are
+unchanged. No broader set of constructed per-slice story worlds is claimed.
 
 The current history panel initially opens in about 4.8 seconds for the final
 120-turn bundle. Substantial simulation/recording costs, adverse physical
