@@ -166,6 +166,8 @@ REQUIREMENTS: dict[str, tuple[dict, ...]] = {
     "household_retail": (_HYBRID, _feature("food_allocation")),
     "watershed": (_setting("procedural_world"),),
     "workshop_economics": (_HYBRID, _feature("workshop_payroll")),
+    "titled_trade": (_HYBRID, _feature("household_retail"), _choice("household_retail_mode", "retail", "no_relief"),
+                     _choice("household_retail_rules", "2")),
     # C2: L9 funds the carers; the epidemic model and its ledger are the effect's
     # authority; the A1 ledger does not itemize care wages (mutual exclusion).
     "epidemic_care": (_HYBRID, _feature("local_budgets"), _setting("epidemiology"), _excludes("wealth_accounting")),

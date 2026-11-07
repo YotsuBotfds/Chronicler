@@ -336,6 +336,10 @@ def sentinel_runtimes(monkeypatch):
 
     monkeypatch.setattr(agent_bridge, "AgentBridge", accepted)
     monkeypatch.setattr(main, "_create_ecology_runtime", accepted)
+    # The sentinel stands in for a current extension: A3-2's build capability
+    # (``economy_capabilities``) is the build's, not a catalog requirement.
+    from chronicler import workshop_economics
+    monkeypatch.setattr(workshop_economics, "native_owned_supported", lambda: True)
 
 
 def test_catalog_requirements_agree_with_the_run(tmp_path, sentinel_runtimes):

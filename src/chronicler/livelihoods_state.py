@@ -12,9 +12,10 @@ independent switches was enabled: ``workshops`` (L1), ``food_allocation``
 ``maintenance_obligation`` (PL3) and ``household_retail`` (PL4, L6b), and the
 connected-world program's ``watershed`` (B1), ``workshop_economics`` (A3,
 inserted before the ledger; it has no hooks of its own: the workshop and
-payroll seams call it), ``epidemic_care`` (C2, named, paid epidemic carers
-funded by L9 envelopes; inserted before D2 and the ledger so its Phase 2 work
-comes after every other work consumer), ``residence_ledger`` (X1, the
+payroll seams call it), ``titled_trade`` (A4, inserted before the ledger; its
+Phase 10 runs inside retail's), ``epidemic_care`` (C2, named, paid epidemic carers
+funded by L9 envelopes; inserted before D2 and the ledger, after titled trade, so its
+Phase 2 work comes after every other work consumer), ``residence_ledger`` (X1, the
 lead-owned displacement contract: home, residence, attachment and displacement
 spells, record-only, immediately before D2), ``attribution_records`` (D2,
 observation-only records of actor, victim and cause, after every acting package) and
@@ -49,6 +50,7 @@ from chronicler.repair_projects_state import RepairProjectsState
 from chronicler.residence_ledger_state import ResidenceLedgerState
 from chronicler.timber_stock_state import TimberStockState
 from chronicler.timber_supply_state import TimberSupplyState
+from chronicler.titled_trade_state import TitledTradeState
 from chronicler.veteran_reintegration_state import VeteranReintegrationState
 from chronicler.watershed_state import WatershedState
 from chronicler.wealth_accounting_state import WealthAccountingState
@@ -64,7 +66,7 @@ LIVELIHOODS_SWITCHES: tuple[str, ...] = ("workshops", "food_allocation", "timber
                                          "remittances", "clearing_protection",
                                          "operating_wear", "timber_supply",
                                          "recovery_crews", "maintenance_obligation",
-                                         "household_retail", "watershed", "workshop_economics",
+                                         "household_retail", "watershed", "workshop_economics", "titled_trade",
                                          "epidemic_care", "residence_ledger", "attribution_records",
                                          "wealth_accounting")
 
@@ -96,6 +98,7 @@ class LivelihoodsState(BaseModel):
     household_retail: HouseholdRetailState | None = Field(default=None, exclude_if=_is_none)
     watershed: WatershedState | None = Field(default=None, exclude_if=_is_none)
     workshop_economics: WorkshopEconomicsState | None = Field(default=None, exclude_if=_is_none)
+    titled_trade: TitledTradeState | None = Field(default=None, exclude_if=_is_none)
     epidemic_care: EpidemicCareState | None = Field(default=None, exclude_if=_is_none)
     residence_ledger: ResidenceLedgerState | None = Field(default=None, exclude_if=_is_none)
     attribution_records: AttributionRecordsState | None = Field(default=None, exclude_if=_is_none)

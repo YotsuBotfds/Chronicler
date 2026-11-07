@@ -1,6 +1,7 @@
 # Workshop economics and the shared payment seam (A3, `--workshop-economics`)
 
-Connected-world program, slice A3-1. Default off; requires `--workshop-payroll`
+Connected-world program, slices A3-1 and A3-2 (owned output,
+`--workshop-economics-rules 2`, section "A3-2" below). Default off; requires `--workshop-payroll`
 (so `--workshops` in operate mode and `--agents hybrid`). Design source: the A3
 workshop-economics audit (sections 4-5) and the A1-A2 audit's payment seam
 (section 3.3), with the lead's decisions. Code: `src/chronicler/money.py` (the
@@ -35,7 +36,7 @@ A3:
 | Mode (`--workshop-economics-mode`) | Inputs | Customers | Role |
 | --- | --- | --- | --- |
 | `market` (default) | bought from the ruler at the plan price before conversion | academies, then households | the mechanism |
-| `free_inputs` | the same budget, plan price, crew sizing and ceiling as `market`; the cost is recorded (`not_charged_milli`) and not taken | academies, then households | cost control: the input charge alone |
+| `free_inputs` | the same budget, plan price, crew sizing and ceiling as `market`; the cost is recorded (`not_charged_milli`) and not taken | academies, then households | diagnostic cost control only (free inputs are not a supported feature): the input charge alone |
 | `academy_only` | bought | academies only | demand control: no household customers |
 
 Any payroll mode is accepted: `--workshop-payroll-mode no_customer` is the
@@ -328,6 +329,11 @@ cost at the plan price. The L6a reader
 
 ## Native change
 
+A3-2 (batched with A4-1's native parts into one build): the optional
+`workshop_owned_crafts` column (`economy::tick_economy_core_full`, parsed in
+`ffi/mod.rs`; both files pinned, witness layer `cwa4`), transient, no
+checkpoint layout change. A3-1:
+
 One appended transfer purpose, `wares_purchase` (code 7, after
 `food_procurement`; append-only, nothing renumbered). Households pay through
 debit rows of the existing keyed `transfer` (limited at zero, one key per firm
@@ -349,13 +355,81 @@ the appended name and refuse 8.
 | `DEPOPULATION_SHARE`, `DEPOPULATION_WINDOW` | 0.25, 10 turns | the `depopulated` reason |
 | `K_RAW_PER_WORK`, `WAGE_PER_WORK`, `INVENTORY_CAP`, `WARES_WEAR`, hours, layoffs, `RESERVE_TURNS` | L1 and L6a values | unchanged |
 
+## A3-2: owned output (`--workshop-economics-rules 2`)
+
+Rules version 2 removes the recorded limit "same-tick free use" (below): a
+firm's output never passes through the commons, so it reaches anyone only by
+sale. Version 1 (the default, and the version of every state saved before
+A3-2) keeps A3-1 exactly; a state keeps its version (`rules_version`, omitted
+while 1, so A3-1 dumps keep their bytes), and a conflicting
+`--workshop-economics-rules` is refused at startup and on an exact resume. The
+option requires `--workshop-economics`.
+
+- **Native column.** The Phase 2 region batch carries the optional Float32
+  column `workshop_owned_crafts`: each firm region's inventory at opening, in
+  loads (null elsewhere; absent when no firm exists). In such a region the
+  native economy crafts as before (same inputs, same ceiling, the output
+  reported in `craft_output` and counted in production) but adds none of it to
+  the commons stockpile: the people's free draw (step 3b) takes only the
+  commons (imports, legacy city crafts elsewhere, wares households bought) and
+  native merchants cannot load the firm's wares. The firm's inventory counts in
+  the region's wares supply for prices, as retail's owned food counts in food
+  prices. The conservation batch gains `workshop_owned_outflow` (the wares
+  handed to firms) only when the column is present. Hybrid economy only; a
+  negative or non-finite value is refused. The column marks only firms whose
+  site is open and planned this turn: a firm whose site just closed is not
+  marked, so its region's output is the commons' again from that turn.
+- **Native capability and per-turn reconciliation (review M2).** An extension
+  built before A3-2 would ignore the column and put the output into the
+  commons and the firm's inventory both. Rules 2 therefore requires
+  `AgentSimulator.economy_capabilities()` to list `workshop_owned_crafts`: it
+  is checked at startup and on every resume while the effective rules are 2
+  (refused, one line; a saved world is told to pass
+  `--no-workshop-economics`), and again when the column is built. Every turn
+  with owned regions, after payroll's title, `reconcile_owned` checks that the
+  economy reported `workshop_owned_outflow` (Python's economy reconstruction
+  keeps it; it was dropped before), that the outflow equals the owned regions'
+  craft output, and that each owned region's output was titled whole by its
+  firm; it raises otherwise.
+- **The price rule is part of rules 2.** Rules 2 bundles a second, distinct
+  rule: the firm's own stock counts in the wares supply that sets the price
+  (as retail's owned food counts in food prices). It is not switchable on its
+  own; the development comparison below shows its effect on household prices,
+  and it is declared here as a modelling choice for the lead and owner.
+- **Liquidation is a recorded transfer.** A closing firm's unsold wares go, as
+  in L6a, to the region's commons, whose owner is the region's ruler. Under
+  rules 2 this is recorded as a transfer of inventory to that owner (counter
+  `liquidation_to_owner`, milli-loads; the closure log adds
+  `inventory_to_owner` and `owner`), not a free release of firm output. A
+  firm idle because its inventory is full (`inventory_full`, an idle reason
+  under rules 2) can close idle that way, and its stock is then counted there.
+- **Title.** Payroll titles the whole output, `floor(output x 1000)`
+  milli-loads, straight into the firm's inventory (material source
+  `workshop_output`), never debiting the commons; `produced == titled` and
+  `free_use_upper_bound == 0` on every receipt (raised otherwise), counted in
+  `owned_output`.
+- **No lost output.** One raw load makes one load of wares, so the firm's
+  input capacity (and therefore its ceiling) is bounded by its inventory room
+  (`INVENTORY_CAP - inventory`); a full inventory is a reason not to operate
+  (`inventory_full`, counted idle). Wear keeps some room open, so a firm
+  without customers keeps buying inputs to replace worn wares until its budget
+  runs out.
+- **Customers.** Households buy the gap the commons leaves; under version 2
+  the commons hold none of the firm's output, so their purchases are the only
+  way it reaches them. Academies as before. A merchant buying firm wares is
+  A4's wares slice (A4-W), not this one.
+- **Viewer.** The A3 reader accepts `rules_version: 2` and then refuses any
+  receipt with free use or an untitled share; the panel says which rules the
+  record follows and shows the output taken straight into inventory.
+
 ## Boundaries and declared limits (slice A3-1)
 
-- **Same-tick free use.** The tick's craft output enters the commons before
-  title, so the people's draw and same-tick merchant departures can still take
-  part of the firm's new output free when the commons does not already cover
-  them (recorded per firm-turn as `free_use_upper_bound`; A3-2's native
-  owned-output column ends it).
+- **Same-tick free use** (rules version 1 only; removed by A3-2, which
+  records `free_use_upper_bound` 0 by construction). The tick's craft output
+  enters the commons before title, so the people's draw and same-tick merchant
+  departures can still take part of the firm's new output free when the
+  commons does not already cover them (recorded per firm-turn as
+  `free_use_upper_bound`).
 - Paid wares delivered to the commons can be loaded by merchants free (A4).
 - Spouses buy as separate households; adults pay for their own resident
   children only; a child with no adult parent in the region pays from its own
@@ -470,6 +544,58 @@ purpose (plus one assertion inside its test module).
   browser journey, the 200-seed and procedural qualification gates
   (restricted), profiling at the declared scale, PR CI.
 
+### A3-2 (owned output), with A4-1 in one native build
+
+**Review round (2026-11-07).** Code commit `3b82ca18`, merge `0f384a9b`
+(`main` `bac45cb5`), extension SHA-256
+`5ca9f24e865bb7b0feeba314099c5e4f045431b14d27d327b105fe4f00de28f4` (full record
+in [titled-trade.md](titled-trade.md), "Review round"). A3-1 reproducibility
+against `main` `bac45cb5` (extension `20e77f99`): the rules option absent and
+`--workshop-economics-rules=1` each 205 files, 0 differences. Offline,
+`tests/test_workshop_economics.py` 37: a capability-less extension is refused
+at startup, on resume and when the column is built; the per-turn
+reconciliation raises on a missing or unequal `workshop_owned_outflow` or an
+output not titled whole; the column skips a firm whose site closed; a rules-2
+liquidation records the transfer to the owner. Native: the A3-2 test asserts
+the reconciliation ran on every turn with owned regions; 15 workshop native
+tests passed (134 native in all). Development rerun on this source (same 13
+worlds, 200 turns, rules 2): 104 firms, 11 open at 199, 85 closed idle, 8
+other; 2,606 operating firm-turns; 1,762.24 loads produced and titled (free
+use 0); households bought 1,276.75 loads for 353.87; academies 1,086;
+inputs 1,365.00; no ledger closure failed. Against the first pass (103 firms,
+1,755.50 loads), the difference comes from the closed-site fix (the only
+review change that alters rules-2 outcomes): a firm whose site
+closed no longer keeps its region's output out of the commons (t23 109.33
+loads against 112.8, p21 11 firms against 10).
+
+First pass:
+
+Branch `claude/cw-a4-titled-trade` from `main` `8401aa74`, code commit
+`9c6c66ee`, extension SHA-256 `2ba123ab259b98cb2b2e66edef4852015c40cbc73172a3b6d2d265d9c2aa950b`
+(the full record is in [titled-trade.md](titled-trade.md), "Verification").
+
+- **A3-1 reproducibility**: workshop economics without the rules option, and
+  with the explicit `--workshop-economics-rules=1`, against `main` `8401aa74`
+  (its own tree and extension `20e77f99`) with `--grain-reserves
+  --public-grain-shipments --grain-storage --workshops --workshop-payroll
+  --workshop-economics` on `hybrid_s42` and `proc48_hybrid_s42`: 205 files,
+  0 differences each.
+- **Rust**: `economy::workshop_owned_tests` (no column or a null row is
+  bit-identical to the plain call; a firm's output never enters the commons,
+  is counted in production and the outflow, and its stock is priced; a
+  negative inventory is refused).
+- **Offline**: `tests/test_workshop_economics.py` (33, five for A3-2: rules 1
+  keeps A3-1's batch and bytes and a conflicting rules value is refused; the
+  option requires workshop economics; the output never enters the commons and
+  is titled whole; output reaches households only by sale; the ceiling stays
+  within the inventory room).
+- **Native** (`tests/test_workshop_economics_native.py`, template seed 1, 122
+  turns, `CHRONICLER_CHECK_RESOURCES=1`): every operating receipt has
+  `produced == titled == floor(native craft output x 1000)`, free use 0, no
+  title basis (nothing taken from the commons) and a ceiling within the room;
+  every ledger closure held; exact resume at turn 60 (live, producing firms)
+  equals the straight run.
+
 ## Evidence (development worlds only; not a screen)
 
 Development-only, 2026-11-06: source `636202f9` (exported tree: main after S1
@@ -566,3 +692,42 @@ Per world (`t` template, `p` procedural):
 | p31 | market | 15 | 33 | 5-148 | city_fell 1, idle 11, open@199 3 | 393 | 202.3 | 0.0 | 0.0 | 86.43 | 1.00 |
 | p31 | free_inputs | 8 | 65.5 | 18-177 | idle 4, open@199 4 | 558 | 0.0 | 577.6 | 47.0 | 144.71 | 0.75 |
 | p31 | academy_only | 16 | 14.5 | 8-33 | idle 16 | 159 | 163.7 | 0.0 | 0.0 | 0.00 | - |
+
+### A3-2 against A3-1 (development worlds only; not a screen)
+
+Development-only, 2026-11-07: source `9c6c66ee` (branch
+`claude/cw-a4-titled-trade`), extension `2ba123ab…`; the same 13 worlds, flags
+and 200 turns as the table above in `market` mode, with and without
+`--workshop-economics-rules 2`, `CHRONICLER_CHECK_RESOURCES=1` (no resource
+problem raised). The rules-1 arm on this source reproduces the `market` row
+above exactly (102 firms, 3,663 operating firm-turns, 1,589.41 inputs, 982
+academy, 868.19 household sales, 138.1 loads of free use). Template runs took
+9-10 s, procedural 23-26 s. Wares in loads, money in treasury units.
+
+| Rules | Firms opened | Open at 199 / closed idle / other | Operating firm-turns | Produced | Titled | Free use (upper bound) | Household sales (wares delivered) | Academy sales | Inputs paid | Ledger closures failed |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 (A3-1) | 102 | 19 / 70 / 13 | 3,663 | 2,371.07 | 2,232.95 | 138.12 | 868.19 (1,419.23) | 982 | 1,589.41 | 0 |
+| 2 (A3-2) | 103 | 11 / 84 / 8 | 2,604 | 1,755.50 | 1,755.50 | 0.00 | 352.66 (1,272.11) | 1,084 | 1,345.45 | 0 |
+
+Per world (rules 2): t1 3 firms, 49.2 loads owned, household sales 10.54;
+t3 3, 91.8, 27.53; t7 5, 93.1, 24.01; t9 5, 222.2, 15.54 (academy 541);
+t11 5, 177.1, 25.60 (academy 406); t23 3, 112.8, 41.77; t42 4, 30.4, 6.03;
+p7 13, 161.5, 29.57; p11 10, 92.2, 20.65; p13 12, 227.6, 55.04; p17 14, 190.9,
+40.22; p21 10, 127.3, 23.66; p31 16, 179.5, 32.48. No household was priced out
+in either arm.
+
+Reading (development-only):
+
+- **No same-tick free use under rules 2**: every operating firm-turn titled its
+  whole output (1,755.5 loads), and the people used none of it before a sale;
+  under rules 1 the bound was 138.1 loads.
+- **Households bought 10% fewer wares but paid 59% less**: 1,272.1 loads for
+  352.7 units against 1,419.2 for 868.2. Rules 2 counts the firm's own stock in
+  the wares supply that sets the price (as retail counts owned food), so the
+  price households paid per load fell from about 0.61 to 0.28. With less
+  revenue, firms operated 29% fewer turns, more closed idle (84 against 70) and
+  fewer were open at turn 199 (11 against 19). This is reported as found, not
+  tuned: the price rule (whether a firm's stock should depress its own price)
+  is a modelling choice for the lead and owner, alongside the A3 audit's
+  price-margin risk above.
+- Every A1 ledger closure held on every observed turn in both arms.

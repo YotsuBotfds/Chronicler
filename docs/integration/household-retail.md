@@ -648,7 +648,10 @@ Raised on failure (`RetailAccountingError`, a `RuntimeError`):
 
 - **`check_region`** after every mutation, per pilot region and good: `close = open +
   titled − own_eaten − sold − procured − decay − overflow − war_loss − to_commons`
-  (− `cap_overflow` under rules version 2 with granaries on, RL4).
+  (− `cap_overflow` under rules version 2 with granaries on, RL4; − `sold_merchant`
+  + `consigned_in` + `returned_in` under A4 titled trade, [titled-trade.md](titled-trade.md):
+  owners' surplus a merchant bought, and a shipment's cargo becoming its holder's
+  claim at the destination or back at the origin; recorded only when nonzero).
   Also `sum(claims) == sum(goods)`, and nothing is negative.
 - **`check_owner`**, per owner, untitled and refused shares included: `claim_close =
   claim_open + titled − own_eaten − sold − procured − decay − overflow − war_loss −

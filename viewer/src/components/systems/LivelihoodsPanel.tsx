@@ -24,6 +24,7 @@ import { RecoveryCrews } from "./RecoveryCrews";
 import { Relocation } from "./Relocation";
 import { TimberStock } from "./TimberStock";
 import { TimberSupply } from "./TimberSupply";
+import { TitledTrade } from "./TitledTrade";
 import { WealthAccounting } from "./WealthAccounting";
 import { WorkshopEconomics } from "./WorkshopEconomics";
 import { WorkshopFinance } from "./WorkshopFinance";
@@ -37,7 +38,7 @@ import { Workshops } from "./Workshops";
 const PACKAGES = ["workshops", "workshop_payroll", "food_allocation", "timber_stock", "grain_convoys",
   "commons_rules", "learning_cohorts", "relocation_costs", "local_budgets", "clearing_protection",
   "remittances", "apprenticeship", "veteran_reintegration", "repair_projects", "operating_wear", "timber_supply",
-  "recovery_crews", "maintenance_obligation", "household_retail", "watershed", "workshop_economics",
+  "recovery_crews", "maintenance_obligation", "household_retail", "watershed", "workshop_economics", "titled_trade",
   "residence_ledger", "attribution_records", "wealth_accounting"];
 
 export function LivelihoodsPanel(panelProps: SystemPanelProps) {
@@ -71,6 +72,7 @@ export function LivelihoodsPanel(panelProps: SystemPanelProps) {
     {record?.workshop_payroll != null || record?.workshop_economics !== undefined ? <WorkshopEconomics {...props} /> : null}
     {mount("food_allocation") ? <FoodAllocation {...props} /> : null}
     {record?.household_retail != null ? <HouseholdRetail {...props} /> : null}
+    {record?.titled_trade !== undefined ? <TitledTrade {...props} /> : null}
     {mount("timber_stock") ? <TimberStock {...props} /> : null}
     {record?.grain_convoys != null
       ? <section className="systems-section"><GrainConvoys snapshot={snapshot} bundle={bundle} /></section> : null}

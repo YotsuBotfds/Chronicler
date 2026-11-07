@@ -68,11 +68,17 @@ FLOW_KINDS: tuple[str, ...] = (
     # Rules version 2 (A2R, RL4): owned grain above this turn's storage cap,
     # lost before Phase 10 procurement (``overflow`` is the native opening's).
     "cap_overflow",
+    # A4 titled trade (``chronicler.titled_trade``): owners' surplus bought by a
+    # merchant (title passes to the shipment), and a shipment's cargo becoming
+    # its holder's claim at the destination or back at the origin. Recorded
+    # only when nonzero, so frames without titled trade keep their bytes.
+    "sold_merchant", "consigned_in", "returned_in",
 )
 #: Signs of the flows in ``close = open + sum(sign x flow)``.
 FLOW_SIGNS: dict[str, int] = {
     "titled": 1, "own_eaten": -1, "sold": -1, "procured": -1, "decay": -1, "overflow": -1,
     "war_loss": -1, "to_commons": -1, "inherited_in": 1, "inherited_out": -1, "cap_overflow": -1,
+    "sold_merchant": -1, "consigned_in": 1, "returned_in": 1,
 }
 #: Why owned food went to the region's commons (``region.stockpile``).
 COMMONS_REASONS: tuple[str, ...] = (

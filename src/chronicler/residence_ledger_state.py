@@ -184,7 +184,8 @@ class ResidenceLedgerState(BaseModel):
     #: state file), which only a legacy resume reads back, and a legacy resume
     #: rebuilds the pool, which closes every spell anyway (``rows_held``,
     #: ``open_spells_held`` report what it held).
-    #: Observed living people by stable id (ascending).
+    #: Observed living people by stable id, in first-observation order
+    #: (deterministic, and kept as it is across exact checkpoints).
     rows: dict[int, ResidenceRow] = Field(default_factory=dict, exclude=True)
     #: Travellers alive when first seen, waiting for the end of their trip (ascending ids).
     deferred: list[int] = Field(default_factory=list, exclude=True)

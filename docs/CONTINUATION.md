@@ -83,7 +83,8 @@
   of clearing protection raised downstream food shortfall (cost not held equal across arms). A test
   that assumed the extension is absent failed native CI once; tests that depend on the extension
   must pass in both the offline lane and the native shards.
-- **C2 lane** (`claude/cw-c2-care`, from `main` `bac45cb5`): `--epidemic-care` (mode `care` |
+- **PR #91 merged** at `d8a5277b` (tree `e9bf2f7c` = reviewed head `3e126151`; premerge Tests
+  42346858851 and main Tests 42347765865 green), C2: `--epidemic-care` (mode `care` |
   `cost_only`; requires hybrid, `--local-budgets`, epidemiology; excludes `--wealth-accounting`) -
   L9-funded named carers (provider `epidemic_care`), farm time out through `farm_labor_factor`,
   wages through `money.py` (`care_wage`), dated capacity that multiplies the next tick's case
@@ -97,14 +98,31 @@
   [preregistration and results](superpowers/progress/connected-world-screens-cw5c.md). The
   write-up was checked independently (process and every number confirmed; four small
   corrections applied).
-- **X1 lane** (`claude/cw-x1-residence`, from `bac45cb5`, main `d8a5277b` merged in; not merged): `--residence-ledger`, the
+- **A4 PR** (`claude/cw-a4-titled-trade`, main `d8a5277b` merged): A3-2 `--workshop-economics-rules 2`
+  (firms' titled output column in the native economy; capability-checked) and A4-1 `--titled-trade`
+  (merchants buy owners' surplus above their fair-share reserve, pro rata at the local retail price,
+  paying owners directly; title and custody per shipment by stable id; the carrier's model income is
+  withheld while on a shipment; every event has one declared outcome — delivered, returned on a lost
+  route or conquered destination, escheated on the carrier's death; a carrier holding a shipment skips
+  native decisions exactly as a merchant on a native trip does). Two native purposes appended
+  (`cargo_purchase` 8, `cargo_sale` 9); native `43cbd22a…`. Development rerun: 0 of 5,632 shipments
+  released, merchants' net margin +3,139 against 518 withheld model income. **CW5** (template 771–776,
+  procedural 871–876; per-world pre-purchase window; 24 runs, 0 failed): one consistent cell — food
+  shortfall in the deficit regions lower with titled trade in all 5 valid procedural worlds (the
+  smallest possible share at k = 5; template went the other way; neither sensitivity line consistent);
+  net food into deficit regions no consistent effect; migration and treasury higher in all 6
+  procedural worlds. **CW2** (template 741–746, procedural 841–846; 60 runs, 0 failed): rules 2 against
+  rules 1 showed no consistent effect on firms' active share, household workshop wages or wares sold;
+  population and farm time diverted lower than the status quo payroll on most worlds. Both write-ups
+  checked independently.
+- **X1 lane** (`claude/cw-x1-residence`, from `bac45cb5`, main `4ecfb54d` merged in; not merged): `--residence-ledger`, the
   lead-owned displacement contract from audit A6 section 11 — record-only, hybrid only, default
   off; home, residence, attachment and displacement spells (cause flight/hunger, dated
   home-region anchor war/famine/persecution/none, closures returned/resettled/died/pool_reset/
   unobserved_gap) written once per turn in the livelihoods Phase 10 hook after
   `reconcile_rosters`, after C2's epidemic care and immediately before D2 and A1; readers get T's frame at T+1 only (`read_frame`,
   a bound `OwnRow` for A6, `separation` for D3) and a guard refuses any other read by decision modules;
-  a viewer panel; one layer `cwx1` (rebuilt last, after `cwc2`). Found: a merchant trip unwound on conquest is a second native
+  a viewer panel; one layer `cwx1` (rebuilt last, after `cwa4`). Found: a merchant trip unwound on conquest is a second native
   relocation path (recorded as an unclassified relocation; audit 11.2 said only
   `apply_migrations`). Lead decisions (2026-11-07): any onward move of a displaced person keeps
   the spell open (the ledger then reproduces audit section 10 within 0.01); person rows live in
@@ -115,7 +133,7 @@
   [Integration page](integration/residence-ledger.md) (verification and development-world
   evidence).
 - **Lanes in flight** (each on its own branch from `bac45cb5`; witness layers rebuilt last at
-  integration): A4 (A3-2 firm-output column, `--titled-trade`; CW2 and CW5 run and checked); B3
+  integration): B3
   `--infrastructure-condition` (irrigation and roads wear, fail and are repaired by paid works through
   their own L9 proposal; flow × condition; works' timber through PL1) with the CW3b held screen; X1
   `--residence-ledger` (the lead-owned displacement contract, record-only); D1 `--reform-services`

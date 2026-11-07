@@ -30,12 +30,22 @@ pub const MAX_WORKERS_PER_SITE: usize = 8;
 
 /// Work-reservation categories, in declaration order (append only).
 /// `apprentice` (RS1 apprenticeship seats) and `repair` (RS2 repair crews)
-/// were appended by the recovery-skills groundwork (RS0).
-pub const RESERVATION_CATEGORIES: [&str; 4] = ["workshop", "learning", "apprentice", "repair"];
+/// were appended by the recovery-skills groundwork (RS0); `trade` (A4 titled
+/// trade) by the connected-world program: a merchant carrying a titled
+/// shipment, whom the native merchant planner skips for that turn.
+pub const RESERVATION_CATEGORIES: [&str; 5] = ["workshop", "learning", "apprentice", "repair", "trade"];
 pub const CATEGORY_WORKSHOP: u8 = 0;
 pub const CATEGORY_LEARNING: u8 = 1;
 pub const CATEGORY_APPRENTICE: u8 = 2;
 pub const CATEGORY_REPAIR: u8 = 3;
+pub const CATEGORY_TRADE: u8 = 4;
+
+/// Stable ids holding a `trade` reservation for `turn` (A4 carriers), for the
+/// native merchant planner to skip. Empty without such rows.
+pub fn trade_holders(pool: &AgentPool, turn: u32) -> HashSet<u32> {
+    pool.work_reservations.iter().filter(|r| r.turn == turn && r.category == CATEGORY_TRADE)
+        .map(|r| r.agent_id).collect()
+}
 /// Holder codes for the pre-existing consumers the registry also respects.
 pub const HOLDER_HEALTH: u8 = 100;
 pub const HOLDER_TEACHING: u8 = 101;
@@ -344,18 +354,18 @@ mod tests {
 
     #[test]
     fn appended_categories_share_the_one_registry_and_the_overlap_guard() {
-        assert_eq!(RESERVATION_CATEGORIES, ["workshop", "learning", "apprentice", "repair"]);
-        assert_eq!((CATEGORY_APPRENTICE, CATEGORY_REPAIR), (2, 3));
+        assert_eq!(RESERVATION_CATEGORIES, ["workshop", "learning", "apprentice", "repair", "trade"]);
+        assert_eq!((CATEGORY_APPRENTICE, CATEGORY_REPAIR, CATEGORY_TRADE), (2, 3, 4));
         let mut pool = pool_with(&[(0, 5, Occupation::Farmer, 30); 4]);
         let (a, b, c, d) = (pool.ids[0], pool.ids[1], pool.ids[2], pool.ids[3]);
         reserve(&mut pool, 4, CATEGORY_APPRENTICE, &[(a, 0.25)]).unwrap();
         reserve(&mut pool, 4, CATEGORY_REPAIR, &[(b, 0.5)]).unwrap();
         // Nobody holds two commitments, whatever the categories.
-        for category in [CATEGORY_WORKSHOP, CATEGORY_LEARNING, CATEGORY_APPRENTICE, CATEGORY_REPAIR] {
+        for category in [CATEGORY_WORKSHOP, CATEGORY_LEARNING, CATEGORY_APPRENTICE, CATEGORY_REPAIR, CATEGORY_TRADE] {
             assert!(reserve(&mut pool, 4, category, &[(a, 0.1)]).is_err());
             assert!(reserve(&mut pool, 4, category, &[(b, 0.1)]).is_err());
         }
-        assert!(reserve(&mut pool, 4, 4, &[(c, 0.1)]).is_err());     // still unknown
+        assert!(reserve(&mut pool, 4, 5, &[(c, 0.1)]).is_err());     // still unknown
         assert!(conflicts(&pool, 4).is_empty());
         // The crew planner excludes apprentices and repair workers.
         let rows = plan_crews(&pool, &[site(0, 0, 5)], &HashSet::new(), Some(4)).unwrap();
@@ -367,6 +377,19 @@ mod tests {
         assert_eq!(conflicts(&pool, 4), vec![a, c]);
         let held: Vec<u8> = holders(&pool, 4).into_iter().filter(|(id, _)| *id == b).map(|(_, h)| h).collect();
         assert_eq!(held, vec![CATEGORY_REPAIR]);
+    }
+
+    #[test]
+    fn trade_holders_are_this_turns_trade_reservations_only() {
+        let mut pool = pool_with(&[(0, 5, Occupation::Merchant, 30); 4]);
+        let (a, b, c) = (pool.ids[0], pool.ids[1], pool.ids[2]);
+        assert!(trade_holders(&pool, 3).is_empty());
+        reserve(&mut pool, 3, CATEGORY_TRADE, &[(a, 1.0), (b, 1.0)]).unwrap();
+        reserve(&mut pool, 3, CATEGORY_REPAIR, &[(c, 0.5)]).unwrap();
+        assert_eq!(trade_holders(&pool, 3), [a, b].into_iter().collect::<HashSet<u32>>());
+        assert!(trade_holders(&pool, 4).is_empty());
+        // A carrier holds no other work this turn (one registry).
+        assert!(reserve(&mut pool, 3, CATEGORY_WORKSHOP, &[(a, 0.1)]).is_err());
     }
 
     #[test]

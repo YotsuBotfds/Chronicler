@@ -32,6 +32,9 @@ export const FLOW_SIGNS = {
   inherited_in: 1, inherited_out: -1,
   /** Rules version 2 (A2R, RL4): owned grain above the storage cap, lost before Phase 10 procurement. */
   cap_overflow: -1,
+  /** A4 titled trade: owners' surplus bought by a merchant (title passes to its shipment), and a
+   * shipment's cargo becoming its holder's claim at the destination or back at the origin. */
+  sold_merchant: -1, consigned_in: 1, returned_in: 1,
 } as const;
 export type FlowKind = keyof typeof FLOW_SIGNS;
 const FLOW_KINDS = Object.keys(FLOW_SIGNS) as FlowKind[];

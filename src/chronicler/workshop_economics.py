@@ -82,12 +82,25 @@ Who pays whom (milli-units; 1000 = one treasury unit = one wealth unit):
   stock to convert - for ``IDLE_CLOSE_AFTER`` turns in a row closes ``idle`` (L6a liquidation: owed wages paid from cash where it can, the rest
   written off, inventory returned to the commons, cash to the ruler).
 
-Declared limits of this slice (A3-1): the same tick's craft output still
-enters the commons before title, so the people and merchant departures can
-draw on it free (recorded per firm-turn as ``free_use_upper_bound``; A3-2's
-native owned-output column ends it); paid wares delivered to the commons may
-be loaded by merchants free; spouses buy as separate households (Python has
-no relationship read); academies are still delivered realm-wide.
+Rules (``--workshop-economics-rules``, saved with the state). Version 1
+(A3-1, the default): the same tick's craft output enters the commons before
+title, so the people and merchant departures can draw on it free (recorded per
+firm-turn as ``free_use_upper_bound``). Version 2 (A3-2): the region batch
+carries the native column ``workshop_owned_crafts`` (each firm region's
+inventory at opening, in loads; null elsewhere), so the native economy keeps
+that region's crafted wares out of the commons (reported in ``craft_output``,
+counted in production and as the conservation outflow
+``workshop_owned_outflow``) and counts the firm's stock as wares supply for
+prices; payroll titles the whole output (``free_use_upper_bound`` is 0 by
+construction) and the firm's ceiling is bounded by its inventory room, so no
+output is lost. The firm's wares then reach anyone only by sale (academies,
+households); the people's free draw takes only the commons (imports, legacy
+crafts, wares households bought).
+
+Declared limits of this slice: paid wares delivered to the commons may be
+loaded by merchants free (a merchant buying firm wares is A4's wares slice);
+spouses buy as separate households (Python has no relationship read);
+academies are still delivered realm-wide.
 """
 from __future__ import annotations
 
@@ -109,7 +122,9 @@ IDLE_CLOSE_AFTER = 6
 #: Why a firm could not operate that counts as idle: it cannot pay, no input
 #: price exists, its owner no longer funds the asset, or its city has no
 #: eligible crew. A worn site waits without counting (repair is RS2's work).
-IDLE_REASONS = ("budget_exhausted", "price_unknown", "not_funded", "no_crew")
+IDLE_REASONS = ("budget_exhausted", "price_unknown", "not_funded", "no_crew", "inventory_full")
+#: The native column of rules version 2 (A3-2).
+OWNED_COLUMN = "workshop_owned_crafts"
 #: Milli-units kept back from the input budget for the f32 ceiling's rounding.
 INPUT_SLACK = 2
 #: Wares each resident wants a turn, milli-loads (``cities.CRAFT_DEMAND_PER_CAPITA``).
@@ -140,6 +155,8 @@ class _Turn:
         self.turn = turn
         self.plans: dict[int, _Plan] = {}
         self.rows: dict[int, dict] = {}
+        #: A3-2: region -> firm site of the regions this turn's batch marked owned.
+        self.owned: dict[int, int] | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -166,14 +183,19 @@ def _log(state: WorkshopEconomicsState, turn: int, kind: str, firm: int | None =
 
 def set_workshop_economics_enabled(world, value: bool, *, args=None, agent_mode=None) -> None:
     mode = getattr(args, "workshop_economics_mode", None) if args is not None else None
+    rules = getattr(args, "workshop_economics_rules", None) if args is not None else None
     turn = int(getattr(world, "turn", 0))
     state = _state(world)
     if state is None:
-        world.livelihoods.workshop_economics = state = WorkshopEconomicsState(mode=mode or "market",
-                                                                             enabled=bool(value))
+        world.livelihoods.workshop_economics = state = WorkshopEconomicsState(
+            mode=mode or "market", enabled=bool(value), rules_version=int(rules or 1))
         if value:
-            _log(state, turn, "switched_on", mode=state.mode)
+            _log(state, turn, "switched_on", mode=state.mode,
+                 **({"rules_version": state.rules_version} if state.rules_version != 1 else {}))
         return
+    if rules is not None and int(rules) != state.rules_version:
+        raise ValueError(f"--workshop-economics-rules {rules} conflicts with the saved rules version "
+                         f"{state.rules_version}")
     if state._turn is not None:
         raise RuntimeError("cannot change workshop economics while a turn is pending")
     if mode is not None:
@@ -194,6 +216,50 @@ def workshop_economics_active(world) -> bool:
 
 def _payroll(world):
     return world.livelihoods.workshop_payroll
+
+
+def owned_output(world) -> bool:
+    """Rules version 2 (A3-2): firms hold their own output (never in the commons)."""
+    state = _state(world)
+    return state is not None and state.rules_version >= 2
+
+
+def owned_supported(sim) -> bool:
+    """The extension honours the A3-2 column (``economy_capabilities``)."""
+    caps = getattr(sim, "economy_capabilities", None) if sim is not None else None
+    return callable(caps) and OWNED_COLUMN in list(caps())
+
+
+def native_owned_supported() -> bool:
+    """Startup and resume check (no simulator yet): the installed extension's
+    ``AgentSimulator.economy_capabilities`` names the A3-2 column. False when
+    the extension is missing or predates it."""
+    try:
+        from chronicler_agents import AgentSimulator
+    except ImportError:
+        return False
+    return owned_supported(AgentSimulator)
+
+
+def owned_column(world, open_sites=None) -> list[float | None] | None:
+    """A3-2: the native ``workshop_owned_crafts`` values (the inventory at
+    opening, in loads, of each firm whose site is open and planned this turn,
+    ``open_sites``; None elsewhere, including a firm whose site just closed),
+    or None when no such firm exists or the rules are version 1. Records the
+    owned regions for this turn's reconciliation (``reconcile_owned``)."""
+    if not owned_output(world):
+        return None
+    payroll = _payroll(world)
+    values: list[float | None] = [None] * len(world.regions)
+    owned: dict[int, int] = {}
+    for firm in payroll.firms:
+        if open_sites is not None and firm.site not in open_sites:
+            continue
+        values[firm.region] = (values[firm.region] or 0.0) + firm.inventory / MILLI
+        owned[firm.region] = firm.site
+    t = _turn(_state(world), world)
+    t.owned = owned
+    return values if owned else None
 
 
 def _terms(state: WorkshopEconomicsState, firm: int) -> FirmTerms | None:
@@ -386,6 +452,16 @@ def input_capacity(world, site, row: dict, *, operating: bool, funded: bool, bui
         plan.reason = "budget_exhausted"
         _bump(state, "input_capacity_zero_turns")
         return 0.0
+    if state.rules_version >= 2:
+        # A3-2: the output goes straight into the inventory (one raw load makes
+        # one load of wares), so the firm converts no more than its room.
+        from chronicler.workshop_payroll import INVENTORY_CAP
+        room = max(0, INVENTORY_CAP - firm.inventory)
+        if room <= 0:
+            plan.reason, plan.capacity = "inventory_full", 0
+            _bump(state, "input_capacity_zero_turns")
+            return 0.0
+        plan.capacity = min(plan.capacity, room)
     if plan.price["source"] == "realm":
         _bump(state, "plan_price_realm_turns")
     return plan.capacity / MILLI
@@ -426,6 +502,8 @@ def charge_inputs(world, pt, acc, economy_result) -> None:
     from chronicler.workshop_payroll import _add, _row as payroll_row, _total
     firms = {f.site: f for f in payroll.firms}
     receipts = {r.site: r for r in ws.frame} if ws.frame_turn == world.turn else {}
+    if t.owned:
+        reconcile_owned(world, t, pt, economy_result)
     for site, plan in sorted(t.plans.items()):
         receipt = receipts.get(site)
         spend = sum((receipt.paid or {}).values()) if receipt is not None and receipt.paid else 0
@@ -469,6 +547,13 @@ def charge_inputs(world, pt, acc, economy_result) -> None:
         row["produced"] = math.floor(output * MILLI)
         row["titled"] = int(work.titled)
         row["free_use_upper_bound"] = max(0, row["produced"] - int(work.titled))
+        if state.rules_version >= 2:
+            # A3-2: the whole output was titled straight from the native column.
+            if row["produced"] != row["titled"]:
+                raise RuntimeError(f"workshop firm {site} output under owned rules was not titled whole")
+            if row["titled"]:
+                _bump(state, "owned_output", row["titled"])
+                _bump(state, "owned_output_turns")
         _bump(state, "free_use_upper_bound", row["free_use_upper_bound"])
         _bump(state, "inputs_used", inputs["used_milli"])
         _bump(state, "unbought_need", inputs["unbought_need_milli"])
@@ -506,6 +591,30 @@ def charge_inputs(world, pt, acc, economy_result) -> None:
         if terms is not None:
             terms.totals["inputs"] = terms.totals.get("inputs", 0) + cost
     observe_prices(world, economy_result)
+
+
+def reconcile_owned(world, t: _Turn, pt, economy_result) -> None:
+    """A3-2, after payroll's title: the native economy honoured the owned
+    column (it reported ``workshop_owned_outflow``), its outflow is every owned
+    region's craft output, and each owned region's output was titled whole by
+    its firm (none destroyed, none duplicated in the commons). Raises otherwise."""
+    conservation = getattr(economy_result, "conservation", None) or {}
+    if "workshop_owned_outflow" not in conservation:
+        raise RuntimeError("the native economy ignored the workshop_owned_crafts column (no "
+                           "workshop_owned_outflow): rebuild chronicler-agents")
+    outflow = float(conservation["workshop_owned_outflow"])
+    crafted = getattr(economy_result, "craft_output", {}) or {}
+    total = 0.0
+    for region, site in sorted(t.owned.items()):
+        output = float(crafted.get(world.regions[region].name, 0.0))
+        total += output
+        work = pt.work.get(site)
+        titled = int(work.titled) if work is not None else 0
+        if titled != math.floor(output * MILLI):
+            raise RuntimeError(f"workshop region {region}: owned output {output} was not titled whole by "
+                               f"firm {site} (titled {titled} milli-loads)")
+    if abs(outflow - total) > 1e-6 * max(1.0, abs(total)):
+        raise RuntimeError(f"native owned-output outflow {outflow} differs from the owned regions' output {total}")
 
 
 def rollback(world) -> None:
@@ -742,8 +851,16 @@ def on_closed(world, firm, reason: str, turn: int) -> None:
     del state.closed[:-8]
     _bump(state, "closed_idle" if reason == "idle" else "closed_insolvent" if reason == "insolvent"
           else "closed_other")
+    extra = {}
+    if state.rules_version >= 2:
+        # A3-2: liquidation hands the unsold wares to the region's ruler as owner
+        # of the commons (recorded: a transfer of inventory, not a free release).
+        returned = int(firm.totals.get("returned", 0))
+        if returned:
+            _bump(state, "liquidation_to_owner", returned)
+        extra = {"inventory_to_owner": returned, "owner": _controller(world, firm.region)}
     _log(state, turn, "closed", firm.site, reason=reason, capital=terms.capital, turns=terms.turns,
-         operating_turns=terms.operating_turns)
+         operating_turns=terms.operating_turns, **extra)
     if state._turn is not None and state._turn.turn == turn and firm.site in state._turn.rows:
         state._turn.rows[firm.site]["event"] = f"closed_{reason}"
 
@@ -880,7 +997,9 @@ def snapshot_summary(world) -> dict:
     from chronicler.workshop_payroll import RESERVE_TURNS
     from chronicler.workshops import K_RAW_PER_WORK
     return {
-        "schema_version": 1, "stage": "A3", "mode": state.mode, "source_turn": source,
+        "schema_version": 1, "stage": "A3", "mode": state.mode,
+        **({"rules_version": state.rules_version} if state.rules_version != 1 else {}),
+        "source_turn": source,
         "units": {"money": "milli_treasury_units", "wares": "milli_loads", "price": "milli_per_load",
                   "milli": MILLI},
         "firms": [f.model_dump() for f in state.firms],

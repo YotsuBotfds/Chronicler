@@ -8,12 +8,14 @@ const CHANNEL_LABEL: Record<string, string> = {
   repair_wage: "Workshop repair wages (RS2)", granary_crew_wage: "Granary crew wages (PL3)",
   woodcut_wage: "Woodcutting wages (PL1)", food_procurement: "Granary procurement credits (L6b)",
   food_purchase: "Food purchases (L6b)", remittance: "Remittances (RS4)", relocation_fare: "Relocation fares (L7)",
-  domestic_credit: "Domestic credit, net",
+  domestic_credit: "Domestic credit, net", wares_purchase: "Wares bought from workshop firms (A3)",
+  cargo_purchase: "Owned food bought by merchants (A4)",
 };
 const PACKAGE_LABEL: Record<string, string> = {
   workshop_payroll: "Workshop crews (L6a)", apprenticeship: "Attached apprentices (RS1)",
   recovery_crews_granary: "Granary crews (PL3)", recovery_crews_workshop: "Workshop repair crews (PL3)",
   repair_projects: "Workshop repair crews (RS2, without PL3)", timber_supply: "Woodcutters (PL1)",
+  titled_trade: "Merchants carrying titled cargo (A4)",
 };
 const UNCHECKED: Record<string, string> = {
   first_turn: "the ledger's first observed turn", pool_reset: "the agent pool was rebuilt (a legacy resume)",

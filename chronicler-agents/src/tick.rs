@@ -719,6 +719,10 @@ fn try_tick_agents_with_movements_observer<M: crate::decision_delivery::MoveObse
     } else {
         DECISION_STREAM_OFFSET
     };
+    // A4 titled trade: this turn's carriers (`trade` reservations) take no
+    // decision, as merchants on a native trip. Empty without titled trade.
+    let trade_carriers = crate::workshop_work::trade_holders(pool, turn);
+    let trade_carriers = (!trade_carriers.is_empty()).then_some(&trade_carriers);
     let pending_decisions_with_threat: Vec<_> = {
         let pool_ref = &*pool;
         let stats_ref = &stats;
@@ -734,7 +738,7 @@ fn try_tick_agents_with_movements_observer<M: crate::decision_delivery::MoveObse
                 let (pending, changed) = crate::behavior::evaluate_region_decisions_with_delivery(
                     pool_ref, slots, regions, &regions[region_id], stats_ref, region_id,
                     &mut rng, id_to_slot_ref,
-                    DecisionOptions { ablation, community_anchoring: options.community_anchoring },
+                    DecisionOptions { ablation, community_anchoring: options.community_anchoring, trade_carriers },
                     &mut observer,
                 );
                 (pending, changed, observer)
@@ -763,7 +767,7 @@ fn try_tick_agents_with_movements_observer<M: crate::decision_delivery::MoveObse
                         region_id,
                         &mut rng,
                         id_to_slot_ref,  // M57b
-                        DecisionOptions { ablation, community_anchoring: options.community_anchoring },
+                        DecisionOptions { ablation, community_anchoring: options.community_anchoring, trade_carriers },
                     )
                 })
                 .collect()
