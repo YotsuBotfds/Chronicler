@@ -469,6 +469,14 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
                     wage = min(_wage(share), money_left)
                     if share < MIN_SHARE or wage < 1:
                         break
+                from chronicler.public_health import care_cash_available
+                cash_limit = care_cash_available(world, c.civ)
+                if cash_limit is not None and wage > cash_limit:
+                    share = _f32_floor(min(share, cash_limit / WAGE_MILLI))
+                    wage = min(_wage(share), cash_limit)
+                    limit = "envelope"
+                    if share < MIN_SHARE or wage < 1:
+                        break
                 if getattr(world.livelihoods, "adaptive_livelihoods", None) is not None:
                     from chronicler.adaptive_livelihoods import accepts_offer
                     if not accepts_offer(world, aid, "epidemic_care"):
@@ -527,6 +535,8 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
         t.sim.extend_paid_work(turn, rows)
         t.installed = True
     ledger = _pay_wages(world, state, t, acc, bills)
+    from chronicler.public_health import note_care_funding
+    note_care_funding(world, t, ledger)
     if state.capacity:
         # Unreachable while every turn's tick consumes the capacity first.
         _bump(state, "capacity_unconsumed", len(state.capacity))
@@ -583,7 +593,11 @@ def _quote_bills(world, state, t: _Turn, acc) -> dict:
         bill = money.Bill(purpose="care_wage", batch=CARE_WAGE_BATCH + civ, phase="phase2",
                           lines=tuple((money.agent(x.agent_id), x.wage_due_milli) for x, _rid, _r in items),
                           payer=money.treasury(civ), regions=tuple(rid for _x, rid, _r in items))
-        out[civ] = (bill, money.quote(world, bill, turn=world.turn, book=state.book, acc=acc, sim=t.sim), items)
+        quote = money.quote(world, bill, turn=world.turn, book=state.book, acc=acc, sim=t.sim)
+        from chronicler.public_health import care_bill_fits
+        if quote.ok and not care_bill_fits(world, civ, quote.total):
+            quote = money.Quote(False, "cash_envelope", quote.total, quote.available)
+        out[civ] = (bill, quote, items)
     return out
 
 
