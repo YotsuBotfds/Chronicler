@@ -574,6 +574,9 @@ def _war_pressed(world, rid: int) -> bool:
 def _move(world, state, t: _Turn, ship: Shipment, edges, closed) -> None:
     from chronicler.household_retail import pilot_entry
     turn = t.turn
+    from chronicler.war_requisition import seize_cargo
+    if seize_cargo(world, ship, state, t):
+        return
     if ship.last_moved_turn is not None and ship.last_moved_turn >= turn:
         raise RuntimeError(f"shipment {ship.id} moved twice in one turn")
     if world.regions[ship.dest].controller != ship.controllers[1]:
@@ -607,6 +610,8 @@ def _move(world, state, t: _Turn, ship: Shipment, edges, closed) -> None:
     _bump(state, "hops")
     _note(ship, turn, "moved", b)
     t.events.append({"shipment": ship.id, "event": "moved", "region": b})
+    if seize_cargo(world, ship, state, t):
+        return
     if _war_pressed(world, b):
         ship.war_exempt_turns += 1
         _bump(state, "war_exempt_turns")

@@ -47,6 +47,7 @@ CHANNELS: tuple[tuple[str, str | None, str], ...] = (
     # itemize it (``--epidemic-care`` and ``--wealth-accounting`` exclude each other).
     ("care_wage", "epidemic_care", "treasury -> epidemic carers by id (C2; not itemized: excluded with A1)"),
     ("cargo_purchase", "titled_trade", "merchant -> owners of surplus food, titled cargo bought by id (A4)"),
+    ("restitution", "war_requisition", "liable treasury -> living owners of seized food/cargo (D4)"),
 )
 CHANNEL_NAMES: tuple[str, ...] = tuple(c[0] for c in CHANNELS)
 
@@ -89,7 +90,7 @@ WEALTH_ROUTERS: dict[str, tuple[str, ...]] = {
     # The shared payment seam (connected-world A3): ``money.pay`` routes every
     # agent-wealth line of a bill through ``money._native_transfer``; the
     # purposes it may carry are ``MONEY_PURPOSE_CHANNELS``.
-    "_native_transfer": ("wares_purchase", "care_wage"),
+    "_native_transfer": ("wares_purchase", "care_wage", "restitution"),
     # A4: ``money.pay`` routes a pairwise bill (an agent paying agents)
     # through ``money._native_pairs`` (native ``settle_pairs``).
     "_native_pairs": ("cargo_purchase",),
@@ -140,8 +141,8 @@ WEALTH_WRITERS: dict[tuple[str, str, str, str], tuple[int, tuple[str, ...]]] = {
     ("health_care", "prepare_health_care", "prepare_health_work", ""): (2, ("withheld_health",)),
     # A3 (the payment seam): the router's one native call, and its two callers in
     # ``money.pay`` (a payment's agent credits, a collection's agent debits).
-    ("money", "_native_transfer", "transfer_wealth", "purpose=code,batch=batch"): (1, ("wares_purchase", "care_wage")),
-    ("money", "pay", "_native_transfer", "purpose=bill.purpose"): (2, ("wares_purchase", "care_wage")),
+    ("money", "_native_transfer", "transfer_wealth", "purpose=code,batch=batch"): (1, ("wares_purchase", "care_wage", "restitution")),
+    ("money", "pay", "_native_transfer", "purpose=bill.purpose"): (2, ("wares_purchase", "care_wage", "restitution")),
     # C2 (epidemic care): carers' ordinary income withheld for their care time.
     ("epidemic_care", "finish_phase2", "extend_paid_work", ""): (1, ("withheld_care",)),
     # A4 (titled trade): the pairwise router's one native call and its caller in
@@ -158,6 +159,7 @@ MONEY_PURPOSE_CHANNELS: dict[str, str] = {
     "wares_purchase": "wares_purchase",
     "care_wage": "care_wage",
     "cargo_purchase": "cargo_purchase",
+    "restitution": "restitution",
 }
 #: Every bill built for the payment seam outside ``money`` itself:
 #: ``(module under chronicler, enclosing function) -> purposes`` (a literal
@@ -171,6 +173,7 @@ MONEY_BILLS: dict[tuple[str, str], tuple[str, ...]] = {
     # C2: carers' wages, treasury to agents (prepaid carry rule).
     ("epidemic_care", "_quote_bills"): ("care_wage",),
     ("titled_trade", "_buy"): ("cargo_purchase",),
+    ("war_requisition", "_settle"): ("restitution",),
 }
 #: Every reference to a writer or router name that is not a call: the name
 #: strings packages use to check the extension has a method

@@ -212,6 +212,13 @@ def raise_army(ctx: WarContext, civ: "Civilization", war: "WarRecord", toward: s
         roster=roster,
         raised_turn=world.turn,
     )
+    from chronicler.war_requisition import war_requisition_active, supply
+    if war_requisition_active(world):
+        from chronicler.war.logistics import supply_sources
+        requested, army.rations = army.rations, 0
+        refill, _ = supply(world, army, requested, 0, supply_sources(ctx, civ.name),
+                           ctx.graph, ctx.index[staging], initial=True)
+        army.rations = refill
     army.general = pick_general(world, civ)
     state.armies.append(army)
     led = f", led by {army.general}" if army.general else ""

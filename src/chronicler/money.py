@@ -71,7 +71,7 @@ MILLI = 1000
 #: ``cargo_purchase`` (8) and ``cargo_sale`` (9) by A4 (pairwise).
 NATIVE_PURPOSES: tuple[str, ...] = (
     "workshop_wage", "relocation_fare", "apprentice_stipend", "repair_wage", "remittance",
-    "food_purchase", "food_procurement", "wares_purchase", "cargo_purchase", "cargo_sale",
+    "food_purchase", "food_procurement", "wares_purchase", "cargo_purchase", "cargo_sale", "restitution",
 )
 #: Purposes an agent may pay agents for (``settle_pairs``; append only).
 PAIRWISE_PURPOSES: tuple[str, ...] = ("cargo_purchase", "cargo_sale")
@@ -97,7 +97,7 @@ PURPOSES: dict[str, int | None] = {
 #: the book's carry for (civ, purpose), spent first by the next bill; what an
 #: agent's wealth ceiling refuses (or an absent id cannot take) returns to that
 #: carry (``return_to_payer``), whole units of it to the treasury.
-TREASURY_AGENT_PURPOSES: tuple[str, ...] = ("care_wage",)
+TREASURY_AGENT_PURPOSES: tuple[str, ...] = ("care_wage", "restitution")
 #: Account kinds, in declaration order (append only).
 ACCOUNT_KINDS: tuple[str, ...] = ("civ_treasury", "firm_cash", "agent_wealth", "sink")
 #: Declared sinks a bill may name for its residual or as a payee (append only).
@@ -648,7 +648,7 @@ def pay(world, bill: Bill, *, turn: int, book: MoneyBook, acc=None, sim=None,
 # ---------------------------------------------------------------------------
 
 #: Packages whose persisted state keeps a :class:`MoneyBook` (``state.book``; append only).
-MONEY_BOOKS: tuple[str, ...] = ("workshop_economics", "epidemic_care", "titled_trade")
+MONEY_BOOKS: tuple[str, ...] = ("workshop_economics", "epidemic_care", "titled_trade", "war_requisition")
 
 
 def flows_for_turn(world, turn: int) -> list[MoneyFlow] | None:

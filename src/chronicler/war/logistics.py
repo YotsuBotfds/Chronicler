@@ -91,12 +91,16 @@ def logistics_step(ctx: WarContext, army: "Army", civ: "Civilization", sources: 
     if not holds(region, civ.name):
         forage = (min(region.population // 5, army.soldiers) * POLICY.ration_demand
                   * P.FORAGE_BY_TERRAIN.get(region.terrain, 1) // 2)
+    from chronicler.war_requisition import supply
+    refill, forage = supply(world, army, refill, forage, sources, graph, here)
     army.rations = min(capacity, army.rations + refill + forage)
 
     # Consume.
     demand = army.soldiers * POLICY.ration_demand
     consumed = min(army.rations, demand)
     army.rations -= consumed
+    from chronicler.war_requisition import note_consumption
+    note_consumption(world, army, consumed, demand)
 
     # Stress (kernel arithmetic, cohort demand).
     hunger, dist_stress, needs, info = stress_components(

@@ -1069,10 +1069,12 @@ def title_inputs(world, snapshot, regions) -> dict[int, list[tuple[int, float, f
     cities = getattr(getattr(world, "cities", None), "cities", None) or []
     rank = {(int(c.region), int(c.settlement_id)): int(c.rank) for c in cities if c.settlement_id > 0}
     losses = _health_losses(world, people)
+    from chronicler.war_requisition import enlisted_ids
+    enlisted = set(enlisted_ids(world))
     out: dict[int, list[tuple[int, float, float]]] = {rid: [] for rid in sorted(wanted)}
     for aid in sorted(people):
         region, occupation, _age, settlement = people[aid]
-        if region not in wanted or occupation != FARMER:
+        if region not in wanted or occupation != FARMER or aid in enlisted:
             continue
         city = rank.get((region, settlement))
         u = float(URBAN_FARM_LABOR[city]) if city is not None else 1.0
