@@ -47,7 +47,12 @@ export function publicHealthAt(snapshot: TurnSnapshot, regions: number, civs: nu
     && nullableIdx(s.source, regions) && nullableIdx(s.seller, civs)
     && [s.need_milli, s.food_milli, s.charged_milli, s.internal_milli].every(integer)
     && Number(s.food_milli) <= Number(s.need_milli) && nonnegative(s.patients)
-    && (s.price_milli === null || integer(s.price_milli) && s.price_milli > 0) && typeof s.reason === "string")) return null;
+    && (s.price_milli === null || integer(s.price_milli) && s.price_milli > 0) && typeof s.reason === "string"
+    && !(Number(s.charged_milli) > 0 && Number(s.internal_milli) > 0)
+    && (Number(s.food_milli) === 0 || s.reason === "supplied" && s.source !== null && s.seller !== null
+      && integer(s.price_milli) && s.price_milli > 0
+      && Number(s.charged_milli) + Number(s.internal_milli) === Math.ceil(Number(s.food_milli) * s.price_milli / 1_000_000) * 1000
+      && (Number(s.charged_milli) > 0) === (s.seller !== s.civ)))) return null;
   if (!r.decisions.every(d => object(d) && idx(d.civ, civs) && idx(d.target, civs) && d.civ !== d.target
     && Array.isArray(d.report_ids) && d.report_ids.every(integer)
     && [d.expected_loss_units, d.cost_units, d.goods_contact_cost_proxy].every(nonnegative)
@@ -61,6 +66,9 @@ export function publicHealthAt(snapshot: TurnSnapshot, regions: number, civs: nu
     && g.turn === r.source_turn && idx(g.civ, civs) && idx(g.target, civs) && g.civ !== g.target
     && nonnegative(g.need) && nonnegative(g.work) && g.work <= g.need
     && typeof g.staffed === "boolean" && typeof g.payment === "string" && Array.isArray(g.members)
+    && new Set(g.members.map(m => object(m) ? m.agent_id : undefined)).size === g.members.length
+    && (!g.staffed || g.payment === "paid" && g.work >= g.need - 1e-6 && g.members.length > 0
+      && g.members.every(m => object(m) && m.wage_paid_milli === m.wage_due_milli))
     && g.members.every(m => object(m) && integer(m.agent_id) && idx(m.region, regions) && share(m.share)
       && [m.wage_due_milli, m.wage_paid_milli, m.wage_residual_milli].every(integer)
       && (g.payment !== "paid" || Number(m.wage_paid_milli) + Number(m.wage_residual_milli) === m.wage_due_milli)
