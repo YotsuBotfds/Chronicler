@@ -33,3 +33,14 @@ A regional or inferred join cannot authorize causal language and produces
 `unsupported_record_cause`. This is a narrow structural safeguard, not a claim
 that every same-id participation link establishes a real-world mechanism.
 Default historical spans do not enter this new reserved-format check.
+
+`scripts/connected_world_examples.py BUNDLE --output REPORT` is the read-only
+finder and mechanical post-hoc story example path. It retains the first saved
+row satisfying each explicit adaptation/failure/mixed observation rule across
+A4-3, A6, B3, C4 and D1/D3/D4. Each example carries its exact citation, pointer,
+source date, fields and provenance span; it reports unactivated categories as
+`found: false`, retains constructed metadata and audits derived entries. Its
+labels are observations, not treatment effects, qualification or proof of
+safety. It writes no simulation fields and invokes no narrator/model. The
+source run's command, source commit and extension identity must be recorded
+separately; a saved bundle alone does not establish those generation facts.
