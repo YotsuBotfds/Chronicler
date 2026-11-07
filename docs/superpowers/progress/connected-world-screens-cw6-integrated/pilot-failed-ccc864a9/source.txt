@@ -1,0 +1,13 @@
+source ccc864a997134f0dcd4b05a7419a7bce203bfae7
+dirty 0 tracked files
+dirty-code 0 tracked code files
+chronicler /workspace/cw-final-screen/src/chronicler/__init__.py
+native /workspace/cw-evidence-native/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so 59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617
+interpreter /workspace/cw-evidence-native/bin/python
+runner 5ded5f3548bb6403b1df25e9d31e5c5ce638631aa5fd1b4fabdcfb8510b5cadb scripts/screen_runner.py
+screens 4c566135d55aa952dcddbf7cf3b80d616872d99687192a898ca38391f1b0e104 scripts/cw_integrated_screen.py
+registry e67ce34a9045a9d4b2acf72327abe7605a599859cef981cd00e4733fef8c8b8e scripts/seed_registry.json
+registry-content 511f5d7e80053650e6de7e54f5c9d1b1fc0e79c4f2986e8198bb1089ad29e81a (cohorts and seeds)
+run: screen CW6; cohort pilot; seeds all; arms FULL,A6R,D3R,D4C,SUP; jobs 1; worlds -; turns -; rows already written 0
+started 2026-11-07T15:21:30Z
+finished 2026-11-07T15:24:11Z: 10 runs, 7 failed, 161 s of simulation and extraction (0.045 core-hours in all), 161.5 s wall

@@ -1,0 +1,5 @@
+# Preserved first 200-turn CW6 pilot failure
+
+Runtime `ccc864a997134f0dcd4b05a7419a7bce203bfae7`, native SHA-256 `59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617`, five arms on shared development pilots template 5 and procedural 19, serial execution. Seven cases failed when a real timber order attempted a unary carrier-to-treasury payment through native pairwise-only cargo purpose code. Three cases completed: SUP procedural 19 (62.3 s), A6R template 5 (23.7 s), SUP template 5 (20.2 s).
+
+The exact errors, commands implicit in the pinned screen module, identities and successful aggregate observations remain in `metrics.jsonl` and `source.txt`. These failures block using this pilot for held timing or effects; successful controls do not rescue missing comparisons. The lead repaired the routing through reviewed existing unary purposes with disjoint batches, and the next pilot used a fresh directory. No held seed was spent, no qualification was run and no default was promoted. All full outputs remain outside the checkout at `/workspace/evidence/cw6/pilot`.
