@@ -2253,6 +2253,76 @@ def owned_grain_sold(world) -> dict[int, float]:
     return out
 
 
+def settled_provisioning(world) -> dict[int, dict] | None:
+    """D1a's reading of this turn's provisioning, before retail's Phase 10 closes
+    the frame: region -> {price_milli, persons, rations, priced_out_persons,
+    offer_short_persons, free_rations, free_given, free_unallocated} for every
+    pilot region whose native frame was settled this turn; None when this turn
+    settled none (not provisioned, or not observed). Copies; reads only."""
+    state = _state(world)
+    t = state._turn if state is not None else None
+    if t is None or t.turn != world.turn:
+        return None
+    keys = ("price_milli", "persons", "rations", "priced_out_persons", "offer_short_persons",
+            "free_rations", "free_given", "free_unallocated")
+    out = {}
+    for rid, book in sorted(t.books.items()):
+        if book.provisioning is None:
+            continue
+        row = {k: float(book.provisioning[k]) for k in keys}
+        # This turn's opening (Phase 2): whether the commons fell short of the
+        # demand (then the economy ate all of it) and whether the opening cut
+        # owned stock above the storage cap (None: not recorded).
+        phase2 = book.phase2 or {}
+        row["commons_sufficiency"] = (float(phase2["commons_sufficiency"])
+                                      if "commons_sufficiency" in phase2 else None)
+        overflow = [phase2.get(f"retail_owned_overflow_{good}") for good in RETAIL_GOODS]
+        row["owned_overflow"] = None if any(v is None for v in overflow) else float(sum(overflow))
+        out[rid] = row
+    return out or None
+
+
+def owned_milli(world, rid: int) -> int:
+    """Owned food held in pilot region ``rid`` now (milli-food; 0 outside the pilot)."""
+    state = _state(world)
+    reg = state.region(rid) if state is not None else None
+    return sum(reg.goods) if reg is not None else 0
+
+
+def relief_shares(world, rid: int, milli: int) -> dict[int, int]:
+    """The owners' shares of a relief purchase of ``milli`` milli-food in ``rid``:
+    pro rata to their claims (largest remainder, ties by ascending id), exactly
+    as :func:`take_relief` will debit them. Reads only."""
+    state = _state(world)
+    reg = state.region(rid) if state is not None else None
+    if reg is None or milli <= 0 or milli > sum(reg.goods):
+        raise RetailAccountingError("a relief purchase exceeds the owned food it is drawn from")
+    return _pro_rata(int(milli), reg.claims)
+
+
+def take_relief(world, rid: int, milli: int) -> tuple[dict[int, int], list[int]]:
+    """D1a: a poor-relief fund has paid the owners of pilot region ``rid`` for
+    ``milli`` milli-food: debit their claims pro rata (the ``relief_bought``
+    flow, drawn from the pooled mix of goods) and move the food into the
+    region's commons, where the next provisioning's free pool draws on it.
+    Called once per region and turn, after the payment, before retail's Phase 10
+    closes this turn's frame (so the frame records the flow). Returns the
+    owners' shares and the per-good amounts (``RETAIL_GOODS`` order). No food
+    is made or lost."""
+    state = _state(world)
+    reg = state.region(rid) if state is not None else None
+    t = state._turn if state is not None else None
+    if reg is None or t is None or t.turn != world.turn:
+        raise RetailAccountingError("a relief purchase names no pilot region of this turn")
+    per_owner = relief_shares(world, rid, milli)
+    per_good = _draw(reg.goods, int(milli))
+    _debit(state, world, reg, "relief_bought", per_owner, per_good)
+    _to_stockpile(state, world, rid, per_good)
+    _bump(state, "relief_bought_milli", int(milli))
+    _check(state, world, {rid})
+    return per_owner, per_good
+
+
 def _credit_procurement(world, state, t: _Turn, agent_bridge) -> dict:
     turn = int(world.turn)
     if state.last_procured_turn is not None and turn <= state.last_procured_turn:

@@ -1,0 +1,14 @@
+........................................................................ [ 36%]
+..............................................F
+=================================== FAILURES ===================================
+____ test_the_registry_content_hash_is_the_one_every_recorded_identity_used ____
+tests/test_screen_runner.py:1053: in test_the_registry_content_hash_is_the_one_every_recorded_identity_used
+    assert SR.registry_content_sha256(earlier) == "a703a8502cb688181662d323ff482822a3fec6df292d23ebccc42f05751b2cfe"
+E   AssertionError: assert 'd831dac50d82...56158f4896621' == 'a703a8502cb6...42f05751b2cfe'
+E
+E     - a703a8502cb688181662d323ff482822a3fec6df292d23ebccc42f05751b2cfe
+E     + d831dac50d82f62d30789772e272286872080783274807a1ab156158f4896621
+=========================== short test summary info ============================
+FAILED tests/test_screen_runner.py::test_the_registry_content_hash_is_the_one_every_recorded_identity_used
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
+1 failed, 118 passed in 1.15s

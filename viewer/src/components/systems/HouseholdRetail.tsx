@@ -264,7 +264,7 @@ export function HouseholdRetail({ bundle, snapshot, currentTurn, onSelectRegion 
                 <td>{q ? `${number(q.free_given)} of ${number(q.free_rations)}` : "not provisioned"}</td>
                 <td>{food(flowOf(r, "decay"))} · {food(flowOf(r, "overflow"))}{flowOf(r, "cap_overflow") ? ` (+${food(flowOf(r, "cap_overflow"))} above the cap before granaries${capCut(r) ? `, with ${food(capCut(r)!.commons_milli)} of the commons` : ""})` : ""}</td>
                 <td>{food(flowOf(r, "procured"))} · {food(flowOf(r, "war_loss"))}</td>
-                <td>{why.length ? why.join("; ") : "none"}</td>
+                <td>{why.length ? why.join("; ") : "none"}{flowOf(r, "relief_bought") ? `${why.length ? "; " : ""}bought by poor relief ${food(flowOf(r, "relief_bought"))}` : ""}</td>
                 <td>{food(flowOf(r, "inherited_in"))}</td>
               </tr>;
             })}</tbody>

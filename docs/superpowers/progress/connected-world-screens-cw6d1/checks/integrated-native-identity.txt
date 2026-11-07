@@ -1,0 +1,16 @@
+Checkout:      /workspace/cw-d1-integration
+Interpreter:   /workspace/cw-d1-native/bin/python (CPython 3.13.5, linux x86_64)
+Environment:   /workspace/cw-d1-native (virtual environment)
+PYTHONPATH:    src (included in the lookups below)
+chronicler:    /workspace/cw-d1-integration/src/chronicler/__init__.py (this checkout)
+CLI:           /workspace/cw-d1-native/bin/chronicler
+chronicler_agents: importable from /workspace/cw-d1-native/lib/python3.13/site-packages/chronicler_agents/__init__.py (distribution 0.1.0)
+  compiled file: /workspace/cw-d1-native/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so (14442176 bytes, sha256 f2fb24f13c386c3965e485330499b9aa435f61a43e8fc02023f950fbf9664256)
+  chronicler_agents.chronicler_agents: /workspace/cw-d1-native/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so (compiled extension)
+  classes: AgentSimulator ok, EcologySimulator ok, PoliticsSimulator ok
+[PASS] chronicler resolves to this checkout's src
+[PASS] chronicler console script is installed
+[PASS] chronicler_agents is importable
+[PASS] chronicler_agents.chronicler_agents is a compiled extension
+[PASS] AgentSimulator, EcologySimulator, PoliticsSimulator are the compiled classes
+Result: PASS (expected native)

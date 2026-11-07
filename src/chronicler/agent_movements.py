@@ -1168,7 +1168,11 @@ def _tick_reforms(t: _Tick) -> None:
         if r.kind == RELIEF:
             due = math.ceil(RELIEF_UPKEEP * len(civ.regions))
             if _treasury(t, civ) >= due:
-                _add_stat(t, civ, "treasury", -due, "keep")
+                # --reform-services (D1a, service mode): the part of the upkeep its
+                # relief fund can hold is paid into it instead of sunk (0 otherwise).
+                from chronicler.reform_services import relief_upkeep
+                held = relief_upkeep(world, t.acc, r.civ, k, due)
+                _add_stat(t, civ, "treasury", -(due - held), "keep")
                 _bump(state, "upkeep", due)
                 r.arrears = 0
             else:
@@ -1869,10 +1873,18 @@ def reform_table(world: "WorldState"):
     chartered region of a home rule, one per realm for relief (every
     believer) and toleration (its faith)."""
     import pyarrow as pa
+    from chronicler.reform_services import note_withheld, withholds_relief_credit
     cols: dict[str, list] = {k: [] for k in ("creed", "civ", "region", "faith")}
     state = world.agent_movements
+    # --reform-services (D1a): a relief no longer credits the material need it
+    # covers (the label); its upkeep buys food instead (service mode).
+    withhold = withholds_relief_credit(world)
+    withheld = 0
     for r in (state.reforms if state is not None else ()):
         if r.repeal != IN_FORCE or not 0 <= r.civ < 255:
+            continue
+        if withhold and r.kind == RELIEF:
+            withheld += 1
             continue
         faith = NO_FAITH
         if r.kind == TOLERATION:
@@ -1888,6 +1900,8 @@ def reform_table(world: "WorldState"):
             cols["civ"].append(r.civ)
             cols["region"].append(region)
             cols["faith"].append(faith)
+    if withheld:
+        note_withheld(world, withheld)
     types = {"creed": pa.uint8(), "civ": pa.uint8(), "region": pa.uint16(), "faith": pa.uint8()}
     return pa.record_batch({k: pa.array(v, type=types[k]) for k, v in cols.items()})
 

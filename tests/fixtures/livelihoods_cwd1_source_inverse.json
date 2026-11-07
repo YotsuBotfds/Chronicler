@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "layer": "cwd1",
+  "parent": "4cabac21f41ba6683f4fd7106bd5c11292c4978b",
+  "files": {
+    "src/chronicler/batch_manifest.py": {
+      "sha256": "e4845bd54aba9f3c7b9086c18f94c1ae91504a351a47c28e9a8416373e3a59d7",
+      "current_sha256": "e08d1a8df47108e6c4321d001826e1eb5f27e661f5eab0a21b4c009f3c7cc254",
+      "patches": [
+        {
+          "old": "    \"infrastructure_condition_mode\",\n    \"epidemic_care\",\n    \"epidemic_care_mode\",\n    \"residence_ledger\",\n    \"attribution_records\",\n    \"wealth_accounting\",\n",
+          "new": "    \"infrastructure_condition_mode\",\n    \"epidemic_care\",\n    \"epidemic_care_mode\",\n    \"reform_services\",\n    \"reform_services_mode\",\n    \"guild_leagues\",\n    \"guild_league_mode\",\n    \"residence_ledger\",\n    \"attribution_records\",\n    \"wealth_accounting\",\n"
+        },
+        {
+          "old": "                             \"workshop_economics_rules\", \"titled_trade\",\n                             \"infrastructure_condition\", \"infrastructure_condition_mode\",\n                             \"epidemic_care\", \"epidemic_care_mode\",\n                             \"residence_ledger\", \"attribution_records\", \"wealth_accounting\", \"quarantine_channels\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n",
+          "new": "                             \"workshop_economics_rules\", \"titled_trade\",\n                             \"infrastructure_condition\", \"infrastructure_condition_mode\",\n                             \"epidemic_care\", \"epidemic_care_mode\",\n                             \"reform_services\", \"reform_services_mode\", \"guild_leagues\", \"guild_league_mode\",\n                             \"residence_ledger\", \"attribution_records\", \"wealth_accounting\", \"quarantine_channels\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n"
+        }
+      ]
+    },
+    "tests/test_batch_manifest.py": {
+      "sha256": "29d052c6a0933271d1e5076aa3d30630085473c936b54be33011fd9d9e859f0c",
+      "current_sha256": "2b3b10f4b2100fdf05403fcfa29c7629fdc26c6168af9f9cd890662a59eeb828",
+      "patches": [
+        {
+          "old": "                                                           \"workshop_economics_rules\", \"titled_trade\",\n                                                           \"infrastructure_condition\", \"infrastructure_condition_mode\",\n                                                           \"epidemic_care\", \"epidemic_care_mode\",\n                                                           \"residence_ledger\", \"attribution_records\",\n                                                           \"wealth_accounting\", \"quarantine_channels\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n",
+          "new": "                                                           \"workshop_economics_rules\", \"titled_trade\",\n                                                           \"infrastructure_condition\", \"infrastructure_condition_mode\",\n                                                           \"epidemic_care\", \"epidemic_care_mode\",\n                                                           \"reform_services\", \"reform_services_mode\", \"guild_leagues\", \"guild_league_mode\",\n                                                           \"residence_ledger\", \"attribution_records\",\n                                                           \"wealth_accounting\", \"quarantine_channels\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n"
+        }
+      ]
+    }
+  }
+}

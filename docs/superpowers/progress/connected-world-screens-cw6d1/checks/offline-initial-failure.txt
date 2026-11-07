@@ -1,0 +1,20 @@
+........................................................................ [ 36%]
+.............................F
+=================================== FAILURES ===================================
+______________________ test_registry_file_is_its_own_dump ______________________
+tests/test_screen_runner.py:785: in test_registry_file_is_its_own_dump
+    assert SR.dump_registry(registry) == SR.REGISTRY.read_text(encoding="utf-8")
+E   assert '{\n "schema_...D1"}\n ]\n}\n' == '{\n "schema_...n  }\n ]\n}\n'
+E
+E     Skipping 436 identical leading characters in diff, use -v to show
+E     + strata": {"template": "--seed N; the CLI default 8 regions x 4 civs unless an entry's world says otherwise", "procedural": "--worldgen procedural --regions R --civs C --seed N; 32x10 unless an entry's world says otherwise"},
+E     - strata": {
+E     -   "template": "--seed N; the CLI default 8 regions x 4 civs unless an entry's world says otherwise",
+E     -   "procedural": "--worldgen procedural --regions R --civs C --seed N; 32x10 unless an entry's world says otherwise"
+E     -  },...
+E
+E     ...Full output truncated (1684 lines hidden), use '-vv' to show
+=========================== short test summary info ============================
+FAILED tests/test_screen_runner.py::test_registry_file_is_its_own_dump - asse...
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
+1 failed, 101 passed in 1.43s

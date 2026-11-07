@@ -1,0 +1,312 @@
+{
+  "at_utc": "20261107T145136124989Z",
+  "commit": "808726b8c886306229d3e08d76fdee9e6f580dde",
+  "python": "3.13.16 (main, Oct  3 2026, 01:06:22) [Clang 22.1.3 ]",
+  "chunk_limit_seconds": 110,
+  "deselect": "not test_real_cli_and_cross_process_resume_with_different_hashseeds and not test_cross_process_deterministic_with_randomized_python_hash_seed",
+  "passed": false,
+  "seconds": 234.3165984000002,
+  "chunks": [
+    {
+      "name": "academy-restoration-controls",
+      "passed": true,
+      "seconds": 1.8920195450000392,
+      "exit_code": 0
+    },
+    {
+      "name": "crisis-distribution-summary",
+      "passed": true,
+      "seconds": 1.0053642210000362,
+      "exit_code": 0
+    },
+    {
+      "name": "regional-transport-controls",
+      "passed": true,
+      "seconds": 2.89409200099999,
+      "exit_code": 0
+    },
+    {
+      "name": "forecast-information-qualification",
+      "passed": true,
+      "seconds": 1.0315684540000802,
+      "exit_code": 0
+    },
+    {
+      "name": "forecast-information-contracts",
+      "passed": true,
+      "seconds": 2.7202689279997685,
+      "exit_code": 0
+    },
+    {
+      "name": "academy-service-contracts",
+      "passed": true,
+      "seconds": 7.083467074999589,
+      "exit_code": 0
+    },
+    {
+      "name": "household-mobility-contracts",
+      "passed": true,
+      "seconds": 6.210182418999921,
+      "exit_code": 0
+    },
+    {
+      "name": "grain-storage-contracts",
+      "passed": true,
+      "seconds": 9.028288175999933,
+      "exit_code": 0
+    },
+    {
+      "name": "food-accounting-observations",
+      "passed": true,
+      "seconds": 5.316377662999912,
+      "exit_code": 0
+    },
+    {
+      "name": "regional-population",
+      "passed": true,
+      "seconds": 2.1095855789999405,
+      "exit_code": 0
+    },
+    {
+      "name": "live-what-if",
+      "passed": true,
+      "seconds": 1.2290634379996845,
+      "exit_code": 0
+    },
+    {
+      "name": "wealth-floor-checkpoint-metadata-v2",
+      "passed": true,
+      "seconds": 0.9795423440000377,
+      "exit_code": 0
+    },
+    {
+      "name": "build-provenance",
+      "passed": true,
+      "seconds": 1.4770997799996621,
+      "exit_code": 0
+    },
+    {
+      "name": "arc-event-types",
+      "passed": true,
+      "seconds": 0.945329964999928,
+      "exit_code": 0
+    },
+    {
+      "name": "refactor-preflight",
+      "passed": true,
+      "seconds": 1.4038336319999871,
+      "exit_code": 0
+    },
+    {
+      "name": "diagnostics",
+      "passed": true,
+      "seconds": 1.4941911700002493,
+      "exit_code": 0
+    },
+    {
+      "name": "core",
+      "passed": true,
+      "seconds": 29.62357384500001,
+      "exit_code": 0
+    },
+    {
+      "name": "governance",
+      "passed": true,
+      "seconds": 11.418360815999677,
+      "exit_code": 0
+    },
+    {
+      "name": "systems-1",
+      "passed": true,
+      "seconds": 15.520886997000162,
+      "exit_code": 0
+    },
+    {
+      "name": "systems-2",
+      "passed": true,
+      "seconds": 31.0451416650003,
+      "exit_code": 0
+    },
+    {
+      "name": "narration",
+      "passed": true,
+      "seconds": 6.99161815799971,
+      "exit_code": 0
+    },
+    {
+      "name": "history-forensics",
+      "passed": true,
+      "seconds": 0.925177210000129,
+      "exit_code": 0
+    },
+    {
+      "name": "expansion-audit",
+      "passed": true,
+      "seconds": 1.0762360090002403,
+      "exit_code": 0
+    },
+    {
+      "name": "scientific-receipts",
+      "passed": true,
+      "seconds": 1.1426012729998547,
+      "exit_code": 0
+    },
+    {
+      "name": "expansion-comparison",
+      "passed": true,
+      "seconds": 1.507723898000222,
+      "exit_code": 0
+    },
+    {
+      "name": "proof-contracts",
+      "passed": true,
+      "seconds": 1.2326903570001377,
+      "exit_code": 0
+    },
+    {
+      "name": "qualification-tools",
+      "passed": true,
+      "seconds": 2.9544246169998587,
+      "exit_code": 0
+    },
+    {
+      "name": "turn-speed",
+      "passed": true,
+      "seconds": 1.159066058999997,
+      "exit_code": 0
+    },
+    {
+      "name": "validation-tooling",
+      "passed": true,
+      "seconds": 11.255417230999683,
+      "exit_code": 0
+    },
+    {
+      "name": "learning",
+      "passed": true,
+      "seconds": 3.1218001840002216,
+      "exit_code": 0
+    },
+    {
+      "name": "population",
+      "passed": true,
+      "seconds": 1.337220145000174,
+      "exit_code": 0
+    },
+    {
+      "name": "production-ledger",
+      "passed": true,
+      "seconds": 1.44447744900026,
+      "exit_code": 0
+    },
+    {
+      "name": "refugee-routing",
+      "passed": true,
+      "seconds": 1.720705190999979,
+      "exit_code": 0
+    },
+    {
+      "name": "checkpoint",
+      "passed": true,
+      "seconds": 3.6849115929999243,
+      "exit_code": 0
+    },
+    {
+      "name": "live-checkpoints",
+      "passed": true,
+      "seconds": 17.257317940999656,
+      "exit_code": 0
+    },
+    {
+      "name": "interactive-checkpoints",
+      "passed": true,
+      "seconds": 4.435613511000156,
+      "exit_code": 0
+    },
+    {
+      "name": "public-grain-shipments",
+      "passed": true,
+      "seconds": 1.582104371999776,
+      "exit_code": 0
+    },
+    {
+      "name": "grain-reserves",
+      "passed": true,
+      "seconds": 2.437373876000038,
+      "exit_code": 0
+    },
+    {
+      "name": "livelihoods",
+      "passed": true,
+      "seconds": 6.206615431000046,
+      "exit_code": 0
+    },
+    {
+      "name": "livelihoods-work-authority",
+      "passed": true,
+      "seconds": 1.0734160960000736,
+      "exit_code": 0
+    },
+    {
+      "name": "recovery-skills",
+      "passed": true,
+      "seconds": 3.9209641010002088,
+      "exit_code": 0
+    },
+    {
+      "name": "timber-supply",
+      "passed": true,
+      "seconds": 1.4598913189997802,
+      "exit_code": 0
+    },
+    {
+      "name": "productive-recovery-pl3",
+      "passed": true,
+      "seconds": 1.7399280029999318,
+      "exit_code": 0
+    },
+    {
+      "name": "household-retail",
+      "passed": true,
+      "seconds": 2.0942592710002828,
+      "exit_code": 0
+    },
+    {
+      "name": "household-retail-war",
+      "passed": true,
+      "seconds": 1.5138729579998653,
+      "exit_code": 0
+    },
+    {
+      "name": "household-retail-evidence",
+      "passed": true,
+      "seconds": 1.56821793600011,
+      "exit_code": 0
+    },
+    {
+      "name": "connected-world-a",
+      "passed": true,
+      "seconds": 6.756655589999809,
+      "exit_code": 0
+    },
+    {
+      "name": "expansion-wiring",
+      "passed": true,
+      "seconds": 2.5989035170000534,
+      "exit_code": 0
+    },
+    {
+      "name": "feature-options",
+      "passed": true,
+      "seconds": 3.590388726999663,
+      "exit_code": 0
+    },
+    {
+      "name": "connected-world-e",
+      "passed": false,
+      "seconds": 2.0969480899998416,
+      "exit_code": 1
+    }
+  ],
+  "finding": "Frozen old source projects out only CW5c from historical registry hashes; copied live union also contains later CW3b/CW6D1. Historical hashes remain unchanged. Final integrated source/full tracked registry lane supersedes this mismatched check; no timeout."
+}

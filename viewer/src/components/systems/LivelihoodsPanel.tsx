@@ -3,6 +3,8 @@ import { hasRecoveryChain, packagesOn } from "../../lib/recoveryChain";
 import { watershedOn } from "../../lib/watershed";
 import { infrastructureOn } from "../../lib/infrastructureCondition";
 import { attributionOn } from "../../lib/attributionRecords";
+import { reformServicesOn } from "../../lib/reformServices";
+import { guildLeaguesOn } from "../../lib/guildLeagues";
 import { residenceLedgerOn } from "../../lib/residenceLedger";
 import type { SystemPanelProps } from "../../lib/systems";
 import { ClearingProtection } from "./ClearingProtection";
@@ -15,6 +17,7 @@ import { ResidenceLedger } from "./ResidenceLedger";
 import { CommonsRules } from "./CommonsRules";
 import { FoodAllocation } from "./FoodAllocation";
 import { GrainConvoys } from "./GrainConvoys";
+import { GuildLeagues } from "./GuildLeagues";
 import { HouseholdRetail } from "./HouseholdRetail";
 import { InfrastructureCondition } from "./InfrastructureCondition";
 import { LearningCohorts } from "./LearningCohorts";
@@ -23,6 +26,7 @@ import { MaintenanceObligation } from "./MaintenanceObligation";
 import { OperatingWear } from "./OperatingWear";
 import { RecoveryChain } from "./RecoveryChain";
 import { RecoveryCrews } from "./RecoveryCrews";
+import { ReformServices } from "./ReformServices";
 import { Relocation } from "./Relocation";
 import { TimberStock } from "./TimberStock";
 import { TimberSupply } from "./TimberSupply";
@@ -40,8 +44,8 @@ import { Workshops } from "./Workshops";
 const PACKAGES = ["workshops", "workshop_payroll", "food_allocation", "timber_stock", "grain_convoys",
   "commons_rules", "learning_cohorts", "relocation_costs", "local_budgets", "clearing_protection",
   "remittances", "apprenticeship", "veteran_reintegration", "repair_projects", "operating_wear", "timber_supply",
-  "recovery_crews", "maintenance_obligation", "household_retail", "watershed", "workshop_economics", "titled_trade",
-  "infrastructure_condition", "residence_ledger", "attribution_records", "wealth_accounting"];
+  "recovery_crews", "maintenance_obligation", "reform_services", "household_retail", "watershed",
+  "workshop_economics", "titled_trade", "infrastructure_condition", "guild_leagues", "residence_ledger", "attribution_records", "wealth_accounting"];
 
 export function LivelihoodsPanel(panelProps: SystemPanelProps) {
   const { bundle, snapshot, currentTurn, onSelectRegion } = panelProps;
@@ -56,6 +60,10 @@ export function LivelihoodsPanel(panelProps: SystemPanelProps) {
   const infrastructure = useMemo(() => infrastructureOn(bundle.history), [bundle]);
   // The attribution records (D2) mount on the run's records too: absent at a snapshot is unknown, not zero.
   const attribution = useMemo(() => attributionOn(bundle.history), [bundle]);
+  // Poor relief services (D1a) likewise mount on the run's records.
+  const relief = useMemo(() => reformServicesOn(bundle.history), [bundle]);
+  // Guild leagues (D1b) too.
+  const leagues = useMemo(() => guildLeaguesOn(bundle.history), [bundle]);
   // The residence ledger (X1) mounts on the run's records: absent at a snapshot is unknown, not zero.
   const residence = useMemo(() => residenceLedgerOn(bundle.history), [bundle]);
   const row = snapshot as unknown as Record<string, unknown> | null;
@@ -77,6 +85,7 @@ export function LivelihoodsPanel(panelProps: SystemPanelProps) {
     {mount("food_allocation") ? <FoodAllocation {...props} /> : null}
     {record?.household_retail != null ? <HouseholdRetail {...props} /> : null}
     {record?.titled_trade !== undefined ? <TitledTrade {...props} /> : null}
+    {relief ? <ReformServices {...props} /> : null}
     {mount("timber_stock") ? <TimberStock {...props} /> : null}
     {record?.grain_convoys != null
       ? <section className="systems-section"><GrainConvoys snapshot={snapshot} bundle={bundle} /></section> : null}
@@ -95,6 +104,7 @@ export function LivelihoodsPanel(panelProps: SystemPanelProps) {
     {mount("remittances") ? <Remittances {...props} /> : null}
     {watershed ? <Watershed {...props} /> : null}
     {infrastructure ? <InfrastructureCondition {...props} /> : null}
+    {leagues ? <GuildLeagues {...props} /> : null}
     {residence ? <ResidenceLedger {...props} /> : null}
     {attribution ? <AttributionRecords {...props} /> : null}
     {record?.wealth_accounting != null ? <WealthAccounting {...props} /> : null}
