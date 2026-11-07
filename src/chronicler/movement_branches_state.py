@@ -34,6 +34,8 @@ class BranchRow(BaseModel):
     movement: int
     host: int
     target: int
+    host_name: str = ""               # display names observed at this frame, never decision inputs
+    target_name: str = ""
     regions: list[int] = Field(default_factory=list)
     members: int = 0                 # living local adults, excluding trips
     payers: list[int] = Field(default_factory=list)  # actual stable native ids

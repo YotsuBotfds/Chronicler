@@ -105,7 +105,7 @@ def _boundary(world, target, host):
     return None
 
 
-def phase10(world, *, acc=None, economy_result=None, agent_bridge=None):
+def phase10(world, acc=None, economy_result=None, agent_bridge=None):
     state = _state(world)
     if state is None or not state.enabled:
         return []
@@ -152,6 +152,8 @@ def phase10(world, *, acc=None, economy_result=None, agent_bridge=None):
         movement = movements[branch.movement - 1] if 1 <= branch.movement <= len(movements) else None
         target = movement.target if movement is not None else -1
         row = BranchRow(branch=branch.branch, movement=branch.movement, host=branch.host, target=target,
+                        host_name=world.civilizations[branch.host].name,
+                        target_name=world.civilizations[target].name if 0 <= target < len(world.civilizations) else "",
                         regions=sorted({r for _, r, _ in people}), members=len(people), status="empty")
         boundary = _boundary(world, target, branch.host)
         if movement is None or movement.stage == ENDED:
