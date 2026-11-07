@@ -1,29 +1,29 @@
 {
   "schema_version": 1,
   "layer": "cwd1",
-  "parent": "e3bce686df1fe2e73a4ee7378c36f2e2647826bb",
+  "parent": "4cabac21f41ba6683f4fd7106bd5c11292c4978b",
   "files": {
     "src/chronicler/batch_manifest.py": {
-      "sha256": "790b166f8fdeece330bbacca3305921a6bd43343cc47e591540475c1df26d035",
-      "current_sha256": "ff2b6069b547b9bdf5a9e01727aa579dd901db79fd907755c2cd4b165817dcc9",
+      "sha256": "e4845bd54aba9f3c7b9086c18f94c1ae91504a351a47c28e9a8416373e3a59d7",
+      "current_sha256": "e08d1a8df47108e6c4321d001826e1eb5f27e661f5eab0a21b4c009f3c7cc254",
       "patches": [
         {
-          "old": "    \"titled_trade\",\n    \"epidemic_care\",\n    \"epidemic_care_mode\",\n    \"residence_ledger\",\n    \"attribution_records\",\n    \"wealth_accounting\",\n",
-          "new": "    \"titled_trade\",\n    \"epidemic_care\",\n    \"epidemic_care_mode\",\n    \"reform_services\",\n    \"reform_services_mode\",\n    \"guild_leagues\",\n    \"guild_league_mode\",\n    \"residence_ledger\",\n    \"attribution_records\",\n    \"wealth_accounting\",\n"
+          "old": "    \"infrastructure_condition_mode\",\n    \"epidemic_care\",\n    \"epidemic_care_mode\",\n    \"residence_ledger\",\n    \"attribution_records\",\n    \"wealth_accounting\",\n",
+          "new": "    \"infrastructure_condition_mode\",\n    \"epidemic_care\",\n    \"epidemic_care_mode\",\n    \"reform_services\",\n    \"reform_services_mode\",\n    \"guild_leagues\",\n    \"guild_league_mode\",\n    \"residence_ledger\",\n    \"attribution_records\",\n    \"wealth_accounting\",\n"
         },
         {
-          "old": "                             \"quarantine_mode\", \"workshop_economics\", \"workshop_economics_mode\",\n                             \"workshop_economics_rules\", \"titled_trade\",\n                             \"epidemic_care\", \"epidemic_care_mode\",\n                             \"residence_ledger\", \"attribution_records\", \"wealth_accounting\", \"quarantine_channels\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n",
-          "new": "                             \"quarantine_mode\", \"workshop_economics\", \"workshop_economics_mode\",\n                             \"workshop_economics_rules\", \"titled_trade\",\n                             \"epidemic_care\", \"epidemic_care_mode\",\n                             \"reform_services\", \"reform_services_mode\", \"guild_leagues\", \"guild_league_mode\",\n                             \"residence_ledger\", \"attribution_records\", \"wealth_accounting\", \"quarantine_channels\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n"
+          "old": "                             \"workshop_economics_rules\", \"titled_trade\",\n                             \"infrastructure_condition\", \"infrastructure_condition_mode\",\n                             \"epidemic_care\", \"epidemic_care_mode\",\n                             \"residence_ledger\", \"attribution_records\", \"wealth_accounting\", \"quarantine_channels\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n",
+          "new": "                             \"workshop_economics_rules\", \"titled_trade\",\n                             \"infrastructure_condition\", \"infrastructure_condition_mode\",\n                             \"epidemic_care\", \"epidemic_care_mode\",\n                             \"reform_services\", \"reform_services_mode\", \"guild_leagues\", \"guild_league_mode\",\n                             \"residence_ledger\", \"attribution_records\", \"wealth_accounting\", \"quarantine_channels\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n"
         }
       ]
     },
     "tests/test_batch_manifest.py": {
-      "sha256": "e723ec6edd92a499e71e5fc6563a064e76b41407565f775868e50e92568381f0",
-      "current_sha256": "213ff8d45a272e8597ff6d9396094a26b4bc297364408a9c030e6df3f19a9449",
+      "sha256": "29d052c6a0933271d1e5076aa3d30630085473c936b54be33011fd9d9e859f0c",
+      "current_sha256": "2b3b10f4b2100fdf05403fcfa29c7629fdc26c6168af9f9cd890662a59eeb828",
       "patches": [
         {
-          "old": "                                                           \"quarantine_mode\", \"workshop_economics\", \"workshop_economics_mode\",\n                                                           \"workshop_economics_rules\", \"titled_trade\",\n                                                           \"epidemic_care\", \"epidemic_care_mode\",\n                                                           \"residence_ledger\", \"attribution_records\",\n                                                           \"wealth_accounting\", \"quarantine_channels\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n",
-          "new": "                                                           \"quarantine_mode\", \"workshop_economics\", \"workshop_economics_mode\",\n                                                           \"workshop_economics_rules\", \"titled_trade\",\n                                                           \"epidemic_care\", \"epidemic_care_mode\",\n                                                           \"reform_services\", \"reform_services_mode\", \"guild_leagues\", \"guild_league_mode\",\n                                                           \"residence_ledger\", \"attribution_records\",\n                                                           \"wealth_accounting\", \"quarantine_channels\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n"
+          "old": "                                                           \"workshop_economics_rules\", \"titled_trade\",\n                                                           \"infrastructure_condition\", \"infrastructure_condition_mode\",\n                                                           \"epidemic_care\", \"epidemic_care_mode\",\n                                                           \"residence_ledger\", \"attribution_records\",\n                                                           \"wealth_accounting\", \"quarantine_channels\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n",
+          "new": "                                                           \"workshop_economics_rules\", \"titled_trade\",\n                                                           \"infrastructure_condition\", \"infrastructure_condition_mode\",\n                                                           \"epidemic_care\", \"epidemic_care_mode\",\n                                                           \"reform_services\", \"reform_services_mode\", \"guild_leagues\", \"guild_league_mode\",\n                                                           \"residence_ledger\", \"attribution_records\",\n                                                           \"wealth_accounting\", \"quarantine_channels\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n"
         }
       ]
     }

@@ -15,7 +15,8 @@ it("reads a recorded frame and sums it by region", () => {
   const rows = reliefByRegion(reading.record!.frame!);
   expect(rows.map((r) => r.region)).toEqual([2, 3]);
   expect(rows[0]).toMatchObject({ bought: 0.002, atMost: 0.004, atLeast: null });
-  expect(rows[1].atLeast).toBeCloseTo(1.376277);
+  expect(reading.record!.frame!.deliveries[0].delivered_at_least).toBeCloseTo(1.376277);
+  expect(rows[1].atLeast).toBeNull(); // legacy estimate lacks gross-outbound evidence
 });
 
 it("keeps the six readings distinct", () => {

@@ -55,12 +55,10 @@ Delivery. The relief food is pooled with the commons, so what reached people
 is bounded, never attributed by person. At the next provisioning in the
 region the record keeps the free pool (``free_rations``, ``free_given``,
 ``free_unallocated``); at most ``min(bought, given)`` relief rations reached
-people; when that turn's commons fell short of demand (commons sufficiency
-below 1: the economy ate all of it) and the opening cut nothing above the
-storage cap, the relief food that survived the opening's storage decay (full
-per-good decay, no salt preservation) was in the free pool, so at least that
-minus the pool's unallocated rations reached people; otherwise no lower bound
-is claimed (None).
+people. Gross outbound food is not observed: net transport cannot establish
+that the prior relief stayed in this region, even when its final commons
+fell short and its storage cap cut nothing. No positive lower delivery bound
+is established (None).
 
 Information. A realm reads only its own pilot markets' recorded provisioning
 of this turn (the poor roll: unmet rations) and the installed ask; never
@@ -354,8 +352,6 @@ def _ration_milli(world) -> Fraction:
 def _deliveries(world, state: ReformServicesState, frame: ReliefFrame, prov: dict | None, turn: int, economy_result=None) -> None:
     if not state.pending:
         return
-    from chronicler.economy import STORAGE_DECAY
-    from chronicler.household_retail_state import RETAIL_GOODS
     rm = _ration_milli(world)
     fresh = state.pending_turn == turn - 1
     for p in state.pending:
@@ -371,26 +367,20 @@ def _deliveries(world, state: ReformServicesState, frame: ReliefFrame, prov: dic
         bought = p.rations
         given, pool, left = row["free_given"], row["free_rations"], row["free_unallocated"]
         at_most = min(bought, given)
-        at_least = None
-        short = row.get("commons_sufficiency")
-        ledger = (getattr(economy_result, "food_ledger", None) or {}).get(p.region)
-        no_cap_loss = ledger is not None and len(ledger) > 8 and ledger[8] == 0.0
-        if short is not None and short < 1.0 - 1e-9 and no_cap_loss:
-            kept = sum(Fraction(v) * (1 - Fraction(STORAGE_DECAY.get(good, 0.0)))
-                       for good, v in zip(RETAIL_GOODS, p.goods_milli))
-            in_pool = min(float(kept / rm), pool)
-            at_least = max(0.0, min(in_pool, at_most) - left)
+        # The food ledger's transport column is net: equal outbound/inbound
+        # food can hide export of prior relief. A short final commons and no
+        # cap overflow therefore do not prove that bought food survived here.
+        # Keep the historical field, but do not turn unknown lineage into a
+        # positive lower bound. This observer never changes provisioning.
         d = Delivery(region=p.region, civ=p.civ, bought_turn=state.pending_turn, rations_bought=bought,
                      free_rations=round(pool, 6), free_given=round(given, 6), free_unallocated=round(left, 6),
                      delivered_at_most=round(at_most, 6),
-                     delivered_at_least=None if at_least is None else round(at_least, 6),
+                     delivered_at_least=None,
                      priced_out_persons=int(row["priced_out_persons"]),
                      unmet_rations=round(max(0.0, row["persons"] - row["rations"]), 6))
         frame.deliveries.append(d)
         _bump(state, "deliveries_measured")
         _bump(state, "delivered_at_most_milli", math.floor(Fraction(at_most) * rm))
-        if at_least is not None:
-            _bump(state, "delivered_at_least_milli", math.floor(Fraction(at_least) * rm))
 
 
 def _purchases(world, state: ReformServicesState, t: _Turn, frame: ReliefFrame, prov: dict | None,
@@ -529,7 +519,8 @@ def snapshot_summary(world) -> dict:
         "counters": {k: state.counters[k] for k in COUNTERS if k in state.counters},
         "log": [r.model_dump() for r in state.log], "log_dropped": state.log_dropped,
         "parameters": {"fund_cap_turns": FUND_CAP_TURNS, "units": "milli_wealth_and_milli_food",
-                       "ration_food": float(_ration_milli(world) / MILLI)},
+                       "ration_food": float(_ration_milli(world) / MILLI),
+                       "delivery_bounds": "upper_only_gross_outbound_unobserved"},
     }
 
 

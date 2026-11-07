@@ -69,8 +69,9 @@ class Delivery(BaseModel):
     """The next provisioning of a region where relief food was bought: the free
     pool it joined and what that pool gave. The relief food is pooled with the
     commons, so what reached people is bounded, never attributed by person:
-    at most ``min(bought, free given)``; at least what the free pool gave beyond
-    everything else in it (``min(bought, free pool) - free unallocated``)."""
+    at most ``min(bought, free given)``. Gross outbound food is unobserved, so
+    no positive lower bound is established. Historical lower estimates remain
+    readable in saved records but are not established delivery evidence."""
 
     region: int
     civ: int

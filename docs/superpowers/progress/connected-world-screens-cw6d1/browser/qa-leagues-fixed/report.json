@@ -1,0 +1,101 @@
+{
+  "generated": "2026-11-07T14:53:45.468Z",
+  "build": "/workspace/evidence/d1/browser/dist-fixed",
+  "python": "/workspace/cw-d1-native/bin/python",
+  "journey": "leagues",
+  "out": "/workspace/evidence/d1/browser/qa-leagues-fixed",
+  "bundle": "/workspace/evidence/d1/browser/leagues-p13.json",
+  "turns": null,
+  "bundle_sha256": "f5731bf248f25e6831cc6679ca06cf49fb8189487a999eebf8d42e16f9a48033",
+  "build_index_sha256": "03b24c9656de9e512fa53c3c469749806709450218bbe64e565f1bf2fb0adacb",
+  "evidence": "Natural provided saved bundle; expectations decoded by Python bundle_codec. Browser journeys are bounded UI checks, not qualification.",
+  "viewports": {
+    "desktop": {
+      "checks": [
+        {
+          "label": "desktop snapshot120: panel mounts and has finite text",
+          "ok": true,
+          "detail": "Guild leagues · snapshot 120\n\nSimulation turn 119, mode mutual. Guilds of cities in different realms whose regions traded (merchant deliveries the economy recorded) pool part of their purses; the fund pays a member city's purse only for a loss recorded in its history (a levy's share of the dues, a s"
+        },
+        {
+          "label": "desktop: natural league has actual payout witness",
+          "ok": true,
+          "detail": "[{\"league\":4,\"guild\":10,\"city\":15,\"kind\":\"levy\",\"loss_milli\":57,\"paid_milli\":57,\"event_id\":\"118:guild_levy:0\"}]"
+        },
+        {
+          "label": "desktop: actual city-purse claim league4",
+          "ok": true,
+          "detail": "[\"4Melion Forest (city 15)levy share of the dues0.0570.057118:guild_levy:0\"]"
+        },
+        {
+          "label": "desktop: league payout explicitly city's purse",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot120: explanatory text stays within section",
+          "ok": true,
+          "detail": "[{\"left\":56,\"right\":1384,\"sectionLeft\":39,\"sectionRight\":1401},{\"left\":56,\"right\":1384,\"sectionLeft\":39,\"sectionRight\":1401}]"
+        },
+        {
+          "label": "desktop snapshot120: no horizontal document overflow",
+          "ok": true,
+          "detail": "{\"page\":1440,\"viewport\":1440}"
+        },
+        {
+          "label": "desktop: no browser console or page errors",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "messages": [],
+      "screenshots": [
+        "desktop-snapshot120.png"
+      ]
+    },
+    "phone": {
+      "checks": [
+        {
+          "label": "phone snapshot120: panel mounts and has finite text",
+          "ok": true,
+          "detail": "Guild leagues · snapshot 120\n\nSimulation turn 119, mode mutual. Guilds of cities in different realms whose regions traded (merchant deliveries the economy recorded) pool part of their purses; the fund pays a member city's purse only for a loss recorded in its history (a levy's share of the dues, a s"
+        },
+        {
+          "label": "phone: natural league has actual payout witness",
+          "ok": true,
+          "detail": "[{\"league\":4,\"guild\":10,\"city\":15,\"kind\":\"levy\",\"loss_milli\":57,\"paid_milli\":57,\"event_id\":\"118:guild_levy:0\"}]"
+        },
+        {
+          "label": "phone: actual city-purse claim league4",
+          "ok": true,
+          "detail": "[\"4Melion Forest (city 15)levy share of the dues0.0570.057118:guild_levy:0\"]"
+        },
+        {
+          "label": "phone: league payout explicitly city's purse",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot120: explanatory text stays within section",
+          "ok": true,
+          "detail": "[{\"left\":42,\"right\":348,\"sectionLeft\":25,\"sectionRight\":365},{\"left\":42,\"right\":348,\"sectionLeft\":25,\"sectionRight\":365}]"
+        },
+        {
+          "label": "phone snapshot120: no horizontal document overflow",
+          "ok": true,
+          "detail": "{\"page\":390,\"viewport\":390}"
+        },
+        {
+          "label": "phone: no browser console or page errors",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "messages": [],
+      "screenshots": [
+        "phone-snapshot120.png"
+      ]
+    }
+  },
+  "failures": 0
+}
