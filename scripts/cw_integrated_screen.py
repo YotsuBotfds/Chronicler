@@ -86,6 +86,7 @@ def extract(bundle, flags):
     from chronicler.timber_orders_state import TimberOrder
     from chronicler.reform_services import record_status as relief_status
     from chronicler.guild_leagues import record_status as league_status
+    from chronicler.movement_branches import record_status as branch_status
     problems = []
     m = dict.fromkeys(("person_turns", "balance_change", "deaths", "income_gross", "income_applied", "wages_milli",
         "withheld_native", "wealth_close", "a6_refusals", "a6_repeated_refusals", "a6_input_rows", "a6_changed",
@@ -96,7 +97,8 @@ def extract(bundle, flags):
         "claims_unrecorded_milli", "claims_unpaid_final_milli", "service_asset_turns", "asset_turns", "infra_work",
         "infra_timber_used", "infra_paid_milli", "timber_delivered_milli", "timber_carrier_paid_milli",
         "timber_orders", "cover_loss", "all_migrations", "x1_moves", "x1_other_moves", "x1_opened_spells",
-        "x1_displaced_person_turns", "dropped_war_events", "dropped_a6_rows", "dropped_work_rows"), 0)
+        "x1_displaced_person_turns", "dropped_war_events", "dropped_a6_rows", "dropped_work_rows",
+        "branch_funded_turns", "branch_payer_turns", "branch_dues_milli", "branch_new_identity_refusals"), 0)
     hist = bundle.get("history")
     regions = SR._get(bundle, ("world_state", "regions"))
     if not isinstance(hist, list) or not hist or not isinstance(regions, list) or not regions:
@@ -299,10 +301,18 @@ def extract(bundle, flags):
             m["timber_carrier_paid_milli"] = finite(counters.get("carrier_credited_milli", 0), "timber freight")
         elif "timber_orders" in lv:
             problems.append(f"timber orders unexpectedly recorded in joint supply control at {turn}")
-        for name, reader in (("relief", relief_status), ("league", league_status)):
-            status, _ = reader(snap)
+        for name, mode, reader in (("reform_services", "service", relief_status), ("guild_leagues", "mutual", league_status),
+                                   ("movement_branches", "funded", branch_status)):
+            dated(lv, name, turn, mode=mode)
+            status, frame = reader(snap)
             if status not in ("recorded", "recorded_zero"):
                 problems.append(f"{name} record {status} at {turn}")
+            elif name == "movement_branches":
+                m["branch_new_identity_refusals"] += finite(frame.get("new_identities_refused"), "branch identity refusals")
+                for row in frame["rows"]:
+                    m["branch_funded_turns"] += row["status"] == "funded"
+                    m["branch_payer_turns"] += len(row["payers"])
+                    m["branch_dues_milli"] += finite(row["dues_milli"], "branch dues")
         x1 = dated(lv, "residence_ledger", turn)
         xt = (x1.get("frame") or {}).get("totals") or {}
         for field, key in (("x1_moves", "moves"), ("x1_other_moves", "moves_other"),
@@ -369,7 +379,8 @@ for control in ("A6R", "D3R", "D4C", "SUP"):
                 "separation_person_pairs", "injury_episode_turns", "army_hunger_ration_turns", "army_supply_food_milli",
                 "requisition_milli", "destroyed_food_milli", "restitution_paid_milli", "claims_unpaid_final_milli",
                 "infra_work", "infra_timber_used", "infra_paid_milli", "timber_delivered_milli", "cover_loss",
-                "all_migrations", "unknown_migration_share", "x1_opened_spells", "x1_displaced_person_turns"):
+                "all_migrations", "unknown_migration_share", "x1_opened_spells", "x1_displaced_person_turns",
+                "branch_funded_turns", "branch_payer_turns", "branch_dues_milli"):
         OUTCOMES.append(SR.Outcome(f"cw6_{control}_{key}", f"{key} (FULL - {control})", control, "FULL", full_minus_control(key)))
 
 SCREEN = SR.Screen(name="CW6", title="Connected World integrated A-E bounded screen", module=MODULE,

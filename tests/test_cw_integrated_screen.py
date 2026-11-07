@@ -18,6 +18,7 @@ def CW():
 def bundle():
     from chronicler.reform_services_state import ReliefFrame
     from chronicler.guild_leagues_state import LeagueFrame
+    from chronicler.movement_branches_state import BranchFrame
     def record(**fields):
         return {"schema_version": 1, "source_turn": 0, **fields}
     wealth = {"turn": 0, "continuity": {}, "typed_complete": True, "world": {"open": 100, "delta": 2, "deaths": 1, "close": 102},
@@ -39,6 +40,7 @@ def bundle():
           "timber_orders": record(frame={"turn": 0}, orders=[], closed=[], counters={}),
           "reform_services": record(stage="D1a", mode="service", frame=ReliefFrame(turn=0).model_dump()),
           "guild_leagues": record(stage="D1b", mode="mutual", frame=LeagueFrame(turn=0).model_dump()),
+          "movement_branches": record(stage="D1c", mode="funded", frame=BranchFrame(turn=0).model_dump()),
           "residence_ledger": record(frame={"turn": 0, "totals": {"moves": 1, "moves_other": 1, "opened": 0, "displaced": 0}})}
     snap = {"turn": 1, "regional_population": {"source_turn": 0, "counts": [100, 0]}, "livelihoods": lv,
             "health_care": {"source_turn": 0, "episodes": 2, "new_injuries": 1}, "campaign": {"battles": []},
@@ -69,7 +71,9 @@ def test_world_outcomes_and_unknown_cause_are_not_conditioned_on_activation(CW):
     ("date", "misdated"), ("closure", "incomplete"), ("duplicate_meal", "duplicate"),
     ("food_mint", "source does not close"), ("drop", "dropped events"),
     ("sidecar", "sidecar count"), ("control", "control mode"), ("a1_date", "wealth frame/source misdated"),
-    ("a1_typed", "typed coverage incomplete"), ("a1_delta", "balances do not close")])
+    ("a1_typed", "typed coverage incomplete"), ("a1_delta", "balances do not close"),
+    ("branch_absent", "movement_branches: missing"), ("branch_date", "movement_branches: missing"),
+    ("branch_mode", "movement_branches: control mode")])
 def test_strict_schema_dates_controls_and_physical_failures_are_visible(CW, breakage, fragment):
     b = bundle()
     lv = b["history"][0]["livelihoods"]
@@ -91,6 +95,12 @@ def test_strict_schema_dates_controls_and_physical_failures_are_visible(CW, brea
         lv["wealth_accounting"]["frame"]["typed_complete"] = False
     elif breakage == "a1_delta":
         lv["wealth_accounting"]["frame"]["world"]["delta"] = 1
+    elif breakage == "branch_absent":
+        del lv["movement_branches"]
+    elif breakage == "branch_date":
+        lv["movement_branches"]["source_turn"] = 1
+    elif breakage == "branch_mode":
+        lv["movement_branches"]["mode"] = "record_only"
     else:
         lv["adaptive_livelihoods"]["mode"] = "record_only"
     _, problems = CW.extract(b, CW.ARMS["FULL"][0])
