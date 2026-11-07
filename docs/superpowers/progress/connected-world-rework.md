@@ -1,131 +1,126 @@
 # Connected World correctness, causal evaluation and performance rework
 
-Active instruction: continue from reviewed main after #97; trust and practical
-use, not favorable screen results. No default promotion, restricted 200-seed or
-procedural qualification, paid narration, purchases or deployment.
+## Current state — 2026-11-07, 23:05 UTC
 
-## Live recovery
+The rework is active. Implementation, historical audit, performance admission,
+default identity, active resume and real browser checks are complete. The fresh
+CWR1 held evaluation is running; its results, final independent review and
+final-head/main CI are still required. This is not a completion checkpoint.
 
-Fetched main `2726bf449d0e4d581a72034000ee0861a58ee439`; exact main Tests
-`42397121718` passed all nine jobs. No open PRs; original checkout clean, all
-previous worktrees preserved. Lead branch `codex/cw-rework`. Isolated lanes:
-`codex/cwr-attribution`, `codex/cwr-evaluation`, `codex/cwr-profile`,
-`codex/cwr-viewer`, `codex/cwr-review`. Actual limits: four cgroup CPUs,
-16 GiB memory, about 18 GiB free; at most two native builds, heavy runs
-scheduled explicitly, unchanged 110-second offline chunk limit.
+- Verified main: `125a69066ea158a973ac5207f393e4eeb330aee8` (#98).
+  Tests `42417310582` passed all nine jobs.
+- Lead integration branch: `codex/cw-rework`; draft #99 contains the rework.
+  Complete code head `4502fdc1` passed all nine jobs in `42419454116`.
+  Later changes are evidence/docs and a valid test-fixture reason; final-head
+  CI remains a merge gate.
+- Corrected runtime: `8792be88dd36ba4d7c22e480de6a19dd64ea1300`, published
+  `codex/cwr-final-runtime`, checkout `/workspace/cwr-final-runtime`.
+- Held source: `b45c1e99572d4d6a60fb01fbd75cb7688aa54e93`, published
+  `codex/cwr-held-runtime`, checkout `/workspace/cwr-held-runtime`.
+  Production Python/Rust/scripts are identical to the corrected runtime.
+- Compiled extension: `b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd`;
+  57 native inputs digest `f55df55d453ac37694410246c4a9728c56f3f6148f679fde8efc21ffd8775acf`.
+  CPython 3.13.5; native crate pyproject is separately pinned. Each lane verifies
+  actual import paths and artifact identity.
 
-## Verified findings and decisions in progress
+The [report](connected-world-rework-report.md), [reconciled coverage](connected-world-rework-coverage.md)
+and [machine board](connected-world.json) contain the evidence and limitations.
+The report is explicitly pending held closure and integration.
 
-- Native adaptive attribution honestly emits driver255/unknown. Production X1
-  calls it `other`, immediately rehomes a person without a classified spell,
-  and reports no classified displacement. C2 uses that share: the same physical
-  move gives extra susceptibility 1.25 with known flight/hunger versus 1.0
-  with unknown attribution. This is an attribution-to-model coupling.
-- Preserve legacy motive-classified spells and homes; unknown does not prove
-  voluntary movement or absence of physical displacement. Add dated factual
-  recent-residence-arrival diagnostics independently of motive. Do not invent
-  housing occupancy or a forced-displacement label.
-- Select the corrected public-health path explicitly to rely on existing physical
-  density, with no unsupported additional motive-based multiplier. Save an
-  explicit legacy control and preserve old checkpoint/JSON choices and all version defaults.
-- A6 record-only currently removes D3 movement scores; shuffled mode can
-  redirect D3 remembered-home scores. Corrected rules must keep D3 independent
-  while preserving historical rules for old exact resumes and controls.
-- Historical CW6 arithmetic is reaffirmed: FULL−A6R food shortfall and recorded
-  epidemic deaths were higher in all twelve 120-turn worlds. That contrast
-  combines personal channels, D3 control ownership and crowding feedback.
-  Famine/war cause-specific deaths remain unrecorded, not zero. Do not assume
-  fixing the coupling explains or reverses the adverse results.
+## Continue the existing held run
 
-## Executable work
+CWR1 started **2026-11-07T22:41:33Z**. All template 4101–4106 and procedural
+4201–4206 seeds are potentially spent from that start. **Do not start a fresh
+run of this cohort.** The registry stays reserved until the lead performs its
+single standard `mark-run` after closure; that label does not mean unspent.
 
-| Lane | Current task / gate |
-| --- | --- |
-| Lead correctness | Versioned PH choice and A6 rules3/control channels; X1 factual diagnostics; independent actual-diff review, adversarial native/integration lifecycle and old-resume tests. |
-| Attribution | Preserve failing-old native/replay proof; paired reason-label, multiple-move, return, death, household, slot reuse, gap and checkpoint tests. |
-| Evaluation | Verify old metrics/source/controls, reserve fresh cohorts only after registry reconciliation, pilot then freeze bounded matched mechanism comparisons. |
-| Runtime performance | Attribute measured CPU/RSS/storage costs; freeze corrected unoptimized comparator before same-world before/after optimization. No evidence loss or smaller-world substitution. |
-| Viewer performance | Reproduced first-open 4.65s desktop/4.40s phone; numeric locale formatting consumes about84% of index time. Optimize without changing the complete index or reader states, then remeasure real journeys. |
-| Integration | Preserve original witness pins; append reviewed inverse, run appropriate full gates and both-reference feature-off identity, enabled active resumes, draft PR review, exact-head green CI, PR merge and exact main CI. |
+- Output: `/workspace/evidence/cwr-evaluation/held-cwr1-b45c1e99-v1`.
+- Identity: `98c7bb2accb18b04e68f0585780ba58f85f03ece77c987d82ff67ceb7d9370a8`.
+- Generic start ledger: `/workspace/cwr-held-runtime/output/held-runs/ledger.jsonl`;
+  durable copies are in `connected-world-rework/held/start.json` and
+  `../audits/connected-world/rework-cwr1-held/`.
+- Active execution belongs to `rework_evaluation`, session 93595. A running
+  process is not an assurance of container retention or automatic recovery.
+- Last reported progress: 37/144 cases, zero failures; all twelve arms on
+  p4201–p4203 completed. Budget-counted 1,314.4 seconds. Read the actual output
+  before acting; this count is a dated checkpoint, not a final result.
 
-Current checkpoint (2026-11-07): explicit corrected contracts are implemented
-and independently approved, with 41 physical-arrival/downstream epidemic regressions, 418 initial scoped
-checks and 1,339 Rust tests passing (two pre-existing manual benches ignored).
-Clean native release is `b1d3ea5a`; all old feature and version defaults remain.
-PR #98 merged at `125a6906` after all nine Tests jobs passed on reviewed head
-`093952eb` (run `42415795157`). Exact main Tests `42417310582` subsequently passed all nine jobs. Optional gzip transport is independently reviewed and retains every byte;
-its loader does not reduce decoded memory. Runtime optimization is not yet
-admitted by paired complete-output evidence.
+The protocol is FROZEN at SHA256
+`51b8a336969f48b4beb6f5b3e543062eda71822b98513b337ceb2d010e6efe7a`.
+It specifies twelve arms, twelve worlds, 120 turns, one sequential job, fixed
+controls/outcomes and a **two-core-hour ceiling**. The complete 24-case pilot
+passed; its 553.2 seconds projects 1.383 core-hours with the fixed 1.5 margin.
+Before start, 63 registry references / 14 versions had no collisions or spent
+CWR1 reservation. Source, native, protocol, compatible pilot, seed and ledger
+guards passed. No default, horizon, control, budget or seed replacement may be
+changed in response to held outcomes.
 
-CWR1 seeds 4101–4106 / 4201–4206 are reserved after a fresh 52-ref, 13-registry
-collision audit. No held seed has run. The development schema smoke found that
-`no_relief` retains a free pool without means-tested priority; the new extractor
-and protocol now match that existing native behavior. All 13 corrected eight-turn
-development cases pass, as do 48 extractor checks. This is not the official
-120-turn timing/schema pilot and spends no held seeds.
+The evaluation worker must not edit the registry. The lead records the actual
+closed run once, including failure/incomplete state if applicable. Preserve
+all unrun cases and failures. If execution is interrupted and its environment
+is available, use only the same output, identity and immutable source with the
+documented resume guard. Do not promise an automatic restart after reclamation.
 
-Matched performance source is frozen at `09403c15` (corrected unoptimized)
-versus `a1fcb482` (only the reviewed timber candidate). All ten before cases
-pass. The matched after matrix is running; complete-output admission remains
-pending. The template timing pilot has a null whole-run CPU change (+0.044%)
-and a 64% timber-stage reduction, with 111 byte-identical non-bundle outputs
-and four exact same-source checkpoint exports. The 18,801-agent baseline still
-costs 6.27× OFF; a same-scale, 450-CPU-second diagnostic is authorized after
-matched timing to attribute that residual. No world-size or horizon reduction.
+## Verified work
 
-Draft #99 carries the reviewed backend/UI work; initial-head CI is running as
-`42417373801`. Final evidence and source may still change. The main run after
-#98 is `42417310582`, still pending. No further feature merge until verified.
+- Attribution-to-health coupling is reproduced: the same physical moves got
+  extra susceptibility 1.25 for known hunger/flight versus 1 for unknown reason.
+  Explicit `density_only` removes that unsupported multiplier and retains
+  existing physical density, hunger, urban and sanitation terms. New X1
+  residence-arrival diagnostics are unique living IDs, not housing pressure or
+  inferred motives. Twenty-turn coverage, gaps/caps/death/return/slot reuse and
+  T−1 guards are tested. The real epidemic-dynamics regression fails with the
+  old reader and passes corrected inputs/cases.
+- Explicit A6 rules 3 keeps D3 inputs independent of personal record/shuffle and
+  component controls. Actual combined inputs, components and would-be rows are
+  distinguished. Defaults remain rules 2 / `legacy_displacement`.
+- Historical CW6 arithmetic is reaffirmed: food shortfall and recorded epidemic
+  deaths increased in all twelve worlds. The old contrast mixes personal
+  decisions, D3 ownership and legacy feedback. Famine/war cause-specific deaths
+  remain unrecorded. The earlier fixed-enrollment wage result is preserved.
+- Final performance admission matches ten corrected-source pairs: 760 raw
+  output pairs, complete timestamp-normalized typed bundles, 36 checkpoint pairs
+  and all 37 private livelihood components. FULL CPU 318.28→265.89 seconds in
+  the declared workload; largest case 105.44→69.55. Small/null/adverse results
+  and residual FULL/OFF overhead remain. No evidence or world size is removed.
+- Final default identity: nine cases / 399 files, zero differences against both
+  original `8abc1acb` and preceding integrated main `125a6906` (verified retained
+  source-equivalent baseline). See `connected-world-rework/verification/identity-final*`.
+- Enabled resume: 14 branches plus two checkpoint-neutrality checks, 202 file
+  comparisons, zero differences; 18 Arrow outputs match the pilots. Actual
+  missing activations and checkpoint-zero limits are explicit.
+- Browser: 372 real desktop/phone assertions; all 3,840 PH rows match T−1 X1.
+  Corrected same-turn difference count 2,163, independently checked against
+  3,808 adjacent rows. The invalid 2,392 counter receipt is preserved.
+- Offline: 76 chunks, 8,119 pass / 69 conditional skips, max 31.99 s within
+  unchanged 110 s cap (before final exact-floor delta). Its 70 focused tests,
+  nine native lifecycle checks and complete-code CI pass. Rust: 1,339 pass,
+  two existing manual timing benches ignored. All source pins remain intact;
+  the appended cwr1 exact inverse is independently reviewed.
 
-Next executable task: finish matched performance admission and residual
-diagnosis, then settle any measured local optimization before freezing the
-final runtime. Complete the official 24×120-turn pilot and freeze the causal
-protocol before fresh held execution. Active exact resume, both-reference
-feature-off identity, final review/CI and verified main remain mandatory.
+## Exact next work
 
-The board's original completion describes its historical adopted implementation,
-not completion of this rework. Ports lack a maritime service consumer. Owned
-cross-border wares is an unimplemented, unadopted audit proposal. The constructed
-visibility example is not a separately simulated alternate history. See the
-new scope disposition audit for the full distinctions.
+1. Continue the existing 144-case CWR1 run, with periodic count/failure/budget
+   checks. The raw first-world audit and independent arithmetic run separately;
+   bounded per-input traces remain explicitly unverified where samples cap.
+2. After closure, validate the full matrix and all world-level contrasts,
+   source/native identities, report arithmetic, activation, nulls and harms.
+   Preserve raw first worlds and compact controls/results. Do not tune outcomes.
+3. The lead marks the registry once using the actual closed ledger and rows;
+   update this ledger, board and report with verified results and limitations.
+4. Obtain independent whole-PR review, green Tests on the final reviewed head,
+   merge authorized #99, then verify exact main CI. Reconcile final reporting
+   through the same reviewed/green-PR process; no direct push to main.
 
-Latest validation: full bounded offline source `53996540` passed all76 chunks,
-8,119 tests (69 conditional skips), maximum31.99s within unchanged110s limit.
-This precedes the final two-line exact-arithmetic change, whose70 focused
-titled/timber tests pass independently. Initial default identity source `b6a68a8b`
-compares9 cases/399files with zero differences against both references; repeat
-on the final runtime is still required.
+Resources are four cgroup CPUs / 16 GiB RAM. One held simulation and a bounded
+readback job fit; there are no native builds running. Preserve other worktrees
+and source. The report distinguishes regional availability from household
+access: retail “all” is an eligibility recipe, not guaranteed realized coverage.
+Recent arrivals are diagnostics; motives remain uncertain. Keep a single
+spendable wealth balance and the existing mortality authorities.
 
-Measured large-agent residual: full30T scoped measurement confirms titled-food
-dispatch63.334CPU seconds of106.409modelCPU. A partial recursive profile is
-retained as INCOMPLETE20/30turns (measurement overhead; not a speed baseline).
-Reviewed exact integer floors replace only equivalent Fraction expressions,
-retaining live wallets/claims and settlement. Final runtime `8792be88` is
-immutable and published; profiling source `1e047e7b` has identical Python/Rust/
-scripts bytes. Final10-case measurements/admission are running. Next is the
-official24×120 pilot, followed by frozen fresh CWR1, enabled exact resumes,
-final identity/CI/review and merge. No held seed has run.
-
-Frozen held checkpoint: all24 official120T timing/schema cases pass independent
-arithmetic/source/control review. Measured553.2s projects1.383core-hours with
-fixed1.5margin, below unchanged2hour cap. ProtocolSHA51b8a336 is FROZEN; no
-cohort/control/outcome/horizon/modelparameter changed after the pilot. Main125
-and complete code checkpoint4502fdc1 each passed all nine CI jobs. Final held
-source must be immutable, production-equivalent to8792be88, and pass freshlive
-registry/source/pilot gates before first held world. Next: execute144 bounded
-held cases, finish enabled active resumes, audit every pair, finalreview/CI and
-merge/mainverification. No restricted qualification/defaultpromotion.
-
-Held screen STARTED2026-11-07T22:41:33Z, immutable`b45c1e99`, identity
-`98c7bb2a`, output`/workspace/evidence/cwr-evaluation/held-cwr1-b45c1e99-v1`.
-All4101–4106/4201–4206 seeds are now potentiallyspent. Do not launch a new
-cohort run. Existing same-output/same-identity recovery is the only continuation;
-container recovery/restart is not promised. Genericstartledger is retained
-under`held/start.json`. The lead will perform standard registry mark-run once
-afterclosure; its current reserved label does not mean fresh/unspent.
-
-Procedural active exactresume passed six checkpoints with16files/0differences
-each, plus unchanged plain/checkpoint output and eight rawArrow hashes matching
-the pilot;387.03s within600s cap. Template5 has eight realselected checkpoints
-and a predeclared350s cap. Natural movingtimber/positivecare do notactivate in
-template5; procedural19 covers both.
+Ports still lack a maritime service consumer. Owned cross-border wares are an
+unimplemented/unadopted proposal. The constructed visibility example is not a
+separately simulated alternate story. Full 200-seed/procedural qualification,
+default promotion, paid narration, deployments, purchases and credential/sharing
+changes remain outside authorization.
