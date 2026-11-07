@@ -48,10 +48,28 @@ scheduled explicitly, unchanged 110-second offline chunk limit.
 | Viewer performance | Reproduced first-open 4.65s desktop/4.40s phone; numeric locale formatting consumes about84% of index time. Optimize without changing the complete index or reader states, then remeasure real journeys. |
 | Integration | Preserve original witness pins; append reviewed inverse, run appropriate full gates and both-reference feature-off identity, enabled active resumes, draft PR review, exact-head green CI, PR merge and exact main CI. |
 
-Next executable task: implement the corrected dated exposure/control contracts
-and test them against old behavior; profile the frozen baseline and optimize
-the measured viewer hotspot concurrently. The board's original program
-completion describes its historical implementation, not completion of this
-rework. Ports still lack a maritime service consumer; owned cross-border wares
-is unimplemented and outside the adopted food/timber contract; the constructed
-visibility example is not a separately simulated alternate history.
+Current checkpoint (2026-11-07): explicit corrected contracts are implemented
+and independently approved, with 39 physical-arrival regressions, 418 scoped
+checks and 1,339 Rust tests passing (two pre-existing manual benches ignored).
+Clean native release is `b1d3ea5a`; all old feature and version defaults remain.
+PR #98 isolates the reviewed formatter optimization and is awaiting exact-head
+CI. Optional gzip transport is independently reviewed and retains every byte;
+its loader does not reduce decoded memory. Runtime optimization is not yet
+admitted by paired complete-output evidence.
+
+CWR1 seeds 4101–4106 / 4201–4206 are reserved after a fresh 52-ref, 13-registry
+collision audit. No held seed has run. The development schema smoke found that
+`no_relief` retains a free pool without means-tested priority; the new extractor
+and protocol are being corrected to match this existing native behavior.
+
+Next executable task: pass corrected development extraction, freeze the
+unoptimized corrected comparator, admit and measure the timber optimization,
+then complete the 24-run timing/schema pilot and freeze the causal protocol
+before any held execution. Broad compatibility, active exact resume, all
+required local/CI checks and final integrated review remain gates.
+
+The board's original completion describes its historical adopted implementation,
+not completion of this rework. Ports lack a maritime service consumer. Owned
+cross-border wares is an unimplemented, unadopted audit proposal. The constructed
+visibility example is not a separately simulated alternate history. See the
+new scope disposition audit for the full distinctions.

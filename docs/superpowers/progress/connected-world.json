@@ -639,7 +639,7 @@
     },
     {
       "pr": 96,
-      "slice": "Complete remaining adopted A–E implementation, integrated evaluation and linked histories",
+      "slice": "Complete remaining adopted A\u2013E implementation, integrated evaluation and linked histories",
       "merge_commit": "dde9e2f971eca864e90ecdb40cb3af8d1596a5e9",
       "merge_tree": "4e06aaa8989e51f9dc67f260497451f5d2ea0be6",
       "reviewed_head": "c32c2bbd742f96401171761ddff44f9ccfb96e67",
@@ -650,7 +650,7 @@
       "verification": "Independent actual source/native/inverse/evidence/test-contract reviews; all nine premerge Tests success; tree equals reviewed head; all nine exact main Tests success."
     }
   ],
-  "next": "Active correctness/causal/performance rework: see rework ledger. Original completion remains dated history; no promotion or restricted qualification.",
+  "next": "Correct CWR no_relief and missing-versus-zero schema assumptions; rerun development smoke; freeze corrected unoptimized source; paired timber performance admission and five-scale measurements; complete24run timing pilot before held execution.",
   "baseline": {
     "oracle_lane": "PASS, 63 chunks, 295.5 s, slowest 32.4 s of 110 s",
     "native_check": "check_python_env --expect native PASS (101a4cd5)",
@@ -676,7 +676,7 @@
     "return_home": "D3 stores first personally known priorOwnRowhome/source and allwitnessedwarinstances; X1unknownmove rehoming neveroverwritesmemory. Latepriorreadrefusal keepsunknown, neverreadsT.",
     "a4_wares": "Unimplemented unadopted A4-W auditproposal; adoptedroadmap5.7 coversfood+timber. No ownedwarescrossborderclaim. Separate futurecontract, nottechnicalportdependency.",
     "performance": "Accept substantial measured FULLCPU/RSS/artifactoverhead asoptinexperimental cost, with actualcounts/ratios/latency; never defaultpromotion orperformancequalification. Proposed25%/2x/500MiB flags remainvisible.",
-    "per_pathogen_care": "Open coefficient choice resolved: retain adopted common0.3×coverage CFR reduction against distinct pathogen base CFRs, under one combined floor; not pathogen-calibrated, may overstate plague/pestilence care. Existing per-pathogen deaths/infectious-person-turn splits are checked outcome observations, not measured causal attenuation. Native endemic authority unchanged.",
+    "per_pathogen_care": "Open coefficient choice resolved: retain adopted common0.3\u00d7coverage CFR reduction against distinct pathogen base CFRs, under one combined floor; not pathogen-calibrated, may overstate plague/pestilence care. Existing per-pathogen deaths/infectious-person-turn splits are checked outcome observations, not measured causal attenuation. Native endemic authority unchanged.",
     "constructed_stories": "Natural saved story worlds and a positive explicitly constructed visibility demonstration are retained. Construction metadata/from/edits and actual desktop/phone banner verified. No full alternative simulation or broader constructed per-slice suite is claimed; auditE Part9 is explicitly PROPOSAL, adopted verification is Part1."
   },
   "screens": {
@@ -754,14 +754,14 @@
     "CW6D1": {
       "status": "complete bounded held screen",
       "frozen": "808726b8",
-      "cohort": "3701–3706 template /3801–3806 procedural",
+      "cohort": "3701\u20133706 template /3801\u20133806 procedural",
       "held": "60/60 completed, 0.296coreh below0.75cap",
-      "results": "Relief0/6template2/6procedural: primary summary suppressed; leagues0/6template6/6procedural: mean purse diff−0.164888,5positive1negative; descriptive only",
+      "results": "Relief0/6template2/6procedural: primary summary suppressed; leagues0/6template6/6procedural: mean purse diff\u22120.164888,5positive1negative; descriptive only",
       "page": "docs/superpowers/progress/connected-world-screens-cw6d1/README.md"
     },
     "CW6": {
       "status": "complete60/60 strictPASS; independent raw/arithmetic approval; all131outcomes eachrun",
-      "cohort": "781–786template/881–886procedural;120T pre-heldamendment recorded",
+      "cohort": "781\u2013786template/881\u2013886procedural;120T pre-heldamendment recorded",
       "failure": "Priorccc pilot7paymentprotocol failures/3success; preserved; fixed legal unary purposes506498df. No held touched.",
       "runtime": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
       "pilot": "10/10strictPASS312.2s; marginprojection.7805coreh<1cap; original200T rejectedforbudgetbeforeanyheld",
@@ -772,7 +772,7 @@
     },
     "CW-health": {
       "status": "complete36/36 strictPASS; independent final evidence approved",
-      "cohort": "3901–3906 template /4001–4006 procedural; consumed, complete36/36",
+      "cohort": "3901\u20133906 template /4001\u20134006 procedural; consumed, complete36/36",
       "failure": "First pilot simulation succeeded but strict extractor mismatched actual ordered quarantine channels and missing deceased-worker income row; preserved unknown, not zero.",
       "frozen": "8d38f8b49e2db7635ee9ba074edde1d422fbc030",
       "held": "200T,820s(.22778coreh) below.75cap; fullfresh12worldcohort; noqualification",
@@ -822,7 +822,7 @@
     "offline": "75 chunks,7964pass69skip; maximum34.3816s under unchanged110; post-consumption registry156pass; exact-head CI required",
     "identity": "final830d against original8abc and preceding11467/f764:9cases399files0diff each",
     "resume": "80 integrated exact branches (22active,58canonical) pass plus4health; compared rawArrow and declared artifacts",
-    "profile": "14runs,52strictreads,actualpeak53138; CPU1.81–6.90x,bundle2.13–3.94x,RSS+60–1010MiB; acceptedoptin materialcost",
+    "profile": "14runs,52strictreads,actualpeak53138; CPU1.81\u20136.90x,bundle2.13\u20133.94x,RSS+60\u20131010MiB; acceptedoptin materialcost",
     "browser": "30 natural history +34 explicitly constructed visibility +38 branches +82 health desktop/phone checks; no model or natural-bundle changes; initial natural history4.8s",
     "examples": "1200strictobservations,21/24categories,3honestnulls,0audit/schemaerrors",
     "review": "independent source/native/inverse/profile/identity/heldarithmetic/browser/testcontracts retained",
@@ -842,12 +842,20 @@
     "final_documentation_policy": "The completion-ledger PR changes documentation only; its exact-head premerge and final main Tests are verified separately. The authoritative later ledger result is the GitHub Tests push run for current main HEAD, linked in the completion PR."
   },
   "rework": {
-    "status": "active",
+    "status": "active_validation",
     "instruction": "Correctness, causal evaluation and practical performance; no favorable-result target; preserve default-off/restricted gates",
     "base": "2726bf449d0e4d581a72034000ee0861a58ee439",
     "base_main_run": 42397121718,
     "ledger": "docs/superpowers/progress/connected-world-rework.md",
     "branch": "codex/cw-rework",
-    "next": "Correct motive-to-exposure coupling and independent D3 control ownership with historical version compatibility; adversarial native/integration tests; profile before optimize; fresh preregistered mechanism screen after timing pilot."
+    "next": "Correct CWR no_relief and missing-versus-zero schema assumptions; rerun development smoke; freeze corrected unoptimized source; paired timber performance admission and five-scale measurements; complete24run timing pilot before held execution.",
+    "correctness": "Explicit rules3/density_only implemented and independently reviewed; legacy defaults unchanged. Adversarial physical/unknown-reason lifecycle tests39PASS, scoped contracts418PASS, Rust1339PASS/2existingignored. All broad execution/CI gates still pending.",
+    "native": {
+      "sha256": "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
+      "input_sha256": "f55df55d453ac37694410246c4a9728c56f3f6148f679fde8efc21ffd8775acf",
+      "clean_build_seconds": 110
+    },
+    "viewer_pr": 98,
+    "held": "CWR1 template4101\u20134106/procedural4201\u20134206 reserved after52refs/13versions collision-free. No held run. Cheap dev smoke caught no_relief extractor assumption; fix before complete timing pilot/freeze."
   }
 }
