@@ -93,9 +93,10 @@ migration causes also change X1 classification and its C2 crowding/exposure
 input, rather than proving less physical displacement. Cause-specific famine
 and war deaths and some forest outcomes remain unrecorded, not zero.
 
-Health's mean death rates were lower, but procedural raw deaths averaged
-2.833 higher and arrivals 20.833 higher against shuffled reports; food
-shortfall increased in both strata. D1 relief activation was sparse and its
+Health's mean death rates were lower against cost-only care (PA−PC), but
+procedural raw deaths averaged 2.833 higher against that same control.
+Procedural arrivals were 20.833 higher against shuffled reports (PA−PS);
+food shortfall increased in both strata against cost-only care. D1 relief activation was sparse and its
 primary summary is suppressed; league results were mixed. Invalid historical
 relief lower bounds were withdrawn without rewriting raw evidence.
 
