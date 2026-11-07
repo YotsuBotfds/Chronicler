@@ -795,9 +795,9 @@ def _dispatch_floor_case(monkeypatch, carriers=(90,)):
     for aid in carriers:
         _merchant(h, aid, VERDANT, 100.0)
     claims = {1: 101_000, 2: 101_000}
-    h.state.regions = [RetailRegion(region=VERDANT, opened_turn=9, reason="opened",
+    h.state.regions = [RetailRegion(region=VERDANT, opened_turn=9, reason="all",
                                     claims=claims, goods=[sum(claims.values()), 0, 0, 0, 0]),
-                       RetailRegion(region=THORNWOOD, opened_turn=9, reason="opened")]
+                       RetailRegion(region=THORNWOOD, opened_turn=9, reason="all")]
     values = {"ration": .35, "price": 100}
     monkeypatch.setattr(HR, "_ration", lambda _: values["ration"])
     monkeypatch.setattr(HR, "price_milli", lambda *_: values["price"])
