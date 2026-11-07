@@ -12,6 +12,7 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import {fileURLToPath} from "node:url";
 const require = createRequire(import.meta.url);
 const options = { build: "viewer/dist", python: "python", journey: "history", out: null, bundle: null, turns: null };
 for (let i = 2; i < process.argv.length; i += 2) {
@@ -45,6 +46,7 @@ const buildAssets = (directory, prefix="") => Object.fromEntries(readdirSync(dir
   return entry.isDirectory()?Object.entries(buildAssets(full,relative+"/")):[[relative,createHash("sha256").update(readFileSync(full)).digest("hex")]];
 }));
 const report = { generated: new Date().toISOString(), ...options, constructed: expected.constructed, build_files_sha256:buildAssets(options.build),
+  journey_script_sha256:createHash("sha256").update(readFileSync(fileURLToPath(import.meta.url))).digest("hex"),
   bundle_sha256: createHash("sha256").update(readFileSync(options.bundle)).digest("hex"),
   build_index_sha256: createHash("sha256").update(readFileSync(path.join(options.build,"index.html"))).digest("hex"),
   evidence: "Provided saved bundle; construction metadata retained explicitly; expectations decoded by Python bundle_codec. Browser journeys are bounded UI checks, not qualification.", viewports: {} };
@@ -74,20 +76,25 @@ async function seek(page, turn) {
 }
 try {
   for (const [name, settings] of Object.entries({ desktop: { viewport: {width:1440,height:900} }, phone: { viewport: {width:390,height:844}, isMobile:true, hasTouch:true } })) {
-    const result = report.viewports[name] = { checks: [], messages: [], screenshots: [] };
+    const result = report.viewports[name] = { checks: [], messages: [], screenshots: [], timings_ms:{} };
+    const journeyStarted=performance.now();
     const context = await browser.newContext({ ...settings, locale:"en-US", deviceScaleFactor:1 });
     const page = await context.newPage();
     page.on("pageerror", e => result.messages.push(`pageerror: ${e.message}`));
     page.on("console", m => { if (m.type() === "error") result.messages.push(`console: ${m.text()}`); });
     try {
       await page.goto(url);
+      const loadStarted=performance.now();
       await page.getByLabel("Open saved world file").setInputFiles(options.bundle);
       await page.waitForFunction((count) => document.querySelectorAll('.phase75-region-node').length === count && !!document.querySelector('.phase75-playhead-label') && !document.querySelector('.saved-world-loading'), expected.regions.length, {timeout:120000});
+      result.timings_ms.saved_bundle_load=Math.round(performance.now()-loadStarted);
       const constructed=expected.constructed&&typeof expected.constructed.from==="string"&&/^[a-f0-9]{64}$/i.test(expected.constructed.from)&&Array.isArray(expected.constructed.edits)&&expected.constructed.edits.length>0;
       check(result,`${name}: explicit construction metadata controls the demonstration notice`,await page.getByRole("note",{name:"Constructed demonstration",exact:true}).count()===(constructed?1:0));
       const panel=options.journey === "public_health" ? "Epidemics" : "Livelihoods";
+      const panelStarted=performance.now();
       await page.getByRole("tab",{name:panel,exact:true}).click();
       await page.waitForFunction((label) => document.querySelector('.systems-shell [role="tabpanel"]')?.getAttribute("aria-label") === label,panel);
+      result.timings_ms.initial_systems_panel=Math.round(performance.now()-panelStarted);
       for (const snapshot of snapshots) {
         if (options.journey === "history" && snapshot !== snapshots.at(-1)) continue;
         await seek(page,snapshot.turn);
@@ -199,6 +206,7 @@ try {
       }
       check(result,`${name}: no browser console or page errors`,result.messages.length===0,result.messages.join("\n"));
     } catch (e) { check(result,`${name}: journey completes`,false,e.stack); await page.screenshot({path:path.join(options.out,`${name}-failure.png`)}); }
+    result.timings_ms.journey=Math.round(performance.now()-journeyStarted);
     await context.close();
   }
 } finally { await browser.close(); await new Promise((resolve)=>server.close(resolve)); writeFileSync(path.join(options.out,"report.json"),JSON.stringify({...report,failures},null,2)+"\n"); }
