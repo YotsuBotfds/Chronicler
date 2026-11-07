@@ -1770,9 +1770,10 @@ SCREENS["CW2"] = SR.Screen(
 # window, a surplus region otherwise; regions without demand throughout the window are in
 # neither. A world with f < 5 (a window shorter than 5 turns) is left out of every set-based
 # outcome and listed, never imputed. One run's extraction cannot see the other arm, so the
-# extractor keeps per-region vectors and the report pairs R's and T's rows: it computes R's
-# sets over T's window, checks that R's and T's window records are identical (validation),
-# and fills the set-based measures of both rows. Sensitivity lines (never primary): the
+# extractor keeps per-region vectors and each set-based outcome reads both arms' rows of a
+# world (``Outcome.pair``, the runner's paired reading): R's sets over T's window, the
+# identity of R's and T's window records (validation), and both arms' measures over R's
+# sets. The report's window table lists every world. Sensitivity lines (never primary): the
 # turn-0 sets, and R's whole-run region-level ratio.
 
 CW5_TT = ("livelihoods", "titled_trade")
@@ -2105,47 +2106,55 @@ CW5_SET_MEASURES = tuple(f"{k}_{label}" for label in ("deficit", "surplus") for 
     "shortfall", "food_met", "native_net", "titled_net", "food_in", "titled_delivered", "price", "priced_out"))
 
 
-def cw5_pair(r: dict, t: dict) -> tuple[str, dict]:
-    """Pair one world's R and T metrics: the window (world turns 0 .. min(19, f - 1), f being
-    T's first purchase turn), R's sets over it, the identity of R's and T's window records,
-    and the set-based measures of both rows (R's sets) and the sensitivity of R's whole-run
-    ratio. Fills both dicts in place; returns (status, summary)."""
+def cw5_world(r: dict, t: dict) -> tuple[str, dict, dict, dict]:
+    """One world's R and T metrics paired (pure): the window (world turns 0 .. min(19, f - 1),
+    f being T's first purchase turn), R's sets over it, the identity of R's and T's window
+    records, and the set-based measures of both arms over R's sets (None when the world is
+    excluded), with the sensitivity line of R's whole-run region-level ratio (``rr_``).
+    Returns (status, info, R measures, T measures)."""
     f = t.get("first_purchase_turn")
     end = CW5_WINDOW - 1 if f is None else min(CW5_WINDOW - 1, f - 1)
     turns = end + 1
-    info = {"window_end": end, "window_turns": turns, "first_purchase": f}
     deficit, surplus, ratio = cw5_window_sets(r, end) if turns > 0 else ([], [], None)
     t_deficit, t_surplus, _ = cw5_window_sets(t, end) if turns > 0 else ([], [], None)
-    same = (r.get("v_window_produced") or [])[:turns] == (t.get("v_window_produced") or [])[:turns] and \
-        (r.get("v_window_demand") or [])[:turns] == (t.get("v_window_demand") or [])[:turns]
-    info.update(digest=cw5_digest(deficit, surplus), same_records=same,
-                same_sets=cw5_digest(deficit, surplus) == cw5_digest(t_deficit, t_surplus),
-                deficit=len(deficit), surplus=len(surplus), ratio=ratio)
+    same = bool(r.get("v_window_produced")) and bool(t.get("v_window_produced")) and \
+        (r.get("v_window_produced") or [])[:turns] == (t.get("v_window_produced") or [])[:turns] and \
+        (r.get("v_window_demand") or [])[:turns] == (t.get("v_window_demand") or [])[:turns] and \
+        cw5_digest(deficit, surplus) == cw5_digest(t_deficit, t_surplus)
+    info = {"window_end": end, "window_turns": turns, "first_purchase": f, "same_records": same,
+            "digest": cw5_digest(deficit, surplus), "deficit": len(deficit), "surplus": len(surplus), "ratio": ratio}
     if turns < CW5_MIN_WINDOW:
         status = f"excluded: first purchase in world turn {f}, a window of {max(turns, 0)} turns (< {CW5_MIN_WINDOW})"
-    elif not (same and info["same_sets"]) or not (r.get("v_window_produced") and t.get("v_window_produced")):
+    elif not same:
         status = "excluded: R's and T's window records differ"
     elif not deficit:
         status = "valid, no deficit region"
     else:
         status = "valid"
-    for m in (r, t):
-        m["window_end"], m["window_status"], m["sets_digest"] = end, status, info["digest"]
-        if status.startswith("valid"):
-            m.update(cw5_set_measures(m, deficit, surplus))
-        else:
-            m.update({k: None for k in CW5_SET_MEASURES})
-    # Sensitivity: R's whole-run region-level ratio, applied to both rows (selected on R's
+    if status.startswith("valid"):
+        rm, tm = cw5_set_measures(r, deficit, surplus), cw5_set_measures(t, deficit, surplus)
+    else:
+        rm, tm = dict.fromkeys(CW5_SET_MEASURES), dict.fromkeys(CW5_SET_MEASURES)
+    # Sensitivity: R's whole-run region-level ratio, applied to both arms (selected on R's
     # realised production: regression to the mean can favour T).
     rr_deficit, rr_surplus, _ = cw5_classify(r.get("v_run_produced") or [], r.get("v_run_demand") or [])
-    for m in (r, t):
-        m.update(cw5_set_measures(m, rr_deficit, rr_surplus, prefix="rr_"))
-    return status, info
+    rm.update(cw5_set_measures(r, rr_deficit, rr_surplus, prefix="rr_"))
+    tm.update(cw5_set_measures(t, rr_deficit, rr_surplus, prefix="rr_"))
+    return status, info, rm, tm
+
+
+def _cw5_pair(key):
+    """``Outcome.pair`` (T row, R row) -> (T value, R value) of a set-based measure."""
+    def pair(t_row: dict, r_row: dict):
+        _status, _info, rm, tm = cw5_world(r_row.get("m") or {}, t_row.get("m") or {})
+        return tm.get(key), rm.get(key)
+    return pair
 
 
 def _cw5_report(rows, strata) -> list[str]:
-    """Pair every world's R and T rows (``cw5_pair``) and list the windows: the set-based
-    outcomes below read what this fills (a world excluded here is unknown, never imputed)."""
+    """Every world's window and region sets (``cw5_world``; the set-based outcomes read the
+    same pairing through ``Outcome.pair``): a world excluded here is unknown in every
+    set-based outcome, never imputed."""
     by = {(r["arm"], r["stratum"], r["seed"]): r for r in rows if r["rc"] == 0}
     out = [f"\n## Pre-treatment windows and region sets per world (world turns 0 .. min({CW5_WINDOW - 1}, f - 1))\n",
            "| Stratum | World | T's first purchase (f) | Window turns | Deficit / surplus regions | "
@@ -2156,7 +2165,7 @@ def _cw5_report(rows, strata) -> list[str]:
             if r is None or t is None:
                 out.append(f"| {tag} | {seed} | | | | | not run or failed |")
                 continue
-            status, info = cw5_pair(r.setdefault("m", {}), t.setdefault("m", {}))
+            status, info, _rm, _tm = cw5_world(r.get("m") or {}, t.get("m") or {})
             out.append(f"| {tag} | {seed} | {info['first_purchase']} | {info['window_turns']} | "
                        f"{info['deficit']} / {info['surplus']} | {'yes' if info['same_records'] else 'NO'} | {status} |")
     return out
@@ -2168,17 +2177,20 @@ _CW5_BASE = ("--turns", "200", "--agents", "hybrid", "--simulate-only", "--grain
 
 def _cw5_outcomes() -> tuple[SR.Outcome, ...]:
     harm = (lambda key: (lambda r: SR.harm_value(r, key)))
-    sm = _m             # set-based measures: filled when the report pairs R and T (cw5_pair)
+
+    def sp(oid, label, key, **kw):
+        """A set-based T - R outcome read from both arms' rows of a world (``Outcome.pair``)."""
+        return SR.Outcome(oid, label, "T", "R", _m(key), pair=_cw5_pair(key), **kw)
     return (
-        # Primaries (pre-freeze revisions 1-2): food reaching the regions short of food over the
+        # Primaries (pre-freeze revisions 1-2; paired readings of both arms' rows, Outcome.pair):
+        # food reaching the regions short of food over the
         # world's pre-treatment window (titled net plus the native commons trade it may displace),
         # and their food shortfall. No T - R merchant income or wealth is recorded in R, so the
         # merchants' balance is a secondary.
-        SR.Outcome("cw5_food_in_deficit", "Food into the deficit regions by trade over the run: titled cargo in "
-                   "less titled cargo bought there, plus native commons trade, food units (T - R)", "T", "R",
-                   sm("food_in_deficit"), primary=True),
-        SR.Outcome("cw5_shortfall_deficit", "Food shortfall share after relief in the deficit regions (T - R)", "T",
-                   "R", sm("shortfall_deficit"), primary=True),
+        sp("cw5_food_in_deficit", "Food into the deficit regions by trade over the run: titled cargo in less titled "
+           "cargo bought there, plus native commons trade, food units (T - R)", "food_in_deficit", primary=True),
+        sp("cw5_shortfall_deficit", "Food shortfall share after relief in the deficit regions (T - R)",
+           "shortfall_deficit", primary=True),
         # The merchants' accounting balance (single-arm, T).
         SR.Outcome("cw5_holder_balance", "Merchants' balance on titled cargo: sales credited less owners paid, plus "
                    "titled food still held at purchase cost (returned, aboard at the end, delivered unsold), less "
@@ -2190,18 +2202,14 @@ def _cw5_outcomes() -> tuple[SR.Outcome, ...]:
         SR.Outcome("cw5_held_aboard", "Titled food aboard at the end, at purchase cost (T)", "T", None,
                    _m("held_aboard_value")),
         # Channel and selection.
-        SR.Outcome("cw5_titled_delivered_deficit", "Titled food delivered into the deficit regions, food units (T)",
-                   "T", None, sm("titled_delivered_deficit")),
-        SR.Outcome("cw5_titled_net_deficit", "Titled food into less out of the deficit regions (T)", "T", None,
-                   sm("titled_net_deficit")),
-        SR.Outcome("cw5_native_net_deficit", "Native commons trade into the deficit regions (T - R)", "T", "R",
-                   sm("native_net_deficit")),
-        SR.Outcome("cw5_met_deficit", "Deficit regions' demand-weighted min(1, sufficiency) (T - R)", "T", "R",
-                   sm("food_met_deficit")),
-        SR.Outcome("cw5_priced_out_deficit", "Priced-out person-turns in the deficit regions (T - R)", "T", "R",
-                   sm("priced_out_deficit")),
-        SR.Outcome("cw5_price_deficit", "Mean retail price in the deficit regions, milli per ration (T - R)", "T",
-                   "R", sm("price_deficit")),
+        sp("cw5_titled_delivered_deficit", "Titled food delivered into the deficit regions, food units (T - R; R "
+           "has none by construction)", "titled_delivered_deficit"),
+        sp("cw5_titled_net_deficit", "Titled food into less out of the deficit regions (T - R; R has none by "
+           "construction)", "titled_net_deficit"),
+        sp("cw5_native_net_deficit", "Native commons trade into the deficit regions (T - R)", "native_net_deficit"),
+        sp("cw5_met_deficit", "Deficit regions' demand-weighted min(1, sufficiency) (T - R)", "food_met_deficit"),
+        sp("cw5_priced_out_deficit", "Priced-out person-turns in the deficit regions (T - R)", "priced_out_deficit"),
+        sp("cw5_price_deficit", "Mean retail price in the deficit regions, milli per ration (T - R)", "price_deficit"),
         SR.Outcome("cw5_shortfall_dest", "Food shortfall share in the regions T delivered to (T; selection)", "T",
                    None, _m("shortfall_dest")),
         # Sensitivity lines (never primary): the turn-0 sets, and R's whole-run region-level ratio
@@ -2210,20 +2218,16 @@ def _cw5_outcomes() -> tuple[SR.Outcome, ...]:
                    "T", "R", _m("t0_food_in_deficit")),
         SR.Outcome("cw5_t0_shortfall_deficit", "Food shortfall share in the turn-0 deficit regions (T - R; "
                    "sensitivity)", "T", "R", _m("t0_shortfall_deficit")),
-        SR.Outcome("cw5_rr_food_in_deficit", "Food into the deficit regions of R's whole-run production ratio by "
-                   "trade (T - R; sensitivity, regression-to-the-mean risk)", "T", "R", _m("rr_food_in_deficit")),
-        SR.Outcome("cw5_rr_shortfall_deficit", "Food shortfall share in the deficit regions of R's whole-run "
-                   "production ratio (T - R; sensitivity, regression-to-the-mean risk)", "T", "R",
-                   _m("rr_shortfall_deficit")),
+        sp("cw5_rr_food_in_deficit", "Food into the deficit regions of R's whole-run production ratio by trade "
+           "(T - R; sensitivity, regression-to-the-mean risk)", "rr_food_in_deficit"),
+        sp("cw5_rr_shortfall_deficit", "Food shortfall share in the deficit regions of R's whole-run production "
+           "ratio (T - R; sensitivity, regression-to-the-mean risk)", "rr_shortfall_deficit"),
         # The exporters (origin harm).
-        SR.Outcome("cw5_shortfall_surplus", "Food shortfall share after relief in the surplus regions (T - R)", "T",
-                   "R", sm("shortfall_surplus")),
-        SR.Outcome("cw5_price_surplus", "Mean retail price in the surplus regions (T - R)", "T", "R",
-                   sm("price_surplus")),
-        SR.Outcome("cw5_priced_out_surplus", "Priced-out person-turns in the surplus regions (T - R)", "T", "R",
-                   sm("priced_out_surplus")),
-        SR.Outcome("cw5_food_in_surplus", "Food into the surplus regions by trade (T - R)", "T", "R",
-                   sm("food_in_surplus")),
+        sp("cw5_shortfall_surplus", "Food shortfall share after relief in the surplus regions (T - R)",
+           "shortfall_surplus"),
+        sp("cw5_price_surplus", "Mean retail price in the surplus regions (T - R)", "price_surplus"),
+        sp("cw5_priced_out_surplus", "Priced-out person-turns in the surplus regions (T - R)", "priced_out_surplus"),
+        sp("cw5_food_in_surplus", "Food into the surplus regions by trade (T - R)", "food_in_surplus"),
         SR.Outcome("cw5_shortfall_origin", "Food shortfall share in the regions T bought from (T; selection)", "T",
                    None, _m("shortfall_origin")),
         SR.Outcome("cw5_shortfall_all", "Food shortfall share after relief, all regions (T - R)", "T", "R",
