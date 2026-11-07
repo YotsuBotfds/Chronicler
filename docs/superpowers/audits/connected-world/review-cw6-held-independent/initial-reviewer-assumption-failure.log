@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/workspace/evidence/cw6/independent_review.py", line 31, in <module>
+    a6=lv['adaptive_livelihoods'];assert a6['rules']==2 and a6['frame']['information_gate_installed'] is (a6mode!='record_only')
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError
