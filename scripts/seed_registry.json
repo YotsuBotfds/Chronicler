@@ -1604,6 +1604,46 @@
    "cohort": "held",
    "program": "connected-world",
    "screen": "CW6D1"
+  },
+  {
+   "id": "cw-health-held-t",
+   "source": "docs/superpowers/progress/connected-world.json 2026-11-07 recovery",
+   "use": "C2 supplies/sanitation/crowding/C4 bounded screen",
+   "stratum": "template",
+   "world": "template 8x4",
+   "seeds": [
+    [
+     3901,
+     3906
+    ]
+   ],
+   "turns": [
+    200
+   ],
+   "status": "reserved",
+   "cohort": "held",
+   "program": "connected-world",
+   "screen": "CWHealth"
+  },
+  {
+   "id": "cw-health-held-p",
+   "source": "docs/superpowers/progress/connected-world.json 2026-11-07 recovery",
+   "use": "C2 supplies/sanitation/crowding/C4 bounded screen",
+   "stratum": "procedural",
+   "world": "procedural 32x10",
+   "seeds": [
+    [
+     4001,
+     4006
+    ]
+   ],
+   "turns": [
+    200
+   ],
+   "status": "reserved",
+   "cohort": "held",
+   "program": "connected-world",
+   "screen": "CWHealth"
   }
  ]
 }
