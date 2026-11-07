@@ -130,6 +130,8 @@ def test_enabled_full_stack_exact_resume_keeps_selected_crowding_rule_and_arrow_
     import cw_integrated_screen as CW
     straight = tmp_path / "straight"
     args = _build_parser().parse_args([*CW.BASE, *CW.arm_flags(), "--seed", "5", "--turns", "16",
+        "--worldgen", "template", "--regions", "8", "--civs", "4",
+        "--adaptive-livelihoods-rules", "3", "--adaptive-livelihoods-decision-channels", "all",
         "--public-health-crowding", "density_only", "--checkpoint-every", "4",
         "--checkpoint", str(straight / "c{turn}.ckpt"),
         "--output", str(straight / "chronicle.md"), "--state", str(straight / "state.json")])
@@ -137,6 +139,8 @@ def test_enabled_full_stack_exact_resume_keeps_selected_crowding_rule_and_arrow_
     saved = read_checkpoint(straight / "c8.ckpt")
     world = saved.state.world
     assert world.livelihoods.public_health.crowding == "density_only"
+    assert world.livelihoods.adaptive_livelihoods.rules == "3"
+    assert world.livelihoods.adaptive_livelihoods.decision_channels == "all"
     assert world.livelihoods.residence_ledger.rows
     assert any(row.move_turn is not None for row in world.livelihoods.residence_ledger.rows.values())
     resumed = tmp_path / "resumed"
