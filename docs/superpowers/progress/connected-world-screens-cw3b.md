@@ -4,7 +4,7 @@ Status: DRAFT (not frozen; the lead reviews the screen and freezes this page bef
 
 Written 2026-11-07 by the B3 lane on branch `claude/cw-b3-infrastructure` (main bac45cb5 merged;
 B3 reviewed and approved at `10d73230`; the flow x condition integration at `c5593e81`, approved at
-`453d307c`; the screen declared at `80966420` and revised before any freeze at `PILOT_HEAD`, on which
+`453d307c`; the screen declared at `80966420` and revised before any freeze at `7364c643`, on which
 the timing pilot below ran, clean tree; the revisions are listed at the end). Native extension `20e77f9945efa71d597c142e99069337586cc865ddee7a17c6d20948a2c0c1ca`
 (`~/.venvs/native-a3`, built from main's Rust). No held seed (template 3501-3506, procedural
 3601-3606) has been run. Code may change before the held run only to fix a defect, recorded as an
@@ -158,10 +158,14 @@ in service bought with a world-wide food or population loss is reported as such.
 
 ## Compute ceiling (from the timing pilot)
 
-Pilot at `dda1be4b` (clean tree), `--jobs 2`, 12 runs, 168 s of simulation and extraction
-(0.047 core-hours); per run, template 7.1-7.8 s and procedural 18.5-22.3 s. The runner's projection
-for the held run (72 runs) is 0.280 core-hours, x1.5 = 0.421, under the **ceiling of 0.50
-core-hours** (the line above, read by the runner). Pilot evidence: `/home/user/evidence/b3/cw3b/`
+Pilot at `7364c643` (the revised screen, clean tree), `--jobs 2`, 12 runs, 0 failed, every arm
+activated, every world passing the pre-treatment check in every arm (the pairs share their sets),
+165 s of simulation and extraction (0.046 core-hours); per run, template 6.9-7.6 s and procedural
+18.7-22.1 s. The runner's projection for the held run (72 runs) is 0.275 core-hours, x1.5 = 0.413,
+under the **ceiling of 0.50 core-hours** (the line above, read by the runner). Even with the timber
+supply, timber stalls dominate the works (1,232 and 3,101 work-turns in arm C on the pilot worlds;
+PL1 delivered 21.9 and 492.5 loads, for RS2's needs first). The superseded first pilot (`dda1be4b`,
+before the revisions) took 168 s. Pilot evidence: `/home/user/evidence/b3/cw3b/`
 (`pilot/metrics.jsonl`, `pilot/source.txt`, `pilot-report.txt`; outside the repository).
 
 ## Failure handling
@@ -185,7 +189,7 @@ its stall causes, funding and the asset's failure. Worlds that show one:
 
   Its works never win an envelope and never progress; six irrigation and road assets fail by turn
   190 (`viewer/src/__fixtures__/infrastructure_records.json` keeps 12 of its snapshots).
-- **Pilot worlds (never evidence):** arm C on template 5 (7 works stalled 20+ turns on failed assets)
+- **Pilot worlds (never evidence):** arm C on template 5 (6 works stalled 20+ turns on failed assets)
   and procedural 19 (23), reproducible with `run OUT --screen CW3b --cohort pilot --arms C`.
 
 ## Pre-freeze revisions (before any freeze or held run; the lead's decisions on the delta review)
