@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "board_version": 26,
+  "board_version": 27,
   "title": "Connected-world program (A livelihoods and trade, B watersheds and infrastructure, C public health, D institutions and war, E stories and evidence) operational board",
   "plan": "docs/superpowers/roadmaps/connected-world-program.md",
   "owner_instruction": "2026-11-06 (after #82): own the A-E program end to end with parallel workers, integrating and evaluating each slice and continuing across slice boundaries; merges of this program authorized after independent review, green premerge Tests on the reviewed head and verified main CI; new systems opt-in and off by default; no default promotion; full 200-seed and procedural qualification gates restricted; bounded held screens (procedural included) authorized; no purchases, paid credits, paid narration APIs, deployments, credential or sharing changes. Amendment (same day): tiers sequence work and are not stopping points; failures block the affected merge, not the program; pin 8abc1acb as the original reference; default-path changes behind a switch or rules version.",
@@ -650,7 +650,7 @@
       "verification": "Independent actual source/native/inverse/evidence/test-contract reviews; all nine premerge Tests success; tree equals reviewed head; all nine exact main Tests success."
     }
   ],
-  "next": "Adopted A–E implementation and bounded evaluation integrated and verified through #96. Keep all new behavior opt-in/off; retain recorded adverse results/costs/unknowns. Ports remain deferred until a maritime service consumer exists. Full qualification/default promotion require a new instruction. Documentation-only ledger changes follow the same independent review and exact-head/main CI policy.",
+  "next": "Active correctness/causal/performance rework: see rework ledger. Original completion remains dated history; no promotion or restricted qualification.",
   "baseline": {
     "oracle_lane": "PASS, 63 chunks, 295.5 s, slowest 32.4 s of 110 s",
     "native_check": "check_python_env --expect native PASS (101a4cd5)",
@@ -840,5 +840,14 @@
     "all_nine_main_jobs": "verified success",
     "report": "docs/superpowers/progress/connected-world-final-report.md",
     "final_documentation_policy": "The completion-ledger PR changes documentation only; its exact-head premerge and final main Tests are verified separately. The authoritative later ledger result is the GitHub Tests push run for current main HEAD, linked in the completion PR."
+  },
+  "rework": {
+    "status": "active",
+    "instruction": "Correctness, causal evaluation and practical performance; no favorable-result target; preserve default-off/restricted gates",
+    "base": "2726bf449d0e4d581a72034000ee0861a58ee439",
+    "base_main_run": 42397121718,
+    "ledger": "docs/superpowers/progress/connected-world-rework.md",
+    "branch": "codex/cw-rework",
+    "next": "Correct motive-to-exposure coupling and independent D3 control ownership with historical version compatibility; adversarial native/integration tests; profile before optimize; fresh preregistered mechanism screen after timing pilot."
   }
 }

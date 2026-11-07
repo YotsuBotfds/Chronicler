@@ -1,0 +1,57 @@
+# Connected World correctness, causal evaluation and performance rework
+
+Active instruction: continue from reviewed main after #97; trust and practical
+use, not favorable screen results. No default promotion, restricted 200-seed or
+procedural qualification, paid narration, purchases or deployment.
+
+## Live recovery
+
+Fetched main `2726bf449d0e4d581a72034000ee0861a58ee439`; exact main Tests
+`42397121718` passed all nine jobs. No open PRs; original checkout clean, all
+previous worktrees preserved. Lead branch `codex/cw-rework`. Isolated lanes:
+`codex/cwr-attribution`, `codex/cwr-evaluation`, `codex/cwr-profile`,
+`codex/cwr-viewer`, `codex/cwr-review`. Actual limits: four cgroup CPUs,
+16 GiB memory, about 18 GiB free; at most two native builds, heavy runs
+scheduled explicitly, unchanged 110-second offline chunk limit.
+
+## Verified findings and decisions in progress
+
+- Native adaptive attribution honestly emits driver255/unknown. Production X1
+  calls it `other`, immediately rehomes a person without a classified spell,
+  and reports no classified displacement. C2 uses that share: the same physical
+  move gives extra susceptibility 1.25 with known flight/hunger versus 1.0
+  with unknown attribution. This is an attribution-to-model coupling.
+- Preserve legacy motive-classified spells and homes; unknown does not prove
+  voluntary movement or absence of physical displacement. Add dated factual
+  recent-residence-arrival diagnostics independently of motive. Do not invent
+  housing occupancy or a forced-displacement label.
+- Correct new public-health runs to rely on existing epidemiological physical
+  density, with no unsupported additional motive-based multiplier. Save an
+  explicit legacy control and preserve old checkpoint/JSON choices.
+- A6 record-only currently removes D3 movement scores; shuffled mode can
+  redirect D3 remembered-home scores. Corrected rules must keep D3 independent
+  while preserving historical rules for old exact resumes and controls.
+- Historical CW6 arithmetic is reaffirmed: FULL−A6R food shortfall and recorded
+  epidemic deaths were higher in all twelve 120-turn worlds. That contrast
+  combines personal channels, D3 control ownership and crowding feedback.
+  Famine/war cause-specific deaths remain unrecorded, not zero. Do not assume
+  fixing the coupling explains or reverses the adverse results.
+
+## Executable work
+
+| Lane | Current task / gate |
+| --- | --- |
+| Lead correctness | Versioned PH choice and A6 rules3/control channels; X1 factual diagnostics; independent actual-diff review, adversarial native/integration lifecycle and old-resume tests. |
+| Attribution | Preserve failing-old native/replay proof; paired reason-label, multiple-move, return, death, household, slot reuse, gap and checkpoint tests. |
+| Evaluation | Verify old metrics/source/controls, reserve fresh cohorts only after registry reconciliation, pilot then freeze bounded matched mechanism comparisons. |
+| Runtime performance | Attribute measured CPU/RSS/storage costs; freeze corrected unoptimized comparator before same-world before/after optimization. No evidence loss or smaller-world substitution. |
+| Viewer performance | Reproduced first-open 4.65s desktop/4.40s phone; numeric locale formatting consumes about84% of index time. Optimize without changing the complete index or reader states, then remeasure real journeys. |
+| Integration | Preserve original witness pins; append reviewed inverse, run appropriate full gates and both-reference feature-off identity, enabled active resumes, draft PR review, exact-head green CI, PR merge and exact main CI. |
+
+Next executable task: implement the corrected dated exposure/control contracts
+and test them against old behavior; profile the frozen baseline and optimize
+the measured viewer hotspot concurrently. The board's original program
+completion describes its historical implementation, not completion of this
+rework. Ports still lack a maritime service consumer; owned cross-border wares
+is unimplemented and outside the adopted food/timber contract; the constructed
+visibility example is not a separately simulated alternate history.
