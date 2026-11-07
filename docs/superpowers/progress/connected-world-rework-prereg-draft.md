@@ -110,12 +110,27 @@ remain fixed. Cost-retaining rules do not guarantee equal realized spending
 after population, disease, advice and funding respond; actual costs and
 service delivery are reported beside outcomes.
 
-`no_relief` is an existing **joint food ownership/commons-relief regime**:
-the titled harvest share changes from 0.9 to 1 and free commons rations end.
+`no_relief` is an existing **joint food ownership/free-pool allocation regime**:
+the titled harvest share changes from 0.9 to 1, and the extant free pool uses
+L2's allocation regime without the retail means test. Existing commons and
+public-granary releases can still supply free rations. The native mode-1
+receipt must have zero retail-priority households and zero food sent through
+that retail-priority branch; observed free rations remain recorded.
 It does not create food, change the retail enrollment boundary or disable
 titled trade. It is not a pure price intervention, an equal-spending control
-or removal of every public-granary relief path. `free_exchange` is deliberately
+or removal of commons or public-granary relief. `free_exchange` is deliberately
 not used: it changes prices/income and is incompatible with titled trade.
+
+The eight-turn development schema check at source `8de171fd` exposed the
+earlier draft/extractor's incorrect assumption that this mode erased free
+rations. Ten template-arm checks passed before RNR was rejected; the failed
+output is preserved at `dev-schema-8de-v1`. The correction follows the existing
+native `provisioning.rs` mode-1 implementation and its positive-free-pool
+regression. No simulation physics or held outcome was changed to fit the
+draft. Native population counts are also required explicitly: missing,
+negative, fractional or Boolean counts fail extraction instead of silently
+claiming zero unobserved household access. Missing public-grain observations
+also fail rather than reporting zero releases.
 
 ## Primary and secondary comparisons
 

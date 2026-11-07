@@ -76,7 +76,11 @@ def bundle(RW, arm="AD"):
     provisioning = {"region": 0, "persons": 100, "deficit": 50 if retail_mode == "retail" else 100,
         "priced_out_deficit": 20 if retail_mode == "retail" else 0,
         "offer_short_deficit": 30 if retail_mode == "retail" else 100,
-        "free_given": 50 if retail_mode == "retail" else 0, "rations": 50 if retail_mode == "retail" else 0}
+        "free_given": 50 if retail_mode == "retail" else 0, "rations": 50 if retail_mode == "retail" else 0,
+        "mode": 0 if retail_mode == "retail" else 1,
+        "free_rations": 50 if retail_mode == "retail" else 0,
+        "priority_households": 1 if retail_mode == "retail" else 0,
+        "free_to_priority": 50 if retail_mode == "retail" else 0}
     retail = record(mode=retail_mode, boundary="all", rules_version=2,
         parameters={"theta": .9 if retail_mode == "retail" else 1},
         regions=[{"region": 0, "open_milli": 0, "close_milli": 0, "flows": {}, "provisioning": provisioning}],
@@ -269,6 +273,41 @@ def test_food_availability_and_individual_access_are_separate(RW):
     m, problems = RW.extract(b, RW.ARMS["AD"][0])
     assert not problems and m["retail_access_deficit"] is None
     assert m["retail_access_unknown_region_turns"] == 1
+
+
+def test_no_relief_preserves_existing_free_pool_without_retail_means_test(RW):
+    b = bundle(RW, "RNR")
+    provision = b["history"][0]["livelihoods"]["household_retail"]["regions"][0]["provisioning"]
+    # Native mode1 delegates its extant free pool to L2; it does not erase it.
+    provision.update(free_rations=25, free_given=25, rations=25)
+    m, problems = RW.extract(b, RW.ARMS["RNR"][0])
+    assert not problems
+    assert m["retail_free_rations_observed"] == 25
+    provision["priority_households"] = 1
+    assert any("means test" in p for p in RW.extract(b, RW.ARMS["RNR"][0])[1])
+
+
+@pytest.mark.parametrize("native_count", [None, -1, .5, True])
+def test_missing_or_invalid_population_cannot_become_zero_access_deficit(RW, native_count):
+    b = bundle(RW)
+    food = b["history"][0]["food_accounting"]["regions"][0]
+    if native_count is None:
+        del food["native_count"]
+    else:
+        food["native_count"] = native_count
+    b["history"][0]["livelihoods"]["household_retail"]["regions"][0]["provisioning"] = None
+    assert any("native population count" in p for p in RW.extract(b, RW.ARMS["AD"][0])[1])
+
+
+@pytest.mark.parametrize("missing", [True, False])
+def test_missing_public_food_observation_cannot_become_zero_relief(RW, missing):
+    b = bundle(RW)
+    food = b["history"][0]["food_accounting"]["regions"][0]
+    if missing:
+        del food["public"]
+    else:
+        food["public"] = None
+    assert any("public grain observation" in p for p in RW.extract(b, RW.ARMS["AD"][0])[1])
 
 
 def test_horizon_and_world_identity_cannot_be_blessed_by_metadata(RW):

@@ -473,6 +473,7 @@ def _factual_and_food(bundle, flags):
         "native_food_consumed", "native_food_demand", "public_relief_food", "retail_observed_region_turns",
         "retail_access_unknown_region_turns", "retail_deficit_observed", "retail_priced_out_deficit_observed",
         "retail_offer_short_deficit_observed", "retail_free_rations_observed", "retail_rations_observed",
+        "retail_free_pool_observed", "retail_priority_household_turns", "retail_free_to_priority_observed",
         "retail_person_turns_observed", "retail_paid_milli", "retail_income_replaced"), 0)
 
     def amount(value, label, *, signed=False):
@@ -574,6 +575,9 @@ def _factual_and_food(bundle, flags):
             if not isinstance(row, dict) or row.get("region_id") != rid:
                 problems.append(f"food region identity differs at {turn}")
                 continue
+            if type(row.get("native_count")) is not int or row["native_count"] < 0:
+                problems.append(f"required native population count missing or invalid at {turn}")
+                continue
             native = row.get("native")
             if not isinstance(native, dict) or any(not SR._num(native.get(k)) for k in (*FOOD_LEDGER_FIELDS, "demand")):
                 problems.append(f"native food ledger missing or nonfinite at {turn}")
@@ -597,6 +601,8 @@ def _factual_and_food(bundle, flags):
             public = row.get("public")
             if isinstance(public, dict):
                 out["public_relief_food"] += amount(public.get("released"), "public grain released")
+            else:
+                problems.append(f"required public grain observation missing or invalid at {turn}")
         retail = lv.get("household_retail") or {}
         expected_theta = 1.0 if retail_mode == "no_relief" else THETA
         if retail.get("schema_version") != 1 or retail.get("source_turn") != turn or retail.get("mode") != retail_mode \
@@ -632,12 +638,21 @@ def _factual_and_food(bundle, flags):
                                 ("priced_out_deficit", "retail_priced_out_deficit_observed"),
                                 ("offer_short_deficit", "retail_offer_short_deficit_observed"),
                                 ("free_given", "retail_free_rations_observed"),
+                                ("free_rations", "retail_free_pool_observed"),
+                                ("priority_households", "retail_priority_household_turns"),
+                                ("free_to_priority", "retail_free_to_priority_observed"),
                                 ("rations", "retail_rations_observed"),
                                 ("persons", "retail_person_turns_observed")):
                 out[target] += amount(provision.get(key), f"retail {key}")
-            if retail_mode == "no_relief" and provision.get("free_given") != 0:
-                problems.append(f"no_relief supplies free household rations at {turn}")
-        out["retail_access_unknown_region_turns"] += sum(rid not in observed and row.get("native_count", 0) > 0
+            if not SR._num(provision.get("mode")) or provision["mode"] != (1 if retail_mode == "no_relief" else 0):
+                problems.append(f"native retail provisioning mode differs at {turn}")
+            priority = provision.get("priority_households")
+            if not SR._num(priority) or priority < 0 or priority != math.floor(priority):
+                problems.append(f"native retail priority-household count malformed at {turn}")
+            if retail_mode == "no_relief" and (provision.get("priority_households") != 0
+                                               or provision.get("free_to_priority") != 0):
+                problems.append(f"no_relief applies the retail means test at {turn}")
+        out["retail_access_unknown_region_turns"] += sum(rid not in observed and row["native_count"] > 0
                                                         for rid, row in food_by_region.items())
         out["retail_paid_milli"] += amount((retail.get("money") or {}).get("paid_milli"), "retail paid")
         out["retail_income_replaced"] += amount((retail.get("income") or {}).get("replaced"), "retail income replaced")
@@ -1095,6 +1110,7 @@ SECONDARY_METRICS = (
     "native_food_produced", "native_food_consumed", "public_relief_food", "retail_access_deficit",
     "retail_access_unknown_region_turns", "retail_priced_out_deficit_observed",
     "retail_offer_short_deficit_observed", "retail_free_rations_observed", "retail_paid_milli",
+    "retail_free_pool_observed", "retail_priority_household_turns", "retail_free_to_priority_observed",
     "retail_income_replaced", "army_hunger_ration_turns", "timber_delivered_milli",
 )
 for arm, control in COMPARISONS:
@@ -1166,7 +1182,8 @@ def extra_report(rows, strata):
                 lines.append(f"| {label} | {key} | {tag} | {'; '.join(cells)} | {summary} | {band} | {flip} |")
     lines += ["", "Regional food shortfall measures availability, not every household's access. Retail access "
         "subtotals and unknown coverage are separate; `no_relief` changes the title fraction from 0.9 to 1 "
-        "and removes free commons rations, a joint ownership/relief regime. It creates no new food, "
+        "and uses L2's existing free-pool allocation without the retail means test, a joint ownership/allocation regime. "
+        "Existing commons and public releases can still supply free rations. It creates no new food, "
         "and is not a pure price control. PH cost_only retains wages/supplies/guards and the chosen "
         "crowding basis, but responsive realized spending need not be equal. Classified displacement "
         "is not inferred physical crowding. Incomplete arrival diagnostics remain unknown ratios."]
