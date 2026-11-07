@@ -91,7 +91,10 @@
   relocation path (recorded as an unclassified relocation; audit 11.2 said only
   `apply_migrations`). Lead decisions (2026-11-07): any onward move of a displaced person keeps
   the spell open (the ledger then reproduces audit section 10 within 0.01); person rows live in
-  exact checkpoints only, not in the bundle or state file.
+  exact checkpoints only, not in the bundle or state file. Independent review ("approve with
+  changes") fixed: cause/anchor splits in the frame, the opening driver, battle and siege war
+  anchors, civ-to-civ controller changes only, cheaper writer, guard catches dynamic imports, a
+  bound own-row accessor.
   [Integration page](integration/residence-ledger.md) (verification and development-world
   evidence).
 - **Lanes in flight** (each on its own branch, provisional witness layers regenerated at

@@ -54,16 +54,20 @@ manifest key: feature-off output is byte-identical (verified below).
   `FLIGHT_DRIVERS` (cause `flight`) or `HUNGER_DRIVERS` (`hunger`), imported from
   `quarantine_rules` (one source). A household follower's event carries its lead's driver
   natively (`behavior.rs`), so the follower opens the same spell. Fields: `start`,
-  `origin = home`, `cause`, `anchor` and `anchor_kinds`, `anchor_partial`, `moves`.
+  `origin = home`, `cause`, `driver` (the opening move's native driver code, kept across onward
+  moves; review M2), `anchor` and `anchor_kinds`, `anchor_partial`, `moves`.
   **Displaced** = an open spell. **Any onward move of a displaced person** (flight, hunger,
   voluntary or unclassified, or a trip that ends away) neither re-homes them nor closes the spell:
   `moves` counts it and the residence and its date move (the lead's resolution, below).
 - **Anchor**: the home-region event dated in the `ANCHOR_TURNS = 5` turns before the departure:
-  `war` (a controller change, an occupation or a conquest), `famine` (a famine or dearth report:
-  `famine_cooldown` at its onset value 5), `persecution` (`persecution_intensity > 0`); the first
-  present in that order is `anchor`, every kind present is kept in `anchor_kinds`; `none` without
-  one. `anchor_partial`: the window reaches before the ledger watched the regions (the first five
-  turns of an observation epoch).
+  `war` (a change of controller between two civilizations, an occupation, a conquest, a battle
+  fought in the region or a siege of it), `famine` (a famine or dearth report: `famine_cooldown`
+  at its onset value 5), `persecution` (`persecution_intensity > 0`); the first present in
+  `EVENT_KINDS` order (war, famine, persecution) is `anchor`, every kind present is kept in
+  `anchor_kinds`; `none` without one. `EVENT_KINDS` and `ANCHORS` are append-only (a new kind is
+  appended to both, after `none` in `ANCHORS`). A region gaining or losing its only controller
+  (settled, abandoned) is not war (review m1). `anchor_partial`: the window reaches before the
+  ledger watched the regions (the first five turns of an observation epoch).
 - **Closures** (the only ways a spell ends): `returned` (residence equals home after a move or
   relocation), `resettled` (`REHOME_TURNS` at one residence, which becomes home), `died`,
   `pool_reset`, `unobserved_gap`.
@@ -82,8 +86,10 @@ manifest key: feature-off output is byte-identical (verified below).
    within 0.01 (below). The first implementation, the literal reading, gave open-spell shares of
    0.572 and 0.415 on the configuration-C worlds against 0.598 and 0.482.
 2. **Anchor dating** (accepted as declared): read at Phase 10 of T, a conquest
-   (`last_conquered_turn == T`, Phase 5), an occupation (Phase 5) and a famine onset (Phase 9
-   ecology) dated T precede T's agent tick and anchor T's departures. A controller change without
+   (`last_conquered_turn == T`, Phase 5), an occupation (Phase 5), a battle in the region
+   (`war_state.battles` of turn T, Phase 5 campaigns), a siege of it (an army in phase
+   `sieging` there, set in Phase 5) and a famine onset (Phase 9 ecology) dated T precede T's agent
+   tick and anchor T's departures. A controller change without
    a conquest (secession, cession, absorption; mostly Phase 10) and persecution (computed in Phase
    10) are read against the ledger's previous reading, so they are dated T and anchor departures
    from T+1 (T's tick persecuted by T−1's reading, which is in the window). The probe counted
@@ -99,9 +105,21 @@ manifest key: feature-off output is byte-identical (verified below).
    `unexplained_relocations` and applied the same way. Measured: 7 trip relocations (2 in the same
    tick as a move) in 120 turns of procedural 13; no unexplained relocation in any run. The
    native code is unchanged.
-4. **Person rows stay out of output** (decision 4): the rows, deferred travellers and trip ids
-   are kept in exact checkpoints (the pickled world) and left out of JSON output, the bundle's
-   world state and the state file (`exclude=True`; see Cost).
+4. **Person rows stay out of output** (decision 4): the rows, deferred travellers, trip ids and
+   roster ids are kept in exact checkpoints (the pickled world) and left out of JSON output, the
+   bundle's world state and the state file (`exclude=True`; see Cost). The last frame and events
+   are in every snapshot record and are left out of JSON too.
+
+**Independent review of `cfaf9f53`** ("approve with changes"), fixed before any consumer reads:
+M1, frames split departures and arrivals by cause and anchor (below); M2, spells keep their
+opening driver, and battles and sieges at home are war anchors (measured below); m1, a change of
+controller is war only between civilizations; m2, person rows are slotted records and only the
+previously attached are cleared each turn (cost below); m3, the guard flags every constant string
+naming the ledger outside the owners and the switch wiring (a dynamic `_module("residence_ledger")`
+is caught); m4, the own-row reader is bound to one person; nits: every declared counter is
+recorded with its zeros, famine memory is named among the flight drivers, `EVENT_KINDS` is
+explicit, a native move on an invalid route is counted (`invalid_moves`) and skipped instead of
+stopping the run, and a Phase 10 consumer's position is documented (Readers).
 
 Also: **switching off** closes open spells as `unobserved_gap` and drops the rows, the frame and
 the region watch (counters and log kept); switching on again starts a new epoch. **Per-person
@@ -137,11 +155,17 @@ observed turn, counters and log.
 Snapshot record `snapshot.livelihoods.residence_ledger` (stage `X1`, `source_turn = T`): `frame`
 (None when T was not observed: unknown, not zero) with `totals` (`TOTAL_KEYS`) and `regions`
 (`REGION_KEYS`, regions with anything recorded): open spells by residence, cause and anchor, by
-origin; this turn's departures by driver group (flight, hunger, voluntary, other), arrivals and
-displaced arrivals; spells opened (by departure region), returned (by home), resettled and died
-(by residence); deaths; attached and attached away (by home); merchants in transit; and two
+origin (`displaced_from`, `displaced_from_<anchor>`); this turn's departures by driver group
+(flight, hunger, voluntary, other) and arrivals by driver group (`arrivals_<group>`), displaced
+arrivals and their anchors (`arrivals_displaced_<anchor>`); spells opened by departure region,
+cause and anchor (`opened_<cause>`, `opened_<anchor>`), returned by home and anchor
+(`returned_<anchor>`), resettled and died (by residence); deaths; attached and attached away (by
+home); merchants in transit; native moves skipped for an invalid route (`invalid_moves`); and two
 comparison counts with the measures this contract replaces (`recent_movers_native`,
-`away_from_birth_region`). Then `events`, `counters`, `log`, `labels` and `parameters`.
+`away_from_birth_region`). D3's question (war-anchored departures, returns, origins at T+1) is
+answered by `read_frame`: `opened_war`, `returned_war`, `displaced_from_war`,
+`arrivals_displaced_war`. Then `events` (each with the opening `driver`), `counters` (every
+declared key, zeros included), `log`, `labels` and `parameters`.
 `record_status` (the reference reader): absent, malformed, unobserved, recorded_zero (no one
 displaced or attached, no move, opening, closure or death), recorded.
 
@@ -162,26 +186,43 @@ roster)). The bundle carries the dated frames and events; the person rows are no
 | ledger on, rows in JSON (first implementation) | 9.92 MB | 18.19 MB | 5.99 MB |
 | ledger on, rows in checkpoints only (now) | 1.49 MB | 0.85 MB | 5.99 MB |
 
-The rows cost about 200 bytes a person in JSON and add 0.58 MB (compressed) to the checkpoint.
-Over 200 turns the record (frames and events) adds 0.38 MB to hybrid_s42's bundle (3.19 → 3.57
-MB) and 0.97 MB to proc48_hybrid_s42's (9.11 → 10.08 MB).
+The rows cost about 200 bytes a person in JSON and add about 0.6 MB (compressed) to the
+checkpoint. Over 200 turns the record (frames and events) adds RECORD_COST.
+
+CPU and memory on the same case (whole run, 20 turns, `RAYON_NUM_THREADS=1`, two repeats each):
+
+| | wall | peak RSS | writer |
+| --- | --- | --- | --- |
+| ledger off | 9.8–10.1 s | 236 MB | — |
+| ledger on, before review m2 (the reviewer's measurement) | 13.4 s | 353 MB | ~160 ms/turn |
+| ledger on, slotted rows, attachment cleared only where it was | 11.8–12.4 s | 270 MB | 88–89 ms/turn |
+
+The first write (every person a new row) costs most; later turns cost a pass over the alive and
+the open spells.
 
 ## Readers (audit 11.4)
 
 | Reader | Function | What it returns | Dating |
 | --- | --- | --- | --- |
 | C2 crowding, C4 and ruler decisions | `read_frame(world, consumer_turn=)` | T's aggregates (a copy): totals and region rows, no person | refuses `consumer_turn != world.turn` and a frame of `consumer_turn` or later (same-turn/future, `LedgerReadRefused`); None when T was not observed or the ledger is off |
-| A6 | `own_row(world, agent_id, consumer_turn=)` | the person's own row as of T | as above |
+| A6 | `own_row_accessor(world, agent_id, consumer_turn=)` → `OwnRow` | an accessor bound to one person: `read(agent_id)` gives that person's row as of T (every key, the spell with its opening driver) and refuses any other id (review m4) | as above; the accessor refuses once the world leaves its consumer turn. A6's dispatcher makes one per agent it decides for and hands it to that agent's decision |
 | D3 | `separation(world, agent_bridge, consumer_turn=)` | separated pairs with relation and cause, counts by cause and relation | as above; native bonds, parents and trips are read at the call: exact between T's write and T+1's agent tick (nothing native changes in between); a call after T+1's tick pairs T's residences with T+1's bonds |
 | viewer, narration, analysis | `snapshot_summary` / `record_status` | the record | completed turns only |
+
+A consumer that reads in Phase 10 (D3's episodes, A6's after-tick bookkeeping) must sit **before**
+`residence_ledger` in `LIVELIHOODS_SWITCHES`: after the writer, T's frame is a same-turn read and
+is refused.
 
 **Guard** (`tests/test_residence_ledger_guard.py`, the D2 provenance guard's approach): every
 module under `src/chronicler` but the ledger's own is walked; a read of the ledger's state
 (`.residence_ledger`, `getattr`/subscript/`.get` with that name, an import of
 `residence_ledger_state`) is refused outside the owners and the switch wiring; a reference to
-the ledger module must be registered as `aggregate` (`read_frame`), `own_row` (only A6's
-`adaptive_livelihoods`), `separation` (only D3 modules, none registered yet) or `record` (only
-narration and analysis modules). Today no decision module reads the ledger; every consumer
+the ledger module must be registered as `aggregate` (`read_frame`), `own_row`
+(`own_row_accessor`, only A6's `adaptive_livelihoods`), `separation` (only D3 modules, none
+registered yet) or `record` (only narration and analysis modules); any constant string naming
+the ledger (`residence_ledger`, `chronicler.residence_ledger`, the state module) is refused
+outside the owners and the switch wiring (`livelihoods`, `feature_catalog`, `batch_manifest`),
+so a dynamic import by name is caught. Today no decision module reads the ledger; every consumer
 registers its read there with its review. The guard also checks the ledger is structurally
 record-only (it assigns no world attribute but its own container slot and calls only
 `get_snapshot`, `trip_agent_ids` and `get_all_relationships` on the simulator), that its public
@@ -232,30 +273,47 @@ nothing it observed):
 | away from the birth region | 0.698 | 0.698 | 0.682 | 0.682 |
 | open spell (flight or hunger from home) | 0.598 | 0.598 | 0.482 | 0.482 |
 | the same, flight only | 0.535 | 0.534 | 0.397 | 0.397 |
-| the same, famine or war anchor | 0.517 | 0.508 | 0.289 | 0.284 |
-| the same, war anchor | 0.0006 | 0.0006 | 0.0089 | 0.0082 |
+| the same, famine or war anchor | 0.517 | 0.508 | 0.289 | 0.288 |
+| the same, war anchor | 0.0006 | 0.0082 | 0.0089 | 0.0126 |
 | spells closed: returned / resettled / died | 389 / 182 / 429 | 396 / 180 / 438 | 577 / 346 / 562 | 586 / 346 / 571 |
 
-Every share is within 0.01; the anchor shares differ by the stricter dating (decision 2), the
-closures by the trip relocations and the merchants the probe placed at their transit region.
+Every spell share is within 0.01. The war-anchor row now differs by design: the ledger adds
+battles and sieges at home (review M2) and dates controller changes strictly (decision 2); the
+closures differ by the trip relocations and the merchants the probe placed at their transit
+region.
+
+**War anchors before and after review M2/m1** (ledger alone, no RS4, 200 turns; "before" is
+the first implementation's anchor: no battle or siege, any controller change):
+
+| | template 7 before | template 7 after | procedural 13 before | procedural 13 after |
+| --- | --- | --- | --- | --- |
+| war-anchored share of the living | 0.0000 | 0.0000 | 0.0006 | 0.0047 |
+| spells opened anchored to war | 1 | 0 | 30 | 91 |
+| battle-memory openings: war-anchored / not | 0 / 0 | 0 / 0 | 0 / 29 | 5 / 24 |
+| other openings: war-anchored / not | 1 / 1,016 | 0 / 1,017 | 30 / 2,676 | 86 / 2,620 |
+
+Template 7 has no war-driven flight at all; its one "war" anchor before was a region gaining a
+controller (m1). On procedural 13 the war-anchored share rises eightfold, but most battle-memory
+moves still leave more than five turns after the battle or from a region where none was fought
+(a soldier's or a neighbour's memory), so they stay unanchored; native war-driven flight is rare
+(conquest-memory openings: none on either world).
 
 **Ledger alone** (no RS4; 200 turns each):
 
 | | template 7 | procedural 13 |
 | --- | --- | --- |
 | living (range) | 104–272 | 458–804 |
-| displaced share (flight · famine-or-war anchor · war anchor) | 0.532 (0.404 · 0.435 · 0.000) | 0.498 (0.425 · 0.312 · 0.0006) |
+| displaced share (flight · famine-or-war anchor · war anchor) | 0.532 (0.404 · 0.435 · 0.000) | 0.498 (0.425 · 0.314 · 0.0047) |
 | spells opened (flight / hunger) | 1,017 (783 / 234) | 2,735 (2,321 / 414) |
-| opened by anchor (war / famine / persecution / none) | 1 / 798 / 54 / 164 | 30 / 1,559 / 543 / 603 |
+| opened by anchor (war / famine / persecution / none) | 0 / 799 / 54 / 164 | 91 / 1,549 / 532 / 563 |
 | closed: returned / resettled / died | 360 / 189 / 415 | 874 / 524 / 1,125 |
 | median length: returned / resettled / died | 10 / 25 / 14 | 9 / 20 / 14 |
-| pool resets, unobserved gaps, unexplained relocations | 0, 0, 0 | 0, 0, 0 |
+| pool resets, unobserved gaps, unexplained relocations, invalid moves | 0, 0, 0, 0 | 0, 0, 0, 0 |
 
-War-anchored displacement is rare on both worlds (one spell in 200 turns of template 7; 30 on
-procedural 13, 0.06% of the living on average); famine anchors dominate. For C2 the stock of open
-spells is high everywhere (50–53% of the living), as audit 14 question 6 anticipated; this turn's
-displaced arrivals are recorded beside it. A resettlement comes `REHOME_TURNS` after the last
-move, so a spell with onward moves lasts longer than 20 turns (median 25 on template 7).
+Famine anchors dominate. For C2 the stock of open spells is high everywhere (50–53% of the
+living), as audit 14 question 6 anticipated; this turn's displaced arrivals are recorded beside
+it. A resettlement comes `REHOME_TURNS` after the last move, so a spell with onward moves lasts
+longer than 20 turns (median 25 on template 7).
 
 ## Verification (lane X1, 2026-11-07; final source `9b58ab0c`; Linux, Python 3.13, native extension `20e77f99…` = main's Rust, no native change)
 

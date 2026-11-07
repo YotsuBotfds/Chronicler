@@ -77,9 +77,10 @@ Terms (owner instruction and amendment):
     residence, never by enlistment.
     A displacement spell opens when an applied move leaves home with a C1b flight or hunger
     driver (a follower carries its lead's), with `cause`, the home-region `anchor` (war, famine,
-    persecution, none) dated in the `ANCHOR_TURNS = 5` turns before (conquest, occupation and
-    famine onset anchor the same turn's departures; a controller change without conquest and
-    persecution from the next turn), and closes only `returned`, `resettled` (`REHOME_TURNS` at
+    persecution, none) dated in the `ANCHOR_TURNS = 5` turns before (conquest, occupation, a
+    battle or siege at home and famine onset anchor the same turn's departures; a change of
+    controller between civilizations without conquest, and persecution, from the next turn), the
+    opening driver kept, and closes only `returned`, `resettled` (`REHOME_TURNS` at
     one residence), `died`, `pool_reset` or `unobserved_gap`: any onward move of a displaced
     person keeps the spell open (lead decision, 2026-11-07, resolving 11.1). Displaced = an open
     spell. Separation is computed on demand only.
@@ -88,8 +89,10 @@ Terms (owner instruction and amendment):
     events; one frame stamped `source_turn = T`; rows bounded by stable id, in exact
     checkpoints only (not in the bundle or state file), omitted while off; an exact resume restores it; a rebuilt pool (legacy resume) rebuilds
     nothing (`pool_reset`, `observed_from`). Late army dissolutions are seen at T+1.
-  - *Readers* get T's frame at T+1 only (`read_frame` aggregates for C2 and rulers, `own_row`
-    for A6, `separation` for D3; a same-turn or future read is refused). The guard
+  - *Readers* get T's frame at T+1 only (`read_frame` aggregates for C2 and rulers, split by
+    cause and anchor; an `OwnRow` accessor bound to one person for A6; `separation` for D3; a
+    same-turn or future read is refused; a Phase 10 consumer sits before the writer in the switch
+    order). The guard
     `tests/test_residence_ledger_guard.py` refuses any other read of the ledger by a decision
     module; each consumer registers its read there. RS4 keeps its diaspora ledger (agreement
     tested); the bridge's displaced share stays narration-only; the native cooldown and birth
