@@ -69,6 +69,10 @@ def number(value):
     return type(value) in (int, float) and math.isfinite(value)
 
 
+def count(value):
+    return number(value) and value >= 0 and value == math.floor(value)
+
+
 def near(a, b):
     return number(a) and number(b) and math.isclose(a, b, rel_tol=1e-11, abs_tol=1e-10)
 
@@ -225,6 +229,9 @@ def validate_rows(rows, cohort, identity):
                        "public_relief_food", "retail_access_unknown_region_turns", "retail_deficit_observed"):
             check(number(m.get(metric)) and m[metric] >= 0, f"required {metric} missing/nonfinite/negative")
         check(number(m.get("person_turns")) and m["person_turns"] > 0, "person-turn denominator not positive")
+        for metric in ("person_turns", "world_person_turns", "deaths", "all_migrations", "unknown_migration_drivers",
+                       "retail_access_unknown_region_turns"):
+            check(count(m.get(metric)), f"cardinality {metric} is not a nonnegative whole count")
         check(near(m.get("world_person_turns"), m.get("person_turns")), "native/health population denominators differ")
         check(near(m.get("epidemic_deaths"), m.get("world_epidemic_deaths")), "epidemic authority alias differs")
         for numerator, denominator, rate, scale in (
@@ -265,6 +272,10 @@ def validate_rows(rows, cohort, identity):
                        "combined_migration_input_rows", "combined_native_choice_changes", "retail_free_rations_observed",
                        "retail_free_pool_observed", "retail_priority_household_turns", "retail_free_to_priority_observed"):
             check(number(m.get(metric)) and m[metric] >= 0, f"activation diagnostic {metric} missing")
+        for metric in ("a6_personal_rows", "d3_input_rows", "a6_offer_declines", "a6_information_turns",
+                       "trade_unknown_destination", "trade_personal_return_refusal", "combined_migration_input_rows",
+                       "combined_native_choice_changes", "retail_priority_household_turns"):
+            check(count(m.get(metric)), f"cardinality {metric} is not a nonnegative whole count")
         if mode == "record_only" or channel == "no_migration_experience":
             check(m.get("a6_personal_rows") == 0, "disabled personal migration input active")
         if mode == "record_only" or channel == "no_work":
@@ -286,10 +297,10 @@ def validate_rows(rows, cohort, identity):
                   near(m.get("retail_access_deficit"), m.get("retail_deficit_observed")), "household access missing-vs-zero differs")
         nregions = m.get("regions")
         arrival = [m.get(k) for k in ("arrival_complete_region_turns", "arrival_incomplete_region_turns", "arrival_unknown_region_turns")]
-        check(number(nregions) and all(number(x) and x >= 0 for x in arrival) and sum(arrival) == nregions * HORIZON,
+        check(number(nregions) and all(count(x) for x in arrival) and sum(arrival) == nregions * HORIZON,
               "arrival coverage accounting differs")
         merge = [m.get(k) for k in ("merge_validated_turns", "merge_truncated_turns")]
-        check(all(number(x) and x >= 0 for x in merge) and sum(merge) == HORIZON, "bounded component validation accounting differs")
+        check(all(count(x) for x in merge) and sum(merge) == HORIZON, "bounded component validation accounting differs")
         if len(errors) != before:
             invalid.add(key)
     for row in statuses:
