@@ -7,6 +7,8 @@ from chronicler import money as M, timber_orders as T, timber_supply as TS, titl
 from chronicler.timber_orders_state import TimberOrdersState
 from tests.test_money import FakeSim, _world
 
+_measured_needs = T._needs
+
 class CarrierSim(FakeSim):
     def get_snapshot(self):
         ids = sorted(self.wealth)
@@ -228,3 +230,52 @@ def test_rules2_personal_timber_route_failure_cools_down_known_destination(lane,
     # Record-only observes the failure but leaves the dispatch decision unchanged.
     memory.mode = "record_only"
     assert buy(lane) is not None
+
+
+def test_b3_and_rs2_refusals_share_one_regional_gap_and_one_inflight_credit(lane, monkeypatch):
+    from chronicler.timber_supply_state import NeedRow
+    world,state,sim,_ = lane
+    order=buy(lane)
+    row=NeedRow(region=1,civ=1,want=2,free=0,store=0,in_transit=0,gap=2,status="refused",reason="no_forest")
+    world.livelihoods.timber_supply=NS(_turn=NS(turn=world.turn,needs=[row]),frame_turn=None)
+    infrastructure=world.livelihoods.infrastructure_condition=NS(enabled=True,timber_needs_turn=world.turn,timber_needs=[NS(region=1,civ=1,gap=3,status="refused",reason="no_forest")])
+    assert _measured_needs(world)==[(1,1,pytest.approx(5-order.cargo_milli*.99/1000))]
+    infrastructure.timber_needs_turn-=1
+    assert _measured_needs(world)==[(1,1,pytest.approx(2-order.cargo_milli*.99/1000))]
+    infrastructure.timber_needs_turn=world.turn;infrastructure.enabled=False
+    assert _measured_needs(world)==[(1,1,pytest.approx(2-order.cargo_milli*.99/1000))]
+    world.livelihoods.timber_supply._turn=None
+    assert _measured_needs(world)==[]
+    infrastructure.enabled=True
+    assert _measured_needs(world)==[(1,1,pytest.approx(3-order.cargo_milli*.99/1000))]
+
+
+def test_actual_arrival_is_not_immediately_reordered_from_prearrival_need(lane):
+    from chronicler.timber_supply_state import NeedRow
+    world,state,sim,store=lane
+    order=buy(lane)
+    world.livelihoods.timber_supply=NS(_turn=NS(turn=world.turn,needs=[
+        NeedRow(region=1,civ=1,want=2,free=0,store=0,in_transit=0,gap=2,status="refused",reason="no_forest")]),frame_turn=None)
+    assert _measured_needs(world)[0][2] == pytest.approx(.02)
+    T._close(world,state,state._turn,order,"delivered",sim)
+    assert store=={1:2.0} and _measured_needs(world)==[]
+    T.phase10(world,None,None,NS(_sim=sim))
+    assert _measured_needs(world)==[]  # L9 runs after the frame has closed.
+    assert pickle.loads(pickle.dumps(state))._turn is None
+
+
+def test_origin_infrastructure_need_is_protected_from_export(lane,monkeypatch):
+    world,state,sim,_=lane
+    monkeypatch.setattr(TS,"_works_wants",lambda *_:[(0,10.0,[5])],raising=False)
+    assert buy(lane) is None
+    assert world.regions[0].stockpile.goods["timber"]==10 and not state.orders
+    monkeypatch.setattr(TS,"_works_wants",lambda *_:[(0,9.0,[5])],raising=False)
+    order=buy(lane)
+    assert order.cargo_milli==1000 and world.regions[0].stockpile.goods["timber"]==9
+
+
+def test_order_requires_current_cross_civilization_seller_and_payer(lane):
+    world,state,sim,_=lane
+    world.regions[1].controller="C0"
+    assert buy(lane) is None
+    assert not state.orders and world.regions[0].stockpile.goods["timber"]==10

@@ -59,7 +59,7 @@ def _begin(world, sim=None):
     state = _state(world)
     if state._turn is None or state._turn.turn != world.turn:
         state._turn = SimpleNamespace(turn=int(world.turn), sim=sim, events=[], dropped=0, reserved=[], installed=False,
-                                      withheld=[], dispatched={}, spent={}, planned=False)
+                                      withheld=[], dispatched={}, spent={}, delivered={}, planned=False)
     elif sim is not None:
         state._turn.sim = sim
     return state._turn
@@ -135,6 +135,7 @@ def _close(world, state, t, order, reason, sim=None, acc=None):
             _bump(state, "ceiling_refused_milli", got.residual)
         deliver_ordered_store(world, order.dest, quantity / MILLI)
         order.delivered_milli += quantity
+        t.delivered[order.dest] = t.delivered.get(order.dest, 0) + quantity
         _bump(state, "delivered_milli", quantity)
     else:
         region = order.path[order.cursor]
@@ -237,19 +238,36 @@ def rollback_agent_tick(world, agent_bridge):
 
 
 def _needs(world):
+    """Current PL1 refusals, RS2 plus B3 work, net of this lane's real cargo.
+
+    B3's want is already incremental after RS2. Combine the two per region
+    before subtracting the same in-flight or newly arrived cargo once. The
+    latter arrives after PL1 measured its gap, so that observation otherwise
+    requests a duplicate shipment before the next turn sees its new store.
+    """
     from chronicler import timber_supply as TS
     ts = TS._state(world)
     t = ts._turn if ts is not None else None
-    rows = t.needs if t is not None and t.turn == world.turn else ts.needs if ts is not None and ts.frame_turn == world.turn else []
+    rows = list(t.needs if t is not None and t.turn == world.turn else
+                ts.needs if ts is not None and ts.frame_turn == world.turn else [])
+    infrastructure = getattr(getattr(world, "livelihoods", None), "infrastructure_condition", None)
+    if (infrastructure is not None and infrastructure.enabled
+            and infrastructure.timber_needs_turn == world.turn):
+        rows.extend(infrastructure.timber_needs)
     state = _state(world)
+    gaps = {}
+    for row in rows:
+        if row.status == "refused" and row.reason in REFUSALS:
+            key = (row.region, row.civ)
+            gaps[key] = gaps.get(key, 0.0) + row.gap
+    delivered = state._turn.delivered if state._turn is not None and state._turn.turn == world.turn else {}
     out = []
-    for row in rows or []:
-        if row.status != "refused" or row.reason not in REFUSALS:
-            continue
-        transit = math.fsum(o.cargo_milli * 0.99 ** (len(o.path) - 1 - o.cursor) / MILLI for o in state.orders if o.dest == row.region)
-        gap = max(0.0, row.gap - transit)
+    for (region, civ), requested in sorted(gaps.items()):
+        transit = math.fsum(o.cargo_milli * 0.99 ** (len(o.path) - 1 - o.cursor) / MILLI
+                            for o in state.orders if o.dest == region)
+        gap = max(0.0, requested - transit - delivered.get(region, 0) / MILLI)
         if gap >= 0.01:
-            out.append((row.region, row.civ, gap))
+            out.append((region, civ, gap))
     return out
 
 
@@ -270,7 +288,7 @@ def dispatch(world, state, t, sim, origin, dest, holder, path, quantity, price, 
     from chronicler import repair_projects as RP
     from chronicler import timber_supply as TS
     seller, payer = _controller(world, origin), _controller(world, dest)
-    if seller < 0 or payer < 0 or quantity <= 0 or len(path) < 2 or path[0] != origin or path[-1] != dest or any(o.holder == holder for o in state.orders):
+    if seller < 0 or payer < 0 or seller == payer or quantity <= 0 or len(path) < 2 or path[0] != origin or path[-1] != dest or any(o.holder == holder for o in state.orders):
         return None
     person = TT._people(sim.get_snapshot()).get(holder)
     if person is None or person[0] != origin or person[1] != TT.MERCHANT or person[2] < TT.ADULT_AGE or holder in TT._enlisted(world) or holder in TT._trips(sim):
@@ -287,7 +305,10 @@ def dispatch(world, state, t, sim, origin, dest, holder, path, quantity, price, 
     if not accepts_trade_destination(world, holder, dest, known_markets):
         return None
     commitments = RP._commitments(world, sim)
-    free = max(0.0, RP._free_timber(world, origin, commitments, 0.0) - TS.store_free(world, origin) - TS._wants(world).get(origin, 0.0))
+    works_wants = getattr(TS, "_works_wants", lambda _: [])
+    local_works = math.fsum(want for region, want, _wids in works_wants(world) if region == origin)
+    free = max(0.0, RP._free_timber(world, origin, commitments, 0.0) - TS.store_free(world, origin)
+               - TS._wants(world).get(origin, 0.0) - local_works)
     quantity = min(quantity, math.floor(free * MILLI), TT._capacity(TT._graph(world)[0], path))
     sale_price = math.ceil(price_milli / (0.99 ** (len(path) - 1)) * (1 + FREIGHT * (len(path) - 1)))
     quantity = min(quantity, max(0, budget) * MILLI * MILLI // sale_price,
@@ -406,7 +427,9 @@ def phase10(world, acc, economy_result, agent_bridge):
     state.frame_turn = int(world.turn)
     state.frame = {"turn": world.turn, "events": t.events, "events_dropped": t.dropped, "withheld": t.withheld,
                    "dispatched": dict(t.dispatched), "spent": dict(t.spent)}
-    state._turn = None
+    # L9 decides after this frame closes: retain uncapped per-region arrivals
+    # while netting its pre-arrival PL1 observations. _begin clears them next
+    # turn; checkpoint serialization excludes all private turn state.
     return []
 
 

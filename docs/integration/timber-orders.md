@@ -84,3 +84,5 @@ outcome remains the actual timber outcome: a local commons deposit is never
 renamed a return to the original owner. Record-only and rules 1 preserve the
 previous dispatch decisions. Completed delivery still controls physical store
 credit and actual payment independently of these choice inputs.
+
+Current dated B3 public-work timber refusals join the existing PL1 RS2 refusal demand; their incremental gaps are combined by destination before in-flight timber is subtracted once. Origin public-work needs are protected from export along with ordinary repair needs and merchant commitments. An actual arrival is also subtracted from PL1's earlier same-turn gap through the later L9 decision, avoiding immediate duplicate procurement. Those uncapped per-region turn receipts are private and excluded from checkpoints; the physical store and closed order remain the durable facts. Seller and destination payer must be different current controllers. Disabled or stale B3 observations supply no demand.
