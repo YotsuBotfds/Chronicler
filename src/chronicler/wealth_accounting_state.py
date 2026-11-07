@@ -46,6 +46,7 @@ CHANNELS: tuple[tuple[str, str | None, str], ...] = (
     # C2 (epidemic care): registered for the payment seam; the ledger does not
     # itemize it (``--epidemic-care`` and ``--wealth-accounting`` exclude each other).
     ("care_wage", "epidemic_care", "treasury -> epidemic carers by id (C2; not itemized: excluded with A1)"),
+    ("cargo_purchase", "titled_trade", "merchant -> owners of surplus food, titled cargo bought by id (A4)"),
 )
 CHANNEL_NAMES: tuple[str, ...] = tuple(c[0] for c in CHANNELS)
 
@@ -57,6 +58,8 @@ CHANNEL_NAMES: tuple[str, ...] = tuple(c[0] for c in CHANNELS)
 WITHHELD_PACKAGES: tuple[str, ...] = (
     "workshop_payroll", "apprenticeship", "recovery_crews_granary", "recovery_crews_workshop",
     "repair_projects", "timber_supply",
+    # A4: a titled shipment's carrier (its whole ordinary income; row only while A4 is active).
+    "titled_trade",
 )
 
 #: Withheld channels that are not paid work (no money moves). ``withheld_retail``:
@@ -73,6 +76,8 @@ WEALTH_WRITER_METHODS: tuple[str, ...] = (
     "transfer_wealth", "remit_wealth", "apply_merchant_transfers", "set_household_retail",
     "install_paid_work", "extend_paid_work", "install_retail_income",
     "reserve_learning_attendance", "prepare_teaching_work", "prepare_health_work",
+    # A4 (pairwise payments between people).
+    "settle_pairs",
 )
 #: Python helpers that route a payment to a writer for a caller-chosen purpose,
 #: with the channels they may carry. Every call of a router is a payer path of
@@ -85,6 +90,9 @@ WEALTH_ROUTERS: dict[str, tuple[str, ...]] = {
     # agent-wealth line of a bill through ``money._native_transfer``; the
     # purposes it may carry are ``MONEY_PURPOSE_CHANNELS``.
     "_native_transfer": ("wares_purchase", "care_wage"),
+    # A4: ``money.pay`` routes a pairwise bill (an agent paying agents)
+    # through ``money._native_pairs`` (native ``settle_pairs``).
+    "_native_pairs": ("cargo_purchase",),
 }
 #: The arguments that identify a payer path, ``(position, keyword)``.
 WEALTH_PATH_ARGS: dict[str, tuple[tuple[int | None, str], ...]] = {
@@ -92,6 +100,8 @@ WEALTH_PATH_ARGS: dict[str, tuple[tuple[int | None, str], ...]] = {
     "remit_wealth": ((1, "batch"),),
     "pay_from_firm": ((None, "purpose"),),
     "_native_transfer": ((2, "purpose"),),
+    "settle_pairs": ((1, "purpose"), (2, "batch")),
+    "_native_pairs": ((2, "purpose"),),
 }
 #: The one registry of payer paths: ``(module under chronicler, enclosing
 #: function, writer or router, identifying arguments as written) -> (call
@@ -134,6 +144,11 @@ WEALTH_WRITERS: dict[tuple[str, str, str, str], tuple[int, tuple[str, ...]]] = {
     ("money", "pay", "_native_transfer", "purpose=bill.purpose"): (2, ("wares_purchase", "care_wage")),
     # C2 (epidemic care): carers' ordinary income withheld for their care time.
     ("epidemic_care", "finish_phase2", "extend_paid_work", ""): (1, ("withheld_care",)),
+    # A4 (titled trade): the pairwise router's one native call and its caller in
+    # ``money.pay``; the carriers' paid share (their whole ordinary income).
+    ("money", "_native_pairs", "settle_pairs", "purpose=code,batch=batch"): (1, ("cargo_purchase",)),
+    ("money", "pay", "_native_pairs", "purpose=bill.purpose"): (1, ("cargo_purchase",)),
+    ("titled_trade", "finish_phase2", "extend_paid_work", ""): (1, ("titled_trade",)),
 }
 #: Purposes ``money.pay`` may move agent wealth for, with the ledger channel
 #: each is read as (``money.flows_for_turn``); ``money`` refuses any other
@@ -142,6 +157,7 @@ WEALTH_WRITERS: dict[tuple[str, str, str, str], tuple[int, tuple[str, ...]]] = {
 MONEY_PURPOSE_CHANNELS: dict[str, str] = {
     "wares_purchase": "wares_purchase",
     "care_wage": "care_wage",
+    "cargo_purchase": "cargo_purchase",
 }
 #: Every bill built for the payment seam outside ``money`` itself:
 #: ``(module under chronicler, enclosing function) -> purposes`` (a literal
@@ -154,6 +170,7 @@ MONEY_BILLS: dict[tuple[str, str], tuple[str, ...]] = {
     ("workshop_economics", "open_firms"): ("firm_capital",),
     # C2: carers' wages, treasury to agents (prepaid carry rule).
     ("epidemic_care", "_quote_bills"): ("care_wage",),
+    ("titled_trade", "_buy"): ("cargo_purchase",),
 }
 #: Every reference to a writer or router name that is not a call: the name
 #: strings packages use to check the extension has a method
@@ -176,12 +193,15 @@ WEALTH_WRITER_REFERENCES: dict[tuple[str, str, str], int] = {
     ("simulation", "run_turn_result", "prepare_teaching_work"): 1,
     ("health_care", "prepare_health_care", "prepare_health_work"): 1,
     ("epidemic_care", "<module>", "extend_paid_work"): 1,
+    ("titled_trade", "<module>", "extend_paid_work"): 1,
+    ("titled_trade", "<module>", "settle_pairs"): 1,
+    ("money", "_native_pairs", "settle_pairs"): 1,
 }
 #: Native ``AgentSimulator.wealth_transfer_purposes()`` this ledger knows
 #: (append only; a native test fails when the extension grows past it).
 KNOWN_PURPOSES: tuple[str, ...] = (
     "workshop_wage", "relocation_fare", "apprentice_stipend", "repair_wage", "remittance", "food_purchase",
-    "food_procurement", "wares_purchase",
+    "food_procurement", "wares_purchase", "cargo_purchase", "cargo_sale",
 )
 
 #: Continuity of an opening with the previous closing.
@@ -213,6 +233,8 @@ LIFETIME: tuple[str, ...] = (
     # A3 (workshop economics), appended: its typed channel, then its treasury side.
     "wares_purchase_in_milli", "wares_purchase_out_milli", "treasury_to_firm_capital_milli",
     "firm_inputs_to_treasury_milli", "asset_subsidy_units",
+    # A4 (titled trade), appended: its typed channel and its carriers' withheld income.
+    "cargo_purchase_in_milli", "cargo_purchase_out_milli", "withheld_titled_trade",
 )
 
 #: Lifetime counters (declaration order; append only).

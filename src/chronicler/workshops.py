@@ -311,6 +311,28 @@ def _firm_input_cap(world, site: WorkshopSite, row: dict, operating: bool, bill:
     return cap
 
 
+def _owned_output_column(world, region_input, sim, open_sites):
+    """A3-2 seam: with workshop economics rules version 2, the native column
+    ``workshop_owned_crafts`` (the inventory at opening of each firm whose
+    site is open and planned this turn; null elsewhere) that keeps those
+    regions' crafted wares out of the commons; the batch unchanged otherwise.
+    Refused when the extension does not honour the column (it would put the
+    output into the commons and the firm's inventory both)."""
+    if not _lane_active(world, "workshop_economics"):
+        return region_input
+    from chronicler.workshop_economics import OWNED_COLUMN, owned_column, owned_supported
+    values = owned_column(world, open_sites)
+    if values is None:
+        return region_input
+    if not owned_supported(sim):
+        raise RuntimeError("--workshop-economics-rules 2 needs a native build that honours the "
+                           "workshop_owned_crafts column (rebuild chronicler-agents)")
+    if OWNED_COLUMN in region_input.schema.names:
+        raise RuntimeError("economy batch already carries the owned workshop column")
+    import pyarrow as pa
+    return region_input.append_column(OWNED_COLUMN, pa.array(values, type=pa.float32()))
+
+
 def _operating_wear(world, site: WorkshopSite) -> float:
     """RS0 seam (RS1, PL2): this turn's wear of a funded operating site; 0.0
     unless operating wear is active: ``--operating-wear`` (which takes RS1's
@@ -460,6 +482,7 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
                 values[region] = cap
             idx = region_input.schema.names.index("craft_raw_demand")
             region_input = region_input.set_column(idx, "craft_raw_demand", pa.array(values, type=pa.float32()))
+        region_input = _owned_output_column(world, region_input, sim, {p.site.site for p in plans})
     # Drop any stale observation from an earlier tick before this one runs.
     sim.take_craft_inputs()
     state._plan = _Plan(world.turn, plans, legacy)

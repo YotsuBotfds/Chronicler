@@ -344,6 +344,20 @@ open questions follow each summary.
   models, flow made downstream regions wetter (5 of 6) with less food shortfall (6 of 6). Floods
   arise only from storage released by upstream forest loss (rain has no weather variability).
 
+- **CW5c** (C2 epidemic care; template 3301–3306, procedural 3401–3406): against cost-only care,
+  care lowered the world epidemic death rate, the ITT fatality on cost-only-covered cells and world
+  deaths per infectious person-turn in all 6 template worlds; in procedural worlds the death rate was
+  mixed and both fatality measures lower in 5 of 6 (one world reversed by a pestilence outbreak only
+  the care arm had); per pathogen, care lower in all 36 readings. Harm: food shortfall higher in 5 of
+  6 template worlds (more survivors).
+- **CW5** (A4-1 titled trade; per-world window before the first titled purchase): one consistent
+  cell, procedural deficit-region food shortfall lower with titled trade (5 of 5 valid worlds; the
+  smallest possible share at k = 5); template went the other way, neither sensitivity line agreed,
+  and net food into deficit regions showed no consistent effect. Harms: migration and treasury higher
+  in all 6 procedural worlds. Merchant and farmer counts are not recorded anywhere (missing record).
+- **CW2** (A3 workshop economics, rules 2 vs rules 1): no consistent effect on firms' active share,
+  household workshop wages or wares sold to households; no household was priced out of firm wares.
+
 ### 5.9 Defects recorded for the owner (default-path; not changed by this program)
 
 - **Decisions that read causal provenance.** `docs/integration/causal-provenance.md` says provenance

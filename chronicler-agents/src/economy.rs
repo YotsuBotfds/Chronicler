@@ -395,6 +395,10 @@ pub struct ConservationSummary {
     /// PL1 timber supply: woodcutting crews' harvest, counted in `production`
     /// (it is slot output) and carried away by the crews, never stocked.
     pub woodcut_outflow: f64,
+    /// A3-2 workshop economics: wares crafted in a region whose firm holds its
+    /// output (`workshop_owned`), counted in `production` and handed to the
+    /// firm's inventory (a Python account), never stocked in the commons.
+    pub workshop_owned_outflow: f64,
 }
 
 impl ConservationSummary {
@@ -408,6 +412,7 @@ impl ConservationSummary {
             clamp_floor_loss: 0.0,
             in_transit_delta: None,
             woodcut_outflow: 0.0,
+            workshop_owned_outflow: 0.0,
         }
     }
 }
@@ -1229,8 +1234,8 @@ pub fn tick_economy_core_with_retail(
         granary_work_requested, None, retail)
 }
 
-/// The economy tick with every optional input: PL1 woodcutting crews and L6b
-/// household retail (each `None`: none of its arithmetic runs).
+/// The economy tick with PL1 woodcutting crews and L6b household retail
+/// (each `None`: none of its arithmetic runs).
 #[allow(clippy::too_many_arguments)]
 pub fn tick_economy_core_with_inputs(
     region_inputs: &[EconomyRegionInput],
@@ -1248,6 +1253,43 @@ pub fn tick_economy_core_with_inputs(
     woodcut: Option<&WoodcutInput>,
     retail: Option<&[Option<RetailRegionInput>]>,
 ) -> EconomyOutput {
+    tick_economy_core_full(region_inputs, agent_counts, routes, civ_merchant_wealth, civ_priest_count, n_civs,
+        region_civ_owner, config, trade_friction, is_winter, hybrid_delivery, granary_work_requested, woodcut,
+        retail, None)
+}
+
+/// The economy tick with every optional input, adding A3-2's
+/// `workshop_owned` (per region in input order, `Some(firm inventory)` for a
+/// region whose workshop firm holds its own output, in loads): that region's
+/// crafted wares are reported in `craft_output` and counted in production
+/// but never enter the commons stockpile (the people's free draw and
+/// merchants cannot take them; Python adds them to the firm's inventory), and
+/// the firm's inventory at opening counts in the wares supply for prices
+/// only. `None`, or `None` for a region, executes none of that arithmetic.
+/// Hybrid economy only.
+#[allow(clippy::too_many_arguments)]
+pub fn tick_economy_core_full(
+    region_inputs: &[EconomyRegionInput],
+    agent_counts: &[RegionAgentCounts],
+    routes: &[TradeRouteInput],
+    civ_merchant_wealth: &[f32],
+    civ_priest_count: &[u32],
+    n_civs: usize,
+    region_civ_owner: &[u8],
+    config: &EconomyConfig,
+    trade_friction: f32,
+    is_winter: bool,
+    hybrid_delivery: Option<&HybridDeliveryInput>,
+    granary_work_requested: &[f32],
+    woodcut: Option<&WoodcutInput>,
+    retail: Option<&[Option<RetailRegionInput>]>,
+    workshop_owned: Option<&[Option<f32>]>,
+) -> EconomyOutput {
+    assert!(workshop_owned.is_none_or(|w| w.len() == region_inputs.len()), "workshop rows must match the regions");
+    assert!(workshop_owned.is_none() || hybrid_delivery.is_some(), "owned workshop output requires the hybrid economy");
+    assert!(workshop_owned.is_none_or(|w| w.iter().flatten().all(|v| v.is_finite() && *v >= 0.0)),
+            "a firm's inventory must be finite and nonnegative");
+    let owned_at = |i: usize| workshop_owned.and_then(|w| w[i]);
     assert!(retail.is_none_or(|r| r.len() == region_inputs.len()), "retail rows must match the regions");
     assert!(retail.is_none() || hybrid_delivery.is_some(), "household retail requires the hybrid economy");
     let retail_at = |i: usize| retail.and_then(|r| r[i]);
@@ -1432,6 +1474,11 @@ pub fn tick_economy_core_with_inputs(
             }
         }
         craft_output.push(crafted);
+        // A3-2: a firm's wares on hand are supply too (prices see them); its
+        // inventory never enters the commons.
+        if let Some(held) = owned_at(i) {
+            available[CAT_CRAFT] += held;
+        }
 
         // Demand.
         let mut demand = [
@@ -1890,10 +1937,15 @@ pub fn tick_economy_core_with_inputs(
             }
             row
         });
-        let commons_production = match &retail_row {
+        let mut commons_production = match &retail_row {
             Some(row) => std::array::from_fn(|g| w.per_good_production[g] - row.titled[g]),
             None => w.per_good_production,
         };
+        // A3-2: the region's crafted wares go to its firm, not to the commons.
+        if owned_at(ri).is_some() && craft_output[ri] > 0.0 {
+            commons_production[SLOT_CRAFTS] -= craft_output[ri];
+            conservation.workshop_owned_outflow += craft_output[ri] as f64;
+        }
         // L6b retail: the commons start from their share of the opening cap
         // (the opening counts them before it; the cut is cap overflow).
         if let Some(open) = &retail_carried[ri] {
@@ -3086,3 +3138,80 @@ crate::persist_struct!(EconomyConfig {
     max_preservation, tatonnement_max_passes, tatonnement_damping, tatonnement_convergence,
     tatonnement_price_clamp_lo, tatonnement_price_clamp_hi,
 });
+
+#[cfg(test)]
+mod workshop_owned_tests {
+    //! A3-2 workshop economics: a firm keeps its own output out of the commons.
+    use super::*;
+
+    /// A hybrid city region with 10 ore, crafts for 3, people wanting 2 wares
+    /// and 0.5 wares already in the commons; `owned` is the firm's inventory.
+    fn run(owned: Option<Option<f32>>) -> EconomyOutput {
+        let mut r = EconomyRegionInput {
+            region_id: 0, terrain: 0, storage_population: 40, resource_types: [0, 255, 255],
+            resource_yields: [1.0, 0.0, 0.0], production_caps: [None; 3], stockpile: [0.0; NUM_GOODS],
+            subsistence_yield: 0.0, farm_labor_factor: 1.0, craft_raw_demand: 3.0, craft_demand: 2.0,
+            farm_labor_ref: 0.0, farm_labor_half: 0.0, slot_curves: false, slot_labor_ref: [0.0; 3],
+            slot_labor_half: [0.0; 3],
+        };
+        r.stockpile[SLOT_ORE] = 10.0;
+        r.stockpile[SLOT_CRAFTS] = 0.5;
+        let agents = vec![RegionAgentCounts {
+            population: 40, farmer_count: 0, soldier_count: 0, merchant_count: 0, wealthy_count: 0,
+        }];
+        let buf = crate::merchant::DeliveryBuffer::new(1);
+        let hybrid = HybridDeliveryInput::from_buffer(&buf, 1);
+        let rows = owned.map(|v| vec![v]);
+        match rows {
+            None => tick_economy_core_with_inputs(&[r], &agents, &[], &[0.0], &[0], 1, &[0u8],
+                &EconomyConfig::default(), 1.0, false, Some(&hybrid), &[], None, None),
+            Some(rows) => tick_economy_core_full(&[r], &agents, &[], &[0.0], &[0], 1, &[0u8],
+                &EconomyConfig::default(), 1.0, false, Some(&hybrid), &[], None, None, Some(&rows)),
+        }
+    }
+
+    fn bits(out: &EconomyOutput) -> (Vec<u32>, Vec<u32>, u32, u32, Vec<u32>) {
+        let rr = &out.region_results[0];
+        (rr.stockpile.map(f32::to_bits).to_vec(), rr.market_price.map(f32::to_bits).to_vec(),
+         rr.craft_output.to_bits(), rr.craft_sufficiency.to_bits(),
+         vec![out.conservation.production.to_bits() as u32, out.conservation.consumption.to_bits() as u32,
+              out.conservation.storage_loss.to_bits() as u32])
+    }
+
+    #[test]
+    fn without_the_column_or_with_a_null_row_nothing_changes() {
+        let plain = run(None);
+        assert_eq!(bits(&run(Some(None))), bits(&plain));
+        assert_eq!(run(Some(None)).conservation.workshop_owned_outflow, 0.0);
+        assert_eq!(plain.conservation.workshop_owned_outflow, 0.0);
+    }
+
+    #[test]
+    fn a_firms_output_never_enters_the_commons_and_its_stock_is_priced() {
+        let plain = run(None);
+        let owned = run(Some(Some(1.0)));
+        let (p, o) = (&plain.region_results[0], &owned.region_results[0]);
+        // The same 3 wares are made from the same 3 ore (production counted).
+        assert!((o.craft_output - 3.0).abs() < 1e-6 && (p.craft_output - 3.0).abs() < 1e-6);
+        assert_eq!(o.craft_input.map(f32::to_bits), p.craft_input.map(f32::to_bits));
+        assert!((o.stockpile[SLOT_ORE] - 7.0).abs() < 1e-5);
+        assert_eq!(owned.conservation.production.to_bits(), plain.conservation.production.to_bits());
+        // The people draw only the 0.5 wares already in the commons (no free
+        // use of the firm's new output); none is left to wear.
+        assert_eq!(o.stockpile[SLOT_CRAFTS], 0.0);
+        assert!((o.craft_sufficiency - 0.25).abs() < 1e-6);
+        assert!((p.stockpile[SLOT_CRAFTS] - 0.99 * 1.5).abs() < 1e-5);
+        assert!((owned.conservation.consumption - (3.0 + 0.5)).abs() < 1e-6);
+        assert!((owned.conservation.workshop_owned_outflow - 3.0).abs() < 1e-6);
+        // The firm's inventory is supply for prices: the wares price falls.
+        assert!(o.market_price[CAT_CRAFT] < p.market_price[CAT_CRAFT]);
+        let held = run(Some(Some(0.0)));
+        assert!(o.market_price[CAT_CRAFT] < held.region_results[0].market_price[CAT_CRAFT]);
+    }
+
+    #[test]
+    #[should_panic(expected = "a firm's inventory must be finite and nonnegative")]
+    fn a_negative_inventory_is_refused() {
+        run(Some(Some(-1.0)));
+    }
+}

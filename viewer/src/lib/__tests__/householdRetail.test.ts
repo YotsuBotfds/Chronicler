@@ -203,6 +203,21 @@ describe("household retail reader refuses records that do not close", () => {
     expect([r4.commons.pilot_closed, r4.provisioning, r4.price_milli]).toEqual([500, null, null]);
     expect(closed.log.at(-1)).toMatchObject({ kind: "pilot_closed", region: 4, turn: 80 });
   });
+
+  it("accepts titled trade's flows (A4) in the owned pool's closure and refuses them when they do not close", () => {
+    // Constructed: owners sold 100 milli-food to a merchant (it left the pool) and a
+    // shipment delivered 40 as its holder's claim, with the same close.
+    const traded = (change = 0) => {
+      const x = record("t7");
+      const r = region(x, 1);
+      r.open_milli += 60;
+      r.flows.sold_merchant = 100 + change;
+      r.flows.consigned_in = 40;
+      return x;
+    };
+    expect(ok(traded()).regions!.find((r) => r.region === 1)!.flows).toMatchObject({ sold_merchant: 100, consigned_in: 40 });
+    expect(why(read(traded(1)))).toMatch(/^the owned food does not close/);
+  });
 });
 
 /** Keep the goods consistent with a changed close (the closing identity is then the one that fails). */

@@ -49,12 +49,18 @@ The connected-world program appends:
 * ``--workshop-economics`` (A3): an L6a workshop firm buys its raw inputs from
   the commons owner, starts with owner capital and sells to households as
   well as academies; inserted before the ledger and without hooks of its own
-  (the workshop and payroll seams call it).
+  (the workshop and payroll seams call it). ``--workshop-economics-rules 2``
+  (A3-2) keeps each firm's output out of the commons (a native column): it
+  reaches users only by sale.
+* ``--titled-trade`` (A4): merchants buy owners' surplus food in a retail
+  pilot region, carry it with title and custody per shipment by stable id and
+  sell it as their own retail claim at another pilot region; inserted before
+  the ledger; its Phase 10 runs inside retail's frame.
 * ``--epidemic-care`` (C2): named adult farmers paid from an L9 envelope tend the
   sick of a region with a reported outbreak; their farm time leaves the native
   farm labour, and the patients they can serve, dated, lower the next epidemic
   tick's case fatality (mode ``care``) or nothing (``cost_only``, the cost
-  control); inserted after A3 and before D2 and the ledger, so its Phase 2 work
+  control); inserted after A3 and A4 and before D2 and the ledger, so its Phase 2 work
   comes after every other work consumer.
 * ``--attribution-records`` (D2): observation-only records of actor, victim and
   cause (granary seizures, casualties by cause, restored-civ identity reuse,
@@ -124,6 +130,7 @@ LIVELIHOODS_CHOICES: dict[str, tuple[str, ...]] = {
     "household_retail_rules": ("2", "1"),
     "watershed_mode": ("record_only", "flow"),
     "workshop_economics_mode": ("market", "free_inputs", "academy_only"),
+    "workshop_economics_rules": ("1", "2"),
     "epidemic_care_mode": ("care", "cost_only"),
 }
 #: All parser destinations owned here (``batch_manifest.SIMULATION_ARG_KEYS``).
@@ -150,6 +157,8 @@ LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     "household_retail_rules",
     "watershed", "watershed_mode",
     "workshop_economics", "workshop_economics_mode",
+    "workshop_economics_rules",
+    "titled_trade",
     "epidemic_care", "epidemic_care_mode",
     "attribution_records",
     "wealth_accounting",
@@ -395,8 +404,26 @@ _HELP = {
         "produces nothing; firms close when insolvent or idle; requires --workshop-payroll (default off)"
     ),
     "workshop_economics_mode": (
-        "market (default); free_inputs: the cost control, every rule as market except that the input "
-        "charge is recorded and not taken; academy_only: the demand control with no household customers"
+        "market (default); free_inputs: a diagnostic cost control only (free inputs are not a supported "
+        "feature): every rule as market except that the input charge is recorded and not taken; "
+        "academy_only: the demand control with no household customers"
+    ),
+    "workshop_economics_rules": (
+        "Workshop economics rules version of a new state: 1 (default): A3-1 exactly (the tick's output "
+        "enters the commons before title, so the people and merchants can use part of it free in the same "
+        "tick); 2 (A3-2): a native column keeps each firm's output out of the commons, so it reaches anyone "
+        "only by sale (households, academies) and the firm produces no more than its inventory room. A saved "
+        "state keeps its version; a conflicting value is refused"
+    ),
+    "titled_trade": (
+        "Titled trade (A4): in household-retail pilot regions a resident merchant buys owners' food above "
+        "their fair-share reserve, pro rata, at the local retail price, paying each owner by stable id; it "
+        "carries the cargo with title and custody (one shipment by id, one edge a turn, its own model income "
+        "withheld while it travels) to another pilot region within three hops where the price pays for the "
+        "trip, and the delivered cargo becomes its retail claim sold to households; a conquest of the "
+        "destination, a quarantine closure of the route or a lost route returns the shipment, the holder's "
+        "death escheats the cargo to the commons where it stands; requires --agents hybrid and "
+        "--household-retail in mode retail or no_relief with rules version 2 (default off)"
     ),
     "epidemic_care": (
         "Epidemic care (C2): each ruler may fund, from its local budget, carers for a region with a reported "
@@ -636,6 +663,39 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
             raise ValueError("--workshop-economics requires --workshop-payroll (--workshops in operate mode, "
                              "--agents hybrid)"
                              + ("; this world has it on: pass --no-workshop-economics to end it" if saved else ""))
+    if _on(world, values, "titled_trade"):
+        # Also when only saved: a resume that ends retail (or leaves hybrid, or
+        # changes retail to a mode that holds no food or moves no money) would
+        # otherwise strand live shipments unseen; --no-titled-trade ends them.
+        retail = getattr(livelihoods_state(world), "household_retail", None)
+        mode = getattr(args, "household_retail_mode", None) or (retail.mode if retail is not None else "retail")
+        rules = getattr(args, "household_retail_rules", None) or (retail.rules if retail is not None else "2")
+        if agent_mode != "hybrid" or not _on(world, values, "household_retail") \
+                or mode not in ("retail", "no_relief") or str(rules) != "2":
+            saved = values["titled_trade"] is not True
+            message = ("--titled-trade requires --agents hybrid and --household-retail in mode retail or "
+                       "no_relief with rules version 2"
+                       + ("; this world has it on: pass --no-titled-trade to end it (live shipments leave "
+                          "their cargo in the commons where they stand, dated)" if saved else ""))
+            raise (LivelihoodsRefusal if saved else ValueError)(message)
+    rules_a3 = getattr(args, "workshop_economics_rules", None) if args is not None else None
+    economics = getattr(livelihoods_state(world), "workshop_economics", None)
+    if rules_a3 is not None:
+        if economics is None and not _on(world, values, "workshop_economics"):
+            raise ValueError("--workshop-economics-rules requires --workshop-economics")
+        if economics is not None and str(rules_a3) != economics.rules:
+            raise ValueError(f"--workshop-economics-rules {rules_a3} conflicts with the saved workshop "
+                             f"economics rules version {economics.rules}")
+    effective = str(rules_a3) if rules_a3 is not None else (economics.rules if economics is not None else "1")
+    if effective == "2" and _on(world, values, "workshop_economics") and agent_mode == "hybrid":
+        # A3-2 needs an extension that honours its native column (startup and resume).
+        from chronicler.workshop_economics import native_owned_supported
+        if not native_owned_supported():
+            saved = rules_a3 is None
+            raise (LivelihoodsRefusal if saved else ValueError)(
+                "--workshop-economics-rules 2 needs a native build that honours the workshop_owned_crafts "
+                "column (rebuild chronicler-agents)"
+                + ("; this world has it on: pass --no-workshop-economics to end it" if saved else ""))
     if (values["epidemic_care"] is not None or getattr(args, "epidemic_care_mode", None) is not None
             or getattr(livelihoods_state(world), "epidemic_care", None) is not None):
         # C2: also when only saved (a resume outside hybrid, without L9 or
@@ -738,6 +798,7 @@ _CHOICE_FIELDS: dict[str, tuple[str, str]] = {
     "household_retail_rules": ("household_retail", "rules"),
     "watershed_mode": ("watershed", "mode"),
     "workshop_economics_mode": ("workshop_economics", "mode"),
+    "workshop_economics_rules": ("workshop_economics", "rules"),
     "epidemic_care_mode": ("epidemic_care", "mode"),
 }
 

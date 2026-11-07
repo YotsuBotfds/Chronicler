@@ -80,3 +80,18 @@ describe("workshop economics reader", () => {
     expect(empty.householdShareOfSales).toBeNull();
   });
 });
+
+describe("workshop economics reader under owned output (A3-2)", () => {
+  const owned = { ...receipt, titled: 600, free_use_upper_bound: 0, inventory_close: 625, unsold_inventory: 625 };
+  const a32 = { ...economics, rules_version: 2, receipts: [owned], counters: { ...economics.counters, owned_output: 600 } };
+  it("reads rules version 2 and refuses free use or an untitled share under it", () => {
+    const read = workshopEconomicsAt(with3(a32), 3);
+    expect(read.status).toBe("observed");
+    expect(read.record?.rules_version).toBe(2);
+    expect(economicsFunnel(read.record!).ownedOutput).toBe(0.6);
+    expect(economicsFunnel(workshopEconomicsAt(with3(economics), 3).record!).ownedOutput).toBeNull();
+    // Rules 1's free use is refused under rules 2 (the whole output is titled), and only 2 is a version.
+    expect(workshopEconomicsAt(with3({ ...a32, receipts: [receipt] }), 3).status).toBe("malformed");
+    expect(workshopEconomicsAt(with3({ ...a32, rules_version: 1 }), 3).status).toBe("malformed");
+  });
+});

@@ -84,9 +84,10 @@ def _entries(frame, kind):
 
 def test_the_switch_is_inserted_before_the_ledger_with_cli_catalog_and_manifest_keys():
     assert LIVELIHOODS_SWITCHES[-2:] == ("attribution_records", "wealth_accounting")
-    # After A3 and the acting packages inserted before it (C2's epidemic care), before the ledger.
+    # After every acting package: A3, A4's titled trade, then C2's epidemic care (inserted before it).
     assert LIVELIHOODS_SWITCHES.index("attribution_records") == LIVELIHOODS_SWITCHES.index("epidemic_care") + 1
-    assert LIVELIHOODS_SWITCHES.index("epidemic_care") == LIVELIHOODS_SWITCHES.index("workshop_economics") + 1
+    assert LIVELIHOODS_SWITCHES.index("epidemic_care") == LIVELIHOODS_SWITCHES.index("titled_trade") + 1
+    assert LIVELIHOODS_SWITCHES.index("titled_trade") == LIVELIHOODS_SWITCHES.index("workshop_economics") + 1
     assert LV.LIVELIHOODS_ARG_KEYS[-2:] == ("attribution_records", "wealth_accounting")
     assert "attribution_records" not in LV.LIVELIHOODS_CHOICES
     assert REQUIREMENTS["attribution_records"] == ({"agents": ["hybrid"]},)

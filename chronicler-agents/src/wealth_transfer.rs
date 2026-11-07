@@ -30,6 +30,11 @@
 //!   sender pays a recipient an amount plus a courier fee under the purpose
 //!   `remittance`, both parties validated before any change, with the
 //!   recipient's ceiling excess refunded, once per (turn, purpose, batch).
+//! * [`settle_pairs`] (connected-world A4, titled trade) is the generic
+//!   pairwise payment: each row moves an amount from a payer to a payee
+//!   under a pairwise purpose (`cargo_purchase`, `cargo_sale`), with no fee
+//!   and no trip rule, the payee's ceiling excess staying with the payer,
+//!   once per (turn, purpose, batch).
 //! * [`install_retail_income`] (household retail L6b) arms a one-tick
 //!   replacement of pilot-region farmers' ordinary farm income: the wealth
 //!   phase records and zeroes what is left of it after the teaching,
@@ -53,9 +58,13 @@ pub const MILLI: i64 = 1000;
 /// (L6b) for household food purchases (settled in the tick) and granary
 /// procurement from owners (paid by Python through [`transfer`]); 7 by
 /// workshop economics (A3) for households buying a firm's wares (debit rows
-/// of [`transfer`]; the firm's cash is a Python account).
-pub const PURPOSES: [&str; 8] = ["workshop_wage", "relocation_fare", "apprentice_stipend", "repair_wage", "remittance",
-                                 "food_purchase", "food_procurement", "wares_purchase"];
+/// of [`transfer`]; the firm's cash is a Python account); 8-9 by titled trade
+/// (A4) for pairwise payments between people ([`settle_pairs`]): a merchant
+/// buying owners' food (`cargo_purchase`) and, from later slices, a buyer
+/// paying a cargo's holder (`cargo_sale`).
+pub const PURPOSES: [&str; 10] = ["workshop_wage", "relocation_fare", "apprentice_stipend", "repair_wage", "remittance",
+                                  "food_purchase", "food_procurement", "wares_purchase", "cargo_purchase",
+                                  "cargo_sale"];
 pub const PURPOSE_WORKSHOP_WAGE: u8 = 0;
 pub const PURPOSE_RELOCATION_FARE: u8 = 1;
 pub const PURPOSE_APPRENTICE_STIPEND: u8 = 2;
@@ -64,6 +73,10 @@ pub const PURPOSE_REMITTANCE: u8 = 4;
 pub const PURPOSE_FOOD_PURCHASE: u8 = 5;
 pub const PURPOSE_FOOD_PROCUREMENT: u8 = 6;
 pub const PURPOSE_WARES_PURCHASE: u8 = 7;
+pub const PURPOSE_CARGO_PURCHASE: u8 = 8;
+pub const PURPOSE_CARGO_SALE: u8 = 9;
+/// Purposes [`settle_pairs`] accepts (pairwise payments between people).
+pub const PAIRWISE_PURPOSES: [u8; 2] = [PURPOSE_CARGO_PURCHASE, PURPOSE_CARGO_SALE];
 /// Largest magnitude accepted for one row (10^12 milli-units).
 pub const MAX_ROW_MILLIS: i64 = 1_000_000_000_000;
 /// Row statuses, in declaration order (append only).
@@ -125,10 +138,17 @@ pub(crate) fn floor_millis(value: f32) -> i64 {
 }
 
 /// Apply `rows` (stable id, signed milli-units) once for `(turn, purpose, batch)`.
+/// The pairwise purposes ([`PAIRWISE_PURPOSES`]) are refused: they are paid
+/// only through [`settle_pairs`].
 pub fn transfer(pool: &mut AgentPool, turn: u32, purpose: u8, batch: u32, rows: &[(u32, i64)])
     -> Result<TransferReceipt, &'static str> {
     if purpose as usize >= PURPOSES.len() {
         return Err("unknown wealth transfer purpose");
+    }
+    if PAIRWISE_PURPOSES.contains(&purpose) {
+        // A4: payments between people are paid only pairwise (settle_pairs),
+        // so a one-sided credit can never mint wealth under these purposes.
+        return Err("a pairwise wealth transfer purpose is paid only through settle_pairs");
     }
     let mut seen = std::collections::HashSet::with_capacity(rows.len());
     for &(id, amount) in rows {
@@ -249,6 +269,102 @@ pub fn remit(pool: &mut AgentPool, turn: u32, batch: u32, rows: &[(u32, u32, i64
         }
         let status = if sent == asked && refunded == 0 { STATUS_APPLIED } else { STATUS_LIMITED };
         out.push(RemitRow { sender, recipient, sent, fee: fee_paid, credited, refunded, status });
+    }
+    pool.wealth_transfer_log.retain(|&(t, _, _)| t >= turn);
+    pool.wealth_transfer_log.push((turn, purpose, batch));
+    Ok(out)
+}
+
+/// One pairwise payment row as applied (A4, [`settle_pairs`]); milli-units.
+/// `sent` is what the payer could pay (its wealth limits it), `credited`
+/// what reached the payee and `refunded` what the payee's wealth ceiling
+/// refused, which never left the payer: `sent == credited + refunded` and the
+/// payer's net loss is `credited`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PairRow {
+    pub payer: u32,
+    pub payee: u32,
+    pub requested: i64,
+    pub sent: i64,
+    pub credited: i64,
+    pub refunded: i64,
+    pub status: u8,
+}
+
+/// A4 titled trade: apply `rows` (payer id, payee id, amount in milli-units)
+/// once for `(turn, purpose, batch)`, in the key log [`transfer`] uses.
+///
+/// The whole call is validated before any change: `purpose` is pairwise
+/// ([`PAIRWISE_PURPOSES`]); a payer is never its own payee; no (payer, payee)
+/// pair repeats; no id is both a payer and a payee in one call;
+/// `0 < amount <= MAX_ROW_MILLIS`; a repeated or older key is refused. Each
+/// row then checks both parties: a party dead or unknown makes the row ABSENT
+/// and moves nothing. Otherwise the payer pays `min(amount, what it still
+/// holds)` (its whole milli-units at the start of the call, less what its
+/// earlier rows credited) and the payee is credited that up to its room below
+/// `MAX_WEALTH` (at the start of the call, less earlier credits); a credit
+/// the ceiling refuses never leaves the payer. There is **no trip rule**: a
+/// payment by title reaches a party away on a merchant trip, as retail
+/// settlement does. A row is LIMITED when the payer could not pay in full or
+/// anything was refused, APPLIED otherwise. Each person's net change is
+/// applied to their wealth once, after every row, so rows never see each
+/// other's f32 rounding. Nothing is created: the payers lose exactly what
+/// the payees gain (`credited`). No random draws.
+pub fn settle_pairs(pool: &mut AgentPool, turn: u32, purpose: u8, batch: u32, rows: &[(u32, u32, i64)])
+    -> Result<Vec<PairRow>, &'static str> {
+    if !PAIRWISE_PURPOSES.contains(&purpose) {
+        return Err("not a pairwise wealth transfer purpose");
+    }
+    let mut pairs = std::collections::HashSet::with_capacity(rows.len());
+    let mut payers = std::collections::HashSet::new();
+    let mut payees = std::collections::HashSet::new();
+    for &(payer, payee, amount) in rows {
+        if payer == payee {
+            return Err("a pairwise payer cannot be its own payee");
+        }
+        if !pairs.insert((payer, payee)) {
+            return Err("duplicate payer and payee in pairwise transfer");
+        }
+        if amount <= 0 || amount > MAX_ROW_MILLIS {
+            return Err("pairwise transfer amount out of range");
+        }
+        payers.insert(payer);
+        payees.insert(payee);
+    }
+    if payers.iter().any(|id| payees.contains(id)) {
+        return Err("an agent cannot be both a payer and a payee in one pairwise transfer");
+    }
+    if pool.wealth_transfer_log.iter().any(|&(t, p, b)| p == purpose && b == batch && t >= turn) {
+        return Err("wealth transfer already applied for this turn, purpose and batch");
+    }
+    let slots = pool.build_id_slots();
+    let living = |id: u32| slots.get(id).filter(|&s| pool.is_alive(s) && pool.ids[s] == id);
+    let mut left: std::collections::HashMap<u32, i64> = std::collections::HashMap::new();
+    let mut room: std::collections::HashMap<u32, i64> = std::collections::HashMap::new();
+    let mut net: std::collections::BTreeMap<u32, (usize, i64)> = std::collections::BTreeMap::new();
+    let mut out = Vec::with_capacity(rows.len());
+    for &(payer, payee, requested) in rows {
+        let (Some(from), Some(to)) = (living(payer), living(payee)) else {
+            out.push(PairRow { payer, payee, requested, sent: 0, credited: 0, refunded: 0, status: STATUS_ABSENT });
+            continue;
+        };
+        let have = left.entry(payer).or_insert_with(|| floor_millis(pool.wealth[from]));
+        let sent = requested.min(*have);
+        let space = room.entry(payee).or_insert_with(|| floor_millis(MAX_WEALTH - pool.wealth[to]));
+        let credited = sent.min(*space);
+        let refunded = sent - credited;
+        *have -= credited;
+        *space -= credited;
+        net.entry(payer).or_insert((from, 0)).1 -= credited;
+        net.entry(payee).or_insert((to, 0)).1 += credited;
+        let status = if sent == requested && refunded == 0 { STATUS_APPLIED } else { STATUS_LIMITED };
+        out.push(PairRow { payer, payee, requested, sent, credited, refunded, status });
+    }
+    for (_, (slot, change)) in net {
+        if change != 0 {
+            let next = (pool.wealth[slot] as f64 + change as f64 / MILLI as f64) as f32;
+            pool.wealth[slot] = next.clamp(0.0, MAX_WEALTH);
+        }
     }
     pool.wealth_transfer_log.retain(|&(t, _, _)| t >= turn);
     pool.wealth_transfer_log.push((turn, purpose, batch));
@@ -572,7 +688,7 @@ mod tests {
     fn each_key_applies_once_and_bad_rows_change_nothing() {
         let mut pool = pool_with(&[1.0, 1.0]);
         let (a, b) = (pool.ids[0], pool.ids[1]);
-        assert!(transfer(&mut pool, 5, 9, 0, &[(a, 1)]).is_err());
+        assert!(transfer(&mut pool, 5, 10, 0, &[(a, 1)]).is_err());
         assert!(transfer(&mut pool, 5, 0, 0, &[(a, 1), (a, 2)]).is_err());
         assert!(transfer(&mut pool, 5, 0, 0, &[(a, MAX_ROW_MILLIS + 1)]).is_err());
         assert_eq!((pool.wealth[0], pool.wealth[1]), (1.0, 1.0));
@@ -621,17 +737,108 @@ mod tests {
     #[test]
     fn appended_purposes_keep_the_old_codes() {
         assert_eq!(PURPOSES, ["workshop_wage", "relocation_fare", "apprentice_stipend", "repair_wage", "remittance",
-                              "food_purchase", "food_procurement", "wares_purchase"]);
+                              "food_purchase", "food_procurement", "wares_purchase", "cargo_purchase", "cargo_sale"]);
         assert_eq!((PURPOSE_APPRENTICE_STIPEND, PURPOSE_REPAIR_WAGE, PURPOSE_REMITTANCE), (2, 3, 4));
         assert_eq!((PURPOSE_FOOD_PURCHASE, PURPOSE_FOOD_PROCUREMENT, PURPOSE_WARES_PURCHASE), (5, 6, 7));
+        assert_eq!((PURPOSE_CARGO_PURCHASE, PURPOSE_CARGO_SALE), (8, 9));
         let mut pool = pool_with(&[1.0]);
         let a = pool.ids[0];
         for purpose in [PURPOSE_APPRENTICE_STIPEND, PURPOSE_REPAIR_WAGE, PURPOSE_REMITTANCE,
                         PURPOSE_FOOD_PURCHASE, PURPOSE_FOOD_PROCUREMENT, PURPOSE_WARES_PURCHASE] {
             transfer(&mut pool, 2, purpose, 0, &[(a, 100)]).unwrap();
         }
-        assert!(transfer(&mut pool, 2, 8, 0, &[(a, 100)]).is_err());
+        // The pairwise purposes are refused by the one-sided transfer (only
+        // settle_pairs pays them), as is any unknown code.
+        for purpose in [PURPOSE_CARGO_PURCHASE, PURPOSE_CARGO_SALE, 10] {
+            assert!(transfer(&mut pool, 2, purpose, 0, &[(a, 100)]).is_err());
+            assert!(transfer(&mut pool, 2, purpose, 0, &[(a, -100)]).is_err());
+        }
         assert!((pool.wealth[0] - 1.6).abs() < 1e-5);
+        assert!(pool.wealth_transfer_log.iter().all(|&(_, p, _)| !PAIRWISE_PURPOSES.contains(&p)));
+    }
+
+    #[test]
+    fn settle_pairs_pays_owners_from_the_payer_once_and_conserves_wealth() {
+        let mut pool = pool_with(&[10.0, 1.0, 2.0]);
+        let (m, a, b) = (pool.ids[0], pool.ids[1], pool.ids[2]);
+        let rows = settle_pairs(&mut pool, 4, PURPOSE_CARGO_PURCHASE, 3, &[(m, a, 1500), (m, b, 2500)]).unwrap();
+        assert_eq!(rows[0], PairRow { payer: m, payee: a, requested: 1500, sent: 1500, credited: 1500, refunded: 0,
+                                      status: STATUS_APPLIED });
+        assert_eq!((rows[1].credited, rows[1].status), (2500, STATUS_APPLIED));
+        assert_eq!((milli(&pool, 0), milli(&pool, 1), milli(&pool, 2)), (6000, 2500, 4500));
+        // The key settles once; an older turn is refused; another batch or turn is its own key.
+        assert!(settle_pairs(&mut pool, 4, PURPOSE_CARGO_PURCHASE, 3, &[(m, a, 1)]).is_err());
+        assert!(settle_pairs(&mut pool, 3, PURPOSE_CARGO_PURCHASE, 3, &[(m, a, 1)]).is_err());
+        assert!(settle_pairs(&mut pool, 4, PURPOSE_CARGO_SALE, 3, &[(m, a, 1)]).is_ok());
+        assert!(settle_pairs(&mut pool, 4, PURPOSE_CARGO_PURCHASE, 4, &[(m, a, 1)]).is_ok());
+    }
+
+    #[test]
+    fn settle_pairs_validates_the_whole_call_before_any_change() {
+        let mut pool = pool_with(&[5.0, 5.0, 5.0]);
+        let (m, a, b) = (pool.ids[0], pool.ids[1], pool.ids[2]);
+        let before = pool.wealth.clone();
+        for purpose in [0u8, PURPOSE_REMITTANCE, PURPOSE_FOOD_PURCHASE, PURPOSE_WARES_PURCHASE, 10] {
+            assert!(settle_pairs(&mut pool, 1, purpose, 0, &[(m, a, 10)]).is_err());
+        }
+        assert!(settle_pairs(&mut pool, 1, PURPOSE_CARGO_PURCHASE, 0, &[(m, m, 10)]).is_err());
+        assert!(settle_pairs(&mut pool, 1, PURPOSE_CARGO_PURCHASE, 0, &[(m, a, 10), (m, a, 5)]).is_err());
+        assert!(settle_pairs(&mut pool, 1, PURPOSE_CARGO_PURCHASE, 0, &[(m, a, 10), (a, b, 5)]).is_err());
+        assert!(settle_pairs(&mut pool, 1, PURPOSE_CARGO_PURCHASE, 0, &[(m, a, 0)]).is_err());
+        assert!(settle_pairs(&mut pool, 1, PURPOSE_CARGO_PURCHASE, 0, &[(m, a, -5)]).is_err());
+        assert!(settle_pairs(&mut pool, 1, PURPOSE_CARGO_PURCHASE, 0, &[(m, a, MAX_ROW_MILLIS + 1)]).is_err());
+        assert_eq!(pool.wealth, before);
+        assert!(pool.wealth_transfer_log.is_empty());
+    }
+
+    #[test]
+    fn settle_pairs_limits_at_the_payers_wealth_and_refunds_the_payees_ceiling() {
+        let mut pool = pool_with(&[3.0, 99.5, 1.0]);
+        let (m, rich, poor) = (pool.ids[0], pool.ids[1], pool.ids[2]);
+        let rows = settle_pairs(&mut pool, 2, PURPOSE_CARGO_PURCHASE, 0, &[(m, rich, 1000), (m, poor, 5000)]).unwrap();
+        // The rich payee takes 500 of 1000 (ceiling); the rest never left the payer.
+        assert_eq!(rows[0], PairRow { payer: m, payee: rich, requested: 1000, sent: 1000, credited: 500, refunded: 500,
+                                      status: STATUS_LIMITED });
+        // The payer then holds 2500: the second row is limited by its wealth.
+        assert_eq!(rows[1], PairRow { payer: m, payee: poor, requested: 5000, sent: 2500, credited: 2500, refunded: 0,
+                                      status: STATUS_LIMITED });
+        assert_eq!(milli(&pool, 0), 0);
+        assert!((pool.wealth[1] - MAX_WEALTH).abs() < 1e-4 && pool.wealth[1] <= MAX_WEALTH);
+        assert_eq!(milli(&pool, 2), 3500);
+    }
+
+    #[test]
+    fn settle_pairs_moves_nothing_for_dead_or_unknown_parties_and_ignores_trips() {
+        let mut pool = pool_with(&[4.0, 1.0, 1.0, 1.0]);
+        let (m, dead, away, other) = (pool.ids[0], pool.ids[1], pool.ids[2], pool.ids[3]);
+        pool.kill(1);
+        pool.trip_phase[2] = crate::agent::TRIP_PHASE_TRANSIT;
+        assert!(pool.is_on_trip(2));
+        let rows = settle_pairs(&mut pool, 6, PURPOSE_CARGO_PURCHASE, 1,
+                                &[(m, dead, 500), (m, 999_999, 500), (m, away, 700), (m, other, 300)]).unwrap();
+        let statuses: Vec<u8> = rows.iter().map(|r| r.status).collect();
+        assert_eq!(statuses, vec![STATUS_ABSENT, STATUS_ABSENT, STATUS_APPLIED, STATUS_APPLIED]);
+        assert_eq!((rows[0].sent, rows[1].credited), (0, 0));
+        // Title-based payment reaches a party on a merchant trip (no trip rule).
+        assert_eq!((milli(&pool, 0), milli(&pool, 2), milli(&pool, 3)), (3000, 1700, 1300));
+        let _ = away;
+    }
+
+    #[test]
+    fn settle_pairs_applies_each_net_change_once_without_f32_drift_between_rows() {
+        // A payer with an f32 balance just under a milli boundary pays many rows
+        // in full: rows see the whole-milli budget, never each other's rounding.
+        let mut pool = pool_with(&[7.3, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
+        let payer = pool.ids[0];
+        let budget = floor_millis(pool.wealth[0]);
+        let payees: Vec<u32> = pool.ids[1..].to_vec();
+        let share = budget / payees.len() as i64;
+        let rows: Vec<(u32, u32, i64)> = payees.iter().map(|&p| (payer, p, share)).collect();
+        let got = settle_pairs(&mut pool, 1, PURPOSE_CARGO_PURCHASE, 0, &rows).unwrap();
+        assert!(got.iter().all(|r| r.status == STATUS_APPLIED && r.credited == share));
+        let paid: i64 = got.iter().map(|r| r.credited).sum();
+        let before = budget as f64 / 1000.0;
+        assert!(((pool.wealth[0] as f64) - (before - paid as f64 / 1000.0)).abs() < 2e-3);
     }
 
     #[test]

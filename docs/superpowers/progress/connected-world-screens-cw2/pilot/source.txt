@@ -1,0 +1,13 @@
+source 60edc6c97b9fec4e2d29fd7dd524aad4b893c239
+dirty 0 tracked files
+dirty-code 0 tracked code files
+chronicler /home/user/wt/a4-trade/src/chronicler/__init__.py
+native /root/.venvs/native-a4/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so 43cbd22ac4e7e2c6a77e71781a884be5342f41aa4173ff6f43e0facf0f5e0eb0
+interpreter /root/.venvs/native-a4/bin/python
+runner deb4eb576a8feea16561324ab99df66511c051b844e48eeb7e0141802d9d5e6d scripts/screen_runner.py
+screens 5abac3872127d90486b1ba7ba09334f9ecc8b693169cc678c96058422fc8ed41 scripts/connected_world_screens.py
+registry 51d55d78bc93494e646ecadb9a732b6b7d725d6a6438f1b1666656ba9891ff4e scripts/seed_registry.json
+registry-content a703a8502cb688181662d323ff482822a3fec6df292d23ebccc42f05751b2cfe (cohorts and seeds)
+run: screen CW2; cohort pilot; seeds all; arms P,E1,E2,E2f,E2a; jobs 2; worlds -; turns -; rows already written 0
+started 2026-11-07T05:44:39Z
+finished 2026-11-07T05:45:49Z: 10 runs, 0 failed, 136 s of simulation and extraction (0.038 core-hours in all), 70.6 s wall

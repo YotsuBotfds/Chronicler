@@ -431,6 +431,67 @@ def _payroll(world, book: _Book, turn: int) -> None:
         book.closure("workshop_wage", check, lhs, rhs)
 
 
+def _money_channels(book: _Book, totals, package: str, fresh: bool) -> dict[str, tuple[int, int]]:
+    """The payment seam's agent-wealth channels of one package
+    (``MONEY_PURPOSE_CHANNELS`` whose channel belongs to ``package``), read
+    with signs from the seam's exact per-turn totals: an agent payee's side
+    in, an agent payer's side out, each located in its own region (a pairwise
+    flow's payer in ``payer_region``)."""
+    from chronicler.wealth_accounting_state import MONEY_PURPOSE_CHANNELS
+    channel_of = {name: (i, pkg) for i, (name, pkg, _payer) in enumerate(CHANNELS)}
+    moved = {}
+    for purpose, channel in MONEY_PURPOSE_CHANNELS.items():
+        idx, pkg = channel_of[channel]
+        if pkg != package:
+            continue
+        inflow = outflow = 0
+        by_region: dict[int, list[int]] = {}
+        for x in totals:
+            if x.purpose != purpose:
+                continue
+            if x.payee_kind == "agent_wealth":
+                inflow += x.applied
+                if x.region is not None:
+                    by_region.setdefault(int(x.region), [0, 0])[0] += x.applied
+            if x.payer_kind == "agent_wealth":
+                outflow += x.applied
+                where = x.payer_region if x.payer_region is not None else x.region
+                if where is not None:
+                    by_region.setdefault(int(where), [0, 0])[1] += x.applied
+        book.channel(channel, pkg, CHANNELS[idx][2], fresh, inflow, outflow,
+                     [(r, v[0], v[1]) for r, v in sorted(by_region.items())])
+        moved[purpose] = (inflow, outflow)
+    return moved
+
+
+def _titled_trade(world, book: _Book, turn: int) -> None:
+    """A4: the merchants' pairwise purchases from owners (``cargo_purchase``;
+    both sides in the household sector), re-checked against A4's receipts."""
+    st = _active(world, "titled_trade")
+    if st is None:
+        return
+    from chronicler.money import totals_for_turn
+    fresh = st.frame_turn == turn and st.frame is not None
+    totals = [x for x in (totals_for_turn(world, turn) or []) if x.purpose == "cargo_purchase"] if fresh else []
+    moved = _money_channels(book, totals, "titled_trade", fresh)
+    if not fresh:
+        return
+    inflow, outflow = moved.get("cargo_purchase", (0, 0))
+    rows = list(st.frame.get("dispatched", ()))
+    paid = sum(int(d["paid"]) for d in rows)
+    # Independent of the receipts: the merchants' and owners' wealth measured on
+    # the live pool before and after each payment (f32 balances, so within a
+    # small tolerance per person), against what the payment seam credited.
+    loss = math.fsum(float(d["measured_payer_loss"]) for d in rows)
+    gain = math.fsum(float(d["measured_payees_gain"]) for d in rows)
+    tol = 1e-4 + 1e-5 * sum(1 + int(d["sellers"]) for d in rows)
+    book.closure("cargo_purchase", "merchants' measured wealth loss = owners' measured wealth gain (live pool)",
+                 loss, gain, abs(loss - gain) <= tol)
+    book.closure("cargo_purchase", "owners' measured wealth gain = owners credited (payment seam)",
+                 gain, inflow / MILLI, abs(gain - inflow / MILLI) <= tol)
+    book.closure("cargo_purchase", "owners credited = A4 purchase receipts", inflow, paid)
+
+
 def _workshop_economics(world, book: _Book, t: _Turn, turn: int) -> None:
     """A3: the payment seam's agent-wealth channels (``MONEY_PURPOSE_CHANNELS``,
     read generically with signs from the seam's exact per-turn totals, so a turn
@@ -444,27 +505,7 @@ def _workshop_economics(world, book: _Book, t: _Turn, turn: int) -> None:
     from chronicler.wealth_accounting_state import MONEY_PURPOSE_CHANNELS
     fresh = st.frame_turn == turn
     totals = (totals_for_turn(world, turn) or []) if fresh else []
-    channel_of = {name: (i, package) for i, (name, package, _payer) in enumerate(CHANNELS)}
-    moved = {}
-    for purpose, channel in MONEY_PURPOSE_CHANNELS.items():
-        if CHANNELS[channel_of[channel][0]][1] != "workshop_economics":
-            continue    # another payer's purpose (C2 care wages: excluded with this ledger)
-        inflow = outflow = 0
-        by_region: dict[int, list[int]] = {}
-        for x in totals:
-            if x.purpose != purpose:
-                continue
-            cell = by_region.setdefault(int(x.region), [0, 0]) if x.region is not None else [0, 0]
-            if x.payee_kind == "agent_wealth":
-                inflow += x.applied
-                cell[0] += x.applied
-            if x.payer_kind == "agent_wealth":
-                outflow += x.applied
-                cell[1] += x.applied
-        idx, package = channel_of[channel]
-        book.channel(channel, package, CHANNELS[idx][2], fresh, inflow, outflow,
-                     [(r, v[0], v[1]) for r, v in sorted(by_region.items())])
-        moved[purpose] = (inflow, outflow)
+    moved = _money_channels(book, totals, "workshop_economics", fresh)
     if not fresh:
         return
 
@@ -747,6 +788,11 @@ def _installed(world, turn: int) -> dict[str, set[int]] | None:
         seen = True
         if st.frame_turn == turn and st.receipts is not None:
             sets["timber_supply"] = {int(a) for r in st.receipts for a in r.crew}
+    st = _active(world, "titled_trade")
+    if st is not None:
+        seen = True
+        if st.frame_turn == turn and st.frame is not None:
+            sets["titled_trade"] = {int(r["carrier"]) for r in st.frame.get("withheld", ())}
     return sets if seen else None
 
 
@@ -810,9 +856,16 @@ def _withheld(world, t: _Turn, turn: int) -> dict | None:
            "apprenticeship": delta("apprenticeship", "income_forgone"),
            "repair_projects": delta("repair_projects", "income_replaced"),
            "timber_supply": delta("timber_supply", "income_withheld")}
+    a4 = _active(world, "titled_trade")
+    if a4 is not None:
+        # A4 records its carriers' withheld income in its own frame (exact rows).
+        own["titled_trade"] = (float(a4.frame.get("withheld_total", 0.0))
+                               if a4.frame_turn == turn and a4.frame is not None else 0.0)
     pl3 = delta("recovery_crews", "income_replaced")
     packages = []
     for name in WITHHELD_PACKAGES:
+        if name == "titled_trade" and a4 is None:
+            continue                                  # a row only while A4 is active
         total = own.get(name)
         compared = sums[name]
         if name == "repair_projects" and total is not None:
@@ -864,6 +917,7 @@ def _frame(world, t: _Turn, closing, economy_result, acc) -> dict:
     _granary_crews(world, book, turn)
     _woodcut(world, book, turn)
     _retail(world, book, turn)
+    _titled_trade(world, book, turn)
     _remittances(world, book, turn)
     _relocation(world, book, t, turn)
     _credit(world, book, t)

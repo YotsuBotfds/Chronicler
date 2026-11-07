@@ -1,0 +1,27 @@
+{
+ "screen": "CW2",
+ "cohort": "held",
+ "out": "/home/user/evidence/a4/held-cw2",
+ "identity": "9798cd8836306582079a838408efa0560b0c3c926ec4efc6ea31b607894f63cf",
+ "preregistration": "436aed620861380d353b9671f8a8899f6b6543c7b82181710aa2b0f3bcd419ea docs/superpowers/progress/connected-world-screens-cw2.md",
+ "started": "2026-11-07T05:51:22Z",
+ "seeds": {
+  "template": [
+   741,
+   742,
+   743,
+   744,
+   745,
+   746
+  ],
+  "procedural": [
+   841,
+   842,
+   843,
+   844,
+   845,
+   846
+  ]
+ },
+ "reason": null
+}

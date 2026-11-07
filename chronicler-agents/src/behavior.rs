@@ -806,6 +806,11 @@ pub struct PendingDecisions {
     /// consolidation added, in the order it added them (a later entry for a
     /// slot replaces an earlier one, as the migration list does).
     pub migration_followers: Vec<(usize, u8)>,
+    /// A4: slots of titled carriers (`DecisionOptions::trade_carriers`) this
+    /// region skipped, in slot order of the region's slots, so household
+    /// consolidation does not move them as followers either (as merchants on
+    /// a native trip). Empty without titled trade.
+    pub trade_carriers: Vec<usize>,
 }
 
 impl PendingDecisions {
@@ -821,6 +826,7 @@ impl PendingDecisions {
             migration_drivers: MigrationDriverStats::default(),
             migration_dominant: Vec::new(),
             migration_followers: Vec::new(),
+            trade_carriers: Vec::new(),
         }
     }
 
@@ -889,11 +895,18 @@ pub fn evaluate_region_decisions_ablated<L: crate::pool::SlotLookup>(
 
 /// What a tick's decisions read besides the pool and the region stats.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub struct DecisionOptions {
+pub struct DecisionOptions<'a> {
     /// The `scale::ABLATE_*` bits in force this tick.
     pub ablation: u8,
     /// Community anchoring (`crate::community`, `scale::CommunityAnchoring`).
     pub community_anchoring: crate::scale::CommunityAnchoring,
+    /// A4 titled trade: stable ids holding this turn's `trade` work reservation
+    /// (`workshop_work::trade_holders`), the carriers of titled shipments. Like
+    /// a merchant on a native trip they take no decision this tick (no
+    /// migration, occupation switch, rebellion or loyalty change); region stats
+    /// still count them. `None` (no reservation: every run without titled
+    /// trade) leaves the decisions exactly as before.
+    pub trade_carriers: Option<&'a std::collections::HashSet<u32>>,
 }
 
 /// [`evaluate_region_decisions_ablated`] with community anchoring
@@ -912,7 +925,7 @@ pub fn evaluate_region_decisions_with<L: crate::pool::SlotLookup>(
     region_id: usize,
     rng: &mut ChaCha8Rng,
     id_to_slot: &L,  // M57b
-    options: DecisionOptions,
+    options: DecisionOptions<'_>,
 ) -> (PendingDecisions, u32) {
     evaluate_region_decisions_observer(pool, slots, regions, region_state, stats, region_id,
         rng, id_to_slot, options, &mut NoDelivery)
@@ -924,7 +937,7 @@ pub fn evaluate_region_decisions_with<L: crate::pool::SlotLookup>(
 pub(crate) fn evaluate_region_decisions_with_delivery<L: crate::pool::SlotLookup>(
     pool: &AgentPool, slots: &[usize], regions: &[RegionState], region_state: &RegionState,
     stats: &RegionStats, region_id: usize, rng: &mut ChaCha8Rng, id_to_slot: &L,
-    options: DecisionOptions, observer: &mut RegionDelivery<'_>,
+    options: DecisionOptions<'_>, observer: &mut RegionDelivery<'_>,
 ) -> (PendingDecisions, u32) {
     evaluate_region_decisions_observer(pool, slots, regions, region_state, stats, region_id,
         rng, id_to_slot, options, observer)
@@ -934,7 +947,7 @@ pub(crate) fn evaluate_region_decisions_with_delivery<L: crate::pool::SlotLookup
 fn evaluate_region_decisions_observer<L: crate::pool::SlotLookup, O: DecisionObserver>(
     pool: &AgentPool, slots: &[usize], regions: &[RegionState], region_state: &RegionState,
     stats: &RegionStats, region_id: usize, rng: &mut ChaCha8Rng, id_to_slot: &L,
-    options: DecisionOptions, observer: &mut O,
+    options: DecisionOptions<'_>, observer: &mut O,
 ) -> (PendingDecisions, u32) {
     let ablation = options.ablation;
     let ablate_needs = ablation & crate::scale::ABLATE_NEEDS != 0;
@@ -951,8 +964,16 @@ fn evaluate_region_decisions_observer<L: crate::pool::SlotLookup, O: DecisionObs
         }
         if O::ENABLED { observer.begin_agent(pool, slot, region_id); }
 
-        // M58a: Skip non-idle merchants from decisions (on trip)
+        // M58a: Skip non-idle merchants from decisions (on trip). A4: a titled
+        // carrier (this turn's `trade` reservation) is natively idle at home but
+        // carrying; it is skipped exactly the same way (a decision observer
+        // records it as a trip).
         if pool.is_on_trip(slot) {
+            if O::ENABLED { observer.trip(); }
+            continue;
+        }
+        if options.trade_carriers.is_some_and(|carriers| carriers.contains(&pool.ids[slot])) {
+            pending.trade_carriers.push(slot);
             if O::ENABLED { observer.trip(); }
             continue;
         }
@@ -2930,7 +2951,7 @@ mod ablation_tests {
         assert_eq!(plain_next, kin_next);
     }
 
-    fn decide_with(pool: &AgentPool, regions: &[RegionState], slots: &[usize], options: DecisionOptions)
+    fn decide_with(pool: &AgentPool, regions: &[RegionState], slots: &[usize], options: DecisionOptions<'_>)
         -> (PendingDecisions, u32)
     {
         let stats = compute_region_stats(pool, regions, &signals());
@@ -2943,11 +2964,51 @@ mod ablation_tests {
         (pending, rng.next_u32())
     }
 
-    fn anchoring(enabled: bool, ablation: u8) -> DecisionOptions {
+    fn anchoring(enabled: bool, ablation: u8) -> DecisionOptions<'static> {
         DecisionOptions {
             ablation,
             community_anchoring: crate::scale::CommunityAnchoring { enabled, ..Default::default() },
+            ..Default::default()
         }
+    }
+
+    #[test]
+    fn titled_carriers_take_no_decision_while_reserved_and_an_empty_set_changes_nothing() {
+        // A4: a carrier holding this turn's `trade` reservation is natively idle
+        // at home; it is skipped like a merchant on a native trip (no migration,
+        // occupation switch, rebellion or loyalty change), and region stats still
+        // count it. Without carriers the decisions and the stream are unchanged.
+        let (pool, regions, slots) = world(300);
+        let (plain, plain_next) = decide_with(&pool, &regions, &slots, DecisionOptions::default());
+        let empty = std::collections::HashSet::new();
+        let none = DecisionOptions { trade_carriers: Some(&empty), ..Default::default() };
+        let (with_empty, empty_next) = decide_with(&pool, &regions, &slots, none);
+        assert!(same(&plain, &with_empty));
+        assert_eq!(plain_next, empty_next);
+        // Carriers: every agent that took a decision in the plain run (and others).
+        let deciders: std::collections::HashSet<usize> = plain.migrations.iter().map(|m| m.0)
+            .chain(plain.occupation_switches.iter().map(|o| o.0))
+            .chain(plain.rebellions.iter().map(|r| r.0))
+            .collect();
+        assert!(!deciders.is_empty());
+        let carriers: std::collections::HashSet<u32> = deciders.iter().map(|&s| pool.ids[s]).collect();
+        let options = DecisionOptions { trade_carriers: Some(&carriers), ..Default::default() };
+        let (carried, _) = decide_with(&pool, &regions, &slots, options);
+        let carried_slots: std::collections::HashSet<usize> = carried.migrations.iter().map(|m| m.0)
+            .chain(carried.occupation_switches.iter().map(|o| o.0))
+            .chain(carried.rebellions.iter().map(|r| r.0))
+            .chain(carried.loyalty_flips.iter().map(|f| f.0))
+            .chain(carried.loyalty_drifts.iter().map(|d| d.0))
+            .collect();
+        assert!(carried_slots.iter().all(|s| !carriers.contains(&pool.ids[*s])));
+        let mut listed = carried.trade_carriers.clone();
+        listed.sort_unstable();
+        let mut expected: Vec<usize> = deciders.iter().copied().collect();
+        expected.sort_unstable();
+        assert_eq!(listed, expected);
+        assert!(plain.trade_carriers.is_empty() && with_empty.trade_carriers.is_empty());
+        // Agents who are not carriers still decide.
+        assert!(!carried_slots.is_empty() || plain.loyalty_drifts.iter().all(|d| carriers.contains(&pool.ids[d.0])));
     }
 
     /// `world(n)` where every agent shares a famine memory and agents form
@@ -3046,6 +3107,7 @@ mod ablation_tests {
             let options = DecisionOptions {
                 ablation: 0,
                 community_anchoring: crate::scale::CommunityAnchoring { enabled: true, full_anchor },
+                ..Default::default()
             };
             decide_with(&pool, &regions, &slots, options).0.migrations.len()
         };
