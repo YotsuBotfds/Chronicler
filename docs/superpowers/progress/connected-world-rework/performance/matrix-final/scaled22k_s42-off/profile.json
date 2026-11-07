@@ -1,0 +1,602 @@
+{
+  "case": {
+    "name": "scaled22k_s42-off",
+    "world": "scaled22k_s42",
+    "arm": "off",
+    "seed": 42,
+    "turns": 30,
+    "regions": 12,
+    "civs": 4,
+    "target": 18800,
+    "checkpoints": [
+      10,
+      20,
+      29
+    ],
+    "cli": [
+      "--turns",
+      "120",
+      "--agents",
+      "hybrid",
+      "--simulate-only",
+      "--campaigns",
+      "--health-care",
+      "--grain-reserves",
+      "--grain-storage",
+      "--public-grain-shipments",
+      "--grain-convoys",
+      "--scholarship",
+      "--academy-services",
+      "--learning-cohorts",
+      "--workshops",
+      "--workshop-payroll",
+      "--apprenticeship",
+      "--operating-wear",
+      "--veteran-reintegration",
+      "--timber-stock",
+      "--commons-rules",
+      "--clearing-protection",
+      "--timber-supply",
+      "--repair-projects",
+      "--recovery-crews",
+      "--local-budgets",
+      "--maintenance-obligation",
+      "--remittances",
+      "--relocation-costs",
+      "--food-allocation",
+      "--household-retail",
+      "--household-retail-rules",
+      "2",
+      "--household-retail-boundary",
+      "all",
+      "--household-retail-rules",
+      "1",
+      "--quarantine-mode",
+      "legacy",
+      "--seed",
+      "42",
+      "--regions",
+      "12",
+      "--civs",
+      "4",
+      "--turns",
+      "30",
+      "--validation-sidecar",
+      "--checkpoint-turns",
+      "10,20,29"
+    ]
+  },
+  "identity": {
+    "python_source": "/workspace/cwr-perf-final/src/chronicler/__init__.py",
+    "interpreter": "/workspace/cwr-native/bin/python",
+    "python_version": "3.13.5 (main, Aug 10 2026, 12:06:59) [GCC 14.2.0]",
+    "extension": "/workspace/cwr-native/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+    "native_sha256": "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
+    "agent_schema": [
+      1,
+      "dcf0c34097c88451"
+    ],
+    "environment": {
+      "RAYON_NUM_THREADS": "1",
+      "PYTHONHASHSEED": "0",
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1"
+    }
+  },
+  "source_snapshot": {
+    "commit": "1e047e7b6585d2cf13bb990f03f292c1067979c5",
+    "files": 348,
+    "sha256": "3a1624af408bdc97a50357aef9074de7c0f63ba03e67037432a75d8acc2503d2",
+    "base_sha256": "6c7975e99ea9320530116040e44351e6b11810cacad0b834d60c976f7f8f7b16",
+    "validation_sha256": {
+      "scripts/cw_rework_screen.py": "f8409b1b76be49dbff968323f9eee2f65229e5c1280e0c349fe2e2a3927e4fef",
+      "scripts/cw_health_screen.py": "cfa5d1116ee49716017bf5119c8e26dc704ea6d98f645c48da875b2e537a7e32",
+      "scripts/screen_runner.py": "5ded5f3548bb6403b1df25e9d31e5c5ce638631aa5fd1b4fabdcfb8510b5cadb"
+    }
+  },
+  "base_population": 176,
+  "scaled_population": 18801,
+  "native_initial_agents": 18801,
+  "run_wall_seconds": 16.142440465999243,
+  "run_cpu_seconds": 16.121463000000002,
+  "run_peak_rss_kib": 434700,
+  "process_peak_rss_with_read_kib": 538208,
+  "turns": [
+    {
+      "source_turn": 0,
+      "wall_seconds": 0.6885599719971651,
+      "cpu_seconds": 0.6883170000000001,
+      "native_agents": 18983
+    },
+    {
+      "source_turn": 1,
+      "wall_seconds": 0.7090522440012137,
+      "cpu_seconds": 0.708761,
+      "native_agents": 19118
+    },
+    {
+      "source_turn": 2,
+      "wall_seconds": 0.42678302400236134,
+      "cpu_seconds": 0.42650999999999994,
+      "native_agents": 19168
+    },
+    {
+      "source_turn": 3,
+      "wall_seconds": 0.31423178099794313,
+      "cpu_seconds": 0.3141419999999999,
+      "native_agents": 19461
+    },
+    {
+      "source_turn": 4,
+      "wall_seconds": 0.2990153559985629,
+      "cpu_seconds": 0.2988749999999998,
+      "native_agents": 19767
+    },
+    {
+      "source_turn": 5,
+      "wall_seconds": 0.24730483299936168,
+      "cpu_seconds": 0.24716499999999986,
+      "native_agents": 20163
+    },
+    {
+      "source_turn": 6,
+      "wall_seconds": 0.31453035899903625,
+      "cpu_seconds": 0.3143419999999999,
+      "native_agents": 20610
+    },
+    {
+      "source_turn": 7,
+      "wall_seconds": 0.2600085249978292,
+      "cpu_seconds": 0.25990699999999967,
+      "native_agents": 20966
+    },
+    {
+      "source_turn": 8,
+      "wall_seconds": 0.27754892500161077,
+      "cpu_seconds": 0.2771800000000004,
+      "native_agents": 21304
+    },
+    {
+      "source_turn": 9,
+      "wall_seconds": 0.3547596800017345,
+      "cpu_seconds": 0.3545689999999997,
+      "native_agents": 21619
+    },
+    {
+      "source_turn": 10,
+      "wall_seconds": 0.8430822290029027,
+      "cpu_seconds": 0.8427979999999993,
+      "native_agents": 21921
+    },
+    {
+      "source_turn": 11,
+      "wall_seconds": 0.3213591419989825,
+      "cpu_seconds": 0.3212150000000005,
+      "native_agents": 22149
+    },
+    {
+      "source_turn": 12,
+      "wall_seconds": 0.31680459000199335,
+      "cpu_seconds": 0.316573,
+      "native_agents": 22352
+    },
+    {
+      "source_turn": 13,
+      "wall_seconds": 0.3134571230002621,
+      "cpu_seconds": 0.3133140000000001,
+      "native_agents": 22515
+    },
+    {
+      "source_turn": 14,
+      "wall_seconds": 0.4013226439965365,
+      "cpu_seconds": 0.4009470000000004,
+      "native_agents": 22662
+    },
+    {
+      "source_turn": 15,
+      "wall_seconds": 0.3207401169966033,
+      "cpu_seconds": 0.31927799999999973,
+      "native_agents": 22764
+    },
+    {
+      "source_turn": 16,
+      "wall_seconds": 0.3319850759980909,
+      "cpu_seconds": 0.3317540000000001,
+      "native_agents": 22820
+    },
+    {
+      "source_turn": 17,
+      "wall_seconds": 0.3296111319978081,
+      "cpu_seconds": 0.32944700000000005,
+      "native_agents": 22887
+    },
+    {
+      "source_turn": 18,
+      "wall_seconds": 0.3320315559976734,
+      "cpu_seconds": 0.3317699999999988,
+      "native_agents": 22952
+    },
+    {
+      "source_turn": 19,
+      "wall_seconds": 0.4394526100004441,
+      "cpu_seconds": 0.4392610000000001,
+      "native_agents": 22901
+    },
+    {
+      "source_turn": 20,
+      "wall_seconds": 1.2818674810005177,
+      "cpu_seconds": 1.281447,
+      "native_agents": 22903
+    },
+    {
+      "source_turn": 21,
+      "wall_seconds": 0.3611139990025549,
+      "cpu_seconds": 0.36099000000000103,
+      "native_agents": 22724
+    },
+    {
+      "source_turn": 22,
+      "wall_seconds": 0.3623629819994676,
+      "cpu_seconds": 0.3621610000000004,
+      "native_agents": 22787
+    },
+    {
+      "source_turn": 23,
+      "wall_seconds": 0.45597404100044514,
+      "cpu_seconds": 0.4558429999999998,
+      "native_agents": 22858
+    },
+    {
+      "source_turn": 24,
+      "wall_seconds": 0.36651046499900986,
+      "cpu_seconds": 0.3663830000000008,
+      "native_agents": 22841
+    },
+    {
+      "source_turn": 25,
+      "wall_seconds": 0.5086187550004979,
+      "cpu_seconds": 0.5084959999999992,
+      "native_agents": 22818
+    },
+    {
+      "source_turn": 26,
+      "wall_seconds": 0.3993704880012956,
+      "cpu_seconds": 0.3991579999999999,
+      "native_agents": 22771
+    },
+    {
+      "source_turn": 27,
+      "wall_seconds": 0.38771130700115464,
+      "cpu_seconds": 0.3874379999999995,
+      "native_agents": 22826
+    },
+    {
+      "source_turn": 28,
+      "wall_seconds": 0.4196845149999717,
+      "cpu_seconds": 0.419535999999999,
+      "native_agents": 22799
+    },
+    {
+      "source_turn": 29,
+      "wall_seconds": 0.4290733889974945,
+      "cpu_seconds": 0.42891100000000115,
+      "native_agents": 22898
+    }
+  ],
+  "simulation_turn_wall": {
+    "median": 0.36173849050101126,
+    "min": 0.24730483299936168,
+    "max": 1.2818674810005177,
+    "sum": 12.813928339990525
+  },
+  "simulation_turn_cpu": {
+    "median": 0.3615755000000007,
+    "min": 0.24716499999999986,
+    "max": 1.281447,
+    "sum": 12.806487999999998
+  },
+  "callback_interval_wall": {
+    "median": 0.3592121820001921,
+    "min": 0.25139030299760634,
+    "max": 1.6117452760008746,
+    "sum": 12.260663499000657
+  },
+  "callback_interval_cpu": {
+    "median": 0.3590169999999997,
+    "min": 0.25124499999999994,
+    "max": 1.6089319999999994,
+    "sum": 12.245823999999999
+  },
+  "callback_interval_note": "drops first3 turns; includes preceding post-callback checkpoint/memory work",
+  "native_peak_agents": 22952,
+  "checkpoints": [
+    {
+      "turn": 10,
+      "path": "/workspace/evidence/cwr-profile/c1-five-scale-final/scaled22k_s42-off/checkpoint_turn_10.ckpt",
+      "bytes": 2415594,
+      "raw_bytes": 11327698,
+      "sections": {
+        "python": 944749,
+        "native.agent.0": 1466310
+      },
+      "write_seconds": 0.1852233999998134,
+      "write_stages": {
+        "native": 0.005554300998483086,
+        "pickle": 0.06898385000022245,
+        "compress": 0.07368005100215669,
+        "header": 0.03496252399781952,
+        "write": 0.0020426740011316724
+      },
+      "read_seconds": 0.1876028500009852,
+      "read_stages": {
+        "read": 0.0007751769990136381,
+        "native": 0.018028291000518948,
+        "python": 0.1687993820014526
+      },
+      "identity": {
+        "environment": {
+          "affinity_cpu_count": 5,
+          "hash_seed": "0",
+          "implementation": "CPython",
+          "machine": "x86_64",
+          "packages": {
+            "arro3-core": "0.9.1",
+            "chronicler-agents": "0.1.0",
+            "numpy": "2.5.4",
+            "pyarrow": "26.0.0",
+            "pydantic": "2.12.5",
+            "scipy": "1.18.1"
+          },
+          "python": "3.13.5",
+          "thread_env": {
+            "BLIS_NUM_THREADS": null,
+            "GOTO_NUM_THREADS": null,
+            "MKL_NUM_THREADS": null,
+            "NUMEXPR_NUM_THREADS": null,
+            "OMP_NUM_THREADS": "1",
+            "OPENBLAS_NUM_THREADS": "1",
+            "OPENBLAS_THREAD_TIMEOUT": "16",
+            "PYTHONHASHSEED": "0",
+            "PYTHON_CPU_COUNT": null,
+            "RAYON_NUM_THREADS": "1",
+            "VECLIB_MAXIMUM_THREADS": null
+          }
+        },
+        "native": {
+          "bytes": 14535264,
+          "sha256": "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
+          "state_layouts": {
+            "agent": "v1:dcf0c34097c88451",
+            "ecology": "v1:4ab7f8c199b5e5f8",
+            "politics": "v1:b1a710f3450f5015"
+          },
+          "status": "found"
+        },
+        "source": {
+          "git_sha": "1e047e7b6585d2cf13bb990f03f292c1067979c5",
+          "package_digest": "7d6e9326a2543c233320677a37d2796b1ed38f5f97068aacd49276d1fb1cc387"
+        }
+      }
+    },
+    {
+      "turn": 20,
+      "path": "/workspace/evidence/cwr-profile/c1-five-scale-final/scaled22k_s42-off/checkpoint_turn_20.ckpt",
+      "bytes": 4278979,
+      "raw_bytes": 17037287,
+      "sections": {
+        "python": 2397962,
+        "native.agent.0": 1876480
+      },
+      "write_seconds": 0.3103269499988528,
+      "write_stages": {
+        "native": 0.005283804999635322,
+        "pickle": 0.17176342099992326,
+        "compress": 0.12898852299986174,
+        "header": 0.0016391380013374146,
+        "write": 0.0026520629980950616
+      },
+      "read_seconds": 0.32843002200024785,
+      "read_stages": {
+        "read": 0.0038521290007338393,
+        "native": 0.02190501700169989,
+        "python": 0.3026728759978141
+      },
+      "identity": {
+        "environment": {
+          "affinity_cpu_count": 5,
+          "hash_seed": "0",
+          "implementation": "CPython",
+          "machine": "x86_64",
+          "packages": {
+            "arro3-core": "0.9.1",
+            "chronicler-agents": "0.1.0",
+            "numpy": "2.5.4",
+            "pyarrow": "26.0.0",
+            "pydantic": "2.12.5",
+            "scipy": "1.18.1"
+          },
+          "python": "3.13.5",
+          "thread_env": {
+            "BLIS_NUM_THREADS": null,
+            "GOTO_NUM_THREADS": null,
+            "MKL_NUM_THREADS": null,
+            "NUMEXPR_NUM_THREADS": null,
+            "OMP_NUM_THREADS": "1",
+            "OPENBLAS_NUM_THREADS": "1",
+            "OPENBLAS_THREAD_TIMEOUT": "16",
+            "PYTHONHASHSEED": "0",
+            "PYTHON_CPU_COUNT": null,
+            "RAYON_NUM_THREADS": "1",
+            "VECLIB_MAXIMUM_THREADS": null
+          }
+        },
+        "native": {
+          "bytes": 14535264,
+          "sha256": "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
+          "state_layouts": {
+            "agent": "v1:dcf0c34097c88451",
+            "ecology": "v1:4ab7f8c199b5e5f8",
+            "politics": "v1:b1a710f3450f5015"
+          },
+          "status": "found"
+        },
+        "source": {
+          "git_sha": "1e047e7b6585d2cf13bb990f03f292c1067979c5",
+          "package_digest": "7d6e9326a2543c233320677a37d2796b1ed38f5f97068aacd49276d1fb1cc387"
+        }
+      }
+    },
+    {
+      "turn": 29,
+      "path": "/workspace/evidence/cwr-profile/c1-five-scale-final/scaled22k_s42-off/checkpoint_turn_29.ckpt",
+      "bytes": 6112071,
+      "raw_bytes": 22519624,
+      "sections": {
+        "python": 4004238,
+        "native.agent.0": 2103295
+      },
+      "write_seconds": 0.6001538080017781,
+      "write_stages": {
+        "native": 0.007132537000870798,
+        "pickle": 0.4020158690000244,
+        "compress": 0.1864287720018183,
+        "header": 0.0010339159998693503,
+        "write": 0.003542713999195257
+      },
+      "read_seconds": 0.46242941500167944,
+      "read_stages": {
+        "read": 0.0016573950015299488,
+        "native": 0.025197623999702046,
+        "python": 0.43557439600044745
+      },
+      "identity": {
+        "environment": {
+          "affinity_cpu_count": 5,
+          "hash_seed": "0",
+          "implementation": "CPython",
+          "machine": "x86_64",
+          "packages": {
+            "arro3-core": "0.9.1",
+            "chronicler-agents": "0.1.0",
+            "numpy": "2.5.4",
+            "pyarrow": "26.0.0",
+            "pydantic": "2.12.5",
+            "scipy": "1.18.1"
+          },
+          "python": "3.13.5",
+          "thread_env": {
+            "BLIS_NUM_THREADS": null,
+            "GOTO_NUM_THREADS": null,
+            "MKL_NUM_THREADS": null,
+            "NUMEXPR_NUM_THREADS": null,
+            "OMP_NUM_THREADS": "1",
+            "OPENBLAS_NUM_THREADS": "1",
+            "OPENBLAS_THREAD_TIMEOUT": "16",
+            "PYTHONHASHSEED": "0",
+            "PYTHON_CPU_COUNT": null,
+            "RAYON_NUM_THREADS": "1",
+            "VECLIB_MAXIMUM_THREADS": null
+          }
+        },
+        "native": {
+          "bytes": 14535264,
+          "sha256": "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
+          "state_layouts": {
+            "agent": "v1:dcf0c34097c88451",
+            "ecology": "v1:4ab7f8c199b5e5f8",
+            "politics": "v1:b1a710f3450f5015"
+          },
+          "status": "found"
+        },
+        "source": {
+          "git_sha": "1e047e7b6585d2cf13bb990f03f292c1067979c5",
+          "package_digest": "7d6e9326a2543c233320677a37d2796b1ed38f5f97068aacd49276d1fb1cc387"
+        }
+      }
+    }
+  ],
+  "bundle_bytes": 3148820,
+  "state_bytes": 1958379,
+  "output_bytes": 57807853,
+  "simulation_output_bytes": 57805331,
+  "file_bytes": {
+    "plan.json": 2522,
+    "validation_summary.json": 7989,
+    "validation_relationships.arrow": 1864506,
+    "validation_reserve_ledger.arrow": 3642,
+    "validation_memory_signatures.arrow": 2206178,
+    "memories_selurian_republic.json": 24336,
+    "run.log": 0,
+    "chronicle.md": 348,
+    "state.languages.json": 78210,
+    "checkpoint_turn_20.ckpt": 4278979,
+    "checkpoint_turn_10.ckpt": 2415594,
+    "memories_thornwall_confederacy.json": 39663,
+    "state.json": 1958379,
+    "validation_resource_ledger.arrow": 13938,
+    "memories_kethani_empire.json": 24397,
+    "validation_community_summary.json": 4485,
+    "validation_needs.arrow": 10407234,
+    "agent_events.arrow": 2784946,
+    "memories_ashkari_nomads.json": 24593,
+    "state.historiography.json": 36339,
+    "checkpoint_turn_29.ckpt": 6112071,
+    "chronicle_bundle.json": 3148820,
+    "validation_summary/graph_turn_000.json": 289656,
+    "validation_summary/needs_turn_000.json": 3907446,
+    "validation_summary/graph_turn_010.json": 1087658,
+    "validation_summary/aggregate_turn_020.json": 2010,
+    "validation_summary/needs_turn_020.json": 4708586,
+    "validation_summary/community_turn_010.json": 750,
+    "validation_summary/aggregate_turn_030.json": 2010,
+    "validation_summary/aggregate_turn_010.json": 2008,
+    "validation_summary/graph_turn_030.json": 1754579,
+    "validation_summary/community_turn_000.json": 147,
+    "validation_summary/needs_turn_030.json": 4679248,
+    "validation_summary/community_turn_030.json": 2310,
+    "validation_summary/needs_turn_010.json": 4476471,
+    "validation_summary/aggregate_turn_000.json": 1986,
+    "validation_summary/graph_turn_020.json": 1454529,
+    "validation_summary/community_turn_020.json": 1290
+  },
+  "sidecars": {
+    "agent_events.arrow": {
+      "bytes": 2784946,
+      "rows": 68455,
+      "columns": 11,
+      "sha256": "6cb5ad789c8b7e27f22928888bd28c19300fbce0bd9be3eca54e9533fa64e953"
+    },
+    "validation_memory_signatures.arrow": {
+      "bytes": 2206178,
+      "rows": 183755,
+      "columns": 5,
+      "sha256": "7fc280fdb440155a1858004fe90834352d185e17f54e648349b5bffde7549aa2"
+    },
+    "validation_needs.arrow": {
+      "bytes": 10407234,
+      "rows": 86705,
+      "columns": 15,
+      "sha256": "6b44db5698b1db61a8024cfbf2b12e89107f99823f3f2404bdde507cdaf5e386"
+    },
+    "validation_relationships.arrow": {
+      "bytes": 1864506,
+      "rows": 124227,
+      "columns": 5,
+      "sha256": "df486a6b2807a41da3558bf2e540a726f26822f2f889ec9c2e8b279f66b47820"
+    },
+    "validation_reserve_ledger.arrow": {
+      "bytes": 3642,
+      "rows": 0,
+      "columns": 20,
+      "sha256": "0fa06c45393a8538471ce8b468f8ed04d5a26146ce5d3983d6a185757608aceb"
+    },
+    "validation_resource_ledger.arrow": {
+      "bytes": 13938,
+      "rows": 570,
+      "columns": 27,
+      "sha256": "8268d16eba40ebfbc648294539f11d45feadcf4770cf9d8ae8a47fb4fd4d03dd"
+    }
+  },
+  "tool_sha256": "1c21d7db60cfe9d9a3d60f4ed06fe2ff0117762aed51cdd26dee71b7d7d0d410",
+  "measurement_bytes": 13288
+}

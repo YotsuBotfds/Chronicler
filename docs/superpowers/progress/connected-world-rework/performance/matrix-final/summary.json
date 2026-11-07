@@ -1,0 +1,581 @@
+{
+  "kind": "final complete same-configuration lossless optimization admission",
+  "passed": true,
+  "before_source": "09403c15070ddab4977ae8b2e65c336238468447",
+  "final_source": "1e047e7b6585d2cf13bb990f03f292c1067979c5",
+  "final_source_branch": "codex/cwr-perf-final",
+  "integrated_runtime_source": "8792be88dd36ba4d7c22e480de6a19dd64ea1300",
+  "integration_closure": "Lead verified gitdiff1e..879 src/chronicler chronicler-agents scripts EMPTY; only documentation/viewer/tests differ. Final CI and scientific evaluation are separate lead-owned gates.",
+  "baseline_receipts": "../matrix-c1/before/",
+  "native_sha256": "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
+  "native_input_sha256": "f55df55d453ac37694410246c4a9728c56f3f6148f679fde8efc21ffd8775acf",
+  "same_source_checkpoint_readbacks": 72,
+  "paired_checkpoint_semantic_equal_count": 36,
+  "paired_nonbundle_output_byte_equal_count": 760,
+  "full_decoded_bundles_equal": "ten pairs, metadata.generated_at only normalized; JSON types/keyorder/signedzero preserved",
+  "child_cpu_seconds_before": 523.364053,
+  "child_cpu_seconds_final": 471.499854,
+  "per_source_cpu_ceiling_seconds": 1350,
+  "full_model_cpu_sum_before": 318.281962,
+  "full_model_cpu_sum_after": 265.894009,
+  "records": [
+    {
+      "world": "template_s5",
+      "before_full_cpu": 21.499462,
+      "after_full_cpu": 20.258253,
+      "observed_full_change_percent": -5.773209580779282,
+      "before_off_cpu": 11.310202,
+      "after_off_cpu": 11.157666,
+      "observed_off_change_percent": -1.3486584943398827,
+      "before_full_over_off_cpu": 1.9008910716183496,
+      "after_full_over_off_cpu": 1.8156353667514333,
+      "raw_full_bundle_bytes": 21884882,
+      "raw_bundle_unchanged": true,
+      "full_bundle_over_off_bytes": 2.3736958160470727,
+      "before_run_peak_rss_mib": 822.75390625,
+      "after_run_peak_rss_mib": 810.07421875,
+      "before_other_run_cpu": 15.222234939,
+      "after_other_run_cpu": 14.497081792000003,
+      "operational_cpu_target_seconds": 25,
+      "operational_cpu_target_passed": true,
+      "operational_run_rss_target_passed": true,
+      "stage_totals_before": {
+        "bundle_assembly": {
+          "calls": 1,
+          "timed": true,
+          "cpu_seconds": 1.577942212,
+          "wall_seconds": 1.5773842340022384
+        },
+        "bundle_write": {
+          "calls": 1,
+          "timed": true,
+          "cpu_seconds": 3.8776165099999993,
+          "wall_seconds": 3.8820927040032984
+        },
+        "history_encoding": {
+          "calls": 1,
+          "timed": true,
+          "cpu_seconds": 3.391826563000002,
+          "wall_seconds": 3.391623332998279
+        },
+        "timber_planning": {
+          "calls": 200,
+          "timed": true,
+          "cpu_seconds": 0.8216683390000028,
+          "wall_seconds": 0.8083985930097697
+        },
+        "trade_bfs": {
+          "calls": 11561,
+          "timed": false,
+          "cpu_seconds": null,
+          "wall_seconds": null
+        },
+        "trade_people": {
+          "calls": 5712,
+          "timed": false,
+          "cpu_seconds": null,
+          "wall_seconds": null
+        },
+        "timber_dispatch": {
+          "calls": 6326,
+          "timed": false,
+          "cpu_seconds": null,
+          "wall_seconds": null
+        },
+        "timber_price": {
+          "calls": 11002,
+          "timed": false,
+          "cpu_seconds": null,
+          "wall_seconds": null
+        }
+      },
+      "stage_totals_after": {
+        "bundle_assembly": {
+          "calls": 1,
+          "timed": true,
+          "cpu_seconds": 1.5556950010000001,
+          "wall_seconds": 1.5574173419990984
+        },
+        "bundle_write": {
+          "calls": 1,
+          "timed": true,
+          "cpu_seconds": 3.9268441749999994,
+          "wall_seconds": 3.9277844770003867
+        },
+        "history_encoding": {
+          "calls": 1,
+          "timed": true,
+          "cpu_seconds": 3.471501084,
+          "wall_seconds": 3.4705935519996274
+        },
+        "timber_planning": {
+          "calls": 200,
+          "timed": true,
+          "cpu_seconds": 0.2786320319999961,
+          "wall_seconds": 0.2621853439886763
+        },
+        "trade_bfs": {
+          "calls": 1493,
+          "timed": false,
+          "cpu_seconds": null,
+          "wall_seconds": null
+        },
+        "trade_people": {
+          "calls": 841,
+          "timed": false,
+          "cpu_seconds": null,
+          "wall_seconds": null
+        },
+        "timber_dispatch": {
+          "calls": 6326,
+          "timed": false,
+          "cpu_seconds": null,
+          "wall_seconds": null
+        },
+        "timber_price": {
+          "calls": 934,
+          "timed": false,
+          "cpu_seconds": null,
+          "wall_seconds": null
+        }
+      }
+    },
+    {
+      "world": "proc32_s19",
+      "before_full_cpu": 79.06389000000001,
+      "after_full_cpu": 66.506013,
+      "observed_full_change_percent": -15.883201547507998,
+      "before_off_cpu": 30.807995,
+      "after_off_cpu": 31.709296000000002,
+      "observed_off_change_percent": 2.9255425417980208,
+      "before_full_over_off_cpu": 2.566343249536363,
+      "after_full_over_off_cpu": 2.0973664315978504,
+      "raw_full_bundle_bytes": 73961429,
+      "raw_bundle_unchanged": true,
+      "full_bundle_over_off_bytes": 2.641954687208932,
+      "before_run_peak_rss_mib": 1973.2109375,
+      "after_run_peak_rss_mib": 1982.48046875,
+      "before_other_run_cpu": 48.84793603000005,
+      "after_other_run_cpu": 48.130846495,
+      "operational_cpu_target_seconds": 100,
+      "operational_cpu_target_passed": true,
+      "operational_run_rss_target_passed": true,
+      "stage_totals_before": {
+        "bundle_assembly": {
+          "calls": 1,
+          "timed": true,
+          "cpu_seconds": 4.207794666999995,
+          "wall_seconds": 4.206074151003122
+        },
+        "bundle_write": {
+          "calls": 1,
+          "timed": true,
+          "cpu_seconds": 11.99837045400001,
+          "wall_seconds": 12.015857768998103
+        },
+        "history_encoding": {
+          "calls": 1,
+          "timed": true,
+          "cpu_seconds": 10.530122029999987,
+          "wall_seconds": 10.531856466001045
+        },
+        "timber_planning": {
+          "calls": 200,
+          "timed": true,
+          "cpu_seconds": 14.00978884899996,
+          "wall_seconds": 13.994177355012653
+        },
+        "trade_bfs": {
+          "calls": 74945,
+          "timed": false,
+          "cpu_seconds": null,
+          "wall_seconds": null
+        },
+        "trade_people": {
+          "calls": 33227,
+          "timed": false,
+          "cpu_seconds": null,
+          "wall_seconds": null
+        },
+        "timber_dispatch": {
+          "calls": 37037,
+          "timed": false,
+          "cpu_seconds": null,
+          "wall_seconds": null
+        },
+        "timber_price": {
+          "calls": 72434,
+          "timed": false,
+          "cpu_seconds": null,
+          "wall_seconds": null
+        }
+      },
+      "stage_totals_after": {
+        "bundle_assembly": {
+          "calls": 1,
+          "timed": true,
+          "cpu_seconds": 4.138949416999999,
+          "wall_seconds": 4.141045837997808
+        },
+        "bundle_write": {
+          "calls": 1,
+          "timed": true,
+          "cpu_seconds": 12.089226248000003,
+          "wall_seconds": 12.108589458999631
+        },
+        "history_encoding": {
+          "calls": 1,
+          "timed": true,
+          "cpu_seconds": 10.561202259999995,
+          "wall_seconds": 10.567490180997993
+        },
+        "timber_planning": {
+          "calls": 200,
+          "timed": true,
+          "cpu_seconds": 2.146990839999993,
+          "wall_seconds": 2.1417110900401894
+        },
+        "trade_bfs": {
+          "calls": 5432,
+          "timed": false,
+          "cpu_seconds": null,
+          "wall_seconds": null
+        },
+        "trade_people": {
+          "calls": 1967,
+          "timed": false,
+          "cpu_seconds": null,
+          "wall_seconds": null
+        },
+        "timber_dispatch": {
+          "calls": 37037,
+          "timed": false,
+          "cpu_seconds": null,
+          "wall_seconds": null
+        },
+        "timber_price": {
+          "calls": 2921,
+          "timed": false,
+          "cpu_seconds": null,
+          "wall_seconds": null
+        }
+      }
+    },
+    {
+      "world": "scaled22k_s42",
+      "before_full_cpu": 105.44350500000002,
+      "after_full_cpu": 69.551984,
+      "observed_full_change_percent": -34.038626656046766,
+      "before_off_cpu": 16.817262,
+      "after_off_cpu": 16.121463000000002,
+      "observed_off_change_percent": -4.137409525997738,
+      "before_full_over_off_cpu": 6.26995672660627,
+      "after_full_over_off_cpu": 4.314247658540667,
+      "raw_full_bundle_bytes": 12967115,
+      "raw_bundle_unchanged": true,
+      "full_bundle_over_off_bytes": 4.118087092942753,
+      "before_run_peak_rss_mib": 664.9296875,
+      "after_run_peak_rss_mib": 663.515625,
+      "before_other_run_cpu": 99.48047018500002,
+      "after_other_run_cpu": 63.644650043,
+      "operational_cpu_target_seconds": 120,
+      "operational_cpu_target_passed": true,
+      "operational_run_rss_target_passed": true,
+      "stage_totals_before": {
+        "bundle_assembly": {
+          "calls": 1,
+          "timed": true,
+          "cpu_seconds": 0.5879471109999912,
+          "wall_seconds": 0.588331308998022
+        },
+        "bundle_write": {
+          "calls": 1,
+          "timed": true,
+          "cpu_seconds": 1.4519969170000024,
+          "wall_seconds": 1.4545960700015712
+        },
+        "history_encoding": {
+          "calls": 1,
+          "timed": true,
+          "cpu_seconds": 1.1839310590000025,
+          "wall_seconds": 1.182556581999961
+        },
+        "timber_planning": {
+          "calls": 30,
+          "timed": true,
+          "cpu_seconds": 3.923090787000013,
+          "wall_seconds": 3.929703158992197
+        },
+        "trade_bfs": {
+          "calls": 67,
+          "timed": false,
+          "cpu_seconds": null,
+          "wall_seconds": null
+        },
+        "trade_people": {
+          "calls": 144,
+          "timed": false,
+          "cpu_seconds": null,
+          "wall_seconds": null
+        }
+      },
+      "stage_totals_after": {
+        "bundle_assembly": {
+          "calls": 1,
+          "timed": true,
+          "cpu_seconds": 0.5399320679999988,
+          "wall_seconds": 0.5409832500008633
+        },
+        "bundle_write": {
+          "calls": 1,
+          "timed": true,
+          "cpu_seconds": 1.5205510450000048,
+          "wall_seconds": 1.5234498770005303
+        },
+        "history_encoding": {
+          "calls": 1,
+          "timed": true,
+          "cpu_seconds": 1.227945479000013,
+          "wall_seconds": 1.2264640559988038
+        },
+        "timber_planning": {
+          "calls": 30,
+          "timed": true,
+          "cpu_seconds": 3.846850844000002,
+          "wall_seconds": 3.843743604993506
+        },
+        "trade_bfs": {
+          "calls": 67,
+          "timed": false,
+          "cpu_seconds": null,
+          "wall_seconds": null
+        },
+        "trade_people": {
+          "calls": 144,
+          "timed": false,
+          "cpu_seconds": null,
+          "wall_seconds": null
+        }
+      }
+    },
+    {
+      "world": "scaled52k_s7",
+      "before_full_cpu": 60.836653,
+      "after_full_cpu": 60.115193,
+      "observed_full_change_percent": -1.1858969296026256,
+      "before_off_cpu": 23.182641,
+      "after_off_cpu": 23.750107,
+      "observed_off_change_percent": 2.4478056663173042,
+      "before_full_over_off_cpu": 2.6242330630060655,
+      "after_full_over_off_cpu": 2.531154617534986,
+      "raw_full_bundle_bytes": 8238010,
+      "raw_bundle_unchanged": true,
+      "full_bundle_over_off_bytes": 3.434192644716986,
+      "before_run_peak_rss_mib": 667.1015625,
+      "after_run_peak_rss_mib": 667.43359375,
+      "before_other_run_cpu": 56.28254050699999,
+      "after_other_run_cpu": 55.574978012,
+      "operational_cpu_target_seconds": 75,
+      "operational_cpu_target_passed": true,
+      "operational_run_rss_target_passed": true,
+      "stage_totals_before": {
+        "bundle_assembly": {
+          "calls": 1,
+          "timed": true,
+          "cpu_seconds": 0.3426629380000037,
+          "wall_seconds": 0.3428515259984124
+        },
+        "bundle_write": {
+          "calls": 1,
+          "timed": true,
+          "cpu_seconds": 0.8042031489999957,
+          "wall_seconds": 0.8073619850001705
+        },
+        "history_encoding": {
+          "calls": 1,
+          "timed": true,
+          "cpu_seconds": 0.5639788359999969,
+          "wall_seconds": 0.5645980810004403
+        },
+        "timber_planning": {
+          "calls": 20,
+          "timed": true,
+          "cpu_seconds": 3.4072464060000085,
+          "wall_seconds": 3.401030401004391
+        },
+        "trade_people": {
+          "calls": 78,
+          "timed": false,
+          "cpu_seconds": null,
+          "wall_seconds": null
+        },
+        "trade_bfs": {
+          "calls": 14,
+          "timed": false,
+          "cpu_seconds": null,
+          "wall_seconds": null
+        }
+      },
+      "stage_totals_after": {
+        "bundle_assembly": {
+          "calls": 1,
+          "timed": true,
+          "cpu_seconds": 0.3599602650000051,
+          "wall_seconds": 0.36291814599826466
+        },
+        "bundle_write": {
+          "calls": 1,
+          "timed": true,
+          "cpu_seconds": 0.8525791379999959,
+          "wall_seconds": 0.8529590200014354
+        },
+        "history_encoding": {
+          "calls": 1,
+          "timed": true,
+          "cpu_seconds": 0.5559563209999965,
+          "wall_seconds": 0.5588939059998665
+        },
+        "timber_planning": {
+          "calls": 20,
+          "timed": true,
+          "cpu_seconds": 3.327675584999997,
+          "wall_seconds": 3.328983810995851
+        },
+        "trade_people": {
+          "calls": 78,
+          "timed": false,
+          "cpu_seconds": null,
+          "wall_seconds": null
+        },
+        "trade_bfs": {
+          "calls": 14,
+          "timed": false,
+          "cpu_seconds": null,
+          "wall_seconds": null
+        }
+      }
+    },
+    {
+      "world": "proc48_s42",
+      "before_full_cpu": 51.438452,
+      "after_full_cpu": 49.462566,
+      "observed_full_change_percent": -3.8412625636556785,
+      "before_off_cpu": 23.813684000000002,
+      "after_off_cpu": 23.593025,
+      "observed_off_change_percent": -0.9266058960050061,
+      "before_full_over_off_cpu": 2.16003756495635,
+      "after_full_over_off_cpu": 2.096491060387551,
+      "raw_full_bundle_bytes": 59718395,
+      "raw_bundle_unchanged": true,
+      "full_bundle_over_off_bytes": 2.761464083262692,
+      "before_run_peak_rss_mib": 1610.078125,
+      "after_run_peak_rss_mib": 1608.6796875,
+      "before_other_run_cpu": 37.21215330499997,
+      "after_other_run_cpu": 37.245547775000006,
+      "operational_cpu_target_seconds": 60,
+      "operational_cpu_target_passed": true,
+      "operational_run_rss_target_passed": true,
+      "stage_totals_before": {
+        "bundle_assembly": {
+          "calls": 1,
+          "timed": true,
+          "cpu_seconds": 2.091718741000001,
+          "wall_seconds": 2.093491580999398
+        },
+        "bundle_write": {
+          "calls": 1,
+          "timed": true,
+          "cpu_seconds": 8.947788307000003,
+          "wall_seconds": 8.959044671999436
+        },
+        "history_encoding": {
+          "calls": 1,
+          "timed": true,
+          "cpu_seconds": 7.817142840999999,
+          "wall_seconds": 7.820191871000134
+        },
+        "timber_planning": {
+          "calls": 150,
+          "timed": true,
+          "cpu_seconds": 3.1867916470000175,
+          "wall_seconds": 3.2185430499848735
+        },
+        "trade_bfs": {
+          "calls": 24724,
+          "timed": false,
+          "cpu_seconds": null,
+          "wall_seconds": null
+        },
+        "trade_people": {
+          "calls": 4485,
+          "timed": false,
+          "cpu_seconds": null,
+          "wall_seconds": null
+        },
+        "timber_dispatch": {
+          "calls": 5840,
+          "timed": false,
+          "cpu_seconds": null,
+          "wall_seconds": null
+        },
+        "timber_price": {
+          "calls": 22705,
+          "timed": false,
+          "cpu_seconds": null,
+          "wall_seconds": null
+        }
+      },
+      "stage_totals_after": {
+        "bundle_assembly": {
+          "calls": 1,
+          "timed": true,
+          "cpu_seconds": 2.251792845000004,
+          "wall_seconds": 2.252366084998357
+        },
+        "bundle_write": {
+          "calls": 1,
+          "timed": true,
+          "cpu_seconds": 9.120802185999999,
+          "wall_seconds": 9.138648313000886
+        },
+        "history_encoding": {
+          "calls": 1,
+          "timed": true,
+          "cpu_seconds": 7.798718268999998,
+          "wall_seconds": 7.79948501400213
+        },
+        "timber_planning": {
+          "calls": 150,
+          "timed": true,
+          "cpu_seconds": 0.8444231939999938,
+          "wall_seconds": 0.8377028979994066
+        },
+        "trade_bfs": {
+          "calls": 3703,
+          "timed": false,
+          "cpu_seconds": null,
+          "wall_seconds": null
+        },
+        "trade_people": {
+          "calls": 951,
+          "timed": false,
+          "cpu_seconds": null,
+          "wall_seconds": null
+        },
+        "timber_dispatch": {
+          "calls": 5840,
+          "timed": false,
+          "cpu_seconds": null,
+          "wall_seconds": null
+        },
+        "timber_price": {
+          "calls": 1684,
+          "timed": false,
+          "cpu_seconds": null,
+          "wall_seconds": null
+        }
+      }
+    }
+  ],
+  "limits": "Single serial matched observations; small changes are inconclusive. No universal speed, efficacy, default promotion, newheld or qualification claim. Raw bytes and all authoritative evidence retained. TT dispatch after the exact-floor substitution was not separately timed; final Other includes that stage and all remaining simulation/checkpoint work."
+}
