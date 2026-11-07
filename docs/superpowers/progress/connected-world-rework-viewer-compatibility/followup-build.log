@@ -1,0 +1,37 @@
+
+> viewer@0.0.0 build
+> tsc -b && vite build
+
+vite v7.3.1 building client environment for production...
+transforming...
+✓ 919 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                    0.46 kB │ gzip:   0.29 kB
+dist/assets/bundleDecode.worker-BGR_W8B6.js       19.10 kB
+dist/assets/ChronicleSources-BTNieffh.css          1.01 kB │ gzip:   0.42 kB
+dist/assets/RegionHistoryInspector-C0OEWtd0.css    1.28 kB │ gzip:   0.51 kB
+dist/assets/InterventionPanel-BaVtBPcV.css         1.47 kB │ gzip:   0.55 kB
+dist/assets/BatchCompare-CS4vW-yu.css              5.02 kB │ gzip:   1.38 kB
+dist/assets/index-CEC_U9z7.css                    68.33 kB │ gzip:  13.92 kB
+dist/assets/learningServices-DNMQNWeB.js           2.68 kB │ gzip:   1.11 kB
+dist/assets/faiths-Cw5iQFVm.js                     4.89 kB │ gzip:   2.01 kB
+dist/assets/ChronicleSources-D7MmzS8x.js           5.30 kB │ gzip:   2.12 kB
+dist/assets/BatchAnalytics-C1lxKFfS.js             6.00 kB │ gzip:   2.13 kB
+dist/assets/BatchPanel-DkfWCN0O.js                 6.89 kB │ gzip:   2.23 kB
+dist/assets/LanguagesPanel-BRewLCBu.js             7.56 kB │ gzip:   2.93 kB
+dist/assets/AreaChart-Bl3YzWQ0.js                 12.76 kB │ gzip:   4.56 kB
+dist/assets/watershed-DvJh8fZd.js                 14.47 kB │ gzip:   4.75 kB
+dist/assets/RegionHistoryInspector-CmTz6zMl.js    17.54 kB │ gzip:   5.89 kB
+dist/assets/InterventionPanel-qa8sgP65.js         19.04 kB │ gzip:   6.11 kB
+dist/assets/LineChart-BeCNPPgU.js                 21.03 kB │ gzip:   6.63 kB
+dist/assets/BatchCompare-DFlaAC5d.js              57.27 kB │ gzip:  18.37 kB
+dist/assets/CartesianChart-DZ8WsvIY.js           330.70 kB │ gzip:  99.70 kB
+dist/assets/index-ClitIeq7.js                    490.46 kB │ gzip: 153.56 kB
+dist/assets/SystemsPanel-BMKof7cZ.js             734.51 kB │ gzip: 192.99 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 3.89s

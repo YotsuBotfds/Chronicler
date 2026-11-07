@@ -1,0 +1,525 @@
+{
+  "generated": "2026-11-07T21:11:22.878Z",
+  "build": "/workspace/cwr-viewer/viewer/dist",
+  "python": "/workspace/cw-evidence-native/bin/python",
+  "journey": "public_health",
+  "out": "/workspace/evidence/cwr-viewer/compatibility-health-journey",
+  "bundle": "/workspace/evidence/health/pilot-v2/runs/PA-p19/chronicle_bundle.json",
+  "turns": "6,7,23,24",
+  "constructed": null,
+  "build_files_sha256": {
+    "assets/AreaChart-6zsck6D4.js": "3ba62d817c49ed68532b63b7567298ce54512dc362ca6a5cffd4f219d1af160d",
+    "assets/BatchAnalytics-BNyNEF1c.js": "0da6c8811fbd9f6ce3307191309d57fa14580d4f2053fdab55ec3cb666bead8b",
+    "assets/BatchCompare-CS4vW-yu.css": "35c60ba060a011a452342ccde389ab3c89960ed3492610c41cd3314b261beb80",
+    "assets/BatchCompare-DF1OLWyu.js": "cc15479c807b2f94ac241dcc8f48fe761a74441b863e094bb4d53b7a25d97f09",
+    "assets/BatchPanel-C1RtdF-w.js": "97e509fa5ec33acbbbd9f93e8c13612e90b96d370a9165ab31b873860759194c",
+    "assets/bundleDecode.worker-BUpfiHcT.js": "aa45701b940e43cf15cc174b840e50af5ce86a01882f529199bae870aa1a2d62",
+    "assets/CartesianChart-D3GZzBXQ.js": "757eed6019a4f8c962b825c7812bf8605a01f1592badac1da67bebd14bc4ca4d",
+    "assets/ChronicleSources-BF8jep7b.js": "1be7e2ea186f3f3dc867b61b02004eab6a956216384120f12833f50e2ed3cfb0",
+    "assets/ChronicleSources-BTNieffh.css": "15891ddf7a9dfaf14b79d99777c0a03c8c7f962f0a63b26867d32bc0606ad285",
+    "assets/faiths-Cw5iQFVm.js": "8e7a0d2b48f577e8c58303f8797c0c3fbd3f4b175a0e6d705a34bd78892a0367",
+    "assets/index-CQnzAFm-.css": "d1ac1e8fb3f497a788f6520aaaba403fe54684caf2df04bca495ece62172ebd5",
+    "assets/index-D1PdiUcY.js": "f15b064de339095d2e9623b696259ac62cdf8384932e84cc93e48afdea80eb0a",
+    "assets/InterventionPanel-BaVtBPcV.css": "af2700d69880d25ce71113aea0882c1f9cfea110e9a356935df372fb6d70628f",
+    "assets/InterventionPanel-xdaCicuT.js": "4e407605b5a38be45bc52872eb267c17daf7be78315b09b060a0119d8cda462d",
+    "assets/LanguagesPanel-Ddum-bJZ.js": "53f8fd2d71d290011db19fc990aafbe25563b50d091ece1257a08e1494d28da0",
+    "assets/learningServices-DNMQNWeB.js": "3c28ac55c7c38487c246e5133417bc7e4ecfba16d70b340b337651f20f3bc1c0",
+    "assets/LineChart-kGQ2BcnZ.js": "d8d6b49a7f25c7f98c57c741b56b14b07410a14882fab43820f7073c572c9895",
+    "assets/RegionHistoryInspector-C0OEWtd0.css": "0c2304e349c6101f77a2f6e69d795c9ecf157c981e29cf7b766e81bef9058a39",
+    "assets/RegionHistoryInspector-DvqPwFys.js": "0e19ebb477deec97fd23fd7e9ea685fe1249c3acb6479316ce8396700b869ecd",
+    "assets/SystemsPanel-BjXmBxuQ.js": "20645c78c7b2e1e248ece19b6e2230250e697a50884d091042224bce092cfa02",
+    "assets/watershed-DvJh8fZd.js": "6d51b5b3637d2ecd494bff7dc1c4664bf0b04e5aba1aa584559edd2eb0ceaa20",
+    "favicon.svg": "61bc9a161de58248288e6905425d7180f0624c2865007b97d763fdac12043a66",
+    "icons.svg": "b45fa506195cfcdef406ba9f0c77b36ddc1a7c224040926ec70abc2fdea7b93a",
+    "index.html": "957726439873708500db09aee93f2c28470ca077d4a58905a4223c3ab66d0f03"
+  },
+  "journey_script_sha256": "b84ae9df468d21311380e703fed474ab7a3aec438a2a92e18458de679df2c23f",
+  "bundle_sha256": "76eb18ab7f22adc150005890997e5d71fe14a7aafa0960a07af470bcdc979fc0",
+  "build_index_sha256": "957726439873708500db09aee93f2c28470ca077d4a58905a4223c3ab66d0f03",
+  "evidence": "Provided saved bundle; construction metadata retained explicitly; expectations decoded by Python bundle_codec. Browser journeys are bounded UI checks, not qualification.",
+  "viewports": {
+    "desktop": {
+      "checks": [
+        {
+          "label": "desktop: explicit construction metadata controls the demonstration notice",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot6: panel mounts and has finite text",
+          "ok": true,
+          "detail": "Connected public health\n\nCare and maintained water service · evidence reports.\n\nObservation from simulation turn 5. Additional report delay: 0 turns. Advice uses delivered, unexpired reports.\n\nLegacy displacement coupling (implicit in this older record): the recorded motive-classified spell share co"
+        },
+        {
+          "label": "desktop snapshot6: source turn and additional delay are explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot6: regional epidemics and individual care remain distinct",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot6: absent supplies are explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot6: prior residence, explicit multiplier clock and observed labels",
+          "ok": true,
+          "detail": "{\"region\":12,\"source_turn\":4,\"residence_observed\":true,\"sanitation_observed\":true,\"displaced_share\":0.05454545454545454,\"water_service\":0,\"crowding_factor\":1.0136363636363637,\"flux_factor\":1}"
+        },
+        {
+          "label": "desktop snapshot6: crowding basis does not claim motive labels measure physical pressure",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot6: undelivered advice is explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot6: absent guard staffing is explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot6: explanatory text stays within section",
+          "ok": true,
+          "detail": "[{\"left\":56,\"right\":1384,\"sectionLeft\":39,\"sectionRight\":1401},{\"left\":56,\"right\":1384,\"sectionLeft\":39,\"sectionRight\":1401},{\"left\":56,\"right\":1384,\"sectionLeft\":39,\"sectionRight\":1401}]"
+        },
+        {
+          "label": "desktop snapshot6: no horizontal document overflow",
+          "ok": true,
+          "detail": "{\"page\":1440,\"viewport\":1440}"
+        },
+        {
+          "label": "desktop snapshot7: panel mounts and has finite text",
+          "ok": true,
+          "detail": "Connected public health\n\nCare and maintained water service · evidence reports.\n\nObservation from simulation turn 6. Additional report delay: 0 turns. Advice uses delivered, unexpired reports.\n\nLegacy displacement coupling (implicit in this older record): the recorded motive-classified spell share co"
+        },
+        {
+          "label": "desktop snapshot7: source turn and additional delay are explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot7: regional epidemics and individual care remain distinct",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot7: actual whole cash, envelope and fractional carry",
+          "ok": true,
+          "detail": "{\"turn\":6,\"civ\":7,\"envelope_milli\":2000,\"care_paid_milli\":72,\"care_cash_milli\":1000,\"care_carry_before\":0,\"care_carry_after\":928,\"supply_cash_milli\":1000,\"guard_cash_milli\":0,\"guard_paid_milli\":0,\"guard_carry_before\":0,\"guard_carry_after\":0}"
+        },
+        {
+          "label": "desktop snapshot7: actual patient supply custody and internal versus cash cost",
+          "ok": true,
+          "detail": "[\"Haxa Rainforest\",\"Tumakhan Expanse\",\"0.361\",\"1.000\",\"0.000\",\"supplied\"]"
+        },
+        {
+          "label": "desktop snapshot7: prior residence, explicit multiplier clock and observed labels",
+          "ok": true,
+          "detail": "{\"region\":12,\"source_turn\":5,\"residence_observed\":true,\"sanitation_observed\":true,\"displaced_share\":0.08571428571428572,\"water_service\":0,\"crowding_factor\":1.0214285714285714,\"flux_factor\":1}"
+        },
+        {
+          "label": "desktop snapshot7: crowding basis does not claim motive labels measure physical pressure",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot7: undelivered advice is explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot7: absent guard staffing is explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot7: explanatory text stays within section",
+          "ok": true,
+          "detail": "[{\"left\":56,\"right\":1384,\"sectionLeft\":39,\"sectionRight\":1401},{\"left\":56,\"right\":1384,\"sectionLeft\":39,\"sectionRight\":1401},{\"left\":56,\"right\":1384,\"sectionLeft\":39,\"sectionRight\":1401}]"
+        },
+        {
+          "label": "desktop snapshot7: no horizontal document overflow",
+          "ok": true,
+          "detail": "{\"page\":1440,\"viewport\":1440}"
+        },
+        {
+          "label": "desktop snapshot23: panel mounts and has finite text",
+          "ok": true,
+          "detail": "Connected public health\n\nCare and maintained water service · evidence reports.\n\nObservation from simulation turn 22. Additional report delay: 0 turns. Advice uses delivered, unexpired reports.\n\nLegacy displacement coupling (implicit in this older record): the recorded motive-classified spell share c"
+        },
+        {
+          "label": "desktop snapshot23: source turn and additional delay are explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot23: regional epidemics and individual care remain distinct",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot23: actual whole cash, envelope and fractional carry",
+          "ok": true,
+          "detail": "{\"turn\":22,\"civ\":0,\"envelope_milli\":2000,\"care_paid_milli\":496,\"care_cash_milli\":0,\"care_carry_before\":696,\"care_carry_after\":200,\"supply_cash_milli\":0,\"guard_cash_milli\":0,\"guard_paid_milli\":0,\"guard_carry_before\":0,\"guard_carry_after\":0}"
+        },
+        {
+          "label": "desktop snapshot23: actual patient supply custody and internal versus cash cost",
+          "ok": true,
+          "detail": "[\"Thogoriel Wood\",\"Thogoriel Wood\",\"0.000\",\"0.000\",\"0.000\",\"stock\"]"
+        },
+        {
+          "label": "desktop snapshot23: prior residence, explicit multiplier clock and observed labels",
+          "ok": true,
+          "detail": "{\"region\":1,\"source_turn\":21,\"residence_observed\":true,\"sanitation_observed\":true,\"displaced_share\":0.3684210526315789,\"water_service\":0,\"crowding_factor\":1.0921052631578947,\"flux_factor\":1}"
+        },
+        {
+          "label": "desktop snapshot23: crowding basis does not claim motive labels measure physical pressure",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot23: actual delivered report identities and observed prior fatality",
+          "ok": true,
+          "detail": "{\"civ\":9,\"target\":2,\"report_ids\":[62,90],\"expected_loss_units\":28.714116896858336,\"cost_units\":8.813718,\"goods_contact_cost_proxy\":0.813718,\"fatality_observed\":true,\"close\":true}"
+        },
+        {
+          "label": "desktop snapshot23: actual stable guard identities and dated capacity",
+          "ok": true,
+          "detail": "{\"turn\":22,\"civ\":9,\"target\":2,\"members\":[{\"agent_id\":97,\"region\":12,\"share\":0.7999999523162842,\"wage_due_milli\":400,\"wage_paid_milli\":400,\"wage_residual_milli\":0,\"income_withheld\":0.020464010536670685},{\"agent_id\":202,\"region\":12,\"share\":0.20000004768371582,\"wage_due_milli\":100,\"wage_paid_milli\":100,\"wage_residual_milli\":0,\"income_withheld\":0.005116004031151533}],\"need\":1,\"work\":1,\"staffed\":true,\"payment\":\"paid\"}"
+        },
+        {
+          "label": "desktop snapshot23: explanatory text stays within section",
+          "ok": true,
+          "detail": "[{\"left\":56,\"right\":1384,\"sectionLeft\":39,\"sectionRight\":1401},{\"left\":56,\"right\":1384,\"sectionLeft\":39,\"sectionRight\":1401},{\"left\":56,\"right\":1384,\"sectionLeft\":39,\"sectionRight\":1401}]"
+        },
+        {
+          "label": "desktop snapshot23: no horizontal document overflow",
+          "ok": true,
+          "detail": "{\"page\":1440,\"viewport\":1440}"
+        },
+        {
+          "label": "desktop snapshot24: panel mounts and has finite text",
+          "ok": true,
+          "detail": "Connected public health\n\nCare and maintained water service · evidence reports.\n\nObservation from simulation turn 23. Additional report delay: 0 turns. Advice uses delivered, unexpired reports.\n\nLegacy displacement coupling (implicit in this older record): the recorded motive-classified spell share c"
+        },
+        {
+          "label": "desktop snapshot24: source turn and additional delay are explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot24: regional epidemics and individual care remain distinct",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot24: actual whole cash, envelope and fractional carry",
+          "ok": true,
+          "detail": "{\"turn\":23,\"civ\":0,\"envelope_milli\":3000,\"care_paid_milli\":602,\"care_cash_milli\":1000,\"care_carry_before\":200,\"care_carry_after\":598,\"supply_cash_milli\":0,\"guard_cash_milli\":0,\"guard_paid_milli\":0,\"guard_carry_before\":0,\"guard_carry_after\":0}"
+        },
+        {
+          "label": "desktop snapshot24: actual patient supply custody and internal versus cash cost",
+          "ok": true,
+          "detail": "[\"Thogoriel Wood\",\"Thogoriel Wood\",\"0.000\",\"0.000\",\"0.000\",\"stock\"]"
+        },
+        {
+          "label": "desktop snapshot24: prior residence, explicit multiplier clock and observed labels",
+          "ok": true,
+          "detail": "{\"region\":1,\"source_turn\":22,\"residence_observed\":true,\"sanitation_observed\":true,\"displaced_share\":0.3333333333333333,\"water_service\":0,\"crowding_factor\":1.0833333333333333,\"flux_factor\":1}"
+        },
+        {
+          "label": "desktop snapshot24: crowding basis does not claim motive labels measure physical pressure",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot24: actual delivered report identities and observed prior fatality",
+          "ok": true,
+          "detail": "{\"civ\":4,\"target\":6,\"report_ids\":[46,96,105,109],\"expected_loss_units\":19.85051166501709,\"cost_units\":14.9638,\"goods_contact_cost_proxy\":8.9638,\"fatality_observed\":true,\"close\":true}"
+        },
+        {
+          "label": "desktop snapshot24: actual stable guard identities and dated capacity",
+          "ok": true,
+          "detail": "{\"turn\":23,\"civ\":4,\"target\":6,\"members\":[{\"agent_id\":126,\"region\":9,\"share\":1,\"wage_due_milli\":500,\"wage_paid_milli\":500,\"wage_residual_milli\":0,\"income_withheld\":0.2546723783016205}],\"need\":1,\"work\":1,\"staffed\":true,\"payment\":\"paid\"}"
+        },
+        {
+          "label": "desktop snapshot24: explanatory text stays within section",
+          "ok": true,
+          "detail": "[{\"left\":56,\"right\":1384,\"sectionLeft\":39,\"sectionRight\":1401},{\"left\":56,\"right\":1384,\"sectionLeft\":39,\"sectionRight\":1401},{\"left\":56,\"right\":1384,\"sectionLeft\":39,\"sectionRight\":1401}]"
+        },
+        {
+          "label": "desktop snapshot24: no horizontal document overflow",
+          "ok": true,
+          "detail": "{\"page\":1440,\"viewport\":1440}"
+        },
+        {
+          "label": "desktop: no browser console or page errors",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "messages": [],
+      "screenshots": [
+        "desktop-snapshot6.png",
+        "desktop-snapshot7.png",
+        "desktop-snapshot23.png",
+        "desktop-snapshot24.png"
+      ],
+      "timings_ms": {
+        "saved_bundle_load": 3399,
+        "initial_systems_panel": 650,
+        "journey": 10796
+      }
+    },
+    "phone": {
+      "checks": [
+        {
+          "label": "phone: explicit construction metadata controls the demonstration notice",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot6: panel mounts and has finite text",
+          "ok": true,
+          "detail": "Connected public health\n\nCare and maintained water service · evidence reports.\n\nObservation from simulation turn 5. Additional report delay: 0 turns. Advice uses delivered, unexpired reports.\n\nLegacy displacement coupling (implicit in this older record): the recorded motive-classified spell share co"
+        },
+        {
+          "label": "phone snapshot6: source turn and additional delay are explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot6: regional epidemics and individual care remain distinct",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot6: absent supplies are explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot6: prior residence, explicit multiplier clock and observed labels",
+          "ok": true,
+          "detail": "{\"region\":12,\"source_turn\":4,\"residence_observed\":true,\"sanitation_observed\":true,\"displaced_share\":0.05454545454545454,\"water_service\":0,\"crowding_factor\":1.0136363636363637,\"flux_factor\":1}"
+        },
+        {
+          "label": "phone snapshot6: crowding basis does not claim motive labels measure physical pressure",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot6: undelivered advice is explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot6: absent guard staffing is explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot6: explanatory text stays within section",
+          "ok": true,
+          "detail": "[{\"left\":42,\"right\":348,\"sectionLeft\":25,\"sectionRight\":365},{\"left\":42,\"right\":348,\"sectionLeft\":25,\"sectionRight\":365},{\"left\":42,\"right\":348,\"sectionLeft\":25,\"sectionRight\":365}]"
+        },
+        {
+          "label": "phone snapshot6: no horizontal document overflow",
+          "ok": true,
+          "detail": "{\"page\":390,\"viewport\":390}"
+        },
+        {
+          "label": "phone snapshot7: panel mounts and has finite text",
+          "ok": true,
+          "detail": "Connected public health\n\nCare and maintained water service · evidence reports.\n\nObservation from simulation turn 6. Additional report delay: 0 turns. Advice uses delivered, unexpired reports.\n\nLegacy displacement coupling (implicit in this older record): the recorded motive-classified spell share co"
+        },
+        {
+          "label": "phone snapshot7: source turn and additional delay are explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot7: regional epidemics and individual care remain distinct",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot7: actual whole cash, envelope and fractional carry",
+          "ok": true,
+          "detail": "{\"turn\":6,\"civ\":7,\"envelope_milli\":2000,\"care_paid_milli\":72,\"care_cash_milli\":1000,\"care_carry_before\":0,\"care_carry_after\":928,\"supply_cash_milli\":1000,\"guard_cash_milli\":0,\"guard_paid_milli\":0,\"guard_carry_before\":0,\"guard_carry_after\":0}"
+        },
+        {
+          "label": "phone snapshot7: actual patient supply custody and internal versus cash cost",
+          "ok": true,
+          "detail": "[\"Haxa Rainforest\",\"Tumakhan Expanse\",\"0.361\",\"1.000\",\"0.000\",\"supplied\"]"
+        },
+        {
+          "label": "phone snapshot7: prior residence, explicit multiplier clock and observed labels",
+          "ok": true,
+          "detail": "{\"region\":12,\"source_turn\":5,\"residence_observed\":true,\"sanitation_observed\":true,\"displaced_share\":0.08571428571428572,\"water_service\":0,\"crowding_factor\":1.0214285714285714,\"flux_factor\":1}"
+        },
+        {
+          "label": "phone snapshot7: crowding basis does not claim motive labels measure physical pressure",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot7: undelivered advice is explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot7: absent guard staffing is explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot7: explanatory text stays within section",
+          "ok": true,
+          "detail": "[{\"left\":42,\"right\":348,\"sectionLeft\":25,\"sectionRight\":365},{\"left\":42,\"right\":348,\"sectionLeft\":25,\"sectionRight\":365},{\"left\":42,\"right\":348,\"sectionLeft\":25,\"sectionRight\":365}]"
+        },
+        {
+          "label": "phone snapshot7: no horizontal document overflow",
+          "ok": true,
+          "detail": "{\"page\":390,\"viewport\":390}"
+        },
+        {
+          "label": "phone snapshot23: panel mounts and has finite text",
+          "ok": true,
+          "detail": "Connected public health\n\nCare and maintained water service · evidence reports.\n\nObservation from simulation turn 22. Additional report delay: 0 turns. Advice uses delivered, unexpired reports.\n\nLegacy displacement coupling (implicit in this older record): the recorded motive-classified spell share c"
+        },
+        {
+          "label": "phone snapshot23: source turn and additional delay are explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot23: regional epidemics and individual care remain distinct",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot23: actual whole cash, envelope and fractional carry",
+          "ok": true,
+          "detail": "{\"turn\":22,\"civ\":0,\"envelope_milli\":2000,\"care_paid_milli\":496,\"care_cash_milli\":0,\"care_carry_before\":696,\"care_carry_after\":200,\"supply_cash_milli\":0,\"guard_cash_milli\":0,\"guard_paid_milli\":0,\"guard_carry_before\":0,\"guard_carry_after\":0}"
+        },
+        {
+          "label": "phone snapshot23: actual patient supply custody and internal versus cash cost",
+          "ok": true,
+          "detail": "[\"Thogoriel Wood\",\"Thogoriel Wood\",\"0.000\",\"0.000\",\"0.000\",\"stock\"]"
+        },
+        {
+          "label": "phone snapshot23: prior residence, explicit multiplier clock and observed labels",
+          "ok": true,
+          "detail": "{\"region\":1,\"source_turn\":21,\"residence_observed\":true,\"sanitation_observed\":true,\"displaced_share\":0.3684210526315789,\"water_service\":0,\"crowding_factor\":1.0921052631578947,\"flux_factor\":1}"
+        },
+        {
+          "label": "phone snapshot23: crowding basis does not claim motive labels measure physical pressure",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot23: actual delivered report identities and observed prior fatality",
+          "ok": true,
+          "detail": "{\"civ\":9,\"target\":2,\"report_ids\":[62,90],\"expected_loss_units\":28.714116896858336,\"cost_units\":8.813718,\"goods_contact_cost_proxy\":0.813718,\"fatality_observed\":true,\"close\":true}"
+        },
+        {
+          "label": "phone snapshot23: actual stable guard identities and dated capacity",
+          "ok": true,
+          "detail": "{\"turn\":22,\"civ\":9,\"target\":2,\"members\":[{\"agent_id\":97,\"region\":12,\"share\":0.7999999523162842,\"wage_due_milli\":400,\"wage_paid_milli\":400,\"wage_residual_milli\":0,\"income_withheld\":0.020464010536670685},{\"agent_id\":202,\"region\":12,\"share\":0.20000004768371582,\"wage_due_milli\":100,\"wage_paid_milli\":100,\"wage_residual_milli\":0,\"income_withheld\":0.005116004031151533}],\"need\":1,\"work\":1,\"staffed\":true,\"payment\":\"paid\"}"
+        },
+        {
+          "label": "phone snapshot23: explanatory text stays within section",
+          "ok": true,
+          "detail": "[{\"left\":42,\"right\":348,\"sectionLeft\":25,\"sectionRight\":365},{\"left\":42,\"right\":348,\"sectionLeft\":25,\"sectionRight\":365},{\"left\":42,\"right\":348,\"sectionLeft\":25,\"sectionRight\":365}]"
+        },
+        {
+          "label": "phone snapshot23: no horizontal document overflow",
+          "ok": true,
+          "detail": "{\"page\":390,\"viewport\":390}"
+        },
+        {
+          "label": "phone snapshot24: panel mounts and has finite text",
+          "ok": true,
+          "detail": "Connected public health\n\nCare and maintained water service · evidence reports.\n\nObservation from simulation turn 23. Additional report delay: 0 turns. Advice uses delivered, unexpired reports.\n\nLegacy displacement coupling (implicit in this older record): the recorded motive-classified spell share c"
+        },
+        {
+          "label": "phone snapshot24: source turn and additional delay are explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot24: regional epidemics and individual care remain distinct",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot24: actual whole cash, envelope and fractional carry",
+          "ok": true,
+          "detail": "{\"turn\":23,\"civ\":0,\"envelope_milli\":3000,\"care_paid_milli\":602,\"care_cash_milli\":1000,\"care_carry_before\":200,\"care_carry_after\":598,\"supply_cash_milli\":0,\"guard_cash_milli\":0,\"guard_paid_milli\":0,\"guard_carry_before\":0,\"guard_carry_after\":0}"
+        },
+        {
+          "label": "phone snapshot24: actual patient supply custody and internal versus cash cost",
+          "ok": true,
+          "detail": "[\"Thogoriel Wood\",\"Thogoriel Wood\",\"0.000\",\"0.000\",\"0.000\",\"stock\"]"
+        },
+        {
+          "label": "phone snapshot24: prior residence, explicit multiplier clock and observed labels",
+          "ok": true,
+          "detail": "{\"region\":1,\"source_turn\":22,\"residence_observed\":true,\"sanitation_observed\":true,\"displaced_share\":0.3333333333333333,\"water_service\":0,\"crowding_factor\":1.0833333333333333,\"flux_factor\":1}"
+        },
+        {
+          "label": "phone snapshot24: crowding basis does not claim motive labels measure physical pressure",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot24: actual delivered report identities and observed prior fatality",
+          "ok": true,
+          "detail": "{\"civ\":4,\"target\":6,\"report_ids\":[46,96,105,109],\"expected_loss_units\":19.85051166501709,\"cost_units\":14.9638,\"goods_contact_cost_proxy\":8.9638,\"fatality_observed\":true,\"close\":true}"
+        },
+        {
+          "label": "phone snapshot24: actual stable guard identities and dated capacity",
+          "ok": true,
+          "detail": "{\"turn\":23,\"civ\":4,\"target\":6,\"members\":[{\"agent_id\":126,\"region\":9,\"share\":1,\"wage_due_milli\":500,\"wage_paid_milli\":500,\"wage_residual_milli\":0,\"income_withheld\":0.2546723783016205}],\"need\":1,\"work\":1,\"staffed\":true,\"payment\":\"paid\"}"
+        },
+        {
+          "label": "phone snapshot24: explanatory text stays within section",
+          "ok": true,
+          "detail": "[{\"left\":42,\"right\":348,\"sectionLeft\":25,\"sectionRight\":365},{\"left\":42,\"right\":348,\"sectionLeft\":25,\"sectionRight\":365},{\"left\":42,\"right\":348,\"sectionLeft\":25,\"sectionRight\":365}]"
+        },
+        {
+          "label": "phone snapshot24: no horizontal document overflow",
+          "ok": true,
+          "detail": "{\"page\":390,\"viewport\":390}"
+        },
+        {
+          "label": "phone: no browser console or page errors",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "messages": [],
+      "screenshots": [
+        "phone-snapshot6.png",
+        "phone-snapshot7.png",
+        "phone-snapshot23.png",
+        "phone-snapshot24.png"
+      ],
+      "timings_ms": {
+        "saved_bundle_load": 2314,
+        "initial_systems_panel": 464,
+        "journey": 7936
+      }
+    }
+  },
+  "failures": 0
+}

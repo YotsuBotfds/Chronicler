@@ -1,0 +1,12 @@
+
+> viewer@0.0.0 test
+> vitest run src/components/systems/__tests__/PublicHealth.test.tsx --maxWorkers=1
+
+
+ RUN  v4.1.0 /workspace/cwr-viewer/viewer
+
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  21:33:38
+   Duration  1.02s (transform 180ms, setup 61ms, import 225ms, tests 162ms, environment 449ms)

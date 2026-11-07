@@ -1,0 +1,12 @@
+
+> viewer@0.0.0 test
+> vitest run src/lib/__tests__/gzipBundles.test.ts src/hooks/__tests__/useBundleWorker.test.ts src/lib/__tests__/savedWorldFiles.test.ts --maxWorkers=1
+
+
+ RUN  v4.1.0 /workspace/cwr-viewer/viewer
+
+
+ Test Files  3 passed (3)
+      Tests  78 passed (78)
+   Start at  21:24:01
+   Duration  3.90s (transform 388ms, setup 124ms, import 549ms, tests 1.60s, environment 1.29s)

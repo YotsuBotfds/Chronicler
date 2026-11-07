@@ -1,0 +1,581 @@
+{
+  "generated": "2026-11-07T21:31:48.107Z",
+  "file": "/workspace/evidence/cwr-evaluation/dev-schema-094-v2/runs/AD-t5/chronicle_bundle.json",
+  "bundle_sha256": "c1ea7ad1d68591e89b3a1d98a805048994e7a8942343980183b7a52b03a31f30",
+  "compiled_sha256": "5e07f7e5a01fba85f5f1b61cac8bb2f81f96361bf1b91cc7fd82f63555481657",
+  "snapshots": [
+    {
+      "turn": 1,
+      "adaptive_rules": "3",
+      "decision_channels": "all",
+      "installed_rows": 0,
+      "arrival_diagnostics": {
+        "window_turns": 20,
+        "coverage_complete": false,
+        "window_complete": false,
+        "complete": false
+      },
+      "crowding": "density_only",
+      "environment": [
+        {
+          "region": 0,
+          "source_turn": -1,
+          "crowding_source_turn": 0,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": null
+        },
+        {
+          "region": 1,
+          "source_turn": -1,
+          "crowding_source_turn": 0,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": null
+        },
+        {
+          "region": 2,
+          "source_turn": -1,
+          "crowding_source_turn": 0,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": null
+        },
+        {
+          "region": 3,
+          "source_turn": -1,
+          "crowding_source_turn": 0,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": null
+        },
+        {
+          "region": 4,
+          "source_turn": -1,
+          "crowding_source_turn": 0,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": null
+        },
+        {
+          "region": 5,
+          "source_turn": -1,
+          "crowding_source_turn": 0,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": null
+        },
+        {
+          "region": 6,
+          "source_turn": -1,
+          "crowding_source_turn": 0,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": null
+        },
+        {
+          "region": 7,
+          "source_turn": -1,
+          "crowding_source_turn": 0,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": null
+        }
+      ]
+    },
+    {
+      "turn": 2,
+      "adaptive_rules": "3",
+      "decision_channels": "all",
+      "installed_rows": 22,
+      "arrival_diagnostics": {
+        "window_turns": 20,
+        "coverage_complete": false,
+        "window_complete": false,
+        "complete": false
+      },
+      "crowding": "density_only",
+      "environment": [
+        {
+          "region": 0,
+          "source_turn": 0,
+          "crowding_source_turn": 1,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 1,
+          "source_turn": 0,
+          "crowding_source_turn": 1,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 2,
+          "source_turn": 0,
+          "crowding_source_turn": 1,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 3,
+          "source_turn": 0,
+          "crowding_source_turn": 1,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 4,
+          "source_turn": 0,
+          "crowding_source_turn": 1,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 5,
+          "source_turn": 0,
+          "crowding_source_turn": 1,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 6,
+          "source_turn": 0,
+          "crowding_source_turn": 1,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 7,
+          "source_turn": 0,
+          "crowding_source_turn": 1,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        }
+      ]
+    },
+    {
+      "turn": 3,
+      "adaptive_rules": "3",
+      "decision_channels": "all",
+      "installed_rows": 41,
+      "arrival_diagnostics": {
+        "window_turns": 20,
+        "coverage_complete": false,
+        "window_complete": false,
+        "complete": false
+      },
+      "crowding": "density_only",
+      "environment": [
+        {
+          "region": 0,
+          "source_turn": 1,
+          "crowding_source_turn": 2,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 1,
+          "source_turn": 1,
+          "crowding_source_turn": 2,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 2,
+          "source_turn": 1,
+          "crowding_source_turn": 2,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 3,
+          "source_turn": 1,
+          "crowding_source_turn": 2,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 4,
+          "source_turn": 1,
+          "crowding_source_turn": 2,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 5,
+          "source_turn": 1,
+          "crowding_source_turn": 2,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 6,
+          "source_turn": 1,
+          "crowding_source_turn": 2,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 7,
+          "source_turn": 1,
+          "crowding_source_turn": 2,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        }
+      ]
+    },
+    {
+      "turn": 4,
+      "adaptive_rules": "3",
+      "decision_channels": "all",
+      "installed_rows": 155,
+      "arrival_diagnostics": {
+        "window_turns": 20,
+        "coverage_complete": false,
+        "window_complete": false,
+        "complete": false
+      },
+      "crowding": "density_only",
+      "environment": [
+        {
+          "region": 0,
+          "source_turn": 2,
+          "crowding_source_turn": 3,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 1,
+          "source_turn": 2,
+          "crowding_source_turn": 3,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 2,
+          "source_turn": 2,
+          "crowding_source_turn": 3,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 3,
+          "source_turn": 2,
+          "crowding_source_turn": 3,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 4,
+          "source_turn": 2,
+          "crowding_source_turn": 3,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 5,
+          "source_turn": 2,
+          "crowding_source_turn": 3,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 6,
+          "source_turn": 2,
+          "crowding_source_turn": 3,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 7,
+          "source_turn": 2,
+          "crowding_source_turn": 3,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        }
+      ]
+    },
+    {
+      "turn": 5,
+      "adaptive_rules": "3",
+      "decision_channels": "all",
+      "installed_rows": 163,
+      "arrival_diagnostics": {
+        "window_turns": 20,
+        "coverage_complete": false,
+        "window_complete": false,
+        "complete": false
+      },
+      "crowding": "density_only",
+      "environment": [
+        {
+          "region": 0,
+          "source_turn": 3,
+          "crowding_source_turn": 4,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 1,
+          "source_turn": 3,
+          "crowding_source_turn": 4,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 2,
+          "source_turn": 3,
+          "crowding_source_turn": 4,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 3,
+          "source_turn": 3,
+          "crowding_source_turn": 4,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 4,
+          "source_turn": 3,
+          "crowding_source_turn": 4,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 5,
+          "source_turn": 3,
+          "crowding_source_turn": 4,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 6,
+          "source_turn": 3,
+          "crowding_source_turn": 4,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 7,
+          "source_turn": 3,
+          "crowding_source_turn": 4,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        }
+      ]
+    },
+    {
+      "turn": 6,
+      "adaptive_rules": "3",
+      "decision_channels": "all",
+      "installed_rows": 157,
+      "arrival_diagnostics": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": false,
+        "complete": false
+      },
+      "crowding": "density_only",
+      "environment": [
+        {
+          "region": 0,
+          "source_turn": 4,
+          "crowding_source_turn": 5,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 1,
+          "source_turn": 4,
+          "crowding_source_turn": 5,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 2,
+          "source_turn": 4,
+          "crowding_source_turn": 5,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 3,
+          "source_turn": 4,
+          "crowding_source_turn": 5,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 4,
+          "source_turn": 4,
+          "crowding_source_turn": 5,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 5,
+          "source_turn": 4,
+          "crowding_source_turn": 5,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 6,
+          "source_turn": 4,
+          "crowding_source_turn": 5,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 7,
+          "source_turn": 4,
+          "crowding_source_turn": 5,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        }
+      ]
+    },
+    {
+      "turn": 7,
+      "adaptive_rules": "3",
+      "decision_channels": "all",
+      "installed_rows": 83,
+      "arrival_diagnostics": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": false,
+        "complete": false
+      },
+      "crowding": "density_only",
+      "environment": [
+        {
+          "region": 0,
+          "source_turn": 5,
+          "crowding_source_turn": 6,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 1,
+          "source_turn": 5,
+          "crowding_source_turn": 6,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 2,
+          "source_turn": 5,
+          "crowding_source_turn": 6,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 3,
+          "source_turn": 5,
+          "crowding_source_turn": 6,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 4,
+          "source_turn": 5,
+          "crowding_source_turn": 6,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 5,
+          "source_turn": 5,
+          "crowding_source_turn": 6,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 6,
+          "source_turn": 5,
+          "crowding_source_turn": 6,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 7,
+          "source_turn": 5,
+          "crowding_source_turn": 6,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        }
+      ]
+    },
+    {
+      "turn": 8,
+      "adaptive_rules": "3",
+      "decision_channels": "all",
+      "installed_rows": 214,
+      "arrival_diagnostics": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": false,
+        "complete": false
+      },
+      "crowding": "density_only",
+      "environment": [
+        {
+          "region": 0,
+          "source_turn": 6,
+          "crowding_source_turn": 7,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 1,
+          "source_turn": 6,
+          "crowding_source_turn": 7,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 2,
+          "source_turn": 6,
+          "crowding_source_turn": 7,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 3,
+          "source_turn": 6,
+          "crowding_source_turn": 7,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 4,
+          "source_turn": 6,
+          "crowding_source_turn": 7,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 5,
+          "source_turn": 6,
+          "crowding_source_turn": 7,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 6,
+          "source_turn": 6,
+          "crowding_source_turn": 7,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        },
+        {
+          "region": 7,
+          "source_turn": 6,
+          "crowding_source_turn": 7,
+          "recent_arrival_share": null,
+          "arrival_diagnostics_complete": false
+        }
+      ]
+    }
+  ],
+  "observations": 3776,
+  "entities": 375,
+  "strict_valid": true,
+  "all_pointers_resolve": true,
+  "note": "Actual development schema smoke, not held evidence. Full production readers reject malformed/future records; current configured density multiplier dated separately from prior X1 observations."
+}

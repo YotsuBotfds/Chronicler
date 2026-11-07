@@ -1,0 +1,468 @@
+{
+  "generated": "2026-11-07T21:32:23.089Z",
+  "build": "/workspace/cwr-viewer/viewer/dist",
+  "python": "/workspace/cw-evidence-native/bin/python",
+  "journey": "public_health",
+  "out": "/workspace/evidence/cwr-viewer/corrected-health-journey",
+  "bundle": "/workspace/evidence/cwr-evaluation/dev-schema-094-v2/runs/AD-t5/chronicle_bundle.json",
+  "turns": "1,2,7,8",
+  "constructed": null,
+  "build_files_sha256": {
+    "assets/AreaChart-DDQa9jyr.js": "eca9407f91595a949d4e216fcfcada8c1e4f265a3c23a21e8c3c004caaa33065",
+    "assets/BatchAnalytics-BBQ2VFTN.js": "a794ba99c04fc0273744f87eb3159746ca8bf644df9c53a01ff9cda974588042",
+    "assets/BatchCompare-CS4vW-yu.css": "35c60ba060a011a452342ccde389ab3c89960ed3492610c41cd3314b261beb80",
+    "assets/BatchCompare-DnC1W2Pp.js": "65d47c1c7ecd8f364ca3652e3e4e0443fbf50ac396f20fb039a81c6e40d5afbf",
+    "assets/BatchPanel-CKgz-r58.js": "44b1210c3c104e567d515543576b6008c5d7ac68e5458fef4384e3cf36bafd09",
+    "assets/bundleDecode.worker-BGR_W8B6.js": "2d19a8295a409b436b20808408ade7a0e02131c9ce3df6c02ac8f9a712ade86d",
+    "assets/CartesianChart-DhBNa9BX.js": "514899a347c69160f4fa1fb7c0ced5b579bfb4021fc8943ba916a1aeeb2b597d",
+    "assets/ChronicleSources-BokH5KZ1.js": "95ee2a67b55aec548eb668904e491eb994604759953a54feac22248b958b9202",
+    "assets/ChronicleSources-BTNieffh.css": "15891ddf7a9dfaf14b79d99777c0a03c8c7f962f0a63b26867d32bc0606ad285",
+    "assets/faiths-Cw5iQFVm.js": "8e7a0d2b48f577e8c58303f8797c0c3fbd3f4b175a0e6d705a34bd78892a0367",
+    "assets/index-CQnzAFm-.css": "d1ac1e8fb3f497a788f6520aaaba403fe54684caf2df04bca495ece62172ebd5",
+    "assets/index-i2eZ8D9V.js": "03a2ba7a4940f4ddc42ecb966059e3a54193911062fe1f3207ae62c9eaa4356c",
+    "assets/InterventionPanel-BaVtBPcV.css": "af2700d69880d25ce71113aea0882c1f9cfea110e9a356935df372fb6d70628f",
+    "assets/InterventionPanel-DRs4b98w.js": "5e1f0468097c145d9aff90e2b802d23573bc4aace745dd611dab5757ba34e089",
+    "assets/LanguagesPanel-CLOQAddr.js": "f608fe78137b22d4d8255e36ac2318aeb2860972a782b8fabc6893f0da503ffb",
+    "assets/learningServices-DNMQNWeB.js": "3c28ac55c7c38487c246e5133417bc7e4ecfba16d70b340b337651f20f3bc1c0",
+    "assets/LineChart-Cj_A-g8S.js": "3c286bcfc2f46d92202c06c6b489ea54d9fd683a63ec176bd18b0c9459c15362",
+    "assets/RegionHistoryInspector-BGEW2wUl.js": "4515d5b531ec074176e2dbaa9b2de976a0321b58b5030b4b326d9e4212493379",
+    "assets/RegionHistoryInspector-C0OEWtd0.css": "0c2304e349c6101f77a2f6e69d795c9ecf157c981e29cf7b766e81bef9058a39",
+    "assets/SystemsPanel-DxNUUiXG.js": "201d282d2fd236bc870fbf7ef6aee92c526e568e3744117174ffd0c1951eb89a",
+    "assets/watershed-DvJh8fZd.js": "6d51b5b3637d2ecd494bff7dc1c4664bf0b04e5aba1aa584559edd2eb0ceaa20",
+    "favicon.svg": "61bc9a161de58248288e6905425d7180f0624c2865007b97d763fdac12043a66",
+    "icons.svg": "b45fa506195cfcdef406ba9f0c77b36ddc1a7c224040926ec70abc2fdea7b93a",
+    "index.html": "4ed743e3738c8f48d2107721459c453e42ea620088fa17fba2db3e1025b11a64"
+  },
+  "journey_script_sha256": "1dc9d9c04b78293da01b894e33c8b2b2da1b2d4b88ecfc99ebfb412cc0918a9e",
+  "bundle_sha256": "c1ea7ad1d68591e89b3a1d98a805048994e7a8942343980183b7a52b03a31f30",
+  "bundle_bytes": 822184,
+  "build_index_sha256": "4ed743e3738c8f48d2107721459c453e42ea620088fa17fba2db3e1025b11a64",
+  "evidence": "Provided saved bundle; construction metadata retained explicitly; expectations decoded by Python bundle_codec. Browser journeys are bounded UI checks, not qualification.",
+  "viewports": {
+    "desktop": {
+      "checks": [
+        {
+          "label": "desktop: uploaded artifact identity names original bytes",
+          "ok": true,
+          "detail": "Saved world details · Seed 5 · 8 recorded snapshotsFilechronicle_bundle.jsonWorldAetherisSeed5Recorded turns1–8 (8 snapshots)Saved final turn8Simulation modehybridKnown enabled at saveFinance, Diplomacy, Techniques, Maritime, Great-person agendas, Nomads, Cities, Movements, Guilds, Scholarship, Public granaries, Epidemiology, Health care, Campaigns, Mutual aid, Governance, Contact ledger, Public grain shipmentsSystem history recordedRegional model population, Native regional agent counts, Phase 2 population food weights, Campaigns, Contact ledger, Epidemiology, Finance, Diplomacy, Techniques, Maritime, Great-person agendas, Nomads, Cities, Movements, Guilds, Scholarship, Public granaries, Food and relief, Health care, Governance, Public grain shipmentsOther history124 events · 6 named events · 8 chronicle entriesBundle formatVersion 6File identity822,184 bytes · SHA-256 c1ea7ad1d68591e89b3a1d98a805048994e7a8942343980183b7a52b03a31f30History is available only at recorded snapshots; gaps are not reconstructed. Enabled systems describe the saved state. Missing fields are unknown, and final state does not establish earlier observations. A viewable bundle cannot provide an exact CLI resume; use an exact checkpoint for continuation."
+        },
+        {
+          "label": "desktop: explicit construction metadata controls the demonstration notice",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot1: panel mounts and has finite text",
+          "ok": true,
+          "detail": "Connected public health\n\nPublic health: recorded, nothing happened this turn (no patient supplies, delivered foreign reports or water service).\n\nCare and maintained water service · evidence reports.\n\nObservation from simulation turn 0. Additional report delay: 0 turns. Advice uses delivered, unexpir"
+        },
+        {
+          "label": "desktop snapshot1: source turn and additional delay are explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot1: regional epidemics and individual care remain distinct",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot1: absent supplies are explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot1: crowding basis does not claim motive labels measure physical pressure",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot1: undelivered advice is explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot1: absent guard staffing is explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot1: explanatory text stays within section",
+          "ok": true,
+          "detail": "[{\"left\":56,\"right\":1384,\"sectionLeft\":39,\"sectionRight\":1401},{\"left\":56,\"right\":1384,\"sectionLeft\":39,\"sectionRight\":1401},{\"left\":56,\"right\":1384,\"sectionLeft\":39,\"sectionRight\":1401}]"
+        },
+        {
+          "label": "desktop snapshot1: no horizontal document overflow",
+          "ok": true,
+          "detail": "{\"page\":1440,\"viewport\":1440}"
+        },
+        {
+          "label": "desktop snapshot2: panel mounts and has finite text",
+          "ok": true,
+          "detail": "Connected public health\n\nPublic health: recorded, nothing happened this turn (no patient supplies, delivered foreign reports or water service).\n\nCare and maintained water service · evidence reports.\n\nObservation from simulation turn 1. Additional report delay: 0 turns. Advice uses delivered, unexpir"
+        },
+        {
+          "label": "desktop snapshot2: source turn and additional delay are explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot2: regional epidemics and individual care remain distinct",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot2: absent supplies are explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot2: crowding basis does not claim motive labels measure physical pressure",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot2: undelivered advice is explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot2: absent guard staffing is explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot2: explanatory text stays within section",
+          "ok": true,
+          "detail": "[{\"left\":56,\"right\":1384,\"sectionLeft\":39,\"sectionRight\":1401},{\"left\":56,\"right\":1384,\"sectionLeft\":39,\"sectionRight\":1401},{\"left\":56,\"right\":1384,\"sectionLeft\":39,\"sectionRight\":1401}]"
+        },
+        {
+          "label": "desktop snapshot2: no horizontal document overflow",
+          "ok": true,
+          "detail": "{\"page\":1440,\"viewport\":1440}"
+        },
+        {
+          "label": "desktop snapshot7: panel mounts and has finite text",
+          "ok": true,
+          "detail": "Connected public health\n\nPublic health: recorded, nothing happened this turn (no patient supplies, delivered foreign reports or water service).\n\nCare and maintained water service · evidence reports.\n\nObservation from simulation turn 6. Additional report delay: 0 turns. Advice uses delivered, unexpir"
+        },
+        {
+          "label": "desktop snapshot7: source turn and additional delay are explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot7: regional epidemics and individual care remain distinct",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot7: absent supplies are explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot7: crowding basis does not claim motive labels measure physical pressure",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot7: undelivered advice is explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot7: absent guard staffing is explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot7: explanatory text stays within section",
+          "ok": true,
+          "detail": "[{\"left\":56,\"right\":1384,\"sectionLeft\":39,\"sectionRight\":1401},{\"left\":56,\"right\":1384,\"sectionLeft\":39,\"sectionRight\":1401},{\"left\":56,\"right\":1384,\"sectionLeft\":39,\"sectionRight\":1401}]"
+        },
+        {
+          "label": "desktop snapshot7: no horizontal document overflow",
+          "ok": true,
+          "detail": "{\"page\":1440,\"viewport\":1440}"
+        },
+        {
+          "label": "desktop snapshot8: panel mounts and has finite text",
+          "ok": true,
+          "detail": "Connected public health\n\nPublic health: recorded, nothing happened this turn (no patient supplies, delivered foreign reports or water service).\n\nCare and maintained water service · evidence reports.\n\nObservation from simulation turn 7. Additional report delay: 0 turns. Advice uses delivered, unexpir"
+        },
+        {
+          "label": "desktop snapshot8: source turn and additional delay are explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot8: regional epidemics and individual care remain distinct",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot8: absent supplies are explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot8: crowding basis does not claim motive labels measure physical pressure",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot8: undelivered advice is explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot8: absent guard staffing is explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot8: explanatory text stays within section",
+          "ok": true,
+          "detail": "[{\"left\":56,\"right\":1384,\"sectionLeft\":39,\"sectionRight\":1401},{\"left\":56,\"right\":1384,\"sectionLeft\":39,\"sectionRight\":1401},{\"left\":56,\"right\":1384,\"sectionLeft\":39,\"sectionRight\":1401}]"
+        },
+        {
+          "label": "desktop snapshot8: no horizontal document overflow",
+          "ok": true,
+          "detail": "{\"page\":1440,\"viewport\":1440}"
+        },
+        {
+          "label": "desktop: no browser console or page errors",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "messages": [],
+      "screenshots": [
+        "desktop-snapshot1.png",
+        "desktop-snapshot2.png",
+        "desktop-snapshot7.png",
+        "desktop-snapshot8.png"
+      ],
+      "timings_ms": {
+        "saved_bundle_load": 487,
+        "initial_systems_panel": 250,
+        "journey": 5052
+      },
+      "decode_phases": null
+    },
+    "phone": {
+      "checks": [
+        {
+          "label": "phone: uploaded artifact identity names original bytes",
+          "ok": true,
+          "detail": "Saved world details · Seed 5 · 8 recorded snapshotsFilechronicle_bundle.jsonWorldAetherisSeed5Recorded turns1–8 (8 snapshots)Saved final turn8Simulation modehybridKnown enabled at saveFinance, Diplomacy, Techniques, Maritime, Great-person agendas, Nomads, Cities, Movements, Guilds, Scholarship, Public granaries, Epidemiology, Health care, Campaigns, Mutual aid, Governance, Contact ledger, Public grain shipmentsSystem history recordedRegional model population, Native regional agent counts, Phase 2 population food weights, Campaigns, Contact ledger, Epidemiology, Finance, Diplomacy, Techniques, Maritime, Great-person agendas, Nomads, Cities, Movements, Guilds, Scholarship, Public granaries, Food and relief, Health care, Governance, Public grain shipmentsOther history124 events · 6 named events · 8 chronicle entriesBundle formatVersion 6File identity822,184 bytes · SHA-256 c1ea7ad1d68591e89b3a1d98a805048994e7a8942343980183b7a52b03a31f30History is available only at recorded snapshots; gaps are not reconstructed. Enabled systems describe the saved state. Missing fields are unknown, and final state does not establish earlier observations. A viewable bundle cannot provide an exact CLI resume; use an exact checkpoint for continuation."
+        },
+        {
+          "label": "phone: explicit construction metadata controls the demonstration notice",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot1: panel mounts and has finite text",
+          "ok": true,
+          "detail": "Connected public health\n\nPublic health: recorded, nothing happened this turn (no patient supplies, delivered foreign reports or water service).\n\nCare and maintained water service · evidence reports.\n\nObservation from simulation turn 0. Additional report delay: 0 turns. Advice uses delivered, unexpir"
+        },
+        {
+          "label": "phone snapshot1: source turn and additional delay are explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot1: regional epidemics and individual care remain distinct",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot1: absent supplies are explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot1: crowding basis does not claim motive labels measure physical pressure",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot1: undelivered advice is explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot1: absent guard staffing is explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot1: explanatory text stays within section",
+          "ok": true,
+          "detail": "[{\"left\":42,\"right\":348,\"sectionLeft\":25,\"sectionRight\":365},{\"left\":42,\"right\":348,\"sectionLeft\":25,\"sectionRight\":365},{\"left\":42,\"right\":348,\"sectionLeft\":25,\"sectionRight\":365}]"
+        },
+        {
+          "label": "phone snapshot1: no horizontal document overflow",
+          "ok": true,
+          "detail": "{\"page\":390,\"viewport\":390}"
+        },
+        {
+          "label": "phone snapshot2: panel mounts and has finite text",
+          "ok": true,
+          "detail": "Connected public health\n\nPublic health: recorded, nothing happened this turn (no patient supplies, delivered foreign reports or water service).\n\nCare and maintained water service · evidence reports.\n\nObservation from simulation turn 1. Additional report delay: 0 turns. Advice uses delivered, unexpir"
+        },
+        {
+          "label": "phone snapshot2: source turn and additional delay are explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot2: regional epidemics and individual care remain distinct",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot2: absent supplies are explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot2: crowding basis does not claim motive labels measure physical pressure",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot2: undelivered advice is explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot2: absent guard staffing is explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot2: explanatory text stays within section",
+          "ok": true,
+          "detail": "[{\"left\":42,\"right\":348,\"sectionLeft\":25,\"sectionRight\":365},{\"left\":42,\"right\":348,\"sectionLeft\":25,\"sectionRight\":365},{\"left\":42,\"right\":348,\"sectionLeft\":25,\"sectionRight\":365}]"
+        },
+        {
+          "label": "phone snapshot2: no horizontal document overflow",
+          "ok": true,
+          "detail": "{\"page\":390,\"viewport\":390}"
+        },
+        {
+          "label": "phone snapshot7: panel mounts and has finite text",
+          "ok": true,
+          "detail": "Connected public health\n\nPublic health: recorded, nothing happened this turn (no patient supplies, delivered foreign reports or water service).\n\nCare and maintained water service · evidence reports.\n\nObservation from simulation turn 6. Additional report delay: 0 turns. Advice uses delivered, unexpir"
+        },
+        {
+          "label": "phone snapshot7: source turn and additional delay are explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot7: regional epidemics and individual care remain distinct",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot7: absent supplies are explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot7: crowding basis does not claim motive labels measure physical pressure",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot7: undelivered advice is explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot7: absent guard staffing is explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot7: explanatory text stays within section",
+          "ok": true,
+          "detail": "[{\"left\":42,\"right\":348,\"sectionLeft\":25,\"sectionRight\":365},{\"left\":42,\"right\":348,\"sectionLeft\":25,\"sectionRight\":365},{\"left\":42,\"right\":348,\"sectionLeft\":25,\"sectionRight\":365}]"
+        },
+        {
+          "label": "phone snapshot7: no horizontal document overflow",
+          "ok": true,
+          "detail": "{\"page\":390,\"viewport\":390}"
+        },
+        {
+          "label": "phone snapshot8: panel mounts and has finite text",
+          "ok": true,
+          "detail": "Connected public health\n\nPublic health: recorded, nothing happened this turn (no patient supplies, delivered foreign reports or water service).\n\nCare and maintained water service · evidence reports.\n\nObservation from simulation turn 7. Additional report delay: 0 turns. Advice uses delivered, unexpir"
+        },
+        {
+          "label": "phone snapshot8: source turn and additional delay are explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot8: regional epidemics and individual care remain distinct",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot8: absent supplies are explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot8: crowding basis does not claim motive labels measure physical pressure",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot8: undelivered advice is explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot8: absent guard staffing is explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot8: explanatory text stays within section",
+          "ok": true,
+          "detail": "[{\"left\":42,\"right\":348,\"sectionLeft\":25,\"sectionRight\":365},{\"left\":42,\"right\":348,\"sectionLeft\":25,\"sectionRight\":365},{\"left\":42,\"right\":348,\"sectionLeft\":25,\"sectionRight\":365}]"
+        },
+        {
+          "label": "phone snapshot8: no horizontal document overflow",
+          "ok": true,
+          "detail": "{\"page\":390,\"viewport\":390}"
+        },
+        {
+          "label": "phone: no browser console or page errors",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "messages": [],
+      "screenshots": [
+        "phone-snapshot1.png",
+        "phone-snapshot2.png",
+        "phone-snapshot7.png",
+        "phone-snapshot8.png"
+      ],
+      "timings_ms": {
+        "saved_bundle_load": 338,
+        "initial_systems_panel": 156,
+        "journey": 2821
+      },
+      "decode_phases": null
+    }
+  },
+  "failures": 0
+}

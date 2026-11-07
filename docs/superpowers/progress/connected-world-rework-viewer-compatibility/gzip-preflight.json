@@ -1,0 +1,220 @@
+{
+  "root": "/workspace/cwr-viewer",
+  "moves": {},
+  "not_covered": [
+    "paths built at runtime (Path segments joined with '/', f-strings, globs, rglob, os.walk)",
+    "source read through inspect.getsource, ast.parse of an imported module, or __file__ arithmetic",
+    "whole-tree digests recomputed at run time (native wheel receipts, benchmark source identities)",
+    "TypeScript and Rust module graphs beyond literal import specifiers and `mod` lines; tsc -b and cargo check them",
+    "multi-line imports outside parentheses, aliases re-exported under another name, star imports",
+    "behavioral pins: golden outputs, snapshot bytes, RNG streams and checkpoint identity",
+    "private archives, other branches, external repositories and published receipts"
+  ],
+  "reports": [
+    {
+      "path": "viewer/src/lib/bundleFile.ts",
+      "exists": true,
+      "sha256": "5c05536dc7fba87dd1851af91a0ea9b02fa7a982f0732a3f724ca34b27d6a4c5",
+      "role": "viewer module",
+      "findings": [
+        {
+          "level": "reference",
+          "kind": "viewer import",
+          "where": "viewer/src/components/CompletedRunCompare.tsx:5",
+          "detail": "imports a module named bundleFile; confirm it resolves here"
+        },
+        {
+          "level": "reference",
+          "kind": "viewer import",
+          "where": "viewer/src/hooks/__tests__/useBundleLoading.test.ts:7",
+          "detail": "imports a module named bundleFile; confirm it resolves here"
+        },
+        {
+          "level": "reference",
+          "kind": "viewer import",
+          "where": "viewer/src/hooks/__tests__/useBundleWorker.test.ts:18",
+          "detail": "imports a module named bundleFile; confirm it resolves here"
+        },
+        {
+          "level": "reference",
+          "kind": "viewer import",
+          "where": "viewer/src/hooks/useBundle.ts:5",
+          "detail": "imports a module named bundleFile; confirm it resolves here"
+        },
+        {
+          "level": "reference",
+          "kind": "viewer import",
+          "where": "viewer/src/lib/__tests__/savedWorldFiles.test.ts:3",
+          "detail": "imports a module named bundleFile; confirm it resolves here"
+        },
+        {
+          "level": "reference",
+          "kind": "viewer import",
+          "where": "viewer/src/lib/bundleDecode.ts:32",
+          "detail": "imports a module named bundleFile; confirm it resolves here"
+        }
+      ],
+      "verdict": "references found: review each before changing (coverage incomplete)"
+    },
+    {
+      "path": "viewer/src/lib/bundleDecode.ts",
+      "exists": true,
+      "sha256": "bdd8ffad00d190a4f3cb794c92868c1d2c1ca7139a4c73a501ecbe10693fb038",
+      "role": "viewer module",
+      "findings": [
+        {
+          "level": "reference",
+          "kind": "viewer import",
+          "where": "viewer/src/hooks/__tests__/useBundleWorker.test.ts:17",
+          "detail": "imports a module named bundleDecode; confirm it resolves here"
+        },
+        {
+          "level": "reference",
+          "kind": "viewer import",
+          "where": "viewer/src/hooks/useBundle.ts:4",
+          "detail": "imports a module named bundleDecode; confirm it resolves here"
+        },
+        {
+          "level": "reference",
+          "kind": "viewer import",
+          "where": "viewer/src/lib/__tests__/savedWorldFiles.test.ts:4",
+          "detail": "imports a module named bundleDecode; confirm it resolves here"
+        },
+        {
+          "level": "reference",
+          "kind": "viewer import",
+          "where": "viewer/src/lib/bundleDecode.worker.ts:6",
+          "detail": "imports a module named bundleDecode; confirm it resolves here"
+        }
+      ],
+      "verdict": "references found: review each before changing (coverage incomplete)"
+    },
+    {
+      "path": "viewer/src/components/phase75/AppShell.tsx",
+      "exists": true,
+      "sha256": "66fe4c218b4ffca07eb3ac8356485030d393ff9f4577c66776f8c54d10a4c654",
+      "role": "viewer module",
+      "findings": [
+        {
+          "level": "reference",
+          "kind": "viewer import",
+          "where": "viewer/src/App.tsx:5",
+          "detail": "imports a module named AppShell; confirm it resolves here"
+        },
+        {
+          "level": "reference",
+          "kind": "viewer import",
+          "where": "viewer/src/components/__tests__/FeatureRequests.test.tsx:12",
+          "detail": "imports a module named AppShell; confirm it resolves here"
+        },
+        {
+          "level": "reference",
+          "kind": "viewer import",
+          "where": "viewer/src/components/phase75/__tests__/AppShell.founding.test.tsx:5",
+          "detail": "imports a module named AppShell; confirm it resolves here"
+        },
+        {
+          "level": "reference",
+          "kind": "viewer import",
+          "where": "viewer/src/components/phase75/__tests__/AppShell.investigation.test.tsx:4",
+          "detail": "imports a module named AppShell; confirm it resolves here"
+        },
+        {
+          "level": "reference",
+          "kind": "viewer import",
+          "where": "viewer/src/components/phase75/__tests__/AppShell.lazy.test.tsx:12",
+          "detail": "imports a module named AppShell; confirm it resolves here"
+        },
+        {
+          "level": "reference",
+          "kind": "viewer import",
+          "where": "viewer/src/components/phase75/__tests__/AppShell.live.test.tsx:11",
+          "detail": "imports a module named AppShell; confirm it resolves here"
+        },
+        {
+          "level": "reference",
+          "kind": "viewer import",
+          "where": "viewer/src/components/phase75/__tests__/AppShell.mapLayers.test.tsx:7",
+          "detail": "imports a module named AppShell; confirm it resolves here"
+        },
+        {
+          "level": "reference",
+          "kind": "viewer import",
+          "where": "viewer/src/components/phase75/__tests__/AppShell.navigation.test.tsx:13",
+          "detail": "imports a module named AppShell; confirm it resolves here"
+        },
+        {
+          "level": "reference",
+          "kind": "viewer import",
+          "where": "viewer/src/components/phase75/__tests__/AppShell.pruned.test.tsx:5",
+          "detail": "imports a module named AppShell; confirm it resolves here"
+        },
+        {
+          "level": "reference",
+          "kind": "viewer import",
+          "where": "viewer/src/components/phase75/__tests__/AppShell.scrubbed.test.tsx:12",
+          "detail": "imports a module named AppShell; confirm it resolves here"
+        },
+        {
+          "level": "reference",
+          "kind": "viewer import",
+          "where": "viewer/src/components/phase75/__tests__/AppShell.setup.test.tsx:11",
+          "detail": "imports a module named AppShell; confirm it resolves here"
+        },
+        {
+          "level": "reference",
+          "kind": "viewer import",
+          "where": "viewer/src/components/phase75/__tests__/AppShell.systems.test.tsx:6",
+          "detail": "imports a module named AppShell; confirm it resolves here"
+        },
+        {
+          "level": "reference",
+          "kind": "viewer import",
+          "where": "viewer/src/components/phase75/__tests__/AppShell.worlds.test.tsx:15",
+          "detail": "imports a module named AppShell; confirm it resolves here"
+        },
+        {
+          "level": "reference",
+          "kind": "viewer import",
+          "where": "viewer/src/components/phase75/__tests__/ChronicleSources.test.tsx:10",
+          "detail": "imports a module named AppShell; confirm it resolves here"
+        },
+        {
+          "level": "reference",
+          "kind": "viewer import",
+          "where": "viewer/src/components/phase75/__tests__/InWorldAccounts.test.tsx:7",
+          "detail": "imports a module named AppShell; confirm it resolves here"
+        },
+        {
+          "level": "reference",
+          "kind": "viewer import",
+          "where": "viewer/src/components/phase75/__tests__/LanguagesPanel.test.tsx:6",
+          "detail": "imports a module named AppShell; confirm it resolves here"
+        },
+        {
+          "level": "reference",
+          "kind": "docs",
+          "where": "3 documents",
+          "detail": "name the path (5 lines), e.g. docs/superpowers/plans/2026-04-01-m-af2-tooling-trust-implementation-plan.md, docs/superpowers/plans/2026-04-03-full-audit-remediation-plan.md, docs/viewer/experiment-inspector-transfer.md; dated records keep old paths, current guides need updates"
+        }
+      ],
+      "verdict": "references found: review each before changing (coverage incomplete)"
+    },
+    {
+      "path": "viewer/src/hooks/__tests__/useBundleWorker.test.ts",
+      "exists": true,
+      "sha256": "adea4be673918a90a822f2e8f5e783b1b17f84afd19d8f30f926b5973a58c19d",
+      "role": "viewer module",
+      "findings": [],
+      "verdict": "no known pins or references (coverage incomplete; run the lanes)"
+    },
+    {
+      "path": "viewer/src/lib/__tests__/savedWorldFiles.test.ts",
+      "exists": true,
+      "sha256": "45f645d273a10dd6f7645b33e85c2aea7f5f8d8e94b89f36dd1aef18f2858ed7",
+      "role": "viewer module",
+      "findings": [],
+      "verdict": "no known pins or references (coverage incomplete; run the lanes)"
+    }
+  ]
+}

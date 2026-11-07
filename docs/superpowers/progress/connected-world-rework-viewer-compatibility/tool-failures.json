@@ -1,0 +1,21 @@
+{
+  "setup_only": [
+    {
+      "tool": "verify-archive.mjs initial revision",
+      "failure": "esbuild metafile <stdin> treated as filesystem input; ENOENT before decode/index measurement",
+      "resolution": "filter synthetic <stdin> input; full comparison then passed"
+    },
+    {
+      "tool": "validate-corrected.mjs initial revision",
+      "failure": "tool asserted numeric3 but saved version is string3; strict readers already accepted records",
+      "resolution": "assert declared string3; all8 snapshots and3776 pointer observations passed"
+    }
+  ],
+  "product_failure": {
+    "tool": "journey-corrected.mjs strengthened bounds",
+    "failure": "phoneT8 prose/table child exceeded section bounds despite document width staying390",
+    "resolution": "explicit minmax(0,1fr) sectioncolumn; oldfails1/50 newpasses50/50"
+  },
+  "held_seeds_consumed": 0,
+  "samples_discarded": 0
+}

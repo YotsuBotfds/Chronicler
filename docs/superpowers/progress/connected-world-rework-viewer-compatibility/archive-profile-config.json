@@ -1,0 +1,28 @@
+{
+  "build": "/workspace/cwr-viewer/viewer/dist",
+  "plain": {
+    "file": "/workspace/evidence/cw6/pilot-final/runs/FULL-p19/chronicle_bundle.json",
+    "sha256": "f6cb5562a4aaec888b6f2a03b4c4b01bd1e8d49737aec22673034eba30ce0ee2"
+  },
+  "archive": {
+    "file": "/workspace/evidence/cwr-viewer/chronicle_bundle.json.gz",
+    "sha256": "0caf4aa01962c83052e41895bd8b5945f54630a334770eacb85896f4b3fdc790"
+  },
+  "worker_modes": [
+    "default",
+    "disabled"
+  ],
+  "repeats": 3,
+  "elapsed_ceiling_seconds": 300,
+  "budgets": {
+    "load_median": "archive <= 1.5 * paired plain + 500ms, each viewport/mode",
+    "cold_warm_median": "archive <= 1.2 * paired plain + 200ms; same unchanged index",
+    "scope": "bounded120TChromiumviewports,notrealhandset,nosimulationCPUorRSSclaim"
+  },
+  "pilot": {
+    "elapsed_seconds": 27.472086893,
+    "samples": 4,
+    "projected_24_seconds": 164.832521358,
+    "with_1_5_buffer": 247.248782037
+  }
+}
