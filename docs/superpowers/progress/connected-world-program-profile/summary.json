@@ -1,0 +1,4405 @@
+{
+  "status": "complete",
+  "completed": 14,
+  "expected": 14,
+  "missing": [],
+  "qualification": false,
+  "note": "single shared-host measurements; population/behavior and records differ; no default promotion",
+  "lead_decision": "Flagged overhead accepted as opt-in experimental cost, conditional on no OOM, closure or source-guard failure",
+  "pairs": [
+    {
+      "world": "template_s5",
+      "turns": 200,
+      "cpu_ratio": 1.8110929902669317,
+      "wall_ratio": 2.0107244607086168,
+      "bundle_ratio": 2.126112747091841,
+      "state_ratio": 1.5624985111339158,
+      "max_checkpoint_ratio": 1.9918041019135215,
+      "extra_rss_mib": 342.390625,
+      "extraction_problems": [],
+      "source": {
+        "commit": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+        "files": 344,
+        "sha256": "faa94c0cad6d097d3b6f53230563f23efa18aa2efad9c5fe494e7da368623d5d"
+      },
+      "off": {
+        "run_wall_seconds": 15.283491772000161,
+        "run_cpu_seconds": 13.317383,
+        "run_peak_rss_kib": 460692,
+        "native_initial_agents": 180,
+        "native_peak_agents": 229,
+        "bundle_bytes": 9219750,
+        "state_bytes": 2140891,
+        "simulation_output_bytes": 27392963,
+        "sidecars": {
+          "agent_events.arrow": {
+            "bytes": 467410,
+            "rows": 11760,
+            "columns": 11,
+            "sha256": "1c654258ba0d5081248519d952ea422427e6fe0b772334f36ad45ced3cede1a5"
+          },
+          "validation_memory_signatures.arrow": {
+            "bytes": 240386,
+            "rows": 19940,
+            "columns": 5,
+            "sha256": "e83e760636252363c4d3f4fd390941521b0b1407ae43419d87160a99c80752dd"
+          },
+          "validation_needs.arrow": {
+            "bytes": 488034,
+            "rows": 4045,
+            "columns": 15,
+            "sha256": "14000ad275f32bf6834871a555ede7b2e5760aa2fe0700dad2a058593e726471"
+          },
+          "validation_relationships.arrow": {
+            "bytes": 352242,
+            "rows": 23409,
+            "columns": 5,
+            "sha256": "3ebe4317b8f66eaf6dc20fe9e55ec7b798cf4d749f62603ce5850ecc62f3d8ad"
+          },
+          "validation_reserve_ledger.arrow": {
+            "bytes": 3642,
+            "rows": 0,
+            "columns": 20,
+            "sha256": "0fa06c45393a8538471ce8b468f8ed04d5a26146ce5d3983d6a185757608aceb"
+          },
+          "validation_resource_ledger.arrow": {
+            "bytes": 43794,
+            "rows": 2800,
+            "columns": 27,
+            "sha256": "c3eabba93ef873827871339851c65baa24f1efdca87bf97313e8af02b8b89dc0"
+          }
+        },
+        "checkpoints": [
+          {
+            "turn": 50,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/template_s5-off/checkpoint_turn_50.ckpt",
+            "bytes": 1078950,
+            "raw_bytes": 3921189,
+            "sections": {
+              "python": 1038989,
+              "native.agent.0": 35427
+            },
+            "write_seconds": 0.1325045459998364,
+            "write_stages": {
+              "native": 0.00013533600031223614,
+              "pickle": 0.04523686799984716,
+              "compress": 0.04018659400026081,
+              "header": 0.045320182999603276,
+              "write": 0.001625564999812923
+            },
+            "read_seconds": 0.08002066500012006,
+            "read_stages": {
+              "read": 0.0004470940002647694,
+              "native": 0.0006819189993620967,
+              "python": 0.0788916520004932
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          },
+          {
+            "turn": 100,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/template_s5-off/checkpoint_turn_100.ckpt",
+            "bytes": 2264273,
+            "raw_bytes": 8140740,
+            "sections": {
+              "python": 2222154,
+              "native.agent.0": 37584
+            },
+            "write_seconds": 0.18486211500021454,
+            "write_stages": {
+              "native": 0.0001608949996807496,
+              "pickle": 0.11447446000056516,
+              "compress": 0.06767556599970703,
+              "header": 0.0006631899996136781,
+              "write": 0.0018880040006479248
+            },
+            "read_seconds": 0.15630220099956205,
+            "read_stages": {
+              "read": 0.0011409409999032505,
+              "native": 0.0005605059996014461,
+              "python": 0.15460075400005735
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          },
+          {
+            "turn": 150,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/template_s5-off/checkpoint_turn_150.ckpt",
+            "bytes": 3571653,
+            "raw_bytes": 12750831,
+            "sections": {
+              "python": 3529309,
+              "native.agent.0": 37808
+            },
+            "write_seconds": 0.40498793499955354,
+            "write_stages": {
+              "native": 0.00019497500034049153,
+              "pickle": 0.2515798239992364,
+              "compress": 0.14958303700041142,
+              "header": 0.0007589050001115538,
+              "write": 0.0028711939994536806
+            },
+            "read_seconds": 0.34037576700029604,
+            "read_stages": {
+              "read": 0.001338199000201712,
+              "native": 0.0006150780000098166,
+              "python": 0.3384224900000845
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          },
+          {
+            "turn": 199,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/template_s5-off/checkpoint_turn_199.ckpt",
+            "bytes": 4918680,
+            "raw_bytes": 17623657,
+            "sections": {
+              "python": 4876410,
+              "native.agent.0": 37734
+            },
+            "write_seconds": 0.6829432009999437,
+            "write_stages": {
+              "native": 0.0002105269995809067,
+              "pickle": 0.49151492300006794,
+              "compress": 0.18367526099973475,
+              "header": 0.002424998000606138,
+              "write": 0.005117491999953927
+            },
+            "read_seconds": 0.47274300400022184,
+            "read_stages": {
+              "read": 0.0016100889997687773,
+              "native": 0.0005727040006604511,
+              "python": 0.4705602109997926
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          }
+        ],
+        "measurement_bytes": 36785
+      },
+      "full": {
+        "run_wall_seconds": 30.730890750999606,
+        "run_cpu_seconds": 24.119019,
+        "run_peak_rss_kib": 811300,
+        "native_initial_agents": 180,
+        "native_peak_agents": 249,
+        "bundle_bytes": 19602228,
+        "state_bytes": 3345139,
+        "simulation_output_bytes": 51083336,
+        "sidecars": {
+          "agent_events.arrow": {
+            "bytes": 531690,
+            "rows": 13357,
+            "columns": 11,
+            "sha256": "ac76b322e7d4b537ce34a9339e528d772a2b361a55a67bebda40172f957425c2"
+          },
+          "validation_memory_signatures.arrow": {
+            "bytes": 275986,
+            "rows": 22906,
+            "columns": 5,
+            "sha256": "de576974d8e271b1321f6b58784649b4c8cb6cb1cb1baa629792c4cfc217b193"
+          },
+          "validation_needs.arrow": {
+            "bytes": 529434,
+            "rows": 4390,
+            "columns": 15,
+            "sha256": "4d988a86a42c05c6b330bf84b5f2dccf0d61466db767d031e3031b00120e1c83"
+          },
+          "validation_relationships.arrow": {
+            "bytes": 390122,
+            "rows": 25936,
+            "columns": 5,
+            "sha256": "21c2ce1547526282e694a0d3299c107b4d6c265206756cf1ef250482e1d758be"
+          },
+          "validation_reserve_ledger.arrow": {
+            "bytes": 3642,
+            "rows": 0,
+            "columns": 20,
+            "sha256": "0fa06c45393a8538471ce8b468f8ed04d5a26146ce5d3983d6a185757608aceb"
+          },
+          "validation_resource_ledger.arrow": {
+            "bytes": 46490,
+            "rows": 2800,
+            "columns": 27,
+            "sha256": "c949255b8f989f851562ae4266d5a9c308a63d1580907956b38e06e10b898149"
+          }
+        },
+        "checkpoints": [
+          {
+            "turn": 50,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/template_s5-full/checkpoint_turn_50.ckpt",
+            "bytes": 2018530,
+            "raw_bytes": 7409984,
+            "sections": {
+              "python": 1973397,
+              "native.agent.0": 39490
+            },
+            "write_seconds": 0.2992299389998152,
+            "write_stages": {
+              "native": 0.0002489159996912349,
+              "pickle": 0.1685821399996712,
+              "compress": 0.0889543990006132,
+              "header": 0.03922897099982947,
+              "write": 0.0022155130000101053
+            },
+            "read_seconds": 0.12001042100018822,
+            "read_stages": {
+              "read": 0.0007268929994097562,
+              "native": 0.0007898590001786943,
+              "python": 0.11849366900059977
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          },
+          {
+            "turn": 100,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/template_s5-full/checkpoint_turn_100.ckpt",
+            "bytes": 4449879,
+            "raw_bytes": 16212791,
+            "sections": {
+              "python": 4402529,
+              "native.agent.0": 41705
+            },
+            "write_seconds": 0.5605355159996179,
+            "write_stages": {
+              "native": 0.0001743830007399083,
+              "pickle": 0.37562503999924957,
+              "compress": 0.18128054899989365,
+              "header": 0.0008981029995993595,
+              "write": 0.002557441000135441
+            },
+            "read_seconds": 0.2975895820000005,
+            "read_stages": {
+              "read": 0.0021038349996160832,
+              "native": 0.0006755970007361611,
+              "python": 0.2948101499996483
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          },
+          {
+            "turn": 150,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/template_s5-full/checkpoint_turn_150.ckpt",
+            "bytes": 7107990,
+            "raw_bytes": 26061598,
+            "sections": {
+              "python": 7061240,
+              "native.agent.0": 41105
+            },
+            "write_seconds": 0.7790890969999964,
+            "write_stages": {
+              "native": 0.0001519030001873034,
+              "pickle": 0.44971333499961474,
+              "compress": 0.32433092100018257,
+              "header": 0.0013853279997420032,
+              "write": 0.0035076100002697785
+            },
+            "read_seconds": 0.638327216000107,
+            "read_stages": {
+              "read": 0.00221568000051775,
+              "native": 0.0007672530000490951,
+              "python": 0.6353442829995402
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          },
+          {
+            "turn": 199,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/template_s5-full/checkpoint_turn_199.ckpt",
+            "bytes": 9797047,
+            "raw_bytes": 36113704,
+            "sections": {
+              "python": 9749662,
+              "native.agent.0": 41740
+            },
+            "write_seconds": 1.1872857829994246,
+            "write_stages": {
+              "native": 0.00017743700027494924,
+              "pickle": 0.7498411019996638,
+              "compress": 0.4284090510000169,
+              "header": 0.0022058009999454953,
+              "write": 0.006652391999523388
+            },
+            "read_seconds": 0.8606200510002964,
+            "read_stages": {
+              "read": 0.006088932000238856,
+              "native": 0.0007679139998799656,
+              "python": 0.8537632050001775
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          }
+        ],
+        "measurement_bytes": 39251
+      },
+      "flags": [
+        "cpu_over_25_percent",
+        "bundle_doubled"
+      ]
+    },
+    {
+      "world": "template_s23",
+      "turns": 200,
+      "cpu_ratio": 1.8799154950560426,
+      "wall_ratio": 1.8849532603458825,
+      "bundle_ratio": 2.3280212810682754,
+      "state_ratio": 1.5468723474593686,
+      "max_checkpoint_ratio": 1.943069715155044,
+      "extra_rss_mib": 350.44921875,
+      "extraction_problems": [],
+      "source": {
+        "commit": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+        "files": 344,
+        "sha256": "faa94c0cad6d097d3b6f53230563f23efa18aa2efad9c5fe494e7da368623d5d"
+      },
+      "off": {
+        "run_wall_seconds": 12.395574323000801,
+        "run_cpu_seconds": 12.297032,
+        "run_peak_rss_kib": 448840,
+        "native_initial_agents": 196,
+        "native_peak_agents": 224,
+        "bundle_bytes": 8886396,
+        "state_bytes": 2014578,
+        "simulation_output_bytes": 26045105,
+        "sidecars": {
+          "agent_events.arrow": {
+            "bytes": 350010,
+            "rows": 8749,
+            "columns": 11,
+            "sha256": "6c2e7894ac22806becae66b9dc0824176feb2378da76b162e446bf13f509f4f8"
+          },
+          "validation_memory_signatures.arrow": {
+            "bytes": 176450,
+            "rows": 14611,
+            "columns": 5,
+            "sha256": "eb29dabf678e4d07d2b4fb53273b10a0e98a832752abdc76cdb3b5454802e451"
+          },
+          "validation_needs.arrow": {
+            "bytes": 383514,
+            "rows": 3174,
+            "columns": 15,
+            "sha256": "c432c8ee3e94c5f7e8d154ebba85145d1e58a636171a1349798b061a80b68c3e"
+          },
+          "validation_relationships.arrow": {
+            "bytes": 266202,
+            "rows": 17674,
+            "columns": 5,
+            "sha256": "2bb8b507d9ffc7839198f4297f4ff26ca41b1014107de56d26fc690e45bfb6e9"
+          },
+          "validation_reserve_ledger.arrow": {
+            "bytes": 3642,
+            "rows": 0,
+            "columns": 20,
+            "sha256": "0fa06c45393a8538471ce8b468f8ed04d5a26146ce5d3983d6a185757608aceb"
+          },
+          "validation_resource_ledger.arrow": {
+            "bytes": 39434,
+            "rows": 2200,
+            "columns": 27,
+            "sha256": "b0e0bdf8200795c3d795bd7e106e93b521d9909c4fe31a8d72198a994ea99a1b"
+          }
+        },
+        "checkpoints": [
+          {
+            "turn": 50,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/template_s23-off/checkpoint_turn_50.ckpt",
+            "bytes": 1038983,
+            "raw_bytes": 3675965,
+            "sections": {
+              "python": 1000172,
+              "native.agent.0": 34276
+            },
+            "write_seconds": 0.24371237300056237,
+            "write_stages": {
+              "native": 0.0001722390006761998,
+              "pickle": 0.15604412199991202,
+              "compress": 0.03853652799989504,
+              "header": 0.046528961999683816,
+              "write": 0.0024305220003952854
+            },
+            "read_seconds": 0.14825777400074003,
+            "read_stages": {
+              "read": 0.0005389620000642026,
+              "native": 0.0007147350006562192,
+              "python": 0.1470040770000196
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          },
+          {
+            "turn": 100,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/template_s23-off/checkpoint_turn_100.ckpt",
+            "bytes": 2228162,
+            "raw_bytes": 7803933,
+            "sections": {
+              "python": 2187252,
+              "native.agent.0": 36374
+            },
+            "write_seconds": 0.19229936900046596,
+            "write_stages": {
+              "native": 0.00012546899961307645,
+              "pickle": 0.11644525200063072,
+              "compress": 0.07263928199972725,
+              "header": 0.0006317229999694973,
+              "write": 0.0024576430005254224
+            },
+            "read_seconds": 0.14587701999971614,
+            "read_stages": {
+              "read": 0.0008728439997867099,
+              "native": 0.0006161569999676431,
+              "python": 0.1443880189999618
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          },
+          {
+            "turn": 150,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/template_s23-off/checkpoint_turn_150.ckpt",
+            "bytes": 3565308,
+            "raw_bytes": 12568016,
+            "sections": {
+              "python": 3524280,
+              "native.agent.0": 36491
+            },
+            "write_seconds": 0.4012272279996978,
+            "write_stages": {
+              "native": 0.00013230900003691204,
+              "pickle": 0.2973804959992776,
+              "compress": 0.10056522600007156,
+              "header": 0.0006930830004421296,
+              "write": 0.002456113999869558
+            },
+            "read_seconds": 0.29738619299951097,
+            "read_stages": {
+              "read": 0.0013254639998194762,
+              "native": 0.0006454719996327185,
+              "python": 0.2954152570000588
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          },
+          {
+            "turn": 199,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/template_s23-off/checkpoint_turn_199.ckpt",
+            "bytes": 4983919,
+            "raw_bytes": 17716436,
+            "sections": {
+              "python": 4942922,
+              "native.agent.0": 36460
+            },
+            "write_seconds": 0.4548463979999724,
+            "write_stages": {
+              "native": 0.00013130900060787098,
+              "pickle": 0.293959294999695,
+              "compress": 0.15605577600035758,
+              "header": 0.002203541999733716,
+              "write": 0.0024964759995782515
+            },
+            "read_seconds": 0.3510925900000075,
+            "read_stages": {
+              "read": 0.001659678000578424,
+              "native": 0.0006077549996916787,
+              "python": 0.3488251569997374
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          }
+        ],
+        "measurement_bytes": 36801
+      },
+      "full": {
+        "run_wall_seconds": 23.365078234000066,
+        "run_cpu_seconds": 23.117380999999998,
+        "run_peak_rss_kib": 807700,
+        "native_initial_agents": 196,
+        "native_peak_agents": 299,
+        "bundle_bytes": 20687719,
+        "state_bytes": 3116295,
+        "simulation_output_bytes": 51686564,
+        "sidecars": {
+          "agent_events.arrow": {
+            "bytes": 589162,
+            "rows": 14878,
+            "columns": 11,
+            "sha256": "606a167176d88f912617537c670423f015a4e91a4bf8fb24f6e26be9701cbb48"
+          },
+          "validation_memory_signatures.arrow": {
+            "bytes": 333434,
+            "rows": 27694,
+            "columns": 5,
+            "sha256": "edc2b0cd33a938ed2cb2b8a65bff84e270ffa6d3d1075ece444a0b756ba293f5"
+          },
+          "validation_needs.arrow": {
+            "bytes": 632874,
+            "rows": 5252,
+            "columns": 15,
+            "sha256": "787a6e29a76d645d5218ad5b3b235b2ed10785fe99f828cc1f0b249e18ceb1da"
+          },
+          "validation_relationships.arrow": {
+            "bytes": 465882,
+            "rows": 30985,
+            "columns": 5,
+            "sha256": "af6fc90b2737073c7049e1243e13c8faffd4d5ed404915f8254c9b3ff99dd6f3"
+          },
+          "validation_reserve_ledger.arrow": {
+            "bytes": 3642,
+            "rows": 0,
+            "columns": 20,
+            "sha256": "0fa06c45393a8538471ce8b468f8ed04d5a26146ce5d3983d6a185757608aceb"
+          },
+          "validation_resource_ledger.arrow": {
+            "bytes": 41050,
+            "rows": 2200,
+            "columns": 27,
+            "sha256": "e5d3bd8503b9c5e1fe51d022f9d605dd37c6e5dbd437de2f24345eff8aecdef9"
+          }
+        },
+        "checkpoints": [
+          {
+            "turn": 50,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/template_s23-full/checkpoint_turn_50.ckpt",
+            "bytes": 1930062,
+            "raw_bytes": 6956960,
+            "sections": {
+              "python": 1883791,
+              "native.agent.0": 40627
+            },
+            "write_seconds": 0.19751100600024074,
+            "write_stages": {
+              "native": 0.00013184900035412284,
+              "pickle": 0.09591007499966508,
+              "compress": 0.060874287999467924,
+              "header": 0.03559686300013709,
+              "write": 0.004997931000616518
+            },
+            "read_seconds": 0.12894660899928567,
+            "read_stages": {
+              "read": 0.00287859399941226,
+              "native": 0.0007488680003007175,
+              "python": 0.1253191469995727
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          },
+          {
+            "turn": 100,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/template_s23-full/checkpoint_turn_100.ckpt",
+            "bytes": 4262665,
+            "raw_bytes": 15383490,
+            "sections": {
+              "python": 4213510,
+              "native.agent.0": 43509
+            },
+            "write_seconds": 0.39755470599993714,
+            "write_stages": {
+              "native": 0.000143596000270918,
+              "pickle": 0.25072367299890175,
+              "compress": 0.14341713400062872,
+              "header": 0.0008204050000131247,
+              "write": 0.00244989800012263
+            },
+            "read_seconds": 0.40861788900019747,
+            "read_stages": {
+              "read": 0.0019793499996012542,
+              "native": 0.000838883000142232,
+              "python": 0.405799656000454
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          },
+          {
+            "turn": 150,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/template_s23-full/checkpoint_turn_150.ckpt",
+            "bytes": 6927642,
+            "raw_bytes": 25114605,
+            "sections": {
+              "python": 6877518,
+              "native.agent.0": 44477
+            },
+            "write_seconds": 0.5969875470000261,
+            "write_stages": {
+              "native": 0.00015309100035665324,
+              "pickle": 0.3854703509996398,
+              "compress": 0.20749115200032975,
+              "header": 0.0009694099999251193,
+              "write": 0.0029035429997747997
+            },
+            "read_seconds": 0.4981474320002235,
+            "read_stages": {
+              "read": 0.002390689000094426,
+              "native": 0.0008579420000387472,
+              "python": 0.4948988010000903
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          },
+          {
+            "turn": 199,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/template_s23-full/checkpoint_turn_199.ckpt",
+            "bytes": 9645650,
+            "raw_bytes": 35325113,
+            "sections": {
+              "python": 9591388,
+              "native.agent.0": 48615
+            },
+            "write_seconds": 0.8447795559995939,
+            "write_stages": {
+              "native": 0.00021475299945450388,
+              "pickle": 0.5389062370004467,
+              "compress": 0.29956188699998165,
+              "header": 0.0014418609998756438,
+              "write": 0.004654817999835359
+            },
+            "read_seconds": 0.7353339839992259,
+            "read_stages": {
+              "read": 0.005244465999567183,
+              "native": 0.0007964790002006339,
+              "python": 0.7292930389994581
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          }
+        ],
+        "measurement_bytes": 39314
+      },
+      "flags": [
+        "cpu_over_25_percent",
+        "bundle_doubled"
+      ]
+    },
+    {
+      "world": "proc32_s19",
+      "turns": 200,
+      "cpu_ratio": 2.60467319350566,
+      "wall_ratio": 2.2568974393483723,
+      "bundle_ratio": 2.5519235691132316,
+      "state_ratio": 1.4945364283187972,
+      "max_checkpoint_ratio": 1.975339651280888,
+      "extra_rss_mib": 995.828125,
+      "extraction_problems": [],
+      "source": {
+        "commit": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+        "files": 344,
+        "sha256": "faa94c0cad6d097d3b6f53230563f23efa18aa2efad9c5fe494e7da368623d5d"
+      },
+      "off": {
+        "run_wall_seconds": 48.15036250799949,
+        "run_cpu_seconds": 36.530394,
+        "run_peak_rss_kib": 968580,
+        "native_initial_agents": 502,
+        "native_peak_agents": 740,
+        "bundle_bytes": 27994965,
+        "state_bytes": 6692417,
+        "simulation_output_bytes": 77073584,
+        "sidecars": {
+          "agent_events.arrow": {
+            "bytes": 1280418,
+            "rows": 32528,
+            "columns": 11,
+            "sha256": "55139e70fd0673e86fe4fd5091c1366f10eb0da2282ea760ee4bb8b9759a6d26"
+          },
+          "validation_memory_signatures.arrow": {
+            "bytes": 785858,
+            "rows": 65396,
+            "columns": 5,
+            "sha256": "947c5ad4a5043bb298a0bc1f8572192a30e3f8b44a0048d96749c7dd8546488e"
+          },
+          "validation_needs.arrow": {
+            "bytes": 1645314,
+            "rows": 13689,
+            "columns": 15,
+            "sha256": "7f217ca4f662eea78c1eb95673330353fee7fcb484ef5cf56da2c21bd2fe935c"
+          },
+          "validation_relationships.arrow": {
+            "bytes": 1183266,
+            "rows": 78812,
+            "columns": 5,
+            "sha256": "d123ae97fd81ee9009e3498f0bde395435e8b6277e268076229dd1c8113b79f9"
+          },
+          "validation_reserve_ledger.arrow": {
+            "bytes": 3642,
+            "rows": 0,
+            "columns": 20,
+            "sha256": "0fa06c45393a8538471ce8b468f8ed04d5a26146ce5d3983d6a185757608aceb"
+          },
+          "validation_resource_ledger.arrow": {
+            "bytes": 153826,
+            "rows": 10600,
+            "columns": 27,
+            "sha256": "bb835ab5c154a8a36f26d9fef97dd09c6b9db5450554e08eef777f3e29f461c1"
+          }
+        },
+        "checkpoints": [
+          {
+            "turn": 50,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/proc32_s19-off/checkpoint_turn_50.ckpt",
+            "bytes": 2423122,
+            "raw_bytes": 10387152,
+            "sections": {
+              "python": 2306626,
+              "native.agent.0": 111947
+            },
+            "write_seconds": 0.262367663999612,
+            "write_stages": {
+              "native": 0.00022780300059821457,
+              "pickle": 0.14604102199882618,
+              "compress": 0.07933835000039835,
+              "header": 0.034423469999637746,
+              "write": 0.0023370190001514857
+            },
+            "read_seconds": 0.20919389499977115,
+            "read_stages": {
+              "read": 0.0008670659999552299,
+              "native": 0.0016770349993748823,
+              "python": 0.20664979400044103
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          },
+          {
+            "turn": 100,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/proc32_s19-off/checkpoint_turn_100.ckpt",
+            "bytes": 5491793,
+            "raw_bytes": 23323024,
+            "sections": {
+              "python": 5366518,
+              "native.agent.0": 120725
+            },
+            "write_seconds": 0.9099044759996104,
+            "write_stages": {
+              "native": 0.0002702669999052887,
+              "pickle": 0.6608743959995991,
+              "compress": 0.2433019250001962,
+              "header": 0.0029045940000287374,
+              "write": 0.0025532939998811344
+            },
+            "read_seconds": 1.4479138859996965,
+            "read_stages": {
+              "read": 0.0056485459999748855,
+              "native": 0.0016853870001796167,
+              "python": 1.440579952999542
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          },
+          {
+            "turn": 150,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/proc32_s19-off/checkpoint_turn_150.ckpt",
+            "bytes": 8778629,
+            "raw_bytes": 37105844,
+            "sections": {
+              "python": 8654147,
+              "native.agent.0": 119932
+            },
+            "write_seconds": 1.266294000999551,
+            "write_stages": {
+              "native": 0.0003672030006782734,
+              "pickle": 0.9531319659990913,
+              "compress": 0.30505740699936723,
+              "header": 0.0019142620003549382,
+              "write": 0.0058231630000591394
+            },
+            "read_seconds": 1.799119857999358,
+            "read_stages": {
+              "read": 0.003855915999338322,
+              "native": 0.006103371000790503,
+              "python": 1.789160570999229
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          },
+          {
+            "turn": 199,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/proc32_s19-off/checkpoint_turn_199.ckpt",
+            "bytes": 11850684,
+            "raw_bytes": 50032850,
+            "sections": {
+              "python": 11724019,
+              "native.agent.0": 122113
+            },
+            "write_seconds": 2.0596568769997248,
+            "write_stages": {
+              "native": 0.0002572570001575514,
+              "pickle": 1.5911361169992233,
+              "compress": 0.4598609300001044,
+              "header": 0.0025658040003690985,
+              "write": 0.005836768999870401
+            },
+            "read_seconds": 4.215507836999677,
+            "read_stages": {
+              "read": 0.020308209999711835,
+              "native": 0.01115152200054581,
+              "python": 4.18404810499942
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          }
+        ],
+        "measurement_bytes": 36895
+      },
+      "full": {
+        "run_wall_seconds": 108.67042984799991,
+        "run_cpu_seconds": 95.149738,
+        "run_peak_rss_kib": 1988308,
+        "native_initial_agents": 502,
+        "native_peak_agents": 1026,
+        "bundle_bytes": 71441011,
+        "state_bytes": 10002061,
+        "simulation_output_bytes": 153268531,
+        "sidecars": {
+          "agent_events.arrow": {
+            "bytes": 1885930,
+            "rows": 47977,
+            "columns": 11,
+            "sha256": "06e82208fd865685454ad4c2c90aada71ebac24598e6025b1c95085fafcae19e"
+          },
+          "validation_memory_signatures.arrow": {
+            "bytes": 1068122,
+            "rows": 88918,
+            "columns": 5,
+            "sha256": "c609440aaea33b8750bbf19a52401cb2eb4581eaf5b4c9c16ae86b08bcefa136"
+          },
+          "validation_needs.arrow": {
+            "bytes": 2124354,
+            "rows": 17681,
+            "columns": 15,
+            "sha256": "5bf8f1be04927bea4a595de4afce74c3efd5a0fb9941d229d4b80381ea0ad728"
+          },
+          "validation_relationships.arrow": {
+            "bytes": 1541762,
+            "rows": 102712,
+            "columns": 5,
+            "sha256": "5d830ba1b0f783e19cbeadf582dce90cb89251c0aac7290dc6de792051ec595f"
+          },
+          "validation_reserve_ledger.arrow": {
+            "bytes": 3642,
+            "rows": 0,
+            "columns": 20,
+            "sha256": "0fa06c45393a8538471ce8b468f8ed04d5a26146ce5d3983d6a185757608aceb"
+          },
+          "validation_resource_ledger.arrow": {
+            "bytes": 195314,
+            "rows": 10600,
+            "columns": 27,
+            "sha256": "34f905e80e04ac8f0204860a422109602547bdcfc19cbb72125052332776ff9b"
+          }
+        },
+        "checkpoints": [
+          {
+            "turn": 50,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/proc32_s19-full/checkpoint_turn_50.ckpt",
+            "bytes": 3948846,
+            "raw_bytes": 16621018,
+            "sections": {
+              "python": 3813285,
+              "native.agent.0": 129845
+            },
+            "write_seconds": 0.6026833739997528,
+            "write_stages": {
+              "native": 0.0004094969999641762,
+              "pickle": 0.4524606280001535,
+              "compress": 0.11201678500037815,
+              "header": 0.034993562999261485,
+              "write": 0.0028029009999954724
+            },
+            "read_seconds": 0.2407147950007129,
+            "read_stages": {
+              "read": 0.0009138340001300094,
+              "native": 0.0018588439997984096,
+              "python": 0.2379421170007845
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          },
+          {
+            "turn": 100,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/proc32_s19-full/checkpoint_turn_100.ckpt",
+            "bytes": 9961216,
+            "raw_bytes": 41689869,
+            "sections": {
+              "python": 9797097,
+              "native.agent.0": 158402
+            },
+            "write_seconds": 1.4637757270002112,
+            "write_stages": {
+              "native": 0.0003191499999957159,
+              "pickle": 1.130218688000241,
+              "compress": 0.32428566300040984,
+              "header": 0.004041036999296921,
+              "write": 0.004911189000267768
+            },
+            "read_seconds": 0.9218836249992819,
+            "read_stages": {
+              "read": 0.004881417999968107,
+              "native": 0.0034872119995270623,
+              "python": 0.9135149949997867
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          },
+          {
+            "turn": 150,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/proc32_s19-full/checkpoint_turn_150.ckpt",
+            "bytes": 16719104,
+            "raw_bytes": 70149749,
+            "sections": {
+              "python": 16546284,
+              "native.agent.0": 167101
+            },
+            "write_seconds": 1.7138346380006624,
+            "write_stages": {
+              "native": 0.00030318700009956956,
+              "pickle": 1.2161422810004296,
+              "compress": 0.48751843300033215,
+              "header": 0.0022878209992995835,
+              "write": 0.007582916000501427
+            },
+            "read_seconds": 1.3572369760004221,
+            "read_stages": {
+              "read": 0.007340133999605314,
+              "native": 0.002654370000527706,
+              "python": 1.3472424720002891
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          },
+          {
+            "turn": 199,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/proc32_s19-full/checkpoint_turn_199.ckpt",
+            "bytes": 23409126,
+            "raw_bytes": 99044552,
+            "sections": {
+              "python": 23238268,
+              "native.agent.0": 165139
+            },
+            "write_seconds": 3.3476187430005666,
+            "write_stages": {
+              "native": 0.00029165999967517564,
+              "pickle": 2.590340460000334,
+              "compress": 0.7443650020004497,
+              "header": 0.0030445889997281483,
+              "write": 0.009577032000379404
+            },
+            "read_seconds": 1.9868143009998676,
+            "read_stages": {
+              "read": 0.012558526999782771,
+              "native": 0.002247626000098535,
+              "python": 1.9720081479999862
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          }
+        ],
+        "measurement_bytes": 39508
+      },
+      "flags": [
+        "cpu_over_25_percent",
+        "bundle_doubled",
+        "rss_over_500_mib"
+      ]
+    },
+    {
+      "world": "proc32_s31",
+      "turns": 200,
+      "cpu_ratio": 2.2913393041179986,
+      "wall_ratio": 1.9786270619641588,
+      "bundle_ratio": 2.996948075332984,
+      "state_ratio": 1.5749763064111002,
+      "max_checkpoint_ratio": 2.0964966620697654,
+      "extra_rss_mib": 1010.41015625,
+      "extraction_problems": [],
+      "source": {
+        "commit": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+        "files": 344,
+        "sha256": "faa94c0cad6d097d3b6f53230563f23efa18aa2efad9c5fe494e7da368623d5d"
+      },
+      "off": {
+        "run_wall_seconds": 38.48974823299977,
+        "run_cpu_seconds": 33.179446999999996,
+        "run_peak_rss_kib": 917240,
+        "native_initial_agents": 544,
+        "native_peak_agents": 795,
+        "bundle_bytes": 23791544,
+        "state_bytes": 6311834,
+        "simulation_output_bytes": 70008009,
+        "sidecars": {
+          "agent_events.arrow": {
+            "bytes": 1160082,
+            "rows": 29359,
+            "columns": 11,
+            "sha256": "118e4b3b57e9fae6438c18e5940dde99d1261d7f4414d1e33f5539b449339385"
+          },
+          "validation_memory_signatures.arrow": {
+            "bytes": 766834,
+            "rows": 63810,
+            "columns": 5,
+            "sha256": "a6fe347464b37c2c8c0ab24600d6173feae692f1023cbbef668bece1a0e9ddab"
+          },
+          "validation_needs.arrow": {
+            "bytes": 1650114,
+            "rows": 13729,
+            "columns": 15,
+            "sha256": "0c7c534e188937e7cb68b81e57656112ac24824684016fd20cee8d91598e5c01"
+          },
+          "validation_relationships.arrow": {
+            "bytes": 1184762,
+            "rows": 78911,
+            "columns": 5,
+            "sha256": "f6039d2672eda7bdce616028610873219525ec9bbef048662fd7c4a61d969b37"
+          },
+          "validation_reserve_ledger.arrow": {
+            "bytes": 3642,
+            "rows": 0,
+            "columns": 20,
+            "sha256": "0fa06c45393a8538471ce8b468f8ed04d5a26146ce5d3983d6a185757608aceb"
+          },
+          "validation_resource_ledger.arrow": {
+            "bytes": 138834,
+            "rows": 9200,
+            "columns": 27,
+            "sha256": "1b383e90367389cbbb4c8f237c6fdb8bf6030a0d195c73ad41f67b1548b71223"
+          }
+        },
+        "checkpoints": [
+          {
+            "turn": 50,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/proc32_s31-off/checkpoint_turn_50.ckpt",
+            "bytes": 2441590,
+            "raw_bytes": 10612216,
+            "sections": {
+              "python": 2318005,
+              "native.agent.0": 119036
+            },
+            "write_seconds": 0.27716510400023253,
+            "write_stages": {
+              "native": 0.0002511080001568189,
+              "pickle": 0.15236822000042594,
+              "compress": 0.08768394300022919,
+              "header": 0.03419859999939945,
+              "write": 0.002663233000021137
+            },
+            "read_seconds": 0.33727453899973625,
+            "read_stages": {
+              "read": 0.001106054000047152,
+              "native": 0.002155393999601074,
+              "python": 0.334013091000088
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          },
+          {
+            "turn": 100,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/proc32_s31-off/checkpoint_turn_100.ckpt",
+            "bytes": 5299434,
+            "raw_bytes": 22718792,
+            "sections": {
+              "python": 5166452,
+              "native.agent.0": 128432
+            },
+            "write_seconds": 0.722177173000091,
+            "write_stages": {
+              "native": 0.000295793999612215,
+              "pickle": 0.5368116960007683,
+              "compress": 0.1817961409997224,
+              "header": 0.0008847279996189172,
+              "write": 0.002388814000369166
+            },
+            "read_seconds": 0.7388280150007631,
+            "read_stages": {
+              "read": 0.0019636850001916173,
+              "native": 0.0016584450004302198,
+              "python": 0.7352058850001413
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          },
+          {
+            "turn": 150,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/proc32_s31-off/checkpoint_turn_150.ckpt",
+            "bytes": 8078605,
+            "raw_bytes": 35029051,
+            "sections": {
+              "python": 7943326,
+              "native.agent.0": 130729
+            },
+            "write_seconds": 1.180926754000211,
+            "write_stages": {
+              "native": 0.0002695949997360003,
+              "pickle": 0.939825880999706,
+              "compress": 0.23416512700077874,
+              "header": 0.0012151679993621656,
+              "write": 0.0054509830006281845
+            },
+            "read_seconds": 0.9475124129994583,
+            "read_stages": {
+              "read": 0.003263711999352381,
+              "native": 0.0020419630000105826,
+              "python": 0.9422067380000954
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          },
+          {
+            "turn": 199,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/proc32_s31-off/checkpoint_turn_199.ckpt",
+            "bytes": 10897921,
+            "raw_bytes": 47450658,
+            "sections": {
+              "python": 10766803,
+              "native.agent.0": 126566
+            },
+            "write_seconds": 1.2152975700000752,
+            "write_stages": {
+              "native": 0.0002828759998010355,
+              "pickle": 0.8887233180003022,
+              "compress": 0.32037786999990203,
+              "header": 0.0015530000000580912,
+              "write": 0.00436050600001181
+            },
+            "read_seconds": 1.6137539609999294,
+            "read_stages": {
+              "read": 0.0041885029995683,
+              "native": 0.001959299000191095,
+              "python": 1.60760615900017
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          }
+        ],
+        "measurement_bytes": 36966
+      },
+      "full": {
+        "run_wall_seconds": 76.15685746200052,
+        "run_cpu_seconds": 76.025371,
+        "run_peak_rss_kib": 1951900,
+        "native_initial_agents": 544,
+        "native_peak_agents": 894,
+        "bundle_bytes": 71302022,
+        "state_bytes": 9940989,
+        "simulation_output_bytes": 150163065,
+        "sidecars": {
+          "agent_events.arrow": {
+            "bytes": 1523962,
+            "rows": 38566,
+            "columns": 11,
+            "sha256": "13e4770ace7a5cc4e4d3722ea1fb9c910eae6ff26f9be538b75a4e34d5721b65"
+          },
+          "validation_memory_signatures.arrow": {
+            "bytes": 884106,
+            "rows": 73583,
+            "columns": 5,
+            "sha256": "66d2bb02eadb8000b9e1ac126e71e0977cbf5b726307112ede0af1742a1d5bbb"
+          },
+          "validation_needs.arrow": {
+            "bytes": 1818354,
+            "rows": 15131,
+            "columns": 15,
+            "sha256": "d9419d64bbf40dab2a460693457abeb35abc29f5deb206dbced224b83c7b8547"
+          },
+          "validation_relationships.arrow": {
+            "bytes": 1294658,
+            "rows": 86237,
+            "columns": 5,
+            "sha256": "f898866ea9988307f1e968a8efe002734af0d4910cc0d58351a05435ef530767"
+          },
+          "validation_reserve_ledger.arrow": {
+            "bytes": 3642,
+            "rows": 0,
+            "columns": 20,
+            "sha256": "0fa06c45393a8538471ce8b468f8ed04d5a26146ce5d3983d6a185757608aceb"
+          },
+          "validation_resource_ledger.arrow": {
+            "bytes": 172178,
+            "rows": 9200,
+            "columns": 27,
+            "sha256": "c6bc173d38ec50cac208f05797d0465b54d5d93bdcc1259829c5fbd70e92bb72"
+          }
+        },
+        "checkpoints": [
+          {
+            "turn": 50,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/proc32_s31-full/checkpoint_turn_50.ckpt",
+            "bytes": 4158096,
+            "raw_bytes": 17951067,
+            "sections": {
+              "python": 4016817,
+              "native.agent.0": 135563
+            },
+            "write_seconds": 0.42796058200019615,
+            "write_stages": {
+              "native": 0.0002783290001389105,
+              "pickle": 0.26852714999949967,
+              "compress": 0.12089855500016711,
+              "header": 0.035754020000240416,
+              "write": 0.0025025280001500505
+            },
+            "read_seconds": 0.40443907600001694,
+            "read_stages": {
+              "read": 0.0013243539997347398,
+              "native": 0.0022004929996910505,
+              "python": 0.40091422900059115
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          },
+          {
+            "turn": 100,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/proc32_s31-full/checkpoint_turn_100.ckpt",
+            "bytes": 9987397,
+            "raw_bytes": 42884341,
+            "sections": {
+              "python": 9838881,
+              "native.agent.0": 142799
+            },
+            "write_seconds": 1.0192851949996111,
+            "write_stages": {
+              "native": 0.00029157900007703574,
+              "pickle": 0.7102715259998149,
+              "compress": 0.29993883699989965,
+              "header": 0.00372200400033762,
+              "write": 0.005061248999481904
+            },
+            "read_seconds": 1.013204938999479,
+            "read_stages": {
+              "read": 0.0036889539996991516,
+              "native": 0.0018685029999687686,
+              "python": 1.0076474819998111
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          },
+          {
+            "turn": 150,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/proc32_s31-full/checkpoint_turn_150.ckpt",
+            "bytes": 16361798,
+            "raw_bytes": 70613955,
+            "sections": {
+              "python": 16210609,
+              "native.agent.0": 145470
+            },
+            "write_seconds": 1.7712528960000782,
+            "write_stages": {
+              "native": 0.00032872599967959104,
+              "pickle": 1.2077402479999364,
+              "compress": 0.5548960160003844,
+              "header": 0.002007711999794992,
+              "write": 0.0062801940002827905
+            },
+            "read_seconds": 1.4564029810007924,
+            "read_stages": {
+              "read": 0.00594502000058128,
+              "native": 0.002197818000240659,
+              "python": 1.4482601429999704
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          },
+          {
+            "turn": 199,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/proc32_s31-full/checkpoint_turn_199.ckpt",
+            "bytes": 22847455,
+            "raw_bytes": 98529847,
+            "sections": {
+              "python": 22695027,
+              "native.agent.0": 146709
+            },
+            "write_seconds": 2.926678051999261,
+            "write_stages": {
+              "native": 0.0002881740001612343,
+              "pickle": 2.221129691999522,
+              "compress": 0.6943818449999526,
+              "header": 0.003090264000093157,
+              "write": 0.007788076999531768
+            },
+            "read_seconds": 2.223424105000049,
+            "read_stages": {
+              "read": 0.006938618999811297,
+              "native": 0.0018353940004089964,
+              "python": 2.214650091999829
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          }
+        ],
+        "measurement_bytes": 39529
+      },
+      "flags": [
+        "cpu_over_25_percent",
+        "bundle_doubled",
+        "checkpoint_doubled",
+        "rss_over_500_mib"
+      ]
+    },
+    {
+      "world": "scaled22k_s42",
+      "turns": 30,
+      "cpu_ratio": 6.902092504727215,
+      "wall_ratio": 6.8931655141469586,
+      "bundle_ratio": 3.944633862843859,
+      "state_ratio": 4.389364367162842,
+      "max_checkpoint_ratio": 1.320940431249956,
+      "extra_rss_mib": 239.703125,
+      "extraction_problems": [],
+      "source": {
+        "commit": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+        "files": 344,
+        "sha256": "faa94c0cad6d097d3b6f53230563f23efa18aa2efad9c5fe494e7da368623d5d"
+      },
+      "off": {
+        "run_wall_seconds": 16.359404203999475,
+        "run_cpu_seconds": 16.328852,
+        "run_peak_rss_kib": 429368,
+        "native_initial_agents": 18801,
+        "native_peak_agents": 22952,
+        "bundle_bytes": 3148820,
+        "state_bytes": 1958379,
+        "simulation_output_bytes": 57805339,
+        "sidecars": {
+          "agent_events.arrow": {
+            "bytes": 2784946,
+            "rows": 68455,
+            "columns": 11,
+            "sha256": "6cb5ad789c8b7e27f22928888bd28c19300fbce0bd9be3eca54e9533fa64e953"
+          },
+          "validation_memory_signatures.arrow": {
+            "bytes": 2206178,
+            "rows": 183755,
+            "columns": 5,
+            "sha256": "7fc280fdb440155a1858004fe90834352d185e17f54e648349b5bffde7549aa2"
+          },
+          "validation_needs.arrow": {
+            "bytes": 10407234,
+            "rows": 86705,
+            "columns": 15,
+            "sha256": "6b44db5698b1db61a8024cfbf2b12e89107f99823f3f2404bdde507cdaf5e386"
+          },
+          "validation_relationships.arrow": {
+            "bytes": 1864506,
+            "rows": 124227,
+            "columns": 5,
+            "sha256": "df486a6b2807a41da3558bf2e540a726f26822f2f889ec9c2e8b279f66b47820"
+          },
+          "validation_reserve_ledger.arrow": {
+            "bytes": 3642,
+            "rows": 0,
+            "columns": 20,
+            "sha256": "0fa06c45393a8538471ce8b468f8ed04d5a26146ce5d3983d6a185757608aceb"
+          },
+          "validation_resource_ledger.arrow": {
+            "bytes": 13938,
+            "rows": 570,
+            "columns": 27,
+            "sha256": "8268d16eba40ebfbc648294539f11d45feadcf4770cf9d8ae8a47fb4fd4d03dd"
+          }
+        },
+        "checkpoints": [
+          {
+            "turn": 10,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/scaled22k_s42-off/checkpoint_turn_10.ckpt",
+            "bytes": 2415606,
+            "raw_bytes": 11327697,
+            "sections": {
+              "python": 944759,
+              "native.agent.0": 1466310
+            },
+            "write_seconds": 0.18291407499964407,
+            "write_stages": {
+              "native": 0.006527319000269927,
+              "pickle": 0.06705923899971822,
+              "compress": 0.07248426699970878,
+              "header": 0.034857360000387416,
+              "write": 0.0019858899995597312
+            },
+            "read_seconds": 0.10106379600074433,
+            "read_stages": {
+              "read": 0.000719634000233782,
+              "native": 0.017260667999835277,
+              "python": 0.08308349400067527
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          },
+          {
+            "turn": 20,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/scaled22k_s42-off/checkpoint_turn_20.ckpt",
+            "bytes": 4278999,
+            "raw_bytes": 17037286,
+            "sections": {
+              "python": 2397980,
+              "native.agent.0": 1876480
+            },
+            "write_seconds": 0.31205468799998926,
+            "write_stages": {
+              "native": 0.0058554369998091715,
+              "pickle": 0.1759340250000605,
+              "compress": 0.1267581150004844,
+              "header": 0.0009004059993458213,
+              "write": 0.0026067050002893666
+            },
+            "read_seconds": 0.3257616689998031,
+            "read_stages": {
+              "read": 0.0015908960003798711,
+              "native": 0.021488253999450535,
+              "python": 0.30268251899997267
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          },
+          {
+            "turn": 29,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/scaled22k_s42-off/checkpoint_turn_29.ckpt",
+            "bytes": 6112047,
+            "raw_bytes": 22519623,
+            "sections": {
+              "python": 4004212,
+              "native.agent.0": 2103295
+            },
+            "write_seconds": 0.49217428600059066,
+            "write_stages": {
+              "native": 0.0070593680002275505,
+              "pickle": 0.2995463790002759,
+              "compress": 0.1817489889999706,
+              "header": 0.0010646029995768913,
+              "write": 0.002754947000539687
+            },
+            "read_seconds": 0.4445175979999476,
+            "read_stages": {
+              "read": 0.0016552719998799148,
+              "native": 0.02220687600038218,
+              "python": 0.4206554499996855
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          }
+        ],
+        "measurement_bytes": 12919
+      },
+      "full": {
+        "run_wall_seconds": 112.76808089099995,
+        "run_cpu_seconds": 112.703247,
+        "run_peak_rss_kib": 674824,
+        "native_initial_agents": 18801,
+        "native_peak_agents": 24571,
+        "bundle_bytes": 12420942,
+        "state_bytes": 8596039,
+        "simulation_output_bytes": 80378466,
+        "sidecars": {
+          "agent_events.arrow": {
+            "bytes": 3631946,
+            "rows": 90113,
+            "columns": 11,
+            "sha256": "41ad86bdc75d43ffbef83b21d8225493e9f36d6d1a50adae4bc3c7cc20cbbe76"
+          },
+          "validation_memory_signatures.arrow": {
+            "bytes": 2657666,
+            "rows": 221380,
+            "columns": 5,
+            "sha256": "992bd1fc1d312ebeddab11e89b250ca1fc7a2e60d5c7553b4db7095d0211b631"
+          },
+          "validation_needs.arrow": {
+            "bytes": 10767834,
+            "rows": 89710,
+            "columns": 15,
+            "sha256": "60e5782092a35b65032c8d624cc8cd416cdb495f15817b2beacc9c2252541fc6"
+          },
+          "validation_relationships.arrow": {
+            "bytes": 2108322,
+            "rows": 140482,
+            "columns": 5,
+            "sha256": "cddec162c2251df05bbfa9678983a6bc9fc25e5753f36414546c44a4b079a840"
+          },
+          "validation_reserve_ledger.arrow": {
+            "bytes": 4674,
+            "rows": 11,
+            "columns": 20,
+            "sha256": "596d5fd706e0e73e04047b73ff764bde916e05278a5297453984ded1e58f0d5d"
+          },
+          "validation_resource_ledger.arrow": {
+            "bytes": 16826,
+            "rows": 570,
+            "columns": 27,
+            "sha256": "5b1293ec74f9fe6cce305e07508c5b9cb78b36ff31d74ce7815569c02e9e0c36"
+          }
+        },
+        "checkpoints": [
+          {
+            "turn": 10,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/scaled22k_s42-full/checkpoint_turn_10.ckpt",
+            "bytes": 2775552,
+            "raw_bytes": 15600447,
+            "sections": {
+              "python": 1350376,
+              "native.agent.0": 1419528
+            },
+            "write_seconds": 0.27991086800011544,
+            "write_stages": {
+              "native": 0.006184410999594547,
+              "pickle": 0.14985727700059215,
+              "compress": 0.08641689100022631,
+              "header": 0.034642748999431205,
+              "write": 0.0028095400002712267
+            },
+            "read_seconds": 0.17800299400005315,
+            "read_stages": {
+              "read": 0.0008731650004847324,
+              "native": 0.01804971999990812,
+              "python": 0.1590801089996603
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          },
+          {
+            "turn": 20,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/scaled22k_s42-full/checkpoint_turn_20.ckpt",
+            "bytes": 5408010,
+            "raw_bytes": 24527614,
+            "sections": {
+              "python": 3302120,
+              "native.agent.0": 2100241
+            },
+            "write_seconds": 0.8498463750001974,
+            "write_stages": {
+              "native": 0.01162342699990404,
+              "pickle": 0.638934952999989,
+              "compress": 0.19524505600020348,
+              "header": 0.001113125999836484,
+              "write": 0.002929813000264403
+            },
+            "read_seconds": 0.44979021000017383,
+            "read_stages": {
+              "read": 0.002663580999978876,
+              "native": 0.023119836000660143,
+              "python": 0.4240067929995348
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          },
+          {
+            "turn": 29,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/scaled22k_s42-full/checkpoint_turn_29.ckpt",
+            "bytes": 8073650,
+            "raw_bytes": 34419419,
+            "sections": {
+              "python": 5656852,
+              "native.agent.0": 2411149
+            },
+            "write_seconds": 1.5687188120000428,
+            "write_stages": {
+              "native": 0.006781349999982922,
+              "pickle": 1.2347113129999343,
+              "compress": 0.320634121000694,
+              "header": 0.0019041679997826577,
+              "write": 0.004687859999648936
+            },
+            "read_seconds": 0.7789423849999366,
+            "read_stages": {
+              "read": 0.00214913699983299,
+              "native": 0.026057328000206326,
+              "python": 0.7507359199998973
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          }
+        ],
+        "measurement_bytes": 15407
+      },
+      "flags": [
+        "cpu_over_25_percent",
+        "bundle_doubled"
+      ]
+    },
+    {
+      "world": "scaled52k_s7",
+      "turns": 20,
+      "cpu_ratio": 2.2915680971259427,
+      "wall_ratio": 2.277554519330537,
+      "bundle_ratio": 3.313772604864058,
+      "state_ratio": 3.8634206517260874,
+      "max_checkpoint_ratio": 1.1782599699776883,
+      "extra_rss_mib": 60.18359375,
+      "extraction_problems": [],
+      "source": {
+        "commit": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+        "files": 344,
+        "sha256": "faa94c0cad6d097d3b6f53230563f23efa18aa2efad9c5fe494e7da368623d5d"
+      },
+      "off": {
+        "run_wall_seconds": 28.74703024200062,
+        "run_cpu_seconds": 28.543723,
+        "run_peak_rss_kib": 617776,
+        "native_initial_agents": 43700,
+        "native_peak_agents": 49507,
+        "bundle_bytes": 2398820,
+        "state_bytes": 2087380,
+        "simulation_output_bytes": 91059965,
+        "sidecars": {
+          "agent_events.arrow": {
+            "bytes": 5456618,
+            "rows": 132141,
+            "columns": 11,
+            "sha256": "290fe65a258f280b0c9cca973a9da8e2517e6920097780143e016b658688d2f9"
+          },
+          "validation_memory_signatures.arrow": {
+            "bytes": 2718554,
+            "rows": 226453,
+            "columns": 5,
+            "sha256": "a9ec0e53089a1cf884547b19568681d3ddc6ea1bb43879830fd505ccbf28108c"
+          },
+          "validation_needs.arrow": {
+            "bytes": 16852674,
+            "rows": 140417,
+            "columns": 15,
+            "sha256": "794bdb775851d0790d011ef3111ed9d883c7a2e12d9631736270be1fc64ecd22"
+          },
+          "validation_relationships.arrow": {
+            "bytes": 2203266,
+            "rows": 146812,
+            "columns": 5,
+            "sha256": "8b8a78ac209767056f2bd652a2f6e704437ec39a7d7a5005a2e16b09b525deb7"
+          },
+          "validation_reserve_ledger.arrow": {
+            "bytes": 3642,
+            "rows": 0,
+            "columns": 20,
+            "sha256": "0fa06c45393a8538471ce8b468f8ed04d5a26146ce5d3983d6a185757608aceb"
+          },
+          "validation_resource_ledger.arrow": {
+            "bytes": 13962,
+            "rows": 380,
+            "columns": 27,
+            "sha256": "6fd1001d54c4b5ff011f327b77d568f16c38024d89f9256573680740b66a10b0"
+          }
+        },
+        "checkpoints": [
+          {
+            "turn": 5,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/scaled52k_s7-off/checkpoint_turn_5.ckpt",
+            "bytes": 3671698,
+            "raw_bytes": 20473243,
+            "sections": {
+              "python": 1428264,
+              "native.agent.0": 2238896
+            },
+            "write_seconds": 0.3070306169993273,
+            "write_stages": {
+              "native": 0.0163107990001663,
+              "pickle": 0.11229373099922668,
+              "compress": 0.13994163100051082,
+              "header": 0.03568352899947058,
+              "write": 0.002800926999952935
+            },
+            "read_seconds": 0.1699492210000244,
+            "read_stages": {
+              "read": 0.001518437999948219,
+              "native": 0.03638523199970223,
+              "python": 0.13204555100037396
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          },
+          {
+            "turn": 10,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/scaled52k_s7-off/checkpoint_turn_10.ckpt",
+            "bytes": 4509313,
+            "raw_bytes": 22809077,
+            "sections": {
+              "python": 1653914,
+              "native.agent.0": 2850860
+            },
+            "write_seconds": 0.2804556559995035,
+            "write_stages": {
+              "native": 0.014688766000290343,
+              "pickle": 0.11425678899922787,
+              "compress": 0.14710093200028496,
+              "header": 0.0019193099997210084,
+              "write": 0.002489858999979333
+            },
+            "read_seconds": 0.3434276379994117,
+            "read_stages": {
+              "read": 0.001801433999389701,
+              "native": 0.04608010700030718,
+              "python": 0.2955460969997148
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          },
+          {
+            "turn": 15,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/scaled52k_s7-off/checkpoint_turn_15.ckpt",
+            "bytes": 7649175,
+            "raw_bytes": 32153466,
+            "sections": {
+              "python": 4222526,
+              "native.agent.0": 3422109
+            },
+            "write_seconds": 0.7038003300003766,
+            "write_stages": {
+              "native": 0.013715680999666802,
+              "pickle": 0.3762906890005979,
+              "compress": 0.3049256280000918,
+              "header": 0.004812686000150279,
+              "write": 0.004055645999869739
+            },
+            "read_seconds": 0.6400272480004787,
+            "read_stages": {
+              "read": 0.0026759810007206397,
+              "native": 0.05279070699998556,
+              "python": 0.5845605599997725
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          },
+          {
+            "turn": 19,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/scaled52k_s7-off/checkpoint_turn_19.ckpt",
+            "bytes": 8613221,
+            "raw_bytes": 34644034,
+            "sections": {
+              "python": 4652334,
+              "native.agent.0": 3956347
+            },
+            "write_seconds": 0.9944212020000123,
+            "write_stages": {
+              "native": 0.012674165000134963,
+              "pickle": 0.4842892540000321,
+              "compress": 0.3141803480002636,
+              "header": 0.0036189490001561353,
+              "write": 0.17965848599942547
+            },
+            "read_seconds": 0.9207568480005648,
+            "read_stages": {
+              "read": 0.003392620999875362,
+              "native": 0.057503036000525753,
+              "python": 0.8598611910001637
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          }
+        ],
+        "measurement_bytes": 13116
+      },
+      "full": {
+        "run_wall_seconds": 65.47292864500014,
+        "run_cpu_seconds": 65.409885,
+        "run_peak_rss_kib": 679404,
+        "native_initial_agents": 43700,
+        "native_peak_agents": 53138,
+        "bundle_bytes": 7949144,
+        "state_bytes": 8064427,
+        "simulation_output_bytes": 110775709,
+        "sidecars": {
+          "agent_events.arrow": {
+            "bytes": 6643490,
+            "rows": 160103,
+            "columns": 11,
+            "sha256": "25ff87c054e5829b84a538668cc367e877e625f44366ff46a84ee3316011e1f9"
+          },
+          "validation_memory_signatures.arrow": {
+            "bytes": 2716690,
+            "rows": 226298,
+            "columns": 5,
+            "sha256": "1748acb28566475fb8921424aab76e19614629865883ad9685ddd3c87a6a6d5d"
+          },
+          "validation_needs.arrow": {
+            "bytes": 17662794,
+            "rows": 147168,
+            "columns": 15,
+            "sha256": "4dfceee09850c9fdc4e65427dadc98056998b85a44ff30e20a443d675157875c"
+          },
+          "validation_relationships.arrow": {
+            "bytes": 2584866,
+            "rows": 172252,
+            "columns": 5,
+            "sha256": "2339e4778cfe2b9d0373ed56cf5420f8853cdf61b1c8594b5b1ef64fbfdfbd64"
+          },
+          "validation_reserve_ledger.arrow": {
+            "bytes": 4770,
+            "rows": 15,
+            "columns": 20,
+            "sha256": "ad153f1ff50a9d5ec727779b49943977bdedc4d15650f33ef528c2f7ccbb1571"
+          },
+          "validation_resource_ledger.arrow": {
+            "bytes": 14570,
+            "rows": 380,
+            "columns": 27,
+            "sha256": "2f24f4c3f2b8350cb5d41602f23f6bc0a386f95973344171291e27b9bb0e8c78"
+          }
+        },
+        "checkpoints": [
+          {
+            "turn": 5,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/scaled52k_s7-full/checkpoint_turn_5.ckpt",
+            "bytes": 4013015,
+            "raw_bytes": 25948363,
+            "sections": {
+              "python": 1747124,
+              "native.agent.0": 2260243
+            },
+            "write_seconds": 0.46540443300000334,
+            "write_stages": {
+              "native": 0.019420309999986785,
+              "pickle": 0.23550172499926703,
+              "compress": 0.137889938000626,
+              "header": 0.06947209800000564,
+              "write": 0.0031203620001178933
+            },
+            "read_seconds": 0.26722146900010557,
+            "read_stages": {
+              "read": 0.0008132749999276712,
+              "native": 0.03234182600044733,
+              "python": 0.23406636799973057
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          },
+          {
+            "turn": 10,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/scaled52k_s7-full/checkpoint_turn_10.ckpt",
+            "bytes": 5313143,
+            "raw_bytes": 29967990,
+            "sections": {
+              "python": 2190252,
+              "native.agent.0": 3117242
+            },
+            "write_seconds": 0.5821741780000593,
+            "write_stages": {
+              "native": 0.01567480199992133,
+              "pickle": 0.36757403800038446,
+              "compress": 0.1952527640005428,
+              "header": 0.0010732369992183521,
+              "write": 0.0025993369999923743
+            },
+            "read_seconds": 0.4729797240006519,
+            "read_stages": {
+              "read": 0.0016384270002163248,
+              "native": 0.040901624000071024,
+              "python": 0.43043967300036456
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          },
+          {
+            "turn": 15,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/scaled52k_s7-full/checkpoint_turn_15.ckpt",
+            "bytes": 8935776,
+            "raw_bytes": 41878833,
+            "sections": {
+              "python": 5116208,
+              "native.agent.0": 3813919
+            },
+            "write_seconds": 0.9657462670002133,
+            "write_stages": {
+              "native": 0.016102097999464604,
+              "pickle": 0.6508162210011506,
+              "compress": 0.28834819399980915,
+              "header": 0.0039016339997033356,
+              "write": 0.006578120000085619
+            },
+            "read_seconds": 0.7026668570006223,
+            "read_stages": {
+              "read": 0.0023518110001532477,
+              "native": 0.047541521999846736,
+              "python": 0.6527735240006223
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          },
+          {
+            "turn": 19,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/scaled52k_s7-full/checkpoint_turn_19.ckpt",
+            "bytes": 10147883,
+            "raw_bytes": 45475916,
+            "sections": {
+              "python": 5764240,
+              "native.agent.0": 4377994
+            },
+            "write_seconds": 1.1203272239999933,
+            "write_stages": {
+              "native": 0.021343065000110073,
+              "pickle": 0.7736251909991552,
+              "compress": 0.3145812210004806,
+              "header": 0.005255232000308752,
+              "write": 0.005522514999938721
+            },
+            "read_seconds": 0.9011509950005347,
+            "read_stages": {
+              "read": 0.002530030000343686,
+              "native": 0.05237914200006344,
+              "python": 0.8462418230001276
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          }
+        ],
+        "measurement_bytes": 15670
+      },
+      "flags": [
+        "cpu_over_25_percent",
+        "bundle_doubled"
+      ]
+    },
+    {
+      "world": "proc48_s42",
+      "turns": 150,
+      "cpu_ratio": 2.1591496566678625,
+      "wall_ratio": 2.1601285366259537,
+      "bundle_ratio": 2.5714663176486714,
+      "state_ratio": 1.603479160326776,
+      "max_checkpoint_ratio": 1.9780475455766167,
+      "extra_rss_mib": 725.375,
+      "extraction_problems": [],
+      "source": {
+        "commit": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+        "files": 344,
+        "sha256": "faa94c0cad6d097d3b6f53230563f23efa18aa2efad9c5fe494e7da368623d5d"
+      },
+      "off": {
+        "run_wall_seconds": 24.485501283000303,
+        "run_cpu_seconds": 24.413386,
+        "run_peak_rss_kib": 827504,
+        "native_initial_agents": 506,
+        "native_peak_agents": 880,
+        "bundle_bytes": 21625628,
+        "state_bytes": 5435162,
+        "simulation_output_bytes": 54478403,
+        "sidecars": {
+          "agent_events.arrow": {
+            "bytes": 831722,
+            "rows": 20943,
+            "columns": 11,
+            "sha256": "268d3a8f1cbc529aa8d14e6abdb379b7f5d77e1725ea02f55ee0dae262e6b9b3"
+          },
+          "validation_memory_signatures.arrow": {
+            "bytes": 615770,
+            "rows": 51221,
+            "columns": 5,
+            "sha256": "b9e8ee0a5b53359af52720ce3d7315988b2f1a5935dcbae9fdb3dc497b4a3d4e"
+          },
+          "validation_needs.arrow": {
+            "bytes": 1389594,
+            "rows": 11558,
+            "columns": 15,
+            "sha256": "d9799f1456f522caa34234390c64e48f64c2ddc670c75c663ec11284b4c802e7"
+          },
+          "validation_relationships.arrow": {
+            "bytes": 983378,
+            "rows": 65486,
+            "columns": 5,
+            "sha256": "259b0b60dcdbf68344cfd555972a80e27a849813c0f111184a1da9e8b5c9b3a4"
+          },
+          "validation_reserve_ledger.arrow": {
+            "bytes": 3642,
+            "rows": 0,
+            "columns": 20,
+            "sha256": "0fa06c45393a8538471ce8b468f8ed04d5a26146ce5d3983d6a185757608aceb"
+          },
+          "validation_resource_ledger.arrow": {
+            "bytes": 140106,
+            "rows": 11850,
+            "columns": 27,
+            "sha256": "1b311ec84ecbc9170c51c6aff23f65b1432394f857ad6405aff82f618aef1792"
+          }
+        },
+        "checkpoints": [
+          {
+            "turn": 50,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/proc48_s42-off/checkpoint_turn_50.ckpt",
+            "bytes": 2440817,
+            "raw_bytes": 11705437,
+            "sections": {
+              "python": 2325538,
+              "native.agent.0": 110730
+            },
+            "write_seconds": 0.38436728400029097,
+            "write_stages": {
+              "native": 0.00046702399959031027,
+              "pickle": 0.2698731680002311,
+              "compress": 0.07303893500011327,
+              "header": 0.039131991999965976,
+              "write": 0.0018561650003903196
+            },
+            "read_seconds": 0.1822106409999833,
+            "read_stages": {
+              "read": 0.0010560399996393244,
+              "native": 0.001801041000362602,
+              "python": 0.17935355999998137
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          },
+          {
+            "turn": 100,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/proc48_s42-off/checkpoint_turn_100.ckpt",
+            "bytes": 5414038,
+            "raw_bytes": 25348940,
+            "sections": {
+              "python": 5285264,
+              "native.agent.0": 124224
+            },
+            "write_seconds": 0.739256048000243,
+            "write_stages": {
+              "native": 0.0003052299998671515,
+              "pickle": 0.5718558870003108,
+              "compress": 0.16269231099977333,
+              "header": 0.001045854999574658,
+              "write": 0.0033567650007171324
+            },
+            "read_seconds": 0.6133344529998794,
+            "read_stages": {
+              "read": 0.0025555069996698876,
+              "native": 0.001938188000167429,
+              "python": 0.6088407580000421
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          },
+          {
+            "turn": 149,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/proc48_s42-off/checkpoint_turn_149.ckpt",
+            "bytes": 8935174,
+            "raw_bytes": 41137214,
+            "sections": {
+              "python": 8785392,
+              "native.agent.0": 145232
+            },
+            "write_seconds": 0.8594058520002363,
+            "write_stages": {
+              "native": 0.0003127810005025822,
+              "pickle": 0.6011437799998021,
+              "compress": 0.2523815469994588,
+              "header": 0.0014998890001152176,
+              "write": 0.0040678550003576674
+            },
+            "read_seconds": 0.9507846829992559,
+            "read_stages": {
+              "read": 0.006137018999652355,
+              "native": 0.0023162059997048345,
+              "python": 0.9423314579998987
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          }
+        ],
+        "measurement_bytes": 28737
+      },
+      "full": {
+        "run_wall_seconds": 52.891830055000355,
+        "run_cpu_seconds": 52.712154,
+        "run_peak_rss_kib": 1570288,
+        "native_initial_agents": 506,
+        "native_peak_agents": 1046,
+        "bundle_bytes": 55609574,
+        "state_bytes": 8715169,
+        "simulation_output_bytes": 109716042,
+        "sidecars": {
+          "agent_events.arrow": {
+            "bytes": 1255234,
+            "rows": 31647,
+            "columns": 11,
+            "sha256": "e6c5326e1ffb53ae4d6583e047cfec009fe52f0779ecd68c08abcd19598dce80"
+          },
+          "validation_memory_signatures.arrow": {
+            "bytes": 770810,
+            "rows": 64142,
+            "columns": 5,
+            "sha256": "f8e74d4143abbabd9ac6a348269ed78a13a2f2c1b930f02b8de7bc0bb41ffba9"
+          },
+          "validation_needs.arrow": {
+            "bytes": 1674594,
+            "rows": 13933,
+            "columns": 15,
+            "sha256": "350d78bd9c8b574529f4e592e2bb9187318c6f7d4fd93d9a46bec5977c115b35"
+          },
+          "validation_relationships.arrow": {
+            "bytes": 1196202,
+            "rows": 79673,
+            "columns": 5,
+            "sha256": "fad209bd9ef33a4a3fcbf4af090a3e1df11ae42c54d0bbfd1746b707ebdba9a9"
+          },
+          "validation_reserve_ledger.arrow": {
+            "bytes": 3642,
+            "rows": 0,
+            "columns": 20,
+            "sha256": "0fa06c45393a8538471ce8b468f8ed04d5a26146ce5d3983d6a185757608aceb"
+          },
+          "validation_resource_ledger.arrow": {
+            "bytes": 198258,
+            "rows": 11850,
+            "columns": 27,
+            "sha256": "1cc21251651d2abb7067622e994a1675ad60cf03b2b3cfd6b217e4258fc8d1d4"
+          }
+        },
+        "checkpoints": [
+          {
+            "turn": 50,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/proc48_s42-full/checkpoint_turn_50.ckpt",
+            "bytes": 3933855,
+            "raw_bytes": 17642759,
+            "sections": {
+              "python": 3791461,
+              "native.agent.0": 136678
+            },
+            "write_seconds": 0.5431529559991759,
+            "write_stages": {
+              "native": 0.00043273099981888663,
+              "pickle": 0.3862177809996865,
+              "compress": 0.11870899200039275,
+              "header": 0.03587302300002193,
+              "write": 0.0019204289992558188
+            },
+            "read_seconds": 0.32512085199959984,
+            "read_stages": {
+              "read": 0.0014059360000828747,
+              "native": 0.0024288839995278977,
+              "python": 0.32128603199998906
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          },
+          {
+            "turn": 100,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/proc48_s42-full/checkpoint_turn_100.ckpt",
+            "bytes": 10291208,
+            "raw_bytes": 45607610,
+            "sections": {
+              "python": 10126555,
+              "native.agent.0": 158934
+            },
+            "write_seconds": 0.972464647000379,
+            "write_stages": {
+              "native": 0.00038519000008818693,
+              "pickle": 0.6553785870000866,
+              "compress": 0.3067722030000368,
+              "header": 0.005158095999831858,
+              "write": 0.004770571000335622
+            },
+            "read_seconds": 0.9403113159996792,
+            "read_stages": {
+              "read": 0.004808855000192125,
+              "native": 0.002040890999523981,
+              "python": 0.9334615699999631
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          },
+          {
+            "turn": 149,
+            "path": "/workspace/evidence/final-program/profile-eaa4a5d3/proc48_s42-full/checkpoint_turn_149.ckpt",
+            "bytes": 17674199,
+            "raw_bytes": 77932276,
+            "sections": {
+              "python": 17496013,
+              "native.agent.0": 172467
+            },
+            "write_seconds": 1.8607479029997194,
+            "write_stages": {
+              "native": 0.000341443000252184,
+              "pickle": 1.320297173999279,
+              "compress": 0.5306088159995852,
+              "header": 0.0023592440002175863,
+              "write": 0.007141226000385359
+            },
+            "read_seconds": 1.4504811359993255,
+            "read_stages": {
+              "read": 0.008986369999547605,
+              "native": 0.0022205200002645142,
+              "python": 1.4392742459995134
+            },
+            "identity": {
+              "environment": {
+                "affinity_cpu_count": 5,
+                "hash_seed": "0",
+                "implementation": "CPython",
+                "machine": "x86_64",
+                "packages": {
+                  "arro3-core": "0.9.1",
+                  "chronicler-agents": "0.1.0",
+                  "numpy": "2.5.4",
+                  "pyarrow": "26.0.0",
+                  "pydantic": "2.12.5",
+                  "scipy": "1.18.1"
+                },
+                "python": "3.13.5",
+                "thread_env": {
+                  "BLIS_NUM_THREADS": null,
+                  "GOTO_NUM_THREADS": null,
+                  "MKL_NUM_THREADS": null,
+                  "NUMEXPR_NUM_THREADS": null,
+                  "OMP_NUM_THREADS": null,
+                  "OPENBLAS_NUM_THREADS": null,
+                  "OPENBLAS_THREAD_TIMEOUT": "16",
+                  "PYTHONHASHSEED": "0",
+                  "PYTHON_CPU_COUNT": null,
+                  "RAYON_NUM_THREADS": "1",
+                  "VECLIB_MAXIMUM_THREADS": null
+                }
+              },
+              "native": {
+                "bytes": 14535264,
+                "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+                "state_layouts": {
+                  "agent": "v1:dcf0c34097c88451",
+                  "ecology": "v1:4ab7f8c199b5e5f8",
+                  "politics": "v1:b1a710f3450f5015"
+                },
+                "status": "found"
+              },
+              "source": {
+                "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+                "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+              }
+            }
+          }
+        ],
+        "measurement_bytes": 31368
+      },
+      "flags": [
+        "cpu_over_25_percent",
+        "bundle_doubled",
+        "rss_over_500_mib"
+      ]
+    }
+  ]
+}

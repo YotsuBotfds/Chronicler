@@ -1,0 +1,712 @@
+{
+  "case": {
+    "name": "scaled52k_s7-full",
+    "world": "scaled52k_s7",
+    "arm": "full",
+    "seed": 7,
+    "turns": 20,
+    "regions": 12,
+    "civs": 4,
+    "target": 43700,
+    "checkpoints": [
+      5,
+      10,
+      15,
+      19
+    ],
+    "cli": [
+      "--turns",
+      "120",
+      "--agents",
+      "hybrid",
+      "--simulate-only",
+      "--campaigns",
+      "--health-care",
+      "--grain-reserves",
+      "--grain-storage",
+      "--public-grain-shipments",
+      "--grain-convoys",
+      "--scholarship",
+      "--academy-services",
+      "--learning-cohorts",
+      "--workshops",
+      "--workshop-payroll",
+      "--workshop-economics",
+      "--workshop-economics-rules",
+      "2",
+      "--apprenticeship",
+      "--operating-wear",
+      "--veteran-reintegration",
+      "--timber-stock",
+      "--commons-rules",
+      "--clearing-protection",
+      "--timber-supply",
+      "--repair-projects",
+      "--recovery-crews",
+      "--local-budgets",
+      "--maintenance-obligation",
+      "--remittances",
+      "--relocation-costs",
+      "--food-allocation",
+      "--household-retail",
+      "--household-retail-rules",
+      "2",
+      "--household-retail-boundary",
+      "all",
+      "--titled-trade",
+      "--infrastructure-condition",
+      "--infrastructure-condition-mode",
+      "repair",
+      "--reform-services",
+      "--guild-leagues",
+      "--movement-branches",
+      "--movement-branches-mode",
+      "funded",
+      "--epidemic-care",
+      "--public-health",
+      "--quarantine-mode",
+      "closure",
+      "--quarantine-channels",
+      "trade,migration",
+      "--residence-ledger",
+      "--war-requisition",
+      "--war-consequences",
+      "--adaptive-livelihoods",
+      "--adaptive-livelihoods-rules",
+      "2",
+      "--attribution-records",
+      "--wealth-accounting",
+      "--wealth-accounting-mode",
+      "strict",
+      "--adaptive-livelihoods-mode",
+      "adapt",
+      "--war-consequences-mode",
+      "active",
+      "--war-requisition-mode",
+      "transfer",
+      "--harvest-cover",
+      "--harvest-cover-mode",
+      "loss",
+      "--timber-orders",
+      "--seed",
+      "7",
+      "--regions",
+      "12",
+      "--civs",
+      "4",
+      "--turns",
+      "20",
+      "--validation-sidecar",
+      "--checkpoint-turns",
+      "5,10,15,19"
+    ]
+  },
+  "identity": {
+    "python_source": "/workspace/cw-final-profile-v3/src/chronicler/__init__.py",
+    "interpreter": "/workspace/cw-evidence-native/bin/python",
+    "python_version": "3.13.5 (main, Aug 10 2026, 12:06:59) [GCC 14.2.0]",
+    "extension": "/workspace/cw-evidence-native/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+    "native_sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+    "agent_schema": [
+      1,
+      "dcf0c34097c88451"
+    ],
+    "environment": {
+      "RAYON_NUM_THREADS": "1",
+      "PYTHONHASHSEED": "0",
+      "OMP_NUM_THREADS": null,
+      "OPENBLAS_NUM_THREADS": null
+    }
+  },
+  "source_snapshot": {
+    "commit": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+    "files": 344,
+    "sha256": "faa94c0cad6d097d3b6f53230563f23efa18aa2efad9c5fe494e7da368623d5d"
+  },
+  "base_population": 203,
+  "scaled_population": 43700,
+  "native_initial_agents": 43700,
+  "run_wall_seconds": 65.47292864500014,
+  "run_cpu_seconds": 65.409885,
+  "run_peak_rss_kib": 679404,
+  "process_peak_rss_with_read_kib": 830732,
+  "turns": [
+    {
+      "source_turn": 0,
+      "wall_seconds": 2.2272961649996432,
+      "cpu_seconds": 2.2250680000000003,
+      "native_agents": 44160
+    },
+    {
+      "source_turn": 1,
+      "wall_seconds": 2.953560311999354,
+      "cpu_seconds": 2.9518920000000004,
+      "native_agents": 44594
+    },
+    {
+      "source_turn": 2,
+      "wall_seconds": 1.7304195339993385,
+      "cpu_seconds": 1.7301190000000002,
+      "native_agents": 45031
+    },
+    {
+      "source_turn": 3,
+      "wall_seconds": 3.2443950100005168,
+      "cpu_seconds": 3.243482000000002,
+      "native_agents": 45567
+    },
+    {
+      "source_turn": 4,
+      "wall_seconds": 1.7085093449995838,
+      "cpu_seconds": 1.7072310000000002,
+      "native_agents": 46210
+    },
+    {
+      "source_turn": 5,
+      "wall_seconds": 1.700213540999357,
+      "cpu_seconds": 1.699895999999999,
+      "native_agents": 46883
+    },
+    {
+      "source_turn": 6,
+      "wall_seconds": 1.6619738090003011,
+      "cpu_seconds": 1.6615110000000008,
+      "native_agents": 47615
+    },
+    {
+      "source_turn": 7,
+      "wall_seconds": 1.7500852660004966,
+      "cpu_seconds": 1.7497870000000013,
+      "native_agents": 48328
+    },
+    {
+      "source_turn": 8,
+      "wall_seconds": 1.6239287440002954,
+      "cpu_seconds": 1.6231110000000015,
+      "native_agents": 49076
+    },
+    {
+      "source_turn": 9,
+      "wall_seconds": 1.734372601999894,
+      "cpu_seconds": 1.7332490000000007,
+      "native_agents": 49905
+    },
+    {
+      "source_turn": 10,
+      "wall_seconds": 3.1982130510004936,
+      "cpu_seconds": 3.197659999999999,
+      "native_agents": 50632
+    },
+    {
+      "source_turn": 11,
+      "wall_seconds": 1.8574990979996073,
+      "cpu_seconds": 1.8483760000000053,
+      "native_agents": 51160
+    },
+    {
+      "source_turn": 12,
+      "wall_seconds": 2.0930939290001334,
+      "cpu_seconds": 2.092189000000001,
+      "native_agents": 51694
+    },
+    {
+      "source_turn": 13,
+      "wall_seconds": 4.385890883000684,
+      "cpu_seconds": 4.385451000000003,
+      "native_agents": 52243
+    },
+    {
+      "source_turn": 14,
+      "wall_seconds": 2.5041820870001175,
+      "cpu_seconds": 2.5037129999999976,
+      "native_agents": 52708
+    },
+    {
+      "source_turn": 15,
+      "wall_seconds": 5.2152644709995,
+      "cpu_seconds": 5.214674000000002,
+      "native_agents": 53138
+    },
+    {
+      "source_turn": 16,
+      "wall_seconds": 2.9387831860003644,
+      "cpu_seconds": 2.937897999999997,
+      "native_agents": 52899
+    },
+    {
+      "source_turn": 17,
+      "wall_seconds": 6.185208728000362,
+      "cpu_seconds": 6.171150000000004,
+      "native_agents": 52347
+    },
+    {
+      "source_turn": 18,
+      "wall_seconds": 3.0489318779991663,
+      "cpu_seconds": 3.041909000000004,
+      "native_agents": 52467
+    },
+    {
+      "source_turn": 19,
+      "wall_seconds": 6.279954300999634,
+      "cpu_seconds": 6.278126999999998,
+      "native_agents": 52376
+    }
+  ],
+  "simulation_turn_wall": {
+    "median": 2.3657391259998803,
+    "min": 1.6239287440002954,
+    "max": 6.279954300999634,
+    "sum": 58.04177593999884
+  },
+  "simulation_turn_cpu": {
+    "median": 2.364390499999999,
+    "min": 1.6231110000000015,
+    "max": 6.278126999999998,
+    "sum": 57.996493000000015
+  },
+  "callback_interval_wall": {
+    "median": 2.5171475260003717,
+    "min": 1.631446233999668,
+    "max": 7.424687145000462,
+    "sum": 54.48978946599982
+  },
+  "callback_interval_cpu": {
+    "median": 2.5166710000000023,
+    "min": 1.630618000000002,
+    "max": 7.421056,
+    "sum": 54.438950999999996
+  },
+  "callback_interval_note": "drops first3 turns; includes preceding post-callback checkpoint/memory work",
+  "native_peak_agents": 53138,
+  "checkpoints": [
+    {
+      "turn": 5,
+      "path": "/workspace/evidence/final-program/profile-eaa4a5d3/scaled52k_s7-full/checkpoint_turn_5.ckpt",
+      "bytes": 4013015,
+      "raw_bytes": 25948363,
+      "sections": {
+        "python": 1747124,
+        "native.agent.0": 2260243
+      },
+      "write_seconds": 0.46540443300000334,
+      "write_stages": {
+        "native": 0.019420309999986785,
+        "pickle": 0.23550172499926703,
+        "compress": 0.137889938000626,
+        "header": 0.06947209800000564,
+        "write": 0.0031203620001178933
+      },
+      "read_seconds": 0.26722146900010557,
+      "read_stages": {
+        "read": 0.0008132749999276712,
+        "native": 0.03234182600044733,
+        "python": 0.23406636799973057
+      },
+      "identity": {
+        "environment": {
+          "affinity_cpu_count": 5,
+          "hash_seed": "0",
+          "implementation": "CPython",
+          "machine": "x86_64",
+          "packages": {
+            "arro3-core": "0.9.1",
+            "chronicler-agents": "0.1.0",
+            "numpy": "2.5.4",
+            "pyarrow": "26.0.0",
+            "pydantic": "2.12.5",
+            "scipy": "1.18.1"
+          },
+          "python": "3.13.5",
+          "thread_env": {
+            "BLIS_NUM_THREADS": null,
+            "GOTO_NUM_THREADS": null,
+            "MKL_NUM_THREADS": null,
+            "NUMEXPR_NUM_THREADS": null,
+            "OMP_NUM_THREADS": null,
+            "OPENBLAS_NUM_THREADS": null,
+            "OPENBLAS_THREAD_TIMEOUT": "16",
+            "PYTHONHASHSEED": "0",
+            "PYTHON_CPU_COUNT": null,
+            "RAYON_NUM_THREADS": "1",
+            "VECLIB_MAXIMUM_THREADS": null
+          }
+        },
+        "native": {
+          "bytes": 14535264,
+          "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+          "state_layouts": {
+            "agent": "v1:dcf0c34097c88451",
+            "ecology": "v1:4ab7f8c199b5e5f8",
+            "politics": "v1:b1a710f3450f5015"
+          },
+          "status": "found"
+        },
+        "source": {
+          "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+          "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+        }
+      }
+    },
+    {
+      "turn": 10,
+      "path": "/workspace/evidence/final-program/profile-eaa4a5d3/scaled52k_s7-full/checkpoint_turn_10.ckpt",
+      "bytes": 5313143,
+      "raw_bytes": 29967990,
+      "sections": {
+        "python": 2190252,
+        "native.agent.0": 3117242
+      },
+      "write_seconds": 0.5821741780000593,
+      "write_stages": {
+        "native": 0.01567480199992133,
+        "pickle": 0.36757403800038446,
+        "compress": 0.1952527640005428,
+        "header": 0.0010732369992183521,
+        "write": 0.0025993369999923743
+      },
+      "read_seconds": 0.4729797240006519,
+      "read_stages": {
+        "read": 0.0016384270002163248,
+        "native": 0.040901624000071024,
+        "python": 0.43043967300036456
+      },
+      "identity": {
+        "environment": {
+          "affinity_cpu_count": 5,
+          "hash_seed": "0",
+          "implementation": "CPython",
+          "machine": "x86_64",
+          "packages": {
+            "arro3-core": "0.9.1",
+            "chronicler-agents": "0.1.0",
+            "numpy": "2.5.4",
+            "pyarrow": "26.0.0",
+            "pydantic": "2.12.5",
+            "scipy": "1.18.1"
+          },
+          "python": "3.13.5",
+          "thread_env": {
+            "BLIS_NUM_THREADS": null,
+            "GOTO_NUM_THREADS": null,
+            "MKL_NUM_THREADS": null,
+            "NUMEXPR_NUM_THREADS": null,
+            "OMP_NUM_THREADS": null,
+            "OPENBLAS_NUM_THREADS": null,
+            "OPENBLAS_THREAD_TIMEOUT": "16",
+            "PYTHONHASHSEED": "0",
+            "PYTHON_CPU_COUNT": null,
+            "RAYON_NUM_THREADS": "1",
+            "VECLIB_MAXIMUM_THREADS": null
+          }
+        },
+        "native": {
+          "bytes": 14535264,
+          "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+          "state_layouts": {
+            "agent": "v1:dcf0c34097c88451",
+            "ecology": "v1:4ab7f8c199b5e5f8",
+            "politics": "v1:b1a710f3450f5015"
+          },
+          "status": "found"
+        },
+        "source": {
+          "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+          "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+        }
+      }
+    },
+    {
+      "turn": 15,
+      "path": "/workspace/evidence/final-program/profile-eaa4a5d3/scaled52k_s7-full/checkpoint_turn_15.ckpt",
+      "bytes": 8935776,
+      "raw_bytes": 41878833,
+      "sections": {
+        "python": 5116208,
+        "native.agent.0": 3813919
+      },
+      "write_seconds": 0.9657462670002133,
+      "write_stages": {
+        "native": 0.016102097999464604,
+        "pickle": 0.6508162210011506,
+        "compress": 0.28834819399980915,
+        "header": 0.0039016339997033356,
+        "write": 0.006578120000085619
+      },
+      "read_seconds": 0.7026668570006223,
+      "read_stages": {
+        "read": 0.0023518110001532477,
+        "native": 0.047541521999846736,
+        "python": 0.6527735240006223
+      },
+      "identity": {
+        "environment": {
+          "affinity_cpu_count": 5,
+          "hash_seed": "0",
+          "implementation": "CPython",
+          "machine": "x86_64",
+          "packages": {
+            "arro3-core": "0.9.1",
+            "chronicler-agents": "0.1.0",
+            "numpy": "2.5.4",
+            "pyarrow": "26.0.0",
+            "pydantic": "2.12.5",
+            "scipy": "1.18.1"
+          },
+          "python": "3.13.5",
+          "thread_env": {
+            "BLIS_NUM_THREADS": null,
+            "GOTO_NUM_THREADS": null,
+            "MKL_NUM_THREADS": null,
+            "NUMEXPR_NUM_THREADS": null,
+            "OMP_NUM_THREADS": null,
+            "OPENBLAS_NUM_THREADS": null,
+            "OPENBLAS_THREAD_TIMEOUT": "16",
+            "PYTHONHASHSEED": "0",
+            "PYTHON_CPU_COUNT": null,
+            "RAYON_NUM_THREADS": "1",
+            "VECLIB_MAXIMUM_THREADS": null
+          }
+        },
+        "native": {
+          "bytes": 14535264,
+          "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+          "state_layouts": {
+            "agent": "v1:dcf0c34097c88451",
+            "ecology": "v1:4ab7f8c199b5e5f8",
+            "politics": "v1:b1a710f3450f5015"
+          },
+          "status": "found"
+        },
+        "source": {
+          "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+          "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+        }
+      }
+    },
+    {
+      "turn": 19,
+      "path": "/workspace/evidence/final-program/profile-eaa4a5d3/scaled52k_s7-full/checkpoint_turn_19.ckpt",
+      "bytes": 10147883,
+      "raw_bytes": 45475916,
+      "sections": {
+        "python": 5764240,
+        "native.agent.0": 4377994
+      },
+      "write_seconds": 1.1203272239999933,
+      "write_stages": {
+        "native": 0.021343065000110073,
+        "pickle": 0.7736251909991552,
+        "compress": 0.3145812210004806,
+        "header": 0.005255232000308752,
+        "write": 0.005522514999938721
+      },
+      "read_seconds": 0.9011509950005347,
+      "read_stages": {
+        "read": 0.002530030000343686,
+        "native": 0.05237914200006344,
+        "python": 0.8462418230001276
+      },
+      "identity": {
+        "environment": {
+          "affinity_cpu_count": 5,
+          "hash_seed": "0",
+          "implementation": "CPython",
+          "machine": "x86_64",
+          "packages": {
+            "arro3-core": "0.9.1",
+            "chronicler-agents": "0.1.0",
+            "numpy": "2.5.4",
+            "pyarrow": "26.0.0",
+            "pydantic": "2.12.5",
+            "scipy": "1.18.1"
+          },
+          "python": "3.13.5",
+          "thread_env": {
+            "BLIS_NUM_THREADS": null,
+            "GOTO_NUM_THREADS": null,
+            "MKL_NUM_THREADS": null,
+            "NUMEXPR_NUM_THREADS": null,
+            "OMP_NUM_THREADS": null,
+            "OPENBLAS_NUM_THREADS": null,
+            "OPENBLAS_THREAD_TIMEOUT": "16",
+            "PYTHONHASHSEED": "0",
+            "PYTHON_CPU_COUNT": null,
+            "RAYON_NUM_THREADS": "1",
+            "VECLIB_MAXIMUM_THREADS": null
+          }
+        },
+        "native": {
+          "bytes": 14535264,
+          "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+          "state_layouts": {
+            "agent": "v1:dcf0c34097c88451",
+            "ecology": "v1:4ab7f8c199b5e5f8",
+            "politics": "v1:b1a710f3450f5015"
+          },
+          "status": "found"
+        },
+        "source": {
+          "git_sha": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+          "package_digest": "e2bc3c7a77f128e42951bd147c7cc5bff168490cbbfc96293281622bfc098e49"
+        }
+      }
+    }
+  ],
+  "bundle_bytes": 7949144,
+  "state_bytes": 8064427,
+  "output_bytes": 110778547,
+  "simulation_output_bytes": 110775709,
+  "file_bytes": {
+    "plan.json": 2838,
+    "validation_summary.json": 6044,
+    "validation_relationships.arrow": 2584866,
+    "validation_reserve_ledger.arrow": 4770,
+    "validation_memory_signatures.arrow": 2716690,
+    "memories_selurian_republic.json": 19594,
+    "checkpoint_turn_19.ckpt": 10147883,
+    "checkpoint_turn_5.ckpt": 4013015,
+    "run.log": 0,
+    "memories_dorrathi_clans.json": 23148,
+    "chronicle.md": 268,
+    "state.languages.json": 93867,
+    "checkpoint_turn_10.ckpt": 5313143,
+    "state.json": 8064427,
+    "validation_resource_ledger.arrow": 14570,
+    "memories_vrashni_dominion.json": 31435,
+    "validation_community_summary.json": 5227,
+    "validation_needs.arrow": 17662794,
+    "agent_events.arrow": 6643490,
+    "memories_ashkari_nomads.json": 21820,
+    "state.historiography.json": 41813,
+    "checkpoint_turn_15.ckpt": 8935776,
+    "chronicle_bundle.json": 7949144,
+    "validation_summary/graph_turn_000.json": 456242,
+    "validation_summary/needs_turn_000.json": 9110622,
+    "validation_summary/graph_turn_010.json": 2268340,
+    "validation_summary/aggregate_turn_020.json": 2022,
+    "validation_summary/needs_turn_020.json": 10739252,
+    "validation_summary/community_turn_010.json": 1483,
+    "validation_summary/aggregate_turn_010.json": 2026,
+    "validation_summary/community_turn_000.json": 23,
+    "validation_summary/needs_turn_010.json": 10343668,
+    "validation_summary/aggregate_turn_000.json": 2005,
+    "validation_summary/graph_turn_020.json": 3552522,
+    "validation_summary/community_turn_020.json": 3720
+  },
+  "sidecars": {
+    "agent_events.arrow": {
+      "bytes": 6643490,
+      "rows": 160103,
+      "columns": 11,
+      "sha256": "25ff87c054e5829b84a538668cc367e877e625f44366ff46a84ee3316011e1f9"
+    },
+    "validation_memory_signatures.arrow": {
+      "bytes": 2716690,
+      "rows": 226298,
+      "columns": 5,
+      "sha256": "1748acb28566475fb8921424aab76e19614629865883ad9685ddd3c87a6a6d5d"
+    },
+    "validation_needs.arrow": {
+      "bytes": 17662794,
+      "rows": 147168,
+      "columns": 15,
+      "sha256": "4dfceee09850c9fdc4e65427dadc98056998b85a44ff30e20a443d675157875c"
+    },
+    "validation_relationships.arrow": {
+      "bytes": 2584866,
+      "rows": 172252,
+      "columns": 5,
+      "sha256": "2339e4778cfe2b9d0373ed56cf5420f8853cdf61b1c8594b5b1ef64fbfdfbd64"
+    },
+    "validation_reserve_ledger.arrow": {
+      "bytes": 4770,
+      "rows": 15,
+      "columns": 20,
+      "sha256": "ad153f1ff50a9d5ec727779b49943977bdedc4d15650f33ef528c2f7ccbb1571"
+    },
+    "validation_resource_ledger.arrow": {
+      "bytes": 14570,
+      "rows": 380,
+      "columns": 27,
+      "sha256": "2f24f4c3f2b8350cb5d41602f23f6bc0a386f95973344171291e27b9bb0e8c78"
+    }
+  },
+  "tool_sha256": "1c21d7db60cfe9d9a3d60f4ed06fe2ff0117762aed51cdd26dee71b7d7d0d410",
+  "cw6_observations": {
+    "person_turns": 989033,
+    "balance_change": 143399.66622966086,
+    "deaths": 11147,
+    "income_gross": 267402.65895399376,
+    "income_applied": 198112.22890588842,
+    "wages_milli": 1326277,
+    "withheld_native": 69290.43206811417,
+    "wealth_close": 165249.66622966086,
+    "a6_refusals": 68474,
+    "a6_repeated_refusals": 1065,
+    "a6_input_rows": 288902,
+    "a6_changed": 172141,
+    "a6_work_observed": 0,
+    "a6_work_unknown": 2021,
+    "a6_offer_declines": 0,
+    "d3_wounded": 189,
+    "d3_released": 189,
+    "d3_evacuated": 0,
+    "d3_returned": 0,
+    "separation_person_pairs": 11133,
+    "injury_episode_turns": 4931,
+    "new_occupational_injuries": 3310,
+    "battle_deaths": 500,
+    "army_consumed": 2208,
+    "army_demand": 3851,
+    "army_hunger_ration_turns": 1643,
+    "army_consumption_rows": 5,
+    "requisition_milli": 0,
+    "army_supply_food_milli": 3975500,
+    "destroyed_food_milli": 0,
+    "restitution_paid_milli": 0,
+    "claims_unrecorded_milli": 0,
+    "claims_unpaid_final_milli": 0,
+    "service_asset_turns": 33.0,
+    "asset_turns": 33,
+    "infra_work": 0,
+    "infra_timber_used": 0,
+    "infra_paid_milli": 0,
+    "timber_delivered_milli": 0,
+    "timber_carrier_paid_milli": 0,
+    "timber_orders": 0,
+    "cover_loss": 0.0,
+    "all_migrations": 24701,
+    "x1_moves": 24700,
+    "x1_other_moves": 24695,
+    "x1_opened_spells": 5,
+    "x1_displaced_person_turns": 8,
+    "dropped_war_events": 122,
+    "dropped_a6_rows": 284038,
+    "dropped_work_rows": 767,
+    "branch_funded_turns": 7,
+    "branch_payer_turns": 91,
+    "branch_dues_milli": 910,
+    "branch_new_identity_refusals": 0,
+    "unknown_migration_drivers": 24696,
+    "unknown_migration_share": 0.9997975790453828,
+    "event_sidecar": {
+      "present": true,
+      "migration": 24701,
+      "unknown": 24696,
+      "deaths": 11147,
+      "bytes": 6643490,
+      "sha256": "25ff87c054e5829b84a538668cc367e877e625f44366ff46a84ee3316011e1f9",
+      "turn_min": 0,
+      "turn_max": 19
+    },
+    "balance_change_per_1000_pt": 144.98976902657532,
+    "deaths_per_1000_pt": 11.27060472198602,
+    "service_per_region_turn": 0.1375,
+    "army_consumed_fraction": 0.5733575694624773,
+    "turns": 20,
+    "regions": 12
+  },
+  "extraction_problems": [],
+  "cw6_metrics_row_bytes": 1792,
+  "measurement_bytes": 15670
+}

@@ -1,0 +1,13 @@
+{
+  "logical_cpus": 5,
+  "affinity_cpus": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "cpu_max": "400000 100000",
+  "memory_max": "17179869184",
+  "note": "shared host; serial profiler may overlap two separately scheduled one-job pilots"
+}
