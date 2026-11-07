@@ -132,40 +132,61 @@ def test_the_window_sets_are_relative_and_the_turn_zero_sets_are_a_sensitivity_l
     assert any("incomplete" in p for p in CW.cw5_extract(short, T)[1])
 
 
-def test_the_report_pairs_rows_and_fills_the_set_measures_over_t_s_window(CW):
+def test_the_pairing_computes_r_s_sets_over_t_s_window_for_both_arms(CW):
     r, t = _paired(CW)
     lines = CW._cw5_report([r, t], {"t": [5]})
     assert any("| t | 5 | 20 | 20 | 1 / 2 | yes | valid |" in line for line in lines)
-    tm, rm = t["m"], r["m"]
-    assert tm["sets_digest"] == rm["sets_digest"] == "D:0|S:1,2" and tm["window_end"] == 19
+    status, info, rm, tm = CW.cw5_world(r["m"], t["m"])
+    assert status == "valid" and info["digest"] == "D:0|S:1,2" and info["window_end"] == 19
     assert tm["titled_delivered_deficit"] == pytest.approx(0.95) and tm["titled_net_deficit"] == pytest.approx(0.95)
-    assert tm["titled_net_surplus"] == pytest.approx(-1.5)                   # bought there, never returned
+    assert tm["titled_net_surplus"] == pytest.approx(-1.5) and rm["titled_net_deficit"] == 0.0
     assert tm["native_net_deficit"] == pytest.approx(12.0)                   # 0.5 a turn, 24 snapshots
     assert tm["food_in_deficit"] == pytest.approx(12.95) and rm["food_in_deficit"] == pytest.approx(12.0)
     assert tm["shortfall_deficit"] == pytest.approx(0.5) and tm["shortfall_surplus"] == pytest.approx(0.05)
     assert tm["price_deficit"] == 300 and tm["priced_out_deficit"] == 48
     assert rm["rr_food_in_deficit"] == pytest.approx(12.0) and tm["rr_food_in_deficit"] == pytest.approx(12.95)
-    assert tm["t0_food_in_deficit"] == pytest.approx(12.95 + 0.0)            # region 2 adds no trade
+    assert t["m"]["t0_food_in_deficit"] == pytest.approx(12.95)              # region 2 adds no trade
+    assert "food_in_deficit" not in t["m"]                                   # the rows are not changed
+
+
+def test_the_runner_reads_the_paired_outcomes_from_both_rows(CW):
+    import screen_runner as SR
+    r, t = _paired(CW)
+    for row in (r, t):
+        row["activation"] = {"activated": True}
+    screen = CW.SCREENS["CW5"]
+    primary = screen.primaries()[0]
+    assert primary.pair is not None and primary.control == "R"
+    cells, values = SR.paired_values([r, t], screen, primary.arm, primary.control, primary.read, "t", [5],
+                                     pair=primary.pair)
+    assert values == [pytest.approx(0.95)] and cells == ["5: +0.95"]
+    short = _paired(CW, t_bundle=_bundle(first=3))
+    for row in short:
+        row["activation"] = {"activated": True}
+    cells, values = SR.paired_values(list(short), screen, "T", "R", primary.read, "t", [5], pair=primary.pair)
+    assert values == [] and cells == ["5: unknown"]
 
 
 def test_the_window_ends_before_t_s_first_purchase(CW):
     r, t = _paired(CW, t_bundle=_bundle(first=12))
     lines = CW._cw5_report([r, t], {"t": [5]})
     assert any("| t | 5 | 12 | 12 | 1 / 2 | yes | valid |" in line for line in lines)
-    assert t["m"]["window_end"] == r["m"]["window_end"] == 11 and t["m"]["food_in_deficit"] is not None
+    status, info, _rm, tm = CW.cw5_world(r["m"], t["m"])
+    assert info["window_end"] == 11 and tm["food_in_deficit"] is not None
 
 
 def test_a_window_shorter_than_five_turns_or_differing_records_exclude_the_world(CW):
     r, t = _paired(CW, t_bundle=_bundle(first=3))
     lines = CW._cw5_report([r, t], {"t": [5]})
     assert any("excluded: first purchase in world turn 3, a window of 3 turns" in line for line in lines)
-    assert t["m"]["food_in_deficit"] is None and r["m"]["shortfall_deficit"] is None
-    assert t["m"]["t0_food_in_deficit"] is not None                          # the sensitivity line stays
+    _status, _info, rm, tm = CW.cw5_world(r["m"], t["m"])
+    assert tm["food_in_deficit"] is None and rm["shortfall_deficit"] is None
+    assert tm["rr_food_in_deficit"] is not None and t["m"]["t0_food_in_deficit"] is not None   # sensitivity stays
     r, t = _paired(CW)
     t["m"]["v_window_produced"][4][1] += 1.0
     lines = CW._cw5_report([r, t], {"t": [5]})
     assert any("| NO | excluded: R's and T's window records differ |" in line for line in lines)
-    assert t["m"]["food_in_deficit"] is None
+    assert CW.cw5_world(r["m"], t["m"])[3]["food_in_deficit"] is None
 
 
 def test_the_merchants_balance_and_the_counts_kept_apart(CW):
