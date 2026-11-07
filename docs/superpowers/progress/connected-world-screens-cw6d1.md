@@ -1,13 +1,24 @@
-# Connected-world CW6-D1: preregistration draft for relief services and guild leagues (slice D1)
+# Connected-world CW6-D1: preregistration for relief services and guild leagues (slice D1)
 
-Status: DRAFT, not frozen, not run. Written 2026-11-07 by the D1 lane on branch
-`claude/cw-d1-institutions` (from `main` `bac45cb5`, merged with `d8a5277b`, PR #91). Code at the
-branch head that carries this page; native extension: the shared build of `main`'s Rust
-(`~/.venvs/native-a3`, SHA-256 `20e77f9945efa71d597c142e99069337586cc865ddee7a17c6d20948a2c0c1ca`); the
-branch changes no Rust. **Cohort: to be assigned by the lead** (the plan reserves CW6 template
-781-786 and procedural 881-886 for S5; the lead decides whether this screen takes part of it). No
-held seed has been run. Extractors are not yet written; they must be validated on development worlds
-(template 7, 42; procedural 13, 21) before the lead freezes the page.
+Status: **FROZEN before any held run**, 2026-11-07. Recovered D1a/b source
+`7cfe289b2268d0d5011270c22fe80de0500f3ab6`, independently reviewed by the B3
+worker from actual source/specification/tests. This documentation-only freeze
+is the held source revision; no held outcome has been read. Fresh held cohorts:
+template 3701–3706 and procedural 3801–3806, lead-reserved after registry union.
+
+Native build: `/workspace/cw-d1-native/bin/python`, Python 3.13.5, own release
+extension built from the unchanged main Rust in this worktree, SHA-256
+`f2fb24f13c386c3965e485330499b9aa435f61a43e8fc02023f950fbf9664256`.
+The branch changes no Rust. Recovered draft and earlier native identities
+remain in Git history; this freeze replaces their unexecuted cohort proposal.
+
+The four development worlds (template 7/42; procedural 13/21), five arms each,
+passed the runner/extractor schema gate: **20/20 successful runs**, no missing
+outcomes. Three bundle/package schema combinations were read (bundle 6,
+livelihoods/package 1, food accounting/regional population 1). The timing pilot
+(template 5/procedural 19, five arms) passed **10/10** before this freeze. Its
+source/metrics are retained with the held receipt. All development/pilot worlds
+are distinct from the held cohort.
 
 ## Purpose and limits
 
@@ -74,8 +85,10 @@ Common flags: `--agents hybrid --food-allocation --household-retail --household-
 3. **`cw6d1_member_purse` (D1b claims), `GM - GD`.** The civic purse (`city.wealth`) of cities while
    their guild is a league member, mean over member city-turns.
 
-Each primary: per-world difference, stratum means, sign counts and the exact sign-flip test over the
-worlds that activate; nulls reported as nulls.
+Each primary: per-world difference, stratum means and sign counts over activated worlds;
+nulls reported as nulls. With at least three activated worlds, exact sign flips are
+descriptive only. The generic raw report can print sign flips at smaller n; the
+evaluation receipt suppresses those primary summaries as insufficient activation.
 
 ## Fixed harm panel
 
@@ -98,7 +111,7 @@ league dissolutions by reason, unclaimed league funds, population and migration.
 
 ## Activation (decided before any held outcome is read)
 
-- A world activates for D1a when, in `RS`, a relief is in force for at least 10 turns and at least one
+- A world activates for D1a when, in `RS`, reliefs are in force for at least 10 civilization-turns and at least one
   purchase is made. A world activates for D1b when, in `GM`, a league holds members for at least 20 turns
   and at least one claim is paid.
 - A primary is reported per stratum only over its activated worlds; with fewer than 3 activated worlds in
@@ -138,8 +151,12 @@ counts here.
 
 ## Compute
 
-Timing pilot (development runs on this source): template 200 turns 8-10 s, procedural 32 x 10 200 turns
-20-32 s per run. 60 runs: about 0.3 core-hours; proposed ceiling 0.5 core-hours.
+Timing pilot on this source (10 runs, one worker) projects the 60-run held
+screen, with the runner's 1.5 margin, below a **0.75 wall-summed core-hour
+ceiling**. This revises the unexecuted draft's 0.5-hour proposal based on actual
+container contention, before held outcomes. The source receipt records actual
+per-arm times, projection and ceiling; held runs use one worker. No offline
+chunk limit is raised. This is a bounded screen, not a qualification gate.
 
 ## Not tested here
 
