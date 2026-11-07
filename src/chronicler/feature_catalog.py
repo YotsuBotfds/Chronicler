@@ -166,6 +166,10 @@ REQUIREMENTS: dict[str, tuple[dict, ...]] = {
     "household_retail": (_HYBRID, _feature("food_allocation")),
     "watershed": (_setting("procedural_world"),),
     "workshop_economics": (_HYBRID, _feature("workshop_payroll")),
+    # B3: every mode needs hybrid; the work modes (repair, the default, and
+    # cost_only) repair through RS2.
+    "infrastructure_condition": (_HYBRID, _any(_choice("infrastructure_condition_mode", "record_only", "wear_only"),
+                                              _feature("repair_projects"))),
     "wealth_accounting": (_HYBRID,),
     # An explicit legacy is the option omitted: it needs nothing (lead decision m4).
     "quarantine_mode": (_any(_setting("epidemiology"), _choice("quarantine_mode", "legacy")),),

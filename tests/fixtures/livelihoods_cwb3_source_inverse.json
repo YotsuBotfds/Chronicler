@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "layer": "cwb3",
+  "parent": "8401aa74218ce57ce4bb286695f2319735c2dbd4",
+  "files": {
+    "src/chronicler/economy.py": {
+      "sha256": "4855a307e3d7b855b894170b7a97d0461f89dedb6bded04cc4cc6cd41674020f",
+      "current_sha256": "da77b5f04dd7c54b84e65ae8dde80141316dfb12c46248527e95e634eafab713",
+      "patches": [
+        {
+          "old": "    \"\"\"The land a region's farmers work: potential capacity (carrying capacity\n    x capacity modifier) raised by its farming techniques and irrigation.\"\"\"\n    from chronicler.ecology import potential_capacity\n    from chronicler.models import InfrastructureType\n    from chronicler.techniques import farm_ceiling_multiplier\n\n    mult = farm_ceiling_multiplier(world, region)\n    if any(i.type == InfrastructureType.IRRIGATION and i.active for i in region.infrastructure):\n        mult += FARM_CEILING_IRRIGATION\n    return potential_capacity(region) * mult\n\n\n",
+          "new": "    \"\"\"The land a region's farmers work: potential capacity (carrying capacity\n    x capacity modifier) raised by its farming techniques and irrigation.\"\"\"\n    from chronicler.ecology import potential_capacity\n    from chronicler.infrastructure_condition import service\n    from chronicler.models import InfrastructureType\n    from chronicler.techniques import farm_ceiling_multiplier\n\n    mult = farm_ceiling_multiplier(world, region)\n    if any(i.type == InfrastructureType.IRRIGATION and i.active for i in region.infrastructure):\n        # B3: scaled by the works' service (exactly 1.0 with the switch off).\n        mult += FARM_CEILING_IRRIGATION * service(world, region, \"irrigation\")\n    return potential_capacity(region) * mult\n\n\n"
+        }
+      ]
+    },
+    "src/chronicler/agent_bridge.py": {
+      "sha256": "7ef273b84fb5f4daed2423fbff176682b1644272682681173d720bb56cff8307",
+      "current_sha256": "24ed9d0710d90992142554c7993428fcd5abcaec61b7bc9835b55b92dc8a557c",
+      "patches": [
+        {
+          "old": "    if target is None:\n        return False\n    return any(i.active and i.type == target for i in region.infrastructure)\n\n\ndef _get_active_focus(region, world) -> int:\n",
+          "new": "    if target is None:\n        return False\n    return any(i.active and i.type == target for i in region.infrastructure)\n\n\ndef _serves(world, region, kind: str) -> bool:\n    \"\"\"B3 (``--infrastructure-condition``): the work still serves (service >= 0.5); True while off.\"\"\"\n    from chronicler.infrastructure_condition import serves\n    return serves(world, region, kind)\n\n\ndef _get_active_focus(region, world) -> int:\n"
+        },
+        {
+          "old": "        \"resource_suspension_0\": pa.array([_get_suspension_for_slot(r, 0) for r in world.regions], type=pa.bool_()),\n        \"resource_suspension_1\": pa.array([_get_suspension_for_slot(r, 1) for r in world.regions], type=pa.bool_()),\n        \"resource_suspension_2\": pa.array([_get_suspension_for_slot(r, 2) for r in world.regions], type=pa.bool_()),\n        \"has_irrigation\": pa.array([_has_infra(r, \"IRRIGATION\") for r in world.regions], type=pa.bool_()),\n        \"has_mines\": pa.array([_has_infra(r, \"MINES\") for r in world.regions], type=pa.bool_()),\n        \"active_focus\": pa.array([_get_active_focus(r, world) for r in world.regions], type=pa.uint8()),\n        \"prev_turn_water\": pa.array([r.prev_turn_water for r in world.regions], type=pa.float32()),\n",
+          "new": "        \"resource_suspension_0\": pa.array([_get_suspension_for_slot(r, 0) for r in world.regions], type=pa.bool_()),\n        \"resource_suspension_1\": pa.array([_get_suspension_for_slot(r, 1) for r in world.regions], type=pa.bool_()),\n        \"resource_suspension_2\": pa.array([_get_suspension_for_slot(r, 2) for r in world.regions], type=pa.bool_()),\n        \"has_irrigation\": pa.array([_has_infra(r, \"IRRIGATION\") and _serves(world, r, \"irrigation\")\n                                    for r in world.regions], type=pa.bool_()),\n        \"has_mines\": pa.array([_has_infra(r, \"MINES\") for r in world.regions], type=pa.bool_()),\n        \"active_focus\": pa.array([_get_active_focus(r, world) for r in world.regions], type=pa.uint8()),\n        \"prev_turn_water\": pa.array([r.prev_turn_water for r in world.regions], type=pa.float32()),\n"
+        }
+      ]
+    },
+    "src/chronicler/batch_manifest.py": {
+      "sha256": "95caf56ac4bbae545c5feed36a8d0dd6a1b9d45b05861c072b0ee2d3efe6ee42",
+      "current_sha256": "8000becb01742a5b223030aaf891e3ca2caf202621fcd2c89e9cd00631f20b63",
+      "patches": [
+        {
+          "old": "    \"quarantine_mode\",\n    \"workshop_economics\",\n    \"workshop_economics_mode\",\n    \"wealth_accounting\",\n    \"quarantine_channels\",\n    \"tuning\",\n",
+          "new": "    \"quarantine_mode\",\n    \"workshop_economics\",\n    \"workshop_economics_mode\",\n    \"infrastructure_condition\",\n    \"infrastructure_condition_mode\",\n    \"wealth_accounting\",\n    \"quarantine_channels\",\n    \"tuning\",\n"
+        },
+        {
+          "old": "                             \"household_retail\", \"household_retail_mode\", \"household_retail_boundary\",\n                             \"household_retail_rules\", \"household_retail_schedule\", \"watershed\", \"watershed_mode\",\n                             \"quarantine_mode\", \"workshop_economics\", \"workshop_economics_mode\",\n                             \"wealth_accounting\", \"quarantine_channels\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n",
+          "new": "                             \"household_retail\", \"household_retail_mode\", \"household_retail_boundary\",\n                             \"household_retail_rules\", \"household_retail_schedule\", \"watershed\", \"watershed_mode\",\n                             \"quarantine_mode\", \"workshop_economics\", \"workshop_economics_mode\",\n                             \"infrastructure_condition\", \"infrastructure_condition_mode\",\n                             \"wealth_accounting\", \"quarantine_channels\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n"
+        }
+      ]
+    },
+    "tests/test_batch_manifest.py": {
+      "sha256": "cbffbeb0ecaadf894e20734e115d7ada212a9d72813a6ce1924b667dbbc4fa3a",
+      "current_sha256": "6e880b7048133d53fdc1feac8cdb29836a005fe75d2cfbece5c213efa293a772",
+      "patches": [
+        {
+          "old": "                                                           \"household_retail_rules\", \"household_retail_schedule\",\n                                                           \"watershed\", \"watershed_mode\",\n                                                           \"quarantine_mode\", \"workshop_economics\", \"workshop_economics_mode\",\n                                                           \"wealth_accounting\", \"quarantine_channels\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n    assert manifest[\"outputs\"][\"simulate_only\"] is True\n",
+          "new": "                                                           \"household_retail_rules\", \"household_retail_schedule\",\n                                                           \"watershed\", \"watershed_mode\",\n                                                           \"quarantine_mode\", \"workshop_economics\", \"workshop_economics_mode\",\n                                                           \"infrastructure_condition\", \"infrastructure_condition_mode\",\n                                                           \"wealth_accounting\", \"quarantine_channels\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n    assert manifest[\"outputs\"][\"simulate_only\"] is True\n"
+        }
+      ]
+    }
+  }
+}

@@ -49,6 +49,10 @@ The connected-world program appends:
   the commons owner, starts with owner capital and sells to households as
   well as academies; inserted before the ledger and without hooks of its own
   (the workshop and payroll seams call it).
+* ``--infrastructure-condition`` (B3): condition, service and repair of
+  irrigation works and roads; mode ``record_only`` changes nothing outside its
+  record, ``wear_only`` is the no-repair control, ``repair`` and ``cost_only``
+  repair through RS2's Phase 2 (labour column, timber, one ``repairs`` budget).
 * ``--wealth-accounting`` (A1): an observation-only ledger of agent wealth per
   region and turn (opening, typed flows from the packages' receipts, closing,
   the labelled native-model residual); appended last so its Phase 2 and Phase 10
@@ -113,6 +117,7 @@ LIVELIHOODS_CHOICES: dict[str, tuple[str, ...]] = {
     "household_retail_rules": ("2", "1"),
     "watershed_mode": ("record_only",),
     "workshop_economics_mode": ("market", "free_inputs", "academy_only"),
+    "infrastructure_condition_mode": ("repair", "record_only", "wear_only", "cost_only"),
 }
 #: All parser destinations owned here (``batch_manifest.SIMULATION_ARG_KEYS``).
 LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
@@ -138,6 +143,7 @@ LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     "household_retail_rules",
     "watershed", "watershed_mode",
     "workshop_economics", "workshop_economics_mode",
+    "infrastructure_condition", "infrastructure_condition_mode",
     "wealth_accounting",
 )
 #: Options that take a file path (A2R), parser destinations owned here too
@@ -381,6 +387,20 @@ _HELP = {
         "market (default); free_inputs: the cost control, every rule as market except that the input "
         "charge is recorded and not taken; academy_only: the demand control with no household customers"
     ),
+    "infrastructure_condition": (
+        "Infrastructure condition (B3): irrigation works and roads get a stable asset id, condition and "
+        "service (s = min(1, condition / 0.5)); serving works wear each turn (irrigation 0.01, roads 0.005) "
+        "and take war damage at conquest and sack; condition 0 fails a work until it is repaired; "
+        "irrigation's arable-capacity bonus scales with service and its native flag and roads' two-hop "
+        "trade range need service >= 0.5; works repair them with anonymous farm labour, timber and "
+        "treasury coins inside RS2's repairs budget; requires --agents hybrid (default off)"
+    ),
+    "infrastructure_condition_mode": (
+        "repair (default; requires --repair-projects): works repair condition; record_only: condition is "
+        "recorded and nothing else changes (service stays 1.0, no works); wear_only: wear and service act "
+        "and nothing repairs (the control); cost_only (requires --repair-projects): works plan and pay "
+        "identically and credit no condition"
+    ),
     "wealth_accounting": (
         "Wealth accounting (A1): an observation-only ledger of agent wealth; each turn and region it "
         "reads the balance at the Phase 2 opening (checked bit for bit against the last closing) and "
@@ -593,6 +613,12 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
             raise ValueError("--workshop-economics requires --workshop-payroll (--workshops in operate mode, "
                              "--agents hybrid)"
                              + ("; this world has it on: pass --no-workshop-economics to end it" if saved else ""))
+    if values["infrastructure_condition"] is not None or _on(world, values, "infrastructure_condition"):
+        # Also when only saved: a resume outside hybrid, or a work mode without
+        # RS2, is refused until the switch is ended; the mode is fixed once opened.
+        from chronicler.infrastructure_condition import check_request
+        check_request(world, values["infrastructure_condition"], args, agent_mode=agent_mode,
+                      rs2=_on(world, values, "repair_projects"))
     if _on(world, values, "wealth_accounting") and agent_mode != "hybrid":
         # Also when only saved: the ledger reads the hybrid agent pool; a resume
         # outside hybrid is refused until the switch is ended (dated).
@@ -682,6 +708,7 @@ _CHOICE_FIELDS: dict[str, tuple[str, str]] = {
     "household_retail_rules": ("household_retail", "rules"),
     "watershed_mode": ("watershed", "mode"),
     "workshop_economics_mode": ("workshop_economics", "mode"),
+    "infrastructure_condition_mode": ("infrastructure_condition", "mode"),
 }
 
 

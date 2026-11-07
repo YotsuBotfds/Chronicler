@@ -124,6 +124,13 @@ TERRAIN_RESOURCE_PROBS: dict[str, dict[Resource, float]] = {
 DISP_ORDER = {"hostile": 0, "suspicious": 1, "neutral": 2, "friendly": 3, "allied": 4}
 
 
+def _roads_serve(world, region) -> bool:
+    """B3 (``--infrastructure-condition``): the region's road still serves
+    (service >= 0.5); True while the switch is off."""
+    from chronicler.infrastructure_condition import serves
+    return serves(world, region, "roads")
+
+
 def _trade_disposition_score(rel) -> int:
     """Treat missing relationships as neutral for route eligibility."""
     if rel is None:
@@ -216,10 +223,10 @@ def _compute_active_trade_routes(
             # NAVIGATION: intermediate must be coastal
             if focus == "navigation" and mid.terrain != "coast":
                 continue
-            # RAILWAYS: intermediate must have active roads
-            if focus == "railways" and not any(
+            # RAILWAYS: intermediate must have active roads (B3: that still serve)
+            if focus == "railways" and not (any(
                 i.type == InfrastructureType.ROADS and i.active for i in mid.infrastructure
-            ):
+            ) and _roads_serve(world, mid)):
                 continue
             for hop2_name in mid.adjacencies:
                 hop2 = region_map.get(hop2_name)

@@ -775,12 +775,14 @@ def arable_capacity(world, region) -> float:
     """The land a region's farmers work: potential capacity (carrying capacity
     x capacity modifier) raised by its farming techniques and irrigation."""
     from chronicler.ecology import potential_capacity
+    from chronicler.infrastructure_condition import service
     from chronicler.models import InfrastructureType
     from chronicler.techniques import farm_ceiling_multiplier
 
     mult = farm_ceiling_multiplier(world, region)
     if any(i.type == InfrastructureType.IRRIGATION and i.active for i in region.infrastructure):
-        mult += FARM_CEILING_IRRIGATION
+        # B3: scaled by the works' service (exactly 1.0 with the switch off).
+        mult += FARM_CEILING_IRRIGATION * service(world, region, "irrigation")
     return potential_capacity(region) * mult
 
 

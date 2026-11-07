@@ -93,16 +93,18 @@ SWITCH_ORDER = ("workshops", "food_allocation", "timber_stock", "grain_convoys",
         "learning_cohorts", "workshop_payroll", "relocation_costs", "local_budgets", "apprenticeship",
         "repair_projects", "veteran_reintegration", "remittances", "clearing_protection", "operating_wear",
         "timber_supply", "recovery_crews", "maintenance_obligation", "household_retail", "watershed",
-        "workshop_economics", "wealth_accounting")
+        "workshop_economics", "infrastructure_condition", "wealth_accounting")
 
 
 def test_switch_is_appended_last_with_cli_catalog_and_manifest_keys():
     assert LIVELIHOODS_SWITCHES == SWITCH_ORDER and LIVELIHOODS_SWITCHES[-1] == "wealth_accounting"
     assert LV.LIVELIHOODS_ARG_KEYS[-1] == "wealth_accounting"
     # Every switch's own keys come right after it (a choice belongs to the switch before it).
-    assert LV.LIVELIHOODS_ARG_KEYS[-9:] == ("household_retail", "household_retail_mode", "household_retail_boundary",
-                                            "household_retail_rules", "watershed", "watershed_mode",
-                                            "workshop_economics", "workshop_economics_mode", "wealth_accounting")
+    assert LV.LIVELIHOODS_ARG_KEYS[-11:] == ("household_retail", "household_retail_mode", "household_retail_boundary",
+                                             "household_retail_rules", "watershed", "watershed_mode",
+                                             "workshop_economics", "workshop_economics_mode",
+                                             "infrastructure_condition", "infrastructure_condition_mode",
+                                             "wealth_accounting")
     assert "wealth_accounting" not in LV.LIVELIHOODS_CHOICES            # no modes in slice 1
     assert REQUIREMENTS["wealth_accounting"] == ({"agents": ["hybrid"]},)
     assert "wealth_accounting" in SIMULATION_ARG_KEYS

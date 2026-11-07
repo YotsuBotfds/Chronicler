@@ -12,8 +12,9 @@ independent switches was enabled: ``workshops`` (L1), ``food_allocation``
 ``maintenance_obligation`` (PL3) and ``household_retail`` (PL4, L6b), and the
 connected-world program's ``watershed`` (B1), ``workshop_economics`` (A3,
 inserted before the ledger; it has no hooks of its own: the workshop and
-payroll seams call it) and ``wealth_accounting`` (A1, an observation-only
-ledger, appended last so its hooks run after every payer). Each
+payroll seams call it), ``infrastructure_condition`` (B3, inserted before
+the ledger; its works run inside RS2's Phase 2) and ``wealth_accounting`` (A1,
+an observation-only ledger, appended last so its hooks run after every payer). Each
 sub-state is owned by its own module
 and is None while that switch has never been enabled.
 Pure data, importable by :mod:`chronicler.models`.
@@ -30,6 +31,7 @@ from chronicler.commons_rules_state import CommonsRulesState
 from chronicler.food_allocation_state import FoodAllocationState
 from chronicler.grain_convoys_state import GrainConvoyState
 from chronicler.household_retail_state import HouseholdRetailState
+from chronicler.infrastructure_condition_state import InfrastructureConditionState
 from chronicler.learning_cohorts_state import LearningCohortState
 from chronicler.local_budgets_state import LocalBudgetState
 from chronicler.operating_wear_state import OperatingWearState
@@ -55,7 +57,8 @@ LIVELIHOODS_SWITCHES: tuple[str, ...] = ("workshops", "food_allocation", "timber
                                          "remittances", "clearing_protection",
                                          "operating_wear", "timber_supply",
                                          "recovery_crews", "maintenance_obligation",
-                                         "household_retail", "watershed", "workshop_economics", "wealth_accounting")
+                                         "household_retail", "watershed", "workshop_economics",
+                                         "infrastructure_condition", "wealth_accounting")
 
 
 def _is_none(value) -> bool:
@@ -85,6 +88,7 @@ class LivelihoodsState(BaseModel):
     household_retail: HouseholdRetailState | None = Field(default=None, exclude_if=_is_none)
     watershed: WatershedState | None = Field(default=None, exclude_if=_is_none)
     workshop_economics: WorkshopEconomicsState | None = Field(default=None, exclude_if=_is_none)
+    infrastructure_condition: InfrastructureConditionState | None = Field(default=None, exclude_if=_is_none)
     wealth_accounting: WealthAccountingState | None = Field(default=None, exclude_if=_is_none)
 
     # Transient: ``id()`` of the native simulator whose pool the saved stable

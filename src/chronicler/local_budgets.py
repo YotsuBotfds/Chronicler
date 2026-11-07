@@ -1001,11 +1001,12 @@ class _RelocationAssistance(Provider):
 
 
 def _repair_regions(world) -> frozenset:
-    """Regions whose granary is under an RS2 repair project (empty unless active)."""
+    """Regions whose granary is under an RS2 repair project (empty unless active;
+    not the regions B3's infrastructure works claim, whose storage asks nothing)."""
     if getattr(getattr(world, "livelihoods", None), "repair_projects", None) is None:
         return frozenset()
-    from chronicler.repair_projects import storage_suspended_regions
-    return storage_suspended_regions(world)
+    from chronicler.repair_projects import granary_project_regions
+    return granary_project_regions(world)
 
 
 class _Repairs(Provider):

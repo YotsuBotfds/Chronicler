@@ -59,9 +59,10 @@ NATIVE_PURPOSES: tuple[str, ...] = (
     "workshop_wage", "relocation_fare", "apprentice_stipend", "repair_wage", "remittance",
     "food_purchase", "food_procurement", "wares_purchase",
 )
-#: Purposes Python-only accounts use (treasury <-> firm cash); they never
-#: reach native code (append only).
-PYTHON_PURPOSES: tuple[str, ...] = ("firm_capital", "firm_input_purchase")
+#: Purposes Python-only accounts use (treasury <-> firm cash, treasury ->
+#: sink); they never reach native code (append only). ``infrastructure_repair``
+#: (B3): infrastructure works' coin costs, treasury to ``public_works``.
+PYTHON_PURPOSES: tuple[str, ...] = ("firm_capital", "firm_input_purchase", "infrastructure_repair")
 #: Every registered purpose -> its native code (None: Python accounts only).
 PURPOSES: dict[str, int | None] = {
     **{name: code for code, name in enumerate(NATIVE_PURPOSES)},
@@ -72,8 +73,10 @@ ACCOUNT_KINDS: tuple[str, ...] = ("civ_treasury", "firm_cash", "agent_wealth", "
 #: Declared sinks a bill may name for its residual or as a payee (append only).
 #: ``unowned_commons``: inputs taken from the commons of a region nobody
 #: controls (paid, but to nobody); ``credit_refused``: agent credits a
-#: ceiling refused, when the paying package chooses not to keep them.
-SINKS: tuple[str, ...] = ("unowned_commons", "credit_refused")
+#: ceiling refused, when the paying package chooses not to keep them;
+#: ``public_works``: materials and upkeep of public works that leave the
+#: economy (B3's infrastructure works, as the storage channel's coins do).
+SINKS: tuple[str, ...] = ("unowned_commons", "credit_refused", "public_works")
 #: The most flows one book keeps for its last settled turn.
 MAX_FLOWS = 512
 
@@ -488,7 +491,7 @@ def pay(world, bill: Bill, *, turn: int, book: MoneyBook, acc=None, sim=None,
 # ---------------------------------------------------------------------------
 
 #: Packages whose persisted state keeps a :class:`MoneyBook` (``state.book``).
-MONEY_BOOKS: tuple[str, ...] = ("workshop_economics",)
+MONEY_BOOKS: tuple[str, ...] = ("workshop_economics", "infrastructure_condition")
 
 
 def flows_for_turn(world, turn: int) -> list[MoneyFlow] | None:
