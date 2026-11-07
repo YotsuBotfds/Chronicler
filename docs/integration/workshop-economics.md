@@ -453,6 +453,19 @@ purpose (plus one assertion inside its test module).
   the two idle closures at 36 and 37); writing checkpoints changed nothing.
 - **Viewer**: the full suite with `--maxWorkers=1`: 1,585 passed, 2 skipped;
   lint clean; production build succeeded.
+- **After merging `main` `ae94bca6` (PR #87, C1b, which changed Rust)**: the
+  native venv was rebuilt once (SHA-256
+  `20e77f9945efa71d597c142e99069337586cc865ddee7a17c6d20948a2c0c1ca`;
+  `check_python_env.py --expect native` PASS; purposes end with
+  `wares_purchase`); `cargo test --locked` 752 library tests and all 40 targets
+  passed; layer `cwa3` rebuilt against `ae94bca6` as the last layer (after
+  `cwc1b`; witness 509 passed); on `272e1498`: focused 533 passed, native 76
+  passed, offline lane PASS in 332.6 s, feature-off identity against `8abc1acb`
+  9 cases 399 files 0 differences, A3 absent and `--no-workshop-economics`
+  against `main`'s tree (with this branch's extension, which differs from
+  main's Rust only by the appended purpose) 205 files 0 differences each, exact
+  resume `proc32_hybrid_s11` PASS at 8 live-firm points (21, 24, 27: openings;
+  30-35: trading and idle runs; 36, 37: idle closures).
 - **Not run**: a held screen (CW2 is planned after A3-2, audit section 7), a
   browser journey, the 200-seed and procedural qualification gates
   (restricted), profiling at the declared scale, PR CI.
