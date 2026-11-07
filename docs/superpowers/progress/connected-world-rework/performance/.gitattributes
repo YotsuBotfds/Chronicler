@@ -1,0 +1,3 @@
+# Measurement CSVs retain their original RFC 4180 CRLF bytes and SHA256.
+# Accept that line ending only for this evidence directory's CSV files.
+**/*.csv whitespace=cr-at-eol

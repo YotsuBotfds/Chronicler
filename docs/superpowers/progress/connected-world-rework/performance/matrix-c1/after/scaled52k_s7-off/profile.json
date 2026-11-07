@@ -1,0 +1,608 @@
+{
+  "case": {
+    "name": "scaled52k_s7-off",
+    "world": "scaled52k_s7",
+    "arm": "off",
+    "seed": 7,
+    "turns": 20,
+    "regions": 12,
+    "civs": 4,
+    "target": 43700,
+    "checkpoints": [
+      5,
+      10,
+      15,
+      19
+    ],
+    "cli": [
+      "--turns",
+      "120",
+      "--agents",
+      "hybrid",
+      "--simulate-only",
+      "--campaigns",
+      "--health-care",
+      "--grain-reserves",
+      "--grain-storage",
+      "--public-grain-shipments",
+      "--grain-convoys",
+      "--scholarship",
+      "--academy-services",
+      "--learning-cohorts",
+      "--workshops",
+      "--workshop-payroll",
+      "--apprenticeship",
+      "--operating-wear",
+      "--veteran-reintegration",
+      "--timber-stock",
+      "--commons-rules",
+      "--clearing-protection",
+      "--timber-supply",
+      "--repair-projects",
+      "--recovery-crews",
+      "--local-budgets",
+      "--maintenance-obligation",
+      "--remittances",
+      "--relocation-costs",
+      "--food-allocation",
+      "--household-retail",
+      "--household-retail-rules",
+      "2",
+      "--household-retail-boundary",
+      "all",
+      "--household-retail-rules",
+      "1",
+      "--quarantine-mode",
+      "legacy",
+      "--seed",
+      "7",
+      "--regions",
+      "12",
+      "--civs",
+      "4",
+      "--turns",
+      "20",
+      "--validation-sidecar",
+      "--checkpoint-turns",
+      "5,10,15,19"
+    ]
+  },
+  "identity": {
+    "python_source": "/workspace/cwr-perf-after-v2/src/chronicler/__init__.py",
+    "interpreter": "/workspace/cwr-native/bin/python",
+    "python_version": "3.13.5 (main, Aug 10 2026, 12:06:59) [GCC 14.2.0]",
+    "extension": "/workspace/cwr-native/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+    "native_sha256": "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
+    "agent_schema": [
+      1,
+      "dcf0c34097c88451"
+    ],
+    "environment": {
+      "RAYON_NUM_THREADS": "1",
+      "PYTHONHASHSEED": "0",
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1"
+    }
+  },
+  "source_snapshot": {
+    "commit": "a1fcb482f4d971e1c20e99075f2e256f9838a359",
+    "files": 348,
+    "sha256": "37590d816871f6b563d3e5833830f56a37418d5b63a2810a4fdf1cbf6f91b423",
+    "base_sha256": "baf6513cdb3ceaffd7b50980951b81e4f5e8916f757dd3979579c4548548b004",
+    "validation_sha256": {
+      "scripts/cw_rework_screen.py": "f8409b1b76be49dbff968323f9eee2f65229e5c1280e0c349fe2e2a3927e4fef",
+      "scripts/cw_health_screen.py": "cfa5d1116ee49716017bf5119c8e26dc704ea6d98f645c48da875b2e537a7e32",
+      "scripts/screen_runner.py": "5ded5f3548bb6403b1df25e9d31e5c5ce638631aa5fd1b4fabdcfb8510b5cadb"
+    }
+  },
+  "base_population": 203,
+  "scaled_population": 43700,
+  "native_initial_agents": 43700,
+  "run_wall_seconds": 23.453717586002313,
+  "run_cpu_seconds": 23.433173,
+  "run_peak_rss_kib": 624388,
+  "process_peak_rss_with_read_kib": 741548,
+  "turns": [
+    {
+      "source_turn": 0,
+      "wall_seconds": 1.3044530190018122,
+      "cpu_seconds": 1.303829,
+      "native_agents": 44160
+    },
+    {
+      "source_turn": 1,
+      "wall_seconds": 1.9384217269980581,
+      "cpu_seconds": 1.9381490000000001,
+      "native_agents": 44593
+    },
+    {
+      "source_turn": 2,
+      "wall_seconds": 0.7576345810011844,
+      "cpu_seconds": 0.7572609999999997,
+      "native_agents": 45008
+    },
+    {
+      "source_turn": 3,
+      "wall_seconds": 2.1572162919983384,
+      "cpu_seconds": 2.156255,
+      "native_agents": 45601
+    },
+    {
+      "source_turn": 4,
+      "wall_seconds": 0.5533219389981241,
+      "cpu_seconds": 0.553185,
+      "native_agents": 46160
+    },
+    {
+      "source_turn": 5,
+      "wall_seconds": 0.5164951050028321,
+      "cpu_seconds": 0.5162900000000006,
+      "native_agents": 46700
+    },
+    {
+      "source_turn": 6,
+      "wall_seconds": 0.5815340070003003,
+      "cpu_seconds": 0.5813549999999985,
+      "native_agents": 47339
+    },
+    {
+      "source_turn": 7,
+      "wall_seconds": 0.486640281000291,
+      "cpu_seconds": 0.48652099999999976,
+      "native_agents": 47894
+    },
+    {
+      "source_turn": 8,
+      "wall_seconds": 0.5974517180002294,
+      "cpu_seconds": 0.5972600000000021,
+      "native_agents": 48417
+    },
+    {
+      "source_turn": 9,
+      "wall_seconds": 0.6762345770002867,
+      "cpu_seconds": 0.6759910000000016,
+      "native_agents": 49067
+    },
+    {
+      "source_turn": 10,
+      "wall_seconds": 1.751532739999675,
+      "cpu_seconds": 1.751241000000002,
+      "native_agents": 49434
+    },
+    {
+      "source_turn": 11,
+      "wall_seconds": 0.733197140001721,
+      "cpu_seconds": 0.7330380000000005,
+      "native_agents": 49294
+    },
+    {
+      "source_turn": 12,
+      "wall_seconds": 0.6357104909984628,
+      "cpu_seconds": 0.6354330000000008,
+      "native_agents": 48836
+    },
+    {
+      "source_turn": 13,
+      "wall_seconds": 0.6970647010020912,
+      "cpu_seconds": 0.6964140000000008,
+      "native_agents": 49003
+    },
+    {
+      "source_turn": 14,
+      "wall_seconds": 0.7876761419975082,
+      "cpu_seconds": 0.7874210000000019,
+      "native_agents": 49321
+    },
+    {
+      "source_turn": 15,
+      "wall_seconds": 0.667800414001249,
+      "cpu_seconds": 0.6674349999999976,
+      "native_agents": 49507
+    },
+    {
+      "source_turn": 16,
+      "wall_seconds": 0.868132985997363,
+      "cpu_seconds": 0.8678050000000042,
+      "native_agents": 49484
+    },
+    {
+      "source_turn": 17,
+      "wall_seconds": 1.2111643260031997,
+      "cpu_seconds": 1.2107479999999988,
+      "native_agents": 48727
+    },
+    {
+      "source_turn": 18,
+      "wall_seconds": 1.337838280996948,
+      "cpu_seconds": 1.3375879999999967,
+      "native_agents": 47701
+    },
+    {
+      "source_turn": 19,
+      "wall_seconds": 0.7781384560003062,
+      "cpu_seconds": 0.7779389999999999,
+      "native_agents": 46823
+    }
+  ],
+  "simulation_turn_wall": {
+    "median": 0.7454158605014527,
+    "min": 0.486640281000291,
+    "max": 2.1572162919983384,
+    "sum": 19.03765892299998
+  },
+  "simulation_turn_cpu": {
+    "median": 0.7451495000000001,
+    "min": 0.48652099999999976,
+    "max": 2.156255,
+    "sum": 19.031158000000005
+  },
+  "callback_interval_wall": {
+    "median": 0.7770169340001303,
+    "min": 0.49089782100054435,
+    "max": 2.1617223379980715,
+    "sum": 16.855611019000207
+  },
+  "callback_interval_cpu": {
+    "median": 0.774189999999999,
+    "min": 0.49077099999999874,
+    "max": 2.160755,
+    "sum": 16.841981000000004
+  },
+  "callback_interval_note": "drops first3 turns; includes preceding post-callback checkpoint/memory work",
+  "native_peak_agents": 49507,
+  "checkpoints": [
+    {
+      "turn": 5,
+      "path": "/workspace/evidence/cwr-profile/c1-five-scale-after/scaled52k_s7-off/checkpoint_turn_5.ckpt",
+      "bytes": 3671689,
+      "raw_bytes": 20473244,
+      "sections": {
+        "python": 1428257,
+        "native.agent.0": 2238896
+      },
+      "write_seconds": 0.25596096299705096,
+      "write_stages": {
+        "native": 0.014993142998719122,
+        "pickle": 0.08243835900066188,
+        "compress": 0.11977423099961015,
+        "header": 0.035992339999211254,
+        "write": 0.00276288999884855
+      },
+      "read_seconds": 0.26147467200280516,
+      "read_stages": {
+        "read": 0.0010338770007365383,
+        "native": 0.031791845001862384,
+        "python": 0.22864895000020624
+      },
+      "identity": {
+        "environment": {
+          "affinity_cpu_count": 5,
+          "hash_seed": "0",
+          "implementation": "CPython",
+          "machine": "x86_64",
+          "packages": {
+            "arro3-core": "0.9.1",
+            "chronicler-agents": "0.1.0",
+            "numpy": "2.5.4",
+            "pyarrow": "26.0.0",
+            "pydantic": "2.12.5",
+            "scipy": "1.18.1"
+          },
+          "python": "3.13.5",
+          "thread_env": {
+            "BLIS_NUM_THREADS": null,
+            "GOTO_NUM_THREADS": null,
+            "MKL_NUM_THREADS": null,
+            "NUMEXPR_NUM_THREADS": null,
+            "OMP_NUM_THREADS": "1",
+            "OPENBLAS_NUM_THREADS": "1",
+            "OPENBLAS_THREAD_TIMEOUT": "16",
+            "PYTHONHASHSEED": "0",
+            "PYTHON_CPU_COUNT": null,
+            "RAYON_NUM_THREADS": "1",
+            "VECLIB_MAXIMUM_THREADS": null
+          }
+        },
+        "native": {
+          "bytes": 14535264,
+          "sha256": "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
+          "state_layouts": {
+            "agent": "v1:dcf0c34097c88451",
+            "ecology": "v1:4ab7f8c199b5e5f8",
+            "politics": "v1:b1a710f3450f5015"
+          },
+          "status": "found"
+        },
+        "source": {
+          "git_sha": "a1fcb482f4d971e1c20e99075f2e256f9838a359",
+          "package_digest": "3875b1c36dca261b26c6185525dbda2a45249e441da5189100be540f56079518"
+        }
+      }
+    },
+    {
+      "turn": 10,
+      "path": "/workspace/evidence/cwr-profile/c1-five-scale-after/scaled52k_s7-off/checkpoint_turn_10.ckpt",
+      "bytes": 4509317,
+      "raw_bytes": 22809078,
+      "sections": {
+        "python": 1653920,
+        "native.agent.0": 2850860
+      },
+      "write_seconds": 0.2726856430017506,
+      "write_stages": {
+        "native": 0.013694147997739492,
+        "pickle": 0.10524837100456352,
+        "compress": 0.1492500790009217,
+        "header": 0.0019132909983454738,
+        "write": 0.002579754000180401
+      },
+      "read_seconds": 0.30866861100003007,
+      "read_stages": {
+        "read": 0.0013064169979770668,
+        "native": 0.04170287700253539,
+        "python": 0.2656593169995176
+      },
+      "identity": {
+        "environment": {
+          "affinity_cpu_count": 5,
+          "hash_seed": "0",
+          "implementation": "CPython",
+          "machine": "x86_64",
+          "packages": {
+            "arro3-core": "0.9.1",
+            "chronicler-agents": "0.1.0",
+            "numpy": "2.5.4",
+            "pyarrow": "26.0.0",
+            "pydantic": "2.12.5",
+            "scipy": "1.18.1"
+          },
+          "python": "3.13.5",
+          "thread_env": {
+            "BLIS_NUM_THREADS": null,
+            "GOTO_NUM_THREADS": null,
+            "MKL_NUM_THREADS": null,
+            "NUMEXPR_NUM_THREADS": null,
+            "OMP_NUM_THREADS": "1",
+            "OPENBLAS_NUM_THREADS": "1",
+            "OPENBLAS_THREAD_TIMEOUT": "16",
+            "PYTHONHASHSEED": "0",
+            "PYTHON_CPU_COUNT": null,
+            "RAYON_NUM_THREADS": "1",
+            "VECLIB_MAXIMUM_THREADS": null
+          }
+        },
+        "native": {
+          "bytes": 14535264,
+          "sha256": "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
+          "state_layouts": {
+            "agent": "v1:dcf0c34097c88451",
+            "ecology": "v1:4ab7f8c199b5e5f8",
+            "politics": "v1:b1a710f3450f5015"
+          },
+          "status": "found"
+        },
+        "source": {
+          "git_sha": "a1fcb482f4d971e1c20e99075f2e256f9838a359",
+          "package_digest": "3875b1c36dca261b26c6185525dbda2a45249e441da5189100be540f56079518"
+        }
+      }
+    },
+    {
+      "turn": 15,
+      "path": "/workspace/evidence/cwr-profile/c1-five-scale-after/scaled52k_s7-off/checkpoint_turn_15.ckpt",
+      "bytes": 7649174,
+      "raw_bytes": 32153467,
+      "sections": {
+        "python": 4222527,
+        "native.agent.0": 3422109
+      },
+      "write_seconds": 0.5366012780032179,
+      "write_stages": {
+        "native": 0.014173021001624875,
+        "pickle": 0.28030716799912625,
+        "compress": 0.23527949799972703,
+        "header": 0.0033254770023631863,
+        "write": 0.0035161140003765468
+      },
+      "read_seconds": 0.5312042760015174,
+      "read_stages": {
+        "read": 0.0021024650013714563,
+        "native": 0.044809074999648146,
+        "python": 0.4842927360004978
+      },
+      "identity": {
+        "environment": {
+          "affinity_cpu_count": 5,
+          "hash_seed": "0",
+          "implementation": "CPython",
+          "machine": "x86_64",
+          "packages": {
+            "arro3-core": "0.9.1",
+            "chronicler-agents": "0.1.0",
+            "numpy": "2.5.4",
+            "pyarrow": "26.0.0",
+            "pydantic": "2.12.5",
+            "scipy": "1.18.1"
+          },
+          "python": "3.13.5",
+          "thread_env": {
+            "BLIS_NUM_THREADS": null,
+            "GOTO_NUM_THREADS": null,
+            "MKL_NUM_THREADS": null,
+            "NUMEXPR_NUM_THREADS": null,
+            "OMP_NUM_THREADS": "1",
+            "OPENBLAS_NUM_THREADS": "1",
+            "OPENBLAS_THREAD_TIMEOUT": "16",
+            "PYTHONHASHSEED": "0",
+            "PYTHON_CPU_COUNT": null,
+            "RAYON_NUM_THREADS": "1",
+            "VECLIB_MAXIMUM_THREADS": null
+          }
+        },
+        "native": {
+          "bytes": 14535264,
+          "sha256": "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
+          "state_layouts": {
+            "agent": "v1:dcf0c34097c88451",
+            "ecology": "v1:4ab7f8c199b5e5f8",
+            "politics": "v1:b1a710f3450f5015"
+          },
+          "status": "found"
+        },
+        "source": {
+          "git_sha": "a1fcb482f4d971e1c20e99075f2e256f9838a359",
+          "package_digest": "3875b1c36dca261b26c6185525dbda2a45249e441da5189100be540f56079518"
+        }
+      }
+    },
+    {
+      "turn": 19,
+      "path": "/workspace/evidence/cwr-profile/c1-five-scale-after/scaled52k_s7-off/checkpoint_turn_19.ckpt",
+      "bytes": 8613217,
+      "raw_bytes": 34644035,
+      "sections": {
+        "python": 4652332,
+        "native.agent.0": 3956347
+      },
+      "write_seconds": 0.6394726559992705,
+      "write_stages": {
+        "native": 0.01703916500264313,
+        "pickle": 0.34107463599866605,
+        "compress": 0.2734805330001109,
+        "header": 0.004195285997411702,
+        "write": 0.003683036000438733
+      },
+      "read_seconds": 0.6995169740002893,
+      "read_stages": {
+        "read": 0.0028057249983248767,
+        "native": 0.04760077700120746,
+        "python": 0.649110472000757
+      },
+      "identity": {
+        "environment": {
+          "affinity_cpu_count": 5,
+          "hash_seed": "0",
+          "implementation": "CPython",
+          "machine": "x86_64",
+          "packages": {
+            "arro3-core": "0.9.1",
+            "chronicler-agents": "0.1.0",
+            "numpy": "2.5.4",
+            "pyarrow": "26.0.0",
+            "pydantic": "2.12.5",
+            "scipy": "1.18.1"
+          },
+          "python": "3.13.5",
+          "thread_env": {
+            "BLIS_NUM_THREADS": null,
+            "GOTO_NUM_THREADS": null,
+            "MKL_NUM_THREADS": null,
+            "NUMEXPR_NUM_THREADS": null,
+            "OMP_NUM_THREADS": "1",
+            "OPENBLAS_NUM_THREADS": "1",
+            "OPENBLAS_THREAD_TIMEOUT": "16",
+            "PYTHONHASHSEED": "0",
+            "PYTHON_CPU_COUNT": null,
+            "RAYON_NUM_THREADS": "1",
+            "VECLIB_MAXIMUM_THREADS": null
+          }
+        },
+        "native": {
+          "bytes": 14535264,
+          "sha256": "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
+          "state_layouts": {
+            "agent": "v1:dcf0c34097c88451",
+            "ecology": "v1:4ab7f8c199b5e5f8",
+            "politics": "v1:b1a710f3450f5015"
+          },
+          "status": "found"
+        },
+        "source": {
+          "git_sha": "a1fcb482f4d971e1c20e99075f2e256f9838a359",
+          "package_digest": "3875b1c36dca261b26c6185525dbda2a45249e441da5189100be540f56079518"
+        }
+      }
+    }
+  ],
+  "bundle_bytes": 2398820,
+  "state_bytes": 2087380,
+  "output_bytes": 91062486,
+  "simulation_output_bytes": 91059955,
+  "file_bytes": {
+    "plan.json": 2531,
+    "validation_summary.json": 6044,
+    "validation_relationships.arrow": 2203266,
+    "validation_reserve_ledger.arrow": 3642,
+    "validation_memory_signatures.arrow": 2718554,
+    "memories_selurian_republic.json": 24063,
+    "checkpoint_turn_19.ckpt": 8613217,
+    "checkpoint_turn_5.ckpt": 3671689,
+    "run.log": 0,
+    "memories_dorrathi_clans.json": 17299,
+    "chronicle.md": 268,
+    "state.languages.json": 94912,
+    "checkpoint_turn_10.ckpt": 4509317,
+    "state.json": 2087380,
+    "validation_resource_ledger.arrow": 13962,
+    "memories_vrashni_dominion.json": 31147,
+    "validation_community_summary.json": 3859,
+    "validation_needs.arrow": 16852674,
+    "agent_events.arrow": 5456618,
+    "memories_ashkari_nomads.json": 22055,
+    "state.historiography.json": 36093,
+    "checkpoint_turn_15.ckpt": 7649174,
+    "chronicle_bundle.json": 2398820,
+    "validation_summary/graph_turn_000.json": 456242,
+    "validation_summary/needs_turn_000.json": 9110622,
+    "validation_summary/graph_turn_010.json": 2174203,
+    "validation_summary/aggregate_turn_020.json": 2021,
+    "validation_summary/needs_turn_020.json": 9624386,
+    "validation_summary/community_turn_010.json": 1126,
+    "validation_summary/aggregate_turn_010.json": 2027,
+    "validation_summary/community_turn_000.json": 23,
+    "validation_summary/needs_turn_010.json": 10125006,
+    "validation_summary/aggregate_turn_000.json": 2005,
+    "validation_summary/graph_turn_020.json": 3145532,
+    "validation_summary/community_turn_020.json": 2709
+  },
+  "sidecars": {
+    "agent_events.arrow": {
+      "bytes": 5456618,
+      "rows": 132141,
+      "columns": 11,
+      "sha256": "290fe65a258f280b0c9cca973a9da8e2517e6920097780143e016b658688d2f9"
+    },
+    "validation_memory_signatures.arrow": {
+      "bytes": 2718554,
+      "rows": 226453,
+      "columns": 5,
+      "sha256": "a9ec0e53089a1cf884547b19568681d3ddc6ea1bb43879830fd505ccbf28108c"
+    },
+    "validation_needs.arrow": {
+      "bytes": 16852674,
+      "rows": 140417,
+      "columns": 15,
+      "sha256": "794bdb775851d0790d011ef3111ed9d883c7a2e12d9631736270be1fc64ecd22"
+    },
+    "validation_relationships.arrow": {
+      "bytes": 2203266,
+      "rows": 146812,
+      "columns": 5,
+      "sha256": "8b8a78ac209767056f2bd652a2f6e704437ec39a7d7a5005a2e16b09b525deb7"
+    },
+    "validation_reserve_ledger.arrow": {
+      "bytes": 3642,
+      "rows": 0,
+      "columns": 20,
+      "sha256": "0fa06c45393a8538471ce8b468f8ed04d5a26146ce5d3983d6a185757608aceb"
+    },
+    "validation_resource_ledger.arrow": {
+      "bytes": 13962,
+      "rows": 380,
+      "columns": 27,
+      "sha256": "6fd1001d54c4b5ff011f327b77d568f16c38024d89f9256573680740b66a10b0"
+    }
+  },
+  "tool_sha256": "1c21d7db60cfe9d9a3d60f4ed06fe2ff0117762aed51cdd26dee71b7d7d0d410",
+  "measurement_bytes": 13476
+}

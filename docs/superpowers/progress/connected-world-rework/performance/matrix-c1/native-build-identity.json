@@ -1,0 +1,242 @@
+{
+  "source_commit": "8de171fda59a2051075d61183bf58dea5d011450",
+  "dirty": "",
+  "python": "3.13.5 (main, Aug 10 2026, 12:06:59) [GCC 14.2.0]",
+  "executable": "/workspace/cwr-native/bin/python",
+  "native_path": "/workspace/cwr-native/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+  "native_sha256": "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
+  "native_input_count": 57,
+  "native_input_sha256": "f55df55d453ac37694410246c4a9728c56f3f6148f679fde8efc21ffd8775acf",
+  "pyproject_sha256": "625466ac16de324bdd8ad5511b2cd992fa1074c7e73842ad28ba2850adc8ce0b",
+  "native_inputs": [
+    {
+      "path": "chronicler-agents/Cargo.lock",
+      "sha256": "1a3fe8f890b8841f5be86059c5b6c276731c4009ef99d473ed5c7eb8858a2855"
+    },
+    {
+      "path": "chronicler-agents/Cargo.toml",
+      "sha256": "b26e7bf78857e6bd71e4724d04159aee19d128873bfdf737015c60e1a99b4322"
+    },
+    {
+      "path": "chronicler-agents/build.rs",
+      "sha256": "c5e425b5602bc2fc5c852e91df99e5a9cadf6c76ced725f76ef704762351e779"
+    },
+    {
+      "path": "chronicler-agents/src/adaptive_information.rs",
+      "sha256": "2ad93e7c7d1af462df12e2358df0010f2f4ca2fc6f5f6d45e0296496f05266db"
+    },
+    {
+      "path": "chronicler-agents/src/adaptive_migration.rs",
+      "sha256": "dd003f12be6b60906e8b075a054b5c1d96013d53d405a7fefc24e224e63a289d"
+    },
+    {
+      "path": "chronicler-agents/src/agent.rs",
+      "sha256": "49ec42f76620b7ad2e1aca560d641b7f4e9401e5922a3f22fa495fa204b0aa16"
+    },
+    {
+      "path": "chronicler-agents/src/behavior.rs",
+      "sha256": "8bf862b960fd95e128c6e511f3402dd7d6e159a83366539fac65caad2f94299e"
+    },
+    {
+      "path": "chronicler-agents/src/community.rs",
+      "sha256": "9b32cc52035d623b71441f732fa197c6c688250dd66495132425a54edd4fa3f3"
+    },
+    {
+      "path": "chronicler-agents/src/conversion_tick.rs",
+      "sha256": "f5eb57faae01d0e15e36a26c26b105a16946009d14b434bf8cc63f2ebe948a8f"
+    },
+    {
+      "path": "chronicler-agents/src/credit.rs",
+      "sha256": "a0943ee1cb548bc2e76d8214bd0488cc0d927aa2f517bceaf3d27de63f8ff8d1"
+    },
+    {
+      "path": "chronicler-agents/src/culture_tick.rs",
+      "sha256": "050e813d06d3dd5945f14e7a238733b337d8c67f841c70357127d023d16c6c2e"
+    },
+    {
+      "path": "chronicler-agents/src/decision_delivery.rs",
+      "sha256": "0e2ab89298155ab024193d520c57f977d3642e8292410607fa5de11d38c64241"
+    },
+    {
+      "path": "chronicler-agents/src/demographics.rs",
+      "sha256": "a9ec542944e6a9321aae3f20760d5868b5aef38ace6d65adff90167a4788b2ec"
+    },
+    {
+      "path": "chronicler-agents/src/ecology.rs",
+      "sha256": "c7b94699bba3b38511d2f06fd581d640594d944b97ee769a921763e380c658a4"
+    },
+    {
+      "path": "chronicler-agents/src/economy.rs",
+      "sha256": "41dce16e9940714ed0f66d7ac6ac1f2023ecf014c98adc06c6c474cccd741001"
+    },
+    {
+      "path": "chronicler-agents/src/enlisted_service.rs",
+      "sha256": "2238693fd21f98c242023867d8e9c41a644c8000051eeaecf2e075c6fa90dda0"
+    },
+    {
+      "path": "chronicler-agents/src/ffi/agent_context_tests.rs",
+      "sha256": "a0116c37d8461643d15163c6d4d8a293b0580276ea17abc3effa0318aa59b611"
+    },
+    {
+      "path": "chronicler-agents/src/ffi/batch.rs",
+      "sha256": "7e40546c818e4d67f3ed4da7ff98905289025bcf30098d9fdf73cb8e3aa5fd36"
+    },
+    {
+      "path": "chronicler-agents/src/ffi/ecology_sim.rs",
+      "sha256": "94f1296f28765ea9c28f80d4a3f7384415fd5a79104d20cf5a9b5d970e7520a9"
+    },
+    {
+      "path": "chronicler-agents/src/ffi/health_care_observation_tests.rs",
+      "sha256": "f424cd486c8f5d85cedc37edee3d0ff3648dd7a5303f529b8f8aa55f62232cdd"
+    },
+    {
+      "path": "chronicler-agents/src/ffi/mod.rs",
+      "sha256": "8d53d90c576f2bba5ec0d312155ef626de9d73dbf20182e618fa40d6e0442ca3"
+    },
+    {
+      "path": "chronicler-agents/src/ffi/politics_sim.rs",
+      "sha256": "c4f7a07f0e28ad94e49f1d4d5ea1f8beb7b0da10a689ca02bdd21d1bec70908d"
+    },
+    {
+      "path": "chronicler-agents/src/ffi/schema.rs",
+      "sha256": "95d27dfc27eae7a7c03bc08268d1bae8f74bf8dada45d9d4dd4b53dc92423ac2"
+    },
+    {
+      "path": "chronicler-agents/src/formation.rs",
+      "sha256": "dcc13b54fb75e3054924fb81ce5d745df9a4d1842f7e4fabb9cf08e94c84e6ad"
+    },
+    {
+      "path": "chronicler-agents/src/health_care.rs",
+      "sha256": "d853edb7b7d4b584e22aa919dde02696580ffaa5b10f49127007102cc7aabac7"
+    },
+    {
+      "path": "chronicler-agents/src/health_care_observation.rs",
+      "sha256": "9c617fa6a252db0d2367053c466ee77560727af90825c16cab4b58b2e6791ed9"
+    },
+    {
+      "path": "chronicler-agents/src/health_care_observation_tests.rs",
+      "sha256": "7d7c7fed3772694c36b05e8bd1377f18e26136795f74f85a59633a1216bceec7"
+    },
+    {
+      "path": "chronicler-agents/src/household.rs",
+      "sha256": "ca2e19a336a0d4da8a81306b01be06446f16becc3ae27030a2dfaaeba7c12816"
+    },
+    {
+      "path": "chronicler-agents/src/knowledge.rs",
+      "sha256": "86e6413af5a1eeb3111bc4c2cc3dd075b7ac9fa9745f975a0f92e590cd2eb424"
+    },
+    {
+      "path": "chronicler-agents/src/learning_work.rs",
+      "sha256": "968d45d316ab2b25411d752ce4b1e4fd1222ae9c0040d3bbf5ced64211f37d52"
+    },
+    {
+      "path": "chronicler-agents/src/lib.rs",
+      "sha256": "ada58366368e4f8bc17e078e23684d4796dcb123bd02af7566e91b159506f55b"
+    },
+    {
+      "path": "chronicler-agents/src/memory.rs",
+      "sha256": "86e9189fe432c52efaef8d774cd6afa9f84cdde7f089f8ebe9c7a2fefe83149b"
+    },
+    {
+      "path": "chronicler-agents/src/merchant.rs",
+      "sha256": "a541ed886c200b719cd72b69dc79b3d94ef2a15491c9469184d149d680058a0c"
+    },
+    {
+      "path": "chronicler-agents/src/migration_closure.rs",
+      "sha256": "1b4e1cf71b2b820c0e081605eb80fd685ac551a76db1fa64e5f4a920a0f0e9e7"
+    },
+    {
+      "path": "chronicler-agents/src/migration_drivers.rs",
+      "sha256": "5ba0493a3f829cbc39698aee5dc95054c1cc2f1c1ed2310f89816c1e18914508"
+    },
+    {
+      "path": "chronicler-agents/src/movements.rs",
+      "sha256": "90758028182b738413aeaf6e7607e8eb632681025226766fa1bdc4af3435217c"
+    },
+    {
+      "path": "chronicler-agents/src/named_characters.rs",
+      "sha256": "2079563450ecdeb2a54f29137d1f5ab82c043288399540aa3830e98c3483cd82"
+    },
+    {
+      "path": "chronicler-agents/src/needs.rs",
+      "sha256": "04afbc6862b71a3f2121c84d3983f1368972808faa16c1f334a02edad8eddb9f"
+    },
+    {
+      "path": "chronicler-agents/src/persist.rs",
+      "sha256": "08a967ada32e34f26b211b458f19ce56a1b51e77c7a66097f4a7476f4206a242"
+    },
+    {
+      "path": "chronicler-agents/src/politics.rs",
+      "sha256": "7da5df88bdb360ea96ee415eebbe38aa694f5f2c94018db06768be4405cb153c"
+    },
+    {
+      "path": "chronicler-agents/src/pool.rs",
+      "sha256": "804fd841c7c87b18938bcc5955771ad50815e40cce45efb2abd1a543439df340"
+    },
+    {
+      "path": "chronicler-agents/src/provisioning.rs",
+      "sha256": "b31726b2ed415fffd77d43e2fbad210f00b2cc7d41cc49d581c20c6ee5b0cfba"
+    },
+    {
+      "path": "chronicler-agents/src/region.rs",
+      "sha256": "e3db1df3f3072d18afa2fc5484e81f1c8756f7ea87254f698612ab7316493866"
+    },
+    {
+      "path": "chronicler-agents/src/relationships.rs",
+      "sha256": "430ab14dbdf58c839a0dbafc25c0d4c99ac0e78b7ffd6368b234484807007209"
+    },
+    {
+      "path": "chronicler-agents/src/relocation.rs",
+      "sha256": "ac59e567927299295d8f11c4dd82e48460c05f73f36ad569a49c31282204dff1"
+    },
+    {
+      "path": "chronicler-agents/src/satisfaction.rs",
+      "sha256": "10e2ccbbf453a325a34ce7ca90bf6446921cb89a7964e73ad3a0596d73bce4d0"
+    },
+    {
+      "path": "chronicler-agents/src/scale.rs",
+      "sha256": "373061feb8cfa7d8a8e5fba7bea17fb598a3cc1f7058cfc432be3499a2ca2b97"
+    },
+    {
+      "path": "chronicler-agents/src/signals.rs",
+      "sha256": "b0247d78f0a412ebf5a3a941fd4d4472d918ad573c74333a9788831f04a3d25f"
+    },
+    {
+      "path": "chronicler-agents/src/sort.rs",
+      "sha256": "5978b0b9b36e352549a0990b84804b99a0ab294f5b16decc942f448e43648089"
+    },
+    {
+      "path": "chronicler-agents/src/spatial.rs",
+      "sha256": "584ca5f601f7c60b85f40ab22820bd34ea234ea9d4f247e494a7303406a09bdd"
+    },
+    {
+      "path": "chronicler-agents/src/teaching_work.rs",
+      "sha256": "87b20e814af049a8d4a189e306e0c09ec7f65fbef6b4f8c4fbc230ea1fc83a47"
+    },
+    {
+      "path": "chronicler-agents/src/tick/residence_exposure_tests.rs",
+      "sha256": "7facc023928fbf55693f4001c926c5e9c69ef81e26aba6a90ca4b4c01f8324b9"
+    },
+    {
+      "path": "chronicler-agents/src/tick.rs",
+      "sha256": "1aac475fe953ed77775c67e9f415116ca691511adf096003e939f4d7d6690856"
+    },
+    {
+      "path": "chronicler-agents/src/transaction_receipts.rs",
+      "sha256": "8bfedb64d8e8ec8812276bc90356977f5e5021aabd79ced4977293cc2cbb4857"
+    },
+    {
+      "path": "chronicler-agents/src/wealth_observation.rs",
+      "sha256": "71ede13ae5199208882076a66f59a724c35c85825ae756760e46f4aa84e2b4a2"
+    },
+    {
+      "path": "chronicler-agents/src/wealth_transfer.rs",
+      "sha256": "0a788ecfc8f4ad587813fc866367f74e621e6c61ac79aefef1c1ee3d74a93287"
+    },
+    {
+      "path": "chronicler-agents/src/workshop_work.rs",
+      "sha256": "a8b6b032e6c6c69ede34afeb81c5cbed65a2540395978a6b32fa95e652411f37"
+    }
+  ],
+  "build_command": "CARGO_HOME=/workspace/shared/cargo RUSTUP_HOME=/workspace/shared/rustup PATH=/workspace/shared/cargo/bin:$PATH CARGO_TARGET_DIR=/workspace/cwr-native-target CARGO_BUILD_JOBS=2 VIRTUAL_ENV=/workspace/cwr-native /workspace/cwr-native/bin/maturin develop --release --locked --manifest-path chronicler-agents/Cargo.toml (from /workspace/Chronicler; identical native inputs)"
+}
