@@ -444,7 +444,7 @@ _HELP = {
     "guild_leagues": (
         "Cross-border guild leagues (D1b): guilds of cities in different realms whose regions traded on 3 "
         "of the last 10 turns (the merchant deliveries the economy recorded) form a league (one member per "
-        "realm, at most 4, ids never reused); each turn members pay 2% of their guild purse (at most 0.25) "
+        "realm, at most 4, ids never reused); each turn members pay 2 percent of their guild purse (at most 0.25) "
         "into the league fund while it holds less than 3 per member, and the fund pays a member city's "
         "purse its recorded levy share of the dues or the plunder of a recorded sack (at most 2 a claim); a "
         "member leaves when its guild or city ends or its city changes lord, and a league dissolves at war "
