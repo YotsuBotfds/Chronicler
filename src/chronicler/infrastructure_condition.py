@@ -80,7 +80,7 @@ RS2 planned its own projects:
   ``_plan_works``): the same forests, crew rule, wages and work reservation,
   no other labour authority; the cargo reaches the home store, which RS2's
   holds (the works' included) take first, and PL1 keeps the store where works
-  are open. The rows are recorded here (``timber_needs``).
+  ask (the same screen). The rows are recorded here (``timber_needs``).
 * Coins: ``COIN_MILLI_PER_WORK`` per delivered unit (a whole repair from 0
   costs at most the BUILD cost of a new record: irrigation 12, roads 10), one
   whole-unit charge per civ and turn with the sub-unit remainder prepaid
@@ -952,6 +952,33 @@ def rollback_phase2(world) -> None:
 # PL1 seam: the works' timber need, served after RS2's (``timber_supply``)
 # ---------------------------------------------------------------------------
 
+def _asking_works(world, state) -> list[InfraWork]:
+    """The open works that ask PL1 for timber at this Phase 10 (the screen of
+    :func:`timber_wants`), in the split order."""
+    if not _works_on(world, state) or not state.works:
+        return []
+    from chronicler import repair_projects as R
+    from chronicler.local_budgets import envelope
+    rs2 = R._state(world)
+    seen = getattr(rs2, "_labour", None) if rs2 is not None else None
+    labour = seen[1] if seen is not None and seen[0] == world.turn and seen[1] is not None else None
+    rs2_regions = R.storage_suspended_regions(world)
+    out = []
+    for w in sorted(state.works, key=_order):
+        asset = _asset(state, w.aid)
+        remaining = max(0.0, w.scope - w.delivered)
+        payer = _controller(world, w.region)
+        if asset is None or remaining <= DONE or payer < 0 or not _in_service(world, asset):
+            continue
+        if labour is not None and labour[w.region] == 0:
+            continue
+        if envelope(world, payer, BUDGET_SERVICE) is not None and (
+                w.kind != "irrigation" or (w.region not in rs2_regions and _storage_policy_works(world, w.region))):
+            continue
+        out.append(w)
+    return out
+
+
 def timber_wants(world) -> list[tuple[int, float, list[int]]]:
     """PL1 seam (``timber_supply._plan_launches``, after RS2's need rows): per
     region, ascending, ``(region, want, wids)``: the timber the region's open
@@ -972,39 +999,21 @@ def timber_wants(world) -> list[tuple[int, float, list[int]]]:
     ``granary_first`` (it depends on storage's own inputs, so no prediction
     screens the need); a work that stalls there keeps its delivered timber in
     the store. Empty unless the works are on (``repair`` or ``cost_only``)."""
-    state = _state(world)
-    if not _works_on(world, state) or not state.works:
-        return []
-    from chronicler import repair_projects as R
-    from chronicler.local_budgets import envelope
-    rs2 = R._state(world)
-    seen = getattr(rs2, "_labour", None) if rs2 is not None else None
-    labour = seen[1] if seen is not None and seen[0] == world.turn and seen[1] is not None else None
-    rs2_regions = R.storage_suspended_regions(world)
     out: dict[int, tuple[float, list[int]]] = {}
-    for w in sorted(state.works, key=_order):
-        asset = _asset(state, w.aid)
-        remaining = max(0.0, w.scope - w.delivered)
-        payer = _controller(world, w.region)
-        if asset is None or remaining <= DONE or payer < 0 or not _in_service(world, asset):
-            continue
-        if labour is not None and labour[w.region] == 0:
-            continue
-        if envelope(world, payer, BUDGET_SERVICE) is not None and (
-                w.kind != "irrigation" or (w.region not in rs2_regions and _storage_policy_works(world, w.region))):
-            continue
+    for w in _asking_works(world, _state(world)):
         want, wids = out.get(w.region, (0.0, []))
+        remaining = max(0.0, w.scope - w.delivered)
         out[w.region] = (want + min(WORK_PER_TURN, remaining) * TIMBER_PER_WORK[w.kind], [*wids, w.wid])
     return [(rid, want, wids) for rid, (want, wids) in sorted(out.items())]
 
 
 def timber_regions(world) -> frozenset[int]:
-    """PL1 seam (its store release): regions with an open work while the works
-    are on; PL1 keeps a store there for the works instead of releasing it."""
-    state = _state(world)
-    if not _works_on(world, state):
-        return frozenset()
-    return frozenset(w.region for w in state.works)
+    """PL1 seam (its store release): the regions of the works that ask for
+    timber (the same screen as :func:`timber_wants`); PL1 keeps a store there
+    for them instead of releasing it. A work that asks nothing (a road or a
+    work L9's proposal could not name under L9, a region without a farmer)
+    keeps nothing, so RS2's leftover is released as without the works."""
+    return frozenset(w.region for w in _asking_works(world, _state(world)))
 
 
 def record_timber_needs(world, rows) -> None:

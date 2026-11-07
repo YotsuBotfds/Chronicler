@@ -147,9 +147,10 @@ with a live expedition gets no second one, whoever launched it; a gap of at
 least `MIN_GAP` launches one under the same checks, crew rule, wages and work
 reservation (no other labour authority, no other payer), or records the
 refusal. The rows are B3's (`livelihoods.infrastructure_condition.timber_needs`);
-this package's need rows and their counters stay RS2's (the expedition counters
-count every expedition). Off, and in B3's `record_only`/`wear_only`, nothing
-here changes.
+this package's need rows and their counters stay RS2's: `launched` counts RS2's
+launches and `launched_works` the works' (absent until the works launch one;
+the veteran and per-expedition counters count every expedition). Off, and in
+B3's `record_only`/`wear_only`, nothing here changes.
 
 ### Who goes
 
@@ -193,7 +194,8 @@ home; the paid share withholds their ordinary income. Veterans on a crew (by ope
   and conquest never see it: nothing else can take it. It does not decay (a
   declared simplification; it is short-lived).
 - Timber left in a region without an open RS2 project (or, with B3's works on,
-  an open work) at Phase 10 is released to the region's stockpile, recorded
+  an open work that asks for timber, by the same screen) at Phase 10 is released
+  to the region's stockpile, recorded
   (`released`, store row). B3's works hold through RS2's holds, so the store
   reaches them by the same path (store first, exactly once).
 

@@ -1008,6 +1008,17 @@ def test_the_cw3b_screen_is_declared_with_its_cohort_and_reads_the_record():
     row = {"m": m}
     assert next(o for o in screen.outcomes if o.id == "cw3b_service_treasury").read(row) is None
     assert next(o for o in screen.outcomes if o.id == "cw3b_service_treasury_all").read(row) == m["irrigation_serving_share"]
+    # The primaries are gated on the pair's irrigated-set identity too: a world whose two arms
+    # recorded different sets is excluded, as the report's pair table says.
+    def row(arm, seed, sha, value):
+        return {"arm": arm, "stratum": "t", "seed": seed, "rc": 0, "activation": {"activated": True},
+                "m": {"pre_ok": True, "irrigated_set_sha": sha, "irrigation_serving_share_after": value}}
+    rows = [row("C_T", 1, "a", 0.75), row("W_T", 1, "a", 0.5), row("C_T", 2, "a", 0.9), row("W_T", 2, "b", 0.1)]
+    primary = next(o for o in screen.outcomes if o.id == "cw3b_service_treasury")
+    cells, values = cws.SR.paired_values(rows, screen, "C_T", "W_T", primary.read, "t", [1, 2])
+    assert values == [0.25] and cells[1] == "2: unknown"
+    report = "\n".join(cws._cw3b_report(rows, {"t": [1, 2]}))
+    assert "| t | 2 | C_T - W_T | DIFFERENT SETS | excluded from the primaries |" in report
     acted, text = cws.cw3b_activation(bundle, flags)
     assert acted is True and "below full service" in text
     assert cws.cw3b_activation(bundle, list(screen.base) + list(screen.arms["B"][0]))[0] is None
@@ -1092,13 +1103,17 @@ def test_the_works_timber_need_is_served_after_every_rs2_need():
     assert (exp.home, exp.forest, exp.crew, exp.need) == (0, 1, [1, 2, 3, 4], 1.0)
     (row,) = _state(alone).timber_needs
     assert (row.status, row.eid) == ("launched", exp.eid)
-    assert ts.needs == [] and ts.counters["launched"] == 1 and "need_rows" not in ts.counters
+    # PL1's need rows and ``launched`` stay RS2's; the works' launch counts in ``launched_works``.
+    assert ts.needs == [] and ts.counters["launched_works"] == 1
+    assert "launched" not in ts.counters and "need_rows" not in ts.counters
     # In RS2's own region the works' want counts after RS2's: one expedition serves the region.
     shared = _pl1_world(rs2_region=0, work_region=0)
     _phase10(shared, _Sim(_pl1_people()))
     (exp,) = shared.livelihoods.timber_supply.expeditions
     (row,) = _state(shared).timber_needs
     assert (row.rs2_want, row.gap, row.status, row.eid) == (4.0, 1.0, "expedition", exp.eid)
+    assert shared.livelihoods.timber_supply.counters["launched"] == 1
+    assert "launched_works" not in shared.livelihoods.timber_supply.counters
 
 
 def _advanced(world):
@@ -1126,6 +1141,14 @@ def test_the_works_ask_only_for_open_works_that_can_use_timber_next_phase2(monke
     S.set_storage_policy(world, 0, "maintain", 4.0)
     assert IC.timber_wants(world) == [(0, 1.0, [0])]
     monkeypatch.undo()
+    # The store is kept exactly where the works ask (the same screen).
+    assert IC.timber_regions(world) == frozenset({0})
+    monkeypatch.setattr(LB, "envelope", lambda *a, **k: 0)
+    assert IC.timber_regions(roads) == frozenset()
+    monkeypatch.undo()
+    world.livelihoods.repair_projects._labour = (world.turn, [0, 2, 6])
+    assert IC.timber_regions(world) == frozenset()
+    world.livelihoods.repair_projects._labour = None
     # Never an asset without an open work, never in a mode without works.
     assert IC.timber_wants(_pl1_world(work_region=0, condition=0.9)) == []
     for mode in ("record_only", "wear_only"):
@@ -1169,6 +1192,30 @@ def test_rs2_and_its_woodcutters_are_unchanged_when_the_works_ask_for_nothing(ca
     else:
         assert state.timber_needs == [] and "timber_needs" not in state.model_dump()
         assert "timber_needs" not in IC.snapshot_summary(on)
+
+
+def test_rs2_and_pl1_are_unchanged_by_a_non_asking_work_in_rs2s_own_region(monkeypatch):
+    """RS2's granary project and, in the same region, a road work under L9 that
+    asks nothing (never awarded an envelope: the works' L9 envelope is 0, every
+    other service keeps its legacy rule). PL1 neither plans for it nor keeps
+    RS2's leftover store for it: RS2 and PL1 equal the switch off (review of
+    0187bfb5: the store was kept for every open work)."""
+    import chronicler.local_budgets as LB
+    monkeypatch.setattr(LB, "envelope", lambda world, civ, service, **k: 0 if service == IC.BUDGET_SERVICE else None)
+
+    def world(switch):
+        return _pl1_world(rs2_region=0, work_region=0, switch=switch, kind=ROADS)
+    on, off = world(True), world(False)
+    _pl1_run(on, 16)
+    _pl1_run(off, 16)
+    ts_on, ts_off = on.livelihoods.timber_supply, off.livelihoods.timber_supply
+    assert ts_on.model_dump() == ts_off.model_dump()
+    assert ts_off.counters.get("released", 0) > 0          # RS2's leftover store is released in both
+    rp_on, rp_off = on.livelihoods.repair_projects, off.livelihoods.repair_projects
+    assert [p.model_dump() for p in rp_on.projects + rp_on.closed] == \
+        [p.model_dump() for p in rp_off.projects + rp_off.closed]
+    state = _state(on)
+    assert state.works and state.works[0].stalls.get("no_envelope", 0) > 0 and state.timber_needs == []
 
 
 def test_the_works_timber_comes_only_from_the_woodcutters_store_exactly_once():

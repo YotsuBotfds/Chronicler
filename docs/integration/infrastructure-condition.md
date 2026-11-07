@@ -189,7 +189,9 @@ by region and `aid`.
   wages from the controller's treasury and the one work reservation: no other labour authority, no
   free timber. The cargo is cut through the forest's L3 account and delivered to the home region's
   store, which RS2's holds (the works' included) take first, exactly once; PL1 keeps the store
-  where a work is open instead of releasing it, and releases it once none is. **Boundary:** only
+  where a work asks for timber (the same screen as the need rows) instead of releasing it, and
+  releases it once none asks, so a work that asks nothing (an L9 road, a region without a farmer)
+  never holds RS2's leftover out of the stockpile (review of `0187bfb5`). **Boundary:** only
   works already opened by the lifecycle ask, never an asset that has not opened one; a work asks
   nothing when its record is not in service, its region has no controller or had no farmer after
   the turn's agent tick (RS2's observed count, as PL1 skips RS2 granaries without farm labour);
@@ -200,7 +202,9 @@ by region and `aid`.
   2 (it depends on storage's own inputs, so no prediction screens the need); a work stalled there
   keeps its delivered timber in the store. Works opened in this Phase 10 ask from the next (B3's
   Phase 10 hook runs after PL1's). The rows are recorded here (`timber_needs`); PL1's own need rows
-  and their counters stay RS2's. Off, and in `record_only`/`wear_only`, nothing changes.
+  and their counters stay RS2's, PL1's `launched` counts RS2's launches and `launched_works` the
+  works' (absent until the works launch one; the veteran and per-expedition counters count every
+  expedition). Off, and in `record_only`/`wear_only`, nothing changes.
 - **Coins:** `COIN_MILLI_PER_WORK` per delivered unit, rounded up to the milli-unit; one whole-unit
   charge per civ and turn, the sub-unit remainder prepaid toward the civ's next works (RS2's rule).
   The works plan **after** every Phase 2 bill RS2 plans around and after RS2's own planned charge,
@@ -297,7 +301,7 @@ stalled work as the directly recorded "underfunded public works" story.
 
 ### Tests
 
-- `tests/test_infrastructure_condition.py` (offline, 68 tests): identity matching and lifecycle
+- `tests/test_infrastructure_condition.py` (offline, 69 tests): identity matching and lifecycle
   (every end cause, removal, rebuild, mid-turn damage skipping an ended record), wear, service and
   failure (failed is not rebuilt), service failing closed for an unknown region, consumers
   bit-identical when off and in `record_only` (arable capacity, `has_irrigation`, the road range
@@ -318,11 +322,14 @@ stalled work as the directly recorded "underfunded public works" story.
   pickle resume inside an open flood with damaged works, and the PL1 timber link on PL1's
   constructed line (one forest between two regions): the works get woodcutters only after RS2 (an
   RS2 need in a higher-indexed region takes the one forest, the works' row is refused
-  `forest_busy`; alone the works' need launches PL1's crew; in RS2's own region one expedition
-  serves both, RS2's want counted first), the works ask only for open works that can use timber
+  `forest_busy`; alone the works' need launches PL1's crew and counts in `launched_works`; in RS2's
+  own region one expedition serves both, RS2's want counted first), the works ask, and keep a store,
+  only for open works that can use timber
   (no farmer, L9 roads and L9's predicted `granary_first` ask nothing; `record_only`/`wear_only`
   never ask), RS2 and PL1 byte-identical over eight turns when the works ask for nothing (no
-  work, a work its own stockpile covers, `record_only`, `wear_only`), every load the works use cut
+  work, a work its own stockpile covers, `record_only`, `wear_only`) and over sixteen turns with an
+  L9 road work in RS2's own region (RS2's leftover store released as with the switch off; this
+  case failed before the fix), every load the works use cut
   by PL1's crew and passed through the store exactly once (delivered = used + released, held -
   returned = used, the store kept until the work completed), and an exact pickle resume with a
   works' expedition outstanding.

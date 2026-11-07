@@ -40,7 +40,9 @@ the cargo on its way leave after RS2's want there; a region with a live
 expedition gets no second one, and a gap of at least ``MIN_GAP`` launches one
 under the same checks, crew rule, wages and work reservation (no other labour
 authority), or records the refusal. The rows go to B3's record; this
-package's need rows and their counters stay RS2's. Off, and in B3's
+package's need rows and their counters stay RS2's, and the works' launches
+count in ``launched_works`` (``launched`` stays RS2's). The store is kept
+only in regions whose works ask (the same screen). Off, and in B3's
 ``record_only``/``wear_only``, nothing here changes.
 
 Who goes. At most ``CREW_CAP`` living adults resident in the home region,
@@ -84,8 +86,9 @@ credited to an RS2-earmarked store of the home region. RS2 reads the store as
 free timber ahead of the stockpile, and its holds take from the store first
 (the PL1 seam in ``repair_projects``; B3's works hold through RS2's holds);
 nothing else can take it (it is not in the native stockpile). Timber left in
-a region without an open RS2 project (or, with B3's works on, an open work)
-is released to the region's stockpile, and the release is recorded.
+a region without an open RS2 project (or, with B3's works on, an open work
+that asks for timber) is released to the region's stockpile, and the release
+is recorded.
 
 A turn the controller cannot pay recalls the expedition: the crew stops
 cutting and walks home with the cargo, and every return-leg turn it cannot
@@ -1156,8 +1159,9 @@ def _works_wants(world) -> list:
 
 
 def _works_regions(world) -> frozenset[int]:
-    """B3 seam: regions with an open infrastructure work (the store is kept
-    there for them, as for an open RS2 project); empty unless the works are on."""
+    """B3 seam: regions whose open infrastructure works ask for timber (the
+    screen of ``timber_wants``; the store is kept there for them, as for an
+    open RS2 project); empty unless the works are on."""
     if getattr(getattr(world, "livelihoods", None), "infrastructure_condition", None) is None:
         return frozenset()
     from chronicler.infrastructure_condition import timber_regions
@@ -1165,9 +1169,10 @@ def _works_regions(world) -> frozenset[int]:
 
 
 def _try_launch(world, state, snapshot, civ: int, region: int, gap: float, acc, enlisted, trips, wage: int,
-                turn: int) -> tuple[str | None, Expedition | None]:
+                turn: int, counter: str = "launched") -> tuple[str | None, Expedition | None]:
     """Launch an expedition from ``region`` for ``gap``, or name the first
-    failing check (``REFUSALS`` order): ``(None, expedition)`` or ``(reason, None)``."""
+    failing check (``REFUSALS`` order): ``(None, expedition)`` or ``(reason, None)``.
+    ``counter``: ``launched`` for RS2's need, ``launched_works`` for B3's works."""
     from chronicler.mutual_aid import _treasury_budget
     forest, reason = _choose_forest(world, state, civ, region)
     crew, soldiers = [], set()
@@ -1197,7 +1202,7 @@ def _try_launch(world, state, snapshot, civ: int, region: int, gap: float, acc, 
     state.next_eid += 1
     _note(exp, turn, "launched")
     state.expeditions.append(exp)
-    _bump(state, "launched")
+    _bump(state, counter)
     _bump(state, "launched_veterans", len(veterans))
     _bump(state, "soldier_veterans", len(soldiers))
     return None, exp
@@ -1256,7 +1261,9 @@ def _plan_works(world, state, snapshot, acc, enlisted, trips, works, wants, comm
     ``MIN_GAP`` launches one under the same checks, crew rule, wages and
     reservation as RS2's (no other labour authority), or records the refusal.
     The rows go to B3's record (``TimberNeed``); PL1's need rows and their
-    counters stay RS2's. The cargo is delivered to the home region's store,
+    counters stay RS2's, and the works' launches count in ``launched_works``
+    (``launched`` stays RS2's; the veteran and per-expedition counters count
+    every expedition). The cargo is delivered to the home region's store,
     which RS2's holds (the works' included) take first."""
     from chronicler import repair_projects as RP
     from chronicler.infrastructure_condition import record_timber_needs
@@ -1274,7 +1281,8 @@ def _plan_works(world, state, snapshot, acc, enlisted, trips, works, wants, comm
         if homed:
             row.status, row.eid = "expedition", homed[0].eid
         elif gap >= MIN_GAP:
-            reason, exp = _try_launch(world, state, snapshot, civ, region, gap, acc, enlisted, trips, wage, turn)
+            reason, exp = _try_launch(world, state, snapshot, civ, region, gap, acc, enlisted, trips, wage, turn,
+                                      counter="launched_works")
             if reason is not None:
                 row.status, row.reason = "refused", reason
             else:
