@@ -46,8 +46,8 @@ CHANNELS: tuple[tuple[str, str | None, str], ...] = (
     # C2 wages and withheld income are itemized when A1 observation is active.
     ("care_wage", "epidemic_care", "treasury -> epidemic carers by id (C2)"),
     ("cargo_purchase", "titled_trade", "merchant -> owners of surplus food, titled cargo bought by id (A4)"),
-    ("restitution", "war_requisition", "liable treasury -> living owners of seized food/cargo (D4)"),
     ("relief_purchase", "reform_services", "relief fund -> owners of food bought for poor relief, by id (D1a)"),
+    ("restitution", "war_requisition", "liable treasury -> living owners of seized food/cargo (D4)"),
     ("timber_purchase", "timber_orders", "carriers -> origin treasury for real timber"),
     ("timber_freight", "timber_orders", "destination escrow -> carriers only for delivered timber"),
     ("guard_wage", "public_health", "treasury -> named border guard"),
@@ -61,11 +61,14 @@ CHANNEL_NAMES: tuple[str, ...] = tuple(c[0] for c in CHANNELS)
 #: a receipt row is matched. PL3's granary and workshop crews are separate
 #: (the recorded limit RL7); RS2's workshop crews are PL3's workshop crews
 #: while PL3 is active (PL3 widens RS2's pool; RS2 installs the share).
-WITHHELD_PACKAGES: tuple[str, ...] = (
+_LEGACY_WITHHELD_PACKAGES: tuple[str, ...] = (
     "workshop_payroll", "apprenticeship", "recovery_crews_granary", "recovery_crews_workshop",
-    "repair_projects", "timber_supply", "timber_orders", "public_health", "infrastructure_condition",
+    "repair_projects", "timber_supply",
     # A4: a titled shipment's carrier (its whole ordinary income; row only while A4 is active).
-    "titled_trade", "epidemic_care",
+    "titled_trade",
+)
+WITHHELD_PACKAGES: tuple[str, ...] = _LEGACY_WITHHELD_PACKAGES + (
+    "epidemic_care", "timber_orders", "public_health", "infrastructure_condition",
 )
 
 #: Withheld channels that are not paid work (no money moves). ``withheld_retail``:
@@ -234,7 +237,7 @@ WEALTH_WRITER_REFERENCES: dict[tuple[str, str, str], int] = {
 #: (append only; a native test fails when the extension grows past it).
 KNOWN_PURPOSES: tuple[str, ...] = (
     "workshop_wage", "relocation_fare", "apprentice_stipend", "repair_wage", "remittance", "food_purchase",
-    "food_procurement", "wares_purchase", "cargo_purchase", "cargo_sale",
+    "food_procurement", "wares_purchase", "cargo_purchase", "cargo_sale", "restitution",
 )
 
 #: Continuity of an opening with the previous closing.
@@ -257,7 +260,7 @@ MAX_CONTINUITY_REGIONS = 16
 LIFETIME: tuple[str, ...] = (
     *(f"{name}_{side}_milli" for name in CHANNEL_NAMES[:10] for side in ("in", "out")),
     "delta", "native_model", "discontinuity",
-    *(f"withheld_{name}" for name in WITHHELD_PACKAGES), "withheld_unattributed",
+    *(f"withheld_{name}" for name in _LEGACY_WITHHELD_PACKAGES), "withheld_unattributed",
     # tithe_potential replaced tithe_offered in place once, before the first
     # landing (no saved state carried it); append only from here.
     "treasury_tax_created", "tithe_potential", "treasury_to_households_milli",
@@ -277,6 +280,7 @@ LIFETIME: tuple[str, ...] = (
 # declaration order or duplicating explicitly recorded channel counters.
 LIFETIME += tuple(f"{name}_{side}_milli" for name in CHANNEL_NAMES for side in ("in", "out")
                   if f"{name}_{side}_milli" not in LIFETIME)
+LIFETIME += tuple(f"withheld_{name}" for name in WITHHELD_PACKAGES if f"withheld_{name}" not in LIFETIME)
 
 #: Lifetime counters (declaration order; append only).
 COUNTERS: tuple[str, ...] = (

@@ -845,3 +845,14 @@ def test_new_package_adapter_reads_uncapped_totals_and_closes_treasury_carry(mon
     assert book.treasury["to_households_milli"]["care_wage"] == 600
     assert all(row["closes"] for row in book.closures)
     assert book.civ[0]["charged"] == 1
+
+
+def test_merged_declaration_order_prefixes_remain_stable():
+    # Saved public schema from independently reviewed PR95/11467a46. New
+    # counters append after it, including its historical titled_trade repeat.
+    import hashlib
+    import json
+    expected = {'CHANNEL_NAMES': (14, '8617e73affb19e96eb45d047e4e228f1d417fa4504ca57c4255e97b63d107525'), 'WITHHELD_PACKAGES': (7, '26bbcbb1216deb89ef39ed22da8af55399173456cace94e927ca4aa775c4959f'), 'LIFETIME': (49, '6d9b53c1a5b8d01dc77dfafc6b72f7a91f39f897219456065e9f3531e2ea79c0')}
+    for name, (length, digest) in expected.items():
+        value = {"CHANNEL_NAMES": CHANNEL_NAMES, "WITHHELD_PACKAGES": WITHHELD_PACKAGES, "LIFETIME": LIFETIME}[name]
+        assert hashlib.sha256(json.dumps(value[:length]).encode()).hexdigest() == digest

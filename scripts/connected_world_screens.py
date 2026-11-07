@@ -11,16 +11,11 @@ ceiling and the identities are in ``scripts/screen_runner.py``; the seed numbers
 are reserved in ``scripts/seed_registry.json``; the page is
 docs/integration/connected-world-screens.md.
 
-CW6 is a **stub**: only its cohorts are declared (CW5c, the care slice of S4, is declared
-below on its own fresh cohort). Each slice
-fills in its screen's base, arms, packages, outcomes (2-3 primary), activation
-rule and extractor, writes its preregistration and sets ``ready=True``. Until
-then every run of the screen is refused (``check`` reports it NOT READY, exit
-code 2). CW4 (slice C1, quarantine rules), CW4b (slice C1b, the migration channel,
-on its own reserved cohort) and CW1 (slice S1, the wage and ``paid_work``
-enrollment; a two-phase screen) and CW3 (slice B2, the watershed in flow mode under
-upstream forest protection; procedural stratum only), CW2 (slices A3-1 and A3-2: workshop
-economics and the owned-output rule) and CW5 (slice A4-1: titled trade) are declared below.
+CW6 is the integrated A–E bounded screen, implemented in
+``cw_integrated_screen.py`` and available through this entry point. That
+module owns its sidecar-aware extractor, serial resource guard and frozen
+preregistration. CW1–CW5 and their historical follow-ons retain their own
+source identities and outcomes. No screen implies full qualification.
 
 ``DEV`` is a development-only smoke screen (no pilot or held cohort): it runs the
 runner end to end on registered development worlds, e.g.
@@ -3212,6 +3207,12 @@ SCREENS["CW3b"] = SR.Screen(
     activation=cw3b_activation, extract=cw3b_extract, report=_cw3b_report, ready=True, module=MODULE)
 
 
+# The original reserved CW6 is now implemented, rather than a ready-looking
+# placeholder. Its main() owns the sidecar loader only while CW6 executes.
+import cw_integrated_screen as _cw6
+SCREENS["CW6"] = _cw6.SCREEN
+
+
 # --- DEV: the development smoke screen ---------------------------------------------
 
 def _timber_activation(bundle: dict, flags) -> tuple[bool | None, str]:
@@ -3250,7 +3251,11 @@ def main(argv=None) -> int:
         got = cw5c_compact(Path(args[1]), Path(args[2]))
         print(f"{got['rows']} rows; full metrics sha256 {got['sha256_full']}")
         return 0
-    return SR.main(argv, SCREENS, prog="connected_world_screens.py")
+    selected = next((args[i + 1] for i, token in enumerate(args[:-1]) if token == "--screen"), None)
+    selected = next((token.split("=", 1)[1] for token in args if token.startswith("--screen=")), selected)
+    if selected == "CW6":
+        return _cw6.main(args)
+    return SR.main(args, SCREENS, prog="connected_world_screens.py")
 
 
 if __name__ == "__main__":

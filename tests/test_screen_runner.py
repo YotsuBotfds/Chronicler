@@ -1,4 +1,4 @@
-"""The connected-world screen runner, its seed registry and the CW6 stub.
+"""The connected-world screen runner, its seed registry and the integrated CW6 entry point.
 
 Offline: constructed bundles and a fake runtime (no simulation, no child process);
 the real parser and feature catalog check arm command lines. Nothing here runs a
@@ -517,10 +517,10 @@ class FakeRuntime:
 
 
 @pytest.mark.parametrize("cohort", ["held", "pilot"])
-def test_stub_screens_are_refused(SR, CW, tmp_path, cohort):
+def test_an_unready_screen_is_refused(SR, CW, tmp_path, cohort):
     fake = FakeRuntime(SR)
     with pytest.raises(SystemExit, match="CW6 is not ready"):
-        SR.run_main([str(tmp_path / "out"), "--screen", "CW6", "--cohort", cohort], CW.SCREENS, fake.rt)
+        SR.run_main([str(tmp_path / "out"), "--screen", "CW6", "--cohort", cohort], {**CW.SCREENS, "CW6": dataclasses.replace(CW.SCREENS["CW6"], ready=False)}, fake.rt)
     assert fake.calls == []
 
 
@@ -655,10 +655,10 @@ def test_registry_content_hash_ignores_run_records_only(SR, registry):
     assert not SR.code_path("scripts/seed_registry.json") and SR.code_path("scripts/screen_runner.py")
 
 
-def test_check_command_reports_stubs_not_ready(SR, CW, capsys):
-    assert CW.main(["check", "--screen", "all"]) == 2
+def test_check_command_reports_implemented_screens_ready(SR, CW, capsys):
+    assert CW.main(["check", "--screen", "all"]) == 0
     text = capsys.readouterr().out
-    assert "CW6: seeds OK" in text and "CW6: NOT READY" in text
+    assert "CW6: seeds OK" in text and "CW6: extractor, packages, 5 arms" in text and "CW6: NOT READY" not in text
     # CW2 is declared by slices A3-1/A3-2 and CW5 by slice A4-1 (tests/test_cw2_screen.py, test_cw5_screen.py).
     assert "CW2: seeds OK" in text and "CW2: extractor, packages, 5 arms and 47 outcomes (3 primary): OK" in text
     assert "CW5: seeds OK" in text and "CW5: extractor, packages, 2 arms and 41 outcomes (2 primary): OK" in text
@@ -1123,3 +1123,12 @@ def test_a_paired_reading_reads_both_rows_names_an_exclusion_and_never_falls_bac
     # Without a control the pair is not used (and check_preregistration refuses such an outcome).
     cells, values = SR.paired_values(rows, screen, "TS", None, read, "t", [1], pair=lambda a, c: None)
     assert values == [5.0]
+
+
+@pytest.mark.parametrize("selection", [["--screen", "CW6"], ["--screen=CW6"]])
+def test_generic_entry_delegates_integrated_sidecar_ownership(monkeypatch, CW, selection):
+    calls = []
+    monkeypatch.setattr(CW._cw6, "main", lambda argv: calls.append(argv) or 73)
+    assert CW.main(["check", *selection]) == 73
+    assert calls == [["check", *selection]]
+    assert CW.SCREENS["CW6"] is CW._cw6.SCREEN

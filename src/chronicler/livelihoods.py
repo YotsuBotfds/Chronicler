@@ -130,16 +130,6 @@ from chronicler.livelihoods_state import LIVELIHOODS_SWITCHES, LivelihoodsState
 
 #: Non-boolean options, with their choices (first: the default when enabled).
 LIVELIHOODS_CHOICES: dict[str, tuple[str, ...]] = {
-    "movement_branches_mode": ("funded", "record_only", "cost_only"),
-    "wealth_accounting_mode": ("observe", "strict"),
-    "war_requisition_mode": ('transfer', 'cost_only'),
-    "war_consequences_mode": ('active', 'record_only'),
-    "adaptive_livelihoods_mode": ('adapt', 'record_only', 'shuffled'),
-    "adaptive_livelihoods_rules": ('2', '1'),
-    "public_health_mode": ('active', 'cost_only'),
-    "public_health_policy": ('evidence', 'shuffled'),
-    "public_health_report_delay": ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20'),
-
     "workshop_mode": ("operate", "observe", "cost_only"),
     "food_allocation_regime": ("floor_means", "equal", "targeted_relief"),
     "convoy_route_policy": ("adaptive", "cheapest", "safest"),
@@ -164,10 +154,19 @@ LIVELIHOODS_CHOICES: dict[str, tuple[str, ...]] = {
     "workshop_economics_mode": ("market", "free_inputs", "academy_only"),
     "workshop_economics_rules": ("1", "2"),
     "infrastructure_condition_mode": ("repair", "record_only", "wear_only", "cost_only"),
-    "harvest_cover_mode": ("loss", "record_only"),
     "epidemic_care_mode": ("care", "cost_only"),
     "reform_services_mode": ("service", "cost_only"),
     "guild_league_mode": ("mutual", "dues_only"),
+    "movement_branches_mode": ("funded", "record_only", "cost_only"),
+    "wealth_accounting_mode": ("observe", "strict"),
+    "war_requisition_mode": ('transfer', 'cost_only'),
+    "war_consequences_mode": ('active', 'record_only'),
+    "adaptive_livelihoods_mode": ('adapt', 'record_only', 'shuffled'),
+    "adaptive_livelihoods_rules": ('2', '1'),
+    "public_health_mode": ('active', 'cost_only'),
+    "public_health_policy": ('evidence', 'shuffled'),
+    "public_health_report_delay": ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20'),
+    "harvest_cover_mode": ("loss", "record_only"),
 }
 #: All parser destinations owned here (``batch_manifest.SIMULATION_ARG_KEYS``).
 LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (

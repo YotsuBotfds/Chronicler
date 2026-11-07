@@ -234,6 +234,7 @@
       "tests/test_tech_focus.py",
       "tests/test_terrain.py",
       "tests/test_timber_orders.py",
+      "tests/test_timber_orders_native.py",
       "tests/test_timber_stock.py",
       "tests/test_timber_supply.py",
       "tests/test_titled_trade.py",
