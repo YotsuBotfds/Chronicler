@@ -38,7 +38,7 @@ satisfaction), which is not the lasting label.
   the owned food held there (the owners' unsold surplus), at most what the fund
   can pay at the region's installed ask (``ceil(food x price / ration)``). The
   fund pays the owners by stable id, pro rata to their claims (``money.pay``,
-  native purpose ``food_procurement``, batch ``1 + region``; a wealth ceiling's
+  seam purpose ``relief_purchase`` keyed natively under ``food_procurement``, batch ``1 + region``; a wealth ceiling's
   residual returns to the fund), then retail debits their claims
   (``relief_bought``) and moves the food into the region's commons, so the next
   turn's provisioning offers it in its free pool to those who cannot buy. When
@@ -434,7 +434,7 @@ def _purchases(world, state: ReformServicesState, t: _Turn, frame: ReliefFrame, 
             shares = hr.relief_shares(world, rid, food)
             pay = hr.largest_remainder(cost, shares.items())
             lines = tuple((money.agent(aid), amount) for aid, amount in sorted(pay.items()) if amount > 0)
-            bill = money.Bill(purpose="food_procurement", batch=RELIEF_BATCH_BASE + rid, phase="phase10",
+            bill = money.Bill(purpose="relief_purchase", batch=RELIEF_BATCH_BASE + rid, phase="phase10",
                               payer=money.relief_fund(civ), lines=lines, regions=(rid,) * len(lines))
             purse = _Purse(cash)
             got = money.pay(world, bill, turn=turn, book=state.book, acc=acc, sim=sim, funds={civ: purse})

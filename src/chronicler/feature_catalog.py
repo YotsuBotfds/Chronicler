@@ -47,8 +47,8 @@ Requirement conditions (JSON objects, each with a human ``reason``):
 * ``{"not": condition}``: the condition does not hold. Two mutually exclusive
   switches each declare ``_excludes(other)`` (``{"not": {"feature": other}}``,
   reason "requires --other off"); a one-sided exclusion is a declaration error
-  (``exclusion_problems``). No switch declares one yet, so the served catalog
-  is unchanged.
+  (``exclusion_problems``). The first pair: ``epidemic_care`` (C2) and
+  ``wealth_accounting`` (A1, which does not itemize care wages).
 """
 from __future__ import annotations
 
@@ -167,8 +167,11 @@ REQUIREMENTS: dict[str, tuple[dict, ...]] = {
     "household_retail": (_HYBRID, _feature("food_allocation")),
     "watershed": (_setting("procedural_world"),),
     "workshop_economics": (_HYBRID, _feature("workshop_payroll")),
+    # C2: L9 funds the carers; the epidemic model and its ledger are the effect's
+    # authority; the A1 ledger does not itemize care wages (mutual exclusion).
+    "epidemic_care": (_HYBRID, _feature("local_budgets"), _setting("epidemiology"), _excludes("wealth_accounting")),
     "attribution_records": (_HYBRID,),
-    "wealth_accounting": (_HYBRID,),
+    "wealth_accounting": (_HYBRID, _excludes("epidemic_care")),
     # D1a: the service buys through the retail free pool (owners paid by id), so it
     # needs priced retail; the cost-only control runs on the same retail world.
     "reform_services": (_HYBRID, _feature("household_retail"), _choice("household_retail_mode", "retail", "no_relief"),

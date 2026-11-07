@@ -447,8 +447,8 @@ def _workshop_economics(world, book: _Book, t: _Turn, turn: int) -> None:
     channel_of = {name: (i, package) for i, (name, package, _payer) in enumerate(CHANNELS)}
     moved = {}
     for purpose, channel in MONEY_PURPOSE_CHANNELS.items():
-        if channel_of[channel][1] != "workshop_economics":
-            continue                     # another package's seam channel, read by its own reader
+        if CHANNELS[channel_of[channel][0]][1] != "workshop_economics":
+            continue    # another payer's purpose (C2 care wages: excluded with this ledger; D1a: its own reader)
         inflow = outflow = 0
         by_region: dict[int, list[int]] = {}
         for x in totals:
