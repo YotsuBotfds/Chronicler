@@ -14,8 +14,9 @@ drift. It lists:
   name -> {switch: its choice keys}), listed after the livelihoods group in
   declaration order. A group key may also be a top-level choice with no
   boolean switch (``Public health``: ``--quarantine-mode``, whose first choice,
-  ``legacy``, is the run's rule when unset); it declares ``REQUIREMENTS`` as a
-  switch does.
+  ``legacy``, is the run's rule when unset, and ``--quarantine-channels``,
+  whose first choice ``trade`` is C1's closure); it declares ``REQUIREMENTS``
+  as a switch does.
 
 Choices that need a file the server cannot be handed (``CLI_ONLY_CHOICES``:
 the retail ``schedule`` boundary and its ``--household-retail-schedule``
@@ -81,7 +82,7 @@ PREREQUISITES: dict[str, tuple[str, ...]] = {
 #: that is itself a choice (``quarantine_mode``) is a top-level choice: no
 #: switch, its own ``REQUIREMENTS``, its first choice the run's rule when unset.
 FEATURE_GROUPS: dict[str, dict[str, tuple[str, ...]]] = {
-    "Public health": {"quarantine_mode": ()},
+    "Public health": {"quarantine_mode": (), "quarantine_channels": ()},
 }
 
 #: Choices of a served option that only the command line can use (each
@@ -167,6 +168,11 @@ REQUIREMENTS: dict[str, tuple[dict, ...]] = {
     "wealth_accounting": (_HYBRID,),
     # An explicit legacy is the option omitted: it needs nothing (lead decision m4).
     "quarantine_mode": (_any(_setting("epidemiology"), _choice("quarantine_mode", "legacy")),),
+    # C1b: an explicit trade is the option omitted; trade,migration closes native
+    # migration, so it needs the closure mode and a mode in which the native pool
+    # owns the population (not shadow: Python still moves its population there).
+    "quarantine_channels": (_any(_choice("quarantine_channels", "trade"), _choice("quarantine_mode", "closure")),
+                            _any(_choice("quarantine_channels", "trade"), _agents("hybrid", "demographics-only"))),
 }
 
 

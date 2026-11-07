@@ -1,4 +1,5 @@
-"""The CW4 screen (quarantine rules, slice C1): arms, activation and extractors.
+"""The CW4 screen (quarantine rules, slice C1) and the CW4b screen (its migration
+channel, slice C1b): arms, activation and extractors.
 
 Offline: constructed bundles only (no simulation, no child process); the
 extractors were also cross-checked on development-world bundles (the
@@ -182,3 +183,90 @@ def test_activation_per_arm(CW):
     sick = [_snap(1, active=[{"region": "A1", "deaths": 0}]), _snap(2)]
     assert CW.cw4_activation(_bundle(sick), ("--quarantine-mode", "none"))[0] is True
     assert CW.cw4_activation(_bundle([_snap(1)]), ("--quarantine-mode", "none"))[0] is False
+
+
+# --- CW4b: the migration channel (slice C1b) -------------------------------------------
+
+QRM = ("--quarantine-mode", "closure", "--quarantine-channels", "trade,migration")
+MIG_TOTALS = {"migrants_blocked": 0, "migrants_blocked_flight": 0, "migrants_blocked_hunger": 0,
+              "migrants_refusal_spells": 0}
+
+
+def _mig_rules(turn, blocked, *, cumulative, totals=None, channels=("trade", "migration")):
+    rules = _rules("closure", turn, totals={"closures_opened": 1, **MIG_TOTALS, **(totals or {}),
+                                             "migrants_blocked": cumulative})
+    rules["channels"] = list(channels)
+    rules["receipt"].update(migrants_blocked=blocked, migration_refusals=None if blocked is None else (
+        [{"closure": 1, "from": "A1", "to": "B1", "driver": "famine_memory", "persons": blocked}] if blocked else []))
+    return rules
+
+
+def _mig_bundle(per_turn, **kwargs):
+    snaps, total = [], 0
+    for s, blocked in enumerate(per_turn, start=1):
+        total += blocked or 0
+        snaps.append(_snap(s, rules=_mig_rules(s, blocked, cumulative=total, **kwargs)))
+    return _bundle(snaps)
+
+
+def test_cw4b_declares_three_arms_on_one_chain_and_qrm_minus_qc_primaries(CW):
+    screen = CW.SCREENS["CW4b"]
+    assert screen.ready and screen.root == "QC"
+    assert {arm: control for arm, (_f, control) in screen.arms.items()} == {"QC": None, "QR": "QC", "QRM": "QR"}
+    assert screen.arms["QRM"][0] == QRM and screen.arms["QR"][0] == ("--quarantine-mode", "closure")
+    assert [o.id for o in screen.primaries()] == ["cw4b_world_arrivals", "cw4b_world_death_rate"]
+    assert all((o.arm, o.control) == ("QRM", "QC") for o in screen.primaries())
+    by_id = {o.id: o for o in screen.outcomes}
+    assert (by_id["cw4b_mig_world_arrivals"].arm, by_id["cw4b_mig_world_arrivals"].control) == ("QRM", "QR")
+    assert by_id["cw4b_refusals"].control is None
+    assert screen.held == {"template": tuple(range(3101, 3107)), "procedural": tuple(range(3201, 3207))}
+    assert screen.pilot == {"template": (5,), "procedural": (19,)}
+    assert screen.base == ("--turns", "200", "--agents", "hybrid", "--simulate-only")
+    from screen_runner import check_screen
+    assert check_screen(screen) == []
+
+
+def test_cw4b_reads_the_refusal_totals_and_checks_them_against_the_receipts(CW):
+    bundle = _mig_bundle([0, 3, 0, 2], totals={"migrants_blocked_flight": 4, "migrants_blocked_hunger": 1,
+                                               "migrants_refusal_spells": 4})
+    m, problems = CW.cw4b_extract(bundle, QRM)
+    assert problems == []
+    assert (m["migrants_blocked"], m["migrants_blocked_flight"], m["migrants_blocked_hunger"],
+            m["migrants_refusal_spells"], m["turns_with_refusals"]) == (5, 4, 1, 4, 2)
+    # Totals that disagree with the receipts, an unobserved receipt or a missing total are refused.
+    bad = _mig_bundle([0, 3, 0, 2])
+    bad["history"][-1]["epidemics"]["quarantine_rules"]["totals"]["migrants_blocked"] = 9
+    assert any("sum to 5" in p for p in CW.cw4b_extract(bad, QRM)[1])
+    assert any("not observed" in p for p in CW.cw4b_extract(_mig_bundle([0, None, 1]), QRM)[1])
+    gone = _mig_bundle([1, 1])
+    del gone["history"][-1]["epidemics"]["quarantine_rules"]["totals"]["migrants_refusal_spells"]
+    assert any("lack migrants_refusal_spells" in p for p in CW.cw4b_extract(gone, QRM)[1])
+    rows = _mig_bundle([2])
+    rows["history"][0]["epidemics"]["quarantine_rules"]["receipt"]["migration_refusals"][0]["persons"] = 1
+    assert any("refusal rows differ" in p for p in CW.cw4b_extract(rows, QRM)[1])
+
+
+def test_cw4b_channels_must_match_the_arm_and_migration_values_are_never_zero_elsewhere(CW):
+    trade = [_snap(s, rules={**_rules("closure", s), "channels": ["trade"]}) for s in range(1, 4)]
+    m, problems = CW.cw4b_extract(_bundle(trade), ("--quarantine-mode", "closure"))
+    assert problems == [] and m["migrants_blocked"] is None and m["migrants_refusal_spells"] is None
+    cost = [_snap(s, rules={**_rules("cost_only", s), "channels": []}) for s in range(1, 4)]
+    assert CW.cw4b_extract(_bundle(cost), ("--quarantine-mode", "cost_only"))[1] == []
+    # The migration channel's record in the trade arm, or a trade record in QRM, is a missing outcome.
+    assert any("channels differ" in p for p in CW.cw4b_extract(_mig_bundle([1]), ("--quarantine-mode", "closure"))[1])
+    assert any("channels differ" in p for p in CW.cw4b_extract(_bundle(trade), QRM)[1])
+    leaky = [_snap(s, rules={**_rules("closure", s, totals=MIG_TOTALS), "channels": ["trade"]}) for s in range(1, 3)]
+    assert any("without the migration channel" in p
+               for p in CW.cw4b_extract(_bundle(leaky), ("--quarantine-mode", "closure"))[1])
+
+
+def test_cw4b_activation(CW):
+    assert CW.cw4b_activation(_mig_bundle([0, 2]), QRM)[0] is True
+    assert CW.cw4b_activation(_mig_bundle([0, 0]), QRM)[0] is False        # closed, but nobody refused
+    no_total = _mig_bundle([1])
+    del no_total["history"][-1]["epidemics"]["quarantine_rules"]["totals"]["migrants_blocked"]
+    assert CW.cw4b_activation(no_total, QRM)[0] is None
+    trade = [_snap(s, rules={**_rules("closure", s, totals={"closures_opened": 2}), "channels": ["trade"]})
+             for s in range(1, 3)]
+    assert CW.cw4b_activation(_bundle(trade), ("--quarantine-mode", "closure")) == (True, "2 closures opened (closure)")
+    assert CW.cw4b_activation(_bundle([_snap(1)]), QRM)[0] is None

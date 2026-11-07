@@ -143,7 +143,7 @@ def test_the_manifest_records_the_cohort_and_identity(batch_42):
                                                            "household_retail", "household_retail_mode", "household_retail_boundary",
                                                            "household_retail_rules", "household_retail_schedule",
                                                            "watershed", "watershed_mode",
-                                                           "quarantine_mode", "wealth_accounting"}) | {"tuning_overrides"}
+                                                           "quarantine_mode", "wealth_accounting", "quarantine_channels"}) | {"tuning_overrides"}
     assert (simulation["civs"], simulation["regions"], simulation["agents"], simulation["cities"]) == (2, 4, "off", None)
     assert manifest["outputs"]["simulate_only"] is True
     environment = manifest["environment"]
