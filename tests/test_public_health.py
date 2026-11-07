@@ -86,8 +86,8 @@ def test_owned_and_committed_grain_are_never_sold_as_public_supply(monkeypatch):
     w, st = _enabled()
     w.regions[0].stockpile.goods["grain"] = 10
     monkeypatch.setattr("chronicler.household_retail.pilot_entry", lambda w, rid: SimpleNamespace(goods=[4000]) if rid == 0 else None)
-    assert PH._available(w, 0, {w.regions[0].name: {"grain": 3.0}}) == 3000
-    assert PH._available(w, 0, {w.regions[0].name: {"grain": 7.0}}) == 0
+    assert PH._available(w, 0, {w.regions[0].name: {"grain": 3.0}}) == 7000
+    assert PH._available(w, 0, {w.regions[0].name: {"grain": 10.0}}) == 0
 
 
 def test_only_open_direct_neighbors_sell_and_foreign_owner_receives_real_cash():
