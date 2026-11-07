@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "board_version": 24,
+  "board_version": 25,
   "title": "Connected-world program (A livelihoods and trade, B watersheds and infrastructure, C public health, D institutions and war, E stories and evidence) operational board",
   "plan": "docs/superpowers/roadmaps/connected-world-program.md",
   "owner_instruction": "2026-11-06 (after #82): own the A-E program end to end with parallel workers, integrating and evaluating each slice and continuing across slice boundaries; merges of this program authorized after independent review, green premerge Tests on the reviewed head and verified main CI; new systems opt-in and off by default; no default promotion; full 200-seed and procedural qualification gates restricted; bounded held screens (procedural included) authorized; no purchases, paid credits, paid narration APIs, deployments, credential or sharing changes. Amendment (same day): tiers sequence work and are not stopping points; failures block the affected merge, not the program; pin 8abc1acb as the original reference; default-path changes behind a switch or rules version.",
@@ -675,7 +675,8 @@
     "inverse": "Append-only cwcomplete exact inverse to reviewed11467a46 tree,37hunks7files independently byte-verified; historical fixtures untouched.",
     "return_home": "D3 stores first personally known priorOwnRowhome/source and allwitnessedwarinstances; X1unknownmove rehoming neveroverwritesmemory. Latepriorreadrefusal keepsunknown, neverreadsT.",
     "a4_wares": "Unimplemented unadopted A4-W auditproposal; adoptedroadmap5.7 coversfood+timber. No ownedwarescrossborderclaim. Separate futurecontract, nottechnicalportdependency.",
-    "performance": "Accept substantial measured FULLCPU/RSS/artifactoverhead asoptinexperimental cost, with actualcounts/ratios/latency; never defaultpromotion orperformancequalification. Proposed25%/2x/500MiB flags remainvisible."
+    "performance": "Accept substantial measured FULLCPU/RSS/artifactoverhead asoptinexperimental cost, with actualcounts/ratios/latency; never defaultpromotion orperformancequalification. Proposed25%/2x/500MiB flags remainvisible.",
+    "per_pathogen_care": "Open coefficient choice resolved: retain adopted common0.3×coverage CFR reduction against distinct pathogen base CFRs, under one combined floor; not pathogen-calibrated, may overstate plague/pestilence care. Existing per-pathogen deaths/infectious-person-turn splits are checked outcome observations, not measured causal attenuation. Native endemic authority unchanged."
   },
   "screens": {
     "CW4": {
@@ -820,7 +821,8 @@
     "examples": "1200strictobservations,21/24categories,3honestnulls,0audit/schemaerrors",
     "review": "independent source/native/inverse/profile/identity/heldarithmetic/browser/testcontracts retained",
     "final_merge": "PR96 merged dde9e2f971eca864e90ecdb40cb3af8d1596a5e9; premerge42391897267 and exact main42393043134 each all nine verified success; reviewed-tree equality verified",
-    "ci_counts": "Reviewed-head CI: noRust11409pass452skip623subtests; native12083pass6skip623subtests across2shards; viewer192files1764pass2skip; allninejobs success"
+    "ci_counts": "Reviewed-head CI: noRust11409pass452skip623subtests; native12083pass6skip623subtests across2shards; viewer192files1764pass2skip; allninejobs success",
+    "rust": "Reviewed-head CI:774unit+562integration=1336passed,0failed;2existing manual machine-dependent timing benchmarks ignored/unrun, separate from completed V11profiles."
   },
   "completion": {
     "state": "adopted scope integrated and evaluated; explicit technical deferrals and unadopted proposals retained",

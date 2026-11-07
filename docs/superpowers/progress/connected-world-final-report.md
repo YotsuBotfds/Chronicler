@@ -51,7 +51,7 @@ chunk limit was retained.
 | --- | --- |
 | V0–V2 identities, preflight, enrollment | Isolated lanes, source/native hashes, appended module/test/purpose registrations and source guards. Historical witness pins unchanged; independently reviewed `cwcomplete` exact inverse restores the preceding integrated source in 37 hunks across seven files. |
 | V3 bounded offline | Full local gate: 75 chunks, 7,964 passed, 69 skipped, 336.18 seconds total; slowest chunk 34.38 seconds. Later consumed-cohort fixture adjustment: 156 focused tests passed. Exact reviewed-head CI also passed the full gate. |
-| V4 native/Python/Rust | 774 Rust tests passed on the integrated native source; actual native timber dispatch/delivery regression and lifecycle contracts passed. Final corrected native purpose modules: 17 passed. Exact reviewed-head CI passed: 12,083 native Python tests, six skips and 623 successful subtests; no-Rust 11,409 passed, 452 skips and 623 subtests. |
+| V4 native/Python/Rust | 774 Rust unit and 562 integration tests passed in reviewed-head CI (1,336 total); actual native timber dispatch/delivery regression and lifecycle contracts passed. Final corrected native purpose modules: 17 passed. Exact reviewed-head CI passed: 12,083 native Python tests, six skips and 623 successful subtests; no-Rust 11,409 passed, 452 skips and 623 subtests. |
 | V5 default identity | Both original `8abc1acb` and preceding reviewed `11467a46` (tree equals main #95): nine cases, 399 compared files, zero differences each. Only the declared generated timestamp normalization applies. |
 | V6 enabled exact resume | 22 active-event and 58 canonical branches: all 80 passed, including raw Arrow comparisons. Canonical cases retain 200-turn hybrid seed 42 and 32-region/8-civilization, 40-turn procedural seed 11. Four additional health active resumes passed. Precheckpoint per-turn JSON is not regenerated; compare scopes/exclusions are explicit in the receipts. |
 | V7 catalog/compatibility | Feature requirements, invalid-mode refusals, persisted state, append-only manifests and compatibility tests are enrolled in the complete offline/native gates. |
@@ -116,10 +116,20 @@ groups are inferred, not permanent lineages; restitution liabilities are not
 spendable wealth. Tax/tithe debtor and decay-versus-food policies retain their
 explicit later-decision status.
 
+Care retains the adopted common `0.3 × coverage` CFR reduction, applied to each
+pathogen's distinct base CFR under one combined floor. This resolves the roadmap's
+open coefficient choice without inventing differentiated, unvalidated values:
+it is **not pathogen-calibrated**, and may overstate care for plague/pestilence.
+Per-pathogen deaths and infectious person-turns are already recorded and checked
+against regional totals; these outcome splits are not measured causal deaths
+averted. Native endemic mortality remains unchanged.
+
 Default-path provenance consumers, merchant origin/current-region income
 mismatch and natural deaths counted as army casualties remain recorded rather
 than silently corrected. Full 200-seed and procedural qualification gates and
-default promotion remain restricted and unrun. No paid narration, purchases,
+default promotion remain restricted and unrun. The two existing ignored Rust
+wall-time benchmarks (6K/24 and 10K/24, 500 turns) were also not invoked; they
+remain manual machine-dependent checks, distinct from the completed V11 profiles. No paid narration, purchases,
 deployments or credential/sharing changes occurred. No raw workspace lifetime
 or automatic restart is promised.
 

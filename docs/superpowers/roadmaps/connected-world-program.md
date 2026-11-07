@@ -281,6 +281,18 @@ open questions follow each summary.
       cost-only arm's cells; the own-covered ratio a mechanism check; reach and attenuation
       reported) and the code findings m1-m8 and nits n1-n9 addressed.
 
+**Final integration disposition (2026-11-07):** the dated C2 list above records
+its initial landing, not remaining work. #96 integrates care wages/withholding
+with A1, actual supplies, B3-derived sanitation and guarded prior-turn X1
+crowding. The lead resolves the open per-pathogen coefficient choice by
+retaining the adopted common `0.3 × coverage` reduction against each pathogen's
+distinct base CFR, under one combined floor. It is not pathogen-calibrated and
+may overstate care for plague/pestilence. Existing pathogen outcome splits are
+observations, not measured causal deaths averted; native endemic mortality
+remains separate. This does not retune the frozen evaluated model. See the
+[final coverage](../progress/connected-world-final-coverage.md) and
+[report](../progress/connected-world-final-report.md).
+
 ### 5.4 D institutions, war, attribution and the owned-stock lifecycle ([audit](../audits/connected-world/audit-d-institutions-war-owned-stock.md))
 
 - RL1 is a defect (owned stock is destroyed once per turn because retail infers conquests from an
