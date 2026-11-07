@@ -4,7 +4,7 @@
 lead-owned displacement contract. Its per-person rows are observer truth: a
 decision may read a person's own row only through the A6 accessor
 (:func:`chronicler.residence_ledger.own_row_accessor`, an :class:`OwnRow` bound to
-that person: one's own experience), rulers and
+that person: one's own experience, including D3's released-person home), rulers and
 physical effects read aggregates only (:func:`read_frame`), D3 asks
 :func:`separation`, each dated (T's frame at T+1, never the same turn). This
 test copies the D2 provenance guard's approach (``test_provenance_decision_guard.py``):
@@ -21,17 +21,19 @@ it walks every module under ``src/chronicler`` except the ledger's own modules
 * any constant string naming the ledger (``residence_ledger``,
   ``chronicler.residence_ledger`` and the state module's names), so a dynamic
   import such as ``livelihoods._module("residence_ledger")`` is caught
-  (review m3); outside the owners only the switch wiring may hold one.
+  (review m3); outside the owners only reviewed switch wiring or saved-bundle validators may hold one.
 
 Every read site - (module, enclosing function, read) with its number of
 occurrences - must be registered in ``LEDGER_READS`` with a classification:
 
 * ``aggregate``: :func:`read_frame` (any decision module; aggregates dated T);
 * ``own_row``: :func:`own_row_accessor`, only from ``OWN_ROW_MODULES`` (A6's
-  dispatcher, which hands each agent's decision the accessor bound to it);
+  dispatcher and D3 released-person home reader, each bound to that person);
 * ``separation``: :func:`separation`, only from ``SEPARATION_MODULES`` (D3);
 * ``record``: :func:`record_status`/:func:`snapshot_summary`, only from modules
   that decide nothing (``RECORD_MODULES``: narration, analysis);
+* ``saved_record``: the exact saved-bundle epoch paths of ``record_identity``;
+  no live WorldState input or simulation decision;
 * ``wiring``: the switch's plumbing in ``livelihoods``, ``feature_catalog`` and
   ``batch_manifest`` (its name and value, not the state).
 
@@ -76,8 +78,8 @@ CONSTANTS = frozenset({"STAGE", "LABELS", "FRAME_KEYS", "NATIVE", "FAMINE_ONSET_
 NAMES = frozenset({"residence_ledger", LEDGER, "residence_ledger_state", "chronicler.residence_ledger_state"})
 PUBLIC = HOOKS | set(ACCESSORS) | RECORD_READERS | CONSTANTS
 
-#: A6 (``--adaptive-livelihoods``, audit A6 section 7.2): the only modules that
-#: may read a person's own row.
+#: Reviewed personal consumers: A6 decisions and D3 released-person home.
+#: Both bind exactly one person and keep T−1/unknown semantics.
 OWN_ROW_MODULES = frozenset({"adaptive_livelihoods", "war_consequences"})
 #: D3's modules, registered by the lead with D3's review (none yet).
 SEPARATION_MODULES: frozenset[str] = frozenset({"war_consequences"})
