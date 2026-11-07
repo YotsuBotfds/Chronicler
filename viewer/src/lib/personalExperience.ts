@@ -44,7 +44,7 @@ export function adaptiveAt(snapshot: TurnSnapshot, regions: number): AdaptiveRec
   if (x.frame === null) return x as unknown as AdaptiveRecord;
   const f = x.frame;
   if (!object(f) || f.turn !== x.source_turn || !Array.isArray(f.rows) || f.rows.length > 256 || !count(f.rows_installed)
-    || !f.rows.every((r) => Array.isArray(r) && r.length === 3 && count(r[0]) && region(r[1]) && finite(r[2]) && r[2] >= -0.300001 && r[2] <= 0)
+    || !f.rows.every((r) => Array.isArray(r) && r.length === 3 && count(r[0]) && region(r[1]) && finite(r[2]) && r[2] >= -0.300001 && r[2] <= 0.300001)
     || !Array.isArray(f.refusals) || !Array.isArray(f.quick_departures) || !Array.isArray(f.work) || !Array.isArray(f.offers)) return null;
   for (const key of ["rows_dropped","rows_total","refusals_total","refusals_dropped","quick_departures_total","quick_departures_dropped","work_dropped","offers_dropped","known_destinations_total","known_destinations_dropped","trade_dropped"]) if (f[key] !== undefined && !count(f[key])) return null;
   const bounded = (rows: unknown[], total: unknown, dropped: unknown) => rows.length <= 256 && (total === undefined || total === rows.length + Number(dropped ?? 0));

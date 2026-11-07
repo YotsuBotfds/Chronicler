@@ -53,3 +53,16 @@ it("keeps personal timber cargo experience distinct from same-numbered food ship
  expect(rows.some(r=>r.text.includes("Own timber order")&&r.related.some(e=>e.kind==="timber_order"&&e.id===9))).toBe(true);
  expect(rows.filter(r=>r.source?.includes("/frame/trade/")).every(r=>!r.related.some(e=>e.kind==="shipment"))).toBe(true);
 });
+
+it("accepts signed combined A6 and D3 evacuation/return score inputs within the native cap",()=>{
+ for(const value of [-.3,.15,.2,.3]){
+  const s=experienceSnapshot() as unknown as {livelihoods:{adaptive_livelihoods:typeof adaptive}};
+  s.livelihoods.adaptive_livelihoods.frame.rows[0][2]=value;
+  expect(adaptiveAt(s as unknown as TurnSnapshot,2)?.frame?.rows[0][2]).toBe(value);
+ }
+ for(const value of [-.301,.301,Infinity,NaN]){
+  const s=experienceSnapshot() as unknown as {livelihoods:{adaptive_livelihoods:typeof adaptive}};
+  s.livelihoods.adaptive_livelihoods.frame.rows[0][2]=value;
+  expect(adaptiveAt(s as unknown as TurnSnapshot,2)).toBeNull();
+ }
+});
