@@ -47,7 +47,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
 
-from chronicler.narration_provenance import STRAY_ID, EntityUniverse, expand_entries, fact_rows
+from chronicler.narration_provenance import STRAY_ID, EntityUniverse, expand_entries, fact_rows, resolve_record_pointer
 
 FLAG_KINDS = (
     "unsupplied_citation", "unknown_citation", "future_citation", "future_supplied",
@@ -116,6 +116,7 @@ class BundleRecords:
     lacks), date None when the id carries none."""
 
     def __init__(self, bundle: dict) -> None:
+        self.bundle = bundle
         self.events = bundle.get("events_timeline") or []
         self.named = bundle.get("named_events") or []
         self.snapshots = {s.get("turn") for s in bundle.get("history") or []}
@@ -182,6 +183,11 @@ class BundleRecords:
         m = re.fullmatch(r"p(\d+)", fid)
         if m:
             return (int(m.group(1)) in self.agents) if self.has_world else None, None
+        # Reserved exact-record citations must not inherit legacy snapshot-only
+        # resolution: an invented row in a real snapshot is still unresolved.
+        if re.match(r"s[0-9]+\.lh(?:\.|$)", fid):
+            record = resolve_record_pointer(self.bundle, fid)
+            return (True, record.source_turn) if record is not None else (False, None)
         m = re.fullmatch(r"s(\d+)\..+", fid)
         if m:
             s = int(m.group(1))

@@ -30,6 +30,7 @@ invented beside the records' own identities:
                         ``guild.<id>``, ``burghers.c<i>``, ``seat.<id>``,
                         ``food.r<i>``, ``urban.c<i>``, ``settlement.<id>``
                         (ids are the snapshot rows' own)
+``s<S>.lh.<package>.<path>`` exact saved livelihoods record/field (array indices are zero based)
 ``d<S1>-<S2>.<key>``    a change between snapshots ``S1`` and ``S2``:
                         ``c<i>.<stat>`` (a civ's stat) or ``r<i>`` (a
                         region's controller)
@@ -80,6 +81,8 @@ back. :func:`fact_rows` reads the facts in either form.
 from __future__ import annotations
 
 import re
+import math
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Iterable, Sequence
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -353,6 +356,86 @@ class FactIds:
         if isinstance(key, tuple):
             return "-".join(self._key(k) for k in key)
         return slug(str(key))
+
+
+# Exact Connected World citations reserve ``s<S>.lh.<package>.<record path>``.
+# Old snapshot fact ids retain their historical meaning. No narrator enables
+# these citations automatically, and this resolver is never simulation input.
+_RECORD_TOKEN = re.compile(r"(?:[A-Za-z_][A-Za-z0-9_]*|0|[1-9][0-9]*)\Z")
+_RECORD_FACT = re.compile(r"s([0-9]+)\.lh\.(.+)\Z")
+
+
+@dataclass(frozen=True)
+class ResolvedRecordPointer:
+    """An existing value, its actual RFC 6901 pointer and completed-turn date.
+
+    Resolution proves only that this dated record exists. It does not prove
+    that prose correctly interprets the value or that co-occurrence is causal.
+    Array indices identify rows within this bundle, never stable identities.
+    """
+    fact_id: str
+    pointer: str
+    source_turn: int
+    value: Any
+
+
+def livelihood_fact_id(snapshot_turn: int, package: str, *path: str | int) -> str:
+    """Name an exact saved package record/field (zero-based array indices).
+
+    The returned id must still resolve against the actual bundle before it
+    is supplied to a narrator. A future, absent or malformed path is no fact.
+    """
+    if isinstance(snapshot_turn, bool) or not isinstance(snapshot_turn, int) or snapshot_turn < 1:
+        raise ValueError("record citations require a positive snapshot turn")
+    if any(isinstance(p, bool) or not isinstance(p, (str, int)) for p in path):
+        raise ValueError("record paths accept only field names or integer indices")
+    tokens = [package, *(str(p) for p in path)]
+    if any(not isinstance(t, str) or not _RECORD_TOKEN.fullmatch(t) for t in tokens):
+        raise ValueError("record citations require field names or nonnegative array indices")
+    return f"s{snapshot_turn}.lh." + ".".join(tokens)
+
+
+def resolve_record_pointer(bundle: dict, fid: str) -> ResolvedRecordPointer | None:
+    """Resolve the reserved exact-record grammar; never fall back to snapshot presence.
+
+    A unique saved snapshot, versioned livelihoods/package and its T-1 date
+    are mandatory. Readers additionally validate each package's model books;
+    this function does not replace those readers or certify a causal claim.
+    """
+    match = _RECORD_FACT.fullmatch(fid)
+    if not match:
+        return None
+    snapshot_turn = int(match.group(1))
+    tokens = match.group(2).split(".")
+    if not tokens or any(not _RECORD_TOKEN.fullmatch(t) for t in tokens):
+        return None
+    history = bundle.get("history")
+    if not isinstance(history, list):
+        return None
+    found = [(i, s) for i, s in enumerate(history) if isinstance(s, dict) and s.get("turn") == snapshot_turn]
+    if len(found) != 1:
+        return None
+    i, snapshot = found[0]
+    lh = snapshot.get("livelihoods")
+    if not isinstance(lh, dict) or lh.get("schema_version") != 1:
+        return None
+    package = lh.get(tokens[0])
+    if not isinstance(package, dict) or package.get("schema_version") != 1:
+        return None
+    source = package.get("source_turn")
+    if isinstance(source, bool) or not isinstance(source, int) or source != snapshot_turn - 1:
+        return None
+    value: Any = package
+    for token in tokens[1:]:
+        if isinstance(value, dict) and token in value:
+            value = value[token]
+        elif isinstance(value, list) and token.isascii() and token.isdigit() and int(token) < len(value):
+            value = value[int(token)]
+        else:
+            return None
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    return ResolvedRecordPointer(fid, f"/history/{i}/livelihoods/" + "/".join(tokens), source, value)
 
 
 # ---------------------------------------------------------------------------
