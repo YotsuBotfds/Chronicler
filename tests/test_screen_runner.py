@@ -117,7 +117,8 @@ def test_program_reservations(SR, registry, CW, screen):
         assert {(e["stratum"], e["status"], e["cohort"], e["program"]) for e in own} == {
             ("template", "never_run", "held", "connected-world"), ("procedural", "run", "held", "connected-world")}
         assert [e["held_run"]["complete"] for e in own if e["stratum"] == "procedural"] == [False]
-        assert all("unused by design" in e["use"] and "held_run" not in e for e in own if e["stratum"] == "template")
+        assert all(e["unused"]["reason"].startswith("unused by design") and "held_run" not in e
+                   and "unused by design" not in e["use"] for e in own if e["stratum"] == "template")
     else:
         assert {(e["stratum"], e["status"], e["cohort"], e["program"]) for e in own} == {
             ("template", status, "held", "connected-world"), ("procedural", status, "held", "connected-world")}
@@ -1016,16 +1017,38 @@ def test_mark_run_records_a_stratum_without_a_cohort_as_unused_by_design(SR, reg
     reg = copy.deepcopy(registry)
     for e in reg["entries"]:
         if e.get("screen") == "CW3":
-            e["status"], e["use"] = "reserved", e["use"].split("; unused by design")[0]
+            e["status"] = "reserved"
             e.pop("held_run", None)
+            e.pop("unused", None)
     ledger = {"cohort": "held", "out": "/tmp/x", "identity": "abc", "started": "t0",
               "seeds": {"procedural": list(range(851, 857))}}
+    before = SR.registry_content_sha256(reg)
+    use = next(e["use"] for e in reg["entries"] if e["id"] == "cw3-held-t")
     changed = SR.mark_run(reg, CW.SCREENS["CW3"], [], ledger)
     by = {e["id"]: e for e in reg["entries"]}
     assert by["cw3-held-p"]["status"] == "run" and by["cw3-held-p"]["held_run"]["out"] == "/tmp/x"
-    assert by["cw3-held-t"]["status"] == "never_run" and "unused by design" in by["cw3-held-t"]["use"]
-    assert "held_run" not in by["cw3-held-t"] and SR.validate_registry(reg) == []
+    t_entry = by["cw3-held-t"]
+    assert t_entry["status"] == "never_run" and t_entry["use"] == use          # the description is untouched
+    assert t_entry["unused"]["reason"] == "unused by design: CW3 declares no template cohort"
+    assert t_entry["unused"]["out"] == "/tmp/x" and "held_run" not in t_entry and SR.validate_registry(reg) == []
+    # Every field mark-run writes is a run-record field: the content hash (which a pilot and a
+    # resume compare) is unchanged, so a mark-run keeps a pilot valid.
+    assert SR.registry_content_sha256(reg) == before
     assert changed == ["cw3-held-p", "cw3-held-t (unused by design, never_run)"]
     problems, notes = SR.check_seeds(CW.SCREENS["CW3"], reg, reuse="recorded")
     assert problems == [] and any("cw3-held-t is unused by design" in n and "never_run" in n for n in notes)
     assert any("already run" in p for p in SR.check_seeds(CW.SCREENS["CW3"], reg)[0])
+
+
+def test_the_registry_content_hash_is_the_one_every_recorded_identity_used(SR, registry):
+    """CW3's mark-run first wrote its note into ``use`` (registry content 95e3bdea for one
+    commit); the note is a run-record field now, and the content hash is again the one CW1,
+    CW4, CW4b and CW3 recorded."""
+    assert SR.registry_content_sha256(registry) == "a703a8502cb688181662d323ff482822a3fec6df292d23ebccc42f05751b2cfe"
+    bad = copy.deepcopy(registry)
+    next(e for e in bad["entries"] if e["id"] == "cw3-held-t")["unused"]["reason"] = ""
+    assert any("unused is a" in p for p in SR.validate_registry(bad))
+    reserved = copy.deepcopy(registry)
+    next(e for e in reserved["entries"] if e["id"] == "cw2-held-t")["unused"] = {
+        "reason": "x", "out": "y", "recorded": "z"}
+    assert any("never_run entry" in p for p in SR.validate_registry(reserved))

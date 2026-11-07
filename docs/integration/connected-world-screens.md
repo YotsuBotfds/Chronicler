@@ -69,7 +69,9 @@ used, never-run-again, development and reserved sets per stratum.
   recorded run with `--resume`.
 - Nothing outside that clone sees the run until `mark-run OUT --screen CWn` sets the cohort's
   registry entries to `run` with a `held_run` record (output folder, identity digest, start, rows,
-  whether complete, reason) **and that registry change is committed and merged**. Run `mark-run`
+  whether complete, reason); a reserved stratum the screen does not declare becomes `never_run`
+  with an `unused` record (reason, output folder, time) **and that registry change is committed
+  and merged**. Run `mark-run`
   as soon as the run is finished or abandoned and commit it promptly, with the results; until
   then another clone could start the cohort again.
 - A recovered or reclaimed container has an empty ledger. To resume there, restore the output
@@ -130,7 +132,8 @@ of their preregistrations; the runner imports neither and is not tied to
   line naming exactly the screen's primaries.
 - **Pilot** (held and reserve runs): `--pilot` gives the pilot's `metrics.jsonl`; its sibling
   `source.txt` must show the same extension, runner, screen module, registry content (the
-  cohorts and seeds, without status and run records, so a `mark-run` keeps a pilot valid) and
+  cohorts and seeds, without `status`, `held_run` and `unused`, every field `mark-run` writes,
+  so a `mark-run` keeps a pilot valid) and
   count of modified code files, its rows that identity, and its source revision may differ
   from this run's only outside the code (`src/`, `chronicler-agents/`, `scripts/` except the
   registry, `pyproject.toml`, `uv.lock`), as the freeze commit and a committed `mark-run` do.

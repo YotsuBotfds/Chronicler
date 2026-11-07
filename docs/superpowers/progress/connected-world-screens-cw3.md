@@ -289,6 +289,18 @@ downstream water index about as much as protection did (F_CPc - F −0.0014, 7 o
 F_CP - F_CPc −0.0008, 4 of 8), so the primary F_CP - F mixes protection with the trajectory its
 warden charges set off; the F_CP - F_CPc secondaries separate them.
 
+**Erratum and notes on the frozen text (2026-11-07, after the held run; the frozen sentences are
+left as written).**
+
+- "No held seed (procedural 851-856) has been run" (the header) describes the time of the freeze.
+- The arms table's "the same adoption, planning and warden charges as F_CP" and Amendment 1's
+  "separates protection's effect on forest and water from its treasury cost" describe the rules.
+  The realized bills differ: F_CP charged 1.7–5.1 times F_CPc's on the held worlds and 2.6–4.6
+  times on the development worlds (protections that keep cover last longer and are charged more;
+  clearing-protection.md, endogenous cost). The screen module's labels "cost held equal" and "the
+  cost alone" (frozen) carry the same caveat, and so does the development reading just above
+  ("the F_CP - F_CPc secondaries separate them": they do not hold the bill equal).
+
 ## Results (held run, 2026-11-07)
 
 Procedural 851-856, 200 turns, five arms, `run HELD --screen CW3 --cohort held --pilot
@@ -298,11 +310,22 @@ recorded it as `never_run`, unused by design (CW3 declares no template cohort), 
 cohort as `run` (incomplete, below). Retained in `connected-world-screens-cw3/held/`:
 `metrics.jsonl`, `source.txt`, `held-run.json`, `report.md`, `check.txt`.
 
+Registry side effect, corrected (independent check, item C5): recording the template reservation
+as unused first appended text to its `use` field, which the registry-content hash covers, so the
+content hash changed from `a703a850` to `95e3bdea` for one commit (unlike a complete mark-run). The
+runner now writes that note to a run-record field, `unused` (reason, output folder, time), which
+the content hash excludes like `status` and `held_run`; the entry's `use` is restored and the
+registry content is again `a703a850`, the value CW3's held run, its pilot and every other
+screen's recorded identities used. No run was repeated; CW1's, CW4's and CW4b's retained metrics
+still check complete (`check --metrics ... --cohort held`), and CW3's checks with its one recorded
+failure.
+
 **Identity.** Source `b9170bef9729c81a0063a9395c6e9085c61ed0fe`, dirty 0, dirty-code 0; native
 extension SHA-256 `e724072d7888888ede86acccb8db745c219c445fd47644ec9abe8ed5493e865b` (the shared
 build of `main` `ae94bca6`'s Rust); runner `bd443414…`, screen module `ca65e38d…`, registry
 content `a703a850…`, preregistration `f834f8ef…`; run identity digest `4b61577c…`. The pilot's
-identity matches (its source `a83af3f3` differs only in this page).
+identity matches (its source `a83af3f3` differs only in documentation (this page and the retained
+pilot files; no code path)).
 
 **Runs and failures.** 30 runs, **1 failed: F_CP on procedural 851**, rc 1, before its bundle was
 written: `ArtifactIOError ... [Errno 28] No space left on device` (the shared machine's disk filled
@@ -351,7 +374,8 @@ sign-flip spread on these worlds.
 | Upstream food shortfall share, F_CP - F | +0.0053 [−0.0188, +0.0299] | 3 / 2 / 0 | 18/32 |
 | Upstream water, F_CP - F | −0.0009 [−0.0064, +0.0014] | 3 / 2 / 0 | 28/32 |
 | All regions' food shortfall share, F_CP - F | +0.0075 [−0.0009, +0.0188] | 4 / 1 / 0 | 4/32 |
-| Account flood events (and those that acted), F_CP - F | +0.6 [0, +2] | 2 / 0 / 3 | 16/32 |
+| Account flood events (those that acted, and downstream onsets), F_CP - F | +0.6 [0, +2] | 2 / 0 / 3 | 16/32 |
+| Downstream mean min(1, sufficiency), F_CP - F | −0.0071 [−0.0239, +0.0114] | 1 / 4 / 0 | 10/32 |
 | Droughts declared, F_CP - F (downstream) | +1.2 [−5, +10] (+0.4 [−3, +4]) | 3 / 2 / 0 (2 / 1 / 2) | 24/32 (24/32) |
 | Coastal floods, F_CP - F | 0 | 0 / 0 / 5 | 32/32 |
 | Upstream mean cover at the end, F_CP - F | +0.014 [−0.020, +0.045] | 4 / 1 / 0 | 8/32 |
@@ -370,41 +394,58 @@ F_CP alone: river floods superseded 0-8 (mean 2.6); cover kept 10.6-25.6 (mean 1
 charged 1057-2561 (mean 1869); 6-10 regions below a protected region; selection (below F_CP's own
 protections, no counterpart): food shortfall share 0.041-0.119, water index 0.606-0.723.
 
-Reading: flow itself (F - R) raised the downstream water index (5 of 6, the known wet bias) and
-lowered downstream food shortfall on all 6 worlds. Protection's warden charges alone (F_CPc - F)
-raised downstream food shortfall on all 6 worlds (2 of 64 assignments as extreme), while the cover
-it keeps, cost held equal (F_CP - F_CPc), moved downstream water slightly down (4 of 5) and food
-shortfall down on average with mixed signs: the primary F_CP - F mixes the two, and its food
-shortfall increase is mostly the cost.
+Reading (secondaries; descriptive): running flow rather than record_only (F − R, a comparison of
+two water models, not an intervention) gave a higher downstream water index on 5 of 6 worlds,
+consistent with the known wet bias, and a lower downstream food shortfall on all 6 (2 of 64
+assignments as extreme). Cost-only protection (F_CPc − F: the same rules, charges of 446–691 coins
+per world, no cover kept) raised downstream food shortfall on all 6 worlds (2 of 64 as extreme).
+The cost-only arm did not reproduce F_CP's bill: protections that keep cover last longer and are
+charged more, and F_CP paid 1.7–5.1 times F_CPc's warden pay on the same worlds
+(clearing-protection.md, endogenous cost). F_CP − F_CPc therefore contrasts kept cover together
+with a larger bill, not cover at equal cost. It moved downstream water slightly down (4 of 5, 6 of
+32) and food shortfall down on average with mixed signs (2 up, 3 down), the mean resting on
+procedural 854 (−0.067; the other four average −0.003). The secondaries suggest that the rise in
+downstream food shortfall does not need kept cover, since it appears without any. They do not
+split F_CP − F into a cover part and a cost part, and the end treasury shows no consistent
+difference that would mark the pathway.
 
 ### Harm panel (each arm against its declared control, and F_CP - F)
 
 | Comparison | Population at the end | Treasury at the end | Food shortfall after relief (world) | Epidemic deaths | Agents migrating | Wealth Gini at the end |
 | --- | --- | --- | --- | --- | --- | --- |
-| F - R (6) | −36 [−258, +161], 3/3 | −582 [−3789, +552], 2/4 | −1461 [−2527, +117], 1/5 | +108 [−149, +247], 5/1 | −651 [−1983, +737], 1/5 | +0.025, 4/2 |
-| R_CP - R (6) | −2 [−90, +218], 2/4 | +253 [−5106, +3428], 4/2 | −235 [−1904, +1601], 2/4 | −18 [−194, +101], 4/2 | −553 [−1794, +352], 2/4 | +0.017, 3/3 |
-| F_CPc - F (6) | +39 [−173, +310], 2/4 | +57 [−3618, +3512], 3/3 | +1697 [+115, +6385], 6/0 | −66 [−354, +90], 3/3 | +1172 [−1605, +3802], 5/1 | +0.018, 4/2 |
-| F_CP - F_CPc (5) | +2 [−282, +238], 3/2 | −58 [−1932, +1315], 3/2 | −1159 [−7088, +829], 3/2 | +4 [−203, +231], 3/2 | −1090 [−5578, +1122], 1/4 | −0.078, 1/4 |
-| F_CP - F (5) | +80 [−11, +196], 4/1 | +734 [−1066, +2706], 3/2 | +774 [−703, +2039], 4/1 | −77 [−194, +19], 2/3 | +91 [−1776, +2236], 2/3 | −0.024, 1/4 |
+| F - R (6) | −36 [−258, +161], 3/3 | −582 [−3789, +552], 2/4 | −1461 [−2527, +117], 1/5 | +108 [−149, +247], 5/1 | −651 [−1983, +737], 1/5 | +0.025 [−0.091, +0.197], 4/2 |
+| R_CP - R (6) | −2 [−90, +218], 2/4 | +253 [−5106, +3428], 4/2 | −235 [−1904, +1601], 2/4 | −18 [−194, +101], 4/2 | −553 [−1794, +352], 2/4 | +0.017 [−0.120, +0.148], 3/3 |
+| F_CPc - F (6) | +39 [−173, +310], 2/4 | +57 [−3618, +3512], 3/3 | +1697 [+115, +6385], 6/0 | −66 [−354, +90], 3/3 | +1172 [−1605, +3802], 5/1 | +0.018 [−0.163, +0.148], 4/2 |
+| F_CP - F_CPc (5) | +2 [−282, +238], 3/2 | −58 [−1932, +1315], 3/2 | −1159 [−7088, +829], 3/2 | +4 [−203, +231], 3/2 | −1090 [−5578, +1122], 1/4 | −0.078 [−0.355, +0.072], 1/4 |
+| F_CP - F (5) | +80 [−11, +196], 4/1 | +734 [−1066, +2706], 3/2 | +774 [−703, +2039], 4/1 | −77 [−194, +19], 2/3 | +91 [−1776, +2236], 2/3 | −0.024 [−0.237, +0.220], 1/4 |
 
 Nulls as nulls: priced-out persons and children and the timber stand are `not recorded` in every arm
 (household retail and the timber stock are off); deaths by famine and by war `require a slice
 extractor`. Values are mean [min, max] and > 0 / < 0 counts; the full rows, per world, with the
 sign-flip distributions, are in `held/report.md`.
 
+Harm reading (descriptive): F_CP − F raised world food shortfall on 4 of 5 worlds (+774, 6 of 32)
+and population on 4 of 5 (+80); cost-only protection raised world food shortfall on all 6 (+1697,
+2 of 64) and migration on 5 of 6; flow itself raised epidemic deaths on 5 of 6 (+108, 8 of 64) and
+lowered world food shortfall on 5 of 6. The other cells are mixed.
+
 ### Supplementary (deterministic completion after an infrastructure failure)
 
 **Not part of the result.** The frozen result above stands on five worlds; this is a sensitivity
 line only (the lead's decision, 2026-11-07). The failed run, F_CP on procedural 851, failed on
 the shared machine's full disk during another lane's build, before its bundle was written; the
-simulation is deterministic. It was re-run once, exactly and alone (nothing else was re-run), on
+simulation is deterministic (the development re-validation reproduced 32 earlier rows exactly). It was re-run once, exactly and alone (nothing else was re-run), on
 a `git archive` of the frozen held source `b9170bef`, with the same shared native extension
 (SHA-256 `e724072d7888888ede86acccb8db745c219c445fd47644ec9abe8ed5493e865b`, verified), the
 runner's own `run_one` (the same command line, environment and extractor) and the same identity
 checks, into a separate output directory (disk free before: 12 GB). Its identity lines equal the
 held run's in every line (source, dirty 0 / 0, native, interpreter, runner `bd443414…`, screen
 module `ca65e38d…`, registry `a18c129d…` and content `a703a850…`, preregistration `f834f8ef…`)
-except the `chronicler` path, which names the archive's copy of the same source. The run: rc 0,
+except the `chronicler` path, which names the archive's copy of the same source. The `source` and
+`dirty` lines are written by the driver, since an archive carries no git metadata. The archive's
+`src/`, `scripts/`, `chronicler-agents/` and `pyproject.toml` are byte-identical to `b9170bef`'s
+tree. Because the path line differs, the row's identity digest is `c814f9e8…`, not the held
+run's `4b61577c…`. The run: rc 0,
 activated (200 settled flow turns, index gap 5.0e-5; 1,762 protected region-turns kept 26.18
 cover), every outcome extracted, closure 1.5e-15 relative. Retained in
 `connected-world-screens-cw3/supplementary/` (`source.txt`, `metrics.jsonl`,
@@ -424,11 +465,16 @@ flow, a small rise in downstream food shortfall, no flow-specific interaction.
 
 ### What CW3 shows (and does not)
 
-On these six procedural worlds, funded upstream forest protection did not produce a clear
+On these procedural worlds (five for every comparison with F_CP; the sixth, completed
+afterwards, is a sensitivity line only), funded upstream forest protection did not produce a clear
 downstream effect under flow: the downstream water index moved down by a few thousandths on
 average with mixed signs, the downstream food shortfall rose slightly, and nothing in the
-interaction marks the effect as specific to flow. The water account created no water. The cost
-arm attributes most of the food change to the warden charges rather than to the cover kept. One
+interaction marks the effect as specific to flow. The water account created no water. In a
+secondary, cost-only protection, which kept no cover and paid about a third of F_CP's warden pay,
+also raised downstream food shortfall (on all six worlds). The rise therefore does not need kept
+cover, but the cost arm does not hold the bill equal and cannot apportion F_CP's food change
+between cover and cost. One
 F_CP run failed for lack of disk; the primaries rest on five worlds. A bounded screen, not
 qualification; the watershed's known wet bias and its forest-loss-only floods (watershed.md) apply.
-No held seed will be rerun.
+No other held run will be rerun; the one supplementary completion of F_CP on 851 is reported
+above as sensitivity only.

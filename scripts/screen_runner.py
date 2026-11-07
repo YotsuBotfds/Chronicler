@@ -113,7 +113,10 @@ CEILING_MARGIN = 1.5
 REGISTRY_STATUSES = ("run", "never_run", "reserved", "restricted_gate", "development")
 REGISTRY_COHORTS = ("held", "pilot", "reserve")
 ENTRY_KEYS = ("id", "source", "use", "stratum", "world", "seeds", "turns", "status")
-OPTIONAL_ENTRY_KEYS = ("program", "cohort", "screen", "held_run")
+OPTIONAL_ENTRY_KEYS = ("program", "cohort", "screen", "held_run", "unused")
+#: The record ``mark-run`` writes on a held reservation it leaves unused by design (a
+#: stratum the screen declares no cohort for); a run-record field, outside the content hash.
+UNUSED_KEYS = ("reason", "out", "recorded")
 HELD_RUN_KEYS = ("out", "identity", "started", "rows", "complete", "recorded")
 #: Cohorts that are evidence: a frozen preregistration, the compute ceiling, the ledger.
 EVIDENCE_COHORTS = ("held", "reserve")
@@ -334,6 +337,11 @@ def validate_registry(reg: Mapping) -> list[str]:
                 problems.append(f"{where}: a reservation names its program and cohort")
             if cohort == "held" and not e.get("screen"):
                 problems.append(f"{where}: a held reservation names its screen")
+        if "unused" in e:
+            note = e["unused"]
+            if e["status"] != "never_run" or not isinstance(note, dict) or set(note) != set(UNUSED_KEYS) \
+                    or not all(isinstance(note[k], str) and note[k] for k in UNUSED_KEYS):
+                problems.append(f"{where}: unused is a {list(UNUSED_KEYS)} record on a never_run entry")
         if "held_run" in e:
             run = e["held_run"]
             if e["status"] != "run" or not isinstance(run, dict) or not set(HELD_RUN_KEYS) <= set(run) \
@@ -1127,13 +1135,14 @@ def code_path(path: str) -> bool:
 
 
 #: Run-record fields an entry gains from ``mark-run``; the content hash leaves them out.
-RUN_RECORD_FIELDS = ("status", "held_run")
+RUN_RECORD_FIELDS = ("status", "held_run", "unused")
 
 
 def registry_content_sha256(reg: Mapping) -> str:
     """SHA-256 of the registry's cohort definitions and seeds: every entry without its
-    run-record fields (status, ``held_run``, and the screen a reserve entry was used by),
-    and the restricted ranges."""
+    run-record fields (status, ``held_run``, ``unused``, and the screen a reserve entry was
+    used by), and the restricted ranges. Every field ``mark-run`` writes is a run-record
+    field, so a ``mark-run`` does not change it."""
     entries = []
     for e in reg.get("entries") or []:
         drop = set(RUN_RECORD_FIELDS) | ({"screen"} if e.get("cohort") == "reserve" else set())
@@ -1761,8 +1770,9 @@ def mark_run(reg: dict, screen: Screen, rows: list[dict], ledger: Mapping) -> li
         for e in [e for e in entries if not screen.held.get(e["stratum"])]:
             if e["status"] == "reserved":
                 e["status"] = "never_run"
-                e["use"] = (f"{e['use']}; unused by design: {screen.name} declares no {e['stratum']} cohort "
-                            f"(recorded by mark-run of {ledger['out']})")
+                e["unused"] = {"reason": f"unused by design: {screen.name} declares no {e['stratum']} cohort",
+                               "out": ledger["out"],
+                               "recorded": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}
                 unused.append(f"{e['id']} (unused by design, never_run)")
         entries = [e for e in entries if screen.held.get(e["stratum"])]
     else:
