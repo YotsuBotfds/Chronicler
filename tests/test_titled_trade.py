@@ -7,7 +7,10 @@ the shared paid-work share and its receipt (a merchant's ordinary income of
 ``MERCHANT_INCOME`` a turn, withheld whole while it carries), the trip list
 and the pairwise ``settle_pairs`` with the native limits. Everything else is
 the real livelihoods hooks, household retail, titled trade, the payment seam
-and the A1 ledger. Template seed 42: Verdant Plains (2) and Thornwood (4) are
+and the A1 ledger's Python snapshot/typed-receipt interface. Its two ledger
+unit tests explicitly leave A1-2 native stages unavailable; compiled stage and
+closure evidence belongs to the native contract/accounting suites.
+Template seed 42: Verdant Plains (2) and Thornwood (4) are
 Thornwall's and adjacent; Frostholm Tundra (0, Kethani) and Obsidian Shore (7,
 Ashkari) are adjacent across a border.
 """
@@ -630,7 +633,26 @@ def test_a_repeated_phase10_or_settlement_is_refused():
 
 # --- ledger -------------------------------------------------------------------------
 
-def test_the_wealth_ledger_records_the_purchases_and_the_withheld_income_and_its_identity_holds():
+@pytest.fixture
+def python_ledger_only(monkeypatch):
+    """Use only A1's offline snapshot/receipt interface in these two unit tests.
+
+    TradeSim has no native wealth observer. Do not invent native stage rows or
+    closure: the resulting frame must explicitly retain native=None. The
+    production before-tick guard and compiled accounting tests stay unchanged.
+    """
+    from chronicler import wealth_accounting as WA
+
+    def python_receipts_only(world, bridge, economy_result):
+        assert isinstance(bridge._sim, TradeSim)
+        assert not hasattr(bridge._sim, "set_wealth_observation")
+        assert not hasattr(bridge._sim, "take_wealth_observation")
+        assert world.livelihoods.wealth_accounting.mode == "observe"
+
+    monkeypatch.setattr(WA, "before_agent_tick", python_receipts_only)
+
+
+def test_the_wealth_ledger_records_the_purchases_and_the_withheld_income_and_its_identity_holds(python_ledger_only):
     h = TradeHarness("--wealth-accounting")
     _market(h)
     seen_purchase = seen_withheld = False
@@ -638,6 +660,7 @@ def test_the_wealth_ledger_records_the_purchases_and_the_withheld_income_and_its
         h.turn({VERDANT: {"grain": 30.0}})
         frame = h.world.livelihoods.wealth_accounting.frame
         assert frame is not None
+        assert frame["native"] is None                 # unavailable, not a fake native closure
         assert all(c["closes"] for c in frame["closures"]), [c for c in frame["closures"] if not c["closes"]]
         typed = {r["channel"]: r for r in frame["typed"]}
         cargo = typed["cargo_purchase"]
@@ -657,16 +680,24 @@ def test_the_wealth_ledger_records_the_purchases_and_the_withheld_income_and_its
     assert life["cargo_purchase_in_milli"] == life["cargo_purchase_out_milli"] == h.tt.counters["paid_milli"]
 
 
-def test_with_the_ledger_on_and_trade_off_the_ledger_has_no_a4_rows():
+def test_with_the_ledger_on_and_trade_off_the_ledger_has_no_a4_rows(python_ledger_only):
     h = TradeHarness("--wealth-accounting", trade=False)
     _market(h)
     h.turn({VERDANT: {"grain": 30.0}})
     frame = h.world.livelihoods.wealth_accounting.frame
+    assert frame["native"] is None                     # unavailable, not observed zero
     assert "cargo_purchase" not in {r["channel"] for r in frame["typed"]}
     packages = (frame["withheld"] or {}).get("packages") or []
     assert "titled_trade" not in {r["package"] for r in packages}
     assert not any(k.startswith("cargo_purchase") or k == "withheld_titled_trade"
                    for k in h.world.livelihoods.wealth_accounting.lifetime)
+
+
+def test_trade_unit_stand_in_still_fails_the_production_native_observer_guard():
+    from chronicler import wealth_accounting as WA
+    h = TradeHarness("--wealth-accounting")
+    with pytest.raises(ValueError, match="requires the A1-2 native wealth observer"):
+        WA.before_agent_tick(h.world, h.bridge, None)
 
 
 # --- persistence and records ----------------------------------------------------------
