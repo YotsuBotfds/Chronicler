@@ -550,6 +550,7 @@ def test_state_round_trips_and_an_rs0_pickle_restores():
     old = VeteranReintegrationState.__new__(VeteranReintegrationState)
     old.__setstate__(raw)
     assert old.records == [] and old.frame is None and old._captures == [] and old.mode == "record_only"
-    assert OUTCOMES[-1] == "pool_reset" and CAUSES[-1] == "dissolved"
+    assert OUTCOMES[-1] == "pool_reset" and CAUSES[:5] == ("desertion", "scattered", "demobilised", "destroyed", "dissolved")
+    assert CAUSES[-1] == "wounded"
     assert P.MIN_ARMY == 3                                 # the destroyed-army case above relies on it
     assert build_context(world).bridge is bridge

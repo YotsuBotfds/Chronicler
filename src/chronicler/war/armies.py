@@ -329,8 +329,13 @@ def apply_casualties(ctx: WarContext, army: "Army", count: int, *, cause: str) -
         rng = war_rng(ctx, "casualty", army.army_id, cause)
         pool = sorted(army.roster)
         victims = pool if count >= len(pool) else rng.sample(pool, count)
-        dead = set(victims)
-        army.roster = [entry for entry in army.roster if entry not in dead]
+        removed = set(victims)
+        from chronicler.war_consequences import split_victims
+        victims, wounded = split_victims(ctx.world, army, victims, cause)
+        army.roster = [entry for entry in army.roster if entry not in removed]
+        if wounded:
+            army.soldiers -= len(wounded)
+            note_released(ctx.world, army, wounded, "wounded", bridge=ctx.bridge)
         queue_deaths(ctx, [aid for aid, _ in victims])
         for _, reg in victims:
             if 0 <= reg < len(ctx.world.regions):
@@ -359,6 +364,8 @@ def note_released(world, army: "Army", entries, cause: str, *, bridge=None, comm
     livelihoods container, and inside :mod:`chronicler.veteran_reintegration`
     unless that switch is active; it never changes the army or draws RNG."""
     if entries and getattr(world, "livelihoods", None) is not None:
+        from chronicler.war_consequences import note_release
+        note_release(world, army, entries, cause)
         from chronicler.veteran_reintegration import capture_release
         capture_release(world, army, entries, cause, bridge=bridge, commit=commit)
 
@@ -466,7 +473,8 @@ def rebind_rosters(ctx: WarContext) -> None:
     except Exception:
         live = set()
     for army in sorted(world.war_state.armies, key=lambda a: a.army_id):
-        if army.roster and all(aid in live for aid, _ in army.roster):
+        from chronicler.war_consequences import war_consequences_active
+        if army.roster and all(aid in live for aid, _ in army.roster) and not war_consequences_active(world):
             continue
         civ = world.civ_map.get(army.civ)
         army.roster = []

@@ -57,7 +57,7 @@ CLOSING: tuple[str, ...] = ("remobilised", "died", "expired", "pool_reset")
 #: (people still on the roster when it is cleared); ``dissolved`` when the
 #: campaign layer drops an army whose civilization is gone or whose region
 #: vanished (``war/runtime.py``), its roster still alive.
-CAUSES: tuple[str, ...] = ("desertion", "scattered", "demobilised", "destroyed", "dissolved")
+CAUSES: tuple[str, ...] = ("desertion", "scattered", "demobilised", "destroyed", "dissolved", "wounded")
 #: Why an open record is not eligible this turn.
 INELIGIBLE_REASONS: tuple[str, ...] = ("control_lost", "minor", "unobserved")
 #: Why an eligible (waiting) veteran had no placement this turn.
@@ -72,7 +72,7 @@ UNMET_REASONS: tuple[str, ...] = ("no_site", "site_idle", "not_crew_eligible", "
 #: Lifetime counters (insertion order; the activation funnel reads them).
 COUNTERS: tuple[str, ...] = (
     "captured", "captured_desertion", "captured_scattered", "captured_demobilised",
-    "captured_destroyed", "captured_dissolved", "capture_duplicates", "capture_overflow",
+    "captured_destroyed", "captured_dissolved", "capture_duplicates", "capture_overflow", "captured_wounded",
     "captures_discarded",
     "offered", "would_offer",
     "placements", "placements_crew", "placements_apprentice", "placements_repair",
@@ -114,7 +114,7 @@ class VeteranRecord(BaseModel):
     army_id: str
     war_key: str | None = None
     war_start: int | None = None
-    cause: Literal["desertion", "scattered", "demobilised", "destroyed", "dissolved"]
+    cause: Literal["desertion", "scattered", "demobilised", "destroyed", "dissolved", "wounded"]
     released_turn: int
     released_region: int
     #: Last observed residence (post-tick snapshot) and age (None: unobserved).
