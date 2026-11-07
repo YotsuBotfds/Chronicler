@@ -17,6 +17,11 @@ it("labels old spell coupling and missing diagnostics honestly", () => {
   expect(screen.getByText(/Legacy displacement coupling/)).toHaveTextContent("implicit in this older record");
   expect(screen.getByText(/A: 50.0% in motive-classified spells/)).toHaveTextContent("recent residence arrival share unknown (not recorded)");
 });
+it("does not claim cost-only mode disables the retained quarantine controls", () => {
+  show({ ...base(), mode: "cost_only" });
+  expect(screen.getByText(/Care and sanitation benefits disabled/)).toHaveTextContent("quarantine controls retained");
+  expect(screen.queryByText(/no protective effect/)).not.toBeInTheDocument();
+});
 it("shows density-only neutrality and keeps partial recent arrivals unknown", () => {
   const raw = base();
   show({ ...raw, crowding: "density_only", environment: [{ ...raw.environment[0], crowding_factor: 1,
