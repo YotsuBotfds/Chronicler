@@ -103,3 +103,54 @@ it("reads a resumed history that does not begin at the opening turn (review N2)"
   expect(screen.getByRole("table", { name: "Watershed regions at snapshot 21" })).toBeInTheDocument();
   expect(screen.queryByText(/malformed/)).toBeNull();
 });
+
+import b2 from "../../../__fixtures__/watershed_b2_records.json";
+
+type Rec = { floods?: Array<{ consequence?: unknown; withheld_by?: unknown }>; superseded?: unknown[];
+  cap_changes?: unknown[]; flood_events?: { ended: unknown[] } };
+const rec = (s: TurnSnapshot) => (s as unknown as { livelihoods: { watershed: Rec } }).livelihoods.watershed;
+
+it("shows flow mode: the index used is the derived one, flood events and what they did, superseded floods and cap changes", () => {
+  const flow = b2.flow as unknown as TurnSnapshot[];
+  const b = { world_state: { regions: b2.regions.map((name) => ({ name })) }, history: flow } as unknown as Bundle;
+  const sup = flow.find((s) => (rec(s).superseded ?? []).length > 0)!;
+  const first = render(<Watershed {...props(sup, b)} />);
+  expect(screen.getByText(/Flow: the account's derived index is the water index the simulation used/)).toBeInTheDocument();
+  expect(screen.getByRole("table", { name: `Superseded river floods at snapshot ${sup.turn}` })).toBeInTheDocument();
+  expect(screen.getByRole("row", { name: /River floods superseded \(flow\)/ })).toBeInTheDocument();
+  first.unmount();
+  const onset = flow.find((s) => (rec(s).floods ?? []).some((f) => f.consequence))!;
+  const second = render(<Watershed {...props(onset, b)} />);
+  const floods = within(screen.getByRole("table", { name: `Flood events started at snapshot ${onset.turn}` }));
+  expect(floods.getAllByText(/capacity ×0.85; cooldown \d turns/).length).toBeGreaterThan(0);
+  expect(screen.getByRole("table", { name: `Flood events at snapshot ${onset.turn}` })).toBeInTheDocument();
+  expect(screen.getByText(/acts once, at its start, unless the region already holds a disaster cooldown/)).toBeInTheDocument();
+  second.unmount();
+  const capped = flow.find((s) => (rec(s).cap_changes ?? []).length > 0)!;
+  const third = render(<Watershed {...props(capped, b)} />);
+  const changes = within(screen.getByRole("table", { name: `Terrain cap changes at snapshot ${capped.turn}` }));
+  expect(changes.getByText("forest → plains")).toBeInTheDocument();
+  expect(changes.getByText("0.8 → 0.7")).toBeInTheDocument();
+  third.unmount();
+  const ended = flow.find((s) => (rec(s).flood_events?.ended ?? []).length > 0)!;
+  render(<Watershed {...props(ended, b)} />);
+  expect(within(screen.getByRole("table", { name: `Flood events at snapshot ${ended.turn}` })).getAllByText(/Ended at turn/).length).toBeGreaterThan(0);
+});
+
+it("shows a withheld flood and a B2 record-only history", () => {
+  const flow = structuredClone(b2.flow) as unknown as TurnSnapshot[];
+  const onset = flow.find((s) => (rec(s).floods ?? []).some((f) => f.consequence))!;
+  const flood = rec(onset).floods!.find((f) => f.consequence)!;
+  delete flood.consequence;
+  flood.withheld_by = ["flood"];                                  // edited copy: a coastal flood's cooldown at onset
+  const b = { world_state: { regions: b2.regions.map((name) => ({ name })) }, history: flow } as unknown as Bundle;
+  const first = render(<Watershed {...props(onset, b)} />);
+  expect(screen.getByText("withheld: the region held a flood cooldown")).toBeInTheDocument();
+  first.unmount();
+  const ro = b2.record_only as unknown as TurnSnapshot[];
+  const rb = { world_state: { regions: b2.regions.map((name) => ({ name })) }, history: ro } as unknown as Bundle;
+  render(<Watershed {...props(ro[ro.length - 1], rb)} />);
+  expect(screen.getByText(/Record only: a conserved water account/)).toBeInTheDocument();
+  expect(screen.queryByText(/malformed/)).toBeNull();
+  expect(screen.queryByText(/What it did/)).toBeNull();
+});

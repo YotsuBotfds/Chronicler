@@ -315,7 +315,8 @@ def test_the_watershed_and_python_ecology_read_irrigation_through_the_gate():
             IC.reconcile(world)
             _asset(world, 0, "irrigation").condition = condition
         region = world.regions[0]
-        assert watershed._irrigated(world, region) == (label != "failed")
+        assert watershed._irrigated(world, region, gate=True) == (label != "failed")
+        assert watershed._irrigated(world, region, gate=False)          # flow mode: every active work
         region.ecology.water = 0.5
         _tick_water(region, world.civilizations[0], ClimatePhase.DROUGHT, world)
         losses[label] = 0.5 - region.ecology.water

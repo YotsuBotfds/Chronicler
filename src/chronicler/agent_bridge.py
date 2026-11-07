@@ -1078,7 +1078,7 @@ def configure_ecology_runtime(simulator, world: "WorldState") -> None:
 
     # --- Ecology config (tuning YAML → Rust EcologyConfig) ---
     # Each field falls back to the same default as Rust EcologyConfig::default().
-    simulator.set_ecology_config(
+    config = dict(
         soil_degradation=get_override(world, "ecology.soil_degradation_rate", 0.005),
         soil_recovery=get_override(world, "ecology.soil_recovery_rate", 0.05),
         mine_soil_degradation=get_override(world, "ecology.mine_soil_degradation_rate", 0.03),
@@ -1120,12 +1120,19 @@ def configure_ecology_runtime(simulator, world: "WorldState") -> None:
         deforestation_threshold=get_override(world, "ecology.deforestation_threshold", 0.2),
         deforestation_water_loss=get_override(world, "ecology.deforestation_water_loss", 0.05),
     )
+    # --watershed-mode flow replaces the native water terms (chronicler.watershed:
+    # empty, and None, unless that mode is on).
+    from chronicler.watershed import native_overrides
+    replaced, shock_water = native_overrides(world)
+    config.update(replaced)
+    simulator.set_ecology_config(**config)
     # Regional climate (2026-10): the trend share and the water a harvest
     # shock takes. Not sent at share 1.0 (the native defaults: global schedule).
     from chronicler.climate import climate_trend_share, harvest_shock_water_loss
     trend = climate_trend_share(world)
     if trend < 1.0:
-        simulator.set_climate_config(trend, harvest_shock_water_loss(world, trend))
+        simulator.set_climate_config(
+            trend, harvest_shock_water_loss(world, trend) if shock_water is None else shock_water)
     # Production ledger (2026-10): the extraction rules. The native defaults
     # are the corrections; sent only when a tuning key restores an old rule.
     rules = extraction_rules(world)

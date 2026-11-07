@@ -9,7 +9,7 @@ whose served output is byte-identical (section 5).
 | --- | --- |
 | `scripts/seed_registry.json` | Every recorded use of a seed number, per stratum, and the program's reservations |
 | `scripts/screen_runner.py` | The generic run/report/check/`--resume` runner, parametrized by a `Screen` |
-| `scripts/connected_world_screens.py` | CW1-CW6 (stubs: cohorts only, except CW4, declared by slice C1: [quarantine rules](quarantine-rules.md), preregistration `docs/superpowers/progress/connected-world-screens-cw4.md`, and CW1, declared by slice S1: the wage and `paid_work` enrollment, a two-phase screen, preregistration `docs/superpowers/progress/connected-world-screens-cw1.md`) and the development-only `DEV` smoke screen |
+| `scripts/connected_world_screens.py` | CW1-CW6 (stubs: cohorts only, except CW4, declared by slice C1: [quarantine rules](quarantine-rules.md), preregistration `docs/superpowers/progress/connected-world-screens-cw4.md`, CW1, declared by slice S1: the wage and `paid_work` enrollment, a two-phase screen, preregistration `docs/superpowers/progress/connected-world-screens-cw1.md`, and CW3, declared by slice B2: the [watershed](watershed.md) in flow mode under upstream forest protection, procedural stratum only, preregistration `docs/superpowers/progress/connected-world-screens-cw3.md`) and the development-only `DEV` smoke screen |
 | `scripts/feature_matrix.py` | The switch compatibility matrix, generated from `feature_catalog` |
 | `viewer/src/lib/recordReading.ts` | The RL8 fix: absent, malformed, disabled and recorded-zero records told apart |
 | `tests/test_screen_runner.py`, `tests/test_feature_matrix.py` | Offline tests (oracle chunk `connected-world-e`, native shard 0) |
@@ -43,7 +43,7 @@ Program reservations (all `reserved`):
 | Timing pilot, shared by every screen, never held | 5 | 19 |
 | CW1: S1 accounting and wages (A1-A2) | 731-736 | 831-836 |
 | CW2: S2 workshop economics, owned-stock lifecycle (A3, A5) | 741-746 | 841-846 |
-| CW3: S3 watershed and infrastructure (B1-B3) | 751-756 | 851-856 |
+| CW3: S3 watershed and infrastructure (B1-B3); declared by B2 on the procedural cohort only (the watershed refuses template worlds: 751-756 stay reserved, unused) | 751-756 | 851-856 |
 | CW4: S3 quarantine and public health (C1) | 761-766 | 861-866 |
 | CW5: S4 trade, forest-water, care, attribution, requisition | 771-776 | 871-876 |
 | CW6: S5 adaptive decisions, cross-border organisation, war; integrated evaluation | 781-786 | 881-886 |
@@ -69,7 +69,9 @@ used, never-run-again, development and reserved sets per stratum.
   recorded run with `--resume`.
 - Nothing outside that clone sees the run until `mark-run OUT --screen CWn` sets the cohort's
   registry entries to `run` with a `held_run` record (output folder, identity digest, start, rows,
-  whether complete, reason) **and that registry change is committed and merged**. Run `mark-run`
+  whether complete, reason); a reserved stratum the screen does not declare becomes `never_run`
+  with an `unused` record (reason, output folder, time) **and that registry change is committed
+  and merged**. Run `mark-run`
   as soon as the run is finished or abandoned and commit it promptly, with the results; until
   then another clone could start the cohort again.
 - A recovered or reclaimed container has an empty ledger. To resume there, restore the output
@@ -120,7 +122,9 @@ of their preregistrations; the runner imports neither and is not tied to
   registered development worlds; `--turns` is allowed only there.
 - **Readiness**: a stub (`ready=False`) refuses every run; `check` exits 2 for it. A ready
   screen needs arms forming a tree rooted at its root, every command line parsing with the
-  real parser and accepted by the feature catalog, an activation rule, declared counters for
+  real parser and accepted by the feature catalog (in each stratum its cohorts use, both when it
+  declares none; the catalog's `procedural_world` setting is the world the command line resolves
+  to, which the live surface cannot see), an activation rule, declared counters for
   every package counter it reads, and 2-3 primary outcomes whose controls lie on the arm's
   control chain.
 - **Preregistration** (held and reserve runs): a `Status:` line reading FROZEN (not DRAFT),
@@ -128,7 +132,8 @@ of their preregistrations; the runner imports neither and is not tied to
   line naming exactly the screen's primaries.
 - **Pilot** (held and reserve runs): `--pilot` gives the pilot's `metrics.jsonl`; its sibling
   `source.txt` must show the same extension, runner, screen module, registry content (the
-  cohorts and seeds, without status and run records, so a `mark-run` keeps a pilot valid) and
+  cohorts and seeds, without `status`, `held_run` and `unused`, every field `mark-run` writes,
+  so a `mark-run` keeps a pilot valid) and
   count of modified code files, its rows that identity, and its source revision may differ
   from this run's only outside the code (`src/`, `chronicler-agents/`, `scripts/` except the
   registry, `pyproject.toml`, `uv.lock`), as the freeze commit and a committed `mark-run` do.

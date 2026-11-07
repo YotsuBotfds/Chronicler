@@ -1,4 +1,4 @@
-"""B1 (S1-A) watershed account (``--watershed``, mode ``record_only``), offline.
+"""Watershed account (``--watershed``): B1 (S1-A) ``record_only`` and B2 ``flow``, offline.
 
 docs/integration/watershed.md. The pure-Python ecology fallback runs the
 tick here (no extension). Acceptance cases from the program-B audit's S1-A
@@ -11,7 +11,12 @@ upstream/downstream trade-off), floods and droughts with their recorded
 conditions, record_only changing nothing outside its state and drawing no
 randomness, a turn settling once, the transient plan's reset, the dated
 record, registry and catalog entries, refusals of a switch change on resume
-and an exact checkpoint resume equal to the straight run.
+and an exact checkpoint resume equal to the straight run. B2 (``flow``): the
+replaced native terms switched off once through the seam, refusals (no native
+ecology, the Python fallback, a stale baseline, a mode change on resume), the
+derived index written and floods acting through existing fields, the river
+flood superseded with its draws kept, and the untouched state of the
+replaced terms.
 """
 from __future__ import annotations
 
@@ -34,7 +39,9 @@ from chronicler.livelihoods import (
 )
 from chronicler.main import _build_parser
 from chronicler.models import Infrastructure, InfrastructureType, River
-from chronicler.watershed_state import COUNTER_KEYS, FLOW_KEYS, FRAME_COLUMNS, SEA, SINK, WatershedState
+from chronicler.watershed_state import (
+    COUNTER_KEYS, EVENT_COUNTER_KEYS, FLOW_COUNTER_KEYS, FLOW_KEYS, FRAME_COLUMNS, SEA, SINK, WatershedState,
+)
 from chronicler.world_gen import generate_world
 
 DEVELOPMENT_PROCEDURAL = (7, 11, 13, 17, 21, 31, 302, 303)
@@ -60,6 +67,21 @@ def _phase9(world):
     events = after_ecology(world, acc=None)
     world.turn += 1
     return events
+
+
+def _settle(world, down):
+    """One settled turn with ``down`` and its tributaries emptied (below the channel), so a
+    later overflow crosses the channel from below (the opening turn starts no flood event)."""
+    state = _state(world)
+    for r in [u for u, d in enumerate(state.graph.down) if d == down] + [down]:
+        _set_storage(state, r, 0.0)
+    if state.mode == "flow":
+        before_ecology(world, acc=None, native=True)
+        after_ecology(world, acc=None)
+        world.turn += 1
+    else:
+        _phase9(world)
+    assert state.frame.columns["flood_excess"][down] == 0.0
 
 
 def _headwater_chain(state):
@@ -182,13 +204,11 @@ def test_a_switch_change_on_a_state_file_resume_is_refused():
     configure_livelihoods(world, _build_parser().parse_args(["--watershed"]), agent_mode="off")
     assert _state(world).model_dump() == before
     with pytest.raises(ValueError, match="watershed_mode"):
-        ws.check_request(world, True, argparse.Namespace(watershed_mode="flow"))
+        ws.check_request(world, True, argparse.Namespace(watershed_mode="bogus"))
 
 
-def test_a_mode_change_on_a_state_file_resume_is_refused(monkeypatch):
-    # Only record_only exists in this slice; a later mode must not be switched in mid-run.
+def test_a_mode_change_on_a_state_file_resume_is_refused():
     world = _world(13)
-    monkeypatch.setattr(ws, "MODES", ("record_only", "flow"))
     with pytest.raises(ValueError, match="conflicts with this world's watershed account"):
         ws.check_request(world, None, argparse.Namespace(watershed_mode="flow"))
     ws.check_request(world, None, argparse.Namespace(watershed_mode="record_only"))
@@ -250,7 +270,7 @@ def _check_frame(state, world):
 def test_the_account_closes_every_turn_of_a_climate_cycle():
     world = _world(31)
     state = _state(world)
-    assert state.counters == {key: 0 for key in COUNTER_KEYS}
+    assert state.counters == {key: 0 for key in COUNTER_KEYS + EVENT_COUNTER_KEYS}
     phases = set()
     for _ in range(80):
         _phase9(world)
@@ -332,12 +352,14 @@ def test_a_flood_is_recorded_with_the_arrivals_and_tributaries_that_caused_it():
     world = _world(11)
     state = _state(world)
     up, down = _headwater_chain(state)
+    _settle(world, down)
     _set_storage(state, up, 10.0)                   # far above capacity: it overflows downstream
     _phase9(world)
     flood = next(f for f in state.frame.floods if f.region == down)
     c = state.frame.columns
     assert flood.turn == state.frame.turn and flood.excess == pytest.approx(c["flood_excess"][down])
-    assert flood.arrivals == pytest.approx(flood.precipitation + flood.inflow + flood.external_in)
+    assert flood.arrivals == pytest.approx(flood.precipitation + flood.inflow)     # B2: no external inflow
+    assert flood.external_in is None
     assert flood.excess == pytest.approx(flood.arrivals - flood.channel)
     assert dict(flood.tributaries)[up] == pytest.approx(c["outflow"][up])
     assert math.fsum(q for _, q in flood.tributaries) == pytest.approx(flood.inflow)
@@ -465,11 +487,14 @@ def test_the_snapshot_record_is_dated_copied_and_distinguishes_unobserved():
     assert opening["observed"] is False and opening["source_turn"] == 0
     assert opening["regions"] is None and opening["floods"] is None and opening["totals"] is None
     assert opening["external"] is None and opening["stale_baseline"] is None
+    assert opening["flood_events"] is None and opening["cap_changes"] is None
     assert len(opening["storage"]) == len(world.regions)
     world.turn = 0
     _phase9(world)
     record = livelihoods_snapshot_fields(world)["livelihoods"]["watershed"]
-    assert (record["schema_version"], record["stage"], record["mode"]) == (1, "B1", "record_only")
+    assert (record["schema_version"], record["stage"], record["mode"]) == (1, "B2", "record_only")
+    assert record["flood_events"] == {"open": [], "ended": []} or record["flood_events"]["open"]
+    assert record["cap_changes"] == []
     assert record["source_turn"] == world.turn - 1 == record["completed_turn"] - 1 and record["observed"]
     # Outflow is each region's residual by construction: readers derive it.
     assert set(record["regions"]) == set(FRAME_COLUMNS) - {"outflow"} | {"drought_turns"}
@@ -589,7 +614,7 @@ def test_the_feature_catalog_requires_a_procedural_world():
     assert entry["requires"] == [{"setting": "procedural_world",
                                   "reason": "requires " + fc.SETTINGS["procedural_world"]}]
     mode = next(e for e in fc.feature_entries() if e["key"] == "watershed_mode")
-    assert mode["parent"] == "watershed" and mode["choices"] == ["record_only"]
+    assert mode["parent"] == "watershed" and mode["choices"] == ["record_only", "flow"]
     live = fc.live_surface(argparse.Namespace(agents="hybrid"))
     assert fc.validate_features({"watershed": True}, live).startswith("'watershed' (--watershed) requires a procedural")
     assert fc.validate_batch_features({"regions": 32, "features": {"watershed": True}}, {"agents": "off"}) is None
@@ -792,3 +817,451 @@ def test_a_run_records_the_account_and_resumes_exactly(tmp_path):
     loaded = rc.read_checkpoint(straight / "c11.ckpt")
     refused = parser.parse_args(["--resume", str(straight / "c11.ckpt"), "--no-watershed"])
     assert any("--watershed" in line for line in _adopt_checkpoint_args(parser, refused, loaded))
+
+
+# --- flow mode (B2): offline parts (the native tick itself: tests/test_watershed_native.py) ---------
+
+def _flow_world(monkeypatch, seed=11, regions=32, civs=10):
+    monkeypatch.setattr(ws, "native_available", lambda: True)   # the offline lane has no extension
+    return _world(seed, "--watershed-mode", "flow", regions=regions, civs=civs)
+
+
+class _FakeSimulator:
+    def __init__(self):
+        self.ecology, self.climate, self.topology = [], [], []
+
+    def set_river_topology(self, paths):
+        self.topology.append(paths)
+
+    def set_ecology_config(self, **config):
+        self.ecology.append(config)
+
+    def set_climate_config(self, trend, shock_water):
+        self.climate.append((trend, shock_water))
+
+    def set_extraction_config(self, *rules):
+        pass
+
+
+def test_flow_switches_the_replaced_native_terms_off_exactly_once(monkeypatch):
+    from chronicler.agent_bridge import configure_ecology_runtime
+    off, record, flow = _procedural(11), _world(11), _flow_world(monkeypatch)
+    assert ws.native_overrides(off) == ({}, None) and ws.native_overrides(record) == ({}, None)
+    assert ws.native_overrides(flow) == (ws.FLOW_REPLACED_TERMS, 0.0)
+    sims = {}
+    for name, world in (("off", off), ("record", record), ("flow", flow)):
+        sims[name] = _FakeSimulator()
+        configure_ecology_runtime(sims[name], world)
+    assert [len(s.ecology) for s in sims.values()] == [1, 1, 1]          # one configuration each
+    assert sims["record"].ecology == sims["off"].ecology and sims["record"].climate == sims["off"].climate
+    base, replaced = sims["off"].ecology[0], sims["flow"].ecology[0]
+    assert set(base) == set(replaced)
+    assert {k for k in base if base[k] != replaced[k]} == {k for k, v in ws.FLOW_REPLACED_TERMS.items() if base[k] != v}
+    assert all(replaced[k] == v for k, v in ws.FLOW_REPLACED_TERMS.items())
+    assert base["irrigation_water_bonus"] > 0 and base["deforestation_water_loss"] > 0 and base["water_recovery"] > 0
+    (trend, shock), = sims["flow"].climate
+    assert shock == 0.0 and trend == sims["off"].climate[0][0] < 1.0    # the crops keep the trend share
+    assert sims["off"].climate[0][1] > 0.0
+
+
+def test_flow_is_refused_without_the_native_ecology(monkeypatch):
+    from chronicler.livelihoods import configure_livelihoods as configure
+    world = _procedural(11)
+    # Both lanes: the offline lane has no extension; the native shards do, so
+    # the absence is simulated there (the refusal path is what is under test).
+    monkeypatch.setattr(ws, "native_available", lambda: False)
+    with pytest.raises(ValueError, match="requires the native ecology"):
+        configure(world, _build_parser().parse_args(["--watershed", "--watershed-mode", "flow"]), agent_mode="off")
+    assert world.livelihoods is None
+
+
+def test_flow_refuses_the_python_fallback_and_a_stale_baseline_at_planning(monkeypatch):
+    world = _flow_world(monkeypatch)
+    with pytest.raises(RuntimeError, match="requires the native ecology"):
+        before_ecology(world, acc=None, native=False)
+    before_ecology(world, acc=None, native=True)        # a tick that never settles ...
+    world.turn += 1
+    with pytest.raises(RuntimeError, match="stale"):
+        before_ecology(world, acc=None, native=True)    # ... flow will not apply the next account
+
+
+def test_flow_writes_the_derived_index_and_floods_act_through_existing_fields(monkeypatch):
+    world = _flow_world(monkeypatch)
+    state = _state(world)
+    up, down = _headwater_chain(state)
+    _settle(world, down)
+    _set_storage(state, up, 10.0)                       # overflow: the downstream region floods
+    region = world.regions[down]
+    region.capacity_modifier, soil = 1.0, region.ecology.soil
+    others = {r: (world.regions[r].capacity_modifier, dict(world.regions[r].disaster_cooldowns))
+              for r in range(len(world.regions)) if r != down}
+    before_ecology(world, acc=None, native=True)
+    plan = state._plan
+    assert [r.ecology.water for r in world.regions] == plan.columns["index_derived"]
+    assert region.capacity_modifier == ws.PARAMETERS.flood_capacity_modifier
+    assert region.disaster_cooldowns["flood"] == 3      # excess >= the long-flood excess: 2 turns, from Phase 9
+    assert region.ecology.soil == pytest.approx(min(soil + ws.PARAMETERS.flood_silt, 0.95), abs=0.06)
+    flooded = {r for r, v in enumerate(plan.columns["flood_excess"]) if v > 0}
+    for r, (modifier, cooldowns) in others.items():
+        if r not in flooded:
+            assert (world.regions[r].capacity_modifier, world.regions[r].disaster_cooldowns) == (modifier, cooldowns)
+    after_ecology(world, acc=None)                      # the native tick (water terms switched off) stands in here
+    world.turn += 1
+    flood = next(f for f in state.frame.floods if f.region == down)
+    assert flood.consequence.capacity_modifier == 0.85 and flood.consequence.cooldown == 3
+    assert flood.consequence.soil_after > flood.consequence.soil_before
+    assert state.counters["flood_consequences"] == len(state.frame.floods)
+    record = livelihoods_snapshot_fields(world)["livelihoods"]["watershed"]
+    assert (record["mode"], record["stage"], record["superseded"]) == ("flow", "B2", [])
+    assert next(f for f in record["floods"] if f["region"] == down)["consequence"]["cooldown"] == 3
+    _check_frame(state, world)
+
+
+def test_record_only_floods_have_no_consequence_and_records_have_the_b2_shape():
+    world = _world(11)
+    state = _state(world)
+    up, down = _headwater_chain(state)
+    _settle(world, down)
+    _set_storage(state, up, 10.0)
+    _phase9(world)
+    record = livelihoods_snapshot_fields(world)["livelihoods"]["watershed"]
+    assert (record["mode"], record["stage"]) == ("record_only", "B2") and "superseded" not in record
+    assert all("consequence" not in f and "withheld_by" not in f for f in record["floods"]) and record["floods"]
+    assert set(record["counters"]) == set(COUNTER_KEYS + EVENT_COUNTER_KEYS)
+
+
+def _river_flood_world(world):
+    """A river region in spring with water above 0.8, so _check_flood's draw decides."""
+    from chronicler.resources import get_season_id
+    region = next(r for r in world.regions if r.river_mask)
+    region.ecology.water = 0.85
+    region.disaster_cooldowns.clear()
+    turn = next(t for t in range(world.turn, world.turn + 48) if get_season_id(t) == 0)
+    world.turn = turn
+    return region
+
+
+class _CountingRandom:
+    def __init__(self, values):
+        self.values, self.calls = list(values), []
+
+    def random(self):
+        self.calls.append("random")
+        return self.values.pop(0) if self.values else 0.99
+
+    def randint(self, a, b):
+        self.calls.append("randint")
+        return a
+
+
+def test_flow_supersedes_the_river_flood_keeping_its_draws(monkeypatch):
+    from chronicler import emergence
+    for mode in ("record_only", "flow"):
+        world = _flow_world(monkeypatch) if mode == "flow" else _world(11)
+        region = _river_flood_world(world)
+        soil, modifier = region.ecology.soil, region.capacity_modifier
+        rng = _CountingRandom([0.0])                    # the flood's 20% draw fires
+        result = emergence._check_flood(region, world, rng)
+        assert rng.calls == ["random", "randint"]       # the same draws either way
+        if mode == "record_only":
+            assert result is not None and result is not emergence.SUPERSEDED
+            assert region.disaster_cooldowns["flood"] == 1 and region.capacity_modifier == 0.85
+        else:
+            assert result is emergence.SUPERSEDED
+            assert (region.ecology.soil, region.capacity_modifier, region.disaster_cooldowns) == (soil, modifier, {})
+            pending = _state(world).pending_superseded
+            assert [(f.region, f.turn, f.duration) for f in pending] == [
+                (world.regions.index(region), world.turn, 1)]
+
+
+def test_a_superseded_river_flood_ends_the_regions_checks_like_a_fired_one(monkeypatch):
+    from chronicler import emergence
+    counts = {}
+    for mode in ("record_only", "flow"):
+        world = _flow_world(monkeypatch) if mode == "flow" else _world(11)
+        _river_flood_world(world)
+        for r in world.regions:
+            r.disaster_cooldowns.clear()
+        rng = _CountingRandom([0.0] * 0)
+        rng.values = [0.0] * 1000                       # every condition-gated draw fires
+        events = emergence.check_environmental_events(world, rng)
+        counts[mode] = (len(rng.calls), [e.event_type for e in events])
+    assert counts["flow"][0] == counts["record_only"][0]   # the shared stream stays aligned
+    assert counts["record_only"][1].count("flood") == counts["flow"][1].count("flood") + 1
+
+
+def test_flow_settles_superseded_floods_into_the_record(monkeypatch):
+    from chronicler import emergence
+    world = _flow_world(monkeypatch)
+    region = _river_flood_world(world)
+    state = _state(world)
+    state.frame = None
+    state.opened_turn = world.turn                     # constructed: the account opens at this turn
+    emergence._check_flood(region, world, _CountingRandom([0.0]))
+    before_ecology(world, acc=None, native=True)
+    after_ecology(world, acc=None)
+    world.turn += 1
+    assert [f.region for f in state.frame.superseded] == [world.regions.index(region)]
+    assert state.pending_superseded == [] and state.counters["superseded_river_floods"] == 1
+    record = livelihoods_snapshot_fields(world)["livelihoods"]["watershed"]
+    assert record["superseded"] == [{"turn": world.turn - 1, "region": world.regions.index(region), "duration": 1}]
+
+
+def test_a_flow_world_cannot_switch_mode_on_resume(monkeypatch):
+    world = _flow_world(monkeypatch)
+    with pytest.raises(ValueError, match="conflicts with this world's watershed account"):
+        ws.check_request(world, None, argparse.Namespace(watershed_mode="record_only"))
+    assert livelihoods_resume_conflicts(world, argparse.Namespace(watershed_mode="record_only"), {}) == [
+        "--watershed-mode 'record_only' conflicts with the checkpoint (saved: 'flow')"]
+    monkeypatch.setattr(ws, "native_available", lambda: False)
+    with pytest.raises(ValueError, match="requires the native ecology"):   # a resume without the extension
+        ws.check_request(world, None, argparse.Namespace(watershed_mode=None))
+
+
+def test_a_b1_record_only_checkpoint_still_loads():
+    world = _world(11)
+    _phase9(world)
+    state = _state(world)
+    blob = pickle.dumps(world)
+    restored = pickle.loads(blob)
+    rs = restored.livelihoods.watershed
+    for obj, key in ((rs, "pending_superseded"), (rs.frame, "superseded")):
+        del obj.__dict__[key]                           # the shape a B1 pickle has
+    again = pickle.loads(pickle.dumps(restored))
+    assert again.livelihoods.watershed.pending_superseded == [] and again.livelihoods.watershed.frame.superseded == []
+    _phase9(again)
+    assert again.livelihoods.watershed.counters["settled_turns"] == state.counters["settled_turns"] + 1
+
+
+def test_flow_changes_only_the_water_index_and_what_its_floods_do(monkeypatch):
+    """The replaced terms' own state is untouched: irrigation works, rivers and the
+    river topology stay as they were; flow writes the index and, in flooded regions
+    only, the capacity modifier, the flood cooldown and the soil."""
+    world = _flow_world(monkeypatch)
+    world.regions[0].infrastructure.append(
+        Infrastructure(type=InfrastructureType.IRRIGATION, builder_civ="x", built_turn=0))
+    _set_storage(_state(world), _headwater_chain(_state(world))[0], 10.0)
+    before = _strip(world.model_dump(mode="json"))
+    before_ecology(world, acc=None, native=True)
+    after = _strip(world.model_dump(mode="json"))
+    flooded = {r for r, v in enumerate(_state(world)._plan.columns["flood_excess"]) if v > 0}
+    assert flooded
+    for r, (a, b) in enumerate(zip(before.pop("regions"), after.pop("regions"))):
+        for side in (a, b):
+            side["ecology"].pop("water")
+            if r in flooded:
+                side.pop("capacity_modifier"), side.pop("disaster_cooldowns"), side["ecology"].pop("soil")
+        assert a == b, r
+    assert before == after
+
+
+# --- B2 review: flood events, withheld consequences, cap changes ----------------------
+
+def _phase1_cooldowns(world):
+    """What Phase 1 does to cooldowns (simulation.phase_environment): decrement,
+    drop expired ones, restore the capacity modifier when none is left."""
+    for region in world.regions:
+        region.disaster_cooldowns = {k: v - 1 for k, v in region.disaster_cooldowns.items() if v - 1 > 0}
+        if not region.disaster_cooldowns and region.capacity_modifier != 1.0:
+            region.capacity_modifier = 1.0
+
+
+def _flow_turn(world, *, overflow=None, quiet=None):
+    """One flow Phase 9 without the native tick (whose replaced terms are off):
+    ``overflow`` regions get storage far above capacity, ``quiet`` regions none."""
+    state = _state(world)
+    for r in overflow or ():
+        _set_storage(state, r, 10.0)
+    for r in quiet or ():
+        _set_storage(state, r, 0.0)
+    before_ecology(world, acc=None, native=True)
+    events = after_ecology(world, acc=None)
+    world.turn += 1
+    return events
+
+
+def _isolated_edge(state):
+    """A tributary whose confluence has only it as a tributary."""
+    down = state.graph.down
+    for r, d in enumerate(down):
+        if d >= 0 and sum(1 for x in down if x == d) == 1:
+            return r, d
+    raise AssertionError("no single-tributary edge")
+
+
+def test_floods_are_events_with_hysteresis_and_act_once_per_event(monkeypatch):
+    world = _flow_world(monkeypatch)
+    state = _state(world)
+    up, down = _isolated_edge(state)
+    _settle(world, down)
+    region = world.regions[down]
+    region.disaster_cooldowns.clear()
+    region.capacity_modifier = 1.0
+    events = _flow_turn(world, overflow=[up])                      # onset
+    assert [f.region for f in state.frame.floods].count(down) == 1
+    assert [e.event_type for e in events if e.region == region.name] == ["flood"]
+    assert region.disaster_cooldowns["flood"] == 3 and region.capacity_modifier == 0.85
+    soil = region.ecology.soil
+    applied = state.counters["flood_consequences"]
+    event = next(e for e in state.flood_events if e.region == down)
+    assert (event.start_turn, event.turns) == (world.turn - 1, 1)
+    events = _flow_turn(world, overflow=[up])                      # still above the channel: the same event
+    assert all(f.region != down for f in state.frame.floods) and not [e for e in events if e.region == region.name]
+    assert state.counters["flood_consequences"] == applied         # no second consequence
+    assert region.disaster_cooldowns["flood"] == 3 and region.ecology.soil == soil   # not re-set, no second silt
+    assert next(e for e in state.flood_events if e.region == down).turns == 2
+    _flow_turn(world, quiet=[up, down])                            # below the recession threshold: it ends
+    ended = next(e for e in state.frame.floods_ended if e.region == down)
+    assert (ended.start_turn, ended.end_turn, ended.turns) == (world.turn - 3, world.turn - 1, 2)
+    assert all(e.region != down for e in state.flood_events)
+    record = livelihoods_snapshot_fields(world)["livelihoods"]["watershed"]
+    assert any(e["region"] == down and e["turns"] == 2 for e in record["flood_events"]["ended"])
+    assert state.counters["floods_ended"] >= 1
+    _phase1_cooldowns(world)
+    _phase1_cooldowns(world)
+    _phase1_cooldowns(world)                                       # its cooldown has expired
+    assert not region.disaster_cooldowns and region.capacity_modifier == 1.0
+    events = _flow_turn(world, overflow=[up])                      # crosses the channel again: a new event
+    assert any(f.region == down and f.consequence is not None for f in state.frame.floods)
+    assert [e.event_type for e in events if e.region == region.name] == ["flood"]
+
+
+def test_a_flood_on_a_region_under_a_cooldown_is_withheld_and_a_coastal_surge_is_not_channel_flow(monkeypatch):
+    world = _flow_world(monkeypatch)
+    state = _state(world)
+    up, down = _isolated_edge(state)
+    _settle(world, down)
+    region = world.regions[down]
+    region.disaster_cooldowns = {"flood": 10}                     # e.g. a coastal flood struck in Phase 1
+    region.capacity_modifier, soil = 1.0, region.ecology.soil
+    region.ecology.water = min(ws.index_cap(region), region.ecology.water + 0.1)   # its surge: an external inflow
+    events = _flow_turn(world, overflow=[up])
+    flood = next(f for f in state.frame.floods if f.region == down)
+    c = state.frame.columns
+    assert flood.consequence is None and flood.withheld_by == ["flood"]
+    assert flood.arrivals == pytest.approx(c["precipitation"][down] + c["inflow"][down])   # the surge is not counted
+    assert region.capacity_modifier == 1.0 and region.ecology.soil == soil and region.disaster_cooldowns == {"flood": 10}
+    assert not [e for e in events if e.region == region.name]     # one storm, one flood event (the coastal one)
+    assert state.counters["flood_consequences_withheld"] == 1
+    record = livelihoods_snapshot_fields(world)["livelihoods"]["watershed"]
+    rec = next(f for f in record["floods"] if f["region"] == down)
+    assert "consequence" not in rec and rec["withheld_by"] == ["flood"]
+
+
+def test_a_flood_modifier_ends_with_its_cooldown_even_when_another_cooldown_holds_it(monkeypatch):
+    world = _flow_world(monkeypatch)
+    state = _state(world)
+    up, down = _isolated_edge(state)
+    _settle(world, down)
+    region = world.regions[down]
+    region.disaster_cooldowns.clear()
+    region.capacity_modifier = 1.0
+    _flow_turn(world, overflow=[up])                               # cooldown 3, modifier 0.85
+    assert region.capacity_modifier == 0.85
+    _phase1_cooldowns(world)
+    region.disaster_cooldowns["earthquake"] = 10                   # another disaster after the onset
+    _flow_turn(world, quiet=[up])
+    _phase1_cooldowns(world)
+    _flow_turn(world, quiet=[up])
+    assert region.capacity_modifier == 0.85                       # within its cooldown
+    _phase1_cooldowns(world)                                       # the flood cooldown expires; the quake holds
+    assert "flood" not in region.disaster_cooldowns and region.capacity_modifier == 0.85
+    _flow_turn(world, quiet=[up])
+    assert region.capacity_modifier == 1.0 and not state.active_consequences
+
+
+def test_record_only_floods_are_events_without_consequences_or_chronicle_events():
+    world = _world(11)
+    state = _state(world)
+    up, down = _isolated_edge(state)
+    _settle(world, down)
+    _set_storage(state, up, 10.0)
+    events = _phase9(world)
+    assert any(f.region == down for f in state.frame.floods) and events == []
+    assert any(e.region == down for e in state.flood_events)
+
+
+def test_a_terrain_transition_in_the_post_pass_is_a_recorded_cap_change(monkeypatch):
+    from chronicler.emergence import _apply_transition
+    from chronicler.models import TerrainTransitionRule
+    rule = TerrainTransitionRule(from_terrain="forest", to_terrain="plains", condition="low_forest", threshold_turns=50)
+    for mode in ("flow", "record_only"):
+        world = _flow_world(monkeypatch) if mode == "flow" else _world(11)
+        state = _state(world)
+        r = next(i for i, region in enumerate(world.regions) if region.terrain == "forest")
+        region = world.regions[r]
+        _set_storage(state, r, ws.capacity(region.ecology.forest_cover))   # full: the derived index is the forest cap
+        before_ecology(world, acc=None, native=True)
+        derived = state._plan.columns["index_derived"][r]
+        _apply_transition(region, rule)                            # the post-pass: forest -> plains, index clamped
+        after_ecology(world, acc=None)
+        world.turn += 1
+        change = next(c for c in state.frame.cap_changes if c.region == r)
+        assert (change.terrain_before, change.terrain_after, change.cap_before, change.cap_after) == \
+            ("forest", "plains", 0.8, 0.7)
+        observed = state.frame.columns["index_observed"][r]
+        if mode == "flow":
+            assert derived > 0.7 and observed == pytest.approx(min(derived, 0.7), abs=5e-5)
+            assert change.index_out == pytest.approx(derived - 0.7)
+        else:
+            assert change.index_out is None
+        record = livelihoods_snapshot_fields(world)["livelihoods"]["watershed"]
+        assert [c["region"] for c in record["cap_changes"]] == [r] and state.counters["terrain_cap_changes"] == 1
+        # Not a storage flow: the next turn derives the index from the same storage under the new cap.
+        storage = state.storage[r]
+        before_ecology(world, acc=None, native=True)
+        plan = state._plan
+        assert plan.columns["external_out"][r] == 0.0 and plan.columns["storage_open"][r] == storage
+        after_ecology(world, acc=None)
+
+
+def test_a_watershed_mode_without_the_switch_is_refused_on_a_new_world():
+    world = _procedural(11)
+    with pytest.raises(ValueError, match="requires --watershed"):
+        configure_livelihoods(world, _build_parser().parse_args(["--watershed-mode", "flow"]), agent_mode="off")
+
+
+def test_the_opening_turn_starts_no_flood_event_and_an_onset_needs_a_turn_below_the_channel():
+    world = _world(11)
+    state = _state(world)
+    up, down = _isolated_edge(state)
+    _set_storage(state, up, 10.0)                                  # storage opens far above capacity
+    _phase9(world)                                                 # the opening turn: above the channel
+    assert state.frame.columns["flood_excess"][down] > 0.0 and not state.frame.floods
+    _set_storage(state, up, 10.0)
+    _phase9(world)                                                 # still above, never seen below: no onset
+    assert state.frame.columns["flood_excess"][down] > 0.0 and all(f.region != down for f in state.frame.floods)
+    _settle(world, down)                                           # a turn below the channel
+    _set_storage(state, up, 10.0)
+    _phase9(world)                                                 # crosses from below: an event starts
+    assert any(f.region == down for f in state.frame.floods)
+    assert state.counters["flood_region_turns"] >= 3 and state.counters["floods_started"] >= 1
+
+
+def test_a_flood_event_ends_when_arrivals_return_to_the_regions_normal_arrivals(monkeypatch):
+    """Normal arrivals: the region's own normal rain and melt plus the normal net outflow of
+    everything upstream (normal rain and melt less potential evaporation at phase factor 1
+    and irrigation demand); never above the channel (the basin's gross normal inflow)."""
+    world = _flow_world(monkeypatch)
+    state = _state(world)
+    before_ecology(world, acc=None, native=True)
+    plan = state._plan
+    p = ws.PARAMETERS
+    inputs = ws.region_inputs(world, state)[3]
+    key = plan.phase
+    own = [p.precipitation_base * (0.2 + i.moisture) + (p.tundra_melt if key == "warming" and i.terrain == "tundra" else 0.0)
+           for i in inputs]
+    net = [max(0.0, own[r] - p.evaporation_base * p.terrain_evaporation.get(i.terrain, 1.0) * (1 + p.transpiration * i.cover)
+               - (p.irrigation_demand if i.irrigated else 0.0)) for r, i in enumerate(inputs)]
+    up = ws.upstream_regions(state)
+    for r in range(len(inputs)):
+        assert plan.normal_arrivals[r] == pytest.approx(own[r] + math.fsum(net[u] for u in up[r]), rel=1e-12)
+        assert plan.normal_arrivals[r] <= plan.channel[r] * (1 + 1e-12)
+    after_ecology(world, acc=None)
+    world.turn += 1
+    up_r, down = _isolated_edge(state)
+    _settle(world, down)
+    _flow_turn(world, overflow=[up_r])
+    assert any(e.region == down for e in state.flood_events)
+    _flow_turn(world, quiet=[up_r])                                   # arrivals back at or below normal: it ends
+    assert any(e.region == down for e in state.frame.floods_ended)

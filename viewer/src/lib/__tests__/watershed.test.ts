@@ -4,7 +4,7 @@ import large from "../../__fixtures__/watershed_large_records.json";
 import type { Bundle, TurnSnapshot } from "../../types";
 import {
   carriesWatershed, drainsTo, readWatershed, readWatershedRun, watershedOn, watershedOutflow, watershedRegionValue,
-  type WatershedAudit,
+  watershedRunMode, type WatershedAudit,
 } from "../watershed";
 import { inspectRegionHistory, regionMetrics } from "../regionHistory";
 
@@ -168,5 +168,100 @@ describe("watershed region history", () => {
     expect(storage.path).toBe("/livelihoods/watershed/storage/0");
     expect(watershedRegionValue({ turn: 3, livelihoods: { schema_version: 1 } } as unknown as TurnSnapshot, 0, regions,
       "storage", readWatershedRun([])).missing).toBe("Watershed off in this run (--watershed not recorded)");
+  });
+});
+
+import b2 from "../../__fixtures__/watershed_b2_records.json";
+
+describe("readWatershed, B2 records (flow and record_only)", () => {
+  const flow = b2.flow as unknown as TurnSnapshot[];
+  const ro = b2.record_only as unknown as TurnSnapshot[];
+  const n = b2.regions.length;
+  type W = Record<string, unknown>;
+  const w = (s: TurnSnapshot) => (s as unknown as { livelihoods: { watershed: W } }).livelihoods.watershed;
+  const find = (pred: (r: W) => boolean) => structuredClone(flow.find((s) => pred(w(s)))!) as unknown as TurnSnapshot;
+  const why = (s: TurnSnapshot, h = flow) => { const r = readWatershed(s, n, readWatershedRun(h)); return r.status === "malformed" ? r.reason : r.status; };
+  const onsetPred = (r: W) => ((r.floods ?? []) as W[]).some((f) => "consequence" in f);
+  const capPred = (r: W) => ((r.cap_changes ?? []) as W[]).length > 0;
+
+  it("accepts natural B2 records of both modes: events, cap changes, superseded floods", () => {
+    for (const s of flow) expect(why(s)).toBe("ok");
+    for (const s of ro) expect(why(s, ro)).toBe("ok");
+    const first = readWatershed(flow[0], n, readWatershedRun(flow));
+    if (first.status !== "ok") throw new Error("expected ok");
+    expect([first.record.mode, first.record.stage]).toEqual(["flow", "B2"]);
+    expect(flow.some((s) => onsetPred(w(s)))).toBe(true);
+    expect(flow.some((s) => capPred(w(s)))).toBe(true);
+    expect(flow.some((s) => ((w(s).superseded ?? []) as W[]).length > 0)).toBe(true);
+    expect(flow.some((s) => (((w(s).flood_events as W | null)?.ended ?? []) as W[]).length > 0)).toBe(true);
+  });
+
+  it("reads a terrain cap change as the derived index capped, and refuses an unexplained gap", () => {
+    const s = find(capPred);
+    const r = w(s);
+    const change = (r.cap_changes as W[])[0];
+    const cols = r.regions as Record<string, number[]>;
+    const i = change.region as number;
+    expect(cols.index_observed[i]).toBeCloseTo(Math.min(cols.index_derived[i], change.cap_after as number), 4);
+    expect(why(s)).toBe("ok");
+    const unexplained = structuredClone(s);
+    w(unexplained).cap_changes = [];
+    expect(why(unexplained)).toBe(cols.index_derived[i] - (change.cap_after as number) > 1e-4
+      ? "in flow the index used differs from the derived index" : "ok");
+    const wrongOut = structuredClone(s);
+    ((w(wrongOut).cap_changes as W[])[0]).index_out = (change.index_out as number) + 0.05;
+    expect(why(wrongOut)).toBe("a terrain cap change's index outflow does not match the derived index");
+  });
+
+  it("refuses mixed or inconsistent B2 records", () => {
+    const cases: Array<[(r: W) => void, string]> = [
+      [(r) => { r.stage = "B1"; }, "unknown watershed schema"],
+      [(r) => { delete r.flood_events; }, "a record of another stage"],
+      [(r) => { delete r.superseded; }, "a flow record without its superseded floods"],
+      [(r) => { (r.regions as Record<string, number[]>).index_observed[0] += 0.01; }, "in flow the index used differs from the derived index"],
+      [(r) => { delete (r.counters as Record<string, number>).floods_started; }, "malformed counters"],
+      [(r) => { ((r.flood_events as W).open as W[]).push({ region: 0, start_turn: 0, turns: 1, peak_excess: 0.1 },
+        { region: 0, start_turn: 0, turns: 1, peak_excess: 0.1 }); }, "a region has two open flood events"],
+    ];
+    for (const [edit, reason] of cases) {
+      const s = structuredClone(flow[0]);
+      edit(w(s));
+      expect(why(s)).toBe(reason);
+    }
+    const onset = find(onsetPred);
+    const flood = ((w(onset).floods as W[]).find((f) => "consequence" in f))!;
+    const both = structuredClone(onset);
+    ((w(both).floods as W[]).find((f) => "consequence" in f)!).withheld_by = ["flood"];
+    expect(why(both)).toBe("a flow flood without its consequence");
+    const noEvent = structuredClone(onset);
+    ((w(noEvent).flood_events as W).open as W[]).splice(0);
+    expect(why(noEvent)).toBe("a flood onset without its open event");
+    const external = structuredClone(onset);
+    ((w(external).floods as W[]).find((f) => "consequence" in f)!).external_in = 0;
+    expect(why(external)).toBe("a flood record of another stage");
+    expect(flood.arrivals as number).toBeCloseTo((flood.precipitation as number) + (flood.inflow as number), 5);
+    const recordOnly = structuredClone(ro[ro.length - 1]);
+    w(recordOnly).superseded = [];
+    expect(why(recordOnly, ro)).toBe("a record-only record with superseded floods");
+  });
+
+  it("labels the region history by the run's mode: in flow the derived index is the index used", () => {
+    const bundle = (h: TurnSnapshot[], regions: string[]) => {
+      for (const s of h) (s as unknown as { region_control: Record<string, string> }).region_control = {};
+      return { world_state: { regions: regions.map((name) => ({ name })) }, history: h, named_events: [],
+        events_timeline: [] } as unknown as Bundle;
+    };
+    expect(watershedRunMode(flow)).toBe("flow");
+    expect(watershedRunMode(ro)).toBe("record_only");
+    expect(watershedRunMode(snapshots)).toBe("record_only");
+    expect(watershedRunMode([{ turn: 1, livelihoods: { schema_version: 1 } } as unknown as TurnSnapshot])).toBeNull();
+    const label = (h: TurnSnapshot[], regions: string[]) =>
+      regionMetrics(bundle(structuredClone(h), regions)).find((m) => m.id === "watershed:index_derived")!.label;
+    expect(label(flow, b2.regions)).toBe("Water index the watershed account derived (flow: the index used)");
+    expect(label(snapshots, natural.regions)).toBe("Water index the watershed account would derive (record only)");
+    const metric = regionMetrics(bundle(structuredClone(flow), b2.regions)).find((m) => m.id === "watershed:index_derived")!;
+    const rows = inspectRegionHistory(bundle(structuredClone(flow), b2.regions), b2.regions[0], metric, 0, 400).rows;
+    expect(rows.length).toBe(flow.length);
+    expect(rows.every((r) => r.value !== null)).toBe(true);
   });
 });

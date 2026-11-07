@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "layer": "cwb3",
-  "parent": "66e1ec401c3c200b56deb926045f9f945c2ab563",
+  "parent": "bac45cb5f7554145b406c1cd68e77ff025d876cb",
   "files": {
     "src/chronicler/economy.py": {
       "sha256": "4855a307e3d7b855b894170b7a97d0461f89dedb6bded04cc4cc6cd41674020f",
@@ -14,8 +14,8 @@
       ]
     },
     "src/chronicler/agent_bridge.py": {
-      "sha256": "7ef273b84fb5f4daed2423fbff176682b1644272682681173d720bb56cff8307",
-      "current_sha256": "24ed9d0710d90992142554c7993428fcd5abcaec61b7bc9835b55b92dc8a557c",
+      "sha256": "17cf7afe080ed46a95b402513c5bdcbc314920e2a1bd6a0daf5187bb5e4346a6",
+      "current_sha256": "130c5ff3ff30558362a6b77f04877eae30b3cd4f3d57fdaa11486a5774fd48a9",
       "patches": [
         {
           "old": "    if target is None:\n        return False\n    return any(i.active and i.type == target for i in region.infrastructure)\n\n\ndef _get_active_focus(region, world) -> int:\n",

@@ -1,0 +1,19 @@
+{
+ "screen": "CW3",
+ "cohort": "held",
+ "out": "/home/user/evidence/cw3/held",
+ "identity": "4b61577c610776142bd76c6200d24e505d5ce230e50b30ac774dfed640ae579a",
+ "preregistration": "f834f8ef12ad806f1a77ad1406f2bf478cb77542d35fa59ee61c278a48357568 docs/superpowers/progress/connected-world-screens-cw3.md",
+ "started": "2026-11-07T02:01:02Z",
+ "seeds": {
+  "procedural": [
+   851,
+   852,
+   853,
+   854,
+   855,
+   856
+  ]
+ },
+ "reason": null
+}
