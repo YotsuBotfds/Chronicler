@@ -107,7 +107,7 @@ the switch is off, in `record_only`, outside hybrid, or for a record not yet reg
 | Consumer | Edit | Off |
 | --- | --- | --- |
 | `ecology._tick_water` (pinned; the Python fallback without a native ecology) | `has_irrigation = active and serves(...)` | identical |
-| `watershed` record (B1, `record_only`): irrigation withdrawal | an active work that serves | identical |
+| `watershed` account in `record_only` (B1): irrigation withdrawal | an active work that serves | identical |
 | `economy.arable_capacity` (pinned) | `mult += FARM_CEILING_IRRIGATION * service(...)` | `0.10 x 1.0 == 0.10`: bit-identical |
 | `agent_bridge.build_region_batch` `has_irrigation` (pinned) | `active and serves(...)` (service >= 0.5) | `True and True`: identical |
 | `techniques.extend_trade_routes` (road practice) | the intermediate road must serve | identical |
@@ -116,8 +116,9 @@ the switch is off, in `record_only`, outside hybrid, or for a record not yet reg
 `service` **fails closed**: a region that is not in `world.regions` (by identity, or by its unique
 name for a copy) raises instead of reading 1.0. The irrigation **technique** (+5% grain, +10%
 ceiling) is a separate practice and unchanged. No road transport discount is added
-(`INFRASTRUCTURE_DISCOUNT` stays the placeholder 1.0). The watershed's future `flow` mode (B2,
-unmerged) reads irrigation at service 1.0; whichever lands second reconciles it with `service`.
+(`INFRASTRUCTURE_DISCOUNT` stays the placeholder 1.0). The watershed's `flow` mode (B2, merged at
+main bac45cb5) reads every active irrigation work at service 1.0: feeding the works' condition into
+its withdrawal capacity is a later B2/B3 integration the lead coordinates.
 
 ## 5. Works (`repair`, `cost_only`)
 
@@ -345,24 +346,25 @@ Section 9.
 
 ## 9. Verification record (2026-11-07, after the review; branch `claude/cw-b3-infrastructure`)
 
-Source: the branch's `src` at `32d27330` (main 66e1ec40 merged at `33fc1685`; `src` unchanged at the
-head); every native step used `PYTHONPATH=<worktree>/src` and the extension at
+Source: the branch head `8da9ead4` (main 66e1ec40 merged at `33fc1685`, main bac45cb5, PR #90,
+merged at `8da9ead4`; layer `cwb3` rebuilt last, after `cwb2`); every native step used `PYTHONPATH=<worktree>/src` and the extension at
 `~/.venvs/native-a3`, SHA-256 `20e77f9945efa71d597c142e99069337586cc865ddee7a17c6d20948a2c0c1ca`,
 built from Rust identical to main (no Rust change in this lane, so `cargo test` was not rerun).
 Compact evidence under `/home/user/evidence/b3/` (outside the repository).
 
 | Check | Result |
 | --- | --- |
-| Focused offline tests | `tests/test_infrastructure_condition.py` 47 passed; with the catalog, matrix, manifest, money, ledger, D2, RS2, PL3, PL1, B1, wiring, ecology and shard tests: 683 passed |
-| Witness chain with layer `cwb3` (last, after `cwd2`; 7 hunks over `economy.py`, `agent_bridge.py`, `ecology.py`, `batch_manifest.py`, `tests/test_batch_manifest.py`, parent main 66e1ec40) | the playbook's witness and pin modules: 509 passed, 61 subtests passed |
-| Bounded offline lane (`scripts/run_python_oracle_checks.py`, default output dir) | OFFLINE_LANE |
-| Native pytest (real extension) | 39 passed in 143.8 s: `test_infrastructure_condition_native.py` (3) with the RS2, PL3, closure, PL1, A1, A3 and D2 native modules |
+| Focused offline tests | `tests/test_infrastructure_condition.py` 47 passed; with the catalog, matrix, manifest, money, ledger, D2, RS2, PL3, PL1, watershed, CW3, wiring and ecology tests: 497 passed |
+| Witness chain with layer `cwb3` (last, after `cwd2` and `cwb2`; 7 hunks over `economy.py`, `agent_bridge.py`, `ecology.py`, `batch_manifest.py`, `tests/test_batch_manifest.py`, parent main bac45cb5) | the playbook's witness and pin modules: 509 passed, 61 subtests passed |
+| Bounded offline lane (`scripts/run_python_oracle_checks.py`, default output dir) | PASS in 275.3 s: 70 chunks, 7,397 passed, 69 skipped, 0 failed; `connected-world-b` 113 passed in 3.6 s of 110 s; commit `8da9ead4` |
+| Native pytest (real extension) | 42 passed in 158.0 s: `test_infrastructure_condition_native.py` (3) with the RS2, PL3, closure, PL1, A1, A3, D2 and watershed native modules |
 | Feature-off identity against `8abc1acb` (`turn_speed_identity.py`, the 9 standard cases, each side its own tree and extension) | 9 cases, 399 files compared, 0 differences |
+| Feature-off identity against the preceding main `bac45cb5` (its own tree, the same extension) | 9 cases, 399 files compared, 0 differences |
 | Explicit `--no-infrastructure-condition` against the switch omitted (hybrid_s42 and proc48_hybrid_s42 with `--grain-reserves --grain-storage --workshops --repair-projects --local-budgets --maintenance-obligation`) | 2 cases, 205 files compared, 0 differences |
 | `record_only` against the switch omitted (the same two cases and prerequisites) | with the record and its two manifest keys removed, the bundle and `state.json` are equal and every other file byte-identical (16/16 and 22/22) in both (hybrid_s42: 15 assets, 7 failed; proc48: 68 assets, 10 failed recorded) |
-| Exact resume, every livelihoods switch with retail everywhere, A3, D2, A1 and B3 (`checkpoint_identity.py`, `hybrid_s42_long`, 200 turns, 19 resume points) | CKPT_RESULT |
+| Exact resume, every livelihoods switch with retail everywhere, A3, D2, A1 and B3 (`checkpoint_identity.py`, `hybrid_s42_long`, 200 turns, 19 resume points) | PASS: checkpointing changes nothing; every resume byte-identical; 10 resume points hold open works, and the resumes at turns 89 and 110 are inside works that delivered work that turn |
 | Native exact resume inside open works (`test_infrastructure_condition_native.py`, procedural 31, checkpoint 37) | history, world state and `state.json` byte-identical |
-| Viewer | VIEWER_RESULT |
+| Viewer | full suite 163 files, 1,620 passed, 2 skipped (`--maxWorkers=2`); `npm run lint` clean; `npm run build` passes |
 
 **Not run:** a desktop and phone browser journey (V8), profiling at a declared scale (V11), the
 narration audit (no narration change), any held screen, the 200-seed gate and the procedural
