@@ -411,7 +411,7 @@ def phase10_before_reserves(world, acc, economy_result, agent_bridge):
     # Keep them local: a later turn, closure, controller or price change must
     # rebuild them.  Wallets, treasuries, stock, orders and bookings are never
     # memoized; dispatch and the payment seam still read their live values.
-    planning_people = {holder: person[:3] for holder, person in people.items()}
+    planning_people = None
     paths_by_origin, prices_by_origin = {}, {}
     for dest, payer, gap in _needs(world):
         allowance = max(0, (envelope(world, payer, SERVICE, region=dest) or 0) - t.spent.get(payer, 0))
@@ -429,6 +429,11 @@ def phase10_before_reserves(world, acc, economy_result, agent_bridge):
             if path is not None and price is not None:
                 candidates.append((len(path), origin, holder, path, price))
         for _hops, origin, holder, path, price in sorted(candidates):
+            if planning_people is None:
+                # No-demand/no-envelope phases need no extra population map.
+                # The initial physical facts are still valid at first dispatch;
+                # wallets and accepted-candidate eligibility remain live below.
+                planning_people = {aid: person[:3] for aid, person in people.items()}
             order = dispatch(world, state, t, sim, origin, dest, holder, path, math.floor(gap * MILLI), price, allowance, acc,
                              known_markets=known_markets, _planning_people=planning_people)
             if order is not None:

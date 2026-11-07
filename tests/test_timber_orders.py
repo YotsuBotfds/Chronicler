@@ -369,6 +369,31 @@ def _plan_needs(world, state, monkeypatch, needs):
     monkeypatch.setattr(LB, "envelope", lambda *_args, **_kwargs: 10)
 
 
+@pytest.mark.parametrize("needs", [[], [(1, 1, 2.0)]])
+def test_no_dispatch_builds_no_unused_population_projection(lane, monkeypatch, needs):
+    from chronicler import adaptive_livelihoods as A, local_budgets as LB
+    world, state, sim, _ = lane
+    visits = []
+
+    class CountedPeople(dict):
+        def items(self):
+            visits.append(len(self))
+            return super().items()
+
+    sim.wealth = {aid: 10.0 for aid in range(100)}
+    people = CountedPeople({aid: (0, TT.MERCHANT, 30, 10.0) for aid in sim.wealth})
+    monkeypatch.setattr(TT, "_people", lambda _: people)
+    monkeypatch.setattr(A, "trade_destinations", lambda *_: None)
+    monkeypatch.setattr(T, "_needs", lambda _: needs)
+    monkeypatch.setattr(LB, "envelope", lambda *_args, **_kwargs: 0)
+    T.phase10_before_reserves(world, None, None, NS(_sim=sim))
+    assert not state.orders and not state.book.settled
+    assert sim.wealth == {aid: 10.0 for aid in range(100)}
+    assert [c.treasury for c in world.civilizations] == [50, 50]
+    assert world.regions[0].stockpile.goods["timber"] == 10.0
+    assert visits == []
+
+
 def test_unknown_market_candidates_preserve_refusals_without_population_rescans(lane, monkeypatch):
     world, state, sim, _ = lane
     sim.wealth = {aid: 10.0 for aid in range(100)}
