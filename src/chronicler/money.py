@@ -18,7 +18,10 @@ One rule set for every new payment:
   be a whole number of units; a treasury *credit* below a whole unit is held
   as a persisted ``carry`` of the paying package's book (per civilization and
   purpose) and paid in whole units as it accumulates, so nothing is rounded
-  away and nothing is created.
+  away and nothing is created. A treasury pays agents only for a declared
+  purpose (``TREASURY_AGENT_PURPOSES``, C2's ``care_wage``): its lines may be
+  sub-unit, the bill is paid from that book's prepaid carry first and then in
+  whole units, and the unspent rest of the last unit stays prepaid.
 * **Whole-bill validation before any move.** The purpose is registered, the
   amounts are positive integers, the counterparties are unique, the key
   ``(turn, purpose, batch)`` has not settled, and the payer covers the whole
@@ -41,7 +44,8 @@ One rule set for every new payment:
 
 No random draws; every order is by account identity. Native transfers go
 through ``AgentSimulator.transfer_wealth`` (append-only purposes; this seam
-verifies the extension names the purpose at the code it uses).
+verifies the extension names the purpose, or the native purpose it rides
+(``NATIVE_ALIASES``), at the code it uses).
 
 **Pairwise payments** (A4 titled trade): a bill whose payer is an agent and
 whose payee lines are agents, under a pairwise purpose
@@ -74,11 +78,26 @@ PAIRWISE_PURPOSES: tuple[str, ...] = ("cargo_purchase", "cargo_sale")
 #: Purposes Python-only accounts use (treasury <-> firm cash); they never
 #: reach native code (append only).
 PYTHON_PURPOSES: tuple[str, ...] = ("firm_capital", "firm_input_purchase")
+#: Seam purposes that ride an existing native purpose code (append only).
+#: The connected-world Python-only lanes cannot add a native code, so a new
+#: agent-wealth purpose is keyed natively under an existing code with batches
+#: its caller keeps disjoint from that code's other users (the native key log
+#: is per turn, code and batch); the seam's own book keys it by its own name.
+#: ``care_wage`` (C2): treasury -> epidemic carers, under ``repair_wage`` (as
+#: PL1 woodcut and PL3 granary crew wages are), batches ``epidemic_care.CARE_WAGE_BATCH + civ``.
+NATIVE_ALIASES: dict[str, str] = {"care_wage": "repair_wage"}
 #: Every registered purpose -> its native code (None: Python accounts only).
 PURPOSES: dict[str, int | None] = {
     **{name: code for code, name in enumerate(NATIVE_PURPOSES)},
     **{name: None for name in PYTHON_PURPOSES},
+    **{name: NATIVE_PURPOSES.index(native) for name, native in NATIVE_ALIASES.items()},
 }
+#: Purposes for which a treasury may pay agents (append only). Lines may be
+#: sub-unit: the treasury pays whole units and the remainder is prepaid into
+#: the book's carry for (civ, purpose), spent first by the next bill; what an
+#: agent's wealth ceiling refuses (or an absent id cannot take) returns to that
+#: carry (``return_to_payer``), whole units of it to the treasury.
+TREASURY_AGENT_PURPOSES: tuple[str, ...] = ("care_wage",)
 #: Account kinds, in declaration order (append only).
 ACCOUNT_KINDS: tuple[str, ...] = ("civ_treasury", "firm_cash", "agent_wealth", "sink")
 #: Declared sinks a bill may name for its residual or as a payee (append only).
@@ -292,16 +311,19 @@ def _validate_shape(bill: Bill) -> None:
     elif bill.payer is not None:
         if bill.payer.kind in ("agent_wealth", "sink"):
             raise MoneyError("an agent or a sink pays only through a collection line")
-        if bill.payer.kind == "civ_treasury" and any(a.kind == "agent_wealth" for a, _ in bill.lines):
+        if bill.payer.kind == "civ_treasury" and any(a.kind == "agent_wealth" for a, _ in bill.lines) \
+                and not _treasury_to_agents(bill):
             # A treasury pays agents through the packages' own prepaid rules
-            # (RS2/PL1); this seam's first slice does not.
+            # (RS2/PL1), or through this seam only for a declared purpose whose
+            # every line is an agent (``TREASURY_AGENT_PURPOSES``, C2).
             raise MoneyError("a treasury payment to agents is not supported by this seam")
     else:
         if bill.payee.kind == "agent_wealth":
             raise MoneyError("a collection pays a firm, a treasury or a sink, not an agent")
         if any(a.kind != "agent_wealth" for a, _ in bill.lines):
             raise MoneyError("a collection's lines are paying agents")
-    if bill.payer is not None and bill.payer.kind == "civ_treasury" and any(a % MILLI for _, a in bill.lines):
+    if bill.payer is not None and bill.payer.kind == "civ_treasury" and any(a % MILLI for _, a in bill.lines) \
+            and not _treasury_to_agents(bill):
         raise MoneyError("a treasury pays whole units")
     if pairwise or any(a.kind == "agent_wealth" for a, _ in bill.lines):
         if PURPOSES[bill.purpose] is None:
@@ -311,6 +333,13 @@ def _validate_shape(bill: Bill) -> None:
             # Fail closed: an agent-wealth payment through the seam needs a ledger channel.
             raise MoneyError(f"purpose {bill.purpose!r} has no ledger channel "
                              "(wealth_accounting_state.MONEY_PURPOSE_CHANNELS)")
+
+
+def _treasury_to_agents(bill: Bill) -> bool:
+    """A treasury paying only agents for a declared purpose (prepaid carry rule)."""
+    return (bill.payer is not None and bill.payer.kind == "civ_treasury"
+            and bill.purpose in TREASURY_AGENT_PURPOSES and bill.residual == "return_to_payer"
+            and all(a.kind == "agent_wealth" for a, _ in bill.lines))
 
 
 def _settled(book: MoneyBook, turn: int, purpose: str, batch: int) -> bool:
@@ -362,6 +391,9 @@ def quote(world, bill: Bill, *, turn: int, book: MoneyBook, acc=None, sim=None,
     if bill.payer is not None:
         if bill.payer.kind == "civ_treasury":
             available = _civ_budget(world, int(bill.payer.ident), acc) * MILLI
+            if _treasury_to_agents(bill):
+                # The prepaid remainder of earlier bills is spent first.
+                available += book.carry.get(f"{int(bill.payer.ident)}:{bill.purpose}", 0)
         else:
             firm = (firms or {}).get(int(bill.payer.ident))
             if firm is None:
@@ -399,7 +431,7 @@ def _native_pairs(sim, turn: int, purpose: str, batch: int, rows):
 def _native_code(sim, purpose: str) -> int:
     code = PURPOSES[purpose]
     names = list(sim.wealth_transfer_purposes()) if callable(getattr(sim, "wealth_transfer_purposes", None)) else []
-    if code is None or code >= len(names) or names[code] != purpose:
+    if code is None or code >= len(names) or names[code] != NATIVE_ALIASES.get(purpose, purpose):
         raise MoneyError(f"payment purpose {purpose!r} needs a native build whose wealth transfer purposes "
                          f"name it at code {code} (rebuild chronicler-agents)")
     return code
@@ -425,6 +457,42 @@ def _move_treasury(world, civ: int, units: int, acc) -> None:
         target.treasury += units
     else:
         acc.add(civ, target, "treasury", units, "keep")
+
+
+def _debit_prepaid(world, civ: int, purpose: str, debit: int, flows: list[MoneyFlow], book: MoneyBook,
+                   acc) -> int:
+    """A treasury -> agents bill (``TREASURY_AGENT_PURPOSES``): ``debit`` (what
+    the agents took) is paid from the prepaid carry first, then in whole
+    treasury units; the unspent rest of the last unit stays prepaid. Exact:
+    ``units x 1000 + carry before == debit + carry after``. Each flow records
+    its share of the units (negative, by what its agent took); the first flow
+    the carry before, the last the carry after. Returns the units paid."""
+    key = f"{civ}:{purpose}"
+    before = book.carry.get(key, 0)
+    units = max(0, -(-(debit - before) // MILLI))
+    after = before + units * MILLI - debit
+    if not 0 <= after < MILLI:
+        raise MoneyError("a prepaid treasury carry left its range")
+    if after:
+        book.carry[key] = after
+    else:
+        book.carry.pop(key, None)
+    _move_treasury(world, civ, -units, acc)
+    # The units are split over the flows by what each agent took (largest
+    # remainder, then flow order), so per-region totals add up to the bill's
+    # units; the carry is the bill's (first flow before, last flow after).
+    weights = [f.applied for f in flows]
+    whole = sum(weights)
+    shares = [units * w // whole if whole else 0 for w in weights]
+    rests = sorted(range(len(flows)), key=lambda i: (-(units * weights[i] % whole if whole else 0), i))
+    for i in rests[:units - sum(shares)]:
+        shares[i] += 1
+    for f, share in zip(flows, shares):
+        f.treasury_units = -share
+    if flows:
+        flows[0].carry_before = before
+        flows[-1].carry_after = after
+    return units
 
 
 def _record(book: MoneyBook, turn: int, flows: list[MoneyFlow]) -> None:
@@ -530,7 +598,9 @@ def pay(world, bill: Bill, *, turn: int, book: MoneyBook, acc=None, sim=None,
                                    region=regions[i], requested=amount, applied=applied, residual=residual,
                                    residual_to=to, status=status, treasury_units=units, carry_before=before,
                                    carry_after=after))
-        if payer.kind == "civ_treasury":
+        if payer.kind == "civ_treasury" and _treasury_to_agents(bill):
+            units_total = -_debit_prepaid(world, int(payer.ident), bill.purpose, debit, flows, book, acc)
+        elif payer.kind == "civ_treasury":
             # Every line is whole units and never limited (no agent payee).
             _move_treasury(world, int(payer.ident), -(debit // MILLI), acc)
             for f in flows:
@@ -578,7 +648,7 @@ def pay(world, bill: Bill, *, turn: int, book: MoneyBook, acc=None, sim=None,
 # ---------------------------------------------------------------------------
 
 #: Packages whose persisted state keeps a :class:`MoneyBook` (``state.book``; append only).
-MONEY_BOOKS: tuple[str, ...] = ("workshop_economics", "titled_trade")
+MONEY_BOOKS: tuple[str, ...] = ("workshop_economics", "epidemic_care", "titled_trade")
 
 
 def flows_for_turn(world, turn: int) -> list[MoneyFlow] | None:

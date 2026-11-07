@@ -1,6 +1,6 @@
 # Source, recovery and archive index
 
-Updated 2026-11-06 after PRs #73, #74, #76, #78, #80, #81, #83, #84, #85, #86, #87, #88 and #89. This is the starting map for future agents;
+Updated 2026-11-06 after PRs #73, #74, #76, #78, #80, #81, #83, #84, #85, #86, #87, #88, #89 and #90. This is the starting map for future agents;
 dated reports keep their original source, platform and qualification limits.
 
 ## Current source and evidence
@@ -112,6 +112,16 @@ Use fetched `main` for new work.
   - Its tree, `d60153bc`, equals the tree of the reviewed head `0b29f60c`.
   - Premerge Tests run 42328958939 on that head passed all nine jobs.
   - [Main Tests run 42330174480](https://github.com/YotsuBotfds/Chronicler/actions/runs/42330174480)
+    tested the merge SHA on `push`, attempt 1: success.
+
+- [PR #90](https://github.com/YotsuBotfds/Chronicler/pull/90) (connected-world B2: watershed flow mode,
+  recalibrated, replacing the old water terms, and the CW3 screen) merged on 2026-11-07 at
+  `bac45cb5f7554145b406c1cd68e77ff025d876cb`.
+  - Its tree, `9be647c7`, equals the tree of the reviewed head `5122b89d` (the code review approved
+    `706e7af4`; `5122b89d` adds one test-only CI fix, approved by an independent delta review).
+  - Premerge Tests run 42332351997 on that head passed all nine jobs (the first run, 42331445447 at
+    `706e7af4`, failed native module shard 0 on a test that assumed the extension is absent).
+  - [Main Tests run 42333485333](https://github.com/YotsuBotfds/Chronicler/actions/runs/42333485333)
     tested the merge SHA on `push`, attempt 1: success.
 
 Every livelihoods, recovery-skills and productive-recovery switch is off by default. These merges do not complete the 200-seed or

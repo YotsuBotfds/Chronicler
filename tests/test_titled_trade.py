@@ -212,8 +212,9 @@ def test_switch_registry_cli_catalog_and_manifest_keys():
     from chronicler.livelihoods_state import LIVELIHOODS_SWITCHES
     order = LIVELIHOODS_SWITCHES
     assert order.index("titled_trade") == order.index("workshop_economics") + 1
-    # Before D2's observer and the ledger (both observe every acting package).
-    assert order.index("titled_trade") == order.index("attribution_records") - 1
+    # Before C2's carers (booked after every other work consumer), D2's observer and the ledger.
+    assert order.index("titled_trade") == order.index("epidemic_care") - 1
+    assert order.index("epidemic_care") == order.index("attribution_records") - 1
     assert order[-1] == "wealth_accounting"
     assert order.index("household_retail") < order.index("titled_trade")
     assert REQUIREMENTS["titled_trade"] == (

@@ -43,6 +43,9 @@ CHANNELS: tuple[tuple[str, str | None, str], ...] = (
     ("relocation_fare", "relocation_costs", "movers -> travel sink (L7)"),
     ("domestic_credit", None, "treasury <-> merchants, net applied (domestic credit)"),
     ("wares_purchase", "workshop_economics", "households -> workshop firm cash, wares bought by id (A3)"),
+    # C2 (epidemic care): registered for the payment seam; the ledger does not
+    # itemize it (``--epidemic-care`` and ``--wealth-accounting`` exclude each other).
+    ("care_wage", "epidemic_care", "treasury -> epidemic carers by id (C2; not itemized: excluded with A1)"),
     ("cargo_purchase", "titled_trade", "merchant -> owners of surplus food, titled cargo bought by id (A4)"),
 )
 CHANNEL_NAMES: tuple[str, ...] = tuple(c[0] for c in CHANNELS)
@@ -64,7 +67,9 @@ WITHHELD_PACKAGES: tuple[str, ...] = (
 #: ``withheld_learning`` (L5 attendance), ``withheld_teaching`` (academy
 #: services) and ``withheld_health`` (rural health work): registered, NOT
 #: itemized in slice 1 - their withheld shares stay in the native-model residual.
-WITHHELD_OTHER: tuple[str, ...] = ("withheld_retail", "withheld_learning", "withheld_teaching", "withheld_health")
+WITHHELD_OTHER: tuple[str, ...] = ("withheld_retail", "withheld_learning", "withheld_teaching", "withheld_health",
+                                   # C2 carers' withheld income (appended; excluded with A1).
+                                   "withheld_care")
 
 #: Native methods that move agent wealth or withhold ordinary income.
 WEALTH_WRITER_METHODS: tuple[str, ...] = (
@@ -84,7 +89,7 @@ WEALTH_ROUTERS: dict[str, tuple[str, ...]] = {
     # The shared payment seam (connected-world A3): ``money.pay`` routes every
     # agent-wealth line of a bill through ``money._native_transfer``; the
     # purposes it may carry are ``MONEY_PURPOSE_CHANNELS``.
-    "_native_transfer": ("wares_purchase",),
+    "_native_transfer": ("wares_purchase", "care_wage"),
     # A4: ``money.pay`` routes a pairwise bill (an agent paying agents)
     # through ``money._native_pairs`` (native ``settle_pairs``).
     "_native_pairs": ("cargo_purchase",),
@@ -135,8 +140,10 @@ WEALTH_WRITERS: dict[tuple[str, str, str, str], tuple[int, tuple[str, ...]]] = {
     ("health_care", "prepare_health_care", "prepare_health_work", ""): (2, ("withheld_health",)),
     # A3 (the payment seam): the router's one native call, and its two callers in
     # ``money.pay`` (a payment's agent credits, a collection's agent debits).
-    ("money", "_native_transfer", "transfer_wealth", "purpose=code,batch=batch"): (1, ("wares_purchase",)),
-    ("money", "pay", "_native_transfer", "purpose=bill.purpose"): (2, ("wares_purchase",)),
+    ("money", "_native_transfer", "transfer_wealth", "purpose=code,batch=batch"): (1, ("wares_purchase", "care_wage")),
+    ("money", "pay", "_native_transfer", "purpose=bill.purpose"): (2, ("wares_purchase", "care_wage")),
+    # C2 (epidemic care): carers' ordinary income withheld for their care time.
+    ("epidemic_care", "finish_phase2", "extend_paid_work", ""): (1, ("withheld_care",)),
     # A4 (titled trade): the pairwise router's one native call and its caller in
     # ``money.pay``; the carriers' paid share (their whole ordinary income).
     ("money", "_native_pairs", "settle_pairs", "purpose=code,batch=batch"): (1, ("cargo_purchase",)),
@@ -149,6 +156,7 @@ WEALTH_WRITERS: dict[tuple[str, str, str, str], tuple[int, tuple[str, ...]]] = {
 #: its row here (and its channel). Append only.
 MONEY_PURPOSE_CHANNELS: dict[str, str] = {
     "wares_purchase": "wares_purchase",
+    "care_wage": "care_wage",
     "cargo_purchase": "cargo_purchase",
 }
 #: Every bill built for the payment seam outside ``money`` itself:
@@ -160,6 +168,8 @@ MONEY_BILLS: dict[tuple[str, str], tuple[str, ...]] = {
     ("workshop_economics", "charge_inputs"): ("firm_input_purchase",),
     ("workshop_economics", "sell_to_households"): ("wares_purchase",),
     ("workshop_economics", "open_firms"): ("firm_capital",),
+    # C2: carers' wages, treasury to agents (prepaid carry rule).
+    ("epidemic_care", "_quote_bills"): ("care_wage",),
     ("titled_trade", "_buy"): ("cargo_purchase",),
 }
 #: Every reference to a writer or router name that is not a call: the name
@@ -182,6 +192,7 @@ WEALTH_WRITER_REFERENCES: dict[tuple[str, str, str], int] = {
     ("learning_cohorts", "<module>", "reserve_learning_attendance"): 1,
     ("simulation", "run_turn_result", "prepare_teaching_work"): 1,
     ("health_care", "prepare_health_care", "prepare_health_work"): 1,
+    ("epidemic_care", "<module>", "extend_paid_work"): 1,
     ("titled_trade", "<module>", "extend_paid_work"): 1,
     ("titled_trade", "<module>", "settle_pairs"): 1,
     ("money", "_native_pairs", "settle_pairs"): 1,

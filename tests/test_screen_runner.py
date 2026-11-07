@@ -1046,8 +1046,11 @@ def test_mark_run_records_a_stratum_without_a_cohort_as_unused_by_design(SR, reg
 def test_the_registry_content_hash_is_the_one_every_recorded_identity_used(SR, registry):
     """CW3's mark-run first wrote its note into ``use`` (registry content 95e3bdea for one
     commit); the note is a run-record field now, and the content hash is again the one CW1,
-    CW4, CW4b and CW3 recorded."""
-    assert SR.registry_content_sha256(registry) == "a703a8502cb688181662d323ff482822a3fec6df292d23ebccc42f05751b2cfe"
+    CW4, CW4b and CW3 recorded. Cohorts reserved since (CW5c, slice C2: its own entries
+    only) are projected out, so that recorded content is still checked exactly."""
+    earlier = copy.deepcopy(registry)
+    earlier["entries"] = [e for e in earlier["entries"] if e.get("screen") not in ("CW5c",)]
+    assert SR.registry_content_sha256(earlier) == "a703a8502cb688181662d323ff482822a3fec6df292d23ebccc42f05751b2cfe"
     bad = copy.deepcopy(registry)
     next(e for e in bad["entries"] if e["id"] == "cw3-held-t")["unused"]["reason"] = ""
     assert any("unused is a" in p for p in SR.validate_registry(bad))
@@ -1055,3 +1058,63 @@ def test_the_registry_content_hash_is_the_one_every_recorded_identity_used(SR, r
     next(e for e in reserved["entries"] if e["id"] == "cw2-held-t")["unused"] = {
         "reason": "x", "out": "y", "recorded": "z"}
     assert any("never_run entry" in p for p in SR.validate_registry(reserved))
+
+
+# --- Paired readings (Outcome.pair) -------------------------------------------------
+
+def _pair_screen(SR, CW, outcomes):
+    dev = CW.SCREENS["DEV"]
+    return SR.Screen(name="PAIR", title="paired readings", preregistration=None, base=dev.base,
+                     arms={"W": ((), None), "TS": (("--timber-stock",), "W")}, root="W", pilot={}, held={},
+                     outcomes=tuple(outcomes), activation=dev.activation, ready=True, module=dev.module)
+
+
+def _pair_rows(values):
+    rows = []
+    for seed, (w, ts) in values.items():
+        rows.append({"arm": "W", "stratum": "t", "seed": seed, "rc": 0, "m": {"v": w}})
+        rows.append({"arm": "TS", "stratum": "t", "seed": seed, "rc": 0, "m": {"v": ts},
+                     "activation": {"activated": True}})
+    return rows
+
+
+def test_a_paired_reading_needs_a_control_and_no_difference_of_differences(SR, CW):
+    read = lambda r: (r.get("m") or {}).get("v")  # noqa: E731
+    pair = lambda a, c: (read(a), read(c))  # noqa: E731
+    ok = _pair_screen(SR, CW, [SR.Outcome("p1", "paired", "TS", "W", read, primary=True, pair=pair),
+                               SR.Outcome("p2", "plain", "TS", "W", read, primary=True)])
+    assert SR.check_preregistration(ok, held=False) == []
+    alone = _pair_screen(SR, CW, [SR.Outcome("p1", "paired", "TS", None, read, primary=True, pair=pair),
+                                  SR.Outcome("p2", "plain", "TS", "W", read, primary=True)])
+    assert any("a paired reading needs a control" in p for p in SR.check_preregistration(alone, held=False))
+    dod = _pair_screen(SR, CW, [SR.Outcome("p1", "paired", "TS", "W", read, primary=True, pair=pair,
+                                           minus=("TS", "W")),
+                                SR.Outcome("p2", "plain", "TS", "W", read, primary=True)])
+    assert any("a paired reading needs a control" in p for p in SR.check_preregistration(dod, held=False))
+
+
+def test_a_paired_reading_reads_both_rows_names_an_exclusion_and_never_falls_back(SR, CW):
+    read = lambda r: (r.get("m") or {}).get("v")  # noqa: E731
+    screen = _pair_screen(SR, CW, [])
+    rows = _pair_rows({1: (2.0, 5.0), 2: (4.0, 1.0)})
+    # The pair sees the arm's row and the control's row of the same world.
+    seen = []
+
+    def pair(arm_row, control_row):
+        seen.append((arm_row["arm"], control_row["arm"], arm_row["seed"]))
+        return read(arm_row) * 10, read(control_row)
+    cells, values = SR.paired_values(rows, screen, "TS", "W", read, "t", [1, 2], pair=pair)
+    assert values == [48.0, 6.0] and seen == [("TS", "W", 1), ("TS", "W", 2)]
+    # A str names why the world has no value; the cell shows it and no value is taken.
+    cells, values = SR.paired_values(rows, screen, "TS", "W", read, "t", [1, 2],
+                                     pair=lambda a, c: "excluded by the window" if a["seed"] == 1 else (1.0, 0.5))
+    assert cells == ["1: excluded by the window", "2: +0.5"] and values == [0.5]
+    # (None, value) is an unknown cell, as for a plain reading.
+    cells, values = SR.paired_values(rows, screen, "TS", "W", read, "t", [1], pair=lambda a, c: (None, 1.0))
+    assert cells == ["1: unknown"] and values == []
+    # A pair that returns None raises: it never falls back to ``read``.
+    with pytest.raises(TypeError):
+        SR.paired_values(rows, screen, "TS", "W", read, "t", [1], pair=lambda a, c: None)
+    # Without a control the pair is not used (and check_preregistration refuses such an outcome).
+    cells, values = SR.paired_values(rows, screen, "TS", None, read, "t", [1], pair=lambda a, c: None)
+    assert values == [5.0]

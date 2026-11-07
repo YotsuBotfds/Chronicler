@@ -286,7 +286,10 @@ def test_a_world_dependent_switch_is_reported_as_such(M):
     for mode, by in m["all_enabled"].items():
         assert "watershed" in by["procedural"]["switches"] and "watershed" not in by["template"]["switches"], mode
         assert by["procedural"]["refusal"] is None
-    assert len(m["all_enabled"]["hybrid"]["procedural"]["switches"]) == len(m["features"])
+    # Every switch but one of each mutually exclusive pair (C2 epidemic care and the A1
+    # ledger: the first in catalog order with an unmet requirement is dropped).
+    excluded = {frozenset((a, b)) for a in m["features"] for b in M.exclusions(a)}
+    assert len(m["all_enabled"]["hybrid"]["procedural"]["switches"]) == len(m["features"]) - len(excluded)
 
 
 def test_world_settings_and_surfaces(M):

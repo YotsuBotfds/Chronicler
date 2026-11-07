@@ -1,0 +1,277 @@
+{
+ "source": "development run of the C2 branch (source 39af589a): template world, seed 42, 60 turns, --agents hybrid --grain-reserves --local-budgets --epidemic-care",
+ "regions": [
+  "Frostholm Tundra",
+  "Iron Peaks",
+  "Verdant Plains",
+  "Ashara Desert",
+  "Thornwood",
+  "Amber Valley",
+  "Stormbreak Cliffs",
+  "Obsidian Shore"
+ ],
+ "civilizations": [
+  "Ashkari Nomads",
+  "Kethani Empire",
+  "Thornwall Confederacy",
+  "Selurian Republic"
+ ],
+ "recorded": {
+  "turn": 37,
+  "record": {
+   "schema_version": 1,
+   "stage": "C2",
+   "mode": "care",
+   "source_turn": 36,
+   "units": {
+    "money": "milli_treasury_units",
+    "care": "worker_turns",
+    "patients": "people",
+    "milli": 1000
+   },
+   "tick": {
+    "turn": 36,
+    "applied": [
+     {
+      "region": 2,
+      "source_turn": 35,
+      "patients": 7.546810507774353,
+      "infectious": 7.546810686000001,
+      "coverage": 0.999999976383978,
+      "care_factor": 0.7000000070848067,
+      "would_be": 0.7000000070848067,
+      "techniques_factor": 1.0,
+      "combined_factor": 0.7000000070848067,
+      "floored": false,
+      "deaths": 1,
+      "cases": 32.019085,
+      "infectious_after": 7.387190416
+     },
+     {
+      "region": 4,
+      "source_turn": 35,
+      "patients": 0.4789019748568535,
+      "infectious": 0.47890199800000005,
+      "coverage": 0.9999999516745667,
+      "care_factor": 0.7000000144976299,
+      "would_be": 0.7000000144976299,
+      "techniques_factor": 1.0,
+      "combined_factor": 0.7000000144976299,
+      "floored": false,
+      "deaths": 0,
+      "cases": 9.937297,
+      "infectious_after": 1.240105932
+     },
+     {
+      "region": 5,
+      "source_turn": 35,
+      "patients": 3.8280004262924194,
+      "infectious": 3.828000546,
+      "coverage": 0.9999999687284317,
+      "care_factor": 0.7000000093814704,
+      "would_be": 0.7000000093814704,
+      "techniques_factor": 1.0,
+      "combined_factor": 0.7000000093814704,
+      "floored": false,
+      "deaths": 0,
+      "cases": 2.089047,
+      "infectious_after": 1.18270019
+     }
+    ],
+    "refused": [],
+    "regions": [
+     {
+      "region": 1,
+      "deaths": 0,
+      "infectious_pt": 0.0,
+      "cases": 0.0
+     },
+     {
+      "region": 2,
+      "deaths": 1,
+      "infectious_pt": 7.387190416,
+      "cases": 32.019085
+     },
+     {
+      "region": 3,
+      "deaths": 0,
+      "infectious_pt": 0.72809445,
+      "cases": 3.820179
+     },
+     {
+      "region": 4,
+      "deaths": 0,
+      "infectious_pt": 1.240105932,
+      "cases": 9.937297
+     },
+     {
+      "region": 5,
+      "deaths": 0,
+      "infectious_pt": 1.18270019,
+      "cases": 2.089047
+     },
+     {
+      "region": 7,
+      "deaths": 0,
+      "infectious_pt": 0.760130943,
+      "cases": 4.38993
+     }
+    ]
+   },
+   "frame": [
+    {
+     "turn": 36,
+     "region": 5,
+     "civ": 1,
+     "commitment": 8,
+     "envelope": 1,
+     "infectious": 1.18270019,
+     "need": 0.236540038,
+     "eligible": 8,
+     "carers": [
+      {
+       "agent_id": 95,
+       "origin": "rural_farmer",
+       "share": 0.2365400344133377,
+       "wage_due_milli": 118,
+       "wage_paid_milli": 118,
+       "wage_residual_milli": 0,
+       "income_withheld": 0.03177385777235031
+      }
+     ],
+     "care_time": 0.2365400344133377,
+     "patients": 1.1827001720666885,
+     "wages_due_milli": 118,
+     "wages_paid_milli": 118,
+     "wage_residual_milli": 0,
+     "farm_time_removed": 0.2365400344133377,
+     "limit": "need_met",
+     "paid": true,
+     "unpaid_reason": null
+    }
+   ],
+   "ledger": [
+    {
+     "turn": 36,
+     "civ": 1,
+     "envelope_coins": 1,
+     "due_milli": 118,
+     "paid_milli": 118,
+     "residual_milli": 0,
+     "treasury_units": 1,
+     "carry_before": 26,
+     "carry_after": 908,
+     "status": "paid"
+    }
+   ],
+   "capacity": [
+    {
+     "region": 5,
+     "source_turn": 36,
+     "carers": 1,
+     "care_time": 0.2365400344133377,
+     "patients": 1.1827001720666885
+    }
+   ],
+   "rows_dropped": 0,
+   "counters": {
+    "ticks_observed": 37,
+    "covered_region_turns": 7,
+    "capacity_applied": 7,
+    "frames": 37,
+    "envelopes": 8,
+    "carer_turns": 9,
+    "care_time": 4.137812,
+    "patients": 20.689064,
+    "farm_time_removed": 4.137812,
+    "wages_due_milli": 2070,
+    "wages_paid_milli": 2070,
+    "wage_residual_milli": 0,
+    "treasury_units": 4,
+    "income_withheld": 0.222536,
+    "limit_need_met": 8,
+    "envelope_coins": 7
+   },
+   "parameters": {
+    "care_cfr_reduction": 0.3,
+    "patients_per_carer": 5.0,
+    "wage_milli": 500,
+    "cfr_floor": 0.5,
+    "min_share": 0.001,
+    "care_wage_batch": 794624,
+    "registry_category": 3,
+    "max_frame_rows": 256
+   }
+  }
+ },
+ "recorded_zero": {
+  "turn": 1,
+  "record": {
+   "schema_version": 1,
+   "stage": "C2",
+   "mode": "care",
+   "source_turn": 0,
+   "units": {
+    "money": "milli_treasury_units",
+    "care": "worker_turns",
+    "patients": "people",
+    "milli": 1000
+   },
+   "tick": {
+    "turn": 0,
+    "applied": [],
+    "refused": [],
+    "regions": [
+     {
+      "region": 2,
+      "deaths": 0,
+      "infectious_pt": 0.0,
+      "cases": 0.0
+     },
+     {
+      "region": 3,
+      "deaths": 0,
+      "infectious_pt": 0.0,
+      "cases": 0.0
+     },
+     {
+      "region": 4,
+      "deaths": 0,
+      "infectious_pt": 0.0,
+      "cases": 0.0
+     },
+     {
+      "region": 5,
+      "deaths": 0,
+      "infectious_pt": 0.0,
+      "cases": 0.0
+     },
+     {
+      "region": 7,
+      "deaths": 0,
+      "infectious_pt": 0.0,
+      "cases": 0.0
+     }
+    ]
+   },
+   "frame": [],
+   "ledger": [],
+   "capacity": [],
+   "rows_dropped": 0,
+   "counters": {
+    "ticks_observed": 1,
+    "frames": 1
+   },
+   "parameters": {
+    "care_cfr_reduction": 0.3,
+    "patients_per_carer": 5.0,
+    "wage_milli": 500,
+    "cfr_floor": 0.5,
+    "min_share": 0.001,
+    "care_wage_batch": 794624,
+    "registry_category": 3,
+    "max_frame_rows": 256
+   }
+  }
+ }
+}

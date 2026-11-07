@@ -160,7 +160,7 @@ class Outcome:
     control value)``, for a measure both arms read on cells one of them defines (CW5c:
     the control's covered region-turns); ``read`` is then unused. ``pair`` may instead
     return a ``str`` naming why the world has no value (CW5: "excluded by the window"),
-    which the outcome's cell shows."""
+    which the outcome's cell shows; it never returns None (that raises)."""
     id: str
     label: str
     arm: str
@@ -1911,11 +1911,14 @@ def paired_values(rows, screen: Screen, arm: str, control: str | None, read, tag
         if need_activation and any(act is not True for act in acts):
             cells.append(f"{seed}: {'not activated' if False in acts else 'activation unknown'}")
             continue
-        paired = pair(got[0], got[1]) if pair is not None and control else None
-        if isinstance(paired, str):
-            cells.append(f"{seed}: {paired}")
-            continue
-        vals = list(paired) if paired is not None else [read(r) for r in got]
+        if pair is not None and control:
+            paired = pair(got[0], got[1])
+            if isinstance(paired, str):
+                cells.append(f"{seed}: {paired}")
+                continue
+            vals = list(paired)                 # a pair that returns None raises (never falls back to read)
+        else:
+            vals = [read(r) for r in got]
         if any(v is None for v in vals):
             cells.append(f"{seed}: {why(got[[v is None for v in vals].index(True)])}")
             continue
