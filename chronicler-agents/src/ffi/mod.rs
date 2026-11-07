@@ -679,6 +679,31 @@ impl AgentSimulator {
         Ok(())
     }
 
+    /// D1c: funded branch hosts observed at T-1, consumed once by T.
+    /// Validate the whole input before mutation. Rebuilt after restore.
+    pub fn set_movement_branches(&mut self, source_turn: u32, target_turn: u32,
+                                movement_ids: Vec<u16>, hosts: Vec<u8>) -> PyResult<()> {
+        if source_turn.checked_add(1) != Some(target_turn) {
+            return Err(PyValueError::new_err("movement branches require a T-1 source frame"));
+        }
+        if movement_ids.len() != hosts.len()
+            || movement_ids.iter().any(|&id| id == 0)
+            || hosts.iter().any(|&civ| civ == 255) {
+            return Err(PyValueError::new_err("invalid movement branch hosts"));
+        }
+        let mut pairs: Vec<(u16, u8)> = movement_ids.into_iter().zip(hosts).collect();
+        pairs.sort_unstable();
+        if pairs.windows(2).any(|w| w[0] == w[1]) {
+            return Err(PyValueError::new_err("duplicate movement branch host"));
+        }
+        if self.movements.branch_turn.is_some() {
+            return Err(PyValueError::new_err("movement branches already pending"));
+        }
+        self.movements.branch_hosts = pairs;
+        self.movements.branch_turn = Some(target_turn);
+        Ok(())
+    }
+
     /// Agent movements: replace the lasting reforms in force (creed u8, civ
     /// u8, region u16, faith u8; see `movements::parse_reform_table`). Sent
     /// with every table; the agents they cover read their creed need with
@@ -1850,6 +1875,9 @@ impl AgentSimulator {
         }
         if self.pool.wealth_observation.as_ref().is_some_and(|o| o.turn != turn || o.complete) {
             return Err(PyValueError::new_err("wealth observation must be armed for this tick"));
+        }
+        if self.movements.branch_turn.is_some_and(|t| t != turn) {
+            return Err(PyValueError::new_err("movement branches must be armed for this tick"));
         }
         crate::learning_work::check_tick(&self.pool, turn).map_err(PyValueError::new_err)?;
         crate::relocation::check_tick(&self.pool, turn, liquid_requirement).map_err(PyValueError::new_err)?;

@@ -248,6 +248,9 @@ pub struct MovementRuntime {
     /// Per region, the (creed, faith) the reforms cover there, derived from
     /// `reforms` and the controllers by the last pass for its census.
     pub cover: Vec<Vec<(u8, u8)>>,
+    /// T-1 funded hosts, rebuilt before every tick; absent from checkpoint bytes/schema.
+    pub branch_hosts: Vec<(u16, u8)>,
+    pub branch_turn: Option<u32>,
 }
 
 /// Per-agent effects for the later tick steps. Empty vectors mean none.
@@ -511,6 +514,14 @@ pub fn movement_pass(
     turn: u32,
 ) -> MovementEffects {
     let mut effects = MovementEffects::default();
+    let branch_hosts = if runtime.branch_turn == Some(turn) {
+        std::mem::take(&mut runtime.branch_hosts)
+    } else {
+        runtime.branch_hosts.clear();
+        Vec::new()
+    };
+    runtime.branch_turn = None;
+    let has_branch = |mid: u16, civ: u8| branch_hosts.binary_search(&(mid, civ)).is_ok();
     if !runtime.enabled {
         return effects;
     }
@@ -576,7 +587,7 @@ pub fn movement_pass(
             }
             let travelling = pool.is_on_trip(slot)
                 || pool.trip_home_region[slot] != agent::TRIP_HOME_NONE;
-            if controller != row.target_civ && !travelling {
+            if controller != row.target_civ && !travelling && !has_branch(row.movement_id, controller) {
                 stay *= 1.0 - LAPSE_ABROAD;
             }
             if row.crackdown_region as usize == r && pool.boldness[slot] < 0.0 {
@@ -650,7 +661,8 @@ pub fn movement_pass(
         for (r, slots) in groups.iter().enumerate() {
             let controller = regions[r].controller_civ;
             let candidates: Vec<usize> = (0..nrows)
-                .filter(|&i| recruiting[i] && rows[i].target_civ == controller && controller != 255)
+                .filter(|&i| recruiting[i] && controller != 255
+                    && (rows[i].target_civ == controller || has_branch(rows[i].movement_id, controller)))
                 .collect();
             if candidates.is_empty() || stats.adults[r] == 0 {
                 continue;
@@ -1076,6 +1088,68 @@ mod tests {
 
     fn runtime(rows: Vec<MovementRow>) -> MovementRuntime {
         MovementRuntime { enabled: true, rows, ..Default::default() }
+    }
+
+    #[test]
+    fn funded_branch_removes_only_abroad_lapse_and_is_one_tick_input() {
+        let make = || {
+            let mut pool = AgentPool::new(512);
+            for _ in 0..400 {
+                let member = aggrieved(&mut pool, 0, 0.5);
+                pool.movement_ids[member] = 1;
+            }
+            pool
+        };
+        let regions = vec![region(0, 1)];
+        let mut plain_pool = make();
+        let mut funded_pool = make();
+        let mut plain = runtime(vec![MovementRow::new(1, CREED_COMMONS, STAGE_GATHERING, 0)]);
+        let mut funded = plain.clone();
+        funded.branch_hosts = vec![(1, 1)];
+        funded.branch_turn = Some(2);
+        movement_pass(&mut plain_pool, &regions, &mut plain, [7; 32], 2);
+        movement_pass(&mut funded_pool, &regions, &mut funded, [7; 32], 2);
+        assert!(plain.stats.lapsed[0] > 0);
+        assert_eq!(funded.stats.lapsed[0], 0);
+        assert!(funded.branch_hosts.is_empty() && funded.branch_turn.is_none());
+        movement_pass(&mut funded_pool, &regions, &mut funded, [7; 32], 3);
+        assert!(funded.stats.lapsed[0] > 0);
+    }
+
+    #[test]
+    fn branch_recruitment_still_requires_local_exposure_and_grievance() {
+        let make = || {
+            let mut pool = AgentPool::new(512);
+            for _ in 0..100 {
+                let member = aggrieved(&mut pool, 0, 0.5);
+                pool.movement_ids[member] = 1;
+            }
+            for _ in 0..300 { aggrieved(&mut pool, 0, 0.0); }
+            for _ in 0..10 { content(&mut pool, 0); }
+            pool
+        };
+        let regions = vec![region(0, 1)];
+        let mut off_pool = make();
+        let mut on_pool = make();
+        let mut off = runtime(vec![MovementRow::new(1, CREED_COMMONS, STAGE_GATHERING, 0)]);
+        let mut on = off.clone();
+        on.branch_hosts = vec![(1, 1)];
+        on.branch_turn = Some(2);
+        movement_pass(&mut off_pool, &regions, &mut off, [9; 32], 2);
+        movement_pass(&mut on_pool, &regions, &mut on, [9; 32], 2);
+        assert_eq!(off.stats.joined[0], 0);
+        assert!(on.stats.joined[0] > 0);
+        assert!(on_pool.movement_ids[400..410].iter().all(|&mid| mid == 0));
+    }
+
+    #[test]
+    fn branch_inputs_do_not_change_persisted_movement_schema_or_bytes() {
+        let mut rt = runtime(vec![MovementRow::new(1, CREED_COMMONS, STAGE_GATHERING, 0)]);
+        let before = crate::persist::encode(crate::persist::KIND_AGENT, &rt);
+        rt.branch_hosts = vec![(1, 1)];
+        rt.branch_turn = Some(2);
+        assert_eq!(before, crate::persist::encode(crate::persist::KIND_AGENT, &rt));
+        assert!(!crate::persist::schema_of::<MovementRuntime>().contains("branch_"));
     }
 
     #[test]
@@ -1641,7 +1715,7 @@ mod tests {
 
 crate::persist_struct!(MovementRuntime {
     enabled, rows, seeds, stats, reforms, cover,
-});
+} transient { branch_hosts, branch_turn });
 crate::persist_struct!(MovementRow {
     movement_id, creed, stage, target_civ, appeal, found_region, founder_id, relief_age,
     crackdown_region, rising_region, convert_from, convert_to, settlement,
