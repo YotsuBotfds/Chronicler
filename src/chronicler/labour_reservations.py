@@ -23,12 +23,15 @@ from __future__ import annotations
 
 from importlib import import_module
 
-#: Native work registry categories (``workshop_work.rs``; the registry refuses
-#: any other), in declaration order.
-REGISTRY_CATEGORIES: tuple[str, ...] = ("workshop", "learning", "apprentice", "repair")
+#: Native work registry categories, in declaration order (``workshop_work.rs``
+#: ``RESERVATION_CATEGORIES``, append only; A4 appended ``trade`` for its
+#: carriers). A category index beyond this tuple, from a later native build, is
+#: named ``registry_other`` (still booked: :func:`booked` uses the person, not
+#: the label).
+REGISTRY_CATEGORIES: tuple[str, ...] = ("workshop", "learning", "apprentice", "repair", "trade")
 #: Reasons, in the order :func:`booked` assigns them (a person's first reason wins).
 #: ``registry_care``: C2's carers of this turn (a Python label: they hold the
-#: native registry's ``repair`` category, whose four categories are fixed).
+#: native registry's ``repair`` category; the registry has no care category).
 REASONS: tuple[str, ...] = (
     "health_patient", "health_caregiver", "registry_care",
     *(f"registry_{name}" for name in REGISTRY_CATEGORIES), "registry_other",

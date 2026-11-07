@@ -98,7 +98,8 @@
   [preregistration and results](superpowers/progress/connected-world-screens-cw5c.md). The
   write-up was checked independently (process and every number confirmed; four small
   corrections applied).
-- **A4 PR** (`claude/cw-a4-titled-trade`, main `d8a5277b` merged): A3-2 `--workshop-economics-rules 2`
+- **PR #92 merged** at `4ecfb54d` (tree `27189084` = reviewed head `8271e8f4`; premerge Tests
+  42349732907 and main Tests 42350879411 green; main's native extension now `43cbd22a…`): A3-2 `--workshop-economics-rules 2`
   (firms' titled output column in the native economy; capability-checked) and A4-1 `--titled-trade`
   (merchants buy owners' surplus above their fair-share reserve, pro rata at the local retail price,
   paying owners directly; title and custody per shipment by stable id; the carrier's model income is
@@ -115,12 +116,27 @@
   rules 1 showed no consistent effect on firms' active share, household workshop wages or wares sold;
   population and farm time diverted lower than the status quo payroll on most worlds. Both write-ups
   checked independently.
-- **Lanes in flight** (each on its own branch from `bac45cb5`; witness layers rebuilt last at
-  integration): B3
-  `--infrastructure-condition` (irrigation and roads wear, fail and are repaired by paid works through
-  their own L9 proposal; flow × condition; works' timber through PL1) with the CW3b held screen; X1
-  `--residence-ledger` (the lead-owned displacement contract, record-only); D1 `--reform-services`
-  and `--guild-leagues`.
+- **X1 lane** (`claude/cw-x1-residence`, from `bac45cb5`, main `4ecfb54d` merged in): `--residence-ledger`, the
+  lead-owned displacement contract from audit A6 section 11 — record-only, hybrid only, default
+  off; home, residence, attachment and displacement spells (cause flight/hunger, dated
+  home-region anchor war/famine/persecution/none, closures returned/resettled/died/pool_reset/
+  unobserved_gap) written once per turn in the livelihoods Phase 10 hook after
+  `reconcile_rosters`, after C2's epidemic care and immediately before D2 and A1; readers get T's frame at T+1 only (`read_frame`,
+  a bound `OwnRow` for A6, `separation` for D3) and a guard refuses any other read by decision modules;
+  a viewer panel; one layer `cwx1` (rebuilt last, after `cwa4`). Found: a merchant trip unwound on conquest is a second native
+  relocation path (recorded as an unclassified relocation; audit 11.2 said only
+  `apply_migrations`). Lead decisions (2026-11-07): any onward move of a displaced person keeps
+  the spell open (the ledger then reproduces audit section 10 within 0.01); person rows live in
+  exact checkpoints only, not in the bundle or state file. Independent review ("approve with
+  changes") fixed: cause/anchor splits in the frame, the opening driver, battle and siege war
+  anchors, civ-to-civ controller changes only, cheaper writer, guard catches dynamic imports, a
+  bound own-row accessor.
+  [Integration page](integration/residence-ledger.md) (verification and development-world
+  evidence).
+- **Lanes in flight** (each on its own branch; witness layers rebuilt last at integration): B3
+  `--infrastructure-condition` (CW3b run and checked; merging after X1); D1 `--reform-services` and
+  `--guild-leagues` (review running); D4 `--war-requisition` with A4-2 cargo seizure and restitution
+  (native purpose 10).
 - **D1 lane** (`claude/cw-d1-institutions`, unmerged; merged with `main` `4ecfb54d`; layer `cwd1` last):
   D1a `--reform-services` (modes `service`, `cost_only`) withholds the poor-relief label credit from the
   native reform table; in `service` the treasury's unchanged relief payment (upkeep or the Commons

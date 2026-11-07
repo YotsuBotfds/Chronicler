@@ -476,6 +476,10 @@ CHUNKS = {
         "tests/test_epidemic_care.py",
         "tests/test_cw5c_screen.py",
     ],
+    "connected-world-x": [
+        "tests/test_residence_ledger.py",
+        "tests/test_residence_ledger_guard.py",
+    ],
     "connected-world-d1": [
         "tests/test_reform_services.py",
         "tests/test_guild_leagues.py",

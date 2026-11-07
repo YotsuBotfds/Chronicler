@@ -305,7 +305,9 @@ def test_no_new_decision_reads_provenance():
 
 def test_the_d_program_records_and_war_modules_read_no_provenance():
     found = collect_reads()
-    clean = ("attribution_records", "attribution_records_state", "action_engine", "war.")
+    clean = ("attribution_records", "attribution_records_state", "action_engine", "war.",
+             # X1: the residence ledger dates its anchors from region state, never from provenance.
+             "residence_ledger")
     assert not [k for k in found if k[0].startswith(clean)]
 
 

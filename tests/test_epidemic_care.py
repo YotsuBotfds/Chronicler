@@ -838,6 +838,26 @@ def test_the_shared_query_labels_carers_as_care():
     assert "registry_care" in LR.REASONS
 
 
+def test_the_shared_query_names_every_native_registry_category():
+    """The registry categories follow ``workshop_work.rs`` (A4 appended ``trade``),
+    so an A4 carrier is booked as ``registry_trade``, not ``registry_other``."""
+    import re
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "chronicler-agents" / "src" / "workshop_work.rs").read_text(encoding="utf-8")
+    native = re.search(r"RESERVATION_CATEGORIES: \[&str; \d+\] = \[([^\]]*)\]", source).group(1)
+    assert LR.REGISTRY_CATEGORIES == tuple(re.findall(r'"([a-z_]+)"', native))
+    from chronicler import titled_trade as TT
+    assert LR.REGISTRY_CATEGORIES[TT.CATEGORY_TRADE] == "trade" and "registry_trade" in LR.REASONS
+
+    class Sim:
+        def work_reservations(self, turn):
+            return [(7, TT.CATEGORY_TRADE, 1.0), (8, 9, 1.0)]
+
+    w = _world()
+    booked = LR.booked(w, Sim(), 5)
+    assert booked[7] == "registry_trade" and booked[8] == "registry_other"
+
+
 def test_the_tick_record_reads_every_infected_region_after_the_tick(monkeypatch):
     w = _world()
     w.epidemics.initialized_turn = 0
@@ -894,7 +914,8 @@ def test_carers_are_booked_after_every_other_work_consumer():
     from importlib import import_module
     from chronicler.livelihoods_state import LIVELIHOODS_SWITCHES
     later = LIVELIHOODS_SWITCHES[LIVELIHOODS_SWITCHES.index("epidemic_care") + 1:]
-    assert later == ("guild_leagues", "attribution_records", "wealth_accounting")
+    # D1b moves purses; X1 is record-only. Neither books labour.
+    assert later == ("guild_leagues", "residence_ledger", "attribution_records", "wealth_accounting")
     for name in later:
         module = import_module("chronicler." + name)
         assert not hasattr(module, "reserve_first")

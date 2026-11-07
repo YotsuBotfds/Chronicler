@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "board_version": 17,
+  "board_version": 18,
   "title": "Connected-world program (A livelihoods and trade, B watersheds and infrastructure, C public health, D institutions and war, E stories and evidence) operational board",
   "plan": "docs/superpowers/roadmaps/connected-world-program.md",
   "owner_instruction": "2026-11-06 (after #82): own the A-E program end to end with parallel workers, integrating and evaluating each slice and continuing across slice boundaries; merges of this program authorized after independent review, green premerge Tests on the reviewed head and verified main CI; new systems opt-in and off by default; no default promotion; full 200-seed and procedural qualification gates restricted; bounded held screens (procedural included) authorized; no purchases, paid credits, paid narration APIs, deployments, credential or sharing changes. Amendment (same day): tiers sequence work and are not stopping points; failures block the affected merge, not the program; pin 8abc1acb as the original reference; default-path changes behind a switch or rules version.",
@@ -145,15 +145,16 @@
       "id": "A4",
       "branch": "claude/cw-a4-titled-trade",
       "scope": "A3-2 firm-output column (--workshop-economics-rules 2) + A4-1 --titled-trade; one native build",
-      "status": "approved; CW2 and CW5 run and checked; main d8a5277b merged; PR",
-      "head": "c49e9efd",
+      "status": "merged (#92)",
+      "head": "8271e8f4",
       "native": "43cbd22a"
     },
     {
       "id": "B3",
       "branch": "claude/cw-b3-infrastructure",
       "scope": "--infrastructure-condition: irrigation then roads; sibling record infrastructure_works; money.py; one L9 envelope",
-      "status": "approved (re-check, two delta reviews; flow x condition; works' timber via PL1); CW3b frozen and running"
+      "status": "approved; CW3b run and checked; main 4ecfb54d merged; merge check running",
+      "head": "83abd666"
     },
     {
       "id": "C2",
@@ -166,12 +167,19 @@
       "id": "X1",
       "branch": "claude/cw-x1-residence",
       "scope": "--residence-ledger: the lead-owned displacement contract (record-only; home, residence, attachment, spells)",
-      "status": "implemented; review running"
+      "status": "approved (review + re-check + merge check); PR",
+      "head": "6619ceac"
     },
     {
       "id": "D1",
       "branch": "claude/cw-d1-institutions",
       "scope": "--reform-services (poor relief buys real food) and --guild-leagues (cross-border guild leagues, real purse transfers)",
+      "status": "implemented (e12ba7ec); review running"
+    },
+    {
+      "id": "D4",
+      "branch": "claude/cw-d4-requisition",
+      "scope": "--war-requisition transfer|cost_only (requisitioned food to army rations, minted refill reduced), restitution (native purpose 10), A4-2 cargo in war; settles the soldier-movement discrepancy",
       "status": "active"
     }
   ],
@@ -373,9 +381,20 @@
       "premerge_run": 42346858851,
       "main_run": 42347765865,
       "date": "2026-11-07"
+    },
+    {
+      "pr": 92,
+      "slice": "A3-2 + A4-1 titled trade (native) + CW2/CW5",
+      "merge_commit": "4ecfb54d3c15fb2750a7b590f143427125e8b559",
+      "merge_tree": "27189084",
+      "reviewed_head": "8271e8f4",
+      "premerge_run": 42349732907,
+      "main_run": 42350879411,
+      "date": "2026-11-07",
+      "native": "43cbd22a"
     }
   ],
-  "next": "Merge A4, then B3 and X1 (each merges main and rebuilds its layer last); then D4 requisition/restitution/reconstruction, E linked histories, A1-2 native observer, D3 and A6-1 (one native build), C4; D1 active.",
+  "next": "Merge X1, then B3 (re-merges main); review D1 and assign its cohort; D4 (native purpose 10); then E linked histories, A1-2 native observer, D3 and A6-1 (one native build, reading the residence ledger), C4.",
   "baseline": {
     "oracle_lane": "PASS, 63 chunks, 295.5 s, slowest 32.4 s of 110 s",
     "native_check": "check_python_env --expect native PASS (101a4cd5)",
@@ -456,6 +475,15 @@
       "primaries": "E2-E1 active share, E2-P workshop wages, E2-E1 wares sold: no consistent effect",
       "harms": "population and farm time diverted lower than P on most worlds; 0 priced out",
       "page": "docs/superpowers/progress/connected-world-screens-cw2.md"
+    },
+    "CW3b": {
+      "status": "run 2026-11-07",
+      "frozen": "76a9eb05 (code dbfcd84a)",
+      "cohort": "template 3501-3506, procedural 3601-3606",
+      "held": "72 runs, 0 failed, 0.288 of 0.50 core-hours; 7 pairs excluded by the pre-treatment check",
+      "primaries": "service maintained C_T-W_T p 4/4 higher, t 4/0/1; C-W (L9) p 4/4 higher, t null (5.8 work units/world); irrigated food shortfall C-W p 4/4 lower, t 0/3/1",
+      "harms": "L9 displaces RS2 repair (p -67.5, 5/6); treasury-funded works more woodcutter time (p +180, 6/6); treasury C-W p -1,375 (5/6); timber stalls on every world",
+      "page": "docs/superpowers/progress/connected-world-screens-cw3b.md"
     }
   },
   "events": ["2026-11-07 ~00:10Z: container restart stopped lanes A3, B2, D2 mid-task; all resumed from saved transcripts with no work lost; shared native venv rebuilt from main ae94bca6 (e724072d).", "2026-11-07 ~04:40Z: second container restart stopped lanes X1, B3 and the C2/A4 reviews; all resumed from saved transcripts, no work lost; native venvs intact.", "2026-11-07: held runs serialized with a shared lock (the runner charges elapsed seconds against each ceiling)."],

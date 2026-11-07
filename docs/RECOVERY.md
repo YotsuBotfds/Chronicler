@@ -1,6 +1,6 @@
 # Source, recovery and archive index
 
-Updated 2026-11-06 after PRs #73, #74, #76, #78, #80, #81, #83, #84, #85, #86, #87, #88, #89, #90 and #91. This is the starting map for future agents;
+Updated 2026-11-06 after PRs #73, #74, #76, #78, #80, #81, #83, #84, #85, #86, #87, #88, #89, #90, #91 and #92. This is the starting map for future agents;
 dated reports keep their original source, platform and qualification limits.
 
 ## Current source and evidence
@@ -132,6 +132,15 @@ Use fetched `main` for new work.
   - Premerge Tests run 42346858851 on that head passed all nine jobs.
   - [Main Tests run 42347765865](https://github.com/YotsuBotfds/Chronicler/actions/runs/42347765865)
     tested the merge SHA on `push`, attempt 1: success.
+
+- [PR #92](https://github.com/YotsuBotfds/Chronicler/pull/92) (connected-world A3-2 + A4-1: firms' titled
+  output and titled trade, native, with the CW2 and CW5 screens) merged on 2026-11-07 at
+  `4ecfb54d3c15fb2750a7b590f143427125e8b559`.
+  - Its tree, `27189084`, equals the tree of the reviewed head `8271e8f4` (code approved through two
+    re-checks; results checked independently; the merge of main `d8a5277b` approved separately).
+  - Premerge Tests run 42349732907 on that head passed all nine jobs.
+  - [Main Tests run 42350879411](https://github.com/YotsuBotfds/Chronicler/actions/runs/42350879411)
+    tested the merge SHA on `push`, attempt 1: success. Main's native extension is now `43cbd22a…`.
 
 Every livelihoods, recovery-skills and productive-recovery switch is off by default. These merges do not complete the 200-seed or
 procedural qualification gates. What landed, the review and the evidence are in the

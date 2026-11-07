@@ -73,6 +73,12 @@ The connected-world program appends:
   from their purses into a league fund that pays a member city's recorded levy
   share or sack plunder (mode ``dues_only``: the cost control, no claims);
   inserted after C2 and before D2's observer.
+* ``--residence-ledger`` (X1, the lead-owned displacement contract): home,
+  residence, army attachment and displacement spells with cause and dated
+  home-region anchor, written once per turn in Phase 10 after the rosters are
+  reconciled and read by consumers only the next turn; inserted after C2's
+  epidemic care, immediately before D2 and the wealth ledger. It changes
+  nothing it observes and books no labour.
 * ``--attribution-records`` (D2): observation-only records of actor, victim and
   cause (granary seizures, casualties by cause, restored-civ identity reuse,
   burdens per actor -> victim pair); inserted after A3 and before the wealth ledger,
@@ -177,6 +183,7 @@ LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     # its hooks run before household_retail's (LIVELIHOODS_SWITCHES order).
     "reform_services", "reform_services_mode",
     "guild_leagues", "guild_league_mode",
+    "residence_ledger",
     "attribution_records",
     "wealth_accounting",
 )
@@ -482,6 +489,17 @@ _HELP = {
         "mutual (default): the fund pays recorded claims; dues_only: the cost control with the same "
         "leagues and dues and no claim paid"
     ),
+    "residence_ledger": (
+        "Residence ledger (X1, the displacement contract): a record-only ledger of where each person lives, "
+        "where they belong and why they left: home (the residence when first observed, changed only by a "
+        "voluntary or unclassified move of a person who is not displaced, or after 20 turns settled "
+        "elsewhere; never by enlistment), residence, army attachment and displacement spells opened by a "
+        "flight- or hunger-driven move from home, with the opening driver and the home-region event (war, "
+        "famine, persecution) dated in the 5 turns before, kept open by any onward move and closed on "
+        "return, resettlement, death, a rebuilt pool or an unobserved gap; one frame per turn dated by its "
+        "source turn, readable by a consumer only the next turn; changes nothing; requires --agents hybrid "
+        "(default off)"
+    ),
     "attribution_records": (
         "Attribution records (D2): observation-only records of who did what to whom, at the event: "
         "granary seizures with their actor and victim; enlisted soldiers' deaths per war and cause - "
@@ -771,6 +789,12 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
             saved = values["guild_leagues"] is not True
             raise ValueError("--guild-leagues requires --agents hybrid, cities and guilds (both on by default)"
                              + ("; this world has it on: pass --no-guild-leagues to end it" if saved else ""))
+    if _on(world, values, "residence_ledger") and agent_mode != "hybrid":
+        # Also when only saved: the ledger reads the hybrid agent pool, its
+        # moves and the rosters; a resume outside hybrid is refused until ended.
+        saved = values["residence_ledger"] is not True
+        raise ValueError("--residence-ledger requires --agents hybrid"
+                         + ("; this world has it on: pass --no-residence-ledger to end it" if saved else ""))
     if _on(world, values, "attribution_records") and agent_mode != "hybrid":
         # Also when only saved: the records observe hybrid runs (army rosters,
         # the native tick); a resume outside hybrid is refused until ended.

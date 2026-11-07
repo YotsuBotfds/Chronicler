@@ -84,9 +84,10 @@ def _entries(frame, kind):
 
 def test_the_switch_is_inserted_before_the_ledger_with_cli_catalog_and_manifest_keys():
     assert LIVELIHOODS_SWITCHES[-2:] == ("attribution_records", "wealth_accounting")
-    # After every acting package: A3, A4's titled trade, C2's epidemic care and D1b's guild
-    # leagues (each inserted before it), before the ledger.
-    assert LIVELIHOODS_SWITCHES.index("attribution_records") == LIVELIHOODS_SWITCHES.index("guild_leagues") + 1
+    # After every acting package: A3, A4's titled trade, C2's epidemic care, then X1's
+    # residence ledger (record-only, immediately before D2).
+    assert LIVELIHOODS_SWITCHES.index("attribution_records") == LIVELIHOODS_SWITCHES.index("residence_ledger") + 1
+    assert LIVELIHOODS_SWITCHES.index("residence_ledger") == LIVELIHOODS_SWITCHES.index("guild_leagues") + 1
     assert LIVELIHOODS_SWITCHES.index("guild_leagues") == LIVELIHOODS_SWITCHES.index("epidemic_care") + 1
     assert LIVELIHOODS_SWITCHES.index("epidemic_care") == LIVELIHOODS_SWITCHES.index("titled_trade") + 1
     assert LIVELIHOODS_SWITCHES.index("titled_trade") == LIVELIHOODS_SWITCHES.index("workshop_economics") + 1
