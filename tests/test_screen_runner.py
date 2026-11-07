@@ -183,8 +183,13 @@ def test_program_cohorts_pass(SR, registry, CW, name):
     if name in RECORDED:
         # A recorded held cohort refuses a new held run of it, and is noted as recorded.
         assert any("already run" in p for p in SR.check_seeds(CW.SCREENS[name], registry)[0])
-        assert sum("was recorded as run (complete" in n for n in notes) == 2
+        assert sum("was recorded as run (complete" in n for n in notes) == len(CW.SCREENS[name].held)
         notes = [n for n in notes if "was recorded as run" not in n]
+    if name == "CW3":
+        # CW3 declares no template cohort (the watershed refuses template worlds): its template
+        # reservation is unused by design, a note.
+        assert sum("cw3-held-t is unused by design" in n for n in notes) == 1
+        notes = [n for n in notes if "unused by design" not in n]
     # The shared pilot was also seen by old exploratory batches: a note, not a refusal.
     assert all("pilot seed" in n for n in notes)
 
@@ -644,7 +649,7 @@ def test_check_command_reports_stubs_not_ready(SR, CW, capsys):
     for name in ("CW2", "CW5", "CW6"):
         assert f"{name}: seeds OK" in text and f"{name}: NOT READY" in text
     # CW3 is declared by slice B2 (tests/test_cw3_screen.py).
-    assert "CW3: seeds OK" in text and "CW3: extractor, packages, 4 arms and 31 outcomes (3 primary): OK" in text
+    assert "CW3: seeds OK" in text and "CW3: extractor, packages, 5 arms and 42 outcomes (3 primary): OK" in text
     # CW1 is declared by slice S1 (tests/test_cw1_screen.py).
     assert "CW1: seeds OK" in text and "CW1: extractor, packages, 9 arms and 38 outcomes (3 primary): OK" in text
     # CW4 is declared by slice C1 (tests/test_cw4_screen.py).
@@ -994,3 +999,22 @@ def test_n7_a_failed_run_keeps_its_output(SR, CW, tmp_path):
     argv = [str(tmp_path / "out"), "--screen", "DEV", "--cohort", "dev", "--worlds", "t1", "--jobs", "1"]
     assert SR.run_main(argv, CW.SCREENS, fake.rt) == SR.RC_FAILED
     assert (tmp_path / "out" / "runs" / "W-t1" / "chronicle_bundle.json").exists()
+
+
+def test_mark_run_records_a_stratum_without_a_cohort_as_unused_by_design(SR, registry, CW):
+    reg = copy.deepcopy(registry)
+    for e in reg["entries"]:
+        if e.get("screen") == "CW3":
+            e["status"], e["use"] = "reserved", e["use"].split("; unused by design")[0]
+            e.pop("held_run", None)
+    ledger = {"cohort": "held", "out": "/tmp/x", "identity": "abc", "started": "t0",
+              "seeds": {"procedural": list(range(851, 857))}}
+    changed = SR.mark_run(reg, CW.SCREENS["CW3"], [], ledger)
+    by = {e["id"]: e for e in reg["entries"]}
+    assert by["cw3-held-p"]["status"] == "run" and by["cw3-held-p"]["held_run"]["out"] == "/tmp/x"
+    assert by["cw3-held-t"]["status"] == "never_run" and "unused by design" in by["cw3-held-t"]["use"]
+    assert "held_run" not in by["cw3-held-t"] and SR.validate_registry(reg) == []
+    assert changed == ["cw3-held-p", "cw3-held-t (unused by design, never_run)"]
+    problems, notes = SR.check_seeds(CW.SCREENS["CW3"], reg, reuse="recorded")
+    assert problems == [] and any("cw3-held-t is unused by design" in n and "never_run" in n for n in notes)
+    assert any("already run" in p for p in SR.check_seeds(CW.SCREENS["CW3"], reg)[0])

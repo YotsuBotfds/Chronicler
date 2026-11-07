@@ -51,19 +51,25 @@ def _fa(turn, suff):
                         for i, s in enumerate(suff)]}
 
 
-def _cp(turn, protected=(0,), kept=0.02, charged=2):
-    return {"schema_version": 1, "mode": "enforced", "source_turn": turn - 1, "observed": True,
+def _cp(turn, protected=(0,), kept=0.02, charged=2, mode="enforced"):
+    first = turn == 1
+    return {"schema_version": 1, "mode": mode, "source_turn": turn - 1, "observed": True,
             "receipts": [{"region_id": r} for r in protected],
+            "decisions": [{"turn": 0, "region_id": r, "civ": 0, "kind": "adopted", "reason": "clearing_pressure"}
+                          for r in protected] if first else [],
+            "unprotected": [{"region_id": 1, "reason": "over_limit"}, {"region_id": 3, "reason": "not_forested"}]
+            if first else [],
             "counters": {"adopted": len(protected), "protected_region_turns": turn * len(protected),
-                         "cover_not_cleared": kept * turn, "charged": charged * turn}}
+                         "cover_not_cleared": (0.0 if mode == "cost_only" else kept * turn),
+                         "cover_would_keep": kept * turn, "charged": charged * turn}}
 
 
-def _bundle(mode="record_only", cp=False, turns=3, **ws_kw):
+def _bundle(mode="record_only", cp=False, turns=3, cp_mode="enforced", **ws_kw):
     history = []
     for t in range(1, turns + 1):
         liv = {"schema_version": 1, "watershed": _ws(t, mode, **ws_kw)}
         if cp:
-            liv["clearing_protection"] = _cp(t)
+            liv["clearing_protection"] = _cp(t, mode=cp_mode)
         history.append({"turn": t, "livelihoods": liv, "food_accounting": _fa(t, (1.0, 0.5, 0.8, 1.2)),
                         "ecology": {n: {"forest_cover": 0.5, "water": 0.6} for n in NAMES}})
     return {"history": history, "world_state": {"regions": [{"name": n} for n in NAMES]},
@@ -73,12 +79,16 @@ def _bundle(mode="record_only", cp=False, turns=3, **ws_kw):
 R = ("--watershed", "--watershed-mode", "record_only")
 F = ("--watershed", "--watershed-mode", "flow")
 CP = ("--clearing-protection",)
+CPC = ("--clearing-protection", "--clearing-protection-mode", "cost_only")
 
 
-def test_the_screen_is_declared_on_the_procedural_stratum_with_two_primaries(CW):
+def test_the_screen_is_declared_on_the_procedural_stratum_with_three_primaries(CW):
     s = CW.SCREENS["CW3"]
-    assert s.ready and s.root == "R" and set(s.arms) == {"R", "F", "R_CP", "F_CP"}
-    assert s.arms["F_CP"][1] == "F" and s.arms["F"][1] == "R" and s.arms["R_CP"][1] == "R"
+    assert s.ready and s.root == "R" and set(s.arms) == {"R", "F", "R_CP", "F_CPc", "F_CP"}
+    assert s.arms["F_CP"][1] == "F_CPc" and s.arms["F_CPc"][1] == "F" and s.arms["F"][1] == "R"
+    assert s.arms["R_CP"][1] == "R" and s.arms["F_CPc"][0][-2:] == ("--clearing-protection-mode", "cost_only")
+    assert {o.id for o in s.outcomes if o.control == "F_CPc"} >= {"cw3_cpc_ds_water", "cw3_cpc_cand_water"}
+    assert not any(o.primary for o in s.outcomes if o.control == "F_CPc")
     assert s.held == {"procedural": tuple(range(851, 857))} and s.pilot == {"procedural": (19,)}
     primaries = s.primaries()
     assert [o.id for o in primaries] == ["cw3_ds_water_flow", "cw3_ds_food_flow", "cw3_ds_water_interaction"]
@@ -122,6 +132,20 @@ def test_protection_activation_counts_and_the_regions_below_it(CW):
     assert problems == []
     assert (m["cp_protected_regions"], m["cp_downstream_of_protected"], m["cp_protected_with_downstream"]) == (1, 1, 1)
     assert m["sel_food_shortfall_below_protected"] == pytest.approx(0.2)
+    # The candidate set at enable time: adopted at turn 0 (Up1) and eligible over the limit (Up2);
+    # not_forested is no candidate. Both drain into Conf.
+    assert (m["cand_regions"], m["cand_below"], m["cand_digest"]) == (2, 1, "0,1")
+    assert m["cand_water_below"] == pytest.approx(0.7) and m["cand_food_shortfall_below"] == pytest.approx(0.2)
+    cost = _bundle("flow", cp=True, cp_mode="cost_only")
+    acted, text = CW.cw3_activation(cost, F + CPC)
+    assert acted is True and "cost_only" in text
+    mc, problems = CW.cw3_extract(cost, F + CPC)
+    assert problems == [] and mc["cp_cover_not_cleared"] == 0.0 and mc["cand_digest"] == m["cand_digest"]
+    leaky = _bundle("flow", cp=True, cp_mode="cost_only")
+    leaky["history"][-1]["livelihoods"]["clearing_protection"]["counters"]["cover_not_cleared"] = 0.01
+    assert CW.cw3_activation(leaky, F + CPC)[0] is False
+    assert any("kept cover" in p for p in CW.cw3_extract(leaky, F + CPC)[1])
+    assert any("not in mode cost_only" in p for p in CW.cw3_extract(b, F + CPC)[1])
     idle = _bundle("record_only", cp=True)
     for s in idle["history"]:
         s["livelihoods"]["clearing_protection"]["counters"]["cover_not_cleared"] = 0.0

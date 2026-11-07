@@ -950,11 +950,15 @@ SCREENS["CW1"] = SR.Screen(
 # switch) change downstream outcomes when the watershed account owns the water index
 # (``--watershed-mode flow``), without creating resources? Arms (root R): R the account in
 # record_only (the old water index), F flow, R_CP and F_CP the same with clearing
-# protection. Every arm: hybrid, procedural 32x10 (the watershed refuses template worlds,
-# so the template cohort 751-756 stays reserved and unused). Region sets are fixed by the
-# drainage graph, identical in every arm of a world: downstream regions receive inflow from
-# at least one region (``graph.down``); upstream regions drain into a region. Snapshot s
-# records world turn s - 1.
+# protection, F_CPc flow with clearing protection in ``cost_only`` mode (the same adoption,
+# planning and charges, nothing protected; Amendment 1). Every arm: hybrid, procedural
+# 32x10 (the watershed refuses template worlds, so the template cohort 751-756 stays
+# reserved and unused). The primaries' region sets are fixed before treatment by the
+# static drainage graph, identical in every arm of a world: downstream regions receive
+# inflow from at least one region (``graph.down``); upstream regions drain into a region.
+# The protection arms also carry clearing protection's candidate set at enable time (turn
+# 0: adopted or eligible but over the limit or unaffordable), the same in each of them; it
+# defines the F_CP - F_CPc secondaries. Snapshot s records world turn s - 1.
 
 CW3_WS = ("livelihoods", "watershed")
 CW3_CP = ("livelihoods", "clearing_protection")
@@ -973,6 +977,35 @@ def _cw3_mode(flags) -> str:
 
 def _cw3_cp(flags) -> bool:
     return "--clearing-protection" in list(flags)
+
+
+def _cw3_cp_mode(flags) -> str:
+    return _flag(flags, "--clearing-protection-mode", "enforced")
+
+
+def _cw3_below(down: list[int], regions) -> set[int]:
+    """Every region downstream of any of ``regions`` on the drainage graph."""
+    n, below = len(down), set()
+    for u in regions:
+        node, hops = down[u] if 0 <= u < n else -1, 0
+        while isinstance(node, int) and node >= 0 and hops <= n:
+            below.add(node)
+            node, hops = down[node], hops + 1
+    return below
+
+
+def _cw3_candidates(records: list[tuple[dict, dict]]) -> list[int] | None:
+    """Clearing protection's candidate set at enable time: the regions adopted at turn 0
+    and those eligible then but over the limit or unaffordable (its first planning; the
+    state before it is the same in every protection arm). None without a turn-0 record."""
+    first = next((r for _s, r in records if r.get("source_turn") == 0 and r.get("observed")), None)
+    if first is None:
+        return None
+    adopted = {d.get("region_id") for d in first.get("decisions") or []
+               if isinstance(d, dict) and d.get("turn") == 0 and d.get("kind") == "adopted"}
+    eligible = {u.get("region_id") for u in first.get("unprotected") or []
+                if isinstance(u, dict) and u.get("reason") in ("over_limit", "unaffordable")}
+    return sorted(r for r in adopted | eligible if isinstance(r, int))
 
 
 def _cw3_records(bundle: dict, path) -> list[tuple[dict, dict]]:
@@ -1027,7 +1060,9 @@ def _cw3_food(bundle: dict, regions: list[int]) -> tuple[float | None, float | N
 def cw3_activation(bundle: dict, flags) -> tuple[bool | None, str]:
     """F: the account owns the index (flow records settled, index used = derived, or the
     derived index capped at a recorded cap change). R_CP: clearing protection kept cover
-    (cover not cleared > 0). F_CP: both. The root R is not judged."""
+    (cover not cleared > 0). F_CP: both. F_CPc (cost_only): flow, and protections were paid
+    for clearing they would have stopped (cover it would have kept > 0) while keeping none.
+    The root R is not judged."""
     mode, cp = _cw3_mode(flags), _cw3_cp(flags)
     ws = _cw3_records(bundle, CW3_WS)
     if not ws:
@@ -1048,10 +1083,16 @@ def cw3_activation(bundle: dict, flags) -> tuple[bool | None, str]:
             return None, "no clearing protection record"
         counters = records[-1][1].get("counters") or {}
         kept, prt = counters.get("cover_not_cleared"), counters.get("protected_region_turns")
-        if not (SR._num(kept) and SR._num(prt)):
-            return None, "clearing protection counters lack cover_not_cleared or protected_region_turns"
-        acted = acted and kept > 0
-        texts.append(f"{int(prt)} protected region-turns kept {kept:.3f} cover")
+        would = counters.get("cover_would_keep")
+        if not (SR._num(kept) and SR._num(prt) and SR._num(would)):
+            return None, "clearing protection counters lack cover_not_cleared, cover_would_keep or protected_region_turns"
+        if _cw3_cp_mode(flags) == "cost_only":
+            acted = acted and would > 0 and kept == 0
+            texts.append(f"{int(prt)} protected region-turns paid for, would have kept {would:.3f} cover, kept "
+                         f"{kept:.3f} (cost_only)")
+        else:
+            acted = acted and kept > 0
+            texts.append(f"{int(prt)} protected region-turns kept {kept:.3f} cover")
     if not texts:
         return None, "the root arm is not judged"
     return acted, "; ".join(texts)
@@ -1168,18 +1209,30 @@ def cw3_extract(bundle: dict, flags) -> tuple[dict, list[str]]:
             problems.append("no clearing protection record")
         else:
             c = records[-1][1].get("counters") or {}
-            for key in ("adopted", "protected_region_turns", "cover_not_cleared", "charged"):
+            for key in ("adopted", "protected_region_turns", "cover_not_cleared", "cover_would_keep", "charged"):
                 if not SR._num(c.get(key)):
                     problems.append(f"clearing protection counters lack {key}")
                 m[f"cp_{key}"] = c.get(key)
+            cp_mode = _cw3_cp_mode(flags)
+            if any(r.get("mode") != cp_mode for _s, r in records):
+                problems.append(f"a clearing protection record is not in mode {cp_mode}")
+            if cp_mode == "cost_only" and SR._num(c.get("cover_not_cleared")) and c["cover_not_cleared"] != 0:
+                problems.append("cost_only clearing protection kept cover (it must keep none)")
             protected = sorted({rc.get("region_id") for _s, r in records for rc in r.get("receipts") or []
                                 if isinstance(rc, dict) and isinstance(rc.get("region_id"), int)})
-            below = set()
-            for u in protected:
-                node, hops = down[u] if 0 <= u < n else -1, 0
-                while isinstance(node, int) and node >= 0 and hops <= n:
-                    below.add(node)
-                    node, hops = down[node], hops + 1
+            below = _cw3_below(down, protected)
+            # The candidate set at enable time (pre-treatment, the same in every protection arm).
+            candidates = _cw3_candidates(records)
+            if candidates is None:
+                problems.append("no observed clearing protection record of turn 0 (the candidate set)")
+                m["cand_regions"] = m["cand_below"] = None
+                m["cand_food_shortfall_below"] = m["cand_water_below"] = None
+            else:
+                cand_below = sorted(_cw3_below(down, candidates))
+                m["cand_regions"], m["cand_below"] = len(candidates), len(cand_below)
+                m["cand_digest"] = ",".join(map(str, candidates))
+                m["cand_food_shortfall_below"] = _cw3_food(bundle, cand_below)[0] if cand_below else None
+                m["cand_water_below"] = index_mean(cand_below) if cand_below else None
             m["cp_protected_regions"] = len(protected)
             m["cp_protected_with_downstream"] = sum(1 for u in protected if 0 <= u < n and down[u] >= 0)
             m["cp_downstream_of_protected"] = len(below)
@@ -1188,9 +1241,10 @@ def cw3_extract(bundle: dict, flags) -> tuple[dict, list[str]]:
             m["sel_food_shortfall_below_protected"] = share
             m["sel_water_below_protected"] = index_mean(sorted(below)) if below else None
     else:
-        for key in ("cp_adopted", "cp_protected_region_turns", "cp_cover_not_cleared", "cp_charged",
-                    "cp_protected_regions", "cp_protected_with_downstream", "cp_downstream_of_protected",
-                    "sel_food_shortfall_below_protected", "sel_water_below_protected"):
+        for key in ("cp_adopted", "cp_protected_region_turns", "cp_cover_not_cleared", "cp_cover_would_keep",
+                    "cp_charged", "cp_protected_regions", "cp_protected_with_downstream", "cp_downstream_of_protected",
+                    "sel_food_shortfall_below_protected", "sel_water_below_protected", "cand_regions", "cand_below",
+                    "cand_food_shortfall_below", "cand_water_below"):
             m[key] = None
         if _cw3_records(bundle, CW3_CP):
             problems.append("a clearing protection record without the switch")
@@ -1204,6 +1258,7 @@ _CW3_BASE = ("--turns", "200", "--agents", "hybrid", "--simulate-only")
 _CW3_R = ("--watershed", "--watershed-mode", "record_only")
 _CW3_F = ("--watershed", "--watershed-mode", "flow")
 _CW3_CP = ("--clearing-protection",)
+_CW3_CPC = ("--clearing-protection", "--clearing-protection-mode", "cost_only")
 
 
 def _cw3_outcomes() -> tuple[SR.Outcome, ...]:
@@ -1268,6 +1323,30 @@ def _cw3_outcomes() -> tuple[SR.Outcome, ...]:
                    None, _m("closure_worst_relative")),
         SR.Outcome("cw3_index_gap", "Worst |index used - derived (capped)| (F_CP alone; validity)", "F_CP", None,
                    _m("index_gap_worst")),
+        # Amendment 1: protection's effect apart from its treasury cost (F_CP - F_CPc: the same
+        # adoption, planning and charges, only the cover kept differs), on the graph's sets and
+        # below the candidate set at enable time (pre-treatment, the same in both arms); and the
+        # cost itself (F_CPc - F).
+        SR.Outcome("cw3_cpc_ds_water", "Downstream water index used (F_CP - F_CPc: the cover kept, cost held "
+                   "equal)", "F_CP", "F_CPc", ds_water),
+        SR.Outcome("cw3_cpc_ds_food", "Downstream food shortfall share (F_CP - F_CPc)", "F_CP", "F_CPc", ds_short),
+        SR.Outcome("cw3_cpc_cand_water", "Water index below the turn-0 candidate set (F_CP - F_CPc)", "F_CP",
+                   "F_CPc", _m("cand_water_below")),
+        SR.Outcome("cw3_cpc_cand_food", "Food shortfall share below the turn-0 candidate set (F_CP - F_CPc)",
+                   "F_CP", "F_CPc", _m("cand_food_shortfall_below")),
+        SR.Outcome("cw3_cpc_up_water", "Upstream water index used (F_CP - F_CPc)", "F_CP", "F_CPc",
+                   _m("water_upstream")),
+        SR.Outcome("cw3_cpc_cover", "Upstream mean forest cover at the end (F_CP - F_CPc)", "F_CP", "F_CPc",
+                   _m("cover_upstream_end")),
+        SR.Outcome("cw3_cpc_droughts", "Droughts declared (F_CP - F_CPc)", "F_CP", "F_CPc", _m("droughts_declared")),
+        SR.Outcome("cw3_cost_ds_food", "Downstream food shortfall share (F_CPc - F: protection's cost alone)",
+                   "F_CPc", "F", ds_short),
+        SR.Outcome("cw3_cost_ds_water", "Downstream water index used (F_CPc - F: the cost alone)", "F_CPc", "F",
+                   ds_water),
+        SR.Outcome("cw3_cost_treasury", "Treasury at the end (F_CPc - F: the cost alone)", "F_CPc", "F",
+                   lambda r: SR.harm_value(r, "treasury")),
+        SR.Outcome("cw3_cpc_would_keep", "Cover protection would have kept (F_CPc alone; it keeps none)", "F_CPc",
+                   None, _m("cp_cover_would_keep")),
         # Harms beside the primaries (the runner's panel shows each arm against its control).
         SR.Outcome("cw3_h_food_shortfall", "Food shortfall after relief over the run, world (F_CP - F)", "F_CP", "F",
                    lambda r: SR.harm_value(r, "food_shortfall")),
@@ -1287,7 +1366,8 @@ SCREENS["CW3"] = SR.Screen(
     arms={"R": (_CW3_R, None),
           "F": (_CW3_F, "R"),
           "R_CP": (_CW3_R + _CW3_CP, "R"),
-          "F_CP": (_CW3_F + _CW3_CP, "F")},
+          "F_CPc": (_CW3_F + _CW3_CPC, "F"),
+          "F_CP": (_CW3_F + _CW3_CP, "F_CPc")},
     root="R", pilot={"procedural": (19,)}, held={"procedural": tuple(range(851, 857))},
     outcomes=_cw3_outcomes(),
     activation=cw3_activation, extract=cw3_extract, ready=True, module=MODULE)

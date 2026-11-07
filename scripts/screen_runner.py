@@ -426,6 +426,12 @@ def check_seeds(screen: Screen, reg: Mapping, *, reuse: str = "refuse") -> tuple
                             f"{sorted(reserved)}")
         for e in own:
             recorded = isinstance(e.get("held_run"), dict)
+            if not held and e["status"] in ("reserved", "never_run"):
+                # A screen that declares no cohort in this stratum (CW3: the watershed refuses
+                # template worlds) leaves its reservation unused by design; mark-run records it.
+                notes.append(f"{stratum} held reservation {e['id']} is unused by design ({screen.name} declares "
+                             f"no {stratum} cohort; {e['status']})")
+                continue
             if e["status"] == "run" and (reuse == "ignore" or reuse == "recorded" and recorded):
                 run = e.get("held_run") or {}
                 notes.append(f"{stratum} held cohort {e['id']} was recorded as run "
@@ -1745,10 +1751,20 @@ def dump_registry(reg: Mapping) -> str:
 
 def mark_run(reg: dict, screen: Screen, rows: list[dict], ledger: Mapping) -> list[str]:
     """Set the run cohort's registry entries to ``run`` with a ``held_run`` record; the
-    names of the entries changed. Refuses an entry that is not ``reserved``."""
+    names of the entries changed. Refuses an entry that is not ``reserved``. A held
+    reservation in a stratum the screen declares no cohort for (CW3's template cohort) is
+    not run: it is recorded as ``never_run``, unused by design, and stays excluded."""
     cohort = ledger["cohort"]
+    unused: list[str] = []
     if cohort == "held":
         entries = [e for e in reg["entries"] if e.get("screen") == screen.name and e.get("cohort") == "held"]
+        for e in [e for e in entries if not screen.held.get(e["stratum"])]:
+            if e["status"] == "reserved":
+                e["status"] = "never_run"
+                e["use"] = (f"{e['use']}; unused by design: {screen.name} declares no {e['stratum']} cohort "
+                            f"(recorded by mark-run of {ledger['out']})")
+                unused.append(f"{e['id']} (unused by design, never_run)")
+        entries = [e for e in entries if screen.held.get(e["stratum"])]
     else:
         entries = [e for e in reg["entries"] if e.get("cohort") == "reserve" and e.get("screen") in (None, screen.name)]
     if not entries:
@@ -1767,7 +1783,7 @@ def mark_run(reg: dict, screen: Screen, rows: list[dict], ledger: Mapping) -> li
         e["status"] = "run"
         e["screen"] = screen.name
         e["held_run"] = dict(record)
-    return [e["id"] for e in entries]
+    return [e["id"] for e in entries] + unused
 
 
 def mark_run_main(argv, screens: Mapping[str, Screen], prog: str = "screens") -> int:
