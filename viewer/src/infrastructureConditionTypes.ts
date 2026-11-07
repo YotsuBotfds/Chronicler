@@ -121,7 +121,9 @@ export interface InfraLedger {
   charged: number;
   prepaid_before_milli: number;
   prepaid_after_milli: number;
+  /** The works' own L9 envelope (`infrastructure_works`); null without L9. */
   envelope: number | null;
+  /** RS2's charge to the civ this turn (its own envelope; shown for context). */
   rs2_charged: number;
 }
 

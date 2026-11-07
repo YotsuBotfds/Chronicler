@@ -290,6 +290,38 @@ def test_consumers_read_exactly_one_when_off_and_service_when_on():
     assert callable(extend_trade_routes)
 
 
+def test_service_fails_closed_for_an_unknown_region():
+    world = _world(mode="wear_only", rs2=False)
+    IC.reconcile(world)
+    _asset(world, 0, "irrigation").condition = 0.2
+    copy_of_region = world.regions[0].model_copy()            # a copy is the same region by its name
+    assert IC.service(world, copy_of_region, "irrigation") == pytest.approx(0.4)
+    stranger = world.regions[0].model_copy(update={"name": "Nowhere"})
+    with pytest.raises(ValueError, match="unknown region"):
+        IC.service(world, stranger, "irrigation")
+    with pytest.raises(ValueError, match="unknown region index"):
+        IC.service(world, 99, "roads")
+
+
+def test_the_watershed_and_python_ecology_read_irrigation_through_the_gate():
+    from chronicler import watershed
+    from chronicler.ecology import _tick_water
+    from chronicler.models import ClimatePhase
+    losses = {}
+    for label, mode, condition in (("off", None, None), ("record", "record_only", 0.1),
+                                   ("serving", "wear_only", 0.9), ("failed", "wear_only", 0.1)):
+        world = _world(mode=mode or "wear_only", rs2=False, switch=mode is not None)
+        if mode is not None:
+            IC.reconcile(world)
+            _asset(world, 0, "irrigation").condition = condition
+        region = world.regions[0]
+        assert watershed._irrigated(world, region) == (label != "failed")
+        region.ecology.water = 0.5
+        _tick_water(region, world.civilizations[0], ClimatePhase.DROUGHT, world)
+        losses[label] = 0.5 - region.ecology.water
+    assert losses["off"] == losses["record"] == losses["serving"] > losses["failed"]   # irrigation's x1.5 drought loss
+
+
 def test_road_range_rules_are_gated_by_service():
     from chronicler import resources
     source = (ROOT / "src/chronicler/techniques.py").read_text(encoding="utf-8")
@@ -325,21 +357,30 @@ def test_a_work_moves_real_labour_timber_and_coins_once():
     assert w0.scope == pytest.approx((1 - 0.49) * 20)
     treasury, timber = world.civilizations[0].treasury, world.regions[0].stockpile.goods["timber"]
     batch, plan = _turn(world, _Sim())
-    assert plan.suspended == frozenset({0, 1})                  # claimed: storage would ask nothing (neglect)
+    assert plan.requests == [0.0, 0.0, 0.0]                    # storage asked nothing (neglect) ...
+    assert plan.suspended == frozenset({0, 1})                  # ... so the works claimed those regions
     assert batch.column("granary_work_requested").to_pylist() == [4.0, 4.0, 0.0]
     r0 = next(r for r in state.receipts if r.region == 0)
     assert (r0.status, r0.requested, r0.delivered, r0.credited, r0.shared) == ("progress", 4.0, 4.0, 4.0, False)
-    assert r0.timber_used == pytest.approx(1.0) and r0.coin_cost_milli == 8000
+    assert r0.timber_used == pytest.approx(1.0) and r0.coin_cost_milli == 2400     # 0.6 coin per work
     a0 = _asset(world, 0, "irrigation")
     assert a0.condition == pytest.approx(0.49 + 4 / 20)       # this turn's wear came before the credit
     assert world.regions[0].stockpile.goods["timber"] == pytest.approx(timber - 1.0)
     (ledger,) = state.ledger
-    assert (ledger.charged, ledger.coin_cost_milli, ledger.prepaid_after_milli) == (16, 16000, 0)
-    assert treasury - world.civilizations[0].treasury == 16
-    assert state.book.sinks == {"public_works": 16000}
+    assert (ledger.charged, ledger.coin_cost_milli, ledger.prepaid_after_milli) == (5, 4800, 200)
+    assert treasury - world.civilizations[0].treasury == 5
+    assert state.book.sinks == {"public_works": 5000}
     assert [(k[1], k[2]) for k in state.book.settled] == [("infrastructure_repair", 0)]
     # Storage itself did nothing in the claimed regions.
     assert all(r.delivered == 0.0 for r in world.grain_reserves.storage.receipts)
+
+
+@pytest.mark.parametrize("kind,rebuild", [("irrigation", 12), ("roads", 10)])
+def test_a_whole_repair_costs_no_more_coins_than_a_rebuild(kind, rebuild):
+    from chronicler.infrastructure import BUILD_SPECS
+    spec = BUILD_SPECS[IRR if kind == "irrigation" else ROADS]
+    assert spec.cost == rebuild
+    assert IC._coin_milli(IC.WORK_PER_CONDITION[kind], kind) == rebuild * 1000
 
 
 def test_settlement_happens_once_and_a_failed_tick_returns_every_hold():
@@ -354,12 +395,24 @@ def test_settlement_happens_once_and_a_failed_tick_returns_every_hold():
     assert _state(world).book.settled == []
     world.turn += 1
     _turn(world, _Sim())
-    t = SimpleNamespace(turn=world.turn - 1)
-    assert _state(world).last_settled_turn == t.turn
+    assert _state(world).last_settled_turn == world.turn - 1
     # A settled turn cannot settle again.
     world.turn -= 1
     with pytest.raises(RuntimeError, match="already settled"):
         IC._begin(world, _state(world))
+
+
+def test_a_refused_charge_raises_before_anything_is_credited(monkeypatch):
+    world = _world(mode="repair", infrastructure=((0, IRR),))
+    _worn(world)
+    asset = _asset(world, 0, "irrigation")
+    before = asset.condition
+    from chronicler import money
+    monkeypatch.setattr(money, "quote", lambda *a, **k: money.Quote(False, "payer_short", 1, 0))
+    with pytest.raises(RuntimeError, match="charge refused at settlement"):
+        _turn(world, _Sim())
+    assert asset.condition == before and _state(world).works[0].delivered == 0.0
+    assert _state(world).book.settled == []
 
 
 def test_granary_first_in_a_shared_column_then_irrigation_then_roads():
@@ -370,6 +423,7 @@ def test_granary_first_in_a_shared_column_then_irrigation_then_roads():
     rs2 = world.livelihoods.repair_projects
     (granary,) = rs2.receipts
     assert granary.requested == 4.0 and granary.delivered == 4.0            # the granary first
+    assert rs2.suspended == [0]                                             # RS2's record: its own region only
     state = _state(world)
     irr = next(r for r in state.receipts if r.kind == "irrigation")
     road = next(r for r in state.receipts if r.kind == "roads")
@@ -382,7 +436,9 @@ def test_granary_first_in_a_shared_column_then_irrigation_then_roads():
     assert road.timber_returned == pytest.approx(road.timber_held)
 
 
-def test_a_region_whose_storage_works_is_the_granarys():
+def test_granary_first_follows_storages_actual_request():
+    # Maintain below full condition: storage asks for work in region 0 (the
+    # granary's), nothing in region 1 (condition 1.0): the works claim region 1.
     world = _world(mode="repair", policy="maintain", granary=0.6, infrastructure=((0, IRR), (1, IRR)))
     _worn(world)
     _batch_, plan = _turn(world, _Sim())
@@ -391,7 +447,16 @@ def test_a_region_whose_storage_works_is_the_granarys():
     r1 = next(r for r in state.receipts if r.region == 1)
     assert plan.requests[0] > 0 and 0 not in plan.suspended
     assert (r0.status, r0.reasons) == ("stalled", ["granary_first"])
-    assert r1.status == "progress" and 1 in plan.suspended       # storage at condition 1.0 rests
+    assert r1.status == "progress" and 1 in plan.suspended
+    # The same maintain policy with a zero work budget: storage's actual
+    # request is 0, so the works may use the column there.
+    world = _world(mode="repair", policy="maintain", granary=0.6, infrastructure=((0, IRR),))
+    S.set_storage_policy(world, 0, "maintain", 0.0)
+    _worn(world)
+    _batch_, plan = _turn(world, _Sim())
+    (r0,) = _state(world).receipts
+    assert plan.requests[0] == 0.0 and 0 in plan.suspended
+    assert r0.status == "progress" and r0.delivered == pytest.approx(4.0)
 
 
 @pytest.mark.parametrize("case,reason", [
@@ -407,74 +472,99 @@ def test_stalls_record_their_cause(case, reason):
     (r,) = _state(world).receipts
     assert r.status == "stalled" and reason in r.reasons
     (work,) = _state(world).works
-    assert work.stalls == {reason: 1} or reason in work.stalls
+    assert reason in work.stalls
     assert _state(world).counters[f"stalled_{reason}"] >= 1
 
 
-def test_one_envelope_for_rs2_and_the_works_never_spent_twice():
-    world = _world(mode="repair", granary=0.5, infrastructure=((1, IRR), (2, IRR)))
+def _envelope_row(service, claim, amount, recipients, expected, cid=0):
+    return Commitment(cid=cid, civ=0, service=service, pid=cid, decided_turn=4, for_turn=5, recipients=recipients,
+                      claims=[claim], amount=amount, unit="work", expected=expected)
+
+
+def test_the_works_spend_only_their_own_envelope_never_rs2s():
+    world = _world(mode="repair", granary=0.5, infrastructure=((1, IRR), (2, IRR), (2, ROADS)))
     lb = world.livelihoods.local_budgets = LocalBudgetState()
     lb.enabled = True
-    lb.open = [_envelope_row(11, [0, 1, 2], 9.0)]
-    from chronicler.local_budgets import envelope
-    assert envelope(world, 0, "repairs") == 11
+    lb.open = [_envelope_row("repairs", "repairs:0", 11, [0], 4.0),
+               _envelope_row(IC.BUDGET_SERVICE, "infrastructure:0", 2, [1, 2], 3.0, cid=1)]
     RP.phase10_before_reserves(world, None, None, None)
     _worn(world)
     treasury = world.civilizations[0].treasury
     _turn(world, _Sim())
     (rs2_row,) = world.livelihoods.repair_projects.ledger
     (row,) = _state(world).ledger
-    assert rs2_row.charged == 8                                   # RS2 plans first: 4 work x 2 coins
-    assert row.rs2_charged == 8 and row.charged == 3 and row.envelope == 11
-    assert rs2_row.charged + row.charged <= 11
-    assert treasury - world.civilizations[0].treasury == 11
-    receipts = _state(world).receipts
-    assert sum(r.delivered for r in receipts) == pytest.approx(1.5)
-    assert all("no_envelope" in r.reasons for r in receipts)
+    assert rs2_row.charged == 8 and rs2_row.envelope == 11             # RS2 keeps its own envelope
+    assert row.envelope == 2 and row.charged <= 2 and row.rs2_charged == 8
+    receipts = {(r.kind, r.region): r for r in _state(world).receipts}
+    # 2 coins fund 3.333 irrigation work at 0.6 a unit, in split order.
+    assert receipts[("irrigation", 1)].delivered + receipts[("irrigation", 2)].delivered == pytest.approx(10 / 3, abs=1e-5)
+    road = receipts[("roads", 2)]
+    assert road.status == "stalled" and road.reasons == ["no_envelope"] and road.envelope == 0
+    assert treasury - world.civilizations[0].treasury == rs2_row.charged + row.charged
 
 
-def _envelope_row(amount, recipients, expected):
-    return Commitment(cid=0, civ=0, service="repairs", pid=0, decided_turn=4, for_turn=5, recipients=recipients,
-                      claims=["repairs:0"], amount=amount, unit="work", expected=expected)
+def test_pending_bills_add_the_two_separately_rounded_charges():
+    """The reviewer's probe: RS2 plans 500 milli and the works 500 milli; the
+    two are charged separately (1 + 1), so later planners must see 2."""
+    world = _world(mode="repair", treasury=3, infrastructure=((0, IRR),))
+    rs2 = world.livelihoods.repair_projects
+    rs2._turn = RP._Turn(world.turn, None)
+    rs2._turn.work = {0: SimpleNamespace(payer=0, planned_milli=500)}
+    t = _state(world)._turn = IC._Turn(world.turn)
+    t.prepared = True
+    t.plans = [SimpleNamespace(payer=0, planned_milli=500)]
+    assert RP.pending_bills(world) == [2, 0]
+    # A tight treasury and PL1 planning after them (timber_supply._budgets):
+    # RS2 0.5 unit and the works 1.5 units are charged 1 + 2 = 3, the whole
+    # treasury, so nothing is left for expedition wages (one rounding left 1
+    # and crashed PL1's settlement check).
+    t.plans = [SimpleNamespace(payer=0, planned_milli=1500)]
+    from chronicler import timber_supply
+    assert RP.pending_bills(world) == [3, 0]
+    assert timber_supply._budgets(world, None)[0] == 0
 
 
-def test_the_l9_settlement_and_maintenance_split_read_both_charges(monkeypatch):
-    from chronicler import maintenance_obligation as MO
+def test_the_works_are_their_own_screened_l9_proposal_with_audited_detail():
+    world = _world(mode="repair", policy="maintain", infrastructure=((0, IRR), (1, IRR), (2, IRR), (2, ROADS)))
+    lb = world.livelihoods.local_budgets = LocalBudgetState()
+    lb.enabled = True
+    world.grain_reserves.storage.assets[1].condition = 0.6      # region 1's storage will ask for work
+    _worn(world, condition=0.52)
+    state = _state(world)
+    state._labour = (world.turn, [0, 5, 5])                     # region 0 has no farmer
+    obs = SimpleNamespace(economy=SimpleNamespace(food_ledger={0: (0.0, 40.0), 1: (0.0, 40.0), 2: (0.0, 40.0)}),
+                          held={}, turn=world.turn)
+    (row,) = IC.works_proposal(world, 0, obs)
+    assert row["service"] == IC.BUDGET_SERVICE and row["claims"] == ["infrastructure:0"] and row["recipients"] == [2]
+    assert row["cost"] == 3 and row["expected"] == pytest.approx(4.0)             # 2.4 coins, its own rounding
+    d = row["detail"]
+    assert (d["works"], d["cost_milli"], d["screened_no_labor"], d["screened_granary_first"], d["screened_roads"]) \
+        == (1, 2400, 1, 1, 1)
+    assert row["relief"]["commons"] == pytest.approx(d["food_at_risk_relieved"]) and d["food_at_risk_relieved"] > 0
+    # RS2's own proposal never carries the works.
+    assert RP._repairs_proposal(world, 0, obs) == []
+    # Far from the gate there is no food at risk within the horizon.
+    _asset(world, 2, "irrigation").condition = 0.74
+    (row,) = IC.works_proposal(world, 0, obs)
+    assert "commons" not in row["relief"]
+    from chronicler.local_budgets import _providers
+    assert IC.BUDGET_PROVIDER in _providers() and IC.BUDGET_PROVIDER.group == "repairs"
+
+
+def test_the_works_envelope_settles_from_the_works_own_ledger():
     world = _world(mode="repair", granary=0.5, infrastructure=((1, IRR),))
     lb = world.livelihoods.local_budgets = LocalBudgetState()
     lb.enabled = True
-    lb.open = [_envelope_row(20, [0, 1], 8.0)]
+    lb.open = [_envelope_row("repairs", "repairs:0", 8, [0], 4.0),
+               _envelope_row(IC.BUDGET_SERVICE, "infrastructure:0", 3, [1], 4.0, cid=1)]
     RP.phase10_before_reserves(world, None, None, None)
     _worn(world)
-    econ, bridge = _turn(world, _Sim(), stop_after_phase2=True)
-    assert IC.charged(world, 0) == 8 and world.livelihoods.repair_projects._turn.ledger[0].charged == 8
-    c = SimpleNamespace(civ=0, expected=8.0, amount=20)
-    got = RP.budget_settlement(world, c, SimpleNamespace(economy=econ))
-    assert got["spent"] == 16 and got["delivered"] == pytest.approx(8.0) and got["outcome"] == "kept"
-    assert got["detail"]["infrastructure_works"] == 1 and got["detail"]["infrastructure_charged"] == 8
-    # The maintenance obligation splits the combined charge of the one limit.
-    world.livelihoods.maintenance_obligation = MO.MaintenanceObligationState(mode="reserve")
-    monkeypatch.setattr(MO, "_reserved", lambda world, civ: 10 if civ == 0 else 0)
-    MO.finish_phase2(world, econ, bridge, None)
-    use = world.livelihoods.maintenance_obligation._turn.uses[0]
-    assert use.charged == 16 and use.used + use.envelope_spent == 16
-
-
-def test_proposal_and_settlement_include_the_works():
-    world = _world(mode="repair", infrastructure=((1, IRR),))
-    lb = world.livelihoods.local_budgets = LocalBudgetState()
-    lb.enabled = True
-    _worn(world, condition=0.52)
-    obs = SimpleNamespace(economy=SimpleNamespace(food_ledger={1: (0.0, 40.0)}), held={}, turn=world.turn)
-    (row,) = RP._repairs_proposal(world, 0, obs)
-    assert row["detail"]["infrastructure_works"] == 1 and row["detail"]["projects"] == 0
-    assert row["cost"] == 8 and row["expected"] == pytest.approx(4.0)
-    assert row["relief"]["commons"] > 0                   # food at risk before failure
-    # Far from the gate there is no food at risk within the horizon.
-    _asset(world, 1, "irrigation").condition = 0.74
-    obs.held = {}
-    (row,) = RP._repairs_proposal(world, 0, obs)
-    assert "commons" not in row["relief"]
+    econ, _bridge = _turn(world, _Sim(), stop_after_phase2=True)
+    obs = SimpleNamespace(economy=econ)
+    got = IC.works_settlement(world, SimpleNamespace(civ=0, expected=4.0, amount=3), obs)
+    assert (got["outcome"], got["spent"], got["delivered"]) == ("kept", 3, pytest.approx(4.0))
+    rs2 = RP.budget_settlement(world, SimpleNamespace(civ=0, expected=4.0, amount=8), obs)
+    assert rs2["spent"] == 8 and "infrastructure_works" not in rs2["detail"]       # RS2 settles RS2 only
 
 
 def test_food_at_risk_is_the_arable_ceiling_kept_over_the_horizon():
@@ -607,6 +697,9 @@ def _args(**kw):
 
 
 @pytest.mark.parametrize("agents,kw,message", [
+    ("hybrid", dict(infrastructure_condition_mode="wear_only"), "requires --infrastructure-condition"),
+    ("hybrid", dict(infrastructure_condition=False, infrastructure_condition_mode="wear_only"),
+     "requires --infrastructure-condition"),
     ("off", dict(infrastructure_condition=True, infrastructure_condition_mode="record_only"), "requires --agents hybrid"),
     ("shadow", dict(infrastructure_condition=True, infrastructure_condition_mode="wear_only"), "requires --agents hybrid"),
     ("hybrid", dict(infrastructure_condition=True), "requires --repair-projects"),
@@ -663,7 +756,7 @@ def test_counters_are_declared_and_the_record_is_dated_and_serializable():
 def test_the_payment_is_registered_with_the_seam():
     from chronicler import money
     from chronicler.wealth_accounting_state import MONEY_BILLS
-    assert MONEY_BILLS[("infrastructure_condition", "_charge")] == ("infrastructure_repair",)
+    assert MONEY_BILLS[("infrastructure_condition", "_bill")] == ("infrastructure_repair",)
     assert money.PURPOSES["infrastructure_repair"] is None and "public_works" in money.SINKS
     assert "infrastructure_condition" in money.MONEY_BOOKS
     tree = ast.parse((ROOT / "src/chronicler/infrastructure_condition.py").read_text(encoding="utf-8"))

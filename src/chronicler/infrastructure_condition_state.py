@@ -218,8 +218,9 @@ class WorksLedger(BaseModel):
     charged: int
     prepaid_before_milli: int
     prepaid_after_milli: int
-    #: The civ's one ``repairs`` spending limit this turn (L9 envelope plus a
-    #: maintenance reservation; None without L9), and RS2's charge against it.
+    #: The works' own L9 envelope this turn (``infrastructure_works``; None
+    #: without L9), and RS2's charge to the civ (planned before the works,
+    #: from its own envelope and reservation).
     envelope: int | None = None
     rs2_charged: int = 0
 
@@ -267,12 +268,15 @@ class InfrastructureConditionState(BaseModel):
     counters: dict[str, float] = Field(default_factory=dict)
     # Transient, within one turn (Phase 2 -> Phase 10); never serialized.
     _turn: object | None = PrivateAttr(default=None)
+    # Transient, within one Phase 10: (turn, farmers per region) observed
+    # after the agent tick, read by the same Phase 10's L9 proposal.
+    _labour: object | None = PrivateAttr(default=None)
 
     def __getstate__(self):
         state = super().__getstate__()
         private = state.get("__pydantic_private__")
-        if private and private.get("_turn") is not None:
-            state = {**state, "__pydantic_private__": {**private, "_turn": None}}
+        if private and (private.get("_turn") is not None or private.get("_labour") is not None):
+            state = {**state, "__pydantic_private__": {**private, "_turn": None, "_labour": None}}
         return state
 
     def __setstate__(self, state):
@@ -281,6 +285,7 @@ class InfrastructureConditionState(BaseModel):
             if name not in self.__dict__:
                 self.__dict__[name] = field.get_default(call_default_factory=True)
         if getattr(self, "__pydantic_private__", None) is None:
-            object.__setattr__(self, "__pydantic_private__", {"_turn": None})
+            object.__setattr__(self, "__pydantic_private__", {"_turn": None, "_labour": None})
         else:
             self.__pydantic_private__.setdefault("_turn", None)
+            self.__pydantic_private__.setdefault("_labour", None)

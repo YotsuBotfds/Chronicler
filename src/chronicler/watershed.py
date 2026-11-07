@@ -330,9 +330,14 @@ def derived_index(region, storage: float, withdrawal: float, cap: float) -> floa
     return INDEX_FLOOR + (index_cap(region) - INDEX_FLOOR) * max(0.0, fill)
 
 
-def _irrigated(region) -> bool:
+def _irrigated(world, region) -> bool:
+    """An active irrigation work that serves (B3: service >= 0.5 while
+    ``--infrastructure-condition`` acts; always True for an active work when
+    it is off or in ``record_only``)."""
+    from chronicler.infrastructure_condition import serves
     from chronicler.models import InfrastructureType
-    return any(i.type == InfrastructureType.IRRIGATION and i.active for i in region.infrastructure)
+    return any(i.type == InfrastructureType.IRRIGATION and i.active for i in region.infrastructure) \
+        and serves(world, region, "irrigation")
 
 
 def open_account(world, graph: WatershedGraph, mode: str = "record_only") -> WatershedState:
@@ -430,7 +435,7 @@ def _compute(world, state: WatershedState, stale: bool = False) -> _Plan:
                  * TERRAIN_EVAPORATION.get(region.terrain, 1.0) * (1.0 + TRANSPIRATION * cover))
         e = min(a, e_pot)
         t = a - e
-        w = min(t, IRRIGATION_DEMAND) if _irrigated(region) else 0.0
+        w = min(t, IRRIGATION_DEMAND) if _irrigated(world, region) else 0.0
         b = t - w
         s2 = (1.0 - BASEFLOW) * min(b, cap)
         q = b - s2

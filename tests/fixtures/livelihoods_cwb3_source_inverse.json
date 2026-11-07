@@ -27,6 +27,16 @@
         }
       ]
     },
+    "src/chronicler/ecology.py": {
+      "sha256": "2f204f8841d9eabd17f44955bbeb42b84235f79e9e2a433afe3af6091fcdf659",
+      "current_sha256": "9bd82d6f34179fd1cbbae7c9e2df3b33ada8ae9f3301e838e757e2a574e56565",
+      "patches": [
+        {
+          "old": "\n\ndef _tick_water(region: Region, civ, climate_phase: ClimatePhase, world: WorldState) -> None:\n    has_irrigation = any(\n        i.type == InfrastructureType.IRRIGATION and i.active for i in region.infrastructure\n    )\n\n    # Degradation / phase effects (Geography 2.0: scaled by latitude exposure)\n    exposure = climate_exposure(region.latitude_band, climate_phase)\n",
+          "new": "\n\ndef _tick_water(region: Region, civ, climate_phase: ClimatePhase, world: WorldState) -> None:\n    from chronicler.infrastructure_condition import serves\n    has_irrigation = any(\n        i.type == InfrastructureType.IRRIGATION and i.active for i in region.infrastructure\n    ) and serves(world, region, \"irrigation\")      # B3: the work serves (True while off)\n\n    # Degradation / phase effects (Geography 2.0: scaled by latitude exposure)\n    exposure = climate_exposure(region.latitude_band, climate_phase)\n"
+        }
+      ]
+    },
     "src/chronicler/batch_manifest.py": {
       "sha256": "e254aa96b6eadec425d689a9e8c694d2e98ff09ca7e46995cfb12f8ffb5b58a6",
       "current_sha256": "fce77d528d557e462c2fbf6c668874a36d7ccbd1f4c00b000776deecbf0048e5",

@@ -60,35 +60,43 @@ RS2 planned its own projects:
 
 * Labour: anonymous farmer-equivalent work through the native
   ``granary_work_requested`` column (appended when grain storage is off),
-  removed from farming by the native economy as storage work is. The column
-  is shared in a fixed order, granary -> irrigation -> roads: a region whose
-  storage asks for work this turn is the granary's (stall
+  removed from farming by the native economy as storage work is; the farmers
+  are **not paid** (paying named crews needs a treasury-to-agent payment the
+  payment seam does not support yet). The column is shared in a fixed order,
+  granary -> irrigation -> roads, decided by storage's **actual** request this
+  turn: a region where storage asks for work is the granary's (stall
   ``granary_first``); in a region under an RS2 granary project the works add
   to RS2's request and RS2 takes ``min(delivered, its request)`` first; a
-  region whose storage would ask for nothing is claimed for the works
-  (:func:`storage_claims`, through RS2's suspension seam, which changes
-  nothing storage would have done). The split is recorded.
+  region where storage asked for nothing is claimed for the works (added to
+  the storage plan's suspended regions, so storage's settlement, whose
+  request there is 0, ignores the works' delivered work). The split is
+  recorded.
 * Timber: ``TIMBER_PER_WORK`` (irrigation 0.25, roads 0.5) from RS2's free
   timber after RS2's holds (stockpile minus merchant commitments, plus the
   PL1 store), held in RS2's per-region holds (so a failed tick returns it with
   RS2's) and the unused part returned after the tick.
-* Coins: ``COINS_PER_WORK`` (2, the storage rule) per delivered unit, one
+* Coins: ``COIN_MILLI_PER_WORK`` per delivered unit (a whole repair from 0
+  costs at most the BUILD cost of a new record: irrigation 12, roads 10), one
   whole-unit charge per civ and turn with the sub-unit remainder prepaid
-  (RS2's rule), paid from the treasury to the declared sink
-  ``public_works`` through the payment seam (``money.pay``, purpose
-  ``infrastructure_repair``). Planned after every Phase 2 bill RS2 plans
-  around and after RS2's own planned charge (RS2's rounding reserved whole),
-  so the two charges never exceed the treasury or the civ's one
-  ``repairs`` spending limit (the L9 envelope plus the maintenance
-  reservation): one envelope, no budget spent twice. RS2's L9 proposal,
-  settlement, pending bills and the maintenance obligation's split include
-  the works through guarded seams.
-* L9 relief (declared, owned here): commons food at risk relieved = the
-  irrigation arable ceiling the work keeps over L9's ``horizon`` (service
-  with the work minus without, turn by turn, under declared wear) x the
-  region's observed food production / its arable capacity. It is positive
-  before failure (once service would fall within the horizon). Roads carry no
-  relief of their own.
+  (RS2's rule), paid from the treasury to the declared sink ``public_works``
+  through the payment seam (``money.pay``, purpose ``infrastructure_repair``).
+  The sink has no payee: the coins leave the economy, as the storage
+  channel's granary coins do (a deflationary leak to count in A1/A2
+  calibration). Planned after every Phase 2 bill RS2 plans around and after
+  RS2's own planned charge (RS2's rounding reserved whole); later planners
+  see the works' planned coins rounded on their own
+  (``repair_projects.pending_bills`` adds the two roundings).
+* L9 (``--local-budgets``): the works are their **own** proposal (service
+  ``infrastructure_works``, :data:`BUDGET_PROVIDER`), never pooled with RS2's:
+  irrigation works only, with their own cost and the commons' food at risk
+  relieved = the irrigation arable ceiling the work keeps over L9's
+  ``horizon`` (service with the work minus without, turn by turn, under
+  declared wear) x the region's observed food production / its arable
+  capacity. That rule assumes food output scales with the arable ceiling (an
+  upper bound where labour, not land, limits output). Works certain to stall
+  are screened out first (no farmer, storage set to ask for work, no free
+  timber after RS2's needs). With L9 the works spend only within that
+  envelope; roads carry no relief, are not proposed and so get no envelope.
 * Stalls (a turn without delivered work): ``no_timber``, ``no_coins``,
   ``no_labor``, ``no_envelope``, ``granary_first``.
 
@@ -120,8 +128,12 @@ WORK_PER_CONDITION: dict[str, float] = {"irrigation": 20.0, "roads": 20.0}
 WORK_PER_TURN = 4.0
 #: Timber per work unit (lead decision).
 TIMBER_PER_WORK: dict[str, float] = {"irrigation": 0.25, "roads": 0.5}
-#: Coins per delivered work unit (the storage rule).
-COINS_PER_WORK = 2
+#: Coins (milli-units) per delivered work unit: a work's whole repair from
+#: condition 0 costs at most the BUILD cost of a new record of its type
+#: (``infrastructure.BUILD_SPECS``, undiscounted: irrigation 12, roads 10 over
+#: ``WORK_PER_CONDITION`` work), so repairing is never dearer in coins than
+#: rebuilding; labour and timber are its additional real inputs.
+COIN_MILLI_PER_WORK: dict[str, int] = {"irrigation": 600, "roads": 500}
 #: Condition one real war event takes (times ``repair_projects.war_damage``).
 WAR_DAMAGE = 0.25
 #: Flood damage per unit of excess water, capped (the B2 flow-mode seam).
@@ -134,6 +146,8 @@ DONE = 1e-6
 EPS = 1e-9
 PURPOSE = "infrastructure_repair"
 SINK = "public_works"
+#: The works' own L9 service (``BUDGET_PROVIDER``, group ``repairs``).
+BUDGET_SERVICE = "infrastructure_works"
 _TYPES = {"IRRIGATION": "irrigation", "ROADS": "roads"}
 
 
@@ -185,10 +199,21 @@ def _controller(world, region: int) -> int:
     return -1
 
 
-def _index(world, region) -> int | None:
-    if isinstance(region, int):
-        return region if 0 <= region < len(world.regions) else None
-    return next((i for i, r in enumerate(world.regions) if r is region), None)
+def _index(world, region) -> int:
+    """The region's index; a Region not in ``world.regions`` is matched by its
+    (unique) name. An unknown region raises: service never fails open."""
+    if isinstance(region, int) and not isinstance(region, bool):
+        if 0 <= region < len(world.regions):
+            return region
+        raise ValueError(f"unknown region index {region}")
+    for i, r in enumerate(world.regions):
+        if r is region:
+            return i
+    name = getattr(region, "name", None)
+    matches = [i for i, r in enumerate(world.regions) if r.name == name]
+    if len(matches) == 1:
+        return matches[0]
+    raise ValueError(f"unknown region {name!r}: infrastructure service cannot be read")
 
 
 def service_of(condition: float) -> float:
@@ -242,6 +267,9 @@ def check_request(world, value: bool | None, args=None, *, agent_mode=None, rs2:
     if mode is not None and mode not in MODES:
         raise ValueError(f"infrastructure_condition_mode must be one of {MODES}")
     state = _state(world)
+    if mode is not None and (value is False or (value is None and (state is None or not state.enabled))):
+        raise ValueError("--infrastructure-condition-mode requires --infrastructure-condition (this world does not "
+                         "have the switch on)")
     if value is False:
         return
     if state is not None and mode is not None and mode != state.mode:
@@ -320,7 +348,7 @@ def _end_cause(world, region) -> str:
             continue
         if event.event_type == "earthquake" and getattr(event, "region", None) == region.name:
             return "earthquake"
-        if event.event_type == "scorched_earth" and region.name in (event.description or ""):
+        if event.event_type == "scorched_earth" and f"scorched {region.name} during retreat" in (event.description or ""):
             return "scorch"
     return "unknown"
 
@@ -522,6 +550,7 @@ class _Turn:
         self.receipts: list[WorkReceipt] = []
         self.ledger: list[WorksLedger] = []
         self.shared: list[int] = []
+        self.claimed: list[int] = []
         self.appended = False
 
 
@@ -530,38 +559,24 @@ def _f32_floor(value: float) -> float:
     return floor(value)
 
 
-def _coin_milli(work: float) -> int:
-    return max(0, math.ceil(work * COINS_PER_WORK * MILLI - 1e-6))
+def _coin_milli(work: float, kind: str) -> int:
+    """Coin cost of ``work`` units of ``kind``, rounded up to the milli-unit."""
+    return max(0, math.ceil(work * COIN_MILLI_PER_WORK[kind] - 1e-6))
 
 
-def _storage_would_rest(world, rid: int) -> bool:
-    """Whether grain storage asks no work of ``rid`` this turn whatever the
-    works do (no owner, neglect, or maintain at full condition): the
-    ``grain_storage.prepare_storage_work`` rule."""
+def _storage_policy_works(world, rid: int) -> bool:
+    """A prediction from the current storage policy (for L9 proposals): the
+    region's granary is set to ask for work (expand, or maintain below full
+    condition, with an owner). Phase 2 uses storage's actual request."""
+    from chronicler.repair_projects import _grain_storage_on
+    if not _grain_storage_on(world) or world.regions[rid].controller is None:
+        return False
     storage = world.grain_reserves.storage
     policy = storage.policies[rid].policy
     asset = storage.assets[rid]
-    if world.regions[rid].controller is None or policy == "neglect":
+    if policy == "expand":
         return True
-    if policy == "maintain":
-        return asset is None or not asset.condition < 1.0
-    return False
-
-
-def storage_claims(world) -> frozenset[int]:
-    """RS2's suspension seam (``repair_projects.storage_suspended_regions``):
-    regions with an open work whose storage would ask for nothing this turn;
-    their native labour column belongs to the works (storage's settlement
-    then reads them as suspended, which changes nothing storage would have
-    done). Empty unless the works are on with grain storage."""
-    state = _state(world)
-    if not _works_on(world, state):
-        return frozenset()
-    from chronicler.repair_projects import _grain_storage_on
-    if not _grain_storage_on(world):
-        return frozenset()
-    regions = {w.region for w in state.works if _controller(world, w.region) >= 0}
-    return frozenset(r for r in regions if _storage_would_rest(world, r))
+    return policy == "maintain" and asset is not None and asset.condition < 1.0
 
 
 def _order(work) -> tuple:
@@ -607,7 +622,9 @@ def plan_phase2(world, rs2, region_input, snapshot, acc, commitments):
     column = (list(region_input.column(names.index("granary_work_requested")).to_pylist()) if present
               else [0.0] * n)
     plan = getattr(world.grain_reserves.storage, "_active_plan", None) if storage_on else None
-    usable = set(getattr(plan, "suspended", ()) or ()) if storage_on else None
+    if storage_on and plan is None:
+        raise RuntimeError("infrastructure works with grain storage require this turn's storage plan")
+    rs2_regions = set(getattr(plan, "suspended", ()) or ()) if storage_on else set()
     labour = R._farm_labour(world, snapshot) if works else None
     if commitments is None:
         commitments = R._commitments(world, rs2.sim) if works else {}
@@ -624,16 +641,22 @@ def plan_phase2(world, rs2, region_input, snapshot, acc, commitments):
                for i, c in enumerate(world.civilizations)]
     milli = [0] * len(budgets)
     holds: dict[int, float] = {}
+    env_milli: dict[int, int] = {}
+    from chronicler.local_budgets import envelope
     for work in works:
         asset = _asset(state, work.aid)
         payer = _controller(world, work.region)
         p = _Plan(work, payer, float(asset.condition))
         t.plans.append(p)
         rid = work.region
-        env = R._envelope(world, payer)
+        # The works' own L9 envelope (None without L9: the treasury rule). Only
+        # irrigation is proposed; with L9 a road has no envelope.
+        env = envelope(world, payer, BUDGET_SERVICE)
+        if env is not None and work.kind != "irrigation":
+            env = 0
         p.envelope = env
-        if usable is not None and rid not in usable:
-            p.reasons = ["granary_first"]            # the region's storage holds the column
+        if storage_on and rid not in rs2_regions and float(column[rid]) > 0.0:
+            p.reasons = ["granary_first"]            # storage asks for work here this turn
             continue
         if labour is not None and labour[rid] == 0:
             p.reasons = ["no_labor"]
@@ -642,18 +665,20 @@ def plan_phase2(world, rs2, region_input, snapshot, acc, commitments):
         want = min(WORK_PER_TURN, remaining)
         rate = TIMBER_PER_WORK[work.kind]
         free = R._free_timber(world, rid, commitments, rs2.holds.get(rid, 0.0) + holds.get(rid, 0.0))
+        per = COIN_MILLI_PER_WORK[work.kind]
         limits = {"no_timber": free / rate,
-                  "no_coins": max(0, budgets[payer] * MILLI - milli[payer]) / (COINS_PER_WORK * MILLI)}
+                  "no_coins": max(0, budgets[payer] * MILLI - milli[payer]) / per}
         if env is not None:
-            room = max(0, env - rs2_units[payer]) * MILLI - milli[payer]
-            limits["no_envelope"] = max(0, room) / (COINS_PER_WORK * MILLI)
+            limits["no_envelope"] = max(0, env * MILLI - env_milli.get(payer, 0)) / per
         amount = _f32_floor(max(0.0, min([want, *limits.values()])))
         p.reasons = [reason for reason, value in limits.items() if value + EPS < want]
         p.request = amount
         if amount > 0:
             p.hold = amount * rate
-            p.planned_milli = _coin_milli(amount)
+            p.planned_milli = _coin_milli(amount, work.kind)
             milli[payer] += p.planned_milli
+            if env is not None:
+                env_milli[payer] = env_milli.get(payer, 0) + p.planned_milli
             holds[rid] = holds.get(rid, 0.0) + p.hold
             t.region_request[rid] = t.region_request.get(rid, 0.0) + amount
     for rid in sorted(t.region_request):
@@ -670,6 +695,15 @@ def plan_phase2(world, rs2, region_input, snapshot, acc, commitments):
                 p.granary_request, p.shared = base, base > 0
     for rid, amount in sorted(holds.items()):
         rs2.holds[rid] = rs2.holds.get(rid, 0.0) + amount
+    claimed = frozenset(rid for rid in t.region_request if storage_on and rid not in rs2_regions)
+    if claimed:
+        # Regions where storage asked for nothing this turn: the column's work
+        # is the works'; storage's settlement reads them as suspended (its
+        # request there is 0, so nothing of storage's changes).
+        if any(plan.requests[rid] != 0.0 for rid in claimed):
+            raise RuntimeError("infrastructure works claimed a region where storage asked for work")
+        plan.suspended = frozenset(plan.suspended) | claimed
+        t.claimed = sorted(claimed)
     if t.region_request:
         import pyarrow as pa
         array = pa.array(column, type=pa.float32())
@@ -736,13 +770,31 @@ def settle_phase2(world, rs2, economy_result, acc) -> None:
                 p.reasons.append("no_labor")
     turn = world.turn
     repairs = state.mode == "repair"
+    # Validate every civ's whole bill before anything is credited or moved.
+    from chronicler.local_budgets import envelope
+    from chronicler.money import quote
+    costs: dict[int, int] = {}
+    for p in t.plans:
+        if p.payer < 0 or _controller(world, p.region) != p.payer:
+            if p.delivered > 0:
+                raise RuntimeError("infrastructure work payer changed while its work was pending")
+        if p.payer >= 0:
+            costs[p.payer] = costs.get(p.payer, 0) + _coin_milli(p.delivered, p.kind)
+    charges: dict[int, tuple[int, int, int]] = {}
+    for civ in sorted(costs):
+        before = int(state.prepaid.get(civ, 0))
+        need = costs[civ] - before
+        charged = max(0, -(-need // MILLI))
+        charges[civ] = (before, charged, charged * MILLI - need)
+        if charged:
+            q = quote(world, _bill(civ, charged), turn=turn, book=state.book, acc=acc)
+            if not q.ok:
+                raise RuntimeError(f"infrastructure works charge refused at settlement ({q.reason}); "
+                                   "another spender was missed")
     rows: dict[int, dict] = {}
     receipts = []
     for p in t.plans:
         work = p.work
-        if p.payer < 0 or _controller(world, p.region) != p.payer:
-            if p.delivered > 0:
-                raise RuntimeError("infrastructure work payer changed while its work was pending")
         asset = _asset(state, work.aid)
         done = p.delivered
         rate = TIMBER_PER_WORK[work.kind]
@@ -756,7 +808,7 @@ def settle_phase2(world, rs2, economy_result, acc) -> None:
             if to_store < returned:
                 goods = world.regions[p.region].stockpile.goods
                 goods["timber"] = goods.get("timber", 0.0) + (returned - to_store)
-        cost = _coin_milli(done)
+        cost = _coin_milli(done, work.kind)
         credit = done if repairs else 0.0
         before = asset.condition if asset is not None else p.condition_before
         if credit and asset is not None:
@@ -793,7 +845,8 @@ def settle_phase2(world, rs2, economy_result, acc) -> None:
             envelope=p.envelope, condition_before=p.condition_before, condition_after=after,
             remaining_after=remaining))
         if p.payer >= 0:
-            row = rows.setdefault(p.payer, dict(works=0, work=0.0, timber=0.0, cost=0, envelope=p.envelope))
+            row = rows.setdefault(p.payer, dict(works=0, work=0.0, timber=0.0, cost=0,
+                                                envelope=envelope(world, p.payer, BUDGET_SERVICE)))
             row["works"] += 1
             row["work"] += done
             row["timber"] += used
@@ -808,10 +861,9 @@ def settle_phase2(world, rs2, economy_result, acc) -> None:
     ledger = []
     for civ in sorted(rows):
         r = rows[civ]
-        before = int(state.prepaid.get(civ, 0))
-        need = r["cost"] - before
-        charged = max(0, -(-need // MILLI))
-        after = charged * MILLI - need
+        before, charged, after = charges[civ]
+        if r["cost"] != costs[civ]:
+            raise RuntimeError("infrastructure works cost changed between validation and settlement")
         if after:
             state.prepaid[civ] = after
         else:
@@ -833,46 +885,30 @@ def settle_phase2(world, rs2, economy_result, acc) -> None:
     t.finished = True
 
 
-def _charge(world, state, civ: int, charged: int, turn: int, acc):
+def _bill(civ: int, charged: int):
     """One civ's whole-unit charge: the treasury pays the declared sink
-    ``public_works`` through the payment seam (keyed by the civ: once a turn)."""
-    from chronicler.money import Bill, pay, sink, treasury
-    bill = Bill(purpose="infrastructure_repair", batch=int(civ), phase="phase2", payer=treasury(civ),
+    ``public_works`` (keyed by the civ: once a turn). The sink has no payee:
+    these coins leave the economy, as the storage channel's granary coins do;
+    the farmers whose time does the work are not paid."""
+    from chronicler.money import Bill, sink, treasury
+    return Bill(purpose="infrastructure_repair", batch=int(civ), phase="phase2", payer=treasury(civ),
                 lines=((sink(SINK), int(charged) * MILLI),))
-    return pay(world, bill, turn=turn, book=state.book, acc=acc)
+
+
+def _charge(world, state, civ: int, charged: int, turn: int, acc):
+    from chronicler.money import pay
+    return pay(world, _bill(civ, charged), turn=turn, book=state.book, acc=acc)
 
 
 def check_ledger(row: WorksLedger) -> None:
     """Exact integer closure of one civ's works accounts in one turn, and the
-    one ``repairs`` spending limit RS2 and the works share."""
+    works' own L9 envelope."""
     if row.charged * MILLI + row.prepaid_before_milli != row.coin_cost_milli + row.prepaid_after_milli \
             or not 0 <= row.prepaid_before_milli < MILLI or not 0 <= row.prepaid_after_milli < MILLI \
             or row.charged < 0:
         raise RuntimeError(f"infrastructure works accounts of civ {row.civ} do not close")
-    if row.envelope is not None and row.charged + row.rs2_charged > row.envelope:
-        raise RuntimeError(f"repairs of civ {row.civ} (RS2 and infrastructure works) spent beyond their one "
-                           "spending limit")
-
-
-def charged(world, civ: int) -> int:
-    """This turn's works charge to ``civ`` (whole units; 0 before settlement)
-    for the maintenance obligation's split of the one ``repairs`` limit."""
-    state = _state(world)
-    t = state._turn if state is not None else None
-    if t is None or t.turn != world.turn or not t.finished:
-        return 0
-    return sum(int(r.charged) for r in t.ledger if r.civ == civ)
-
-
-def settlement_part(world, civ: int):
-    """This turn's settled works of ``civ`` for RS2's L9 settlement:
-    ``(ledger row or None, receipts)``; ``(None, [])`` when there are none."""
-    state = _state(world)
-    t = state._turn if state is not None else None
-    if t is None or t.turn != world.turn or not t.finished:
-        return None, []
-    row = next((r for r in t.ledger if r.civ == civ), None)
-    return row, [r for r in t.receipts if r.payer == civ]
+    if row.envelope is not None and row.charged > row.envelope:
+        raise RuntimeError(f"infrastructure works of civ {row.civ} spent beyond their envelope")
 
 
 def rollback_phase2(world) -> None:
@@ -941,45 +977,151 @@ def _observe_food_at_risk(world, state, economy_result) -> None:
                               else round(food_at_risk(world, asset.region, asset.condition, horizon, float(row[1])), 9))
 
 
-def proposal_part(world, civ: int, obs, held: dict[int, float]) -> dict | None:
-    """Next turn's planned work of ``civ``'s open works at their current inputs
-    (RS2's ``_repairs_proposal`` adds it to its one proposal): ``milli``,
-    ``work``, ``commons`` relief, ``regions`` and the number of ``works``;
-    None when the works are off or nothing can be proposed. ``held``: RS2's
-    proposed timber per region, extended here."""
+def _rs2_timber_estimate(world) -> dict[int, float]:
+    """Timber RS2's open projects would hold next turn per region (RS2 plans
+    first in Phase 2): a granary project's full per-turn batch, a workshop
+    project's full crew at the qualified rate; an upper bound for proposals."""
+    from chronicler import repair_projects as R
+    state = R._state(world)
+    out: dict[int, float] = {}
+    if state is None or not R.repair_projects_active(world):
+        return out
+    _per_condition, per_turn, timber_rate, _coins = R._storage_rules()
+    for p in state.projects:
+        remaining = max(0.0, p.scope - p.delivered)
+        if p.kind == "granary":
+            out[p.region] = out.get(p.region, 0.0) + min(per_turn, remaining) * timber_rate
+        else:
+            out[p.region] = out.get(p.region, 0.0) + min(float(R.MAX_CREW), remaining) * R.WORKSHOP_TIMBER_PER_WORK
+    return out
+
+
+def works_proposal(world, civ: int, obs) -> list[dict]:
+    """The works' own L9 proposal (service ``infrastructure_works``, claim
+    ``infrastructure:<civ>``), never pooled with RS2's: next turn's planned
+    work of ``civ``'s open **irrigation** works at their current inputs, its
+    cost in whole units (its own rounding: the works are charged on their own)
+    and the commons' food at risk it relieves (the declared rule of
+    :func:`food_at_risk_relieved`). Screened out before proposing, as RS2
+    skips granaries without farm labour: works in a region with no farmer
+    after this turn's agent tick (``no_labor``), works whose region's storage
+    is set to ask for work next turn (``granary_first``, predicted from the
+    current storage policy), works without free timber after RS2's open
+    projects' needs (``no_timber``), and roads (no relief measure; with L9
+    they have no envelope). The detail records the cost, the work, the relief
+    and every screened work, so the proposal can be audited."""
     state = _state(world)
     if not _works_on(world, state) or obs.economy is None:
-        return None
+        return []
     works = sorted((w for w in state.works if _controller(world, w.region) == civ), key=_order)
     if not works:
-        return None
+        return []
     from chronicler import repair_projects as R
     from chronicler.local_budgets import _parameters
     horizon = _parameters(world)["horizon"]
     ledger = getattr(obs.economy, "food_ledger", None) or {}
-    milli, work_sum, commons, regions, count = 0, 0.0, 0.0, set(), 0
+    seen = state._labour
+    labour = seen[1] if seen is not None and seen[0] == world.turn else None
+    rs2_regions = R.storage_suspended_regions(world)
+    held = _rs2_timber_estimate(world)
+    milli, work_sum, commons, regions, wids = 0, 0.0, 0.0, set(), []
+    screened = {"roads": 0, "no_labor": 0, "granary_first": 0, "no_timber": 0}
     for w in works:
         asset = _asset(state, w.aid)
         remaining = max(0.0, w.scope - w.delivered)
         if asset is None or remaining <= DONE:
             continue
+        if w.kind != "irrigation":
+            screened["roads"] += 1
+            continue
+        if labour is not None and labour[w.region] == 0:
+            screened["no_labor"] += 1
+            continue
+        if w.region not in rs2_regions and _storage_policy_works(world, w.region):
+            screened["granary_first"] += 1
+            continue
         rate = TIMBER_PER_WORK[w.kind]
         free = R._free_timber(world, w.region, obs.held, held.get(w.region, 0.0))
         amount = min(WORK_PER_TURN, remaining, free / rate)
         if amount < MIN_PROPOSAL_WORK:
+            screened["no_timber"] += 1
             continue
-        milli += _coin_milli(amount)
+        milli += _coin_milli(amount, w.kind)
         held[w.region] = held.get(w.region, 0.0) + amount * rate
-        if w.kind == "irrigation":
-            row = ledger.get(w.region)
-            produced = float(row[1]) if row is not None and len(row) > 1 else 0.0
-            commons += food_at_risk_relieved(world, w.region, asset.condition, amount, horizon, produced)
+        row = ledger.get(w.region)
+        produced = float(row[1]) if row is not None and len(row) > 1 else 0.0
+        commons += food_at_risk_relieved(world, w.region, asset.condition, amount, horizon, produced)
         work_sum += amount
         regions.add(w.region)
-        count += 1
-    if not count:
+        wids.append(w.wid)
+    cost = -(-milli // MILLI)
+    if cost < 1 or work_sum < MIN_PROPOSAL_WORK:
+        return []
+    relief = {"commons": commons} if commons > EPS else {}
+    detail = {"works": len(wids), "cost_milli": milli, "work": round(work_sum, 6),
+              "food_at_risk_relieved": round(commons, 6),
+              **{f"screened_{k}": v for k, v in screened.items()}}
+    return [dict(service=BUDGET_SERVICE, recipients=sorted(regions), claims=[f"infrastructure:{civ}"], cost=cost,
+                 divisible=True, unit="work", expected=work_sum, relief=relief, detail=detail)]
+
+
+def works_settlement(world, c, obs) -> dict:
+    """The observed delivery of a works envelope (this turn's works ledger and
+    receipts of the civ's irrigation works, the only ones it funds)."""
+    from chronicler.local_budgets import KEPT_RATIO
+    state = _state(world)
+    if not _works_on(world, state):
+        return {"outcome": "deferred", "reason": "service_off", "spent": 0, "delivered": 0.0, "ratio": 0.0}
+    t = state._turn
+    if t is None or t.turn != world.turn or not t.finished:
+        reason = "no_economy" if obs.economy is None else "service_off"
+        return {"outcome": "deferred", "reason": reason, "spent": 0, "delivered": 0.0, "ratio": 0.0}
+    row = next((r for r in t.ledger if r.civ == c.civ), None)
+    mine = [r for r in t.receipts if r.payer == c.civ and r.kind == "irrigation"]
+    if row is None or not mine:
+        return {"outcome": "deferred", "reason": "recipient_lost", "spent": 0, "delivered": 0.0, "ratio": 0.0}
+    spent = int(row.charged)
+    delivered = math.fsum(r.delivered for r in mine)
+    ratio = min(1.0, delivered / c.expected) if c.expected > EPS else 0.0
+    done = all(r.remaining_after <= DONE for r in mine)
+    detail = {"works": len(mine), "charged": spent, "prepaid_after_milli": row.prepaid_after_milli}
+    if ratio >= KEPT_RATIO or spent >= KEPT_RATIO * c.amount or done:
+        return {"outcome": "kept", "reason": None, "spent": spent, "delivered": delivered,
+                "ratio": 1.0 if done else ratio, "detail": detail}
+    reasons = [reason for r in mine for reason in r.reasons]
+    reason = ("inputs_short" if "no_timber" in reasons else "work_short" if ("no_labor" in reasons
+              or "granary_first" in reasons) else "treasury_shortfall" if "no_coins" in reasons else "work_short")
+    return {"outcome": "deferred", "reason": reason, "spent": spent, "delivered": delivered,
+            "ratio": ratio, "detail": detail}
+
+
+class _WorksBudget:
+    """L9 provider (``chronicler.local_budgets.PROVIDERS``): the works' own
+    service ``infrastructure_works`` in the ``repairs`` group it shares with
+    RS2 (one fixed share under ``fixed_shares``). Phase 2 spends only within
+    the envelope (:func:`plan_phase2`)."""
+
+    services = (BUDGET_SERVICE,)
+    group = "repairs"
+
+    def active(self, world) -> bool:
+        return _works_on(world, _state(world))
+
+    def proposals(self, world, civ, obs):
+        return works_proposal(world, civ, obs)
+
+    def install(self, world, commitments) -> None:
         return None
-    return dict(milli=milli, work=work_sum, commons=commons, regions=regions, works=count)
+
+    def settle(self, world, c, obs):
+        return works_settlement(world, c, obs)
+
+    def obligations(self, world, civ, obs) -> int:
+        return 0
+
+
+#: The L9 provider instance (``"chronicler.infrastructure_condition:BUDGET_PROVIDER"``).
+BUDGET_PROVIDER = _WorksBudget()
 
 
 # ---------------------------------------------------------------------------
@@ -1011,6 +1153,13 @@ def phase10_before_reserves(world, acc, economy_result, agent_bridge):
             _bump(state, f"wear_{asset.kind}", round(amount, 9))
         state.wear_turn = turn
     unmet = []
+    state._labour = None
+    if _works_on(world, state) and getattr(world.livelihoods, "local_budgets", None) is not None:
+        # Farmers per region after this turn's agent tick (the pool the next
+        # Phase 2 reads), for the L9 proposal's screen; None when unreadable.
+        from chronicler.repair_projects import _farm_labour
+        getter = getattr(agent_bridge, "get_snapshot", None) if agent_bridge is not None else None
+        state._labour = (turn, _farm_labour(world, getter()) if callable(getter) else None)
     if _works_on(world, state):
         for work in list(state.works):
             if _asset(state, work.aid) is None:
@@ -1112,7 +1261,7 @@ def snapshot_summary(world) -> dict:
         "parameters": {"wear": dict(WEAR), "service_full": SERVICE_FULL, "service_gate": SERVICE_GATE,
                        "open_below": OPEN_BELOW, "work_per_condition": dict(WORK_PER_CONDITION),
                        "work_per_turn": WORK_PER_TURN, "timber_per_work": dict(TIMBER_PER_WORK),
-                       "coins_per_work": COINS_PER_WORK,
+                       "coin_milli_per_work": dict(COIN_MILLI_PER_WORK),
                        "war_damage": WAR_DAMAGE * (_damage_scale(world) if state.enabled else 1.0),
                        "flood_damage_per_excess": FLOOD_DAMAGE_PER_EXCESS, "flood_damage_cap": FLOOD_DAMAGE_CAP},
     }

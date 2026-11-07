@@ -38,6 +38,10 @@ Services (built-in providers; each reuses an existing public API)
     (``repair_projects`` reads :func:`envelope`); a granary under a repair
     project takes no ``granary_*`` envelope (its storage request is
     suspended).
+    ``infrastructure_works`` (registered by ``--infrastructure-condition``, group
+    ``repairs``): B3's irrigation works spend only within their own
+    ``infrastructure:<civ>`` envelope, a proposal of their own (never pooled
+    with RS2's); roads carry no relief and are not proposed.
 
 Budget. ``budget = floor(ENVELOPE_SHARE x max(0, projected - FLOOR -
 obligations - committed))``: the projected treasury replays queued ``keep``
@@ -124,6 +128,7 @@ PROVIDERS: tuple[str, ...] = (
     "chronicler.clearing_protection:BUDGET_PROVIDER",
     "chronicler.local_budgets:REPAIRS",
     "chronicler.maintenance_obligation:BUDGET_PROVIDER",
+    "chronicler.infrastructure_condition:BUDGET_PROVIDER",
 )
 
 
@@ -1001,12 +1006,11 @@ class _RelocationAssistance(Provider):
 
 
 def _repair_regions(world) -> frozenset:
-    """Regions whose granary is under an RS2 repair project (empty unless active;
-    not the regions B3's infrastructure works claim, whose storage asks nothing)."""
+    """Regions whose granary is under an RS2 repair project (empty unless active)."""
     if getattr(getattr(world, "livelihoods", None), "repair_projects", None) is None:
         return frozenset()
-    from chronicler.repair_projects import granary_project_regions
-    return granary_project_regions(world)
+    from chronicler.repair_projects import storage_suspended_regions
+    return storage_suspended_regions(world)
 
 
 class _Repairs(Provider):

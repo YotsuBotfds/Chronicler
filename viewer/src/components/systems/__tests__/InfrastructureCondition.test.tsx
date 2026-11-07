@@ -29,7 +29,8 @@ it("shows each asset with its condition, applied service, status and a trace acr
   expect(screen.getAllByRole("img", { name: /^Condition .* at turn \d+ to .* at turn \d+$/ }).length).toBeGreaterThan(0);
   fireEvent.click(within(assets[1]).getAllByRole("button")[0]);
   expect(p.onSelectRegion).toHaveBeenCalledTimes(1);
-  expect(screen.getByText(/Repair mode: works funded inside RS2's repairs budget/)).toBeInTheDocument();
+  expect(screen.getByText(/Repair mode: works restore condition with anonymous, unpaid farm labour/)).toBeInTheDocument();
+  expect(screen.getByText(/public-works sink that pays no one/)).toBeInTheDocument();
 });
 
 it("shows the works, this turn's receipts and charges, and the underfunded works story", () => {

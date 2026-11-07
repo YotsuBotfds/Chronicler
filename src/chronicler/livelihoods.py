@@ -631,9 +631,11 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
             raise ValueError("--workshop-economics requires --workshop-payroll (--workshops in operate mode, "
                              "--agents hybrid)"
                              + ("; this world has it on: pass --no-workshop-economics to end it" if saved else ""))
-    if values["infrastructure_condition"] is not None or _on(world, values, "infrastructure_condition"):
+    if values["infrastructure_condition"] is not None or _on(world, values, "infrastructure_condition") \
+            or getattr(args, "infrastructure_condition_mode", None) is not None:
         # Also when only saved: a resume outside hybrid, or a work mode without
-        # RS2, is refused until the switch is ended; the mode is fixed once opened.
+        # RS2, is refused until the switch is ended; the mode is fixed once
+        # opened, and a mode given without the switch is refused.
         from chronicler.infrastructure_condition import check_request
         check_request(world, values["infrastructure_condition"], args, agent_mode=agent_mode,
                       rs2=_on(world, values, "repair_projects"))

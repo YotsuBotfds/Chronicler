@@ -215,19 +215,12 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
     ledger = {row.civ: row for row in (rs2.ledger if rs2 is not None and rs2.turn == world.turn and rs2.finished
                                        else [])}
     from chronicler.local_budgets import envelope
-    infrastructure = getattr(world.livelihoods, "infrastructure_condition", None) is not None
     for ci, civ in enumerate(world.civilizations):
         reserved = _reserved(world, ci)
         row = ledger.get(ci)
-        extra = 0
-        if infrastructure:
-            # B3: the infrastructure works' charge shares the civ's one repairs
-            # limit (envelope plus reservation) with RS2's.
-            from chronicler.infrastructure_condition import charged as works_charged
-            extra = works_charged(world, ci)
-        if not reserved and row is None and not extra:
+        if not reserved and row is None:
             continue
-        charged = (int(row.charged) if row is not None else 0) + extra
+        charged = int(row.charged) if row is not None else 0
         amount = envelope(world, ci, "repairs")
         used, share = split_charge(charged, reserved if state.mode == "reserve" else 0, amount or 0)
         use = ReservationUse(turn=world.turn, civ=ci, reserved=reserved, envelope=amount, charged=charged,

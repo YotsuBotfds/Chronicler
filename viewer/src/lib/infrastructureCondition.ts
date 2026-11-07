@@ -100,8 +100,8 @@ function ledgerProblem(x: unknown, turn: number): string | null {
   if ((x.prepaid_before_milli as number) >= 1000 || (x.prepaid_after_milli as number) >= 1000
     || (x.charged as number) * 1000 + (x.prepaid_before_milli as number)
       !== (x.coin_cost_milli as number) + (x.prepaid_after_milli as number)) return "a ledger row does not close";
-  if (x.envelope !== null && (x.charged as number) + (x.rs2_charged as number) > (x.envelope as number))
-    return "repairs spent beyond their one limit";
+  if (x.envelope !== null && (x.charged as number) > (x.envelope as number))
+    return "the works spent beyond their envelope";
   return null;
 }
 

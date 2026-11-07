@@ -13,7 +13,7 @@ const REASON: Record<string, string> = {
   no_envelope: "no repairs envelope", granary_first: "the granary held the labour",
 };
 const MODE_NOTE: Record<string, string> = {
-  repair: "Repair mode: works funded inside RS2's repairs budget restore condition with anonymous farm labour, timber and treasury coins.",
+  repair: "Repair mode: works restore condition with anonymous, unpaid farm labour, timber and treasury coins, planned after RS2's repairs and, under local budgets, only within their own envelope.",
   cost_only: "Cost-only control: works plan, hold timber, use labour and pay identically, but condition never rises.",
   wear_only: "Wear-only control: works wear and take damage and their service reaches irrigation and roads, but nothing repairs them.",
   record_only: "Record only: condition is tracked and recorded, but every consumer reads service 1.0 and no work opens; the run equals one without the switch.",
@@ -82,7 +82,7 @@ export function InfrastructureCondition({ bundle, snapshot, currentTurn, onSelec
   const counters = record.counters;
   return <section className="systems-section" aria-label="Infrastructure condition">
     {header}
-    <p className="systems-note">{MODE_NOTE[record.mode]} Serving works wear each turn (irrigation {show(0.01)}, roads {show(0.005)}); service is min(1, condition ÷ 0.5); food at risk is the food an irrigation work's region would lose over the budget horizon without repair (the arable ceiling lost × observed production ÷ arable capacity); irrigation's arable bonus scales with service, and irrigation's water effect and a road's two-hop trade range need service of at least 0.5. Constants are declared, not calibrated.</p>
+    <p className="systems-note">{MODE_NOTE[record.mode]} Serving works wear each turn (irrigation {show(0.01)}, roads {show(0.005)}); service is min(1, condition ÷ 0.5); the works' coins go to a public-works sink that pays no one (they leave the economy) and the farmers whose time does the work are not paid; food at risk is the food an irrigation work's region would lose over the budget horizon without repair (the arable ceiling lost × observed production ÷ arable capacity); irrigation's arable bonus scales with service, and irrigation's water effect and a road's two-hop trade range need service of at least 0.5. Constants are declared, not calibrated.</p>
     <div className="systems-table-wrap"><table className="systems-table" aria-label={`Infrastructure assets at snapshot ${at}`}>
       <thead><tr><th>Id</th><th>Kind</th><th>Region</th><th>Responsible</th><th>Condition</th><th>Service</th><th>Status</th><th>Food at risk</th><th>History</th></tr></thead>
       <tbody>{record.assets.length === 0 && record.terminal.length === 0
@@ -102,7 +102,7 @@ export function InfrastructureCondition({ bundle, snapshot, currentTurn, onSelec
           </tr>)}</tbody>
       </table></div>
       {record.ledger && record.ledger.length > 0 ? <div className="systems-table-wrap"><table className="systems-table" aria-label={`Works charges at snapshot ${at}`}>
-        <thead><tr><th>Civilization</th><th>Work</th><th>Coins (cost)</th><th>Charged</th><th>RS2 charged</th><th>Repairs limit</th></tr></thead>
+        <thead><tr><th>Civilization</th><th>Work</th><th>Coins (cost)</th><th>Charged (destroyed)</th><th>RS2 charged</th><th>Works envelope</th></tr></thead>
         <tbody>{record.ledger.map((row) => <tr key={row.civ}>
           <td>{civ(row.civ)}</td><td>{show(row.work_delivered)}</td><td>{coins(row.coin_cost_milli)}</td><td>{row.charged}</td>
           <td>{row.rs2_charged}</td><td>{row.envelope === null ? "No budget rule" : row.envelope}</td>
@@ -120,7 +120,7 @@ export function InfrastructureCondition({ bundle, snapshot, currentTurn, onSelec
         <tr><th scope="row">Work delivered / credited</th><td>{show(counters.work_delivered ?? 0)} / {show(counters.work_credited ?? 0)}</td></tr>
         <tr><th scope="row">Stalled work-turns by cause</th><td>{["no_timber", "no_coins", "no_labor", "no_envelope", "granary_first"]
           .map((k) => `${REASON[k]} ${show(counters[`stalled_${k}`] ?? 0)}`).join("; ")}</td></tr>
-        <tr><th scope="row">Charged to treasuries (public works)</th><td>{coins(record.sink_milli)} coins</td></tr>
+        <tr><th scope="row">Charged to treasuries, paid to no one (public works)</th><td>{coins(record.sink_milli)} coins</td></tr>
       </> : null}
     </tbody></table></div>
   </section>;

@@ -466,22 +466,7 @@ def legacy_workshop_repair_allowed(world) -> bool:
 def storage_suspended_regions(world) -> frozenset[int]:
     """``grain_storage`` seam: regions whose granary has an open project; their
     ordinary storage request is suspended this turn and the native work
-    channel belongs to the project. Empty while inactive. With B3's works on
-    (``--infrastructure-condition``), also the regions the works claim, where
-    storage would ask for nothing this turn
-    (``infrastructure_condition.storage_claims``)."""
-    regions = granary_project_regions(world)
-    if getattr(getattr(world, "livelihoods", None), "infrastructure_condition", None) is not None \
-            and _storage(world) is not None:
-        from chronicler.infrastructure_condition import storage_claims
-        claims = storage_claims(world)
-        if claims:
-            regions = regions | claims
-    return regions
-
-
-def granary_project_regions(world) -> frozenset[int]:
-    """Regions whose granary has an open RS2 project (empty while inactive)."""
+    channel belongs to the project. Empty while inactive."""
     state = _state(world)
     if state is None or not repair_projects_active(world) or _storage(world) is None:
         return frozenset()
@@ -504,11 +489,13 @@ def pending_bills(world) -> list[int]:
     for w in t.work.values():
         if 0 <= w.payer < len(milli):
             milli[w.payer] += w.planned_milli
+    out = [-(-m // MILLI) for m in milli]
     if _infrastructure_on(world):
-        # B3: the infrastructure works planned inside this turn (one rounding).
+        # B3: the infrastructure works planned inside this turn, rounded on
+        # their own (they are charged separately, each to whole units).
         from chronicler.infrastructure_condition import pending_milli
-        milli = [a + b for a, b in zip(milli, pending_milli(world), strict=True)]
-    return [-(-m // MILLI) for m in milli]
+        out = [a + -(-b // MILLI) for a, b in zip(out, pending_milli(world), strict=True)]
+    return out
 
 
 def _begin(world, state, sim) -> _Turn:
@@ -849,9 +836,6 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
     plan = getattr(storage, "_active_plan", None) if storage is not None else None
     suspended = set(getattr(plan, "suspended", ()) or ()) if plan is not None else set()
     t.suspended = sorted(suspended)
-    if _infrastructure_on(world):
-        # B3's claimed regions are not this record's (storage asked nothing there).
-        t.suspended = sorted(suspended & granary_project_regions(world))
     granaries = [p for p in state.projects if p.kind == "granary"]
     # PL3 correction: the native farm labour of each region (farmers in the
     # agent rows the economy reads); None when the snapshot is unavailable.
@@ -955,7 +939,8 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
             region_input = remove_farm_time(world, region_input, snapshot, removal, sim=sim)
     if _infrastructure_on(world):
         # B3: the infrastructure works plan after RS2's projects, in the same
-        # labour column, timber holds and repairs budget.
+        # labour column and timber holds, against the treasury after RS2's
+        # planned charge (their own L9 envelope).
         from chronicler.infrastructure_condition import plan_phase2
         region_input = plan_phase2(world, t, region_input, snapshot, acc,
                                    commitments if (granaries or t.work) else None)
@@ -1194,8 +1179,7 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
     t.receipts, t.ledger = receipts, out
     t.finished = True
     if _infrastructure_on(world):
-        # B3: the infrastructure works settle after RS2 charged (before the
-        # maintenance obligation splits the civ's one repairs limit).
+        # B3: the infrastructure works settle after RS2 charged.
         from chronicler.infrastructure_condition import settle_phase2
         settle_phase2(world, t, economy_result, acc)
     if crews:
@@ -1456,8 +1440,7 @@ def _repairs_proposal(world, civ: int, obs) -> list[dict]:
     if state is None or not repair_projects_active(world) or obs.economy is None:
         return []
     projects = [p for p in state.projects if _controller(world, p.region) == civ]
-    infrastructure = _infrastructure_on(world)
-    if not projects and not infrastructure:
+    if not projects:
         return []
     # PL3 correction: a granary project in a region without farm labour is
     # suspended next turn; it is not proposed.
@@ -1513,17 +1496,6 @@ def _repairs_proposal(world, civ: int, obs) -> list[dict]:
             held[p.region] = held.get(p.region, 0.0) + amount * WORKSHOP_TIMBER_PER_WORK
         work += amount
         regions.add(p.region)
-    part = None
-    if infrastructure:
-        # B3: the civ's infrastructure works join the one repairs proposal (one
-        # rounding, one envelope), with their food-at-risk relief.
-        from chronicler.infrastructure_condition import proposal_part
-        part = proposal_part(world, civ, obs, held)
-        if part is not None:
-            milli += part["milli"]
-            work += part["work"]
-            commons += part["commons"]
-            regions |= part["regions"]
     cost = -(-milli // MILLI)
     if cost < 1 or work < MIN_PROPOSAL_WORK:
         return []
@@ -1532,11 +1504,9 @@ def _repairs_proposal(world, civ: int, obs) -> list[dict]:
         relief["commons"] = commons
     if patricians > EPS:
         relief["patricians"] = patricians
-    detail = {"projects": len(projects), "work": round(work, 6), "cost_milli": milli}
-    if part is not None:
-        detail["infrastructure_works"] = part["works"]
     return [dict(service="repairs", recipients=sorted(regions), claims=[f"repairs:{civ}"], cost=cost,
-                 divisible=True, unit="work", expected=work, relief=relief, detail=detail)]
+                 divisible=True, unit="work", expected=work, relief=relief,
+                 detail={"projects": len(projects), "work": round(work, 6), "cost_milli": milli})]
 
 
 def budget_settlement(world, c, obs) -> dict:
@@ -1551,20 +1521,9 @@ def budget_settlement(world, c, obs) -> dict:
         return {"outcome": "deferred", "reason": reason, "spent": 0, "delivered": 0.0, "ratio": 0.0}
     row = next((r for r in t.ledger if r.civ == c.civ), None)
     mine = [r for r in t.receipts if r.payer == c.civ]
-    infra_row, infra = None, []
-    if _infrastructure_on(world):
-        # B3: the civ's infrastructure works spent and delivered within the same envelope.
-        from chronicler.infrastructure_condition import settlement_part
-        infra_row, infra = settlement_part(world, c.civ)
-    if (row is None or not mine) and (infra_row is None or not infra):
-        return {"outcome": "deferred", "reason": "recipient_lost", "spent": 0, "delivered": 0.0, "ratio": 0.0}
     if row is None or not mine:
-        row, mine = None, []
-    spent = int(row.charged) if row is not None else 0
-    delivered = float(row.work_delivered) if row is not None else 0.0
-    if infra_row is not None and infra:
-        spent += int(infra_row.charged)
-        delivered += float(infra_row.work_delivered)
+        return {"outcome": "deferred", "reason": "recipient_lost", "spent": 0, "delivered": 0.0, "ratio": 0.0}
+    spent, delivered = int(row.charged), float(row.work_delivered)
     used = 0
     if _lane_active(world, "maintenance_obligation"):
         # PL3: the charge and the work are split between the civ's maintenance
@@ -1578,18 +1537,14 @@ def budget_settlement(world, c, obs) -> dict:
     # Nothing expected is never kept by default (review C: a 0-work envelope
     # read as ratio 1.0).
     ratio = min(1.0, delivered / c.expected) if c.expected > EPS else 0.0
-    done = all(r.remaining_after <= DONE for r in mine + infra)
-    detail = {"projects": len(mine), "charged": int(row.charged) if row is not None else 0,
-              "prepaid_after_milli": row.prepaid_after_milli if row is not None else 0}
-    if infra_row is not None and infra:
-        detail["infrastructure_works"] = len(infra)
-        detail["infrastructure_charged"] = int(infra_row.charged)
+    done = all(r.remaining_after <= DONE for r in mine)
+    detail = {"projects": len(mine), "charged": int(row.charged), "prepaid_after_milli": row.prepaid_after_milli}
     if used:
         detail["reservation_used"] = used
     if ratio >= KEPT_RATIO or spent >= KEPT_RATIO * c.amount or done:
         return {"outcome": "kept", "reason": None, "spent": spent, "delivered": delivered,
                 "ratio": 1.0 if done else ratio, "detail": detail}
-    reasons = [reason for r in mine + infra for reason in r.reasons]
+    reasons = [reason for r in mine for reason in r.reasons]
     reason = ("inputs_short" if "no_timber" in reasons else "work_short" if "no_labor" in reasons
               else "treasury_shortfall" if "no_coins" in reasons else "work_short")
     return {"outcome": "deferred", "reason": reason, "spent": spent, "delivered": delivered,
