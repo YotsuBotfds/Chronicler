@@ -11,13 +11,14 @@ ceiling and the identities are in ``scripts/screen_runner.py``; the seed numbers
 are reserved in ``scripts/seed_registry.json``; the page is
 docs/integration/connected-world-screens.md.
 
-CW2, CW3, CW5 and CW6 are **stubs**: only their cohorts are declared. Each slice
+CW2, CW5 and CW6 are **stubs**: only their cohorts are declared. Each slice
 fills in its screen's base, arms, packages, outcomes (2-3 primary), activation
 rule and extractor, writes its preregistration and sets ``ready=True``. Until
 then every run of the screen is refused (``check`` reports it NOT READY, exit
 code 2). CW4 (slice C1, quarantine rules), CW4b (slice C1b, the migration channel,
 on its own reserved cohort) and CW1 (slice S1, the wage and ``paid_work``
-enrollment; a two-phase screen) are declared below.
+enrollment; a two-phase screen) and CW3 (slice B2, the watershed in flow mode under
+upstream forest protection; procedural stratum only) are declared below.
 
 ``DEV`` is a development-only smoke screen (no pilot or held cohort): it runs the
 runner end to end on registered development worlds, e.g.
@@ -941,6 +942,435 @@ SCREENS["CW1"] = SR.Screen(
     activation=cw1_activation, extract=cw1_extract, ready=True, module=MODULE,
     derived=(SR.Derived("S_A", "A", _CW1_S_A, cw1_schedule), SR.Derived("S_B", "B", _CW1_S_B, cw1_schedule)),
     control_activation=True, report=_cw1_report)
+
+
+# --- CW3: the watershed in flow mode under upstream forest protection (slice B2) ----
+#
+# Question: does an upstream intervention (``--clearing-protection``, as configured by its
+# switch) change downstream outcomes when the watershed account owns the water index
+# (``--watershed-mode flow``), without creating resources? Arms (root R): R the account in
+# record_only (the old water index), F flow, R_CP and F_CP the same with clearing
+# protection, F_CPc flow with clearing protection in ``cost_only`` mode (the same adoption,
+# planning and charges, nothing protected; Amendment 1). Every arm: hybrid, procedural
+# 32x10 (the watershed refuses template worlds, so the template cohort 751-756 stays
+# reserved and unused). The primaries' region sets are fixed before treatment by the
+# static drainage graph, identical in every arm of a world: downstream regions receive
+# inflow from at least one region (``graph.down``); upstream regions drain into a region.
+# The protection arms also carry clearing protection's candidate set at enable time (turn
+# 0: adopted or eligible but over the limit or unaffordable), the same in each of them; it
+# defines the F_CP - F_CPc secondaries. Snapshot s records world turn s - 1.
+
+CW3_WS = ("livelihoods", "watershed")
+CW3_CP = ("livelihoods", "clearing_protection")
+#: The native write-back's rounding of the index flow writes (4 decimals), with the
+#: record's 6-decimal rounding.
+CW3_INDEX_TOLERANCE = 5e-5 + 2e-6
+#: Relative closure tolerance of the water account (the account's own CLOSURE_TOLERANCE,
+#: against the opening storage plus cumulative precipitation; the record rounds nothing in
+#: the cumulative residual).
+CW3_CLOSURE_TOLERANCE = 1e-9
+
+
+def _cw3_mode(flags) -> str:
+    return _flag(flags, "--watershed-mode", "record_only")
+
+
+def _cw3_cp(flags) -> bool:
+    return "--clearing-protection" in list(flags)
+
+
+def _cw3_cp_mode(flags) -> str:
+    return _flag(flags, "--clearing-protection-mode", "enforced")
+
+
+def _cw3_below(down: list[int], regions) -> set[int]:
+    """Every region downstream of any of ``regions`` on the drainage graph."""
+    n, below = len(down), set()
+    for u in regions:
+        node, hops = down[u] if 0 <= u < n else -1, 0
+        while isinstance(node, int) and node >= 0 and hops <= n:
+            below.add(node)
+            node, hops = down[node], hops + 1
+    return below
+
+
+def _cw3_candidates(records: list[tuple[dict, dict]]) -> list[int] | None:
+    """Clearing protection's candidate set at enable time: the regions adopted at turn 0
+    and those eligible then but over the limit or unaffordable (its first planning; the
+    state before it is the same in every protection arm). None without a turn-0 record."""
+    first = next((r for _s, r in records if r.get("source_turn") == 0 and r.get("observed")), None)
+    if first is None:
+        return None
+    adopted = {d.get("region_id") for d in first.get("decisions") or []
+               if isinstance(d, dict) and d.get("turn") == 0 and d.get("kind") == "adopted"}
+    eligible = {u.get("region_id") for u in first.get("unprotected") or []
+                if isinstance(u, dict) and u.get("reason") in ("over_limit", "unaffordable")}
+    return sorted(r for r in adopted | eligible if isinstance(r, int))
+
+
+def _cw3_records(bundle: dict, path) -> list[tuple[dict, dict]]:
+    return [(s, r) for s in bundle.get("history") or [] if isinstance(r := SR._get(s, path), dict)]
+
+
+def _cw3_sets(ws: list[tuple[dict, dict]]) -> tuple[list[int], list[int], list[int]] | None:
+    """(down, downstream regions, upstream regions) from the record's graph."""
+    graph = next((r.get("graph") for _s, r in ws if isinstance(r.get("graph"), dict)), None)
+    if not graph or not isinstance(graph.get("down"), list):
+        return None
+    down = graph["down"]
+    n = len(down)
+    downstream = sorted({d for d in down if isinstance(d, int) and 0 <= d < n})
+    upstream = [r for r in range(n) if isinstance(down[r], int) and down[r] >= 0]
+    return down, downstream, upstream
+
+
+def _cw3_mean(values) -> float | None:
+    values = [v for v in values if SR._num(v)]
+    return sum(values) / len(values) if values else None
+
+
+def _cw3_food(bundle: dict, regions: list[int]) -> tuple[float | None, float | None, int]:
+    """Demand-weighted food shortfall share after relief (sum of demand x max(0, 1 -
+    min(1, sufficiency after relief)) over sum of demand) and demand-weighted mean of
+    min(1, sufficiency after relief), over the given regions and every snapshot with a
+    food account; and the snapshots read. A region-turn without demand counts nothing."""
+    unmet = demand = met = 0.0
+    turns = 0
+    wanted = set(regions)
+    for s in bundle.get("history") or []:
+        fa = s.get("food_accounting")
+        if not isinstance(fa, dict) or not isinstance(fa.get("regions"), list):
+            continue
+        turns += 1
+        for row in fa["regions"]:
+            if not isinstance(row, dict) or row.get("region_id") not in wanted:
+                continue
+            d = (row.get("native") or {}).get("demand")
+            suff = row.get("sufficiency_after_relief")
+            if not (SR._num(d) and d > 0 and SR._num(suff)):
+                continue
+            demand += d
+            unmet += d * max(0.0, 1.0 - min(1.0, suff))
+            met += d * min(1.0, suff)
+    if demand <= 0:
+        return None, None, turns
+    return unmet / demand, met / demand, turns
+
+
+def cw3_activation(bundle: dict, flags) -> tuple[bool | None, str]:
+    """F: the account owns the index (flow records settled, index used = derived, or the
+    derived index capped at a recorded cap change). R_CP: clearing protection kept cover
+    (cover not cleared > 0). F_CP: both. F_CPc (cost_only): flow, and protections were paid
+    for clearing they would have stopped (cover it would have kept > 0) while keeping none.
+    The root R is not judged."""
+    mode, cp = _cw3_mode(flags), _cw3_cp(flags)
+    ws = _cw3_records(bundle, CW3_WS)
+    if not ws:
+        return None, "no watershed record"
+    texts, acted = [], True
+    if mode == "flow":
+        observed = [r for _s, r in ws if r.get("observed") and r.get("mode") == "flow"]
+        if not observed:
+            return None, "no settled flow record"
+        gap = _cw3_flow_gap(observed)
+        if gap is None:
+            return None, "flow records without the index columns"
+        acted = acted and gap <= CW3_INDEX_TOLERANCE
+        texts.append(f"{len(observed)} settled flow turns, index used - derived (capped) at most {gap:.2e}")
+    if cp:
+        records = _cw3_records(bundle, CW3_CP)
+        if not records:
+            return None, "no clearing protection record"
+        counters = records[-1][1].get("counters") or {}
+        kept, prt = counters.get("cover_not_cleared"), counters.get("protected_region_turns")
+        would = counters.get("cover_would_keep")
+        if not (SR._num(kept) and SR._num(prt) and SR._num(would)):
+            return None, "clearing protection counters lack cover_not_cleared, cover_would_keep or protected_region_turns"
+        if _cw3_cp_mode(flags) == "cost_only":
+            acted = acted and would > 0 and kept == 0
+            texts.append(f"{int(prt)} protected region-turns paid for, would have kept {would:.3f} cover, kept "
+                         f"{kept:.3f} (cost_only)")
+        else:
+            acted = acted and kept > 0
+            texts.append(f"{int(prt)} protected region-turns kept {kept:.3f} cover")
+    if not texts:
+        return None, "the root arm is not judged"
+    return acted, "; ".join(texts)
+
+
+def _cw3_flow_gap(observed: list[dict]) -> float | None:
+    worst = 0.0
+    for r in observed:
+        cols = r.get("regions") or {}
+        used, derived = cols.get("index_observed"), cols.get("index_derived")
+        if not (isinstance(used, list) and isinstance(derived, list) and len(used) == len(derived)):
+            return None
+        capped = {c.get("region"): c.get("cap_after") for c in r.get("cap_changes") or [] if isinstance(c, dict)}
+        for i, (o, d) in enumerate(zip(used, derived)):
+            expected = min(d, capped[i]) if i in capped and SR._num(capped[i]) else d
+            worst = max(worst, abs(o - expected))
+    return worst
+
+
+def cw3_extract(bundle: dict, flags) -> tuple[dict, list[str]]:
+    """Downstream and upstream food and water, floods and droughts by cause, the forest,
+    clearing protection's cost and cover kept, and the water account's closure (the
+    validity check: no water is created; a failure is a problem, never a value)."""
+    problems: list[str] = []
+    m: dict = {}
+    mode, cp = _cw3_mode(flags), _cw3_cp(flags)
+    ws = _cw3_records(bundle, CW3_WS)
+    if not ws:
+        return m, ["no watershed record"]
+    if any(r.get("mode") != mode for _s, r in ws):
+        problems.append(f"a watershed record is not in mode {mode}")
+    for s, r in ws:
+        if r.get("source_turn") != s.get("turn", 0) - 1:
+            problems.append(f"watershed record of snapshot {s.get('turn')} misdated")
+            break
+    sets = _cw3_sets(ws)
+    if sets is None:
+        return m, problems + ["watershed records carry no drainage graph"]
+    down, downstream, upstream = sets
+    n = len(down)
+    names = [r.get("name") for r in (bundle.get("world_state") or {}).get("regions") or []]
+    if len(names) != n:
+        problems.append(f"{len(names)} regions in the world state, {n} in the drainage graph")
+    m["regions"], m["downstream_regions"], m["upstream_regions"] = n, len(downstream), len(upstream)
+    observed = [r for _s, r in ws if r.get("observed")]
+    m["settled_turns"] = len(observed)
+    # Water index the simulation used (the record's index_observed), means over settled turns.
+    def index_mean(regions):
+        return _cw3_mean(v for r in observed for i, v in enumerate((r.get("regions") or {}).get("index_observed") or [])
+                         if i in set(regions))
+    m["water_downstream"] = index_mean(downstream)
+    m["water_upstream"] = index_mean(upstream)
+    m["water_all"] = index_mean(range(n))
+    # Food (demand-weighted shortfall share after relief, and mean min(1, sufficiency)).
+    for label, regions in (("downstream", downstream), ("upstream", upstream), ("all", list(range(n)))):
+        share, met, turns = _cw3_food(bundle, regions)
+        m[f"food_shortfall_{label}"], m[f"food_met_{label}"] = share, met
+    m["food_turns"] = turns
+    # Forest cover (the stand proxy: mean cover; timber stock is off), at the end.
+    last_eco = (bundle.get("history") or [{}])[-1].get("ecology") or {}
+    covers = {i: (last_eco.get(name) or {}).get("forest_cover") for i, name in enumerate(names)}
+    m["cover_upstream_end"] = _cw3_mean(covers.get(i) for i in upstream)
+    m["cover_all_end"] = _cw3_mean(covers.values())
+    # Floods and droughts. Account flood events: onsets, what acted, withheld (flow).
+    last = ws[-1][1]
+    counters = last.get("counters") or {}
+    for key in ("floods_started", "flood_region_turns", "droughts_declared", "drought_region_turns",
+                "terrain_cap_changes"):
+        if not SR._num(counters.get(key)):
+            problems.append(f"watershed counters lack {key}")
+        m[key] = counters.get(key)
+    if mode == "flow":
+        for key in ("flood_consequences", "flood_consequences_withheld", "superseded_river_floods"):
+            if not SR._num(counters.get(key)):
+                problems.append(f"flow counters lack {key}")
+            m[key] = counters.get(key)
+    else:
+        for key in ("flood_consequences", "flood_consequences_withheld", "superseded_river_floods"):
+            m[key] = None
+    events = bundle.get("events_timeline") or []
+    m["coastal_floods"] = sum(1 for e in events if e.get("event_type") == "flood"
+                              and "Flooding devastates" in (e.get("description") or ""))
+    m["river_floods_old"] = sum(1 for e in events if e.get("event_type") == "flood"
+                                and "river floods" in (e.get("description") or ""))
+    downs = set(downstream)
+    onsets = [f for r in observed for f in r.get("floods") or [] if isinstance(f, dict)]
+    m["flood_onsets_downstream"] = sum(1 for f in onsets if f.get("region") in downs)
+    m["droughts_downstream"] = sum(1 for r in observed for d in (r.get("droughts") or {}).get("declared") or []
+                                   if isinstance(d, dict) and d.get("region") in downs)
+    # Validity: the water account closes (cumulative, every snapshot) and, in flow, the index
+    # used is the derived one (capped at recorded cap changes).
+    worst = 0.0
+    for _s, r in ws:
+        cum = r.get("cumulative") or {}
+        res, scale = cum.get("closure_residual"), (cum.get("opening_storage") or 0) + (cum.get("precipitation") or 0)
+        if not SR._num(res):
+            problems.append("a watershed record lacks its cumulative closure residual")
+            break
+        worst = max(worst, abs(res) / max(scale, 1.0))
+    m["closure_worst_relative"] = worst
+    if worst > CW3_CLOSURE_TOLERANCE:
+        problems.append(f"the water account does not close (worst relative residual {worst:.2e})")
+    if mode == "flow":
+        gap = _cw3_flow_gap(observed)
+        m["index_gap_worst"] = gap
+        if gap is None or gap > CW3_INDEX_TOLERANCE:
+            problems.append(f"flow: the index used is not the derived index (worst gap {gap})")
+    else:
+        m["index_gap_worst"] = None
+    # Clearing protection: cost and cover kept; the protected regions and their downstream.
+    if cp:
+        records = _cw3_records(bundle, CW3_CP)
+        if not records:
+            problems.append("no clearing protection record")
+        else:
+            c = records[-1][1].get("counters") or {}
+            for key in ("adopted", "protected_region_turns", "cover_not_cleared", "cover_would_keep", "charged"):
+                if not SR._num(c.get(key)):
+                    problems.append(f"clearing protection counters lack {key}")
+                m[f"cp_{key}"] = c.get(key)
+            cp_mode = _cw3_cp_mode(flags)
+            if any(r.get("mode") != cp_mode for _s, r in records):
+                problems.append(f"a clearing protection record is not in mode {cp_mode}")
+            if cp_mode == "cost_only" and SR._num(c.get("cover_not_cleared")) and c["cover_not_cleared"] != 0:
+                problems.append("cost_only clearing protection kept cover (it must keep none)")
+            protected = sorted({rc.get("region_id") for _s, r in records for rc in r.get("receipts") or []
+                                if isinstance(rc, dict) and isinstance(rc.get("region_id"), int)})
+            below = _cw3_below(down, protected)
+            # The candidate set at enable time (pre-treatment, the same in every protection arm).
+            candidates = _cw3_candidates(records)
+            if candidates is None:
+                problems.append("no observed clearing protection record of turn 0 (the candidate set)")
+                m["cand_regions"] = m["cand_below"] = None
+                m["cand_food_shortfall_below"] = m["cand_water_below"] = None
+            else:
+                cand_below = sorted(_cw3_below(down, candidates))
+                m["cand_regions"], m["cand_below"] = len(candidates), len(cand_below)
+                m["cand_digest"] = ",".join(map(str, candidates))
+                m["cand_food_shortfall_below"] = _cw3_food(bundle, cand_below)[0] if cand_below else None
+                m["cand_water_below"] = index_mean(cand_below) if cand_below else None
+            m["cp_protected_regions"] = len(protected)
+            m["cp_protected_with_downstream"] = sum(1 for u in protected if 0 <= u < n and down[u] >= 0)
+            m["cp_downstream_of_protected"] = len(below)
+            # Selection (this arm's own protections): food and water below its protected regions.
+            share, _met, _t = _cw3_food(bundle, sorted(below)) if below else (None, None, 0)
+            m["sel_food_shortfall_below_protected"] = share
+            m["sel_water_below_protected"] = index_mean(sorted(below)) if below else None
+    else:
+        for key in ("cp_adopted", "cp_protected_region_turns", "cp_cover_not_cleared", "cp_cover_would_keep",
+                    "cp_charged", "cp_protected_regions", "cp_protected_with_downstream", "cp_downstream_of_protected",
+                    "sel_food_shortfall_below_protected", "sel_water_below_protected", "cand_regions", "cand_below",
+                    "cand_food_shortfall_below", "cand_water_below"):
+            m[key] = None
+        if _cw3_records(bundle, CW3_CP):
+            problems.append("a clearing protection record without the switch")
+    for key in ("water_downstream", "water_upstream", "food_shortfall_downstream", "food_shortfall_upstream"):
+        if m.get(key) is None:
+            problems.append(f"{key} could not be measured")
+    return m, problems
+
+
+_CW3_BASE = ("--turns", "200", "--agents", "hybrid", "--simulate-only")
+_CW3_R = ("--watershed", "--watershed-mode", "record_only")
+_CW3_F = ("--watershed", "--watershed-mode", "flow")
+_CW3_CP = ("--clearing-protection",)
+_CW3_CPC = ("--clearing-protection", "--clearing-protection-mode", "cost_only")
+
+
+def _cw3_outcomes() -> tuple[SR.Outcome, ...]:
+    ds_short, ds_water = _m("food_shortfall_downstream"), _m("water_downstream")
+    return (
+        # Primaries (chosen on the development worlds, see the preregistration): the downstream water
+        # protection leaves under flow (the channel; the most consistent development signal), the
+        # downstream food it buys or costs (the welfare question), and whether the water effect
+        # exists only with flow (the interaction with the same contrast under the old index).
+        SR.Outcome("cw3_ds_water_flow", "Downstream regions' water index used, mean over settled turns (F_CP - F: "
+                   "protection's downstream effect under flow)", "F_CP", "F", ds_water, primary=True),
+        SR.Outcome("cw3_ds_food_flow", "Downstream regions' food shortfall share after relief over the run "
+                   "(F_CP - F)", "F_CP", "F", ds_short, primary=True),
+        SR.Outcome("cw3_ds_water_interaction", "Downstream water index used: (F_CP - F) - (R_CP - R), the part of "
+                   "protection's downstream water effect that exists only with flow", "F_CP", "F", ds_water,
+                   primary=True, minus=("R_CP", "R")),
+        # The same contrasts under the old index, the food interaction, and the flow effect itself.
+        SR.Outcome("cw3_ds_water_old", "Downstream water index used (R_CP - R: under the old index)", "R_CP", "R",
+                   ds_water),
+        SR.Outcome("cw3_ds_food_old", "Downstream food shortfall share (R_CP - R: under the old index)", "R_CP", "R",
+                   ds_short),
+        SR.Outcome("cw3_ds_food_interaction", "Downstream food shortfall share: (F_CP - F) - (R_CP - R)", "F_CP", "F",
+                   ds_short, minus=("R_CP", "R")),
+        SR.Outcome("cw3_ds_water_mode", "Downstream water index used (F - R: flow itself)", "F", "R", ds_water),
+        SR.Outcome("cw3_ds_food_mode", "Downstream food shortfall share (F - R: flow itself)", "F", "R", ds_short),
+        SR.Outcome("cw3_ds_food_met_flow", "Downstream demand-weighted mean of min(1, sufficiency) (F_CP - F)",
+                   "F_CP", "F", _m("food_met_downstream")),
+        # Upstream versus downstream trade-off.
+        SR.Outcome("cw3_up_food_flow", "Upstream regions' food shortfall share (F_CP - F)", "F_CP", "F",
+                   _m("food_shortfall_upstream")),
+        SR.Outcome("cw3_up_water_flow", "Upstream water index used (F_CP - F)", "F_CP", "F", _m("water_upstream")),
+        SR.Outcome("cw3_all_food_flow", "All regions' food shortfall share (F_CP - F)", "F_CP", "F",
+                   _m("food_shortfall_all")),
+        # Floods and droughts by cause (account flood events follow forest loss; coastal floods are a
+        # separate authority; droughts through the account).
+        SR.Outcome("cw3_floods_flow", "Account flood events (onsets) (F_CP - F)", "F_CP", "F", _m("floods_started")),
+        SR.Outcome("cw3_floods_acted", "Account flood events that acted (F_CP - F)", "F_CP", "F",
+                   _m("flood_consequences")),
+        SR.Outcome("cw3_ds_floods_flow", "Account flood onsets in downstream regions (F_CP - F)", "F_CP", "F",
+                   _m("flood_onsets_downstream")),
+        SR.Outcome("cw3_droughts_flow", "Droughts declared (F_CP - F)", "F_CP", "F", _m("droughts_declared")),
+        SR.Outcome("cw3_ds_droughts_flow", "Droughts declared in downstream regions (F_CP - F)", "F_CP", "F",
+                   _m("droughts_downstream")),
+        SR.Outcome("cw3_coastal_floods", "Coastal floods (F_CP - F; a separate authority)", "F_CP", "F",
+                   _m("coastal_floods")),
+        SR.Outcome("cw3_superseded", "River floods superseded (F_CP alone)", "F_CP", None, _m("superseded_river_floods")),
+        # The forest and protection's cost.
+        SR.Outcome("cw3_cover_up_flow", "Upstream mean forest cover at the end (F_CP - F)", "F_CP", "F",
+                   _m("cover_upstream_end")),
+        SR.Outcome("cw3_cover_kept", "Cover protection kept, total (F_CP alone)", "F_CP", None,
+                   _m("cp_cover_not_cleared")),
+        SR.Outcome("cw3_cp_charged", "Warden pay charged, total (F_CP alone)", "F_CP", None, _m("cp_charged")),
+        SR.Outcome("cw3_cp_downstream", "Regions downstream of a region F_CP protected (F_CP alone)", "F_CP", None,
+                   _m("cp_downstream_of_protected")),
+        # Selection: below this arm's own protected regions (no counterpart in an arm without protection).
+        SR.Outcome("cw3_sel_food_below", "Food shortfall share below F_CP's own protected regions (F_CP alone; "
+                   "selection)", "F_CP", None, _m("sel_food_shortfall_below_protected")),
+        SR.Outcome("cw3_sel_water_below", "Water index below F_CP's own protected regions (F_CP alone; selection)",
+                   "F_CP", None, _m("sel_water_below_protected")),
+        # Validity (structurally ~0; a breach fails the run): no water created.
+        SR.Outcome("cw3_closure", "Water account worst relative closure residual (F_CP alone; validity)", "F_CP",
+                   None, _m("closure_worst_relative")),
+        SR.Outcome("cw3_index_gap", "Worst |index used - derived (capped)| (F_CP alone; validity)", "F_CP", None,
+                   _m("index_gap_worst")),
+        # Amendment 1: protection's effect apart from its treasury cost (F_CP - F_CPc: the same
+        # adoption, planning and charges, only the cover kept differs), on the graph's sets and
+        # below the candidate set at enable time (pre-treatment, the same in both arms); and the
+        # cost itself (F_CPc - F).
+        SR.Outcome("cw3_cpc_ds_water", "Downstream water index used (F_CP - F_CPc: the cover kept, cost held "
+                   "equal)", "F_CP", "F_CPc", ds_water),
+        SR.Outcome("cw3_cpc_ds_food", "Downstream food shortfall share (F_CP - F_CPc)", "F_CP", "F_CPc", ds_short),
+        SR.Outcome("cw3_cpc_cand_water", "Water index below the turn-0 candidate set (F_CP - F_CPc)", "F_CP",
+                   "F_CPc", _m("cand_water_below")),
+        SR.Outcome("cw3_cpc_cand_food", "Food shortfall share below the turn-0 candidate set (F_CP - F_CPc)",
+                   "F_CP", "F_CPc", _m("cand_food_shortfall_below")),
+        SR.Outcome("cw3_cpc_up_water", "Upstream water index used (F_CP - F_CPc)", "F_CP", "F_CPc",
+                   _m("water_upstream")),
+        SR.Outcome("cw3_cpc_cover", "Upstream mean forest cover at the end (F_CP - F_CPc)", "F_CP", "F_CPc",
+                   _m("cover_upstream_end")),
+        SR.Outcome("cw3_cpc_droughts", "Droughts declared (F_CP - F_CPc)", "F_CP", "F_CPc", _m("droughts_declared")),
+        SR.Outcome("cw3_cost_ds_food", "Downstream food shortfall share (F_CPc - F: protection's cost alone)",
+                   "F_CPc", "F", ds_short),
+        SR.Outcome("cw3_cost_ds_water", "Downstream water index used (F_CPc - F: the cost alone)", "F_CPc", "F",
+                   ds_water),
+        SR.Outcome("cw3_cost_treasury", "Treasury at the end (F_CPc - F: the cost alone)", "F_CPc", "F",
+                   lambda r: SR.harm_value(r, "treasury")),
+        SR.Outcome("cw3_cpc_would_keep", "Cover protection would have kept (F_CPc alone; it keeps none)", "F_CPc",
+                   None, _m("cp_cover_would_keep")),
+        # Harms beside the primaries (the runner's panel shows each arm against its control).
+        SR.Outcome("cw3_h_food_shortfall", "Food shortfall after relief over the run, world (F_CP - F)", "F_CP", "F",
+                   lambda r: SR.harm_value(r, "food_shortfall")),
+        SR.Outcome("cw3_h_population", "Population at the end (F_CP - F)", "F_CP", "F",
+                   lambda r: SR.harm_value(r, "population")),
+        SR.Outcome("cw3_h_treasury", "Treasury at the end (F_CP - F)", "F_CP", "F",
+                   lambda r: SR.harm_value(r, "treasury")),
+        SR.Outcome("cw3_h_out_migration", "Agents moving between regions over the run (F_CP - F)", "F_CP", "F",
+                   lambda r: SR.harm_value(r, "out_migration")),
+    )
+
+
+SCREENS["CW3"] = SR.Screen(
+    name="CW3", title="S3 watershed flow and upstream forest protection (B2)",
+    preregistration=PROGRESS / "connected-world-screens-cw3.md",
+    base=_CW3_BASE,
+    arms={"R": (_CW3_R, None),
+          "F": (_CW3_F, "R"),
+          "R_CP": (_CW3_R + _CW3_CP, "R"),
+          "F_CPc": (_CW3_F + _CW3_CPC, "F"),
+          "F_CP": (_CW3_F + _CW3_CP, "F_CPc")},
+    root="R", pilot={"procedural": (19,)}, held={"procedural": tuple(range(851, 857))},
+    outcomes=_cw3_outcomes(),
+    activation=cw3_activation, extract=cw3_extract, ready=True, module=MODULE)
 
 
 # --- DEV: the development smoke screen ---------------------------------------------

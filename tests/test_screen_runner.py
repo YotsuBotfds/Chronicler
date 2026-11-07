@@ -90,6 +90,9 @@ def test_registry_union_covers_the_audit_union(SR, registry):
 
 #: Screens whose held run ``mark-run`` recorded in the registry (complete).
 RECORDED = {"CW4", "CW1"}
+#: CW3's held run, recorded incomplete (one run failed: the disk was full), procedural only;
+#: its template reservation is recorded as unused by design (never_run).
+RECORDED_INCOMPLETE = {"CW3"}
 
 
 def _unrun(SR, registry=None):
@@ -110,13 +113,26 @@ def test_program_reservations(SR, registry, CW, screen):
     t0, p0 = PROGRAM[screen]
     own = [e for e in registry["entries"] if e.get("screen") == screen]
     status = "run" if screen in RECORDED else "reserved"
-    assert {(e["stratum"], e["status"], e["cohort"], e["program"]) for e in own} == {
-        ("template", status, "held", "connected-world"), ("procedural", status, "held", "connected-world")}
+    if screen in RECORDED_INCOMPLETE:
+        assert {(e["stratum"], e["status"], e["cohort"], e["program"]) for e in own} == {
+            ("template", "never_run", "held", "connected-world"), ("procedural", "run", "held", "connected-world")}
+        assert [e["held_run"]["complete"] for e in own if e["stratum"] == "procedural"] == [False]
+        assert all(e["unused"]["reason"].startswith("unused by design") and "held_run" not in e
+                   and "unused by design" not in e["use"] for e in own if e["stratum"] == "template")
+    else:
+        assert {(e["stratum"], e["status"], e["cohort"], e["program"]) for e in own} == {
+            ("template", status, "held", "connected-world"), ("procedural", status, "held", "connected-world")}
     if screen in RECORDED:
         assert all(e["held_run"]["complete"] for e in own)
     got = {e["stratum"]: SR.expand(e["seeds"]) for e in own}
     assert got == {"template": set(range(t0, t0 + 6)), "procedural": set(range(p0, p0 + 6))}
-    assert CW.SCREENS[screen].held == {"template": tuple(range(t0, t0 + 6)), "procedural": tuple(range(p0, p0 + 6))}
+    if screen == "CW3":
+        # The watershed refuses template worlds: CW3 uses its procedural cohort only and its
+        # template reservation stays reserved and unused.
+        assert CW.SCREENS[screen].held == {"procedural": tuple(range(p0, p0 + 6))}
+    else:
+        assert CW.SCREENS[screen].held == {"template": tuple(range(t0, t0 + 6)),
+                                           "procedural": tuple(range(p0, p0 + 6))}
     for stratum, seeds in got.items():
         others = set().union(*(SR.expand(e["seeds"]) for e in registry["entries"]
                                if e["stratum"] == stratum and e not in own))
@@ -130,7 +146,9 @@ def test_pilot_and_reserve(SR, registry, CW):
     assert SR.expand(by["cw-reserve-t"]["seeds"]) == set(range(791, 797))
     assert SR.expand(by["cw-reserve-p"]["seeds"]) == set(range(891, 897))
     assert all(by[k]["status"] == "reserved" for k in ("cw-pilot-t", "cw-pilot-p", "cw-reserve-t", "cw-reserve-p"))
-    assert all(s.pilot == {"template": (5,), "procedural": (19,)} for n, s in CW.SCREENS.items() if n != "DEV")
+    assert all(s.pilot == {"template": (5,), "procedural": (19,)} for n, s in CW.SCREENS.items()
+               if n not in ("DEV", "CW3"))
+    assert CW.SCREENS["CW3"].pilot == {"procedural": (19,)}          # procedural stratum only
 
 
 def _mutate(registry, change):
@@ -170,13 +188,20 @@ def test_validate_registry_refuses(SR, registry, change):
 
 @pytest.mark.parametrize("name", ["CW1", "CW2", "CW3", "CW4", "CW5", "CW6", "DEV"])
 def test_program_cohorts_pass(SR, registry, CW, name):
-    problems, notes = SR.check_seeds(CW.SCREENS[name], registry, reuse="recorded" if name in RECORDED else "refuse")
+    recorded = name in RECORDED | RECORDED_INCOMPLETE
+    problems, notes = SR.check_seeds(CW.SCREENS[name], registry, reuse="recorded" if recorded else "refuse")
     assert problems == []
-    if name in RECORDED:
+    if recorded:
         # A recorded held cohort refuses a new held run of it, and is noted as recorded.
         assert any("already run" in p for p in SR.check_seeds(CW.SCREENS[name], registry)[0])
-        assert sum("was recorded as run (complete" in n for n in notes) == 2
+        state = "incomplete" if name in RECORDED_INCOMPLETE else "complete"
+        assert sum(f"was recorded as run ({state}" in n for n in notes) == len(CW.SCREENS[name].held)
         notes = [n for n in notes if "was recorded as run" not in n]
+    if name == "CW3":
+        # CW3 declares no template cohort (the watershed refuses template worlds): its template
+        # reservation is unused by design, a note.
+        assert sum("cw3-held-t is unused by design" in n for n in notes) == 1
+        notes = [n for n in notes if "unused by design" not in n]
     # The shared pilot was also seen by old exploratory batches: a note, not a refusal.
     assert all("pilot seed" in n for n in notes)
 
@@ -633,8 +658,10 @@ def test_registry_content_hash_ignores_run_records_only(SR, registry):
 def test_check_command_reports_stubs_not_ready(SR, CW, capsys):
     assert CW.main(["check", "--screen", "all"]) == 2
     text = capsys.readouterr().out
-    for name in ("CW2", "CW3", "CW5", "CW6"):
+    for name in ("CW2", "CW5", "CW6"):
         assert f"{name}: seeds OK" in text and f"{name}: NOT READY" in text
+    # CW3 is declared by slice B2 (tests/test_cw3_screen.py).
+    assert "CW3: seeds OK" in text and "CW3: extractor, packages, 5 arms and 42 outcomes (3 primary): OK" in text
     # CW1 is declared by slice S1 (tests/test_cw1_screen.py).
     assert "CW1: seeds OK" in text and "CW1: extractor, packages, 9 arms and 38 outcomes (3 primary): OK" in text
     # CW4 is declared by slice C1 (tests/test_cw4_screen.py).
@@ -984,3 +1011,44 @@ def test_n7_a_failed_run_keeps_its_output(SR, CW, tmp_path):
     argv = [str(tmp_path / "out"), "--screen", "DEV", "--cohort", "dev", "--worlds", "t1", "--jobs", "1"]
     assert SR.run_main(argv, CW.SCREENS, fake.rt) == SR.RC_FAILED
     assert (tmp_path / "out" / "runs" / "W-t1" / "chronicle_bundle.json").exists()
+
+
+def test_mark_run_records_a_stratum_without_a_cohort_as_unused_by_design(SR, registry, CW):
+    reg = copy.deepcopy(registry)
+    for e in reg["entries"]:
+        if e.get("screen") == "CW3":
+            e["status"] = "reserved"
+            e.pop("held_run", None)
+            e.pop("unused", None)
+    ledger = {"cohort": "held", "out": "/tmp/x", "identity": "abc", "started": "t0",
+              "seeds": {"procedural": list(range(851, 857))}}
+    before = SR.registry_content_sha256(reg)
+    use = next(e["use"] for e in reg["entries"] if e["id"] == "cw3-held-t")
+    changed = SR.mark_run(reg, CW.SCREENS["CW3"], [], ledger)
+    by = {e["id"]: e for e in reg["entries"]}
+    assert by["cw3-held-p"]["status"] == "run" and by["cw3-held-p"]["held_run"]["out"] == "/tmp/x"
+    t_entry = by["cw3-held-t"]
+    assert t_entry["status"] == "never_run" and t_entry["use"] == use          # the description is untouched
+    assert t_entry["unused"]["reason"] == "unused by design: CW3 declares no template cohort"
+    assert t_entry["unused"]["out"] == "/tmp/x" and "held_run" not in t_entry and SR.validate_registry(reg) == []
+    # Every field mark-run writes is a run-record field: the content hash (which a pilot and a
+    # resume compare) is unchanged, so a mark-run keeps a pilot valid.
+    assert SR.registry_content_sha256(reg) == before
+    assert changed == ["cw3-held-p", "cw3-held-t (unused by design, never_run)"]
+    problems, notes = SR.check_seeds(CW.SCREENS["CW3"], reg, reuse="recorded")
+    assert problems == [] and any("cw3-held-t is unused by design" in n and "never_run" in n for n in notes)
+    assert any("already run" in p for p in SR.check_seeds(CW.SCREENS["CW3"], reg)[0])
+
+
+def test_the_registry_content_hash_is_the_one_every_recorded_identity_used(SR, registry):
+    """CW3's mark-run first wrote its note into ``use`` (registry content 95e3bdea for one
+    commit); the note is a run-record field now, and the content hash is again the one CW1,
+    CW4, CW4b and CW3 recorded."""
+    assert SR.registry_content_sha256(registry) == "a703a8502cb688181662d323ff482822a3fec6df292d23ebccc42f05751b2cfe"
+    bad = copy.deepcopy(registry)
+    next(e for e in bad["entries"] if e["id"] == "cw3-held-t")["unused"]["reason"] = ""
+    assert any("unused is a" in p for p in SR.validate_registry(bad))
+    reserved = copy.deepcopy(registry)
+    next(e for e in reserved["entries"] if e["id"] == "cw2-held-t")["unused"] = {
+        "reason": "x", "out": "y", "recorded": "z"}
+    assert any("never_run entry" in p for p in SR.validate_registry(reserved))

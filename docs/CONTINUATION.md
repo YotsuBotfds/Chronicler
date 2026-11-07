@@ -65,13 +65,21 @@
   never readmitted; one appended native purpose (`wares_purchase`). Development activation: under
   market most firms close idle (70 of 102); nothing converted unpaid. CW2 (held) waits for A3-2's
   firm-output column.
-- **D2 PR** (`claude/cw-d2-attribution`): `--attribution-records`, an observation-only package —
+- **PR #89 merged** at `66e1ec40` (tree `d60153bc` = reviewed head `0b29f60c`; premerge Tests
+  42328958939 and main Tests 42330174480 green), D2: `--attribution-records`, an observation-only package —
   granary seizures with actor and victim, soldier deaths split into combat, attrition, war drain,
   possibly-enemy and natural (17% of soldier deaths on development worlds are natural deaths the army
   counters book as casualties), restored-civ index reuse, and per actor→victim burdens labelled as
   transfer, minted, destroyed or restriction (occupation plunder and requisitions are minted; city
   dues and guild levies are internal). Its guard test found seven decision sites that read causal
   provenance against the documented contract (four default-path), recorded for the owner.
+- **B2 PR** (`claude/cw-b2-flow`): `--watershed-mode flow` — the derived index replaces (never stacks
+  on) the native water climate terms, the irrigation bonus and the downstream deforestation cascade;
+  recalibrated with three free constants by leave-two-out cross-validation over 32×10 and 64×16
+  development worlds (held-out 1.1–1.5× training; downstream regions still run wetter than the old
+  index — disclosed); floods are events from storage released by upstream forest loss; terrain cap
+  changes recorded. **CW3** (procedural 851–856): all three primaries null; the cost of clearing
+  protection raised downstream food shortfall (cost not held equal across arms).
 - **Lanes in flight** (each on its own branch, provisional witness layers regenerated at
   integration): A5 retail rules v2, war reaches owned stock once per event (RL1–RL3; review
   merge-ready); A1 `--wealth-accounting` observation ledger (RL7; review fixes); B1 `--watershed

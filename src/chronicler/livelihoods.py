@@ -43,8 +43,9 @@ The productive-recovery phase appends:
 
 The connected-world program appends:
 
-* ``--watershed`` (B1): a conserved water account on the drainage graph of a
-  procedural world; mode ``record_only`` changes nothing outside its record.
+* ``--watershed`` (B1, B2): a conserved water account on the drainage graph of a
+  procedural world; mode ``record_only`` changes nothing outside its record,
+  mode ``flow`` makes the account's derived index the water index.
 * ``--workshop-economics`` (A3): an L6a workshop firm buys its raw inputs from
   the commons owner, starts with owner capital and sells to households as
   well as academies; inserted before the ledger and without hooks of its own
@@ -121,7 +122,7 @@ LIVELIHOODS_CHOICES: dict[str, tuple[str, ...]] = {
     "household_retail_mode": ("retail", "no_relief", "free_exchange", "record_only"),
     "household_retail_boundary": ("market", "paid_work", "all", "schedule"),
     "household_retail_rules": ("2", "1"),
-    "watershed_mode": ("record_only",),
+    "watershed_mode": ("record_only", "flow"),
     "workshop_economics_mode": ("market", "free_inputs", "academy_only"),
     "workshop_economics_rules": ("1", "2"),
 }
@@ -380,8 +381,11 @@ _HELP = {
         "worlds have no elevation); opens with a new world (default off)"
     ),
     "watershed_mode": (
-        "record_only (default, the only mode of this slice): the account runs beside the existing "
-        "water index and changes nothing outside its own record"
+        "record_only (default): the account runs beside the existing water index and changes nothing "
+        "outside its own record; flow: the account's derived index replaces the native water terms "
+        "(climate terms, irrigation bonus, downstream deforestation cascade), upstream withdrawals reduce "
+        "downstream water, and the account's floods act on capacity and soil while the old river flood is "
+        "superseded; flow requires the native ecology"
     ),
     "workshop_economics": (
         "Workshop economics (A3): each L6a workshop firm opens once with a capital payment from its "
@@ -549,7 +553,8 @@ def _grain_storage_on(world: Any) -> bool:
 
 
 def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = None) -> None:
-    if values["watershed"] is not None or getattr(livelihoods_state(world), "watershed", None) is not None:
+    if (values["watershed"] is not None or getattr(args, "watershed_mode", None) is not None
+            or getattr(livelihoods_state(world), "watershed", None) is not None):
         # Procedural geography; opens with a new world; a resume cannot end it
         # or change its mode (chronicler.watershed.check_request).
         from chronicler.watershed import check_request

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "layer": "cwa4",
-  "parent": "66e1ec401c3c200b56deb926045f9f945c2ab563",
+  "parent": "bac45cb5f7554145b406c1cd68e77ff025d876cb",
   "files": {
     "src/chronicler/batch_manifest.py": {
       "sha256": "e254aa96b6eadec425d689a9e8c694d2e98ff09ca7e46995cfb12f8ffb5b58a6",

@@ -1,0 +1,12 @@
+source b9170bef9729c81a0063a9395c6e9085c61ed0fe
+dirty 0 tracked files
+dirty-code 0 tracked code files
+chronicler /home/user/evidence/cw3/supp/tree/src/chronicler/__init__.py
+native /root/.venvs/chronicler-native/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so e724072d7888888ede86acccb8db745c219c445fd47644ec9abe8ed5493e865b
+interpreter /root/.venvs/chronicler-native/bin/python
+runner bd443414f9156e644a43bf67369dad142b6350f4032fbeb92c6ac48662796026 scripts/screen_runner.py
+screens ca65e38d24ec337aef6d13c7d31fb73e035bc2891bf8500e1cc7a4b25f3a85b7 scripts/connected_world_screens.py
+registry a18c129dc91193960272645b8d2ff12c4444301049b4789c20e59b077aad057a scripts/seed_registry.json
+registry-content a703a8502cb688181662d323ff482822a3fec6df292d23ebccc42f05751b2cfe (cohorts and seeds)
+preregistration f834f8ef12ad806f1a77ad1406f2bf478cb77542d35fa59ee61c278a48357568 docs/superpowers/progress/connected-world-screens-cw3.md
+supplementary: F_CP p851 only (the held run's failed run, an infrastructure failure); not part of the frozen result
