@@ -88,6 +88,93 @@ def test_legacy_label_coupling_remains_an_explicit_reproduction_control_only():
     assert _environment(known)[1]["crowding_factor"] == _environment(unknown)[1]["crowding_factor"] == 1.0
 
 
+@pytest.mark.parametrize("crowding", ["density_only", "legacy_displacement"])
+def test_move_reason_traces_through_real_epidemic_introduction_and_case_dynamics(crowding, monkeypatch):
+    from chronicler import cities, epidemiology as EP, epidemic_care as EC
+    from chronicler.cities_state import City, CityState
+    from chronicler.epidemic_care_state import CareCapacity, EpidemicCareState
+
+    flux = EP.PATHOGEN_INDEX["flux"]
+    worlds = []
+    for reason in ("material_need", None):
+        world, sim = _start(people=130)
+        step(world, sim, moves=[(aid, 0, 1, reason) for aid in sim.people])
+        # One observed cohort has physically moved to Brook in both worlds.
+        # Seed the same aggregate outbreaks and prior dated services; care
+        # capacity is constructed, not a claim about paid individual carers.
+        for rid, region in enumerate(world.regions):
+            region.population = 130 if rid == 1 else 0
+        for civ in world.civilizations:
+            civ.population = sum(r.population for r in world.regions if r.controller == civ.name)
+        region = world.regions[1]
+        region.food_shortfall = .4
+        region.carrying_capacity = 100  # preserve genuine population/capacity pressure
+        world.cities = CityState(cities=[City(settlement_id=1, region=1, name="Brook town",
+                                            founded_turn=0, founder=0, lord=0, residents=65)])
+        world.epidemics = EP.EpidemicState(initialized_turn=0, rows=[
+            EP.RegionInfection(region=1, pathogen=k, n=130, s=.98, i=.01, e=.01, burden=.01)
+            for k in (EP.PLAGUE, flux)
+        ])
+        patients = 2 * .01 * 130
+        world.livelihoods.epidemic_care = EpidemicCareState(capacity=[CareCapacity(
+            region=1, source_turn=world.turn - 1, carers=1,
+            care_time=patients / EC.PATIENTS_PER_CARER, patients=patients)])
+        world.livelihoods.public_health = PublicHealthState(
+            crowding=crowding, sanitation_turn=world.turn - 1,
+            sanitation=[0.0, .5, 0.0, 0.0, 0.0])
+        worlds.append((world, sim))
+    assert worlds[0][1].people == worlds[1][1].people
+
+    introduce_mods, step_mods = [], []
+    introduce, within_region = EP._introduce, EP._step
+
+    def traced_introduction(world, state, rows, mods):
+        introduce_mods.append(mods[1])
+        return introduce(world, state, rows, mods)
+
+    def traced_step(row, pathogen, mods):
+        step_mods[-1][row.pathogen] = mods
+        return within_region(row, pathogen, mods)
+
+    monkeypatch.setattr(EP, "_introduce", traced_introduction)
+    monkeypatch.setattr(EP, "_step", traced_step)
+    cases = []
+    for world, _sim in worlds:
+        step_mods.append({})
+        EP.tick_epidemics(world)
+        cases.append({row.pathogen: row.cases for row in world.epidemics.rows})
+        care = world.livelihoods.epidemic_care
+        assert care.capacity == []  # real dated capacity was consumed once
+        assert care.applied[0].source_turn == world.turn - 1
+        assert care.applied[0].coverage == 1.0
+
+    base_susc, base_cfr, hungry = EP._modifiers(worlds[1][0].regions[1], hunger_aware=True)
+    assert base_susc > 1 and base_cfr > 1 and hungry
+    urban = cities.epidemic_susceptibility_factors(worlds[1][0])[1]
+    assert urban > 1
+    for index in range(2):
+        susc, cfr, famine = introduce_mods[index]
+        assert cfr == pytest.approx(base_cfr * (1 - EC.CARE_CFR_REDUCTION))
+        assert famine is hungry
+        assert step_mods[index][EP.PLAGUE] == introduce_mods[index]
+        flux_susc, flux_cfr, flux_famine = step_mods[index][flux]
+        assert flux_susc == pytest.approx(susc * (1 - .5 * PH.SANITATION_REDUCTION))
+        assert (flux_cfr, flux_famine) == (cfr, famine)
+        assert cases[index][EP.PLAGUE] > 0 and cases[index][flux] > 0
+
+    assert introduce_mods[1][0] == pytest.approx(base_susc * urban)
+    if crowding == "density_only":
+        # This is downstream of the PH reader: unknown reasons cannot change
+        # introduction pressure, actual SEIRS inputs or new cases. It fails
+        # with the pre-rework environment_factors, which supplies 1.25 vs 1.
+        assert introduce_mods[0] == introduce_mods[1]
+        assert step_mods[0] == step_mods[1]
+        assert cases[0] == cases[1]
+    else:
+        assert introduce_mods[0][0] == pytest.approx(1.25 * introduce_mods[1][0])
+        assert all(cases[0][k] > cases[1][k] for k in (EP.PLAGUE, flux))
+
+
 def test_multiple_same_turn_moves_and_return_count_the_living_person_once_at_final_residence():
     world, sim = _start()
     frame = step(world, sim, moves=[(1, 0, 1, None), (1, 1, 0, None), (1, 0, 2, None)])
