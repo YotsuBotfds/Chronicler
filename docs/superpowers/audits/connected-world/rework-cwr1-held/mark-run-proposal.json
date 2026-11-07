@@ -1,0 +1,55 @@
+{
+  "status": "PROPOSAL_ONLY_NOT_EXECUTED",
+  "sole_registry_owner": "root",
+  "closure_status": "PASS",
+  "rows": 144,
+  "failures": [],
+  "out": "/workspace/evidence/cwr-evaluation/held-cwr1-b45c1e99-v1",
+  "held_run_identity": "98c7bb2accb18b04e68f0585780ba58f85f03ece77c987d82ff67ceb7d9370a8",
+  "held_started": "2026-11-07T22:41:33Z",
+  "expected_result": {
+    "entries": [
+      {
+        "id": "cwr1-held-t",
+        "stratum": "template",
+        "current_status": "reserved",
+        "seeds": [
+          [
+            4101,
+            4106
+          ]
+        ]
+      },
+      {
+        "id": "cwr1-held-p",
+        "stratum": "procedural",
+        "current_status": "reserved",
+        "seeds": [
+          [
+            4201,
+            4206
+          ]
+        ]
+      }
+    ],
+    "new_status": "run",
+    "held_run_complete": true,
+    "held_run_rows": 144,
+    "cohort_content_unchanged": true
+  },
+  "argv": [
+    "/workspace/cwr-native/bin/python",
+    "/workspace/cwr-held-runtime/scripts/cw_rework_screen.py",
+    "mark-run",
+    "/workspace/evidence/cwr-evaluation/held-cwr1-b45c1e99-v1",
+    "--screen",
+    "CWR1",
+    "--registry",
+    "/workspace/Chronicler/scripts/seed_registry.json"
+  ],
+  "environment": {
+    "PYTHONPATH": "/workspace/cwr-held-runtime/src"
+  },
+  "source_receipt_sha256": "244ac65f49b01a718ff251a13fe93cddc493e9e9f22adb901fb1466e918383eb",
+  "note": "Only root should execute this once; this proposal writes no registry and starts no simulation."
+}
