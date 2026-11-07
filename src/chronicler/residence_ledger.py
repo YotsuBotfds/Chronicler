@@ -97,6 +97,7 @@ and birth region are unchanged on the default path.
 from __future__ import annotations
 
 import copy
+import operator
 from dataclasses import asdict
 
 from chronicler.models import NO_MIGRATION_DRIVER, VOLUNTARY_MIGRATION_DRIVERS, migration_driver_name
@@ -119,6 +120,10 @@ NATIVE: tuple[str, ...] = ("get_snapshot", "trip_agent_ids")
 
 _FLIGHT = frozenset(FLIGHT_DRIVERS)
 _HUNGER = frozenset(HUNGER_DRIVERS)
+#: Frame keys per cause and anchor, built once (the stock pass runs per open spell).
+_CAUSE_KEYS = {cause: f"displaced_{cause}" for cause in CAUSES}
+_ANCHOR_KEYS = {anchor: (f"displaced_{anchor}", f"displaced_from_{anchor}") for anchor in ANCHORS}
+_ANY_KEYS = {kind: f"anchor_any_{kind}" for kind in EVENT_KINDS}
 #: What each record field means (copied into every snapshot record).
 LABELS: dict[str, str] = {
     "residence": ("the native region a person lives in after the tick; a merchant on a native trip keeps the "
@@ -516,8 +521,9 @@ def phase10(world, acc, economy_result, agent_bridge):
     first_epoch_turn = state.observed_from == turn
 
     snap = sim.get_snapshot()
-    cols = [snap.column(name).to_pylist() for name in ("id", "region", "origin_region", "displacement_turn")]
-    alive = {int(i): (int(r), int(o), int(d)) for i, r, o, d in zip(*cols)}
+    ids, regs, origins, recent = (snap.column(name).to_pylist()
+                                  for name in ("id", "region", "origin_region", "displacement_turn"))
+    alive = dict(zip(ids, zip(regs, origins)))          # id -> (region, birth region), snapshot order
     trips = {int(i) for i in sim.trip_agent_ids()}
     rows = state.rows
     deferred = set(state.deferred)
@@ -558,11 +564,11 @@ def phase10(world, acc, economy_result, agent_bridge):
         _move(state, t, aid, row, frm, to, code)
         moved.add(aid)
 
-    # 2. Everyone else alive: first observations, travellers, unexplained relocations.
-    for aid in sorted(alive):
+    # 2. Everyone else alive, in snapshot order: first observations, travellers,
+    #    unexplained relocations.
+    for aid, (region, origin) in alive.items():
         if aid in moved:
             continue
-        region, origin, _d = alive[aid]
         row = rows.get(aid)
         if row is None:
             if aid in trips:
@@ -617,40 +623,50 @@ def phase10(world, acc, economy_result, agent_bridge):
                 row.army, row.army_region = army.army_id, where
                 attached.add(int(aid))
 
-    # 6. Stocks after the turn, and the frame.
+    # 6. Stocks after the turn, and the frame (one pass over the rows; the
+    #    displaced, the attached and the travellers are handled from short lists).
     totals, reg = t.totals, t.region
-    for aid, row in rows.items():
-        r = reg[row.res]
-        r["residents"] += 1
-        spell = row.spell
-        if spell is not None:
-            r["displaced"] += 1
-            r[f"displaced_{spell.cause}"] += 1
-            r[f"displaced_{spell.anchor}"] += 1
-            reg[spell.origin]["displaced_from"] += 1
-            reg[spell.origin][f"displaced_from_{spell.anchor}"] += 1
-            totals[f"displaced_from_{spell.anchor}"] += 1
-            totals["displaced"] += 1
-            totals[f"displaced_{spell.cause}"] += 1
-            totals[f"displaced_{spell.anchor}"] += 1
-            for kind in spell.anchor_kinds:
-                totals[f"anchor_any_{kind}"] += 1
-            totals["anchor_war_or_famine"] += int("war" in spell.anchor_kinds or "famine" in spell.anchor_kinds)
-            totals["anchor_partial"] += int(spell.anchor_partial)
-        if row.army is not None:
-            reg[row.home]["attached"] += 1
-            totals["attached"] += 1
-            if row.army_region != row.home:
-                reg[row.home]["attached_away"] += 1
-                totals["attached_away"] += 1
-        if aid in trips and alive[aid][0] != row.res:
-            r["in_transit"] += 1
+    residents = [0] * n
+    spells = []
+    for row in rows.values():
+        residents[row.res] += 1
+        if row.spell is not None:
+            spells.append((row.res, row.spell))
+    for i, count in enumerate(residents):
+        reg[i]["residents"] = count
+    for res, spell in spells:
+        cause, anchor, kinds = _CAUSE_KEYS[spell.cause], _ANCHOR_KEYS[spell.anchor], spell.anchor_kinds
+        here, origin = reg[res], reg[spell.origin]
+        here["displaced"] += 1
+        here[cause] += 1
+        here[anchor[0]] += 1
+        origin["displaced_from"] += 1
+        origin[anchor[1]] += 1
+        totals[anchor[1]] += 1
+        totals[cause] += 1
+        totals[anchor[0]] += 1
+        for kind in kinds:
+            totals[_ANY_KEYS[kind]] += 1
+        totals["anchor_war_or_famine"] += int("war" in kinds or "famine" in kinds)
+        totals["anchor_partial"] += int(spell.anchor_partial)
+    totals["displaced"] = len(spells)
+    for aid in attached:
+        row = rows[aid]
+        reg[row.home]["attached"] += 1
+        totals["attached"] += 1
+        if row.army_region != row.home:
+            reg[row.home]["attached_away"] += 1
+            totals["attached_away"] += 1
+    for aid in trips:
+        row = rows.get(aid)
+        if row is not None and alive[aid][0] != row.res:
+            reg[row.res]["in_transit"] += 1
             totals["in_transit"] += 1
     totals["alive"] = len(alive)
     totals["observed"] = len(rows)
     totals["deferred"] = len(deferred)
-    totals["recent_movers_native"] = sum(1 for _r, _o, d in alive.values() if d > 0)
-    totals["away_from_birth_region"] = sum(1 for r, o, _d in alive.values() if r != o)
+    totals["recent_movers_native"] = sum(map(bool, recent))
+    totals["away_from_birth_region"] = sum(map(operator.ne, regs, origins))
     regions = [{"region": i, **values} for i, values in enumerate(reg) if any(values.values())]
     if refused:
         _bump(state, "rows_refused", refused)
