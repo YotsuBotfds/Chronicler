@@ -195,7 +195,7 @@ def test_not_condition_reason_and_evaluation():
 
 def _exclusive(monkeypatch, *, both=True):
     _fake_actions(monkeypatch, ("test_water_a", None), ("test_water_b", None))
-    monkeypatch.setattr(fc, "FEATURE_GROUPS", {"Watersheds": {"test_water_a": (), "test_water_b": ()}})
+    monkeypatch.setattr(fc, "FEATURE_GROUPS", {**fc.FEATURE_GROUPS, "Watersheds": {"test_water_a": (), "test_water_b": ()}})
     monkeypatch.setitem(fc.REQUIREMENTS, "test_water_a", (fc._HYBRID, fc._excludes("test_water_b")))
     monkeypatch.setitem(fc.REQUIREMENTS, "test_water_b",
                         (fc._HYBRID, fc._excludes("test_water_a")) if both else (fc._HYBRID,))

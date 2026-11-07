@@ -1051,7 +1051,7 @@ def test_the_registry_content_hash_is_the_one_every_recorded_identity_used(SR, r
     own recorded identity is the content without the other's entries."""
     def without(*screens):
         kept = copy.deepcopy(registry)
-        kept["entries"] = [e for e in kept["entries"] if e.get("screen") not in screens]
+        kept["entries"] = [e for e in kept["entries"] if e.get("screen") not in {*screens, "CW6D1", "CW-health"}]
         return SR.registry_content_sha256(kept)
     assert without("CW5c", "CW3b") == "a703a8502cb688181662d323ff482822a3fec6df292d23ebccc42f05751b2cfe"
     assert without("CW5c") == "3b50508764cfea7d70bb9432560bf8d85ecdb5edba7c4cd3ca697955dd733ccf"    # CW3b's runs
