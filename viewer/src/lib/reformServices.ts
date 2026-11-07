@@ -12,8 +12,9 @@ import { readRecord, type RecordReading } from "./recordReading";
  * whose turn was not observed: `frame: null`), `recorded_zero` (observed: no relief
  * money was paid in, spent or returned and nothing was bought or delivered) and
  * `recorded`. Inside a frame zeros are recorded zeros and nulls unknown: a delivery's
- * `delivered_at_least` is null when no lower bound holds (the commons covered demand,
- * so the relief food may still be in stock), and an unobserved delivery has no pool
+ * `delivered_at_least` is null in current records because gross outbound food
+ * is unobserved. Historical positive estimates remain readable, but are not
+ * presented as established delivery evidence. An unobserved delivery has no pool
  * reading at all. Relief food is pooled with the commons, so what reached people is
  * bounded per region, never attributed to persons. Never reads final-world state.
  */
@@ -166,7 +167,8 @@ export function reliefByRegion(frame: ReliefFrame): { region: number; bought: nu
     const r = rows.get(d.region) ?? { region: d.region, bought: 0, atMost: null, atLeast: null, observed: true };
     r.observed = r.observed && d.observed;
     if (d.delivered_at_most !== null) r.atMost = (r.atMost ?? 0) + d.delivered_at_most;
-    if (d.delivered_at_least !== null) r.atLeast = (r.atLeast ?? 0) + d.delivered_at_least;
+    // Legacy records estimated a lower bound without observing gross exports.
+    // Retain their raw record, but never present that estimate as established.
     rows.set(d.region, r);
   }
   return [...rows.values()].sort((a, b) => a.region - b.region);

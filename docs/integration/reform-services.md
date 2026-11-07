@@ -96,12 +96,13 @@ split the two, and is left for the owner (recorded boundary).
 ## Delivery bounds
 
 Relief food is pooled with the commons, so what reached people is bounded per region, never attributed
-to persons. At the next provisioning: at most `min(rations bought, free rations given)`; when that
-turn's commons fell short of demand (commons sufficiency below 1: the economy ate all of it) and the
-native food ledger reports zero total cap overflow (commons and owned food), the bought food that survived the opening's storage
-decay (full per-good decay, no salt preservation) was in the free pool, so at least
-`min(that, free pool, at most) - free unallocated` reached people; otherwise no lower bound is claimed
-(null). A region not provisioned the next turn reads as unobserved, not zero.
+to persons. At the next provisioning: at most `min(rations bought, free rations given)`.
+Gross outbound food is not observed. The native food ledger records net transport, so equal
+outbound and inbound food can hide an export of the prior relief, even when the final commons
+falls short and total cap overflow is zero. No positive lower delivery bound is established
+(`delivered_at_least: null`). A region not provisioned the next turn reads as unobserved, not zero.
+Historical positive lower estimates remain in original saved evidence; the viewer retains readable
+records but suppresses those estimates with an explicit reason. They must not support efficacy claims.
 
 ## Record (`snapshot.livelihoods.reform_services`, schema 1, stage `D1a`)
 
@@ -141,8 +142,11 @@ service vs cost-only with resource checks, exact resume with an open purchase an
 
 ## Recovery review (2026-11-07)
 
-The D1 recovery review added a runtime check of each realm's relief fund closure,
-strict nested-frame validation in both D1 readers, and a conservative delivery
-lower bound: the native total cap-overflow observation must be present and zero.
-Checking owned overflow alone missed a commons-only cut when owners held no grain.
-Unknown or positive cap loss now leaves the lower bound unknown; the viewer says so.
+The D1 recovery review added a runtime check of each realm's relief fund closure and
+strict nested-frame validation in both D1 readers. Its first correction required zero total
+cap overflow, after finding that checking owned overflow alone missed a commons-only cut.
+Independent follow-up review then established that net transport cannot prove relief survival
+through gross exports. The final candidate therefore reports only an upper delivery bound.
+CW6D1 held source remains frozen at `808726b8`: its historical lower estimates are invalidated,
+not rewritten. None of its preregistered primary metrics uses the delivery lower estimate.
+This changes observation only; food, payments, needs and decisions are unchanged.

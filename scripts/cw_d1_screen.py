@@ -23,7 +23,8 @@ def extract(bundle, flags):
     regions = [r["name"] for r in bundle["world_state"]["regions"]]
     m = dict(relief_civ_turns=0, purchases=0, food_bought_milli=0, credited_milli=0,
              residual_milli=0, refunded_milli=0, paid_in_milli=0, sunk_units=0,
-             delivered_lower=0.0, delivered_upper=0.0, lower_unknown=0,
+             delivered_lower=None, delivered_upper=0.0, lower_unknown=0,
+             historical_lower_unverified=0.0,
              league_member_turns=0, league_turns=0, claims=0, dues_milli=0, payouts_milli=0,
              returned_milli=0, unclaimed_milli=0, foundings=0)
     problems, relief_short, relief_regions, commons, population, city_purses = [], 0, 0, 0, 0, 0
@@ -71,10 +72,12 @@ def extract(bundle, flags):
                 for key in ("food_bought_milli", "credited_milli", "residual_milli"):
                     m[key] += p["food_milli" if key == "food_bought_milli" else key]
             for d in frame["deliveries"]:
-                if not d["observed"] or d["delivered_at_least"] is None:
-                    m["lower_unknown"] += 1
-                else:
-                    m["delivered_lower"] += d["delivered_at_least"]
+                # Historical records estimated a positive lower bound without
+                # observing gross exports. Keep that raw diagnostic separate;
+                # it is not established delivery and never a primary outcome.
+                m["lower_unknown"] += 1
+                if d["delivered_at_least"] is not None:
+                    m["historical_lower_unverified"] += d["delivered_at_least"]
                 if d["delivered_at_most"] is not None:
                     if not 0 <= d["delivered_at_most"] <= min(d["rations_bought"], d["free_given"]) + 1e-6:
                         problems.append(f"delivery exceeds bound at {turn}")

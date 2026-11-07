@@ -20,7 +20,8 @@ it("shows funds, purchases paid by id and bounded deliveries by region", () => {
   expect(screen.getByRole("heading", { name: "Poor relief services · snapshot 86" })).toBeInTheDocument();
   expect(row("Relief funds at snapshot 86", /Ashkari/)).toHaveTextContent("7.561");
   expect(row("Relief purchases at snapshot 86", /Verdant Plains/)).toHaveTextContent("0.484");
-  expect(row("Relief deliveries at snapshot 86", /Verdant Plains/)).toHaveTextContent("1.376 to 1.752");
+  expect(row("Relief deliveries at snapshot 86", /Verdant Plains/)).toHaveTextContent("at most 1.752 (no lower bound: gross outbound food is unobserved)");
+  expect(screen.getByText(/Historical lower estimates are not established delivery evidence/)).toBeInTheDocument();
   expect(row("Relief deliveries at snapshot 86", /Stormbreak/)).toHaveTextContent("at most 0.004 (no lower bound");
   expect(screen.getByText(/Recipients are not named/)).toBeInTheDocument();
 });

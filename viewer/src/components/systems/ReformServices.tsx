@@ -83,14 +83,13 @@ function Frame({ frame, source, civName, regionName }: {
         <tbody>{frame.deliveries.map((d) => <tr key={`${d.region}-${d.bought_turn}`}>
           <td>{regionName(d.region)}</td><td>{d.bought_turn}</td><td>{show(d.rations_bought)}</td>
           <td>{d.observed ? `${show(d.free_given)} / ${show(d.free_unallocated)}` : "unobserved (no provisioning): unknown, not zero"}</td>
-          <td>{!d.observed ? "Unknown" : d.delivered_at_least === null
-            ? `at most ${show(d.delivered_at_most)} (no lower bound: survival in the commons is not established)`
-            : `${show(d.delivered_at_least)} to ${show(d.delivered_at_most)}`}</td>
+          <td>{!d.observed ? "Unknown"
+            : `at most ${show(d.delivered_at_most)} (no lower bound: gross outbound food is unobserved)`}</td>
           <td>{show(d.priced_out_persons, 0)}</td>
         </tr>)}</tbody>
       </table></div>}
     {byRegion.length > 0 ? <p className="systems-note">By region: {byRegion.map((r) =>
       `${regionName(r.region)} bought ${show(r.bought)} rations${r.atMost === null ? "" : `, delivered at most ${show(r.atMost)}`}${r.atLeast === null ? "" : `, at least ${show(r.atLeast)}`}`).join("; ")}.
-      Recipients are not named: relief food is pooled with the commons.</p> : null}
+      Recipients are not named: relief food is pooled with the commons. Historical lower estimates are not established delivery evidence.</p> : null}
   </>;
 }

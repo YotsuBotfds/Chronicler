@@ -349,16 +349,16 @@ def test_deliveries_are_bounded_by_the_next_free_pool():
     _phase10(world, _sim(world))
     state = RS._state(world)
     (p,) = state.pending
-    # Next turn: the commons fell short (all of it eaten), the pool gave all but 0.1 rations.
+    # A short commons and zero cap loss do not establish survival: equal
+    # outbound/inbound food can hide an export behind zero net transport.
     world.turn, world.livelihoods.household_retail._turn = 11, None
     _provision(world, VERDANT, persons=10.0, rations=9.6, free=(3.0, 2.9, 0.1), commons_sufficiency=0.8)
     _phase10(world, _sim(world))
     (d,) = state.frame.deliveries
-    rm = Fraction(HR._ration(world)) * 1000
-    kept = float(Fraction(p.goods_milli[0]) * (1 - Fraction("0.03")) / rm)
     assert d.observed and d.bought_turn == 10
     assert d.delivered_at_most == pytest.approx(min(p.rations, 2.9))
-    assert d.delivered_at_least == pytest.approx(max(0.0, min(kept, 3.0, d.delivered_at_most) - 0.1), abs=1e-6)
+    assert d.delivered_at_least is None
+    assert state.counters.get("delivered_at_least_milli", 0) == 0
     # A commons that covered demand (some of it may have stayed in stock) gives no lower bound.
     world.turn, world.livelihoods.household_retail._turn = 12, None
     state.pending, state.pending_turn = [p], 11
