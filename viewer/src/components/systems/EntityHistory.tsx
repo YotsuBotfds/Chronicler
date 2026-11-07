@@ -26,7 +26,7 @@ export function EntityHistory({ bundle, currentTurn, onSeek, onSelectRegion }: S
   const choose = (next: EntityRef) => { setSelected(next); setLimit(PAGE); };
   return <section className="systems-section" aria-label="Linked histories">
     <h3>Linked histories</h3>
-    <p className="systems-note">Saved completed-turn observations joined by stable id. These links show participation and co-occurrence, not causation. Regional totals are context and are never assigned to a person. Gaps are not interpolated; an absent id does not prove death, migration, or inactivity outside the named frame. Pool rebuilds cannot establish continuity of a person across an inexact resume.</p>
+    <p className="systems-note">Saved completed-turn observations joined by stable id. These links show participation and co-occurrence, not causation. Regional totals are context and are never assigned to a person. Gaps are not interpolated; an absent id does not prove death, migration, or inactivity outside the named frame. A recorded pool rebuild or non-exact continuation starts a separately labelled personal identity segment; the viewer does not join the reused numeric id to its former person.</p>
     <label htmlFor={picker}>Recorded entity</label>{" "}
     <select id={picker} value={entityKey(entity)} onChange={(e) => {
       const next = available.find((item) => entityKey(item) === e.target.value);

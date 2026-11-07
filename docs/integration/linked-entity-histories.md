@@ -64,3 +64,25 @@ remains the injury authority. C4 guard rows name exact paid workers; regional
 crowding, water service and patient supplies are attached only as explicitly
 regional context, with their actual prior exposure date. Neither employment
 nor regional exposure records diagnose an individual or attribute a death.
+
+B3 work and asset ids are separate namespaces from RS2 projects. Named repair
+members link their exact paid/refused wages and withheld ordinary income;
+older anonymous labor does not become a fictional paid person. B5 watershed
+accounts, flood onsets and declared/ended droughts appear as regional context.
+Outflow is explicitly derived from the declared water balance, and no upstream
+flow or forest co-occurrence is called an individual's harm.
+
+Retail household keys are explicitly inferred current groupings: the smaller
+co-resident couple id, with children using a parent's key. They are not a
+permanent family lineage, and a sampled member's ration is not a household
+total. A3 firms use their checkpointed site identity; capital payer and owner
+controller fields are polity indices. Exact payroll transfers link a named
+person to actually credited money without allocating a crew total or assuming
+that the controller is a person.
+
+A recorded non-exact continuation (`metadata.resume.exact: false`) or validated
+X1 pool-reset log separates person and household ids into visibly labelled
+identity segments. The numeric native id remains unchanged. Missing facts
+across that boundary are unknown, not inactivity; retained cargo/claims stay
+with the identity segment in which their lifecycle began. Exact checkpoints
+create no artificial identity boundary.

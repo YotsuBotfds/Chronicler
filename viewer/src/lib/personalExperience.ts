@@ -7,7 +7,7 @@ export interface WorkExperience {
 }
 export interface OfferExperience { turn: number; id: number; kind: string; would_decline: boolean; accepted: boolean }
 export interface MoveExperience { turn: number; id: number; kind: "refused" | "left_soon"; region: number; origin?: number; gate?: number }
-export interface TradeExperience { turn: number; id: number; region: number; kind: "shipment"; outcome: string; cause: string | null; shipment: number }
+export interface TradeExperience { turn: number; id: number; region: number; kind: "shipment"; outcome: string; cause: string | null; shipment: number; package?: "titled_trade" | "timber_orders" }
 export interface AdaptiveRecord {
   schema_version: 1; stage: "A6"; source_turn: number; mode: "adapt" | "record_only" | "shuffled"; rules: "1" | "2";
   frame: null | { turn: number; rows: [number,number,number][]; rows_installed: number; rows_total?: number; rows_dropped?: number;
@@ -66,7 +66,7 @@ export function adaptiveAt(snapshot: TurnSnapshot, regions: number): AdaptiveRec
   if (f.known_destinations !== undefined && (!Array.isArray(f.known_destinations) || !bounded(f.known_destinations,f.known_destinations_total,f.known_destinations_dropped)
     || !f.known_destinations.every((r)=>Array.isArray(r) && r.length===3 && count(r[0]) && region(r[1]) && count(r[2]) && r[2]>=1 && r[2]<=7))) return null;
   if (f.information_gate_installed !== undefined && typeof f.information_gate_installed !== "boolean") return null;
-  if (f.trade !== undefined && (!Array.isArray(f.trade) || f.trade.length > 256 || !f.trade.every((r)=>object(r) && dated(r) && r.kind === "shipment" && region(r.region) && count(r.shipment) && typeof r.outcome === "string" && (r.cause === null || typeof r.cause === "string")))) return null;
+  if (f.trade !== undefined && (!Array.isArray(f.trade) || f.trade.length > 256 || !f.trade.every((r)=>object(r) && dated(r) && r.kind === "shipment" && region(r.region) && count(r.shipment) && typeof r.outcome === "string" && (r.cause === null || typeof r.cause === "string") && (r.package === undefined || r.package === "titled_trade" || r.package === "timber_orders")))) return null;
   return x as unknown as AdaptiveRecord;
 }
 export function warConsequencesAt(snapshot: TurnSnapshot, regions: number): WarConsequencesRecord | null {

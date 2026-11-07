@@ -11,25 +11,28 @@ import { warRequisitionAt } from "./warRequisition";
 import { adaptiveAt, warConsequencesAt } from "./personalExperience";
 import { publicHealthAt } from "./publicHealth";
 import { readInfrastructure } from "./infrastructureCondition";
+import { readWatershed, watershedOutflow } from "./watershed";
+import { workshopEconomicsAt } from "./workshopEconomics";
+import { workshopFinanceAt } from "./workshopFinance";
 
-export type EntityKind = "person" | "project" | "expedition" | "shipment" | "timber_order" | "claim" | "army" | "infrastructure_work" | "infrastructure_asset" | "region";
-export interface EntityRef { kind: EntityKind; id: number | string }
+export type EntityKind = "person" | "household" | "firm" | "project" | "expedition" | "shipment" | "timber_order" | "claim" | "army" | "infrastructure_work" | "infrastructure_asset" | "region";
+export interface EntityRef { kind: EntityKind; id: number | string; epoch?: number }
 export type HistoryState = "disabled" | "unknown" | "malformed" | "not_sampled" | "truncated" | "recorded_zero" | "recorded";
 export interface EntityHistoryRow {
   entity: EntityRef; turn: number; sourceTurn: number | null; package: string;
   join: "id" | "region" | "inferred"; state: HistoryState; text: string;
   source: string | null; region: number | null; related: EntityRef[];
 }
-export const HISTORY_PACKAGES = ["recovery_crews", "repair_projects", "timber_supply", "household_retail", "titled_trade", "residence_ledger", "timber_orders", "war_requisition", "adaptive_livelihoods", "war_consequences", "public_health", "infrastructure_condition"] as const;
+export const HISTORY_PACKAGES = ["recovery_crews", "repair_projects", "timber_supply", "household_retail", "titled_trade", "residence_ledger", "timber_orders", "war_requisition", "adaptive_livelihoods", "war_consequences", "public_health", "infrastructure_condition", "watershed", "workshop_economics", "workshop_payroll"] as const;
 type Package = typeof HISTORY_PACKAGES[number];
 interface Observation extends EntityHistoryRow { package: Package }
 interface PackageFrame { state: HistoryState; reason: string; rows: Observation[]; source: string | null; sourceTurn: number | null }
-interface SnapshotIndex { snapshot: TurnSnapshot; frames: Record<Package, PackageFrame> }
+interface SnapshotIndex { snapshot: TurnSnapshot; epoch?: number; frames: Record<Package, PackageFrame> }
 export interface EntityHistoryIndex { snapshots: SnapshotIndex[]; entities: EntityRef[] }
 const livelihoods = (s: TurnSnapshot): unknown => (s as unknown as Record<string, unknown>).livelihoods;
 const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-export const entityKey = (e: EntityRef) => `${e.kind}:${e.id}`;
-export const entityLabel = (e: EntityRef) => `${e.kind[0].toUpperCase()}${e.kind.slice(1).replace(/_/g, " ")} #${e.id}`;
+export const entityKey = (e: EntityRef) => `${e.kind}:${e.id}${e.epoch !== undefined ? `:since${e.epoch}` : ""}`;
+export const entityLabel = (e: EntityRef) => `${e.kind[0].toUpperCase()}${e.kind.slice(1).replace(/_/g, " ")} #${e.id}${e.epoch !== undefined ? ` (identity segment since turn ${e.epoch})` : ""}`;
 const ref = (kind: EntityKind, id: number | string): EntityRef => ({ kind, id });
 const coins = (n: number) => (n / 1000).toLocaleString(undefined, { maximumFractionDigits: 3 });
 const num = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 3 });
@@ -38,6 +41,18 @@ const num = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 
 export function indexEntityHistory(bundle: Bundle): EntityHistoryIndex {
   const history = Array.isArray(bundle.history) ? bundle.history : [];
   const regions = bundle.world_state.regions.length, civs = bundle.world_state.civilizations.length;
+  // A non-exact continuation cannot certify that reused pool ids name the
+  // previous people. Preserve separate identity segments without rewriting ids.
+  const boundaries = new Set<number>();
+  const metadata=(bundle as unknown as Record<string,unknown>).metadata;
+  const resume=object(metadata)?metadata.resume:null;
+  if(object(resume)&&resume.exact===false&&typeof resume.turn==="number"&&Number.isInteger(resume.turn)&&resume.turn>=0)boundaries.add(resume.turn);
+  for(const saved of history){const r=residenceLedgerAt(saved,regions);r?.log.forEach(log=>{if(object(log)&&log.kind==="pool_reset"&&typeof log.turn==="number"&&Number.isInteger(log.turn)&&log.turn>=0)boundaries.add(log.turn);});}
+  const epochs=[...boundaries].sort((a,b)=>a-b),epochAt=(turn:number|null)=>{let latest:number|undefined;for(const boundary of epochs){if(turn===null||boundary>turn)break;latest=boundary;}return latest;};
+  const scoped=(e:EntityRef,turn:number|null):EntityRef=>{
+    const epoch=epochAt(turn);
+    return (e.kind==="person"||e.kind==="household")&&epoch!==undefined?{...e,epoch}:e;
+  };
   const on = Object.fromEntries(HISTORY_PACKAGES.map((key) => [key, history.some((s) => { const lh = livelihoods(s); return object(lh) && lh[key] != null; })]));
   const entities = new Map<string, EntityRef>();
   const snapshots = history.map((snapshot, i) => {
@@ -56,7 +71,9 @@ export function indexEntityHistory(bundle: Bundle): EntityHistoryIndex {
       }
       const bad = () => { Object.assign(frame, { state: "malformed", reason: "Rejected by the package's strict reader", sourceTurn: null }); };
       const unknown = () => { Object.assign(frame, { state: "unknown", reason: "The completed turn was not observed; unknown, not zero" }); };
-      const add = (entity: EntityRef, path: string, text: string, region: number | null = null, related: EntityRef[] = [], state: HistoryState = "recorded", join: EntityHistoryRow["join"] = "id", sourceTurn: number | null = frame.sourceTurn) => {
+      const add = (entity: EntityRef, path: string, text: string, region: number | null = null, related: EntityRef[] = [], state: HistoryState = "recorded", join: EntityHistoryRow["join"] = "id", sourceTurn: number | null = frame.sourceTurn, identityTurn: number | null = sourceTurn) => {
+        entity=scoped(entity,identityTurn);
+        related=related.map(e=>scoped(e,identityTurn));
         frame.rows.push({ entity, turn: snapshot.turn, sourceTurn, package: key, join, state, text, source: source + path, region, related });
         for (const e of [entity, ...related]) entities.set(entityKey(e), e);
       };
@@ -84,7 +101,7 @@ export function indexEntityHistory(bundle: Bundle): EntityHistoryIndex {
         const r = readTimberSupply(snapshot, regions, civs);
         if (r.status !== "ok") { bad(); continue; }
         for (const list of ["expeditions", "closed"] as const) r.record[list].forEach((e, j) => add(ref("expedition", e.eid), `/${list}/${j}`,
-          `${e.status}, ${e.stage}; ${num(e.cut)} timber cut; ${num(e.delivered)} delivered`, e.home, e.crew.map((id) => ref("person", id))));
+          `${e.status}, ${e.stage}; ${num(e.cut)} timber cut; ${num(e.delivered)} delivered`, e.home, e.crew.map((id) => ref("person", id)),"recorded","id",frame.sourceTurn,e.launched_turn));
         if (r.record.receipts === null) { unknown(); continue; }
         r.record.receipts.forEach((r, j) => r.crew.forEach((id) => add(ref("person", id), `/receipts/${j}`,
           `Woodcutting expedition #${r.eid}, ${r.stage}; crew total ${coins(r.wages_milli)} coins (individual allocation unrecorded)`, r.home, [ref("expedition", r.eid)])));
@@ -92,8 +109,11 @@ export function indexEntityHistory(bundle: Bundle): EntityHistoryIndex {
         const r = readHouseholdRetail(snapshot, regions);
         if (r.status !== "ok") { bad(); continue; }
         if (r.record.sample === null) { unknown(); continue; }
-        r.record.sample.forEach((p, j) => add(ref("person", p[0]), `/sample/${j}`,
-          `Food ration ${num(p[3])} of fair share ${num(p[4])}; ${RETAIL_STATUSES[p[5]]}. Who paid is not recorded`, p[1]));
+        r.record.sample.forEach((p, j) => {
+          const person=ref("person",p[0]), household=ref("household",p[2]);
+          add(person, `/sample/${j}`, `Food ration ${num(p[3])} of fair share ${num(p[4])}; ${RETAIL_STATUSES[p[5]]}. Who paid is not recorded`, p[1],[household]);
+          add(household, `/sample/${j}`, `Sampled member #${p[0]}: food ration ${num(p[3])} of fair share ${num(p[4])}; ${RETAIL_STATUSES[p[5]]}. Household key uses smaller co-resident couple id, children use a parent's key; inferred current grouping, not enduring family lineage. Household totals and who paid remain unknown`,p[1],[person],"recorded","inferred");
+        });
         r.record.regions?.forEach((p, j) => add(ref("region", p.region), `/regions/${j}`,
           p.provisioning ? `Market total: ${p.provisioning.persons} people; ${coins(p.provisioning.paid_milli)} coins paid; ${p.provisioning.priced_out_persons} priced out`
             : "Market provisioning unknown, not zero", p.region, [], p.provisioning ? "recorded" : "unknown"));
@@ -103,8 +123,8 @@ export function indexEntityHistory(bundle: Bundle): EntityHistoryIndex {
         if (r.status === "malformed" || !r.record) { bad(); continue; }
         for (const list of ["shipments", "closed"] as const) r.record[list].forEach((s, j) => {
           const ship = ref("shipment", s.id), holder = ref("person", s.holder);
-          add(ship, `/${list}/${j}`, `${s.status}${s.outcome ? `: ${s.outcome}` : ""}; ${s.cargo.reduce((a, b) => a + b, 0) / 1000} food aboard`, s.origin, [holder]);
-          add(holder, `/${list}/${j}`, `Holder of shipment #${s.id}; ${s.status}${s.outcome ? `: ${s.outcome}` : ""}; origin context only`, s.origin, [ship]);
+          add(ship, `/${list}/${j}`, `${s.status}${s.outcome ? `: ${s.outcome}` : ""}; ${s.cargo.reduce((a, b) => a + b, 0) / 1000} food aboard`, s.origin, [holder],"recorded","id",frame.sourceTurn,s.dispatched_turn);
+          add(holder, `/${list}/${j}`, `Holder of shipment #${s.id}; ${s.status}${s.outcome ? `: ${s.outcome}` : ""}; origin context only`, s.origin, [ship],"recorded","id",frame.sourceTurn,s.dispatched_turn);
         });
         if (!r.record.frame) { unknown(); continue; }
         r.record.frame.sales.forEach((s, j) => add(ref("person", s.holder), `/frame/sales/${j}`, `${coins(s.credited)} coins credited from retail sales; exact attribution to cargo: ${s.exact ? "yes" : "no"}`, s.region));
@@ -114,15 +134,15 @@ export function indexEntityHistory(bundle: Bundle): EntityHistoryIndex {
         if (r.events === null) { unknown(); continue; }
         if (r.events_dropped > 0) Object.assign(frame, { state: "truncated", reason: "Spell events were dropped; absence is not evidence of no event" });
         r.events.forEach((e, j) => add(ref("person", e.id), `/events/${j}`,
-          `Displacement spell ${e.kind}; cause ${e.cause}, home anchor ${e.anchor}; ${e.length} turns. This event does not record every residence`, e.region));
+          `Displacement spell ${e.kind}; cause ${e.cause}, home anchor ${e.anchor}; ${e.length} turns. This event does not record every residence`, e.region,[],"recorded","id",frame.sourceTurn,e.kind==="pool_reset"?r.source_turn-1:r.source_turn));
       } else if (key === "timber_orders") {
         const r = timberOrdersAt(snapshot, regions, civs);
         if (r.status === "malformed" || !r.record) { bad(); continue; }
         for (const list of ["orders", "closed"] as const) r.record[list].forEach((o, j) => {
           const order = ref("timber_order", o.id), holder = ref("person", o.holder), where = o.path[o.cursor];
           const text = `${o.outcome ?? o.status}; ${num(o.cargo_milli / 1000)} timber aboard, ${num(o.delivered_milli / 1000)} delivered; escrow held ${coins(o.cash)}, actually credited ${coins(o.credited_milli)}, refunded ${coins(o.refunded_milli)} coins`;
-          add(order, `/${list}/${j}`, text, where, [holder]);
-          add(holder, `/${list}/${j}`, `Carrier/title of timber order #${o.id}: ${text}. Cargo position is not the person's residence`, where, [order]);
+          add(order, `/${list}/${j}`, text, where, [holder],"recorded","id",frame.sourceTurn,o.dispatched_turn);
+          add(holder, `/${list}/${j}`, `Carrier/title of timber order #${o.id}: ${text}. Cargo position is not the person's residence`, where, [order],"recorded","id",frame.sourceTurn,o.dispatched_turn);
         });
         if (!r.record.frame) { unknown(); continue; }
         if (r.record.frame.events_dropped) Object.assign(frame, { state: "truncated", reason: "Timber order events were dropped; absence is unknown" });
@@ -136,8 +156,8 @@ export function indexEntityHistory(bundle: Bundle): EntityHistoryIndex {
         f.claims.forEach((c, j) => {
           const claim = ref("claim", c.id), owner = ref("person", c.owner);
           const text = `Restitution claim #${c.id} (${c.source}, ${c.status}): original due ${coins(c.due_milli)}, actually paid ${coins(c.paid_milli)}, unpaid ${coins(c.due_milli - c.paid_milli)} coins. A liability is not spendable cash`;
-          add(claim, `/frame/claims/${j}`, text, c.region, [owner]);
-          add(owner, `/frame/claims/${j}`, text, c.region, [claim]);
+          add(claim, `/frame/claims/${j}`, text, c.region, [owner],"recorded","id",frame.sourceTurn,c.turn);
+          add(owner, `/frame/claims/${j}`, text, c.region, [claim],"recorded","id",frame.sourceTurn,c.turn);
         });
         f.events.forEach((e, j) => {
           const named = [...(e.owner !== undefined ? [ref("person", e.owner)] : []), ...(e.army ? [ref("army", e.army)] : []),
@@ -160,7 +180,7 @@ export function indexEntityHistory(bundle: Bundle): EntityHistoryIndex {
         for (const name of ["refusals","quick_departures"] as const) f[name].forEach((e,j)=>add(ref("person",e.id),`/frame/${name}/${j}`,e.kind==="refused"?`Native migration refused: ${e.gate===0?"quarantine closure":"relocation fare/household liquidity"}; target region context only`:`Left soon after arriving; dated own experience, no inferred motive`,e.region));
         f.rows.forEach(([id,target,penalty],j)=>add(ref("person",id),`/frame/rows/${j}`,`Destination score input ${num(penalty)} for region ${target}; mode ${r.mode}. An input is not a move`,target));
         f.known_destinations?.forEach(([id,dst,mask],j)=>add(ref("person",id),`/frame/known_destinations/${j}`,`Destination information for region ${dst}: ${[mask&1?"own past residence":null,mask&2?"living bond":null,mask&4?"dated packet":null].filter(Boolean).join(", ")}. This is knowledge, not residence`,dst));
-        f.trade?.forEach((t,j)=>add(ref("person",t.id),`/frame/trade/${j}`,`Own shipment #${t.shipment}: ${t.outcome}${t.cause?` (${t.cause})`:""}; destination context only`,t.region,[ref("shipment",t.shipment)]));
+        f.trade?.forEach((t,j)=>add(ref("person",t.id),`/frame/trade/${j}`,`Own ${t.package === "timber_orders" ? "timber order" : "food shipment"} #${t.shipment}: ${t.outcome}${t.cause?` (${t.cause})`:""}; destination context only`,t.region,[ref(t.package === "timber_orders" ? "timber_order" : "shipment",t.shipment)]));
       } else if (key === "war_consequences") {
         const r = warConsequencesAt(snapshot,regions);
         if (!r) { bad(); continue; }
@@ -184,7 +204,7 @@ export function indexEntityHistory(bundle: Bundle): EntityHistoryIndex {
         r.environment.forEach((e,j)=>add(ref("region",e.region),`/environment/${j}`,`Regional public-health exposure context: displaced share ${num(e.displaced_share)}, water service ${num(e.water_service)}, crowding factor ${num(e.crowding_factor)}. No individual diagnosis or mortality attribution`,e.region,[],e.residence_observed&&e.sanitation_observed?"recorded":"unknown","id",e.source_turn));
         r.supplies.forEach((p,j)=>add(ref("region",p.region),`/supplies/${j}`,`Regional patient supply: ${num(p.food_milli/1000)} food of ${num(p.need_milli/1000)} needed; ${p.reason}. Patients and recipient households are not identified`,p.region));
         r.guards.forEach((g,j)=>g.members.forEach((m,k)=>add(ref("person",m.agent_id),`/guards/${j}/members/${k}`,`Public-health guard work ${num(m.share)} share; wage actually paid ${coins(m.wage_paid_milli)} coins, refused ${coins(m.wage_residual_milli)}; ordinary income withheld ${m.income_withheld===null?"unknown":num(m.income_withheld)}. Work does not imply illness or exposure`,m.region)));
-      } else {
+      } else if (key === "infrastructure_condition") {
         const r=readInfrastructure(snapshot,regions,true);
         if (r.status!=="ok") { bad(); continue; }
         for (const name of ["assets","terminal"] as const) r.record[name].forEach((a,j)=>add(ref("infrastructure_asset",a.aid),`/${name}/${j}`,`${a.kind} ${a.status}; condition ${num(a.condition)}, service ${num(a.service)}; responsible polity ${a.responsible}`,a.region));
@@ -195,9 +215,40 @@ export function indexEntityHistory(bundle: Bundle): EntityHistoryIndex {
           add(work,`/receipts/${j}`,`${receipt.status}: ${receipt.reasons.join(", ")||"no limit recorded"}; work delivered ${num(receipt.delivered)}, credited ${num(receipt.credited)}`,receipt.region,[asset]);
           receipt.members?.forEach((m,k)=>add(ref("person",m.agent_id),`/receipts/${j}/members/${k}`,`${receipt.kind} repair work ${num(m.worked)}; wage actually paid ${coins(m.wages_milli)}, refused ${coins(m.wage_refused_milli)} coins; ordinary income withheld ${m.income_replaced===null?"unknown":num(m.income_replaced)}`,receipt.region,[work,asset]));
         });
+      } else if (key === "watershed") {
+        const r=readWatershed(snapshot,regions,{on:true});
+        if (r.status==="unobserved") { unknown(); continue; }
+        if (r.status!=="ok") { bad(); continue; }
+        const c=r.record.regions!,out=watershedOutflow(r.record)!;
+        c.storage.forEach((storage,rid)=>add(ref("region",rid),`/regions`, `Water account region ${rid}: opening storage ${num(c.storage_open[rid])}, precipitation ${num(c.precipitation[rid])}, inflow ${num(c.inflow[rid])}, withdrawal ${num(c.withdrawal[rid])}, closing storage ${num(storage)}; outflow ${num(out[rid])} derived by the declared water-balance residual. Drought duration ${c.drought_turns[rid]}. Regional flow does not establish an individual's exposure or upstream harm`,rid,[],"recorded","region"));
+        r.record.floods?.forEach((f,j)=>add(ref("region",f.region),`/floods/${j}`,`Recorded flood onset: excess ${num(f.excess)}, inflow ${num(f.inflow)}, precipitation ${num(f.precipitation)}. Upstream co-occurrence is not proof of harm`,f.region,[],"recorded","region"));
+        for (const name of ["declared","ended"] as const) r.record.droughts?.[name].forEach((d,j)=>add(ref("region",d.region),`/droughts/${name}/${j}`,`Recorded drought ${name}: ${d.turns} turns, minimum storage fraction ${num(d.min_fraction)}`,d.region,[],"recorded","region"));
+      } else if (key === "workshop_economics") {
+        const r=workshopEconomicsAt(snapshot,regions);
+        if (r.status==="malformed" || !r.record) { bad(); continue; }
+        for(const name of ["firms","closed"] as const) r.record[name].forEach((f,j)=>add(ref("firm",f.firm),`/${name}/${j}`,`Firm ${f.status}; capital ${coins(f.capital)} coins; ${f.operating_turns} operating turns. Capital payer is a polity index, not a person`,f.region));
+        if (!r.record.receipts) { unknown(); continue; }
+        r.record.receipts.forEach((f,j)=>add(ref("firm",f.firm),`/receipts/${j}`,`Firm ${f.status}${f.operating?", operating":""}; cash ${coins(f.cash_open)} to ${coins(f.cash_close)} coins; wages actually paid ${coins(f.wages_paid)}; wages still owed ${coins(f.owed_after)}; wares produced ${num(f.produced/1000)}, unsold ${num(f.unsold_inventory/1000)}. Regional household sales are not attributed to named buyers`,f.region));
+      } else {
+        const r=workshopFinanceAt(snapshot,regions);
+        if (!r) { bad(); continue; }
+        for(const name of ["firms","closed"] as const) r[name].forEach((f,j)=>add(ref("firm",f.site),`/${name}/${j}`,`Firm ${f.status}; actual cash ${coins(f.cash)} coins, inventory ${num(f.inventory/1000)} loads; unpaid wage obligations ${coins(f.owed.reduce((s,o)=>s+o.amount,0))} coins (liabilities, not paid wages)`,f.region));
+        if (!r.receipts || !r.transfers) { unknown(); continue; }
+        r.receipts.forEach((f,j)=>{
+          const firm=ref("firm",f.site);
+          add(firm,`/receipts/${j}`,`Payroll: wages due ${coins(f.wages_due)}, actually paid ${coins(f.wages_paid)}, owed after ${coins(f.owed_after)} coins`,f.region,f.crew.map(id=>ref("person",id)));
+          f.crew.forEach(id=>add(ref("person",id),`/receipts/${j}`,`Named workshop crew member of firm #${f.site}; crew total wages ${coins(f.wages_paid)} coins, individual amount not allocated from this total`,f.region,[firm]));
+        });
+        r.transfers.money.forEach((m,j)=>{
+          if (m.payee[0]!=="agent_wealth" || m.payer[0]!=="workshop_cash") return;
+          const firm=ref("firm",m.payer[1]),person=ref("person",m.payee[1]);
+          const region=r.firms.find(f=>f.site===m.payer[1])?.region??r.closed.find(f=>f.site===m.payer[1])?.region??null;
+          add(person,`/transfers/money/${j}`,`Exact firm ${m.kind} transfer: ${coins(m.applied)} coins actually credited, ${coins(m.residual)} refused; no individual ordinary-income cost supplied by this transfer`,region,[firm]);
+          add(firm,`/transfers/money/${j}`,`Exact ${m.kind} transfer to person #${m.payee[1]}: ${coins(m.applied)} coins actually credited`,region,[person]);
+        });
       }
     }
-    return { snapshot, frames };
+    return { snapshot, epoch:epochAt(snapshot.turn-1), frames };
   });
   return { snapshots, entities: [...entities.values()].sort((a, b) => a.kind.localeCompare(b.kind) || String(a.id).localeCompare(String(b.id), undefined, { numeric: true })) };
 }
@@ -205,24 +256,25 @@ export function indexEntityHistory(bundle: Bundle): EntityHistoryIndex {
 /** Selected entity's dated facts and explicitly separate regional context. No interpolation across gaps. */
 export function entityHistory(index: EntityHistoryIndex, entity: EntityRef, throughTurn = Infinity): EntityHistoryRow[] {
   const result: EntityHistoryRow[] = [];
-  for (const { snapshot, frames } of index.snapshots) {
+  for (const { snapshot, frames, epoch } of index.snapshots) {
     if (snapshot.turn > throughTurn) continue;
     const direct: EntityHistoryRow[] = [];
     for (const key of HISTORY_PACKAGES) {
       const frame = frames[key];
       const rows = frame.rows.filter((r) => entityKey(r.entity) === entityKey(entity));
       direct.push(...rows);
-      if (!rows.length && entity.kind === "person") {
-        const empty = frame.state === "recorded";
-        direct.push({ entity, turn: snapshot.turn, sourceTurn: frame.sourceTurn, package: key, join: "id", state: empty ? "recorded_zero" : frame.state,
-          text: empty ? key === "residence_ledger" ? "No spell event recorded for this id; residence and displacement status remain unknown" : "No named activity in this package's completed-turn frame" : frame.reason,
+      if (!rows.length && (entity.kind === "person" || entity.kind === "household" && key === "household_retail" || entity.kind === "firm" && (key === "workshop_economics" || key === "workshop_payroll"))) {
+        const crossed=(entity.kind==="person"||entity.kind==="household")&&entity.epoch!==epoch;
+        const empty = frame.state === "recorded" && !crossed;
+        direct.push({ entity, turn: snapshot.turn, sourceTurn: frame.sourceTurn, package: key, join: "id", state: crossed?"unknown":empty ? "recorded_zero" : frame.state,
+          text: crossed?"Personal identity continuity is unverified across the recorded non-exact continuation or pool reset; this numeric id is a different identity segment":empty ? key === "residence_ledger" ? "No spell event recorded for this id; residence and displacement status remain unknown" : "No named activity in this package's completed-turn frame" : frame.reason,
           source: frame.source, region: null, related: [] });
       }
     }
     result.push(...direct);
     if (entity.kind !== "region") {
       const regions = new Set(direct.flatMap((r) => r.region === null ? [] : [r.region]));
-      for (const region of regions) for (const row of [...frames.household_retail.rows,...frames.public_health.rows]) if (row.entity.kind === "region" && row.entity.id === region) {
+      for (const region of regions) for (const row of [...frames.household_retail.rows,...frames.public_health.rows,...frames.watershed.rows]) if (row.entity.kind === "region" && row.entity.id === region) {
         result.push({ ...row, entity, join: "region", text: `Regional context, not this ${entity.kind}'s record: ${row.text}`, related: [ref("region", region)] });
       }
     }

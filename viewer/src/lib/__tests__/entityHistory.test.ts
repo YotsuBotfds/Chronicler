@@ -83,3 +83,11 @@ it("joins a constructed titled shipment and holder without claiming origin is lo
   expect(rows.find((r) => r.package === "titled_trade")?.text).toContain("origin context only");
   expect(rows.find((r) => r.package === "titled_trade")?.related[0].kind).toBe("shipment");
 });
+it("separates a reused numeric person id across an explicitly non-exact continuation",()=>{
+ const b=chainBundle();(b as unknown as {metadata:unknown}).metadata={resume:{exact:false,kind:"legacy-state",turn:24}};
+ const index=indexEntityHistory(b),old=entityHistory(index,{kind:"person",id:13}),newer=entityHistory(index,{kind:"person",id:13,epoch:24});
+ expect(index.entities.some(e=>e.kind==="person"&&e.id===13&&e.epoch===24)).toBe(true);
+ expect(old.filter(r=>r.turn>=25&&r.package==="recovery_crews").every(r=>r.state==="unknown")).toBe(true);
+ expect(newer.some(r=>r.turn>=25&&r.package==="recovery_crews"&&r.state==="recorded")).toBe(true);
+ expect(newer.filter(r=>r.turn<25).every(r=>r.state==="unknown")).toBe(true);
+});

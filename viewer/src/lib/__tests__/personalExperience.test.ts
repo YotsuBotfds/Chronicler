@@ -45,3 +45,11 @@ it("keeps regional health context separate from a named guard's paid work and da
  expect(rows.some(r=>r.package==="public_health"&&r.join==="id"&&r.text.includes("does not imply illness"))).toBe(true);
  expect(rows.some(r=>r.package==="public_health"&&r.join==="region"&&r.sourceTurn===2&&r.text.includes("not this person's record"))).toBe(true);
 });
+it("keeps personal timber cargo experience distinct from same-numbered food shipment",()=>{
+ const b=bundle(),s=b.history[0] as unknown as {livelihoods:{adaptive_livelihoods:{frame:{trade:Record<string,unknown>[]}}}};
+ s.livelihoods.adaptive_livelihoods.frame.trade[0].package="timber_orders";
+ s.livelihoods.adaptive_livelihoods.frame.trade[0].outcome="route_lost";
+ const rows=entityHistory(indexEntityHistory(b),{kind:"person",id:7});
+ expect(rows.some(r=>r.text.includes("Own timber order")&&r.related.some(e=>e.kind==="timber_order"&&e.id===9))).toBe(true);
+ expect(rows.filter(r=>r.source?.includes("/frame/trade/")).every(r=>!r.related.some(e=>e.kind==="shipment"))).toBe(true);
+});
