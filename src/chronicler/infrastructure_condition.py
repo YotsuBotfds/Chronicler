@@ -1376,6 +1376,10 @@ def after_agent_tick(world, agent_bridge):
                 if receipt is None or member.agent_id not in receipt:
                     raise RuntimeError("named infrastructure worker lacks a withheld income receipt")
                 member.income_replaced = float(receipt[member.agent_id][2])
+                from chronicler.work_experience import record
+                record(world, member.agent_id, "infrastructure", paid_milli=member.wages_milli,
+                       receipt=receipt, share=member.worked, region=row.region, occupation=0,
+                       source="infrastructure_condition:individual wage + keyed paid-work receipt")
     return []
 
 

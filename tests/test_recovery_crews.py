@@ -847,3 +847,25 @@ def test_switching_off_mid_run_stops_naming_crews():
     batch, _ = _turn(world, sim)
     assert batch.column("granary_work_requested").to_pylist()[0] == 4.0
     assert "recovery_crews" not in LV.livelihoods_snapshot_fields(world)["livelihoods"]
+
+
+def test_work_experience_keeps_combined_share_and_unknown_title_out_of_known_net(monkeypatch):
+    import chronicler
+    from chronicler import work_experience as E
+    recorded=[]
+    module=SimpleNamespace(accepts_offer=lambda world,aid,kind: aid != 2,
+        forgone_title=lambda world,region,occupation: None if region == 0 else 0,
+        note_work=lambda world,aid,kind,**kw: recorded.append((aid,kind,kw)))
+    monkeypatch.setattr(chronicler,"adaptive_livelihoods",module,raising=False)
+    world=SimpleNamespace(livelihoods=SimpleNamespace(adaptive_livelihoods=SimpleNamespace(enabled=True)))
+    assert E.accepts_offer(world,1,"granary") and not E.accepts_offer(world,2,"granary")
+    E.record(world,1,"granary",paid_milli=200,receipt={1:(.8,2.,1.6)},share=.4,region=0,occupation=0,source="constructed")
+    assert recorded[-1][2]["withheld_milli"] is None
+    assert recorded[-1][2]["title_forgone_milli"] is None
+    E.record(world,1,"granary",paid_milli=200,receipt={1:(.4,2.,.8)},share=.4,region=1,occupation=0,source="constructed")
+    assert recorded[-1][2]["withheld_milli"] == 800
+    assert recorded[-1][2]["title_forgone_milli"] == 0
+    world.livelihoods.adaptive_livelihoods.enabled=False
+    assert E.accepts_offer(world,2,"granary")
+    E.record(world,3,"granary",paid_milli=200,receipt={},share=.4,region=1,occupation=0,source="constructed")
+    assert len(recorded)==2

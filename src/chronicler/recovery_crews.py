@@ -370,7 +370,7 @@ def workshop_candidates(world, sim, site, diverted: float, priority) -> tuple[li
     return out, sum(1 for r in rows if r[1] == "site_city")
 
 
-def plan_granary_crew(world, w, planned: float, *, sim, snapshot, priority) -> float:
+def plan_granary_crew(world, w, planned: float, *, sim, snapshot, priority, offer_kind="granary") -> float:
     """Name and reserve the crew of RS2 granary work ``w`` (its ``_Work``)
     for ``planned`` work; returns the native request, ``min(planned, the
     crew's farm time)``, f32-floored. Stores the crew on ``w.named`` and
@@ -383,6 +383,8 @@ def plan_granary_crew(world, w, planned: float, *, sim, snapshot, priority) -> f
     t = _begin(world, sim)
     people = _people(world, t, snapshot, sim)
     rows = _eligible(world, people, sim, int(w.region), "granary", priority)
+    from chronicler.work_experience import accepts_offer
+    rows = [r for r in rows if accepts_offer(world, r[0], offer_kind)]
     w.eligible = len(rows)
     w.planned = planned
     chosen, capacity = [], 0.0
@@ -641,6 +643,10 @@ def after_agent_tick(world, agent_bridge):
             if m.worked > 0 and m.agent_id in receipt:
                 m.income_replaced = float(receipt[m.agent_id][2])
                 t.bump("income_replaced", m.income_replaced)
+            if r.kind == "granary" and m.worked > 0:
+                from chronicler.work_experience import record
+                record(world, m.agent_id, "granary", paid_milli=m.wage_milli, receipt=receipt, share=m.worked,
+                       region=r.region, occupation=FARMER, source="recovery_crews:individual wage + keyed paid-work receipt")
     t.receipt_read = True
     return []
 

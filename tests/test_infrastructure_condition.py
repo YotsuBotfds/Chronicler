@@ -1399,3 +1399,12 @@ def test_named_unpaid_control_still_names_and_withholds_the_actual_work(named_wo
     assert all(m.wages_milli == 0 and m.wage_requested_milli == 0 for row in _state(world).receipts for m in row.members)
     assert sim.receipt is not None
     assert _state(world).ledger[0].wages_requested_milli == 0
+
+
+def test_new_infrastructure_offer_honors_personal_decline_without_filling_anonymous_time(named_works,monkeypatch):
+    from chronicler import work_experience as E
+    world,sim=named_works
+    monkeypatch.setattr(E,"accepts_offer",lambda world,aid,kind: False)
+    _turn(world,sim)
+    assert all(row.requested == 0 and row.delivered == 0 and row.members == [] for row in _state(world).receipts)
+    assert not sim.transfers

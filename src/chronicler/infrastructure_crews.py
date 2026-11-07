@@ -26,7 +26,7 @@ def mode(world):
 
 def plan(world, p, amount, *, sim, snapshot):
     from chronicler.recovery_crews import plan_granary_crew
-    return plan_granary_crew(world, p, amount, sim=sim, snapshot=snapshot, priority=[])
+    return plan_granary_crew(world, p, amount, sim=sim, snapshot=snapshot, priority=[], offer_kind="infrastructure")
 
 
 def _quote_bills(world, state, civ, wage_bill, material_bill, *, sim, acc):

@@ -617,6 +617,7 @@ def reserve_first(world, agent_bridge, snapshot) -> None:
     if not live:
         return
     facts = _facts(snapshot, {a for e in live for a in e.crew})
+    t.individual_occupations = {aid: fact[1] for aid, fact in facts.items()}
     enlisted = _enlisted(world)
     trips = _trips(sim)
     open_veterans = frozenset()
@@ -766,6 +767,7 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
         for aid, requested, got, residual, status in sim.transfer_wealth(
                 world.turn, PURPOSE_REPAIR_WAGE, WAGE_BATCH, wages):
             applied[int(aid)] = (int(got), int(residual) if status != 2 else int(requested))
+    t.individual_wages = applied
     accounts = _settled_accounts(world)
     turn = world.turn
     ledger: dict[int, dict] = {}
@@ -942,6 +944,12 @@ def after_agent_tick(world, agent_bridge):
         if r.crew:
             r.income_withheld = math.fsum(receipt[a][2] for a in r.crew if a in receipt)
             _bump(state, "income_withheld", r.income_withheld)
+            from chronicler.work_experience import record
+            for aid in r.crew:
+                record(world, aid, "woodcut", paid_milli=getattr(t, "individual_wages", {}).get(aid, (0, 0))[0],
+                       receipt=receipt, share=SHARE, region=r.home,
+                       occupation=getattr(t, "individual_occupations", {}).get(aid),
+                       source="timber_supply:untruncated individual wage + keyed paid-work receipt")
             exp = by_eid.get(r.eid)
             if exp is not None:
                 exp.income_withheld += r.income_withheld
@@ -1073,7 +1081,8 @@ def _choose_crew(world, state, snapshot, home: int, enlisted, trips) -> tuple[li
         pool = set(eligible)
         first = [int(a) for a in priority_ids(world, home) if int(a) in pool]
     seen = set(first)
-    order = (first + [a for a in eligible if a not in seen])[:CREW_CAP]
+    from chronicler.work_experience import accepts_offer
+    order = [a for a in first + [a for a in eligible if a not in seen] if accepts_offer(world, a, "woodcut")][:CREW_CAP]
     return order, {a for a in order if a in soldiers}
 
 
