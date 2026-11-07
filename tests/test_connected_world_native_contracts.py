@@ -51,3 +51,17 @@ def test_transient_apis_refuse_invalid_rows_without_arming():
     assert sim.cancel_wealth_observation() is True
     assert sim.take_wealth_observation() is None
     assert sim.wealth_transfer_purposes()[10] == "restitution"
+
+
+def test_movement_branch_input_requires_exact_prior_date_and_is_atomic():
+    from chronicler_agents import AgentSimulator
+    sim = AgentSimulator(2, 7)
+    with pytest.raises(ValueError, match="T-1"):
+        sim.set_movement_branches(1, 1, [1], [1])
+    with pytest.raises(ValueError, match="invalid"):
+        sim.set_movement_branches(0, 1, [1], [])
+    with pytest.raises(ValueError, match="duplicate"):
+        sim.set_movement_branches(0, 1, [1,1], [1,1])
+    sim.set_movement_branches(0, 1, [1], [1])
+    with pytest.raises(ValueError, match="already pending"):
+        sim.set_movement_branches(0, 1, [2], [1])
