@@ -24,7 +24,7 @@ export function ReformServices({ bundle, snapshot, currentTurn }: {
   const section = (body: ReactNode) =>
     <section className="systems-section" aria-label="Poor relief services">{heading}{body}</section>;
   if (reading.state === "disabled") {
-    return section(<p className="systems-note">Poor relief services are off in this run (--reform-services not recorded): a granted poor relief credits every agent's material need for grievance and its upkeep is sunk.</p>);
+    return section(<p className="systems-note">Poor relief services are off in this run (--reform-services not recorded): the lasting poor-relief reform credits every agent's material need for grievance and its upkeep is sunk.</p>);
   }
   if (reading.state === "absent") {
     return section(<p className="systems-note">No poor-relief services record at snapshot {at}: unknown, not zero.</p>);
@@ -39,8 +39,8 @@ export function ReformServices({ bundle, snapshot, currentTurn }: {
   }
   const control = r.mode === "cost_only";
   const intro = <p className="systems-note">Simulation turn {r.source_turn}, mode {r.mode}. {control
-    ? "The cost-only control: a granted poor relief no longer credits anyone's need, and its payment is sunk as without the switch; nothing is bought."
-    : "A granted poor relief no longer credits anyone's need; the treasury's relief payment goes into the realm's relief fund (up to four turns of upkeep, the rest sunk), which buys owners' unsold food, paid by stable id, where the realm's own retail markets recorded people below a full ration. The food joins the commons the next free rations draw on, so what reached people is bounded per region, never attributed to persons."}</p>;
+    ? "The cost-only control withholds the lasting poor-relief need credit, and its payment is sunk as without the switch; nothing is bought."
+    : "The lasting poor-relief need credit is withheld; the treasury's relief payment goes into the realm's relief fund (up to four turns of upkeep, the rest sunk), which buys owners' unsold food, paid by stable id, where the realm's own retail markets recorded people below a full ration. The food joins the commons the next free rations draw on, so what reached people is bounded per region, never attributed to persons."} The existing one-off grant response and other reforms keep their existing rules.</p>;
   if (reading.state === "recorded_zero") {
     return section(<>{intro}<p className="systems-note">Nothing moved this turn: no relief money was paid in, spent or returned, and nothing was bought or delivered (recorded zero).</p></>);
   }
