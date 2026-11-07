@@ -1,29 +1,29 @@
 {
   "schema_version": 1,
   "layer": "cwa4",
-  "parent": "8401aa74218ce57ce4bb286695f2319735c2dbd4",
+  "parent": "66e1ec401c3c200b56deb926045f9f945c2ab563",
   "files": {
     "src/chronicler/batch_manifest.py": {
-      "sha256": "95caf56ac4bbae545c5feed36a8d0dd6a1b9d45b05861c072b0ee2d3efe6ee42",
-      "current_sha256": "ffa482806d81f541b5b14ab2c5b4650f59436d159805b144356d511211d07b1e",
+      "sha256": "e254aa96b6eadec425d689a9e8c694d2e98ff09ca7e46995cfb12f8ffb5b58a6",
+      "current_sha256": "c30720b7f26af89177aeea1676830b33b3b8116c180372ee28a4e90746952f1b",
       "patches": [
         {
-          "old": "    \"quarantine_mode\",\n    \"workshop_economics\",\n    \"workshop_economics_mode\",\n    \"wealth_accounting\",\n    \"quarantine_channels\",\n    \"tuning\",\n",
-          "new": "    \"quarantine_mode\",\n    \"workshop_economics\",\n    \"workshop_economics_mode\",\n    \"workshop_economics_rules\",\n    \"titled_trade\",\n    \"wealth_accounting\",\n    \"quarantine_channels\",\n    \"tuning\",\n"
+          "old": "    \"quarantine_mode\",\n    \"workshop_economics\",\n    \"workshop_economics_mode\",\n    \"attribution_records\",\n    \"wealth_accounting\",\n    \"quarantine_channels\",\n",
+          "new": "    \"quarantine_mode\",\n    \"workshop_economics\",\n    \"workshop_economics_mode\",\n    \"workshop_economics_rules\",\n    \"titled_trade\",\n    \"attribution_records\",\n    \"wealth_accounting\",\n    \"quarantine_channels\",\n"
         },
         {
-          "old": "                             \"household_retail\", \"household_retail_mode\", \"household_retail_boundary\",\n                             \"household_retail_rules\", \"household_retail_schedule\", \"watershed\", \"watershed_mode\",\n                             \"quarantine_mode\", \"workshop_economics\", \"workshop_economics_mode\",\n                             \"wealth_accounting\", \"quarantine_channels\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n",
-          "new": "                             \"household_retail\", \"household_retail_mode\", \"household_retail_boundary\",\n                             \"household_retail_rules\", \"household_retail_schedule\", \"watershed\", \"watershed_mode\",\n                             \"quarantine_mode\", \"workshop_economics\", \"workshop_economics_mode\",\n                             \"workshop_economics_rules\", \"titled_trade\",\n                             \"wealth_accounting\", \"quarantine_channels\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n"
+          "old": "                             \"household_retail\", \"household_retail_mode\", \"household_retail_boundary\",\n                             \"household_retail_rules\", \"household_retail_schedule\", \"watershed\", \"watershed_mode\",\n                             \"quarantine_mode\", \"workshop_economics\", \"workshop_economics_mode\",\n                             \"attribution_records\", \"wealth_accounting\", \"quarantine_channels\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n",
+          "new": "                             \"household_retail\", \"household_retail_mode\", \"household_retail_boundary\",\n                             \"household_retail_rules\", \"household_retail_schedule\", \"watershed\", \"watershed_mode\",\n                             \"quarantine_mode\", \"workshop_economics\", \"workshop_economics_mode\",\n                             \"workshop_economics_rules\", \"titled_trade\",\n                             \"attribution_records\", \"wealth_accounting\", \"quarantine_channels\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n"
         }
       ]
     },
     "tests/test_batch_manifest.py": {
-      "sha256": "cbffbeb0ecaadf894e20734e115d7ada212a9d72813a6ce1924b667dbbc4fa3a",
-      "current_sha256": "8fdd759986e6d1ec0adc3ff0a44743af2e45def970e97f8f3bf4c5741b954605",
+      "sha256": "36d92e27a6ce93bb62e75dab8f2deff5189150bcd5f7a52056ad0f0811232f10",
+      "current_sha256": "838d94f0c4af44ac5fe958c0a87d27e2517edf5b532ee50dd6f03e4e9aab6b60",
       "patches": [
         {
-          "old": "                                                           \"household_retail_rules\", \"household_retail_schedule\",\n                                                           \"watershed\", \"watershed_mode\",\n                                                           \"quarantine_mode\", \"workshop_economics\", \"workshop_economics_mode\",\n                                                           \"wealth_accounting\", \"quarantine_channels\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n    assert manifest[\"outputs\"][\"simulate_only\"] is True\n",
-          "new": "                                                           \"household_retail_rules\", \"household_retail_schedule\",\n                                                           \"watershed\", \"watershed_mode\",\n                                                           \"quarantine_mode\", \"workshop_economics\", \"workshop_economics_mode\",\n                                                           \"workshop_economics_rules\", \"titled_trade\",\n                                                           \"wealth_accounting\", \"quarantine_channels\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n    assert manifest[\"outputs\"][\"simulate_only\"] is True\n"
+          "old": "                                                           \"household_retail_rules\", \"household_retail_schedule\",\n                                                           \"watershed\", \"watershed_mode\",\n                                                           \"quarantine_mode\", \"workshop_economics\", \"workshop_economics_mode\",\n                                                           \"attribution_records\",\n                                                           \"wealth_accounting\", \"quarantine_channels\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n",
+          "new": "                                                           \"household_retail_rules\", \"household_retail_schedule\",\n                                                           \"watershed\", \"watershed_mode\",\n                                                           \"quarantine_mode\", \"workshop_economics\", \"workshop_economics_mode\",\n                                                           \"workshop_economics_rules\", \"titled_trade\",\n                                                           \"attribution_records\",\n                                                           \"wealth_accounting\", \"quarantine_channels\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n"
         }
       ]
     },

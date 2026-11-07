@@ -55,6 +55,10 @@ The connected-world program appends:
   pilot region, carry it with title and custody per shipment by stable id and
   sell it as their own retail claim at another pilot region; inserted before
   the ledger; its Phase 10 runs inside retail's frame.
+* ``--attribution-records`` (D2): observation-only records of actor, victim and
+  cause (granary seizures, casualties by cause, restored-civ identity reuse,
+  burdens per actor -> victim pair); inserted after A3 and before the wealth ledger,
+  so the ledger stays last. It changes nothing it observes and nothing reads it.
 * ``--wealth-accounting`` (A1): an observation-only ledger of agent wealth per
   region and turn (opening, typed flows from the packages' receipts, closing,
   the labelled native-model residual); appended last so its Phase 2 and Phase 10
@@ -147,6 +151,7 @@ LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     "workshop_economics", "workshop_economics_mode",
     "workshop_economics_rules",
     "titled_trade",
+    "attribution_records",
     "wealth_accounting",
 )
 #: Options that take a file path (A2R), parser destinations owned here too
@@ -407,6 +412,19 @@ _HELP = {
         "death escheats the cargo to the commons where it stands; requires --agents hybrid and "
         "--household-retail in mode retail or no_relief with rules version 2 (default off)"
     ),
+    "attribution_records": (
+        "Attribution records (D2): observation-only records of who did what to whom, at the event: "
+        "granary seizures with their actor and victim; enlisted soldiers' deaths per war and cause - "
+        "combat, attrition, war drain (found dead after the tick in a region where a siege, garrison "
+        "fight, occupation, crushed revolt, nomad raid or a roster-less army's losses staged deaths that "
+        "turn, at most the staged count; possibly_enemy when no single actor is named) and natural (the "
+        "other deaths army casualties include: native mortality with its x2 for soldiers at war, plague "
+        "and other non-war catastrophes); each reuse of a civilization index by a restored polity; and the burdens "
+        "one polity lays on another per turn (dues, levies, sacks, plunder, requisitions, seizures, war "
+        "losses, treaty payments, quarantine closures), each labelled by its authority and as a "
+        "transfer, minted, destroyed or a restriction; nothing reads them; requires --agents hybrid "
+        "(default off)"
+    ),
     "wealth_accounting": (
         "Wealth accounting (A1): an observation-only ledger of agent wealth; each turn and region it "
         "reads the balance at the Phase 2 opening (checked bit for bit against the last closing) and "
@@ -642,6 +660,12 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
         if economics is not None and str(rules_a3) != economics.rules:
             raise ValueError(f"--workshop-economics-rules {rules_a3} conflicts with the saved workshop "
                              f"economics rules version {economics.rules}")
+    if _on(world, values, "attribution_records") and agent_mode != "hybrid":
+        # Also when only saved: the records observe hybrid runs (army rosters,
+        # the native tick); a resume outside hybrid is refused until ended.
+        saved = values["attribution_records"] is not True
+        raise ValueError("--attribution-records requires --agents hybrid"
+                         + ("; this world has it on: pass --no-attribution-records to end it" if saved else ""))
     if _on(world, values, "wealth_accounting") and agent_mode != "hybrid":
         # Also when only saved: the ledger reads the hybrid agent pool; a resume
         # outside hybrid is refused until the switch is ended (dated).
