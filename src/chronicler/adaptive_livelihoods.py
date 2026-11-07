@@ -33,12 +33,17 @@ def set_adaptive_livelihoods_enabled(world, value, *, args=None, agent_mode=None
     state = _state(world)
     mode = getattr(args, "adaptive_livelihoods_mode", None) if args else None
     rules = getattr(args, "adaptive_livelihoods_rules", None) if args else None
+    channels = getattr(args, "adaptive_livelihoods_decision_channels", None) if args else None
+    effective_rules = rules or (state.rules if state is not None else "3")
+    if channels is not None and effective_rules != "3":
+        raise ValueError("adaptive livelihoods decision channels require rules3")
     if state is None:
         world.livelihoods.adaptive_livelihoods = AdaptiveLivelihoodsState(
-            enabled=bool(value), mode=mode or "adapt", rules=rules or "2")
+            enabled=bool(value), mode=mode or "adapt", rules=rules or "3", decision_channels=channels or "all")
     else:
-        if (mode is not None and mode != state.mode) or (rules is not None and rules != state.rules):
-            raise ValueError("saved adaptive livelihoods mode/rules cannot change")
+        if ((mode is not None and mode != state.mode) or (rules is not None and rules != state.rules)
+                or (channels is not None and channels != state.decision_channels)):
+            raise ValueError("saved adaptive livelihoods mode/rules/channels cannot change")
         state.enabled = bool(value)
         if not value:
             state.memory.clear()
@@ -52,6 +57,12 @@ def set_adaptive_livelihoods_enabled(world, value, *, args=None, agent_mode=None
 
 def _bump(state, name, amount=1):
     state.counters[name] = state.counters.get(name, 0) + amount
+
+
+def _personal_channel(state, channel):
+    """Versioned personal decisions, independent of D3's dated war inputs."""
+    return (state.mode != "record_only" and state.rules in ("2", "3")
+            and (state.rules != "3" or state.decision_channels != "no_" + channel))
 
 
 def _trim(state, name, limit):
@@ -103,7 +114,7 @@ def declined_ids(world, kind):
     if not adaptive_livelihoods_active(world):
         return []
     state = _state(world)
-    if state.rules != "2" or state.mode == "record_only":
+    if not _personal_channel(state, "work"):
         return []
     return sorted(aid for aid, row_kind in _work_index(state, world.turn)
                   if row_kind == kind and _declines(state, world.turn, aid, kind))
@@ -124,7 +135,7 @@ def accepts_offer(world, agent_id, kind):
     if key in state._offer_cache:
         return state._offer_cache[key]
     decline = _declines(state, world.turn, *key)
-    accepted = not (decline and state.rules == "2" and state.mode != "record_only")
+    accepted = not (decline and _personal_channel(state, "work"))
     if state.offer_turn != world.turn:
         state.offer_turn, state.offers, state.offers_dropped = world.turn, [], 0
     if decline:
@@ -247,7 +258,7 @@ def trade_destinations(world, sim, agent_ids):
     if not adaptive_livelihoods_active(world):
         return None
     state = _state(world)
-    if state.rules != "2" or state.mode == "record_only":
+    if not _personal_channel(state, "trade"):
         return None
     return {int(aid): set(map(int, destinations))
             for aid, destinations in sim.usable_trade_destinations(sorted(agent_ids), world.turn)}
@@ -277,6 +288,9 @@ def before_agent_tick(world, agent_bridge, economy_result=None):
         state.known_residences.clear()
         state.trade_experience.clear()
         _bump(state, "unobserved_gaps")
+    if state.rules == "3":
+        _before_agent_tick_v3(world, agent_bridge, state)
+        return
     rows = penalty_rows(state, world.turn)
     information = []
     if state.rules == "2":
@@ -325,10 +339,64 @@ def before_agent_tick(world, agent_bridge, economy_result=None):
                    "information_gate_installed": state.rules == "2" and state.mode != "record_only"}
 
 
+def _before_agent_tick_v3(world, agent_bridge, state):
+    """Personal controls never erase or redirect D3's own physical targets.
+
+    Rules1/2 above retain their historical control behavior for saved runs.
+    Rows below describe actual installed input; would-be personal rows remain
+    separate observations, not a claim about which input caused an outcome.
+    """
+    sim = agent_bridge._sim
+    snap = sim.get_snapshot()
+    homes = dict(zip(map(int, snap.column("id").to_pylist()), map(int, snap.column("region").to_pylist())))
+    own, known = _known_residences(world, homes)
+    information = sim.set_adaptive_information(world.turn, known)
+    information_applied = _personal_channel(state, "information")
+    if not information_applied:
+        sim.cancel_adaptive_information()
+    would = penalty_rows(state, world.turn)
+    personal = list(would) if _personal_channel(state, "migration_experience") else []
+    if state.mode == "shuffled":
+        index = {r.name: i for i, r in enumerate(world.regions)}
+        remapped, permutations = [], {}
+        for aid, target, magnitude in personal:
+            origin = homes.get(aid)
+            choices = sorted(index[n] for n in world.regions[origin].adjacencies if n in index) if origin is not None else []
+            if aid not in permutations:
+                shift = 1 + stable_hash_int("a6_shuffle", world.turn, aid) % (len(choices) - 1) if len(choices) > 1 else 0
+                permutations[aid] = dict(zip(choices, choices[shift:] + choices[:shift]))
+            if len(choices) > 1 and target in permutations[aid]:
+                target = permutations[aid][target]
+            else:
+                _bump(state, "unshuffled")
+            remapped.append((aid, target, magnitude))
+        personal = sorted(remapped)
+    from chronicler.war_consequences import movement_rows
+    attached = {int(aid) for army in getattr(getattr(world, "war_state", None), "armies", []) for aid, _ in army.roster}
+    war = [row for aid, origin in sorted(homes.items())
+           for row in movement_rows(world, aid, origin, own[aid], attached=attached)]
+    scores = defaultdict(float)
+    for aid, target, value in [*personal, *war]:
+        scores[(aid, target)] += value
+    rows = [(aid, target, max(-P_CAP, min(P_CAP, score)))
+            for (aid, target), score in sorted(scores.items()) if score != 0]
+    sim.set_adaptive_migration(world.turn, rows)
+    state.frame = {"turn": world.turn, "decision_channels": state.decision_channels,
+                   "rows": rows[:256], "rows_total": len(rows), "rows_installed": len(rows),
+                   "rows_dropped": max(0, len(rows) - 256),
+                   "a6_rows": personal[:256], "a6_rows_total": len(personal),
+                   "d3_rows": war[:256], "d3_rows_total": len(war),
+                   "migration_rows_would": would[:256], "migration_rows_would_total": len(would),
+                   "refusals": [], "quick_departures": [], "receipt": None,
+                   "known_destinations": information[:256], "known_destinations_total": len(information),
+                   "known_destinations_dropped": max(0, len(information) - 256),
+                   "information_gate_installed": information_applied}
+
+
 def rollback_agent_tick(world, agent_bridge):
     if adaptive_livelihoods_active(world):
         agent_bridge._sim.cancel_adaptive_migration()
-        if _state(world).rules == "2":
+        if _state(world).rules in ("2", "3"):
             agent_bridge._sim.cancel_adaptive_information()
         _state(world).frame = None
 
@@ -412,6 +480,7 @@ def snapshot_summary(world):
         return {}
     state = _state(world)
     return {"schema_version": 1, "stage": "A6", "source_turn": state.last_turn, "mode": state.mode,
+            **({"decision_channels": state.decision_channels} if state.rules == "3" else {}),
             "rules": state.rules, "frame": state.frame, "memory_rows": len(state.memory),
             "work_rows": len(state.work), "counters": dict(state.counters),
             "parameters": {"refused_window": REFUSED_WINDOW, "left_window": LEFT_WINDOW,

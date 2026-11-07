@@ -36,8 +36,8 @@ def public_health_active(world) -> bool:
 def set_public_health_enabled(world, value, *, args=None, agent_mode=None):
     state = _state(world)
     if state is None:
-        world.livelihoods.public_health = state = PublicHealthState()
-    for field in ("mode", "policy", "report_delay"):
+        world.livelihoods.public_health = state = PublicHealthState(crowding="density_only")
+    for field in ("mode", "policy", "report_delay", "crowding"):
         given = getattr(args, f"public_health_{field}", None) if args is not None else None
         if given is not None:
             given = int(given) if field == "report_delay" else given
@@ -53,12 +53,15 @@ def set_public_health_enabled(world, value, *, args=None, agent_mode=None):
 
 def check_request(world, values, args, *, agent_mode, on):
     requested = on("public_health")
-    for field in ("mode", "policy", "report_delay"):
+    for field in ("mode", "policy", "report_delay", "crowding"):
         value = getattr(args, f"public_health_{field}", None) if args is not None else None
         if value is not None:
             PublicHealthState(**{field: value})
             if not requested:
                 raise ValueError(f"--public-health-{field.replace('_', '-')} requires --public-health")
+            saved = _state(world)
+            if saved is not None and value != getattr(saved, field):
+                raise ValueError(f"--public-health-{field.replace('_', '-')} conflicts with the saved world")
     if not requested:
         return
     needed = [flag for flag in ("epidemic_care", "infrastructure_condition", "residence_ledger") if not on(flag)]
@@ -412,15 +415,27 @@ def environment_factors(world):
     frame = read_frame(world, consumer_turn=world.turn)
     regions = {r["region"]: r for r in (frame or {}).get("regions", [])}
     sanitation = state.sanitation if state.sanitation_turn == world.turn - 1 else []
+    arrival = (frame or {}).get("arrival_diagnostics")
+    arrival_complete = arrival.get("complete") if isinstance(arrival, dict) else None
     rows = []
     for rid in range(len(world.regions)):
         r = regions.get(rid)
         displaced = min(1.0, max(0.0, r["displaced"] / max(1, r["residents"]))) if r else 0.0
+        # X1 spells classify motives, not housing/contact conditions. Unknown
+        # attribution must not alter exposure for the same physical trajectory.
+        # Epidemiology's existing population/capacity density remains in force.
+        crowding = 1.0 + DISPLACEMENT_CROWDING * displaced if state.crowding == "legacy_displacement" else 1.0
+        recent = (r or {}).get("recent_residence_arrivals")
+        recent_share = (recent / max(1, r["residents"]) if arrival_complete is True
+                        and isinstance(recent, int) and r is not None else None)
+        if arrival_complete is True and r is None:
+            recent_share = 0.0
         service = sanitation[rid] if rid < len(sanitation) else 0.0
         rows.append({"region": rid, "source_turn": world.turn - 1,
                      "residence_observed": frame is not None, "sanitation_observed": rid < len(sanitation),
                      "displaced_share": displaced, "water_service": service,
-                     "crowding_factor": 1.0 + DISPLACEMENT_CROWDING * displaced,
+                     "crowding_factor": crowding, "crowding_basis": state.crowding,
+                     "recent_arrival_share": recent_share, "arrival_diagnostics_complete": arrival_complete,
                      "flux_factor": 1.0 - SANITATION_REDUCTION * service if state.mode == "active" else 1.0})
     state.environment_turn, state.environment = world.turn, rows
     return rows
@@ -774,6 +789,7 @@ def snapshot_summary(world):
     environment_fresh = state.environment_turn == source
     supply_fresh = state.supply_turn == source
     return {"schema_version": 1, "source_turn": source, "enabled": state.enabled, "mode": state.mode, "policy": state.policy,
+            "crowding": state.crowding,
             "report_delay": state.report_delay, "report_turn": state.report_turn if reports_fresh else None,
             "reports": [r.model_dump() for r in state.reports], "decisions": state.decisions if reports_fresh else [],
             "environment_turn": state.environment_turn if environment_fresh else None,

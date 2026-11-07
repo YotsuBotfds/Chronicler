@@ -103,7 +103,7 @@ from dataclasses import asdict
 from chronicler.models import NO_MIGRATION_DRIVER, VOLUNTARY_MIGRATION_DRIVERS, migration_driver_name
 from chronicler.quarantine_rules import FLIGHT_DRIVERS, HUNGER_DRIVERS
 from chronicler.residence_ledger_state import (
-    ANCHOR_TURNS, ANCHORS, CAUSES, CLOSURES, COUNTERS, EVENT_KINDS, LOG_KINDS, MAX_EVENTS, MAX_LOG, MAX_ROWS,
+    ANCHOR_TURNS, ANCHORS, ARRIVAL_COUNT_KEYS, ARRIVAL_WINDOW_TURNS, CAUSES, CLOSURES, COUNTERS, EVENT_KINDS, LOG_KINDS, MAX_EVENTS, MAX_LOG, MAX_ROWS,
     MOVE_GROUPS, REGION_KEYS, REHOME_TURNS, SEPARATION_CAUSES, TOTAL_KEYS, LogRecord, RegionWatch,
     ResidenceLedgerState, ResidenceRow, Spell,
 )
@@ -630,6 +630,14 @@ def phase10(world, acc, economy_result, agent_bridge):
     spells = []
     for row in rows.values():
         residents[row.res] += 1
+        if row.move_turn is not None and 0 <= turn - row.move_turn < ARRIVAL_WINDOW_TURNS:
+            # One living stable ID at its final observed residence, even after
+            # several moves/return. Ordinary trips preserve residential clocks.
+            reg[row.res]["recent_residence_arrivals"] += 1
+            totals["recent_residence_arrivals"] += 1
+            if migration_driver_name(row.move_driver) is None:
+                reg[row.res]["recent_residence_arrivals_unknown_reason"] += 1
+                totals["recent_residence_arrivals_unknown_reason"] += 1
         if row.spell is not None:
             spells.append((row.res, row.spell))
     for i, count in enumerate(residents):
@@ -678,7 +686,12 @@ def phase10(world, acc, economy_result, agent_bridge):
     state.deferred = sorted(deferred)
     state.travelling = sorted(trips)
     state.attached = sorted(attached)
-    state.frame = {"turn": turn, "observed_from": state.observed_from, "totals": totals, "regions": regions}
+    coverage_complete = not refused and not deferred and len(rows) == len(alive)
+    window_complete = state.observed_from <= turn - (ARRIVAL_WINDOW_TURNS - 1)
+    state.frame = {"turn": turn, "observed_from": state.observed_from, "totals": totals, "regions": regions,
+                   "arrival_diagnostics": {"window_turns": ARRIVAL_WINDOW_TURNS,
+                                           "coverage_complete": coverage_complete, "window_complete": window_complete,
+                                           "complete": coverage_complete and window_complete}}
     state.events, state.events_dropped = t.events, t.dropped
     state.frame_turn = state.last_turn = turn
     _bump(state, "turns_observed")
@@ -839,7 +852,7 @@ def snapshot_summary(world) -> dict:
                        "flight_drivers": list(FLIGHT_DRIVERS), "hunger_drivers": list(HUNGER_DRIVERS),
                        "voluntary_drivers": sorted(VOLUNTARY_MIGRATION_DRIVERS), "causes": list(CAUSES),
                        "anchors": list(ANCHORS), "move_groups": list(MOVE_GROUPS), "closures": list(CLOSURES),
-                       "max_events": MAX_EVENTS, "max_rows": MAX_ROWS},
+                       "max_events": MAX_EVENTS, "max_rows": MAX_ROWS, "arrival_window_turns": ARRIVAL_WINDOW_TURNS},
     }
 
 
@@ -870,10 +883,22 @@ def record_status(snapshot) -> tuple[str, dict | None]:
         return "unobserved", None
     totals = frame.get("totals") if isinstance(frame, dict) else None
     if (not isinstance(frame, dict) or any(key not in frame for key in FRAME_KEYS) or frame["turn"] != source
-            or not isinstance(totals, dict) or any(not isinstance(totals.get(k), int) for k in TOTAL_KEYS)
+            or not isinstance(totals, dict) or any(not isinstance(totals.get(k), int) for k in TOTAL_KEYS if k not in ARRIVAL_COUNT_KEYS)
             or not isinstance(frame["regions"], list)
-            or any(not isinstance(r, dict) or any(not isinstance(r.get(k), int) for k in REGION_KEYS)
+            or any(not isinstance(r, dict) or any(not isinstance(r.get(k), int) for k in REGION_KEYS if k not in ARRIVAL_COUNT_KEYS)
                    for r in frame["regions"])):
         return "malformed", None
+    if "arrival_diagnostics" in frame:
+        a = frame["arrival_diagnostics"]
+        if (not isinstance(a, dict) or a.get("window_turns") != ARRIVAL_WINDOW_TURNS
+                or any(type(a.get(k)) is not bool for k in ("coverage_complete", "window_complete", "complete"))
+                or a["complete"] != (a["coverage_complete"] and a["window_complete"])
+                or any(type(totals.get(k)) is not int or totals[k] < 0 for k in ARRIVAL_COUNT_KEYS)
+                or totals[ARRIVAL_COUNT_KEYS[1]] > totals[ARRIVAL_COUNT_KEYS[0]]
+                or totals[ARRIVAL_COUNT_KEYS[0]] > totals["observed"]
+                or any(any(type(r.get(k)) is not int or r[k] < 0 for k in ARRIVAL_COUNT_KEYS)
+                       or r[ARRIVAL_COUNT_KEYS[1]] > r[ARRIVAL_COUNT_KEYS[0]] or r[ARRIVAL_COUNT_KEYS[0]] > r["residents"]
+                       for r in frame["regions"])):
+            return "malformed", None
     empty = all(totals[k] == 0 for k in _ZERO_KEYS)
     return ("recorded_zero" if empty else "recorded"), frame

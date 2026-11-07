@@ -104,6 +104,13 @@ MAX_EVENTS = 512
 #: At most this many person rows (living observed people) are kept.
 MAX_ROWS = 262_144
 
+# Factual observed residential changes, independent of the attributed motive.
+# Calendar window, not evidence that somebody has obtained adequate housing.
+ARRIVAL_WINDOW_TURNS = 20
+ARRIVAL_COUNT_KEYS = ("recent_residence_arrivals", "recent_residence_arrivals_unknown_reason")
+REGION_KEYS += ARRIVAL_COUNT_KEYS
+TOTAL_KEYS += ARRIVAL_COUNT_KEYS
+
 
 def _is_none(value) -> bool:
     return value is None

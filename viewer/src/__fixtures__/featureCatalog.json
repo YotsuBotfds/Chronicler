@@ -1644,11 +1644,36 @@
       "key": "adaptive_livelihoods_rules",
       "flag": "--adaptive-livelihoods-rules",
       "label": "Adaptive livelihoods rules",
-      "help": "Saved option; choices ('2', '1')",
+      "help": "3 (new default): independent war inputs and personal decision controls; 2/1 retain historical rules.",
       "kind": "choice",
       "choices": [
+        "3",
         "2",
         "1"
+      ],
+      "default": null,
+      "parent": "adaptive_livelihoods",
+      "requires": [
+        {
+          "feature": "adaptive_livelihoods",
+          "reason": "requires --adaptive-livelihoods"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "adaptive_livelihoods_decision_channels",
+      "flag": "--adaptive-livelihoods-decision-channels",
+      "label": "Adaptive livelihoods decision channels",
+      "help": "Rules3 personal controls: all (default), no_migration_experience, no_information (migration knowledge), no_work, no_trade. War inputs stay independent.",
+      "kind": "choice",
+      "choices": [
+        "all",
+        "no_migration_experience",
+        "no_information",
+        "no_work",
+        "no_trade"
       ],
       "default": null,
       "parent": "adaptive_livelihoods",
@@ -1665,7 +1690,7 @@
       "key": "public_health",
       "flag": "--public-health",
       "label": "Public health",
-      "help": "Supplied epidemic care, maintained-water sanitation, displacement crowding and dated public-health advice (default off).",
+      "help": "Supplied epidemic care, maintained-water sanitation, physical density and dated public-health advice (default off).",
       "kind": "bool",
       "choices": null,
       "default": null,
@@ -1771,6 +1796,27 @@
         "18",
         "19",
         "20"
+      ],
+      "default": null,
+      "parent": "public_health",
+      "requires": [
+        {
+          "feature": "public_health",
+          "reason": "requires --public-health"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "public_health_crowding",
+      "flag": "--public-health-crowding",
+      "label": "Public health crowding",
+      "help": "density_only (new default): retain existing physical density effects; legacy_displacement: historical motive-classified X1 multiplier.",
+      "kind": "choice",
+      "choices": [
+        "density_only",
+        "legacy_displacement"
       ],
       "default": null,
       "parent": "public_health",

@@ -152,7 +152,7 @@ SIMULATION_ARG_KEYS = WORLD_ARG_KEYS + (
     "reform_services_mode",
     "guild_leagues",
     "guild_league_mode",
-    "war_requisition", "war_requisition_mode", "war_consequences", "war_consequences_mode", "adaptive_livelihoods", "adaptive_livelihoods_mode", "adaptive_livelihoods_rules", "public_health", "public_health_mode", "public_health_policy", "public_health_report_delay", "movement_branches", "movement_branches_mode", "residence_ledger",
+    "war_requisition", "war_requisition_mode", "war_consequences", "war_consequences_mode", "adaptive_livelihoods", "adaptive_livelihoods_mode", "adaptive_livelihoods_rules", "adaptive_livelihoods_decision_channels", "public_health", "public_health_mode", "public_health_policy", "public_health_report_delay", "public_health_crowding", "movement_branches", "movement_branches_mode", "residence_ledger",
     "attribution_records",
     "wealth_accounting", "wealth_accounting_mode",
     "quarantine_channels",
@@ -285,7 +285,7 @@ def simulation_config(args: Any, tuning_overrides: dict | None = None) -> dict[s
                              "harvest_cover", "harvest_cover_mode",
                              "epidemic_care", "epidemic_care_mode",
                              "reform_services", "reform_services_mode", "guild_leagues", "guild_league_mode",
-                             "war_requisition", "war_requisition_mode", "war_consequences", "war_consequences_mode", "adaptive_livelihoods", "adaptive_livelihoods_mode", "adaptive_livelihoods_rules", "public_health", "public_health_mode", "public_health_policy", "public_health_report_delay", "movement_branches", "movement_branches_mode", "residence_ledger", "attribution_records", "wealth_accounting", "wealth_accounting_mode", "quarantine_channels")
+                             "war_requisition", "war_requisition_mode", "war_consequences", "war_consequences_mode", "adaptive_livelihoods", "adaptive_livelihoods_mode", "adaptive_livelihoods_rules", "adaptive_livelihoods_decision_channels", "public_health", "public_health_mode", "public_health_policy", "public_health_report_delay", "public_health_crowding", "movement_branches", "movement_branches_mode", "residence_ledger", "attribution_records", "wealth_accounting", "wealth_accounting_mode", "quarantine_channels")
               or getattr(args, key, None) is not None}
     overrides = tuning_overrides if tuning_overrides is not None else getattr(args, "tuning_overrides", None)
     config["tuning_overrides"] = _json_value(overrides or {})

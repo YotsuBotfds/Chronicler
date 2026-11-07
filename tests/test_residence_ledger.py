@@ -703,7 +703,8 @@ def test_the_aggregate_frame_names_no_person():
     step(world, sim)
     step(world, sim, moves=[(1, AVALON, BROOK, "battle_memory")])
     frame = RL.read_frame(world, consumer_turn=world.turn)
-    assert set(frame) == {"turn", "observed_from", "totals", "regions"}
+    assert set(frame) == {"turn", "observed_from", "totals", "regions", "arrival_diagnostics"}
+    assert set(frame["arrival_diagnostics"]) == {"window_turns", "coverage_complete", "window_complete", "complete"}
     assert set(frame["totals"]) == set(TOTAL_KEYS)
     assert all(set(r) == set(REGION_KEYS) for r in frame["regions"])
 

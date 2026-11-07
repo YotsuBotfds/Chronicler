@@ -7,7 +7,8 @@ from pydantic import BaseModel, Field, PrivateAttr
 class AdaptiveLivelihoodsState(BaseModel):
     enabled: bool = True
     mode: Literal["adapt", "record_only", "shuffled"] = "adapt"
-    rules: Literal["1", "2"] = "2"
+    rules: Literal["1", "2", "3"] = "2"
+    decision_channels: Literal["all", "no_migration_experience", "no_information", "no_work", "no_trade"] = "all"
     memory: list[dict] = Field(default_factory=list)
     work: list[dict] = Field(default_factory=list)
     known_residences: dict[int, dict[int, int]] = Field(default_factory=dict)
