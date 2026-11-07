@@ -393,6 +393,8 @@ CHUNKS = {
         "tests/test_screen_runner.py",
         "tests/test_feature_matrix.py",
         "tests/test_cw1_screen.py",
+        "tests/test_cw2_screen.py",
+        "tests/test_cw5_screen.py",
     ],
     "connected-world-b": [
         "tests/test_watershed.py",

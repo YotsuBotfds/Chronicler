@@ -147,8 +147,31 @@ before the economy tick (a pool reset, or a dead holder seen at
 regions' commons columns into that batch, so the economy starts from commons
 that hold the cargo (the same seam retail uses for its own closures).
 
-**Carriers.** A carrier who migrates, changes occupation, enlists, goes on a
-native trip or holds other work is **released**, and its shipment ends
+**Carriers take no native decision while reserved** (lead decision after the
+review's re-check). A carrier is natively idle at home, so before this rule it
+took the native decisions every tick and could switch occupation or migrate
+in transit (the reviewer measured 4.9% occupation switches and 7.3%
+migrations per reserved carrier-turn on development worlds 9 and 1, close to
+other idle merchants' 5.9% and 5.0%: the decisions read the region's
+occupational balance and food pressure, not the withheld income). The tick
+now passes the turn's `trade` holders to the decisions
+(`DecisionOptions::trade_carriers`): they are skipped exactly as merchants on
+a native trip (no migration, occupation switch, rebellion or loyalty change),
+and household consolidation does not move them as a migrating spouse's
+follower (as trip merchants). Region stats and population tallies still count
+them; they still die (the cargo escheats), and they decide again from the
+turn after their shipment closes (only live shipments' carriers are
+reserved). Without titled trade the set is empty and nothing changes (the
+identity runs below). **RNG:** the decisions draw from one stream per region
+and turn (`ChaCha8`, stream = region, turn and the decision offset), each
+deciding agent in slot order; a skipped carrier draws nothing, so in a
+titled-trade run the later agents of its region take different draws that
+turn. Runs without titled trade draw exactly as before.
+
+**Releases.** A carrier who nevertheless migrates or changes occupation (not
+through the native decisions: none was observed on development worlds 1 and
+9 after the rule), enlists, goes on a native trip or holds other work is
+**released**, and its shipment ends
 `released_returned` at once: the cargo goes back to the origin at full value
 (the unwind rule) and the holder keeps title there as a retail claim. No cargo
 moves without a reserved carrier, and the holder's new ordinary income never
@@ -180,6 +203,7 @@ what the claim still holds. Granary purchases from holders are counted by id.
 | 1 | Phase 2, `reserve_first` (before every package plans work) | each live shipment's carrier re-checked and reserved under `trade` (whole turn); a released carrier's shipment returned to the origin, a dead holder's cargo escheated (both deposits patched into the batch by retail's `prepare_phase2`) |
 | 2 | Phase 2 finish (after the economy tick, after payroll and the RS2/PL1/PL3 extends) | `extend_paid_work(turn, carriers, 1.0)` |
 | 3 | tick 0.5 (wealth phase) | carriers' ordinary income withheld (receipt) |
+| 3a | tick decisions and household consolidation | `trade` holders take no decision and follow no migrating spouse (as merchants on a native trip) |
 | 4 | tick 0.7 | native provisioning sells holders' claims (purpose 5, credited by id) |
 | 5 | tick 0.9 | the native merchant planner skips `trade` holders |
 | 6 | after the tick (after retail's settlement) | the shared paid-work receipt read (exact rows); dead holders' cargo escheated |
@@ -276,6 +300,12 @@ The household-retail reader accepts the three new flow kinds in its closure.
   empty set without such rows: bit-identical).
 - `ffi/mod.rs` (pinned): `settle_pairs`, `work_reservation_categories` and
   `economy_capabilities` (A3-2's startup check).
+- `behavior.rs`, `tick.rs` (pinned) and `household.rs` (pinned; carrier rule,
+  after the review): the tick passes `trade_holders(pool, turn)` to the
+  decisions (`DecisionOptions::trade_carriers`, `None` when empty); a carrier
+  is skipped like a merchant on a native trip and listed in
+  `PendingDecisions::trade_carriers`, which household consolidation reads so
+  it does not move the carrier as a spouse's follower.
 - No checkpoint layout change: reservations, the paid share and the key log are
   transient.
 
@@ -304,15 +334,53 @@ The household-retail reader accepts the three new flow kinds in its closure.
 - Trips to or from non-pilot regions stay legacy native commons trips with
   model income (the remaining model share, declared).
 - Food only; timber (A4-3) and wares (A4-W, after A3-2) are later slices.
-- Withheld income lowers a merchant's income in the native occupation and
-  migration choices: carriers may switch occupation or migrate in transit;
-  their shipments then return to the origin (observed on a development world).
+- Carriers take no native decision while reserved (above), as merchants on a
+  native trip; a carrier enlisted by a war roster or holding other work is
+  still released and its shipment returns.
 - Holders' sales are attributed by id (exact unless a claim mixes a lot with
   other food or a seller hit the ceiling: marked approximate).
 - No toll exists: any toll must replace the model route income (owner's
   decision).
 
 ## Verification
+
+### Carrier rule (2026-11-07, after the review's re-check)
+
+The reviewer approved `d5ccd4d6` and found the release rate a modelling defect
+inside a declared boundary; the lead's decision is the rule above (carriers
+take no native decision while reserved). Code commit `9591e280`. Native
+extension rebuilt twice for it (the first build left household consolidation
+moving carriers as followers of a migrating spouse; the second exempts them as
+trip merchants), `CARGO_INCREMENTAL=0 maturin develop --release --locked`, final
+SHA-256 `43cbd22ac4e7e2c6a77e71781a884be5342f41aa4173ff6f43e0facf0f5e0eb0`
+(the intermediate build `f55b18b6…` is superseded).
+
+- **`cargo test --locked --no-fail-fast`** once, on the final Rust, without
+  debug info: 1,325 tests in 40 targets passed (adds
+  `titled_carriers_take_no_decision_while_reserved_and_an_empty_set_changes_nothing`:
+  carriers make no migration, switch, rebellion or loyalty decision and are
+  listed; an empty set leaves every decision and the stream unchanged); the
+  target was deleted at once.
+- **Identity** (head `9591e280`, extension `43cbd22a…`): feature-off against
+  the reference `8abc1acb`, 9 cases, 399 files, 0 differences; against `main`
+  `bac45cb5` (extension `20e77f99`) with retail everywhere, titled trade absent
+  and `--no-titled-trade`, 205 files each, 0 differences; A3-1 (rules option
+  absent and `=1`), 205 files each, 0 differences.
+- **Witness**: `cwa4` regenerated against `main` `bac45cb5`, now eight pinned
+  paths (adds `tick.rs` 3 hunks and `household.rs` 2 hunks); every hunk read;
+  the witness modules 40 passed.
+- **Native**: `tests/test_titled_trade_native.py` 8 passed. The new test runs
+  template seed 1 for 200 turns and checks every reserved carrier-turn: no
+  carrier changes occupation or region during a tick it is reserved for (a
+  development probe without the ledger counted 165 and 547 reserved
+  carrier-turns on seeds 1 and 9 and 0 changes, against 2 and 10 follower
+  migrations on the first build), only that turn's
+  carriers hold `trade`, former carriers change occupation or region again
+  after their shipment closes, carriers still die and their cargo escheats,
+  and no carrier is released. Exact resume equals the straight run with a
+  shipment in transit at turns 52 (moving), 80 (its holder dies next tick) and
+  85 (its route is lost on the last hop).
+- **Development rerun** (below): 0 releases in 13 worlds.
 
 ### Review round (2026-11-07)
 
@@ -463,6 +531,45 @@ ends `trade`.
 
 ## Evidence (development worlds only; not a screen)
 
+### With the carrier rule (carriers take no decision while reserved)
+
+Development-only, 2026-11-07: commit `9591e280`, extension `43cbd22a…`; the
+same 13 worlds, flags and 200 turns as below, `CHRONICLER_CHECK_RESOURCES=1`
+(no resource problem raised). Template runs took 9-10 s, procedural 23-31 s.
+
+| World | Shipments | Delivered / returned / escheated / live at 199 | Routes (cross-civ shipments) | Food bought from owners (paid) | Delivered | Sold to buyers (credited) | Merchants' net money | Income withheld (carrier-turns) | Released and returned | Ledger closures failed |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| t1 | 92 | 83 / 4 / 5 / 0 | 12 (65) | 83.94 (43.70) | 72.43 | 63.83 (73.92) | 30.22 | 3.655 (164) | 0 | 0 |
+| t3 | 120 | 114 / 0 / 4 / 2 | 12 (81) | 161.99 (86.19) | 149.55 | 113.11 (116.32) | 30.13 | 2.905 (178) | 0 | 0 |
+| t7 | 168 | 158 / 0 / 4 / 6 | 31 (145) | 194.46 (103.25) | 173.85 | 149.60 (168.47) | 65.22 | 7.863 (294) | 0 | 0 |
+| t9 | 343 | 327 / 0 / 15 / 1 | 29 (99) | 450.03 (238.64) | 411.48 | 356.85 (385.54) | 146.90 | 36.152 (543) | 0 | 0 |
+| t11 | 125 | 120 / 0 / 5 / 0 | 8 (65) | 106.06 (55.50) | 96.84 | 89.92 (132.39) | 76.89 | 8.053 (207) | 0 | 0 |
+| t23 | 123 | 111 / 1 / 5 / 6 | 12 (123) | 194.23 (100.44) | 168.97 | 151.07 (204.54) | 104.10 | 1.717 (173) | 0 | 0 |
+| t42 | 119 | 103 / 15 / 1 / 0 | 10 (35) | 137.02 (71.60) | 109.42 | 102.82 (116.16) | 44.55 | 0.496 (148) | 0 | 0 |
+| p7 | 624 | 584 / 3 / 33 / 4 | 166 (556) | 854.58 (445.83) | 754.40 | 630.53 (850.60) | 404.77 | 47.168 (1,311) | 0 | 0 |
+| p11 | 544 | 500 / 1 / 34 / 9 | 137 (481) | 680.88 (354.31) | 586.09 | 458.23 (567.23) | 212.92 | 49.571 (1,080) | 0 | 0 |
+| p13 | 1,066 | 987 / 12 / 37 / 30 | 199 (913) | 1,494.54 (778.79) | 1,335.81 | 1,089.02 (1,416.23) | 637.44 | 110.122 (2,208) | 0 | 0 |
+| p17 | 795 | 728 / 8 / 44 / 15 | 142 (623) | 1,095.55 (571.30) | 965.16 | 779.86 (953.52) | 382.21 | 68.210 (1,503) | 0 | 0 |
+| p21 | 761 | 698 / 17 / 39 / 7 | 142 (695) | 1,042.97 (543.91) | 919.23 | 794.48 (1,141.21) | 597.30 | 62.418 (1,514) | 0 | 0 |
+| p31 | 752 | 707 / 0 / 31 / 14 | 167 (584) | 1,112.66 (589.34) | 996.21 | 805.12 (995.43) | 406.08 | 119.426 (1,570) | 0 | 0 |
+| all | 5,632 | 5,220 / 61 / 257 / 94 | 1,067 (4,465) | 7,608.91 (3,982.82) | 6,739.44 | 5,584.45 (7,121.55) | 3,138.74 | 517.755 (10,893) | 0 | 0 |
+
+Reading (development-only):
+
+- **No carrier was released** in 13 worlds (0 of 5,632 shipments; 1,521 of
+  6,241 returned after a release under the previous rule, 711 releases that
+  continued in the first pass). Shipments end by cause: 5,220 delivered
+  (92.7%), 59 returned for a lost route and 2 for a conquered destination, 257
+  escheated at the holder's death, 94 live at turn 199.
+- **Merchants' margins exceed the withheld income**: buyers paid holders
+  7,121.6 for titled cargo bought from owners for 3,982.8 (net +3,138.7, close
+  to the first pass's +3,254.5), against 517.8 of model income withheld over
+  10,893 carrier-turns. Development observation, not an effect estimate (CW5
+  measures it).
+- Of 7,608.9 food units bought, 6,739.4 were delivered as holders' claims,
+  323.4 decayed in transit, 80.3 returned to origins and 332.2 went to commons
+  (escheat or refused claims); every A1 ledger closure held.
+
 ### After the review (released carriers return)
 
 Development-only, 2026-11-07: merge `0f384a9b` (review fixes, `main`
@@ -505,10 +612,10 @@ Reading (development-only):
 - Returns other than releases: 51 `route_lost`, 2 `destination_conquered`;
   229 shipments escheated; every A1 ledger closure, including the two new
   measured closures, held on every observed turn.
-- Releases are endogenous (the withheld income lowers merchant income in the
-  native occupation choice, as declared); whether the release rate is
-  acceptable, or the occupation choice should see the margin, is a modelling
-  question for CW5, not tuned here.
+- The releases came from the native decisions, which a reserved carrier then
+  still took every tick (occupation switching reads the region's balance and
+  food pressure, not the withheld income; the review's re-check). The rule
+  that carriers take no decision while reserved replaced this (the rerun above).
 
 All-on development run after the review (template 7, titled trade with A3-2
 owned output and the A3 academy flags): 145 shipments (116 delivered, 23
@@ -572,8 +679,9 @@ Reading (development-only):
   not an effect estimate; the CW5 screen measures it against arms without
   titled trade.
 - **Carriers left their trade in transit 711 times** (mostly occupation
-  switches; the native occupation choice sees the withheld income), keeping
-  title; the shipments continued (the rule the review replaced: see above).
+  switches through the native decisions a reserved carrier still took),
+  keeping title; the shipments continued (the rule the review replaced: see
+  above).
 - Every A1 ledger closure held on every observed turn; `cargo_purchase` in =
   out every turn.
 

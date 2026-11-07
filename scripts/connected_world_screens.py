@@ -11,14 +11,15 @@ ceiling and the identities are in ``scripts/screen_runner.py``; the seed numbers
 are reserved in ``scripts/seed_registry.json``; the page is
 docs/integration/connected-world-screens.md.
 
-CW2, CW5 and CW6 are **stubs**: only their cohorts are declared. Each slice
+CW6 is a **stub**: only its cohorts are declared. Each slice
 fills in its screen's base, arms, packages, outcomes (2-3 primary), activation
 rule and extractor, writes its preregistration and sets ``ready=True``. Until
 then every run of the screen is refused (``check`` reports it NOT READY, exit
 code 2). CW4 (slice C1, quarantine rules), CW4b (slice C1b, the migration channel,
 on its own reserved cohort) and CW1 (slice S1, the wage and ``paid_work``
 enrollment; a two-phase screen) and CW3 (slice B2, the watershed in flow mode under
-upstream forest protection; procedural stratum only) are declared below.
+upstream forest protection; procedural stratum only), CW2 (slices A3-1 and A3-2: workshop
+economics and the owned-output rule) and CW5 (slice A4-1: titled trade) are declared below.
 
 ``DEV`` is a development-only smoke screen (no pilot or held cohort): it runs the
 runner end to end on registered development worlds, e.g.
@@ -1371,6 +1372,680 @@ SCREENS["CW3"] = SR.Screen(
     root="R", pilot={"procedural": (19,)}, held={"procedural": tuple(range(851, 857))},
     outcomes=_cw3_outcomes(),
     activation=cw3_activation, extract=cw3_extract, ready=True, module=MODULE)
+
+
+# --- CW2: workshop economics and the owned-output rule (slices A3-1, A3-2) ---------
+#
+# Question: do firms that pay for their inputs and sell their wares (A3-1), and whose
+# wares reach anyone only by sale (A3-2, rules 2), operate, pay households and serve
+# real (non-academy) demand compared with the L6a payroll status quo, and at what
+# cost? Arms (root P): P the L6a payroll without workshop economics; E1 workshop
+# economics, rules 1 (A3-1); E2 rules 2 (A3-2); E2f E2 with free inputs (the input-cost
+# control: every rule as E2, inputs recorded and not charged); E2a E2 with academy
+# customers only (the demand-collapse case: households cannot buy wares). Every arm:
+# hybrid, the academy chain, workshops and payroll, grain reserves and public shipments,
+# the A1 ledger. Snapshot s records world turn s - 1. Firms are identified by (site,
+# opening turn); a firm's receipt exists from its opening turn to its closing turn.
+
+CW2_PAYROLL = ("livelihoods", "workshop_payroll")
+CW2_ECON = ("livelihoods", "workshop_economics")
+CW2_SHOPS = ("livelihoods", "workshops")
+CW_LEDGER = ("livelihoods", "wealth_accounting")
+#: workshop_payroll_state.FIRM_CLOSE_REASONS (append-only there).
+CW2_CLOSE_REASONS = ("insolvent", "city_fell", "city_missing", "region_changed", "idle")
+CW2_ECON_COUNTERS = ("firms_opened", "operating_firm_turns", "inputs_used", "inputs_charged", "academy_sales",
+                     "household_sales", "household_delivered", "free_use_upper_bound", "closed_idle",
+                     "closed_insolvent", "closed_other", "owned_output", "liquidation_to_owner")
+
+
+def _cw2_econ(flags) -> bool:
+    return "--workshop-economics" in list(flags)
+
+
+def _cw2_rules(flags) -> str:
+    return _flag(flags, "--workshop-economics-rules", "1")
+
+
+def _cw2_mode(flags) -> str:
+    return _flag(flags, "--workshop-economics-mode", "market")
+
+
+def _cw_units(milli) -> float | None:
+    return milli / 1000.0 if SR._num(milli) else None
+
+
+def _cw_ledger_closures(bundle: dict) -> tuple[int, int, list[str]]:
+    """(observed frames, failed closures, problems) of the A1 ledger over the run."""
+    frames = failed = 0
+    problems = []
+    for s, rec in _cw3_records(bundle, CW_LEDGER):
+        frame = rec.get("frame")
+        if frame is None:
+            continue
+        closures = frame.get("closures") if isinstance(frame, dict) else None
+        if not isinstance(closures, list):
+            problems.append(f"ledger frame of snapshot {s.get('turn')} has no closures")
+            continue
+        frames += 1
+        failed += sum(1 for c in closures if not (isinstance(c, dict) and c.get("closes") is True))
+    if failed:
+        problems.append(f"{failed} A1 ledger closures failed")
+    return frames, failed, problems
+
+
+def _cw_stability(bundle: dict) -> float | None:
+    """Mean stability of the living civilizations in the last snapshot."""
+    hist = bundle.get("history") or []
+    civs = [c for c in ((hist[-1] if hist else {}).get("civ_stats") or {}).values()
+            if isinstance(c, dict) and c.get("alive", True) is not False]
+    return _cw3_mean(c.get("stability") for c in civs)
+
+
+def cw2_extract(bundle: dict, flags) -> tuple[dict, list[str]]:
+    """Firm-turns by state (active: produced or sold; idle; closed) since each firm's
+    opening, closures by reason, households' wages and wares bought, inputs, unsold
+    stock, arrears, farm time diverted, and the validity checks (no free input in
+    market mode, no free use under rules 2, no household sale in academy_only, no
+    input charge with free inputs, every ledger closure true)."""
+    problems: list[str] = []
+    m: dict = {}
+    econ_on, rules, mode = _cw2_econ(flags), _cw2_rules(flags), _cw2_mode(flags)
+    hist = bundle.get("history") or []
+    payroll = _cw3_records(bundle, CW2_PAYROLL)
+    if not payroll or not hist:
+        return m, ["no workshop payroll record"]
+    last_turn = int(hist[-1].get("turn", 0)) - 1
+    # Firms by (site, opening turn), with their closures.
+    firms: dict[tuple[int, int], tuple[int, str] | None] = {}
+    for s, rec in payroll:
+        if rec.get("source_turn") != s.get("turn", 0) - 1:
+            problems.append(f"payroll record of snapshot {s.get('turn')} misdated")
+            break
+        for f in (rec.get("firms") or []) + (rec.get("closed") or []):
+            site, opened = f.get("site"), f.get("opened_turn")
+            if not (isinstance(site, int) and isinstance(opened, int)):
+                problems.append("a payroll firm without site or opening turn")
+                continue
+            if f.get("status") == "closed":
+                firms[(site, opened)] = (f.get("closed_turn"), f.get("closed_reason"))
+            else:
+                firms.setdefault((site, opened), None)
+    horizon = sum(max(0, last_turn - opened + 1) for _site, opened in firms)
+    open_turns = operating = selling = active = 0
+    household_sold = academy_sold = 0
+    inventory_close = []
+    for s, rec in payroll:
+        receipts = rec.get("receipts")
+        if receipts is None:
+            continue
+        for r in receipts:
+            if not isinstance(r, dict):
+                problems.append("a payroll receipt is not an object")
+                continue
+            hh = r.get("household_sold", 0) if not econ_on else r.get("household_sold")
+            ac = r.get("sold")
+            if not (SR._num(hh) and SR._num(ac) and isinstance(r.get("operating"), bool)):
+                problems.append(f"payroll receipt of snapshot {s.get('turn')} lacks operating, sold or household_sold")
+                break
+            open_turns += 1
+            produced = r["operating"]
+            sold = ac > 0 or hh > 0
+            operating += produced
+            selling += sold
+            active += produced or sold
+            household_sold += hh
+            academy_sold += ac
+            if SR._num(r.get("inventory_close")):
+                inventory_close.append(r["inventory_close"])
+    if open_turns > horizon:
+        problems.append(f"{open_turns} open firm-turns exceed the firms' horizon {horizon}")
+    m["firms_opened"] = len(firms)
+    m["firm_turns_horizon"] = horizon
+    m["open_firm_turns"] = open_turns
+    m["closed_firm_turns"] = max(0, horizon - open_turns) if horizon else 0
+    share = (lambda n: n / horizon if horizon else None)
+    m["active_share"], m["producing_share"], m["selling_share"] = share(active), share(operating), share(selling)
+    m["idle_share"] = share(open_turns - active)
+    m["closed_share"] = share(m["closed_firm_turns"])
+    closed = [v for v in firms.values() if v is not None]
+    for reason in CW2_CLOSE_REASONS:
+        m[f"closed_{reason}"] = sum(1 for _t, r in closed if r == reason)
+    m["closed_unknown_reason"] = sum(1 for _t, r in closed if r not in CW2_CLOSE_REASONS)
+    m["open_at_end"] = len(firms) - len(closed)
+    last = payroll[-1][1]
+    pc = last.get("counters") or {}
+    if SR._num(pc.get("firms_opened")) and pc["firms_opened"] != len(firms):
+        problems.append(f"payroll counts {pc['firms_opened']} firms opened, the records {len(firms)}")
+    m["academy_sold"] = academy_sold / 1000.0
+    m["unsold_inventory_end"] = sum(f.get("inventory", 0) for f in last.get("firms") or []) / 1000.0
+    m["inventory_mean"] = (_cw3_mean(inventory_close) or 0.0) / 1000.0 if inventory_close else None
+    m["worn"] = _cw_units(pc.get("worn", 0))
+    m["returned_at_closure"] = _cw_units(pc.get("returned", 0))
+    due, paid = pc.get("wages_due", 0), pc.get("wages_paid", 0)
+    m["wage_arrears"] = (due - paid) / 1000.0 if SR._num(due) and SR._num(paid) else None
+    # Households' wages: the A1 ledger's workshop_wage channel (credited), checked against payroll.
+    ledger = _cw3_records(bundle, CW_LEDGER)
+    life = (ledger[-1][1].get("lifetime") or {}) if ledger else {}
+    credited = life.get("workshop_wage_in_milli", 0)
+    if not ledger:
+        problems.append("no A1 ledger record")
+    elif not SR._num(credited):
+        problems.append("the ledger lacks workshop_wage_in_milli")
+    elif SR._num(paid) and credited != paid:
+        problems.append(f"ledger credited {credited} workshop wages, payroll paid {paid}")
+    m["wages_credited"] = _cw_units(credited)
+    withheld = life.get("withheld_workshop_payroll", 0.0)
+    m["wages_income_withheld"] = withheld if SR._num(withheld) else None
+    m["household_net_income"] = (m["wages_credited"] - withheld
+                                 if m["wages_credited"] is not None and SR._num(withheld) else None)
+    m["capital_from_treasury"] = _cw_units(life.get("treasury_to_firm_capital_milli", 0))
+    m["distributions_to_treasury"] = _cw_units(life.get("firm_cash_to_treasury_milli", 0))
+    # Workshops: farm time diverted to crews, asset arrears at the end.
+    shops = _cw3_records(bundle, CW2_SHOPS)
+    if not shops:
+        problems.append("no workshops record")
+        m["farm_time_diverted"] = m["asset_arrears_end"] = None
+    else:
+        wc = shops[-1][1].get("counters") or {}
+        m["farm_time_diverted"] = wc.get("work_realized", 0.0) if SR._num(wc.get("work_realized", 0.0)) else None
+        last_receipts = shops[-1][1].get("receipts") or []
+        m["asset_arrears_end"] = sum(r.get("arrears_after", 0) for r in last_receipts if isinstance(r, dict)
+                                     and SR._num(r.get("arrears_after", 0)))
+    # Workshop economics (E arms).
+    econ = _cw3_records(bundle, CW2_ECON)
+    if econ_on:
+        if not econ:
+            problems.append("workshop economics enabled but not recorded")
+            return m, problems
+        ec = econ[-1][1].get("counters") or {}
+        get = (lambda k: ec.get(k, 0))
+        m["econ_firms_opened"] = get("firms_opened")
+        m["household_delivered"] = get("household_delivered") / 1000.0
+        m["household_paid"] = get("household_sales") / 1000.0
+        m["household_price_per_load"] = (get("household_sales") / get("household_delivered")
+                                         if get("household_delivered") else None)
+        m["academy_sales"] = get("academy_sales") / 1000.0
+        m["inputs_used"] = get("inputs_used") / 1000.0
+        m["inputs_charged"] = get("inputs_charged") / 1000.0
+        m["owned_output"] = get("owned_output") / 1000.0
+        m["liquidation_to_owner"] = get("liquidation_to_owner") / 1000.0
+        m["free_use_upper_bound"] = get("free_use_upper_bound") / 1000.0
+        if abs(household_sold - get("household_delivered")) > 0:
+            problems.append(f"payroll receipts deliver {household_sold} milli-loads to households, "
+                            f"workshop economics {get('household_delivered')}")
+        unpaid = sum((r.get("inputs") or {}).get("converted_unpaid_milli", 0) for _s, rec in econ
+                     for r in rec.get("receipts") or [] if isinstance(r, dict))
+        m["inputs_converted_unpaid"] = unpaid / 1000.0
+        if mode == "market" and unpaid:
+            problems.append(f"{unpaid} milli-loads of inputs converted unpaid in market mode")
+        if mode == "free_inputs" and get("inputs_charged"):
+            problems.append("inputs charged with free inputs")
+        if mode == "academy_only" and get("household_delivered"):
+            problems.append("household wares sales in academy_only mode")
+        if rules == "2":
+            if get("free_use_upper_bound"):
+                problems.append("free use of firm output under rules 2")
+            for s, rec in econ:
+                if rec.get("rules_version") != 2:
+                    problems.append(f"workshop economics record of snapshot {s.get('turn')} is not rules 2")
+                    break
+                bad = [r for r in rec.get("receipts") or [] if isinstance(r, dict) and r.get("operating")
+                       and r.get("produced") != r.get("titled")]
+                if bad:
+                    problems.append(f"an operating firm did not title its whole output at snapshot {s.get('turn')}")
+                    break
+    else:
+        if econ:
+            problems.append("a workshop economics record without the switch")
+        for key in ("econ_firms_opened", "household_delivered", "household_paid", "household_price_per_load",
+                    "academy_sales", "inputs_used", "inputs_charged", "owned_output", "liquidation_to_owner",
+                    "free_use_upper_bound", "inputs_converted_unpaid"):
+            m[key] = None
+        if household_sold:
+            problems.append("household wares sales without workshop economics")
+    frames, failed, lp = _cw_ledger_closures(bundle)
+    m["ledger_frames"], m["ledger_closures_failed"] = frames, failed
+    problems += lp
+    m["stability_end"] = _cw_stability(bundle)
+    return m, problems
+
+
+def cw2_activation(bundle: dict, flags) -> tuple[bool | None, str]:
+    """E1/E2: a firm opened, an input was charged and households bought wares. E2f (free
+    inputs): a firm opened, inputs were used and households bought. E2a (academy only): a
+    firm opened and an input was charged (no household may buy). The root P is not judged."""
+    if not _cw2_econ(flags):
+        return None, "the root arm is not judged"
+    econ = _cw3_records(bundle, CW2_ECON)
+    if not econ:
+        return None, "no workshop economics record"
+    c = econ[-1][1].get("counters") or {}
+    opened, used, charged, hh = (c.get(k, 0) for k in ("firms_opened", "inputs_used", "inputs_charged",
+                                                       "household_delivered"))
+    operating = c.get("operating_firm_turns", 0)
+    mode = _cw2_mode(flags)
+    if mode == "academy_only":
+        acted = opened > 0 and charged > 0
+    elif mode == "free_inputs":
+        acted = opened > 0 and used > 0 and hh > 0
+    else:
+        acted = opened > 0 and charged > 0 and hh > 0
+    return acted, (f"{opened} firms opened, {operating} operating firm-turns, inputs used {used / 1000:.2f} "
+                   f"(charged {charged / 1000:.2f}), households bought {hh / 1000:.2f} loads ({mode})")
+
+
+_CW2_BASE = ("--turns", "200", "--agents", "hybrid", "--simulate-only", "--grain-reserves", "--public-grain-shipments",
+             "--scholarship", "--techniques", "--academy-services", "--workshops", "--workshop-payroll",
+             "--wealth-accounting")
+_CW2_E1 = ("--workshop-economics",)
+_CW2_E2 = ("--workshop-economics", "--workshop-economics-rules", "2")
+
+
+def _cw2_outcomes() -> tuple[SR.Outcome, ...]:
+    active, wages, served = _m("active_share"), _m("wages_credited"), _m("household_delivered")
+    harm = (lambda key: (lambda r: SR.harm_value(r, key)))
+    return (
+        # Primaries: the firms' operating outcome and the households' wages against the L6a
+        # status quo (the whole A3 package as it now stands, rules 2), and the households
+        # served by sale against A3-1's free-use rule.
+        SR.Outcome("cw2_active_share", "Share of firm-turns since opening in which the firm produced or sold "
+                   "(idle and closed turns count against it) (E2 - P)", "E2", "P", active, primary=True),
+        SR.Outcome("cw2_wages", "Workshop wages credited to households over the run, units (A1 ledger) (E2 - P)",
+                   "E2", "P", wages, primary=True),
+        SR.Outcome("cw2_served", "Wares delivered to households by sale over the run, loads (E2 - E1)", "E2", "E1",
+                   served, primary=True),
+        # A3-1 against the status quo, and A3-2 against A3-1.
+        SR.Outcome("cw2_active_share_e1", "Active share of firm-turns (E1 - P)", "E1", "P", active),
+        SR.Outcome("cw2_wages_e1", "Workshop wages credited (E1 - P)", "E1", "P", wages),
+        SR.Outcome("cw2_active_share_rules", "Active share of firm-turns (E2 - E1)", "E2", "E1", active),
+        SR.Outcome("cw2_wages_rules", "Workshop wages credited (E2 - E1)", "E2", "E1", wages),
+        SR.Outcome("cw2_paid_rules", "Households' money paid for wares, units (E2 - E1)", "E2", "E1",
+                   _m("household_paid")),
+        SR.Outcome("cw2_price_rules", "Households' price per load of wares (E2 - E1; rules 2 counts the firm's "
+                   "stock in the supply that sets it)", "E2", "E1", _m("household_price_per_load")),
+        SR.Outcome("cw2_firms_rules", "Firms opened (E2 - E1)", "E2", "E1", _m("firms_opened")),
+        SR.Outcome("cw2_closed_idle_rules", "Firms closed idle (E2 - E1)", "E2", "E1", _m("closed_idle")),
+        SR.Outcome("cw2_net_income", "Households' net income from firm work: wages credited less the model "
+                   "income they replaced, wealth units (E2 - P)", "E2", "P", _m("household_net_income")),
+        SR.Outcome("cw2_academy", "Wares sold to academies, loads (E2 - P)", "E2", "P", _m("academy_sold")),
+        SR.Outcome("cw2_firms", "Firms opened (E2 - P)", "E2", "P", _m("firms_opened")),
+        # The input cost (E2f: inputs recorded, not charged).
+        SR.Outcome("cw2_cost_active", "Active share of firm-turns (E2 - E2f: the input cost)", "E2f", "E2", active),
+        SR.Outcome("cw2_cost_firms", "Firms opened (E2f - E2)", "E2f", "E2", _m("firms_opened")),
+        SR.Outcome("cw2_cost_closed_idle", "Firms closed idle (E2f - E2)", "E2f", "E2", _m("closed_idle")),
+        SR.Outcome("cw2_cost_served", "Wares delivered to households (E2f - E2)", "E2f", "E2", served),
+        SR.Outcome("cw2_cost_wages", "Workshop wages credited (E2f - E2)", "E2f", "E2", wages),
+        SR.Outcome("cw2_cost_treasury", "Treasury at the end (E2f - E2)", "E2f", "E2", harm("treasury")),
+        # The demand collapse (E2a: academy customers only, no household demand).
+        SR.Outcome("cw2_collapse_active", "Active share of firm-turns (E2a - E2: no household demand)", "E2a", "E2",
+                   active),
+        SR.Outcome("cw2_collapse_closed_idle", "Firms closed idle (E2a - E2)", "E2a", "E2", _m("closed_idle")),
+        SR.Outcome("cw2_collapse_wages", "Workshop wages credited (E2a - E2)", "E2a", "E2", wages),
+        SR.Outcome("cw2_collapse_unsold", "Unsold firm inventory at the end, loads (E2a - E2)", "E2a", "E2",
+                   _m("unsold_inventory_end")),
+        SR.Outcome("cw2_collapse_liquidation", "Wares handed to the owner at liquidation, loads (E2a - E2)", "E2a",
+                   "E2", _m("liquidation_to_owner")),
+        # Firm-turn states and closures (E2 alone).
+        SR.Outcome("cw2_producing_e2", "Share of firm-turns producing (E2)", "E2", None, _m("producing_share")),
+        SR.Outcome("cw2_selling_e2", "Share of firm-turns selling (E2)", "E2", None, _m("selling_share")),
+        SR.Outcome("cw2_idle_e2", "Share of firm-turns idle (E2)", "E2", None, _m("idle_share")),
+        SR.Outcome("cw2_closed_share_e2", "Share of firm-turns closed (E2)", "E2", None, _m("closed_share")),
+        SR.Outcome("cw2_closed_idle_e2", "Firms closed idle (E2)", "E2", None, _m("closed_idle")),
+        SR.Outcome("cw2_closed_insolvent_e2", "Firms closed insolvent (E2)", "E2", None, _m("closed_insolvent")),
+        SR.Outcome("cw2_closed_city_fell_e2", "Firms closed when their city fell (E2)", "E2", None,
+                   _m("closed_city_fell")),
+        SR.Outcome("cw2_liquidation_e2", "Wares handed to the owner at liquidation, loads (E2)", "E2", None,
+                   _m("liquidation_to_owner")),
+        SR.Outcome("cw2_inputs_charged_e2", "Inputs bought from the commons owner, units (E2; never free)", "E2",
+                   None, _m("inputs_charged")),
+        SR.Outcome("cw2_owned_output_e2", "Owned output titled whole, loads (E2)", "E2", None, _m("owned_output")),
+        # The CW2 harm panel beside the primaries (E2 - P).
+        SR.Outcome("cw2_h_food_shortfall", "Food shortfall after relief over the run (E2 - P)", "E2", "P",
+                   harm("food_shortfall")),
+        SR.Outcome("cw2_h_wage_arrears", "Wages due but not paid over the run, units (E2 - P)", "E2", "P",
+                   _m("wage_arrears")),
+        SR.Outcome("cw2_h_asset_arrears", "Workshop asset arrears at the end (E2 - P)", "E2", "P",
+                   _m("asset_arrears_end")),
+        SR.Outcome("cw2_h_unsold", "Unsold firm inventory at the end, loads (E2 - P)", "E2", "P",
+                   _m("unsold_inventory_end")),
+        SR.Outcome("cw2_h_farm_time", "Farm time diverted to crews, work units (E2 - P)", "E2", "P",
+                   _m("farm_time_diverted")),
+        SR.Outcome("cw2_h_treasury", "Treasury at the end (E2 - P)", "E2", "P", harm("treasury")),
+        SR.Outcome("cw2_h_stability", "Mean stability of living civilizations at the end (E2 - P)", "E2", "P",
+                   _m("stability_end")),
+        SR.Outcome("cw2_h_population", "Population at the end (E2 - P)", "E2", "P", harm("population")),
+    )
+
+
+SCREENS["CW2"] = SR.Screen(
+    name="CW2", title="S2 workshop economics and the owned-output rule (A3-1, A3-2)",
+    preregistration=PROGRESS / "connected-world-screens-cw2.md",
+    base=_CW2_BASE,
+    arms={"P": ((), None),
+          "E1": (_CW2_E1, "P"),
+          "E2": (_CW2_E2, "E1"),
+          "E2f": (_CW2_E2 + ("--workshop-economics-mode", "free_inputs"), "E2"),
+          "E2a": (_CW2_E2 + ("--workshop-economics-mode", "academy_only"), "E2")},
+    root="P", pilot=PILOT, held={"template": tuple(range(741, 747)), "procedural": tuple(range(841, 847))},
+    packages=(SR.Package("--workshop-payroll", CW2_PAYROLL, mode_flag="--workshop-payroll-mode", default_mode="paid"),
+              SR.Package("--workshop-economics", CW2_ECON, "chronicler.workshop_economics_state", CW2_ECON_COUNTERS,
+                         mode_flag="--workshop-economics-mode", default_mode="market"),
+              SR.Package("--wealth-accounting", CW_LEDGER)),
+    outcomes=_cw2_outcomes(),
+    activation=cw2_activation, extract=cw2_extract, ready=True, module=MODULE)
+
+
+# --- CW5: titled trade (slice A4-1) ------------------------------------------------
+#
+# Question: under household retail everywhere (owned food never loads on native trips),
+# does titled trade (merchants buying owners' surplus food by id, carrying it under
+# title and selling it as their own retail claim) move food into regions short of it,
+# lower their food shortfall, and give merchants margins that replace the model income
+# withheld while they carry? Arms (root R): R retail everywhere without titled trade; T
+# titled trade. Every arm: hybrid, grain reserves and public shipments, food allocation,
+# household retail (boundary all), the A1 ledger. The region sets are fixed before
+# treatment from the food account of world turn 0 (snapshot 1), which titled trade
+# cannot reach (its first purchase is in Phase 10): deficit regions produced less food
+# than their demand at turn 0, surplus regions at least their demand; regions without
+# demand at turn 0 are in neither. Snapshot s records world turn s - 1.
+
+CW5_TT = ("livelihoods", "titled_trade")
+CW5_RETAIL = ("livelihoods", "household_retail")
+CW5_TT_COUNTERS = ("dispatched", "delivered", "returned", "escheated", "pool_reset", "switched_off",
+                   "released_returned", "bought_milli", "paid_milli", "consigned_milli", "returned_milli",
+                   "deposited_milli", "transit_decay_milli", "sea_loss_milli", "cargo_sold_milli",
+                   "cargo_sales_credited_milli", "income_withheld_micro", "carrier_turns", "receipt_rows",
+                   "carriers_released")
+CW5_FOOD_GOODS = ("grain", "fish", "salt", "botanicals", "exotic")
+
+
+def cw5_sets(bundle: dict) -> tuple[list[int], list[int], list[str]]:
+    """(deficit regions, surplus regions, problems) from the food account of world turn 0."""
+    hist = bundle.get("history") or []
+    first = hist[0] if hist else {}
+    fa = first.get("food_accounting") if isinstance(first, dict) else None
+    if first.get("turn") != 1 or not isinstance(fa, dict) or fa.get("source_turn") != 0 \
+            or not isinstance(fa.get("regions"), list):
+        return [], [], ["no food account of world turn 0 in snapshot 1"]
+    deficit, surplus = [], []
+    for i, row in enumerate(fa["regions"]):
+        native = (row or {}).get("native") if isinstance(row, dict) else None
+        if not isinstance(native, dict) or row.get("region_id") != i:
+            return [], [], ["the food account of world turn 0 lacks native rows"]
+        d, p = native.get("demand"), native.get("produced")
+        if not (SR._num(d) and SR._num(p)):
+            return [], [], ["the food account of world turn 0 lacks demand or production"]
+        if d > 0:
+            (deficit if p < d else surplus).append(i)
+    return deficit, surplus, []
+
+
+def _cw5_native_net(bundle: dict, regions: set[int]) -> float:
+    """Native (commons) trade into the regions over the run, food units: transport_net."""
+    total = 0.0
+    for s in bundle.get("history") or []:
+        fa = s.get("food_accounting")
+        for row in (fa or {}).get("regions") or []:
+            if isinstance(row, dict) and row.get("region_id") in regions:
+                v = (row.get("native") or {}).get("transport_net")
+                total += v if SR._num(v) else 0.0
+    return total
+
+
+def _cw5_retail(bundle: dict, regions: set[int], key: str, *, mean: bool = False) -> float | None:
+    """Retail frames over the run: the provisioning ``key`` summed (or the frame ``key``
+    averaged) over the regions' frames."""
+    values = []
+    for _s, rec in _cw3_records(bundle, CW5_RETAIL):
+        for f in rec.get("regions") or []:
+            if not isinstance(f, dict) or f.get("region") not in regions:
+                continue
+            v = f.get(key) if mean else (f.get("provisioning") or {}).get(key)
+            if SR._num(v):
+                values.append(v)
+    if mean:
+        return _cw3_mean(values)
+    return sum(values)
+
+
+def cw5_extract(bundle: dict, flags) -> tuple[dict, list[str]]:
+    """Food into the deficit regions by trade (titled net plus native commons trade), their
+    and the surplus regions' food shortfall, prices and priced-out persons; titled trade's
+    funnel, merchants' margins against the income withheld, owners' receipts; the commons
+    at the end; and the validity checks (every shipment's cargo closes, one receipt row per
+    carrier-turn, every ledger closure true, no titled record without the switch)."""
+    problems: list[str] = []
+    m: dict = {}
+    tt_on = "--titled-trade" in list(flags)
+    deficit, surplus, sp = cw5_sets(bundle)
+    problems += sp
+    D, S = set(deficit), set(surplus)
+    n = len((bundle.get("world_state") or {}).get("regions") or [])
+    m["regions"], m["deficit_regions"], m["surplus_regions"] = n, len(deficit), len(surplus)
+    m["sets_digest"] = "D:" + ",".join(map(str, deficit)) + "|S:" + ",".join(map(str, surplus))
+    for label, regions in (("deficit", deficit), ("surplus", surplus), ("all", list(range(n)))):
+        share, met, _turns = _cw3_food(bundle, regions)
+        m[f"shortfall_{label}"], m[f"food_met_{label}"] = share, met
+    m["native_net_deficit"] = _cw5_native_net(bundle, D)
+    m["native_net_surplus"] = _cw5_native_net(bundle, S)
+    m["price_deficit"] = _cw5_retail(bundle, D, "price_milli", mean=True)
+    m["price_surplus"] = _cw5_retail(bundle, S, "price_milli", mean=True)
+    m["priced_out_deficit"] = _cw5_retail(bundle, D, "priced_out_persons")
+    m["priced_out_surplus"] = _cw5_retail(bundle, S, "priced_out_persons")
+    retail = _cw3_records(bundle, CW5_RETAIL)
+    if not retail:
+        problems.append("no household retail record")
+    else:
+        rc = retail[-1][1].get("counters") or {}
+        m["food_purchases_credited"] = _cw_units(rc.get("credited_milli", 0))
+    # The commons at the end (region stockpiles hold the commons under retail).
+    commons = 0.0
+    for r in (bundle.get("world_state") or {}).get("regions") or []:
+        goods = ((r or {}).get("stockpile") or {}).get("goods") or {}
+        commons += sum(v for g, v in goods.items() if g in CW5_FOOD_GOODS and SR._num(v))
+    m["commons_end"] = commons
+    tt = _cw3_records(bundle, CW5_TT)
+    titled = {"in_deficit": 0, "out_deficit": 0, "delivered_deficit": 0, "in_surplus": 0, "out_surplus": 0}
+    region_turns, dests, origins = 0, set(), set()
+    if tt_on:
+        if not tt:
+            problems.append("titled trade enabled but not recorded")
+        for s, rec in tt:
+            frame = rec.get("frame")
+            if rec.get("source_turn") != s.get("turn", 0) - 1:
+                problems.append(f"titled trade record of snapshot {s.get('turn')} misdated")
+                break
+            if not isinstance(frame, dict):
+                problems.append(f"no titled trade frame at snapshot {s.get('turn')} (unknown, not zero)")
+                break
+            touched = set()
+            for d in frame.get("dispatched") or []:
+                o, milli = d.get("origin"), d.get("milli", 0)
+                origins.add(o)
+                touched.add(o)
+                titled["out_deficit"] += milli if o in D else 0
+                titled["out_surplus"] += milli if o in S else 0
+            for e in frame.get("events") or []:
+                region = e.get("region")
+                touched.add(region)
+                if e.get("event") == "moved":
+                    continue
+                arrived = sum(e.get(k, 0) or 0 for k in ("delivered", "returned", "deposited"))
+                titled["in_deficit"] += arrived if region in D else 0
+                titled["in_surplus"] += arrived if region in S else 0
+                if e.get("event") == "delivered":
+                    dests.add(region)
+                    titled["delivered_deficit"] += (e.get("delivered", 0) or 0) if region in D else 0
+            for ship in (rec.get("shipments") or []) + (rec.get("closed") or []):
+                lost = sum((ship.get("losses") or {}).values())
+                if sum(ship.get("cargo_open") or []) != (sum(ship.get("cargo") or []) + lost + ship.get("delivered", 0)
+                                                         + ship.get("returned", 0) + ship.get("deposited", 0)):
+                    problems.append(f"shipment {ship.get('id')}'s cargo does not close at snapshot {s.get('turn')}")
+                    break
+            for ship in rec.get("shipments") or []:
+                path, cursor = ship.get("path") or [], ship.get("cursor", 0)
+                if isinstance(cursor, int) and 0 <= cursor < len(path):
+                    touched.add(path[cursor])
+            region_turns += len({r for r in touched if isinstance(r, int)})
+        c = (tt[-1][1].get("counters") or {}) if tt else {}
+        get = (lambda k: c.get(k, 0))
+        if get("receipt_rows") != get("carrier_turns"):
+            problems.append(f"{get('receipt_rows')} receipt rows for {get('carrier_turns')} carrier-turns")
+        for key in ("dispatched", "delivered", "returned", "escheated", "pool_reset", "switched_off",
+                    "released_returned", "carriers_released", "carrier_turns"):
+            m[f"tt_{key}"] = get(key)
+        m["tt_returned_route_lost"] = get("returned_route_lost")
+        m["tt_returned_conquest"] = get("returned_destination_conquered")
+        for key in ("bought_milli", "paid_milli", "consigned_milli", "returned_milli", "deposited_milli",
+                    "transit_decay_milli", "sea_loss_milli", "cargo_sold_milli", "cargo_sales_credited_milli"):
+            m[f"tt_{key[:-6]}"] = get(key) / 1000.0
+        m["tt_withheld"] = get("income_withheld_micro") / 1e6
+        m["holder_net"] = (get("cargo_sales_credited_milli") - get("paid_milli")) / 1000.0
+        m["holder_net_vs_withheld"] = m["holder_net"] - m["tt_withheld"]
+        m["owner_receipts"] = get("paid_milli") / 1000.0
+        m["titled_region_turns"] = region_turns
+        m["titled_delivered_deficit"] = titled["delivered_deficit"] / 1000.0
+        m["titled_net_deficit"] = (titled["in_deficit"] - titled["out_deficit"]) / 1000.0
+        m["titled_net_surplus"] = (titled["in_surplus"] - titled["out_surplus"]) / 1000.0
+        m["dest_regions"], m["origin_regions"] = len(dests), len({o for o in origins if isinstance(o, int)})
+        m["shortfall_dest"] = _cw3_food(bundle, sorted(dests))[0] if dests else None
+        m["shortfall_origin"] = _cw3_food(bundle, sorted(o for o in origins if isinstance(o, int)))[0] \
+            if origins else None
+    else:
+        if tt:
+            problems.append("a titled trade record without the switch")
+        m["titled_net_deficit"] = m["titled_net_surplus"] = 0.0      # no titled trade: none by construction
+        for key in ("tt_dispatched", "tt_delivered", "tt_returned", "tt_escheated", "tt_pool_reset", "tt_switched_off",
+                    "tt_released_returned", "tt_carriers_released", "tt_carrier_turns", "tt_returned_route_lost",
+                    "tt_returned_conquest", "tt_bought", "tt_paid", "tt_consigned", "tt_returned", "tt_deposited",
+                    "tt_transit_decay", "tt_sea_loss", "tt_cargo_sold", "tt_cargo_sales_credited", "tt_withheld",
+                    "holder_net", "holder_net_vs_withheld", "owner_receipts", "titled_region_turns",
+                    "titled_delivered_deficit", "dest_regions", "origin_regions", "shortfall_dest",
+                    "shortfall_origin"):
+            m.setdefault(key, None)
+    m["food_in_deficit"] = m["native_net_deficit"] + m["titled_net_deficit"] if deficit else None
+    m["food_in_surplus"] = m["native_net_surplus"] + m["titled_net_surplus"] if surplus else None
+    frames, failed, lp = _cw_ledger_closures(bundle)
+    m["ledger_frames"], m["ledger_closures_failed"] = frames, failed
+    problems += lp
+    m["stability_end"] = _cw_stability(bundle)
+    if deficit and m.get("shortfall_deficit") is None:
+        problems.append("the deficit regions' food shortfall could not be measured")
+    return m, problems
+
+
+def cw5_activation(bundle: dict, flags) -> tuple[bool | None, str]:
+    """T acted when at least one titled shipment was delivered. The evidence names the
+    shipments by outcome and the region-turns with any titled shipment (dispatched,
+    standing, moving or closing there). The root R is not judged."""
+    if "--titled-trade" not in list(flags):
+        return None, "the root arm is not judged"
+    tt = _cw3_records(bundle, CW5_TT)
+    if not tt:
+        return None, "no titled trade record"
+    c = tt[-1][1].get("counters") or {}
+    m, _p = cw5_extract(bundle, flags)
+    n = len((bundle.get("world_state") or {}).get("regions") or [])
+    turns = len(bundle.get("history") or [])
+    acted = c.get("delivered", 0) > 0
+    return acted, (f"{c.get('dispatched', 0)} shipments: {c.get('delivered', 0)} delivered, "
+                   f"{c.get('returned', 0)} returned (route or conquest), {c.get('released_returned', 0)} returned "
+                   f"after a carrier's release, {c.get('escheated', 0)} escheated; titled shipments in "
+                   f"{m.get('titled_region_turns')} of {n * turns} region-turns")
+
+
+_CW5_BASE = ("--turns", "200", "--agents", "hybrid", "--simulate-only", "--grain-reserves", "--public-grain-shipments",
+             "--food-allocation", "--household-retail", "--household-retail-boundary", "all", "--wealth-accounting")
+
+
+def _cw5_outcomes() -> tuple[SR.Outcome, ...]:
+    harm = (lambda key: (lambda r: SR.harm_value(r, key)))
+    return (
+        # Primaries: food reaching the regions short of it at turn 0 (titled net plus the native
+        # commons trade it may displace), their food shortfall, and the merchants' margins
+        # against the model income withheld while they carry (replacement, not stacking).
+        SR.Outcome("cw5_food_in_deficit", "Food into the deficit regions by trade over the run: titled cargo in "
+                   "less titled cargo bought there, plus native commons trade, food units (T - R)", "T", "R",
+                   _m("food_in_deficit"), primary=True),
+        SR.Outcome("cw5_shortfall_deficit", "Food shortfall share after relief in the deficit regions (T - R)", "T",
+                   "R", _m("shortfall_deficit"), primary=True),
+        SR.Outcome("cw5_margin_vs_withheld", "Merchants' realized margin on titled cargo (sales credited less owners "
+                   "paid) less the model income withheld while carrying, wealth units (T)", "T", None,
+                   _m("holder_net_vs_withheld"), primary=True),
+        # Channel and selection.
+        SR.Outcome("cw5_titled_delivered_deficit", "Titled food delivered into the deficit regions, food units (T)",
+                   "T", None, _m("titled_delivered_deficit")),
+        SR.Outcome("cw5_titled_net_deficit", "Titled food into less out of the deficit regions (T)", "T", None,
+                   _m("titled_net_deficit")),
+        SR.Outcome("cw5_native_net_deficit", "Native commons trade into the deficit regions (T - R)", "T", "R",
+                   _m("native_net_deficit")),
+        SR.Outcome("cw5_met_deficit", "Deficit regions' demand-weighted min(1, sufficiency) (T - R)", "T", "R",
+                   _m("food_met_deficit")),
+        SR.Outcome("cw5_priced_out_deficit", "Priced-out person-turns in the deficit regions (T - R)", "T", "R",
+                   _m("priced_out_deficit")),
+        SR.Outcome("cw5_price_deficit", "Mean retail price in the deficit regions, milli per ration (T - R)", "T",
+                   "R", _m("price_deficit")),
+        SR.Outcome("cw5_shortfall_dest", "Food shortfall share in the regions T delivered to (T; selection)", "T",
+                   None, _m("shortfall_dest")),
+        # The exporters (origin harm).
+        SR.Outcome("cw5_shortfall_surplus", "Food shortfall share after relief in the surplus regions (T - R)", "T",
+                   "R", _m("shortfall_surplus")),
+        SR.Outcome("cw5_price_surplus", "Mean retail price in the surplus regions (T - R)", "T", "R",
+                   _m("price_surplus")),
+        SR.Outcome("cw5_priced_out_surplus", "Priced-out person-turns in the surplus regions (T - R)", "T", "R",
+                   _m("priced_out_surplus")),
+        SR.Outcome("cw5_food_in_surplus", "Food into the surplus regions by trade (T - R)", "T", "R",
+                   _m("food_in_surplus")),
+        SR.Outcome("cw5_shortfall_origin", "Food shortfall share in the regions T bought from (T; selection)", "T",
+                   None, _m("shortfall_origin")),
+        SR.Outcome("cw5_shortfall_all", "Food shortfall share after relief, all regions (T - R)", "T", "R",
+                   _m("shortfall_all")),
+        # Shipments by outcome and cause; money.
+        SR.Outcome("cw5_dispatched", "Titled shipments bought (T)", "T", None, _m("tt_dispatched")),
+        SR.Outcome("cw5_delivered", "Titled shipments delivered (T)", "T", None, _m("tt_delivered")),
+        SR.Outcome("cw5_released_returned", "Shipments returned after a carrier's release (T)", "T", None,
+                   _m("tt_released_returned")),
+        SR.Outcome("cw5_returned_route", "Shipments returned because the route was lost (T)", "T", None,
+                   _m("tt_returned_route_lost")),
+        SR.Outcome("cw5_returned_conquest", "Shipments returned because the destination was conquered (T)", "T",
+                   None, _m("tt_returned_conquest")),
+        SR.Outcome("cw5_escheated", "Shipments escheated at the holder's death (T)", "T", None, _m("tt_escheated")),
+        SR.Outcome("cw5_margin", "Merchants' realized margin on titled cargo, wealth units (T)", "T", None,
+                   _m("holder_net")),
+        SR.Outcome("cw5_withheld", "Model income withheld from carriers, wealth units (T)", "T", None,
+                   _m("tt_withheld")),
+        SR.Outcome("cw5_owner_receipts", "Owners paid for their surplus food, wealth units (T)", "T", None,
+                   _m("owner_receipts")),
+        SR.Outcome("cw5_food_purchases", "Households' food purchases credited to sellers, units (T - R)", "T", "R",
+                   _m("food_purchases_credited")),
+        SR.Outcome("cw5_transit_decay", "Titled food lost to transit decay, food units (T)", "T", None,
+                   _m("tt_transit_decay")),
+        SR.Outcome("cw5_region_turns", "Region-turns with a titled shipment (T; activation)", "T", None,
+                   _m("titled_region_turns")),
+        # The CW5 harm panel beside the primaries (T - R).
+        SR.Outcome("cw5_h_commons", "Commons food at the end, world (T - R)", "T", "R", _m("commons_end")),
+        SR.Outcome("cw5_h_food_shortfall", "Food shortfall after relief over the run, world (T - R)", "T", "R",
+                   harm("food_shortfall")),
+        SR.Outcome("cw5_h_priced_out", "Priced-out person-turns, world (T - R)", "T", "R", harm("priced_out_persons")),
+        SR.Outcome("cw5_h_treasury", "Treasury at the end (T - R)", "T", "R", harm("treasury")),
+        SR.Outcome("cw5_h_stability", "Mean stability of living civilizations at the end (T - R)", "T", "R",
+                   _m("stability_end")),
+        SR.Outcome("cw5_h_population", "Population at the end (T - R)", "T", "R", harm("population")),
+    )
+
+
+SCREENS["CW5"] = SR.Screen(
+    name="CW5", title="S4 titled trade (A4-1)",
+    preregistration=PROGRESS / "connected-world-screens-cw5.md",
+    base=_CW5_BASE,
+    arms={"R": ((), None), "T": (("--titled-trade",), "R")},
+    root="R", pilot=PILOT, held={"template": tuple(range(771, 777)), "procedural": tuple(range(871, 877))},
+    packages=(SR.Package("--household-retail", CW5_RETAIL, mode_flag="--household-retail-mode",
+                         default_mode="retail"),
+              SR.Package("--titled-trade", CW5_TT, "chronicler.titled_trade_state", CW5_TT_COUNTERS),
+              SR.Package("--wealth-accounting", CW_LEDGER)),
+    outcomes=_cw5_outcomes(),
+    activation=cw5_activation, extract=cw5_extract, ready=True, module=MODULE)
 
 
 # --- DEV: the development smoke screen ---------------------------------------------

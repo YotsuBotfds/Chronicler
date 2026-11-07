@@ -1,4 +1,4 @@
-"""The connected-world screen runner, its seed registry and the CW2, CW3, CW5 and CW6 stubs.
+"""The connected-world screen runner, its seed registry and the CW6 stub.
 
 Offline: constructed bundles and a fake runtime (no simulation, no child process);
 the real parser and feature catalog check arm command lines. Nothing here runs a
@@ -519,8 +519,8 @@ class FakeRuntime:
 @pytest.mark.parametrize("cohort", ["held", "pilot"])
 def test_stub_screens_are_refused(SR, CW, tmp_path, cohort):
     fake = FakeRuntime(SR)
-    with pytest.raises(SystemExit, match="CW2 is not ready"):
-        SR.run_main([str(tmp_path / "out"), "--screen", "CW2", "--cohort", cohort], CW.SCREENS, fake.rt)
+    with pytest.raises(SystemExit, match="CW6 is not ready"):
+        SR.run_main([str(tmp_path / "out"), "--screen", "CW6", "--cohort", cohort], CW.SCREENS, fake.rt)
     assert fake.calls == []
 
 
@@ -658,8 +658,10 @@ def test_registry_content_hash_ignores_run_records_only(SR, registry):
 def test_check_command_reports_stubs_not_ready(SR, CW, capsys):
     assert CW.main(["check", "--screen", "all"]) == 2
     text = capsys.readouterr().out
-    for name in ("CW2", "CW5", "CW6"):
-        assert f"{name}: seeds OK" in text and f"{name}: NOT READY" in text
+    assert "CW6: seeds OK" in text and "CW6: NOT READY" in text
+    # CW2 is declared by slices A3-1/A3-2 and CW5 by slice A4-1 (tests/test_cw2_screen.py, test_cw5_screen.py).
+    assert "CW2: seeds OK" in text and "CW2: extractor, packages, 5 arms and 43 outcomes (3 primary): OK" in text
+    assert "CW5: seeds OK" in text and "CW5: extractor, packages, 2 arms and 34 outcomes (3 primary): OK" in text
     # CW3 is declared by slice B2 (tests/test_cw3_screen.py).
     assert "CW3: seeds OK" in text and "CW3: extractor, packages, 5 arms and 42 outcomes (3 primary): OK" in text
     # CW1 is declared by slice S1 (tests/test_cw1_screen.py).
