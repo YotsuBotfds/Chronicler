@@ -1,7 +1,8 @@
 # CW6 integrated Connected World bounded screen
 
-Status: DRAFT. No held run has started. Freeze after actual integrated-source
-pilots, strict extractor validation, native blocker fixes and independent review.
+Status: FROZEN (2026-11-07, before any CW6 held execution). Runtime source
+`eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac`; the freeze receipt below records
+the complete reviewed 120-turn pilot, extension identity and compute gate.
 
 Compute ceiling: 1.0 core-hours
 
@@ -81,7 +82,13 @@ runtime records affected move causes as unknown (255). Read the untruncated
 counts to aggregate snapshots and report unknown cause count/share alongside
 X1 other moves, opened spells and displaced person-turns. A decrease in X1
 flight/displacement classification is measurement loss and cannot establish a
-decline in actual displacement. Bounded personal refusal/work/event samples
+decline in actual displacement. This classification also feeds C2, rather than
+being an observation-only loss: `public_health.environment_factors` reads the
+T−1 X1 displaced share and applies crowding `1 + 0.25 × displaced_share`.
+Unknown causes can therefore reduce modeled exposure. FULL minus A6R combines
+behavior/information effects with this exposure-proxy feedback. Lower X1
+counts cannot establish a physical displacement or health benefit, nor isolate
+a pure choice effect. Bounded personal refusal/work/event samples
 show dropped counts and are never substituted for untruncated world totals.
 This classification loss also has model feedback: C2 crowding consumes the
 prior X1 classified-displacement share. Unclassified moves can therefore alter
@@ -163,3 +170,45 @@ run starts. The final evidence covers a shorter horizon than the original
 200-turn proposal; late war, return, climate and institutional outcomes may
 remain unobserved. The original diagnostic runs and failures are preserved,
 and no held outcome informed this amendment.
+
+
+## Freeze receipt (2026-11-07)
+
+The fresh final pilot completed all ten declared cases on the runtime above:
+5 arms × template 5/procedural 19 × 120 turns; every return code is zero and
+every strict outcome is present. Simulation took 279.3 seconds and extraction
+32.9 seconds, total 312.2 seconds. Projecting six held worlds per stratum gives
+1,873.2 seconds; the fixed 1.5 margin is 2,809.8 seconds (0.7805 core-hours),
+within the unchanged 1.0-core-hour ceiling. The held cohort remains the twelve
+original reserved worlds, 781–786 and 881–886. No CW6 held seed informed the
+horizon, outcomes, controls, extraction or this freeze.
+
+The lead independently recomputed all cases, identities, controls and budget
+and authorized execution. The independent native/evidence reviewer inspected
+the actual pilot, source, strict check and 120-turn amendment and approved the
+interpretation correction above. Earlier independent health reviews covered
+the runner, controls, strict extraction and resume-plan validation. The source
+comparison from this runtime to this freeze consists solely of documentation
+and compact pilot receipts; simulation code and screen/runner hashes remain
+unchanged.
+
+The imported native extension SHA-256 is
+`59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617`.
+The final pilot's identity digest is
+`9b4006edf6bffe50f4953231e75b7f3384aad560fcde881f18aa81bf80e36c34`;
+its exact source/import/interpreter/runner/screen/registry lines, commands,
+metrics and report are retained in `connected-world-evidence/CW6/final-pilot/`.
+Raw first-world bundles and untruncated Arrow events remain under
+`/workspace/evidence/cw6/pilot-final/runs/` for browser and resume evidence.
+The pilot report is diagnostic development evidence, not held qualification.
+
+Both final FULL pilot worlds activate dated war returns (14 on procedural 19),
+so enabled exact resume will include actual before/after return checkpoints in
+addition to the preregistered broad lifecycle states. Exact resume, the held
+screen and declared-scale profiling remain separate gates at freeze.
+
+Measurement harm is material in these development bundles: unknown native
+migration causes comprise 82.37% of template FULL moves and 99.39% of procedural
+FULL moves. Bounded A6 row drops are 37 and 40,335 respectively. These are
+retained, and neither bounded samples nor lower classified displacement are
+substituted for complete population, wealth, mortality or migration totals.
