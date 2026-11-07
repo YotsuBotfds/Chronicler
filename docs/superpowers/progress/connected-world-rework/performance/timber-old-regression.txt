@@ -13,11 +13,11 @@ monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f69880dcc30>
         sim.usable_trade_destinations = lambda ids, turn: [(aid, []) for aid in ids]
         _plan_needs(world, state, monkeypatch, [(1, 1, 2.0)])
         calls, original = [], TT._people
-    
+
         def measured(snapshot):
             calls.append(snapshot.num_rows)
             return original(snapshot)
-    
+
         monkeypatch.setattr(TT, "_people", measured)
         T.phase10_before_reserves(world, None, None, NS(_sim=sim))
         assert memory.counters["trade_unknown_destination"] == 100
