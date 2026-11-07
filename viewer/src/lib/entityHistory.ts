@@ -11,11 +11,14 @@ import { warRequisitionAt } from "./warRequisition";
 import { adaptiveAt, warConsequencesAt } from "./personalExperience";
 import { publicHealthAt } from "./publicHealth";
 import { readInfrastructure } from "./infrastructureCondition";
+import { reliefRecordAt } from "./reformServices";
+import { leagueRecordAt } from "./guildLeagues";
+import { movementBranchesAt } from "./movementBranches";
 import { readWatershed, watershedOutflow } from "./watershed";
 import { workshopEconomicsAt } from "./workshopEconomics";
 import { workshopFinanceAt } from "./workshopFinance";
 
-export type EntityKind = "person" | "household" | "firm" | "project" | "expedition" | "shipment" | "timber_order" | "claim" | "army" | "infrastructure_work" | "infrastructure_asset" | "region";
+export type EntityKind = "relief_fund" | "league" | "guild" | "city" | "movement_branch" | "person" | "household" | "firm" | "project" | "expedition" | "shipment" | "timber_order" | "claim" | "army" | "infrastructure_work" | "infrastructure_asset" | "region";
 export interface EntityRef { kind: EntityKind; id: number | string; epoch?: number }
 export type HistoryState = "disabled" | "unknown" | "malformed" | "not_sampled" | "truncated" | "recorded_zero" | "recorded";
 export interface EntityHistoryRow {
@@ -23,7 +26,7 @@ export interface EntityHistoryRow {
   join: "id" | "region" | "inferred"; state: HistoryState; text: string;
   source: string | null; region: number | null; related: EntityRef[];
 }
-export const HISTORY_PACKAGES = ["recovery_crews", "repair_projects", "timber_supply", "household_retail", "titled_trade", "residence_ledger", "timber_orders", "war_requisition", "adaptive_livelihoods", "war_consequences", "public_health", "infrastructure_condition", "watershed", "workshop_economics", "workshop_payroll"] as const;
+export const HISTORY_PACKAGES = ["recovery_crews", "repair_projects", "timber_supply", "household_retail", "titled_trade", "residence_ledger", "timber_orders", "war_requisition", "adaptive_livelihoods", "war_consequences", "public_health", "infrastructure_condition", "watershed", "workshop_economics", "workshop_payroll", "reform_services", "guild_leagues", "movement_branches"] as const;
 type Package = typeof HISTORY_PACKAGES[number];
 interface Observation extends EntityHistoryRow { package: Package }
 interface PackageFrame { state: HistoryState; reason: string; rows: Observation[]; source: string | null; sourceTurn: number | null }
@@ -223,6 +226,46 @@ export function indexEntityHistory(bundle: Bundle): EntityHistoryIndex {
         c.storage.forEach((storage,rid)=>add(ref("region",rid),`/regions`, `Water account region ${rid}: opening storage ${num(c.storage_open[rid])}, precipitation ${num(c.precipitation[rid])}, inflow ${num(c.inflow[rid])}, withdrawal ${num(c.withdrawal[rid])}, closing storage ${num(storage)}; outflow ${num(out[rid])} derived by the declared water-balance residual. Drought duration ${c.drought_turns[rid]}. Regional flow does not establish an individual's exposure or upstream harm`,rid,[],"recorded","region"));
         r.record.floods?.forEach((f,j)=>add(ref("region",f.region),`/floods/${j}`,`Recorded flood onset: excess ${num(f.excess)}, inflow ${num(f.inflow)}, precipitation ${num(f.precipitation)}. Upstream co-occurrence is not proof of harm`,f.region,[],"recorded","region"));
         for (const name of ["declared","ended"] as const) r.record.droughts?.[name].forEach((d,j)=>add(ref("region",d.region),`/droughts/${name}/${j}`,`Recorded drought ${name}: ${d.turns} turns, minimum storage fraction ${num(d.min_fraction)}`,d.region,[],"recorded","region"));
+      } else if (key === "reform_services") {
+        const r=reliefRecordAt(snapshot,regions,civs).record;
+        if(!r || r.source_turn!==snapshot.turn-1){bad();continue;}
+        if(!r.frame){unknown();continue;}
+        r.frame.civs.forEach((c,j)=>add(ref("relief_fund",c.civ),`/frame/civs/${j}`,`Polity relief account: opening ${coins(c.fund_open_milli)}, paid in ${coins(c.to_fund_milli)}, actually spent ${coins(c.spent_milli)}, refunded ${coins(c.refunded_milli)}, closing ${coins(c.fund_close_milli)} coins. This is a public account, not a person's balance`));
+        r.frame.purchases.forEach((p,j)=>add(ref("region",p.region),`/frame/purchases/${j}`,`Relief bought ${num(p.food_milli/1000)} physical food, ${num(p.rations)} rations; sellers actually credited ${coins(p.credited_milli)} coins. Sellers and recipients are not identified`,p.region,[ref("relief_fund",p.civ)],"recorded","region"));
+        r.frame.deliveries.forEach((d,j)=>add(ref("region",d.region),`/frame/deliveries/${j}`,`Pooled relief bought in turn ${d.bought_turn}: individual recipients unknown; regional delivery ${!d.observed?"unobserved":`at most ${num(d.delivered_at_most!)} rations; no lower bound because gross outbound food is unobserved`}. This does not identify anyone's ration`,d.region,[ref("relief_fund",d.civ)],d.observed?"recorded":"unknown","region"));
+      } else if(key === "guild_leagues") {
+        const r=leagueRecordAt(snapshot,regions,civs).record;
+        if(!r || r.source_turn!==snapshot.turn-1){bad();continue;}
+        if(!r.frame){unknown();continue;}
+        if(r.dissolved_dropped>0)Object.assign(frame,{state:"truncated",reason:"Dissolved league identities outside retention are unknown"});
+        const memberRegion=new Map<string,number>();
+        r.frame.leagues.forEach((l,j)=>{
+          const league=ref("league",l.league);
+          add(league,`/frame/leagues/${j}`,`League fund ${coins(l.fund_open_milli)} to ${coins(l.fund_close_milli)} coins; actual dues ${coins(l.dues_milli)}, claims paid ${coins(l.payouts_milli)}${l.dissolved?`; dissolved ${l.dissolved}`:""}. City purse payments are not personal merchant compensation`);
+          l.members.forEach((m,k)=>{
+            const guild=ref("guild",m.guild),city=ref("city",m.city);
+            memberRegion.set(`${l.league}:${m.guild}:${m.city}`,m.region);
+            for(const [entity,related] of [[league,[guild,city]],[guild,[league,city]],[city,[league,guild]]] as const)
+              add(entity,`/frame/leagues/${j}/members/${k}`,`Recorded league member: guild #${m.guild}, city #${m.city}, polity ${m.lord}; joined turn ${m.joined_turn}; cumulative dues ${coins(m.dues_milli)}, city payouts ${coins(m.payouts_milli)} coins`,m.region,[...related]);
+          });
+        });
+        r.frame.payouts.forEach((p,j)=>{
+          const league=ref("league",p.league),guild=ref("guild",p.guild),city=ref("city",p.city),region=memberRegion.get(`${p.league}:${p.guild}:${p.city}`)??null;
+          for(const [entity,related] of [[league,[guild,city]],[guild,[league,city]],[city,[league,guild]]] as const)
+            add(entity,`/frame/payouts/${j}`,`Recorded ${p.kind} claim ${p.event_id}: loss ${coins(p.loss_milli)}, actually paid ${coins(p.paid_milli)} coins to the city's purse. No individual merchant payment is recorded`,region,[...related]);
+        });
+        r.frame.changes.forEach((c,j)=>add(ref("league",c.league),`/frame/changes/${j}`,`League ${c.kind}${c.reason?`: ${c.reason}`:""}; returned ${c.returned_milli===null?"unrecorded":coins(c.returned_milli)} coins; unclaimed ${c.unclaimed_milli===null?"unrecorded":coins(c.unclaimed_milli)}`,null,[...(c.guild===null?[]:[ref("guild",c.guild)]),...(c.city===null?[]:[ref("city",c.city)])]));
+      } else if(key === "movement_branches") {
+        const read=movementBranchesAt(snapshot,regions,civs),r=read.record;
+        if(read.status==="malformed"||!r){bad();continue;}
+        if(!r.frame){unknown();continue;}
+        if(r.frame.new_identities_refused>0)Object.assign(frame,{state:"truncated",reason:"New branch identities at the lifetime bound were refused; no old id was reused"});
+        r.frame.rows.forEach((b,j)=>{
+          const branch=ref("movement_branch",b.branch),path=`/frame/rows/${j}`;
+          add(branch,path,`Movement ${b.movement-1} branch at host polity ${b.host}, target ${b.target}: ${b.status}; ${b.members} resident adults; actually paid ${coins(b.dues_milli)} coins from ${b.payers.length} people; next-turn permission ${b.active_from===null?"none":`available from turn ${b.active_from}`}. Permission is not recruitment or a causal explanation`,null,b.payers.map(id=>ref("person",id)));
+          b.regions.forEach(region=>add(ref("region",region),path,`Movement branch #${b.branch}: ${b.status}; permission ${b.active_from===null?"none":`available from turn ${b.active_from}`}. Branch membership does not establish any particular resident's belief or decision`,region,[branch],"recorded","region"));
+          b.payers.forEach((id,k)=>add(ref("person",id),path+`/payers/${k}`,`Actually paid 0.01 coins in local meeting dues to host polity ${b.host}; branch #${b.branch}. Permission ${b.active_from===null?"unavailable":`available from turn ${b.active_from}`} does not establish a personal recruitment outcome`,null,[branch]));
+        });
       } else if (key === "workshop_economics") {
         const r=workshopEconomicsAt(snapshot,regions);
         if (r.status==="malformed" || !r.record) { bad(); continue; }
@@ -278,7 +321,7 @@ export function entityHistory(index: EntityHistoryIndex, entity: EntityRef, thro
     result.push(...direct);
     if (entity.kind !== "region") {
       const regions = new Set(direct.flatMap((r) => r.region === null ? [] : [r.region]));
-      for (const region of regions) for (const row of [...frames.household_retail.rows,...frames.public_health.rows,...frames.watershed.rows]) if (row.entity.kind === "region" && row.entity.id === region) {
+      for (const region of regions) for (const row of [...frames.household_retail.rows,...frames.public_health.rows,...frames.watershed.rows,...frames.reform_services.rows]) if (row.entity.kind === "region" && row.entity.id === region) {
         result.push({ ...row, entity, join: "region", text: `Regional context, not this ${entity.kind}'s record: ${row.text}`, related: [ref("region", region)] });
       }
     }
