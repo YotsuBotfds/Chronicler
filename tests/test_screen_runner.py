@@ -89,7 +89,7 @@ def test_registry_union_covers_the_audit_union(SR, registry):
 
 
 #: Screens whose held run ``mark-run`` recorded in the registry (complete).
-RECORDED = {"CW4", "CW1"}
+RECORDED = {"CW4", "CW1", "CW2", "CW5"}
 #: CW3's held run, recorded incomplete (one run failed: the disk was full), procedural only;
 #: its template reservation is recorded as unused by design (never_run).
 RECORDED_INCOMPLETE = {"CW3"}
@@ -165,15 +165,15 @@ def _mutate(registry, change):
     elif change == "unknown key":
         by["ls1-held-t"]["note"] = "x"
     elif change == "reservation overlaps":
-        by["cw2-held-t"]["seeds"] = [[736, 741]]
+        by["cw6-held-t"]["seeds"] = [[776, 781]]
     elif change == "reservation in the gate":
-        by["cw2-held-t"]["seeds"] = [[231, 236]]
+        by["cw6-held-t"]["seeds"] = [[231, 236]]
     elif change == "no gate entry":
         reg["entries"] = [e for e in reg["entries"] if e["id"] != "gate200-t"]
     elif change == "ranges changed":
         reg["restricted_ranges"]["template"] = [[42, 141]]
     elif change == "held reservation without screen":
-        by["cw2-held-t"]["screen"] = None
+        by["cw6-held-t"]["screen"] = None
     return reg
 
 
@@ -672,7 +672,8 @@ def test_check_command_reports_stubs_not_ready(SR, CW, capsys):
     assert CW.main(["check", "--screen", "DEV"]) == 0
     assert CW.main(["registry"]) == 0
     out = capsys.readouterr().out
-    assert "reserved cw2-held-t: template 741-746" in out and "reserved cw1-held-t" not in out   # CW1 was run
+    assert "reserved cw6-held-t: template 781-786" in out and "reserved cw1-held-t" not in out   # CW1 was run
+    assert "reserved cw2-held-t" not in out and "reserved cw5-held-t" not in out                 # CW2, CW5 were run
 
 
 def test_arm_command_lines_are_checked_by_the_parser_and_catalog(SR, CW):
