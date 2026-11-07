@@ -41,5 +41,6 @@
     "both_tree": "0c7cdfdcde7ea05dcc30c6eaa25637c03977c1ce"
   },
   "comparison": "Every case file byte-for-byte; bundle decoded and raw bytes with only metadata.generated_at normalized; no faith projection",
-  "baseline_note": "Rebuilt original8abc native artifact used; historical Claude binary not claimed recovered. Prior archive mislabeled D1 was rejected and true11467 source freshly exported and run."
+  "baseline_note": "Rebuilt original8abc native artifact used; historical Claude binary not claimed recovered. Prior archive mislabeled D1 was rejected and true11467 source freshly exported and run.",
+  "tracked_src_digest_format": "SHA-256 of git ls-tree -r --name-only <commit> src order; for each repo-relative UTF-8 path: path + NUL + actual file bytes + NUL. Each actual file separately compared to git show <commit>:<path>."
 }
