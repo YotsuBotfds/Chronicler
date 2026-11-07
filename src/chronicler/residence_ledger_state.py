@@ -179,6 +179,10 @@ class ResidenceLedgerState(BaseModel):
     watch_from: int | None = None
     #: The last observed turn.
     last_turn: int | None = None
+    #: First of the current consecutive fully covered writes. A recovered row
+    #: cap/traveller gap cannot establish a complete prior arrival window.
+    #: Old checkpoints conservatively start this new observation clock afresh.
+    arrival_coverage_since: int | None = None
     #: The completed turn's frame (aggregates) and spell events. None: not observed.
     #: The frame and events are in every snapshot record, so JSON output leaves
     #: them out (review nit); exact checkpoints keep them.

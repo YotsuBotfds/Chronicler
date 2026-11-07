@@ -170,3 +170,20 @@ def test_retained_cargo_holder_keeps_its_pre_rebuild_identity_segment(bundle):
     text="The old cargo holder is this worker because their integer matches."
     bundle["chronicle_entries"]=[{"narrative":text,"provenance":{"v":1,"narrator":"mechanical","as_of":27,"facts":[a,b],"names":[],"spans":[[0,len(text),[a,b]]],"record_links":[{"from":a,"to":b,"join":"id","left_key":"holder","right_key":"agent_id","value":person}]}}]
     assert "unsupported_record_cause" in {f.kind for f in audit_bundle(bundle).flags}
+
+
+@pytest.mark.parametrize('prior', [-1, 26])
+def test_neutral_configured_density_is_known_now_without_inventing_prior_residence(bundle, prior):
+    s = next(s for s in bundle['history'] if s['turn'] == 28)
+    row = {'source_turn': prior, 'crowding_basis': 'density_only', 'crowding_source_turn': 27,
+           'crowding_factor': 1.0, 'recent_arrival_share': None, 'arrival_diagnostics_complete': False}
+    s['livelihoods']['public_health'] = {'schema_version': 1, 'source_turn': 27, 'environment': [row]}
+    fid = livelihood_fact_id(28, 'public_health', 'environment', 0, 'crowding_factor')
+    assert resolve_record_pointer(bundle, fid).source_turn == 27
+    if prior >= 0:
+        arrival = livelihood_fact_id(28, 'public_health', 'environment', 0, 'recent_arrival_share')
+        assert resolve_record_pointer(bundle, arrival).source_turn == prior
+    row['crowding_source_turn'] = 28
+    assert resolve_record_pointer(bundle, fid) is None
+    row['crowding_source_turn'], row['crowding_factor'] = 27, 1.25
+    assert resolve_record_pointer(bundle, fid) is None

@@ -1681,6 +1681,13 @@
         {
           "feature": "adaptive_livelihoods",
           "reason": "requires --adaptive-livelihoods"
+        },
+        {
+          "choice": "adaptive_livelihoods_rules",
+          "values": [
+            "3"
+          ],
+          "reason": "requires --adaptive-livelihoods-rules 3"
         }
       ],
       "group": "Livelihoods",

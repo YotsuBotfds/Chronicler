@@ -273,6 +273,7 @@
     "1": [
       "tests/test_ablation_output.py",
       "tests/test_ablation_output_native.py",
+      "tests/test_adaptive_controls.py",
       "tests/test_adjacency.py",
       "tests/test_agent_bridge_legacy_migration.py",
       "tests/test_agent_movements.py",
@@ -418,6 +419,8 @@
       "tests/test_relocation_costs_native.py",
       "tests/test_remittances_native.py",
       "tests/test_repair_projects_native.py",
+      "tests/test_residence_exposure.py",
+      "tests/test_residence_exposure_native.py",
       "tests/test_ritual_gatherings_native.py",
       "tests/test_ruler_ambitions.py",
       "tests/test_save_directory.py",

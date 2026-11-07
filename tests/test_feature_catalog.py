@@ -88,7 +88,11 @@ def test_catalog_is_generated_from_the_registry_and_the_cli_parser():
             assert entry["choices"] == served and entry["choices"]
             # A mode belongs to the switch declared before it.
             assert entry["parent"] == parent
-            assert entry["requires"] == [{"feature": parent, "reason": "requires " + fc._flag(parent)}]
+            required = [{"feature": parent, "reason": "requires " + fc._flag(parent)}]
+            if key == "adaptive_livelihoods_decision_channels":
+                required.append({"choice": "adaptive_livelihoods_rules", "values": ["3"],
+                                 "reason": "requires --adaptive-livelihoods-rules 3"})
+            assert entry["requires"] == required
     for switch in LIVELIHOODS_SWITCHES:
         assert next(e for e in entries if e["key"] == switch)["kind"] == "bool"
     for key, choices in LIVELIHOODS_CHOICES.items():
@@ -103,7 +107,7 @@ def test_every_boolean_feature_declares_requirements_over_known_terms():
     entries = {entry["key"]: entry for entry in fc.feature_entries()}
     bools = {key for key, entry in entries.items() if entry["kind"] == "bool"}
     # A registry switch added without declared requirements fails here.
-    assert set(fc.REQUIREMENTS) == bools | set(TOP_CHOICES)
+    assert set(fc.REQUIREMENTS) == bools | set(TOP_CHOICES) | {"adaptive_livelihoods_decision_channels"}
 
     def walk(condition):
         assert condition["reason"].startswith("requires ")
@@ -765,3 +769,12 @@ def test_viewer_fixture_has_the_shape_the_server_sends():
         assert set(entry) == set(served_entries[entry["key"]])
         for field in ("flag", "kind", "choices", "parent", "requires", "group", "experimental"):
             assert entry[field] == served_entries[entry["key"]][field], (entry["key"], field)
+
+
+def test_personal_channel_request_cannot_claim_legacy_rules_have_control_isolation():
+    surface = fc.live_surface(_parser().parse_args(['--live', '--agents', 'hybrid']))
+    request = {'residence_ledger': True, 'adaptive_livelihoods': True,
+               'adaptive_livelihoods_rules': '2', 'adaptive_livelihoods_decision_channels': 'no_work'}
+    assert 'requires --adaptive-livelihoods-rules 3' in fc.validate_features(request, surface)
+    request['adaptive_livelihoods_rules'] = '3'
+    assert fc.validate_features(request, surface) is None

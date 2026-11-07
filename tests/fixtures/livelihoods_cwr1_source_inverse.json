@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "layer": "cwr1",
+  "parent": "2726bf449d0e4d581a72034000ee0861a58ee439",
+  "files": {
+    "src/chronicler/models.py": {
+      "sha256": "a30f8b3de3846178821b860e2348dfb8df986e8dc9d202209c96c684e6f8aa9e",
+      "current_sha256": "64eb25174ca7e815d752dae96f39403a9d1d1668646d2e5e4cf468fc47db38b6",
+      "patches": [
+        {
+          "old": "#: land, seeking work, joining kin, moving to a city, going to study.\nVOLUNTARY_MIGRATION_DRIVERS: frozenset[str] = frozenset({\"frontier\", \"wage\", \"chain\", \"urban\",\n                                                         \"learning\"})\n#: ``AgentEventRecord.migration_driver`` of events that are not migrations\n#: (and of every event read from an extension or file without the column).\nNO_MIGRATION_DRIVER = 255\n\n",
+          "new": "#: land, seeking work, joining kin, moving to a city, going to study.\nVOLUNTARY_MIGRATION_DRIVERS: frozenset[str] = frozenset({\"frontier\", \"wage\", \"chain\", \"urban\",\n                                                         \"learning\"})\n#: No known migration attribution, including adaptive migrations and non-migrations\n#: (and of every event read from an extension or file without the column).\nNO_MIGRATION_DRIVER = 255\n\n"
+        }
+      ]
+    },
+    "src/chronicler/batch_manifest.py": {
+      "sha256": "b67af57dbf12218a7c86690315227c4c6a96cb94b5cb8cbeb5bcebf3dda874de",
+      "current_sha256": "5d3a498e673ecffd49b8e564dafdddf0ff95f2c06b50b83131270a62b5644e2d",
+      "patches": [
+        {
+          "old": "    \"reform_services_mode\",\n    \"guild_leagues\",\n    \"guild_league_mode\",\n    \"war_requisition\", \"war_requisition_mode\", \"war_consequences\", \"war_consequences_mode\", \"adaptive_livelihoods\", \"adaptive_livelihoods_mode\", \"adaptive_livelihoods_rules\", \"public_health\", \"public_health_mode\", \"public_health_policy\", \"public_health_report_delay\", \"movement_branches\", \"movement_branches_mode\", \"residence_ledger\",\n    \"attribution_records\",\n    \"wealth_accounting\", \"wealth_accounting_mode\",\n    \"quarantine_channels\",\n",
+          "new": "    \"reform_services_mode\",\n    \"guild_leagues\",\n    \"guild_league_mode\",\n    \"war_requisition\", \"war_requisition_mode\", \"war_consequences\", \"war_consequences_mode\", \"adaptive_livelihoods\", \"adaptive_livelihoods_mode\", \"adaptive_livelihoods_rules\", \"adaptive_livelihoods_decision_channels\", \"public_health\", \"public_health_mode\", \"public_health_policy\", \"public_health_report_delay\", \"public_health_crowding\", \"movement_branches\", \"movement_branches_mode\", \"residence_ledger\",\n    \"attribution_records\",\n    \"wealth_accounting\", \"wealth_accounting_mode\",\n    \"quarantine_channels\",\n"
+        },
+        {
+          "old": "                             \"harvest_cover\", \"harvest_cover_mode\",\n                             \"epidemic_care\", \"epidemic_care_mode\",\n                             \"reform_services\", \"reform_services_mode\", \"guild_leagues\", \"guild_league_mode\",\n                             \"war_requisition\", \"war_requisition_mode\", \"war_consequences\", \"war_consequences_mode\", \"adaptive_livelihoods\", \"adaptive_livelihoods_mode\", \"adaptive_livelihoods_rules\", \"public_health\", \"public_health_mode\", \"public_health_policy\", \"public_health_report_delay\", \"movement_branches\", \"movement_branches_mode\", \"residence_ledger\", \"attribution_records\", \"wealth_accounting\", \"wealth_accounting_mode\", \"quarantine_channels\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n    config[\"tuning_overrides\"] = _json_value(overrides or {})\n",
+          "new": "                             \"harvest_cover\", \"harvest_cover_mode\",\n                             \"epidemic_care\", \"epidemic_care_mode\",\n                             \"reform_services\", \"reform_services_mode\", \"guild_leagues\", \"guild_league_mode\",\n                             \"war_requisition\", \"war_requisition_mode\", \"war_consequences\", \"war_consequences_mode\", \"adaptive_livelihoods\", \"adaptive_livelihoods_mode\", \"adaptive_livelihoods_rules\", \"adaptive_livelihoods_decision_channels\", \"public_health\", \"public_health_mode\", \"public_health_policy\", \"public_health_report_delay\", \"public_health_crowding\", \"movement_branches\", \"movement_branches_mode\", \"residence_ledger\", \"attribution_records\", \"wealth_accounting\", \"wealth_accounting_mode\", \"quarantine_channels\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n    config[\"tuning_overrides\"] = _json_value(overrides or {})\n"
+        }
+      ]
+    },
+    "tests/test_batch_manifest.py": {
+      "sha256": "b748dec974420652d2b555aed3a884d37e6b61163612e2c06dfd386e63aa3a0e",
+      "current_sha256": "c9bff93ba13879fecbc9325bd22d0cbb0735acbe8b695ae2020637c487a54586",
+      "patches": [
+        {
+          "old": "                                                           \"infrastructure_condition\", \"infrastructure_condition_mode\", \"harvest_cover\", \"harvest_cover_mode\",\n                                                           \"epidemic_care\", \"epidemic_care_mode\",\n                                                           \"reform_services\", \"reform_services_mode\", \"guild_leagues\", \"guild_league_mode\",\n                                                           \"war_requisition\", \"war_requisition_mode\", \"war_consequences\", \"war_consequences_mode\", \"adaptive_livelihoods\", \"adaptive_livelihoods_mode\", \"adaptive_livelihoods_rules\", \"public_health\", \"public_health_mode\", \"public_health_policy\", \"public_health_report_delay\", \"movement_branches\", \"movement_branches_mode\", \"residence_ledger\", \"attribution_records\",\n                                                           \"wealth_accounting\", \"wealth_accounting_mode\", \"quarantine_channels\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n    assert manifest[\"outputs\"][\"simulate_only\"] is True\n",
+          "new": "                                                           \"infrastructure_condition\", \"infrastructure_condition_mode\", \"harvest_cover\", \"harvest_cover_mode\",\n                                                           \"epidemic_care\", \"epidemic_care_mode\",\n                                                           \"reform_services\", \"reform_services_mode\", \"guild_leagues\", \"guild_league_mode\",\n                                                           \"war_requisition\", \"war_requisition_mode\", \"war_consequences\", \"war_consequences_mode\", \"adaptive_livelihoods\", \"adaptive_livelihoods_mode\", \"adaptive_livelihoods_rules\", \"adaptive_livelihoods_decision_channels\", \"public_health\", \"public_health_mode\", \"public_health_policy\", \"public_health_report_delay\", \"public_health_crowding\", \"movement_branches\", \"movement_branches_mode\", \"residence_ledger\", \"attribution_records\",\n                                                           \"wealth_accounting\", \"wealth_accounting_mode\", \"quarantine_channels\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n    assert manifest[\"outputs\"][\"simulate_only\"] is True\n"
+        }
+      ]
+    },
+    "chronicler-agents/src/tick.rs": {
+      "sha256": "0655aa3b8d10b28aaf1ac149ce12b5638962be500b8e9c4ebba0d9aab478f02f",
+      "current_sha256": "1aac475fe953ed77775c67e9f415116ca691511adf096003e939f4d7d6690856",
+      "patches": [
+        {
+          "old": "    /// Migrations: the largest utility term of the decision that moved the\n    /// agent (`migration_drivers::MIGRATION_TERM_NAMES` index; a household\n    /// follower carries its lead's; `MIGRATION_TERMS` when no term was\n    /// positive). [`NO_MIGRATION_DRIVER`] on every other event.\n    pub migration_driver: u8,\n}\n\n/// `AgentEvent::migration_driver` of events that are not migrations.\npub const NO_MIGRATION_DRIVER: u8 = 255;\n\nstruct DeathApplyContext {\n",
+          "new": "    /// Migrations: the largest utility term of the decision that moved the\n    /// agent (`migration_drivers::MIGRATION_TERM_NAMES` index; a household\n    /// follower carries its lead's; `MIGRATION_TERMS` when no term was\n    /// positive). [`NO_MIGRATION_DRIVER`] also marks migrations whose adaptive\n    /// utility attribution is unknown, and every non-migration event.\n    pub migration_driver: u8,\n}\n\n/// No known migration attribution (including adaptive migrations), or an event\n/// that is not a migration. Never infer a voluntary or forced motive from it.\npub const NO_MIGRATION_DRIVER: u8 = 255;\n\nstruct DeathApplyContext {\n"
+        },
+        {
+          "old": "    expected_deaths, expected_births, expected_hunger_deaths, hunger_births_withheld,\n    sat_near_threshold,\n});\n",
+          "new": "    expected_deaths, expected_births, expected_hunger_deaths, hunger_births_withheld,\n    sat_near_threshold,\n});\n\n#[cfg(test)]\nmod residence_exposure_tests;\n"
+        }
+      ]
+    }
+  }
+}

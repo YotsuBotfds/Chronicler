@@ -199,6 +199,7 @@ def _end_epoch(state: ResidenceLedgerState, reason: str) -> int:
     if closed:
         _bump(state, f"closed_{reason}", closed)
     state.rows = {}
+    state.arrival_coverage_since = None
     state.deferred = []
     state.travelling = []
     state.attached = []
@@ -475,6 +476,7 @@ def _move(state: ResidenceLedgerState, t: _Turn, aid: int, row: ResidenceRow, fr
 
 def _unobserved(state: ResidenceLedgerState, turn: int, reason: str) -> list:
     state.frame = state.events = None
+    state.arrival_coverage_since = None
     state.events_dropped = 0
     state.frame_turn = turn
     _bump(state, "turns_unobserved")
@@ -687,7 +689,12 @@ def phase10(world, acc, economy_result, agent_bridge):
     state.travelling = sorted(trips)
     state.attached = sorted(attached)
     coverage_complete = not refused and not deferred and len(rows) == len(alive)
-    window_complete = state.observed_from <= turn - (ARRIVAL_WINDOW_TURNS - 1)
+    if not coverage_complete:
+        state.arrival_coverage_since = None
+    elif state.arrival_coverage_since is None:
+        state.arrival_coverage_since = turn
+    window_complete = (state.arrival_coverage_since is not None
+                       and state.arrival_coverage_since <= turn - (ARRIVAL_WINDOW_TURNS - 1))
     state.frame = {"turn": turn, "observed_from": state.observed_from, "totals": totals, "regions": regions,
                    "arrival_diagnostics": {"window_turns": ARRIVAL_WINDOW_TURNS,
                                            "coverage_complete": coverage_complete, "window_complete": window_complete,
@@ -888,8 +895,10 @@ def record_status(snapshot) -> tuple[str, dict | None]:
             or any(not isinstance(r, dict) or any(not isinstance(r.get(k), int) for k in REGION_KEYS if k not in ARRIVAL_COUNT_KEYS)
                    for r in frame["regions"])):
         return "malformed", None
-    if "arrival_diagnostics" in frame:
-        a = frame["arrival_diagnostics"]
+    has_arrivals = ("arrival_diagnostics" in frame or any(k in totals for k in ARRIVAL_COUNT_KEYS)
+                    or any(any(k in r for k in ARRIVAL_COUNT_KEYS) for r in frame["regions"]))
+    if has_arrivals:
+        a = frame.get("arrival_diagnostics")
         if (not isinstance(a, dict) or a.get("window_turns") != ARRIVAL_WINDOW_TURNS
                 or any(type(a.get(k)) is not bool for k in ("coverage_complete", "window_complete", "complete"))
                 or a["complete"] != (a["coverage_complete"] and a["window_complete"])
@@ -898,7 +907,8 @@ def record_status(snapshot) -> tuple[str, dict | None]:
                 or totals[ARRIVAL_COUNT_KEYS[0]] > totals["observed"]
                 or any(any(type(r.get(k)) is not int or r[k] < 0 for k in ARRIVAL_COUNT_KEYS)
                        or r[ARRIVAL_COUNT_KEYS[1]] > r[ARRIVAL_COUNT_KEYS[0]] or r[ARRIVAL_COUNT_KEYS[0]] > r["residents"]
-                       for r in frame["regions"])):
+                       for r in frame["regions"])
+                or any(totals[k] != sum(r[k] for r in frame["regions"]) for k in ARRIVAL_COUNT_KEYS)):
             return "malformed", None
-    empty = all(totals[k] == 0 for k in _ZERO_KEYS)
+    empty = all(totals[k] == 0 for k in _ZERO_KEYS) and not (has_arrivals and totals[ARRIVAL_COUNT_KEYS[0]] > 0)
     return ("recorded_zero" if empty else "recorded"), frame

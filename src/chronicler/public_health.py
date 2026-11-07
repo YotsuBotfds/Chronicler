@@ -56,11 +56,11 @@ def check_request(world, values, args, *, agent_mode, on):
     for field in ("mode", "policy", "report_delay", "crowding"):
         value = getattr(args, f"public_health_{field}", None) if args is not None else None
         if value is not None:
-            PublicHealthState(**{field: value})
+            normalized = getattr(PublicHealthState(**{field: value}), field)
             if not requested:
                 raise ValueError(f"--public-health-{field.replace('_', '-')} requires --public-health")
             saved = _state(world)
-            if saved is not None and value != getattr(saved, field):
+            if saved is not None and normalized != getattr(saved, field):
                 raise ValueError(f"--public-health-{field.replace('_', '-')} conflicts with the saved world")
     if not requested:
         return
@@ -435,6 +435,7 @@ def environment_factors(world):
                      "residence_observed": frame is not None, "sanitation_observed": rid < len(sanitation),
                      "displaced_share": displaced, "water_service": service,
                      "crowding_factor": crowding, "crowding_basis": state.crowding,
+                     "crowding_source_turn": world.turn if state.crowding == "density_only" else world.turn - 1,
                      "recent_arrival_share": recent_share, "arrival_diagnostics_complete": arrival_complete,
                      "flux_factor": 1.0 - SANITATION_REDUCTION * service if state.mode == "active" else 1.0})
     state.environment_turn, state.environment = world.turn, rows

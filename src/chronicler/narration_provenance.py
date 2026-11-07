@@ -447,12 +447,23 @@ def resolve_record_pointer(bundle: dict, fid: str) -> ResolvedRecordPointer | No
                           and tokens[1] == "tick" and tokens[2] in ("applied", "refused"))
             if care_input and tokens[2] == "refused":
                 continue
+            exposure_input = (tokens[0] == "public_health" and position == 2 and tokens[1] == "environment")
+            configured_density = (exposure_input and len(tokens) == 4
+                                  and tokens[3] in ("crowding_factor", "crowding_source_turn")
+                                  and value.get("crowding_basis") == "density_only")
+            if configured_density:
+                # Neutral configured multiplier is known this tick even when
+                # prior residence is unobserved. It is not an X1 measurement.
+                dated = value.get("crowding_source_turn")
+                if type(dated) is not int or dated != source or value.get("crowding_factor") != 1.0:
+                    return None
+                continue
             if not 0 <= nested <= source:
                 return None
-            exposure_input = (tokens[0] == "public_health" and position == 2 and tokens[1] == "environment")
             earlier_leaf = ((care_input and len(tokens) == 5 and tokens[4] in ("patients", "source_turn"))
                             or (exposure_input and len(tokens) == 4 and tokens[3] in
-                                ("source_turn", "displaced_share", "water_service", "crowding_factor", "residence_observed", "sanitation_observed")))
+                                ("source_turn", "displaced_share", "water_service", "crowding_factor", "crowding_source_turn",
+                                 "recent_arrival_share", "arrival_diagnostics_complete", "residence_observed", "sanitation_observed")))
             if (not care_input and not exposure_input) or earlier_leaf:
                 source = nested
     if isinstance(value, float) and not math.isfinite(value):
