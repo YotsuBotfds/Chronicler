@@ -248,7 +248,12 @@ def on_pool_reset(world) -> None:
     close as ``pool_reset`` (reported in this turn's frame) and observation
     restarts; nothing is rebuilt. A no-op in a fresh run (no rows yet)."""
     state = _state(world)
-    if state is None or (not state.rows and not state.deferred and not state.rows_held):
+    if state is None:
+        return
+    # Even an empty old pool cannot certify the observation history of a
+    # replacement pool; never carry its new completeness clock across reset.
+    state.arrival_coverage_since = None
+    if not state.rows and not state.deferred and not state.rows_held:
         return
     turn = int(getattr(world, "turn", 0))
     events = [_event(aid, "pool_reset", row.spell, row.res, turn)

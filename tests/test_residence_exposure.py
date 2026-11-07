@@ -352,9 +352,9 @@ def test_pickle_resume_preserves_live_arrivals_and_selected_exposure_rule_exactl
         assert PH.environment_factors(world) == PH.environment_factors(restored)
 
 
-def test_old_serialized_public_health_state_keeps_legacy_rule_but_new_enable_defaults_density():
+def test_serialized_and_new_enable_defaults_stay_legacy_with_explicit_corrected_opt_in():
     # Missing persisted fields must preserve historical enabled behavior;
-    # enabling a genuinely new package deliberately chooses the corrected rule.
+    # corrected exposure is an explicit opt-in, not a default promotion.
     old = PublicHealthState.model_validate({"enabled": True, "mode": "active"})
     assert old.crowding == "legacy_displacement"
     raw = PublicHealthState(crowding="density_only").__getstate__()
@@ -364,7 +364,10 @@ def test_old_serialized_public_health_state_keeps_legacy_rule_but_new_enable_def
     assert restored.crowding == "legacy_displacement"
     world, _ = _start()
     PH.set_public_health_enabled(world, True)
-    assert world.livelihoods.public_health.crowding == "density_only"
+    assert world.livelihoods.public_health.crowding == "legacy_displacement"
+    corrected, _ = _start()
+    PH.set_public_health_enabled(corrected, True, args=SimpleNamespace(public_health_crowding="density_only"))
+    assert corrected.livelihoods.public_health.crowding == "density_only"
 
 
 def test_explicit_legacy_selection_survives_resume_without_implicit_promotion():
@@ -388,3 +391,16 @@ def test_json_legacy_ledger_cannot_rebuild_person_arrival_history():
     assert frame["totals"][ARRIVALS] == 0
     assert frame["arrival_diagnostics"]["complete"] is False
     assert all(r["recent_arrival_share"] is None for r in _environment(world))
+
+
+def test_empty_pool_replacement_cannot_certify_new_living_residents_past_arrivals():
+    world, sim = _start(people=0)
+    while world.turn <= 20:
+        frame = step(world, sim)
+    assert frame['arrival_diagnostics']['complete'] is True
+    RL.on_pool_reset(world)
+    sim.add(77, 0, age=30)
+    frame = step(world, sim)
+    assert frame['arrival_diagnostics']['coverage_complete'] is True
+    assert frame['arrival_diagnostics']['window_complete'] is False
+    assert _environment(world)[0]['recent_arrival_share'] is None

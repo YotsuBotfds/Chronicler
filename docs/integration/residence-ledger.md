@@ -22,7 +22,7 @@ is a post-epoch first-seen heuristic, not verified births after cap recovery;
 these physical diagnostics never use it.
 
 C2 reads this information only through its registered T−1 aggregate interface.
-New public-health runs retain existing epidemiological physical density and
+The explicitly selected corrected public-health path retains existing physical density and
 apply no additional motive-derived susceptibility term. Recent residential
 arrivals are diagnostics, not a calibrated housing/contact measure.
 

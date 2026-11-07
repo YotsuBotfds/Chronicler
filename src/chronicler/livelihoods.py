@@ -162,10 +162,10 @@ LIVELIHOODS_CHOICES: dict[str, tuple[str, ...]] = {
     "war_requisition_mode": ('transfer', 'cost_only'),
     "war_consequences_mode": ('active', 'record_only'),
     "adaptive_livelihoods_mode": ('adapt', 'record_only', 'shuffled'),
-    "adaptive_livelihoods_rules": ('3', '2', '1'),
+    "adaptive_livelihoods_rules": ('2', '1', '3'),
     "adaptive_livelihoods_decision_channels": ("all", "no_migration_experience", "no_information", "no_work", "no_trade"),
     "public_health_mode": ('active', 'cost_only'),
-    "public_health_crowding": ("density_only", "legacy_displacement"),
+    "public_health_crowding": ("legacy_displacement", "density_only"),
     "public_health_policy": ('evidence', 'shuffled'),
     "public_health_report_delay": ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20'),
     "harvest_cover_mode": ("loss", "record_only"),
@@ -238,10 +238,10 @@ _HELP = {
     "war_consequences_mode": "Saved option; choices ('active', 'record_only')",
     "adaptive_livelihoods": 'A6 personal dated migration failures and work experience inform native decisions (default off); requires hybrid and residence ledger.',
     "adaptive_livelihoods_mode": "Saved option; choices ('adapt', 'record_only', 'shuffled')",
-    "adaptive_livelihoods_rules": "3 (new default): independent war inputs and personal decision controls; 2/1 retain historical rules.",
+    "adaptive_livelihoods_rules": "2 (unchanged default), 1: historical rules; explicit 3: independent war inputs and personal decision controls.",
     "adaptive_livelihoods_decision_channels": "Rules3 personal controls: all (default), no_migration_experience, no_information (migration knowledge), no_work, no_trade. War inputs stay independent.",
     "public_health": 'Supplied epidemic care, maintained-water sanitation, physical density and dated public-health advice (default off).',
-    "public_health_crowding": "density_only (new default): retain existing physical density effects; legacy_displacement: historical motive-classified X1 multiplier.",
+    "public_health_crowding": "legacy_displacement (unchanged default): historical classified X1 multiplier; explicit density_only: existing physical density only, no motive multiplier.",
     "public_health_mode": "Saved option; choices ('active', 'cost_only')",
     "public_health_policy": "Saved option; choices ('evidence', 'shuffled')",
     "public_health_report_delay": "Saved option; choices ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20')",
@@ -904,7 +904,7 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
     channels = getattr(args, "adaptive_livelihoods_decision_channels", None)
     if channels is not None:
         saved_adaptive = getattr(livelihoods_state(world), "adaptive_livelihoods", None)
-        rules = getattr(args, "adaptive_livelihoods_rules", None) or (saved_adaptive.rules if saved_adaptive else "3")
+        rules = getattr(args, "adaptive_livelihoods_rules", None) or (saved_adaptive.rules if saved_adaptive else "2")
         if rules != "3":
             raise ValueError("--adaptive-livelihoods-decision-channels requires rules3")
     from chronicler.movement_branches import check_request as check_branch_request

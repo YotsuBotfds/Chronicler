@@ -36,7 +36,7 @@ def public_health_active(world) -> bool:
 def set_public_health_enabled(world, value, *, args=None, agent_mode=None):
     state = _state(world)
     if state is None:
-        world.livelihoods.public_health = state = PublicHealthState(crowding="density_only")
+        world.livelihoods.public_health = state = PublicHealthState()
     for field in ("mode", "policy", "report_delay", "crowding"):
         given = getattr(args, f"public_health_{field}", None) if args is not None else None
         if given is not None:

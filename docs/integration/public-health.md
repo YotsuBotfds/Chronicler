@@ -64,7 +64,8 @@ waterworks or sanitation buildings. Its full service reduces within-region flux
 susceptibility by 20%; no other pathogen, endemic severity, injury episode or
 death path changes. Missing or stale service is neutral. The epidemic tick reads
 X1 aggregates through `read_frame(consumer_turn=T)` only: the frame dated T−1.
-Newly enabled runs use `--public-health-crowding density_only`: the existing
+Corrected runs explicitly use `--public-health-crowding density_only`; the
+existing new-run default remains `legacy_displacement` without promotion. The existing
 population/capacity density and city factors remain authoritative, and the extra
 multiplier is1. Motive-classified X1 spells do not measure housing/contact
 conditions. `legacy_displacement` explicitly reproduces the old additional

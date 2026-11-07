@@ -25,9 +25,9 @@ scheduled explicitly, unchanged 110-second offline chunk limit.
   voluntary movement or absence of physical displacement. Add dated factual
   recent-residence-arrival diagnostics independently of motive. Do not invent
   housing occupancy or a forced-displacement label.
-- Correct new public-health runs to rely on existing epidemiological physical
+- Select the corrected public-health path explicitly to rely on existing physical
   density, with no unsupported additional motive-based multiplier. Save an
-  explicit legacy control and preserve old checkpoint/JSON choices.
+  explicit legacy control and preserve old checkpoint/JSON choices and all version defaults.
 - A6 record-only currently removes D3 movement scores; shuffled mode can
   redirect D3 remembered-home scores. Corrected rules must keep D3 independent
   while preserving historical rules for old exact resumes and controls.

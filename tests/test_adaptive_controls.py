@@ -210,11 +210,14 @@ def test_old_json_and_pickle_missing_control_fields_retain_rules2_all():
     assert (restored.rules, restored.decision_channels) == ("2", "all")
 
 
-def test_new_enable_chooses_rules3_without_changing_an_existing_saved_model():
+def test_corrected_rules_are_explicit_and_existing_version_defaults_are_not_promoted():
     world = NS(livelihoods=NS(adaptive_livelihoods=None))
     A6.set_adaptive_livelihoods_enabled(world, True)
     assert (world.livelihoods.adaptive_livelihoods.rules,
-            world.livelihoods.adaptive_livelihoods.decision_channels) == ("3", "all")
+            world.livelihoods.adaptive_livelihoods.decision_channels) == ("2", "all")
+    explicit = NS(livelihoods=NS(adaptive_livelihoods=None))
+    A6.set_adaptive_livelihoods_enabled(explicit, True, args=NS(adaptive_livelihoods_rules="3"))
+    assert explicit.livelihoods.adaptive_livelihoods.rules == "3"
     world.livelihoods.adaptive_livelihoods = AdaptiveLivelihoodsState(mode="record_only")
     A6.set_adaptive_livelihoods_enabled(world, True)
     assert world.livelihoods.adaptive_livelihoods.rules == "2"

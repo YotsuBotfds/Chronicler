@@ -1644,12 +1644,12 @@
       "key": "adaptive_livelihoods_rules",
       "flag": "--adaptive-livelihoods-rules",
       "label": "Adaptive livelihoods rules",
-      "help": "3 (new default): independent war inputs and personal decision controls; 2/1 retain historical rules.",
+      "help": "2 (unchanged default), 1: historical rules; explicit 3: independent war inputs and personal decision controls.",
       "kind": "choice",
       "choices": [
-        "3",
         "2",
-        "1"
+        "1",
+        "3"
       ],
       "default": null,
       "parent": "adaptive_livelihoods",
@@ -1819,11 +1819,11 @@
       "key": "public_health_crowding",
       "flag": "--public-health-crowding",
       "label": "Public health crowding",
-      "help": "density_only (new default): retain existing physical density effects; legacy_displacement: historical motive-classified X1 multiplier.",
+      "help": "legacy_displacement (unchanged default): historical classified X1 multiplier; explicit density_only: existing physical density only, no motive multiplier.",
       "kind": "choice",
       "choices": [
-        "density_only",
-        "legacy_displacement"
+        "legacy_displacement",
+        "density_only"
       ],
       "default": null,
       "parent": "public_health",

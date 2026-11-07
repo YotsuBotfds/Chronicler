@@ -1,6 +1,7 @@
 # Corrected controls in rules3
 
-Newly enabled A6 uses rules3. Saved rules1/2 retain historical behavior; the
+Corrected A6 is explicitly selected with `--adaptive-livelihoods-rules 3`.
+The existing new-run default remains2; saved rules1/2 retain historical behavior. The
 persisted default for missing old JSON/pickle fields remains2. Rules3 keeps
 rules2 personal work, learning, information and trade policies, but its
 `record_only` and `shuffled` controls cannot erase or redirect D3 war/home

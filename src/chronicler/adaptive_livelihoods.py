@@ -34,12 +34,12 @@ def set_adaptive_livelihoods_enabled(world, value, *, args=None, agent_mode=None
     mode = getattr(args, "adaptive_livelihoods_mode", None) if args else None
     rules = getattr(args, "adaptive_livelihoods_rules", None) if args else None
     channels = getattr(args, "adaptive_livelihoods_decision_channels", None) if args else None
-    effective_rules = rules or (state.rules if state is not None else "3")
+    effective_rules = rules or (state.rules if state is not None else "2")
     if channels is not None and effective_rules != "3":
         raise ValueError("adaptive livelihoods decision channels require rules3")
     if state is None:
         world.livelihoods.adaptive_livelihoods = AdaptiveLivelihoodsState(
-            enabled=bool(value), mode=mode or "adapt", rules=rules or "3", decision_channels=channels or "all")
+            enabled=bool(value), mode=mode or "adapt", rules=rules or "2", decision_channels=channels or "all")
     else:
         if ((mode is not None and mode != state.mode) or (rules is not None and rules != state.rules)
                 or (channels is not None and channels != state.decision_channels)):
