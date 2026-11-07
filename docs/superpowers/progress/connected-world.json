@@ -887,7 +887,8 @@
       "pr": 99,
       "initial_head": "89e80e8c53b00e167850d8ec3af85676fcb35e89",
       "initial_tests": 42417373801,
-      "status": "running; final head/evidence will change before merge"
+      "status": "running; final head/evidence will change before merge",
+      "initial_tests_status": "no-Rust/offline failed sole historical registry projection; test-only reviewed fix preserves all3hashes and live CWR identity. Fresh-head gates required."
     }
   }
 }

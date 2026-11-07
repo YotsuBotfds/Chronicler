@@ -1052,11 +1052,12 @@ def test_the_registry_content_hash_is_the_one_every_recorded_identity_used(SR, r
     """CW3's mark-run first wrote its note into ``use`` (registry content 95e3bdea for one
     commit); the note is a run-record field now, and the content hash is again the one CW1,
     CW4, CW4b and CW3 recorded. Cohorts reserved since (CW5c, slice C2; CW3b, slice B3: their own
-    entries only) are projected out, so that recorded content is still checked exactly; each screen's
-    own recorded identity is the content without the other's entries."""
+    entries only), D1, public-health and the later CWR1 reservation are projected
+    out, so the historical content is checked exactly. Live pilot/held identity
+    continues to include every cohort; historical projection never changes it."""
     def without(*screens):
         kept = copy.deepcopy(registry)
-        kept["entries"] = [e for e in kept["entries"] if e.get("screen") not in {*screens, "CW6D1", "CW-health"}]
+        kept["entries"] = [e for e in kept["entries"] if e.get("screen") not in {*screens, "CW6D1", "CW-health", "CWR1"}]
         # CW6 was unspent when its horizon was amended before held runs:
         # retain the original 200-turn declaration in these historical views.
         for entry in kept["entries"]:
@@ -1066,6 +1067,15 @@ def test_the_registry_content_hash_is_the_one_every_recorded_identity_used(SR, r
     assert without("CW5c", "CW3b") == "a703a8502cb688181662d323ff482822a3fec6df292d23ebccc42f05751b2cfe"
     assert without("CW5c") == "3b50508764cfea7d70bb9432560bf8d85ecdb5edba7c4cd3ca697955dd733ccf"    # CW3b's runs
     assert without("CW3b") == "fa4731ea0d40d3dc7b6c29521f51df4199c68454fcb04196b8e9b054033a3b59"    # CW5c's runs
+    # The new reservation is excluded only from historical views. It remains
+    # part of live source identity: changing either CWR1 seed changes its hash.
+    cwr = [e for e in registry["entries"] if e.get("screen") == "CWR1"]
+    assert {e["stratum"] for e in cwr} == {"template", "procedural"} and len(cwr) == 2
+    for original in cwr:
+        changed = copy.deepcopy(registry)
+        entry = next(e for e in changed["entries"] if e["id"] == original["id"])
+        entry["seeds"][0][0] += 1
+        assert SR.registry_content_sha256(changed) != SR.registry_content_sha256(registry)
     bad = copy.deepcopy(registry)
     next(e for e in bad["entries"] if e["id"] == "cw3-held-t")["unused"]["reason"] = ""
     assert any("unused is a" in p for p in SR.validate_registry(bad))

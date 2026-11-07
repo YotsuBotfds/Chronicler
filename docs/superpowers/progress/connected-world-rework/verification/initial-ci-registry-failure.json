@@ -1,0 +1,40 @@
+{
+  "run": 42417373801,
+  "head": "89e80e8c53b00e167850d8ec3af85676fcb35e89",
+  "github_test_merge": "77c5067f74016f4084f34e49f9d317f01e612077",
+  "failed_jobs": {
+    "Python no-Rust": 128538275062,
+    "Python bounded offline": 128538275067
+  },
+  "failure": "test_the_registry_content_hash_is_the_one_every_recorded_identity_used included later CWR1 entries in historical projections",
+  "no_rust": {
+    "passed": 11561,
+    "skipped": 453,
+    "subtests_passed": 623,
+    "failed": 1
+  },
+  "offline_failed_chunk": {
+    "name": "connected-world-e",
+    "passed": 118,
+    "failed": 1,
+    "seconds": 3.5,
+    "later_chunks": "not run; not claimed passed"
+  },
+  "fix": "Project only later CWR1 reservations out of historical registry views, alongside existing later cohorts; preserve all three historical hash literals. Test both new held-stratum seeds still affect LIVE registry identity. No production or registry edits.",
+  "preserved_hashes": [
+    "a703a8502cb688181662d323ff482822a3fec6df292d23ebccc42f05751b2cfe",
+    "3b50508764cfea7d70bb9432560bf8d85ecdb5edba7c4cd3ca697955dd733ccf",
+    "fa4731ea0d40d3dc7b6c29521f51df4199c68454fcb04196b8e9b054033a3b59"
+  ],
+  "focused_fixed_checks": {
+    "root": {
+      "passed": 171,
+      "seconds": 1.09
+    },
+    "independent": {
+      "passed": 49,
+      "seconds": 0.22
+    }
+  },
+  "main_disposition": "Main125a6906 has no CWR1 reservation and is unaffected; no additional feature merge while main CI or final PR gates are pending."
+}
