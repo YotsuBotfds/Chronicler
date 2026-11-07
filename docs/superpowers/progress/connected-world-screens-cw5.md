@@ -1,7 +1,8 @@
 # Connected-world CW5: preregistered held screen for titled trade (slice A4-1)
 
-Status: DRAFT (not frozen; the lead freezes it before any held run). Written 2026-11-07 by the A4
-lane on branch `claude/cw-a4-titled-trade` at `21aa48cb` (the A4 review fixes approved at
+Status: DRAFT, pre-freeze revision 1 (not frozen; the lead freezes it before any held run; see
+"Pre-freeze revision 1" at the end, and its open question on the window). Written 2026-11-07 by the A4
+lane on branch `claude/cw-a4-titled-trade` at `21aa48cb`, revised at `a1b61760` (the A4 review fixes approved at
 `d5ccd4d6`, merged with `main` `bac45cb5`, plus the lead's carrier rule at `9591e280`: carriers
 take no native decision while reserved). Native extension built from this branch, SHA-256
 `43cbd22ac4e7e2c6a77e71781a884be5342f41aa4173ff6f43e0facf0f5e0eb0`. No held seed (template
@@ -9,9 +10,9 @@ take no native decision while reserved). Native extension built from this branch
 change before the held run only to fix a defect, recorded as an amendment with a new pilot; no
 arm, outcome, set or parameter changes in response to held outcomes.
 
-Compute ceiling: 0.25 core-hours
+Compute ceiling: 0.30 core-hours
 
-Primary outcomes: cw5_food_in_deficit, cw5_shortfall_deficit, cw5_margin_vs_withheld
+Primary outcomes: cw5_food_in_deficit, cw5_shortfall_deficit
 
 ## Purpose and limits
 
@@ -67,18 +68,25 @@ merchants' margins replace the withheld model income rather than stack on it?**
 
 ## Region sets (fixed before treatment, identical in both arms)
 
-From the food account of world turn 0 (snapshot 1), which titled trade cannot reach (its first
-purchase is in Phase 10 of a turn, after that turn's economy; the arms are identical until then):
+Pre-freeze revision 1 (the lead's decision): over a **pre-treatment window, world turns 0-19**
+(snapshots 1-20), classified **relatively** (`cw5_window_sets`):
 
-- **Deficit regions**: regions with demand at turn 0 whose native food production that turn was
-  below their demand (`food_accounting.regions[i].native.produced < demand`, demand > 0).
-- **Surplus regions**: regions with demand at turn 0 that produced at least their demand.
-- Regions without demand at turn 0 (unpopulated then) are in neither set.
+- each region's demand-weighted production ratio over the window, `sum produced / sum demand`
+  (`food_accounting.regions[i].native`), against the world's ratio over the window (all regions'
+  production over all regions' demand);
+- **deficit regions**: ratio below the world's; **surplus regions**: at or above it;
+- regions without demand throughout the window (unpopulated in all 20 turns) are in neither set.
 
-The extractor records the sets (`sets_digest`); on both pilot worlds they were identical in R
-and T (template 5: 4 deficit, 2 surplus of 8; procedural 19: 7 deficit, 8 surplus of 32).
-Turn 0 is the only turn guaranteed to precede any titled shipment; a region's status can change
-later (a deficit region at turn 0 may export later), which every measure inherits.
+**Validity per world** (a world failing it is left out of every set-based outcome, primaries
+included, and listed; never imputed): T made **no titled purchase in world turns 0-19** (so R
+and T are identical through the window), and **R's and T's set records are identical**
+(`sets_digest`; the report compares them across arms: `_cw5_report` lists every world and marks a
+failing one in both rows, so the outcome tables show it as unknown). Classification never uses
+R's realised region-turn production or shortfall after the window.
+
+**Sensitivity line:** the turn-0 sets (production below demand at world turn 0, regions without
+demand then in neither), `cw5_t0_food_in_deficit` and `cw5_t0_shortfall_deficit` (T - R);
+turn 0 always precedes any purchase.
 
 ## Activation (reported per world before any effect)
 
@@ -105,36 +113,44 @@ reported as `not activated` and left out of T's comparisons, never read as zero.
   restricted to the set). `food_met_*`: the demand-weighted mean of `min(1, sufficiency)`.
 - **Retail in the sets**: mean retail price (milli-units per ration) and priced-out person-turns
   over the set's retail frames.
-- **Merchants' margin against the withheld income** (`holder_net_vs_withheld`, T): titled trade's
-  counters at the end, `(cargo sales credited - owners paid) / 1000 - income withheld / 1e6`
-  (wealth units): what holders realized selling delivered cargo, less what they paid the owners,
-  less the model income withheld from them while they carried. Positive: the margins more than
-  replace the income they gave up; negative: they do not.
+- **Merchants' accounting balance on titled cargo** (`holder_balance`, T; a secondary since
+  revision 1): `(cargo sales credited - owners paid) / 1000 - income withheld / 1e6` (the
+  realized margin less the withheld model income, `holder_net_vs_withheld`) **plus the titled
+  food the merchants still hold, at its purchase cost**: food returned to the origins (each closed
+  shipment's returned food at that shipment's cost per milli-food), cargo aboard at the end
+  (each live shipment at its own cost) and delivered food still unsold at the end (the last
+  record's lots, at the run's mean purchase cost per milli-food). Escheated, deposited and lost
+  food carries no value. Returned food sold later at the origin is valued at cost, not at its
+  sale price (retail does not attribute those sales to the shipment).
 - **Shipments by outcome and cause**, owners' receipts (paid for their surplus), food decayed in
   transit, households' food purchases credited to sellers (retail counter), the destination and
   origin regions' shortfall share (T alone; post-treatment selection), the commons at the end
   (region stockpiles of the five retail goods in the final world state).
 
-**Validity checks (a breach is a problem that fails the run, rc 3, never a value):** every
+**Validity checks (a breach is a problem that fails the run, rc 3, never a value):** a complete
+food account in every snapshot (revision 1: a missing one was read as zero trade before); every
 shipment's cargo closes in every snapshot (`sum(cargo_open) = aboard + losses + delivered +
 returned + deposited`); one paid-work receipt row per carrier-turn (`receipt_rows =
 carrier_turns`); every A1 ledger closure true on every observed frame (including the measured
 `cargo_purchase` closures); titled trade recorded only in T and dated s - 1 (the runner's package
-check); the turn-0 food account present. Structural `None`: titled measures in R. A missing
-measure is a problem, never a zero.
+check); the window's food accounts present. Structural `None`: titled measures in R; set-based
+measures on a world whose window failed. A missing measure is a problem, never a zero.
 
-## Primary outcomes
+## Primary outcomes (two since revision 1)
 
 1. `cw5_food_in_deficit` (T - R): food into the deficit regions by trade over the run (the
    channel, net of what titled trade buys there and of any native trade it displaces).
 2. `cw5_shortfall_deficit` (T - R): the deficit regions' food shortfall share after relief (the
    welfare question).
-3. `cw5_margin_vs_withheld` (T alone; no control: the model income is not recorded by occupation
-   in R): merchants' realized margin less the model income withheld (replacement, not stacking).
+
+No third primary: a T - R contrast of merchants' income or wealth cannot be extracted from the
+bundle. No record holds money or wealth by occupation in either arm (the A1 ledger is
+world-, region- and channel-level; R has no merchant money record), so the merchants' balance is
+the single-arm secondary above.
 
 Signs are not forced. Prediction (inferred from development worlds, never evidence): titled
-trade moves food out of turn-0 surplus regions, the deficit regions' shortfall share falls a
-little, and margins exceed the withheld income.
+trade moves food out of surplus regions, the deficit regions' shortfall share falls a little, and
+margins exceed the withheld income.
 
 ## Secondary outcomes
 
@@ -147,8 +163,12 @@ little, and margins exceed the withheld income.
 - Shipments by outcome and cause (T): bought, delivered, returned after a release, returned for
   a lost route, returned for a conquered destination, escheated; region-turns with a titled
   shipment.
-- Money (T): merchants' margin and the income withheld separately; owners paid; households' food
-  purchases credited to sellers (T - R); food lost to transit decay.
+- Money (T): the merchants' accounting balance (`cw5_holder_balance`, above) and its parts: the
+  realized margin less the withheld income (`cw5_margin_vs_withheld`, an accounting balance, the
+  third primary before revision 1), the returned food and the cargo aboard at purchase cost, the
+  margin and the income withheld separately; owners paid; households' food purchases credited to
+  sellers (T - R); food lost to transit decay.
+- Sensitivity (T - R): food into, and the food shortfall share of, the turn-0 deficit regions.
 
 ## Harm panel
 
@@ -159,52 +179,66 @@ recorded` (the timber stock is off); deaths by famine and by war need slice extr
 (`requires slice extractor`). The screen adds T - R rows for the commons food at the end (the
 commons drawdown), the world food shortfall, priced-out persons, treasury, the mean stability of
 living civilizations at the end and population; the exporters' shortfall and prices and the
-shipments returned by cause are listed above.
+shipments returned by cause are listed above. **Merchant and farmer counts at the end** (asked
+for in revision 1, since carriers no longer switch occupation) are **not recorded** in any bundle
+field: no record counts occupations. The nearest record, the retail frames' household cohorts
+(`nonfarm_adults`: adults off any crew who are not farmers), reads `persons: null` (unknown) in a
+region whenever someone there died between the Phase 2 roster and provisioning, which happened in
+the last snapshot of 3 of the 4 pilot runs; so the harm is declared and not read (a record would
+be needed, outside this slice).
 
 ## Analysis plan
 
 `report` prints activation per world first, then each outcome per stratum: the per-world values,
 mean [min, max], sign counts and, for a contrast, the exact sign-flip enumeration of the mean
-over the activated worlds (2^6 assignments per stratum). Strata are reported separately and not
-pooled. A primary is read as consistent when its sign agrees on at least 5 of 6 worlds in a
+over the activated worlds whose pre-treatment window held (2^6 assignments per stratum; a world
+whose window failed is listed by the report's window table and shown as unknown in every
+set-based outcome). Strata are reported separately and not pooled. A primary is read as consistent when its sign agrees on at least 5 of 6 worlds in a
 stratum and the sign-flip share is at most 4/64; anything else is read as no consistent effect.
 Secondaries and harms are descriptive. The procedural and template strata may disagree; both are
 reported.
 
 ## Extractor validation (the shared pilot, before the freeze)
 
-- Offline tests `tests/test_cw5_screen.py` (oracle chunk `connected-world-e`): the arms and
-  primaries; the sets from world turn 0 (and a misdated account as a problem); titled food into
-  and out of the sets, the native net, the margin, prices and priced-out persons, the commons and
-  the region-turns on a constructed bundle; R's titled flows zero by construction and a titled
-  record in R a problem; the validity checks (cargo not closing, receipt rows, a failed ledger
-  closure); activation.
-- On the pilot bundles (template 5 and procedural 19, both arms, source `14012038`): every outcome
-  extracted, no problem; the sets identical in R and T on both worlds; an independent
-  recomputation from the four kept bundles, not importing the screen module, matched the
-  extractor on the deficit shortfall share, food into the deficit regions and the margin less the
-  withheld income on every run (to the printed precision, 9 and 6 decimals). The raw runs were
-  then deleted.
+Revision 1 (source `a1b61760`):
+
+- Offline tests `tests/test_cw5_screen.py` (oracle chunk `connected-world-e`): the two primaries;
+  the relative window sets (a region at the world ratio is a surplus region) and the turn-0
+  sensitivity sets; an incomplete window as a problem; titled food into and out of the sets, the
+  native net, the count `tt_returned` kept apart from the food `tt_returned_food`, the merchants'
+  balance with cargo aboard and unsold lots at cost; a purchase inside the window invalidating the
+  world's set outcomes; the report comparing R's and T's set records and marking a mismatch; a
+  missing or non-numeric food account as a problem, never a zero; R's titled flows zero by
+  construction; the validity checks; activation with the window purchases.
+- On the pilot bundles (template 5 and procedural 19, both arms): every outcome extracted, no
+  problem. An independent recomputation from the four kept bundles, not importing the screen
+  module, matched the extractor on the window sets (the same digest), the purchases inside the
+  window, the deficit shortfall share and food into the deficit regions on every run. The raw
+  runs were then deleted.
 - `check --screen CW5` passes; `check --screen CW5 --metrics PILOT/metrics.jsonl --cohort pilot`
   passes (4 runs complete, every outcome extracted).
+- **Both pilot worlds fail the window check** (see "Pre-freeze revision 1").
+
+Before revision 1 (source `14012038`, the turn-0 sets): every outcome extracted; the turn-0 sets
+identical in R and T on both worlds; an independent recomputation matched.
 
 ## Timing pilot (the shared pilot)
 
-`run PILOT --screen CW5 --cohort pilot --jobs 2` on `21aa48cb` (clean tree; `source.txt`: dirty 0,
-dirty-code 0; extension `43cbd22a…`): 4 runs, 0 failed, every outcome extracted; 67 s of
-simulation and extraction. Seconds per run: R template 8.8, procedural 21.8; T template 9.7,
-procedural 26.5. T activated on both worlds (template 5: 111 shipments, titled shipments in 196 of
-1,600 region-turns; procedural 19: 660 shipments, 1,277 of 6,400). **Projected held run: 0.111
-core-hours for 24 runs** (x1.5 = 0.167). The pilot's `metrics.jsonl`, `source.txt` and
-`report.md` are retained in `connected-world-screens-cw5/pilot/` (the held run's `--pilot`). The
-report prints the pilot's outcomes; they were not used to choose any definition (the sets,
-measures and primaries were fixed before the first pilot run; that run's code differed only in
-the CW2 part of the screen module).
+`run PILOT --screen CW5 --cohort pilot --jobs 2` on `a1b61760` (revision 1; clean tree;
+`source.txt`: dirty 0, dirty-code 0; extension `43cbd22a…`): 4 runs, 0 failed, every outcome
+extracted; 76 s of simulation and extraction. Seconds per run: R template 10.5, procedural 23.9;
+T template 10.5, procedural 30.8. T activated on both worlds. **Projected held run: 0.126
+core-hours for 24 runs** (x1.5 = 0.189). The pilot's `metrics.jsonl`, `source.txt` and
+`report.md` are retained in `connected-world-screens-cw5/pilot/` (the held run's `--pilot`;
+they replace the pilot on `21aa48cb`, 0.111 core-hours). The report prints the pilot's outcomes
+(both worlds' set-based outcomes read `unknown`: the window failed); they were not used to choose
+any definition.
 
 ## Budget and stopping rules
 
-- **Compute ceiling 0.25 core-hours** (the line above, read by the runner: the pilot projection
-  0.111 x 2.25, leaving room for runs about 1.5 times slower on a loaded machine). Run with
+- **Compute ceiling 0.30 core-hours** (the line above, read by the runner: the revision-1 pilot
+  projection 0.126 x 2.4, leaving room for runs about 1.5 times slower on a loaded machine; 0.25
+  before revision 1). Run with
   `--jobs 2` (other lanes share the 4 cores). The runner refuses a held run whose pilot
   projection x 1.5 exceeds the ceiling and starts no run that would pass it; runs not started are
   reported as `not run` (exit code 4), never as zeros. Raising the ceiling needs the lead's
@@ -238,3 +272,39 @@ python -m chronicler.main --seed 1 --turns 90 --agents hybrid --simulate-only --
   1.457 food units from 4 owners in Crystalfen Marsh for 0.729; after two hops the route to
   Stormbreak Cliffs was lost (world turn 86) and the cargo returned to the origin at full value as
   its claim there (outcome `returned`, cause `route_lost`).
+
+## Pre-freeze revision 1 (2026-11-07, before any held run; the lead's decisions after the delta review)
+
+The delta review approved the code at `347621e7` and asked for changes before the freeze. Made at
+`a1b61760` (screen module and tests; this page):
+
+1. **Region sets from a pre-treatment window** (world turns 0-19), classified relatively against
+   the world's production ratio, with the per-world validity check (no titled purchase in the
+   window; identical set records in R and T, compared by the report) and the turn-0 sets kept as a
+   sensitivity line. Reason (the review): turn 0 left out regions populated by turn 20, classified
+   a near-balanced region as deficit (26.91 < 27.0) that became the second-largest titled exporter,
+   left the surplus set empty on template 1, and an absolute threshold does not separate regions
+   when every region produces below its demand over the run.
+2. **Two primaries.** No T - R merchant income or wealth can be extracted (no record holds money
+   or wealth by occupation in either arm). The single-arm margin less the withheld income is an
+   accounting balance, now a secondary, and completed into the merchants' balance with returned
+   food, cargo aboard at the end and unsold delivered lots at purchase cost.
+3. **Extractor fixes:** the shipment count `tt_returned` was overwritten by the returned food in
+   units (now `tt_returned_food`, with the other counter-derived units renamed to keep them
+   apart); a missing or incomplete food account in any snapshot is a problem (rc 3), never zero
+   trade.
+4. **Harm panel:** merchant and farmer counts at the end are not recorded (above): declared, not
+   read.
+
+**Open question for the lead (found in the revision-1 pilot; not decided here):** both pilot
+worlds **fail the window check**. On template 5 T's first titled purchase is in world turn 18 (one
+purchase inside the window); on procedural 19 it is in world turn 7 (twenty purchases inside the
+window), and there R's and T's window sets differ in one region (region 5). Under the rule as
+written, both worlds are left out of every set-based outcome, so the primaries read `unknown` on
+both; if the held worlds behave alike, the primaries could be undefined on most of them. Options
+(for the lead; each needs a pre-freeze revision 2 and a new pilot): a per-world window that ends
+before T's first titled purchase (identical in R and T by construction, but short where trade
+starts early: 7 turns on procedural 19), or the review's fallback, R's whole-run region-level
+production ratio applied to both arms. Either needs the set-based measures aggregated when the
+report pairs R's and T's rows (the extractor would keep per-region vectors), because one run's
+extraction cannot see the other arm.
