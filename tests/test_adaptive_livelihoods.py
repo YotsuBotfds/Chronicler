@@ -89,3 +89,105 @@ def test_mode_and_rules_conflicts_are_rejected():
     w = world()
     with pytest.raises(ValueError, match="cannot change"):
         a6.set_adaptive_livelihoods_enabled(w, True, args=NS(adaptive_livelihoods_mode="shuffled"))
+
+
+def test_repeated_offer_probes_are_one_observation_and_pool_reset_clears_cached_ids():
+    w = world()
+    a6.note_work(w, 1, "repair", paid_milli=0, withheld_milli=100, title_forgone_milli=0)
+    w.turn += 1
+    assert not a6.accepts_offer(w, 1, "repair")
+    assert not a6.accepts_offer(w, 1, "repair")
+    state = w.livelihoods.adaptive_livelihoods
+    assert state.counters["would_decline_repair"] == 1 and len(state.offers) == 1
+    a6.on_pool_reset(w)
+    assert a6.accepts_offer(w, 1, "repair")  # id may name a different person
+
+
+def test_training_uses_personal_failed_progress_and_preserves_commitments_value():
+    w = world()
+    for _ in range(2):
+        a6.note_work(w, 1, "academy_training", paid_milli=0, withheld_milli=0,
+                     progress=False, source="personal no-seat receipt")
+        w.turn += 1
+    assert not a6.accepts_offer(w, 1, "academy_training")
+    assert a6.accepts_offer(w, 1, "apprenticeship")
+    a6.note_work(w, 1, "academy_training", paid_milli=0, withheld_milli=100,
+                 progress=True, source="personal attended receipt")
+    w.turn += 1
+    assert a6.accepts_offer(w, 1, "academy_training")
+
+
+def test_real_payroll_hook_supplies_personal_paid_and_withheld_receipts():
+    from tests.test_workshop_payroll import _world, FakeSim, _build, _turn
+    w, sim = _world(), FakeSim()
+    _build(w, sim)
+    state = AdaptiveLivelihoodsState()
+    object.__setattr__(w.livelihoods, "adaptive_livelihoods", state)
+    _turn(w, sim, output=1.2)
+    assert {r["id"] for r in state.work} == {10, 20}
+    assert all(r["paid_milli"] == 150 and r["withheld_milli"] == 90 and r["net_milli"] == 60
+               and r["title_forgone_milli"] == 0 for r in state.work)
+    assert a6.declined_ids(w, "workshop") == []
+
+
+def test_real_unpaid_work_receipt_can_refuse_a_later_work_offer():
+    from tests.test_workshop_payroll import _world, FakeSim, _build, _turn
+    w, sim = _world(mode="unpaid_labor"), FakeSim()
+    _build(w, sim)
+    state = AdaptiveLivelihoodsState()
+    object.__setattr__(w.livelihoods, "adaptive_livelihoods", state)
+    _turn(w, sim, output=1.2)
+    assert all(r["paid_milli"] == 0 and r["withheld_milli"] == 90 and r["net_milli"] == -90
+               for r in state.work)
+    assert a6.declined_ids(w, "workshop") == [10, 20]
+
+
+def test_new_training_enrollment_consumes_dated_failure_experience():
+    from tests.test_learning_cohorts import _world, FakeSim, person, turn
+    w = _world()
+    w.turn = 3
+    sim = FakeSim([person(1, occ=1), person(2, occ=2)])
+    state = AdaptiveLivelihoodsState(last_turn=2, work=[
+        {"turn": t, "id": aid, "kind": "academy_training", "progress": False, "net_milli": None}
+        for t in (1, 2) for aid in (1, 2)])
+    object.__setattr__(w.livelihoods, "adaptive_livelihoods", state)
+    outcome = turn(w, sim)
+    assert not outcome.cohorts  # both personally decline; minimum cohort cannot form
+    assert len(state.offers) == 2 and all(not o["accepted"] for o in state.offers)
+
+
+def test_forgone_title_is_unknown_in_a_retail_pilot_without_a_counterfactual_receipt():
+    w = world()
+    w.livelihoods.household_retail = NS(enabled=True, mode="retail", region=lambda rid: NS() if rid == 0 else None)
+    assert a6.forgone_title(w, 0) is None
+    assert a6.forgone_title(w, 1) == 0
+    assert a6.forgone_title(w, 0, occupation=2) == 0
+
+
+def test_work_history_is_bounded_deduplicated_and_resumes_after_pickle(monkeypatch):
+    import pickle
+    monkeypatch.setattr(a6, "MAX_WORK", 3)
+    w = world()
+    for aid in (7, 3, 5, 9, 1):
+        a6.note_work(w, aid, "repair", paid_milli=aid, withheld_milli=0, title_forgone_milli=0)
+    state = w.livelihoods.adaptive_livelihoods
+    assert sorted(r["id"] for r in state.work) == [5, 7, 9]
+    assert state.counters["work_dropped"] == 2
+    state = pickle.loads(pickle.dumps(state))
+    w.livelihoods.adaptive_livelihoods = state
+    a6.note_work(w, 9, "repair", paid_milli=999, withheld_milli=0, title_forgone_milli=0)
+    assert next(r for r in state.work if r["id"] == 9)["paid_milli"] == 9
+    a6.note_work(w, 10, "repair", paid_milli=10, withheld_milli=0, title_forgone_milli=0)
+    assert sorted(r["id"] for r in state.work) == [7, 9, 10]
+
+
+def test_native_refusal_frame_samples_preserve_total_and_full_bounded_memory():
+    w, sim = world(), Sim()
+    sim.take_adaptive_migration_receipt = lambda: (5, [(i, 0, 1, 0) for i in range(500)], 7, 3)
+    a6.before_agent_tick(w, NS(_sim=sim))
+    a6.after_agent_tick(w, NS(_sim=sim))
+    state = w.livelihoods.adaptive_livelihoods
+    assert len(state.memory) == 500
+    assert len(state.frame["refusals"]) == len(state.frame["receipt"][1]) == 256
+    assert state.frame["refusals_total"] == 500 and state.frame["refusals_dropped"] == 244
+    assert state.frame["receipt"][2:] == (7, 3)

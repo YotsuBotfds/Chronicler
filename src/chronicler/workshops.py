@@ -430,10 +430,13 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
     reserve_turn = None if state.mode == "observe" else world.turn
     if requests:
         priority = _crew_priority(world, state)
+        from chronicler.adaptive_livelihoods import declined_ids
+        declined = declined_ids(world, "workshop")
+        choice_kw = {"declined_ids": declined} if declined else {}
         if priority:
-            planned = sim.plan_workshop_crews(requests, _enlisted(world), reserve_turn, priority_ids=priority)
+            planned = sim.plan_workshop_crews(requests, _enlisted(world), reserve_turn, priority_ids=priority, **choice_kw)
         else:
-            planned = sim.plan_workshop_crews(requests, _enlisted(world), reserve_turn)
+            planned = sim.plan_workshop_crews(requests, _enlisted(world), reserve_turn, **choice_kw)
         for row, (site_id, _r, _s, diverted, _m) in zip(planned, requests, strict=True):
             (site, region, settlement, resident, trip, army, assigned, eligible,
              crew, ages, work) = row

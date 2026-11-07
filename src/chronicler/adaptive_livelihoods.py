@@ -8,6 +8,7 @@ is never invented. Regional and crew totals are never assigned to a person.
 from __future__ import annotations
 
 from collections import defaultdict
+import heapq
 
 from chronicler.adaptive_livelihoods_state import AdaptiveLivelihoodsState
 from chronicler.utils import stable_hash_int
@@ -43,6 +44,8 @@ def set_adaptive_livelihoods_enabled(world, value, *, args=None, agent_mode=None
             state.memory.clear()
             state.work.clear()
             state.frame = None
+            state._index_turn, state._work_index, state._offer_cache = None, {}, {}
+            state._record_turn, state._record_keys, state._work_heap = None, set(), []
 
 
 def _bump(state, name, amount=1):
@@ -68,43 +71,136 @@ def penalty_rows(state, turn):
     return [(aid, region, -min(P_CAP, value)) for (aid, region), value in sorted(totals.items())]
 
 
-def accepts_offer(world, agent_id, kind):
-    """A personal offer decision, not a labour booking; unknown means accept.
+def _work_index(state, turn):
+    if state._index_turn != turn:
+        if state.last_turn >= 0 and state.last_turn != turn - 1:
+            state.memory.clear()
+            state.work.clear()
+        state._index_turn, state._work_index, state._offer_cache = turn, {}, {}
+        for row in state.work:
+            if 0 < turn - row["turn"] <= WORK_WINDOW:
+                state._work_index.setdefault((row["id"], row["kind"]), []).append(row)
+    return state._work_index
 
-Only exact individual receipts may populate the work memory. Rules 2 refuses
-an offer when the person's last ten turns in that kind paid no more than the
-ordinary income and titled output actually forgone. Training is a separate
-kind, so a failed paid job cannot silently preclude an unrelated course.
-"""
+
+def _declines(state, turn, agent_id, kind):
+    history = _work_index(state, turn).get((int(agent_id), str(kind)), ())
+    if kind in ("apprenticeship", "academy_training"):
+        # An attended session is progress toward a real qualification/skill.
+        # Do not pretend its benefit has zero monetary value. A new course is
+        # refused only after repeated personal failed attendance without any
+        # observed progress in the same window.
+        return (sum(r.get("progress") is False for r in history) >= 2
+                and not any(r.get("progress") is True for r in history))
+    rows = [r for r in history if r.get("net_milli") is not None]
+    return bool(rows) and sum(r["net_milli"] for r in rows) <= 0
+
+
+def declined_ids(world, kind):
+    """Dated choice exclusions for a planner, without claiming an offer occurred."""
+    if not adaptive_livelihoods_active(world):
+        return []
+    state = _state(world)
+    if state.rules != "2" or state.mode == "record_only":
+        return []
+    return sorted(aid for aid, row_kind in _work_index(state, world.turn)
+                  if row_kind == kind and _declines(state, world.turn, aid, kind))
+
+
+def accepts_offer(world, agent_id, kind):
+    """A new personal offer decision, deduplicated across planner probes.
+
+    Training uses its exact progress receipts; paid work uses fully observed
+    personal cash and forgone-title value. Unknown never means a monetary loss.
+    A finite commitment already accepted is not silently terminated here.
+    """
     if not adaptive_livelihoods_active(world):
         return True
     state = _state(world)
-    rows = [r for r in state.work if r["id"] == agent_id and r["kind"] == kind
-            and 0 < world.turn - r["turn"] <= WORK_WINDOW and r.get("net_milli") is not None]
-    decline = bool(rows) and sum(r["net_milli"] for r in rows) <= 0
+    _work_index(state, world.turn)
+    key = (int(agent_id), str(kind))
+    if key in state._offer_cache:
+        return state._offer_cache[key]
+    decline = _declines(state, world.turn, *key)
+    accepted = not (decline and state.rules == "2" and state.mode != "record_only")
+    if state.offer_turn != world.turn:
+        state.offer_turn, state.offers, state.offers_dropped = world.turn, [], 0
     if decline:
         _bump(state, "would_decline_" + kind)
-    return not (decline and state.rules == "2" and state.mode != "record_only")
+    if len(state.offers) < 256:
+        state.offers.append({"turn": world.turn, "id": int(agent_id), "kind": str(kind),
+                             "would_decline": decline, "accepted": accepted})
+    else:
+        state.offers_dropped += 1
+    state._offer_cache[key] = accepted
+    return accepted
 
 
-def note_work(world, agent_id, kind, *, paid_milli, withheld_milli, title_forgone_milli=None):
-    """Planners supply exact receipt components, or explicitly unknown title cost.
-
-An unknown cost remains unknown and cannot cause a refusal. Once a planner
-has measured a net utility it can be learned on the following turn only.
-"""
+def note_work(world, agent_id, kind, *, paid_milli, withheld_milli, title_forgone_milli=None,
+              progress=None, source=None):
+    """Exact personal components or null; group totals never stand in for them."""
     if not adaptive_livelihoods_active(world):
         return
     state = _state(world)
+    known = all(v is not None for v in (paid_milli, withheld_milli, title_forgone_milli))
     row = {"turn": int(world.turn), "id": int(agent_id), "kind": str(kind),
-           "paid_milli": int(paid_milli), "withheld_milli": int(withheld_milli),
-           "title_forgone_milli": title_forgone_milli,
-           "net_milli": None if title_forgone_milli is None else
-                        int(paid_milli) - int(withheld_milli) - int(title_forgone_milli)}
+           "paid_milli": int(paid_milli) if paid_milli is not None else None,
+           "withheld_milli": int(withheld_milli) if withheld_milli is not None else None,
+           "title_forgone_milli": title_forgone_milli, "progress": progress, "source": source,
+           "net_milli": int(paid_milli) - int(withheld_milli) - int(title_forgone_milli) if known else None}
     key = (row["turn"], row["id"], row["kind"])
-    if not any((r["turn"], r["id"], r["kind"]) == key for r in state.work):
+    if state._record_turn != world.turn:
+        state._record_turn = world.turn
+        state._record_keys = {(r["id"], r["kind"]) for r in state.work if r["turn"] == world.turn}
+        state._work_heap = [((r["turn"], r["id"], r["kind"]), i) for i, r in enumerate(state.work)]
+        heapq.heapify(state._work_heap)
+    if key[1:] in state._record_keys:
+        return
+    state._record_keys.add(key[1:])
+    if len(state.work) < MAX_WORK:
+        heapq.heappush(state._work_heap, (key, len(state.work)))
         state.work.append(row)
-    _trim(state, "work", MAX_WORK)
+    else:
+        # Keep the newest deterministic keys in bounded O(log N), rather than
+        # sorting the full history for every paid member at declared scale.
+        if key > state._work_heap[0][0]:
+            index = state._work_heap[0][1]
+            heapq.heapreplace(state._work_heap, (key, index))
+            state.work[index] = row
+        _bump(state, "work_dropped")
+
+
+def forgone_title(world, region, *, occupation=0):
+    """Zero only when a personal title cannot exist; otherwise unobserved.
+
+    The existing harvest receipt does not supply a person's counterfactual
+    output without diverted work. Its regional harvest is not that person's
+    forgone title and must not be divided among the crew as if it were known.
+    """
+    retail = getattr(getattr(world, "livelihoods", None), "household_retail", None)
+    if occupation != 0 or retail is None or not retail.enabled or retail.mode == "record_only":
+        return 0
+    return None if retail.region(int(region)) is not None else 0
+
+
+def record_payroll(world, work, receipt, transfers, regions):
+    """Called before payroll truncates its full per-person money receipts."""
+    if not adaptive_livelihoods_active(world):
+        return
+    paid_rows = defaultdict(int)
+    for transfer in transfers:
+        if transfer.kind == "wage" and transfer.payee[0] == "agent_wealth" and transfer.payer[0] == "workshop_cash":
+            paid_rows[(transfer.payer[1], transfer.payee[1])] += transfer.applied
+    for site, assignment in work.items():
+        for aid, share in zip(assignment.crew, assignment.shares, strict=True):
+            paid = paid_rows[(site, aid)]
+            observed = receipt.get(aid) if receipt is not None else None
+            # A combined paid-work row cannot be attributed to this job if
+            # another paid share was present. Keep its cost explicitly null.
+            withheld = round(observed[2] * 1000) if observed is not None and abs(observed[0] - share) <= 1e-6 else None
+            note_work(world, aid, "workshop", paid_milli=paid, withheld_milli=withheld,
+                      title_forgone_milli=forgone_title(world, regions[site]),
+                      source="workshop_payroll:untruncated wages + keyed paid-work receipt")
 
 
 def before_agent_tick(world, agent_bridge, economy_result=None):
@@ -154,12 +250,15 @@ def after_agent_tick(world, agent_bridge):
     receipt = agent_bridge._sim.take_adaptive_migration_receipt()
     if receipt is None or receipt[0] != world.turn:
         raise RuntimeError("adaptive migration requires this turn's native receipt")
-    state.frame["receipt"] = receipt
+    state.frame["receipt"] = (receipt[0], receipt[1][:256], *receipt[2:])
+    state.frame["refusals_total"] = len(receipt[1])
+    state.frame["refusals_dropped"] = max(0, len(receipt[1]) - 256)
     for aid, origin, target, gate in receipt[1]:
         row = {"turn": int(world.turn), "id": int(aid), "kind": "refused", "region": int(target),
                "origin": int(origin), "gate": gate}
         state.memory.append(row)
-        state.frame["refusals"].append(row)
+        if len(state.frame["refusals"]) < 256:
+            state.frame["refusals"].append(row)
     _trim(state, "memory", MAX_MEMORY)
 
 
@@ -181,10 +280,19 @@ def phase10(world, acc, economy_result, agent_bridge):
                 and world.turn - prior["res_since"] <= QUICK_LEAVE_TURNS:
             row = {"turn": int(world.turn), "id": aid, "kind": "left_soon", "region": int(event.region)}
             state.memory.append(row)
-            state.frame["quick_departures"].append(row)
+            state.frame["quick_departures_total"] = state.frame.get("quick_departures_total", 0) + 1
+            if len(state.frame["quick_departures"]) < 256:
+                state.frame["quick_departures"].append(row)
     state.memory = [r for r in state.memory if 0 <= world.turn - r["turn"] < LEFT_WINDOW]
     state.work = [r for r in state.work if 0 <= world.turn - r["turn"] <= WORK_WINDOW]
     _trim(state, "memory", MAX_MEMORY)
+    _trim(state, "work", MAX_WORK)
+    state._record_turn, state._record_keys, state._work_heap = None, set(), []
+    state.frame["quick_departures_dropped"] = max(0, state.frame.get("quick_departures_total", 0) - 256)
+    state.frame["work"] = [dict(r) for r in state.work if r["turn"] == world.turn][:256]
+    state.frame["work_dropped"] = max(0, sum(r["turn"] == world.turn for r in state.work) - 256)
+    state.frame["offers"] = list(state.offers) if state.offer_turn == world.turn else []
+    state.frame["offers_dropped"] = state.offers_dropped if state.offer_turn == world.turn else 0
     state.last_turn = world.turn
     return []
 
@@ -196,6 +304,9 @@ def on_pool_reset(world):
         state.work.clear()
         state.frame = None
         state.last_turn = -1
+        state.offer_turn, state.offers, state.offers_dropped = None, [], 0
+        state._index_turn, state._work_index, state._offer_cache = None, {}, {}
+        state._record_turn, state._record_keys, state._work_heap = None, set(), []
         _bump(state, "pool_resets")
 
 
