@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "frozen_at": "2026-11-07T15:51:46.756846+00:00",
+  "runtime_source": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+  "native_sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+  "pilot_cases": 10,
+  "pilot_failed": 0,
+  "pilot_turns": 120,
+  "simulation_s": 279.3,
+  "extraction_s": 32.9,
+  "total_s": 312.2,
+  "held_runs": 60,
+  "held_turns": 120,
+  "projection_s": 1873.2,
+  "margin": 1.5,
+  "projection_with_margin_core_hours": 0.7805,
+  "ceiling_core_hours": 1.0,
+  "approval": {
+    "lead": "Actual rows, source/native/hash, controls, 120-turn amendment and budget independently reviewed; GO before held",
+    "independent_evidence": "Actual source/pilot/check/timing controls/ITT and 31e63075 interpretation amendment approved before held"
+  },
+  "files": {
+    "metrics.jsonl": "e874bcab4e3290fa366e2fb5ece86b96e76977a6c5c1fa27b63a18736150d385",
+    "report.md": "3771fd86f8a41dd1e0350ad7b68a61d9ffba7bbbd2ac8996bad68b635d462fa4",
+    "source.txt": "da9fabb9ee0f160228273fbac1d4d0f493da02b44deb2f3ef26e5152271fe2ea"
+  }
+}
