@@ -375,3 +375,8 @@ with these flags `hybrid_s42_long` PASS at 19 resume points and
 expedition, 17 after a retail settlement turn, granary crews working at 20 of
 them). Overhead on the all-switch `hybrid_s42` case: wall time unchanged
 within noise, bundle 8.0 -> 8.6 MB over 200 turns.
+
+Strict observation is available through `--wealth-accounting-mode strict`.
+It stops before committing a frame when native stage coverage is absent or
+`abs(balance_closure) > 1e-8`; `observe` retains that discrepancy for inspection.
+The mode does not alter any payer, rounding rule, income source or death rule.
