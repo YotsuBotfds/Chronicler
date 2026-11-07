@@ -81,7 +81,7 @@ def _ration(world):
     return ration(world)
 
 
-def supply_estimate(world, infectious: float, regions) -> int:
+def supply_estimate(world, infectious: float, regions, *, infectious_by_region=None) -> int:
     """Gross milli-unit reserve in the single L9 care proposal.
 
     Unknown past prices use one coin/load for planning only; settlement never
@@ -92,7 +92,29 @@ def supply_estimate(world, infectious: float, regions) -> int:
         return 0
     prices = [state.prices[r] for r in regions if r in state.prices]
     price = max(prices, default=1000)
+    if infectious_by_region is not None:
+        # One expected whole-coin purchase per region with patients. Unknown
+        # split-source rounding may still reduce delivery; settlement never
+        # exceeds either actual envelope to meet an estimate.
+        return sum(_cash_due(math.ceil(infectious_by_region[r] * _ration(world) * price), 0)
+                   for r in regions if infectious_by_region[r] > 0)
     return math.ceil(infectious * _ration(world) * price)
+
+
+def proposal_cost(world, civ, wages, supplies, guards):
+    """Whole coins covering value and fresh purpose-specific wage prefunding.
+
+    Supply reserve allows a foreign purchase. Local public allocation uses its
+    gross value but does not spend that cash. Quotes/caps decide actual work.
+    """
+    gross = wages + supplies + guards
+    state = _state(world)
+    if state is None or not state.enabled:
+        return max(1, (gross + 999) // 1000)
+    care = world.livelihoods.epidemic_care
+    fresh = (_cash_due(wages, care.book.carry.get(f"{civ}:care_wage", 0)) + supplies
+             + _cash_due(guards, state.book.carry.get(f"{civ}:guard_wage", 0)))
+    return max(1, (max(gross, fresh) + 999) // 1000)
 
 
 def wage_budget(world, region: int, budget: int) -> int:

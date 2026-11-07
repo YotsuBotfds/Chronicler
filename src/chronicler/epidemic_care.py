@@ -766,9 +766,10 @@ class _CareEnvelopes:
             return []
         need = math.fsum(infectious[rid] / PATIENTS_PER_CARER for rid in regions) + guards / GUARD_WAGE_MILLI
         wages = sum(_wage_total(infectious[rid] / PATIENTS_PER_CARER) for rid in regions)
-        from chronicler.public_health import supply_estimate
-        supply = supply_estimate(world, math.fsum(infectious[rid] for rid in regions), regions)
-        cost = max(1, -(-(wages + supply + guards) // MILLI))
+        from chronicler.public_health import proposal_cost, supply_estimate
+        supply = supply_estimate(world, math.fsum(infectious[rid] for rid in regions), regions,
+                                 infectious_by_region=infectious)
+        cost = proposal_cost(world, civ, wages, supply, guards)
         averted = CARE_CFR_REDUCTION * math.fsum(deaths[rid] for rid in regions) + guard_expected_deaths(world, civ)
         stake = averted * food_per_death
         return [dict(service=SERVICE, recipients=regions, claims=[f"{SERVICE}:{civ}"], cost=cost,

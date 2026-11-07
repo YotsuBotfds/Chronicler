@@ -502,3 +502,18 @@ def test_foreign_patient_purchase_cannot_spend_reserved_guard_prefunding():
     assert st.funding[0]["care_cash_milli"] == st.funding[0]["guard_cash_milli"] == 1000
     assert st.funding[0]["supply_cash_milli"] == 0
     assert before - w.civilizations[0].treasury == 2
+
+
+def test_health_proposal_prices_both_whole_coin_wage_purposes_and_patient_purchase():
+    w, st = _enabled()
+    st.prices = {rid: 100 for rid in st.prices}
+    _guard_plan(w, st)
+    _outbreak(w, 0, burden=.0125)
+    proposal = EC.BUDGET_PROVIDER.proposals(w, 0, SimpleNamespace(pcf=.5))[0]
+    assert proposal["detail"]["wages_milli"] == 250
+    assert proposal["detail"]["guards_milli"] == 500
+    assert proposal["detail"]["supplies_milli"] == 1000
+    assert proposal["cost"] == 3
+    w.livelihoods.epidemic_care.book.carry["0:care_wage"] = 250
+    st.book.carry["0:guard_wage"] = 500
+    assert EC.BUDGET_PROVIDER.proposals(w, 0, SimpleNamespace(pcf=.5))[0]["cost"] == 2
