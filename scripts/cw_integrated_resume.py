@@ -81,6 +81,8 @@ def make_plan(bundle_path, stratum, seed):
     path = Path(bundle_path).resolve()
     bundle = CW.load_bundle_file(path)
     validate_pilot_world(bundle, stratum, seed)
+    if len(bundle.get("history") or []) != 200 or bundle.get("metadata", {}).get("total_turns") != 200:
+        raise ValueError("active resume selection requires the complete 200-turn integrated pilot")
     metrics, problems = CW.extract(bundle, CW.ARMS["FULL"][0])
     if problems:
         raise ValueError("cannot choose resume transitions from invalid pilot: " + "; ".join(problems))
@@ -99,7 +101,7 @@ def validate_pilot_world(bundle, stratum, seed):
         raise ValueError("pilot bundle metadata/world seed differs from requested resume world")
     expected_regions = 8 if stratum == "template" else 32
     geography = world.get("geography")
-    if len(world.get("regions") or []) != expected_regions or (geography is None) is (stratum == "procedural"):
+    if len(world.get("regions") or []) != expected_regions or (geography is not None) != (stratum == "procedural"):
         raise ValueError("pilot bundle geography/region count differs from requested resume stratum")
 
 
@@ -112,6 +114,7 @@ def run_plan(plan_path, output):
     bundle_path = Path(plan["bundle"])
     if not bundle_path.is_file() or hashlib.sha256(bundle_path.read_bytes()).hexdigest() != plan["bundle_sha256"]:
         raise ValueError("pilot bundle used to choose transitions is missing or changed")
+    validate_plan_configuration(plan, CW.load_bundle_file(bundle_path))
     output = Path(output).resolve()
     if output.exists():
         raise ValueError("resume output already exists; preserve it and choose a new output path")
@@ -129,6 +132,17 @@ def run_plan(plan_path, output):
     report["bundle_sha256"] = plan["bundle_sha256"]
     (output / "report.json").write_text(json.dumps(report, indent=2) + "\n")
     return report
+
+
+def validate_plan_configuration(plan, bundle):
+    validate_pilot_world(bundle, plan.get("stratum"), plan.get("seed"))
+    if plan.get("cli") != cli_for(plan["stratum"], plan["seed"]):
+        raise ValueError("resume plan CLI differs from the exact declared FULL pilot configuration")
+    if plan.get("turns") != 200 or len(bundle.get("history") or []) != 200 \
+            or bundle.get("metadata", {}).get("total_turns") != 200:
+        raise ValueError("resume plan does not describe the complete 200-turn integrated pilot")
+    if plan.get("transitions") != transition_points(bundle):
+        raise ValueError("resume plan selected transitions differ from the actual pilot states")
 
 
 def main(argv=None):

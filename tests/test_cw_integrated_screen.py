@@ -20,7 +20,7 @@ def bundle():
     from chronicler.guild_leagues_state import LeagueFrame
     def record(**fields):
         return {"schema_version": 1, "source_turn": 0, **fields}
-    wealth = {"turn": 0, "continuity": {}, "typed_complete": True, "world": {"delta": 2, "deaths": 1, "close": 102},
+    wealth = {"turn": 0, "continuity": {}, "typed_complete": True, "world": {"open": 100, "delta": 2, "deaths": 1, "close": 102},
               "regions": [], "typed": [{"channel": "care_wage", "in_milli": 100}], "closures": [], "withheld": {},
               "treasury": {}, "native": {"source_turn": 0, "observed_complete": True, "balance_closure": 0,
                                          "totals": {"income_gross": 3, "income_applied": 1, "withheld_paid_work": 2}}}
@@ -40,10 +40,10 @@ def bundle():
           "reform_services": record(stage="D1a", mode="service", frame=ReliefFrame(turn=0).model_dump()),
           "guild_leagues": record(stage="D1b", mode="mutual", frame=LeagueFrame(turn=0).model_dump()),
           "residence_ledger": record(frame={"turn": 0, "totals": {"moves": 1, "moves_other": 1, "opened": 0, "displaced": 0}})}
-    snap = {"turn": 1, "regional_population": {"source_turn": 0, "counts": [100]}, "livelihoods": lv,
+    snap = {"turn": 1, "regional_population": {"source_turn": 0, "counts": [100, 0]}, "livelihoods": lv,
             "health_care": {"source_turn": 0, "episodes": 2, "new_injuries": 1}, "campaign": {"battles": []},
-            "migration": [[0, 0, 1]]}
-    return {"world_state": {"regions": [{"name": "A"}]}, "history": [snap],
+            "migration": [[0, 1, 1]]}
+    return {"world_state": {"regions": [{"name": "A"}, {"name": "B"}]}, "history": [snap],
             "_cw6_events": {"present": True, "migration": 1, "unknown": 1, "deaths": 1, "bytes": 1, "sha256": "a" * 64,
                             "turn_min": 0, "turn_max": 0}}
 
@@ -60,7 +60,7 @@ def test_world_outcomes_and_unknown_cause_are_not_conditioned_on_activation(CW):
     m, problems = CW.extract(bundle(), CW.ARMS["FULL"][0])
     assert problems == []
     assert m["balance_change_per_1000_pt"] == 20 and m["deaths_per_1000_pt"] == 10
-    assert m["service_per_region_turn"] == .5 and m["army_hunger_ration_turns"] == 1
+    assert m["service_per_region_turn"] == .25 and m["army_hunger_ration_turns"] == 1
     assert m["unknown_migration_share"] == 1 and m["x1_opened_spells"] == 0
     assert m["a6_input_rows"] == 0
 
@@ -68,7 +68,8 @@ def test_world_outcomes_and_unknown_cause_are_not_conditioned_on_activation(CW):
 @pytest.mark.parametrize("breakage,fragment", [
     ("date", "misdated"), ("closure", "incomplete"), ("duplicate_meal", "duplicate"),
     ("food_mint", "source does not close"), ("drop", "dropped events"),
-    ("sidecar", "sidecar count"), ("control", "control mode")])
+    ("sidecar", "sidecar count"), ("control", "control mode"), ("a1_date", "wealth frame/source misdated"),
+    ("a1_typed", "typed coverage incomplete"), ("a1_delta", "balances do not close")])
 def test_strict_schema_dates_controls_and_physical_failures_are_visible(CW, breakage, fragment):
     b = bundle()
     lv = b["history"][0]["livelihoods"]
@@ -84,6 +85,12 @@ def test_strict_schema_dates_controls_and_physical_failures_are_visible(CW, brea
         lv["war_requisition"]["frame"]["events_dropped"] = 1
     elif breakage == "sidecar":
         b["_cw6_events"]["migration"] = 0
+    elif breakage == "a1_date":
+        lv["wealth_accounting"]["source_turn"] = lv["wealth_accounting"]["frame"]["turn"] = 1
+    elif breakage == "a1_typed":
+        lv["wealth_accounting"]["frame"]["typed_complete"] = False
+    elif breakage == "a1_delta":
+        lv["wealth_accounting"]["frame"]["world"]["delta"] = 1
     else:
         lv["adaptive_livelihoods"]["mode"] = "record_only"
     _, problems = CW.extract(b, CW.ARMS["FULL"][0])
@@ -147,3 +154,24 @@ def test_absent_sidecar_is_unknown_evidence_even_without_migration(CW):
     b["_cw6_events"] = {"present": False, "migration": 0, "deaths": 1, "unknown": 0, "bytes": 0, "sha256": None}
     _, problems = CW.extract(b, CW.ARMS["FULL"][0])
     assert any("absent or missing valid identity" in reason for reason in problems)
+
+
+@pytest.mark.parametrize("changed", ["cli", "turns", "transitions"])
+def test_resume_rejects_modified_plan_configuration(CW, changed):
+    path = Path(__file__).resolve().parents[1] / "scripts/cw_integrated_resume.py"
+    spec = importlib.util.spec_from_file_location("cw_integrated_resume_plan_under_test", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    b = {"metadata": {"seed": 5, "total_turns": 200}, "world_state": {"seed": 5, "regions": [{}] * 8},
+         "history": [{"turn": t, "livelihoods": {}} for t in range(1, 201)]}
+    plan = {"stratum": "template", "seed": 5, "turns": 200, "cli": module.cli_for("template", 5),
+            "transitions": module.transition_points(b)}
+    module.validate_plan_configuration(plan, b)
+    if changed == "cli":
+        plan["cli"].append("--no-adaptive-livelihoods")
+    elif changed == "turns":
+        plan["turns"] = 100
+    else:
+        plan["transitions"]["ks"] = [2]
+    with pytest.raises(ValueError, match="resume plan"):
+        module.validate_plan_configuration(plan, b)

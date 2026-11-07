@@ -103,6 +103,7 @@ def extract(bundle, flags):
         return {}, ["CW6 requires nonempty history and world_state.regions"]
     nregions = len(regions)
     seen, past_refused, order_seen = set(), set(), set()
+    previous_close = None
     d3_mode = option(flags, "--war-consequences-mode", "active")
     d4_mode = option(flags, "--war-requisition-mode", "transfer")
     a6_mode = option(flags, "--adaptive-livelihoods-mode", "adapt")
@@ -151,10 +152,20 @@ def extract(bundle, flags):
         if status != "observed":
             problems.append(f"wealth ledger {status} at {turn}")
         else:
+            if lv["wealth_accounting"].get("source_turn") != turn or wealth.get("turn") != turn:
+                problems.append(f"wealth frame/source misdated at {turn}")
+            if wealth.get("typed_complete") is not True:
+                problems.append(f"wealth typed coverage incomplete at {turn}")
             if turn > 0 and wealth.get("continuity", {}).get("status") != "exact":
                 problems.append(f"wealth continuity is not exact at {turn}")
             world = wealth["world"]
-            m["balance_change"] += finite(world.get("delta"), "wealth delta", signed=True)
+            opening = finite(world.get("open"), "wealth open")
+            closing = finite(world.get("close"), "wealth close")
+            change = finite(world.get("delta"), "wealth delta", signed=True)
+            if abs(closing - opening - change) > 1e-8 or (previous_close is not None and abs(opening - previous_close) > 1e-8):
+                problems.append(f"wealth opening/closing balances do not close continuously at {turn}")
+            previous_close = closing
+            m["balance_change"] += change
             m["deaths"] += finite(world.get("deaths"), "wealth observed deaths")
             m["wealth_close"] = finite(world.get("close"), "wealth close")
             native = wealth.get("native") or {}
@@ -298,7 +309,9 @@ def extract(bundle, flags):
                            ("x1_opened_spells", "opened"), ("x1_displaced_person_turns", "displaced")):
             m[field] += finite(xt.get(key), "X1 " + key)
         migration = snap.get("migration")
-        if not isinstance(migration, list) or not all(isinstance(row, list) and len(row) == 3 for row in migration):
+        if not isinstance(migration, list) or not all(isinstance(row, list) and len(row) == 3
+                and all(type(v) is int for v in row) and 0 <= row[0] < nregions and 0 <= row[1] < nregions
+                and row[0] != row[1] and row[2] > 0 for row in migration):
             problems.append(f"all-migration observation absent at {turn}")
         else:
             m["all_migrations"] += sum(finite(row[2], "migration count") for row in migration)
