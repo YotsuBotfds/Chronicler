@@ -50,6 +50,13 @@ def _physical(frame):
             if r["residents"] or r[ARRIVALS]]
 
 
+def _remove_arrival_group(frame):
+    frame.pop("arrival_diagnostics", None)
+    for values in [frame["totals"], *frame["regions"]]:
+        values.pop(ARRIVALS, None)
+        values.pop(UNKNOWN, None)
+
+
 @pytest.mark.parametrize("known", ["material_need", "battle_memory", "wage"])
 def test_identical_physical_trajectories_have_equal_density_exposure_regardless_of_reason(known):
     a, sa = _start()
@@ -264,10 +271,7 @@ def test_new_density_path_still_propagates_same_turn_and_future_read_refusals():
 def test_legacy_frame_has_unknown_arrival_share_and_preserves_guarded_copy_semantics():
     world, sim = _start()
     frame = step(world, sim, moves=[(1, 0, 1, None)])
-    frame.pop("arrival_diagnostics")
-    for r in frame["regions"]:
-        r.pop(ARRIVALS)
-        r.pop(UNKNOWN)
+    _remove_arrival_group(frame)
     rows = _environment(world)
     assert all(r["recent_arrival_share"] is None for r in rows)
     assert all(r["arrival_diagnostics_complete"] is None for r in rows)
@@ -275,6 +279,65 @@ def test_legacy_frame_has_unknown_arrival_share_and_preserves_guarded_copy_seman
     copied = RL.read_frame(world, consumer_turn=world.turn)
     copied["totals"]["alive"] = -1
     assert _state(world).frame["totals"]["alive"] == 1
+
+
+def test_new_recent_arrival_record_is_not_zero_when_this_turn_has_no_move_or_spell():
+    world, sim = _start()
+    step(world, sim, moves=[(1, 0, 1, None)])
+    frame = step(world, sim)
+    assert frame["totals"]["moves"] == frame["totals"]["displaced"] == 0
+    assert frame["totals"][ARRIVALS] == 1
+    snapshot = {"livelihoods": {"residence_ledger": RL.snapshot_summary(world)}}
+    status, observed = RL.record_status(snapshot)
+    assert status == "recorded" and observed["totals"][ARRIVALS] == 1
+    # Older snapshots carry no assertion about this diagnostic at all. Their
+    # old zero-status remains compatible, while arrival information is absent.
+    _remove_arrival_group(snapshot["livelihoods"]["residence_ledger"]["frame"])
+    status, observed = RL.record_status(snapshot)
+    assert status == "recorded_zero" and "arrival_diagnostics" not in observed
+    assert ARRIVALS not in observed["totals"]
+
+
+@pytest.mark.parametrize("damage", [
+    "counts_without_metadata", "metadata_without_counts", "missing_half", "negative",
+    "unknown_exceeds_arrivals", "regional_arrival_sum", "regional_unknown_sum",
+    "noninteger", "metadata_none", "inconsistent_complete", "wrong_window", "one_new_legacy_key",
+])
+def test_optional_arrival_group_is_atomic_and_malformed_values_never_become_zero(damage):
+    world, sim = _start(people=3)
+    step(world, sim, moves=[(1, 0, 1, None), (2, 0, 1, "material_need")])
+    snapshot = {"livelihoods": {"residence_ledger": RL.snapshot_summary(world)}}
+    frame = snapshot["livelihoods"]["residence_ledger"]["frame"]
+    totals, destination = frame["totals"], _region(frame, 1)
+    if damage == "counts_without_metadata":
+        frame.pop("arrival_diagnostics")
+    elif damage == "metadata_without_counts":
+        for values in [totals, *frame["regions"]]:
+            values.pop(ARRIVALS)
+            values.pop(UNKNOWN)
+    elif damage == "missing_half":
+        totals.pop(UNKNOWN)
+    elif damage == "negative":
+        totals[ARRIVALS] = -1
+    elif damage == "unknown_exceeds_arrivals":
+        totals[UNKNOWN] = totals[ARRIVALS] + 1
+    elif damage == "regional_arrival_sum":
+        destination[ARRIVALS] = 1  # within regional bounds, but world total says2
+    elif damage == "regional_unknown_sum":
+        totals[UNKNOWN] = 0  # individually in bounds, but region still says1
+    elif damage == "noninteger":
+        destination[ARRIVALS] = True
+    elif damage == "metadata_none":
+        frame["arrival_diagnostics"] = None
+    elif damage == "inconsistent_complete":
+        assert frame["arrival_diagnostics"]["window_complete"] is False
+        frame["arrival_diagnostics"]["complete"] = True
+    elif damage == "wrong_window":
+        frame["arrival_diagnostics"]["window_turns"] = 19
+    else:
+        _remove_arrival_group(frame)
+        destination[ARRIVALS] = 0
+    assert RL.record_status(snapshot) == ("malformed", None)
 
 
 def test_pickle_resume_preserves_live_arrivals_and_selected_exposure_rule_exactly():
