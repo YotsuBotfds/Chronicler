@@ -20,6 +20,10 @@ livelihoods/package 1, food accounting/regional population 1). The timing pilot
 source/metrics are retained with the held receipt. All development/pilot worlds
 are distinct from the held cohort.
 
+Compute ceiling: 0.75 core-hours
+
+Primary outcomes: cw6d1_priced_out, cw6d1_commons_grievance, cw6d1_member_purse
+
 ## Purpose and limits
 
 Two default-off mechanisms ([reform services](../../integration/reform-services.md),
