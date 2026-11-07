@@ -1,18 +1,18 @@
 # Connected World correctness, causal evaluation and performance rework
 
-## Current state — 2026-11-07, 23:05 UTC
+## Current state — 2026-11-07, 23:42 UTC
 
-The rework is active. Implementation, historical audit, performance admission,
-default identity, active resume and real browser checks are complete. The fresh
-CWR1 held evaluation is running; its results, final independent review and
-final-head/main CI are still required. This is not a completion checkpoint.
+Implementation, historical audit, performance admission, default identity,
+active resume, real browser checks and the fresh bounded CWR1 screen are
+complete and independently checked. Final report/diff review, exact final-head
+Tests, authorized merge and main CI remain required. This is a pre-merge checkpoint.
 
 - Verified main: `125a69066ea158a973ac5207f393e4eeb330aee8` (#98).
   Tests `42417310582` passed all nine jobs.
 - Lead integration branch: `codex/cw-rework`; draft #99 contains the rework.
-  Complete code head `4502fdc1` passed all nine jobs in `42419454116`.
-  Later changes are evidence/docs and a valid test-fixture reason; final-head
-  CI remains a merge gate.
+  Code/evidence head `27074bba` passed all nine jobs in `42424371808`.
+  Later changes are closed held evidence, registry records and documentation;
+  final-head CI remains a merge gate.
 - Corrected runtime: `8792be88dd36ba4d7c22e480de6a19dd64ea1300`, published
   `codex/cwr-final-runtime`, checkout `/workspace/cwr-final-runtime`.
 - Held source: `b45c1e99572d4d6a60fb01fbd75cb7688aa54e93`, published
@@ -25,41 +25,38 @@ final-head/main CI are still required. This is not a completion checkpoint.
 
 The [report](connected-world-rework-report.md), [reconciled coverage](connected-world-rework-coverage.md)
 and [machine board](connected-world.json) contain the evidence and limitations.
-The report is explicitly pending held closure and integration.
+The report includes closed held results and remains pending final integration.
 
-## Continue the existing held run
+## Closed held evaluation — do not rerun as fresh
 
-CWR1 started **2026-11-07T22:41:33Z**. All template 4101–4106 and procedural
-4201–4206 seeds are potentially spent from that start. **Do not start a fresh
-run of this cohort.** The registry stays reserved until the lead performs its
-single standard `mark-run` after closure; that label does not mean unspent.
+CWR1 started **2026-11-07T22:41:33Z** and closed **144/144 strict-valid**,
+zero failures. All template 4101–4106 and procedural 4201–4206 seeds are used.
+The lead performed the standard `mark-run` **once after closure**; both entries
+are `run`, complete with 144 rows. Cohort-content hash remains `62ce5aa8…`. Do not mark
+again, launch a replacement cohort or reuse these seeds as fresh experiments.
 
 - Output: `/workspace/evidence/cwr-evaluation/held-cwr1-b45c1e99-v1`.
 - Identity: `98c7bb2accb18b04e68f0585780ba58f85f03ece77c987d82ff67ceb7d9370a8`.
-- Generic start ledger: `/workspace/cwr-held-runtime/output/held-runs/ledger.jsonl`;
-  durable copies are in `connected-world-rework/held/start.json` and
-  `../audits/connected-world/rework-cwr1-held/`.
-- Active execution belongs to `rework_evaluation`, session 93595. A running
-  process is not an assurance of container retention or automatic recovery.
-- Last reported progress: 37/144 cases, zero failures; all twelve arms on
-  p4201–p4203 completed. Budget-counted 1,314.4 seconds. Read the actual output
-  before acting; this count is a dated checkpoint, not a final result.
+- Protocol: FROZEN SHA256
+  `51b8a336969f48b4beb6f5b3e543062eda71822b98513b337ceb2d010e6efe7a`.
+- Metrics: `6c56e3ffa725848c69aecf6f2edfcdf81adb18e5c5f038562e2c9d3c73ace9e0`.
+- Unchanged raw report:
+  `e5d64f1658265a64ed100d158d650d29eed1f0247d77ea980599c3a145eaf2c3`.
+- Sim 2,934.7 + extraction 410.1 = 3,344.8 seconds / 0.92911 core-hours,
+  below the unchanged two-hour cap. Descendant CPU and RSS scopes are separate.
+- Independent arithmetic passes all 144 rows and six rendered primary cells.
+  Raw readback passes 24 retained first-world cases / 2,880 snapshots; bounded
+  input samples leave 784 merge-turns explicitly unverified. Exact closure,
+  commands, controls and receipts belong to the linked report and audits.
+- All 171 registry/extractor tests pass after the single mark-run. The inherited
+  generic activation headings have an adjacent erratum: no world was excluded.
 
-The protocol is FROZEN at SHA256
-`51b8a336969f48b4beb6f5b3e543062eda71822b98513b337ceb2d010e6efe7a`.
-It specifies twelve arms, twelve worlds, 120 turns, one sequential job, fixed
-controls/outcomes and a **two-core-hour ceiling**. The complete 24-case pilot
-passed; its 553.2 seconds projects 1.383 core-hours with the fixed 1.5 margin.
-Before start, 63 registry references / 14 versions had no collisions or spent
-CWR1 reservation. Source, native, protocol, compatible pilot, seed and ledger
-guards passed. No default, horizon, control, budget or seed replacement may be
-changed in response to held outcomes.
-
-The evaluation worker must not edit the registry. The lead records the actual
-closed run once, including failure/incomplete state if applicable. Preserve
-all unrun cases and failures. If execution is interrupted and its environment
-is available, use only the same output, identity and immutable source with the
-documented resume guard. Do not promise an automatic restart after reclamation.
+AD−RD food shortfall is adverse in 11/12 worlds; recorded epidemic deaths rise
+in nine, fall in two and tie in one. Mean differences and rates are adverse in both strata;
+world signs, population denominators, nulls and harms remain explicit. Do not
+claim one correction explains CW6→CWR1 changes across different rules/seeds.
+Food availability is not complete household access, and missing famine/war
+causes are not zero. No tuning or favorable-world selection occurred.
 
 ## Verified work
 
@@ -100,17 +97,15 @@ documented resume guard. Do not promise an automatic restart after reclamation.
 
 ## Exact next work
 
-1. Continue the existing 144-case CWR1 run, with periodic count/failure/budget
-   checks. The raw first-world audit and independent arithmetic run separately;
-   bounded per-input traces remain explicitly unverified where samples cap.
-2. After closure, validate the full matrix and all world-level contrasts,
-   source/native identities, report arithmetic, activation, nulls and harms.
-   Preserve raw first worlds and compact controls/results. Do not tune outcomes.
-3. The lead marks the registry once using the actual closed ledger and rows;
-   update this ledger, board and report with verified results and limitations.
-4. Obtain independent whole-PR review, green Tests on the final reviewed head,
-   merge authorized #99, then verify exact main CI. Reconcile final reporting
-   through the same reviewed/green-PR process; no direct push to main.
+1. Finish publishing the closed held packet and final report/coverage/board;
+   obtain independent review of this final evidence/documentation delta.
+2. Push the final reviewed #99 head and require all nine Tests jobs green on
+   that exact head. Reconfirm fetched main and its CI before authorized merge.
+3. Merge through the PR, verify the merge tree and all nine exact main jobs.
+   Freeze further feature merges if main fails; repair or revert through a PR.
+4. Record verified integration in a reviewed documentation PR, require its
+   exact-head checks, merge and verify final main CI. Report the actual final
+   commit, CI links, results and limitations. No direct push to main.
 
 Resources are four cgroup CPUs / 16 GiB RAM. One held simulation and a bounded
 readback job fit; there are no native builds running. Preserve other worktrees

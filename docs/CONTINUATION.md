@@ -1,31 +1,32 @@
 # Connected World rework — current recovery checkpoint
 
-The rework is active; CWR1 held evaluation started 2026-11-07T22:41:33Z.
-Read the [current ledger](superpowers/progress/connected-world-rework.md),
-[machine board](superpowers/progress/connected-world.json) and
-[checkpoint report](superpowers/progress/connected-world-rework-report.md) before
-acting. They supersede all historical next-task/completion entries below.
+Implementation and bounded evaluation are complete; final reviewed integration
+is pending. Read the [current ledger](superpowers/progress/connected-world-rework.md),
+[machine board](superpowers/progress/connected-world.json),
+[closed-results report](superpowers/progress/connected-world-rework-report.md)
+and [current coverage](superpowers/progress/connected-world-rework-coverage.md).
+They supersede historical next-task/completion entries below.
 
-Verified main is `125a6906` (#98), all nine Tests jobs green in `42417310582`.
-Draft #99 carries the reviewed rework; complete code head `4502fdc1` passed all
-nine jobs in `42419454116`. Corrected runtime is immutable `8792be88`; held
-source is published `b45c1e99` at `/workspace/cwr-held-runtime`, with identical
-production code and the reviewed frozen protocol.
+Verified main is `125a6906` (#98), all nine Tests green in `42417310582`.
+Draft #99 carries the rework; code/evidence head `27074bba` passed all nine
+jobs in `42424371808`. Production runtime `8792be88` and frozen held source
+`b45c1e99` have identical production source/native/scripts. Legacy feature and
+version defaults remain unchanged; corrected use is explicit rules 3 / density_only.
 
-The twelve held seeds 4101–4106 / 4201–4206 are already potentially spent.
-Continue only existing output
-`/workspace/evidence/cwr-evaluation/held-cwr1-b45c1e99-v1` and its recorded
-identity; do not launch a fresh cohort run. Registry “reserved” remains until
-the lead's single standard mark-run after closure. A start ledger is retained
-in the repository. Container lifetime or automatic restart is not promised.
+CWR1 **closed 144/144**, zero failures, 0.92911 budget-counted core-hours below two.
+Independent all-world arithmetic and 24 retained raw first-world cases pass.
+All twelve seeds 4101–4106/4201–4206 are recorded used once after closure;
+**do not restart or rerun them as fresh**. Metrics/source/control identities,
+raw-report heading erratum, nulls/harms/access limits and registry receipts are
+retained. The data remain adverse on average; no tuning targeted favorable signs.
 
-Next: complete the unchanged bounded held run, independently audit all results
-and update registry/report/board; obtain whole-PR review and green final-head
-Tests; merge authorized work and verify exact main CI. Active exact resumes,
-final both-reference identity, performance admission and real browser checks
-have passed. Defaults remain rules 2 / legacy crowding; corrected behavior is
-explicit rules 3 / density-only. Restricted qualification/default promotion,
-paid narration, deployments and credential/sharing changes are unauthorized.
+Next: final evidence/report delta review, green Tests on final reviewed #99
+head, authorized merge and exact main CI, then reviewed final integration
+ledger and its checks/main verification. Default identity against both
+references, performance admission, 14 enabled resumes and real browser checks
+are complete. Restricted qualification/default promotion, paid narration,
+deployments and credential/sharing changes remain unauthorized. Container
+lifetime or automatic recovery is not promised.
 
 ## Historical checkpoints (not current tasks)
 

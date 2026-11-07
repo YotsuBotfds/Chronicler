@@ -8,14 +8,14 @@ this document records what the rework changes, verifies and leaves limited.
 The [scope audit](../audits/connected-world/rework-scope-disposition-2026-11-07.md)
 retains the distinction between adopted implementation and broader proposals.
 
-Coverage checkpoint: integrated source `dfcceb658155fbe53b1f359de587cc0f9d0d5d5e`;
+Coverage checkpoint: reviewed runtime and closed bounded evaluation;
 physical runtime `8792be88dd36ba4d7c22e480de6a19dd64ea1300`, native artifact
 `b1d3ea5a…` with reviewed native-input digest `f55df55d…`; held freeze
-`b45c1e99`, production-equivalent to that runtime. Fresh CWR1 is **active**:
-the lead-reported checkpoint is 20 of 144 cases completed, zero failures.
-This is execution status, not a completed contrast, favorable result or
-qualification claim. Final held readback and final reviewed-head/main CI
-closure are not supplied by this coverage checkpoint.
+`b45c1e99`, production-equivalent to that runtime. Fresh CWR1 is **complete**:
+144 of 144 cases pass, zero failures, independently checked within the fixed
+two-core-hour cap. The cohort is recorded as used once. This is a bounded
+screen, not qualification or a favorable-result claim. Final reviewed-head/main
+CI closure remains required before integration.
 
 ## Original rows and rework disposition
 
@@ -40,7 +40,7 @@ rework newly implemented it or independently established benefit.
 | D2 attribution | Retained actor/victim/cause and transfer/mint/destruction/restriction observations, including distinct war-condition damage. Physical arrivals are observed independently of motive uncertainty. | Default-path provenance consumers, merchant origin/current-region income mismatch and natural deaths booked as army casualties remain explicit default defects. They were not silently corrected in feature-off runs. |
 | D3 separation/injury; D4 army supply/restoration | D3's evacuation/return scores survive personal A6 controls under rules 3. Native movement remains sole mover. Existing wound/health, army-ration, service-census, actual custody and funded restitution authorities remain. | Actual before/after wound/release/evacuation/return resumes pass across the two development worlds. Army meals, positive seizure and restitution are covered. Severe ration shortage remains a possible adverse modeled outcome; existing Soldier income remains modeled. Battle losses are not a complete war-cause mortality register. |
 | E linked histories; E stories/provenance | Corrected readers distinguish physical arrivals, motive spells, prepared legacy proposals, actual rules-3 inputs, configured current neutral factors and prior observations. Old bundles and optional gzip retain strict decoding/provenance. Formatter reuse speeds indexing without deleting rows. | Real desktop/phone journeys, legacy/gzip compatibility and complete-index/query identity are retained. The constructed example is a reversible visibility/redaction demonstration, not an alternate simulation, independent outcome sample or full per-slice story suite. Regional context remains distinct from an individual's causal record. |
-| E whole-program evidence | Source/native isolation, catalog/compatibility, historical pins/inverses, test enrollment, bounded screens, exact resume, profiling and CI policy remain. This rework adds source-bound corrected controls and independent result reviews. | Both-reference feature-off identity, Rust/native/focused tests, complete performance admission and actual enabled resumes pass as detailed below. Fresh held execution and final reviewed-head/main CI require their own closure records; earlier successes do not automatically cover a new head. |
+| E whole-program evidence | Source/native isolation, catalog/compatibility, historical pins/inverses, test enrollment, bounded screens, exact resume, profiling and CI policy remain. This rework adds source-bound corrected controls and independent result reviews. | Both-reference feature-off identity, Rust/native/focused tests, complete performance admission, actual enabled resumes and all 144 fresh held cases pass. Held arithmetic and retained raw worlds are independently checked. Final reviewed-head/main CI remains required; earlier successes do not automatically cover a new head. |
 
 ## Correctness and causal interpretation
 
@@ -80,12 +80,25 @@ worlds, 120 turns, the fixed two-core-hour ceiling and preregistered controls.
 The reviewed [freeze](../audits/connected-world/rework-pre-held-freeze-review-2026-11-07.md)
 follows 24 successful official timing/schema cases: 553.2 seconds simulation
 plus extraction, projecting 1.383 core-hours with the fixed 1.5 margin. Protocol
-SHA256 is `51b8a336…`. At this checkpoint 20/144 held cases have completed
-without failure; **no completed held contrast, uncertainty interval or efficacy
-conclusion is claimed here**. Seeds 4101–4106 and 4201–4206 are potentially
-spent from the first launch; a still-reserved registry label does not make
-them fresh. Same-output recovery and final source-bound readback remain
-different from starting a replacement cohort.
+SHA256 is `51b8a336…`. All **144/144** cases complete without failure in
+0.92911 budget-counted core-hours. Independent arithmetic checks all rows and
+six rendered primaries; independent raw readback covers 24 retained first-world
+cases / 2,880 snapshots. Seeds 4101–4106 and 4201–4206 are recorded as used,
+complete, in one standard lead mark-run. The cohort-content hash is unchanged.
+
+The [closed rework report](connected-world-rework-report.md) retains all twelve
+world-level primary differences, uncertainty, activation, rates, nulls and harms.
+AD−RD increases mean regional shortfall by 812.431 / 2081.886 and recorded
+epidemic deaths by 30.167 / 69.333 (template / procedural). Food is adverse in
+11/12 worlds; epidemic deaths rise in nine, fall in two and tie in one. Mean
+rates remain adverse, with varying world signs and endogenous populations.
+Deleting information also reduces population; the joint food-regime change
+can lower regional shortfall while raising observed priced-out subtotals.
+Neither is established welfare improvement. Sparse care, template nulls,
+incomplete access and capped inputs remain limitations. The inherited generic
+activation headings have an explicit erratum; no enrolled world was excluded.
+Historical CW6→CWR1 differences cannot isolate one correction across changed
+rules, controls and seeds. No efficacy, qualification or promotion follows.
 
 Famine-cause and war-cause deaths remain unrecorded/null, not zero. Endpoint
 native disappearance, recorded epidemic deaths and campaign observations are
@@ -152,6 +165,6 @@ Ports, unimplemented owned wares, limited constructed-story breadth,
 uncalibrated care/proxy assumptions and incomplete cause/person observations
 remain explicit. The full 200-seed and procedural qualification gates and default
 promotion remain restricted and unrun. No paid narration, purchase, deployment
-or credential/sharing change is part of this execution. This artifact accounts for scope; final held
-results and exact reviewed-head/main CI closure belong to the completed
-handoff rather than an inference from a board row.
+or credential/sharing change is part of this execution. This artifact accounts
+for scope and closed held evidence. Exact reviewed-head/main CI closure remains
+a separate gate rather than an inference from a board row.

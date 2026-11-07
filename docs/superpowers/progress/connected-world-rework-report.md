@@ -1,9 +1,9 @@
 # Connected World correctness, causal evaluation and performance rework
 
-This checkpoint is **not the completion report**: the preregistered fresh held
-screen is running. Its source, controls, cohort, horizon and budget are frozen.
-Final held results, final independent review, authorized merge and main CI must
-be recorded here before closing the rework.
+Implementation and the preregistered bounded evaluation are complete and
+independently checked. Final reviewed-head checks, authorized integration and
+verified main CI remain pending in this pre-merge report. Source, controls,
+cohort, horizon and budget stayed frozen throughout the held run.
 
 ## Source and boundaries
 
@@ -134,16 +134,95 @@ The held run started 2026-11-07T22:41:33Z, identity `98c7bb2a…`; all reserved
 seeds are potentially spent from that start. Only its existing output and
 identity may be continued. Container recovery is not promised.
 
-First-world raw readback independently checks all twelve p4201 arms, each
-120 turns, including raw Arrow, outcome/person-turn arithmetic, prior PH/X1
-clocks and food observations. Bounded component traces limit a separate
-per-input proof: AD-p4201's full score merge is reconstructible from retained
-components in only 6/120 turns; the other 114 are explicitly unverified at
-that level. Source, tests and native receipts support implementation conformance
-without pretending a bounded sample is a complete input history.
+### Closed held results
 
-**Held results: pending closure and independent audit.** Neither these timing
-worlds nor an incomplete held run establishes qualification or default promotion.
+**All 144 cases passed**, with no failures or missing outcomes. Simulation
+2,934.7 s plus extraction 410.1 s totals 3,344.8 s / **0.92911 core-hours**,
+below the unchanged two-hour cap. Independently measured descendant CPU is
+3,352.51 s and wall time 3,357.92 s; the scopes differ and are retained.
+The maximum single waited-for child/descendant RSS is 1,184,040 KiB, not a
+simultaneous process-tree peak. All twelve seeds were recorded as used once,
+after closure, without changing the cohort-content hash. All 171 post-record
+registry/extractor tests pass.
+
+The independent standard-library audit passes all 144 rows, source/control
+receipts, rates, nulls and the six rendered primary rows. Raw first-world
+readback passes all 24 retained cases / 2,880 snapshots, including Arrow,
+outcome/person-turn arithmetic, prior PH/X1 clocks and food observations.
+Bounded component samples leave 784 procedural merge-turns unverified; AD-p4201
+has only 6/120 complete-component turns. All 1,440 template merge-turns are
+reconstructible. This is distinct from complete per-person movement or housing
+history, which the exported data do not provide.
+
+| Primary, arm minus control | Template mean; paired bootstrap 95% | Procedural mean; paired bootstrap 95% |
+| --- | ---: | ---: |
+| AD − RD regional food shortfall | +812.431; [390.427, 1441.99] | +2081.886; [755.017, 3156.63] |
+| AD − RD recorded epidemic deaths | +30.167; [6.167, 53.667] | +69.333; [−52.167, 159.333] |
+| (AL − RL) − (AD − RD) epidemic deaths | −18.333; [−34.333, −4.333] | −43.167; [−137.5, 75.333] |
+
+These are six paired worlds per stratum, not individual-level replicates.
+Exact sign-flip extreme counts are 2/64 and 4/64 for food, 8/64 and 20/64 for
+epidemic deaths, and 8/64 and 30/64 for the interaction. The intervals describe
+this small enrolled sample; they do not qualify or calibrate the model.
+
+| World | AD − RD food shortfall | AD − RD epidemic deaths | Crowding interaction, epidemic deaths |
+| --- | ---: | ---: | ---: |
+| t4101 | +557.492 | +69 | +3 |
+| t4102 | +2320.660 | +40 | -15 |
+| t4103 | +339.861 | +56 | -54 |
+| t4104 | +908.553 | +0 | +0 |
+| t4105 | +357.325 | -16 | -17 |
+| t4106 | +390.697 | +32 | -27 |
+| p4201 | +3731.215 | +209 | -145 |
+| p4202 | +2536.929 | +92 | -198 |
+| p4203 | +1092.864 | +37 | -39 |
+| p4204 | +3201.734 | +141 | -47 |
+| p4205 | -677.064 | +151 | -63 |
+| p4206 | +2605.641 | -214 | +233 |
+
+Food availability is worse in 11/12 worlds; recorded epidemic deaths increase
+in nine, decrease in two and tie in one. Mean person-turns also rise by
+2,282.333 / 10,072.333 (template / procedural). Mean paired differences per
+1,000 person-turns remain adverse: food **+19.87074 / +15.34348** and epidemic
+deaths **+0.94768 / +0.30204**. Some world signs change after normalization;
+neither total nor rate alone describes welfare. The correction did not remove
+the adverse outcomes. The negative crowding interaction measures the declared
+recipe interaction; it is not proof that legacy crowding helps or that one fix
+explains historical CW6.
+
+All successful enrolled worlds remain included. Actual personal inputs,
+independent D3 rows, work declines, supplied-care region-turns and extra
+crowding factors are reported separately. Removing information lowers average
+regional shortfall, but also lowers person-turns and endpoint population;
+that is not established welfare improvement. Removing work choices has exact
+null primary differences in all six templates. Template RD/AD supplied-care
+coverage is zero and their PH cost-only primary contrasts are exact nulls;
+procedural care activation is sparse. These are limited mechanistic tests,
+not broad clinical evidence or component-level attribution of native choices.
+
+The joint `no_relief` regime can lower regional shortfall while increasing
+**observed** priced-out person-turns in every world in both personal contexts.
+Mean increases are +1,382.5 / +5,127.833 (RNR−RD) and
++1,390.333 / +4,817.5 (ANR−AD). These are observed provisioning subtotals,
+not complete-world access censuses. All six procedural AD worlds have access
+coverage gaps, 65–373 populated region-turns each; complete access totals stay
+null. Across procedural AD, 659/720 component merges are sample-capped.
+These limits prevent complete access or per-input mediation claims.
+
+The inherited raw report headings incorrectly say “non-activated worlds
+excluded.” CWR1's eligibility function always includes successful enrolled
+worlds, including zero actual activation; every primary has all six pairs.
+The [adjacent erratum and unchanged raw report](../audits/connected-world/rework-cwr1-held/README.md)
+record that presentation defect without rewriting evidence. Metrics SHA256
+is `6c56e3ffa725848c69aecf6f2edfcdf81adb18e5c5f038562e2c9d3c73ace9e0`;
+raw report SHA256 is
+`e5d64f1658265a64ed100d158d650d29eed1f0247d77ea980599c3a145eaf2c3`.
+
+Historical CW6 remains adverse and unchanged. Comparing its outcomes with
+CWR1 cannot identify one correction: rules/source, D3 ownership, crowding
+recipe and seeds differ. Only preregistered within-CWR1 matched contrasts
+identify the tested recipes. No parameter was tuned to old or fresh held
+outcomes. This bounded screen is not either restricted qualification gate.
 
 ## Practical performance, same corrected simulation
 
@@ -239,8 +318,8 @@ The broad offline gate passes 76 chunks, 8,119 tests and 69 conditional skips,
 maximum 31.99 s within the unchanged 110 s chunk limit. This source precedes
 only the final exact-floor change; 70 focused trade tests and nine native
 lifecycle checks cover that delta. Full Rust: 1,339 pass, two pre-existing
-manual timing benches ignored. All nine Tests jobs pass on complete code head
-`4502fdc1` (run `42419454116`); final reviewed-head and post-merge checks remain
+manual timing benches ignored. All nine Tests jobs pass on code/evidence head
+`27074bba` (run `42424371808`); final reviewed-head and post-merge checks remain
 required. The appended cwr1 inverse is independently verified bidirectionally;
 historical source and registry hash pins are preserved.
 
@@ -290,5 +369,5 @@ read-only arithmetic reproduction without simulation. Exact commands, source
 hashes, environment paths and controls are linked above; workspace lifetime is
 not guaranteed.
 
-**Final PR/head/main-CI disposition: pending held closure, complete independent
-review and final authorized integration.**
+**Final PR/head/main-CI disposition: held closure and independent arithmetic
+passed; final result/diff review and authorized integration checks remain pending.**
