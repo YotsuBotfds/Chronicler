@@ -1,0 +1,27 @@
+{
+  "source": "8792be88dd36ba4d7c22e480de6a19dd64ea1300",
+  "driver_sha256": "bb02ef4bac760bdc4068c443294a9b466169ca937b9ae9645debc88030bf0c2c",
+  "p19": {
+    "authorized_by": "lead scheduling GO after completed24-run official timing pilot",
+    "predeclared_cap_seconds": 600,
+    "jobs": 1,
+    "RAYON_NUM_THREADS": 1,
+    "other_model_processes": 0,
+    "actual_wall_seconds": 387.02938470499794
+  },
+  "t5": {
+    "authorized_by": "lead accepted234.096s proposal and350s whole-execution cap before execution",
+    "predeclared_cap_seconds": 350,
+    "jobs": 1,
+    "RAYON_NUM_THREADS": 1,
+    "other_model_processes": 1,
+    "other_process": "fresh held screen; one CPU; separate world/output",
+    "actual_wall_seconds": 174.53076225900077
+  },
+  "budget_scope": "after strict plan revalidation; includes model subprocesses, checkpoint writing, output/log inventories, comparisons and final source guards; excludes planning/import and later read-only audit",
+  "cap_raised": false,
+  "world_replaced": false,
+  "new_native_build": false,
+  "paid_calls": false,
+  "qualification": false
+}

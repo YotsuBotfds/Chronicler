@@ -556,7 +556,7 @@
   "bundle": "/workspace/evidence/cwr-evaluation/pilot-8792be88-v1/runs/AD-p19/chronicle_bundle.json",
   "bundle_sha256": "b9d42be3b1d2417165ec9e889d1d7543cefca63fd2dc7037eb7b7831cce5a8c6",
   "pilot_source": "/workspace/evidence/cwr-evaluation/pilot-8792be88-v1/source.txt",
-  "pilot_source_sha256": "807cb6f49217d34097152dc6b2a08e3ee0eb44cab04d3920df6d6e86c7e91cb3",
+  "pilot_source_sha256": "5eb23b33f02b032b910a72567122f9e65e8e68df2655e3f1f5635a8e601cdc51",
   "event_sidecar": {
     "present": true,
     "migration": 4226,
@@ -1877,7 +1877,7 @@
       }
     ]
   },
-  "driver_sha256": "f68f71f7eed531a88be767d317cc06519b6f59bdd841e316e459af326076bea3",
+  "driver_sha256": "bb02ef4bac760bdc4068c443294a9b466169ca937b9ae9645debc88030bf0c2c",
   "comparator": "checkpoint_identity.run_case / cities_identity.compare",
   "semantics": {
     "jobs": 1,

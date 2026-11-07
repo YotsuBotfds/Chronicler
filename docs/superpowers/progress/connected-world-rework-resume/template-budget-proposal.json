@@ -1,0 +1,26 @@
+{
+  "status": "PROPOSED before template execution; awaiting root scheduling GO",
+  "pilot_ad_wall_seconds": 10.7,
+  "horizon": 120,
+  "ks": [
+    3,
+    4,
+    5,
+    6,
+    12,
+    13,
+    41,
+    61
+  ],
+  "continuation_turns": 815,
+  "historical_template_straight_plain_wall_ratio": 3.5783972125435537,
+  "measured_p19_total_seconds": 387.02938470499794,
+  "measured_p19_child_seconds": 297.08,
+  "measured_p19_overhead_seconds": 89.94938470499795,
+  "overhead_scale_invocations": 1.25,
+  "projection_seconds": 234.0964143887968,
+  "proposed_fixed_cap_seconds": 350,
+  "plan_sha256": "d6b4c534a5e97c4c39d58ec46de45d02e375551093fc8f89311a40ca4e1cd87a",
+  "no_simulation_started": true,
+  "policy": "no raised cap, replacement world or changed state to rescue a failure"
+}

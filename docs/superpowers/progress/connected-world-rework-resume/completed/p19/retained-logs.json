@@ -1,0 +1,40 @@
+{
+  "done": true,
+  "seconds": 338.47587466299956,
+  "collector_sha256": "7887aa7417876a47c50ffb3953d0697792816f04f5738d7d5008acd26e64d752",
+  "files": {
+    "plain.log": {
+      "bytes": 1395,
+      "sha256": "5d0d1cf3d26539dfa9e86259b9d0f26a8aaa2d5639c9e4b774a932bfca2782be"
+    },
+    "straight.log": {
+      "bytes": 1407,
+      "sha256": "3b3cadb12fd6f91417dd79b4acb11de73b3109e150be18e99aedae19ae5c8884"
+    },
+    "resume_0001.log": {
+      "bytes": 1553,
+      "sha256": "35eeb7f96b58ad76da89628ebce80ec8284a613639906f85c9432a54f6354a08"
+    },
+    "resume_0002.log": {
+      "bytes": 1553,
+      "sha256": "e81f7582d40fc834a2043587dcb135dc428852a2411cab5c77f97591633d35fb"
+    },
+    "resume_0003.log": {
+      "bytes": 1553,
+      "sha256": "8017ae389b704a34ca7528a88cbf4fda170df9eaa23e4c1f066d99880abbe10d"
+    },
+    "resume_0018.log": {
+      "bytes": 1489,
+      "sha256": "637095ecb6f43858861aaff1f6089b8fc3d3b2b32c86861c35cb54818f6bb0ad"
+    },
+    "resume_0019.log": {
+      "bytes": 1489,
+      "sha256": "3dba77d1a27039d115d833f301da6832d4176f0fc61505c9b0326c6139c3d2b8"
+    },
+    "resume_0067.log": {
+      "bytes": 1158,
+      "sha256": "80aa145319d2a4b1f66325f634f8e2a57927aac3f54841cf054f95647741995a"
+    }
+  },
+  "source": "stdout log descriptors; no compared outputs modified"
+}

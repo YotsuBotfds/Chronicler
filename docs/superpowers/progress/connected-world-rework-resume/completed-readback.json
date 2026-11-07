@@ -1,0 +1,77 @@
+{
+  "pass": true,
+  "cases": [
+    {
+      "tag": "p19",
+      "pass": true,
+      "plan_sha256": "e37010a507bc1e26f8d7246f704a78b1dd45402c89cbb15f28648e4093525ce9",
+      "report_sha256": "b64e991a36a293a545dd9eb7a78729cb965e80ee628cb032dd83e826596619c8",
+      "invocations_sha256": "b5949db61a1ee5c0d97c51da6ca914fd67cb4295b437c560d8ec71a145eedbe3",
+      "retained_logs_sha256": "3e2326c03ae8128c4c84f44fc04de9e81b71f4efb6091ce8eb45cfb803ba6bef",
+      "ks": [
+        1,
+        2,
+        3,
+        18,
+        19,
+        67
+      ],
+      "compared_files": 112,
+      "wall_seconds": 387.02938470499794,
+      "cap_seconds": 600,
+      "missing_categories": [],
+      "unselected_active_categories": [],
+      "unavailable_boundaries": [
+        {
+          "category": "before_d3_wounded",
+          "checkpoint": 0,
+          "reason": "checkpoint must be between 1 and horizon-1"
+        },
+        {
+          "category": "before_d3_released",
+          "checkpoint": 0,
+          "reason": "checkpoint must be between 1 and horizon-1"
+        }
+      ]
+    },
+    {
+      "tag": "t5",
+      "pass": true,
+      "plan_sha256": "d6b4c534a5e97c4c39d58ec46de45d02e375551093fc8f89311a40ca4e1cd87a",
+      "report_sha256": "18315f56356df7e31580b299cc57c1eeafd044c843c0eddf88e0cfc939d48743",
+      "invocations_sha256": "94121bec23bc614aefd36f40420e4f4b4c9448ff4817f106946189ca2a7bb686",
+      "retained_logs_sha256": "4058071f565091c7387918e4f0d75ccb94c75c1dfa82d6ab3ccc7477e049f713",
+      "ks": [
+        3,
+        4,
+        5,
+        6,
+        12,
+        13,
+        41,
+        61
+      ],
+      "compared_files": 90,
+      "wall_seconds": 174.53076225900077,
+      "cap_seconds": 350,
+      "missing_categories": [
+        "moving_timber_escrow",
+        "health_coverage"
+      ],
+      "unselected_active_categories": [],
+      "unavailable_boundaries": []
+    }
+  ],
+  "compared_files": 202,
+  "resumed_branches": 14,
+  "checkpoint_writing_neutrality_cases": 2,
+  "raw_arrow_output_identities": 18,
+  "selected_checkpoint_hashes": 14,
+  "stdout_log_copies": 18,
+  "source_native_inputs_still_match": true,
+  "source": "8792be88dd36ba4d7c22e480de6a19dd64ea1300",
+  "native_sha256": "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
+  "driver_sha256": "bb02ef4bac760bdc4068c443294a9b466169ca937b9ae9645debc88030bf0c2c",
+  "audit_sha256": "e8bb1f2c0576c5032050da2e7ce55120536c523d87fd6f708b062e8563fa5863",
+  "scope": "readback of existing comparator reports/invocations plus live artifact hashes; no model or checkpoint execution"
+}

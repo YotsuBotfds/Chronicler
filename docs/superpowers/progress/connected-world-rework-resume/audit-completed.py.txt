@@ -1,0 +1,91 @@
+"""Read-only receipt/hash audit of completed CWR1 development resumes."""
+import argparse
+import hashlib
+import json
+from pathlib import Path
+import subprocess
+
+
+def sha(path):
+    h = hashlib.sha256()
+    with Path(path).open("rb") as f:
+        while chunk := f.read(1024 * 1024):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def read(path):
+    return json.loads(Path(path).read_text())
+
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--evidence-root", required=True)
+    p.add_argument("--out", required=True)
+    a = p.parse_args()
+    root, cases, total_files, arrow_outputs, checkpoint_hashes, log_copies = Path(a.evidence_root), [], 0, 0, 0, 0
+    for tag, suffix, cap, nfiles in (("p19", "v2", 600, 16), ("t5", "v1", 350, 10)):
+        plan_path = root / f"plan-{tag}-8792-bb02-closed.json"
+        plan = read(plan_path)
+        run = root / f"run-{tag}-8792-bb02-{suffix}"
+        report, inv = read(run / "report.json"), read(run / "invocations.json")
+        logs = read(run / "retained-logs.json")
+        assert report["pass"] and report["budget_pass"] and report["max_wall_seconds"] == cap and report["wall_seconds"] <= cap
+        assert report["pilot_trajectory_reproduced"] and report["raw_arrow_sha256_matches_pilot"]
+        assert report["source_freeze"] == plan["source_freeze"] and report["selection"] == plan["selection"]
+        assert len(report["ks"]) <= 12 and report["ks"] == plan["selection"]["ks"]
+        assert len(inv) == len(report["ks"]) + 2 == report["invocations"]
+        neutral = report["checkpointing_changes_nothing"]
+        assert neutral == {"files": nfiles, "differences": []}
+        assert sorted(map(int, report["results"])) == report["ks"]
+        for result in report["results"].values():
+            assert result["exit"] == 0 and result["files"] == nfiles and not result["differences"]
+        assert all(row["exit"] == 0 and row["environment"]["RAYON_NUM_THREADS"] == "1" for row in inv)
+        assert all(row["outputs"]["agent_events.arrow"]["sha256"] == plan["arrow_sha256"] for row in inv)
+        assert sha(plan["bundle"]) == plan["bundle_sha256"]
+        assert sha(Path(plan["bundle"]).parent / "agent_events.arrow") == plan["arrow_sha256"]
+        assert sha(plan["pilot_source"]) == plan["pilot_source_sha256"]
+        assert logs["done"] and len(logs["files"]) == len(inv)
+        assert logs["collector_sha256"] == sha(root / "retain_logs.py")
+        for name, item in logs["files"].items():
+            path = run / "retained-logs" / name
+            assert path.stat().st_size == item["bytes"] and sha(path) == item["sha256"]
+        selected = inv[1]["checkpoints"]
+        assert len(selected) == len(report["ks"])
+        for k in report["ks"]:
+            item = selected[f"ckpt/turn_{k:04d}.ckpt"]
+            assert len(item["sha256"]) == 64 and item["bytes"] == report["checkpoint_bytes"][str(k)]
+        case_name = report["case"]
+        for rel, item in inv[1]["outputs"].items():
+            path = run / case_name / "straight" / rel
+            assert path.stat().st_size == item["bytes"] and sha(path) == item["sha256"]
+        files = (len(report["ks"]) + 1) * nfiles
+        total_files += files
+        arrow_outputs += len(inv)
+        checkpoint_hashes += len(selected)
+        log_copies += len(logs["files"])
+        cases.append({"tag": tag, "pass": True, "plan_sha256": sha(plan_path), "report_sha256": sha(run / "report.json"),
+                      "invocations_sha256": sha(run / "invocations.json"), "retained_logs_sha256": sha(run / "retained-logs.json"),
+                      "ks": report["ks"], "compared_files": files, "wall_seconds": report["wall_seconds"], "cap_seconds": cap,
+                      "missing_categories": report["selection"]["missing_categories"],
+                      "unselected_active_categories": report["selection"]["unselected_active_categories"],
+                      "unavailable_boundaries": report["selection"]["unavailable_boundaries"]})
+    frozen = plan["source_freeze"]
+    source = Path(frozen["source_root"])
+    assert subprocess.check_output(["git", "-C", str(source), "rev-parse", "HEAD"], text=True).strip() == frozen["source"]
+    assert not subprocess.check_output(["git", "-C", str(source), "status", "--porcelain", "--untracked-files=no"], text=True).strip()
+    assert sha(frozen["native_path"]) == frozen["native_sha256"]
+    assert all(sha(source / name) == digest for name, digest in frozen["tracked_input_sha256"].items())
+    result = {"pass": True, "cases": cases, "compared_files": total_files, "resumed_branches": sum(len(c["ks"]) for c in cases),
+              "checkpoint_writing_neutrality_cases": 2, "raw_arrow_output_identities": arrow_outputs,
+              "selected_checkpoint_hashes": checkpoint_hashes, "stdout_log_copies": log_copies,
+              "source_native_inputs_still_match": True, "source": frozen["source"], "native_sha256": frozen["native_sha256"],
+              "driver_sha256": sha(root / "driver.py"), "audit_sha256": sha(__file__),
+              "scope": "readback of existing comparator reports/invocations plus live artifact hashes; no model or checkpoint execution"}
+    with Path(a.out).open("x") as out:
+        json.dump(result, out, indent=2)
+        out.write("\n")
+
+
+if __name__ == "__main__":
+    main()
