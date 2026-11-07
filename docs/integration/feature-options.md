@@ -49,6 +49,11 @@ Where the entries come from:
   (its config, else the server's). `test_public_health_choices_agree_with_the_run`
   and its batch-surface twin check every value against the real
   configuration path.
+- **Exclusions.** `epidemic_care` (C2, [epidemic care](epidemic-care.md)) and
+  `wealth_accounting` (A1) declare `{"not": {"feature": other}}` about each other (the
+  first pair; `exclusion_problems` refuses a one-sided one): the A1 ledger does not
+  itemize care wages. The compatibility matrix's all-enabled set keeps the switch later in
+  catalog order (A1) and drops `epidemic_care`.
 - **Flags, help and choices.** These are read from the CLI parser itself.
 
 Each requirement is an object with a `reason`. It is one of:

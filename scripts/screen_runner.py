@@ -155,7 +155,10 @@ class Outcome:
     control on the same world (or the arm alone when ``control`` is None). With
     ``minus = (arm2, control2)`` it is a difference of differences on the same world,
     ``(arm - control) - (arm2 - control2)`` (an interaction; ``control2`` is a control of
-    ``arm2``)."""
+    ``arm2``). With ``pair`` the two values are read together from the arm's and the
+    control's rows of the same world, ``pair(arm_row, control_row) -> (arm value,
+    control value)``, for a measure both arms read on cells one of them defines (CW5c:
+    the control's covered region-turns); ``read`` is then unused."""
     id: str
     label: str
     arm: str
@@ -163,6 +166,7 @@ class Outcome:
     read: Callable[[dict], float | None]
     primary: bool = False
     minus: tuple[str, str] | None = None
+    pair: Callable[[dict, dict], tuple[float | None, float | None]] | None = None
 
 
 @dataclass(frozen=True)
@@ -546,6 +550,8 @@ def check_preregistration(screen: Screen, *, held: bool) -> list[str]:
         if o.control is not None and o.control not in controls(o.arm):
             problems.append(f"outcome {o.id}: {o.control} is not a control of {o.arm} (its controls: "
                             f"{controls(o.arm)})")
+        if o.pair is not None and (o.control is None or o.minus is not None):
+            problems.append(f"outcome {o.id}: a paired reading needs a control and no difference of differences")
         if o.minus is not None:
             arm2, control2 = o.minus
             if o.control is None:
@@ -1878,7 +1884,8 @@ def _strata_seen(rows, cohort_map: Mapping[str, Sequence[int]]) -> dict[str, lis
 def paired_values(rows, screen: Screen, arm: str, control: str | None, read, tag: str,
                   seeds: Sequence[int], need_activation: bool = True,
                   why: Callable[[dict], str] = lambda row: "unknown",
-                  minus: tuple[str, str] | None = None) -> tuple[list[str], list[float]]:
+                  minus: tuple[str, str] | None = None,
+                  pair: Callable[[dict, dict], tuple] | None = None) -> tuple[list[str], list[float]]:
     """Per-world cells and the values of the activated worlds (arm minus control, and
     minus ``minus[0] - minus[1]`` for a difference of differences); ``why(row)`` names a
     value that is missing (default "unknown"). With ``screen.control_activation`` a
@@ -1902,7 +1909,7 @@ def paired_values(rows, screen: Screen, arm: str, control: str | None, read, tag
         if need_activation and any(act is not True for act in acts):
             cells.append(f"{seed}: {'not activated' if False in acts else 'activation unknown'}")
             continue
-        vals = [read(r) for r in got]
+        vals = list(pair(got[0], got[1])) if pair is not None and control else [read(r) for r in got]
         if any(v is None for v in vals):
             cells.append(f"{seed}: {why(got[[v is None for v in vals].index(True)])}")
             continue
@@ -1997,7 +2004,8 @@ def report_lines(rows, screen: Screen, cohort_map: Mapping[str, Sequence[int]] |
         out.append("| --- | --- | --- | --- | --- | --- |")
         for o in outcomes:
             for tag, seeds in strata.items():
-                cells, values = paired_values(rows, screen, o.arm, o.control, o.read, tag, seeds, minus=o.minus)
+                cells, values = paired_values(rows, screen, o.arm, o.control, o.read, tag, seeds, minus=o.minus,
+                                              pair=o.pair)
                 summary, signs, flip = _summary_cells(values, paired=o.control is not None)
                 out.append(f"| {o.id}: {o.label} | {tag} | {'; '.join(cells)} | {summary} | {signs} | {flip} |")
 

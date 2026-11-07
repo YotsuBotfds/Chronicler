@@ -469,6 +469,10 @@ CHUNKS = {
         "tests/test_attribution_records.py",
         "tests/test_provenance_decision_guard.py",
     ],
+    "connected-world-c2": [
+        "tests/test_epidemic_care.py",
+        "tests/test_cw5c_screen.py",
+    ],
     "connected-world-x": [
         "tests/test_residence_ledger.py",
         "tests/test_residence_ledger_guard.py",

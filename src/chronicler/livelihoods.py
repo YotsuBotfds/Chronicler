@@ -50,11 +50,18 @@ The connected-world program appends:
   the commons owner, starts with owner capital and sells to households as
   well as academies; inserted before the ledger and without hooks of its own
   (the workshop and payroll seams call it).
+* ``--epidemic-care`` (C2): named adult farmers paid from an L9 envelope tend the
+  sick of a region with a reported outbreak; their farm time leaves the native
+  farm labour, and the patients they can serve, dated, lower the next epidemic
+  tick's case fatality (mode ``care``) or nothing (``cost_only``, the cost
+  control); inserted after A3 and before D2 and the ledger, so its Phase 2 work
+  comes after every other work consumer.
 * ``--residence-ledger`` (X1, the lead-owned displacement contract): home,
   residence, army attachment and displacement spells with cause and dated
   home-region anchor, written once per turn in Phase 10 after the rosters are
-  reconciled and read by consumers only the next turn; inserted after A3 and
-  before D2 and the wealth ledger. It changes nothing it observes.
+  reconciled and read by consumers only the next turn; inserted after C2's
+  epidemic care, immediately before D2 and the wealth ledger. It changes
+  nothing it observes and books no labour.
 * ``--attribution-records`` (D2): observation-only records of actor, victim and
   cause (granary seizures, casualties by cause, restored-civ identity reuse,
   burdens per actor -> victim pair); inserted after A3 and before the wealth ledger,
@@ -123,6 +130,7 @@ LIVELIHOODS_CHOICES: dict[str, tuple[str, ...]] = {
     "household_retail_rules": ("2", "1"),
     "watershed_mode": ("record_only", "flow"),
     "workshop_economics_mode": ("market", "free_inputs", "academy_only"),
+    "epidemic_care_mode": ("care", "cost_only"),
 }
 #: All parser destinations owned here (``batch_manifest.SIMULATION_ARG_KEYS``).
 LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
@@ -148,6 +156,7 @@ LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     "household_retail_rules",
     "watershed", "watershed_mode",
     "workshop_economics", "workshop_economics_mode",
+    "epidemic_care", "epidemic_care_mode",
     "residence_ledger",
     "attribution_records",
     "wealth_accounting",
@@ -396,14 +405,27 @@ _HELP = {
         "market (default); free_inputs: the cost control, every rule as market except that the input "
         "charge is recorded and not taken; academy_only: the demand control with no household customers"
     ),
+    "epidemic_care": (
+        "Epidemic care (C2): each ruler may fund, from its local budget, carers for a region with a reported "
+        "outbreak: adult farmers resident there who hold no other work, named by stable id, give their farm "
+        "time (removed from farming, their ordinary income share withheld) for a wage paid from the treasury; "
+        "the patients they can serve (5 per worker-turn) multiply case fatality at the next epidemic tick by "
+        "1 - 0.3 x coverage (one floor with practised medicine); requires --agents hybrid, --local-budgets "
+        "and epidemiology with the contact ledger; cannot run with --wealth-accounting (default off)"
+    ),
+    "epidemic_care_mode": (
+        "care (default): the carers' capacity lowers the next tick's case fatality; cost_only: the cost control "
+        "with the same carers, farm time, withheld income and wages and no effect on fatality"
+    ),
     "residence_ledger": (
         "Residence ledger (X1, the displacement contract): a record-only ledger of where each person lives, "
         "where they belong and why they left: home (the residence when first observed, changed only by a "
-        "voluntary or unclassified move or after 20 turns settled elsewhere; never by enlistment), residence, "
-        "army attachment and displacement spells opened by a flight- or hunger-driven move from home, with "
-        "the home-region event (war, famine, persecution) dated in the 5 turns before, closed on return, "
-        "resettlement, death, a rebuilt pool or an unobserved gap; one frame per turn dated by its source "
-        "turn, readable by a consumer only the next turn; changes nothing; requires --agents hybrid "
+        "voluntary or unclassified move of a person who is not displaced, or after 20 turns settled "
+        "elsewhere; never by enlistment), residence, army attachment and displacement spells opened by a "
+        "flight- or hunger-driven move from home, with the opening driver and the home-region event (war, "
+        "famine, persecution) dated in the 5 turns before, kept open by any onward move and closed on "
+        "return, resettlement, death, a rebuilt pool or an unobserved gap; one frame per turn dated by its "
+        "source turn, readable by a consumer only the next turn; changes nothing; requires --agents hybrid "
         "(default off)"
     ),
     "attribution_records": (
@@ -632,6 +654,13 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
             raise ValueError("--workshop-economics requires --workshop-payroll (--workshops in operate mode, "
                              "--agents hybrid)"
                              + ("; this world has it on: pass --no-workshop-economics to end it" if saved else ""))
+    if (values["epidemic_care"] is not None or getattr(args, "epidemic_care_mode", None) is not None
+            or getattr(livelihoods_state(world), "epidemic_care", None) is not None):
+        # C2: also when only saved (a resume outside hybrid, without L9 or
+        # epidemiology, or with the A1 ledger is refused until ended); a mode
+        # needs the switch and is fixed once the world ran with it.
+        from chronicler.epidemic_care import check_request
+        check_request(world, values, args, agent_mode=agent_mode, on=lambda name: _on(world, values, name))
     if _on(world, values, "residence_ledger") and agent_mode != "hybrid":
         # Also when only saved: the ledger reads the hybrid agent pool, its
         # moves and the rosters; a resume outside hybrid is refused until ended.
@@ -733,6 +762,7 @@ _CHOICE_FIELDS: dict[str, tuple[str, str]] = {
     "household_retail_rules": ("household_retail", "rules"),
     "watershed_mode": ("watershed", "mode"),
     "workshop_economics_mode": ("workshop_economics", "mode"),
+    "epidemic_care_mode": ("epidemic_care", "mode"),
 }
 
 

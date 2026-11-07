@@ -1,7 +1,7 @@
 # Residence ledger (X1, `--residence-ledger`): the displacement contract
 
 Lane X1 of the connected-world program; the lead-owned displacement contract shared by C2
-(crowding), D3 (war's human consequences) and A6 (adaptive decisions). Specification: audit A6
+(crowding), D3 (war's human consequences) and A6 (adaptive decisions). Specification: [audit A6](../superpowers/audits/connected-world/audit-a6-adaptive-decisions.md)
 sections 9–11 (definitions 11.1, one writer 11.2, dated persistence 11.3, readers 11.4, relation
 to existing records 11.5), adopted by the lead as the spec; plan section 2 records the contract.
 Code: `src/chronicler/residence_ledger.py`, `residence_ledger_state.py`; viewer

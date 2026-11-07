@@ -12,11 +12,12 @@ independent switches was enabled: ``workshops`` (L1), ``food_allocation``
 ``maintenance_obligation`` (PL3) and ``household_retail`` (PL4, L6b), and the
 connected-world program's ``watershed`` (B1), ``workshop_economics`` (A3,
 inserted before the ledger; it has no hooks of its own: the workshop and
-payroll seams call it), ``residence_ledger`` (X1, the lead-owned displacement
-contract: home, residence, attachment and displacement spells, record-only,
-inserted before D2 and the ledger), ``attribution_records`` (D2,
-observation-only records of actor, victim and cause, after every acting
-package) and
+payroll seams call it), ``epidemic_care`` (C2, named, paid epidemic carers
+funded by L9 envelopes; inserted before D2 and the ledger so its Phase 2 work
+comes after every other work consumer), ``residence_ledger`` (X1, the
+lead-owned displacement contract: home, residence, attachment and displacement
+spells, record-only, immediately before D2), ``attribution_records`` (D2,
+observation-only records of actor, victim and cause, after every acting package) and
 ``wealth_accounting`` (A1, an observation-only ledger, kept last so its hooks
 run after every payer). Each
 sub-state is owned by its own module
@@ -33,6 +34,7 @@ from chronicler.apprenticeship_state import ApprenticeshipState
 from chronicler.attribution_records_state import AttributionRecordsState
 from chronicler.clearing_protection_state import ClearingProtectionState
 from chronicler.commons_rules_state import CommonsRulesState
+from chronicler.epidemic_care_state import EpidemicCareState
 from chronicler.food_allocation_state import FoodAllocationState
 from chronicler.grain_convoys_state import GrainConvoyState
 from chronicler.household_retail_state import HouseholdRetailState
@@ -63,7 +65,8 @@ LIVELIHOODS_SWITCHES: tuple[str, ...] = ("workshops", "food_allocation", "timber
                                          "operating_wear", "timber_supply",
                                          "recovery_crews", "maintenance_obligation",
                                          "household_retail", "watershed", "workshop_economics",
-                                         "residence_ledger", "attribution_records", "wealth_accounting")
+                                         "epidemic_care", "residence_ledger", "attribution_records",
+                                         "wealth_accounting")
 
 
 def _is_none(value) -> bool:
@@ -93,6 +96,7 @@ class LivelihoodsState(BaseModel):
     household_retail: HouseholdRetailState | None = Field(default=None, exclude_if=_is_none)
     watershed: WatershedState | None = Field(default=None, exclude_if=_is_none)
     workshop_economics: WorkshopEconomicsState | None = Field(default=None, exclude_if=_is_none)
+    epidemic_care: EpidemicCareState | None = Field(default=None, exclude_if=_is_none)
     residence_ledger: ResidenceLedgerState | None = Field(default=None, exclude_if=_is_none)
     attribution_records: AttributionRecordsState | None = Field(default=None, exclude_if=_is_none)
     wealth_accounting: WealthAccountingState | None = Field(default=None, exclude_if=_is_none)
