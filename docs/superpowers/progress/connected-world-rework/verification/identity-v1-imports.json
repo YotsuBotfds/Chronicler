@@ -1,0 +1,16 @@
+Checkout:      /workspace/cwr-validation-v1
+Interpreter:   /workspace/cwr-native/bin/python (CPython 3.13.5, linux x86_64)
+Environment:   /workspace/cwr-native (virtual environment)
+PYTHONPATH:    /workspace/cwr-validation-v1/src (included in the lookups below)
+chronicler:    /workspace/cwr-validation-v1/src/chronicler/__init__.py (this checkout)
+CLI:           /workspace/cwr-native/bin/chronicler
+chronicler_agents: importable from /workspace/cwr-native/lib/python3.13/site-packages/chronicler_agents/__init__.py (distribution 0.1.0)
+  compiled file: /workspace/cwr-native/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so (14535264 bytes, sha256 b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd)
+  chronicler_agents.chronicler_agents: /workspace/cwr-native/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so (compiled extension)
+  classes: AgentSimulator ok, EcologySimulator ok, PoliticsSimulator ok
+[PASS] chronicler resolves to this checkout's src
+[PASS] chronicler console script is installed
+[PASS] chronicler_agents is importable
+[PASS] chronicler_agents.chronicler_agents is a compiled extension
+[PASS] AgentSimulator, EcologySimulator, PoliticsSimulator are the compiled classes
+Result: PASS (expected native)

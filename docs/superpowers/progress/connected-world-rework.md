@@ -53,8 +53,7 @@ and independently approved, with 41 physical-arrival/downstream epidemic regress
 checks and 1,339 Rust tests passing (two pre-existing manual benches ignored).
 Clean native release is `b1d3ea5a`; all old feature and version defaults remain.
 PR #98 merged at `125a6906` after all nine Tests jobs passed on reviewed head
-`093952eb` (run `42415795157`). Exact main CI is pending; further feature merges
-remain gated on it. Optional gzip transport is independently reviewed and retains every byte;
+`093952eb` (run `42415795157`). Exact main Tests `42417310582` subsequently passed all nine jobs. Optional gzip transport is independently reviewed and retains every byte;
 its loader does not reduce decoded memory. Runtime optimization is not yet
 admitted by paired complete-output evidence.
 
@@ -89,3 +88,20 @@ not completion of this rework. Ports lack a maritime service consumer. Owned
 cross-border wares is an unimplemented, unadopted audit proposal. The constructed
 visibility example is not a separately simulated alternate history. See the
 new scope disposition audit for the full distinctions.
+
+Latest validation: full bounded offline source `53996540` passed all76 chunks,
+8,119 tests (69 conditional skips), maximum31.99s within unchanged110s limit.
+This precedes the final two-line exact-arithmetic change, whose70 focused
+titled/timber tests pass independently. Initial default identity source `b6a68a8b`
+compares9 cases/399files with zero differences against both references; repeat
+on the final runtime is still required.
+
+Measured large-agent residual: full30T scoped measurement confirms titled-food
+dispatch63.334CPU seconds of106.409modelCPU. A partial recursive profile is
+retained as INCOMPLETE20/30turns (measurement overhead; not a speed baseline).
+Reviewed exact integer floors replace only equivalent Fraction expressions,
+retaining live wallets/claims and settlement. Final runtime `8792be88` is
+immutable and published; profiling source `1e047e7b` has identical Python/Rust/
+scripts bytes. Final10-case measurements/admission are running. Next is the
+official24×120 pilot, followed by frozen fresh CWR1, enabled exact resumes,
+final identity/CI/review and merge. No held seed has run.

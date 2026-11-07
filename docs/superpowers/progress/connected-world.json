@@ -650,7 +650,7 @@
       "verification": "Independent actual source/native/inverse/evidence/test-contract reviews; all nine premerge Tests success; tree equals reviewed head; all nine exact main Tests success."
     }
   ],
-  "next": "Finish matched five-scale timber output/performance admission; run approved same-scale scaled22k residual diagnostic (450 CPU seconds); settle any measured optimization before final source freeze. Then official24x120 pilot, frozen fresh12-world CWR1, active exact resume, both-reference default identity, final99 review/CI/main verification.",
+  "next": "Finish final10-case comparison after exact-arithmetic optimization, then official24x120pilot on879 frozenruntime; no heldspent.",
   "baseline": {
     "oracle_lane": "PASS, 63 chunks, 295.5 s, slowest 32.4 s of 110 s",
     "native_check": "check_python_env --expect native PASS (101a4cd5)",
@@ -848,7 +848,7 @@
     "base_main_run": 42397121718,
     "ledger": "docs/superpowers/progress/connected-world-rework.md",
     "branch": "codex/cw-rework",
-    "next": "Finish matched five-scale timber output/performance admission; run approved same-scale scaled22k residual diagnostic (450 CPU seconds); settle any measured optimization before final source freeze. Then official24x120 pilot, frozen fresh12-world CWR1, active exact resume, both-reference default identity, final99 review/CI/main verification.",
+    "next": "Finish final10-case comparison after exact-arithmetic optimization, then official24x120pilot on879 frozenruntime; no heldspent.",
     "correctness": "Explicit rules3/density_only implemented and independently reviewed; legacy defaults unchanged.41 physical-arrival/downstream epidemic testsPASS; old reader fails at susceptibility2.1875 vs1.75. Initial scoped418PASS, extractor48PASS, Rust1339PASS/2existingmanualbenchesignored. Broad execution/CI gates continue.",
     "native": {
       "sha256": "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
@@ -861,7 +861,7 @@
       "premerge_tests": 42415795157,
       "premerge_all_nine": "passed",
       "merge": "125a69066ea158a973ac5207f393e4eeb330aee8",
-      "main_ci": "pending; no further feature merge until verified",
+      "main_ci": "passed all nine jobs",
       "main_tests": 42417310582
     },
     "held": "CWR1 template4101\u20134106/procedural4201\u20134206 reserved after52refs/13versions collision-free. No held run. Cheap dev smoke caught no_relief extractor assumption; fix before complete timing pilot/freeze.",
@@ -889,6 +889,31 @@
       "initial_tests": 42417373801,
       "status": "running; final head/evidence will change before merge",
       "initial_tests_status": "no-Rust/offline failed sole historical registry projection; test-only reviewed fix preserves all3hashes and live CWR identity. Fresh-head gates required."
+    },
+    "verification_checkpoint": {
+      "offline": {
+        "source": "539965409ec0d28358b30b5133049fbd446d580a",
+        "chunks": 76,
+        "passed": 8119,
+        "skipped": 69,
+        "max_chunk_seconds": 31.99,
+        "limit": 110,
+        "note": "Before final TT exact arithmetic; newTT70focused pass; final CI stillrequired"
+      },
+      "default_identity": {
+        "source": "b6a68a8bc884253b02b3cc7b6c139e10038d0eb7",
+        "cases": 9,
+        "files": 399,
+        "differences": 0,
+        "references": [
+          "8abc1acb",
+          "precedingmain125a6906(source-equivalent830d0dc2)"
+        ],
+        "note": "Before lazy/exact-floor followups; repeat final default matrix before merge."
+      },
+      "final_runtime": "8792be88dd36ba4d7c22e480de6a19dd64ea1300",
+      "final_profile": "1e047e7b6585d2cf13bb990f03f292c1067979c5 (same src/Rust/scripts bytes)",
+      "next": "Finish final10-case comparison after exact-arithmetic optimization, then official24x120pilot on879 frozenruntime; no heldspent."
     }
   }
 }

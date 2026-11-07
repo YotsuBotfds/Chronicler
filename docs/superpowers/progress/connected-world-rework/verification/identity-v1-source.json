@@ -1,0 +1,15 @@
+{
+  "source": "b6a68a8bc884253b02b3cc7b6c139e10038d0eb7",
+  "dirty": "",
+  "source_delta_from_profile_after": [],
+  "threads": {
+    "RAYON_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "OPENBLAS_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1"
+  },
+  "turn_speed_identity_sha256": "a0f241a0d074050ecfefe2e696815fab2a6475fd9e08cfbf749d26e0867cc7df",
+  "default_identity_command": "PYTHONPATH=/workspace/cwr-validation-v1/src RAYON_NUM_THREADS=1 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 /workspace/cwr-native/bin/python scripts/turn_speed_identity.py run /workspace/evidence/cwr-default-identity-v1 --source-root /workspace/cwr-validation-v1",
+  "offline_command": "PYTHONPATH=/workspace/cwr-validation-v1/src RAYON_NUM_THREADS=1 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 /workspace/cw-b3-offline/bin/python scripts/run_python_oracle_checks.py --output-dir /workspace/evidence/cwr-offline-full-v1",
+  "host_context": "After matched performance timings; concurrent with at most one ranking-only cProfile diagnostic and one other single-thread check. Offline110s cap unchanged."
+}
