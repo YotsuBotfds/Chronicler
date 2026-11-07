@@ -206,6 +206,8 @@
       "tests/test_terrain.py",
       "tests/test_timber_stock.py",
       "tests/test_timber_supply.py",
+      "tests/test_titled_trade.py",
+      "tests/test_titled_trade_native.py",
       "tests/test_traditions.py",
       "tests/test_transaction_receipts.py",
       "tests/test_transaction_receipts_bridge_native.py",

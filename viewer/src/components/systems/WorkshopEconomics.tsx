@@ -39,6 +39,7 @@ export function WorkshopEconomics({ bundle, snapshot, currentTurn, onSelectRegio
   return <section className="systems-section" aria-label="Workshop economics">
     {title}
     <p className="systems-note">Simulation turn {record.source_turn}. {MODE_NOTE[record.mode]}</p>
+    {record.rules_version === 2 ? <p className="systems-note">Owned output (rules 2): each firm's wares go straight into its inventory and never into the region's commons, so nobody uses them free in the tick they are made; they reach people only by sale.</p> : <p className="systems-note">Rules 1: the tick's output passes through the region's commons before the firm takes title, so part of it can be used free in the same tick (the upper bound below).</p>}
     <p className="systems-note">Amounts are treasury units (one unit is also one unit of a person's wealth); wares and inputs are loads. A firm receives its ruler's capital once; a city whose firm closed never gets another firm. A firm converts only the raw inputs it paid for; a site without a firm produces nothing. The ruler's spending on the workshop building is shown as a subsidy outside the firm's books.</p>
     {receipts === null ? <p className="systems-note">No workshop economics pass was recorded in simulation turn {record.source_turn}; inputs, sales and wages are unknown, not zero.</p> : receipts.length === 0 ? <p className="systems-note">No firm was open in simulation turn {record.source_turn} (a recorded zero).</p> :
       <div className="systems-table-wrap"><table className="systems-table" aria-label={`Workshop firms' economics at snapshot ${record.source_turn + 1}`}>
@@ -74,7 +75,8 @@ export function WorkshopEconomics({ bundle, snapshot, currentTurn, onSelectRegio
         <tr><th scope="row">Sales to academies / households</th><td>{`${show(f.academySales)} / ${show(f.householdSales)}`}</td></tr>
         <tr><th scope="row">Household share of sales</th><td>{f.householdShareOfSales === null ? "No sales" : show(f.householdShareOfSales)}</td></tr>
         <tr><th scope="row">Wares delivered to households · households priced out</th><td>{`${show(f.householdDelivered)} · ${show(f.pricedOutHouseholds)}`}</td></tr>
-        <tr><th scope="row">Output the region used before title (upper bound, free)</th><td>{show(f.freeUseUpperBound)}</td></tr>
+        <tr><th scope="row">Output the region used before title (upper bound, free)</th><td>{f.ownedOutput === null ? show(f.freeUseUpperBound) : "None: output owned from the start"}</td></tr>
+        {f.ownedOutput !== null ? <tr><th scope="row">Output taken straight into inventory (owned)</th><td>{show(f.ownedOutput)}</td></tr> : null}
         <tr><th scope="row">Firms closed: idle / insolvent / other</th><td>{`${show(f.closedIdle)} / ${show(f.closedInsolvent)} / ${show(f.closedOther)}`}</td></tr>
         <tr><th scope="row">Building subsidy to firm sites (units) · site-turns without a firm</th><td>{`${show(f.assetSubsidyFirmUnits)} · ${show(f.sitesWithoutFirmTurns)}`}</td></tr>
       </tbody>

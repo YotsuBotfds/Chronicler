@@ -591,6 +591,13 @@ class _Turn:
     income: dict | None = None
     sample: list | None = None
     sample_dropped: int = 0
+    #: A4 titled trade's read of this turn's settlement (transient): per id
+    #: (paid, credited, refunded), sold milli-food per (owner, region), the
+    #: per-region money columns, and the procurement credits applied per id.
+    money_rows: dict[int, tuple[int, int, int]] | None = None
+    claim_sold: dict[tuple[int, int], int] | None = None
+    region_money: dict[int, tuple[int, int, int]] | None = None
+    procurement_credits: dict[int, int] | None = None
 
 
 def _turn(state: HouseholdRetailState, world) -> _Turn:
@@ -1686,6 +1693,10 @@ def _settle_frame(world, state, t: _Turn, installed: _Installed, frame, receipt,
     for key, value in money.items():
         _bump(state, f"{key}_milli", value)
     t.money = {**{f"{k}_milli": v for k, v in money.items()}, "rows": len(ids)}
+    t.money_rows = {int(a): (int(p), int(c), int(r)) for a, p, c, r in money_rows}
+    t.claim_sold = {(o, rid): v for rid in sold for o, v in sold[rid].items()}
+    t.region_money = {rid: (int(r["paid_milli"]), int(r["credited_milli"]), int(r["refunded_milli"]))
+                      for rid, r in by_region.items()}
     kept = []
     for aid, region, household, ration, fair, status in sample:
         if int(region) not in by_region or int(status) not in (0, 1, 2, 3) or \
@@ -2282,6 +2293,8 @@ def _credit_procurement(world, state, t: _Turn, agent_bridge) -> dict:
                 raise RetailAccountingError("native procurement credit receipt does not balance")
             summary["credited_milli"] += int(applied)
             summary["residual_milli"] += int(residual)
+            if int(applied):
+                t.procurement_credits = {**(t.procurement_credits or {}), aid: int(applied)}
         _bump(state, "procurement_credited_milli", summary["credited_milli"])
         _bump(state, "procurement_residual_milli", summary["residual_milli"])
     state.last_procured_turn = turn
@@ -2313,6 +2326,13 @@ def phase10(world, acc, economy_result, agent_bridge) -> list:
     t = _turn(state, world)
     procurement = _credit_procurement(world, state, t, agent_bridge) if t.procured else None
     _check(state, world)
+    if getattr(getattr(world, "livelihoods", None), "titled_trade", None) is not None:
+        # A4 titled trade's Phase 10 (movement, arrivals, returns, purchases),
+        # inside this frame, so its flows are in the turn's books.
+        from chronicler.titled_trade import retail_phase10, titled_trade_active
+        if titled_trade_active(world):
+            retail_phase10(world, acc, economy_result, agent_bridge)
+            _check(state, world)
     _record_departures(world, state, t, agent_bridge)
     frames = []
     for rid in sorted(t.books):
@@ -2342,6 +2362,67 @@ def phase10(world, acc, economy_result, agent_bridge) -> list:
     state.sample_dropped = t.sample_dropped
     state._turn = None
     return []
+
+
+# ---------------------------------------------------------------------------
+# A4 titled trade seams (``chronicler.titled_trade``)
+# ---------------------------------------------------------------------------
+
+def pilot_entry(world, rid: int) -> RetailRegion | None:
+    """The open pilot entry of region ``rid`` (None outside the pilot)."""
+    state = _state(world)
+    return state.region(rid) if state is not None else None
+
+
+def sell_to_merchant(world, rid: int, per_owner: dict[int, int]) -> list[int]:
+    """A merchant buys ``per_owner`` milli-food of claims in ``rid``: debit the
+    claims and the pooled goods pro rata to their composition (flow
+    ``sold_merchant``); returns the goods taken per retail good. Title passes
+    to the merchant's shipment; the caller pays the owners."""
+    state = _state(world)
+    reg = state.region(rid)
+    total = sum(per_owner.values())
+    if reg is None or total <= 0 or any(v <= 0 for v in per_owner.values()):
+        raise RetailAccountingError("a merchant purchase names no owned food")
+    per_good = _draw(reg.goods, total)
+    _debit(state, world, reg, "sold_merchant", dict(per_owner), per_good)
+    _check(state, world, {rid})
+    return per_good
+
+
+def consign(world, rid: int, holder: int, per_good: list[int], kind: str) -> bool:
+    """A shipment's cargo becomes ``holder``'s claim in ``rid``'s pool (flow
+    ``consigned_in`` at a destination, ``returned_in`` back at the origin).
+    False, changing nothing, outside the pilot or when a new claim would
+    exceed ``MAX_CLAIMS`` (the caller deposits the cargo in the commons)."""
+    if kind not in ("consigned_in", "returned_in"):
+        raise KeyError(kind)
+    state = _state(world)
+    reg = state.region(rid) if state is not None else None
+    total = sum(per_good)
+    if len(per_good) != len(RETAIL_GOODS) or total <= 0 or any(v < 0 for v in per_good):
+        raise RetailAccountingError("a consignment names no cargo")
+    if reg is None or (holder not in reg.claims and state.claims_count() >= MAX_CLAIMS):
+        return False
+    book = _book(state, world, reg)
+    for g, v in enumerate(per_good):
+        reg.goods[g] += v
+    reg.claims[holder] = reg.claims.get(holder, 0) + total
+    _sorted_claims(reg)
+    _record(book, kind, list(per_good), {holder: total})
+    _check(state, world, {rid})
+    return True
+
+
+def turn_settlement(world):
+    """This turn's settlement as titled trade reads it: ``(money_rows,
+    claim_sold, region_money, procurement_credits)`` (see ``_Turn``), each
+    None when not observed this turn."""
+    state = _state(world)
+    t = state._turn if state is not None else None
+    if t is None or t.turn != world.turn:
+        return None, None, None, None
+    return t.money_rows, t.claim_sold, t.region_money, t.procurement_credits
 
 
 # ---------------------------------------------------------------------------

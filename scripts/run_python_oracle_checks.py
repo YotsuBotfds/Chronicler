@@ -378,6 +378,7 @@ CHUNKS = {
         "tests/test_wealth_accounting.py",
         "tests/test_money.py",
         "tests/test_workshop_economics.py",
+        "tests/test_titled_trade.py",
     ],
     "expansion-wiring": [
         "tests/test_expansion_feature_wiring.py",

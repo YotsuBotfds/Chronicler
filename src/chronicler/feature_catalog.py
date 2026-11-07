@@ -166,6 +166,8 @@ REQUIREMENTS: dict[str, tuple[dict, ...]] = {
     "household_retail": (_HYBRID, _feature("food_allocation")),
     "watershed": (_setting("procedural_world"),),
     "workshop_economics": (_HYBRID, _feature("workshop_payroll")),
+    "titled_trade": (_HYBRID, _feature("household_retail"), _choice("household_retail_mode", "retail", "no_relief"),
+                     _choice("household_retail_rules", "2")),
     "wealth_accounting": (_HYBRID,),
     # An explicit legacy is the option omitted: it needs nothing (lead decision m4).
     "quarantine_mode": (_any(_setting("epidemiology"), _choice("quarantine_mode", "legacy")),),

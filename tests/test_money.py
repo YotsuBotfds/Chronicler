@@ -53,6 +53,34 @@ class FakeSim:
         return out
 
 
+class PairSim(FakeSim):
+    """The stand-in plus native ``settle_pairs`` (A4) with its limits."""
+
+    def settle_pairs(self, turn, purpose, batch, rows):
+        self.calls += 1
+        if purpose not in (8, 9):
+            raise ValueError("not a pairwise wealth transfer purpose")
+        if any(p == purpose and b == batch and t >= turn for t, p, b in self.keys):
+            raise ValueError("wealth transfer already applied for this turn, purpose and batch")
+        self.keys = [k for k in self.keys if k[0] >= turn] + [(turn, purpose, batch)]
+        left, room, out = {}, {}, []
+        for payer, payee, amount in rows:
+            if payer not in self.wealth or payee not in self.wealth:
+                out.append((payer, payee, amount, 0, 0, 0, 2))
+                continue
+            left.setdefault(payer, math.floor(self.wealth[payer] * 1000))
+            room.setdefault(payee, math.floor((MAX_WEALTH - self.wealth[payee]) * 1000))
+            sent = min(amount, left[payer])
+            credited = min(sent, room[payee])
+            left[payer] -= credited
+            room[payee] -= credited
+            self.wealth[payer] -= credited / 1000
+            self.wealth[payee] += credited / 1000
+            out.append((payer, payee, amount, sent, credited, sent - credited,
+                        0 if sent == amount and credited == sent else 1))
+        return out
+
+
 def _world(treasury=(10, 3)):
     return SimpleNamespace(civilizations=[SimpleNamespace(name=f"C{i}", treasury=t) for i, t in enumerate(treasury)])
 
@@ -291,7 +319,11 @@ def test_every_caller_of_the_seam_is_registered_with_its_purposes_and_channels()
     for purpose in used:
         if M.PURPOSES[purpose] is not None:          # a native purpose: it moves agent wealth
             assert purpose in MONEY_PURPOSE_CHANNELS, purpose
-    assert set(MONEY_PURPOSE_CHANNELS.values()) == set(WEALTH_ROUTERS["_native_transfer"])
+    # A3's keyed transfers and A4's pairwise payments each have their router.
+    assert set(MONEY_PURPOSE_CHANNELS.values()) == (set(WEALTH_ROUTERS["_native_transfer"])
+                                                     | set(WEALTH_ROUTERS["_native_pairs"]))
+    assert {MONEY_PURPOSE_CHANNELS[p] for p in MONEY_PURPOSE_CHANNELS if p in M.PAIRWISE_PURPOSES} \
+        == set(WEALTH_ROUTERS["_native_pairs"])
     assert set(MONEY_PURPOSE_CHANNELS.values()) <= set(CHANNEL_NAMES)
     assert all(M.PURPOSES.get(p) is not None for p in MONEY_PURPOSE_CHANNELS)
 
@@ -331,3 +363,83 @@ def test_flow_totals_stay_exact_beyond_the_flow_list_bound():
                                                                                  "firm_cash", 2)
     assert total.applied == 3 * n == firms[1].cash and total.count == n
     M.check_book(book)
+
+
+# --- A4: pairwise payments (an agent paying agents) -----------------------------------
+
+def _pair_bill(batch=1, lines=((2, 1500), (3, 2500)), payer=1, purpose="cargo_purchase"):
+    return M.Bill(purpose=purpose, batch=batch, phase="phase10", payer=M.agent(payer),
+                  lines=tuple((M.agent(a), v) for a, v in lines), regions=tuple(4 for _ in lines), payer_region=6)
+
+
+def test_a_pairwise_bill_moves_wealth_from_the_payer_to_each_payee_once():
+    world, book = _world(), M.MoneyBook()
+    sim = PairSim({1: 10.0, 2: 1.0, 3: 2.0})
+    got = M.pay(world, _pair_bill(), turn=5, book=book, sim=sim)
+    assert got.ok and (got.total, got.applied, got.residual) == (4000, 4000, 0)
+    assert sim.wealth == pytest.approx({1: 6.0, 2: 2.5, 3: 4.5})
+    assert sim.keys == [(5, M.PURPOSES["cargo_purchase"], 1)] and M.PURPOSES["cargo_purchase"] == 8
+    assert [(f.payer, f.payee, f.applied, f.region, f.payer_region) for f in got.flows] == [
+        (("agent_wealth", 1), ("agent_wealth", 2), 1500, 4, 6), (("agent_wealth", 1), ("agent_wealth", 3), 2500, 4, 6)]
+    total = book.totals[0]
+    assert (total.purpose, total.payer_kind, total.payee_kind, total.region, total.payer_region, total.applied) == (
+        "cargo_purchase", "agent_wealth", "agent_wealth", 4, 6, 4000)
+    M.check_book(book)
+    # Exactly once: the same key is refused before anything moves.
+    again = M.pay(world, _pair_bill(), turn=5, book=book, sim=sim)
+    assert not again.ok and again.reason == "already_settled" and sim.calls == 1
+    # The flows' payer region is omitted from dumps of books without pairwise flows.
+    assert "payer_region" not in M.MoneyFlow(turn=1, phase="p", purpose="wares_purchase", batch=0,
+                                             payer=("agent_wealth", 1), payee=("firm_cash", 2), requested=1,
+                                             applied=1).model_dump()
+
+
+@pytest.mark.parametrize("wealth, reason", [
+    ({1: 3.9, 2: 1.0, 3: 1.0}, "payer_short"),          # cannot pay the whole bill
+    ({1: 10.0, 2: 1.0}, "payee_absent"),                # payee 3 is dead or unknown
+    ({2: 1.0, 3: 1.0}, "payer_absent"),
+])
+def test_a_pairwise_bill_is_refused_whole_before_anything_moves(wealth, reason):
+    world, book = _world(), M.MoneyBook()
+    sim = PairSim(wealth)
+    before = dict(sim.wealth)
+    got = M.pay(world, _pair_bill(), turn=2, book=book, sim=sim)
+    assert not got.ok and got.reason == reason and sim.calls == 0 and sim.wealth == before and not book.settled
+
+
+def test_a_payees_ceiling_refusal_stays_with_the_payer_and_is_recorded():
+    world, book = _world(), M.MoneyBook()
+    sim = PairSim({1: 10.0, 2: 99.5, 3: 1.0})
+    got = M.pay(world, _pair_bill(), turn=2, book=book, sim=sim)
+    assert got.ok and (got.applied, got.residual) == (3000, 1000)
+    rich = got.flows[0]
+    assert (rich.requested, rich.applied, rich.residual, rich.residual_to, rich.status) == (
+        1500, 500, 1000, "payer", "limited")
+    assert sim.wealth[1] == pytest.approx(7.0)            # only what the payees took left the payer
+    M.check_book(book)
+
+
+@pytest.mark.parametrize("bill, match", [
+    (M.Bill(purpose="wares_purchase", batch=0, phase="p", payer=M.agent(1), lines=((M.agent(2), 5),)),
+     "not a pairwise purpose"),
+    (M.Bill(purpose="cargo_purchase", batch=0, phase="p", payee=M.firm_cash(1), lines=((M.agent(2), 5),)),
+     "paid only by an agent to agents"),
+    (M.Bill(purpose="cargo_purchase", batch=0, phase="p", payer=M.agent(1), lines=((M.firm_cash(2), 5),)),
+     "pays agents"),
+    (M.Bill(purpose="cargo_purchase", batch=0, phase="p", payer=M.agent(1), lines=((M.agent(2), 5),),
+            residual="sink:credit_refused"), "returns refused credits"),
+    (M.Bill(purpose="cargo_sale", batch=0, phase="p", payer=M.agent(1), lines=((M.agent(2), 5),)),
+     "no ledger channel"),
+])
+def test_pairwise_bills_of_the_wrong_shape_are_refused(bill, match):
+    with pytest.raises(M.MoneyError, match=match):
+        M.quote(_world(), bill, turn=1, book=M.MoneyBook(), sim=PairSim({1: 1.0, 2: 1.0}))
+
+
+def test_a_limited_payer_row_is_a_stale_read():
+    class Stale(PairSim):
+        def settle_pairs(self, turn, purpose, batch, rows):
+            out = super().settle_pairs(turn, purpose, batch, rows)
+            return [(a, b, r, s - 1, c - 1, f, 1) for a, b, r, s, c, f, _st in out]
+    with pytest.raises(M.MoneyError, match="stale"):
+        M.pay(_world(), _pair_bill(), turn=1, book=M.MoneyBook(), sim=Stale({1: 10.0, 2: 1.0, 3: 1.0}))

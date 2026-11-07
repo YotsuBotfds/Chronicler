@@ -399,10 +399,18 @@ impl AgentSimulator {
     }
 
     /// Livelihoods: commit (stable id, fraction) rows for `turn` under a work
-    /// category (0 workshop, 1 learning, 2 apprentice, 3 repair), all or none; refuses anyone already
+    /// category (0 workshop, 1 learning, 2 apprentice, 3 repair, 4 trade), all or none; refuses anyone already
     /// holding work that turn (registry, rural health work, teaching plan).
     pub fn reserve_work(&mut self, turn: u32, category: u8, rows: Vec<(u32, f32)>) -> PyResult<()> {
         crate::workshop_work::reserve(&mut self.pool, turn, category, &rows).map_err(PyValueError::new_err)
+    }
+
+    /// Livelihoods: work-reservation categories in declaration order (append
+    /// only); A4 titled trade appended `trade` (code 4), which the native
+    /// merchant planner skips.
+    #[staticmethod]
+    pub fn work_reservation_categories() -> Vec<&'static str> {
+        crate::workshop_work::RESERVATION_CATEGORIES.to_vec()
     }
 
     /// Livelihoods: this turn's registry entries (id, category, fraction).
@@ -950,6 +958,24 @@ impl AgentSimulator {
             self.snapshot_cache = None; // the pool changed: drop the cached snapshot
         }
         Ok(out.into_iter().map(|r| (r.sender, r.recipient, r.sent, r.fee, r.credited, r.refunded, r.status)).collect())
+    }
+
+    /// A4 titled trade (`wealth_transfer::settle_pairs`): (payer, payee,
+    /// amount) milli-unit rows under a pairwise purpose (8 `cargo_purchase`,
+    /// 9 `cargo_sale`), once per (turn, purpose, batch), no fee and no trip
+    /// rule. Returns per row (payer, payee, requested, sent, credited,
+    /// refunded, status: 0 applied, 1 limited, 2 absent); a refused credit
+    /// never leaves the payer. Refuses a repeated key or invalid rows unchanged.
+    #[allow(clippy::type_complexity)]
+    pub fn settle_pairs(&mut self, turn: u32, purpose: u8, batch: u32, rows: Vec<(u32, u32, i64)>)
+        -> PyResult<Vec<(u32, u32, i64, i64, i64, i64, u8)>> {
+        let out = crate::wealth_transfer::settle_pairs(&mut self.pool, turn, purpose, batch, &rows)
+            .map_err(PyValueError::new_err)?;
+        if out.iter().any(|r| r.credited != 0) {
+            self.snapshot_cache = None; // the pool changed: drop the cached snapshot
+        }
+        Ok(out.into_iter().map(|r| (r.payer, r.payee, r.requested, r.sent, r.credited, r.refunded, r.status))
+            .collect())
     }
 
     /// RS4: stable ids of living agents away on a merchant trip, ascending (reads only).
@@ -3257,7 +3283,7 @@ impl AgentSimulator {
             Float32Builder, UInt8Builder, UInt16Builder, BooleanBuilder,
         };
         use crate::economy::{
-            EconomyRegionInput, RegionAgentCounts, TradeRouteInput, tick_economy_core_with_inputs,
+            EconomyRegionInput, RegionAgentCounts, TradeRouteInput, tick_economy_core_full,
         };
 
         let _ = season_id; // reserved for future seasonal modifiers
@@ -3570,6 +3596,34 @@ impl AgentSimulator {
             Some(rows)
         };
 
+        // Connected-world A3-2 (optional, default absent): per region the
+        // workshop firm's inventory at opening (loads) where the firm holds
+        // its own output (null: a legacy region); hybrid economy only.
+        let workshop_owned: Option<Vec<Option<f32>>> = match ri_rb.column_by_name("workshop_owned_crafts") {
+            None => None,
+            Some(column) => {
+                use arrow::array::Array;
+                let values = column.as_any().downcast_ref::<Float32Array>()
+                    .ok_or_else(|| PyValueError::new_err("workshop_owned_crafts must be Float32"))?;
+                if !self.hybrid_economy_mode {
+                    return Err(PyValueError::new_err("owned workshop output requires the hybrid economy"));
+                }
+                let mut rows = Vec::with_capacity(n_regions);
+                for i in 0..n_regions {
+                    if values.is_null(i) {
+                        rows.push(None);
+                        continue;
+                    }
+                    let v = values.value(i);
+                    if !v.is_finite() || v < 0.0 {
+                        return Err(PyValueError::new_err("invalid workshop_owned_crafts"));
+                    }
+                    rows.push(Some(v));
+                }
+                Some(rows)
+            }
+        };
+
         // PL1: crew labour only on a region with a timber slot.
         if let Some((_, labor)) = &woodcut_columns {
             if labor.iter().zip(&region_inputs)
@@ -3735,7 +3789,7 @@ impl AgentSimulator {
         // --- Call the core ---
         let woodcut = woodcut_columns.as_ref().map(|(away, labor)| crate::economy::WoodcutInput {
             labor_away: away, labor });
-        let output = tick_economy_core_with_inputs(
+        let output = tick_economy_core_full(
             &region_inputs,
             &agent_counts,
             &routes,
@@ -3750,6 +3804,7 @@ impl AgentSimulator {
             &granary_work_requested,
             woodcut.as_ref(),
             retail_inputs.as_deref(),
+            workshop_owned.as_deref(),
         );
 
         // M58b: Write transit decay diagnostics back to delivery buffer before clearing.
@@ -4061,6 +4116,13 @@ impl AgentSimulator {
             fields.push(Field::new("woodcut_outflow", DataType::Float64, false));
             conservation_schema = Schema::new(fields);
             conservation_columns.push(Arc::new(Float64Array::from(vec![c.woodcut_outflow])));
+        }
+        if workshop_owned.is_some() {
+            // A3-2: firms' wares counted in production, handed to their inventory.
+            let mut fields: Vec<Field> = conservation_schema.fields().iter().map(|f| f.as_ref().clone()).collect();
+            fields.push(Field::new("workshop_owned_outflow", DataType::Float64, false));
+            conservation_schema = Schema::new(fields);
+            conservation_columns.push(Arc::new(Float64Array::from(vec![c.workshop_owned_outflow])));
         }
         let conservation_batch = RecordBatch::try_new(
             Arc::new(conservation_schema),

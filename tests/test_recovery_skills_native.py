@@ -27,10 +27,10 @@ def test_the_extension_is_the_compiled_build_with_the_rs0_methods():
     for name in ("extend_paid_work", "install_paid_work", "plan_workshop_crews", "reserve_work"):
         assert callable(getattr(AgentSimulator, name)), name
     # Append-only: household retail (L6b) appended food_purchase and food_procurement,
-    # workshop economics (A3) wares_purchase.
+    # workshop economics (A3) wares_purchase, titled trade (A4) cargo_purchase and cargo_sale.
     assert AgentSimulator.wealth_transfer_purposes() == [
         "workshop_wage", "relocation_fare", "apprentice_stipend", "repair_wage", "remittance",
-        "food_purchase", "food_procurement", "wares_purchase"]
+        "food_purchase", "food_procurement", "wares_purchase", "cargo_purchase", "cargo_sale"]
 
 
 @pytest.fixture
@@ -64,17 +64,17 @@ def test_appended_categories_share_the_registry_and_purposes_transfer(live):
     sim.reserve_work(t, 2, [(a, 0.25)])            # apprentice
     sim.reserve_work(t, 3, [(b, 0.5)])             # repair
     assert sorted(sim.work_reservations(t)) == sorted([(a, 2, 0.25), (b, 3, 0.5)])
-    for category in (0, 1, 2, 3):
+    for category in (0, 1, 2, 3, 4):               # 4 (trade) appended by titled trade (A4)
         with pytest.raises(ValueError, match="already holds work"):
             sim.reserve_work(t, category, [(a, 0.1)])
     with pytest.raises(ValueError, match="category"):
-        sim.reserve_work(t, 4, [(c, 0.1)])
+        sim.reserve_work(t, 5, [(c, 0.1)])
     assert sim.work_reservation_conflicts(t) == []
-    for purpose in (2, 3, 4, 5, 6, 7):             # 5-6 appended by household retail (L6b), 7 by A3
+    for purpose in (2, 3, 4, 5, 6, 7, 8, 9):       # 5-6 household retail (L6b), 7 A3, 8-9 A4
         out = sim.transfer_wealth(t, purpose, 0, [(c, 10)])
         assert out[0][2] == 10 and out[0][4] == 0
     with pytest.raises(ValueError, match="purpose"):
-        sim.transfer_wealth(t, 8, 0, [(c, 10)])
+        sim.transfer_wealth(t, 10, 0, [(c, 10)])
 
 
 def test_extend_paid_work_merges_refuses_and_is_consumed_once_by_the_tick(live):

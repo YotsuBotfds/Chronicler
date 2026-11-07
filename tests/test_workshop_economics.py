@@ -143,7 +143,7 @@ def _region(i, controller="Civ0"):
     return SimpleNamespace(name=f"R{i}", controller=controller, stockpile=SimpleNamespace(goods={"crafts": 0.0}))
 
 
-def _world(mode="market", payroll="paid", treasury=(1000, 1000), regions=4):
+def _world(mode="market", payroll="paid", treasury=(1000, 1000), regions=4, rules=1):
     civs = [SimpleNamespace(name=f"Civ{i}", treasury=t) for i, t in enumerate(treasury)]
     world = SimpleNamespace(
         turn=20, agent_mode="hybrid", civilizations=civs, regions=[_region(i) for i in range(regions)],
@@ -153,7 +153,7 @@ def _world(mode="market", payroll="paid", treasury=(1000, 1000), regions=4):
     world.livelihoods.workshops = WorkshopState(mode="operate")
     world.livelihoods.workshop_payroll = WorkshopPayrollState(mode=payroll)
     if mode is not None:
-        world.livelihoods.workshop_economics = WorkshopEconomicsState(mode=mode)
+        world.livelihoods.workshop_economics = WorkshopEconomicsState(mode=mode, rules_version=rules)
     world.academy = False
     world.raw = 100.0                  # raw loads on hand in the site region each turn
     world.prices = {"raw_material": 0.5, "craft": 2.0}
@@ -209,9 +209,14 @@ def _turn(world, sim, lord=0):
     economy = SimpleNamespace(craft_output={r.name: (output if i == SITE else 0.0) for i, r in enumerate(world.regions)},
                               market_prices={r.name: dict(world.prices) for r in world.regions})
     W.finish_phase2(world, economy, bridge, None)
-    # The tick: output enters the commons, the people draw their demand free.
+    # The tick: output enters the commons (A3-1), or the firm's inventory
+    # (A3-2's native column), and the people draw their demand free from the commons.
     region = world.regions[SITE]
-    stock = region.stockpile.goods["crafts"] + output
+    owned = (E.OWNED_COLUMN in batch.schema.names
+             and batch.column(E.OWNED_COLUMN).to_pylist()[SITE] is not None)
+    world.last_owned = owned
+    stock = region.stockpile.goods["crafts"] + (0.0 if owned else output)
+    world.last_free_draw = min(stock, 0.01 * _residents(sim))
     region.stockpile.goods["crafts"] = max(0.0, stock - 0.01 * _residents(sim))
     world.last_ceiling, world.last_output = ceiling, output
     try:
@@ -907,3 +912,96 @@ def test_per_civ_capital_and_input_attribution_is_exact_beyond_the_flow_list_bou
     assert capital_seen == E.CAPITAL and inputs_seen > 0
     # The capital flow itself was dropped from the two-line list on its turn, yet attributed.
     assert _econ(world).book.flows_dropped >= 0
+
+
+# --- A3-2: owned output (``--workshop-economics-rules 2``) -----------------------------
+
+
+def test_rules_1_keeps_a3_1_bytes_and_a_conflicting_rules_value_is_refused():
+    from chronicler.livelihoods import LIVELIHOODS_CHOICES, livelihoods_resume_conflicts
+    from chronicler.main import _build_parser
+    assert LIVELIHOODS_CHOICES["workshop_economics_rules"] == ("1", "2")
+    state = WorkshopEconomicsState()
+    assert state.rules_version == 1 and "rules_version" not in state.model_dump()
+    assert WorkshopEconomicsState(rules_version=2).model_dump()["rules_version"] == 2
+    world = _world()
+    sim = FakeSim()
+    _build(world, sim)
+    for _ in range(3):
+        batch = _turn(world, sim)
+        assert E.OWNED_COLUMN not in batch.schema.names           # the A3-1 batch, unchanged
+    parse = _build_parser().parse_args
+    assert livelihoods_resume_conflicts(world, parse(["--workshop-economics-rules", "2"]), {}) == [
+        "--workshop-economics-rules '2' conflicts with the checkpoint (saved: '1')"]
+    with pytest.raises(ValueError, match="conflicts"):
+        E.set_workshop_economics_enabled(world, True, args=SimpleNamespace(workshop_economics_rules="2"))
+
+
+def test_owned_output_never_enters_the_commons_and_is_titled_whole():
+    world = _world(rules=2)
+    sim = FakeSim()
+    _build(world, sim)
+    firm, state = _firm(world), _econ(world)
+    produced = 0
+    for _ in range(5):
+        inventory = firm.inventory
+        batch = _turn(world, sim)
+        _check_turn(world)
+        r = _receipt(world)
+        column = batch.column(E.OWNED_COLUMN).to_pylist()
+        assert column[SITE] == pytest.approx(inventory / 1000) and all(v is None for i, v in enumerate(column)
+                                                                        if i != SITE)
+        assert world.last_owned is True
+        assert r.produced == r.titled == math.floor(world.last_output * 1000)
+        assert r.free_use_upper_bound == 0                       # no same-tick free use
+        produced += r.titled
+    assert produced > 0 and state.counters["owned_output"] == produced
+    assert state.counters.get("free_use_upper_bound", 0) == 0
+    payroll = world.livelihoods.workshop_payroll
+    titles = [m for m in payroll.materials if m.kind == "title"]
+    assert titles and all(m.source == ("workshop_output", firm.site) for m in titles)
+
+
+def test_firm_output_reaches_households_only_by_sale():
+    world = _world(rules=2)
+    sim = FakeSim(adults=tuple(range(30, 45)), children=(), wealth=5.0)
+    _build(world, sim)
+    firm = _firm(world)
+    seen = 0
+    for _ in range(6):
+        commons = world.regions[SITE].stockpile.goods["crafts"]
+        _turn(world, sim)
+        _check_turn(world)
+        r = _receipt(world)
+        bought = (r.households or {}).get("bought_milli", 0)
+        # The people's free draw took only the commons there before the tick:
+        # the firm's output was in its inventory, never available free.
+        assert world.last_free_draw <= commons + 1e-9
+        # The commons gained exactly what households paid for (and nothing of the output).
+        after = world.regions[SITE].stockpile.goods["crafts"]
+        assert after == pytest.approx(max(0.0, commons - 0.01 * _residents(sim)) + bought / 1000)
+        seen += bought > 0
+    assert seen and firm.totals["household_delivered"] > 0
+
+
+def test_the_ceiling_never_exceeds_the_inventory_room():
+    from chronicler.workshop_payroll import INVENTORY_CAP
+    world = _world(rules=2)
+    sim = FakeSim(adults=(), children=())                    # nobody to sell to
+    _build(world, sim)
+    firm = _firm(world)
+    extra = INVENTORY_CAP - 300 - firm.inventory          # constructed stock, kept on the books
+    firm.inventory += extra
+    firm.totals["titled"] = firm.totals.get("titled", 0) + extra
+    for _ in range(6):
+        if not world.livelihoods.workshop_payroll.firms:
+            break
+        room = INVENTORY_CAP - firm.inventory
+        batch = _turn(world, sim)
+        _check_turn(world)
+        # One raw load makes one load of wares: the ceiling stays within the room,
+        # so nothing the firm makes is ever lost or left in the commons.
+        assert batch.column("craft_raw_demand").to_pylist()[SITE] * 1000 <= room + 1e-3
+        assert firm.inventory <= INVENTORY_CAP and _receipt(world).free_use_upper_bound == 0
+    # A full inventory is a declared reason not to operate (and counts idle).
+    assert "inventory_full" in E.IDLE_REASONS

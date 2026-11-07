@@ -158,3 +158,46 @@ def test_exact_resume_at_live_trading_firms_under_the_cost_control(tmp_path, mon
     assert len(econ["firms"]) == 2 and any(r["operating"] for r in receipts)
     assert any((r["households"] or {}).get("paid_milli") for r in receipts)    # households buying at the checkpoint
     assert all(r["inputs"]["charged_milli"] == 0 for r in receipts if r["inputs"])
+
+
+def test_owned_output_rules_title_the_whole_output_and_sell_it_only_by_sale(tmp_path, monkeypatch):
+    """A3-2 (``--workshop-economics-rules 2``): the native column keeps every
+    firm region's crafted wares out of the commons; payroll titles the whole
+    output (no same-tick free use), the ceiling stays within the inventory room
+    and the wares reach households only by sale. Development world only."""
+    from chronicler import workshop_payroll as P
+    from chronicler.bundle_codec import load_bundle
+    monkeypatch.setenv("CHRONICLER_CHECK_RESOURCES", "1")
+    _cli(monkeypatch, tmp_path, "--seed", "1", "--turns", "122", *BASE, *ACADEMY, "--workshop-economics-rules", "2",
+         "--wealth-accounting")
+    bundle = load_bundle(tmp_path / "chronicle_bundle.json")
+    titled = household = 0
+    for snap in bundle["history"]:
+        lv = snap["livelihoods"]
+        econ, payroll, ws = lv["workshop_economics"], lv["workshop_payroll"], lv["workshops"]
+        assert econ["rules_version"] == 2
+        sites = {r["site"]: r for r in ws["receipts"] or []}
+        prow = {r["site"]: r for r in payroll["receipts"] or []}
+        for r in econ["receipts"] or []:
+            if r["operating"]:
+                w = sites[r["firm"]]
+                assert r["produced"] == r["titled"] == int(w["region_craft_output"] * 1000 // 1)
+                assert r["free_use_upper_bound"] == 0 and prow[r["firm"]]["title_basis"] is None
+                assert w["craft_ceiling"] * 1000 <= P.INVENTORY_CAP - r["inventory_open"] + 1e-3
+                titled += r["titled"]
+            household += (r["households"] or {}).get("bought_milli", 0)
+        for firm in payroll["firms"] + payroll["closed"]:
+            P.check_firm(P.WorkshopFirm.model_validate(firm))
+        ledger = lv["wealth_accounting"]["frame"]
+        if ledger is not None:
+            assert all(c["closes"] for c in ledger["closures"]), ledger["closures"]
+    counters = bundle["history"][-1]["livelihoods"]["workshop_economics"]["counters"]
+    assert titled > 0 and counters["owned_output"] == titled and counters.get("free_use_upper_bound", 0) == 0
+    assert household > 0 and counters["household_delivered"] == household
+
+
+def test_exact_resume_at_a_live_firm_under_owned_output_rules(tmp_path, monkeypatch):
+    flags = [*BASE, *ACADEMY, "--workshop-economics-rules", "2", "--wealth-accounting"]
+    a = _resume_identical(tmp_path, monkeypatch, flags, 64, 60)
+    econ = a["history"][60]["livelihoods"]["workshop_economics"]
+    assert econ["firms"] and any(r["operating"] and r["titled"] for r in econ["receipts"])
