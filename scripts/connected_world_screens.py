@@ -1762,16 +1762,18 @@ SCREENS["CW2"] = SR.Screen(
 # public shipments, food allocation, household retail (boundary all), the A1 ledger.
 # Snapshot s records world turn s - 1.
 #
-# Region sets (pre-freeze revision 1, the lead's decision after the delta review): fixed
-# over a pre-treatment window, world turns 0-19 (snapshots 1-20), and classified
-# relatively: a region with demand in the window is a deficit region when its
-# demand-weighted production ratio over the window (sum produced / sum demand) is below
-# the world's ratio over the window, a surplus region otherwise; regions without demand
-# throughout the window are in neither. Validity per world: T made no titled purchase in
-# the window (so R and T are identical through it) and the set records of R and T are
-# identical (checked across arms by the report); a world failing either is left out of
-# every set-based comparison and listed, never imputed. The turn-0 sets (production below
-# demand at world turn 0) stay as a sensitivity line.
+# Region sets (pre-freeze revision 2, the lead's decisions): per world, over a
+# pre-treatment window, world turns 0 .. min(19, f - 1), f being T's first titled purchase
+# turn on that world (T equals R until f, so the window is pre-treatment by construction);
+# classified relatively: a region with demand in the window is a deficit region when its
+# demand-weighted production ratio over the window is below the world's ratio over the
+# window, a surplus region otherwise; regions without demand throughout the window are in
+# neither. A world with f < 5 (a window shorter than 5 turns) is left out of every set-based
+# outcome and listed, never imputed. One run's extraction cannot see the other arm, so the
+# extractor keeps per-region vectors and the report pairs R's and T's rows: it computes R's
+# sets over T's window, checks that R's and T's window records are identical (validation),
+# and fills the set-based measures of both rows. Sensitivity lines (never primary): the
+# turn-0 sets, and R's whole-run region-level ratio.
 
 CW5_TT = ("livelihoods", "titled_trade")
 CW5_RETAIL = ("livelihoods", "household_retail")
@@ -1788,10 +1790,8 @@ CW5_UNIT_COUNTERS = {"bought_milli": "tt_bought_food", "paid_milli": "tt_paid", 
                      "returned_milli": "tt_returned_food", "deposited_milli": "tt_deposited_food",
                      "transit_decay_milli": "tt_transit_decay", "sea_loss_milli": "tt_sea_loss",
                      "cargo_sold_milli": "tt_cargo_sold", "cargo_sales_credited_milli": "tt_cargo_sales_credited"}
-#: Set-based measures: unknown (None) on a world whose pre-treatment window failed.
-CW5_SET_KEYS = ("food_in_deficit", "food_in_surplus", "shortfall_deficit", "shortfall_surplus", "food_met_deficit",
-                "native_net_deficit", "titled_net_deficit", "titled_delivered_deficit", "price_deficit",
-                "price_surplus", "priced_out_deficit", "priced_out_surplus")
+#: The shortest pre-treatment window a world may have (turns).
+CW5_MIN_WINDOW = 5
 
 
 def _cw5_food_rows(snap: dict, n: int) -> list[dict] | None:
@@ -1818,28 +1818,45 @@ def cw5_food_problems(bundle: dict) -> list[str]:
     return [f"food account missing or incomplete at snapshots {missing[:5]}"] if missing else []
 
 
-def cw5_window_sets(bundle: dict) -> tuple[list[int], list[int], float | None, list[str]]:
-    """(deficit regions, surplus regions, the world ratio, problems) over the pre-treatment
-    window: demand-weighted production ratio below the world's ratio = deficit."""
+def _cw5_window_vectors(bundle: dict) -> tuple[list[list[float]], list[list[float]], list[str]]:
+    """Per-turn, per-region native production and demand over world turns 0-19."""
     n = len((bundle.get("world_state") or {}).get("regions") or [])
     window = [s for s in bundle.get("history") or [] if isinstance(s, dict) and s.get("turn") in
               range(1, CW5_WINDOW + 1)]
     if [s.get("turn") for s in window] != list(range(1, CW5_WINDOW + 1)):
-        return [], [], None, [f"the pre-treatment window (snapshots 1-{CW5_WINDOW}) is incomplete"]
-    produced, demand = [0.0] * n, [0.0] * n
+        return [], [], [f"the pre-treatment window (snapshots 1-{CW5_WINDOW}) is incomplete"]
+    produced, demand = [], []
     for s in window:
         rows = _cw5_food_rows(s, n)
         if rows is None:
-            return [], [], None, [f"no complete food account at snapshot {s.get('turn')} of the window"]
-        for i, row in enumerate(rows):
-            produced[i] += row["native"]["produced"]
-            demand[i] += row["native"]["demand"]
+            return [], [], [f"no complete food account at snapshot {s.get('turn')} of the window"]
+        produced.append([row["native"]["produced"] for row in rows])
+        demand.append([row["native"]["demand"] for row in rows])
+    return produced, demand, []
+
+
+def cw5_classify(produced: list[float], demand: list[float]) -> tuple[list[int], list[int], float | None]:
+    """(deficit, surplus, world ratio) from per-region production and demand totals: a region
+    with demand is a deficit region when its ratio is below the world's ratio."""
     if sum(demand) <= 0:
-        return [], [], None, ["no demand in the pre-treatment window"]
+        return [], [], None
     world = sum(produced) / sum(demand)
-    deficit = [i for i in range(n) if demand[i] > 0 and produced[i] / demand[i] < world]
-    surplus = [i for i in range(n) if demand[i] > 0 and produced[i] / demand[i] >= world]
-    return deficit, surplus, world, []
+    deficit = [i for i, d in enumerate(demand) if d > 0 and produced[i] / d < world]
+    surplus = [i for i, d in enumerate(demand) if d > 0 and produced[i] / d >= world]
+    return deficit, surplus, world
+
+
+def cw5_window_sets(m: dict, end: int) -> tuple[list[int], list[int], float | None]:
+    """The sets of one row's window vectors over world turns 0 .. end."""
+    produced, demand = m.get("v_window_produced") or [], m.get("v_window_demand") or []
+    rows = range(min(end + 1, len(produced)))
+    n = len(produced[0]) if produced else 0
+    return cw5_classify([sum(produced[t][i] for t in rows) for i in range(n)],
+                        [sum(demand[t][i] for t in rows) for i in range(n)])
+
+
+def cw5_digest(deficit, surplus) -> str:
+    return "D:" + ",".join(map(str, deficit)) + "|S:" + ",".join(map(str, surplus))
 
 
 def cw5_sets(bundle: dict) -> tuple[list[int], list[int], list[str]]:
@@ -1856,41 +1873,65 @@ def cw5_sets(bundle: dict) -> tuple[list[int], list[int], list[str]]:
     return deficit, surplus, []
 
 
-def _cw5_native_net(bundle: dict, regions: set[int]) -> float:
-    """Native (commons) trade into the regions over the run, food units: transport_net
-    (a missing food account is reported by ``cw5_food_problems``)."""
-    n = len((bundle.get("world_state") or {}).get("regions") or [])
-    total = 0.0
+def _cw5_region_vectors(bundle: dict, n: int) -> dict:
+    """Per-region totals over the run: production and demand, the shortfall's terms (demand x
+    unmet share and demand x met share after relief, where demand > 0), native commons trade,
+    retail price sums and counts, priced-out person-turns."""
+    v = {k: [0.0] * n for k in ("v_run_produced", "v_run_demand", "v_unmet", "v_demand", "v_met", "v_native_net",
+                                "v_price_sum", "v_price_n", "v_priced_out")}
     for s in bundle.get("history") or []:
         for i, row in enumerate(_cw5_food_rows(s, n) or []):
-            if i in regions:
-                total += row["native"]["transport_net"]
-    return total
-
-
-def _cw5_retail(bundle: dict, regions: set[int], key: str, *, mean: bool = False) -> float | None:
-    """Retail frames over the run: the provisioning ``key`` summed (or the frame ``key``
-    averaged) over the regions' frames."""
-    values = []
+            d, suff = row["native"]["demand"], row.get("sufficiency_after_relief")
+            v["v_run_produced"][i] += row["native"]["produced"]
+            v["v_run_demand"][i] += d
+            v["v_native_net"][i] += row["native"]["transport_net"]
+            if d > 0 and SR._num(suff):
+                v["v_demand"][i] += d
+                v["v_unmet"][i] += d * max(0.0, 1.0 - min(1.0, suff))
+                v["v_met"][i] += d * min(1.0, suff)
     for _s, rec in _cw3_records(bundle, CW5_RETAIL):
         for f in rec.get("regions") or []:
-            if not isinstance(f, dict) or f.get("region") not in regions:
+            i = f.get("region") if isinstance(f, dict) else None
+            if not (isinstance(i, int) and 0 <= i < n):
                 continue
-            v = f.get(key) if mean else (f.get("provisioning") or {}).get(key)
-            if SR._num(v):
-                values.append(v)
-    if mean:
-        return _cw3_mean(values)
-    return sum(values)
+            if SR._num(f.get("price_milli")):
+                v["v_price_sum"][i] += f["price_milli"]
+                v["v_price_n"][i] += 1
+            po = (f.get("provisioning") or {}).get("priced_out_persons")
+            if SR._num(po):
+                v["v_priced_out"][i] += po
+    return v
 
 
-def _cw5_titled(tt: list[tuple[dict, dict]], sets: dict[str, set[int]], problems: list[str]) -> dict:
-    """Titled flows from every snapshot's frame: per set, food arriving at closing events
-    (delivered, returned or deposited there) and food bought there at dispatch (milli);
-    food delivered into each set; the region-turns touched; destinations, origins and
-    purchases inside the pre-treatment window."""
-    out = {"in": {k: 0 for k in sets}, "out": {k: 0 for k in sets}, "delivered": {k: 0 for k in sets},
-           "region_turns": 0, "dests": set(), "origins": set(), "window_purchases": 0}
+def cw5_set_measures(m: dict, deficit, surplus, prefix: str = "") -> dict:
+    """The set-based measures of one row from its per-region vectors (titled vectors are
+    zero in R by construction)."""
+    def tot(key, regions):
+        vec = m.get(key) or []
+        return sum(vec[i] for i in regions if i < len(vec))
+    out = {}
+    for label, regions in (("deficit", deficit), ("surplus", surplus)):
+        demand = tot("v_demand", regions)
+        native = tot("v_native_net", regions)
+        titled = (tot("v_titled_in", regions) - tot("v_titled_out", regions)) / 1000.0
+        priced = tot("v_price_n", regions)
+        out.update({f"shortfall_{label}": tot("v_unmet", regions) / demand if demand > 0 else None,
+                    f"food_met_{label}": tot("v_met", regions) / demand if demand > 0 else None,
+                    f"native_net_{label}": native, f"titled_net_{label}": titled,
+                    f"food_in_{label}": native + titled if regions else None,
+                    f"titled_delivered_{label}": tot("v_titled_delivered", regions) / 1000.0,
+                    f"price_{label}": tot("v_price_sum", regions) / priced if priced else None,
+                    f"priced_out_{label}": tot("v_priced_out", regions)})
+    return {prefix + k: v for k, v in out.items()}
+
+
+def _cw5_titled(tt: list[tuple[dict, dict]], n: int, problems: list[str]) -> dict:
+    """Titled flows from every snapshot's frame, per region: food arriving at closing events
+    (delivered, returned or deposited there), food bought there at dispatch, food delivered
+    there (milli); the region-turns touched; destinations, origins; T's first purchase turn."""
+    out = {"in": [0] * n, "out": [0] * n, "delivered": [0] * n, "region_turns": 0, "dests": set(),
+           "origins": set(), "first_purchase": None}
+    ok = (lambda r: isinstance(r, int) and 0 <= r < n)
     for s, rec in tt:
         frame = rec.get("frame")
         if rec.get("source_turn") != s.get("turn", 0) - 1:
@@ -1902,23 +1943,20 @@ def _cw5_titled(tt: list[tuple[dict, dict]], sets: dict[str, set[int]], problems
         touched = set()
         for d in frame.get("dispatched") or []:
             o, milli = d.get("origin"), d.get("milli", 0)
+            if out["first_purchase"] is None:
+                out["first_purchase"] = int(s.get("turn", 0)) - 1
             out["origins"].add(o)
             touched.add(o)
-            if s.get("turn", 0) <= CW5_WINDOW:
-                out["window_purchases"] += 1
-            for k, regions in sets.items():
-                out["out"][k] += milli if o in regions else 0
+            if ok(o):
+                out["out"][o] += milli
         for e in frame.get("events") or []:
             region = e.get("region")
             touched.add(region)
-            if e.get("event") == "moved":
+            if e.get("event") == "moved" or not ok(region):
                 continue
-            arrived = sum(e.get(k, 0) or 0 for k in ("delivered", "returned", "deposited"))
-            for k, regions in sets.items():
-                out["in"][k] += arrived if region in regions else 0
-                if e.get("event") == "delivered" and region in regions:
-                    out["delivered"][k] += e.get("delivered", 0) or 0
+            out["in"][region] += sum(e.get(k, 0) or 0 for k in ("delivered", "returned", "deposited"))
             if e.get("event") == "delivered":
+                out["delivered"][region] += e.get("delivered", 0) or 0
                 out["dests"].add(region)
         for ship in (rec.get("shipments") or []) + (rec.get("closed") or []):
             lost = sum((ship.get("losses") or {}).values())
@@ -1958,38 +1996,24 @@ def _cw5_held_value(tt: list[tuple[dict, dict]], counters: dict) -> tuple[float,
 
 
 def cw5_extract(bundle: dict, flags) -> tuple[dict, list[str]]:
-    """Food into the deficit regions by trade (titled net plus native commons trade), the
-    sets' food shortfall, prices and priced-out persons (pre-treatment window sets; the
-    turn-0 sets as a sensitivity line); titled trade's funnel; the merchants' accounting
-    balance; the commons at the end; and the validity checks (the
-    window, every shipment's cargo closes, one receipt row per carrier-turn, every ledger
-    closure true, a complete food account every snapshot, no titled record without the
-    switch)."""
+    """Per-region vectors (the window's production and demand, the run's shortfall terms,
+    native and titled trade, retail prices and priced-out persons) from which the report
+    computes the set-based measures once it pairs R's and T's rows; the turn-0 sensitivity
+    sets; titled trade's funnel and first purchase turn; the merchants' accounting balance;
+    the commons at the end; and the validity checks (a complete food account every snapshot,
+    the window's records, every shipment's cargo closes, one receipt row per carrier-turn,
+    every ledger closure true, no titled record without the switch)."""
     problems: list[str] = cw5_food_problems(bundle)
     m: dict = {}
     tt_on = "--titled-trade" in list(flags)
     n = len((bundle.get("world_state") or {}).get("regions") or [])
-    deficit, surplus, ratio, wp = cw5_window_sets(bundle)
+    m["regions"] = n
+    produced, demand, wp = _cw5_window_vectors(bundle)
     problems += wp
-    t0_deficit, t0_surplus, sp = cw5_sets(bundle)
-    problems += sp
-    D, S = set(deficit), set(surplus)
-    m["regions"], m["deficit_regions"], m["surplus_regions"] = n, len(deficit), len(surplus)
-    m["window_world_ratio"] = ratio
-    m["sets_digest"] = "D:" + ",".join(map(str, deficit)) + "|S:" + ",".join(map(str, surplus))
-    m["t0_sets_digest"] = "D:" + ",".join(map(str, t0_deficit)) + "|S:" + ",".join(map(str, t0_surplus))
-    m["t0_deficit_regions"] = len(t0_deficit)
-    for label, regions in (("deficit", deficit), ("surplus", surplus), ("all", list(range(n))),
-                           ("t0_deficit", t0_deficit)):
-        share, met, _turns = _cw3_food(bundle, regions)
-        m[f"shortfall_{label}"], m[f"food_met_{label}"] = share, met
-    m["native_net_deficit"] = _cw5_native_net(bundle, D)
-    m["native_net_surplus"] = _cw5_native_net(bundle, S)
-    native_t0 = _cw5_native_net(bundle, set(t0_deficit))
-    m["price_deficit"] = _cw5_retail(bundle, D, "price_milli", mean=True)
-    m["price_surplus"] = _cw5_retail(bundle, S, "price_milli", mean=True)
-    m["priced_out_deficit"] = _cw5_retail(bundle, D, "priced_out_persons")
-    m["priced_out_surplus"] = _cw5_retail(bundle, S, "priced_out_persons")
+    m["v_window_produced"], m["v_window_demand"] = produced, demand
+    m.update(_cw5_region_vectors(bundle, n))
+    share, met, _turns = _cw3_food(bundle, list(range(n)))
+    m["shortfall_all"], m["food_met_all"] = share, met
     retail = _cw3_records(bundle, CW5_RETAIL)
     if not retail:
         problems.append("no household retail record")
@@ -2002,10 +2026,13 @@ def cw5_extract(bundle: dict, flags) -> tuple[dict, list[str]]:
         commons += sum(v for g, v in goods.items() if g in CW5_FOOD_GOODS and SR._num(v))
     m["commons_end"] = commons
     tt = _cw3_records(bundle, CW5_TT)
+    flows = _cw5_titled(tt, n, problems) if tt_on else None
+    m["v_titled_in"] = flows["in"] if flows else [0] * n
+    m["v_titled_out"] = flows["out"] if flows else [0] * n
+    m["v_titled_delivered"] = flows["delivered"] if flows else [0] * n
     if tt_on:
         if not tt:
             problems.append("titled trade enabled but not recorded")
-        flows = _cw5_titled(tt, {"deficit": D, "surplus": S, "t0": set(t0_deficit)}, problems)
         c = (tt[-1][1].get("counters") or {}) if tt else {}
         get = (lambda k: c.get(k, 0))
         if get("receipt_rows") != get("carrier_turns"):
@@ -2025,90 +2052,113 @@ def cw5_extract(bundle: dict, flags) -> tuple[dict, list[str]]:
         m["holder_balance"] = m["holder_net_vs_withheld"] + held_returned + held_aboard + held_unsold
         m["owner_receipts"] = get("paid_milli") / 1000.0
         m["titled_region_turns"] = flows["region_turns"]
-        m["titled_delivered_deficit"] = flows["delivered"]["deficit"] / 1000.0
-        m["titled_net_deficit"] = (flows["in"]["deficit"] - flows["out"]["deficit"]) / 1000.0
-        m["titled_net_surplus"] = (flows["in"]["surplus"] - flows["out"]["surplus"]) / 1000.0
-        titled_t0 = (flows["in"]["t0"] - flows["out"]["t0"]) / 1000.0
+        m["first_purchase_turn"] = flows["first_purchase"]
         dests, origins = flows["dests"], {o for o in flows["origins"] if isinstance(o, int)}
         m["dest_regions"], m["origin_regions"] = len(dests), len(origins)
         m["shortfall_dest"] = _cw3_food(bundle, sorted(dests))[0] if dests else None
         m["shortfall_origin"] = _cw3_food(bundle, sorted(origins))[0] if origins else None
-        m["window_purchases"] = flows["window_purchases"]
     else:
         if tt:
             problems.append("a titled trade record without the switch")
-        m["titled_net_deficit"] = m["titled_net_surplus"] = titled_t0 = 0.0     # none by construction
-        m["window_purchases"] = 0
         for key in ("tt_dispatched", "tt_delivered", "tt_returned", "tt_escheated", "tt_pool_reset", "tt_switched_off",
                     "tt_released_returned", "tt_carriers_released", "tt_carrier_turns", "tt_returned_route_lost",
                     "tt_returned_conquest", *CW5_UNIT_COUNTERS.values(), "tt_withheld", "holder_net",
                     "holder_net_vs_withheld", "held_returned_value", "held_aboard_value", "held_unsold_value",
-                    "holder_balance", "owner_receipts", "titled_region_turns", "titled_delivered_deficit",
+                    "holder_balance", "owner_receipts", "titled_region_turns", "first_purchase_turn",
                     "dest_regions", "origin_regions", "shortfall_dest", "shortfall_origin"):
             m.setdefault(key, None)
-    m["food_in_deficit"] = m["native_net_deficit"] + m["titled_net_deficit"] if deficit else None
-    m["food_in_surplus"] = m["native_net_surplus"] + m["titled_net_surplus"] if surplus else None
-    m["food_in_t0_deficit"] = native_t0 + titled_t0 if t0_deficit else None
-    # Validity of the pre-treatment window (the report also compares R's and T's set records).
-    m["window_valid"] = not wp and m["window_purchases"] == 0
+    # Sensitivity: the turn-0 sets (always pre-treatment), measured within the row.
+    t0_deficit, t0_surplus, sp = cw5_sets(bundle)
+    problems += sp
+    m["t0_sets_digest"] = cw5_digest(t0_deficit, t0_surplus)
+    m.update(cw5_set_measures(m, t0_deficit, t0_surplus, prefix="t0_"))
     frames, failed, lp = _cw_ledger_closures(bundle)
     m["ledger_frames"], m["ledger_closures_failed"] = frames, failed
     problems += lp
     m["stability_end"] = _cw_stability(bundle)
-    if deficit and m.get("shortfall_deficit") is None:
-        problems.append("the deficit regions' food shortfall could not be measured")
     return m, problems
 
 
 def cw5_activation(bundle: dict, flags) -> tuple[bool | None, str]:
     """T acted when at least one titled shipment was delivered. The evidence names the
     shipments by outcome, the region-turns with any titled shipment (bought, standing,
-    moving or closing there) and the purchases inside the pre-treatment window. The root R
-    is not judged."""
+    moving or closing there) and T's first purchase turn. The root R is not judged."""
     if "--titled-trade" not in list(flags):
         return None, "the root arm is not judged"
     tt = _cw3_records(bundle, CW5_TT)
     if not tt:
         return None, "no titled trade record"
     c = tt[-1][1].get("counters") or {}
-    flows = _cw5_titled(tt, {}, [])
     n = len((bundle.get("world_state") or {}).get("regions") or [])
+    flows = _cw5_titled(tt, n, [])
     turns = len(bundle.get("history") or [])
     acted = c.get("delivered", 0) > 0
     return acted, (f"{c.get('dispatched', 0)} shipments: {c.get('delivered', 0)} delivered, "
                    f"{c.get('returned', 0)} returned (route or conquest), {c.get('released_returned', 0)} returned "
                    f"after a carrier's release, {c.get('escheated', 0)} escheated; titled shipments in "
-                   f"{flows['region_turns']} of {n * turns} region-turns; {flows['window_purchases']} purchases in "
-                   f"world turns 0-{CW5_WINDOW - 1}")
+                   f"{flows['region_turns']} of {n * turns} region-turns; first purchase in world turn "
+                   f"{flows['first_purchase']}")
 
 
-def _cw5_set_read(key):
-    """A set-based measure, unknown on a world whose pre-treatment window failed."""
-    return lambda row: (row.get("m") or {}).get(key) if (row.get("m") or {}).get("window_valid") is True else None
+#: Set-based measures the report fills in both rows of a world (unknown when excluded).
+CW5_SET_MEASURES = tuple(f"{k}_{label}" for label in ("deficit", "surplus") for k in (
+    "shortfall", "food_met", "native_net", "titled_net", "food_in", "titled_delivered", "price", "priced_out"))
+
+
+def cw5_pair(r: dict, t: dict) -> tuple[str, dict]:
+    """Pair one world's R and T metrics: the window (world turns 0 .. min(19, f - 1), f being
+    T's first purchase turn), R's sets over it, the identity of R's and T's window records,
+    and the set-based measures of both rows (R's sets) and the sensitivity of R's whole-run
+    ratio. Fills both dicts in place; returns (status, summary)."""
+    f = t.get("first_purchase_turn")
+    end = CW5_WINDOW - 1 if f is None else min(CW5_WINDOW - 1, f - 1)
+    turns = end + 1
+    info = {"window_end": end, "window_turns": turns, "first_purchase": f}
+    deficit, surplus, ratio = cw5_window_sets(r, end) if turns > 0 else ([], [], None)
+    t_deficit, t_surplus, _ = cw5_window_sets(t, end) if turns > 0 else ([], [], None)
+    same = (r.get("v_window_produced") or [])[:turns] == (t.get("v_window_produced") or [])[:turns] and \
+        (r.get("v_window_demand") or [])[:turns] == (t.get("v_window_demand") or [])[:turns]
+    info.update(digest=cw5_digest(deficit, surplus), same_records=same,
+                same_sets=cw5_digest(deficit, surplus) == cw5_digest(t_deficit, t_surplus),
+                deficit=len(deficit), surplus=len(surplus), ratio=ratio)
+    if turns < CW5_MIN_WINDOW:
+        status = f"excluded: first purchase in world turn {f}, a window of {max(turns, 0)} turns (< {CW5_MIN_WINDOW})"
+    elif not (same and info["same_sets"]) or not (r.get("v_window_produced") and t.get("v_window_produced")):
+        status = "excluded: R's and T's window records differ"
+    elif not deficit:
+        status = "valid, no deficit region"
+    else:
+        status = "valid"
+    for m in (r, t):
+        m["window_end"], m["window_status"], m["sets_digest"] = end, status, info["digest"]
+        if status.startswith("valid"):
+            m.update(cw5_set_measures(m, deficit, surplus))
+        else:
+            m.update({k: None for k in CW5_SET_MEASURES})
+    # Sensitivity: R's whole-run region-level ratio, applied to both rows (selected on R's
+    # realised production: regression to the mean can favour T).
+    rr_deficit, rr_surplus, _ = cw5_classify(r.get("v_run_produced") or [], r.get("v_run_demand") or [])
+    for m in (r, t):
+        m.update(cw5_set_measures(m, rr_deficit, rr_surplus, prefix="rr_"))
+    return status, info
 
 
 def _cw5_report(rows, strata) -> list[str]:
-    """The pre-treatment window per world: titled purchases in world turns 0-19 (T) and
-    whether R's and T's set records are identical. A world failing either is marked
-    invalid in both rows, so every set-based outcome leaves it out (never imputed)."""
+    """Pair every world's R and T rows (``cw5_pair``) and list the windows: the set-based
+    outcomes below read what this fills (a world excluded here is unknown, never imputed)."""
     by = {(r["arm"], r["stratum"], r["seed"]): r for r in rows if r["rc"] == 0}
-    out = [f"\n## Pre-treatment window (world turns 0-{CW5_WINDOW - 1}) and region sets per world\n",
-           "| Stratum | World | Deficit / surplus regions | Purchases in the window (T) | Sets R = T | Valid |",
-           "| --- | --- | --- | --- | --- | --- |"]
+    out = [f"\n## Pre-treatment windows and region sets per world (world turns 0 .. min({CW5_WINDOW - 1}, f - 1))\n",
+           "| Stratum | World | T's first purchase (f) | Window turns | Deficit / surplus regions | "
+           "Window records R = T | Status |", "| --- | --- | --- | --- | --- | --- | --- |"]
     for tag, seeds in strata.items():
         for seed in seeds:
             r, t = by.get(("R", tag, seed)), by.get(("T", tag, seed))
             if r is None or t is None:
-                out.append(f"| {tag} | {seed} | not run | | | |")
+                out.append(f"| {tag} | {seed} | | | | | not run or failed |")
                 continue
-            rm, tm = r.get("m") or {}, t.get("m") or {}
-            same = rm.get("sets_digest") == tm.get("sets_digest") and rm.get("sets_digest") is not None
-            valid = same and rm.get("window_valid") is True and tm.get("window_valid") is True
-            if not valid:
-                rm["window_valid"] = tm["window_valid"] = False
-            out.append(f"| {tag} | {seed} | {tm.get('deficit_regions')} / {tm.get('surplus_regions')} | "
-                       f"{tm.get('window_purchases')} | {'yes' if same else 'NO'} | "
-                       f"{'yes' if valid else 'NO: left out of every set-based outcome'} |")
+            status, info = cw5_pair(r.setdefault("m", {}), t.setdefault("m", {}))
+            out.append(f"| {tag} | {seed} | {info['first_purchase']} | {info['window_turns']} | "
+                       f"{info['deficit']} / {info['surplus']} | {'yes' if info['same_records'] else 'NO'} | {status} |")
     return out
 
 
@@ -2118,11 +2168,11 @@ _CW5_BASE = ("--turns", "200", "--agents", "hybrid", "--simulate-only", "--grain
 
 def _cw5_outcomes() -> tuple[SR.Outcome, ...]:
     harm = (lambda key: (lambda r: SR.harm_value(r, key)))
-    sm = _cw5_set_read
+    sm = _m             # set-based measures: filled when the report pairs R and T (cw5_pair)
     return (
-        # Primaries (pre-freeze revision 1): food reaching the regions short of food over the
-        # pre-treatment window (titled net plus the native commons trade it may displace), and
-        # their food shortfall. No T - R merchant income or wealth is recorded in R, so the
+        # Primaries (pre-freeze revisions 1-2): food reaching the regions short of food over the
+        # world's pre-treatment window (titled net plus the native commons trade it may displace),
+        # and their food shortfall. No T - R merchant income or wealth is recorded in R, so the
         # merchants' balance is a secondary.
         SR.Outcome("cw5_food_in_deficit", "Food into the deficit regions by trade over the run: titled cargo in "
                    "less titled cargo bought there, plus native commons trade, food units (T - R)", "T", "R",
@@ -2154,11 +2204,17 @@ def _cw5_outcomes() -> tuple[SR.Outcome, ...]:
                    "R", sm("price_deficit")),
         SR.Outcome("cw5_shortfall_dest", "Food shortfall share in the regions T delivered to (T; selection)", "T",
                    None, _m("shortfall_dest")),
-        # Sensitivity: the turn-0 sets.
+        # Sensitivity lines (never primary): the turn-0 sets, and R's whole-run region-level ratio
+        # (selected on R's realised production: regression to the mean can favour T).
         SR.Outcome("cw5_t0_food_in_deficit", "Food into the turn-0 deficit regions by trade (T - R; sensitivity)",
-                   "T", "R", _m("food_in_t0_deficit")),
+                   "T", "R", _m("t0_food_in_deficit")),
         SR.Outcome("cw5_t0_shortfall_deficit", "Food shortfall share in the turn-0 deficit regions (T - R; "
-                   "sensitivity)", "T", "R", _m("shortfall_t0_deficit")),
+                   "sensitivity)", "T", "R", _m("t0_shortfall_deficit")),
+        SR.Outcome("cw5_rr_food_in_deficit", "Food into the deficit regions of R's whole-run production ratio by "
+                   "trade (T - R; sensitivity, regression-to-the-mean risk)", "T", "R", _m("rr_food_in_deficit")),
+        SR.Outcome("cw5_rr_shortfall_deficit", "Food shortfall share in the deficit regions of R's whole-run "
+                   "production ratio (T - R; sensitivity, regression-to-the-mean risk)", "T", "R",
+                   _m("rr_shortfall_deficit")),
         # The exporters (origin harm).
         SR.Outcome("cw5_shortfall_surplus", "Food shortfall share after relief in the surplus regions (T - R)", "T",
                    "R", sm("shortfall_surplus")),
