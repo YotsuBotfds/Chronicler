@@ -502,7 +502,19 @@ def report_targets(world, reports):
     from chronicler.quarantine_rules import ENFORCEMENT_COST, migration_closure_on
     neighbors = world.contact_ledger.neighbors()
     index = world.civ_index_map
-    state.reports = [r for r in state.reports if r.expires >= world.turn]
+    # Only the newest delivered report can affect a decision. Retain pending
+    # messages and that one delivered message per recipient/source/pathogen;
+    # obsolete copies add checkpoint/bundle bytes without information.
+    delivered_latest = {}
+    pending_prior = []
+    for report in state.reports:
+        if report.expires < world.turn:
+            continue
+        if report.delivery > world.turn:
+            pending_prior.append(report)
+        else:
+            delivered_latest[(report.recipient, report.source, report.pathogen)] = report
+    state.reports = sorted(pending_prior + list(delivered_latest.values()), key=lambda r: r.id)
     observations = {(row.region, row.pathogen): row for row in world.epidemics.rows if row.reported}
     # The emission registry comes from current reports, not provenance.
     pending = []
