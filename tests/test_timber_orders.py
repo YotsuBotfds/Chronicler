@@ -360,3 +360,123 @@ def test_unpromised_destination_cannot_use_another_regions_timber_envelope(lane,
     T.phase10_before_reserves(world, None, None, NS(_sim=sim))
     assert calls == [(1, T.SERVICE, {"region": 1})]
     assert not state.orders and not state.book.settled and world.regions[0].stockpile.goods["timber"] == 10.0
+
+
+def _plan_needs(world, state, monkeypatch, needs):
+    from chronicler import local_budgets as LB
+    state.prices[0] = (world.turn - 1, 1000)
+    monkeypatch.setattr(T, "_needs", lambda _: needs)
+    monkeypatch.setattr(LB, "envelope", lambda *_args, **_kwargs: 10)
+
+
+def test_unknown_market_candidates_preserve_refusals_without_population_rescans(lane, monkeypatch):
+    world, state, sim, _ = lane
+    sim.wealth = {aid: 10.0 for aid in range(100)}
+    memory = world.livelihoods.adaptive_livelihoods = NS(
+        enabled=True, rules="2", mode="adapt", trade_experience=[], counters={})
+    sim.usable_trade_destinations = lambda ids, turn: [(aid, []) for aid in ids]
+    _plan_needs(world, state, monkeypatch, [(1, 1, 2.0)])
+    calls, original = [], TT._people
+
+    def measured(snapshot):
+        calls.append(snapshot.num_rows)
+        return original(snapshot)
+
+    monkeypatch.setattr(TT, "_people", measured)
+    T.phase10_before_reserves(world, None, None, NS(_sim=sim))
+    assert memory.counters["trade_unknown_destination"] == 100
+    assert not state.orders and not state.book.settled
+    assert sim.wealth == {aid: 10.0 for aid in range(100)}
+    assert [c.treasury for c in world.civilizations] == [50, 50]
+    assert world.regions[0].stockpile.goods["timber"] == 10.0
+    # Measured production hotspot: the old planner rebuilt the full population
+    # once for each rejected candidate (101 reads here).  This bound permits
+    # one initial and one post-arrival refresh, not an O(candidates*people) scan.
+    assert len(calls) <= 2
+
+
+def test_planning_reads_wallet_after_same_turn_freight_credit(lane, monkeypatch):
+    world, state, sim, _ = lane
+    old = buy(lane)
+    assert old is not None
+    sim.wealth[17] = 0.0
+    world.turn += 1
+    _plan_needs(world, state, monkeypatch, [(1, 1, 2.0)])
+    T.phase10_before_reserves(world, None, None, NS(_sim=sim))
+    assert old.status == "closed" and old.credited_milli > 2000
+    assert len(state.orders) == 1
+    new = state.orders[0]
+    assert new.holder == 17 and new.purchase_milli == 2000
+    assert sim.wealth[17] == pytest.approx((old.credited_milli - new.purchase_milli) / 1000)
+    T.check_order(old)
+    T.check_order(new)
+    M.check_book(state.book)
+
+
+def test_planning_eligibility_facts_never_supply_a_stale_wallet(lane):
+    world, state, sim, _ = lane
+    physical = {17: (0, TT.MERCHANT, 30)}
+    sim.wealth[17] = 0.0
+    assert buy(lane, _planning_people=physical) is None
+    assert not state.orders and not state.book.settled
+    assert world.regions[0].stockpile.goods["timber"] == 10.0
+    assert [c.treasury for c in world.civilizations] == [50, 50]
+
+
+@pytest.mark.parametrize("region,occupation,age", [(1, TT.MERCHANT, 30), (0, 0, 30), (0, TT.MERCHANT, 2)])
+def test_accepted_planned_candidate_rechecks_current_native_eligibility(lane, region, occupation, age):
+    world, state, sim, _ = lane
+    physical = {17: (0, TT.MERCHANT, 30)}
+    sim.get_snapshot = lambda: pa.record_batch({"id": [17], "wealth": [10.0], "region": [region],
+                                               "occupation": [occupation], "age": [age]})
+    assert buy(lane, _planning_people=physical) is None
+    assert not state.orders and not state.book.settled
+    assert world.regions[0].stockpile.goods["timber"] == 10.0
+    assert [c.treasury for c in world.civilizations] == [50, 50]
+
+
+def test_multiple_destinations_keep_live_stock_wallets_and_carrier_booking(lane, monkeypatch):
+    world, state, sim, _ = lane
+    world.regions.append(NS(name="OtherTown", controller="C1", stockpile=NS(goods={"timber": 0.0}),
+                            occupied_by=None, last_conquered_turn=None))
+    world.regions[0].stockpile.goods["timber"] = 3.0
+    sim.wealth[18] = 10.0
+    edges = {(0, 1): (False, -1.0), (0, 2): (False, -1.0)}
+    monkeypatch.setattr(TT, "_graph", lambda *_: (edges, set()))
+    _plan_needs(world, state, monkeypatch, [(1, 1, 2.0), (2, 1, 2.0)])
+    calls, original = [], TT._bfs
+
+    def measured(graph, origin):
+        calls.append(origin)
+        return original(graph, origin)
+
+    monkeypatch.setattr(TT, "_bfs", measured)
+    T.phase10_before_reserves(world, None, None, NS(_sim=sim))
+    assert [(o.holder, o.dest, o.cargo_milli) for o in state.orders] == [(17, 1, 2000), (18, 2, 1000)]
+    assert sim.wealth == {17: 8.0, 18: 9.0}
+    assert world.regions[0].stockpile.goods["timber"] == 0.0
+    assert [c.treasury for c in world.civilizations] == [53, 45]
+    assert calls == [0]
+    for order in state.orders:
+        T.check_order(order)
+    M.check_book(state.book)
+
+
+def test_later_turn_rebuilds_route_and_dated_price_facts(lane, monkeypatch):
+    world, state, sim, _ = lane
+    world.regions.append(NS(name="Waystation", controller="C1", stockpile=NS(goods={"timber": 0.0}),
+                            occupied_by=None, last_conquered_turn=None))
+    _plan_needs(world, state, monkeypatch, [(1, 1, 2.0)])
+    sim.wealth[17] = 0.0
+    T.phase10_before_reserves(world, None, None, NS(_sim=sim))
+    assert not state.orders
+    world.turn += 1
+    state.prices[0] = (world.turn - 1, 2000)
+    sim.wealth[17] = 10.0
+    monkeypatch.setattr(TT, "_graph", lambda *_: ({(0, 2): (False, -1.0), (2, 1): (False, -1.0)}, set()))
+    T.phase10_before_reserves(world, None, None, NS(_sim=sim))
+    assert len(state.orders) == 1
+    order = state.orders[0]
+    assert order.path == [0, 2, 1] and order.price_turn == world.turn - 1
+    assert order.purchase_milli == 4000 and sim.wealth[17] == 6.0
+    T.check_order(order)
