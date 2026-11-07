@@ -165,7 +165,7 @@ def test_return_requires_exact_war_instance_and_prior_formal_notice_then_decays(
     w = movement_world()
     w.turn = 8
     state = w.livelihoods.war_consequences
-    state.returns[7] = {"turn": 3, "kind": "evacuated", "wars": [["A:B", 1]]}
+    state.returns[7] = {"turn": 3, "kind": "evacuated", "home": 0, "wars": [["A:B", 1]]}
     prior = {"home": 0, "res": 1}
     w.war_state.ended_wars = [NS(war_key="A:B", start_turn=5, ended_turn=7)]
     assert d3.movement_rows(w, 7, 1, prior) == []  # reused key is another war
@@ -223,7 +223,7 @@ def test_late_return_updates_published_return_stock():
     state = w.livelihoods.war_consequences
     state.last_turn = w.turn
     state.frame = {"turn": w.turn, "events": [], "events_dropped": 0, "return_experiences": 1}
-    state.returns[7] = {"turn": 1, "kind": "evacuated", "wars": []}
+    state.returns[7] = {"turn": 1, "kind": "evacuated", "home": 1, "wars": []}
     d3.note_migration(w, 7, 0, 1, {"home": 1})
     assert state.frame["return_experiences"] == 0
     assert state.frame["events"][-1]["kind"] == "returned"
@@ -241,3 +241,44 @@ def test_completed_snapshot_cannot_acquire_future_campaign_events():
     d3.phase10(w, None, None, bridge([]))
     assert record == frozen
     assert max(r["turn"] for r in record["history"]) <= record["source_turn"]
+
+
+def test_remembered_home_survives_x1_rehoming_an_unknown_move():
+    w = movement_world()
+    state = w.livelihoods.war_consequences
+    state.threats[7] = {"turn": 3, "region": 0, "wars": [["A:B", 1]]}
+    d3.note_migration(w, 7, 0, 1, {"home": 0, "source_turn": 2})
+    # Active A6 uses unknown cause255: X1 correctly rehomes that move.
+    # D3 must use personally remembered home, rather than rewrite X1.
+    rehomed = {"home": 1, "res": 1, "source_turn": 7}
+    w.turn = 9
+    w.war_state.ended_wars = [NS(war_key="A:B", start_turn=1, ended_turn=8)]
+    assert d3.movement_rows(w, 7, 1, rehomed) == [(7, 0, .15 * .95)]
+    d3.note_migration(w, 7, 1, 0, rehomed)
+    assert 7 not in state.returns
+    assert state.pending[-1]["kind"] == "returned"
+
+
+def test_repeated_evacuations_keep_first_known_home_and_all_war_instances():
+    w = movement_world()
+    state = w.livelihoods.war_consequences
+    d3._remember_return(state, 7, {"turn": 1, "kind": "evacuated", "home": 0,
+        "home_source_turn": 0, "wars": [["A:B", 1]]})
+    d3._remember_return(state, 7, {"turn": 2, "kind": "released_service", "home": 1,
+        "home_source_turn": 1, "wars": [["A:C", 2]]})
+    assert state.returns[7]["home"] == 0
+    assert state.returns[7]["home_source_turn"] == 0
+    assert state.returns[7]["wars"] == [["A:B", 1], ["A:C", 2]]
+
+
+def test_release_after_x1_writer_keeps_unavailable_home_unknown(monkeypatch):
+    from chronicler import residence_ledger as X1
+    w = movement_world()
+    w.war_state.ended_wars = [NS(war_key="A:B", start_turn=1, ended_turn=2)]
+    def refused(*args, **kwargs):
+        raise X1.LedgerReadRefused("same-turn read refused")
+    monkeypatch.setattr(X1, "own_row_accessor", refused)
+    d3.note_release(w, NS(army_id=1, war_key="A:B", raised_turn=2), [(7, 0)], "demobilized")
+    assert w.livelihoods.war_consequences.returns[7]["home"] is None
+    w.turn += 1
+    assert d3.movement_rows(w, 7, 1, {"home": 0}) == []

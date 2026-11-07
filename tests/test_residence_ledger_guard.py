@@ -78,7 +78,7 @@ PUBLIC = HOOKS | set(ACCESSORS) | RECORD_READERS | CONSTANTS
 
 #: A6 (``--adaptive-livelihoods``, audit A6 section 7.2): the only modules that
 #: may read a person's own row.
-OWN_ROW_MODULES = frozenset({"adaptive_livelihoods"})
+OWN_ROW_MODULES = frozenset({"adaptive_livelihoods", "war_consequences"})
 #: D3's modules, registered by the lead with D3's review (none yet).
 SEPARATION_MODULES: frozenset[str] = frozenset({"war_consequences"})
 #: Modules that decide no simulation outcome (narration, curation, bundle analysis).
@@ -95,6 +95,15 @@ LEDGER_READS: dict[tuple[str, str, str], tuple[int, str]] = {
     ("public_health", "check_request", "const:residence_ledger"): (1, "wiring"),
     ("public_health", "environment_factors", "read_frame"): (1, "aggregate"),
     ("war_consequences", "before_agent_tick", "separation"): (1, "separation"),
+    # D3 preserves the released person's own dated home. After X1 writes T,
+    # the normal refusal is caught only to retain unknown, never to read T.
+    ("war_consequences", "note_release", "own_row_accessor"): (1, "own_row"),
+    ("war_consequences", "note_release", "LedgerReadRefused"): (1, "own_row"),
+    # Narration's saved-bundle epoch validator; these are serialized record
+    # keys, not live WorldState state reads or decision inputs.
+    ("record_identity", "<module>", "const:residence_ledger"): (1, "saved_record"),
+    ("record_identity", "person_namespace", ".get('residence_ledger')"): (1, "saved_record"),
+    ("record_identity", "person_namespace", "const:residence_ledger"): (1, "saved_record"),
     # The switch value (``--residence-ledger``) in the prerequisite check, not the state.
     ("livelihoods", "_check_prerequisites", "['residence_ledger']"): (1, "wiring"),
     ("livelihoods", "_check_prerequisites", "const:residence_ledger"): (4, "wiring"),
@@ -210,7 +219,11 @@ _STATE_READS = frozenset({"state:import", ".residence_ledger", "getattr('residen
 def _class_problems(reads: dict[tuple[str, str, str], tuple[int, str]]) -> list[str]:
     problems = []
     for (module, where, read), (_n, cls) in sorted(reads.items()):
-        if read.startswith("const:"):
+        if cls == "saved_record":
+            ok = module == "record_identity" and (
+                (where == "<module>" and read == "const:residence_ledger") or
+                (where == "person_namespace" and read in (".get('residence_ledger')", "const:residence_ledger")))
+        elif read.startswith("const:"):
             ok = cls == "wiring" and module in WIRING_MODULES          # a name of the ledger: wiring only
         elif cls == "wiring":
             ok = module in WIRING_MODULES
@@ -219,7 +232,7 @@ def _class_problems(reads: dict[tuple[str, str, str], tuple[int, str]]) -> list[
         elif cls == "aggregate":
             ok = read == "read_frame"
         elif cls == "own_row":
-            ok = read == "own_row_accessor" and module in OWN_ROW_MODULES
+            ok = read in ("own_row_accessor", "LedgerReadRefused") and module in OWN_ROW_MODULES
         elif cls == "separation":
             ok = read == "separation" and module in SEPARATION_MODULES
         elif cls == "record":
@@ -245,7 +258,7 @@ def test_every_ledger_read_outside_its_owners_is_registered():
 def test_each_read_is_allowed_for_its_class_and_module():
     assert _class_problems(LEDGER_READS) == []
     # No decision module reads the ledger today; every consumer registers here.
-    assert {cls for _n, cls in LEDGER_READS.values()} == {"wiring", "own_row", "aggregate", "separation"}
+    assert {cls for _n, cls in LEDGER_READS.values()} == {"wiring", "own_row", "aggregate", "separation", "saved_record"}
 
 
 def test_the_class_rules_refuse_person_rows_and_state_outside_their_owners():
@@ -362,3 +375,10 @@ def test_the_collector_sees_every_kind_of_read(tmp_path):
                             for cls in ("own_row",)})                   # refused in a decision module
     assert not [k for k in found if k[0] == "residence_ledger"]
     assert _class_problems({k: (v, "aggregate") for k, v in found.items() if k[0] == "sneaky"})
+
+
+def test_saved_bundle_epoch_reader_does_not_authorize_live_state_or_decisions():
+    assert not _class_problems({("record_identity", "person_namespace", ".get('residence_ledger')"): (1, "saved_record")})
+    assert _class_problems({("record_identity", "person_namespace", "state:import"): (1, "saved_record")})
+    assert _class_problems({("record_identity", "person_namespace", ".residence_ledger"): (1, "saved_record")})
+    assert _class_problems({("cities", "person_namespace", ".get('residence_ledger')"): (1, "saved_record")})

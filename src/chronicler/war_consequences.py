@@ -83,7 +83,13 @@ def _commit_history(state, rows):
 
 
 def _remember_return(state, aid, row):
-    state.returns.pop(int(aid), None)
+    previous = state.returns.pop(int(aid), None)
+    if previous is not None:
+        # A later evacuation or release cannot replace a remembered home
+        # with X1's newly assigned residence, or forget a witnessed war.
+        if previous.get("home") is not None:
+            row = {**row, "home": previous["home"], "home_source_turn": previous.get("home_source_turn")}
+        row["wars"] = [list(key) for key in sorted({tuple(key) for key in previous["wars"] + row["wars"]})]
     if len(state.returns) >= MAX_EXPERIENCE:
         del state.returns[next(iter(state.returns))]
         state.counters["returns_dropped"] = state.counters.get("returns_dropped", 0) + 1
@@ -127,8 +133,17 @@ def note_release(world, army, entries, cause):
                         and w.start_turn <= getattr(army, "raised_turn", world.turn)]
             if matching:
                 war = max(matching, key=lambda w: w.start_turn)
+                from chronicler.residence_ledger import LedgerReadRefused, own_row_accessor
+                try:
+                    prior = own_row_accessor(world, int(aid), consumer_turn=world.turn).read(int(aid))
+                except LedgerReadRefused:
+                    # Late demobilisation may follow X1's sole writer. An
+                    # unavailable prior home stays unknown; never read T.
+                    prior = None
                 _remember_return(_state(world), aid, {"turn": int(world.turn), "kind": "released_service",
-                    "wars": [[war.war_key, war.start_turn]]})
+                    "wars": [[war.war_key, war.start_turn]],
+                    "home": prior["home"] if prior is not None else None,
+                    "home_source_turn": prior["source_turn"] if prior is not None else None})
                 _refresh_return_stock(world, _state(world))
 
 
@@ -154,7 +169,7 @@ def movement_rows(world, aid, origin, prior, *, attached=()):
     if threat and threat["turn"] == world.turn - 1 and threat["region"] == origin:
         rows.extend((int(aid), dest, EVACUATE_PULL) for dest in adjacent)
     experience = state.returns.get(int(aid))
-    home = prior["home"]
+    home = experience.get("home") if experience is not None else None
     if experience and home in adjacent and home != origin and experience["turn"] < world.turn:
         notices = {(w.war_key, w.start_turn): w.ended_turn for w in getattr(world.war_state, "ended_wars", [])
                    if w.ended_turn is not None and w.ended_turn < world.turn}
@@ -173,10 +188,11 @@ def note_migration(world, aid, origin, destination, prior):
     state = _state(world)
     threat = state.threats.get(int(aid))
     if threat and threat["region"] == origin and 0 <= world.turn - threat["turn"] <= 1:
-        _remember_return(state, aid, {"turn": int(world.turn), "kind": "evacuated", "wars": threat["wars"]})
+        _remember_return(state, aid, {"turn": int(world.turn), "kind": "evacuated", "wars": threat["wars"],
+            "home": int(prior["home"]), "home_source_turn": prior.get("source_turn", world.turn - 1)})
         _note(world, "evacuated", id=int(aid), region=int(origin), destination=int(destination),
               home=prior["home"], cause="personally_witnessed_field_army")
-    if int(destination) == prior["home"] and int(aid) in state.returns:
+    if int(aid) in state.returns and int(destination) == state.returns[int(aid)].get("home"):
         _note(world, "returned", id=int(aid), region=int(destination), cause=state.returns[int(aid)]["kind"])
         del state.returns[int(aid)]
     _refresh_return_stock(world, state)

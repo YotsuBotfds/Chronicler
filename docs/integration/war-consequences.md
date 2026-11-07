@@ -49,3 +49,16 @@ observed evacuation/return and memory through a long active war. The lead
 integration owner records native score tests, feature-off identity, enabled
 transition resume, held screens and browser evidence. These are bounded
 contracts, not procedural-world qualification or a guaranteed return policy.
+
+## Remembered return anchors
+
+D3 keeps the known home and its prior X1 observation date in each personal
+return experience. A6 marks affected movement drivers unknown; X1 may therefore
+rehome an unclassified move. That ledger policy never overwrites the person's
+remembered home. Repeated evacuations/releases preserve that anchor and the
+union of personally witnessed war instances. A return score needs prior formal
+peace for every instance and remains a decaying score, not a movement order or
+a safety claim. A release reads only its bound OwnRow from T−1; a late release
+after X1's writer leaves an unavailable home unknown and cannot invent a return
+anchor. The pool-reset hook clears all personal memories. This is opt-in D3/A6
+behavior; X1 remains record-only with its sole Phase10 writer unchanged.
