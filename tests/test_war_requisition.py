@@ -207,3 +207,16 @@ def test_occupation_owned_food_liability_matches_actual_claim_debit():
     assert {c.owner: c.due_milli for c in state.claims} == expected
     assert sum(expected.values()) == state.counters["claims_due_milli"]
     assert state.events[-1]["owned_milli"] == sum(expected.values()) // 2
+
+
+def test_timber_seizure_only_records_acquisition_liability_without_creating_food():
+    world, _, war = _world()
+    army = place_army(world, "A", "Crag", 3, war.war_key)
+    army.rations = 0
+    WR.note_cargo_seizure(world, owner=7, region=2, actor="A", value_milli=1200,
+                         shipment=4, quantity_milli=5000)
+    state = WR._state(world)
+    assert army.rations == 0
+    assert state.claims[0].source == "timber" and state.claims[0].due_milli == 1200
+    assert state.events[-1]["package"] == "timber_orders"
+    assert state.events[-1]["quantity_milli"] == 5000

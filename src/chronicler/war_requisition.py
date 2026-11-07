@@ -418,3 +418,22 @@ def enlisted_service_rows(world, *, after_logistics=False):
         for aid, _ in army.roster:
             rows.setdefault(int(aid), fraction)
     return sorted(rows.items())
+
+
+def note_cargo_seizure(world, *, owner, region, actor, value_milli, shipment, goods="timber", quantity_milli=0):
+    """Non-food custody seam for A4-3: caller transfers its actual cargo.
+
+    This records an existing physical seizure and its acquisition-value
+    liability only; it creates neither timber nor ration kits. The caller
+    retains sole authority over its cargo's single terminal outcome.
+    """
+    if not war_requisition_active(world):
+        return
+    if not isinstance(value_milli, int) or value_milli < 0 or not 0 <= region < len(world.regions):
+        raise ValueError("cargo restitution needs a nonnegative acquisition value and real region")
+    state = _state(world)
+    payer = _civ(world, actor)
+    _claim(world, state, payer, int(owner), int(region), value_milli, str(goods))
+    _event(world, state, kind="cargo_seizure", goods=str(goods), shipment=shipment,
+           package="timber_orders", owner=int(owner), region=int(region), payer=payer,
+           quantity_milli=int(quantity_milli), acquisition_value_milli=value_milli)
