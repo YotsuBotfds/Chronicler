@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "layer": "cwd1",
+  "parent": "d8a5277bf813bd6efc86c914f2e90c308c6c41d1",
+  "files": {
+    "src/chronicler/batch_manifest.py": {
+      "sha256": "bbe768841ffb81491fd074e65362239bce6635e6876aea650a3a9125f37b2baa",
+      "current_sha256": "2d8511462d9ae38b5b01ca57707394ae646483a511c38683fd9d5643f51d5e5b",
+      "patches": [
+        {
+          "old": "    \"epidemic_care_mode\",\n    \"attribution_records\",\n    \"wealth_accounting\",\n",
+          "new": "    \"epidemic_care_mode\",\n    \"reform_services\",\n    \"reform_services_mode\",\n    \"attribution_records\",\n    \"wealth_accounting\",\n"
+        },
+        {
+          "old": "                             \"epidemic_care\", \"epidemic_care_mode\",\n                             \"attribution_records\", \"wealth_accounting\", \"quarantine_channels\")\n              or getattr(args, key, None) is not None}\n",
+          "new": "                             \"epidemic_care\", \"epidemic_care_mode\",\n                             \"reform_services\", \"reform_services_mode\",\n                             \"attribution_records\", \"wealth_accounting\", \"quarantine_channels\")\n              or getattr(args, key, None) is not None}\n"
+        }
+      ]
+    },
+    "tests/test_batch_manifest.py": {
+      "sha256": "5f73648ee7beab1fba32e5ac4718a4a4989579ed1634d87c76f1a23dfea99e29",
+      "current_sha256": "312a67c94cfc0515d28b3b4dc34a6dfb35d107f406a933e1842abc8ea3d46b4a",
+      "patches": [
+        {
+          "old": "                                                           \"epidemic_care\", \"epidemic_care_mode\",\n                                                           \"attribution_records\",\n                                                           \"wealth_accounting\", \"quarantine_channels\"}) | {\"tuning_overrides\"}\n",
+          "new": "                                                           \"epidemic_care\", \"epidemic_care_mode\",\n                                                           \"reform_services\", \"reform_services_mode\",\n                                                           \"attribution_records\",\n                                                           \"wealth_accounting\", \"quarantine_channels\"}) | {\"tuning_overrides\"}\n"
+        }
+      ]
+    }
+  }
+}

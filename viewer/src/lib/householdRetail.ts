@@ -32,6 +32,8 @@ export const FLOW_SIGNS = {
   inherited_in: 1, inherited_out: -1,
   /** Rules version 2 (A2R, RL4): owned grain above the storage cap, lost before Phase 10 procurement. */
   cap_overflow: -1,
+  /** D1a (--reform-services): owned food a poor-relief fund bought (owners paid by id) into the commons. */
+  relief_bought: -1,
 } as const;
 export type FlowKind = keyof typeof FLOW_SIGNS;
 const FLOW_KINDS = Object.keys(FLOW_SIGNS) as FlowKind[];

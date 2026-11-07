@@ -173,6 +173,8 @@
       "tests/test_recovery_crews.py",
       "tests/test_recovery_gini_numerics.py",
       "tests/test_recovery_skills_wiring.py",
+      "tests/test_reform_services.py",
+      "tests/test_reform_services_native.py",
       "tests/test_refugee_routing.py",
       "tests/test_religion.py",
       "tests/test_relocation_costs.py",

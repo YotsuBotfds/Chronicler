@@ -22,7 +22,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 BASELINE = "64863f1274e400c3898972fe0cd5df510d3bb06f"
 #: Landing layers, oldest first. Append only; never edit a landed layer.
-LAYERS: tuple[str, ...] = ("l0", "l1a", "l2", "l3", "l4", "s1r", "l8", "l5", "l6", "l9", "l7", "r3", "s2r", "rs0", "rs6", "rs5", "rs4", "rs2", "rv1", "rv2", "rv3", "pl2", "pl1", "pl3", "pl2b", "pl4", "cwe1", "cwb1", "cwc1", "cws1", "cwc1b", "cwa3", "cwd2", "cwb2", "cwc2")
+LAYERS: tuple[str, ...] = ("l0", "l1a", "l2", "l3", "l4", "s1r", "l8", "l5", "l6", "l9", "l7", "r3", "s2r", "rs0", "rs6", "rs5", "rs4", "rs2", "rv1", "rv2", "rv3", "pl2", "pl1", "pl3", "pl2b", "pl4", "cwe1", "cwb1", "cwc1", "cws1", "cwc1b", "cwa3", "cwd2", "cwb2", "cwc2", "cwd1")
 
 
 def _digest(source: str) -> str:

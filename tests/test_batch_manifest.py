@@ -145,6 +145,7 @@ def test_the_manifest_records_the_cohort_and_identity(batch_42):
                                                            "watershed", "watershed_mode",
                                                            "quarantine_mode", "workshop_economics", "workshop_economics_mode",
                                                            "epidemic_care", "epidemic_care_mode",
+                                                           "reform_services", "reform_services_mode",
                                                            "attribution_records",
                                                            "wealth_accounting", "quarantine_channels"}) | {"tuning_overrides"}
     assert (simulation["civs"], simulation["regions"], simulation["agents"], simulation["cities"]) == (2, 4, "off", None)

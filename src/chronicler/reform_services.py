@@ -33,8 +33,8 @@ satisfaction), which is not the lasting label.
   sunk as before. After the granaries' Phase 10 procurement and before retail
   closes the turn's frame, each realm with a relief in force and money in its
   fund buys from the owners of its own pilot regions where this turn's
-  provisioning recorded unmet need (people below a full ration: priced out or
-  short of offer), neediest region first: at most the unmet rations, at most
+  provisioning recorded people priced out or short of offer, for the rations
+  they lacked (persons minus rations), neediest region first: at most the unmet rations, at most
   the owned food held there (the owners' unsold surplus), at most what the fund
   can pay at the region's installed ask (``ceil(food x price / ration)``). The
   fund pays the owners by stable id, pro rata to their claims (``money.pay``,
@@ -405,8 +405,12 @@ def _purchases(world, state: ReformServicesState, t: _Turn, frame: ReliefFrame, 
         for rid, row in prov.items():
             if world.regions[rid].controller != names[civ]:
                 continue
+            # The poor roll: people the provisioning recorded as priced out or
+            # short of offer, and the rations they lacked (f32 rounding alone,
+            # with nobody recorded short, is no need).
+            short = row["priced_out_persons"] + row["offer_short_persons"]
             unmet = max(0.0, row["persons"] - row["rations"])
-            if unmet > RATION_EPS:
+            if short >= 1 and unmet > RATION_EPS:
                 need.append((-unmet, rid, unmet, row))
         if not need:
             continue
