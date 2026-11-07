@@ -244,6 +244,8 @@ LIFETIME: tuple[str, ...] = (
     "firm_inputs_to_treasury_milli", "asset_subsidy_units",
     # A4 (titled trade), appended: its typed channel and its carriers' withheld income.
     "cargo_purchase_in_milli", "cargo_purchase_out_milli", "withheld_titled_trade",
+    # D1a (reform services), appended: its typed channel.
+    "relief_purchase_in_milli", "relief_purchase_out_milli",
 )
 
 #: Lifetime counters (declaration order; append only).

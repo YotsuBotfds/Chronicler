@@ -446,3 +446,18 @@ def test_rounding_residue_with_nobody_recorded_short_is_no_need():
     book.provisioning["priced_out_persons"] = 0.0           # f32 sums, nobody short
     _phase10(world, _sim(world))
     assert RS._state(world).frame.purchases == []
+
+
+def test_every_ledger_channel_a_reader_can_emit_has_its_lifetime_totals():
+    """The A1 ledger commits each typed row into lifetime totals by channel name;
+    a channel without them fails at commit (the all-enabled checkpoint case found
+    it for ``relief_purchase``). Channels of packages excluded with the ledger
+    are never emitted."""
+    from chronicler.feature_catalog import REQUIREMENTS
+    from chronicler.wealth_accounting_state import CHANNELS, LIFETIME
+    excluded = {key for key, conditions in REQUIREMENTS.items()
+                if {"not": {"feature": "wealth_accounting"}} in conditions}
+    for name, package, _payer in CHANNELS:
+        if package in excluded:
+            continue
+        assert {f"{name}_in_milli", f"{name}_out_milli"} <= set(LIFETIME), name
