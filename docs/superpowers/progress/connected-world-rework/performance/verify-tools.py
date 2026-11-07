@@ -94,6 +94,17 @@ def main():
         ("scaled22k_s42", 30, 12, 4, 18800), ("scaled52k_s7", 20, 12, 4, 43700),
         ("proc48_s42", 150, 48, 10, 0)}
     checks.append("all ten fixed corrected/OFF cases and complete scales/horizons")
+    assert runner.cpu_limit_seconds(450.0) == 450
+    assert runner.cpu_limit_seconds(0.1) == 1
+    assert runner.cpu_limit_seconds(450.1) == 451
+    for invalid in (0, -1, float("nan"), float("inf")):
+        try:
+            runner.cpu_limit_seconds(invalid)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("invalid process-CPU limit accepted")
+    checks.append("kernel CPU budget rejects invalid limits and rounds up to whole seconds")
     with tempfile.TemporaryDirectory(prefix="cwr-measurement-controls-") as temporary:
         root = Path(temporary)
 
