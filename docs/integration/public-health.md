@@ -5,6 +5,17 @@ epidemic care, local budgets (through care), infrastructure condition, the resid
 ledger and quarantine rules in `closure` or `cost_only` mode. No new mortality
 authority or native field is introduced.
 
+With adaptive livelihoods rules 2 enabled, a new care or border-guard offer
+consults that person's dated work experience after excluding existing labour
+holders and resolving a positive feasible share. Refusing an offer never ends
+an existing commitment. Full untruncated personal wage receipts and attributable
+native paid-work income costs are recorded as `epidemic_care` or `border_guard`
+experience before the turn plan is dropped. A mixed paid-work share has unknown
+personal cost; forgone owned-harvest title is also unknown where the retail pilot
+could supply one. Neither is replaced with an invented zero. A refused wage bill
+installs no paid share and records zero service payment and service-withheld
+income, while the actual lost farm time remains in its existing receipt.
+
 The single L9 care envelope now includes the expected ration value alongside
 wages. The named carer plan reserves both, and after wages it buys at most the
 remaining gross envelope value. One patient ration is the existing per-capita

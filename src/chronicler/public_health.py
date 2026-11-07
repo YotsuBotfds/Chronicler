@@ -376,6 +376,10 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
                 wage = round(share * GUARD_WAGE_MILLI)
                 if share < 1e-3 or wage <= 0:
                     continue
+                if getattr(world.livelihoods, "adaptive_livelihoods", None) is not None:
+                    from chronicler.adaptive_livelihoods import accepts_offer
+                    if not accepts_offer(world, aid, "border_guard"):
+                        continue
                 members.append({"agent_id": aid, "region": rid, "share": share,
                                 "wage_due_milli": wage, "wage_paid_milli": 0,
                                 "wage_residual_milli": 0, "income_withheld": None})
@@ -452,11 +456,21 @@ def after_agent_tick(world, agent_bridge):
         return []
     from chronicler.livelihoods import paid_work_receipt
     receipt = paid_work_receipt(world, agent_bridge._sim)
+    adaptive = getattr(world.livelihoods, "adaptive_livelihoods", None)
     for r in state.guards:
         for member in r["members"]:
-            if receipt is not None and member["agent_id"] in receipt:
-                member["income_withheld"] = float(receipt[member["agent_id"]][2])
+            observed = receipt.get(member["agent_id"]) if receipt is not None else None
+            if observed is not None:
+                member["income_withheld"] = float(observed[2])
                 _bump(state, "guard_income_withheld", member["income_withheld"])
+            if adaptive is not None:
+                from chronicler.adaptive_livelihoods import forgone_title, note_work
+                withheld = (round(float(observed[2]) * 1000) if observed is not None
+                            and abs(float(observed[0]) - member["share"]) <= 1e-6
+                            else 0 if str(r["payment"]).startswith("refused:") else None)
+                note_work(world, member["agent_id"], "border_guard", paid_milli=member["wage_paid_milli"],
+                          withheld_milli=withheld, title_forgone_milli=forgone_title(world, member["region"]),
+                          source="public_health:untruncated keyed guard wage and attributable paid-work receipt")
     return []
 
 
