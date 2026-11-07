@@ -517,3 +517,49 @@ def test_health_proposal_prices_both_whole_coin_wage_purposes_and_patient_purcha
     w.livelihoods.epidemic_care.book.carry["0:care_wage"] = 250
     st.book.carry["0:guard_wage"] = 500
     assert EC.BUDGET_PROVIDER.proposals(w, 0, SimpleNamespace(pcf=.5))[0]["cost"] == 2
+
+
+def test_care_title_time_uses_full_prepared_urban_shares_even_when_unpaid_and_frame_truncated(monkeypatch):
+    w, _st = _enabled()
+    _outbreak(w, 1, burden=.04)
+    _envelope(w, 1, 50)
+    sim = _Sim(_people())
+    bridge = _Bridge(sim)
+    assert EC.farm_time(w, w.turn) == {}
+    EC.prepare_phase2(w, _batch(w, sim), bridge, sim.get_snapshot(), None)
+    removed = EC.farm_time(w, w.turn)
+    assert removed and removed[100] == pytest.approx(.8, abs=1e-6)
+    assert sum(removed.values()) == pytest.approx(1.6, abs=1e-6)
+    assert EC.farm_time(w, w.turn - 1) == EC.farm_time(w, w.turn + 1) == {}
+    w.civilizations[0].treasury = 0
+    monkeypatch.setattr(EC, "MAX_FRAME_ROWS", 0)
+    EC.finish_phase2(w, SimpleNamespace(market_prices={}), bridge, None)
+    assert w.livelihoods.epidemic_care.frame == []
+    assert all(not r.paid for r in w.livelihoods.epidemic_care._turn.receipts)
+    assert EC.farm_time(w, w.turn) == removed
+    w.livelihoods.epidemic_care.enabled = False
+    assert EC.farm_time(w, w.turn) == {}
+
+
+def test_guard_title_time_is_actual_urban_partial_removal_independent_of_payment():
+    w, st = _enabled()
+    _guard_plan(w, st)
+    w.contact_ledger.edges = [(1, 2, 100.0, 0.0, 0.0, 0.0)]
+    w.contact_ledger.invalidate()
+    _envelope(w, 1, 2)
+    sim = _Sim(_people())
+    bridge = _Bridge(sim)
+    assert PH.farm_time(w, w.turn) == {}
+    batch = EC.prepare_phase2(w, _batch(w, sim), bridge, sim.get_snapshot(), None)
+    PH.prepare_phase2(w, batch, bridge, sim.get_snapshot(), None)
+    removed = PH.farm_time(w, w.turn)
+    assert removed[100] == pytest.approx(.8, abs=1e-6) and removed[101] == pytest.approx(.2, abs=1e-6)
+    assert sum(removed.values()) == pytest.approx(1)
+    assert PH.farm_time(w, w.turn - 1) == PH.farm_time(w, w.turn + 1) == {}
+    w.civilizations[0].treasury = 0
+    EC.finish_phase2(w, SimpleNamespace(market_prices={}), bridge, None)
+    PH.finish_phase2(w, SimpleNamespace(), bridge, None)
+    assert st.guards[0]["payment"] == "refused:payer_short" and not st.guards[0]["staffed"]
+    assert PH.farm_time(w, w.turn) == removed
+    st.enabled = False
+    assert PH.farm_time(w, w.turn) == {}
