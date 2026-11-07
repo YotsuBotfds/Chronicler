@@ -538,6 +538,7 @@ def test_entries_are_capped_but_pairs_stay_exact():
 #: Every call of a note function from the simulation: (module, function, note) -> calls.
 NOTE_SITES = {
     ("war.armies", "apply_casualties", "note_casualties"): 1,
+    ("war.armies", "drain_population", "note_war_drain"): 1,
     ("war.armies", "reconcile_rosters", "note_natural_deaths"): 1,
     ("war.occupation", "_requisition", "note_requisition"): 1,
     ("war.occupation", "start_occupation", "note_plunder"): 1,
@@ -567,6 +568,8 @@ def _calls(names):
 
 def test_every_note_site_is_registered_and_guarded():
     notes = {n for _m, _f, n in NOTE_SITES}
+    # Every note the package defines is registered (fail closed on a new seam).
+    assert notes == {name for name in dir(AR) if name.startswith("note_") and callable(getattr(AR, name))}
     assert _calls(notes) == NOTE_SITES
     for module, function, note in NOTE_SITES:
         source = (SRC / (module.replace(".", "/") + ".py")).read_text(encoding="utf-8")
