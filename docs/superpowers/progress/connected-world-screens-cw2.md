@@ -387,3 +387,14 @@ insolvent 0; 0; closed when the city fell 0; 1.3 [0, 3]; wares handed to the own
 0; 5.8 [0, 18.7] loads; owned output titled whole 63.2 [46.6, 109.9]; 133.9 [79.2, 205.4] loads.
 
 Under the frozen rule none of the three primaries reads as consistent in either stratum.
+
+Label note: `held/report.md` labels `cw2_cost_active` "(E2 - E2f: the input cost)", but the
+outcome reads arm E2f against control E2, so its values (+0.2187 template, +0.2425 procedural) are
+E2f - E2, as the secondary table above gives them. The label is in the frozen screen module and
+stays as it is.
+
+### Corrections after the independent check (2026-11-07)
+
+Results text only; the frozen parts of this page, the code and the retained evidence are
+unchanged. Added the label note on `cw2_cost_active` (the report's "(E2 - E2f)" label; the values
+are E2f - E2).

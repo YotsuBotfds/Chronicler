@@ -430,6 +430,13 @@ as consistent (k <= 4).
 Sign-flip: the share of the 2^k sign assignments of the valid worlds whose mean is at least as far
 from zero as the observed mean (descriptive, not a significance test).
 
+Caveat beside the one consistent cell (procedural `cw5_shortfall_deficit`, lower in T, 0 / 5,
+2/32): at k = 5, 2/32 is the smallest possible share, so the cell passes only because all five
+valid worlds agree. The template stratum went the other way (+0.0144, 4 / 0 among its four valid
+worlds). Neither sensitivity line is consistent in the procedural stratum (turn-0 sets −0.0015,
+30/64; R's whole-run ratio −0.0133, 8/64), and net food into the deficit regions in the same
+stratum shows no consistent effect (−4.6, 2 / 3).
+
 ### Harms beside the primaries (T - R; mean [min, max], > 0 / < 0, sign-flip of 64)
 
 | Harm | Template | Procedural |
@@ -475,8 +482,9 @@ returned for a lost route 0.33 [0, 2]; 6 [0, 11]; returned for a conquered desti
 1,600; 1,195 [778, 1,524] of 6,400; owners paid 208.2; 477.9; merchants' realized margin 186.0
 [56.5, 305.3]; 341.5 [155.2, 521.3]; model income withheld 18.3 [0.5, 53.1]; 57.2 [11.3, 94.7];
 margin less the withheld income 167.7 [55.9, 262.6]; 284.3 [143.8, 426.7] (positive on 12 of 12);
-the merchants' balance (adding returned food 0.17 and 5.75, cargo aboard 2.06 and 4.67 at
-purchase cost) 172.0 [56.0, 265.5]; 298.5 [166.3, 437.6]; food lost to transit decay 19.4; 40.4;
+the merchants' balance (adding, at purchase cost, returned food 0.17 and 5.75, cargo aboard 2.06
+and 4.67, and delivered but unsold lots 2.05 [0, 8.98] and 3.78 [1.02, 6.48]) 172.0 [56.0, 265.5];
+298.5 [166.3, 437.6]; food lost to transit decay 19.4; 40.4;
 food shortfall share in the regions T delivered to 0.202 [0.118, 0.330]; 0.115 [0.079, 0.180] and
 bought from 0.175; 0.107 (selection, no counterpart in R).
 
@@ -490,5 +498,13 @@ bought from 0.175; 0.107 (selection, no counterpart in R).
 | R's whole-run ratio (regression-to-the-mean risk) | Deficit regions' shortfall share | +0.0094 [−0.0302, +0.0425], 4/2, 28/64 | −0.0133 [−0.0482, +0.0061], 2/4, 8/64 |
 
 Under the frozen rule only `cw5_shortfall_deficit` on the procedural stratum reads as consistent
-(lower in T, five of five valid worlds). Every other primary cell reads as no consistent effect;
-the template stratum could not read as consistent with four valid worlds.
+(lower in T, five of five valid worlds; see the caveat under the primary table). Every other
+primary cell reads as no consistent effect; the template stratum could not read as consistent
+with four valid worlds.
+
+### Corrections after the independent check (2026-11-07)
+
+Results text only; the frozen parts of this page, the code and the retained evidence are
+unchanged. The merchants' balance parenthetical now lists the delivered but unsold lots (2.05
+[0, 8.98] template, 3.78 [1.02, 6.48] procedural), so its parts sum to 172.0 and 298.5; the caveat
+beside the one consistent cell was added.
