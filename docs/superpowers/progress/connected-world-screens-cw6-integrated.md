@@ -108,3 +108,25 @@ checkpointed output and each resumed branch byte for byte using the existing
 checkpoint identity comparator, and retain the actual selected source turns.
 Do not claim an inactive lifecycle was tested merely because a clock turn was
 resumed.
+
+Reproducible commands from the final integrated checkout, using its verified
+native interpreter (the examples use `python`):
+
+```sh
+PYTHONPATH=src python scripts/cw_integrated_screen.py check --screen CW6
+PYTHONPATH=src python scripts/cw_integrated_screen.py run /workspace/evidence/cw6/pilot --screen CW6 --cohort pilot --jobs 1 --keep-first
+PYTHONPATH=src python scripts/cw_integrated_screen.py check --screen CW6 --cohort pilot --metrics /workspace/evidence/cw6/pilot/metrics.jsonl
+PYTHONPATH=src python scripts/cw_integrated_resume.py plan /workspace/evidence/cw6/pilot/runs/FULL-p19/chronicle_bundle.json /workspace/evidence/cw6/resume-p19-plan.json --stratum procedural --seed 19
+PYTHONPATH=src python scripts/cw_integrated_resume.py run /workspace/evidence/cw6/resume-p19-plan.json /workspace/evidence/cw6/resume-p19
+# After actual pilot review, source/extension freeze and preregistration freeze:
+PYTHONPATH=src python scripts/cw_integrated_screen.py run /workspace/evidence/cw6/held --screen CW6 --cohort held --jobs 1 --pilot /workspace/evidence/cw6/pilot/metrics.jsonl --keep-first
+PYTHONPATH=src python scripts/cw_integrated_screen.py report /workspace/evidence/cw6/held/metrics.jsonl --screen CW6
+PYTHONPATH=src python scripts/cw_integrated_screen.py check --screen CW6 --cohort held --metrics /workspace/evidence/cw6/held/metrics.jsonl
+```
+
+Use the equivalent template-5 resume plan as needed to cover categories absent
+in procedural 19. The resume tool preserves the exact JSON bundle and Arrow
+sidecar identities, checks the actual seed/stratum and complete 200-turn run,
+reconstructs the declared FULL CLI and selected active states, and refuses an
+edited plan. Categories observed only at the final turn are explicitly not
+resumable within that same run; they are not counted as checked lifecycles.
