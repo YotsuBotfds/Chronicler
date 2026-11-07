@@ -111,7 +111,11 @@ sanitation benefits while retaining billing rules, supplies, guards and
 quarantine controls. RNR/ANR use the joint ownership/free-pool allocation regime:
 title fraction .9→1 and no retail means-tested priority; free food still exists.
 These are not pure price controls, fixed realized spending or additive isolated
-effects. Current retail access and regional availability are measured separately.
+effects. Current retail access and regional availability are measured separately. The
+retail “all” boundary is the same eligibility recipe across arms, not identical
+realized enrollment: only qualifying controlled regions with a living ruler
+enter, and controller/war trajectories can change coverage. Unobserved access
+stays null or an explicitly incomplete observed subtotal.
 
 Three primary outcomes and all world-level contrasts, nulls, harms, activation,
 population denominators and descriptive uncertainty are preregistered. Each
@@ -128,6 +132,14 @@ core-hours, below the unchanged two-hour cap. Protocol SHA256 is
 The held run started 2026-11-07T22:41:33Z, identity `98c7bb2a…`; all reserved
 seeds are potentially spent from that start. Only its existing output and
 identity may be continued. Container recovery is not promised.
+
+First-world raw readback independently checks all twelve p4201 arms, each
+120 turns, including raw Arrow, outcome/person-turn arithmetic, prior PH/X1
+clocks and food observations. Bounded component traces limit a separate
+per-input proof: AD-p4201's full score merge is reconstructible from retained
+components in only 6/120 turns; the other 114 are explicitly unverified at
+that level. Source, tests and native receipts support implementation conformance
+without pretending a bounded sample is a complete input history.
 
 **Held results: pending closure and independent audit.** Neither these timing
 worlds nor an incomplete held run establishes qualification or default promotion.
