@@ -149,3 +149,16 @@ matrix's dated d609 source observations. A new feature-off check on the last
 runtime, final whole-program profile/resume/held/browser/CI receipts and the
 lead's explicit A4-W proposal disposition must be attached before any completion
 statement.
+
+## Lead scope disposition: audit proposals versus adopted program
+
+A4-W cross-border owned wares is not implemented. The adopted roadmap §5.7
+commits titled food and A4-3 timber orders; A4-W remains a separate unadopted
+audit proposal. This program does not advertise a wares-trade switch or count
+A3's local household sales/native commons wares as that feature. Extending
+owned wares carriage requires a later explicit market/title contract and its
+own evaluated integration. This is a scope disposition, not a claim of a
+technical dependency like ports. Tax/tithe debtor policy, decay policy and
+default promotion likewise retain the roadmap's explicit later-decision status.
+All adopted original A–E rows remain implementation/evidence obligations; the
+short next-task field cannot waive those gates.

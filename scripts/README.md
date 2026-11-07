@@ -61,8 +61,12 @@ to 1. The committed sprint-1 metrics are in `docs/superpowers/progress/livelihoo
 `connected_world_screens.py run|report|check|registry` runs the connected-world program's
 screens through the generic `screen_runner.py` (seeds checked against `seed_registry.json`,
 2-3 primaries, a frozen preregistration with a machine-read compute ceiling, the fixed harm
-panel, activation before effects, identities); CW1-CW6 are stubs until their slices fill them
-in. `feature_matrix.py` generates the switch compatibility matrix from the feature catalog.
+panel, activation before effects, identities). CW1–CW6 and their follow-ons are implemented;
+CW6 delegates to `cw_integrated_screen.py` for its strict sidecar-aware extractor and
+120-turn bounded horizon. `cw_health_screen.py` owns the separate 200-turn C2/C4 screen;
+`cw_program_profile.py` reproduces the serial declared-scale off/FULL profile with explicit
+200-turn screen and 150-turn procedural stress cases. These are bounded evidence tools,
+not qualification or default promotion. `feature_matrix.py` generates the switch compatibility matrix from the feature catalog.
 See [connected-world screens](../docs/integration/connected-world-screens.md).
 `watershed_calibration.py BUNDLE [BUNDLE ...] [--json OUT]` compares the index the watershed
 account (`--watershed`, record only) would derive with the index the simulation used;
