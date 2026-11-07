@@ -44,6 +44,10 @@ saved rules 1/2 retain their historical behavior. No unknown move motive is
 filled in. The existing uniform care coefficient remains unchanged and is
 not pathogen-calibrated.
 
+The maintained feature defaults remain A6 rules 2 and public-health
+`legacy_displacement`. Rules 3 and `density_only` are explicit experimental
+opt-ins in these arm flags; neither correction is promoted by this screen.
+
 The executable arm flags are declared in `scripts/cw_rework_screen.py`.
 
 | Arm | Personal A6 mode/channels | Added public-health crowding | Health effects | Retail regime |
