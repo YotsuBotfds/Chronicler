@@ -1,5 +1,9 @@
 # Source, recovery and archive index
 
+For the later Connected World correctness, causal evaluation and performance
+rework, start with [CONTINUATION.md](CONTINUATION.md) and its linked current
+ledger/report. The entries below retain their historical source and evidence.
+
 Updated 2026-11-06 after PRs #73, #74, #76, #78, #80, #81, #83, #84, #85, #86, #87, #88, #89, #90, #91 and #92. This is the starting map for future agents;
 dated reports keep their original source, platform and qualification limits.
 

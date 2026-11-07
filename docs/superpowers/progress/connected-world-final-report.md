@@ -1,5 +1,10 @@
 # Connected World A–E: integrated implementation and evaluation
 
+This is the historical #96 implementation report. The later
+[correctness, causal evaluation and performance rework](connected-world-rework-report.md)
+and [current coverage](connected-world-rework-coverage.md) supersede its current-state
+interpretations; the original observations and limitations below remain evidence.
+
 The adopted program and amendment are reconciled row by row in the
 [coverage matrix](connected-world-final-coverage.md). B3, D1 and the remaining
 adopted implementation/evidence are merged through #94, #95 and
