@@ -440,7 +440,20 @@ SCREENS = {SCREEN.name: SCREEN}
 
 
 def main(argv=None):
-    return SR.main(argv, SCREENS, prog="cw_health_screen.py")
+    return SR.main(resource_args(list(sys.argv[1:] if argv is None else argv)),
+                   SCREENS, prog="cw_health_screen.py")
+
+
+def resource_args(argv):
+    """Keep omitted concurrency within the lead's one/two-process schedule."""
+    if argv and argv[0] == "run":
+        jobs = [token.split("=", 1)[1] for token in argv if token.startswith("--jobs=")]
+        jobs += [argv[i + 1] for i, token in enumerate(argv[:-1]) if token == "--jobs"]
+        if jobs and jobs not in (["1"], ["2"]):
+            raise ValueError("CW-health requires one or two simulation jobs scheduled by the lead")
+        if not jobs:
+            argv = [*argv, "--jobs", "1"]
+    return argv
 
 
 if __name__ == "__main__":

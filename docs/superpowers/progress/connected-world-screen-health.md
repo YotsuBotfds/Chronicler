@@ -19,6 +19,8 @@ worlds (4001–4006), reserved by the lead after reconciling all recovered lane
 registries. The shared timing pilots are template 5 and procedural 19. No pilot
 or held execution is authorized by this draft alone: the lead schedules the
 integrated native runtime and the run concurrency (one or two jobs).
+The screen defaults to one job and refuses more than two or duplicate job
+arguments; this avoids inheriting the generic runner's three-job default.
 
 All three arms use hybrid simulation only, 200 turns, grain reserves/storage,
 L9 local budgets, repair projects and B3 infrastructure condition, X1 residence,
