@@ -103,6 +103,7 @@ SETTINGS: dict[str, str] = {
     "epidemiology": ("epidemiology with the contact ledger (on by default for new worlds; off with "
                      "--no-epidemiology or --no-contact-ledger)"),
     "agent_movements": "agent movements (on by default for new worlds; off with --no-agent-movements)",
+    "guilds": "guilds (on by default for new worlds; off with --no-guilds)",
 }
 
 
@@ -176,6 +177,8 @@ REQUIREMENTS: dict[str, tuple[dict, ...]] = {
     # needs priced retail; the cost-only control runs on the same retail world.
     "reform_services": (_HYBRID, _feature("household_retail"), _choice("household_retail_mode", "retail", "no_relief"),
                         _setting("agent_movements")),
+    # D1b: guild and civic purses (Python), links from native merchants' recorded deliveries.
+    "guild_leagues": (_HYBRID, _setting("cities"), _setting("guilds")),
     # An explicit legacy is the option omitted: it needs nothing (lead decision m4).
     "quarantine_mode": (_any(_setting("epidemiology"), _choice("quarantine_mode", "legacy")),),
     # C1b: an explicit trade is the option omitted; trade,migration closes native
@@ -320,6 +323,11 @@ def _techniques_default() -> bool:
     return bool(DEFAULT_ENABLED_FOR_NEW_WORLDS)
 
 
+def _guilds_default() -> bool:
+    from chronicler.guilds import DEFAULT_ENABLED_FOR_NEW_WORLDS
+    return bool(DEFAULT_ENABLED_FOR_NEW_WORLDS)
+
+
 def _movements_default() -> bool:
     from chronicler.agent_movements import DEFAULT_ENABLED_FOR_NEW_WORLDS
     return bool(DEFAULT_ENABLED_FOR_NEW_WORLDS)
@@ -360,6 +368,7 @@ def live_surface(args: Any = None) -> dict:
                                                   getattr(args, "contact_ledger", None)),
             "agent_movements": (_movements_default() if getattr(args, "agent_movements", None) is None
                                 else bool(args.agent_movements)),
+            "guilds": _guilds_default() if getattr(args, "guilds", None) is None else bool(args.guilds),
         },
         "new_worlds_only": True,
     }
@@ -406,6 +415,8 @@ def batch_surface(client_defaults: Mapping[str, Any], config: Mapping[str, Any] 
                 None, _batch_value("contact_ledger", client_defaults, config)),
             # Batch Lab runs are not given --agent-movements (new worlds: the default).
             "agent_movements": _movements_default(),
+            # ... nor --guilds.
+            "guilds": _guilds_default(),
         },
         "new_worlds_only": True,
     }

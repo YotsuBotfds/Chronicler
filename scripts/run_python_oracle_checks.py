@@ -475,6 +475,7 @@ CHUNKS = {
     ],
     "connected-world-d1": [
         "tests/test_reform_services.py",
+        "tests/test_guild_leagues.py",
     ],
 }
 TESTS = [node for nodes in CHUNKS.values() for node in nodes]

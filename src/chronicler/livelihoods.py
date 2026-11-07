@@ -62,6 +62,11 @@ The connected-world program appends:
   withheld, the upkeep sunk); declared before ``--household-retail`` so its
   Phase 10 hook buys after the granaries' procurement and before retail closes
   the turn's frame.
+* ``--guild-leagues`` (D1b): guilds of cities in different realms, linked by
+  recorded merchant deliveries, form bounded leagues; members pay capped dues
+  from their purses into a league fund that pays a member city's recorded levy
+  share or sack plunder (mode ``dues_only``: the cost control, no claims);
+  inserted after C2 and before D2's observer.
 * ``--attribution-records`` (D2): observation-only records of actor, victim and
   cause (granary seizures, casualties by cause, restored-civ identity reuse,
   burdens per actor -> victim pair); inserted after A3 and before the wealth ledger,
@@ -132,6 +137,7 @@ LIVELIHOODS_CHOICES: dict[str, tuple[str, ...]] = {
     "workshop_economics_mode": ("market", "free_inputs", "academy_only"),
     "epidemic_care_mode": ("care", "cost_only"),
     "reform_services_mode": ("service", "cost_only"),
+    "guild_league_mode": ("mutual", "dues_only"),
 }
 #: All parser destinations owned here (``batch_manifest.SIMULATION_ARG_KEYS``).
 LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
@@ -161,6 +167,7 @@ LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     # D1a: the CLI and catalog list it beside the other connected-world switches;
     # its hooks run before household_retail's (LIVELIHOODS_SWITCHES order).
     "reform_services", "reform_services_mode",
+    "guild_leagues", "guild_league_mode",
     "attribution_records",
     "wealth_accounting",
 )
@@ -434,6 +441,20 @@ _HELP = {
         "service (default): the fund buys food for the next free pool; cost_only: the control that withholds "
         "the label and sinks the payment as without the switch, buying nothing"
     ),
+    "guild_leagues": (
+        "Cross-border guild leagues (D1b): guilds of cities in different realms whose regions traded on 3 "
+        "of the last 10 turns (the merchant deliveries the economy recorded) form a league (one member per "
+        "realm, at most 4, ids never reused); each turn members pay 2% of their guild purse (at most 0.25) "
+        "into the league fund while it holds less than 3 per member, and the fund pays a member city's "
+        "purse its recorded levy share of the dues or the plunder of a recorded sack (at most 2 a claim); a "
+        "member leaves when its guild or city ends or its city changes lord, and a league dissolves at war "
+        "between members' realms, below two realms, or after 20 turns without trade, returning its fund to "
+        "the members' purses; requires --agents hybrid, cities and guilds (default off)"
+    ),
+    "guild_league_mode": (
+        "mutual (default): the fund pays recorded claims; dues_only: the cost control with the same "
+        "leagues and dues and no claim paid"
+    ),
     "attribution_records": (
         "Attribution records (D2): observation-only records of who did what to whom, at the event: "
         "granary seizures with their actor and victim; enlisted soldiers' deaths per war and cause - "
@@ -680,6 +701,16 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
             raise ValueError("--reform-services requires --agents hybrid, --household-retail in mode retail or "
                              "no_relief, and agent movements (on by default; off with --no-agent-movements)"
                              + ("; this world has it on: pass --no-reform-services to end it" if saved else ""))
+    if _on(world, values, "guild_leagues"):
+        # Also when only saved: a resume that ends guilds or cities (dropping the
+        # guild records the leagues name) or leaves hybrid is refused until
+        # --no-guild-leagues dissolves every league, dated.
+        from chronicler.cities_state import cities_on
+        from chronicler.guilds_state import guilds_on
+        if agent_mode != "hybrid" or not cities_on(world) or not guilds_on(world):
+            saved = values["guild_leagues"] is not True
+            raise ValueError("--guild-leagues requires --agents hybrid, cities and guilds (both on by default)"
+                             + ("; this world has it on: pass --no-guild-leagues to end it" if saved else ""))
     if _on(world, values, "attribution_records") and agent_mode != "hybrid":
         # Also when only saved: the records observe hybrid runs (army rosters,
         # the native tick); a resume outside hybrid is refused until ended.
@@ -777,6 +808,7 @@ _CHOICE_FIELDS: dict[str, tuple[str, str]] = {
     "workshop_economics_mode": ("workshop_economics", "mode"),
     "epidemic_care_mode": ("epidemic_care", "mode"),
     "reform_services_mode": ("reform_services", "mode"),
+    "guild_league_mode": ("guild_leagues", "mode"),
 }
 
 

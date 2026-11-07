@@ -3,6 +3,7 @@ import { hasRecoveryChain, packagesOn } from "../../lib/recoveryChain";
 import { watershedOn } from "../../lib/watershed";
 import { attributionOn } from "../../lib/attributionRecords";
 import { reformServicesOn } from "../../lib/reformServices";
+import { guildLeaguesOn } from "../../lib/guildLeagues";
 import type { SystemPanelProps } from "../../lib/systems";
 import { ClearingProtection } from "./ClearingProtection";
 import { Remittances } from "./Remittances";
@@ -13,6 +14,7 @@ import { RepairProjects } from "./RepairProjects";
 import { CommonsRules } from "./CommonsRules";
 import { FoodAllocation } from "./FoodAllocation";
 import { GrainConvoys } from "./GrainConvoys";
+import { GuildLeagues } from "./GuildLeagues";
 import { HouseholdRetail } from "./HouseholdRetail";
 import { LearningCohorts } from "./LearningCohorts";
 import { LocalBudgets } from "./LocalBudgets";
@@ -38,7 +40,7 @@ const PACKAGES = ["workshops", "workshop_payroll", "food_allocation", "timber_st
   "commons_rules", "learning_cohorts", "relocation_costs", "local_budgets", "clearing_protection",
   "remittances", "apprenticeship", "veteran_reintegration", "repair_projects", "operating_wear", "timber_supply",
   "recovery_crews", "maintenance_obligation", "reform_services", "household_retail", "watershed",
-  "workshop_economics", "attribution_records", "wealth_accounting"];
+  "workshop_economics", "guild_leagues", "attribution_records", "wealth_accounting"];
 
 export function LivelihoodsPanel(panelProps: SystemPanelProps) {
   const { bundle, snapshot, currentTurn, onSelectRegion } = panelProps;
@@ -53,6 +55,8 @@ export function LivelihoodsPanel(panelProps: SystemPanelProps) {
   const attribution = useMemo(() => attributionOn(bundle.history), [bundle]);
   // Poor relief services (D1a) likewise mount on the run's records.
   const relief = useMemo(() => reformServicesOn(bundle.history), [bundle]);
+  // Guild leagues (D1b) too.
+  const leagues = useMemo(() => guildLeaguesOn(bundle.history), [bundle]);
   const row = snapshot as unknown as Record<string, unknown> | null;
   const raw = row?.livelihoods ?? null;
   const readable = typeof raw === "object" && raw !== null && !Array.isArray(raw)
@@ -89,6 +93,7 @@ export function LivelihoodsPanel(panelProps: SystemPanelProps) {
     {record?.maintenance_obligation != null ? <MaintenanceObligation {...props} /> : null}
     {mount("remittances") ? <Remittances {...props} /> : null}
     {watershed ? <Watershed {...props} /> : null}
+    {leagues ? <GuildLeagues {...props} /> : null}
     {attribution ? <AttributionRecords {...props} /> : null}
     {record?.wealth_accounting != null ? <WealthAccounting {...props} /> : null}
     {raw === null ? <p className="systems-note">No livelihoods observation is recorded at snapshot {at}.</p> : null}

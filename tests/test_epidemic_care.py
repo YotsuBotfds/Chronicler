@@ -889,11 +889,12 @@ def test_a_capacity_row_naming_no_region_and_one_left_unconsumed_are_counted():
 
 def test_carers_are_booked_after_every_other_work_consumer():
     """C2 names its carers after every other package's Phase 2 planning: no
-    switch after it in the hook order plans work, apart from the observers."""
+    switch after it in the hook order plans work, apart from the observers
+    (and D1b's guild leagues, which move purses and book no work)."""
     from importlib import import_module
     from chronicler.livelihoods_state import LIVELIHOODS_SWITCHES
     later = LIVELIHOODS_SWITCHES[LIVELIHOODS_SWITCHES.index("epidemic_care") + 1:]
-    assert later == ("attribution_records", "wealth_accounting")
+    assert later == ("guild_leagues", "attribution_records", "wealth_accounting")
     for name in later:
         module = import_module("chronicler." + name)
         assert not hasattr(module, "reserve_first")

@@ -639,6 +639,10 @@ def _sack(t: _Tick, city: City, region, sacker_idx: int, cause: str | None, *,
         # receives (a no-op unless active).
         from chronicler.attribution_records import note_city_sack
         note_city_sack(world, city, sacker_idx, victim_idx, loot, paid)
+        # --guild-leagues (D1b): a league member's plunder, noted for its
+        # league's claim (a no-op unless active).
+        from chronicler.guild_leagues import note_city_sack as note_league_sack
+        note_league_sack(world, city, loot, ev.event_id)
 
 
 def _update_rank(t: _Tick, city: City, region, residents: int, k: float) -> None:
@@ -707,6 +711,10 @@ def _commerce(t: _Tick, city: City, region, food: float, k: float) -> None:
         # (a no-op unless active).
         from chronicler.attribution_records import note_city_dues
         note_city_dues(t.world, city, commerce, share, dues, guild)
+        # --guild-leagues (D1b): a league member's levy share of these dues,
+        # noted for its league's claim (a no-op unless active).
+        from chronicler.guild_leagues import note_city_dues as note_league_dues
+        note_league_dues(t.world, city, commerce, dues, guild)
     city.commerce = _q(commerce)
     if guild is None:
         city.wealth = _q(city.wealth * (1.0 - WEALTH_DECAY) + commerce - dues)

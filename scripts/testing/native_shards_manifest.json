@@ -90,6 +90,8 @@
       "tests/test_grain_convoys.py",
       "tests/test_grain_storage.py",
       "tests/test_great_persons.py",
+      "tests/test_guild_leagues.py",
+      "tests/test_guild_leagues_native.py",
       "tests/test_guilds.py",
       "tests/test_harvest_forecast_delay.py",
       "tests/test_harvest_forecasts.py",
