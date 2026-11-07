@@ -1,0 +1,20 @@
+{
+  "path": "/workspace/evidence/cwr-evaluation/run-development-schema.py",
+  "sha256": "114fff482418688dc4824f8499c5c3d59f523036decaa4f394b0c58bed473387",
+  "argv": [
+    "/workspace/evidence/cwr-evaluation/run-development-schema.py",
+    "--checkout",
+    "/workspace/cwr-corrected-v2",
+    "--expected-source",
+    "09403c15070ddab4977ae8b2e65c336238468447",
+    "--expected-native-sha",
+    "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
+    "--out",
+    "/workspace/evidence/cwr-evaluation/dev-schema-094-v2"
+  ],
+  "seed_notes": [
+    "template pilot seed 5 was also used by m-af1-t (M-AF1 runtime-correctness baseline and post batches); a timing pilot is never held",
+    "template pilot seed 5 was also used by m58b-t (M58b development run); a timing pilot is never held"
+  ],
+  "purpose": "all12 t5 control schema cases plus AD p19; eight turns; no held world; cannot authorize held budget"
+}

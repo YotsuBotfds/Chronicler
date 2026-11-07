@@ -1,0 +1,12 @@
+
+> viewer@0.0.0 test
+> vitest run --maxWorkers=1
+
+
+ RUN  v4.1.0 /workspace/cwr-viewer/viewer
+
+
+ Test Files  194 passed (194)
+      Tests  1786 passed | 2 skipped (1788)
+   Start at  21:24:11
+   Duration  297.59s (transform 6.91s, setup 7.18s, import 19.87s, tests 158.49s, environment 87.78s)

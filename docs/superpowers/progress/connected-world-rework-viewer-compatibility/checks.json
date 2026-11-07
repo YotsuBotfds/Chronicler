@@ -1,0 +1,74 @@
+{
+  "source_full_suite": "5e41223b2513b17cfb3350c437cc1a96111001a3",
+  "source_followup": "71accf9449965ac77936e69f0391ef9a43b5bbcd",
+  "full_suite": {
+    "command": "npm --prefix viewer test -- --maxWorkers=1",
+    "files_passed": 194,
+    "tests_passed": 1786,
+    "tests_skipped": 2,
+    "duration_seconds": 297.59,
+    "skips": "Existing conditional recordReading cases where a contract has no unobserved state or does not use livelihoods."
+  },
+  "focused_archive": {
+    "command": "npm --prefix viewer test -- src/lib/__tests__/gzipBundles.test.ts src/hooks/__tests__/useBundleWorker.test.ts src/lib/__tests__/savedWorldFiles.test.ts --maxWorkers=1",
+    "files_passed": 3,
+    "tests_passed": 78
+  },
+  "followup": {
+    "command": "npm --prefix viewer test -- src/components/systems/__tests__/PublicHealth.test.tsx --maxWorkers=1",
+    "files_passed": 1,
+    "tests_passed": 4
+  },
+  "lint": {
+    "command": "npm --prefix viewer run lint",
+    "full_suite_source": "passed",
+    "followup_source": "passed"
+  },
+  "build": {
+    "command": "npm --prefix viewer run build",
+    "full_suite_source": "passed",
+    "followup_source": "passed",
+    "warnings": [
+      "Some chunks larger than500kB after minification"
+    ]
+  },
+  "browser": {
+    "archive_checks": 32,
+    "corrected_decisions_initial_checks": 46,
+    "corrected_health_checks": 78,
+    "strengthened_layout_before": {
+      "checks": 50,
+      "failed": 1,
+      "failing_check": "phoneT8 prose stays readable and wide tables scroll within section"
+    },
+    "strengthened_layout_after": {
+      "checks": 50,
+      "failed": 0
+    },
+    "legacy_health_checks": 90
+  },
+  "archive_profile": {
+    "samples": 24,
+    "elapsed_seconds": 141.51360097199998,
+    "equal_visible_histories": true,
+    "all_predeclared_median_budgets_met": true
+  },
+  "environment": {
+    "node": "v24.19.0",
+    "chromium": "Chromium 154.0.8037.57",
+    "cpu_cgroup": {
+      "quota": 400000,
+      "period": 100000
+    },
+    "memory_cgroup_bytes": 17179869184,
+    "browser_processes": 1,
+    "decode_expectations_python": "/workspace/cw-evidence-native/bin/python, CPython3.13.5; bundle_codec only; no simulation/native call"
+  },
+  "unrun": [
+    "Full viewer suite not repeated for7line followup; focused tests/build/lint/browser rerun",
+    "Integrated premerge and main CI remain lead gates",
+    "Real complete20turn arrivalwindow browser witness awaiting integrated120T bundle",
+    "Physical handset, Firefox/Safari and browser RSS profiling",
+    "Rust/native/simulation qualification not run in this viewer lane"
+  ]
+}

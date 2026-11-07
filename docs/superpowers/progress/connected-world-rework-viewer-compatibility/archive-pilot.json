@@ -1,0 +1,163 @@
+{
+  "generated": "2026-11-07T21:28:13.628Z",
+  "config": {
+    "build": "/workspace/cwr-viewer/viewer/dist",
+    "plain": {
+      "file": "/workspace/evidence/cw6/pilot-final/runs/FULL-p19/chronicle_bundle.json",
+      "sha256": "f6cb5562a4aaec888b6f2a03b4c4b01bd1e8d49737aec22673034eba30ce0ee2"
+    },
+    "archive": {
+      "file": "/workspace/evidence/cwr-viewer/chronicle_bundle.json.gz",
+      "sha256": "0caf4aa01962c83052e41895bd8b5945f54630a334770eacb85896f4b3fdc790"
+    },
+    "worker_modes": [
+      "default"
+    ],
+    "repeats": 1,
+    "elapsed_ceiling_seconds": 100
+  },
+  "build_assets": {
+    "assets/AreaChart-DDQa9jyr.js": "eca9407f91595a949d4e216fcfcada8c1e4f265a3c23a21e8c3c004caaa33065",
+    "assets/BatchAnalytics-BBQ2VFTN.js": "a794ba99c04fc0273744f87eb3159746ca8bf644df9c53a01ff9cda974588042",
+    "assets/BatchCompare-CS4vW-yu.css": "35c60ba060a011a452342ccde389ab3c89960ed3492610c41cd3314b261beb80",
+    "assets/BatchCompare-DnC1W2Pp.js": "65d47c1c7ecd8f364ca3652e3e4e0443fbf50ac396f20fb039a81c6e40d5afbf",
+    "assets/BatchPanel-CKgz-r58.js": "44b1210c3c104e567d515543576b6008c5d7ac68e5458fef4384e3cf36bafd09",
+    "assets/bundleDecode.worker-BGR_W8B6.js": "2d19a8295a409b436b20808408ade7a0e02131c9ce3df6c02ac8f9a712ade86d",
+    "assets/CartesianChart-DhBNa9BX.js": "514899a347c69160f4fa1fb7c0ced5b579bfb4021fc8943ba916a1aeeb2b597d",
+    "assets/ChronicleSources-BokH5KZ1.js": "95ee2a67b55aec548eb668904e491eb994604759953a54feac22248b958b9202",
+    "assets/ChronicleSources-BTNieffh.css": "15891ddf7a9dfaf14b79d99777c0a03c8c7f962f0a63b26867d32bc0606ad285",
+    "assets/faiths-Cw5iQFVm.js": "8e7a0d2b48f577e8c58303f8797c0c3fbd3f4b175a0e6d705a34bd78892a0367",
+    "assets/index-CQnzAFm-.css": "d1ac1e8fb3f497a788f6520aaaba403fe54684caf2df04bca495ece62172ebd5",
+    "assets/index-i2eZ8D9V.js": "03a2ba7a4940f4ddc42ecb966059e3a54193911062fe1f3207ae62c9eaa4356c",
+    "assets/InterventionPanel-BaVtBPcV.css": "af2700d69880d25ce71113aea0882c1f9cfea110e9a356935df372fb6d70628f",
+    "assets/InterventionPanel-DRs4b98w.js": "5e1f0468097c145d9aff90e2b802d23573bc4aace745dd611dab5757ba34e089",
+    "assets/LanguagesPanel-CLOQAddr.js": "f608fe78137b22d4d8255e36ac2318aeb2860972a782b8fabc6893f0da503ffb",
+    "assets/learningServices-DNMQNWeB.js": "3c28ac55c7c38487c246e5133417bc7e4ecfba16d70b340b337651f20f3bc1c0",
+    "assets/LineChart-Cj_A-g8S.js": "3c286bcfc2f46d92202c06c6b489ea54d9fd683a63ec176bd18b0c9459c15362",
+    "assets/RegionHistoryInspector-BGEW2wUl.js": "4515d5b531ec074176e2dbaa9b2de976a0321b58b5030b4b326d9e4212493379",
+    "assets/RegionHistoryInspector-C0OEWtd0.css": "0c2304e349c6101f77a2f6e69d795c9ecf157c981e29cf7b766e81bef9058a39",
+    "assets/SystemsPanel-DxNUUiXG.js": "201d282d2fd236bc870fbf7ef6aee92c526e568e3744117174ffd0c1951eb89a",
+    "assets/watershed-DvJh8fZd.js": "6d51b5b3637d2ecd494bff7dc1c4664bf0b04e5aba1aa584559edd2eb0ceaa20",
+    "favicon.svg": "61bc9a161de58248288e6905425d7180f0624c2865007b97d763fdac12043a66",
+    "icons.svg": "b45fa506195cfcdef406ba9f0c77b36ddc1a7c224040926ec70abc2fdea7b93a",
+    "index.html": "4ed743e3738c8f48d2107721459c453e42ea620088fa17fba2db3e1025b11a64"
+  },
+  "script_sha256": "0eeda663206d38ecd0fa97dc18d8a57e816ed272c6b31b4c75906384439b3444",
+  "measurements": [
+    {
+      "mode": "default",
+      "repeat": 0,
+      "variant": "plain",
+      "viewport": "desktop",
+      "input_sha256": "f6cb5562a4aaec888b6f2a03b4c4b01bd1e8d49737aec22673034eba30ce0ee2",
+      "input_bytes": 37962968,
+      "timings_ms": {
+        "load": 2196.1170060000004,
+        "cold_history": 1311.8905409999988,
+        "warm_history": 1237.7621569999992
+      },
+      "messages": [],
+      "decode_phases": {
+        "startedAt": 1794086904066.8,
+        "read": 58.30000000074506,
+        "decode": 1086.300000000745,
+        "receive": 428.6000000014901,
+        "longestReceive": 138.5,
+        "parts": 20
+      },
+      "original_identity_visible": true,
+      "entities": 3279,
+      "entities_sha256": "b7fc4c1951f2c56b4c2abfe9e05a8f65325c54641c7c1893d7ce262547162927",
+      "selected": "person:13",
+      "rows": 24,
+      "displayed_history_sha256": "c2c697e9667eb88d9ef991095ae5c214e895fd8145cf1dd5d350a9e0dca73858"
+    },
+    {
+      "mode": "default",
+      "repeat": 0,
+      "variant": "plain",
+      "viewport": "phone",
+      "input_sha256": "f6cb5562a4aaec888b6f2a03b4c4b01bd1e8d49737aec22673034eba30ce0ee2",
+      "input_bytes": 37962968,
+      "timings_ms": {
+        "load": 2077.8072269999975,
+        "cold_history": 1233.903935000002,
+        "warm_history": 1094.3090459999985
+      },
+      "messages": [],
+      "decode_phases": {
+        "startedAt": 1794086910805.6,
+        "read": 76.10000000149012,
+        "decode": 1109.699999999255,
+        "receive": 460.20000000298023,
+        "longestReceive": 133.69999999925494,
+        "parts": 20
+      },
+      "original_identity_visible": true,
+      "entities": 3279,
+      "entities_sha256": "b7fc4c1951f2c56b4c2abfe9e05a8f65325c54641c7c1893d7ce262547162927",
+      "selected": "person:13",
+      "rows": 24,
+      "displayed_history_sha256": "c2c697e9667eb88d9ef991095ae5c214e895fd8145cf1dd5d350a9e0dca73858"
+    },
+    {
+      "mode": "default",
+      "repeat": 0,
+      "variant": "archive",
+      "viewport": "desktop",
+      "input_sha256": "0caf4aa01962c83052e41895bd8b5945f54630a334770eacb85896f4b3fdc790",
+      "input_bytes": 9460726,
+      "timings_ms": {
+        "load": 2218.609274999999,
+        "cold_history": 1369.1315470000009,
+        "warm_history": 1344.418700000002
+      },
+      "messages": [],
+      "decode_phases": {
+        "startedAt": 1794086917349.5999,
+        "read": 14.800000000745058,
+        "decode": 1195.8999999985099,
+        "receive": 414.4000000022352,
+        "longestReceive": 124.10000000149012,
+        "parts": 20
+      },
+      "original_identity_visible": true,
+      "entities": 3279,
+      "entities_sha256": "b7fc4c1951f2c56b4c2abfe9e05a8f65325c54641c7c1893d7ce262547162927",
+      "selected": "person:13",
+      "rows": 24,
+      "displayed_history_sha256": "c2c697e9667eb88d9ef991095ae5c214e895fd8145cf1dd5d350a9e0dca73858"
+    },
+    {
+      "mode": "default",
+      "repeat": 0,
+      "variant": "archive",
+      "viewport": "phone",
+      "input_sha256": "0caf4aa01962c83052e41895bd8b5945f54630a334770eacb85896f4b3fdc790",
+      "input_bytes": 9460726,
+      "timings_ms": {
+        "load": 2523.0003750000033,
+        "cold_history": 1343.3810789999989,
+        "warm_history": 1043.845779999996
+      },
+      "messages": [],
+      "decode_phases": {
+        "startedAt": 1794086924542.8,
+        "read": 20.700000002980232,
+        "decode": 1332,
+        "receive": 558.5999999903142,
+        "longestReceive": 152.5,
+        "parts": 20
+      },
+      "original_identity_visible": true,
+      "entities": 3279,
+      "entities_sha256": "b7fc4c1951f2c56b4c2abfe9e05a8f65325c54641c7c1893d7ce262547162927",
+      "selected": "person:13",
+      "rows": 24,
+      "displayed_history_sha256": "c2c697e9667eb88d9ef991095ae5c214e895fd8145cf1dd5d350a9e0dca73858"
+    }
+  ],
+  "elapsed_seconds": 27.472086893000004,
+  "note": "Fresh Chromium context for every cold load; warm is same-page tab reopen. Same build and expanded bytes, desktop/phone viewports, no CPU throttling. File/load timings include inflation; worker decode detail includes inflation and JSON expansion. Main-thread fallback is measured separately. No simulation, no data reduction, no RSS claim.",
+  "equal_visible_histories": true
+}

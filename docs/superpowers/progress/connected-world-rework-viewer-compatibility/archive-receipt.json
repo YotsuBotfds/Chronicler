@@ -1,0 +1,23 @@
+{
+  "source": "/workspace/evidence/cw6/pilot-final/runs/FULL-p19/chronicle_bundle.json",
+  "archive": "/workspace/evidence/cwr-viewer/chronicle_bundle.json.gz",
+  "compression": "gzip",
+  "level": 1,
+  "source_sha256": "f6cb5562a4aaec888b6f2a03b4c4b01bd1e8d49737aec22673034eba30ce0ee2",
+  "archive_sha256": "0caf4aa01962c83052e41895bd8b5945f54630a334770eacb85896f4b3fdc790",
+  "source_bytes": 37962968,
+  "archive_bytes": 9460726,
+  "source_unchanged": true,
+  "byte_exact_round_trip": true,
+  "bundle_version": 6,
+  "snapshots": 120,
+  "validation": "JSON-object syntax and exact transport bytes; not model/history qualification",
+  "validation_cpu_s": 0.8204659470000001,
+  "validation_wall_s": 0.8248371449990373,
+  "compression_cpu_s": 0.26786856299999995,
+  "compression_wall_s": 0.2707288929996139,
+  "verification_cpu_s": 0.12820973899999988,
+  "verification_wall_s": 0.1296335490005731,
+  "total_cpu_s": 1.2170645709999999,
+  "total_wall_s": 1.2264043949980987
+}
