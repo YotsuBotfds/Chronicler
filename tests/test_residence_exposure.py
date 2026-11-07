@@ -210,6 +210,29 @@ def test_deferred_traveller_is_unknown_coverage_and_is_not_a_new_residential_arr
     assert _state(world).rows[1].move_turn is None
 
 
+def test_recovered_row_cap_does_not_turn_unobserved_prior_arrivals_into_a_known_zero(monkeypatch):
+    monkeypatch.setattr(RL, "MAX_ROWS", 1)
+    world, sim = _start(people=2)  # id2 is alive but its residence row is refused
+    step(world, sim, moves=[(2, 0, 1, None)])  # T2: an actual move outside coverage
+    step(world, sim, deaths=[1])  # T3: the formerly held row dies
+    while world.turn <= 20:
+        frame = step(world, sim)
+    # The current population is fully observed, but its T2 movement is still
+    # inside the T1..T20 window and was never observed by the ledger. A current
+    # complete headcount cannot retroactively establish a complete history.
+    assert frame["totals"]["observed"] == frame["totals"]["alive"] == 1
+    assert frame["totals"][ARRIVALS] == 0
+    assert frame["arrival_diagnostics"]["coverage_complete"] is True
+    assert frame["arrival_diagnostics"]["window_complete"] is False
+    assert _environment(world)[1]["recent_arrival_share"] is None
+    # Full coverage began at T4: the first entirely observed20-turn window is
+    # T4..T23. The earlier actual arrival has then genuinely aged out.
+    while world.turn <= 23:
+        frame = step(world, sim)
+    assert frame["arrival_diagnostics"]["complete"] is True
+    assert _environment(world)[1]["recent_arrival_share"] == 0.0
+
+
 @pytest.mark.parametrize("reset", ["gap", "pool"])
 def test_observation_gap_or_pool_reset_starts_a_new_incomplete_window_without_old_identity(reset):
     world, sim = _start()
