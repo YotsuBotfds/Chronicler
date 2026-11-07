@@ -262,8 +262,8 @@ def flood_events(arrivals, channel, recession: float):
                     open_at[r][2] += 1
                 else:
                     events.append(tuple(open_at.pop(r)))
-            elif arrivals[k, r] > channel[k, r]:
-                open_at[r] = [r, k, 1]
+            elif k > 0 and arrivals[k, r] > channel[k, r] and arrivals[k - 1, r] <= channel[k - 1, r]:
+                open_at[r] = [r, k, 1]       # crosses the channel from below; never on the opening turn
     events.extend(tuple(v) for v in open_at.values())
     return events
 

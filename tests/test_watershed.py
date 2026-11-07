@@ -69,6 +69,21 @@ def _phase9(world):
     return events
 
 
+def _settle(world, down):
+    """One settled turn with ``down`` and its tributaries emptied (below the channel), so a
+    later overflow crosses the channel from below (the opening turn starts no flood event)."""
+    state = _state(world)
+    for r in [u for u, d in enumerate(state.graph.down) if d == down] + [down]:
+        _set_storage(state, r, 0.0)
+    if state.mode == "flow":
+        before_ecology(world, acc=None, native=True)
+        after_ecology(world, acc=None)
+        world.turn += 1
+    else:
+        _phase9(world)
+    assert state.frame.columns["flood_excess"][down] == 0.0
+
+
 def _headwater_chain(state):
     """A region with an inland tributary (the first confluence-like edge)."""
     down = state.graph.down
@@ -337,6 +352,7 @@ def test_a_flood_is_recorded_with_the_arrivals_and_tributaries_that_caused_it():
     world = _world(11)
     state = _state(world)
     up, down = _headwater_chain(state)
+    _settle(world, down)
     _set_storage(state, up, 10.0)                   # far above capacity: it overflows downstream
     _phase9(world)
     flood = next(f for f in state.frame.floods if f.region == down)
@@ -871,6 +887,7 @@ def test_flow_writes_the_derived_index_and_floods_act_through_existing_fields(mo
     world = _flow_world(monkeypatch)
     state = _state(world)
     up, down = _headwater_chain(state)
+    _settle(world, down)
     _set_storage(state, up, 10.0)                       # overflow: the downstream region floods
     region = world.regions[down]
     region.capacity_modifier, soil = 1.0, region.ecology.soil
@@ -902,6 +919,7 @@ def test_record_only_floods_have_no_consequence_and_records_have_the_b2_shape():
     world = _world(11)
     state = _state(world)
     up, down = _headwater_chain(state)
+    _settle(world, down)
     _set_storage(state, up, 10.0)
     _phase9(world)
     record = livelihoods_snapshot_fields(world)["livelihoods"]["watershed"]
@@ -1073,6 +1091,7 @@ def test_floods_are_events_with_hysteresis_and_act_once_per_event(monkeypatch):
     world = _flow_world(monkeypatch)
     state = _state(world)
     up, down = _isolated_edge(state)
+    _settle(world, down)
     region = world.regions[down]
     region.disaster_cooldowns.clear()
     region.capacity_modifier = 1.0
@@ -1109,6 +1128,7 @@ def test_a_flood_on_a_region_under_a_cooldown_is_withheld_and_a_coastal_surge_is
     world = _flow_world(monkeypatch)
     state = _state(world)
     up, down = _isolated_edge(state)
+    _settle(world, down)
     region = world.regions[down]
     region.disaster_cooldowns = {"flood": 10}                     # e.g. a coastal flood struck in Phase 1
     region.capacity_modifier, soil = 1.0, region.ecology.soil
@@ -1130,6 +1150,7 @@ def test_a_flood_modifier_ends_with_its_cooldown_even_when_another_cooldown_hold
     world = _flow_world(monkeypatch)
     state = _state(world)
     up, down = _isolated_edge(state)
+    _settle(world, down)
     region = world.regions[down]
     region.disaster_cooldowns.clear()
     region.capacity_modifier = 1.0
@@ -1151,6 +1172,7 @@ def test_record_only_floods_are_events_without_consequences_or_chronicle_events(
     world = _world(11)
     state = _state(world)
     up, down = _isolated_edge(state)
+    _settle(world, down)
     _set_storage(state, up, 10.0)
     events = _phase9(world)
     assert any(f.region == down for f in state.frame.floods) and events == []
@@ -1195,3 +1217,20 @@ def test_a_watershed_mode_without_the_switch_is_refused_on_a_new_world():
     world = _procedural(11)
     with pytest.raises(ValueError, match="requires --watershed"):
         configure_livelihoods(world, _build_parser().parse_args(["--watershed-mode", "flow"]), agent_mode="off")
+
+
+def test_the_opening_turn_starts_no_flood_event_and_an_onset_needs_a_turn_below_the_channel():
+    world = _world(11)
+    state = _state(world)
+    up, down = _isolated_edge(state)
+    _set_storage(state, up, 10.0)                                  # storage opens far above capacity
+    _phase9(world)                                                 # the opening turn: above the channel
+    assert state.frame.columns["flood_excess"][down] > 0.0 and not state.frame.floods
+    _set_storage(state, up, 10.0)
+    _phase9(world)                                                 # still above, never seen below: no onset
+    assert state.frame.columns["flood_excess"][down] > 0.0 and all(f.region != down for f in state.frame.floods)
+    _settle(world, down)                                           # a turn below the channel
+    _set_storage(state, up, 10.0)
+    _phase9(world)                                                 # crosses from below: an event starts
+    assert any(f.region == down for f in state.frame.floods)
+    assert state.counters["flood_region_turns"] >= 3 and state.counters["floods_started"] >= 1

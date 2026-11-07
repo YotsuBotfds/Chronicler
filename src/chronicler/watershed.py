@@ -58,7 +58,8 @@ continuous at enable and the world-generation river bonus is inside it.
 
 Conditions. A flood event starts on a settled turn whose arrivals ``P + I``
 (channel flow; an external inflow is not counted) exceed the region's
-channel capacity while no event is open there, and stays open while
+channel capacity after a settled turn at or below it (never on the opening
+turn), while no event is open there, and stays open while
 arrivals exceed ``flood_recession`` x channel (hysteresis). The channel is
 ``channel_ratio`` x the normal inflow of the region's drainage basin (normal
 precipitation plus the seasonal melt of its terrain in this phase), so only
@@ -735,10 +736,17 @@ def before_ecology(world, acc, *, native: bool | None = None) -> None:
 
 def _onsets(state: WatershedState, plan: _Plan) -> list[int]:
     """Regions where a flood event starts this turn: arrivals above the channel
-    (``flood_excess`` > 0) and no event open there (an open event ends only
-    below the recession threshold, so an onset crosses the channel from below)."""
+    (``flood_excess`` > 0) after a settled turn at or below it, with no event
+    open there. An onset crosses the channel from below: the opening turn has no
+    settled turn before it (its storage opens from the world-generation index,
+    often near capacity), so it starts no event; nor does a turn that stays
+    above the channel without an open event."""
+    previous = state.frame.columns["flood_excess"] if state.frame is not None else None
+    if previous is None or len(previous) != len(plan.columns["flood_excess"]):
+        return []
     open_regions = {event.region for event in state.flood_events}
-    return [r for r, excess in enumerate(plan.columns["flood_excess"]) if excess > 0.0 and r not in open_regions]
+    return [r for r, excess in enumerate(plan.columns["flood_excess"])
+            if excess > 0.0 and previous[r] <= 0.0 and r not in open_regions]
 
 
 def _apply_flow(world, plan: _Plan, state: WatershedState) -> None:
