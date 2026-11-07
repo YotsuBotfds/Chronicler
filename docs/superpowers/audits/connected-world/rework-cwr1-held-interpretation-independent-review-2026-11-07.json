@@ -1,0 +1,5172 @@
+{
+  "scope": "Independent closed-CWR1 source/contracts/results interpretation and compact arithmetic review; no new simulation, native import or raw history decode",
+  "status": "APPROVED_CLOSED_SCREEN_WITH_PRESENTATION_ERRATUM_REQUIRED",
+  "held_source": "b45c1e99572d4d6a60fb01fbd75cb7688aa54e93",
+  "runtime_production_equivalent": "8792be88dd36ba4d7c22e480de6a19dd64ea1300",
+  "identity": "98c7bb2accb18b04e68f0585780ba58f85f03ece77c987d82ff67ceb7d9370a8",
+  "native_sha256": "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
+  "artifact_sha256": {
+    "metrics.jsonl": "6c56e3ffa725848c69aecf6f2edfcdf81adb18e5c5f038562e2c9d3c73ace9e0",
+    "report.md": "e5d64f1658265a64ed100d158d650d29eed1f0247d77ea980599c3a145eaf2c3",
+    "receipt.json": "244ac65f49b01a718ff251a13fe93cddc493e9e9f22adb901fb1466e918383eb",
+    "source.txt": "15518b8afd713619579ae268b48eb9df796255672cc9368ad18dee0698599c73",
+    "resource-measurement.json": "5f54a3dfe62857c1d2494510bfc861d3db1e01b1793b21704b83b775682d6023"
+  },
+  "rows": 144,
+  "worlds": 12,
+  "arms": 12,
+  "turns_per_run": 120,
+  "all_worlds_included": true,
+  "primaries": {
+    "t": {
+      "cwr_food": {
+        "world_differences": [
+          557.4919501477852,
+          2320.660319079645,
+          339.86063965491485,
+          908.5526765622199,
+          357.3245474733412,
+          390.6971746291965
+        ],
+        "n": 6,
+        "unknown": 0,
+        "mean": 812.4312179245171,
+        "min": 339.86063965491485,
+        "max": 2320.660319079645,
+        "positive": 6,
+        "negative": 0,
+        "zero": 0,
+        "paired_world_bootstrap_95": [
+          390.42658317224897,
+          1441.9879971765913
+        ],
+        "sign_flips": {
+          "at_least_as_extreme": 2,
+          "assignments": 64
+        }
+      },
+      "cwr_epidemic": {
+        "world_differences": [
+          69,
+          40,
+          56,
+          0,
+          -16,
+          32
+        ],
+        "n": 6,
+        "unknown": 0,
+        "mean": 30.166666666666668,
+        "min": -16,
+        "max": 69,
+        "positive": 4,
+        "negative": 1,
+        "zero": 1,
+        "paired_world_bootstrap_95": [
+          6.166666666666667,
+          53.666666666666664
+        ],
+        "sign_flips": {
+          "at_least_as_extreme": 8,
+          "assignments": 64
+        }
+      },
+      "cwr_crowding_interaction": {
+        "world_differences": [
+          3,
+          -15,
+          -54,
+          0,
+          -17,
+          -27
+        ],
+        "n": 6,
+        "unknown": 0,
+        "mean": -18.333333333333332,
+        "min": -54,
+        "max": 3,
+        "positive": 1,
+        "negative": 4,
+        "zero": 1,
+        "paired_world_bootstrap_95": [
+          -34.333333333333336,
+          -4.333333333333333
+        ],
+        "sign_flips": {
+          "at_least_as_extreme": 8,
+          "assignments": 64
+        }
+      }
+    },
+    "p": {
+      "cwr_food": {
+        "world_differences": [
+          3731.2149211075157,
+          2536.9289029063657,
+          1092.86372278817,
+          3201.7342221834697,
+          -677.0637295693159,
+          2605.6409205948003
+        ],
+        "n": 6,
+        "unknown": 0,
+        "mean": 2081.8864933351674,
+        "min": -677.0637295693159,
+        "max": 3731.2149211075157,
+        "positive": 5,
+        "negative": 1,
+        "zero": 0,
+        "paired_world_bootstrap_95": [
+          755.0174383034464,
+          3156.626015399117
+        ],
+        "sign_flips": {
+          "at_least_as_extreme": 4,
+          "assignments": 64
+        }
+      },
+      "cwr_epidemic": {
+        "world_differences": [
+          209,
+          92,
+          37,
+          141,
+          151,
+          -214
+        ],
+        "n": 6,
+        "unknown": 0,
+        "mean": 69.33333333333333,
+        "min": -214,
+        "max": 209,
+        "positive": 5,
+        "negative": 1,
+        "zero": 0,
+        "paired_world_bootstrap_95": [
+          -52.166666666666664,
+          159.33333333333334
+        ],
+        "sign_flips": {
+          "at_least_as_extreme": 20,
+          "assignments": 64
+        }
+      },
+      "cwr_crowding_interaction": {
+        "world_differences": [
+          -145,
+          -198,
+          -39,
+          -47,
+          -63,
+          233
+        ],
+        "n": 6,
+        "unknown": 0,
+        "mean": -43.166666666666664,
+        "min": -198,
+        "max": 233,
+        "positive": 1,
+        "negative": 5,
+        "zero": 0,
+        "paired_world_bootstrap_95": [
+          -137.5,
+          75.33333333333333
+        ],
+        "sign_flips": {
+          "at_least_as_extreme": 30,
+          "assignments": 64
+        }
+      }
+    }
+  },
+  "secondary_support": {
+    "t": {
+      "AD-RD": {
+        "food_shortfall": {
+          "world_differences": [
+            557.4919501477852,
+            2320.660319079645,
+            339.86063965491485,
+            908.5526765622199,
+            357.3245474733412,
+            390.6971746291965
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 812.4312179245171,
+          "min": 339.86063965491485,
+          "max": 2320.660319079645,
+          "positive": 6,
+          "negative": 0,
+          "zero": 0
+        },
+        "epidemic_deaths": {
+          "world_differences": [
+            69,
+            40,
+            56,
+            0,
+            -16,
+            32
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 30.166666666666668,
+          "min": -16,
+          "max": 69,
+          "positive": 4,
+          "negative": 1,
+          "zero": 1
+        },
+        "food_shortfall_per_1000_pt": {
+          "world_differences": [
+            10.277472498431749,
+            72.32130754574604,
+            14.310357932333588,
+            25.752733259275928,
+            6.012541418195639,
+            -9.449974204515172
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 19.87073974157796,
+          "min": -9.449974204515172,
+          "max": 72.32130754574604,
+          "positive": 5,
+          "negative": 1,
+          "zero": 0
+        },
+        "epidemic_deaths_per_1000_pt": {
+          "world_differences": [
+            2.068972326973004,
+            0.9427170436569825,
+            2.1396726268167567,
+            -0.014777857668933886,
+            -0.6137856771870762,
+            1.1633081808591585
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.9476844405749819,
+          "min": -0.6137856771870762,
+          "max": 2.1396726268167567,
+          "positive": 4,
+          "negative": 2,
+          "zero": 0
+        },
+        "person_turns": {
+          "world_differences": [
+            2297,
+            4769,
+            -474,
+            2351,
+            1718,
+            3033
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 2282.3333333333335,
+          "min": -474,
+          "max": 4769,
+          "positive": 5,
+          "negative": 1,
+          "zero": 0
+        },
+        "retail_access_unknown_region_turns": {
+          "world_differences": [
+            0,
+            0,
+            0,
+            97,
+            0,
+            6
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 17.166666666666668,
+          "min": 0,
+          "max": 97,
+          "positive": 2,
+          "negative": 0,
+          "zero": 4
+        },
+        "native_food_produced": {
+          "world_differences": [
+            644.6859473884106,
+            -176.11955924332142,
+            -420.02195191942155,
+            441.3714311271906,
+            529.9384971261024,
+            1101.2233704924583
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 353.51295582856983,
+          "min": -420.02195191942155,
+          "max": 1101.2233704924583,
+          "positive": 4,
+          "negative": 2,
+          "zero": 0
+        },
+        "native_food_demand": {
+          "world_differences": [
+            1053.5,
+            2483.0,
+            -264.5,
+            1140.0,
+            914.0,
+            1506.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 1138.6666666666667,
+          "min": -264.5,
+          "max": 2483.0,
+          "positive": 5,
+          "negative": 1,
+          "zero": 0
+        }
+      },
+      "AL-RL": {
+        "food_shortfall": {
+          "world_differences": [
+            14.651472569443285,
+            2099.665443908423,
+            454.22755038458854,
+            910.8109907321632,
+            147.18754758685827,
+            1348.4067887738347
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 829.1582989925519,
+          "min": 14.651472569443285,
+          "max": 2099.665443908423,
+          "positive": 6,
+          "negative": 0,
+          "zero": 0
+        },
+        "epidemic_deaths": {
+          "world_differences": [
+            72,
+            25,
+            2,
+            0,
+            -33,
+            5
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 11.833333333333334,
+          "min": -33,
+          "max": 72,
+          "positive": 4,
+          "negative": 1,
+          "zero": 1
+        },
+        "food_shortfall_per_1000_pt": {
+          "world_differences": [
+            0.8115569657177275,
+            69.15983950632969,
+            21.236617857523512,
+            26.31091807111649,
+            -0.9243206279404745,
+            20.873719739919636
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 22.91138858544443,
+          "min": -0.9243206279404745,
+          "max": 69.15983950632969,
+          "positive": 5,
+          "negative": 1,
+          "zero": 0
+        },
+        "epidemic_deaths_per_1000_pt": {
+          "world_differences": [
+            2.443053393237174,
+            0.5295454383268918,
+            0.2281382830278753,
+            -0.013981350123806746,
+            -1.1648702123900558,
+            -0.23466361633802002
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.29787032262334306,
+          "min": -1.1648702123900558,
+          "max": 2.443053393237174,
+          "positive": 3,
+          "negative": 3,
+          "zero": 0
+        },
+        "person_turns": {
+          "world_differences": [
+            -86,
+            3629,
+            -917,
+            2235,
+            2028,
+            4784
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 1945.5,
+          "min": -917,
+          "max": 4784,
+          "positive": 4,
+          "negative": 2,
+          "zero": 0
+        },
+        "retail_access_unknown_region_turns": {
+          "world_differences": [
+            0,
+            0,
+            0,
+            97,
+            0,
+            6
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 17.166666666666668,
+          "min": 0,
+          "max": 97,
+          "positive": 2,
+          "negative": 0,
+          "zero": 4
+        },
+        "native_food_produced": {
+          "world_differences": [
+            274.97786954045296,
+            -520.5419742166996,
+            -758.7850785255432,
+            355.0673180371523,
+            1244.8784714192152,
+            988.8862755745649
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 264.0804803048571,
+          "min": -758.7850785255432,
+          "max": 1244.8784714192152,
+          "positive": 4,
+          "negative": 2,
+          "zero": 0
+        },
+        "native_food_demand": {
+          "world_differences": [
+            -120.0,
+            1925.5,
+            -471.0,
+            1085.5,
+            1054.5,
+            2370.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 974.0833333333334,
+          "min": -471.0,
+          "max": 2370.0,
+          "positive": 4,
+          "negative": 2,
+          "zero": 0
+        }
+      },
+      "RL-RD": {
+        "food_shortfall": {
+          "world_differences": [
+            218.44267541076988,
+            -3.000042734667659,
+            -248.00521463062614,
+            -2.2583141699433327,
+            136.0103054754436,
+            -1002.5042397929356
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -150.2191384069932,
+          "min": -1002.5042397929356,
+          "max": 218.44267541076988,
+          "positive": 2,
+          "negative": 4,
+          "zero": 0
+        },
+        "epidemic_deaths": {
+          "world_differences": [
+            -17,
+            2,
+            46,
+            0,
+            21,
+            22
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 12.333333333333334,
+          "min": -17,
+          "max": 46,
+          "positive": 4,
+          "negative": 1,
+          "zero": 1
+        },
+        "food_shortfall_per_1000_pt": {
+          "world_differences": [
+            3.8362457774806273,
+            -1.3350750519893495,
+            -5.306970127730338,
+            -0.5581848118405617,
+            5.235719438893923,
+            -31.905483082940833
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -5.005624643021089,
+          "min": -31.905483082940833,
+          "max": 5.235719438893923,
+          "positive": 2,
+          "negative": 4,
+          "zero": 0
+        },
+        "epidemic_deaths_per_1000_pt": {
+          "world_differences": [
+            -0.6487569206026578,
+            0.034635111803850815,
+            1.884100907707487,
+            -0.0007965075451271397,
+            0.6761930116206925,
+            1.1982895890566976
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.5239441986734905,
+          "min": -0.6487569206026578,
+          "max": 1.884100907707487,
+          "positive": 4,
+          "negative": 2,
+          "zero": 0
+        },
+        "person_turns": {
+          "world_differences": [
+            1004,
+            407,
+            -1267,
+            116,
+            -465,
+            -1780
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -330.8333333333333,
+          "min": -1780,
+          "max": 1004,
+          "positive": 3,
+          "negative": 3,
+          "zero": 0
+        },
+        "retail_access_unknown_region_turns": {
+          "world_differences": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0,
+          "min": 0,
+          "max": 0,
+          "positive": 0,
+          "negative": 0,
+          "zero": 6
+        },
+        "native_food_produced": {
+          "world_differences": [
+            203.823169618845,
+            198.20467031747103,
+            -378.42206344008446,
+            86.3041130900383,
+            -491.6433703750372,
+            139.1529411971569
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -40.43008993193507,
+          "min": -491.6433703750372,
+          "max": 203.823169618845,
+          "positive": 4,
+          "negative": 2,
+          "zero": 0
+        },
+        "native_food_demand": {
+          "world_differences": [
+            493.0,
+            203.5,
+            -636.5,
+            54.5,
+            -221.5,
+            -882.5
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -164.91666666666666,
+          "min": -882.5,
+          "max": 493.0,
+          "positive": 3,
+          "negative": 3,
+          "zero": 0
+        }
+      },
+      "AL-AD": {
+        "food_shortfall": {
+          "world_differences": [
+            -324.3978021675721,
+            -223.99491790588945,
+            -133.63830390095245,
+            0.0,
+            -74.12669441103935,
+            -44.79462564829737
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -133.49205733895846,
+          "min": -324.3978021675721,
+          "max": 0.0,
+          "positive": 0,
+          "negative": 5,
+          "zero": 1
+        },
+        "epidemic_deaths": {
+          "world_differences": [
+            -14,
+            -13,
+            -8,
+            0,
+            4,
+            -5
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -6,
+          "min": -14,
+          "max": 4,
+          "positive": 1,
+          "negative": 4,
+          "zero": 1
+        },
+        "food_shortfall_per_1000_pt": {
+          "world_differences": [
+            -5.629669755233394,
+            -4.496543091405698,
+            1.6192897974595866,
+            0.0,
+            -1.7011426072421898,
+            -1.581789138506025
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -1.96497579915462,
+          "min": -5.629669755233394,
+          "max": 1.6192897974595866,
+          "positive": 1,
+          "negative": 4,
+          "zero": 1
+        },
+        "epidemic_deaths_per_1000_pt": {
+          "world_differences": [
+            -0.27467585433848773,
+            -0.37853649352623986,
+            -0.02743343608139437,
+            0.0,
+            0.12510847641771283,
+            -0.199682208140481
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -0.12586991927814836,
+          "min": -0.37853649352623986,
+          "max": 0.12510847641771283,
+          "positive": 1,
+          "negative": 4,
+          "zero": 1
+        },
+        "person_turns": {
+          "world_differences": [
+            -1379,
+            -733,
+            -1710,
+            0,
+            -155,
+            -29
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -667.6666666666666,
+          "min": -1710,
+          "max": 0,
+          "positive": 0,
+          "negative": 5,
+          "zero": 1
+        },
+        "retail_access_unknown_region_turns": {
+          "world_differences": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0,
+          "min": 0,
+          "max": 0,
+          "positive": 0,
+          "negative": 0,
+          "zero": 6
+        },
+        "native_food_produced": {
+          "world_differences": [
+            -165.88490822911263,
+            -146.21774465590715,
+            -717.1851900462061,
+            0.0,
+            223.29660391807556,
+            26.815846279263496
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -129.8625654556478,
+          "min": -717.1851900462061,
+          "max": 223.29660391807556,
+          "positive": 2,
+          "negative": 3,
+          "zero": 1
+        },
+        "native_food_demand": {
+          "world_differences": [
+            -680.5,
+            -354.0,
+            -843.0,
+            0.0,
+            -81.0,
+            -18.5
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -329.5,
+          "min": -843.0,
+          "max": 0.0,
+          "positive": 0,
+          "negative": 5,
+          "zero": 1
+        }
+      },
+      "MX-AD": {
+        "food_shortfall": {
+          "world_differences": [
+            196.7903939532116,
+            -1249.96868957486,
+            -572.6067732699448,
+            292.9257393088192,
+            -214.38896759040654,
+            -1250.013251488097
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -466.2102581102129,
+          "min": -1250.013251488097,
+          "max": 292.9257393088192,
+          "positive": 2,
+          "negative": 4,
+          "zero": 0
+        },
+        "epidemic_deaths": {
+          "world_differences": [
+            -27,
+            27,
+            -3,
+            10,
+            10,
+            17
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 5.666666666666667,
+          "min": -27,
+          "max": 27,
+          "positive": 4,
+          "negative": 2,
+          "zero": 0
+        },
+        "food_shortfall_per_1000_pt": {
+          "world_differences": [
+            2.6758653322215054,
+            -34.09779744664432,
+            -13.898513259150377,
+            4.061459791928726,
+            -0.06591678054249428,
+            -52.84686625510241
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -15.695294769548228,
+          "min": -52.84686625510241,
+          "max": 4.061459791928726,
+          "positive": 2,
+          "negative": 4,
+          "zero": 0
+        },
+        "epidemic_deaths_per_1000_pt": {
+          "world_differences": [
+            -0.977242564734635,
+            1.5521420629177327,
+            0.2813293924217488,
+            0.35056914690876734,
+            0.49988389244012366,
+            0.6404693123200587
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.39119187371229935,
+          "min": -0.977242564734635,
+          "max": 1.5521420629177327,
+          "positive": 5,
+          "negative": 1,
+          "zero": 0
+        },
+        "person_turns": {
+          "world_differences": [
+            972,
+            -2902,
+            -2302,
+            1464,
+            -2371,
+            402
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -789.5,
+          "min": -2902,
+          "max": 1464,
+          "positive": 3,
+          "negative": 3,
+          "zero": 0
+        },
+        "retail_access_unknown_region_turns": {
+          "world_differences": [
+            0,
+            0,
+            0,
+            -68,
+            0,
+            -3
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -11.833333333333334,
+          "min": -68,
+          "max": 0,
+          "positive": 0,
+          "negative": 2,
+          "zero": 4
+        },
+        "native_food_produced": {
+          "world_differences": [
+            493.5012239217758,
+            -63.420650497078896,
+            -893.5233261790127,
+            511.6539334356785,
+            -953.9574444666505,
+            2527.404500156641
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 270.2763727285589,
+          "min": -953.9574444666505,
+          "max": 2527.404500156641,
+          "positive": 3,
+          "negative": 3,
+          "zero": 0
+        },
+        "native_food_demand": {
+          "world_differences": [
+            536.5,
+            -1476.0,
+            -1196.0,
+            735.0,
+            -1206.0,
+            153.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -408.9166666666667,
+          "min": -1476.0,
+          "max": 735.0,
+          "positive": 3,
+          "negative": 3,
+          "zero": 0
+        }
+      },
+      "IX-AD": {
+        "food_shortfall": {
+          "world_differences": [
+            -598.1365928798914,
+            -1682.9681456973776,
+            -121.12339732737746,
+            -868.2338057085872,
+            -490.25547694042325,
+            -2134.120727255009
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -982.4730243014443,
+          "min": -2134.120727255009,
+          "max": -121.12339732737746,
+          "positive": 0,
+          "negative": 6,
+          "zero": 0
+        },
+        "epidemic_deaths": {
+          "world_differences": [
+            -77,
+            -79,
+            -47,
+            0,
+            -6,
+            -55
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -44,
+          "min": -79,
+          "max": 0,
+          "positive": 0,
+          "negative": 5,
+          "zero": 1
+        },
+        "food_shortfall_per_1000_pt": {
+          "world_differences": [
+            -10.636005937504066,
+            -46.4909104416037,
+            -3.225438408035842,
+            -25.547004820534013,
+            -7.830582563903604,
+            -42.6578323838182
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -22.731295759233237,
+          "min": -46.4909104416037,
+          "max": -3.225438408035842,
+          "positive": 0,
+          "negative": 6,
+          "zero": 0
+        },
+        "epidemic_deaths_per_1000_pt": {
+          "world_differences": [
+            -2.3287887942440983,
+            -2.681505163212266,
+            -1.7297212254937495,
+            0.01230383186434178,
+            0.03678122989698318,
+            -2.222581427301382
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -1.4855852580816953,
+          "min": -2.681505163212266,
+          "max": 0.03678122989698318,
+          "positive": 2,
+          "negative": 4,
+          "zero": 0
+        },
+        "person_turns": {
+          "world_differences": [
+            -2589,
+            -4250,
+            -357,
+            -1987,
+            -2592,
+            -7012
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -3131.1666666666665,
+          "min": -7012,
+          "max": -357,
+          "positive": 0,
+          "negative": 6,
+          "zero": 0
+        },
+        "retail_access_unknown_region_turns": {
+          "world_differences": [
+            0,
+            0,
+            0,
+            -97,
+            0,
+            -7
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -17.333333333333332,
+          "min": -97,
+          "max": 0,
+          "positive": 0,
+          "negative": 2,
+          "zero": 4
+        },
+        "native_food_produced": {
+          "world_differences": [
+            -667.9383241683245,
+            -791.4147519543767,
+            -117.23213998414576,
+            -330.87934252619743,
+            -760.0846563279629,
+            -1317.2839293852448
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -664.138857391042,
+          "min": -1317.2839293852448,
+          "max": -117.23213998414576,
+          "positive": 0,
+          "negative": 6,
+          "zero": 0
+        },
+        "native_food_demand": {
+          "world_differences": [
+            -1203.0,
+            -2210.5,
+            -204.0,
+            -979.5,
+            -1269.0,
+            -3491.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -1559.5,
+          "min": -3491.0,
+          "max": -204.0,
+          "positive": 0,
+          "negative": 6,
+          "zero": 0
+        }
+      },
+      "WX-AD": {
+        "food_shortfall": {
+          "world_differences": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.0,
+          "min": 0.0,
+          "max": 0.0,
+          "positive": 0,
+          "negative": 0,
+          "zero": 6
+        },
+        "epidemic_deaths": {
+          "world_differences": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0,
+          "min": 0,
+          "max": 0,
+          "positive": 0,
+          "negative": 0,
+          "zero": 6
+        },
+        "food_shortfall_per_1000_pt": {
+          "world_differences": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.0,
+          "min": 0.0,
+          "max": 0.0,
+          "positive": 0,
+          "negative": 0,
+          "zero": 6
+        },
+        "epidemic_deaths_per_1000_pt": {
+          "world_differences": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.0,
+          "min": 0.0,
+          "max": 0.0,
+          "positive": 0,
+          "negative": 0,
+          "zero": 6
+        },
+        "person_turns": {
+          "world_differences": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0,
+          "min": 0,
+          "max": 0,
+          "positive": 0,
+          "negative": 0,
+          "zero": 6
+        },
+        "retail_access_unknown_region_turns": {
+          "world_differences": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0,
+          "min": 0,
+          "max": 0,
+          "positive": 0,
+          "negative": 0,
+          "zero": 6
+        },
+        "native_food_produced": {
+          "world_differences": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.0,
+          "min": 0.0,
+          "max": 0.0,
+          "positive": 0,
+          "negative": 0,
+          "zero": 6
+        },
+        "native_food_demand": {
+          "world_differences": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.0,
+          "min": 0.0,
+          "max": 0.0,
+          "positive": 0,
+          "negative": 0,
+          "zero": 6
+        }
+      },
+      "TX-AD": {
+        "food_shortfall": {
+          "world_differences": [
+            -17.095359009690583,
+            813.9877747511491,
+            -100.43780129111838,
+            347.3562364317477,
+            -9.273575807921588,
+            -348.84433407802135
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 114.28215683269082,
+          "min": -348.84433407802135,
+          "max": 813.9877747511491,
+          "positive": 2,
+          "negative": 4,
+          "zero": 0
+        },
+        "epidemic_deaths": {
+          "world_differences": [
+            -3,
+            0,
+            -9,
+            0,
+            1,
+            -39
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -8.333333333333334,
+          "min": -39,
+          "max": 1,
+          "positive": 1,
+          "negative": 3,
+          "zero": 2
+        },
+        "food_shortfall_per_1000_pt": {
+          "world_differences": [
+            1.1715640168520451,
+            16.546085453366913,
+            -3.7546259358031335,
+            9.891926610242521,
+            0.3861368421780753,
+            -11.609421914579883
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 2.1052775120427563,
+          "min": -11.609421914579883,
+          "max": 16.546085453366913,
+          "positive": 4,
+          "negative": 2,
+          "zero": 0
+        },
+        "epidemic_deaths_per_1000_pt": {
+          "world_differences": [
+            -0.034004577890875964,
+            -0.29574776708665773,
+            -0.3371701350206946,
+            -0.0036220439961998363,
+            0.04848411338266079,
+            -1.5671929047928828
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -0.3648755525674417,
+          "min": -1.5671929047928828,
+          "max": 0.04848411338266079,
+          "positive": 1,
+          "negative": 5,
+          "zero": 0
+        },
+        "person_turns": {
+          "world_differences": [
+            -460,
+            2272,
+            -4,
+            648,
+            -256,
+            -333
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 311.1666666666667,
+          "min": -460,
+          "max": 2272,
+          "positive": 2,
+          "negative": 4,
+          "zero": 0
+        },
+        "retail_access_unknown_region_turns": {
+          "world_differences": [
+            0,
+            0,
+            0,
+            7,
+            0,
+            0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 1.1666666666666667,
+          "min": 0,
+          "max": 7,
+          "positive": 1,
+          "negative": 0,
+          "zero": 5
+        },
+        "native_food_produced": {
+          "world_differences": [
+            40.020048908889294,
+            274.42042285203934,
+            75.85397943668067,
+            -96.3096087127924,
+            49.364330381155014,
+            287.7949405834079
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 105.19068557489663,
+          "min": -96.3096087127924,
+          "max": 287.7949405834079,
+          "positive": 5,
+          "negative": 1,
+          "zero": 0
+        },
+        "native_food_demand": {
+          "world_differences": [
+            -218.5,
+            1104.0,
+            -5.0,
+            324.5,
+            -145.0,
+            -175.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 147.5,
+          "min": -218.5,
+          "max": 1104.0,
+          "positive": 2,
+          "negative": 4,
+          "zero": 0
+        }
+      },
+      "APC-RPC": {
+        "food_shortfall": {
+          "world_differences": [
+            557.4919501477852,
+            2320.660319079645,
+            339.86063965491485,
+            908.5526765622199,
+            357.3245474733412,
+            390.6971746291965
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 812.4312179245171,
+          "min": 339.86063965491485,
+          "max": 2320.660319079645,
+          "positive": 6,
+          "negative": 0,
+          "zero": 0
+        },
+        "epidemic_deaths": {
+          "world_differences": [
+            69,
+            40,
+            56,
+            0,
+            -16,
+            32
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 30.166666666666668,
+          "min": -16,
+          "max": 69,
+          "positive": 4,
+          "negative": 1,
+          "zero": 1
+        },
+        "food_shortfall_per_1000_pt": {
+          "world_differences": [
+            10.277472498431749,
+            72.32130754574604,
+            14.310357932333588,
+            25.752733259275928,
+            6.012541418195639,
+            -9.449974204515172
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 19.87073974157796,
+          "min": -9.449974204515172,
+          "max": 72.32130754574604,
+          "positive": 5,
+          "negative": 1,
+          "zero": 0
+        },
+        "epidemic_deaths_per_1000_pt": {
+          "world_differences": [
+            2.068972326973004,
+            0.9427170436569825,
+            2.1396726268167567,
+            -0.014777857668933886,
+            -0.6137856771870762,
+            1.1633081808591585
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.9476844405749819,
+          "min": -0.6137856771870762,
+          "max": 2.1396726268167567,
+          "positive": 4,
+          "negative": 2,
+          "zero": 0
+        },
+        "person_turns": {
+          "world_differences": [
+            2297,
+            4769,
+            -474,
+            2351,
+            1718,
+            3033
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 2282.3333333333335,
+          "min": -474,
+          "max": 4769,
+          "positive": 5,
+          "negative": 1,
+          "zero": 0
+        },
+        "retail_access_unknown_region_turns": {
+          "world_differences": [
+            0,
+            0,
+            0,
+            97,
+            0,
+            6
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 17.166666666666668,
+          "min": 0,
+          "max": 97,
+          "positive": 2,
+          "negative": 0,
+          "zero": 4
+        },
+        "native_food_produced": {
+          "world_differences": [
+            644.6859473884106,
+            -176.11955924332142,
+            -420.02195191942155,
+            441.3714311271906,
+            529.9384971261024,
+            1101.2233704924583
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 353.51295582856983,
+          "min": -420.02195191942155,
+          "max": 1101.2233704924583,
+          "positive": 4,
+          "negative": 2,
+          "zero": 0
+        },
+        "native_food_demand": {
+          "world_differences": [
+            1053.5,
+            2483.0,
+            -264.5,
+            1140.0,
+            914.0,
+            1506.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 1138.6666666666667,
+          "min": -264.5,
+          "max": 2483.0,
+          "positive": 5,
+          "negative": 1,
+          "zero": 0
+        }
+      },
+      "RPC-RD": {
+        "food_shortfall": {
+          "world_differences": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.0,
+          "min": 0.0,
+          "max": 0.0,
+          "positive": 0,
+          "negative": 0,
+          "zero": 6
+        },
+        "epidemic_deaths": {
+          "world_differences": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0,
+          "min": 0,
+          "max": 0,
+          "positive": 0,
+          "negative": 0,
+          "zero": 6
+        },
+        "food_shortfall_per_1000_pt": {
+          "world_differences": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.0,
+          "min": 0.0,
+          "max": 0.0,
+          "positive": 0,
+          "negative": 0,
+          "zero": 6
+        },
+        "epidemic_deaths_per_1000_pt": {
+          "world_differences": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.0,
+          "min": 0.0,
+          "max": 0.0,
+          "positive": 0,
+          "negative": 0,
+          "zero": 6
+        },
+        "person_turns": {
+          "world_differences": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0,
+          "min": 0,
+          "max": 0,
+          "positive": 0,
+          "negative": 0,
+          "zero": 6
+        },
+        "retail_access_unknown_region_turns": {
+          "world_differences": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0,
+          "min": 0,
+          "max": 0,
+          "positive": 0,
+          "negative": 0,
+          "zero": 6
+        },
+        "native_food_produced": {
+          "world_differences": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.0,
+          "min": 0.0,
+          "max": 0.0,
+          "positive": 0,
+          "negative": 0,
+          "zero": 6
+        },
+        "native_food_demand": {
+          "world_differences": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.0,
+          "min": 0.0,
+          "max": 0.0,
+          "positive": 0,
+          "negative": 0,
+          "zero": 6
+        }
+      },
+      "APC-AD": {
+        "food_shortfall": {
+          "world_differences": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.0,
+          "min": 0.0,
+          "max": 0.0,
+          "positive": 0,
+          "negative": 0,
+          "zero": 6
+        },
+        "epidemic_deaths": {
+          "world_differences": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0,
+          "min": 0,
+          "max": 0,
+          "positive": 0,
+          "negative": 0,
+          "zero": 6
+        },
+        "food_shortfall_per_1000_pt": {
+          "world_differences": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.0,
+          "min": 0.0,
+          "max": 0.0,
+          "positive": 0,
+          "negative": 0,
+          "zero": 6
+        },
+        "epidemic_deaths_per_1000_pt": {
+          "world_differences": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.0,
+          "min": 0.0,
+          "max": 0.0,
+          "positive": 0,
+          "negative": 0,
+          "zero": 6
+        },
+        "person_turns": {
+          "world_differences": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0,
+          "min": 0,
+          "max": 0,
+          "positive": 0,
+          "negative": 0,
+          "zero": 6
+        },
+        "retail_access_unknown_region_turns": {
+          "world_differences": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0,
+          "min": 0,
+          "max": 0,
+          "positive": 0,
+          "negative": 0,
+          "zero": 6
+        },
+        "native_food_produced": {
+          "world_differences": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.0,
+          "min": 0.0,
+          "max": 0.0,
+          "positive": 0,
+          "negative": 0,
+          "zero": 6
+        },
+        "native_food_demand": {
+          "world_differences": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.0,
+          "min": 0.0,
+          "max": 0.0,
+          "positive": 0,
+          "negative": 0,
+          "zero": 6
+        }
+      },
+      "ANR-RNR": {
+        "food_shortfall": {
+          "world_differences": [
+            548.2821903508157,
+            982.0085786897689,
+            -54.37462783139199,
+            2109.335933541879,
+            290.33767876029015,
+            577.0877743549645
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 742.1129213110544,
+          "min": -54.37462783139199,
+          "max": 2109.335933541879,
+          "positive": 5,
+          "negative": 1,
+          "zero": 0
+        },
+        "epidemic_deaths": {
+          "world_differences": [
+            18,
+            59,
+            -6,
+            0,
+            -11,
+            17
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 12.833333333333334,
+          "min": -11,
+          "max": 59,
+          "positive": 3,
+          "negative": 2,
+          "zero": 1
+        },
+        "food_shortfall_per_1000_pt": {
+          "world_differences": [
+            15.956396139287222,
+            32.418299236112915,
+            6.874478165875686,
+            49.86737694345223,
+            5.9340874113213715,
+            4.38582188872752
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 19.23940996412949,
+          "min": 4.38582188872752,
+          "max": 49.86737694345223,
+          "positive": 6,
+          "negative": 0,
+          "zero": 0
+        },
+        "epidemic_deaths_per_1000_pt": {
+          "world_differences": [
+            0.5455000552619089,
+            2.004521729955263,
+            0.08313888049786611,
+            -0.025923167616129172,
+            -0.4629435204733756,
+            0.31273715095005405
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.40950518809593117,
+          "min": -0.4629435204733756,
+          "max": 2.004521729955263,
+          "positive": 4,
+          "negative": 2,
+          "zero": 0
+        },
+        "person_turns": {
+          "world_differences": [
+            448,
+            2080,
+            -2644,
+            6606,
+            1401,
+            4213
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 2017.3333333333333,
+          "min": -2644,
+          "max": 6606,
+          "positive": 5,
+          "negative": 1,
+          "zero": 0
+        },
+        "retail_access_unknown_region_turns": {
+          "world_differences": [
+            0,
+            0,
+            0,
+            27,
+            0,
+            13
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 6.666666666666667,
+          "min": 0,
+          "max": 27,
+          "positive": 2,
+          "negative": 0,
+          "zero": 4
+        },
+        "native_food_produced": {
+          "world_differences": [
+            -247.4576809257269,
+            494.535236928612,
+            -1114.0821565948427,
+            975.5124032255262,
+            263.61560575664043,
+            1978.3448258414865
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 391.74470570528257,
+          "min": -1114.0821565948427,
+          "max": 1978.3448258414865,
+          "positive": 4,
+          "negative": 2,
+          "zero": 0
+        },
+        "native_food_demand": {
+          "world_differences": [
+            254.0,
+            1063.0,
+            -1330.0,
+            3199.0,
+            645.0,
+            2053.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 980.6666666666666,
+          "min": -1330.0,
+          "max": 3199.0,
+          "positive": 5,
+          "negative": 1,
+          "zero": 0
+        }
+      },
+      "RNR-RD": {
+        "food_shortfall": {
+          "world_differences": [
+            76.32784339040518,
+            93.81005940400064,
+            -64.88232021033764,
+            -268.65839970111847,
+            -712.4209418967366,
+            -2503.7941655283794
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -563.2696540903611,
+          "min": -2503.7941655283794,
+          "max": 93.81005940400064,
+          "positive": 2,
+          "negative": 4,
+          "zero": 0
+        },
+        "epidemic_deaths": {
+          "world_differences": [
+            -10,
+            16,
+            25,
+            -1,
+            -15,
+            19
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 5.666666666666667,
+          "min": -15,
+          "max": 25,
+          "positive": 3,
+          "negative": 3,
+          "zero": 0
+        },
+        "food_shortfall_per_1000_pt": {
+          "world_differences": [
+            -6.077685423425052,
+            1.246111066542639,
+            -2.860300994679463,
+            -12.783318590848609,
+            -17.125979060411993,
+            -91.1732485703051
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -21.462403595521263,
+          "min": -91.1732485703051,
+          "max": 1.246111066542639,
+          "positive": 1,
+          "negative": 5,
+          "zero": 0
+        },
+        "epidemic_deaths_per_1000_pt": {
+          "world_differences": [
+            -0.5008458202776254,
+            0.5585703924628715,
+            0.9049946292564361,
+            -0.043892309047057765,
+            -0.25780833261692093,
+            1.3904205418342417
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.3419065169353242,
+          "min": -0.5008458202776254,
+          "max": 1.3904205418342417,
+          "positive": 3,
+          "negative": 3,
+          "zero": 0
+        },
+        "person_turns": {
+          "world_differences": [
+            2544,
+            935,
+            150,
+            465,
+            -1998,
+            -4568
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -412,
+          "min": -4568,
+          "max": 2544,
+          "positive": 4,
+          "negative": 2,
+          "zero": 0
+        },
+        "retail_access_unknown_region_turns": {
+          "world_differences": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0,
+          "min": 0,
+          "max": 0,
+          "positive": 0,
+          "negative": 0,
+          "zero": 6
+        },
+        "native_food_produced": {
+          "world_differences": [
+            851.0127778053284,
+            85.5519514977932,
+            -203.18518064916134,
+            282.90282301045954,
+            -548.9365529567003,
+            764.9764963239431
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 205.3870525052771,
+          "min": -548.9365529567003,
+          "max": 851.0127778053284,
+          "positive": 4,
+          "negative": 2,
+          "zero": 0
+        },
+        "native_food_demand": {
+          "world_differences": [
+            1231.5,
+            554.5,
+            47.5,
+            212.0,
+            -972.0,
+            -2257.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -197.25,
+          "min": -2257.0,
+          "max": 1231.5,
+          "positive": 4,
+          "negative": 2,
+          "zero": 0
+        }
+      },
+      "ANR-AD": {
+        "food_shortfall": {
+          "world_differences": [
+            67.11808359343559,
+            -1244.8416809858754,
+            -459.1175876966445,
+            932.1248572785407,
+            -779.4078106097877,
+            -2317.4035658026114
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -633.5879507038238,
+          "min": -2317.4035658026114,
+          "max": 932.1248572785407,
+          "positive": 2,
+          "negative": 4,
+          "zero": 0
+        },
+        "epidemic_deaths": {
+          "world_differences": [
+            -61,
+            35,
+            -37,
+            -1,
+            -10,
+            4
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -11.666666666666666,
+          "min": -61,
+          "max": 35,
+          "positive": 2,
+          "negative": 4,
+          "zero": 0
+        },
+        "food_shortfall_per_1000_pt": {
+          "world_differences": [
+            -0.3987617825695793,
+            -38.656897243090484,
+            -10.296180761137364,
+            11.331325093327692,
+            -17.20443306728626,
+            -77.33745247706241
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -22.093733372969734,
+          "min": -77.33745247706241,
+          "max": 11.331325093327692,
+          "positive": 1,
+          "negative": 5,
+          "zero": 0
+        },
+        "epidemic_deaths_per_1000_pt": {
+          "world_differences": [
+            -2.0243180919887203,
+            1.620375078761152,
+            -1.1515391170624545,
+            -0.05503761899425305,
+            -0.10696617590322033,
+            0.5398495119251372
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -0.19627273554372648,
+          "min": -2.0243180919887203,
+          "max": 1.620375078761152,
+          "positive": 2,
+          "negative": 4,
+          "zero": 0
+        },
+        "person_turns": {
+          "world_differences": [
+            695,
+            -1754,
+            -2020,
+            4720,
+            -2315,
+            -3388
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -677,
+          "min": -3388,
+          "max": 4720,
+          "positive": 2,
+          "negative": 4,
+          "zero": 0
+        },
+        "retail_access_unknown_region_turns": {
+          "world_differences": [
+            0,
+            0,
+            0,
+            -70,
+            0,
+            7
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -10.5,
+          "min": -70,
+          "max": 7,
+          "positive": 1,
+          "negative": 1,
+          "zero": 4
+        },
+        "native_food_produced": {
+          "world_differences": [
+            -41.13085050880909,
+            756.2067476697266,
+            -897.2453853245825,
+            817.0437951087952,
+            -815.2594443261623,
+            1642.0979516729712
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 243.61880238198987,
+          "min": -897.2453853245825,
+          "max": 1642.0979516729712,
+          "positive": 3,
+          "negative": 3,
+          "zero": 0
+        },
+        "native_food_demand": {
+          "world_differences": [
+            432.0,
+            -865.5,
+            -1018.0,
+            2271.0,
+            -1241.0,
+            -1710.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -355.25,
+          "min": -1710.0,
+          "max": 2271.0,
+          "positive": 2,
+          "negative": 4,
+          "zero": 0
+        }
+      }
+    },
+    "p": {
+      "AD-RD": {
+        "food_shortfall": {
+          "world_differences": [
+            3731.2149211075157,
+            2536.9289029063657,
+            1092.86372278817,
+            3201.7342221834697,
+            -677.0637295693159,
+            2605.6409205948003
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 2081.8864933351674,
+          "min": -677.0637295693159,
+          "max": 3731.2149211075157,
+          "positive": 5,
+          "negative": 1,
+          "zero": 0
+        },
+        "epidemic_deaths": {
+          "world_differences": [
+            209,
+            92,
+            37,
+            141,
+            151,
+            -214
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 69.33333333333333,
+          "min": -214,
+          "max": 209,
+          "positive": 5,
+          "negative": 1,
+          "zero": 0
+        },
+        "food_shortfall_per_1000_pt": {
+          "world_differences": [
+            30.19332442778625,
+            14.738288886627984,
+            13.396316108138443,
+            21.49988212283519,
+            -8.455796810773847,
+            20.68886849337772
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 15.343480537998623,
+          "min": -8.455796810773847,
+          "max": 30.19332442778625,
+          "positive": 5,
+          "negative": 1,
+          "zero": 0
+        },
+        "epidemic_deaths_per_1000_pt": {
+          "world_differences": [
+            1.6391847587507962,
+            0.5784977191932956,
+            0.47532656821237573,
+            0.5526765279168346,
+            1.761306671881469,
+            -3.194740091412215
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.30204202575709266,
+          "min": -3.194740091412215,
+          "max": 1.761306671881469,
+          "positive": 5,
+          "negative": 1,
+          "zero": 0
+        },
+        "person_turns": {
+          "world_differences": [
+            15823,
+            13916,
+            -318,
+            17985,
+            720,
+            12308
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 10072.333333333334,
+          "min": -318,
+          "max": 17985,
+          "positive": 5,
+          "negative": 1,
+          "zero": 0
+        },
+        "retail_access_unknown_region_turns": {
+          "world_differences": [
+            373,
+            137,
+            132,
+            280,
+            132,
+            65
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 186.5,
+          "min": 65,
+          "max": 373,
+          "positive": 6,
+          "negative": 0,
+          "zero": 0
+        },
+        "native_food_produced": {
+          "world_differences": [
+            5491.799422234297,
+            6226.714571855962,
+            -540.9527653753757,
+            7817.492142047733,
+            2195.369805879891,
+            4079.853674088139
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 4211.712808455108,
+          "min": -540.9527653753757,
+          "max": 7817.492142047733,
+          "positive": 5,
+          "negative": 1,
+          "zero": 0
+        },
+        "native_food_demand": {
+          "world_differences": [
+            7859.5,
+            6889.5,
+            -297.0,
+            9075.0,
+            40.0,
+            5754.5
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 4886.916666666667,
+          "min": -297.0,
+          "max": 9075.0,
+          "positive": 5,
+          "negative": 1,
+          "zero": 0
+        }
+      },
+      "AL-RL": {
+        "food_shortfall": {
+          "world_differences": [
+            4292.719773966412,
+            3070.3964489512146,
+            1574.821445425041,
+            2484.3534012492746,
+            -439.0138992778957,
+            2521.7198685854673
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 2250.8328398165854,
+          "min": -439.0138992778957,
+          "max": 4292.719773966412,
+          "positive": 5,
+          "negative": 1,
+          "zero": 0
+        },
+        "epidemic_deaths": {
+          "world_differences": [
+            64,
+            -106,
+            -2,
+            94,
+            88,
+            19
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 26.166666666666668,
+          "min": -106,
+          "max": 94,
+          "positive": 4,
+          "negative": 2,
+          "zero": 0
+        },
+        "food_shortfall_per_1000_pt": {
+          "world_differences": [
+            33.600854491820215,
+            21.360341651870314,
+            15.69066474621988,
+            15.475086877831643,
+            -6.436832586259484,
+            26.969084161638968
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 17.77653322385359,
+          "min": -6.436832586259484,
+          "max": 33.600854491820215,
+          "positive": 5,
+          "negative": 1,
+          "zero": 0
+        },
+        "epidemic_deaths_per_1000_pt": {
+          "world_differences": [
+            -0.3968619594493221,
+            -1.7524359316609637,
+            -0.5707095429131082,
+            0.23726575727902954,
+            0.9207942583515552,
+            -0.31656224174905123
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -0.31308494335697673,
+          "min": -1.7524359316609637,
+          "max": 0.9207942583515552,
+          "positive": 2,
+          "negative": 4,
+          "zero": 0
+        },
+        "person_turns": {
+          "world_differences": [
+            21610,
+            13187,
+            5498,
+            14408,
+            2309,
+            5965
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 10496.166666666666,
+          "min": 2309,
+          "max": 21610,
+          "positive": 6,
+          "negative": 0,
+          "zero": 0
+        },
+        "retail_access_unknown_region_turns": {
+          "world_differences": [
+            362,
+            137,
+            150,
+            291,
+            142,
+            65
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 191.16666666666666,
+          "min": 65,
+          "max": 362,
+          "positive": 6,
+          "negative": 0,
+          "zero": 0
+        },
+        "native_food_produced": {
+          "world_differences": [
+            7645.0995482467115,
+            5192.144073091447,
+            1501.2232892364264,
+            5544.181727135554,
+            2703.6446869522333,
+            1013.8866795198992
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 3933.3633340303786,
+          "min": 1013.8866795198992,
+          "max": 7645.0995482467115,
+          "positive": 6,
+          "negative": 0,
+          "zero": 0
+        },
+        "native_food_demand": {
+          "world_differences": [
+            10887.5,
+            6493.0,
+            2729.0,
+            6748.5,
+            903.5,
+            2834.5
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 5099.333333333333,
+          "min": 903.5,
+          "max": 10887.5,
+          "positive": 6,
+          "negative": 0,
+          "zero": 0
+        }
+      },
+      "RL-RD": {
+        "food_shortfall": {
+          "world_differences": [
+            -305.79104023851687,
+            -302.0107604358345,
+            -319.935141867958,
+            677.3527015061118,
+            144.7086278758943,
+            -441.98147863475606
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -91.27618196584324,
+          "min": -441.98147863475606,
+          "max": 677.3527015061118,
+          "positive": 2,
+          "negative": 4,
+          "zero": 0
+        },
+        "epidemic_deaths": {
+          "world_differences": [
+            151,
+            203,
+            45,
+            17,
+            5,
+            66
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 81.16666666666667,
+          "min": 5,
+          "max": 203,
+          "positive": 6,
+          "negative": 0,
+          "zero": 0
+        },
+        "food_shortfall_per_1000_pt": {
+          "world_differences": [
+            -0.49699911961029386,
+            -4.596268622230525,
+            -1.1212880680364847,
+            5.75757925209669,
+            1.473215542324148,
+            -3.028257891307234
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -0.33533648446061665,
+          "min": -4.596268622230525,
+          "max": 5.75757925209669,
+          "positive": 2,
+          "negative": 4,
+          "zero": 0
+        },
+        "epidemic_deaths_per_1000_pt": {
+          "world_differences": [
+            2.1180851678744355,
+            2.370608545926062,
+            1.0219462291404477,
+            -0.0008257612779756229,
+            0.040690207886664,
+            1.1840978925134245
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 1.1224337136771763,
+          "min": -0.0008257612779756229,
+          "max": 2.370608545926062,
+          "positive": 5,
+          "negative": 1,
+          "zero": 0
+        },
+        "person_turns": {
+          "world_differences": [
+            -6313,
+            1087,
+            -4786,
+            3404,
+            431,
+            -3674
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -1641.8333333333333,
+          "min": -6313,
+          "max": 3404,
+          "positive": 3,
+          "negative": 3,
+          "zero": 0
+        },
+        "retail_access_unknown_region_turns": {
+          "world_differences": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0,
+          "min": 0,
+          "max": 0,
+          "positive": 0,
+          "negative": 0,
+          "zero": 6
+        },
+        "native_food_produced": {
+          "world_differences": [
+            -2634.4541288875043,
+            919.0092295706272,
+            -1518.235879778862,
+            2079.869489626959,
+            -4.242226868867874,
+            -838.8571900543757
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -332.8184510653373,
+          "min": -2634.4541288875043,
+          "max": 2079.869489626959,
+          "positive": 2,
+          "negative": 4,
+          "zero": 0
+        },
+        "native_food_demand": {
+          "world_differences": [
+            -3300.0,
+            571.0,
+            -2380.0,
+            2086.5,
+            164.5,
+            -1785.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -773.8333333333334,
+          "min": -3300.0,
+          "max": 2086.5,
+          "positive": 3,
+          "negative": 3,
+          "zero": 0
+        }
+      },
+      "AL-AD": {
+        "food_shortfall": {
+          "world_differences": [
+            255.71381262037903,
+            231.45678560901433,
+            162.02258076891303,
+            -40.0281194280833,
+            382.75845816731453,
+            -525.902530644089
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 77.67016451557477,
+          "min": -525.902530644089,
+          "max": 382.75845816731453,
+          "positive": 4,
+          "negative": 2,
+          "zero": 0
+        },
+        "epidemic_deaths": {
+          "world_differences": [
+            6,
+            5,
+            6,
+            -30,
+            -58,
+            299
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 38,
+          "min": -58,
+          "max": 299,
+          "positive": 4,
+          "negative": 2,
+          "zero": 0
+        },
+        "food_shortfall_per_1000_pt": {
+          "world_differences": [
+            2.9105309444236696,
+            2.025784143011805,
+            1.173060570044953,
+            -0.2672159929068556,
+            3.492179766838511,
+            3.251957776954015
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 2.0977162013943498,
+          "min": -0.2672159929068556,
+          "max": 3.492179766838511,
+          "positive": 5,
+          "negative": 1,
+          "zero": 0
+        },
+        "epidemic_deaths_per_1000_pt": {
+          "world_differences": [
+            0.08203844967431717,
+            0.03967489507180266,
+            -0.024089881985036143,
+            -0.3162365319157807,
+            -0.7998222056432498,
+            4.062275742176588
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.5073067445631069,
+          "min": -0.7998222056432498,
+          "max": 4.062275742176588,
+          "positive": 3,
+          "negative": 3,
+          "zero": 0
+        },
+        "person_turns": {
+          "world_differences": [
+            -526,
+            358,
+            1030,
+            -173,
+            2020,
+            -10017
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -1218,
+          "min": -10017,
+          "max": 2020,
+          "positive": 3,
+          "negative": 3,
+          "zero": 0
+        },
+        "retail_access_unknown_region_turns": {
+          "world_differences": [
+            -11,
+            0,
+            18,
+            11,
+            10,
+            0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 4.666666666666667,
+          "min": -11,
+          "max": 18,
+          "positive": 3,
+          "negative": 1,
+          "zero": 2
+        },
+        "native_food_produced": {
+          "world_differences": [
+            -481.15400287508965,
+            -115.56126919388771,
+            523.9401748329401,
+            -193.44092528522015,
+            504.0326542034745,
+            -3904.8241846226156
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -611.1679254900664,
+          "min": -3904.8241846226156,
+          "max": 523.9401748329401,
+          "positive": 2,
+          "negative": 4,
+          "zero": 0
+        },
+        "native_food_demand": {
+          "world_differences": [
+            -272.0,
+            174.5,
+            646.0,
+            -240.0,
+            1028.0,
+            -4705.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -561.4166666666666,
+          "min": -4705.0,
+          "max": 1028.0,
+          "positive": 3,
+          "negative": 3,
+          "zero": 0
+        }
+      },
+      "MX-AD": {
+        "food_shortfall": {
+          "world_differences": [
+            -732.8462903694672,
+            -1774.6704249605536,
+            576.1337523851544,
+            -234.52081242809072,
+            449.7806561999023,
+            -1189.4820069619454
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -484.26752102250003,
+          "min": -1774.6704249605536,
+          "max": 576.1337523851544,
+          "positive": 2,
+          "negative": 4,
+          "zero": 0
+        },
+        "epidemic_deaths": {
+          "world_differences": [
+            44,
+            89,
+            -181,
+            61,
+            -6,
+            246
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 42.166666666666664,
+          "min": -181,
+          "max": 246,
+          "positive": 4,
+          "negative": 2,
+          "zero": 0
+        },
+        "food_shortfall_per_1000_pt": {
+          "world_differences": [
+            -0.2520031327677117,
+            -10.77560375623176,
+            3.097265882915295,
+            1.4344741351253845,
+            5.929880309056728,
+            -4.290747143411878
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -0.8094556175523238,
+          "min": -10.77560375623176,
+          "max": 5.929880309056728,
+          "positive": 3,
+          "negative": 3,
+          "zero": 0
+        },
+        "epidemic_deaths_per_1000_pt": {
+          "world_differences": [
+            0.9438984541605286,
+            1.314974158143999,
+            -2.5020121208467367,
+            0.9482999989306933,
+            -0.0019902495691921374,
+            3.4650504210861675
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.69470344365091,
+          "min": -2.5020121208467367,
+          "max": 3.4650504210861675,
+          "positive": 4,
+          "negative": 2,
+          "zero": 0
+        },
+        "person_turns": {
+          "world_differences": [
+            -9805,
+            -8727,
+            4921,
+            -4028,
+            -1073,
+            -10692
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -4900.666666666667,
+          "min": -10692,
+          "max": 4921,
+          "positive": 1,
+          "negative": 5,
+          "zero": 0
+        },
+        "retail_access_unknown_region_turns": {
+          "world_differences": [
+            -20,
+            32,
+            -29,
+            -146,
+            -56,
+            -14
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -38.833333333333336,
+          "min": -146,
+          "max": 32,
+          "positive": 1,
+          "negative": 5,
+          "zero": 0
+        },
+        "native_food_produced": {
+          "world_differences": [
+            -3932.1890143766577,
+            -2597.668955836445,
+            1861.7584771439433,
+            -1557.7943110577762,
+            -804.3802900090814,
+            -3325.5297575416043
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -1725.967308612937,
+          "min": -3932.1890143766577,
+          "max": 1861.7584771439433,
+          "positive": 1,
+          "negative": 5,
+          "zero": 0
+        },
+        "native_food_demand": {
+          "world_differences": [
+            -4718.5,
+            -4456.0,
+            2370.5,
+            -1575.5,
+            -430.0,
+            -5082.5
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -2315.3333333333335,
+          "min": -5082.5,
+          "max": 2370.5,
+          "positive": 1,
+          "negative": 5,
+          "zero": 0
+        }
+      },
+      "IX-AD": {
+        "food_shortfall": {
+          "world_differences": [
+            -4136.132916764356,
+            -3369.7822477845475,
+            -1165.2827507928014,
+            -2674.5517218432087,
+            458.7279595489963,
+            -3012.8984095468186
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -2316.6533478637893,
+          "min": -4136.132916764356,
+          "max": 458.7279595489963,
+          "positive": 1,
+          "negative": 5,
+          "zero": 0
+        },
+        "epidemic_deaths": {
+          "world_differences": [
+            -150,
+            -79,
+            45,
+            -132,
+            4,
+            381
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 11.5,
+          "min": -150,
+          "max": 381,
+          "positive": 3,
+          "negative": 3,
+          "zero": 0
+        },
+        "food_shortfall_per_1000_pt": {
+          "world_differences": [
+            -33.3178346150519,
+            -23.1934504315485,
+            -11.8056757087096,
+            -18.50264255096127,
+            6.7481273917319555,
+            -22.208789394794074
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -17.0467108848889,
+          "min": -33.3178346150519,
+          "max": 6.7481273917319555,
+          "positive": 1,
+          "negative": 5,
+          "zero": 0
+        },
+        "epidemic_deaths_per_1000_pt": {
+          "world_differences": [
+            -0.8053545196904897,
+            -0.3622369278065425,
+            0.940899010967299,
+            -0.7128852025846637,
+            0.20333075450229554,
+            5.885941685853592
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.8582824668735817,
+          "min": -0.8053545196904897,
+          "max": 5.885941685853592,
+          "positive": 3,
+          "negative": 3,
+          "zero": 0
+        },
+        "person_turns": {
+          "world_differences": [
+            -19338,
+            -15723,
+            -3764,
+            -13687,
+            -2327,
+            -17374
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -12035.5,
+          "min": -19338,
+          "max": -2327,
+          "positive": 0,
+          "negative": 6,
+          "zero": 0
+        },
+        "retail_access_unknown_region_turns": {
+          "world_differences": [
+            -373,
+            -137,
+            -132,
+            -280,
+            -132,
+            -65
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -186.5,
+          "min": -373,
+          "max": -65,
+          "positive": 0,
+          "negative": 6,
+          "zero": 0
+        },
+        "native_food_produced": {
+          "world_differences": [
+            -5350.614769106731,
+            -5453.521384008229,
+            -604.5698644071817,
+            -5365.827578212702,
+            -2664.2570871189237,
+            -5658.451177702285
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -4182.873643426009,
+          "min": -5658.451177702285,
+          "max": -604.5698644071817,
+          "positive": 0,
+          "negative": 6,
+          "zero": 0
+        },
+        "native_food_demand": {
+          "world_differences": [
+            -9825.5,
+            -7749.0,
+            -1680.0,
+            -6680.0,
+            -895.5,
+            -8183.5
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -5835.583333333333,
+          "min": -9825.5,
+          "max": -895.5,
+          "positive": 0,
+          "negative": 6,
+          "zero": 0
+        }
+      },
+      "WX-AD": {
+        "food_shortfall": {
+          "world_differences": [
+            -44.667024075984955,
+            -966.9345599608496,
+            28.77863596379757,
+            -51.093176521826535,
+            0.0,
+            296.9725350663066
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -122.82393158809282,
+          "min": -966.9345599608496,
+          "max": 296.9725350663066,
+          "positive": 2,
+          "negative": 3,
+          "zero": 1
+        },
+        "epidemic_deaths": {
+          "world_differences": [
+            5,
+            169,
+            3,
+            13,
+            0,
+            1
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 31.833333333333332,
+          "min": 0,
+          "max": 169,
+          "positive": 5,
+          "negative": 0,
+          "zero": 1
+        },
+        "food_shortfall_per_1000_pt": {
+          "world_differences": [
+            -0.36355597311167287,
+            -5.598000763143617,
+            0.32529063290410676,
+            1.9521123655279098,
+            0.0,
+            3.2035572492059146
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -0.08009941476955973,
+          "min": -5.598000763143617,
+          "max": 3.2035572492059146,
+          "positive": 3,
+          "negative": 2,
+          "zero": 1
+        },
+        "epidemic_deaths_per_1000_pt": {
+          "world_differences": [
+            0.05395069180853973,
+            1.9893166843034984,
+            0.03342724302570055,
+            0.30211156547209406,
+            0.0,
+            0.009099891772124113
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.39798434606365946,
+          "min": 0.0,
+          "max": 1.9893166843034984,
+          "positive": 5,
+          "negative": 0,
+          "zero": 1
+        },
+        "person_turns": {
+          "world_differences": [
+            -108,
+            -4777,
+            30,
+            -2521,
+            0,
+            54
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -1220.3333333333333,
+          "min": -4777,
+          "max": 54,
+          "positive": 2,
+          "negative": 3,
+          "zero": 1
+        },
+        "retail_access_unknown_region_turns": {
+          "world_differences": [
+            6,
+            6,
+            0,
+            7,
+            0,
+            0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 3.1666666666666665,
+          "min": 0,
+          "max": 7,
+          "positive": 3,
+          "negative": 0,
+          "zero": 3
+        },
+        "native_food_produced": {
+          "world_differences": [
+            -3.6297176480293274,
+            -966.3435071855783,
+            13.505650639533997,
+            -1168.1560683511198,
+            0.0,
+            -87.9253648519516
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -368.75816789952415,
+          "min": -1168.1560683511198,
+          "max": 13.505650639533997,
+          "positive": 1,
+          "negative": 4,
+          "zero": 1
+        },
+        "native_food_demand": {
+          "world_differences": [
+            -53.5,
+            -2338.5,
+            11.0,
+            -1419.0,
+            0.0,
+            12.5
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -631.25,
+          "min": -2338.5,
+          "max": 12.5,
+          "positive": 2,
+          "negative": 3,
+          "zero": 1
+        }
+      },
+      "TX-AD": {
+        "food_shortfall": {
+          "world_differences": [
+            -528.5928495563567,
+            -1509.5096742883325,
+            558.0158051298931,
+            -87.27589606074616,
+            419.5913738552481,
+            -1314.2968214266002
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -410.3446770578157,
+          "min": -1509.5096742883325,
+          "max": 558.0158051298931,
+          "positive": 2,
+          "negative": 4,
+          "zero": 0
+        },
+        "epidemic_deaths": {
+          "world_differences": [
+            69,
+            159,
+            -3,
+            -30,
+            18,
+            332
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 90.83333333333333,
+          "min": -30,
+          "max": 332,
+          "positive": 4,
+          "negative": 2,
+          "zero": 0
+        },
+        "food_shortfall_per_1000_pt": {
+          "world_differences": [
+            -2.262687710651363,
+            -10.524671860496227,
+            4.206036622352983,
+            -2.7425280797717733,
+            3.857176300349572,
+            -7.422091316926085
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -2.4814610075238157,
+          "min": -10.524671860496227,
+          "max": 4.206036622352983,
+          "positive": 2,
+          "negative": 4,
+          "zero": 0
+        },
+        "epidemic_deaths_per_1000_pt": {
+          "world_differences": [
+            0.9000898011059597,
+            1.9383708395956645,
+            -0.3227942547923428,
+            -0.4321866795020375,
+            0.07361572504377722,
+            4.365868527045719
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 1.0871606597494567,
+          "min": -0.4321866795020375,
+          "max": 4.365868527045719,
+          "positive": 4,
+          "negative": 2,
+          "zero": 0
+        },
+        "person_turns": {
+          "world_differences": [
+            -4264,
+            -5817,
+            3177,
+            1901,
+            2141,
+            -8906
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -1961.3333333333333,
+          "min": -8906,
+          "max": 3177,
+          "positive": 3,
+          "negative": 3,
+          "zero": 0
+        },
+        "retail_access_unknown_region_turns": {
+          "world_differences": [
+            -17,
+            67,
+            52,
+            -85,
+            -5,
+            3
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 2.5,
+          "min": -85,
+          "max": 67,
+          "positive": 3,
+          "negative": 3,
+          "zero": 0
+        },
+        "native_food_produced": {
+          "world_differences": [
+            -1568.7291425727308,
+            -1883.0127198211849,
+            998.4902990832925,
+            851.4892247319221,
+            173.49573002010584,
+            -3270.6819077883847
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -783.15808605783,
+          "min": -3270.6819077883847,
+          "max": 998.4902990832925,
+          "positive": 3,
+          "negative": 3,
+          "zero": 0
+        },
+        "native_food_demand": {
+          "world_differences": [
+            -2383.5,
+            -2958.0,
+            1699.0,
+            840.5,
+            1196.0,
+            -4328.5
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -989.0833333333334,
+          "min": -4328.5,
+          "max": 1699.0,
+          "positive": 3,
+          "negative": 3,
+          "zero": 0
+        }
+      },
+      "APC-RPC": {
+        "food_shortfall": {
+          "world_differences": [
+            3731.2139498796314,
+            2619.0938049750403,
+            1092.86372278817,
+            3168.259805924725,
+            -677.063523337245,
+            2605.6409205948003
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 2090.001446804187,
+          "min": -677.063523337245,
+          "max": 3731.2139498796314,
+          "positive": 5,
+          "negative": 1,
+          "zero": 0
+        },
+        "epidemic_deaths": {
+          "world_differences": [
+            209,
+            103,
+            37,
+            164,
+            151,
+            -214
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 75,
+          "min": -214,
+          "max": 209,
+          "positive": 5,
+          "negative": 1,
+          "zero": 0
+        },
+        "food_shortfall_per_1000_pt": {
+          "world_differences": [
+            30.193313065873546,
+            15.47671914381175,
+            13.396316108138443,
+            21.032567295166558,
+            -8.455794362305141,
+            20.68886849337772
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 15.388664957343812,
+          "min": -8.455794362305141,
+          "max": 30.193313065873546,
+          "positive": 5,
+          "negative": 1,
+          "zero": 0
+        },
+        "epidemic_deaths_per_1000_pt": {
+          "world_differences": [
+            1.6391847587507962,
+            0.6879218887288845,
+            0.47532656821237573,
+            0.8458887063408644,
+            1.761306671881469,
+            -3.194740091412215
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.36914808375036245,
+          "min": -3.194740091412215,
+          "max": 1.761306671881469,
+          "positive": 5,
+          "negative": 1,
+          "zero": 0
+        },
+        "person_turns": {
+          "world_differences": [
+            15823,
+            14025,
+            -318,
+            18050,
+            720,
+            12308
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 10101.333333333334,
+          "min": -318,
+          "max": 18050,
+          "positive": 5,
+          "negative": 1,
+          "zero": 0
+        },
+        "retail_access_unknown_region_turns": {
+          "world_differences": [
+            373,
+            137,
+            132,
+            280,
+            132,
+            65
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 186.5,
+          "min": 65,
+          "max": 373,
+          "positive": 6,
+          "negative": 0,
+          "zero": 0
+        },
+        "native_food_produced": {
+          "world_differences": [
+            5491.799458116293,
+            6272.440497986972,
+            -540.9527653753757,
+            7165.89627956599,
+            2195.3695977404714,
+            4079.853674088139
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 4110.734457020415,
+          "min": -540.9527653753757,
+          "max": 7165.89627956599,
+          "positive": 5,
+          "negative": 1,
+          "zero": 0
+        },
+        "native_food_demand": {
+          "world_differences": [
+            7859.5,
+            6940.0,
+            -297.0,
+            9031.5,
+            40.0,
+            5754.5
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 4888.083333333333,
+          "min": -297.0,
+          "max": 9031.5,
+          "positive": 5,
+          "negative": 1,
+          "zero": 0
+        }
+      },
+      "RPC-RD": {
+        "food_shortfall": {
+          "world_differences": [
+            0.0009830296039581299,
+            -7.331371307373047e-06,
+            0.0,
+            17.256602779962122,
+            0.0,
+            0.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 2.876263079699129,
+          "min": -7.331371307373047e-06,
+          "max": 17.256602779962122,
+          "positive": 2,
+          "negative": 1,
+          "zero": 3
+        },
+        "epidemic_deaths": {
+          "world_differences": [
+            0,
+            0,
+            0,
+            -18,
+            0,
+            0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -3,
+          "min": -18,
+          "max": 0,
+          "positive": 0,
+          "negative": 1,
+          "zero": 5
+        },
+        "food_shortfall_per_1000_pt": {
+          "world_differences": [
+            1.1478224770655743e-05,
+            -8.793986694399791e-08,
+            0.0,
+            0.3357346719313341,
+            0.0,
+            0.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.055957677036039634,
+          "min": -8.793986694399791e-08,
+          "max": 0.3357346719313341,
+          "positive": 2,
+          "negative": 1,
+          "zero": 3
+        },
+        "epidemic_deaths_per_1000_pt": {
+          "world_differences": [
+            0.0,
+            0.0,
+            0.0,
+            -0.2360492526753335,
+            0.0,
+            0.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -0.03934154211255558,
+          "min": -0.2360492526753335,
+          "max": 0.0,
+          "positive": 0,
+          "negative": 1,
+          "zero": 5
+        },
+        "person_turns": {
+          "world_differences": [
+            0,
+            0,
+            0,
+            -111,
+            0,
+            0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -18.5,
+          "min": -111,
+          "max": 0,
+          "positive": 0,
+          "negative": 1,
+          "zero": 5
+        },
+        "retail_access_unknown_region_turns": {
+          "world_differences": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0,
+          "min": 0,
+          "max": 0,
+          "positive": 0,
+          "negative": 0,
+          "zero": 6
+        },
+        "native_food_produced": {
+          "world_differences": [
+            -4.744529724121094e-05,
+            -2.09808349609375e-05,
+            0.0,
+            636.4330574162304,
+            0.0,
+            0.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 106.07216483168304,
+          "min": -4.744529724121094e-05,
+          "max": 636.4330574162304,
+          "positive": 1,
+          "negative": 2,
+          "zero": 3
+        },
+        "native_food_demand": {
+          "world_differences": [
+            0.0,
+            0.0,
+            0.0,
+            21.5,
+            0.0,
+            0.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 3.5833333333333335,
+          "min": 0.0,
+          "max": 21.5,
+          "positive": 1,
+          "negative": 0,
+          "zero": 5
+        }
+      },
+      "APC-AD": {
+        "food_shortfall": {
+          "world_differences": [
+            1.1801719665527344e-05,
+            82.16489473730326,
+            0.0,
+            -16.217813478782773,
+            0.00020623207092285156,
+            0.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 10.991216548718512,
+          "min": -16.217813478782773,
+          "max": 82.16489473730326,
+          "positive": 3,
+          "negative": 1,
+          "zero": 2
+        },
+        "epidemic_deaths": {
+          "world_differences": [
+            0,
+            11,
+            0,
+            5,
+            0,
+            0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 2.6666666666666665,
+          "min": 0,
+          "max": 11,
+          "positive": 2,
+          "negative": 0,
+          "zero": 4
+        },
+        "food_shortfall_per_1000_pt": {
+          "world_differences": [
+            1.1631206575657416e-07,
+            0.7384301692438981,
+            0.0,
+            -0.13158015573729642,
+            2.448468706006679e-06,
+            0.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.10114209638122891,
+          "min": -0.13158015573729642,
+          "max": 0.7384301692438981,
+          "positive": 3,
+          "negative": 1,
+          "zero": 2
+        },
+        "epidemic_deaths_per_1000_pt": {
+          "world_differences": [
+            0.0,
+            0.10942416953558887,
+            0.0,
+            0.0571629257486963,
+            0.0,
+            0.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.027764515880714196,
+          "min": 0.0,
+          "max": 0.10942416953558887,
+          "positive": 2,
+          "negative": 0,
+          "zero": 4
+        },
+        "person_turns": {
+          "world_differences": [
+            0,
+            109,
+            0,
+            -46,
+            0,
+            0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 10.5,
+          "min": -46,
+          "max": 109,
+          "positive": 1,
+          "negative": 1,
+          "zero": 4
+        },
+        "retail_access_unknown_region_turns": {
+          "world_differences": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0,
+          "min": 0,
+          "max": 0,
+          "positive": 0,
+          "negative": 0,
+          "zero": 6
+        },
+        "native_food_produced": {
+          "world_differences": [
+            -1.1563301086425781e-05,
+            45.725905150175095,
+            0.0,
+            -15.162805065512657,
+            -0.00020813941955566406,
+            0.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 5.093813396990299,
+          "min": -15.162805065512657,
+          "max": 45.725905150175095,
+          "positive": 1,
+          "negative": 3,
+          "zero": 2
+        },
+        "native_food_demand": {
+          "world_differences": [
+            0.0,
+            50.5,
+            0.0,
+            -22.0,
+            0.0,
+            0.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 4.75,
+          "min": -22.0,
+          "max": 50.5,
+          "positive": 1,
+          "negative": 1,
+          "zero": 4
+        }
+      },
+      "ANR-RNR": {
+        "food_shortfall": {
+          "world_differences": [
+            1539.836200922262,
+            1484.57915568538,
+            1136.72814191645,
+            131.96827493119054,
+            376.99848103895783,
+            3925.556458522682
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 1432.6111188361538,
+          "min": 131.96827493119054,
+          "max": 3925.556458522682,
+          "positive": 6,
+          "negative": 0,
+          "zero": 0
+        },
+        "epidemic_deaths": {
+          "world_differences": [
+            191,
+            217,
+            -37,
+            98,
+            140,
+            -258
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 58.5,
+          "min": -258,
+          "max": 217,
+          "positive": 4,
+          "negative": 2,
+          "zero": 0
+        },
+        "food_shortfall_per_1000_pt": {
+          "world_differences": [
+            9.90757678729242,
+            10.256080343136269,
+            12.184181867119015,
+            4.195183064806358,
+            4.742785694063777,
+            35.321861770858845
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 12.76794492121278,
+          "min": 4.195183064806358,
+          "max": 35.321861770858845,
+          "positive": 6,
+          "negative": 0,
+          "zero": 0
+        },
+        "epidemic_deaths_per_1000_pt": {
+          "world_differences": [
+            1.6448968603621252,
+            2.1622585883394634,
+            -0.884714979176608,
+            1.376796894848522,
+            1.6932881215315292,
+            -4.226702677728582
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.29430380136274165,
+          "min": -4.226702677728582,
+          "max": 2.1622585883394634,
+          "positive": 4,
+          "negative": 2,
+          "zero": 0
+        },
+        "person_turns": {
+          "world_differences": [
+            11547,
+            9175,
+            4183,
+            -2711,
+            -837,
+            16866
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 6370.5,
+          "min": -2711,
+          "max": 16866,
+          "positive": 4,
+          "negative": 2,
+          "zero": 0
+        },
+        "retail_access_unknown_region_turns": {
+          "world_differences": [
+            359,
+            219,
+            257,
+            301,
+            196,
+            116
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 241.33333333333334,
+          "min": 116,
+          "max": 359,
+          "positive": 6,
+          "negative": 0,
+          "zero": 0
+        },
+        "native_food_produced": {
+          "world_differences": [
+            6052.837494418025,
+            4346.058350794017,
+            1680.7012375742197,
+            -626.9515777314082,
+            389.9363431558013,
+            4919.277568332851
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 2793.643236090584,
+          "min": -626.9515777314082,
+          "max": 6052.837494418025,
+          "positive": 5,
+          "negative": 1,
+          "zero": 0
+        },
+        "native_food_demand": {
+          "world_differences": [
+            5676.0,
+            4574.0,
+            2311.5,
+            -1911.0,
+            -677.0,
+            8150.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 3020.5833333333335,
+          "min": -1911.0,
+          "max": 8150.0,
+          "positive": 4,
+          "negative": 2,
+          "zero": 0
+        }
+      },
+      "RNR-RD": {
+        "food_shortfall": {
+          "world_differences": [
+            670.5772300264798,
+            -1652.0231009814888,
+            -1197.3224439821206,
+            1100.2838146302383,
+            -1803.8061285838485,
+            -1543.9154751828173
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -737.7010173455928,
+          "min": -1803.8061285838485,
+          "max": 1100.2838146302383,
+          "positive": 2,
+          "negative": 4,
+          "zero": 0
+        },
+        "epidemic_deaths": {
+          "world_differences": [
+            2,
+            -11,
+            19,
+            -18,
+            -44,
+            74
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 3.6666666666666665,
+          "min": -44,
+          "max": 74,
+          "positive": 3,
+          "negative": 3,
+          "zero": 0
+        },
+        "food_shortfall_per_1000_pt": {
+          "world_differences": [
+            7.959329823840136,
+            -17.68252614580529,
+            -11.443001596479057,
+            6.483888767086086,
+            -22.091989330298922,
+            -17.34294643835087
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -9.01954082000132,
+          "min": -22.091989330298922,
+          "max": 7.959329823840136,
+          "positive": 2,
+          "negative": 4,
+          "zero": 0
+        },
+        "epidemic_deaths_per_1000_pt": {
+          "world_differences": [
+            0.030391359940133533,
+            -0.04456635105402551,
+            0.8862809224057644,
+            -0.7254370851424099,
+            -0.5837700124961791,
+            1.348892825924696
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.15196527659632988,
+          "min": -0.7254370851424099,
+          "max": 1.348892825924696,
+          "positive": 3,
+          "negative": 3,
+          "zero": 0
+        },
+        "person_turns": {
+          "world_differences": [
+            -221,
+            -2888,
+            -6663,
+            8324,
+            1536,
+            -4250
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -693.6666666666666,
+          "min": -6663,
+          "max": 8324,
+          "positive": 2,
+          "negative": 4,
+          "zero": 0
+        },
+        "retail_access_unknown_region_turns": {
+          "world_differences": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0,
+          "min": 0,
+          "max": 0,
+          "positive": 0,
+          "negative": 0,
+          "zero": 6
+        },
+        "native_food_produced": {
+          "world_differences": [
+            -1604.6753747835755,
+            -689.4212210252881,
+            -2736.7397155463696,
+            3401.4055984653533,
+            1088.494020164013,
+            -1026.4312179055996
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -261.22798510524444,
+          "min": -2736.7397155463696,
+          "max": 3401.4055984653533,
+          "positive": 2,
+          "negative": 4,
+          "zero": 0
+        },
+        "native_food_demand": {
+          "world_differences": [
+            -130.0,
+            -1461.0,
+            -3502.0,
+            4725.5,
+            551.5,
+            -1997.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -302.1666666666667,
+          "min": -3502.0,
+          "max": 4725.5,
+          "positive": 2,
+          "negative": 4,
+          "zero": 0
+        }
+      },
+      "ANR-AD": {
+        "food_shortfall": {
+          "world_differences": [
+            -1520.801490158774,
+            -2704.3728482024744,
+            -1153.4580248538405,
+            -1969.4821326220408,
+            -749.7439179755747,
+            -223.9999372549355
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -1386.9763918446067,
+          "min": -2704.3728482024744,
+          "max": -223.9999372549355,
+          "positive": 0,
+          "negative": 6,
+          "zero": 0
+        },
+        "epidemic_deaths": {
+          "world_differences": [
+            -16,
+            114,
+            -55,
+            -61,
+            -55,
+            30
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -7.166666666666667,
+          "min": -61,
+          "max": 114,
+          "positive": 2,
+          "negative": 4,
+          "zero": 0
+        },
+        "food_shortfall_per_1000_pt": {
+          "world_differences": [
+            -12.326417816653695,
+            -22.164734689297006,
+            -12.655135837498484,
+            -10.820810290942745,
+            -8.893406825461298,
+            -2.7099531608697447
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -11.595076436787162,
+          "min": -22.164734689297006,
+          "max": -2.7099531608697447,
+          "positive": 0,
+          "negative": 6,
+          "zero": 0
+        },
+        "epidemic_deaths_per_1000_pt": {
+          "world_differences": [
+            0.0361034615514626,
+            1.5391945180921422,
+            -0.47376062498321936,
+            0.09868328178927754,
+            -0.6517885628461189,
+            0.3169302396083289
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.14422705220197884,
+          "min": -0.6517885628461189,
+          "max": 1.5391945180921422,
+          "positive": 4,
+          "negative": 2,
+          "zero": 0
+        },
+        "person_turns": {
+          "world_differences": [
+            -4497,
+            -7629,
+            -2162,
+            -12372,
+            -21,
+            308
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -4395.5,
+          "min": -12372,
+          "max": 308,
+          "positive": 1,
+          "negative": 5,
+          "zero": 0
+        },
+        "retail_access_unknown_region_turns": {
+          "world_differences": [
+            -14,
+            82,
+            125,
+            21,
+            64,
+            51
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 54.833333333333336,
+          "min": -14,
+          "max": 125,
+          "positive": 5,
+          "negative": 1,
+          "zero": 0
+        },
+        "native_food_produced": {
+          "world_differences": [
+            -1043.6373025998473,
+            -2570.077442087233,
+            -515.0857125967741,
+            -5043.038121313788,
+            -716.9394425600767,
+            -187.00732366088778
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -1679.2975574697678,
+          "min": -5043.038121313788,
+          "max": -187.00732366088778,
+          "positive": 0,
+          "negative": 6,
+          "zero": 0
+        },
+        "native_food_demand": {
+          "world_differences": [
+            -2313.5,
+            -3776.5,
+            -893.5,
+            -6260.5,
+            -165.5,
+            398.5
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -2168.5,
+          "min": -6260.5,
+          "max": 398.5,
+          "positive": 1,
+          "negative": 5,
+          "zero": 0
+        }
+      }
+    }
+  },
+  "selected_harms": {
+    "t": {
+      "AD-RD": {
+        "population": {
+          "world_differences": [
+            66,
+            -12,
+            10,
+            58,
+            16,
+            34
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 28.666666666666668,
+          "min": -12,
+          "max": 66,
+          "positive": 5,
+          "negative": 1,
+          "zero": 0
+        },
+        "treasury": {
+          "world_differences": [
+            172,
+            -1580,
+            258,
+            68,
+            271,
+            -13
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -137.33333333333334,
+          "min": -1580,
+          "max": 271,
+          "positive": 4,
+          "negative": 2,
+          "zero": 0
+        },
+        "priced_out_persons": {
+          "world_differences": [
+            -110.0,
+            -49.0,
+            -385.0,
+            -90.0,
+            857.0,
+            226.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 74.83333333333333,
+          "min": -385.0,
+          "max": 857.0,
+          "positive": 2,
+          "negative": 4,
+          "zero": 0
+        },
+        "priced_out_children": {
+          "world_differences": [
+            -55.0,
+            59.0,
+            23.0,
+            18.0,
+            85.0,
+            39.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 28.166666666666668,
+          "min": -55.0,
+          "max": 85.0,
+          "positive": 5,
+          "negative": 1,
+          "zero": 0
+        },
+        "wealth_gini": {
+          "world_differences": [
+            -0.0743042523431473,
+            0.04219580273230039,
+            -0.018288179186871645,
+            0.04765186950318756,
+            0.026045508551242214,
+            0.00811525162583182
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.005236000147090507,
+          "min": -0.0743042523431473,
+          "max": 0.04765186950318756,
+          "positive": 4,
+          "negative": 2,
+          "zero": 0
+        },
+        "forest_stand": {
+          "world_differences": [
+            -0.015205320313174342,
+            null,
+            0.004295946707785991,
+            -0.05478316845160647,
+            0.1878621132674842,
+            null
+          ],
+          "n": 4,
+          "unknown": 2,
+          "mean": 0.030542392802622345,
+          "min": -0.05478316845160647,
+          "max": 0.1878621132674842,
+          "positive": 2,
+          "negative": 2,
+          "zero": 0
+        }
+      },
+      "IX-AD": {
+        "population": {
+          "world_differences": [
+            -49,
+            -26,
+            6,
+            -45,
+            -54,
+            -52
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -36.666666666666664,
+          "min": -54,
+          "max": 6,
+          "positive": 1,
+          "negative": 5,
+          "zero": 0
+        },
+        "treasury": {
+          "world_differences": [
+            -705,
+            1296,
+            562,
+            1108,
+            -205,
+            -205
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 308.5,
+          "min": -705,
+          "max": 1296,
+          "positive": 3,
+          "negative": 3,
+          "zero": 0
+        },
+        "priced_out_persons": {
+          "world_differences": [
+            -351.0,
+            168.0,
+            -195.0,
+            146.0,
+            -442.0,
+            -543.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -202.83333333333334,
+          "min": -543.0,
+          "max": 168.0,
+          "positive": 2,
+          "negative": 4,
+          "zero": 0
+        },
+        "priced_out_children": {
+          "world_differences": [
+            7.0,
+            -52.0,
+            -25.0,
+            -37.0,
+            -59.0,
+            -70.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -39.333333333333336,
+          "min": -70.0,
+          "max": 7.0,
+          "positive": 1,
+          "negative": 5,
+          "zero": 0
+        },
+        "wealth_gini": {
+          "world_differences": [
+            -0.0035943180744532066,
+            -0.25950741560151963,
+            0.05923925840040334,
+            -0.2132685973639309,
+            -0.00021542615218850258,
+            -0.12556188736666857
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -0.09048473102639291,
+          "min": -0.25950741560151963,
+          "max": 0.05923925840040334,
+          "positive": 1,
+          "negative": 5,
+          "zero": 0
+        },
+        "forest_stand": {
+          "world_differences": [
+            0.04038671205463684,
+            null,
+            -0.004295946707785991,
+            0.12192339221370252,
+            0.1445490747197256,
+            null
+          ],
+          "n": 4,
+          "unknown": 2,
+          "mean": 0.07564080807006975,
+          "min": -0.004295946707785991,
+          "max": 0.1445490747197256,
+          "positive": 3,
+          "negative": 1,
+          "zero": 0
+        }
+      },
+      "RNR-RD": {
+        "population": {
+          "world_differences": [
+            45,
+            24,
+            33,
+            8,
+            -31,
+            -13
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 11,
+          "min": -31,
+          "max": 45,
+          "positive": 4,
+          "negative": 2,
+          "zero": 0
+        },
+        "treasury": {
+          "world_differences": [
+            -113,
+            279,
+            419,
+            295,
+            -220,
+            1138
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 299.6666666666667,
+          "min": -220,
+          "max": 1138,
+          "positive": 4,
+          "negative": 2,
+          "zero": 0
+        },
+        "priced_out_persons": {
+          "world_differences": [
+            2263.0,
+            982.0,
+            1021.0,
+            1383.0,
+            1772.0,
+            874.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 1382.5,
+          "min": 874.0,
+          "max": 2263.0,
+          "positive": 6,
+          "negative": 0,
+          "zero": 0
+        },
+        "priced_out_children": {
+          "world_differences": [
+            164.0,
+            139.0,
+            133.0,
+            91.0,
+            150.0,
+            104.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 130.16666666666666,
+          "min": 91.0,
+          "max": 164.0,
+          "positive": 6,
+          "negative": 0,
+          "zero": 0
+        },
+        "wealth_gini": {
+          "world_differences": [
+            -0.007734080314632741,
+            0.0643710382758188,
+            0.018223373941679055,
+            0.0037753092960638446,
+            -0.055396950208403406,
+            0.05970071456299375
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.013823234258919884,
+          "min": -0.055396950208403406,
+          "max": 0.0643710382758188,
+          "positive": 4,
+          "negative": 2,
+          "zero": 0
+        },
+        "forest_stand": {
+          "world_differences": [
+            0.0312748347795645,
+            -0.06638213442967911,
+            0.0,
+            0.0004668697921912379,
+            0.4244496855062697,
+            null
+          ],
+          "n": 5,
+          "unknown": 1,
+          "mean": 0.07796185112966927,
+          "min": -0.06638213442967911,
+          "max": 0.4244496855062697,
+          "positive": 3,
+          "negative": 1,
+          "zero": 1
+        }
+      },
+      "ANR-AD": {
+        "population": {
+          "world_differences": [
+            -9,
+            14,
+            -11,
+            35,
+            -3,
+            44
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 11.666666666666666,
+          "min": -11,
+          "max": 44,
+          "positive": 3,
+          "negative": 3,
+          "zero": 0
+        },
+        "treasury": {
+          "world_differences": [
+            -162,
+            1265,
+            -515,
+            -32,
+            -610,
+            903
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 141.5,
+          "min": -610,
+          "max": 1265,
+          "positive": 2,
+          "negative": 4,
+          "zero": 0
+        },
+        "priced_out_persons": {
+          "world_differences": [
+            2111.0,
+            1600.0,
+            584.0,
+            2164.0,
+            1026.0,
+            857.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 1390.3333333333333,
+          "min": 584.0,
+          "max": 2164.0,
+          "positive": 6,
+          "negative": 0,
+          "zero": 0
+        },
+        "priced_out_children": {
+          "world_differences": [
+            214.0,
+            147.0,
+            84.0,
+            136.0,
+            80.0,
+            136.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 132.83333333333334,
+          "min": 80.0,
+          "max": 214.0,
+          "positive": 6,
+          "negative": 0,
+          "zero": 0
+        },
+        "wealth_gini": {
+          "world_differences": [
+            0.03882443830028093,
+            -0.06539802244917992,
+            -0.009530131498104777,
+            -0.06972472404437613,
+            -0.03672967965643692,
+            0.09850020276925286
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -0.007342986096427325,
+          "min": -0.06972472404437613,
+          "max": 0.09850020276925286,
+          "positive": 2,
+          "negative": 4,
+          "zero": 0
+        },
+        "forest_stand": {
+          "world_differences": [
+            -0.0460897915950188,
+            null,
+            -0.04943355487103418,
+            0.16514320686899686,
+            0.2469040216081531,
+            null
+          ],
+          "n": 4,
+          "unknown": 2,
+          "mean": 0.07913097050277425,
+          "min": -0.04943355487103418,
+          "max": 0.2469040216081531,
+          "positive": 2,
+          "negative": 2,
+          "zero": 0
+        }
+      }
+    },
+    "p": {
+      "AD-RD": {
+        "population": {
+          "world_differences": [
+            149,
+            104,
+            -76,
+            144,
+            45,
+            202
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 94.66666666666667,
+          "min": -76,
+          "max": 202,
+          "positive": 5,
+          "negative": 1,
+          "zero": 0
+        },
+        "treasury": {
+          "world_differences": [
+            -671,
+            252,
+            -2346,
+            -444,
+            -974,
+            403
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -630,
+          "min": -2346,
+          "max": 403,
+          "positive": 2,
+          "negative": 4,
+          "zero": 0
+        },
+        "priced_out_persons": {
+          "world_differences": [
+            196.0,
+            68.0,
+            -222.0,
+            -8.0,
+            -844.0,
+            80.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -121.66666666666667,
+          "min": -844.0,
+          "max": 196.0,
+          "positive": 3,
+          "negative": 3,
+          "zero": 0
+        },
+        "priced_out_children": {
+          "world_differences": [
+            -108.0,
+            41.0,
+            -20.0,
+            2.0,
+            18.0,
+            -8.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -12.5,
+          "min": -108.0,
+          "max": 41.0,
+          "positive": 3,
+          "negative": 3,
+          "zero": 0
+        },
+        "wealth_gini": {
+          "world_differences": [
+            -0.02507487428378563,
+            -0.015165062236799587,
+            -0.027239466235306042,
+            -0.06882143172211075,
+            0.008729466365762995,
+            -0.04484313249463656
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -0.02873575010114593,
+          "min": -0.06882143172211075,
+          "max": 0.008729466365762995,
+          "positive": 1,
+          "negative": 5,
+          "zero": 0
+        },
+        "forest_stand": {
+          "world_differences": [
+            -0.017281919837582094,
+            -0.05875485752036913,
+            -0.20450690986094444,
+            0.014402514051287119,
+            -0.03078850343825723,
+            0.027906990336692528
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -0.04483711437819554,
+          "min": -0.20450690986094444,
+          "max": 0.027906990336692528,
+          "positive": 2,
+          "negative": 4,
+          "zero": 0
+        }
+      },
+      "IX-AD": {
+        "population": {
+          "world_differences": [
+            -209,
+            -104,
+            -47,
+            -92,
+            -67,
+            -399
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -153,
+          "min": -399,
+          "max": -47,
+          "positive": 0,
+          "negative": 6,
+          "zero": 0
+        },
+        "treasury": {
+          "world_differences": [
+            -402,
+            -1910,
+            953,
+            255,
+            772,
+            -3027
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -559.8333333333334,
+          "min": -3027,
+          "max": 953,
+          "positive": 3,
+          "negative": 3,
+          "zero": 0
+        },
+        "priced_out_persons": {
+          "world_differences": [
+            -1284.0,
+            -575.0,
+            -27.0,
+            98.0,
+            252.0,
+            -605.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -356.8333333333333,
+          "min": -1284.0,
+          "max": 252.0,
+          "positive": 2,
+          "negative": 4,
+          "zero": 0
+        },
+        "priced_out_children": {
+          "world_differences": [
+            -14.0,
+            -59.0,
+            -15.0,
+            -68.0,
+            -11.0,
+            -5.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -28.666666666666668,
+          "min": -68.0,
+          "max": -5.0,
+          "positive": 0,
+          "negative": 6,
+          "zero": 0
+        },
+        "wealth_gini": {
+          "world_differences": [
+            0.019217326749726094,
+            -0.0655807733670557,
+            0.03703616214606542,
+            0.04323276273932375,
+            -0.05891617419515305,
+            -0.058428858479184886
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -0.013906592401046395,
+          "min": -0.0655807733670557,
+          "max": 0.04323276273932375,
+          "positive": 3,
+          "negative": 3,
+          "zero": 0
+        },
+        "forest_stand": {
+          "world_differences": [
+            0.029551227890990073,
+            0.03539755054541083,
+            0.16586173303205498,
+            -0.04487281387420505,
+            0.05426074841762063,
+            -0.020899567712330036
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.03654981304992357,
+          "min": -0.04487281387420505,
+          "max": 0.16586173303205498,
+          "positive": 4,
+          "negative": 2,
+          "zero": 0
+        }
+      },
+      "RNR-RD": {
+        "population": {
+          "world_differences": [
+            -107,
+            -100,
+            -104,
+            120,
+            25,
+            -139
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -50.833333333333336,
+          "min": -139,
+          "max": 120,
+          "positive": 2,
+          "negative": 4,
+          "zero": 0
+        },
+        "treasury": {
+          "world_differences": [
+            -1493,
+            -170,
+            -1065,
+            -281,
+            71,
+            -986
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -654,
+          "min": -1493,
+          "max": 71,
+          "positive": 1,
+          "negative": 5,
+          "zero": 0
+        },
+        "priced_out_persons": {
+          "world_differences": [
+            5674.0,
+            5083.0,
+            4581.0,
+            5682.0,
+            5381.0,
+            4366.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 5127.833333333333,
+          "min": 4366.0,
+          "max": 5682.0,
+          "positive": 6,
+          "negative": 0,
+          "zero": 0
+        },
+        "priced_out_children": {
+          "world_differences": [
+            588.0,
+            318.0,
+            362.0,
+            366.0,
+            408.0,
+            394.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 406.0,
+          "min": 318.0,
+          "max": 588.0,
+          "positive": 6,
+          "negative": 0,
+          "zero": 0
+        },
+        "wealth_gini": {
+          "world_differences": [
+            0.08002201042280555,
+            -0.07238338292879154,
+            -0.006978066357219537,
+            0.04334137453867071,
+            0.020239686674435986,
+            -0.008298264156601176
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.009323893032216665,
+          "min": -0.07238338292879154,
+          "max": 0.08002201042280555,
+          "positive": 3,
+          "negative": 3,
+          "zero": 0
+        },
+        "forest_stand": {
+          "world_differences": [
+            -0.040388427861670295,
+            -0.02037460044264383,
+            0.0466752248643314,
+            -0.01483474678184915,
+            0.024095603223219797,
+            -0.011913006088570155
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -0.0027899921811970394,
+          "min": -0.040388427861670295,
+          "max": 0.0466752248643314,
+          "positive": 2,
+          "negative": 4,
+          "zero": 0
+        }
+      },
+      "ANR-AD": {
+        "population": {
+          "world_differences": [
+            -38,
+            -181,
+            78,
+            -147,
+            -41,
+            -30
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -59.833333333333336,
+          "min": -181,
+          "max": 78,
+          "positive": 1,
+          "negative": 5,
+          "zero": 0
+        },
+        "treasury": {
+          "world_differences": [
+            936,
+            -1558,
+            1127,
+            460,
+            68,
+            -1331
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": -49.666666666666664,
+          "min": -1558,
+          "max": 1127,
+          "positive": 4,
+          "negative": 2,
+          "zero": 0
+        },
+        "priced_out_persons": {
+          "world_differences": [
+            4811.0,
+            4581.0,
+            4237.0,
+            4030.0,
+            5763.0,
+            5483.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 4817.5,
+          "min": 4030.0,
+          "max": 5763.0,
+          "positive": 6,
+          "negative": 0,
+          "zero": 0
+        },
+        "priced_out_children": {
+          "world_differences": [
+            536.0,
+            346.0,
+            305.0,
+            439.0,
+            389.0,
+            542.0
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 426.1666666666667,
+          "min": 305.0,
+          "max": 542.0,
+          "positive": 6,
+          "negative": 0,
+          "zero": 0
+        },
+        "wealth_gini": {
+          "world_differences": [
+            0.05588817761042397,
+            -0.017519701193838166,
+            0.026533271022709415,
+            0.07650181547371115,
+            0.015492782996268883,
+            0.011026424361144871
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.027987128378403354,
+          "min": -0.017519701193838166,
+          "max": 0.07650181547371115,
+          "positive": 5,
+          "negative": 1,
+          "zero": 0
+        },
+        "forest_stand": {
+          "world_differences": [
+            0.04286733527474251,
+            -0.02117161403792478,
+            0.06696563738118932,
+            -0.03477502932948806,
+            0.04088275062714908,
+            -0.023004093101883227
+          ],
+          "n": 6,
+          "unknown": 0,
+          "mean": 0.011960831135630809,
+          "min": -0.03477502932948806,
+          "max": 0.06696563738118932,
+          "positive": 3,
+          "negative": 3,
+          "zero": 0
+        }
+      }
+    }
+  },
+  "ledger_seconds": 3344.8,
+  "cap_seconds": 7200,
+  "actual_descendant_cpu_seconds": 3352.514769,
+  "presentation_erratum": "Raw e5 report inherits generic non-activated-worlds-excluded headings. CWR activation always True; root excluded from activation checks; all successful worlds included. Preserve raw bytes and publish adjacent erratum.",
+  "food_scope": "Regional availability differs from household access. Priced-out person/child-turn harms are observed provisioning subtotals, not a complete-world census. Complete access is null with any populated missing-region observation.",
+  "mortality_scope": "Recorded epidemic authority only; famine and war cause-specific deaths remain null in all144 rows. Person-turn denominators respond to interventions.",
+  "mechanism_scope": "D3 positive in personal record-only; component receipts are capped and combined native input changes do not attribute individual outcomes. Arrival facts are guarded T-1 diagnostics, not inferred motives/housing.",
+  "approval_limit": "Supports fixed fresh bounded experiment, not qualification, calibration, default promotion, one-fix old-CW6-to-new causal inference or final merge authorization. Exact final head review/Tests and verified main CI still required.",
+  "all144_arithmetic_receipt_sha256": "58ad4c99fb3cee85f49460147a4b699349b8ee16acd8c0f9f1fd18d0e0104b00",
+  "all144_arithmetic_receipt_status": "PASS"
+}
