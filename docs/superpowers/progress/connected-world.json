@@ -650,7 +650,7 @@
       "verification": "Independent actual source/native/inverse/evidence/test-contract reviews; all nine premerge Tests success; tree equals reviewed head; all nine exact main Tests success."
     }
   ],
-  "next": "Continue the existing CWR1 held run at exact frozen b45 source (resume sameoutput/identity ifinterrupted; no automatic restart promise); complete template active resume350s; audit all144rows/contrasts; markregistry ONCE afterclosure; finalreview/CI/merge/main.",
+  "next": "Continue only the existing frozen CWR1 run and identity; audit all 144 cases after closure; lead records registry once; finalize results and independent whole-PR review; require green reviewed-head Tests, merge authorized PR and verify exact main CI.",
   "baseline": {
     "oracle_lane": "PASS, 63 chunks, 295.5 s, slowest 32.4 s of 110 s",
     "native_check": "check_python_env --expect native PASS (101a4cd5)",
@@ -848,8 +848,8 @@
     "base_main_run": 42397121718,
     "ledger": "docs/superpowers/progress/connected-world-rework.md",
     "branch": "codex/cw-rework",
-    "next": "Continue the existing CWR1 held run at exact frozen b45 source (resume sameoutput/identity ifinterrupted; no automatic restart promise); complete template active resume350s; audit all144rows/contrasts; markregistry ONCE afterclosure; finalreview/CI/merge/main.",
-    "correctness": "Explicit rules3/density_only implemented and independently reviewed; legacy defaults unchanged.41 physical-arrival/downstream epidemic testsPASS; old reader fails at susceptibility2.1875 vs1.75. Initial scoped418PASS, extractor48PASS, Rust1339PASS/2existingmanualbenchesignored. Broad execution/CI gates continue.",
+    "next": "Continue only the existing frozen CWR1 run and identity; audit all 144 cases after closure; lead records registry once; finalize results and independent whole-PR review; require green reviewed-head Tests, merge authorized PR and verify exact main CI.",
+    "correctness": "Explicit rules 3 / density_only independently reviewed and tested; legacy feature and version defaults unchanged. Physical-arrival, downstream real epidemic, native adversarial and control tests pass. Historical CW6 adverse findings remain reproduced; fresh results await held closure.",
     "native": {
       "sha256": "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
       "input_sha256": "f55df55d453ac37694410246c4a9728c56f3f6148f679fde8efc21ffd8775acf",
@@ -888,16 +888,25 @@
     },
     "performance": {
       "corrected_before": "09403c15070ddab4977ae8b2e65c336238468447",
-      "timber_after": "a1fcb482",
-      "before_matrix": "10/10 passed,523.36 childCPU seconds",
-      "after_matrix": "running; equality admission pending",
-      "template_pilot": "null wholeCPU+0.0438%; timber stage-64.0%;111 unchanged non-bundle outputs,4 exactcheckpointcomponents"
+      "final": "1e047e7b6585d2cf13bb990f03f292c1067979c5",
+      "runtime": "8792be88dd36ba4d7c22e480de6a19dd64ea1300",
+      "admission": "10/10 case pairs passed; 760 non-bundle outputs byte-equal; timestamp-only typed bundle equality; 36 private checkpoint pairs and 72 same-source reads equal.",
+      "full_workload_cpu_seconds": {
+        "before": 318.281962,
+        "after": 265.894009
+      },
+      "largest_case_cpu_seconds": {
+        "before": 105.444,
+        "after": 69.552
+      },
+      "limitations": "Single observations; small/null/adverse differences retained. FULL/OFF CPU remains 1.82\u20134.31x and raw bundles 2.37\u20134.12x. No qualification claim.",
+      "evidence": "docs/superpowers/progress/connected-world-rework/performance/README.md"
     },
     "draft_pr": {
       "pr": 99,
       "initial_head": "89e80e8c53b00e167850d8ec3af85676fcb35e89",
       "initial_tests": 42417373801,
-      "status": "running; final head/evidence will change before merge",
+      "status": "Open draft; complete code and prior evidence heads passed all nine Tests. Final held evidence, whole-PR review and final-head checks remain required.",
       "initial_tests_status": "no-Rust/offline failed sole historical registry projection; test-only reviewed fix preserves all3hashes and live CWR identity. Fresh-head gates required."
     },
     "verification_checkpoint": {
@@ -911,19 +920,41 @@
         "note": "Before final TT exact arithmetic; newTT70focused pass; final CI stillrequired"
       },
       "default_identity": {
-        "source": "b6a68a8bc884253b02b3cc7b6c139e10038d0eb7",
+        "source": "8792be88dd36ba4d7c22e480de6a19dd64ea1300",
         "cases": 9,
         "files": 399,
         "differences": 0,
         "references": [
           "8abc1acb",
-          "precedingmain125a6906(source-equivalent830d0dc2)"
+          "preceding main 125a6906 (verified retained source-equivalent 830d0dc2)"
         ],
-        "note": "Before lazy/exact-floor followups; repeat final default matrix before merge."
+        "note": "Final runtime rerun completed; actual source, import and compiled native identities retained; only metadata.generated_at normalized."
       },
       "final_runtime": "8792be88dd36ba4d7c22e480de6a19dd64ea1300",
       "final_profile": "1e047e7b6585d2cf13bb990f03f292c1067979c5 (same src/Rust/scripts bytes)",
-      "next": "Finish final10-case comparison after exact-arithmetic optimization, then official24x120pilot on879 frozenruntime; no heldspent."
+      "next": "All implementation gates completed; await unchanged held closure, independent results/whole-PR review and final exact-head/main CI.",
+      "enabled_resume": {
+        "source": "8792be88dd36ba4d7c22e480de6a19dd64ea1300",
+        "branches": 14,
+        "checkpoint_neutrality_comparisons": 2,
+        "file_comparisons": 202,
+        "differences": 0,
+        "raw_arrow_outputs": 18,
+        "procedural_seconds": 387.029,
+        "procedural_cap_seconds": 600,
+        "template_seconds": 174.531,
+        "template_cap_seconds": 350,
+        "evidence": "docs/superpowers/progress/connected-world-rework-resume/README.md",
+        "note": "Independent artifact/source/native audit passed. Missing activations and unavailable checkpoint-zero boundaries remain explicit."
+      },
+      "browser": {
+        "real_assertions": 372,
+        "prior_ph_rows": 3840,
+        "valid_same_turn_difference_count": 2163,
+        "adjacent_cross_checks": 3808,
+        "superseded_invalid_count": 2392,
+        "evidence": "docs/superpowers/progress/connected-world-rework-viewer-compatibility/complete-window-120.md"
+      }
     },
     "pilot": {
       "status": "passed24/24",
@@ -944,9 +975,9 @@
       "held_started": true
     },
     "code_ci": {
-      "head": "4502fdc1f915d3fe1717c9f8f31a28464f7e7459",
-      "run": 42419454116,
-      "all_nine": "passed; later changes docs and testfixture only, final-head CI stillrequired"
+      "head": "b1b324e39162b0283387694cf3118c4535a30034",
+      "run": 42421910336,
+      "all_nine": "passed; later changes are evidence/docs, final reviewed head must pass separately"
     }
   }
 }
