@@ -188,11 +188,15 @@ def check_request(world, values: dict, args, *, agent_mode: str, on) -> None:
         missing.append("epidemiology with the contact ledger")
     saved = values.get("epidemic_care") is not True
     end = "; this world has it on: pass --no-epidemic-care to end it" if saved else ""
+    # A saved world's refusal names the option that ends it and exits without a
+    # traceback at the command line (``LivelihoodsRefusal``, a ValueError).
+    from chronicler.livelihoods import LivelihoodsRefusal
+    refuse = LivelihoodsRefusal if saved else ValueError
     if missing:
-        raise ValueError("--epidemic-care requires " + ", ".join(missing) + end)
+        raise refuse("--epidemic-care requires " + ", ".join(missing) + end)
     if on("wealth_accounting"):
-        raise ValueError("--epidemic-care cannot run with --wealth-accounting (the A1 ledger does not itemize "
-                         "care wages)" + end)
+        raise refuse("--epidemic-care cannot run with --wealth-accounting (the A1 ledger does not itemize "
+                     "care wages)" + end)
     if mode is not None and state is not None and mode != state.mode and (
             state.tick_turn is not None or state.frame_turn is not None):
         raise ValueError(f"--epidemic-care-mode {mode} conflicts with the saved world (saved: {state.mode}); a "

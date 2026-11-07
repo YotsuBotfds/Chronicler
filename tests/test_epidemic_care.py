@@ -607,8 +607,9 @@ def test_a_saved_world_outside_hybrid_is_refused_with_the_way_to_end_it():
     LV.configure_livelihoods(w, _args(epidemic_care=True, epidemic_care_mode="cost_only", local_budgets=True),
                              agent_mode="hybrid")
     assert w.livelihoods.epidemic_care.mode == "cost_only"
-    with pytest.raises(ValueError, match="pass --no-epidemic-care to end it"):
+    with pytest.raises(LV.LivelihoodsRefusal, match="pass --no-epidemic-care to end it") as refused:
         LV.configure_livelihoods(w, _args(), agent_mode="off")
+    assert refused.value.code.startswith("Error: --epidemic-care requires --agents hybrid")   # no traceback at the CLI
     w.livelihoods.epidemic_care.tick_turn = 3
     with pytest.raises(ValueError, match="keeps its epidemic care mode"):
         LV.configure_livelihoods(w, _args(epidemic_care_mode="care"), agent_mode="hybrid")
