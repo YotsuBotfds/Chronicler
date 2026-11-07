@@ -343,6 +343,13 @@ def on_pool_reset(world):
     state = _state(world)
     if state is None:
         return
+    sim = getattr(state, "_sim", None)
+    if sim is not None:
+        sim.cancel_enlisted_service()
+        state._sim = None
+    state.census_turn, state.census_ids = None, []
+    state.feeding_turn, state.feeding, state.fed_ids = None, {}, {}
+    state.supply_turn, state.supplied = None, []
     for claim in state.claims:
         if claim.status == "open":
             claim.status = "pool_reset"

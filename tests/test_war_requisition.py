@@ -242,3 +242,22 @@ def test_post_logistics_food_input_requires_a_phase2_census():
     world, _, _ = _world()
     with pytest.raises(RuntimeError, match="Phase 2"):
         WR.enlisted_service_rows(world, after_logistics=True)
+
+
+def test_pool_replacement_cannot_give_a_reused_id_an_old_army_meal():
+    world, _, war = _world()
+    army = place_army(world, "A", "Avalon", 1, war.war_key, roster=[(7, 0)])
+    army.rations = 4
+    WR.enlisted_service_rows(world)
+    WR.note_consumption(world, army, 1, 1)
+    state = WR._state(world)
+    state.supply_turn, state.supplied = world.turn, [army.army_id + ":tick"]
+    canceled = []
+    state._sim = SimpleNamespace(cancel_enlisted_service=lambda: canceled.append(True))
+    WR.on_pool_reset(world)
+    assert canceled == [True] and state._sim is None
+    assert state.census_turn is state.feeding_turn is state.supply_turn is None
+    assert not state.census_ids and not state.fed_ids and not state.feeding and not state.supplied
+    # A reconstructed roster can reuse 7; its predecessor's meal is gone.
+    assert WR.enlisted_service_rows(world) == [(7, 0.0)]
+    assert army.rations == 4  # physical stores have a separate authority
