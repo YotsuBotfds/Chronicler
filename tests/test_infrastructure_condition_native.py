@@ -153,3 +153,48 @@ def test_exact_resume_with_an_outstanding_timber_order(tmp_path, monkeypatch):
     assert any(e["eid"] in launched and e["status"] == "delivered" for e in after["closed"])
     assert a["history"] == b["history"] and a["world_state"] == b["world_state"]
     assert (straight / "state.json").read_bytes() == (resumed / "state.json").read_bytes()
+
+
+def test_harvest_cover_exact_resume_during_a_constructed_depleted_stand(tmp_path, monkeypatch):
+    """Constructed B4 transition, not a natural depletion/held efficacy claim."""
+    import chronicler.main as main_mod
+    from chronicler.livelihoods_state import LivelihoodsState
+    from chronicler.timber_stock import set_timber_stock_enabled
+    generate = main_mod.generate_world
+
+    def depleted(*args, **kwargs):
+        world = generate(*args, **kwargs)
+        world.livelihoods = LivelihoodsState()
+        set_timber_stock_enabled(world, True)
+        for stand in world.livelihoods.timber_stock.stocks:
+            stand.stock *= 0.02
+        return world
+
+    monkeypatch.setattr(main_mod, "generate_world", depleted)
+    straight, resumed = tmp_path / "straight", tmp_path / "resumed"
+    _cli(monkeypatch, straight, "--seed", "31", "--turns", "12", *FLAGS, *PROCEDURAL,
+         "--timber-stock", "--harvest-cover", "--checkpoint-turns", "6")
+    _cli(monkeypatch, resumed, "--resume", str(straight / "checkpoint_turn_6.ckpt"))
+    a, b = _bundle(straight), _bundle(resumed)
+    assert a["history"] == b["history"] and a["world_state"] == b["world_state"]
+    assert (straight / "state.json").read_bytes() == (resumed / "state.json").read_bytes()
+    cover = a["history"][5]["livelihoods"]["harvest_cover"]
+    assert cover["counters"]["cover_loss"] > 0
+    assert any(row["loss"] > 0 for row in cover["rows"])
+
+
+def test_harvest_cover_record_only_keeps_native_outputs_identical(tmp_path, monkeypatch):
+    off, on = tmp_path / "off", tmp_path / "on"
+    args = ("--seed", "23", "--turns", "12", *FLAGS, "--timber-stock")
+    _cli(monkeypatch, off, *args)
+    _cli(monkeypatch, on, *args, "--harvest-cover", "--harvest-cover-mode", "record_only")
+    def without(value):
+        if isinstance(value, dict):
+            return {k: without(v) for k, v in value.items() if k != "harvest_cover"}
+        if isinstance(value, list):
+            return [without(v) for v in value]
+        return value
+    a, b = _bundle(off), _bundle(on)
+    assert without(a["history"]) == without(b["history"])
+    assert without(a["world_state"]) == without(b["world_state"])
+    assert without(json.loads((off / "state.json").read_text())) == without(json.loads((on / "state.json").read_text()))

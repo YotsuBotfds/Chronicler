@@ -310,6 +310,7 @@ def test_checked_in_partition_preserves_historical_assignment_with_explicit_new_
         'tests/test_money.py': '0',
         'tests/test_workshop_economics.py': '0',
         'tests/test_workshop_economics_native.py': '0',
+        'tests/test_harvest_cover.py': '0',
         'tests/test_infrastructure_condition.py': '0',
         'tests/test_infrastructure_condition_native.py': '0',
         'tests/test_attribution_records.py': '0',

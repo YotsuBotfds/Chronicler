@@ -48,6 +48,7 @@ from chronicler.food_allocation_state import FoodAllocationState
 from chronicler.grain_convoys_state import GrainConvoyState
 from chronicler.guild_leagues_state import GuildLeagueState
 from chronicler.household_retail_state import HouseholdRetailState
+from chronicler.harvest_cover_state import HarvestCoverState
 from chronicler.infrastructure_condition_state import InfrastructureConditionState
 from chronicler.learning_cohorts_state import LearningCohortState
 from chronicler.local_budgets_state import LocalBudgetState
@@ -79,7 +80,7 @@ LIVELIHOODS_SWITCHES: tuple[str, ...] = ("workshops", "food_allocation", "timber
                                          "operating_wear", "timber_supply", "timber_orders",
                                          "recovery_crews", "maintenance_obligation", "reform_services",
                                          "household_retail", "watershed", "workshop_economics", "titled_trade",
-                                         "infrastructure_condition", "epidemic_care", "guild_leagues", "war_requisition", "war_consequences", "adaptive_livelihoods", "public_health", "residence_ledger", "attribution_records",
+                                         "infrastructure_condition", "harvest_cover", "epidemic_care", "guild_leagues", "war_requisition", "war_consequences", "adaptive_livelihoods", "public_health", "residence_ledger", "attribution_records",
                                          "wealth_accounting")
 
 
@@ -114,6 +115,7 @@ class LivelihoodsState(BaseModel):
     workshop_economics: WorkshopEconomicsState | None = Field(default=None, exclude_if=_is_none)
     titled_trade: TitledTradeState | None = Field(default=None, exclude_if=_is_none)
     infrastructure_condition: InfrastructureConditionState | None = Field(default=None, exclude_if=_is_none)
+    harvest_cover: HarvestCoverState | None = Field(default=None, exclude_if=_is_none)
     epidemic_care: EpidemicCareState | None = Field(default=None, exclude_if=_is_none)
     guild_leagues: GuildLeagueState | None = Field(default=None, exclude_if=_is_none)
     war_requisition: WarRequisitionState | None = Field(default=None, exclude_if=_is_none)

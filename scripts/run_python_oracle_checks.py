@@ -399,6 +399,7 @@ CHUNKS = {
     "connected-world-b": [
         "tests/test_watershed.py",
         "tests/test_infrastructure_condition.py",
+        "tests/test_harvest_cover.py",
         "tests/test_cw3_screen.py",
     ],
     "ritual-gatherings": [

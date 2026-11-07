@@ -163,6 +163,7 @@ LIVELIHOODS_CHOICES: dict[str, tuple[str, ...]] = {
     "workshop_economics_mode": ("market", "free_inputs", "academy_only"),
     "workshop_economics_rules": ("1", "2"),
     "infrastructure_condition_mode": ("repair", "record_only", "wear_only", "cost_only"),
+    "harvest_cover_mode": ("loss", "record_only"),
     "epidemic_care_mode": ("care", "cost_only"),
     "reform_services_mode": ("service", "cost_only"),
     "guild_league_mode": ("mutual", "dues_only"),
@@ -194,6 +195,7 @@ LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     "workshop_economics_rules",
     "titled_trade",
     "infrastructure_condition", "infrastructure_condition_mode",
+    "harvest_cover", "harvest_cover_mode",
     "epidemic_care", "epidemic_care_mode",
     # D1a: the CLI and catalog list it beside the other connected-world switches;
     # its hooks run before household_retail's (LIVELIHOODS_SWITCHES order).
@@ -505,6 +507,9 @@ _HELP = {
         "and nothing repairs (the control); cost_only (requires --repair-projects): works plan and pay "
         "identically and credit no condition"
     ),
+    "harvest_cover": ("Timber depletion opens canopy gaps without destroying standing stock; ecology owns "
+                      "regrowth and the watershed reads cover; requires --agents hybrid and --timber-stock (default off)"),
+    "harvest_cover_mode": ("loss (default): apply canopy gaps; record_only: observe proposed loss without changing cover"),
     "epidemic_care": (
         "Epidemic care (C2): each ruler may fund, from its local budget, carers for a region with a reported "
         "outbreak: adult farmers resident there who hold no other work, named by stable id, give their farm "
@@ -823,6 +828,9 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
         from chronicler.infrastructure_condition import check_request
         check_request(world, values["infrastructure_condition"], args, agent_mode=agent_mode,
                       rs2=_on(world, values, "repair_projects"))
+    if values["harvest_cover"] is not None or _on(world, values, "harvest_cover") or getattr(args, "harvest_cover_mode", None) is not None:
+        from chronicler.harvest_cover import check_request
+        check_request(world, values["harvest_cover"], args, agent_mode=agent_mode, timber_on=_on(world, values, "timber_stock"))
     if (values["epidemic_care"] is not None or getattr(args, "epidemic_care_mode", None) is not None
             or getattr(livelihoods_state(world), "epidemic_care", None) is not None):
         # C2: also when only saved (a resume outside hybrid, without L9 or
@@ -976,6 +984,7 @@ _CHOICE_FIELDS: dict[str, tuple[str, str]] = {
     "workshop_economics_mode": ("workshop_economics", "mode"),
     "workshop_economics_rules": ("workshop_economics", "rules"),
     "infrastructure_condition_mode": ("infrastructure_condition", "mode"),
+    "harvest_cover_mode": ("harvest_cover", "mode"),
     "epidemic_care_mode": ("epidemic_care", "mode"),
     "war_requisition_mode": ("war_requisition", "mode"),
     "war_consequences_mode": ("war_consequences", "mode"),

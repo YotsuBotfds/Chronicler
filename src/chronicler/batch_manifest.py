@@ -144,6 +144,8 @@ SIMULATION_ARG_KEYS = WORLD_ARG_KEYS + (
     "titled_trade",
     "infrastructure_condition",
     "infrastructure_condition_mode",
+    "harvest_cover",
+    "harvest_cover_mode",
     "epidemic_care",
     "epidemic_care_mode",
     "reform_services",
@@ -280,6 +282,7 @@ def simulation_config(args: Any, tuning_overrides: dict | None = None) -> dict[s
                              "quarantine_mode", "workshop_economics", "workshop_economics_mode",
                              "workshop_economics_rules", "titled_trade",
                              "infrastructure_condition", "infrastructure_condition_mode",
+                             "harvest_cover", "harvest_cover_mode",
                              "epidemic_care", "epidemic_care_mode",
                              "reform_services", "reform_services_mode", "guild_leagues", "guild_league_mode",
                              "war_requisition", "war_requisition_mode", "war_consequences", "war_consequences_mode", "adaptive_livelihoods", "adaptive_livelihoods_mode", "adaptive_livelihoods_rules", "public_health", "public_health_mode", "public_health_policy", "public_health_report_delay", "residence_ledger", "attribution_records", "wealth_accounting", "wealth_accounting_mode", "quarantine_channels")

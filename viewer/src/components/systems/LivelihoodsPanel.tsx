@@ -20,6 +20,7 @@ import { FoodAllocation } from "./FoodAllocation";
 import { GrainConvoys } from "./GrainConvoys";
 import { GuildLeagues } from "./GuildLeagues";
 import { HouseholdRetail } from "./HouseholdRetail";
+import { HarvestCover } from "./HarvestCover";
 import { InfrastructureCondition } from "./InfrastructureCondition";
 import { LearningCohorts } from "./LearningCohorts";
 import { LocalBudgets } from "./LocalBudgets";
@@ -46,7 +47,7 @@ const PACKAGES = ["workshops", "workshop_payroll", "food_allocation", "timber_st
   "commons_rules", "learning_cohorts", "relocation_costs", "local_budgets", "clearing_protection",
   "remittances", "apprenticeship", "veteran_reintegration", "repair_projects", "operating_wear", "timber_supply",
   "recovery_crews", "maintenance_obligation", "reform_services", "household_retail", "watershed",
-  "workshop_economics", "titled_trade", "infrastructure_condition", "guild_leagues", "residence_ledger", "attribution_records", "wealth_accounting"];
+  "workshop_economics", "titled_trade", "infrastructure_condition", "harvest_cover", "guild_leagues", "residence_ledger", "attribution_records", "wealth_accounting"];
 
 export function LivelihoodsPanel(panelProps: SystemPanelProps) {
   const { bundle, snapshot, currentTurn, onSelectRegion } = panelProps;
@@ -107,6 +108,7 @@ export function LivelihoodsPanel(panelProps: SystemPanelProps) {
     {watershed ? <Watershed {...props} /> : null}
     {infrastructure ? <InfrastructureCondition {...props} /> : null}
     {leagues ? <GuildLeagues {...props} /> : null}
+    {record?.harvest_cover != null ? <HarvestCover {...props} /> : null}
     {residence ? <ResidenceLedger {...props} /> : null}
     {attribution ? <AttributionRecords {...props} /> : null}
     {record?.wealth_accounting != null ? <WealthAccounting {...props} /> : null}

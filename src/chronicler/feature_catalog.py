@@ -180,6 +180,7 @@ REQUIREMENTS: dict[str, tuple[dict, ...]] = {
                                               _feature("repair_projects"))),
     # C2: L9 funds the carers; the epidemic model and its ledger are the effect's
     # authority; the A1 ledger does not itemize care wages (mutual exclusion).
+    "harvest_cover": (_HYBRID, _feature("timber_stock")),
     "epidemic_care": (_HYBRID, _feature("local_budgets"), _setting("epidemiology"), _excludes("wealth_accounting")),
     "war_requisition": (_HYBRID, _feature("household_retail"), _choice("household_retail_rules", "2"), _setting("campaigns")),
     "war_consequences": (_HYBRID, _feature("war_requisition"), _feature("health_care"), _feature("residence_ledger")),
