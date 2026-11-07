@@ -90,12 +90,6 @@ behavior/information effects with this exposure-proxy feedback. Lower X1
 counts cannot establish a physical displacement or health benefit, nor isolate
 a pure choice effect. Bounded personal refusal/work/event samples
 show dropped counts and are never substituted for untruncated world totals.
-This classification loss also has model feedback: C2 crowding consumes the
-prior X1 classified-displacement share. Unclassified moves can therefore alter
-that exposure input as well as its measurement. The A6 versus record-only
-contrast includes this observability feedback and cannot isolate personal
-choice, information or physical displacement. Neither absent spells nor a
-lower modeled crowding factor establishes that fewer people were displaced.
 
 Schema/source checks require every completed source date, complete native A1
 balance closure, correct arm modes and A6 information neutrality, T−1 family
