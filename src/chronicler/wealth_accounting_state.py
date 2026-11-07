@@ -43,6 +43,7 @@ CHANNELS: tuple[tuple[str, str | None, str], ...] = (
     ("relocation_fare", "relocation_costs", "movers -> travel sink (L7)"),
     ("domestic_credit", None, "treasury <-> merchants, net applied (domestic credit)"),
     ("wares_purchase", "workshop_economics", "households -> workshop firm cash, wares bought by id (A3)"),
+    ("relief_purchase", "reform_services", "relief fund -> owners of food bought for poor relief, by id (D1a)"),
 )
 CHANNEL_NAMES: tuple[str, ...] = tuple(c[0] for c in CHANNELS)
 
@@ -79,7 +80,7 @@ WEALTH_ROUTERS: dict[str, tuple[str, ...]] = {
     # The shared payment seam (connected-world A3): ``money.pay`` routes every
     # agent-wealth line of a bill through ``money._native_transfer``; the
     # purposes it may carry are ``MONEY_PURPOSE_CHANNELS``.
-    "_native_transfer": ("wares_purchase",),
+    "_native_transfer": ("wares_purchase", "relief_purchase"),
 }
 #: The arguments that identify a payer path, ``(position, keyword)``.
 WEALTH_PATH_ARGS: dict[str, tuple[tuple[int | None, str], ...]] = {
@@ -125,8 +126,9 @@ WEALTH_WRITERS: dict[tuple[str, str, str, str], tuple[int, tuple[str, ...]]] = {
     ("health_care", "prepare_health_care", "prepare_health_work", ""): (2, ("withheld_health",)),
     # A3 (the payment seam): the router's one native call, and its two callers in
     # ``money.pay`` (a payment's agent credits, a collection's agent debits).
-    ("money", "_native_transfer", "transfer_wealth", "purpose=code,batch=batch"): (1, ("wares_purchase",)),
-    ("money", "pay", "_native_transfer", "purpose=bill.purpose"): (2, ("wares_purchase",)),
+    ("money", "_native_transfer", "transfer_wealth", "purpose=code,batch=batch"):
+        (1, ("wares_purchase", "relief_purchase")),
+    ("money", "pay", "_native_transfer", "purpose=bill.purpose"): (2, ("wares_purchase", "relief_purchase")),
 }
 #: Purposes ``money.pay`` may move agent wealth for, with the ledger channel
 #: each is read as (``money.flows_for_turn``); ``money`` refuses any other
@@ -134,6 +136,9 @@ WEALTH_WRITERS: dict[tuple[str, str, str, str], tuple[int, tuple[str, ...]]] = {
 #: its row here (and its channel). Append only.
 MONEY_PURPOSE_CHANNELS: dict[str, str] = {
     "wares_purchase": "wares_purchase",
+    # D1a: a relief fund pays owners for food (native purpose 6, batches 1 + region;
+    # household retail's own procurement credit keeps batch 0 outside the seam).
+    "food_procurement": "relief_purchase",
 }
 #: Every bill built for the payment seam outside ``money`` itself:
 #: ``(module under chronicler, enclosing function) -> purposes`` (a literal
@@ -144,6 +149,9 @@ MONEY_BILLS: dict[tuple[str, str], tuple[str, ...]] = {
     ("workshop_economics", "charge_inputs"): ("firm_input_purchase",),
     ("workshop_economics", "sell_to_households"): ("wares_purchase",),
     ("workshop_economics", "open_firms"): ("firm_capital",),
+    ("reform_services", "_deposit"): ("relief_budget",),
+    ("reform_services", "_refund"): ("relief_refund",),
+    ("reform_services", "_purchases"): ("food_procurement",),
 }
 #: Every reference to a writer or router name that is not a call: the name
 #: strings packages use to check the extension has a method

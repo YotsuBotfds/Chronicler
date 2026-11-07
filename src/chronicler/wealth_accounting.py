@@ -447,6 +447,8 @@ def _workshop_economics(world, book: _Book, t: _Turn, turn: int) -> None:
     channel_of = {name: (i, package) for i, (name, package, _payer) in enumerate(CHANNELS)}
     moved = {}
     for purpose, channel in MONEY_PURPOSE_CHANNELS.items():
+        if channel_of[channel][1] != "workshop_economics":
+            continue                     # another package's seam channel, read by its own reader
         inflow = outflow = 0
         by_region: dict[int, list[int]] = {}
         for x in totals:
@@ -506,6 +508,60 @@ def _workshop_economics(world, book: _Book, t: _Turn, turn: int) -> None:
                  applied("firm_input_purchase"), got["inputs"])
     book.closure("wares_purchase", "inputs to treasuries = whole units x 1000 + carry change",
                  applied("firm_input_purchase", "civ_treasury"), units * MILLI + carried)
+
+
+def _reform_services(world, book: _Book, turn: int) -> None:
+    """D1a: the relief funds' seam flows (this package's own book), the relief
+    purchases as the ``relief_purchase`` channel and the funds' treasury side,
+    each re-checked against the package's frame."""
+    st = _active(world, "reform_services")
+    if st is None:
+        return
+    from chronicler.wealth_accounting_state import MONEY_PURPOSE_CHANNELS
+    fresh = st.frame_turn == turn and st.frame is not None
+    totals = list(st.book.totals) if fresh and st.book.flows_turn == turn else []
+    purposes = {p for p, channel in MONEY_PURPOSE_CHANNELS.items() if channel == "relief_purchase"}
+    inflow = 0
+    by_region: dict[int, int] = {}
+    for x in totals:
+        if x.purpose in purposes and x.payee_kind == "agent_wealth":
+            inflow += x.applied
+            if x.region is not None:
+                by_region[int(x.region)] = by_region.get(int(x.region), 0) + x.applied
+    idx = CHANNEL_NAMES.index("relief_purchase")
+    book.channel("relief_purchase", "reform_services", CHANNELS[idx][2], fresh, inflow, 0,
+                 [(r, v, 0) for r, v in sorted(by_region.items())])
+    if not fresh:
+        return
+
+    def applied(purpose, payee_kind=None):
+        return sum(x.applied for x in totals if x.purpose == purpose
+                   and (payee_kind is None or x.payee_kind == payee_kind))
+
+    frame = st.frame
+    refunds = [x for x in totals if x.purpose == "relief_refund"]
+    opened = sum(c.fund_open_milli for c in frame.civs)
+    closed = sum(c.fund_close_milli for c in frame.civs)
+    book.treasury["relief_fund"] = {
+        "fund_open_milli": opened, "from_treasury_milli": applied("relief_budget"),
+        "to_households_milli": inflow, "residual_to_fund_milli": sum(c.residual_milli for c in frame.civs),
+        "refunded_to_treasury_milli": applied("relief_refund"),
+        "refund_treasury_units": sum(x.treasury_units for x in refunds),
+        "refund_carry_change_milli": sum(x.carry_change for x in refunds),
+        "sunk_units": sum(c.sunk_units for c in frame.civs), "fund_close_milli": closed,
+    }
+    for x in totals:
+        if x.purpose == "relief_budget" and x.payer_civ is not None:
+            book.civ_add(x.payer_civ, "relief_fund_milli", x.applied)
+        elif x.purpose == "relief_refund" and x.payee_civ is not None:
+            book.civ_add(x.payee_civ, "relief_refund_milli", x.applied)
+    book.closure("relief_purchase", "relief funds: open + from treasury - purchases - refunds = close",
+                 opened + applied("relief_budget") - inflow - applied("relief_refund"), closed)
+    book.closure("relief_purchase", "purchase flows = owners credited (D1a frame)", inflow,
+                 sum(p.credited_milli for p in frame.purchases))
+    book.closure("relief_purchase", "refunds to treasuries = whole units x 1000 + carry change",
+                 applied("relief_refund"), sum(x.treasury_units for x in refunds) * MILLI
+                 + sum(x.carry_change for x in refunds))
 
 
 def _repairs(world, book: _Book, turn: int) -> None:
@@ -858,6 +914,7 @@ def _frame(world, t: _Turn, closing, economy_result, acc) -> dict:
     book = _Book(n)
     _payroll(world, book, turn)
     _workshop_economics(world, book, t, turn)
+    _reform_services(world, book, turn)
     _repairs(world, book, turn)
     _granary_crews(world, book, turn)
     _woodcut(world, book, turn)

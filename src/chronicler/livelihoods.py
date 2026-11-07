@@ -50,6 +50,12 @@ The connected-world program appends:
   the commons owner, starts with owner capital and sells to households as
   well as academies; inserted before the ledger and without hooks of its own
   (the workshop and payroll seams call it).
+* ``--reform-services`` (D1a): poor relief as a real service - the relief's
+  label credit is withheld from the native reform table and its upkeep buys
+  owners' food into the retail free pool (mode ``cost_only``: the label is
+  withheld, the upkeep sunk); declared before ``--household-retail`` so its
+  Phase 10 hook buys after the granaries' procurement and before retail closes
+  the turn's frame.
 * ``--attribution-records`` (D2): observation-only records of actor, victim and
   cause (granary seizures, casualties by cause, restored-civ identity reuse,
   burdens per actor -> victim pair); inserted after A3 and before the wealth ledger,
@@ -118,6 +124,7 @@ LIVELIHOODS_CHOICES: dict[str, tuple[str, ...]] = {
     "household_retail_rules": ("2", "1"),
     "watershed_mode": ("record_only", "flow"),
     "workshop_economics_mode": ("market", "free_inputs", "academy_only"),
+    "reform_services_mode": ("service", "cost_only"),
 }
 #: All parser destinations owned here (``batch_manifest.SIMULATION_ARG_KEYS``).
 LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
@@ -143,6 +150,9 @@ LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     "household_retail_rules",
     "watershed", "watershed_mode",
     "workshop_economics", "workshop_economics_mode",
+    # D1a: the CLI and catalog list it beside the other connected-world switches;
+    # its hooks run before household_retail's (LIVELIHOODS_SWITCHES order).
+    "reform_services", "reform_services_mode",
     "attribution_records",
     "wealth_accounting",
 )
@@ -390,6 +400,20 @@ _HELP = {
         "market (default); free_inputs: the cost control, every rule as market except that the input "
         "charge is recorded and not taken; academy_only: the demand control with no household customers"
     ),
+    "reform_services": (
+        "Poor relief as a real service (D1a): a granted poor relief no longer credits every agent's "
+        "material need for grievance (the native reform table omits its rows); the treasury's relief "
+        "payment (the upkeep, or the Commons Management share of the enforcement payment) goes into a "
+        "relief fund (at most four turns of upkeep; the rest sunk as before) that buys the owners' unsold "
+        "food, paid by stable id at the region's ask, where the realm's own pilot markets recorded people "
+        "below a full ration, into the commons the next free rations draw on; the fund returns to the "
+        "treasury when the relief ends; requires --agents hybrid, --household-retail (mode retail or "
+        "no_relief) and agent movements (default off)"
+    ),
+    "reform_services_mode": (
+        "service (default): the fund buys food for the next free pool; cost_only: the control that withholds "
+        "the label and sinks the payment as without the switch, buying nothing"
+    ),
     "attribution_records": (
         "Attribution records (D2): observation-only records of who did what to whom, at the event: "
         "granary seizures with their actor and victim; enlisted soldiers' deaths per war and cause - "
@@ -616,6 +640,19 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
             raise ValueError("--workshop-economics requires --workshop-payroll (--workshops in operate mode, "
                              "--agents hybrid)"
                              + ("; this world has it on: pass --no-workshop-economics to end it" if saved else ""))
+    if _on(world, values, "reform_services"):
+        # Also when only saved: a resume that ends retail (or leaves hybrid, or
+        # ends movements) would otherwise keep the funds unseen;
+        # --no-reform-services returns every fund to its treasury, dated.
+        from chronicler.agent_movements_state import agent_movements_on
+        retail = getattr(livelihoods_state(world), "household_retail", None)
+        retail_mode = getattr(args, "household_retail_mode", None) or (retail.mode if retail is not None else "retail")
+        if (agent_mode != "hybrid" or not _on(world, values, "household_retail")
+                or retail_mode not in ("retail", "no_relief") or not agent_movements_on(world)):
+            saved = values["reform_services"] is not True
+            raise ValueError("--reform-services requires --agents hybrid, --household-retail in mode retail or "
+                             "no_relief, and agent movements (on by default; off with --no-agent-movements)"
+                             + ("; this world has it on: pass --no-reform-services to end it" if saved else ""))
     if _on(world, values, "attribution_records") and agent_mode != "hybrid":
         # Also when only saved: the records observe hybrid runs (army rosters,
         # the native tick); a resume outside hybrid is refused until ended.
@@ -711,6 +748,7 @@ _CHOICE_FIELDS: dict[str, tuple[str, str]] = {
     "household_retail_rules": ("household_retail", "rules"),
     "watershed_mode": ("watershed", "mode"),
     "workshop_economics_mode": ("workshop_economics", "mode"),
+    "reform_services_mode": ("reform_services", "mode"),
 }
 
 

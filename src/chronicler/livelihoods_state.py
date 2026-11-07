@@ -10,7 +10,9 @@ independent switches was enabled: ``workshops`` (L1), ``food_allocation``
 ``clearing_protection`` (RS5), and the productive-recovery phase's
 ``operating_wear`` (PL2), ``timber_supply`` (PL1), ``recovery_crews`` and
 ``maintenance_obligation`` (PL3) and ``household_retail`` (PL4, L6b), and the
-connected-world program's ``watershed`` (B1), ``workshop_economics`` (A3,
+connected-world program's ``reform_services`` (D1a, declared before
+``household_retail`` so its Phase 10 hook buys before retail closes the turn's
+frame), ``watershed`` (B1), ``workshop_economics`` (A3,
 inserted before the ledger; it has no hooks of its own: the workshop and
 payroll seams call it), ``attribution_records`` (D2, observation-only records
 of actor, victim and cause, after every acting package) and
@@ -38,6 +40,7 @@ from chronicler.local_budgets_state import LocalBudgetState
 from chronicler.operating_wear_state import OperatingWearState
 from chronicler.maintenance_obligation_state import MaintenanceObligationState
 from chronicler.recovery_crews_state import RecoveryCrewsState
+from chronicler.reform_services_state import ReformServicesState
 from chronicler.relocation_costs_state import RelocationCostsState
 from chronicler.remittances_state import RemittancesState
 from chronicler.repair_projects_state import RepairProjectsState
@@ -57,7 +60,7 @@ LIVELIHOODS_SWITCHES: tuple[str, ...] = ("workshops", "food_allocation", "timber
                                          "apprenticeship", "repair_projects", "veteran_reintegration",
                                          "remittances", "clearing_protection",
                                          "operating_wear", "timber_supply",
-                                         "recovery_crews", "maintenance_obligation",
+                                         "recovery_crews", "maintenance_obligation", "reform_services",
                                          "household_retail", "watershed", "workshop_economics",
                                          "attribution_records", "wealth_accounting")
 
@@ -86,6 +89,7 @@ class LivelihoodsState(BaseModel):
     timber_supply: TimberSupplyState | None = Field(default=None, exclude_if=_is_none)
     recovery_crews: RecoveryCrewsState | None = Field(default=None, exclude_if=_is_none)
     maintenance_obligation: MaintenanceObligationState | None = Field(default=None, exclude_if=_is_none)
+    reform_services: ReformServicesState | None = Field(default=None, exclude_if=_is_none)
     household_retail: HouseholdRetailState | None = Field(default=None, exclude_if=_is_none)
     watershed: WatershedState | None = Field(default=None, exclude_if=_is_none)
     workshop_economics: WorkshopEconomicsState | None = Field(default=None, exclude_if=_is_none)

@@ -102,6 +102,7 @@ SETTINGS: dict[str, str] = {
         "world (12 regions or fewer), reopening the lobby with the reason"),
     "epidemiology": ("epidemiology with the contact ledger (on by default for new worlds; off with "
                      "--no-epidemiology or --no-contact-ledger)"),
+    "agent_movements": "agent movements (on by default for new worlds; off with --no-agent-movements)",
 }
 
 
@@ -168,6 +169,10 @@ REQUIREMENTS: dict[str, tuple[dict, ...]] = {
     "workshop_economics": (_HYBRID, _feature("workshop_payroll")),
     "attribution_records": (_HYBRID,),
     "wealth_accounting": (_HYBRID,),
+    # D1a: the service buys through the retail free pool (owners paid by id), so it
+    # needs priced retail; the cost-only control runs on the same retail world.
+    "reform_services": (_HYBRID, _feature("household_retail"), _choice("household_retail_mode", "retail", "no_relief"),
+                        _setting("agent_movements")),
     # An explicit legacy is the option omitted: it needs nothing (lead decision m4).
     "quarantine_mode": (_any(_setting("epidemiology"), _choice("quarantine_mode", "legacy")),),
     # C1b: an explicit trade is the option omitted; trade,migration closes native
@@ -312,6 +317,11 @@ def _techniques_default() -> bool:
     return bool(DEFAULT_ENABLED_FOR_NEW_WORLDS)
 
 
+def _movements_default() -> bool:
+    from chronicler.agent_movements import DEFAULT_ENABLED_FOR_NEW_WORLDS
+    return bool(DEFAULT_ENABLED_FOR_NEW_WORLDS)
+
+
 def _epidemiology_setting(epidemiology: Any = None, contact_ledger: Any = None) -> bool:
     """Epidemiology on a new world: its switch (default on) and the ledger it needs."""
     from chronicler.contact_ledger import DEFAULT_ENABLED_FOR_NEW_WORLDS as ledger_default
@@ -345,6 +355,8 @@ def live_surface(args: Any = None) -> dict:
             "procedural_world": getattr(args, "live", None) is True,
             "epidemiology": _epidemiology_setting(getattr(args, "epidemiology", None),
                                                   getattr(args, "contact_ledger", None)),
+            "agent_movements": (_movements_default() if getattr(args, "agent_movements", None) is None
+                                else bool(args.agent_movements)),
         },
         "new_worlds_only": True,
     }
@@ -389,6 +401,8 @@ def batch_surface(client_defaults: Mapping[str, Any], config: Mapping[str, Any] 
             # expansion prerequisite the batch config or the server forwards.
             "epidemiology": _epidemiology_setting(
                 None, _batch_value("contact_ledger", client_defaults, config)),
+            # Batch Lab runs are not given --agent-movements (new worlds: the default).
+            "agent_movements": _movements_default(),
         },
         "new_worlds_only": True,
     }
