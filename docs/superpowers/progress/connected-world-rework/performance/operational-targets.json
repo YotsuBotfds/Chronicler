@@ -1,0 +1,19 @@
+{
+  "kind": "operational batch targets, distinct from measurement resource ceilings",
+  "recorded_at": "2026-11-07T21:42:17.279882+00:00",
+  "status": "Lead approved after actual template200 timing/admission pilot and before any optimized matrix case. Corrected unoptimized matrix is underway; all targets and misses will be retained.",
+  "basis": "Round the original five declared FULL timing observations and actual22.3021-second template pilot to practical single-core batch envelopes. These are operational service targets, not qualification, statistical significance, favorable-result selection, or permission to omit evidence.",
+  "full_model_cpu_seconds_max": {
+    "template_s5": 25,
+    "proc32_s19": 100,
+    "scaled22k_s42": 120,
+    "scaled52k_s7": 75,
+    "proc48_s42": 60
+  },
+  "run_peak_rss_kib_max": 2621440,
+  "zero_evidence_loss_required": true,
+  "measurement_cpu_seconds_max_per_source": 1350,
+  "clock_definition": "model CPU is process CPU surrounding execute_run, including requested checkpoints and sidecars; complete-child verification/read/export/hash CPU and memory are reported separately. All cases use identical instrumentation, Rayon1, native artifact, world dimensions/horizons and flags.",
+  "storage_definition": "Timber cannot reduce authoritative raw output sizes while preserving byte identity. Raw bundle bytes must agree; lossless archival wire storage has a separate measured target and review.",
+  "targets_are_not_procedural_or_200seed_qualification": true
+}

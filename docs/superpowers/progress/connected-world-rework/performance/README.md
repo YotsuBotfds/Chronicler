@@ -161,6 +161,17 @@ single runs. Timber planning falls from 0.7992 to 0.2876 seconds; complete-child
 CPU including checkpoint reads, validation and evidence is 33.26/33.53 seconds.
 The matrix will freshly repeat this case alongside the other fixed scales.
 
+Before the optimized matrix, the lead approved separate [operational batch
+targets](operational-targets.json): FULL model CPU at most 25/100/120/75/60
+seconds for the five table rows, and run peak RSS at most 2.5 GiB. They round the
+historical declared observations and actual pilot to practical envelopes;
+they are not qualification or favorable-result thresholds. Checkpoint-read and
+whole-child verification costs remain separate. All misses are retained.
+Timber must preserve raw file sizes and every observation; archival wire size
+has a separate lossless-format evaluation. The historical five-world OFF+FULL
+CPU sum is 469.22 seconds, correcting an initial approximate 444-second sum;
+the frozen 1,350-second per-source process ceiling is unchanged.
+
 ```sh
 TOOL=docs/superpowers/progress/connected-world-rework/performance/profile-rework.py
 PYTHONPATH=FROZEN/src NATIVE/bin/python "$TOOL" run PILOT \
