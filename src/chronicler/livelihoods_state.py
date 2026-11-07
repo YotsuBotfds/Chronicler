@@ -13,8 +13,10 @@ independent switches was enabled: ``workshops`` (L1), ``food_allocation``
 connected-world program's ``watershed`` (B1), ``workshop_economics`` (A3,
 inserted before the ledger; it has no hooks of its own: the workshop and
 payroll seams call it), ``infrastructure_condition`` (B3, inserted before
-the ledger; its works run inside RS2's Phase 2) and ``wealth_accounting`` (A1,
-an observation-only ledger, appended last so its hooks run after every payer). Each
+D2 and the ledger; its works run inside RS2's Phase 2), ``attribution_records`` (D2,
+observation-only records of actor, victim and cause, after every acting package) and
+``wealth_accounting`` (A1, an observation-only ledger, kept last so its hooks
+run after every payer). Each
 sub-state is owned by its own module
 and is None while that switch has never been enabled.
 Pure data, importable by :mod:`chronicler.models`.
@@ -26,6 +28,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, PrivateAttr
 
 from chronicler.apprenticeship_state import ApprenticeshipState
+from chronicler.attribution_records_state import AttributionRecordsState
 from chronicler.clearing_protection_state import ClearingProtectionState
 from chronicler.commons_rules_state import CommonsRulesState
 from chronicler.food_allocation_state import FoodAllocationState
@@ -58,7 +61,7 @@ LIVELIHOODS_SWITCHES: tuple[str, ...] = ("workshops", "food_allocation", "timber
                                          "operating_wear", "timber_supply",
                                          "recovery_crews", "maintenance_obligation",
                                          "household_retail", "watershed", "workshop_economics",
-                                         "infrastructure_condition", "wealth_accounting")
+                                         "infrastructure_condition", "attribution_records", "wealth_accounting")
 
 
 def _is_none(value) -> bool:
@@ -89,6 +92,7 @@ class LivelihoodsState(BaseModel):
     watershed: WatershedState | None = Field(default=None, exclude_if=_is_none)
     workshop_economics: WorkshopEconomicsState | None = Field(default=None, exclude_if=_is_none)
     infrastructure_condition: InfrastructureConditionState | None = Field(default=None, exclude_if=_is_none)
+    attribution_records: AttributionRecordsState | None = Field(default=None, exclude_if=_is_none)
     wealth_accounting: WealthAccountingState | None = Field(default=None, exclude_if=_is_none)
 
     # Transient: ``id()`` of the native simulator whose pool the saved stable

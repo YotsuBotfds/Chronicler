@@ -170,6 +170,7 @@ REQUIREMENTS: dict[str, tuple[dict, ...]] = {
     # cost_only) repair through RS2.
     "infrastructure_condition": (_HYBRID, _any(_choice("infrastructure_condition_mode", "record_only", "wear_only"),
                                               _feature("repair_projects"))),
+    "attribution_records": (_HYBRID,),
     "wealth_accounting": (_HYBRID,),
     # An explicit legacy is the option omitted: it needs nothing (lead decision m4).
     "quarantine_mode": (_any(_setting("epidemiology"), _choice("quarantine_mode", "legacy")),),

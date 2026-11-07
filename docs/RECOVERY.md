@@ -1,6 +1,6 @@
 # Source, recovery and archive index
 
-Updated 2026-11-06 after PRs #73, #74, #76, #78, #80, #81, #83, #84, #85, #86 and #87. This is the starting map for future agents;
+Updated 2026-11-06 after PRs #73, #74, #76, #78, #80, #81, #83, #84, #85, #86, #87 and #88. This is the starting map for future agents;
 dated reports keep their original source, platform and qualification limits.
 
 ## Current source and evidence
@@ -96,6 +96,14 @@ Use fetched `main` for new work.
   - Its tree, `fd5d6a41`, equals the tree of the reviewed head `1d5e7d3f`.
   - Premerge Tests run 42314946436 on that head passed all nine jobs.
   - [Main Tests run 42316405830](https://github.com/YotsuBotfds/Chronicler/actions/runs/42316405830)
+    tested the merge SHA on `push`, attempt 1: success.
+
+- [PR #88](https://github.com/YotsuBotfds/Chronicler/pull/88) (connected-world A3-1: workshop economics
+  with paid inputs, real customers and closure, and the shared `money.py` payment seam) merged on
+  2026-11-07 at `8401aa74218ce57ce4bb286695f2319735c2dbd4`.
+  - Its tree, `a7af0ffe`, equals the tree of the reviewed head `23eed03c`.
+  - Premerge Tests run 42319124283 on that head passed all nine jobs.
+  - [Main Tests run 42320659289](https://github.com/YotsuBotfds/Chronicler/actions/runs/42320659289)
     tested the merge SHA on `push`, attempt 1: success.
 
 Every livelihoods, recovery-skills and productive-recovery switch is off by default. These merges do not complete the 200-seed or

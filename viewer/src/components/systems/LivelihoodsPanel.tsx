@@ -2,10 +2,12 @@ import { useMemo } from "react";
 import { hasRecoveryChain, packagesOn } from "../../lib/recoveryChain";
 import { watershedOn } from "../../lib/watershed";
 import { infrastructureOn } from "../../lib/infrastructureCondition";
+import { attributionOn } from "../../lib/attributionRecords";
 import type { SystemPanelProps } from "../../lib/systems";
 import { ClearingProtection } from "./ClearingProtection";
 import { Remittances } from "./Remittances";
 import { Apprenticeship } from "./Apprenticeship";
+import { AttributionRecords } from "./AttributionRecords";
 import { Veterans } from "./Veterans";
 import { RepairProjects } from "./RepairProjects";
 import { CommonsRules } from "./CommonsRules";
@@ -35,7 +37,8 @@ import { Workshops } from "./Workshops";
 const PACKAGES = ["workshops", "workshop_payroll", "food_allocation", "timber_stock", "grain_convoys",
   "commons_rules", "learning_cohorts", "relocation_costs", "local_budgets", "clearing_protection",
   "remittances", "apprenticeship", "veteran_reintegration", "repair_projects", "operating_wear", "timber_supply",
-  "recovery_crews", "maintenance_obligation", "household_retail", "watershed", "workshop_economics", "infrastructure_condition", "wealth_accounting"];
+  "recovery_crews", "maintenance_obligation", "household_retail", "watershed", "workshop_economics",
+  "infrastructure_condition", "attribution_records", "wealth_accounting"];
 
 export function LivelihoodsPanel(panelProps: SystemPanelProps) {
   const { bundle, snapshot, currentTurn, onSelectRegion } = panelProps;
@@ -48,6 +51,8 @@ export function LivelihoodsPanel(panelProps: SystemPanelProps) {
   const watershed = useMemo(() => watershedOn(bundle.history), [bundle]);
   // B3 infrastructure condition: mounted on the run's records too (absent reads as unknown).
   const infrastructure = useMemo(() => infrastructureOn(bundle.history), [bundle]);
+  // The attribution records (D2) mount on the run's records too: absent at a snapshot is unknown, not zero.
+  const attribution = useMemo(() => attributionOn(bundle.history), [bundle]);
   const row = snapshot as unknown as Record<string, unknown> | null;
   const raw = row?.livelihoods ?? null;
   const readable = typeof raw === "object" && raw !== null && !Array.isArray(raw)
@@ -84,6 +89,7 @@ export function LivelihoodsPanel(panelProps: SystemPanelProps) {
     {mount("remittances") ? <Remittances {...props} /> : null}
     {watershed ? <Watershed {...props} /> : null}
     {infrastructure ? <InfrastructureCondition {...props} /> : null}
+    {attribution ? <AttributionRecords {...props} /> : null}
     {record?.wealth_accounting != null ? <WealthAccounting {...props} /> : null}
     {raw === null ? <p className="systems-note">No livelihoods observation is recorded at snapshot {at}.</p> : null}
   </div>;
