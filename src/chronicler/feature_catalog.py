@@ -181,14 +181,14 @@ REQUIREMENTS: dict[str, tuple[dict, ...]] = {
     # C2: L9 funds the carers; the epidemic model and its ledger are the effect's
     # authority; the A1 ledger does not itemize care wages (mutual exclusion).
     "harvest_cover": (_HYBRID, _feature("timber_stock")),
-    "epidemic_care": (_HYBRID, _feature("local_budgets"), _setting("epidemiology"), _excludes("wealth_accounting")),
+    "epidemic_care": (_HYBRID, _feature("local_budgets"), _setting("epidemiology")),
     "war_requisition": (_HYBRID, _feature("household_retail"), _choice("household_retail_rules", "2"), _setting("campaigns")),
     "war_consequences": (_HYBRID, _feature("war_requisition"), _feature("health_care"), _feature("residence_ledger")),
     "adaptive_livelihoods": (_HYBRID, _feature("residence_ledger")),
     "public_health": (_HYBRID, _feature("epidemic_care"), _feature("infrastructure_condition"), _feature("residence_ledger"), _choice("quarantine_mode", "closure", "cost_only")),
     "residence_ledger": (_HYBRID,),
     "attribution_records": (_HYBRID,),
-    "wealth_accounting": (_HYBRID, _excludes("epidemic_care")),
+    "wealth_accounting": (_HYBRID,),
     # D1a: the service buys through the retail free pool (owners paid by id), so it
     # needs priced retail; the cost-only control runs on the same retail world.
     "reform_services": (_HYBRID, _feature("household_retail"), _choice("household_retail_mode", "retail", "no_relief"),

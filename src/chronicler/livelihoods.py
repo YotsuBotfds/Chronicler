@@ -516,7 +516,7 @@ _HELP = {
         "time (removed from farming, their ordinary income share withheld) for a wage paid from the treasury; "
         "the patients they can serve (5 per worker-turn) multiply case fatality at the next epidemic tick by "
         "1 - 0.3 x coverage (one floor with practised medicine); requires --agents hybrid, --local-budgets "
-        "and epidemiology with the contact ledger; cannot run with --wealth-accounting (default off)"
+        "and epidemiology with the contact ledger (default off)"
     ),
     "epidemic_care_mode": (
         "care (default): the carers' capacity lowers the next tick's case fatality; cost_only: the cost control "
@@ -960,6 +960,7 @@ def _present(world: Any):
 
 #: Each option of ``LIVELIHOODS_CHOICES``: its switch and the sub-state field holding it.
 _CHOICE_FIELDS: dict[str, tuple[str, str]] = {
+    "wealth_accounting_mode": ("wealth_accounting", "mode"),
     "workshop_mode": ("workshops", "mode"),
     "food_allocation_regime": ("food_allocation", "regime"),
     "convoy_route_policy": ("grain_convoys", "route_policy"),
